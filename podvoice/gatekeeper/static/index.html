@@ -1,523 +1,345 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PodVoice</title>
 <style>
+  /* Theme tokens mirror the PodConnect panel so the two add-ons look like one family.
+     Light by default with a transparent background (blends into HA); adapts to dark via
+     prefers-color-scheme (HA Ingress can be either). */
   :root {
-    --bg: #0f1419;
-    --panel: #171d26;
-    --panel-2: #1d2530;
-    --border: #2a3340;
-    --border-soft: #232b36;
-    --text: #e6ebf2;
-    --text-dim: #9aa6b6;
-    --text-faint: #6b7785;
-    --accent: #5b9dff;
-    --green: #3ecf8e;
-    --amber: #f3b94d;
-    --red: #f06363;
-    --gray: #6b7785;
-    --blue: #5b9dff;
-    --radius: 12px;
-    --radius-sm: 8px;
+    color-scheme: light dark;
+    --bg: transparent;
+    --fg: #1c1c1e;
+    --fg-dim: #6b6b70;
+    --card: rgba(255,255,255,.66);
+    --card-elev: 0 1px 2px rgba(0,0,0,.05), 0 1px 3px rgba(0,0,0,.04);
+    --border: rgba(120,120,128,.28);
+    --border-strong: rgba(120,120,128,.45);
+    --field: rgba(255,255,255,.5);
+    --accent: #0a84ff;
+    --accent-soft: rgba(10,132,255,.12);
+    --danger: #ff3b30;
+    --danger-soft: rgba(255,59,48,.12);
+    --green: #1f9e57;   --green-bg: rgba(48,209,88,.16);
+    --grey: #6b6b70;    --grey-bg: rgba(120,120,128,.16);
+    --blue: #0a84ff;    --blue-bg: rgba(10,132,255,.14);
+    --amber: #b8730a;   --amber-bg: rgba(255,159,10,.18);
+    --red: #d93025;     --red-bg: rgba(255,59,48,.15);
   }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fg: #f2f2f7;
+      --fg-dim: #9a9aa0;
+      --card: rgba(118,118,128,.12);
+      --card-elev: 0 1px 2px rgba(0,0,0,.25);
+      --border: rgba(120,120,128,.32);
+      --border-strong: rgba(120,120,128,.5);
+      --field: rgba(118,118,128,.16);
+      --accent-soft: rgba(10,132,255,.22);
+      --green: #4ade80;   --green-bg: rgba(48,209,88,.2);
+      --grey: #a0a0a6;    --grey-bg: rgba(120,120,128,.22);
+      --blue: #6cb6ff;    --blue-bg: rgba(10,132,255,.22);
+      --amber: #ffb340;   --amber-bg: rgba(255,159,10,.22);
+      --red: #ff6b60;     --red-bg: rgba(255,59,48,.22);
+    }
+  }
+
   * { box-sizing: border-box; }
-  html, body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size: 14px;
-    line-height: 1.45;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1200px; margin: 0 auto; padding: 18px 16px 48px; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+         margin: 0; padding: 20px 16px 40px; color: var(--fg); background: var(--bg);
+         -webkit-font-smoothing: antialiased; line-height: 1.45; }
+  .wrap { max-width: 560px; margin: 0 auto; }
 
-  header.app {
-    display: flex; align-items: center; flex-wrap: wrap; gap: 12px 16px;
-    padding-bottom: 14px; margin-bottom: 18px;
-    border-bottom: 1px solid var(--border-soft);
-  }
-  .brand { display: flex; align-items: center; gap: 10px; }
-  .brand h1 { font-size: 18px; font-weight: 650; margin: 0; letter-spacing: 0.2px; }
-  .logo {
-    width: 26px; height: 26px; border-radius: 7px; flex: none;
-    background: linear-gradient(135deg, var(--accent), #7c5bff);
-    display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px;
-  }
-  .sim-badge {
-    font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px;
-    color: var(--amber); background: rgba(243,185,77,0.12);
-    border: 1px solid rgba(243,185,77,0.35); border-radius: 999px;
-    padding: 3px 9px; text-transform: uppercase;
-  }
-  .spacer { flex: 1 1 auto; }
-  .services { display: flex; gap: 14px; flex-wrap: wrap; }
-  .svc { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-dim); }
-  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--gray); box-shadow: 0 0 0 3px rgba(255,255,255,0.03); }
-  .dot.up { background: var(--green); }
-  .dot.degraded { background: var(--amber); }
-  .dot.down { background: var(--red); }
-  .dot.unknown { background: var(--gray); }
-  .svc .ver { color: var(--text-faint); font-size: 11px; }
+  h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -.01em; margin: 0 0 2px; }
+  .sub { margin: 0 0 4px; color: var(--fg-dim); font-size: .88rem; }
 
-  h2.section { font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-faint); margin: 0 0 12px; font-weight: 650; }
+  .section { margin-top: 30px; }
+  .section > h2 { font-size: .82rem; font-weight: 700; text-transform: uppercase;
+                  letter-spacing: .05em; color: var(--fg-dim); margin: 0 0 12px;
+                  display: flex; align-items: center; justify-content: space-between; }
 
-  .grid {
-    display: grid; gap: 14px;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  /* Service health row. */
+  .svc { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+  .list { display: flex; flex-direction: column; gap: 10px; }
+
+  /* Room cards. */
+  .room { padding: 16px; border-radius: 16px; border: 1px solid var(--border);
+          background: var(--card); box-shadow: var(--card-elev); }
+  .room .top { display: flex; align-items: center; gap: 10px; }
+  .room .rname { flex: 1; font-weight: 700; font-size: 1.02rem; letter-spacing: -.01em;
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }
+  .room .meta { margin-top: 7px; font-size: .82rem; color: var(--fg-dim);
+                display: flex; gap: 14px; flex-wrap: wrap; }
+  .room .ctl { display: flex; gap: 7px; margin-top: 13px; flex-wrap: wrap; }
+
+  /* Ducking meter. */
+  .duck { margin-top: 11px; }
+  .duck .lbl { font-size: .76rem; color: var(--fg-dim); margin-bottom: 4px; }
+  .duck .track { height: 7px; border-radius: 999px; background: var(--grey-bg); overflow: hidden; }
+  .duck .fill { height: 100%; border-radius: 999px; background: var(--accent);
+                transition: width .25s ease, background .25s ease; }
+  .duck.ducked .fill { background: var(--amber); }
+
+  /* Status pills. */
+  .pill { flex: none; font-size: .7rem; font-weight: 700; letter-spacing: .02em;
+          padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+          display: inline-flex; align-items: center; gap: 5px; }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill-idle      { color: var(--grey);  background: var(--grey-bg); }
+  .pill-listening { color: var(--blue);  background: var(--blue-bg); }
+  .pill-speaking  { color: var(--green); background: var(--green-bg); }
+  .pill-lounge    { color: var(--amber); background: var(--amber-bg); }
+  .pill-up        { color: var(--green); background: var(--green-bg); }
+  .pill-degraded  { color: var(--amber); background: var(--amber-bg); }
+  .pill-down      { color: var(--grey);  background: var(--grey-bg); }
+
+  /* Buttons (mirrors PodConnect). */
+  button { font: inherit; font-weight: 600; font-size: .9rem; padding: 10px 16px; border-radius: 10px;
+           border: 1px solid transparent; cursor: pointer; background: var(--accent); color: #fff;
+           transition: filter .12s, background .12s, border-color .12s; }
+  button:hover:not(:disabled) { filter: brightness(1.06); }
+  button:active:not(:disabled) { filter: brightness(.94); }
+  button:disabled { opacity: .42; cursor: default; }
+  button.ghost { background: transparent; color: var(--fg); border-color: var(--border-strong); }
+  button.ghost:hover:not(:disabled) { background: var(--grey-bg); filter: none; }
+  .room button, .ctl button { padding: 7px 12px; font-size: .8rem; border-radius: 9px; }
+
+  .empty { padding: 18px; border-radius: 14px; border: 1px dashed var(--border-strong);
+           background: var(--card); color: var(--fg-dim); font-size: .9rem; text-align: center; }
+
+  /* Transcript. */
+  .tx { border: 1px solid var(--border); background: var(--card); border-radius: 16px;
+        box-shadow: var(--card-elev); padding: 12px; min-height: 120px; max-height: 360px;
+        overflow-y: auto; display: flex; flex-direction: column; gap: 7px; }
+  .tx .empty { border: 0; background: transparent; padding: 36px 0; }
+  .line { max-width: 86%; padding: 7px 11px; border-radius: 13px; font-size: .86rem; }
+  .line .who { font-size: .68rem; color: var(--fg-dim); margin-bottom: 1px; }
+  .line.in  { align-self: flex-end; background: var(--accent-soft); }
+  .line.out { align-self: flex-start; background: var(--green-bg); }
+
+  /* Metrics. */
+  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .metric { padding: 12px 14px; border-radius: 13px; border: 1px solid var(--border);
+            background: var(--card); }
+  .metric .n { font-size: 1.3rem; font-weight: 700; letter-spacing: -.02em; }
+  .metric .k { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
+               color: var(--fg-dim); margin-top: 2px; }
+
+  .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+           background: var(--fg); color: var(--bg); padding: 9px 16px; border-radius: 999px;
+           font-size: .82rem; font-weight: 600; opacity: 0; transition: opacity .2s;
+           pointer-events: none; }
+  .toast.show { opacity: .92; }
+  @media (prefers-color-scheme: dark) { .toast { color: #1c1c1e; background: #f2f2f7; } }
+
+  @media (max-width: 420px) {
+    body { padding: 16px 12px 36px; }
+    h1 { font-size: 1.28rem; }
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .room button, .ctl button { flex: 1 1 calc(50% - 4px); }
   }
-  .card {
-    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 11px;
-  }
-  .card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .room-name { font-size: 15px; font-weight: 600; text-transform: capitalize; }
-  .pill {
-    font-size: 10.5px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
-    padding: 4px 9px; border-radius: 999px; white-space: nowrap;
-    background: rgba(107,119,133,0.18); color: var(--gray); border: 1px solid transparent;
-  }
-  .pill.IDLE { background: rgba(107,119,133,0.15); color: var(--text-dim); border-color: rgba(107,119,133,0.3); }
-  .pill.LISTENING { background: rgba(91,157,255,0.15); color: var(--blue); border-color: rgba(91,157,255,0.4); }
-  .pill.AI_SPEAKING { background: rgba(62,207,142,0.15); color: var(--green); border-color: rgba(62,207,142,0.4); }
-  .pill.LOUNGE_WINDOW { background: rgba(243,185,77,0.15); color: var(--amber); border-color: rgba(243,185,77,0.4); }
-
-  .meter-row { display: flex; flex-direction: column; gap: 5px; }
-  .meter-label { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-dim); }
-  .meter { height: 7px; background: var(--panel-2); border-radius: 999px; overflow: hidden; border: 1px solid var(--border-soft); }
-  .meter > span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), #7c5bff); transition: width 0.35s ease; }
-  .meter.ducked > span { background: linear-gradient(90deg, var(--amber), #f3884d); }
-
-  .stats { display: flex; gap: 14px; font-size: 12px; color: var(--text-dim); flex-wrap: wrap; }
-  .stats .k { color: var(--text-faint); }
-  .conn { display: inline-flex; align-items: center; gap: 5px; }
-  .conn .d { width: 7px; height: 7px; border-radius: 50%; background: var(--gray); }
-  .conn.on .d { background: var(--green); }
-  .conn.off .d { background: var(--red); }
-
-  .btns { display: flex; gap: 7px; margin-top: 2px; }
-  button.ctl {
-    flex: 1; font: inherit; font-size: 12px; font-weight: 550; cursor: pointer;
-    padding: 7px 4px; border-radius: var(--radius-sm); color: var(--text);
-    background: var(--panel-2); border: 1px solid var(--border); transition: background 0.15s, border-color 0.15s, opacity 0.15s;
-  }
-  button.ctl:hover:not(:disabled) { background: #252e3b; border-color: #38434f; }
-  button.ctl:active:not(:disabled) { transform: translateY(1px); }
-  button.ctl:disabled { opacity: 0.45; cursor: default; }
-  button.ctl:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .card-msg { font-size: 11px; min-height: 14px; color: var(--text-faint); }
-  .card-msg.ok { color: var(--green); }
-  .card-msg.err { color: var(--red); }
-
-  .empty {
-    background: var(--panel); border: 1px dashed var(--border); border-radius: var(--radius);
-    padding: 22px; text-align: center; color: var(--text-dim); font-size: 13px;
-  }
-
-  /* transcript */
-  .block { margin-top: 26px; }
-  .block-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-  .transcript {
-    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 10px; height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 7px;
-  }
-  .transcript:empty::after { content: "No transcript yet — waiting for activity…"; color: var(--text-faint); font-size: 12.5px; margin: auto; }
-  .line { display: flex; flex-direction: column; max-width: 78%; }
-  .line.in { align-self: flex-end; align-items: flex-end; }
-  .line.out { align-self: flex-start; align-items: flex-start; }
-  .line .meta { font-size: 10px; color: var(--text-faint); margin: 0 4px 2px; }
-  .line .bubble { padding: 7px 11px; border-radius: 12px; font-size: 12.5px; line-height: 1.4; word-break: break-word; }
-  .line.in .bubble { background: rgba(91,157,255,0.16); border: 1px solid rgba(91,157,255,0.3); border-bottom-right-radius: 4px; }
-  .line.out .bubble { background: rgba(62,207,142,0.13); border: 1px solid rgba(62,207,142,0.28); border-bottom-left-radius: 4px; }
-
-  .btn-sm {
-    font: inherit; font-size: 12px; cursor: pointer; padding: 5px 12px; border-radius: var(--radius-sm);
-    background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
-  }
-  .btn-sm:hover { background: #252e3b; color: var(--text); }
-  .btn-sm:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-  /* metrics strip */
-  .metrics {
-    display: grid; gap: 1px; margin-top: 26px;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    background: var(--border-soft); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden;
-  }
-  .metric { background: var(--panel); padding: 13px 14px; }
-  .metric .num { font-size: 21px; font-weight: 650; line-height: 1.1; }
-  .metric .lbl { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-faint); margin-top: 3px; }
-
-  /* toast */
-  #toast {
-    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(20px);
-    background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
-    padding: 9px 16px; border-radius: 999px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-    opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 50; max-width: 90vw;
-  }
-  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-  #toast.err { border-color: var(--red); color: var(--red); }
-  #toast.ok { border-color: var(--green); }
-
-  .conn-banner { font-size: 11.5px; color: var(--amber); display: none; align-items: center; gap: 6px; }
-  .conn-banner.show { display: flex; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header class="app">
-    <div class="brand">
-      <div class="logo" aria-hidden="true">PV</div>
-      <h1>PodVoice</h1>
-      <span class="sim-badge" id="simBadge" style="display:none">Simulation</span>
-    </div>
-    <div class="spacer"></div>
-    <div class="conn-banner" id="connBanner" role="status">connecting…</div>
-    <div class="services" id="services" aria-label="Service health">
-      <div class="svc"><span class="dot unknown" id="dot-gemini"></span><span>Gemini</span></div>
-      <div class="svc"><span class="dot unknown" id="dot-voicepe"></span><span>Voice PE</span></div>
-      <div class="svc"><span class="dot unknown" id="dot-podconnect"></span><span>PodConnect</span><span class="ver" id="ver"></span></div>
-    </div>
-  </header>
+  <h1>PodVoice</h1>
+  <p class="sub" id="sub">Voice gatekeeper</p>
+  <div class="svc" id="svc"></div>
 
-  <h2 class="section">Rooms</h2>
-  <div class="grid" id="rooms"></div>
-
-  <div class="block">
-    <div class="block-head">
-      <h2 class="section" style="margin:0">Transcript</h2>
-      <button class="btn-sm" id="clearBtn" aria-label="Clear transcript">Clear</button>
-    </div>
-    <div class="transcript" id="transcript" role="log" aria-live="polite" aria-label="Live transcript"></div>
+  <div class="section">
+    <h2>Rooms</h2>
+    <div id="rooms" class="list"></div>
   </div>
 
-  <h2 class="section" style="margin-top:26px">Metrics</h2>
-  <div class="metrics" id="metrics"></div>
-</div>
+  <div class="section">
+    <h2>Transcript <button id="clear" class="ghost" style="padding:4px 10px;font-size:.74rem">Clear</button></h2>
+    <div id="tx" class="tx"></div>
+  </div>
 
-<div id="toast" role="status" aria-live="polite"></div>
+  <div class="section">
+    <h2>Activity</h2>
+    <div id="metrics" class="metrics"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
 
 <script>
-(function () {
-  "use strict";
+"use strict";
+var STATE_PILL = { IDLE: "pill-idle", LISTENING: "pill-listening", AI_SPEAKING: "pill-speaking", LOUNGE_WINDOW: "pill-lounge" };
+var STATE_LABEL = { IDLE: "idle", LISTENING: "listening", AI_SPEAKING: "speaking", LOUNGE_WINDOW: "follow-up" };
+var SVC_LABEL = { gemini: "Gemini", voicepe: "Voice PE", podconnect: "PodConnect" };
+var METRIC_LABEL = { sessions: "Sessions", barge_ins: "Barge-ins", watchdog_aborts: "Watchdog aborts",
+                     tool_calls: "Tool calls", attention_engages: "Attn. engages", attention_releases: "Attn. releases" };
 
-  var STATE_LABELS = { IDLE: "Idle", LISTENING: "Listening", AI_SPEAKING: "AI speaking", LOUNGE_WINDOW: "Lounge window" };
-  var VALID_STATES = ["IDLE", "LISTENING", "AI_SPEAKING", "LOUNGE_WINDOW"];
-  var SERVICES = ["gemini", "voicepe", "podconnect"];
-  var ACTION_LABELS = { listen: "Listen", stop: "Stop", test_tone: "Test tone" };
-  var MAX_LINES = 200;
+var rooms = {};
+var connected = false;
+var lastStatus = null;
 
-  // local cache of room data so SSE can patch single fields
-  var rooms = {};        // room -> room object
-  var roomOrder = [];    // preserve discovery order
-  var startTime = Date.now();
+function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+function safe(o, k, d) { return (o && o[k] != null) ? o[k] : d; }
 
-  var el = {
-    rooms: document.getElementById("rooms"),
-    transcript: document.getElementById("transcript"),
-    metrics: document.getElementById("metrics"),
-    simBadge: document.getElementById("simBadge"),
-    ver: document.getElementById("ver"),
-    toast: document.getElementById("toast"),
-    connBanner: document.getElementById("connBanner")
-  };
+function toast(msg) {
+  var t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove("show"); }, 1600);
+}
 
-  function safe(obj, key, fallback) {
-    return (obj && obj[key] !== undefined && obj[key] !== null) ? obj[key] : fallback;
-  }
-  function esc(s) {
-    return String(s).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-    });
-  }
+function renderSub(data) {
+  var sub = document.getElementById("sub");
+  var bits = ["Voice gatekeeper"];
+  if (data && data.simulate) bits.push("simulation");
+  bits.push(connected ? "live" : "connecting…");
+  sub.textContent = bits.join(" · ");
+  sub.style.color = connected ? "" : "var(--amber)";
+}
 
-  // ---------- toast ----------
-  var toastTimer = null;
-  function toast(msg, kind) {
-    el.toast.textContent = msg;
-    el.toast.className = "show " + (kind || "");
-    if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.toast.className = el.toast.className.replace("show", "").trim(); }, 2400);
-  }
-
-  // ---------- services / header ----------
-  function setSimulate(sim) { el.simBadge.style.display = sim ? "" : "none"; }
-  function setService(name, status) {
-    var d = document.getElementById("dot-" + name);
-    if (!d) return;
-    var s = (["up", "down", "degraded"].indexOf(status) >= 0) ? status : "unknown";
-    d.className = "dot " + s;
-    d.title = name + ": " + s;
-  }
-  function setServicesUnknown() { SERVICES.forEach(function (n) { setService(n, "unknown"); }); }
-
-  // ---------- rooms ----------
-  function renderRooms() {
-    el.rooms.innerHTML = "";
-    if (roomOrder.length === 0) {
-      var d = document.createElement("div");
-      d.className = "empty";
-      d.style.gridColumn = "1 / -1";
-      d.textContent = "No rooms configured — set the Voice-PE → room map in the add-on Configuration.";
-      el.rooms.appendChild(d);
-      return;
-    }
-    roomOrder.forEach(function (name) { el.rooms.appendChild(roomCard(rooms[name])); });
-  }
-
-  function roomCard(r) {
-    var name = safe(r, "room", "unknown");
-    var state = safe(r, "state", "IDLE");
-    if (VALID_STATES.indexOf(state) < 0) state = "IDLE";
-    var level = safe(r, "level", null);
-    var levelN = (typeof level === "number") ? Math.max(0, Math.min(100, level)) : null;
-    var ducked = !!safe(r, "ducked", false);
-    var lat = safe(r, "last_latency_ms", null);
-    var connected = !!safe(r, "connected", false);
-
-    var card = document.createElement("div");
-    card.className = "card";
-
-    var top = document.createElement("div");
-    top.className = "card-top";
-    top.innerHTML = '<span class="room-name">' + esc(name) + '</span>' +
-      '<span class="pill ' + state + '">' + esc(STATE_LABELS[state] || state) + '</span>';
-    card.appendChild(top);
-
-    var meterRow = document.createElement("div");
-    meterRow.className = "meter-row";
-    var pct = (levelN === null) ? 0 : levelN;
-    var levelTxt = (levelN === null) ? "music —" : ("music " + levelN + "%");
-    meterRow.innerHTML =
-      '<div class="meter-label"><span>' + levelTxt + '</span><span>' + (ducked ? "ducked" : "full") + '</span></div>' +
-      '<div class="meter' + (ducked ? " ducked" : "") + '"><span style="width:' + pct + '%"></span></div>';
-    card.appendChild(meterRow);
-
-    var stats = document.createElement("div");
-    stats.className = "stats";
-    var latTxt = (typeof lat === "number") ? (lat + " ms") : "—";
-    stats.innerHTML =
-      '<span><span class="k">latency</span> ' + esc(latTxt) + '</span>' +
-      '<span class="conn ' + (connected ? "on" : "off") + '"><span class="d"></span>' + (connected ? "connected" : "offline") + '</span>';
-    card.appendChild(stats);
-
-    var btns = document.createElement("div");
-    btns.className = "btns";
-    ["listen", "stop", "test_tone"].forEach(function (action) {
-      var b = document.createElement("button");
-      b.className = "ctl";
-      b.textContent = ACTION_LABELS[action];
-      b.setAttribute("aria-label", ACTION_LABELS[action] + " in " + name);
-      b.addEventListener("click", function () { control(name, action, card, b); });
-      btns.appendChild(b);
-    });
-    card.appendChild(btns);
-
-    var msg = document.createElement("div");
-    msg.className = "card-msg";
-    card.appendChild(msg);
-
-    return card;
-  }
-
-  function upsertRoom(r) {
-    var name = safe(r, "room", null);
-    if (!name) return;
-    if (!rooms[name]) roomOrder.push(name);
-    rooms[name] = Object.assign(rooms[name] || {}, r);
-  }
-
-  // ---------- control ----------
-  function control(room, action, card, btn) {
-    var cardBtns = card.querySelectorAll("button.ctl");
-    var msgEl = card.querySelector(".card-msg");
-    cardBtns.forEach(function (b) { b.disabled = true; });
-    if (msgEl) { msgEl.className = "card-msg"; msgEl.textContent = ""; }
-
-    fetch("api/control", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ room: room, action: action })
-    })
-      .then(function (res) {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json();
-      })
-      .then(function (data) {
-        if (data && data.ok) {
-          if (msgEl) { msgEl.className = "card-msg ok"; msgEl.textContent = "✓ " + ACTION_LABELS[action] + " sent"; }
-          toast(ACTION_LABELS[action] + " → " + room, "ok");
-        } else {
-          throw new Error("rejected");
-        }
-      })
-      .catch(function (err) {
-        if (msgEl) { msgEl.className = "card-msg err"; msgEl.textContent = "✗ failed: " + (err.message || "error"); }
-        toast("Failed: " + ACTION_LABELS[action] + " → " + room, "err");
-      })
-      .finally(function () {
-        setTimeout(function () { cardBtns.forEach(function (b) { b.disabled = false; }); }, 600);
-      });
-  }
-
-  // ---------- transcript ----------
-  function relTime(d) {
-    var s = Math.floor((Date.now() - d) / 1000);
-    if (s < 5) return "now";
-    if (s < 60) return s + "s ago";
-    var m = Math.floor(s / 60);
-    if (m < 60) return m + "m ago";
-    var h = Math.floor(m / 60);
-    return h + "h ago";
-  }
-  var lineTimes = []; // track {node, t} for relative-time refresh
-
-  function addTranscript(ev) {
-    var room = safe(ev, "room", "?");
-    var dir = (safe(ev, "dir", "out") === "in") ? "in" : "out";
-    var text = safe(ev, "text", "");
-    if (text === "") return;
-    var t = Date.now();
-
-    var line = document.createElement("div");
-    line.className = "line " + dir;
-    var meta = document.createElement("div");
-    meta.className = "meta";
-    meta.textContent = room + " · " + relTime(t);
-    var bubble = document.createElement("div");
-    bubble.className = "bubble";
-    bubble.textContent = text;
-    line.appendChild(meta);
-    line.appendChild(bubble);
-
-    var nearBottom = (el.transcript.scrollHeight - el.transcript.scrollTop - el.transcript.clientHeight) < 60;
-    el.transcript.appendChild(line);
-    lineTimes.push({ meta: meta, t: t, room: room });
-
-    while (el.transcript.children.length > MAX_LINES) {
-      el.transcript.removeChild(el.transcript.firstChild);
-      lineTimes.shift();
-    }
-    if (nearBottom) el.transcript.scrollTop = el.transcript.scrollHeight;
-  }
-
-  setInterval(function () {
-    for (var i = 0; i < lineTimes.length; i++) {
-      lineTimes[i].meta.textContent = lineTimes[i].room + " · " + relTime(lineTimes[i].t);
-    }
-  }, 10000);
-
-  document.getElementById("clearBtn").addEventListener("click", function () {
-    el.transcript.innerHTML = "";
-    lineTimes = [];
+function renderServices(services) {
+  var wrap = document.getElementById("svc"); wrap.innerHTML = "";
+  ["gemini", "voicepe", "podconnect"].forEach(function (name) {
+    var st = safe(services, name, "down");
+    var cls = st === "up" ? "pill-up" : st === "degraded" ? "pill-degraded" : "pill-down";
+    var p = el("span", "pill " + cls);
+    p.appendChild(document.createTextNode(SVC_LABEL[name]));
+    wrap.appendChild(p);
   });
+}
 
-  // ---------- metrics ----------
-  var METRIC_DEFS = [
-    ["sessions", "Sessions"],
-    ["barge_ins", "Barge-ins"],
-    ["watchdog_aborts", "Watchdog aborts"],
-    ["tool_calls", "Tool calls"],
-    ["attention_engages", "Attn. engages"],
-    ["attention_releases", "Attn. releases"]
-  ];
-  function renderMetrics(m) {
-    m = m || {};
-    el.metrics.innerHTML = "";
-    METRIC_DEFS.forEach(function (def) {
-      var v = safe(m, def[0], 0);
-      var box = document.createElement("div");
-      box.className = "metric";
-      box.innerHTML = '<div class="num">' + esc(v) + '</div><div class="lbl">' + esc(def[1]) + '</div>';
-      el.metrics.appendChild(box);
-    });
+function roomCard(rm) {
+  var state = safe(rm, "state", "IDLE");
+  var box = el("div", "room");
+  var top = el("div", "top");
+  top.appendChild(el("span", "rname", safe(rm, "room", "?")));
+  var pill = el("span", "pill " + (STATE_PILL[state] || "pill-idle"));
+  pill.appendChild(document.createTextNode(STATE_LABEL[state] || String(state).toLowerCase()));
+  top.appendChild(pill);
+  box.appendChild(top);
+
+  var lvl = safe(rm, "level", 100);
+  var ducked = !!rm.ducked || lvl < 100;
+  var duck = el("div", "duck" + (ducked ? " ducked" : ""));
+  duck.appendChild(el("div", "lbl", "Music " + lvl + "%"));
+  var track = el("div", "track"); var fill = el("div", "fill"); fill.style.width = lvl + "%";
+  track.appendChild(fill); duck.appendChild(track); box.appendChild(duck);
+
+  var meta = el("div", "meta");
+  var lat = rm.last_latency_ms;
+  meta.appendChild(el("span", null, "Latency " + (lat == null ? "—" : Math.round(lat) + " ms")));
+  meta.appendChild(el("span", null, rm.connected ? "● connected" : "○ offline"));
+  box.appendChild(meta);
+
+  var ctl = el("div", "ctl");
+  [["Listen", "listen"], ["Stop", "stop"], ["Test tone", "test_tone"]].forEach(function (pair) {
+    var b = el("button", "ghost", pair[0]);
+    b.setAttribute("aria-label", pair[0] + " in " + safe(rm, "room", ""));
+    b.onclick = function () { control(rm.room, pair[1], b); };
+    ctl.appendChild(b);
+  });
+  box.appendChild(ctl);
+  return box;
+}
+
+function renderRooms() {
+  var wrap = document.getElementById("rooms"); wrap.innerHTML = "";
+  var ids = Object.keys(rooms);
+  if (!ids.length) {
+    wrap.appendChild(el("div", "empty", "No rooms configured — set the Voice-PE → room map in the add-on Configuration."));
+    return;
   }
+  ids.forEach(function (id) { wrap.appendChild(roomCard(rooms[id])); });
+}
 
-  // ---------- status fetch ----------
-  function applyStatus(data) {
-    if (!data || typeof data !== "object") return;
-    setSimulate(!!data.simulate);
-    el.ver.textContent = data.version ? ("v" + data.version) : "";
+function renderMetrics(m) {
+  var wrap = document.getElementById("metrics"); wrap.innerHTML = "";
+  Object.keys(METRIC_LABEL).forEach(function (k) {
+    var box = el("div", "metric");
+    box.appendChild(el("div", "n", String(safe(m, k, 0))));
+    box.appendChild(el("div", "k", METRIC_LABEL[k]));
+    wrap.appendChild(box);
+  });
+}
 
-    var svc = data.services || {};
-    SERVICES.forEach(function (n) { setService(n, svc[n]); });
-
-    var list = Array.isArray(data.rooms) ? data.rooms : [];
-    // reconcile: rebuild from authoritative status
-    rooms = {}; roomOrder = [];
-    list.forEach(function (r) { if (r && typeof r === "object") upsertRoom(r); });
-    renderRooms();
-
-    renderMetrics(data.metrics);
-  }
-
-  function pollStatus() {
-    fetch("api/status", { cache: "no-store" })
-      .then(function (res) {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json();
-      })
-      .then(function (data) { applyStatus(data); })
-      .catch(function () { /* keep last good render; SSE/poll will retry */ });
-  }
-
-  // ---------- SSE ----------
-  var es = null;
-  function patchRoomState(room, state) {
-    if (!room) return;
-    if (!rooms[room]) { upsertRoom({ room: room, state: state }); renderRooms(); return; }
-    rooms[room].state = state;
-    // surgically update the matching card's pill
-    var idx = roomOrder.indexOf(room);
-    var card = el.rooms.children[idx];
-    if (card) {
-      var pill = card.querySelector(".pill");
-      var st = (VALID_STATES.indexOf(state) >= 0) ? state : "IDLE";
-      if (pill) { pill.className = "pill " + st; pill.textContent = STATE_LABELS[st] || st; }
-    } else {
-      renderRooms();
-    }
-  }
-
-  function handleEvent(ev) {
-    var data;
-    try { data = JSON.parse(ev.data); } catch (e) { return; }
-    if (!data || typeof data !== "object") return;
-    switch (data.type) {
-      case "state": patchRoomState(data.room, data.state); break;
-      case "service": setService(data.name, data.status); break;
-      case "metrics": renderMetrics(data); break;
-      case "transcript": addTranscript(data); break;
-      default: break;
-    }
-  }
-
-  function openStream() {
-    if (typeof EventSource === "undefined") { el.connBanner.classList.add("show"); return; }
-    try {
-      es = new EventSource("api/events");
-    } catch (e) {
-      el.connBanner.classList.add("show");
-      return;
-    }
-    es.onopen = function () { el.connBanner.classList.remove("show"); };
-    es.onmessage = handleEvent;
-    es.onerror = function () {
-      // EventSource auto-reconnects; show banner & let polling sustain UI
-      el.connBanner.classList.add("show");
-      setServicesUnknown();
-    };
-  }
-
-  // ---------- boot ----------
-  renderMetrics({});
+function applyStatus(data) {
+  if (!data) return;
+  lastStatus = data;
+  rooms = {};
+  (data.rooms || []).forEach(function (r) { rooms[r.room] = r; });
+  renderSub(data);
+  renderServices(data.services || {});
   renderRooms();
-  pollStatus();
-  openStream();
-  setInterval(pollStatus, 3000);
-})();
+  renderMetrics(data.metrics || {});
+}
+
+var MAX_LINES = 200;
+function addTranscript(room, dir, text) {
+  var tx = document.getElementById("tx");
+  var empty = tx.querySelector(".empty"); if (empty) empty.remove();
+  var atBottom = tx.scrollHeight - tx.scrollTop - tx.clientHeight < 40;
+  var line = el("div", "line " + (dir === "in" ? "in" : "out"));
+  line.appendChild(el("div", "who", (room || "") + " · " + (dir === "in" ? "you" : "PodVoice")));
+  line.appendChild(document.createTextNode(text));
+  tx.appendChild(line);
+  while (tx.children.length > MAX_LINES) tx.removeChild(tx.firstChild);
+  if (atBottom) tx.scrollTop = tx.scrollHeight;
+}
+function txEmpty() {
+  var tx = document.getElementById("tx");
+  if (!tx.querySelector(".line")) { tx.innerHTML = ""; tx.appendChild(el("div", "empty", "No transcript yet — waiting for activity…")); }
+}
+
+function applyEvent(ev) {
+  if (!ev || !ev.type) return;
+  if (ev.type === "state") {
+    var rm = rooms[ev.room] || (rooms[ev.room] = { room: ev.room });
+    rm.state = ev.state; if (ev.level != null) rm.level = ev.level; rm.ducked = !!ev.ducked;
+    renderRooms();
+  } else if (ev.type === "service") {
+    if (lastStatus) { lastStatus.services = lastStatus.services || {}; lastStatus.services[ev.name] = ev.status; renderServices(lastStatus.services); }
+  } else if (ev.type === "metrics") {
+    var m = {}; Object.keys(METRIC_LABEL).forEach(function (k) { if (ev[k] != null) m[k] = ev[k]; });
+    if (lastStatus) lastStatus.metrics = m;
+    renderMetrics(m);
+  } else if (ev.type === "transcript") {
+    addTranscript(ev.room, ev.dir, ev.text);
+  }
+}
+
+async function control(room, action, btn) {
+  if (btn) { btn.disabled = true; setTimeout(function () { btn.disabled = false; }, 500); }
+  try {
+    var r = await fetch("api/control", { method: "POST", headers: { "Content-Type": "application/json" },
+                                         body: JSON.stringify({ room: room, action: action }) });
+    var j = await r.json();
+    toast(j.ok ? "OK" : ("Error: " + (j.error || r.status)));
+  } catch (e) { toast("Request failed"); }
+}
+
+async function poll() {
+  try {
+    var r = await fetch("api/status", { cache: "no-store" });
+    if (r.ok) applyStatus(await r.json());
+  } catch (e) { /* keep last render */ }
+}
+
+function openStream() {
+  var es;
+  try { es = new EventSource("api/events"); } catch (e) { return; }
+  es.onopen = function () { connected = true; renderSub(lastStatus); };
+  es.onerror = function () { connected = false; renderSub(lastStatus); };
+  es.onmessage = function (m) { try { applyEvent(JSON.parse(m.data)); } catch (e) {} };
+}
+
+document.getElementById("clear").onclick = function () {
+  var tx = document.getElementById("tx"); tx.innerHTML = ""; txEmpty();
+};
+
+txEmpty();
+renderMetrics({});
+poll();
+openStream();
+setInterval(poll, 3000);
 </script>
 </body>
 </html>
