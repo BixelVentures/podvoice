@@ -209,6 +209,15 @@ class GeminiLiveSession:
             )
         )
 
+    async def send_text(self, text: str) -> None:
+        """Send a typed user turn (used by the in-panel console, PLAN.md UI)."""
+        if self._session is None:
+            return
+        # VERIFY: send_client_content(turns=[...], turn_complete=True) shape.
+        await self._session.send_client_content(  # type: ignore[attr-defined]
+            turns=[{"role": "user", "parts": [{"text": text}]}], turn_complete=True
+        )
+
     async def audio_stream_end(self) -> None:
         """Flush the server's cached audio after a >1 s gate pause (PLAN §5.4)."""
         if self._session is None:

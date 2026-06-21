@@ -76,6 +76,17 @@ conversation as if you pressed the button), **Stop** (end it and restore music),
 (play a sound out the Voice PE speaker to check audio). No secrets are shown here; configuration
 still lives in the **Configuration** tab.
 
+### Talk to Gemini from the panel
+
+The panel has a **Talk to Gemini** console — a software stand-in for the Voice PE. Type a message
+and Gemini answers out loud (the reply is spoken in your browser) with a live transcript. With a real
+Gemini key set it's the real assistant; with `simulate: true` (or no key) it echoes a demo reply.
+
+There's also a 🎤 mic button for hands-free voice **in** — but browsers only allow microphone access on
+a secure page. If you open Home Assistant over plain `http://…` on your LAN, the mic is disabled
+(you'll see a note) while typing + spoken replies keep working. Open HA over **HTTPS / Nabu Casa** (or
+`localhost`) and the mic turns on automatically.
+
 ## Try it without hardware (simulation)
 
 Set the **simulate** option to `true` and start the add-on. PodVoice will run a built-in demo —

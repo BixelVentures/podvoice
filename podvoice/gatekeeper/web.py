@@ -15,6 +15,7 @@ from pathlib import Path
 
 from aiohttp import web
 
+from .console import run_console
 from .events import Event, EventType
 from .hub import StatusHub
 
@@ -25,23 +26,43 @@ DEFAULT_PORT = 8098
 
 HUB: web.AppKey[StatusHub] = web.AppKey("hub", StatusHub)
 SESSIONS: web.AppKey[dict] = web.AppKey("sessions", dict)
+CONSOLE: web.AppKey = web.AppKey("console")
 
 
-def create_app(hub: StatusHub, sessions: dict) -> web.Application:
-    """Build the aiohttp app. ``sessions`` maps room id -> RoomSession (for controls)."""
+def create_app(hub: StatusHub, sessions: dict, make_console=None) -> web.Application:
+    """Build the aiohttp app.
+
+    ``sessions`` maps room id -> RoomSession (for controls). ``make_console`` is an
+    optional zero-arg factory returning a fresh ConsoleGemini per browser (the
+    in-panel 'talk to Gemini' console); None disables the console.
+    """
     app = web.Application()
     app[HUB] = hub
     app[SESSIONS] = sessions
+    app[CONSOLE] = make_console
     app.add_routes(
         [
             web.get("/", _index),
             web.get("/api/status", _status),
             web.get("/api/events", _events),
             web.post("/api/control", _control),
+            web.get("/api/console", _console_ws),
             web.get("/health", _health),
         ]
     )
     return app
+
+
+async def _console_ws(request: web.Request) -> web.WebSocketResponse:
+    ws = web.WebSocketResponse(heartbeat=20)
+    await ws.prepare(request)
+    make = request.app[CONSOLE]
+    if make is None:
+        await ws.send_json({"type": "error", "error": "console not configured"})
+        await ws.close()
+        return ws
+    await run_console(ws, make())
+    return ws
 
 
 async def _index(request: web.Request) -> web.StreamResponse:

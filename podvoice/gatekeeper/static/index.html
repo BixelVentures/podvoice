@@ -128,6 +128,14 @@
   .metric .k { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
                color: var(--fg-dim); margin-top: 2px; }
 
+  /* Console input row. */
+  .crow { display: flex; gap: 8px; margin-top: 10px; }
+  .crow input { flex: 1; font: inherit; padding: 9px 12px; border-radius: 10px;
+                border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
+  .crow input:focus { outline: none; border-color: var(--accent); }
+  #cmic.live { background: var(--danger); color: #fff; border-color: transparent; }
+  h2 #cstate { font-size: .62rem; text-transform: none; letter-spacing: 0; }
+
   .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
            background: var(--fg); color: var(--bg); padding: 9px 16px; border-radius: 999px;
            font-size: .82rem; font-weight: 600; opacity: 0; transition: opacity .2s;
@@ -152,6 +160,17 @@
   <div class="section">
     <h2>Rooms</h2>
     <div id="rooms" class="list"></div>
+  </div>
+
+  <div class="section">
+    <h2>Talk to Gemini <span id="cstate" class="pill pill-down">offline</span></h2>
+    <div id="clog" class="tx" style="min-height:90px;max-height:240px"></div>
+    <div class="crow">
+      <input id="ctext" type="text" autocomplete="off" placeholder="Skriv til Gemini…" aria-label="Message to Gemini" />
+      <button id="csend">Send</button>
+      <button id="cmic" class="ghost" aria-label="Hold to talk">🎤</button>
+    </div>
+    <p id="cmichint" class="sub" style="margin-top:8px"></p>
   </div>
 
   <div class="section">
@@ -340,6 +359,123 @@ renderMetrics({});
 poll();
 openStream();
 setInterval(poll, 3000);
+</script>
+
+<script>
+"use strict";
+// ---- In-panel "talk to Gemini" console ----
+(function () {
+  var clog = document.getElementById("clog");
+  var cstate = document.getElementById("cstate");
+  var input = document.getElementById("ctext");
+  var sendBtn = document.getElementById("csend");
+  var micBtn = document.getElementById("cmic");
+  var micHint = document.getElementById("cmichint");
+
+  var ws = null, wsReady = false;
+  var playCtx = null, outRate = 24000, nextStart = 0;
+  var capCtx = null, capStream = null, capNode = null, micOn = false;
+
+  function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  function setState(s, cls) { cstate.textContent = s; cstate.className = "pill " + cls; }
+
+  function emptyLog() { if (!clog.querySelector(".line")) { clog.innerHTML = ""; clog.appendChild(el("div", "empty", "Type below to talk to Gemini. Replies are spoken aloud here.")); } }
+  function logLine(dir, who, text) {
+    var e = clog.querySelector(".empty"); if (e) e.remove();
+    var atBottom = clog.scrollHeight - clog.scrollTop - clog.clientHeight < 40;
+    var line = el("div", "line " + (dir === "in" ? "in" : "out"));
+    line.appendChild(el("div", "who", who));
+    line.appendChild(document.createTextNode(text));
+    clog.appendChild(line);
+    if (atBottom) clog.scrollTop = clog.scrollHeight;
+  }
+
+  function ensurePlay() {
+    if (!playCtx) { try { playCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; } }
+    if (playCtx.state === "suspended") playCtx.resume();
+    if (nextStart < playCtx.currentTime) nextStart = playCtx.currentTime;
+  }
+  function playPcm(buf) {
+    ensurePlay(); if (!playCtx) return;
+    var i16 = new Int16Array(buf);
+    if (!i16.length) return;
+    var ab = playCtx.createBuffer(1, i16.length, outRate);
+    var f = ab.getChannelData(0);
+    for (var i = 0; i < i16.length; i++) f[i] = i16[i] / 32768;
+    var src = playCtx.createBufferSource(); src.buffer = ab; src.connect(playCtx.destination);
+    var t = Math.max(playCtx.currentTime, nextStart); src.start(t); nextStart = t + ab.duration;
+  }
+
+  function connect() {
+    var url;
+    try { url = new URL("api/console", window.location.href); } catch (e) { return; }
+    url.protocol = (url.protocol === "https:") ? "wss:" : "ws:";
+    setState("connecting…", "pill-degraded");
+    try { ws = new WebSocket(url.href); } catch (e) { setState("offline", "pill-down"); return; }
+    ws.binaryType = "arraybuffer";
+    ws.onopen = function () { wsReady = true; setState("online", "pill-up"); };
+    ws.onclose = function () { wsReady = false; setState("offline", "pill-down"); setTimeout(connect, 2500); };
+    ws.onerror = function () { setState("offline", "pill-down"); };
+    ws.onmessage = function (m) {
+      if (typeof m.data !== "string") { playPcm(m.data); return; }
+      var ev; try { ev = JSON.parse(m.data); } catch (e) { return; }
+      if (ev.type === "hello" && ev.rate) outRate = ev.rate;
+      else if (ev.type === "transcript") logLine(ev.dir === "in" ? "in" : "out", ev.dir === "in" ? "you" : "Gemini", ev.text);
+      else if (ev.type === "error") logLine("out", "system", ev.error || "console unavailable");
+    };
+  }
+
+  function sendText() {
+    var t = (input.value || "").trim(); if (!t) return;
+    if (!wsReady) { logLine("out", "system", "Not connected yet…"); return; }
+    ensurePlay();
+    logLine("in", "you", t);
+    ws.send(JSON.stringify({ type: "text", text: t }));
+    input.value = "";
+  }
+  sendBtn.onclick = sendText;
+  input.addEventListener("keydown", function (e) { if (e.key === "Enter") sendText(); });
+
+  // ---- Mic (only on a secure origin: HTTPS / localhost) ----
+  function downsample(f32, inRate) {
+    if (inRate === 16000) { var o = new Int16Array(f32.length); for (var i = 0; i < f32.length; i++) o[i] = Math.max(-1, Math.min(1, f32[i])) * 32767; return o; }
+    var ratio = inRate / 16000, n = Math.floor(f32.length / ratio), out = new Int16Array(n);
+    for (var j = 0; j < n; j++) { var s = Math.max(-1, Math.min(1, f32[Math.floor(j * ratio)])); out[j] = s * 32767; }
+    return out;
+  }
+  async function micStart() {
+    try {
+      capStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+    } catch (e) { micHint.textContent = "Microphone permission denied."; return; }
+    ensurePlay();
+    capCtx = new (window.AudioContext || window.webkitAudioContext)();
+    var src = capCtx.createMediaStreamSource(capStream);
+    capNode = capCtx.createScriptProcessor(4096, 1, 1);
+    capNode.onaudioprocess = function (ev) {
+      if (!wsReady) return;
+      var pcm = downsample(ev.inputBuffer.getChannelData(0), capCtx.sampleRate);
+      ws.send(pcm.buffer);
+    };
+    src.connect(capNode); capNode.connect(capCtx.destination);
+    micOn = true; micBtn.classList.add("live"); micBtn.textContent = "■";
+  }
+  function micStop() {
+    micOn = false; micBtn.classList.remove("live"); micBtn.textContent = "🎤";
+    if (capNode) { try { capNode.disconnect(); } catch (e) {} capNode = null; }
+    if (capCtx) { try { capCtx.close(); } catch (e) {} capCtx = null; }
+    if (capStream) { capStream.getTracks().forEach(function (t) { t.stop(); }); capStream = null; }
+  }
+  if (window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    micBtn.onclick = function () { micOn ? micStop() : micStart(); };
+    micHint.textContent = "🎤 Hold a conversation by voice — click the mic to talk, click again to stop.";
+  } else {
+    micBtn.disabled = true;
+    micHint.textContent = "🎤 Voice input needs HTTPS (e.g. Nabu Casa) — typing + spoken replies work here.";
+  }
+
+  emptyLog();
+  connect();
+})();
 </script>
 </body>
 </html>

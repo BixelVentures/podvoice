@@ -32,7 +32,10 @@ marked `# VERIFY:` in the code). See **[PLAN.md](PLAN.md)** for the full archite
 ## Sidebar panel & simulation mode
 PodVoice ships a **Home Assistant Ingress sidebar panel** (served on `:8098` — PodConnect owns `:8099`):
 per-room state, service health, the live ducking level, a live transcript, and controls
-(Listen / Stop / Test tone), plus a `/health` endpoint and live metrics. It's a single
+(Listen / Stop / Test tone), plus a `/health` endpoint and live metrics. It also has a
+**Talk to Gemini** console (a software Voice PE): type and hear spoken replies in the browser,
+with a mic button that auto-enables on a secure origin (HTTPS / Nabu Casa / localhost) and
+gracefully degrades to text-in + voice-out on plain-http LAN. It's a single
 dependency-free page (`podvoice/gatekeeper/static/index.html`) talking to a small aiohttp API
 (`web.py`) fed by a status hub (`hub.py`).
 
