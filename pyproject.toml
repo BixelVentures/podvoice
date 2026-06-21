@@ -1,0 +1,28 @@
+[project]
+name = "podvoice-gatekeeper"
+version = "0.1.0"
+description = "Standalone voice-AI gatekeeper (Gemini Live) for a PodConnect home, shipped as an HA add-on"
+requires-python = ">=3.12"
+readme = "README.md"
+
+[tool.pytest.ini_options]
+pythonpath = ["podvoice", "tests"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["podvoice"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
+ignore = ["E501"]  # line length enforced by formatter, not lint
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_ignores = true
+ignore_missing_imports = true
+check_untyped_defs = true
+files = ["podvoice/gatekeeper"]

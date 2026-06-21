@@ -1,0 +1,486 @@
+# =============================================================================
+# voice-pe.yaml  --  PodVoice custom firmware for the Home Assistant Voice PE
+# =============================================================================
+#
+#   *** SKETCH / STARTING POINT -- NOT READY TO FLASH AS-IS ***
+#
+# This file is a FORK of the official ESPHome firmware
+#   https://github.com/esphome/home-assistant-voice-pe/blob/dev/home-assistant-voice.yaml
+# modified per PodVoice PLAN.md section 4. It exists to give a developer a concrete
+# starting point, NOT a finished, validated config.
+#
+# Before flashing ANY of this to real hardware you MUST:
+#   1. Diff this file against the firmware/board revision ACTUALLY on the device
+#      (board pin assignments drift between hardware revisions -- PLAN R10).
+#      Every hardware-defining block below is marked:
+#         `# from official dev YAML -- VERIFY pins for your board revision`
+#      Re-confirm each GPIO against the official dev YAML at flash time.
+#   2. Resolve the two BLOCKING Phase-1 hardware spikes that this file only
+#      stubs out (the design literally cannot be finished from docs alone):
+#         - Spike S1 (PLAN 4.2): continuous gap-free 16 kHz mic stream to the
+#           external PodVoice client. NO stock ESPHome path is confirmed to do
+#           this. See the `voice_assistant:` PLACEHOLDER block below.
+#         - Spike S2 (PLAN 4.5): low-latency playback of Gemini's 24 kHz PCM
+#           through the 48 kHz speaker. See the speaker-path notes below.
+#
+# WHAT PODVOICE CHANGES vs the stock firmware (every change is tagged
+# `# PodVoice:` inline):
+#   - api: encryption uses the PodVoice Noise PSK (section 4.6).
+#   - micro_wake_word on_wake_word_detected fires a template EVENT for PodVoice
+#     instead of starting the HA Assist pipeline (section 4.3).
+#   - a `podvoice_event` template event entity exposes button + wake events
+#     (section 4.3 / 4.4).
+#   - the center-button SINGLE press fires `single_press` on that event entity
+#     (the double/triple/long branches are kept) (section 4.4).
+#   - voice_assistant is configured for PodVoice ownership (use_wake_word:false)
+#     and is the anchor for the S1 continuous-audio mechanism (PLACEHOLDER).
+#
+# HONESTY NOTE on syntax: blocks marked `# VERIFY:` use ESPHome syntax that was
+# checked against current docs (mid-2026) but should be re-validated with
+# `esphome config voice-pe.yaml` before flashing. Notably the event-firing
+# action is `event.trigger:` (verified against esphome.io/components/event/),
+# NOT the `event.fire:` shown in the PLAN 4.7 illustrative sketch.
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# substitutions
+# from official dev YAML -- VERIFY against your board revision.
+# The official file defines a long list of phase-id / sound-url substitutions;
+# only a representative subset is reproduced here. Copy the FULL list from the
+# official dev YAML when you fork for real.
+# -----------------------------------------------------------------------------
+substitutions:
+  name: podvoice-pe                       # PodVoice: renamed from the stock "home-assistant-voice"
+  friendly_name: PodVoice PE             # PodVoice: rebrand
+  # --- from official dev YAML (phase ids used by the LED control script) ---
+  # VERIFY: copy the complete substitutions list from the official dev YAML.
+  micro_wake_word_model: okay_nabu       # from official dev YAML
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  # NOTE: the official YAML sets project:, min_version:, on_boot: scripts, and
+  # platformio_options here. Copy those verbatim from the dev YAML -- they carry
+  # board init logic. Omitted in this sketch for brevity. VERIFY before flashing.
+
+# -----------------------------------------------------------------------------
+# esp32 board
+# from official dev YAML -- VERIFY for your board revision.
+# -----------------------------------------------------------------------------
+esp32:
+  board: esp32-s3-devkitc-1              # from official dev YAML
+  cpu_frequency: 240MHz                  # from official dev YAML
+  variant: esp32s3                       # from official dev YAML
+  flash_size: 16MB                       # from official dev YAML
+  framework:
+    type: esp-idf
+    # VERIFY: the official YAML pins sdkconfig_options (SPIRAM rodata/fetch,
+    # TLS1.3, etc). Copy them verbatim -- they matter for the audio + PSRAM path.
+
+# PodVoice: consider stripping unused radios to free the ESP32-S3 resource
+# budget for continuous mic + playback + mww + LEDs (PLAN R5). e.g. do NOT
+# enable bluetooth/improv_serial unless needed.
+
+psram:
+  mode: octal                           # from official dev YAML -- VERIFY
+  speed: 80MHz                          # from official dev YAML -- VERIFY
+
+logger:
+  # from official dev YAML. Keep, but during Spike S1 you may want a higher
+  # level on the voice_assistant / i2s tags to observe frame cadence.
+
+ota:
+  - platform: esphome
+    # from official dev YAML. First flash over USB, then OTA (PLAN 4.8).
+
+wifi:
+  ssid: !secret wifi_ssid               # from official dev YAML
+  password: !secret wifi_password       # from official dev YAML
+  # VERIFY: the official YAML also defines ap: + captive_portal fallback and
+  # improv provisioning. Copy if you want first-boot Wi-Fi onboarding.
+
+# =============================================================================
+# api -- PodVoice section 4.6
+# =============================================================================
+api:
+  id: api_id
+  encryption:
+    # PodVoice: this is the 32-byte base64 Noise PSK that the PodVoice add-on
+    # connects with. The SAME value must live in the add-on options
+    # (voicepe_noise_psk) AND in this device's secrets.yaml. (PLAN 4.6)
+    key: !secret podvoice_api_key
+    # VERIFY: `key: !secret ...` is standard ESPHome usage. The api component
+    # docs example shows an inline string; !secret indirection is supported
+    # everywhere in ESPHome configs.
+  # PodVoice ownership note (PLAN 4.8 / R2): firmware enforces single-client
+  # Voice Assistant exclusivity. To keep PodVoice the sole VA-audio subscriber,
+  # do NOT add this device to HA's Assist (assign no pipeline). VERIFY on
+  # hardware that the normal HA ESPHome integration connection does not
+  # implicitly grab the VA subscription and lock PodVoice out -- if it does,
+  # do not add the device to HA at all.
+
+# =============================================================================
+# i2s_audio -- audio buses
+# from official dev YAML -- VERIFY pins for your board revision.
+# (PLAN 4.1: i2s_input mics @ GPIO14/13/15; i2s_output speaker @ GPIO7/8/10)
+# =============================================================================
+i2s_audio:
+  - id: i2s_output                       # from official dev YAML
+    i2s_lrclk_pin:
+      number: GPIO7                      # from official dev YAML -- VERIFY
+    i2s_bclk_pin:
+      number: GPIO8                      # from official dev YAML -- VERIFY
+
+  - id: i2s_input                        # from official dev YAML
+    i2s_lrclk_pin:
+      number: GPIO14                     # from official dev YAML -- VERIFY
+    i2s_bclk_pin:
+      number: GPIO13                     # from official dev YAML -- VERIFY
+
+# =============================================================================
+# microphone -- i2s_mics @ 16 kHz
+# from official dev YAML -- VERIFY pins for your board revision.
+# This is the raw 16 kHz capture PodVoice ultimately consumes (via the VA
+# audio subscription -- see voice_assistant PLACEHOLDER + Spike S1).
+# =============================================================================
+microphone:
+  - platform: i2s_audio
+    id: i2s_mics                         # from official dev YAML
+    i2s_din_pin: GPIO15                  # from official dev YAML -- VERIFY
+    sample_rate: 16000                   # from official dev YAML (PodVoice needs 16 kHz)
+    bits_per_sample: 32bit               # from official dev YAML
+    channel: stereo                      # from official dev YAML (two mic channels:
+                                         #   data vs data2 -- processed vs less-processed)
+    i2s_audio_id: i2s_input              # from official dev YAML
+    i2s_mode: secondary                  # from official dev YAML
+    # PodVoice / VERIFY (PLAN R7): the two mic channels map to VoiceAssistantAudio
+    # `data` / `data2`. Determine on hardware (Spike S1) which channel is the
+    # AEC-processed one PodVoice should send to Gemini.
+
+# =============================================================================
+# speaker -- i2s_audio_speaker @ 48 kHz + resampler + mixer
+# from official dev YAML -- VERIFY pins for your board revision.
+#
+# PodVoice playback path is a Phase-1 SPIKE (S2, PLAN 4.5):
+#   Gemini Live output is 24 kHz PCM; this hardware runs at 48 kHz.
+#   Three candidate paths exist; NONE is wired up here:
+#     Path 1: VoiceAssistantAnnounceRequest (media_id/URL) -- latency-heavy.
+#     Path 2: media_player announce (URL, served over HTTP) -- buffered.
+#     Path 3 (most promising): feed a streamed raw-PCM speaker via a custom
+#             component -> resampler (24k->48k clean 2x) -> mixer ->
+#             i2s_audio_speaker. Lowest latency, needs custom firmware.
+#   The low-level client method send_voice_assistant_audio(data: bytes) pushes
+#   raw bytes back over the active VA stream and is the natural fit IF the
+#   firmware exposes the speaker on that path.
+#   AEC note (PLAN R6): whatever path is chosen, the played dialogue must be
+#   available as the AEC reference signal. VERIFY where AEC runs (firmware vs
+#   add-on). Spike S2 exit: <300 ms added latency, no underruns, sustainable
+#   ALONGSIDE continuous mic capture (watch "too many audio components" crash).
+# =============================================================================
+speaker:
+  - platform: i2s_audio
+    id: i2s_audio_speaker                # from official dev YAML
+    sample_rate: 48000                   # from official dev YAML (hardware rate; crux of S2)
+    i2s_mode: secondary                  # from official dev YAML
+    i2s_dout_pin: GPIO10                 # from official dev YAML -- VERIFY
+    bits_per_sample: 32bit               # from official dev YAML
+    i2s_audio_id: i2s_output             # from official dev YAML
+    dac_type: external                   # from official dev YAML
+    channel: stereo                      # from official dev YAML
+    timeout: never                       # from official dev YAML
+    buffer_duration: 100ms               # from official dev YAML
+    audio_dac: aic3204_dac               # from official dev YAML -- VERIFY the audio_dac
+                                         #   component is also declared (see below)
+
+  - platform: mixer
+    id: mixing_speaker                   # from official dev YAML
+    output_speaker: i2s_audio_speaker
+    num_channels: 2
+    task_stack_in_psram: true
+    source_speakers:
+      - id: announcement_mixing_input
+        timeout: never
+      - id: media_mixing_input
+        timeout: never
+
+  - platform: resampler
+    id: announcement_resampling_speaker  # from official dev YAML
+    output_speaker: announcement_mixing_input
+    sample_rate: 48000
+    bits_per_sample: 16
+    # PodVoice / S2: a resampler like this (configured 24000 -> 48000) is the
+    # likely landing spot for Gemini's 24 kHz PCM in Path 3. VERIFY on hardware.
+
+  - platform: resampler
+    id: media_resampling_speaker         # from official dev YAML
+    output_speaker: media_mixing_input
+    sample_rate: 48000
+    bits_per_sample: 16
+
+# from official dev YAML -- the external DAC referenced by the speaker above.
+# VERIFY the exact component/platform name + i2c address against the dev YAML.
+# audio_dac:
+#   - platform: aic3204
+#     id: aic3204_dac
+#     # ... i2c_id / address from official dev YAML ...
+
+# =============================================================================
+# micro_wake_word -- PodVoice section 4.3
+# Keep on-device wake detection, but REDIRECT the handler to fire a PodVoice
+# event instead of starting HA Assist.
+# =============================================================================
+micro_wake_word:
+  id: mww                                # from official dev YAML (id may differ -- VERIFY)
+  # from official dev YAML: the mww microphone reference + channels/gain.
+  microphone:
+    microphone: i2s_mics                 # from official dev YAML -- VERIFY channels/gain_factor
+    # channels: 0                        # VERIFY against official dev YAML
+    # gain_factor: 4                     # VERIFY against official dev YAML
+  vad:                                   # PodVoice: KEEP vad enabled (PLAN 4.3)
+    # VERIFY model/probability_cutoff against official dev YAML.
+  models:
+    # from official dev YAML: okay_nabu (Phase-1 wake word; no Danish/"Hej
+    # Gemini" model exists yet -- PLAN R8). The official YAML also ships
+    # hey_jarvis + hey_mycroft; keep or drop as desired.
+    - model: github://esphome/micro-wake-word-models/models/v2/okay_nabu.json
+      id: okay_nabu
+      # VERIFY exact model URL/ref against the official dev YAML.
+    - model: stop                        # from official dev YAML -- the barge-in primitive
+      id: stop
+      internal: true                     # PodVoice: keep internal; routed to PodVoice as interrupt
+      # VERIFY: how the official dev YAML references the internal `stop` model.
+
+  on_wake_word_detected:
+    # PodVoice: STOCK firmware here stops timers/announcements/VA or starts the
+    # HA Assist pipeline. We REPLACE all of that with a single event fire so the
+    # PodVoice add-on (subscribed over the native API) decides what to do.
+    # The `wake_word` variable (std::string from the model manifest) is provided
+    # by the micro_wake_word trigger (verified against esphome.io docs).
+    - event.trigger:                     # VERIFY: `event.trigger` is the correct action
+        id: podvoice_event               #   name (NOT `event.fire` from the PLAN sketch).
+        event_type: !lambda |-
+          // PodVoice: map the detected wake word to a PodVoice event type.
+          // "stop" model -> barge-in interrupt; everything else -> okay_nabu wake.
+          return (wake_word == "stop") ? std::string("wake_stop")
+                                       : std::string("wake_okay_nabu");
+    # PodVoice: deliberately NOT calling voice_assistant.start here -- PodVoice
+    # owns conversation lifecycle, not HA Assist.
+
+# =============================================================================
+# event -- PodVoice section 4.3 / 4.4
+# A single template event entity PodVoice subscribes to over the native API.
+# PodVoice: this REPLACES the stock `button_press_event` entity, which only
+# exposed double/triple/long/easter_egg (NOT single_press). We add single_press
+# plus the two wake events so PodVoice gets everything on one entity.
+# =============================================================================
+event:
+  - platform: template
+    id: podvoice_event                   # PodVoice: new entity name
+    name: "PodVoice event"               # PodVoice: named (exposed over API for subscription)
+    device_class: button
+    event_types:                         # PodVoice: full set PodVoice consumes (PLAN 4.3/4.4)
+      - single_press                     # PodVoice: NEW -- stock kept single-press off the entity
+      - double_press
+      - triple_press
+      - long_press
+      - wake_okay_nabu                   # PodVoice: from micro_wake_word redirect
+      - wake_stop                        # PodVoice: barge-in from the internal `stop` model
+
+# =============================================================================
+# binary_sensor -- center button (GPIO0)
+# from official dev YAML -- VERIFY pin for your board revision.
+# PodVoice section 4.4: redirect the SINGLE-press branch to fire `single_press`
+# on podvoice_event; KEEP double/triple/long (and factory-reset) branches.
+# =============================================================================
+binary_sensor:
+  - platform: gpio
+    id: center_button                    # from official dev YAML (internal, no name)
+    pin:
+      number: GPIO0                      # from official dev YAML -- VERIFY
+      inverted: true                     # from official dev YAML
+      mode:
+        input: true
+        pullup: true                     # VERIFY against official dev YAML
+    on_multi_click:
+      # --- SINGLE press --------------------------------------------------------
+      # PodVoice: STOCK single-press aborts timers/announcements/voice and (if
+      # unmuted) STARTS HA Assist. We redirect the "start" intent to PodVoice.
+      # VERIFY (PLAN R9): confirm the stock single-press branch is cleanly
+      # separable. You may want to KEEP the local "stop my own playback" half
+      # (so the button still silences on-device audio) and ONLY redirect the
+      # "start a conversation" half. Reproduce the exact stock timing tuple.
+      - timing:                          # VERIFY exact timing tuple vs official dev YAML
+          - ON for at most 1s
+          - OFF for at least 0.25s
+        then:
+          # PodVoice: optionally KEEP local cleanup here (stop on-device playback
+          # / timers) copied from the stock single-press branch, THEN:
+          - event.trigger:               # PodVoice: hand the press to PodVoice (PLAN 4.4)
+              id: podvoice_event
+              event_type: single_press
+
+      # --- DOUBLE press (KEPT from official dev YAML) -------------------------
+      - timing:                          # VERIFY exact timing tuple vs official dev YAML
+          - ON for at most 1s
+          - OFF for at most 0.25s
+          - ON for at most 1s
+          - OFF for at least 0.25s
+        then:
+          - event.trigger:
+              id: podvoice_event         # PodVoice: was button_press_event in stock
+              event_type: double_press
+
+      # --- TRIPLE press (KEPT from official dev YAML) -------------------------
+      - timing:                          # VERIFY exact timing tuple vs official dev YAML
+          - ON for at most 1s
+          - OFF for at most 0.25s
+          - ON for at most 1s
+          - OFF for at most 0.25s
+          - ON for at most 1s
+          - OFF for at least 0.25s
+        then:
+          - event.trigger:
+              id: podvoice_event         # PodVoice: was button_press_event in stock
+              event_type: triple_press
+
+      # --- LONG press (KEPT from official dev YAML) --------------------------
+      - timing:                          # VERIFY exact timing tuple vs official dev YAML
+          - ON for at least 1s
+        then:
+          - event.trigger:
+              id: podvoice_event         # PodVoice: was button_press_event in stock
+              event_type: long_press
+          # from official dev YAML: long-press also turns LEDs off, etc -- copy
+          # any local side-effects you want to keep.
+
+      # --- FACTORY RESET / easter-egg branches -------------------------------
+      # from official dev YAML: 10s+ factory-reset warning, 22s+ confirm, and the
+      # morse-"HA" easter egg. KEEP these verbatim from the dev YAML if you want
+      # them. Omitted here for brevity -- VERIFY and copy before flashing.
+
+# =============================================================================
+# light -- WS2812 LED ring (GPIO21)
+# from official dev YAML -- VERIFY pin for your board revision.
+# PodVoice keeps the LED hardware; the LED *control script* (state-driven
+# animations) is stock and can be reused or simplified later. Copy the full
+# light: section (partition light + effects) + the control_leds script from the
+# official dev YAML; only the bare strip is shown here.
+# =============================================================================
+light:
+  - platform: esp32_rmt_led_strip
+    id: leds_internal                    # from official dev YAML
+    pin: GPIO21                          # from official dev YAML -- VERIFY
+    chipset: WS2812                      # from official dev YAML
+    max_refresh_rate: 15ms               # from official dev YAML
+    num_leds: 12                         # from official dev YAML
+    rgb_order: GRB                       # from official dev YAML
+    rmt_symbols: 192                     # from official dev YAML
+    default_transition_length: 0ms       # from official dev YAML
+    power_supply: led_power              # from official dev YAML -- VERIFY led_power is declared
+  # VERIFY: copy the `partition` light + all effects + the control_leds script
+  # from the official dev YAML.
+
+# from official dev YAML: power_supply for the LED ring. VERIFY pin.
+# power_supply:
+#   - id: led_power
+#     pin: ...                           # VERIFY against official dev YAML
+
+# =============================================================================
+# switch -- hardware mute chain (GPIO3)
+# from official dev YAML -- VERIFY pin for your board revision.
+# PodVoice: KEEP the mute chain. The mute MUST zero/stop the upstream audio so
+# the PodVoice mic stream goes silent when muted (Spike S1 exit criterion).
+# =============================================================================
+# binary_sensor (hardware mute switch input) -- from official dev YAML:
+#   - platform: gpio
+#     id: mute_switch_hw
+#     pin:
+#       number: GPIO3                    # from official dev YAML -- VERIFY
+#       inverted: true                   # VERIFY
+# switch (master mute template) -- from official dev YAML:
+#   - platform: template
+#     id: master_mute_switch
+#     # ... turns the microphone on/off based on HW mute + SW state ...
+# VERIFY: copy the exact mute chain (binary_sensor + template switch +
+# microphone enable/disable logic) from the official dev YAML. The naming above
+# is illustrative.
+
+# =============================================================================
+# rotary_encoder -- volume dial (GPIO16 / GPIO18)
+# from official dev YAML -- VERIFY pins for your board revision.
+# PodVoice: KEEP. Volume control is orthogonal to PodVoice; reuse stock
+# on_clockwise/on_anticlockwise handlers.
+# =============================================================================
+sensor:
+  - platform: rotary_encoder
+    id: dial                             # from official dev YAML
+    pin_a: GPIO16                        # from official dev YAML -- VERIFY
+    pin_b: GPIO18                        # from official dev YAML -- VERIFY
+    resolution: 2                        # from official dev YAML
+    # VERIFY: copy the on_clockwise / on_anticlockwise volume-control actions
+    # from the official dev YAML.
+
+# =============================================================================
+# voice_assistant -- PodVoice section 4.2 (THE CORE PLACEHOLDER)
+# =============================================================================
+#
+#   *** PHASE-1 SPIKE S1 DELIVERABLE -- THIS IS NOT A STOCK FEATURE ***
+#
+# PodVoice needs a CONTINUOUS, gap-free 16 kHz raw-PCM stream to an external
+# aioesphomeapi client (the add-on). The stock voice_assistant component streams
+# mic audio ONLY during an active pipeline run (between start and run-end);
+# streaming halts on VAD-end / run-end. There is NO confirmed stock path that
+# streams gap-free continuous audio to an external client. This block is the
+# anchor PodVoice builds that mechanism around -- but the mechanism itself is a
+# Phase-1 hardware spike, NOT something this YAML can finish.
+#
+# Candidate mechanisms (PLAN 4.2 -- pick via Spike S1, then wire it up here):
+#   Option A -- voice_assistant.start_continuous + re-arm. Lowest effort, but
+#     "continuous" = auto-restart after a response, NOT stream-forever; it still
+#     routes through the pipeline state machine, producing GAPS when the user
+#     stops talking. Good for a plumbing spike; NOT the primary path.
+#   Option C (leading candidate) -- keep the voice_assistant API-audio transport
+#     but PATCH firmware so it does NOT stop on VAD-end / run-end (hold the
+#     STREAMING_MICROPHONE state). Smallest fork; max reuse of i2s capture + API
+#     framing. Requires an external_component / firmware patch.
+#   Option B -- a custom mic consumer (microphone.on_data listener or custom
+#     component) that pushes every frame unconditionally. No stock "stream
+#     arbitrary bytes to a native-API client" message exists, so this is either
+#     B1 (reuse the VA API-audio send path gated on our own flag) or B2 (a
+#     separate TCP/UDP side channel from a custom component).
+#
+# Spike S1 EXIT CRITERIA (PLAN 4.2): sustained gap-free 16 kHz / 16-bit / mono
+# PCM at the add-on for >10 min, with the GPIO3 mute correctly zeroing/stopping
+# the stream. Pick the mechanism, THEN finish this block + any external_components.
+#
+voice_assistant:
+  id: va
+  microphone:
+    microphone: i2s_mics                 # PodVoice: VERIFY data/data2 channel mapping (R7)
+    # The official dev YAML passes a list of up to two channels here for dual-
+    # channel streaming. VERIFY exact form against the dev YAML.
+  # Output: PodVoice: speaker vs media_player is the Spike S2 decision (PLAN 4.5).
+  # Wire ONE of these once S2 lands; they are mutually exclusive.
+  # speaker: mixing_speaker              # PodVoice: Path 3 (raw PCM -> resampler -> mixer)
+  # media_player: <id>                   # PodVoice: Path 2 (URL announce)
+  use_wake_word: false                   # PodVoice: HA Assist does NOT drive wake; PodVoice does.
+  micro_wake_word: mww                   # PodVoice: keep on-device mww available, but its
+                                         #   on_wake_word_detected is redirected (see above) --
+                                         #   VERIFY whether referencing it here re-arms HA wake;
+                                         #   if so, drop this line and keep mww fully standalone.
+  # PodVoice: STOCK firmware defines many lifecycle handlers here
+  # (on_client_connected, on_error, on_listening, on_stt_vad_*, on_tts_*,
+  # on_end, on_timer_*) that drive LEDs and the HA pipeline. For PodVoice these
+  # are mostly IRRELEVANT (PodVoice, not HA, runs the conversation). Keep only
+  # what you need for LED feedback; do NOT let them re-arm an HA pipeline.
+  #
+  # *** continuous gap-free audio mechanism (A/C/B) goes here / in
+  #     external_components -- Phase-1 Spike S1 deliverable. NOT stock. ***
+
+# external_components:
+#   PodVoice: if Spike S1 lands on Option C (hold STREAMING_MICROPHONE) or
+#   Option B (custom streamer), or Spike S2 lands on Path 3 (streamed PCM sink),
+#   the custom component(s) are declared here. Pin the ESPHome version (PLAN R3)
+#   to keep the fork stable against upstream voice_assistant.cpp churn.
+#   - source: ...

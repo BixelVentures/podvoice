@@ -1,0 +1,296 @@
+"""Per-room orchestrator — wires every component to the state machine (PLAN.md §7).
+
+A ``RoomSession`` owns one Voice PE, one Gemini session, the attention heartbeat,
+the gatekeeper, playback, and the state machine. It implements the state
+machine's ``Effects`` protocol (``apply``) and runs the audio-ingest and
+Gemini-event loops, translating real-world signals into state-machine events.
+
+The session is fully dependency-injected, so it runs against the test fakes
+(FakeAttention / FakeVoicePELink / FakeGeminiSession) without any SDKs.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import logging
+
+from . import audio as audio_mod
+from . import constants as C
+from .events import Action, ActionKind, Event, EventType
+from .gemini import (
+    AudioChunk,
+    GoAway,
+    InputTranscript,
+    Interrupted,
+    OutputTranscript,
+    ToolCall,
+    TurnComplete,
+)
+from .podconnect import AttentionDown, UnknownRoom, Unsupervised
+from .state import StateMachine
+
+_LOG = logging.getLogger("podvoice.orchestrator")
+
+
+class RoomSession:
+    def __init__(
+        self,
+        *,
+        room: str,
+        attention,
+        heartbeat,
+        gatekeeper,
+        gemini,
+        voicepe,
+        playback,
+        tools=None,
+        watchdog=None,
+        bargein=None,
+        lounge_window_s: int = C.LOUNGE_WINDOW_S,
+        duck_level: int = C.DUCK_LEVEL,
+        lounge_level: int = C.LOUNGE_LEVEL,
+        vad_threshold: float = C.VAD_THRESHOLD,
+        enable_watchdog: bool = True,
+    ) -> None:
+        self.room = room
+        self.attention = attention
+        self.heartbeat = heartbeat
+        self.gatekeeper = gatekeeper
+        self.gemini = gemini
+        self.voicepe = voicepe
+        self.playback = playback
+        self.tools = tools
+        self.watchdog = watchdog
+        self.bargein = bargein
+        self.duck_level = duck_level
+        self.lounge_level = lounge_level
+        self.lounge_window_s = lounge_window_s
+        self.enable_watchdog = enable_watchdog and watchdog is not None
+
+        self.sm = StateMachine(
+            self,
+            room=room,
+            lounge_window_s=lounge_window_s,
+            duck_level=duck_level,
+            lounge_level=lounge_level,
+        )
+        self._lounge_vad = audio_mod.LoungeVAD(threshold=vad_threshold)
+        self._lounge_vad_on = False
+        self._lounge_timer: asyncio.Task | None = None
+        self._reader: asyncio.Task | None = None
+        self._tasks: list[asyncio.Task] = []
+        self._responded = False  # whether GEMINI_RESPONDING was posted this turn
+
+        # Route device wake/button events into the state machine.
+        if hasattr(voicepe, "on_event"):
+            voicepe.on_event = self._on_device_event
+
+    # ------------------------------------------------------------------ lifecycle
+    async def start(self) -> None:
+        await self.voicepe.start()
+        self.playback.start()
+        self._tasks = [
+            asyncio.create_task(self.sm.run(), name=f"sm-{self.room}"),
+            asyncio.create_task(self._ingest(), name=f"ingest-{self.room}"),
+        ]
+        if self.enable_watchdog:
+            self._tasks.append(asyncio.create_task(self._watchdog_loop(), name=f"wd-{self.room}"))
+
+    async def aclose(self) -> None:
+        self._cancel_lounge_timer()
+        await self._stop_reader()
+        for t in self._tasks:
+            t.cancel()
+        for t in self._tasks:
+            with contextlib.suppress(asyncio.CancelledError):
+                await t
+        self._tasks = []
+        with contextlib.suppress(Exception):
+            await self.heartbeat.stop()
+        with contextlib.suppress(Exception):
+            await self.attention.release(self.room)  # restore music on shutdown
+        with contextlib.suppress(Exception):
+            await self.playback.aclose()
+        with contextlib.suppress(Exception):
+            await self.gemini.close()
+        with contextlib.suppress(Exception):
+            await self.voicepe.aclose()
+
+    # ------------------------------------------------------------------ Effects
+    async def apply(self, action: Action, room: str | None) -> None:
+        k = action.kind
+        if k is ActionKind.OPEN_WS:
+            await self.gemini.connect()
+            self._start_reader()
+        elif k is ActionKind.CLOSE_WS:
+            await self._stop_reader()
+            if self.watchdog is not None:
+                self.watchdog.disarm()
+            with contextlib.suppress(Exception):
+                await self.gemini.close()
+        elif k is ActionKind.ENGAGE:
+            await self._safe_attention(
+                self.attention.engage(self.room, action.level, action.ttl_ms)
+            )
+        elif k is ActionKind.RELEASE:
+            await self._safe_attention(self.attention.release(self.room))
+        elif k is ActionKind.HB_START:
+            self.heartbeat.start(self.room, action.level, action.ttl_ms)
+        elif k is ActionKind.HB_RETARGET:
+            self.heartbeat.retarget(self.room, action.level, action.ttl_ms)
+        elif k is ActionKind.HB_STOP:
+            await self.heartbeat.stop()
+        elif k is ActionKind.GATE_OPEN:
+            self.gatekeeper.set_silence(False)
+            self.gatekeeper.open()
+            self._responded = False
+            if self.watchdog is not None:
+                # VERIFY: ideally arm at end-of-user-speech; gate-open is a v1 approximation.
+                self.watchdog.arm(self.room)
+        elif k is ActionKind.GATE_SHUT:
+            self.gatekeeper.shut()
+        elif k is ActionKind.PLAYBACK_ARM:
+            self.playback.start()
+        elif k is ActionKind.PLAYBACK_STOP:
+            self.playback.flush()
+        elif k is ActionKind.START_LOUNGE_TIMER:
+            self._start_lounge_timer(action.timeout_s or self.lounge_window_s)
+        elif k is ActionKind.CANCEL_LOUNGE_TIMER:
+            self._cancel_lounge_timer()
+        elif k is ActionKind.START_LOUNGE_VAD:
+            self._lounge_vad.reset()
+            self._lounge_vad_on = True
+            self.gatekeeper.set_silence(True)  # shut gate now sends silence to keep WS warm
+        elif k is ActionKind.STOP_LOUNGE_VAD:
+            self._lounge_vad_on = False
+            self.gatekeeper.set_silence(False)
+        elif k is ActionKind.ERROR_TONE:
+            await self.playback.play_tone(audio_mod.error_tone(C.GEMINI_OUTPUT_RATE))
+
+    async def _safe_attention(self, coro) -> None:
+        """Run an attention call best-effort: ducking degrades, never blocks."""
+        try:
+            await coro
+        except (AttentionDown, Unsupervised):
+            _LOG.warning("attention unavailable for room %s — continuing un-ducked", self.room)
+        except UnknownRoom:
+            _LOG.error("unknown PodConnect room %s (check the Voice-PE->room map)", self.room)
+
+    # ------------------------------------------------------------------ ingest loop
+    async def _ingest(self) -> None:
+        async for frame in self.voicepe.pcm_frames():
+            if self._lounge_vad_on and self._lounge_vad.feed(frame):
+                self._lounge_vad_on = False
+                await self.sm.post(Event(EventType.LOCAL_VOICE_DETECTED, self.room))
+            await self.gatekeeper.offer(frame)
+
+    # ------------------------------------------------------------------ gemini loop
+    def _start_reader(self) -> None:
+        if self._reader is not None and not self._reader.done():
+            return
+        self._reader = asyncio.create_task(self._read_gemini(), name=f"gemini-{self.room}")
+
+    async def _stop_reader(self) -> None:
+        if self._reader is not None and not self._reader.done():
+            self._reader.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._reader
+        self._reader = None
+
+    async def _read_gemini(self) -> None:
+        try:
+            async for ev in self.gemini.events():
+                await self._on_gemini_event(ev)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            _LOG.exception("gemini reader error for room %s", self.room)
+            await self.sm.post(Event(EventType.ERROR, self.room))
+
+    async def _on_gemini_event(self, ev) -> None:
+        if isinstance(ev, AudioChunk):
+            if not self._responded:
+                self._responded = True
+                await self.sm.post(Event(EventType.GEMINI_RESPONDING, self.room))
+            if self.watchdog is not None:
+                self.watchdog.on_output()
+            await self.playback.play(ev.pcm)
+        elif isinstance(ev, OutputTranscript):
+            if self.watchdog is not None:
+                self.watchdog.on_output()
+        elif isinstance(ev, InputTranscript):
+            if self.watchdog is not None:
+                self.watchdog.on_output()
+            await self._maybe_barge_in(ev.text)
+        elif isinstance(ev, ToolCall):
+            await self._handle_tool(ev)
+        elif isinstance(ev, TurnComplete):
+            if self.watchdog is not None:
+                self.watchdog.disarm()
+            await self.sm.post(Event(EventType.GEMINI_TURN_COMPLETE, self.room))
+        elif isinstance(ev, Interrupted):
+            self.playback.flush()
+            await self.sm.post(Event(EventType.GEMINI_INTERRUPTED, self.room))
+        elif isinstance(ev, GoAway):
+            _LOG.info("Gemini go_away (%.1fs left) — reconnecting", ev.time_left or 0.0)
+            with contextlib.suppress(Exception):
+                await self.gemini.reconnect()
+                self._start_reader()
+
+    async def _maybe_barge_in(self, text: str) -> None:
+        if self.bargein is None:
+            return
+        kind = self.bargein.classify_token(text)
+        if kind and self.bargein.fire():
+            token = "stop" if kind == "hard" else "tak"
+            await self.sm.post(Event(EventType.CLOSURE_TOKEN, self.room, {"kind": token}))
+
+    async def _handle_tool(self, tc: ToolCall) -> None:
+        if self.tools is None:
+            result: dict = {"ok": False, "error": "no tools configured"}
+        else:
+            result = await self.tools.dispatch(tc.name, tc.args)
+        await self.gemini.send_tool_results([{"id": tc.id, "name": tc.name, "response": result}])
+
+    # ------------------------------------------------------------------ device events
+    def _on_device_event(self, room: str, state: object) -> None:
+        # VERIFY: ESPHome event-entity state shape (event_type attribute name).
+        etype = getattr(state, "event_type", None) or getattr(state, "event", None)
+        if etype is None:
+            return
+        if etype in ("wake_okay_nabu", "wake"):
+            ev = Event(EventType.WAKE_WORD, room)
+        elif etype == "single_press":
+            ev = Event(EventType.BUTTON_PRESS, room)
+        elif etype == "wake_stop":
+            ev = Event(EventType.CLOSURE_TOKEN, room, {"kind": "stop"})
+        else:
+            return
+        asyncio.create_task(self.sm.post(ev))  # noqa: RUF006
+
+    # ------------------------------------------------------------------ timers / watchdog
+    def _start_lounge_timer(self, timeout_s: float) -> None:
+        self._cancel_lounge_timer()
+        self._lounge_timer = asyncio.create_task(
+            self._lounge_timeout(timeout_s), name=f"lounge-{self.room}"
+        )
+
+    def _cancel_lounge_timer(self) -> None:
+        if self._lounge_timer is not None and not self._lounge_timer.done():
+            self._lounge_timer.cancel()
+        self._lounge_timer = None
+
+    async def _lounge_timeout(self, timeout_s: float) -> None:
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.sleep(timeout_s)
+            await self.sm.post(Event(EventType.LOUNGE_TIMEOUT, self.room))
+
+    async def _watchdog_loop(self, interval: float = 0.05) -> None:
+        while True:
+            await asyncio.sleep(interval)
+            reason = self.watchdog.check()
+            if reason:
+                _LOG.warning("watchdog %s for room %s", reason, self.room)
+                self.watchdog.disarm()
+                await self.sm.post(Event(EventType.WATCHDOG_TIMEOUT, self.room))

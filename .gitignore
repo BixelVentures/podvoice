@@ -1,0 +1,19 @@
+# Runtime data & secrets (PLAN.md §10) — never commit.
+/data/
+options.json
+.env*
+secrets.yaml
+esphome/secrets.yaml
+
+# Python tooling / caches
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS cruft
+.DS_Store
+
+# NOTE: config.example.yaml, repository.yaml and build.yaml ARE committed.

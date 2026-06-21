@@ -1,0 +1,27 @@
+# Example PodVoice configuration for local/dev runs.
+# Mirrors the add-on options schema (podvoice/config.yaml). Copy to a private
+# file, fill in real values, and load it instead of /data/options.json.
+# NEVER commit a copy that contains real secrets (see .gitignore).
+
+# --- Secrets (required) ---
+gemini_api_key: ""          # Google Gemini API key, Live-enabled (AI Studio, billing on)
+podconnect_token: ""        # PodConnect Attention API token (sent as X-PodConnect-Token)
+voicepe_noise_psk: ""       # 32-byte base64 Noise PSK; must match the Voice PE firmware
+
+# --- Connection ---
+gemini_model: "gemini-2.5-flash-native-audio-preview-12-2025"  # VERIFY exact Live model string
+podconnect_base_url: "http://homeassistant.local:8099"
+voicepe_host: "voice-pe.local"   # single-device convenience; per-room hosts go under `rooms`
+
+# --- Voice PE -> room map (one entry per device) ---
+rooms:
+  - voicepe_host: "voice-pe.local"
+    room: "kitchen"
+
+# --- Tuning (canonical defaults from PLAN.md §3) ---
+lounge_window_s: 8          # follow-up window length (seconds)
+duck_level: 5               # HomePod % during LISTENING / AI_SPEAKING
+lounge_level: 35            # HomePod % during LOUNGE_WINDOW
+heartbeat_ms: 500           # Attention re-POST cadence (ms)
+watchdog_ms: 800            # round-trip latency abort threshold (ms)
+vad_threshold: 0.015        # lounge energy gate, normalized RMS (0..1)

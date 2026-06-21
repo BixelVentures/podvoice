@@ -1,0 +1,3 @@
+# Dependencies for the hardware spikes (run on a machine that can reach the Voice PE).
+aioesphomeapi==45.3.*   # VERIFY: pin to the version you test against
+zeroconf>=0.131         # for .local (mDNS) host resolution

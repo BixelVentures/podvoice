@@ -1,0 +1,32 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r podvoice/requirements-dev.txt
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy podvoice/gatekeeper
+      - run: pytest -q
+
+  build-addon:
+    needs: lint-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # home-assistant/builder is deprecated; build the aarch64 image with
+      # docker buildx + an explicit FROM (BUILD_FROM no longer auto-injected
+      # since Supervisor 2026.04.0). See PLAN.md §11 / §6 B.2.
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./podvoice
+          platforms: linux/arm64
+          push: false

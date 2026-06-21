@@ -1,0 +1,3 @@
+build_from:
+  # VERIFY exact aarch64-base-python tag at build time (PLAN.md §6 B.2 / §9).
+  aarch64: ghcr.io/home-assistant/aarch64-base-python:3.12-alpine3.21

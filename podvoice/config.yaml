@@ -1,0 +1,40 @@
+# PodVoice Home Assistant add-on manifest.
+# Defaults below are the canonical operational constants from PLAN.md §3
+# (single source of truth, mirrored in gatekeeper/constants.py).
+name: PodVoice
+version: "0.1.0"
+slug: podvoice
+description: Gemini Live voice assistant bridge for custom-firmware Voice PE
+arch:
+  - aarch64
+startup: application
+init: false
+host_network: true
+homeassistant_api: true
+options:
+  # VERIFY exact Gemini Live model string at build time (PLAN.md §5.1).
+  gemini_model: "gemini-2.5-flash-native-audio-preview-12-2025"
+  podconnect_base_url: "http://homeassistant.local:8099"
+  rooms: []
+  lounge_window_s: 8
+  duck_level: 5
+  lounge_level: 35
+  heartbeat_ms: 500
+  watchdog_ms: 800
+  vad_threshold: 0.015
+schema:
+  gemini_api_key: password
+  gemini_model: str
+  podconnect_base_url: url
+  podconnect_token: password
+  voicepe_host: "str?"
+  voicepe_noise_psk: "password?"
+  rooms:
+    - voicepe_host: str
+      room: str
+  lounge_window_s: int(1,120)
+  duck_level: int(0,100)
+  lounge_level: int(0,100)
+  heartbeat_ms: int(100,60000)
+  watchdog_ms: int(200,120000)
+  vad_threshold: float(0,1)
