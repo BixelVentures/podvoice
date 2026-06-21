@@ -2,4 +2,5 @@
 google-genai==2.8.*
 aioesphomeapi==45.3.*
 httpx>=0.27,<1.0
+aiohttp>=3.10   # serves the HA Ingress sidebar panel (web.py)
 # soxr>=0.5,<1   # uncomment only if the playback path needs resampling (see PLAN.md §4.5)

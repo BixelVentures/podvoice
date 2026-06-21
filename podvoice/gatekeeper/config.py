@@ -33,6 +33,7 @@ class Config:
     voicepe_noise_psk: str
     rooms: tuple[RoomMap, ...]
     supervisor_token: str = ""
+    simulate: bool = False
     lounge_window_s: int = C.LOUNGE_WINDOW_S
     duck_level: int = C.DUCK_LEVEL
     lounge_level: int = C.LOUNGE_LEVEL
@@ -80,6 +81,7 @@ def from_options(opts: dict) -> Config:
         voicepe_noise_psk=opts.get("voicepe_noise_psk", ""),
         rooms=rooms,
         supervisor_token=opts.get("supervisor_token", ""),
+        simulate=bool(opts.get("simulate", False)),
         lounge_window_s=int(opts.get("lounge_window_s", C.LOUNGE_WINDOW_S)),
         duck_level=int(opts.get("duck_level", C.DUCK_LEVEL)),
         lounge_level=int(opts.get("lounge_level", C.LOUNGE_LEVEL)),

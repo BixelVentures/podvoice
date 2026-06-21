@@ -66,6 +66,23 @@ A steady stream of these `OK` lines means everything is connected and working. I
 something is wrong you will see an `ADVARSEL` (warning) line that says what is failing,
 for example that the HomePod control is unavailable and the music will not duck.
 
+## The sidebar panel
+
+Once started, PodVoice adds a **PodVoice** item to the Home Assistant sidebar. Open it to see,
+per room: the current state (idle / listening / speaking / follow-up), whether the music is
+ducked and how far, the last response time, and live connection health for Gemini, the Voice PE,
+and PodConnect. There's a live transcript and three buttons per room — **Listen** (start a
+conversation as if you pressed the button), **Stop** (end it and restore music), and **Test tone**
+(play a sound out the Voice PE speaker to check audio). No secrets are shown here; configuration
+still lives in the **Configuration** tab.
+
+## Try it without hardware (simulation)
+
+Set the **simulate** option to `true` and start the add-on. PodVoice will run a built-in demo —
+no Gemini key, Voice PE, or PodConnect required — that cycles realistic conversations through the
+panel so you can see exactly how it behaves before your hardware arrives. Turn it back to `false`
+for real use.
+
 ## Troubleshooting
 
 - **The add-on will not start / errors right away.** Check the Log tab. The most common

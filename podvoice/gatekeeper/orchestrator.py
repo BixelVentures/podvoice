@@ -47,6 +47,7 @@ class RoomSession:
         tools=None,
         watchdog=None,
         bargein=None,
+        hub=None,
         lounge_window_s: int = C.LOUNGE_WINDOW_S,
         duck_level: int = C.DUCK_LEVEL,
         lounge_level: int = C.LOUNGE_LEVEL,
@@ -63,10 +64,14 @@ class RoomSession:
         self.tools = tools
         self.watchdog = watchdog
         self.bargein = bargein
+        self.hub = hub
         self.duck_level = duck_level
         self.lounge_level = lounge_level
         self.lounge_window_s = lounge_window_s
         self.enable_watchdog = enable_watchdog and watchdog is not None
+
+        if hub is not None:
+            hub.register_room(room)
 
         self.sm = StateMachine(
             self,
@@ -74,6 +79,7 @@ class RoomSession:
             lounge_window_s=lounge_window_s,
             duck_level=duck_level,
             lounge_level=lounge_level,
+            observer=self._on_transition if hub is not None else None,
         )
         self._lounge_vad = audio_mod.LoungeVAD(threshold=vad_threshold)
         self._lounge_vad_on = False
@@ -87,8 +93,18 @@ class RoomSession:
             voicepe.on_event = self._on_device_event
 
     # ------------------------------------------------------------------ lifecycle
+    def _on_transition(self, old, new, event) -> None:
+        if self.hub is None:
+            return
+        self.hub.set_state(self.room, new.name)
+        if old.name == "IDLE" and new.name == "LISTENING":
+            self.hub.incr("sessions")
+
     async def start(self) -> None:
         await self.voicepe.start()
+        if self.hub is not None:
+            self.hub.set_connected(self.room, True)
+            self.hub.set_service("voicepe", "up")
         self.playback.start()
         self._tasks = [
             asyncio.create_task(self.sm.run(), name=f"sm-{self.room}"),
@@ -123,6 +139,8 @@ class RoomSession:
         if k is ActionKind.OPEN_WS:
             await self.gemini.connect()
             self._start_reader()
+            if self.hub is not None:
+                self.hub.set_service("gemini", "up")
         elif k is ActionKind.CLOSE_WS:
             await self._stop_reader()
             if self.watchdog is not None:
@@ -135,10 +153,19 @@ class RoomSession:
             )
         elif k is ActionKind.RELEASE:
             await self._safe_attention(self.attention.release(self.room))
+            if self.hub is not None:
+                self.hub.incr("attention_releases")
+                self.hub.set_level(self.room, 100)
         elif k is ActionKind.HB_START:
             self.heartbeat.start(self.room, action.level, action.ttl_ms)
+            if self.hub is not None:
+                self.hub.incr("attention_engages")
+                self.hub.set_level(self.room, action.level)
         elif k is ActionKind.HB_RETARGET:
             self.heartbeat.retarget(self.room, action.level, action.ttl_ms)
+            if self.hub is not None:
+                self.hub.incr("attention_engages")
+                self.hub.set_level(self.room, action.level)
         elif k is ActionKind.HB_STOP:
             await self.heartbeat.stop()
         elif k is ActionKind.GATE_OPEN:
@@ -172,10 +199,16 @@ class RoomSession:
         """Run an attention call best-effort: ducking degrades, never blocks."""
         try:
             await coro
+            if self.hub is not None:
+                self.hub.set_service("podconnect", "up")
         except (AttentionDown, Unsupervised):
             _LOG.warning("attention unavailable for room %s — continuing un-ducked", self.room)
+            if self.hub is not None:
+                self.hub.set_service("podconnect", "degraded")
         except UnknownRoom:
             _LOG.error("unknown PodConnect room %s (check the Voice-PE->room map)", self.room)
+            if self.hub is not None:
+                self.hub.set_service("podconnect", "degraded")
 
     # ------------------------------------------------------------------ ingest loop
     async def _ingest(self) -> None:
@@ -219,15 +252,23 @@ class RoomSession:
         elif isinstance(ev, OutputTranscript):
             if self.watchdog is not None:
                 self.watchdog.on_output()
+            if self.hub is not None:
+                self.hub.transcript(self.room, "out", ev.text)
         elif isinstance(ev, InputTranscript):
             if self.watchdog is not None:
                 self.watchdog.on_output()
+            if self.hub is not None:
+                self.hub.transcript(self.room, "in", ev.text)
             await self._maybe_barge_in(ev.text)
         elif isinstance(ev, ToolCall):
+            if self.hub is not None:
+                self.hub.incr("tool_calls")
             await self._handle_tool(ev)
         elif isinstance(ev, TurnComplete):
             if self.watchdog is not None:
                 self.watchdog.disarm()
+                if self.hub is not None and self.watchdog.samples:
+                    self.hub.set_latency(self.room, self.watchdog.samples[-1] * 1000)
             await self.sm.post(Event(EventType.GEMINI_TURN_COMPLETE, self.room))
         elif isinstance(ev, Interrupted):
             self.playback.flush()
@@ -243,6 +284,8 @@ class RoomSession:
             return
         kind = self.bargein.classify_token(text)
         if kind and self.bargein.fire():
+            if self.hub is not None:
+                self.hub.incr("barge_ins")
             token = "stop" if kind == "hard" else "tak"
             await self.sm.post(Event(EventType.CLOSURE_TOKEN, self.room, {"kind": token}))
 
@@ -292,5 +335,7 @@ class RoomSession:
             reason = self.watchdog.check()
             if reason:
                 _LOG.warning("watchdog %s for room %s", reason, self.room)
+                if self.hub is not None:
+                    self.hub.incr("watchdog_aborts")
                 self.watchdog.disarm()
                 await self.sm.post(Event(EventType.WATCHDOG_TIMEOUT, self.room))

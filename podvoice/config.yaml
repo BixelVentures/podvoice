@@ -11,10 +11,16 @@ startup: application
 init: false
 host_network: true
 homeassistant_api: true
+# Sidebar panel served on :8098 (PodConnect owns :8099) behind HA Ingress.
+ingress: true
+ingress_port: 8098
+panel_icon: mdi:microphone-message
+panel_title: PodVoice
 options:
   # VERIFY exact Gemini Live model string at build time (PLAN.md §5.1).
   gemini_model: "gemini-2.5-flash-native-audio-preview-12-2025"
   podconnect_base_url: "http://homeassistant.local:8099"
+  simulate: false
   rooms: []
   lounge_window_s: 8
   duck_level: 5
@@ -27,6 +33,7 @@ schema:
   gemini_model: str
   podconnect_base_url: url
   podconnect_token: password
+  simulate: bool
   voicepe_host: "str?"
   voicepe_noise_psk: "password?"
   rooms:

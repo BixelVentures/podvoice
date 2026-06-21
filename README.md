@@ -29,6 +29,17 @@ firmware's continuous-audio mechanism (**S1**) and the 24 kHz speaker-playback p
 verifying the live `google-genai` / `aioesphomeapi` / Gemini-model specifics (every such point is
 marked `# VERIFY:` in the code). See **[PLAN.md](PLAN.md)** for the full architecture and roadmap.
 
+## Sidebar panel & simulation mode
+PodVoice ships a **Home Assistant Ingress sidebar panel** (served on `:8098` — PodConnect owns `:8099`):
+per-room state, service health, the live ducking level, a live transcript, and controls
+(Listen / Stop / Test tone), plus a `/health` endpoint and live metrics. It's a single
+dependency-free page (`podvoice/gatekeeper/static/index.html`) talking to a small aiohttp API
+(`web.py`) fed by a status hub (`hub.py`).
+
+**Try it with no hardware or keys:** set the add-on option `simulate: true` (or run `python -m gatekeeper`
+with it). A built-in scenario driver (`sim.py`) animates the full wake → duck → speak → lounge → release
+flow per room so you can watch the panel work before the Voice PE / Gemini key arrive.
+
 ## Develop & test
 ```sh
 python -m venv .venv && . .venv/bin/activate

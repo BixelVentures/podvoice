@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import typing
+from collections.abc import Callable
 
 from . import constants as C
 from .events import (
@@ -56,8 +57,10 @@ class StateMachine:
         lounge_level: int = C.LOUNGE_LEVEL,
         ttl_listening_ms: int = C.TTL_LISTENING_MS,
         ttl_lounge_ms: int = C.TTL_LOUNGE_MS,
+        observer: Callable[[State, State, Event], None] | None = None,
     ) -> None:
         self._effects = effects
+        self._observer = observer
         self.room = room
         self.lounge_window_s = lounge_window_s
         self.duck_level = duck_level
@@ -90,7 +93,12 @@ class StateMachine:
                         "to": new.value,
                     },
                 )
-                self.state = new
+                old, self.state = self.state, new
+                if self._observer is not None and old is not new:
+                    try:
+                        self._observer(old, new, event)
+                    except Exception:  # pragma: no cover - observer must never break the loop
+                        log.exception("observer_failed", extra={"room": self.room})
             finally:
                 self.q.task_done()
 
