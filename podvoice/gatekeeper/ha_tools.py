@@ -89,6 +89,19 @@ class HAToolBridge:
                     "parameters": {"type": "object", "properties": {}},
                 },
                 {
+                    "name": "list_services",
+                    "description": "Discover the available services AND their parameters for the "
+                    "domains you can control — use this to find advanced actions (e.g. a vacuum's "
+                    "room/segment cleaning, fan speed, or mop/water mode), then call them with "
+                    "home_call. Optionally pass a domain to narrow it.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "domain": {"type": "string", "description": "optional, e.g. vacuum"}
+                        },
+                    },
+                },
+                {
                     "name": "turn_on",
                     "description": "Turn an entity ON (light/switch/etc).",
                     "parameters": ent,
@@ -233,6 +246,24 @@ class HAToolBridge:
                 )
         return {"ok": True, "entities": out[:100]}
 
+    def _allowed_domains(self) -> set[str]:
+        return {e.split(".")[0] if "." in e else e for e in self._exposed}
+
+    async def _list_services(self, domain: str | None = None) -> dict:
+        r = await self._client.get(f"{C.SUPERVISOR_CORE_API}/services", headers=self._ha_headers)
+        r.raise_for_status()
+        allowed = self._allowed_domains()
+        out: dict = {}
+        for entry in r.json():
+            d = entry.get("domain")
+            if d not in allowed or (domain and d != domain):
+                continue
+            out[d] = {
+                svc: {"fields": list((info.get("fields") or {}).keys())}
+                for svc, info in (entry.get("services") or {}).items()
+            }
+        return {"ok": True, "services": out}
+
     async def _pc_call(self, method: str, path: str, body: dict | None) -> dict:
         if not self._pc_base:
             return {"ok": False, "error": "PodConnect not configured"}
@@ -253,6 +284,8 @@ class HAToolBridge:
                 return await self._pc_call(args["method"], args["path"], args.get("body"))
             if name == "list_home":
                 return await self._list_home()
+            if name == "list_services":
+                return await self._list_services(args.get("domain"))
 
             # All remaining tools act on an entity that must be exposed.
             if name == "add_todo":

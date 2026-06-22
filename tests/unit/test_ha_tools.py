@@ -94,6 +94,25 @@ async def test_podconnect_play_post(respx_mock):
     assert r["ok"] is True and route.called
 
 
+async def test_list_services_filters_to_allowed_domains(respx_mock):
+    services = [
+        {
+            "domain": "vacuum",
+            "services": {
+                "start": {"fields": {}},
+                "send_command": {"fields": {"command": {}, "params": {}}},
+                "set_fan_speed": {"fields": {"fan_speed": {}}},
+            },
+        },
+        {"domain": "lock", "services": {"lock": {"fields": {}}}},
+    ]
+    respx_mock.get(f"{SVC}/services").respond(200, json=services)
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=["vacuum"]).dispatch("list_services", {})
+    assert "vacuum" in r["services"] and "lock" not in r["services"]  # only exposed domains
+    assert "fan_speed" in r["services"]["vacuum"]["set_fan_speed"]["fields"]
+
+
 async def test_home_call_vacuum_allowed(respx_mock):
     route = respx_mock.post(f"{SVC}/services/vacuum/start").respond(200, json=[])
     async with httpx.AsyncClient() as client:

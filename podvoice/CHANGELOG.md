@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1
+
+- **Service discovery**: new `list_services` tool lets the assistant see each exposed domain's
+  services + parameters (e.g. a vacuum's room/segment cleaning, fan speed, mop/water mode) and
+  run them via `home_call`. Unlocks advanced device control without hardcoding (e.g. Roborock).
+
 ## 0.7.0
 
 - **Fix: the conversation now continues across turns.** The Gemini reader re-enters
