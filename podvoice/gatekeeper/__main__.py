@@ -18,6 +18,7 @@ import httpx
 from . import __version__
 from .config import Config, RoomMap, load_config
 from .console import console_factory, list_models
+from .diag import check_status, resolve_target, run_s1, run_s2
 from .gatekeeper import Gatekeeper
 from .ha_tools import HAToolBridge
 from .heartbeat import Heartbeat
@@ -101,6 +102,21 @@ def _build_session(
     )
 
 
+async def _diag_status(room: str | None = None) -> dict:
+    return await check_status(*resolve_target(load_settings(), room))
+
+
+async def _diag_s1(room: str | None = None) -> dict:
+    return await run_s1(*resolve_target(load_settings(), room))
+
+
+async def _diag_s2(room: str | None = None) -> dict:
+    return await run_s2(*resolve_target(load_settings(), room))
+
+
+_DIAG = {"status": _diag_status, "s1": _diag_s1, "s2": _diag_s2}
+
+
 async def _restart_addon(token: str) -> bool:
     """Restart this add-on via the Supervisor API (panel 'Save & restart')."""
     if not token:
@@ -146,6 +162,7 @@ async def run(cfg: Config) -> None:
         settings_get=load_settings,
         settings_set=save_settings,
         on_restart=lambda: _restart_addon(cfg.supervisor_token),
+        diag=_DIAG,
     )
     runner = await start_web(app)
 

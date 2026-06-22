@@ -31,6 +31,7 @@ MODELS: web.AppKey = web.AppKey("models")
 SETTINGS_GET: web.AppKey = web.AppKey("settings_get")
 SETTINGS_SET: web.AppKey = web.AppKey("settings_set")
 RESTART: web.AppKey = web.AppKey("restart")
+DIAG: web.AppKey = web.AppKey("diag")
 
 
 def create_app(
@@ -41,6 +42,7 @@ def create_app(
     settings_get=None,
     settings_set=None,
     on_restart=None,
+    diag=None,
 ) -> web.Application:
     """Build the aiohttp app.
 
@@ -57,6 +59,7 @@ def create_app(
     app[SETTINGS_GET] = settings_get
     app[SETTINGS_SET] = settings_set
     app[RESTART] = on_restart
+    app[DIAG] = diag or {}
     app.add_routes(
         [
             web.get("/", _index),
@@ -68,10 +71,33 @@ def create_app(
             web.get("/api/settings", _settings_get),
             web.post("/api/settings", _settings_set),
             web.post("/api/restart", _restart),
+            web.get("/api/voicepe/status", _diag_status),
+            web.post("/api/voicepe/s1", _diag_s1),
+            web.post("/api/voicepe/s2", _diag_s2),
             web.get("/health", _health),
         ]
     )
     return app
+
+
+async def _run_diag(request: web.Request, name: str) -> web.Response:
+    fn = request.app[DIAG].get(name)
+    if fn is None:
+        return web.json_response({"ok": False, "error": "diagnostics unavailable"}, status=501)
+    room = request.query.get("room")
+    return web.json_response(await fn(room))
+
+
+async def _diag_status(request: web.Request) -> web.Response:
+    return await _run_diag(request, "status")
+
+
+async def _diag_s1(request: web.Request) -> web.Response:
+    return await _run_diag(request, "s1")
+
+
+async def _diag_s2(request: web.Request) -> web.Response:
+    return await _run_diag(request, "s2")
 
 
 async def _settings_get(request: web.Request) -> web.Response:

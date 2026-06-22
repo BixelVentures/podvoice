@@ -68,6 +68,16 @@ A steady stream of these `OK` lines means everything is connected and working. I
 something is wrong you will see an `ADVARSEL` (warning) line that says what is failing,
 for example that the HomePod control is unavailable and the music will not duck.
 
+## Setting up the Voice PE (when it arrives)
+
+Open the **PodVoice** sidebar → **Voice PE setup**. It walks you through it and gives three
+click-buttons so you never need a terminal:
+1. Flash `esphome/voice-pe.yaml` via the **ESPHome** add-on (set its API encryption key = your PSK).
+2. Do **not** add the Voice PE to Home Assistant Assist (PodVoice must own its mic).
+3. In **Settings**, enter the PSK and add a room → **Save & restart**.
+4. **Check connection** (is it reachable?), **Check audio stream** (continuous-audio test), and
+   **Test speaker** (plays a tone — confirm you hear it).
+
 ## The sidebar panel
 
 Once started, PodVoice adds a **PodVoice** item to the Home Assistant sidebar. Open it to see,

@@ -141,6 +141,29 @@ async def test_restart_unavailable_without_handler():
         assert r.status == 501
 
 
+async def test_voicepe_diag_endpoints():
+    async def status(room=None):
+        return {"ok": True, "name": "VP", "room": room}
+
+    async def s1(room=None):
+        return {"ok": True, "verdict": "pass", "continuity_pct": 99.0}
+
+    async def s2(room=None):
+        return {"ok": True, "verdict": "played"}
+
+    app = create_app(StatusHub(), {}, diag={"status": status, "s1": s1, "s2": s2})
+    async with TestClient(TestServer(app)) as client:
+        assert (await (await client.get("/api/voicepe/status")).json())["name"] == "VP"
+        assert (await (await client.post("/api/voicepe/s1")).json())["verdict"] == "pass"
+        assert (await (await client.post("/api/voicepe/s2")).json())["verdict"] == "played"
+
+
+async def test_voicepe_diag_unavailable():
+    async with TestClient(TestServer(create_app(StatusHub(), {}))) as client:
+        r = await client.get("/api/voicepe/status")
+        assert r.status == 501
+
+
 async def test_sse_stream_delivers_events():
     hub = StatusHub()
     async with _client(hub, {}) as client:

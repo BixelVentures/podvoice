@@ -137,11 +137,13 @@
                  border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
 
   /* Settings form. */
-  details#settings > summary, details.adv > summary {
+  details.section > summary, details.adv > summary {
     cursor: pointer; font-size: .82rem; font-weight: 700; text-transform: uppercase;
     letter-spacing: .05em; color: var(--fg-dim); list-style: none; }
-  details#settings > summary::after { content: " ▸"; }
-  details#settings[open] > summary::after { content: " ▾"; }
+  details.section > summary::after { content: " ▸"; }
+  details.section[open] > summary::after { content: " ▾"; }
+  .vpsteps { font-size: .84rem; color: var(--fg-dim); line-height: 1.55; padding-left: 18px;
+             margin: 10px 0; }
   .setgrid { display: grid; grid-template-columns: 132px 1fr; gap: 9px 10px; align-items: center;
              margin: 12px 0; }
   .setgrid label { font-size: .82rem; font-weight: 600; }
@@ -214,6 +216,22 @@
       <button id="s_saverestart" class="ghost">Save &amp; restart</button>
       <span id="s_status" class="sub" role="status"></span>
     </div>
+  </details>
+
+  <details class="section" id="voicepe">
+    <summary>Voice PE setup</summary>
+    <ol class="vpsteps">
+      <li>Flash <code>esphome/voice-pe.yaml</code> via the ESPHome add-on; set its API encryption key (your PSK).</li>
+      <li>Do <b>not</b> add the Voice PE to Home Assistant Assist — PodVoice must own its microphone.</li>
+      <li>In <b>Settings</b> above, set the Voice PE PSK + add a room, then <b>Save &amp; restart</b>.</li>
+      <li>Then run the checks below.</li>
+    </ol>
+    <div class="actions">
+      <button id="vp_status" class="ghost">Check connection</button>
+      <button id="vp_s1" class="ghost">Check audio stream</button>
+      <button id="vp_s2" class="ghost">Test speaker</button>
+    </div>
+    <div id="vp_result" class="status" style="display:none;margin-top:12px"></div>
   </details>
 
   <div class="section">
@@ -659,6 +677,44 @@ setInterval(poll, 3000);
   document.getElementById("s_saverestart").onclick = function () { save(true); };
 
   load();
+})();
+</script>
+
+<script>
+"use strict";
+// ---- Voice PE setup diagnostics (server-side S1/S2 as click-buttons) ----
+(function () {
+  var out = document.getElementById("vp_result");
+  var btns = ["vp_status", "vp_s1", "vp_s2"].map(function (id) { return document.getElementById(id); });
+  function show(cls, text) { out.style.display = "block"; out.className = "status " + cls; out.textContent = text; }
+  function busy(on) { btns.forEach(function (b) { if (b) b.disabled = on; }); }
+
+  async function run(path, method, pending) {
+    show("info", pending);
+    busy(true);
+    try {
+      var r = await fetch("api/voicepe/" + path, { method: method });
+      var j = await r.json();
+      if (r.status === 501) { show("warn", "Diagnostics unavailable (running in simulation?)."); return; }
+      if (!j.ok) { show("warn", j.error || j.hint || "Check failed."); return; }
+      if (path === "status") {
+        show("ok", "✅ Connected: " + (j.name || j.host) + " (ESPHome " + (j.esphome || "?") + ")");
+      } else if (path === "s1") {
+        if (j.verdict === "pass") {
+          show("ok", "✅ Continuous audio: " + j.continuity_pct + "% continuity, " + j.gaps_over_60ms + " gaps over " + j.seconds + "s.");
+        } else {
+          show("warn", "⚠️ " + (j.verdict === "no-audio" ? "No audio. " : "Gaps: " + j.continuity_pct + "% continuity, " + j.gaps_over_60ms + " gaps. ") + (j.hint || ""));
+        }
+      } else {
+        show("info", "🔊 " + (j.hint || "Tone sent — did you hear it on the Voice PE speaker?"));
+      }
+    } catch (e) { show("warn", "Request failed."); }
+    finally { busy(false); }
+  }
+
+  if (btns[0]) btns[0].onclick = function () { run("status", "GET", "Checking connection…"); };
+  if (btns[1]) btns[1].onclick = function () { run("s1", "POST", "Measuring the audio stream (~15s)…"); };
+  if (btns[2]) btns[2].onclick = function () { run("s2", "POST", "Playing a test tone…"); };
 })();
 </script>
 </body>

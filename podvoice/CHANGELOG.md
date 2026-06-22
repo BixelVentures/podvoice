@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- **Voice PE setup in the panel** — a "Voice PE setup" section with a guided checklist and
+  three click-buttons (no terminal): **Check connection**, **Check audio stream** (the S1
+  continuity test), and **Test speaker** (the S2 tone). The old CLI spikes still exist for
+  power users.
+
 ## 0.2.0
 
 - **Pluggable voice brain** — choose **Gemini Live** (default; best Danish, lowest cost)
