@@ -61,7 +61,8 @@ ALTID på dansk, kort og naturligt. Svar ALTID brugeren — gå aldrig i stå ud
 
 Du kan styre hjemmet og musikken via dine værktøjer:
 - Hjem: tænd/sluk, lys (lysstyrke/farve), medieafspilning og lydstyrke, scener, klima/varme,
-  gardiner og indkøbslister. Brug værktøjet "list_home" til at se hvilke enheder du må styre.
+  gardiner, robotstøvsuger og indkøbslister. Brug "list_home" til at se hvilke enheder du må
+  styre, og "home_call" til alt andet (fx vacuum.start, vacuum.return_to_base).
 - Musik: brug "podconnect"-værktøjet til at afspille / pause / skifte / justere lydstyrke.
 Når nogen spørger "hvad kan du?", så fortæl kort om disse muligheder.
 
@@ -228,48 +229,54 @@ class GeminiLiveSession:
         await self._session.send_tool_response(function_responses=frs)  # type: ignore[attr-defined]
 
     async def events(self) -> AsyncIterator[GeminiEvent]:
-        """Async generator of typed events from ``session.receive()`` (PLAN §5.11)."""
-        if self._session is None:
-            return
-        # VERIFY: session.receive() is an async iterator of response objects.
-        async for r in self._session.receive():  # type: ignore[attr-defined]
-            # VERIFY: r.data is the convenience accessor for raw 24 kHz PCM bytes.
-            data = getattr(r, "data", None)
-            if data is not None:
-                yield AudioChunk(data)
+        """Async generator of typed events across the WHOLE session (PLAN §5.11).
 
-            # VERIFY: r.tool_call.function_calls[].{id,name,args}.
-            tool_call = getattr(r, "tool_call", None)
-            if tool_call is not None:
-                for fc in tool_call.function_calls:
-                    yield ToolCall(fc.id, fc.name, fc.args)
+        ``session.receive()`` yields one turn's messages then returns; we re-enter
+        it in a loop so the reader keeps working for follow-up turns (otherwise the
+        conversation goes silent after the first reply / tool call). The loop ends
+        when the session is closed (``close()`` sets ``_session`` to None).
+        """
+        while self._session is not None:
+            session = self._session
+            # VERIFY: session.receive() yields a turn's responses then completes.
+            async for r in session.receive():  # type: ignore[attr-defined]
+                # VERIFY: r.data is the convenience accessor for raw 24 kHz PCM bytes.
+                data = getattr(r, "data", None)
+                if data is not None:
+                    yield AudioChunk(data)
 
-            # VERIFY: r.server_content.{input_transcription,output_transcription,
-            #         interrupted,turn_complete}.
-            sc = getattr(r, "server_content", None)
-            if sc is not None:
-                in_tx = getattr(sc, "input_transcription", None)
-                if in_tx is not None:
-                    yield InputTranscript(in_tx.text)  # VERIFY: .text attribute
-                out_tx = getattr(sc, "output_transcription", None)
-                if out_tx is not None:
-                    yield OutputTranscript(out_tx.text)  # VERIFY: .text attribute
-                if getattr(sc, "interrupted", None):
-                    yield Interrupted()
-                if getattr(sc, "turn_complete", None):
-                    yield TurnComplete()
+                # VERIFY: r.tool_call.function_calls[].{id,name,args}.
+                tool_call = getattr(r, "tool_call", None)
+                if tool_call is not None:
+                    for fc in tool_call.function_calls:
+                        yield ToolCall(fc.id, fc.name, fc.args)
 
-            # VERIFY: r.session_resumption_update.{resumable,new_handle}.
-            update = getattr(r, "session_resumption_update", None)
-            if update is not None and getattr(update, "resumable", False):
-                new_handle = getattr(update, "new_handle", None)
-                if new_handle:
-                    self._resume_handle = new_handle
+                # VERIFY: r.server_content.{input_transcription,output_transcription,
+                #         interrupted,turn_complete}.
+                sc = getattr(r, "server_content", None)
+                if sc is not None:
+                    in_tx = getattr(sc, "input_transcription", None)
+                    if in_tx is not None:
+                        yield InputTranscript(in_tx.text)  # VERIFY: .text attribute
+                    out_tx = getattr(sc, "output_transcription", None)
+                    if out_tx is not None:
+                        yield OutputTranscript(out_tx.text)  # VERIFY: .text attribute
+                    if getattr(sc, "interrupted", None):
+                        yield Interrupted()
+                    if getattr(sc, "turn_complete", None):
+                        yield TurnComplete()
 
-            # VERIFY: r.go_away.time_left (server's pre-disconnect warning).
-            go_away = getattr(r, "go_away", None)
-            if go_away is not None:
-                yield GoAway(getattr(go_away, "time_left", None))
+                # VERIFY: r.session_resumption_update.{resumable,new_handle}.
+                update = getattr(r, "session_resumption_update", None)
+                if update is not None and getattr(update, "resumable", False):
+                    new_handle = getattr(update, "new_handle", None)
+                    if new_handle:
+                        self._resume_handle = new_handle
+
+                # VERIFY: r.go_away.time_left (server's pre-disconnect warning).
+                go_away = getattr(r, "go_away", None)
+                if go_away is not None:
+                    yield GoAway(getattr(go_away, "time_left", None))
 
     async def reconnect(self) -> None:
         """Close + connect. Bounded-backoff retry logic lives in the orchestrator."""

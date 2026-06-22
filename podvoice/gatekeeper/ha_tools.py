@@ -168,6 +168,29 @@ class HAToolBridge:
                         "required": ["list", "item"],
                     },
                 },
+                {
+                    "name": "home_call",
+                    "description": "Call ANY Home Assistant service on an allowed entity — for "
+                    "devices beyond the tools above (vacuum, fan, lock, humidifier, …). "
+                    "Examples: vacuum.start, vacuum.return_to_base, vacuum.set_fan_speed, "
+                    "fan.set_percentage, lock.lock. Use list_home to find entity ids.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "domain": {"type": "string", "description": "e.g. vacuum, fan, lock"},
+                            "service": {
+                                "type": "string",
+                                "description": "e.g. start, return_to_base",
+                            },
+                            "entity_id": {"type": "string"},
+                            "data": {
+                                "type": "object",
+                                "description": "extra service data (optional)",
+                            },
+                        },
+                        "required": ["domain", "service", "entity_id"],
+                    },
+                },
             ]
         if self._pc_base:
             decls.append(
@@ -276,6 +299,10 @@ class HAToolBridge:
                 if not svc:
                     return {"ok": False, "error": f"unknown cover action {args.get('action')}"}
                 changed = await self.call_service("cover", svc, {"entity_id": eid})
+            elif name == "home_call":
+                data = dict(args.get("data") or {})
+                data["entity_id"] = eid
+                changed = await self.call_service(args["domain"], args["service"], data)
             elif name == "add_todo":
                 changed = await self.call_service(
                     "todo", "add_item", {"entity_id": eid, "item": args["item"]}

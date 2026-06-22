@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- **Fix: the conversation now continues across turns.** The Gemini reader re-enters
+  `session.receive()` after each turn, so it no longer goes silent after the first reply or a
+  tool call.
+- **Roborock & everything else:** new generic `home_call(domain, service, entity_id)` tool
+  (allowlist-gated) covers vacuum/fan/lock/humidifier/… now and future — not hardcoded.
+
 ## 0.6.2
 
 - Picking a provider/model in Talk now **live-syncs** the Settings → Advanced model field

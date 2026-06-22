@@ -94,6 +94,23 @@ async def test_podconnect_play_post(respx_mock):
     assert r["ok"] is True and route.called
 
 
+async def test_home_call_vacuum_allowed(respx_mock):
+    route = respx_mock.post(f"{SVC}/services/vacuum/start").respond(200, json=[])
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=["vacuum"]).dispatch(
+            "home_call", {"domain": "vacuum", "service": "start", "entity_id": "vacuum.roborock"}
+        )
+    assert r["ok"] is True and route.called
+
+
+async def test_home_call_denied_when_unexposed(respx_mock):
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=[]).dispatch(
+            "home_call", {"domain": "vacuum", "service": "start", "entity_id": "vacuum.roborock"}
+        )
+    assert r["ok"] is False
+
+
 async def test_unknown_tool_and_ha_error_are_soft(respx_mock):
     respx_mock.post(f"{SVC}/services/homeassistant/turn_on").respond(500)
     async with httpx.AsyncClient() as client:
