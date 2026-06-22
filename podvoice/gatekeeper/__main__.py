@@ -117,6 +117,26 @@ async def _diag_s2(room: str | None = None) -> dict:
 _DIAG = {"status": _diag_status, "s1": _diag_s1, "s2": _diag_s2}
 
 
+async def _health_probe(cfg: Config, hub: StatusHub, attention: AttentionClient) -> None:
+    """Keep the panel's service dots meaningful even with no rooms / no conversation.
+
+    - PodConnect: actively GET /api/attention (HTTP, no device-exclusivity issue).
+    - Gemini/OpenAI: reflect whether the active provider's key is configured.
+    Voice PE is left to the room link (a 2nd device connection would clash with the
+    single-client native-API subscription).
+    """
+    while True:
+        state = await attention.state()
+        if state is not None:
+            hub.set_service("podconnect", "up")
+        else:
+            hub.set_service("podconnect", "degraded" if attention.degraded else "down")
+
+        key = cfg.openai_api_key if cfg.provider == "openai" else cfg.gemini_api_key
+        hub.set_service("gemini", "up" if key else "down")  # configured (not a live ping)
+        await asyncio.sleep(30)
+
+
 async def _restart_addon(token: str) -> bool:
     """Restart this add-on via the Supervisor API (panel 'Save & restart')."""
     if not token:
@@ -139,6 +159,7 @@ async def run(cfg: Config) -> None:
     attention: AttentionClient | None = None
     ha_client: httpx.AsyncClient | None = None
     driver: asyncio.Task | None = None
+    probe: asyncio.Task | None = None
 
     if cfg.simulate:
         rooms = [r.room for r in cfg.rooms] or ["kitchen", "living"]
@@ -177,14 +198,17 @@ async def run(cfg: Config) -> None:
         await s.start()
     if cfg.simulate:
         driver = asyncio.create_task(run_driver(sessions), name="sim-driver")
+    if attention is not None:
+        probe = asyncio.create_task(_health_probe(cfg, hub, attention), name="health-probe")
     try:
         await stop.wait()
     finally:
         _LOG.info("PodVoice shutting down — restoring music")
-        if driver is not None:
-            driver.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await driver
+        for task in (driver, probe):
+            if task is not None:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
         for s in sessions.values():
             await s.aclose()
         await runner.cleanup()

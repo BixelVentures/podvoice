@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1
+
+- Service health dots are now meaningful without rooms: PodConnect is actively pinged
+  (GET /api/attention) every 30 s, and the Gemini/OpenAI dot reflects whether the active
+  provider's key is set. (Previously the dots only lit up as a side effect of a ducking call.)
+
 ## 0.3.0
 
 - **Voice PE setup in the panel** — a "Voice PE setup" section with a guided checklist and
