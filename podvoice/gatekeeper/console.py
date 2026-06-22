@@ -115,6 +115,7 @@ def console_factory(cfg: Config, tools=None):
                 api_key=cfg.openai_api_key,
                 model=model or cfg.openai_model,
                 voice=cfg.openai_voice or "marin",
+                instructions=cfg.system_prompt,
                 tool_declarations=decls,
             )
         if not cfg.gemini_api_key:

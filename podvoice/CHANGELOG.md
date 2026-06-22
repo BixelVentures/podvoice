@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+- **Editable system prompt** (Settings) — a capability-aware default tells the assistant who
+  it is and what it can do (home + music + tools), so it can answer “hvad kan du?” and never
+  goes silent. Edit it freely (copy/paste) and Save & restart.
+
 ## 0.5.0
 
 - **Tabs**: the panel is now Talk / Status / Settings / Voice PE — no more long scroll.

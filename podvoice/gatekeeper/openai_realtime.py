@@ -50,7 +50,7 @@ class OpenAIRealtimeSession:
     api_key: str
     model: str = DEFAULT_MODEL
     voice: str = DEFAULT_VOICE
-    instructions: str = SYSTEM_PROMPT_DA
+    instructions: str = ""  # empty -> built-in SYSTEM_PROMPT_DA
     tool_declarations: list[dict] | None = None
     language: str = "da"
     _http: aiohttp.ClientSession | None = field(default=None, init=False, repr=False)
@@ -60,7 +60,7 @@ class OpenAIRealtimeSession:
         session: dict = {
             "type": "realtime",  # speech-to-speech (vs "transcription")
             "output_modalities": ["audio"],
-            "instructions": self.instructions,
+            "instructions": self.instructions or SYSTEM_PROMPT_DA,
             "audio": {
                 "input": {
                     "format": {"type": "audio/pcm", "rate": OPENAI_RATE},

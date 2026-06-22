@@ -165,6 +165,10 @@
   .setgrid input, .setgrid select { font: inherit; padding: 7px 9px; border-radius: 9px;
              border: 1px solid var(--border-strong); background: var(--field); color: inherit; width: 100%; }
   .setgrid input[type=checkbox] { width: auto; justify-self: start; }
+  .prompt { width: 100%; font: inherit; font-size: .85rem; line-height: 1.45; padding: 10px 12px;
+            border-radius: 12px; border: 1px solid var(--border-strong); background: var(--field);
+            color: inherit; resize: vertical; box-sizing: border-box; }
+  .prompt:focus { outline: none; border-color: var(--accent); }
   .roomrow { display: flex; gap: 8px; margin-bottom: 6px; }
   .roomrow input { flex: 1; font: inherit; padding: 7px 9px; border-radius: 9px;
              border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
@@ -253,6 +257,9 @@
         <input id="s_simulate" type="checkbox">
       </div>
       <p class="sub" style="margin:2px 0 0">Home control = entities/domains the assistant may control (comma-separated). Empty = none. PodConnect music control is always available when its URL is set.</p>
+      <h2 style="margin:18px 0 8px">System prompt</h2>
+      <textarea id="s_system_prompt" class="prompt" rows="8" spellcheck="false"></textarea>
+      <p class="sub" style="margin:6px 0 0">Tells the assistant who it is and what it can do (so it answers "what can you do?" and never goes silent). Edit freely, then Save &amp; restart.</p>
       <h2 style="margin:18px 0 8px">Rooms</h2>
       <div id="s_rooms"></div>
       <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
@@ -669,9 +676,9 @@ setInterval(poll, 3000);
 "use strict";
 // ---- Settings page (saved to the add-on's /data; HA Configuration holds only keys) ----
 (function () {
-  var FIELDS = ["provider", "gemini_model", "gemini_voice", "openai_model", "openai_voice",
-    "podconnect_base_url", "podconnect_token", "voicepe_noise_psk", "simulate", "duck_level",
-    "lounge_level", "lounge_window_s", "heartbeat_ms", "watchdog_ms", "vad_threshold"];
+  var FIELDS = ["provider", "system_prompt", "gemini_model", "gemini_voice", "openai_model",
+    "openai_voice", "podconnect_base_url", "podconnect_token", "voicepe_noise_psk", "simulate",
+    "duck_level", "lounge_level", "lounge_window_s", "heartbeat_ms", "watchdog_ms", "vad_threshold"];
   var NUM = { duck_level: 1, lounge_level: 1, lounge_window_s: 1, heartbeat_ms: 1, watchdog_ms: 1, vad_threshold: 1 };
   function f(id) { return document.getElementById("s_" + id); }
   function setVal(id, v) {

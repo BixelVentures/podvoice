@@ -35,6 +35,7 @@ class Config:
     exposed: tuple[str, ...] = ()  # HA entity_ids / domains the assistant may control
     supervisor_token: str = ""
     provider: str = "gemini"  # "gemini" | "openai" — the default voice brain
+    system_prompt: str = ""  # who the assistant is + capabilities (empty -> built-in default)
     gemini_voice: str = "Kore"
     openai_api_key: str = ""
     openai_model: str = "gpt-realtime-2"
@@ -95,6 +96,7 @@ def from_options(opts: dict) -> Config:
         exposed=tuple(opts.get("exposed") or []),
         supervisor_token=opts.get("supervisor_token", ""),
         provider=str(opts.get("provider", "gemini") or "gemini"),
+        system_prompt=opts.get("system_prompt", ""),
         gemini_voice=opts.get("gemini_voice", "") or "Kore",
         openai_api_key=opts.get("openai_api_key", ""),
         openai_model=opts.get("openai_model", "gpt-realtime-2"),

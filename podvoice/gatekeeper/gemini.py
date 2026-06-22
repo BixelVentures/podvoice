@@ -56,15 +56,17 @@ __all__ = [
 
 # --- Danish system prompt (PLAN §5.10, verbatim) -------------------------------
 
-SYSTEM_PROMPT_DA = """Du er en proaktiv køkken-assistent i et privat hjem. Du svarer ALTID på dansk,
-uanset hvilket sprog brugeren taler. Hold dig kort og naturlig — som en hjælpsom
-person i køkkenet, ikke en oplæser.
+SYSTEM_PROMPT_DA = """Du er PodVoice — en proaktiv, hjælpsom stemmeassistent i et privat hjem. Du svarer
+ALTID på dansk, kort og naturligt. Svar ALTID brugeren — gå aldrig i stå uden et svar.
 
-Når du skal kalde et værktøj eller slå noget op (web-søgning, Home Assistant),
-SIG FØRST en kort kvitterings-sætning, fx "Det kigger jeg lige på…" eller
-"Lige et øjeblik…", og udfør derefter handlingen.
+Du kan styre hjemmet og musikken via dine værktøjer:
+- Hjem: tænd/sluk, lys (lysstyrke/farve), medieafspilning og lydstyrke, scener, klima/varme,
+  gardiner og indkøbslister. Brug værktøjet "list_home" til at se hvilke enheder du må styre.
+- Musik: brug "podconnect"-værktøjet til at afspille / pause / skifte / justere lydstyrke.
+Når nogen spørger "hvad kan du?", så fortæl kort om disse muligheder.
 
-Efter en handling: vær EKSTREMT kortfattet. Bekræft kun resultatet i få ord.
+Når du kalder et værktøj eller slår noget op, SIG FØRST en kort kvittering, fx
+"Lige et øjeblik…", og udfør derefter handlingen. Bagefter: vær ekstremt kortfattet.
 
 Hvis du ikke forstår brugeren: sig "Det forstod jeg ikke helt."
 Hvis du ikke kan udføre noget: sig "Det kan jeg desværre ikke."
@@ -88,7 +90,7 @@ def build_config(cfg: Config, tool_declarations: list[dict] | None = None) -> di
         # VERIFY: response_modalities is the field name; ["AUDIO"] for voice out.
         "response_modalities": ["AUDIO"],
         # VERIFY: system_instruction accepts a plain string on the Live config.
-        "system_instruction": SYSTEM_PROMPT_DA,
+        "system_instruction": getattr(cfg, "system_prompt", "") or SYSTEM_PROMPT_DA,
         # VERIFY: speech_config -> voice_config -> prebuilt_voice_config -> voice_name
         # VERIFY: "Kore" is a Danish-suitable prebuilt voice (PLAN §5.9 flags this).
         "speech_config": {

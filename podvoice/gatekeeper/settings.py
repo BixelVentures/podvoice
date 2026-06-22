@@ -14,6 +14,7 @@ import os
 import pathlib
 
 from . import constants as C
+from .gemini import SYSTEM_PROMPT_DA
 
 _LOG = logging.getLogger("podvoice.settings")
 
@@ -36,6 +37,7 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 DEFAULTS: dict = {
     "simulate": False,
     "provider": "gemini",  # "gemini" | "openai" — default voice brain
+    "system_prompt": SYSTEM_PROMPT_DA,  # who the assistant is + what it can do (editable)
     "gemini_model": "gemini-2.5-flash-native-audio-preview-12-2025",
     "gemini_voice": "Kore",
     "openai_model": "gpt-realtime-2",

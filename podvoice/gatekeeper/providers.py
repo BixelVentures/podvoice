@@ -25,6 +25,7 @@ def make_session(
             api_key=cfg.openai_api_key,
             model=model or cfg.openai_model,
             voice=cfg.openai_voice or "marin",
+            instructions=cfg.system_prompt,
             tool_declarations=tool_declarations,
         )
     from .gemini import GeminiLiveSession, build_config
