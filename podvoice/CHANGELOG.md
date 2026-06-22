@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.1
+
+- **`play_music` now search-and-plays correctly.** PodConnect Control's `play_media` expects a
+  Spotify URI, not free text — so a query is first resolved via `media_player.search_media`
+  (plays the best-ranked result[0]). An exact `uri` skips the search. (0.9.0 sent raw text to
+  play_media, which Control couldn't resolve.)
+
 ## 0.9.0
 
 - **Fix: “play <song>” now actually plays that song, on the right speaker.** Play-by-name used to

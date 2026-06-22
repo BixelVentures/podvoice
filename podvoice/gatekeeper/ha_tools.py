@@ -32,6 +32,24 @@ _MEDIA_ACTIONS = {
 }
 _COVER_ACTIONS = {"open": "open_cover", "close": "close_cover", "stop": "stop_cover"}
 
+
+def _first_playable(obj: object) -> dict | None:
+    """First playable BrowseMedia in a search_media response (result[0], best match)."""
+    if isinstance(obj, dict):
+        if obj.get("media_content_id") and obj.get("can_play", True):
+            return obj
+        for v in obj.values():
+            found = _first_playable(v)
+            if found:
+                return found
+    elif isinstance(obj, list):
+        for v in obj:
+            found = _first_playable(v)
+            if found:
+                return found
+    return None
+
+
 # Documented PodConnect endpoints (the passthrough still allows any path — future-proof).
 # IMPORTANT: PodConnect is the LOCAL transport/volume/duck engine only. It CANNOT search for
 # or start a specific song — /api/play merely RESUMES whatever was last loaded. To play a
@@ -210,10 +228,10 @@ class HAToolBridge:
                 {
                     "name": "play_music",
                     "description": "Play a specific song/artist/playlist on ONE speaker, by name. "
-                    "This goes through Home Assistant's Web API (the only thing that can search & "
-                    "start a track) — use it for ALL 'play X' requests, NOT the podconnect tool. "
-                    "Targets the named room's speaker (or pass entity_id). For Spotify you may pass "
-                    "a 'uri' (e.g. spotify:track:...) instead of a free-text query.",
+                    "Searches the PodConnect Control Web API and plays the best match — use it for "
+                    "ALL 'play X' requests, NOT the podconnect tool. Targets the named room's "
+                    "speaker (or pass entity_id). You may pass an exact 'uri' (e.g. "
+                    "spotify:track:...) to skip the search.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -310,8 +328,9 @@ class HAToolBridge:
     async def _play_music(self, args: dict) -> dict:
         """Play a song/artist/uri on ONE speaker via HA's Web API (NOT PodConnect).
 
-        Content selection lives in the PodConnect Control HACS integration, reached
-        through ``media_player.play_media`` on the room's Control entity.
+        Content selection lives in the PodConnect Control HACS integration. Its
+        ``media_player.play_media`` wants a Spotify URI, so a free-text query is first
+        resolved through ``media_player.search_media`` (search-and-play: play result[0]).
         """
         eid = self._resolve_player(args.get("room"), args.get("entity_id"))
         if not eid:
@@ -325,15 +344,33 @@ class HAToolBridge:
                 "ok": False,
                 "error": f"'{eid}' is not exposed to PodVoice (add it in Settings).",
             }
-        content = (args.get("uri") or args.get("query") or "").strip()
-        if not content:
+        uri = (args.get("uri") or "").strip()
+        query = (args.get("query") or "").strip()
+        if not uri and not query:
             return {"ok": False, "error": "play_music needs a query (song/artist) or uri."}
+        ctype = "music"
+        if not uri:
+            uri, ctype = await self._search_uri(eid, query)
+            if not uri:
+                return {"ok": False, "error": f"No music matched '{query}'."}
         await self.call_service(
             "media_player",
             "play_media",
-            {"entity_id": eid, "media_content_type": "music", "media_content_id": content},
+            {"entity_id": eid, "media_content_type": ctype, "media_content_id": uri},
         )
-        return {"ok": True, "played": content, "entity_id": eid}
+        return {"ok": True, "played": uri, "query": query or None, "entity_id": eid}
+
+    async def _search_uri(self, entity_id: str, query: str) -> tuple[str, str]:
+        """Resolve a free-text query to (uri, media_type) via media_player.search_media."""
+        url = f"{C.SUPERVISOR_CORE_API}/services/media_player/search_media?return_response"
+        r = await self._client.post(
+            url, json={"entity_id": entity_id, "search_query": query}, headers=self._ha_headers
+        )
+        r.raise_for_status()
+        item = _first_playable(r.json())
+        if not item:
+            return "", "music"
+        return item.get("media_content_id") or "", item.get("media_content_type") or "music"
 
     async def _pc_call(self, method: str, path: str, body: dict | None) -> dict:
         if not self._pc_base:

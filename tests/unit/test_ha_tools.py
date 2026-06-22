@@ -131,27 +131,54 @@ async def test_home_call_denied_when_unexposed(respx_mock):
     assert r["ok"] is False
 
 
-async def test_play_music_routes_to_play_media_on_room_speaker(respx_mock):
-    route = respx_mock.post(f"{SVC}/services/media_player/play_media").respond(200, json=[])
+async def test_play_music_searches_then_plays_best_match(respx_mock):
+    search = respx_mock.post(url__regex=r".*/services/media_player/search_media.*").respond(
+        200,
+        json={
+            "service_response": {
+                "media_player.kitchen": {
+                    "result": [
+                        {
+                            "title": "Dua Lipa",
+                            "media_content_id": "spotify:artist:6M2wZ",
+                            "media_content_type": "artist",
+                            "can_play": True,
+                        }
+                    ]
+                }
+            }
+        },
+    )
+    play = respx_mock.post(f"{SVC}/services/media_player/play_media").respond(200, json=[])
     async with httpx.AsyncClient() as client:
         b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
         r = await b.dispatch("play_music", {"query": "Dua Lipa", "room": "kitchen"})
-    assert r["ok"] is True and r["entity_id"] == "media_player.kitchen"
-    body = json.loads(route.calls.last.request.content)
+    assert r["ok"] is True and search.called
+    body = json.loads(play.calls.last.request.content)
     assert body["entity_id"] == "media_player.kitchen"  # one speaker, not all
-    assert body["media_content_id"] == "Dua Lipa"
-    assert body["media_content_type"] == "music"
+    assert body["media_content_id"] == "spotify:artist:6M2wZ"  # the resolved URI, not raw text
 
 
-async def test_play_music_uri_overrides_query(respx_mock):
-    route = respx_mock.post(f"{SVC}/services/media_player/play_media").respond(200, json=[])
+async def test_play_music_uri_skips_search(respx_mock):
+    search = respx_mock.post(url__regex=r".*/services/media_player/search_media.*")
+    play = respx_mock.post(f"{SVC}/services/media_player/play_media").respond(200, json=[])
     async with httpx.AsyncClient() as client:
         b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
         r = await b.dispatch(
             "play_music", {"query": "x", "uri": "spotify:track:abc", "room": "kitchen"}
         )
-    assert r["ok"] is True
-    assert json.loads(route.calls.last.request.content)["media_content_id"] == "spotify:track:abc"
+    assert r["ok"] is True and not search.called  # uri -> no search step
+    assert json.loads(play.calls.last.request.content)["media_content_id"] == "spotify:track:abc"
+
+
+async def test_play_music_no_search_match_is_soft_error(respx_mock):
+    respx_mock.post(url__regex=r".*/services/media_player/search_media.*").respond(
+        200, json={"service_response": {"media_player.kitchen": {"result": []}}}
+    )
+    async with httpx.AsyncClient() as client:
+        b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
+        r = await b.dispatch("play_music", {"query": "zzzz", "room": "kitchen"})
+    assert r["ok"] is False and "matched" in r["error"]
 
 
 async def test_play_music_without_speaker_is_soft_error(respx_mock):
