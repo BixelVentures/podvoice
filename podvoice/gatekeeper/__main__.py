@@ -27,6 +27,7 @@ from .orchestrator import RoomSession
 from .playback import Playback
 from .podconnect import AttentionClient
 from .providers import make_session
+from .settings import DEFAULTS as SETTINGS_DEFAULTS
 from .settings import load_settings, save_settings
 from .sim import build_sim_sessions, run_driver
 from .voicepe import VoicePELink
@@ -187,7 +188,10 @@ async def run(cfg: Config) -> None:
         sessions,
         make_console=console_factory(cfg, tools),
         models_provider=lambda provider=None: list_models(cfg, provider),
-        settings_get=load_settings,
+        settings_get=lambda: {
+            **load_settings(),
+            "system_prompt_default": SETTINGS_DEFAULTS["system_prompt"],
+        },
         settings_set=save_settings,
         on_restart=lambda: _restart_addon(cfg.supervisor_token),
         diag=_DIAG,

@@ -258,7 +258,7 @@
         <input id="s_simulate" type="checkbox">
       </div>
       <p class="sub" style="margin:2px 0 0">Home control = entities/domains the assistant may control (comma-separated). Empty = none. PodConnect music control is always available when its URL is set.</p>
-      <h2 style="margin:18px 0 8px">System prompt</h2>
+      <h2 style="margin:18px 0 8px">System prompt <button id="s_resetprompt" class="ghost" style="padding:4px 10px;font-size:.74rem">Reset</button></h2>
       <textarea id="s_system_prompt" class="prompt" rows="8" spellcheck="false"></textarea>
       <p class="sub" style="margin:6px 0 0">Tells the assistant who it is and what it can do (so it answers "what can you do?" and never goes silent). Edit freely, then Save &amp; restart.</p>
       <h2 style="margin:18px 0 8px">Rooms</h2>
@@ -581,6 +581,10 @@ setInterval(poll, 3000);
     var body = { provider: currentProvider };
     if (currentProvider === "openai") body.openai_model = currentModel;
     else body.gemini_model = currentModel;
+    // Live-sync the Settings tab fields so they don't show a stale value.
+    var pEl = document.getElementById("s_provider"); if (pEl) pEl.value = currentProvider;
+    var mEl = document.getElementById(currentProvider === "openai" ? "s_openai_model" : "s_gemini_model");
+    if (mEl && currentModel) mEl.value = currentModel;
     try {
       fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
                               body: JSON.stringify(body) });
@@ -701,6 +705,7 @@ setInterval(poll, 3000);
     return e.value;
   }
 
+  var promptDefault = "";
   var roomsWrap = document.getElementById("s_rooms");
   function addRoom(host, room) {
     var row = document.createElement("div"); row.className = "roomrow";
@@ -723,6 +728,7 @@ setInterval(poll, 3000);
   async function load() {
     try {
       var s = await (await fetch("api/settings", { cache: "no-store" })).json();
+      promptDefault = s.system_prompt_default || promptDefault;
       FIELDS.forEach(function (id) { if (id in s) setVal(id, s[id]); });
       var ex = document.getElementById("s_exposed");
       if (ex) ex.value = (s.exposed || []).join(", ");
@@ -757,6 +763,11 @@ setInterval(poll, 3000);
   }
   document.getElementById("s_save").onclick = function () { save(false); };
   document.getElementById("s_saverestart").onclick = function () { save(true); };
+  var resetBtn = document.getElementById("s_resetprompt");
+  if (resetBtn) resetBtn.onclick = function () {
+    var t = document.getElementById("s_system_prompt");
+    if (t && promptDefault) { t.value = promptDefault; statusEl.textContent = "Prompt reset — Save to keep"; }
+  };
 
   load();
 })();

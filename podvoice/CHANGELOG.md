@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2
+
+- Picking a provider/model in Talk now **live-syncs** the Settings → Advanced model field
+  (no longer stale until reload).
+- **Reset** button on the System prompt restores the built-in capability-aware default.
+
 ## 0.6.1
 
 - Talk tab: model dropdown now lists **voice-capable models only** and is width-capped so a long
