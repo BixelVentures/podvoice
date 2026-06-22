@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+- **Tabs**: the panel is now Talk / Status / Settings / Voice PE — no more long scroll.
+- **Voice selector**: pick the Gemini / OpenAI voice (Advanced).
+- **Tool calls show inline** in the conversation (e.g. “🔧 podconnect ✓”) — no separate test field needed.
+- Fixed dropdown width so long model names no longer stretch the layout.
+
 ## 0.4.0
 
 - **Home control & music (like Assist).** The assistant can now control Home

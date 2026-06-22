@@ -112,7 +112,10 @@ def console_factory(cfg: Config, tools=None):
             from .openai_realtime import OpenAIRealtimeSession
 
             return OpenAIRealtimeSession(
-                api_key=cfg.openai_api_key, model=model or cfg.openai_model, tool_declarations=decls
+                api_key=cfg.openai_api_key,
+                model=model or cfg.openai_model,
+                voice=cfg.openai_voice or "marin",
+                tool_declarations=decls,
             )
         if not cfg.gemini_api_key:
             return SimConsoleGemini()

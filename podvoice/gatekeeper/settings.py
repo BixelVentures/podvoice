@@ -37,7 +37,9 @@ DEFAULTS: dict = {
     "simulate": False,
     "provider": "gemini",  # "gemini" | "openai" — default voice brain
     "gemini_model": "gemini-2.5-flash-native-audio-preview-12-2025",
+    "gemini_voice": "Kore",
     "openai_model": "gpt-realtime-2",
+    "openai_voice": "marin",
     "podconnect_base_url": "http://homeassistant.local:8099",
     "podconnect_token": "",
     "voicepe_noise_psk": "",

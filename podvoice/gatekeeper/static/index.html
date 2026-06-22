@@ -135,6 +135,21 @@
   .crow input:focus { outline: none; border-color: var(--accent); }
   .crow select { flex: 1; font: inherit; padding: 8px 10px; border-radius: 10px;
                  border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
+  /* keep flex children from overflowing the column (dropdowns/inputs can't push wider) */
+  .crow select, .crow input { min-width: 0; max-width: 100%; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin: 18px 0 4px; border-bottom: 1px solid var(--border);
+          overflow-x: auto; }
+  .tabbtn { background: transparent; border: 0; border-bottom: 2px solid transparent;
+            color: var(--fg-dim); font-weight: 700; font-size: .78rem; text-transform: uppercase;
+            letter-spacing: .04em; padding: 9px 12px; border-radius: 0; cursor: pointer;
+            white-space: nowrap; transition: color .12s, border-color .12s; }
+  .tabbtn:hover:not(:disabled) { background: transparent; filter: none; color: var(--fg); }
+  .tabbtn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .pane { display: none; }
+  .pane.active { display: block; }
+  .pane > .section:first-child { margin-top: 18px; }
 
   /* Settings form. */
   details.section > summary, details.adv > summary {
@@ -179,93 +194,109 @@
   <p class="sub" id="sub">Voice gatekeeper</p>
   <div class="svc" id="svc"></div>
 
-  <details class="section" id="settings">
-    <summary>Settings</summary>
-    <div class="setgrid">
-      <label for="s_provider">Provider</label>
-      <select id="s_provider"><option value="gemini">Gemini</option><option value="openai">OpenAI</option></select>
-      <label for="s_podconnect_base_url">PodConnect URL</label>
-      <input id="s_podconnect_base_url" type="text" autocomplete="off">
-      <label for="s_podconnect_token">PodConnect token</label>
-      <input id="s_podconnect_token" type="password" autocomplete="off">
-      <label for="s_voicepe_noise_psk">Voice PE PSK</label>
-      <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
-      <label for="s_exposed">Home control</label>
-      <input id="s_exposed" type="text" autocomplete="off" placeholder="light, media_player, todo.shopping_list">
-      <label for="s_simulate">Simulation mode</label>
-      <input id="s_simulate" type="checkbox">
-    </div>
-    <p class="sub" style="margin:2px 0 0">Home control = entities/domains the assistant may control (comma-separated). Empty = none. PodConnect music control is always available when its URL is set.</p>
-    <h2 style="margin-bottom:8px">Rooms</h2>
-    <div id="s_rooms"></div>
-    <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
-    <details class="adv">
-      <summary>Advanced (models &amp; tuning)</summary>
-      <div class="setgrid">
-        <label for="s_gemini_model">Gemini model</label><input id="s_gemini_model" type="text" autocomplete="off">
-        <label for="s_openai_model">OpenAI model</label><input id="s_openai_model" type="text" autocomplete="off">
-        <label for="s_duck_level">Duck level %</label><input id="s_duck_level" type="number" min="0" max="100">
-        <label for="s_lounge_level">Lounge level %</label><input id="s_lounge_level" type="number" min="0" max="100">
-        <label for="s_lounge_window_s">Lounge window s</label><input id="s_lounge_window_s" type="number" min="1" max="120">
-        <label for="s_heartbeat_ms">Heartbeat ms</label><input id="s_heartbeat_ms" type="number" min="100" max="60000">
-        <label for="s_watchdog_ms">Watchdog ms</label><input id="s_watchdog_ms" type="number" min="200" max="120000">
-        <label for="s_vad_threshold">VAD threshold</label><input id="s_vad_threshold" type="number" step="0.001" min="0" max="1">
+  <div class="tabs" role="tablist">
+    <button class="tabbtn active" data-tab="talk">Talk</button>
+    <button class="tabbtn" data-tab="status">Status</button>
+    <button class="tabbtn" data-tab="settings">Settings</button>
+    <button class="tabbtn" data-tab="voicepe">Voice PE</button>
+  </div>
+
+  <div class="pane active" id="pane-talk">
+    <div class="section">
+      <h2>Talk to Gemini <span id="cstate" class="pill pill-down">offline</span></h2>
+      <div class="crow" style="margin-bottom:10px">
+        <select id="cprovider" aria-label="Provider" style="flex:0 0 auto;width:120px">
+          <option value="gemini">Gemini</option>
+          <option value="openai">OpenAI</option>
+        </select>
+        <select id="cmodel" aria-label="Model"></select>
       </div>
-    </details>
-    <div class="actions">
-      <button id="s_save">Save</button>
-      <button id="s_saverestart" class="ghost">Save &amp; restart</button>
-      <span id="s_status" class="sub" role="status"></span>
+      <div id="clog" class="tx" style="min-height:120px;max-height:300px"></div>
+      <div class="crow">
+        <input id="ctext" type="text" autocomplete="off" placeholder="Skriv til Gemini…" aria-label="Message to Gemini" />
+        <button id="csend">Send</button>
+        <button id="cmic" class="ghost" aria-label="Hold to talk">🎤</button>
+      </div>
+      <p id="cmichint" class="sub" style="margin-top:8px"></p>
     </div>
-  </details>
-
-  <details class="section" id="voicepe">
-    <summary>Voice PE setup</summary>
-    <ol class="vpsteps">
-      <li>Flash <code>esphome/voice-pe.yaml</code> via the ESPHome add-on; set its API encryption key (your PSK).</li>
-      <li>Do <b>not</b> add the Voice PE to Home Assistant Assist — PodVoice must own its microphone.</li>
-      <li>In <b>Settings</b> above, set the Voice PE PSK + add a room, then <b>Save &amp; restart</b>.</li>
-      <li>Then run the checks below.</li>
-    </ol>
-    <div class="actions">
-      <button id="vp_status" class="ghost">Check connection</button>
-      <button id="vp_s1" class="ghost">Check audio stream</button>
-      <button id="vp_s2" class="ghost">Test speaker</button>
-    </div>
-    <div id="vp_result" class="status" style="display:none;margin-top:12px"></div>
-  </details>
-
-  <div class="section">
-    <h2>Talk to Gemini <span id="cstate" class="pill pill-down">offline</span></h2>
-    <div class="crow" style="margin-bottom:10px">
-      <select id="cprovider" aria-label="Provider" style="flex:0 0 auto;max-width:150px">
-        <option value="gemini">Gemini</option>
-        <option value="openai">OpenAI</option>
-      </select>
-      <select id="cmodel" aria-label="Model"></select>
-    </div>
-    <div id="clog" class="tx" style="min-height:90px;max-height:240px"></div>
-    <div class="crow">
-      <input id="ctext" type="text" autocomplete="off" placeholder="Skriv til Gemini…" aria-label="Message to Gemini" />
-      <button id="csend">Send</button>
-      <button id="cmic" class="ghost" aria-label="Hold to talk">🎤</button>
-    </div>
-    <p id="cmichint" class="sub" style="margin-top:8px"></p>
   </div>
 
-  <div class="section" id="rooms-section" style="display:none">
-    <h2>Rooms</h2>
-    <div id="rooms" class="list"></div>
+  <div class="pane" id="pane-status">
+    <div class="section" id="rooms-section" style="display:none">
+      <h2>Rooms</h2>
+      <div id="rooms" class="list"></div>
+    </div>
+    <div class="section" id="tx-section" style="display:none">
+      <h2>Room transcript <button id="clear" class="ghost" style="padding:4px 10px;font-size:.74rem">Clear</button></h2>
+      <div id="tx" class="tx"></div>
+    </div>
+    <div class="section">
+      <h2>Activity</h2>
+      <div id="metrics" class="metrics"></div>
+    </div>
   </div>
 
-  <div class="section" id="tx-section" style="display:none">
-    <h2>Room transcript <button id="clear" class="ghost" style="padding:4px 10px;font-size:.74rem">Clear</button></h2>
-    <div id="tx" class="tx"></div>
+  <div class="pane" id="pane-settings">
+    <div class="section">
+      <div class="setgrid">
+        <label for="s_provider">Provider</label>
+        <select id="s_provider"><option value="gemini">Gemini</option><option value="openai">OpenAI</option></select>
+        <label for="s_podconnect_base_url">PodConnect URL</label>
+        <input id="s_podconnect_base_url" type="text" autocomplete="off">
+        <label for="s_podconnect_token">PodConnect token</label>
+        <input id="s_podconnect_token" type="password" autocomplete="off" placeholder="(leave blank if PodConnect has none)">
+        <label for="s_voicepe_noise_psk">Voice PE PSK</label>
+        <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
+        <label for="s_exposed">Home control</label>
+        <input id="s_exposed" type="text" autocomplete="off" placeholder="light, media_player, todo.shopping_list">
+        <label for="s_simulate">Simulation mode</label>
+        <input id="s_simulate" type="checkbox">
+      </div>
+      <p class="sub" style="margin:2px 0 0">Home control = entities/domains the assistant may control (comma-separated). Empty = none. PodConnect music control is always available when its URL is set.</p>
+      <h2 style="margin:18px 0 8px">Rooms</h2>
+      <div id="s_rooms"></div>
+      <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
+      <details class="adv">
+        <summary>Advanced (models, voices &amp; tuning)</summary>
+        <div class="setgrid">
+          <label for="s_gemini_model">Gemini model</label><input id="s_gemini_model" type="text" autocomplete="off">
+          <label for="s_gemini_voice">Gemini voice</label><input id="s_gemini_voice" list="dl_gemini_voice" autocomplete="off">
+          <label for="s_openai_model">OpenAI model</label><input id="s_openai_model" type="text" autocomplete="off">
+          <label for="s_openai_voice">OpenAI voice</label><input id="s_openai_voice" list="dl_openai_voice" autocomplete="off">
+          <label for="s_duck_level">Duck level %</label><input id="s_duck_level" type="number" min="0" max="100">
+          <label for="s_lounge_level">Lounge level %</label><input id="s_lounge_level" type="number" min="0" max="100">
+          <label for="s_lounge_window_s">Lounge window s</label><input id="s_lounge_window_s" type="number" min="1" max="120">
+          <label for="s_heartbeat_ms">Heartbeat ms</label><input id="s_heartbeat_ms" type="number" min="100" max="60000">
+          <label for="s_watchdog_ms">Watchdog ms</label><input id="s_watchdog_ms" type="number" min="200" max="120000">
+          <label for="s_vad_threshold">VAD threshold</label><input id="s_vad_threshold" type="number" step="0.001" min="0" max="1">
+        </div>
+        <datalist id="dl_gemini_voice"><option>Kore</option><option>Puck</option><option>Charon</option><option>Aoede</option><option>Zephyr</option><option>Leda</option><option>Orus</option></datalist>
+        <datalist id="dl_openai_voice"><option>marin</option><option>cedar</option><option>alloy</option><option>echo</option><option>shimmer</option></datalist>
+      </details>
+      <div class="actions">
+        <button id="s_save">Save</button>
+        <button id="s_saverestart" class="ghost">Save &amp; restart</button>
+        <span id="s_status" class="sub" role="status"></span>
+      </div>
+    </div>
   </div>
 
-  <div class="section">
-    <h2>Activity</h2>
-    <div id="metrics" class="metrics"></div>
+  <div class="pane" id="pane-voicepe">
+    <div class="section">
+      <h2>Voice PE setup</h2>
+      <ol class="vpsteps">
+        <li>Flash <code>esphome/voice-pe.yaml</code> via the ESPHome add-on; set its API encryption key (your PSK).</li>
+        <li>Do <b>not</b> add the Voice PE to Home Assistant Assist — PodVoice must own its microphone.</li>
+        <li>In <b>Settings</b>, set the Voice PE PSK + add a room, then <b>Save &amp; restart</b>.</li>
+        <li>Then run the checks below.</li>
+      </ol>
+      <div class="actions">
+        <button id="vp_status" class="ghost">Check connection</button>
+        <button id="vp_s1" class="ghost">Check audio stream</button>
+        <button id="vp_s2" class="ghost">Test speaker</button>
+      </div>
+      <div id="vp_result" class="status" style="display:none;margin-top:12px"></div>
+    </div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
@@ -571,6 +602,11 @@ setInterval(poll, 3000);
       if (ev.type === "hello" && ev.rate) outRate = ev.rate;
       else if (ev.type === "transcript") streamT(ev.dir === "in" ? "in" : "out", ev.text);
       else if (ev.type === "turn_complete") endTurn();
+      else if (ev.type === "tool") {
+        endTurn();
+        var ok = ev.result && ev.result.ok;
+        logLine("out", "🔧 tool", ev.name + (ok ? " ✓" : " ✕" + (ev.result && ev.result.error ? " — " + ev.result.error : "")));
+      }
       else if (ev.type === "error") { endTurn(); logLine("out", "system", ev.error || "console unavailable"); }
     };
   }
@@ -633,9 +669,9 @@ setInterval(poll, 3000);
 "use strict";
 // ---- Settings page (saved to the add-on's /data; HA Configuration holds only keys) ----
 (function () {
-  var FIELDS = ["provider", "gemini_model", "openai_model", "podconnect_base_url",
-    "podconnect_token", "voicepe_noise_psk", "simulate", "duck_level", "lounge_level",
-    "lounge_window_s", "heartbeat_ms", "watchdog_ms", "vad_threshold"];
+  var FIELDS = ["provider", "gemini_model", "gemini_voice", "openai_model", "openai_voice",
+    "podconnect_base_url", "podconnect_token", "voicepe_noise_psk", "simulate", "duck_level",
+    "lounge_level", "lounge_window_s", "heartbeat_ms", "watchdog_ms", "vad_threshold"];
   var NUM = { duck_level: 1, lounge_level: 1, lounge_window_s: 1, heartbeat_ms: 1, watchdog_ms: 1, vad_threshold: 1 };
   function f(id) { return document.getElementById("s_" + id); }
   function setVal(id, v) {
@@ -745,6 +781,22 @@ setInterval(poll, 3000);
   if (btns[0]) btns[0].onclick = function () { run("status", "GET", "Checking connection…"); };
   if (btns[1]) btns[1].onclick = function () { run("s1", "POST", "Measuring the audio stream (~15s)…"); };
   if (btns[2]) btns[2].onclick = function () { run("s2", "POST", "Playing a test tone…"); };
+})();
+</script>
+
+<script>
+"use strict";
+// ---- Tab switching ----
+(function () {
+  var btns = document.querySelectorAll(".tabbtn");
+  btns.forEach(function (b) {
+    b.onclick = function () {
+      btns.forEach(function (x) { x.classList.toggle("active", x === b); });
+      document.querySelectorAll(".pane").forEach(function (p) {
+        p.classList.toggle("active", p.id === "pane-" + b.dataset.tab);
+      });
+    };
+  });
 })();
 </script>
 </body>

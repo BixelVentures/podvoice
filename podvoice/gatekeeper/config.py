@@ -35,8 +35,10 @@ class Config:
     exposed: tuple[str, ...] = ()  # HA entity_ids / domains the assistant may control
     supervisor_token: str = ""
     provider: str = "gemini"  # "gemini" | "openai" — the default voice brain
+    gemini_voice: str = "Kore"
     openai_api_key: str = ""
     openai_model: str = "gpt-realtime-2"
+    openai_voice: str = "marin"
     simulate: bool = False
     lounge_window_s: int = C.LOUNGE_WINDOW_S
     duck_level: int = C.DUCK_LEVEL
@@ -93,8 +95,10 @@ def from_options(opts: dict) -> Config:
         exposed=tuple(opts.get("exposed") or []),
         supervisor_token=opts.get("supervisor_token", ""),
         provider=str(opts.get("provider", "gemini") or "gemini"),
+        gemini_voice=opts.get("gemini_voice", "") or "Kore",
         openai_api_key=opts.get("openai_api_key", ""),
         openai_model=opts.get("openai_model", "gpt-realtime-2"),
+        openai_voice=opts.get("openai_voice", "") or "marin",
         simulate=bool(opts.get("simulate", False)),
         lounge_window_s=int(opts.get("lounge_window_s", C.LOUNGE_WINDOW_S)),
         duck_level=int(opts.get("duck_level", C.DUCK_LEVEL)),

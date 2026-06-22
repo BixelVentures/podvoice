@@ -91,7 +91,11 @@ def build_config(cfg: Config, tool_declarations: list[dict] | None = None) -> di
         "system_instruction": SYSTEM_PROMPT_DA,
         # VERIFY: speech_config -> voice_config -> prebuilt_voice_config -> voice_name
         # VERIFY: "Kore" is a Danish-suitable prebuilt voice (PLAN §5.9 flags this).
-        "speech_config": {"voice_config": {"prebuilt_voice_config": {"voice_name": "Kore"}}},
+        "speech_config": {
+            "voice_config": {
+                "prebuilt_voice_config": {"voice_name": getattr(cfg, "gemini_voice", "") or "Kore"}
+            }
+        },
         # VERIFY: empty dicts enable transcription; the input transcript drives barge-in.
         "input_audio_transcription": {},
         "output_audio_transcription": {},
