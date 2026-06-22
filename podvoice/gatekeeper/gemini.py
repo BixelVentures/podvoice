@@ -18,76 +18,39 @@ is marked ``# VERIFY:`` — re-confirm against the pinned google-genai at impl t
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 from . import constants as C
 from .config import Config
+from .voice import (
+    AudioChunk,
+    GoAway,
+    InputTranscript,
+    Interrupted,
+    OutputTranscript,
+    ToolCall,
+    TurnComplete,
+    VoiceEvent,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, never imported at runtime
     from collections.abc import AsyncIterator
 
-
-# --- Typed events (PLAN §5.11) --------------------------------------------------
-
-
-@dataclass
-class AudioChunk:
-    """Raw 24 kHz / 16-bit / mono PCM emitted by the model (PLAN §5.3)."""
-
-    pcm: bytes
-
-
-@dataclass
-class ToolCall:
-    """A function call the model wants dispatched to ha_tools.py (PLAN §5.6)."""
-
-    id: str
-    name: str
-    args: dict
-
-
-@dataclass
-class InputTranscript:
-    """Incremental transcript of the *user's* speech — drives barge-in (PLAN §5.7)."""
-
-    text: str
-
-
-@dataclass
-class OutputTranscript:
-    """Incremental transcript of the *model's* speech (PLAN §5.7)."""
-
-    text: str
-
-
-@dataclass
-class TurnComplete:
-    """Model yielded the turn — gate AI_SPEAKING -> LOUNGE on this + playback drain."""
-
-
-@dataclass
-class Interrupted:
-    """Server-side barge-in signal — flush queued/in-flight playback (PLAN §5.5)."""
-
-
-@dataclass
-class GoAway:
-    """Server's pre-disconnect warning; reconnect make-before-break (PLAN §5.8)."""
-
-    time_left: float | None = None
-
-
-# Union of everything ``events()`` can yield. This is a runtime assignment (not an
-# annotation), so it must use typing.Union — the ``X | Y`` form only evaluates on
-# 3.10+, and this module must import on 3.9. (ruff UP007 silenced here for that.)
-GeminiEvent = Union[  # noqa: UP007
-    AudioChunk,
-    ToolCall,
-    InputTranscript,
-    OutputTranscript,
-    TurnComplete,
-    Interrupted,
-    GoAway,
+# The typed events now live in voice.py (shared across providers). Re-exported
+# here so existing ``from gatekeeper.gemini import AudioChunk, ...`` keep working.
+GeminiEvent = VoiceEvent
+__all__ = [
+    "SYSTEM_PROMPT_DA",
+    "AudioChunk",
+    "GeminiEvent",
+    "GeminiLiveSession",
+    "GoAway",
+    "InputTranscript",
+    "Interrupted",
+    "OutputTranscript",
+    "ToolCall",
+    "TurnComplete",
+    "build_config",
 ]
 
 

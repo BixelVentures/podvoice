@@ -59,7 +59,11 @@ async def test_models_endpoint():
         "default": "gemini-2.5-flash-native-audio-preview-12-2025",
         "source": "static",
         "models": [
-            {"id": "gemini-2.5-flash-native-audio-preview-12-2025", "label": "2.5 native audio", "live": True},
+            {
+                "id": "gemini-2.5-flash-native-audio-preview-12-2025",
+                "label": "2.5 native audio",
+                "live": True,
+            },
             {"id": "gemini-3.5-flash", "label": "3.5 Flash", "live": False},
         ],
     }
