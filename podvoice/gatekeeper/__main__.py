@@ -17,7 +17,7 @@ import httpx
 
 from . import __version__
 from .config import Config, RoomMap, load_config
-from .console import console_factory
+from .console import console_factory, list_models
 from .gatekeeper import Gatekeeper
 from .gemini import GeminiLiveSession, build_config
 from .ha_tools import HAToolBridge
@@ -124,7 +124,12 @@ async def run(cfg: Config) -> None:
             _LOG.warning("no SUPERVISOR_TOKEN — HA tool bridge disabled")
         sessions = {r.room: _build_session(cfg, r, attention, tools, hub) for r in cfg.rooms}
 
-    app = create_app(hub, sessions, make_console=console_factory(cfg))
+    app = create_app(
+        hub,
+        sessions,
+        make_console=console_factory(cfg),
+        models_provider=lambda: list_models(cfg),
+    )
     runner = await start_web(app)
 
     stop = asyncio.Event()

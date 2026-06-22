@@ -68,24 +68,86 @@ class SimConsoleGemini:
         await self._q.put(None)
 
 
+# Curated fallback when the live model list can't be fetched (no key / offline).
+_STATIC_MODELS = [
+    {
+        "id": "gemini-2.5-flash-native-audio-preview-12-2025",
+        "label": "2.5 Flash — native audio (voice)",
+        "live": True,
+    },
+    {"id": "gemini-3.1-flash-live-preview", "label": "3.1 Flash — live", "live": True},
+]
+
+
 def console_factory(cfg: Config):
-    """Return a zero-arg callable that builds a fresh console session per browser.
+    """Return ``make(model=None)`` that builds a fresh console session per browser.
 
     Real Gemini when a key is set and not simulating; otherwise the echo demo.
+    ``model`` (from the panel's selector) overrides the configured default.
     """
     if cfg.simulate or not cfg.gemini_api_key:
-        return SimConsoleGemini
 
-    def _make() -> ConsoleGemini:
+        def _make_sim(model: str | None = None) -> ConsoleGemini:
+            return SimConsoleGemini()
+
+        return _make_sim
+
+    def _make(model: str | None = None) -> ConsoleGemini:
         from .gemini import GeminiLiveSession, build_config
 
         return GeminiLiveSession(
             api_key=cfg.gemini_api_key,
-            model=cfg.gemini_model,
+            model=model or cfg.gemini_model,
             config=build_config(cfg),
         )
 
     return _make
+
+
+def list_models(cfg: Config) -> dict:
+    """List models the key can use, flagging which support the Live (voice) API.
+
+    Falls back to a small curated list when there's no key or the API call fails,
+    so the panel selector always has something to show.
+    """
+    default = cfg.gemini_model
+    if cfg.simulate or not cfg.gemini_api_key:
+        return {"default": default, "source": "static", "models": list(_STATIC_MODELS)}
+    try:
+        from google import genai
+
+        client = genai.Client(api_key=cfg.gemini_api_key)
+        out: list[dict] = []
+        for m in client.models.list():  # VERIFY: pager of Model objects
+            name = getattr(m, "name", "") or ""
+            mid = name.split("/")[-1]
+            if not mid:
+                continue
+            # VERIFY: Live models advertise the "bidiGenerateContent" action.
+            actions = (
+                getattr(m, "supported_actions", None)
+                or getattr(m, "supported_generation_methods", None)
+                or []
+            )
+            out.append(
+                {
+                    "id": mid,
+                    "label": getattr(m, "display_name", None) or mid,
+                    "live": "bidiGenerateContent" in actions,
+                }
+            )
+        out.sort(key=lambda x: (not x["live"], x["id"]))
+        if default and not any(x["id"] == default for x in out):
+            out.insert(0, {"id": default, "label": default, "live": True})
+        return {"default": default, "source": "api", "models": out}
+    except Exception as e:  # never let the panel break on a list failure
+        _LOG.warning("model list failed: %s", e)
+        return {
+            "default": default,
+            "source": "static",
+            "models": list(_STATIC_MODELS),
+            "error": str(e),
+        }
 
 
 async def run_console(ws, gemini: ConsoleGemini) -> None:

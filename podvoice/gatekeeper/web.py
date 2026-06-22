@@ -27,19 +27,24 @@ DEFAULT_PORT = 8098
 HUB: web.AppKey[StatusHub] = web.AppKey("hub", StatusHub)
 SESSIONS: web.AppKey[dict] = web.AppKey("sessions", dict)
 CONSOLE: web.AppKey = web.AppKey("console")
+MODELS: web.AppKey = web.AppKey("models")
 
 
-def create_app(hub: StatusHub, sessions: dict, make_console=None) -> web.Application:
+def create_app(
+    hub: StatusHub, sessions: dict, make_console=None, models_provider=None
+) -> web.Application:
     """Build the aiohttp app.
 
     ``sessions`` maps room id -> RoomSession (for controls). ``make_console`` is an
-    optional zero-arg factory returning a fresh ConsoleGemini per browser (the
-    in-panel 'talk to Gemini' console); None disables the console.
+    optional ``make(model=None)`` factory returning a fresh ConsoleGemini per
+    browser; None disables the console. ``models_provider`` is an optional zero-arg
+    callable returning the model-selector payload for ``GET /api/models``.
     """
     app = web.Application()
     app[HUB] = hub
     app[SESSIONS] = sessions
     app[CONSOLE] = make_console
+    app[MODELS] = models_provider
     app.add_routes(
         [
             web.get("/", _index),
@@ -47,10 +52,18 @@ def create_app(hub: StatusHub, sessions: dict, make_console=None) -> web.Applica
             web.get("/api/events", _events),
             web.post("/api/control", _control),
             web.get("/api/console", _console_ws),
+            web.get("/api/models", _models),
             web.get("/health", _health),
         ]
     )
     return app
+
+
+async def _models(request: web.Request) -> web.Response:
+    provider = request.app[MODELS]
+    if provider is None:
+        return web.json_response({"default": "", "source": "none", "models": []})
+    return web.json_response(provider())
 
 
 async def _console_ws(request: web.Request) -> web.WebSocketResponse:
@@ -61,7 +74,7 @@ async def _console_ws(request: web.Request) -> web.WebSocketResponse:
         await ws.send_json({"type": "error", "error": "console not configured"})
         await ws.close()
         return ws
-    await run_console(ws, make())
+    await run_console(ws, make(request.query.get("model")))
     return ws
 
 

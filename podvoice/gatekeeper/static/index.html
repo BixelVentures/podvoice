@@ -133,6 +133,8 @@
   .crow input { flex: 1; font: inherit; padding: 9px 12px; border-radius: 10px;
                 border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
   .crow input:focus { outline: none; border-color: var(--accent); }
+  .crow select { flex: 1; font: inherit; padding: 8px 10px; border-radius: 10px;
+                 border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
   #cmic.live { background: var(--danger); color: #fff; border-color: transparent; }
   h2 #cstate { font-size: .62rem; text-transform: none; letter-spacing: 0; }
 
@@ -164,6 +166,9 @@
 
   <div class="section">
     <h2>Talk to Gemini <span id="cstate" class="pill pill-down">offline</span></h2>
+    <div class="crow" style="margin-bottom:10px">
+      <select id="cmodel" aria-label="Gemini model"></select>
+    </div>
     <div id="clog" class="tx" style="min-height:90px;max-height:240px"></div>
     <div class="crow">
       <input id="ctext" type="text" autocomplete="off" placeholder="Skriv til Gemini…" aria-label="Message to Gemini" />
@@ -372,7 +377,8 @@ setInterval(poll, 3000);
   var micBtn = document.getElementById("cmic");
   var micHint = document.getElementById("cmichint");
 
-  var ws = null, wsReady = false;
+  var modelSel = document.getElementById("cmodel");
+  var ws = null, wsReady = false, currentModel = null, manualClose = false;
   var playCtx = null, outRate = 24000, nextStart = 0;
   var capCtx = null, capStream = null, capNode = null, micOn = false;
 
@@ -406,15 +412,48 @@ setInterval(poll, 3000);
     var t = Math.max(playCtx.currentTime, nextStart); src.start(t); nextStart = t + ab.duration;
   }
 
+  async function loadModels() {
+    try {
+      var data = await (await fetch("api/models", { cache: "no-store" })).json();
+      var models = data.models || [];
+      modelSel.innerHTML = "";
+      var firstLive = null;
+      models.forEach(function (m) {
+        var o = document.createElement("option");
+        o.value = m.id;
+        o.textContent = m.label + (m.live ? "" : " — text only (no voice)");
+        o.disabled = !m.live;            // Live API needs a voice-capable model
+        if (m.live && !firstLive) firstLive = m.id;
+        modelSel.appendChild(o);
+      });
+      var def = data.default;
+      var defLive = models.some(function (m) { return m.id === def && m.live; });
+      currentModel = (defLive ? def : firstLive) || def || null;
+      if (currentModel) modelSel.value = currentModel;
+      if (!models.length) { var o = document.createElement("option"); o.textContent = "(default model)"; modelSel.appendChild(o); }
+    } catch (e) { /* leave selector empty; console still uses the server default */ }
+  }
+  modelSel.onchange = function () {
+    currentModel = modelSel.value;
+    manualClose = true;
+    if (ws) { try { ws.close(); } catch (e) {} }
+    connect();
+  };
+
   function connect() {
     var url;
     try { url = new URL("api/console", window.location.href); } catch (e) { return; }
+    if (currentModel) url.searchParams.set("model", currentModel);
     url.protocol = (url.protocol === "https:") ? "wss:" : "ws:";
     setState("connecting…", "pill-degraded");
     try { ws = new WebSocket(url.href); } catch (e) { setState("offline", "pill-down"); return; }
     ws.binaryType = "arraybuffer";
     ws.onopen = function () { wsReady = true; setState("online", "pill-up"); };
-    ws.onclose = function () { wsReady = false; setState("offline", "pill-down"); setTimeout(connect, 2500); };
+    ws.onclose = function () {
+      wsReady = false; setState("offline", "pill-down");
+      if (manualClose) { manualClose = false; return; }   // model switch handles its own reconnect
+      setTimeout(connect, 2500);
+    };
     ws.onerror = function () { setState("offline", "pill-down"); };
     ws.onmessage = function (m) {
       if (typeof m.data !== "string") { playPcm(m.data); return; }
@@ -474,7 +513,7 @@ setInterval(poll, 3000);
   }
 
   emptyLog();
-  connect();
+  loadModels().then(connect);
 })();
 </script>
 </body>

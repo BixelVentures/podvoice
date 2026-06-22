@@ -54,6 +54,31 @@ async def test_status_and_health():
         assert (await h.json())["status"] in ("ok", "degraded")
 
 
+async def test_models_endpoint():
+    payload = {
+        "default": "gemini-2.5-flash-native-audio-preview-12-2025",
+        "source": "static",
+        "models": [
+            {"id": "gemini-2.5-flash-native-audio-preview-12-2025", "label": "2.5 native audio", "live": True},
+            {"id": "gemini-3.5-flash", "label": "3.5 Flash", "live": False},
+        ],
+    }
+    app = create_app(StatusHub(), {}, models_provider=lambda: payload)
+    async with TestClient(TestServer(app)) as client:
+        r = await client.get("/api/models")
+        body = await r.json()
+        assert body["default"].startswith("gemini-2.5-flash-native-audio")
+        live = [m for m in body["models"] if m["live"]]
+        assert any(m["id"] == "gemini-3.5-flash" and not m["live"] for m in body["models"])
+        assert live and live[0]["live"] is True
+
+
+async def test_models_endpoint_absent_provider():
+    async with TestClient(TestServer(create_app(StatusHub(), {}))) as client:
+        r = await client.get("/api/models")
+        assert (await r.json())["models"] == []
+
+
 async def test_control_actions():
     hub = StatusHub()
     stub = _StubSession("kitchen")
