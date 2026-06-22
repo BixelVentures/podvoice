@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import pathlib
 
 from . import constants as C
@@ -18,11 +19,25 @@ _LOG = logging.getLogger("podvoice.settings")
 
 SETTINGS_PATH = pathlib.Path("/data/podvoice.json")
 
+
+def _resolve(path: pathlib.Path | None) -> pathlib.Path:
+    """Resolve the settings file: explicit arg > PODVOICE_SETTINGS env > default.
+
+    Reading the module global at call time keeps it monkeypatch-friendly in tests.
+    """
+    if path is not None:
+        return path
+    env = os.environ.get("PODVOICE_SETTINGS")
+    return pathlib.Path(env) if env else SETTINGS_PATH
+
+
 # Panel-editable fields and their defaults. The Gemini API key is intentionally
 # NOT here (it's the one add-on option).
 DEFAULTS: dict = {
     "simulate": False,
+    "provider": "gemini",  # "gemini" | "openai" — default voice brain
     "gemini_model": "gemini-2.5-flash-native-audio-preview-12-2025",
+    "openai_model": "gpt-realtime-2",
     "podconnect_base_url": "http://homeassistant.local:8099",
     "podconnect_token": "",
     "voicepe_noise_psk": "",
@@ -36,25 +51,27 @@ DEFAULTS: dict = {
 }
 
 
-def load_settings(path: pathlib.Path = SETTINGS_PATH) -> dict:
+def load_settings(path: pathlib.Path | None = None) -> dict:
     """Return defaults overlaid with any saved panel settings."""
+    src = _resolve(path)
     data = dict(DEFAULTS)
     try:
-        if path.exists():
-            saved = json.loads(path.read_text())
+        if src.exists():
+            saved = json.loads(src.read_text())
             data.update({k: v for k, v in saved.items() if k in DEFAULTS})
     except Exception as e:  # corrupt file must not stop the add-on
-        _LOG.warning("could not read %s: %s — using defaults", path, e)
+        _LOG.warning("could not read %s: %s — using defaults", src, e)
     return data
 
 
-def save_settings(values: dict, path: pathlib.Path = SETTINGS_PATH) -> dict:
+def save_settings(values: dict, path: pathlib.Path | None = None) -> dict:
     """Merge ``values`` (only known keys) into the saved settings and persist."""
-    data = load_settings(path)
+    src = _resolve(path)
+    data = load_settings(src)
     for k, v in values.items():
         if k in DEFAULTS:
             data[k] = v
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2))
-    _LOG.info("settings saved to %s", path)
+    src.parent.mkdir(parents=True, exist_ok=True)
+    src.write_text(json.dumps(data, indent=2))
+    _LOG.info("settings saved to %s", src)
     return data

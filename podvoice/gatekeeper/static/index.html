@@ -135,6 +135,24 @@
   .crow input:focus { outline: none; border-color: var(--accent); }
   .crow select { flex: 1; font: inherit; padding: 8px 10px; border-radius: 10px;
                  border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
+
+  /* Settings form. */
+  details#settings > summary, details.adv > summary {
+    cursor: pointer; font-size: .82rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--fg-dim); list-style: none; }
+  details#settings > summary::after { content: " ▸"; }
+  details#settings[open] > summary::after { content: " ▾"; }
+  .setgrid { display: grid; grid-template-columns: 132px 1fr; gap: 9px 10px; align-items: center;
+             margin: 12px 0; }
+  .setgrid label { font-size: .82rem; font-weight: 600; }
+  .setgrid input, .setgrid select { font: inherit; padding: 7px 9px; border-radius: 9px;
+             border: 1px solid var(--border-strong); background: var(--field); color: inherit; width: 100%; }
+  .setgrid input[type=checkbox] { width: auto; justify-self: start; }
+  .roomrow { display: flex; gap: 8px; margin-bottom: 6px; }
+  .roomrow input { flex: 1; font: inherit; padding: 7px 9px; border-radius: 9px;
+             border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
+  details.adv > summary { margin-top: 6px; }
+  .actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
   #cmic.live { background: var(--danger); color: #fff; border-color: transparent; }
   h2 #cstate { font-size: .62rem; text-transform: none; letter-spacing: 0; }
 
@@ -158,6 +176,45 @@
   <h1>PodVoice</h1>
   <p class="sub" id="sub">Voice gatekeeper</p>
   <div class="svc" id="svc"></div>
+
+  <details class="section" id="settings">
+    <summary>Settings</summary>
+    <div class="setgrid">
+      <label for="s_provider">Provider</label>
+      <select id="s_provider"><option value="gemini">Gemini</option><option value="openai">OpenAI</option></select>
+      <label for="s_gemini_model">Gemini model</label>
+      <input id="s_gemini_model" type="text" autocomplete="off">
+      <label for="s_openai_model">OpenAI model</label>
+      <input id="s_openai_model" type="text" autocomplete="off">
+      <label for="s_podconnect_base_url">PodConnect URL</label>
+      <input id="s_podconnect_base_url" type="text" autocomplete="off">
+      <label for="s_podconnect_token">PodConnect token</label>
+      <input id="s_podconnect_token" type="password" autocomplete="off">
+      <label for="s_voicepe_noise_psk">Voice PE PSK</label>
+      <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
+      <label for="s_simulate">Simulation mode</label>
+      <input id="s_simulate" type="checkbox">
+    </div>
+    <h2 style="margin-bottom:8px">Rooms</h2>
+    <div id="s_rooms"></div>
+    <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
+    <details class="adv">
+      <summary>Advanced tuning</summary>
+      <div class="setgrid">
+        <label for="s_duck_level">Duck level %</label><input id="s_duck_level" type="number" min="0" max="100">
+        <label for="s_lounge_level">Lounge level %</label><input id="s_lounge_level" type="number" min="0" max="100">
+        <label for="s_lounge_window_s">Lounge window s</label><input id="s_lounge_window_s" type="number" min="1" max="120">
+        <label for="s_heartbeat_ms">Heartbeat ms</label><input id="s_heartbeat_ms" type="number" min="100" max="60000">
+        <label for="s_watchdog_ms">Watchdog ms</label><input id="s_watchdog_ms" type="number" min="200" max="120000">
+        <label for="s_vad_threshold">VAD threshold</label><input id="s_vad_threshold" type="number" step="0.001" min="0" max="1">
+      </div>
+    </details>
+    <div class="actions">
+      <button id="s_save">Save</button>
+      <button id="s_saverestart" class="ghost">Save &amp; restart</button>
+      <span id="s_status" class="sub" role="status"></span>
+    </div>
+  </details>
 
   <div class="section">
     <h2>Rooms</h2>
@@ -525,6 +582,83 @@ setInterval(poll, 3000);
 
   emptyLog();
   loadModels().then(connect);
+})();
+</script>
+
+<script>
+"use strict";
+// ---- Settings page (saved to the add-on's /data; HA Configuration holds only keys) ----
+(function () {
+  var FIELDS = ["provider", "gemini_model", "openai_model", "podconnect_base_url",
+    "podconnect_token", "voicepe_noise_psk", "simulate", "duck_level", "lounge_level",
+    "lounge_window_s", "heartbeat_ms", "watchdog_ms", "vad_threshold"];
+  var NUM = { duck_level: 1, lounge_level: 1, lounge_window_s: 1, heartbeat_ms: 1, watchdog_ms: 1, vad_threshold: 1 };
+  function f(id) { return document.getElementById("s_" + id); }
+  function setVal(id, v) {
+    var e = f(id); if (!e) return;
+    if (e.type === "checkbox") e.checked = !!v; else e.value = (v == null ? "" : v);
+  }
+  function getVal(id) {
+    var e = f(id); if (!e) return undefined;
+    if (e.type === "checkbox") return e.checked;
+    if (NUM[id]) { var n = parseFloat(e.value); return isNaN(n) ? undefined : n; }
+    return e.value;
+  }
+
+  var roomsWrap = document.getElementById("s_rooms");
+  function addRoom(host, room) {
+    var row = document.createElement("div"); row.className = "roomrow";
+    var h = document.createElement("input"); h.className = "rh"; h.placeholder = "voice-pe.local"; h.value = host || "";
+    var r = document.createElement("input"); r.className = "rr"; r.placeholder = "room id (e.g. r0)"; r.value = room || "";
+    var x = document.createElement("button"); x.className = "ghost"; x.textContent = "✕";
+    x.setAttribute("aria-label", "Remove room"); x.onclick = function () { row.remove(); };
+    row.appendChild(h); row.appendChild(r); row.appendChild(x); roomsWrap.appendChild(row);
+  }
+  document.getElementById("s_addroom").onclick = function () { addRoom("", ""); };
+  function collectRooms() {
+    var out = [];
+    roomsWrap.querySelectorAll(".roomrow").forEach(function (row) {
+      var h = row.querySelector(".rh").value.trim(), r = row.querySelector(".rr").value.trim();
+      if (h && r) out.push({ voicepe_host: h, room: r });
+    });
+    return out;
+  }
+
+  async function load() {
+    try {
+      var s = await (await fetch("api/settings", { cache: "no-store" })).json();
+      FIELDS.forEach(function (id) { if (id in s) setVal(id, s[id]); });
+      roomsWrap.innerHTML = "";
+      (s.rooms || []).forEach(function (rm) { addRoom(rm.voicepe_host, rm.room); });
+    } catch (e) { /* leave defaults */ }
+  }
+  function collect() {
+    var body = {};
+    FIELDS.forEach(function (id) { var v = getVal(id); if (v !== undefined) body[id] = v; });
+    body.rooms = collectRooms();
+    return body;
+  }
+
+  var statusEl = document.getElementById("s_status");
+  async function save(restart) {
+    statusEl.textContent = "Saving…";
+    try {
+      var r = await fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify(collect()) });
+      var j = await r.json();
+      if (!j.ok) { statusEl.textContent = "Could not save"; return; }
+      if (!restart) { statusEl.textContent = "Saved — restart the add-on to apply"; return; }
+      statusEl.textContent = "Saved — restarting…";
+      var rr = await fetch("api/restart", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      var jj = await rr.json();
+      statusEl.textContent = jj.ok ? "Restarting… reload the page in a moment"
+                                   : "Saved (restart unavailable — restart the add-on manually)";
+    } catch (e) { statusEl.textContent = "Request failed"; }
+  }
+  document.getElementById("s_save").onclick = function () { save(false); };
+  document.getElementById("s_saverestart").onclick = function () { save(true); };
+
+  load();
 })();
 </script>
 </body>

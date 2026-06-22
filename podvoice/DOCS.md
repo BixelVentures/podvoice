@@ -28,30 +28,32 @@ You need three things working first:
    URL, and click **Add**.
 3. Find **PodVoice** in the store list and click **Install**. The first install takes
    a few minutes while the container is built.
-4. Open the **Configuration** tab and fill in the four required fields:
-   - **gemini_api_key** — your Gemini API key
-   - **podconnect_token** — the token from your PodConnect add-on
-   - **voicepe_host** — the address of your Voice PE (for example `voice-pe.local`)
-   - **voicepe_noise_psk** — the encryption key you set when flashing the Voice PE
+4. Open the **Configuration** tab. It holds **only the API keys** (everything else is set
+   in the panel — see below):
+   - **gemini_api_key** — your Gemini API key (for the default Gemini brain)
+   - **openai_api_key** — *optional*, only if you want the OpenAI Realtime provider
 5. Click **Save**, then go to the **Info** tab and press **Start**.
+6. Open **PodVoice** in the sidebar → expand **Settings** → fill in the rest (PodConnect URL +
+   token, your Voice PE PSK, rooms, provider/model) → **Save & restart**.
 
-## Configuration options
+## Settings (in the panel, not the Configuration tab)
 
-| Option | What it does |
+Everything except the API keys lives on the panel's **Settings** page (saved inside the add-on, with
+a **Save & restart** button). The HA **Configuration** tab is intentionally just the two keys.
+
+| Setting | What it does |
 |---|---|
-| `gemini_api_key` | Your Google Gemini API key (Live-enabled). Hidden after saving. |
-| `gemini_model` | Which Gemini Live model to use. Leave the default unless told otherwise. |
-| `podconnect_base_url` | Where PodConnect's Attention API lives. Usually `http://homeassistant.local:8099`. |
-| `podconnect_token` | The secret token that lets PodVoice control the music. Hidden after saving. |
-| `voicepe_host` | The network address of your Voice PE device (e.g. `voice-pe.local`). |
-| `voicepe_noise_psk` | The encryption key shared with the Voice PE firmware. Hidden after saving. |
-| `rooms` | Optional list pairing each Voice PE with a room name, so the right room's music ducks. Each entry has a `voicepe_host` and a `room`. Leave empty for a single device. |
-| `lounge_window_s` | How many seconds PodVoice keeps listening for a quick follow-up after it finishes speaking (default 8). |
-| `duck_level` | How quiet the music goes while you are talking, as a volume percentage (default 5). |
-| `lounge_level` | How quiet the music stays during the follow-up window (default 35). |
-| `heartbeat_ms` | How often PodVoice reminds PodConnect to keep the music down, in milliseconds (default 500). Advanced — leave as is. |
-| `watchdog_ms` | How long PodVoice waits for the AI to start replying before giving up on a turn, in milliseconds (default 800). Advanced — leave as is. |
-| `vad_threshold` | How loud a sound must be to count as someone talking during the follow-up window (default 0.015). Advanced — leave as is. |
+| Provider | Which voice brain — **Gemini** (default, best Danish) or **OpenAI** Realtime. |
+| Gemini model / OpenAI model | The default model for each provider. |
+| PodConnect URL | Where PodConnect's Attention API lives. Usually `http://homeassistant.local:8099`. |
+| PodConnect token | The secret token that lets PodVoice control the music. |
+| Voice PE PSK | The encryption key shared with the Voice PE firmware. |
+| Simulation mode | Run the built-in demo with no hardware/keys. |
+| Rooms | Pair each Voice PE (`voicepe_host`) with a PodConnect `room` so the right room ducks. |
+| Advanced tuning | Duck/lounge levels, lounge window, heartbeat, watchdog, VAD threshold — leave as is unless you know why. |
+
+**Save & restart** writes the settings and restarts the add-on so they take effect (plain **Save**
+keeps them but you'd restart the add-on yourself).
 
 ## Checking that it is healthy
 

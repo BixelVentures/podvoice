@@ -28,23 +28,35 @@ HUB: web.AppKey[StatusHub] = web.AppKey("hub", StatusHub)
 SESSIONS: web.AppKey[dict] = web.AppKey("sessions", dict)
 CONSOLE: web.AppKey = web.AppKey("console")
 MODELS: web.AppKey = web.AppKey("models")
+SETTINGS_GET: web.AppKey = web.AppKey("settings_get")
+SETTINGS_SET: web.AppKey = web.AppKey("settings_set")
+RESTART: web.AppKey = web.AppKey("restart")
 
 
 def create_app(
-    hub: StatusHub, sessions: dict, make_console=None, models_provider=None
+    hub: StatusHub,
+    sessions: dict,
+    make_console=None,
+    models_provider=None,
+    settings_get=None,
+    settings_set=None,
+    on_restart=None,
 ) -> web.Application:
     """Build the aiohttp app.
 
-    ``sessions`` maps room id -> RoomSession (for controls). ``make_console`` is an
-    optional ``make(model=None)`` factory returning a fresh ConsoleGemini per
-    browser; None disables the console. ``models_provider`` is an optional zero-arg
-    callable returning the model-selector payload for ``GET /api/models``.
+    ``sessions`` maps room id -> RoomSession (for controls). ``make_console`` is a
+    ``make(provider=None, model=None)`` factory; ``models_provider(provider)`` feeds
+    the model selector; ``settings_get()`` / ``settings_set(dict)`` back the panel
+    Settings page; ``on_restart()`` (async) restarts the add-on. All optional.
     """
     app = web.Application()
     app[HUB] = hub
     app[SESSIONS] = sessions
     app[CONSOLE] = make_console
     app[MODELS] = models_provider
+    app[SETTINGS_GET] = settings_get
+    app[SETTINGS_SET] = settings_set
+    app[RESTART] = on_restart
     app.add_routes(
         [
             web.get("/", _index),
@@ -53,10 +65,40 @@ def create_app(
             web.post("/api/control", _control),
             web.get("/api/console", _console_ws),
             web.get("/api/models", _models),
+            web.get("/api/settings", _settings_get),
+            web.post("/api/settings", _settings_set),
+            web.post("/api/restart", _restart),
             web.get("/health", _health),
         ]
     )
     return app
+
+
+async def _settings_get(request: web.Request) -> web.Response:
+    fn = request.app[SETTINGS_GET]
+    return web.json_response(fn() if fn is not None else {})
+
+
+async def _settings_set(request: web.Request) -> web.Response:
+    fn = request.app[SETTINGS_SET]
+    if fn is None:
+        return web.json_response({"ok": False, "error": "settings unavailable"}, status=501)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return web.json_response({"ok": False, "error": "bad json"}, status=400)
+    if not isinstance(body, dict):
+        return web.json_response({"ok": False, "error": "expected object"}, status=400)
+    saved = fn(body)
+    return web.json_response({"ok": True, "settings": saved})
+
+
+async def _restart(request: web.Request) -> web.Response:
+    fn = request.app[RESTART]
+    if fn is None:
+        return web.json_response({"ok": False, "error": "restart unavailable"}, status=501)
+    ok = await fn()
+    return web.json_response({"ok": bool(ok)})
 
 
 async def _models(request: web.Request) -> web.Response:

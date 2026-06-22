@@ -106,6 +106,41 @@ async def test_control_actions():
         assert r.status == 400
 
 
+async def test_settings_get_set_and_restart():
+    store = {"provider": "gemini", "duck_level": 5}
+
+    def get_settings():
+        return dict(store)
+
+    def set_settings(body):
+        store.update(body)
+        return dict(store)
+
+    async def on_restart():
+        return True
+
+    app = create_app(
+        StatusHub(), {}, settings_get=get_settings, settings_set=set_settings, on_restart=on_restart
+    )
+    async with TestClient(TestServer(app)) as client:
+        r = await client.get("/api/settings")
+        assert (await r.json())["provider"] == "gemini"
+
+        r = await client.post("/api/settings", json={"provider": "openai", "duck_level": 9})
+        body = await r.json()
+        assert body["ok"] is True and body["settings"]["provider"] == "openai"
+        assert store["duck_level"] == 9
+
+        r = await client.post("/api/restart", json={})
+        assert (await r.json())["ok"] is True
+
+
+async def test_restart_unavailable_without_handler():
+    async with TestClient(TestServer(create_app(StatusHub(), {}))) as client:
+        r = await client.post("/api/restart", json={})
+        assert r.status == 501
+
+
 async def test_sse_stream_delivers_events():
     hub = StatusHub()
     async with _client(hub, {}) as client:

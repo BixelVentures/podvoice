@@ -10,39 +10,19 @@ arch:
 startup: application
 init: false
 host_network: true
-homeassistant_api: true
+homeassistant_api: true   # SUPERVISOR_TOKEN for the HA tool bridge
+hassio_api: true          # lets the panel "Save & restart" the add-on itself
 # Sidebar panel served on :8098 (PodConnect owns :8099) behind HA Ingress.
 ingress: true
 ingress_port: 8098
 panel_icon: mdi:microphone-message
 panel_title: PodVoice
+# Configuration holds ONLY the API keys. Everything else (provider, models,
+# PodConnect URL/token, Voice-PE PSK, rooms, tuning, simulate) is edited in the
+# panel's Settings page and stored in the add-on's /data (see settings.py).
 options:
-  # VERIFY exact Gemini Live model string at build time (PLAN.md §5.1).
-  gemini_model: "gemini-2.5-flash-native-audio-preview-12-2025"
-  podconnect_base_url: "http://homeassistant.local:8099"
-  simulate: false
-  rooms: []
-  lounge_window_s: 8
-  duck_level: 5
-  lounge_level: 35
-  heartbeat_ms: 500
-  watchdog_ms: 800
-  vad_threshold: 0.015
+  gemini_api_key: ""
+  openai_api_key: ""
 schema:
   gemini_api_key: "password?"
   openai_api_key: "password?"
-  gemini_model: str
-  podconnect_base_url: url
-  podconnect_token: password
-  simulate: bool
-  voicepe_host: "str?"
-  voicepe_noise_psk: "password?"
-  rooms:
-    - voicepe_host: str
-      room: str
-  lounge_window_s: int(1,120)
-  duck_level: int(0,100)
-  lounge_level: int(0,100)
-  heartbeat_ms: int(100,60000)
-  watchdog_ms: int(200,120000)
-  vad_threshold: float(0,1)

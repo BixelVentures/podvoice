@@ -119,4 +119,15 @@ def load_options(path: pathlib.Path = OPTIONS_PATH) -> dict:
 
 
 def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
-    return from_options(load_options(path))
+    """Merge panel-managed settings (/data/podvoice.json) with the key-only add-on
+    options. The HA Configuration tab holds only the API keys; everything else is
+    edited in the panel's Settings page (settings.py)."""
+    from .settings import load_settings  # local import avoids an import cycle
+
+    opts = load_options(path)
+    merged = dict(load_settings())
+    # The add-on options provide only the secrets that stay in HA Configuration.
+    merged["gemini_api_key"] = opts.get("gemini_api_key", "")
+    merged["openai_api_key"] = opts.get("openai_api_key", "")
+    merged["supervisor_token"] = opts.get("supervisor_token", "")
+    return from_options(merged)

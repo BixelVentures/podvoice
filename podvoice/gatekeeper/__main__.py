@@ -26,6 +26,7 @@ from .orchestrator import RoomSession
 from .playback import Playback
 from .podconnect import AttentionClient
 from .providers import make_session
+from .settings import load_settings, save_settings
 from .sim import build_sim_sessions, run_driver
 from .voicepe import VoicePELink
 from .watchdog import BargeIn, TurnWatchdog
@@ -100,6 +101,23 @@ def _build_session(
     )
 
 
+async def _restart_addon(token: str) -> bool:
+    """Restart this add-on via the Supervisor API (panel 'Save & restart')."""
+    if not token:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=10) as c:
+            # VERIFY: supervisor self-restart endpoint (needs hassio_api: true).
+            r = await c.post(
+                "http://supervisor/addons/self/restart",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        return r.status_code < 400
+    except Exception as e:  # never crash the request on a restart failure
+        _LOG.warning("self-restart failed: %s", e)
+        return False
+
+
 async def run(cfg: Config) -> None:
     hub = StatusHub(simulate=cfg.simulate)
     attention: AttentionClient | None = None
@@ -125,6 +143,9 @@ async def run(cfg: Config) -> None:
         sessions,
         make_console=console_factory(cfg),
         models_provider=lambda provider=None: list_models(cfg, provider),
+        settings_get=load_settings,
+        settings_set=save_settings,
+        on_restart=lambda: _restart_addon(cfg.supervisor_token),
     )
     runner = await start_web(app)
 
