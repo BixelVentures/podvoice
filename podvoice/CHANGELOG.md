@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- **Home control & music (like Assist).** The assistant can now control Home
+  Assistant — lights, switches, scenes, climate, covers, media transport/volume, to-do —
+  gated by an **allowlist** you set in Settings ("Home control"), and it works in the panel
+  console too. Plus a **generic PodConnect** tool: full access to PodConnect's API (play/pause/
+  volume/etc.) — current and future features, nothing hardcoded.
+
 ## 0.3.2
 
 - **Cleaner, simpler panel.** Gemini replies now coalesce into one bubble per turn

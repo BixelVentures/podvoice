@@ -32,6 +32,7 @@ SETTINGS_GET: web.AppKey = web.AppKey("settings_get")
 SETTINGS_SET: web.AppKey = web.AppKey("settings_set")
 RESTART: web.AppKey = web.AppKey("restart")
 DIAG: web.AppKey = web.AppKey("diag")
+TOOLS: web.AppKey = web.AppKey("tools")
 
 
 def create_app(
@@ -43,6 +44,7 @@ def create_app(
     settings_set=None,
     on_restart=None,
     diag=None,
+    tools=None,
 ) -> web.Application:
     """Build the aiohttp app.
 
@@ -60,6 +62,7 @@ def create_app(
     app[SETTINGS_SET] = settings_set
     app[RESTART] = on_restart
     app[DIAG] = diag or {}
+    app[TOOLS] = tools
     app.add_routes(
         [
             web.get("/", _index),
@@ -142,7 +145,9 @@ async def _console_ws(request: web.Request) -> web.WebSocketResponse:
         await ws.send_json({"type": "error", "error": "console not configured"})
         await ws.close()
         return ws
-    await run_console(ws, make(request.query.get("provider"), request.query.get("model")))
+    await run_console(
+        ws, make(request.query.get("provider"), request.query.get("model")), request.app[TOOLS]
+    )
     return ws
 
 

@@ -78,6 +78,22 @@ click-buttons so you never need a terminal:
 4. **Check connection** (is it reachable?), **Check audio stream** (continuous-audio test), and
    **Test speaker** (plays a tone — confirm you hear it).
 
+## Home control & music (like Assist)
+
+PodVoice can control your home and music — both in the panel console and (later) by voice.
+
+**Home control:** in **Settings → Home control**, list the entities or whole domains the
+assistant may control, comma-separated — e.g. `light, media_player, todo.shopping_list`. This is
+an **allowlist** (like Assist's "expose entities"): empty means it can control nothing. Once set,
+you can say things like *"tænd lyset i køkkenet"*, *"sæt varmen til 21"*, or *"tilføj mælk til
+indkøbslisten"*. Supported: on/off, lights (brightness/colour), media transport + volume, scenes,
+climate, covers, and to-do lists. It can also list what it's allowed to control.
+
+**Music:** when **PodConnect URL** is set, PodVoice gets generic access to PodConnect's whole API —
+so *play / pause / next / volume / "play in the kitchen"* work and keep working as PodConnect gains
+features (nothing is hardcoded). You can also expose the HomePod's `media_player` entity for HA-side
+control. (Ducking music while you talk is automatic and separate.)
+
 ## The sidebar panel
 
 Once started, PodVoice adds a **PodVoice** item to the Home Assistant sidebar. Open it to see,

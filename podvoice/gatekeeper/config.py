@@ -32,6 +32,7 @@ class Config:
     podconnect_token: str
     voicepe_noise_psk: str
     rooms: tuple[RoomMap, ...]
+    exposed: tuple[str, ...] = ()  # HA entity_ids / domains the assistant may control
     supervisor_token: str = ""
     provider: str = "gemini"  # "gemini" | "openai" — the default voice brain
     openai_api_key: str = ""
@@ -89,6 +90,7 @@ def from_options(opts: dict) -> Config:
         podconnect_token=opts.get("podconnect_token", ""),
         voicepe_noise_psk=opts.get("voicepe_noise_psk", ""),
         rooms=rooms,
+        exposed=tuple(opts.get("exposed") or []),
         supervisor_token=opts.get("supervisor_token", ""),
         provider=str(opts.get("provider", "gemini") or "gemini"),
         openai_api_key=opts.get("openai_api_key", ""),

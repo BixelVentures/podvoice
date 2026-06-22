@@ -158,6 +158,7 @@ async def run(cfg: Config) -> None:
     hub = StatusHub(simulate=cfg.simulate)
     attention: AttentionClient | None = None
     ha_client: httpx.AsyncClient | None = None
+    tools: HAToolBridge | None = None
     driver: asyncio.Task | None = None
     probe: asyncio.Task | None = None
 
@@ -170,20 +171,27 @@ async def run(cfg: Config) -> None:
             _LOG.error("no rooms configured (set the Voice-PE -> room map); panel only")
         attention = AttentionClient(cfg.podconnect_base_url, cfg.podconnect_token or None)
         ha_client = httpx.AsyncClient()
-        tools = HAToolBridge(cfg.supervisor_token, ha_client) if cfg.supervisor_token else None
-        if tools is None:
-            _LOG.warning("no SUPERVISOR_TOKEN — HA tool bridge disabled")
+        tools = HAToolBridge(
+            cfg.supervisor_token,
+            ha_client,
+            podconnect_base_url=cfg.podconnect_base_url,
+            podconnect_token=cfg.podconnect_token or "",
+            exposed=cfg.exposed,
+        )
+        if not cfg.supervisor_token:
+            _LOG.warning("no SUPERVISOR_TOKEN — HA control disabled (PodConnect tool still works)")
         sessions = {r.room: _build_session(cfg, r, attention, tools, hub) for r in cfg.rooms}
 
     app = create_app(
         hub,
         sessions,
-        make_console=console_factory(cfg),
+        make_console=console_factory(cfg, tools),
         models_provider=lambda provider=None: list_models(cfg, provider),
         settings_get=load_settings,
         settings_set=save_settings,
         on_restart=lambda: _restart_addon(cfg.supervisor_token),
         diag=_DIAG,
+        tools=tools,
     )
     runner = await start_web(app)
 

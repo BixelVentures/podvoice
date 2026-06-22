@@ -23,7 +23,7 @@ from aiohttp import WSMsgType
 from . import audio as audio_mod
 from . import constants as C
 from .config import Config
-from .gemini import AudioChunk, InputTranscript, OutputTranscript, TurnComplete
+from .gemini import AudioChunk, InputTranscript, OutputTranscript, ToolCall, TurnComplete
 
 _LOG = logging.getLogger("podvoice.console")
 
@@ -34,6 +34,7 @@ class ConsoleGemini(Protocol):
     async def connect(self) -> None: ...
     async def send_text(self, text: str) -> None: ...
     async def send_audio(self, pcm16k: bytes) -> None: ...
+    async def send_tool_results(self, results: list) -> None: ...
     def events(self) -> AsyncIterator[object]: ...
     async def close(self) -> None: ...
 
@@ -55,6 +56,9 @@ class SimConsoleGemini:
 
     async def send_audio(self, pcm16k: bytes) -> None:
         pass  # mic ignored in demo mode
+
+    async def send_tool_results(self, results: list) -> None:
+        pass  # demo has no tool calls
 
     async def events(self) -> AsyncIterator[object]:
         while not self._closed:
@@ -89,12 +93,14 @@ def _resolve_provider(cfg: Config, provider: str | None) -> str:
     return (provider or cfg.provider or "gemini").lower()
 
 
-def console_factory(cfg: Config):
+def console_factory(cfg: Config, tools=None):
     """Return ``make(provider=None, model=None)`` building a session per browser.
 
     Real brain when that provider's key is set and not simulating; otherwise the
-    keyless echo demo. ``provider``/``model`` come from the panel's selectors.
+    keyless echo demo. ``tools`` (a ToolBridge) gives the console the same home /
+    music control as the room pipeline.
     """
+    decls = tools.declarations() if tools is not None else None
 
     def _make(provider: str | None = None, model: str | None = None) -> ConsoleGemini:
         p = _resolve_provider(cfg, provider)
@@ -106,14 +112,16 @@ def console_factory(cfg: Config):
             from .openai_realtime import OpenAIRealtimeSession
 
             return OpenAIRealtimeSession(
-                api_key=cfg.openai_api_key, model=model or cfg.openai_model
+                api_key=cfg.openai_api_key, model=model or cfg.openai_model, tool_declarations=decls
             )
         if not cfg.gemini_api_key:
             return SimConsoleGemini()
         from .gemini import GeminiLiveSession, build_config
 
         return GeminiLiveSession(
-            api_key=cfg.gemini_api_key, model=model or cfg.gemini_model, config=build_config(cfg)
+            api_key=cfg.gemini_api_key,
+            model=model or cfg.gemini_model,
+            config=build_config(cfg, decls),
         )
 
     return _make
@@ -181,11 +189,11 @@ def list_models(cfg: Config, provider: str | None = None) -> dict:
         }
 
 
-async def run_console(ws, gemini: ConsoleGemini) -> None:
+async def run_console(ws, gemini: ConsoleGemini, tools=None) -> None:
     """Bridge one browser WebSocket to one Gemini session until the socket closes."""
     await gemini.connect()
     await ws.send_json({"type": "hello", "rate": OUTPUT_RATE})
-    reader = asyncio.create_task(_pump(ws, gemini))
+    reader = asyncio.create_task(_pump(ws, gemini, tools))
     try:
         async for msg in ws:
             if msg.type == WSMsgType.TEXT:
@@ -207,7 +215,7 @@ async def run_console(ws, gemini: ConsoleGemini) -> None:
             await gemini.close()
 
 
-async def _pump(ws, gemini: ConsoleGemini) -> None:
+async def _pump(ws, gemini: ConsoleGemini, tools=None) -> None:
     """Forward Gemini events to the browser (binary = audio, JSON = transcript)."""
     try:
         async for ev in gemini.events():
@@ -219,6 +227,14 @@ async def _pump(ws, gemini: ConsoleGemini) -> None:
                 await ws.send_json({"type": "transcript", "dir": "out", "text": ev.text})
             elif isinstance(ev, InputTranscript):
                 await ws.send_json({"type": "transcript", "dir": "in", "text": ev.text})
+            elif isinstance(ev, ToolCall):
+                result = (
+                    await tools.dispatch(ev.name, ev.args)
+                    if tools is not None
+                    else {"ok": False, "error": "no tools"}
+                )
+                await ws.send_json({"type": "tool", "name": ev.name, "result": result})
+                await gemini.send_tool_results([{"id": ev.id, "name": ev.name, "response": result}])
             elif isinstance(ev, TurnComplete):
                 await ws.send_json({"type": "turn_complete"})
     except asyncio.CancelledError:

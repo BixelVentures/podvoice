@@ -42,6 +42,7 @@ DEFAULTS: dict = {
     "podconnect_token": "",
     "voicepe_noise_psk": "",
     "rooms": [],  # list of {"voicepe_host": str, "room": str}
+    "exposed": [],  # HA entity_ids / domains the assistant may control (allowlist)
     "duck_level": C.DUCK_LEVEL,
     "lounge_level": C.LOUNGE_LEVEL,
     "lounge_window_s": C.LOUNGE_WINDOW_S,

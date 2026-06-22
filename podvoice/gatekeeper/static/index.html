@@ -190,9 +190,12 @@
       <input id="s_podconnect_token" type="password" autocomplete="off">
       <label for="s_voicepe_noise_psk">Voice PE PSK</label>
       <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
+      <label for="s_exposed">Home control</label>
+      <input id="s_exposed" type="text" autocomplete="off" placeholder="light, media_player, todo.shopping_list">
       <label for="s_simulate">Simulation mode</label>
       <input id="s_simulate" type="checkbox">
     </div>
+    <p class="sub" style="margin:2px 0 0">Home control = entities/domains the assistant may control (comma-separated). Empty = none. PodConnect music control is always available when its URL is set.</p>
     <h2 style="margin-bottom:8px">Rooms</h2>
     <div id="s_rooms"></div>
     <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
@@ -669,6 +672,8 @@ setInterval(poll, 3000);
     try {
       var s = await (await fetch("api/settings", { cache: "no-store" })).json();
       FIELDS.forEach(function (id) { if (id in s) setVal(id, s[id]); });
+      var ex = document.getElementById("s_exposed");
+      if (ex) ex.value = (s.exposed || []).join(", ");
       roomsWrap.innerHTML = "";
       (s.rooms || []).forEach(function (rm) { addRoom(rm.voicepe_host, rm.room); });
     } catch (e) { /* leave defaults */ }
@@ -677,6 +682,8 @@ setInterval(poll, 3000);
     var body = {};
     FIELDS.forEach(function (id) { var v = getVal(id); if (v !== undefined) body[id] = v; });
     body.rooms = collectRooms();
+    var ex = document.getElementById("s_exposed");
+    if (ex) body.exposed = ex.value.split(/[,\n]/).map(function (x) { return x.trim(); }).filter(Boolean);
     return body;
   }
 
