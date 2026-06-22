@@ -137,6 +137,7 @@
                  border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
   /* keep flex children from overflowing the column (dropdowns/inputs can't push wider) */
   .crow select, .crow input { min-width: 0; max-width: 100%; }
+  #cmodel { max-width: 460px; }  /* don't let a long model name stretch the whole row */
 
   /* Tabs */
   .tabs { display: flex; gap: 4px; margin: 18px 0 4px; border-bottom: 1px solid var(--border);
@@ -559,32 +560,40 @@ setInterval(poll, 3000);
       var url = "api/models" + (provider ? "?provider=" + encodeURIComponent(provider) : "");
       var data = await (await fetch(url, { cache: "no-store" })).json();
       if (data.provider) { currentProvider = data.provider; if (providerSel) providerSel.value = currentProvider; }
-      var models = data.models || [];
+      // Voice-only: the realtime console needs a voice-capable model.
+      var models = (data.models || []).filter(function (m) { return m.live; });
       modelSel.innerHTML = "";
-      var firstLive = null;
       models.forEach(function (m) {
         var o = document.createElement("option");
-        o.value = m.id;
-        o.textContent = m.label + (m.live ? "" : " — text only (no voice)");
-        o.disabled = !m.live;            // Live API needs a voice-capable model
-        if (m.live && !firstLive) firstLive = m.id;
+        o.value = m.id; o.textContent = m.label;
         modelSel.appendChild(o);
       });
       var def = data.default;
-      var defLive = models.some(function (m) { return m.id === def && m.live; });
-      currentModel = (defLive ? def : firstLive) || def || null;
+      var hasDef = models.some(function (m) { return m.id === def; });
+      currentModel = (hasDef ? def : (models[0] && models[0].id)) || def || null;
       if (currentModel) modelSel.value = currentModel;
       if (!models.length) { var o = document.createElement("option"); o.textContent = "(default model)"; modelSel.appendChild(o); }
     } catch (e) { /* leave selector empty; console still uses the server default */ }
+  }
+  function persistChoice() {
+    // Remember provider + chosen model as the default (so it sticks across restarts).
+    if (!currentProvider) return;
+    var body = { provider: currentProvider };
+    if (currentProvider === "openai") body.openai_model = currentModel;
+    else body.gemini_model = currentModel;
+    try {
+      fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify(body) });
+    } catch (e) { /* best effort */ }
   }
   function reconnect() {
     manualClose = true;
     if (ws) { try { ws.close(); } catch (e) {} }
     connect();
   }
-  modelSel.onchange = function () { currentModel = modelSel.value; reconnect(); };
+  modelSel.onchange = function () { currentModel = modelSel.value; persistChoice(); reconnect(); };
   if (providerSel) providerSel.onchange = function () {
-    loadModels(providerSel.value).then(reconnect);
+    loadModels(providerSel.value).then(function () { persistChoice(); reconnect(); });
   };
 
   function connect() {

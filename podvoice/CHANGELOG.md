@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1
+
+- Talk tab: model dropdown now lists **voice-capable models only** and is width-capped so a long
+  name can't stretch the layout. Picking a provider/model now **persists** as the default
+  (saved to settings).
+
 ## 0.6.0
 
 - **Editable system prompt** (Settings) — a capability-aware default tells the assistant who
