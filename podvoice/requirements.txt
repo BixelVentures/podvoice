@@ -1,5 +1,5 @@
 # Runtime dependencies (pins are VERIFY-at-build; freeze exact == in CI once green).
-google-genai==2.8.*
+google-genai>=2.9.0,<3   # Live API; confirmed 2026-06-22
 aioesphomeapi==45.3.*
 httpx>=0.27,<1.0
 aiohttp>=3.10   # serves the HA Ingress sidebar panel (web.py)

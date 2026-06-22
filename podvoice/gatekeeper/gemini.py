@@ -180,16 +180,26 @@ class GeminiLiveSession:
     async def connect(self) -> None:
         """Open the Live WebSocket. Lazy-imports the SDK so the module loads without it."""
         # LAZY IMPORT — do NOT hoist to module top (keeps the module SDK-free).
-        from google import genai  # VERIFY: import path `from google import genai`
+        from google import genai  # CONFIRMED 2026-06-22: `from google import genai`
+        from google.genai import types
 
         if self._client is None:
-            # VERIFY: genai.Client(api_key=...) — Gemini Developer API, NOT Vertex.
+            # CONFIRMED: genai.Client(api_key=...) — Gemini Developer API, NOT Vertex.
             self._client = genai.Client(api_key=self.api_key)
 
-        # Inject the (possibly captured) resume handle for make-before-break reconnects.
-        cfg = {**self.config, "session_resumption": {"handle": self._resume_handle}}
+        # Start from the plain dict (build_config) and upgrade the two keys the SDK
+        # prefers as typed objects; inject the resume handle for make-before-break.
+        cfg = {
+            k: v
+            for k, v in self.config.items()
+            if k not in ("session_resumption", "context_window_compression")
+        }
+        cfg["session_resumption"] = types.SessionResumptionConfig(handle=self._resume_handle)
+        cfg["context_window_compression"] = types.ContextWindowCompressionConfig(
+            sliding_window=types.SlidingWindow()
+        )
 
-        # VERIFY: client.aio.live.connect(model=, config=) is an async context manager.
+        # CONFIRMED: client.aio.live.connect(model=, config=) is an async context manager.
         self._cm = self._client.aio.live.connect(model=self.model, config=cfg)  # type: ignore[attr-defined]
         # VERIFY: entering the CM yields the live session object.
         self._session = await self._cm.__aenter__()  # type: ignore[attr-defined]
