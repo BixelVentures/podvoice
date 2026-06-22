@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2
+
+- **Cleaner, simpler panel.** Gemini replies now coalesce into one bubble per turn
+  (no more fragment-per-line). The duplicate/contradictory "Rooms" boxes are gone —
+  hardware-only sections (Rooms, room transcript) hide until you add a room. The console
+  moved up; model fields moved into Advanced. Stale "set in the add-on Configuration"
+  text removed.
+
 ## 0.3.1
 
 - Service health dots are now meaningful without rooms: PodConnect is actively pinged

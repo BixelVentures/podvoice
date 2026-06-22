@@ -184,10 +184,6 @@
     <div class="setgrid">
       <label for="s_provider">Provider</label>
       <select id="s_provider"><option value="gemini">Gemini</option><option value="openai">OpenAI</option></select>
-      <label for="s_gemini_model">Gemini model</label>
-      <input id="s_gemini_model" type="text" autocomplete="off">
-      <label for="s_openai_model">OpenAI model</label>
-      <input id="s_openai_model" type="text" autocomplete="off">
       <label for="s_podconnect_base_url">PodConnect URL</label>
       <input id="s_podconnect_base_url" type="text" autocomplete="off">
       <label for="s_podconnect_token">PodConnect token</label>
@@ -201,8 +197,10 @@
     <div id="s_rooms"></div>
     <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
     <details class="adv">
-      <summary>Advanced tuning</summary>
+      <summary>Advanced (models &amp; tuning)</summary>
       <div class="setgrid">
+        <label for="s_gemini_model">Gemini model</label><input id="s_gemini_model" type="text" autocomplete="off">
+        <label for="s_openai_model">OpenAI model</label><input id="s_openai_model" type="text" autocomplete="off">
         <label for="s_duck_level">Duck level %</label><input id="s_duck_level" type="number" min="0" max="100">
         <label for="s_lounge_level">Lounge level %</label><input id="s_lounge_level" type="number" min="0" max="100">
         <label for="s_lounge_window_s">Lounge window s</label><input id="s_lounge_window_s" type="number" min="1" max="120">
@@ -235,11 +233,6 @@
   </details>
 
   <div class="section">
-    <h2>Rooms</h2>
-    <div id="rooms" class="list"></div>
-  </div>
-
-  <div class="section">
     <h2>Talk to Gemini <span id="cstate" class="pill pill-down">offline</span></h2>
     <div class="crow" style="margin-bottom:10px">
       <select id="cprovider" aria-label="Provider" style="flex:0 0 auto;max-width:150px">
@@ -257,8 +250,13 @@
     <p id="cmichint" class="sub" style="margin-top:8px"></p>
   </div>
 
-  <div class="section">
-    <h2>Transcript <button id="clear" class="ghost" style="padding:4px 10px;font-size:.74rem">Clear</button></h2>
+  <div class="section" id="rooms-section" style="display:none">
+    <h2>Rooms</h2>
+    <div id="rooms" class="list"></div>
+  </div>
+
+  <div class="section" id="tx-section" style="display:none">
+    <h2>Room transcript <button id="clear" class="ghost" style="padding:4px 10px;font-size:.74rem">Clear</button></h2>
     <div id="tx" class="tx"></div>
   </div>
 
@@ -345,12 +343,15 @@ function roomCard(rm) {
 }
 
 function renderRooms() {
-  var wrap = document.getElementById("rooms"); wrap.innerHTML = "";
   var ids = Object.keys(rooms);
-  if (!ids.length) {
-    wrap.appendChild(el("div", "empty", "No rooms configured — set the Voice-PE → room map in the add-on Configuration."));
-    return;
-  }
+  var has = ids.length > 0;
+  // Rooms + Room-transcript are hardware-only; hide them until a room exists
+  // (you add rooms in Settings) so the panel isn't cluttered with empty boxes.
+  var rs = document.getElementById("rooms-section");
+  var ts = document.getElementById("tx-section");
+  if (rs) rs.style.display = has ? "" : "none";
+  if (ts) ts.style.display = has ? "" : "none";
+  var wrap = document.getElementById("rooms"); wrap.innerHTML = "";
   ids.forEach(function (id) { wrap.appendChild(roomCard(rooms[id])); });
 }
 
@@ -476,6 +477,26 @@ setInterval(poll, 3000);
     if (atBottom) clog.scrollTop = clog.scrollHeight;
   }
 
+  // Transcripts arrive as many small deltas — coalesce them into ONE growing
+  // bubble per speaker/turn instead of a bubble per fragment. Reset on turn end.
+  var curT = null, curTDir = null;
+  function streamT(dir, text) {
+    if (!text) return;
+    var e = clog.querySelector(".empty"); if (e) e.remove();
+    var atBottom = clog.scrollHeight - clog.scrollTop - clog.clientHeight < 40;
+    if (!curT || curTDir !== dir) {
+      curT = el("div", "line " + (dir === "in" ? "in" : "out"));
+      curT.appendChild(el("div", "who", dir === "in" ? "you" : "Gemini"));
+      curT._body = document.createTextNode("");
+      curT.appendChild(curT._body);
+      clog.appendChild(curT);
+      curTDir = dir;
+    }
+    curT._body.textContent += text;
+    if (atBottom) clog.scrollTop = clog.scrollHeight;
+  }
+  function endTurn() { curT = null; curTDir = null; }
+
   function ensurePlay() {
     if (!playCtx) { try { playCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; } }
     if (playCtx.state === "suspended") playCtx.resume();
@@ -545,8 +566,9 @@ setInterval(poll, 3000);
       if (typeof m.data !== "string") { playPcm(m.data); return; }
       var ev; try { ev = JSON.parse(m.data); } catch (e) { return; }
       if (ev.type === "hello" && ev.rate) outRate = ev.rate;
-      else if (ev.type === "transcript") logLine(ev.dir === "in" ? "in" : "out", ev.dir === "in" ? "you" : "Gemini", ev.text);
-      else if (ev.type === "error") logLine("out", "system", ev.error || "console unavailable");
+      else if (ev.type === "transcript") streamT(ev.dir === "in" ? "in" : "out", ev.text);
+      else if (ev.type === "turn_complete") endTurn();
+      else if (ev.type === "error") { endTurn(); logLine("out", "system", ev.error || "console unavailable"); }
     };
   }
 
@@ -554,6 +576,7 @@ setInterval(poll, 3000);
     var t = (input.value || "").trim(); if (!t) return;
     if (!wsReady) { logLine("out", "system", "Not connected yet…"); return; }
     ensurePlay();
+    endTurn();              // close any prior turn so this Q + its reply are fresh bubbles
     logLine("in", "you", t);
     ws.send(JSON.stringify({ type: "text", text: t }));
     input.value = "";
