@@ -92,8 +92,14 @@ def from_options(opts: dict) -> Config:
 
 
 def load_options(path: pathlib.Path = OPTIONS_PATH) -> dict:
-    """Read the Supervisor options file and inject the supervisor token."""
-    opts: dict = json.loads(path.read_text()) if path.exists() else {}
+    """Read the options file and inject the supervisor token.
+
+    Inside the add-on this is ``/data/options.json``. For local dev outside HA,
+    set ``PODVOICE_OPTIONS=/path/to/options.json`` to point at your own file.
+    """
+    env = os.environ.get("PODVOICE_OPTIONS")
+    src = pathlib.Path(env) if env else path
+    opts: dict = json.loads(src.read_text()) if src.exists() else {}
     token = os.environ.get("SUPERVISOR_TOKEN")
     if token:
         opts["supervisor_token"] = token
