@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1
+
+- **Quieter log**: the add-on Log tab no longer drowns in `GET /api/status` polling lines
+  (aiohttp access log set to WARNING) — meaningful events (settings saved, errors) stand out.
+- **Cleaner model list**: translate/tts-only Live models (e.g. `*-live-translate-preview`) are no
+  longer offered as chat voices.
+
 ## 0.8.0
 
 - **Voice picker in Talk**: choose the TTS voice right next to provider/model, switch live to

@@ -181,13 +181,11 @@ def list_models(cfg: Config, provider: str | None = None) -> dict:
                 or getattr(m, "supported_generation_methods", None)
                 or []
             )
-            out.append(
-                {
-                    "id": mid,
-                    "label": getattr(m, "display_name", None) or mid,
-                    "live": "bidiGenerateContent" in actions,
-                }
+            # Live + a real chat model: exclude translate/tts-only live models.
+            live = "bidiGenerateContent" in actions and not any(
+                s in mid for s in ("translate", "tts")
             )
+            out.append({"id": mid, "label": getattr(m, "display_name", None) or mid, "live": live})
         out.sort(key=lambda x: (not x["live"], x["id"]))
         if default and not any(x["id"] == default for x in out):
             out.insert(0, {"id": default, "label": default, "live": True})

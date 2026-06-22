@@ -63,6 +63,9 @@ def _setup_logging(cfg: Config) -> None:
         [cfg.gemini_api_key, cfg.podconnect_token, cfg.voicepe_noise_psk, cfg.supervisor_token]
     )
     logging.getLogger().addFilter(redactor)
+    # Quiet the per-request access spam (the panel polls /api/status every 3s) so the
+    # add-on Log tab shows meaningful events (settings saved, tool calls, errors).
+    logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
 
 
 def _build_session(
