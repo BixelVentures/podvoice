@@ -1,11 +1,13 @@
-"""Tool bridge: model function-calls -> Home Assistant services + PodConnect API.
+"""Tool bridge: model function-calls -> Home Assistant services.
 
-Two surfaces:
-- **Home Assistant** — a curated, *allowlisted* set of tools (lights, switches,
-  scenes, climate, covers, media transport/volume, to-do). Only entities you
+Surfaces:
+- **Home control** — a curated, *allowlisted* set of tools (lights, switches,
+  scenes, climate, covers, vacuum/etc via home_call, to-do). Only entities you
   expose (settings ``exposed``) can be controlled — like HA Assist's expose model.
-- **PodConnect** — a single GENERIC passthrough (``podconnect``) to PodConnect's
-  HTTP API, so every current and future feature is reachable without hardcoding.
+- **Music** — ONE ``music`` tool that controls the room's PodConnect Control
+  media_player (Spotify + speaker) through standard HA services. PodVoice does NOT
+  speak PodConnect's own HTTP interface; its only PodConnect contact is the
+  Attention duck (handled in the orchestrator, not here).
 
 httpx-only; dispatch never raises (errors fold into ``{"ok": False}``) so the
 model is never left waiting.
@@ -21,15 +23,6 @@ from . import constants as C
 
 log = logging.getLogger(__name__)
 
-_MEDIA_ACTIONS = {
-    "play": "media_play",
-    "pause": "media_pause",
-    "stop": "media_stop",
-    "next": "media_next_track",
-    "previous": "media_previous_track",
-    "volume_up": "volume_up",
-    "volume_down": "volume_down",
-}
 _COVER_ACTIONS = {"open": "open_cover", "close": "close_cover", "stop": "stop_cover"}
 
 
@@ -50,31 +43,30 @@ def _first_playable(obj: object) -> dict | None:
     return None
 
 
-# Documented PodConnect endpoints (the passthrough still allows any path — future-proof).
-# IMPORTANT: PodConnect is the LOCAL transport/volume/duck engine only. It CANNOT search for
-# or start a specific song — /api/play merely RESUMES whatever was last loaded. To play a
-# specific artist/song/playlist, use the `play_music` tool (Home Assistant Web API) instead.
-_PODCONNECT_HELP = (
-    "Control music TRANSPORT & VOLUME on the local PodConnect engine. Call GET endpoints first "
-    "to learn current state and room ids. Known endpoints: GET /api/state; GET /api/rooms; "
-    "POST /api/stop?room=<id> (stop/pause); PUT /api/volume {volume:0-100, room?} (set volume); "
-    "POST /api/release?room=<id>; GET /api/outputs, POST /api/outputs/set; GET /api/discover. "
-    "POST /api/play only RESUMES the last track on a room — it does NOT accept a song/query and "
-    "must NOT be used to choose what to play. To play a specific song/artist/playlist, use the "
-    "`play_music` tool, NOT this. Any other path also works for transport/state."
-)
+# Music transport verbs -> HA media_player services (run on the Control entity).
+_MUSIC_TRANSPORT = {
+    "pause": "media_pause",
+    "resume": "media_play",
+    "stop": "media_stop",
+    "next": "media_next_track",
+    "previous": "media_previous_track",
+}
 
 
 class HAToolBridge:
-    """Maps model tool calls onto HA services + PodConnect. Satisfies ToolBridgeLike."""
+    """Maps model tool calls onto Home Assistant services. Satisfies ToolBridgeLike.
+
+    Music is exposed as ONE tool (``music``) that drives the room's PodConnect Control
+    media_player via standard HA services — PodVoice never speaks PodConnect's own HTTP
+    interface (that stays PodConnect's; PodVoice's only PodConnect contact is the
+    Attention duck, handled elsewhere).
+    """
 
     def __init__(
         self,
         supervisor_token: str,
         client: httpx.AsyncClient,
         *,
-        podconnect_base_url: str = "",
-        podconnect_token: str = "",
         exposed: list[str] | tuple[str, ...] = (),
         room_players: dict[str, str] | None = None,
     ) -> None:
@@ -84,10 +76,8 @@ class HAToolBridge:
             "Authorization": f"Bearer {supervisor_token}",
             "Content-Type": "application/json",
         }
-        self._pc_base = (podconnect_base_url or "").rstrip("/")
-        self._pc_headers = {"X-PodConnect-Token": podconnect_token} if podconnect_token else {}
         self._exposed = [e.strip().lower() for e in exposed if e and e.strip()]
-        # room name (lowered) -> HA Control media_player entity for play-by-query.
+        # room name (lowered) -> HA Control media_player entity (the music target).
         self._room_players = {
             (k or "").strip().lower(): v.strip()
             for k, v in (room_players or {}).items()
@@ -164,30 +154,6 @@ class HAToolBridge:
                         "required": ["entity_id"],
                     },
                 },
-                {
-                    "name": "media_control",
-                    "description": "Control a media player.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "entity_id": {"type": "string"},
-                            "action": {"type": "string", "enum": list(_MEDIA_ACTIONS)},
-                        },
-                        "required": ["entity_id", "action"],
-                    },
-                },
-                {
-                    "name": "set_volume",
-                    "description": "Set a media player's volume (0-100).",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "entity_id": {"type": "string"},
-                            "volume_pct": {"type": "integer"},
-                        },
-                        "required": ["entity_id", "volume_pct"],
-                    },
-                },
                 {"name": "activate_scene", "description": "Activate a scene.", "parameters": ent},
                 {
                     "name": "set_temperature",
@@ -226,20 +192,39 @@ class HAToolBridge:
                     },
                 },
                 {
-                    "name": "play_music",
-                    "description": "Play a specific song/artist/playlist on ONE speaker, by name. "
-                    "Searches the PodConnect Control Web API and plays the best match — use it for "
-                    "ALL 'play X' requests, NOT the podconnect tool. Targets the named room's "
-                    "speaker (or pass entity_id). You may pass an exact 'uri' (e.g. "
-                    "spotify:track:...) to skip the search.",
+                    "name": "music",
+                    "description": "THE single tool for music on the PodConnect speakers (Spotify). "
+                    "Use it for everything: action='play' to search & start a song/artist/playlist "
+                    "by name (query) or an exact uri; 'pause'/'resume'/'stop'; 'next'/'previous'; "
+                    "'volume' (volume_pct 0-100). Targets the named room's speaker (or entity_id).",
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "query": {"type": "string", "description": "e.g. 'Dua Lipa'"},
-                            "room": {"type": "string", "description": "room name (which speaker)"},
+                            "action": {
+                                "type": "string",
+                                "enum": [
+                                    "play",
+                                    "pause",
+                                    "resume",
+                                    "stop",
+                                    "next",
+                                    "previous",
+                                    "volume",
+                                ],
+                            },
+                            "query": {
+                                "type": "string",
+                                "description": "play: song/artist/playlist",
+                            },
+                            "uri": {
+                                "type": "string",
+                                "description": "play: exact uri (skips search)",
+                            },
+                            "volume_pct": {"type": "integer", "description": "volume: 0-100"},
+                            "room": {"type": "string", "description": "which speaker/room"},
                             "entity_id": {"type": "string", "description": "media_player override"},
-                            "uri": {"type": "string", "description": "optional exact media URI"},
                         },
+                        "required": ["action"],
                     },
                 },
                 {
@@ -266,22 +251,6 @@ class HAToolBridge:
                     },
                 },
             ]
-        if self._pc_base:
-            decls.append(
-                {
-                    "name": "podconnect",
-                    "description": _PODCONNECT_HELP,
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "method": {"type": "string", "enum": ["GET", "POST", "PUT", "DELETE"]},
-                            "path": {"type": "string", "description": "e.g. /api/play"},
-                            "body": {"type": "object", "description": "JSON body (optional)"},
-                        },
-                        "required": ["method", "path"],
-                    },
-                }
-            )
         return decls
 
     # ------------------------------------------------------------------ HA helpers
@@ -325,12 +294,12 @@ class HAToolBridge:
             }
         return {"ok": True, "services": out}
 
-    async def _play_music(self, args: dict) -> dict:
-        """Play a song/artist/uri on ONE speaker via HA's Web API (NOT PodConnect).
+    async def _music(self, args: dict) -> dict:
+        """The single music tool: play/pause/resume/stop/next/previous/volume on ONE speaker.
 
-        Content selection lives in the PodConnect Control HACS integration. Its
-        ``media_player.play_media`` wants a Spotify URI, so a free-text query is first
-        resolved through ``media_player.search_media`` (search-and-play: play result[0]).
+        Everything runs through HA media_player services on the room's PodConnect Control
+        entity. For ``play`` a free-text query is resolved via ``media_player.search_media``
+        (Control's play_media wants a URI) — search-and-play plays result[0].
         """
         eid = self._resolve_player(args.get("room"), args.get("entity_id"))
         if not eid:
@@ -344,21 +313,34 @@ class HAToolBridge:
                 "ok": False,
                 "error": f"'{eid}' is not exposed to PodVoice (add it in Settings).",
             }
-        uri = (args.get("uri") or "").strip()
-        query = (args.get("query") or "").strip()
-        if not uri and not query:
-            return {"ok": False, "error": "play_music needs a query (song/artist) or uri."}
-        ctype = "music"
-        if not uri:
-            uri, ctype = await self._search_uri(eid, query)
+        action = (args.get("action") or "").lower()
+        if action == "play":
+            uri = (args.get("uri") or "").strip()
+            query = (args.get("query") or "").strip()
+            if not uri and not query:
+                return {"ok": False, "error": "music play needs a query (song/artist) or uri."}
+            ctype = "music"
             if not uri:
-                return {"ok": False, "error": f"No music matched '{query}'."}
-        await self.call_service(
-            "media_player",
-            "play_media",
-            {"entity_id": eid, "media_content_type": ctype, "media_content_id": uri},
-        )
-        return {"ok": True, "played": uri, "query": query or None, "entity_id": eid}
+                uri, ctype = await self._search_uri(eid, query)
+                if not uri:
+                    return {"ok": False, "error": f"No music matched '{query}'."}
+            await self.call_service(
+                "media_player",
+                "play_media",
+                {"entity_id": eid, "media_content_type": ctype, "media_content_id": uri},
+            )
+            return {"ok": True, "action": "play", "played": uri, "entity_id": eid}
+        if action == "volume":
+            vol = max(0, min(100, int(args.get("volume_pct", 0)))) / 100
+            await self.call_service(
+                "media_player", "volume_set", {"entity_id": eid, "volume_level": vol}
+            )
+            return {"ok": True, "action": "volume", "entity_id": eid}
+        svc = _MUSIC_TRANSPORT.get(action)
+        if not svc:
+            return {"ok": False, "error": f"unknown music action {action!r}"}
+        await self.call_service("media_player", svc, {"entity_id": eid})
+        return {"ok": True, "action": action, "entity_id": eid}
 
     async def _search_uri(self, entity_id: str, query: str) -> tuple[str, str]:
         """Resolve a free-text query to (uri, media_type) via media_player.search_media."""
@@ -372,30 +354,15 @@ class HAToolBridge:
             return "", "music"
         return item.get("media_content_id") or "", item.get("media_content_type") or "music"
 
-    async def _pc_call(self, method: str, path: str, body: dict | None) -> dict:
-        if not self._pc_base:
-            return {"ok": False, "error": "PodConnect not configured"}
-        p = path if path.startswith("/") else "/" + path
-        r = await self._client.request(
-            method.upper(), self._pc_base + p, json=body or None, headers=self._pc_headers
-        )
-        r.raise_for_status()
-        try:
-            return {"ok": True, "result": r.json()}
-        except ValueError:
-            return {"ok": True, "result": r.text[:800]}
-
     # ------------------------------------------------------------------ dispatch
     async def dispatch(self, name: str, args: dict) -> dict:
         try:
-            if name == "podconnect":
-                return await self._pc_call(args["method"], args["path"], args.get("body"))
             if name == "list_home":
                 return await self._list_home()
             if name == "list_services":
                 return await self._list_services(args.get("domain"))
-            if name == "play_music":
-                return await self._play_music(args)
+            if name == "music":
+                return await self._music(args)
 
             # All remaining tools act on an entity that must be exposed.
             if name == "add_todo":
@@ -419,16 +386,6 @@ class HAToolBridge:
                 if "color_name" in args:
                     data["color_name"] = args["color_name"]
                 changed = await self.call_service("light", "turn_on", data)
-            elif name == "media_control":
-                svc = _MEDIA_ACTIONS.get(args.get("action", ""))
-                if not svc:
-                    return {"ok": False, "error": f"unknown media action {args.get('action')}"}
-                changed = await self.call_service("media_player", svc, {"entity_id": eid})
-            elif name == "set_volume":
-                vol = max(0, min(100, int(args["volume_pct"]))) / 100
-                changed = await self.call_service(
-                    "media_player", "volume_set", {"entity_id": eid, "volume_level": vol}
-                )
             elif name == "activate_scene":
                 changed = await self.call_service("scene", "turn_on", {"entity_id": eid})
             elif name == "set_temperature":

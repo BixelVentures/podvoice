@@ -731,7 +731,7 @@ setInterval(poll, 3000);
     var h = document.createElement("input"); h.className = "rh"; h.placeholder = "voice-pe.local"; h.value = host || "";
     var r = document.createElement("input"); r.className = "rr"; r.placeholder = "room id (e.g. r0)"; r.value = room || "";
     var p = document.createElement("input"); p.className = "rp"; p.placeholder = "media_player.kitchen (for 'play X')";
-    p.value = player || ""; p.title = "HA Control media_player for this speaker — used by play_music";
+    p.value = player || ""; p.title = "HA Control media_player for this speaker — the music tool's target";
     var x = document.createElement("button"); x.className = "ghost"; x.textContent = "✕";
     x.setAttribute("aria-label", "Remove room"); x.onclick = function () { row.remove(); };
     row.appendChild(h); row.appendChild(r); row.appendChild(p); row.appendChild(x); roomsWrap.appendChild(row);

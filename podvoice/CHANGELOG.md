@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0
+
+- **One clean music integration.** Replaced the three overlapping surfaces (generic `podconnect`
+  HTTP passthrough, `play_music`, and curated `media_control`/`set_volume`) with a SINGLE
+  `music` tool: action = play (query/uri) | pause | resume | stop | next | previous | volume,
+  targeting the room's PodConnect Control media_player via standard HA services.
+- **PodVoice no longer speaks PodConnect's own HTTP interface.** Its only PodConnect contact is
+  the Attention duck (orchestrator/health) — the sanctioned contract. The `podconnect` raw
+  passthrough tool is removed.
+
 ## 0.9.1
 
 - **`play_music` now search-and-plays correctly.** PodConnect Control's `play_media` expects a

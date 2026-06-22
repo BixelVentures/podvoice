@@ -1,4 +1,4 @@
-"""Tool bridge: curated HA tools + allowlist + generic PodConnect passthrough."""
+"""Tool bridge: curated allowlisted home tools + the single `music` tool."""
 
 from __future__ import annotations
 
@@ -10,31 +10,19 @@ from gatekeeper import constants as C
 from gatekeeper.ha_tools import HAToolBridge
 
 SVC = C.SUPERVISOR_CORE_API
-PC = "http://pc:8099"
+SEARCH = r".*/services/media_player/search_media.*"
 
 
-def _bridge(client, exposed=(), pc=True, room_players=None):
-    return HAToolBridge(
-        "tok",
-        client,
-        podconnect_base_url=PC if pc else "",
-        podconnect_token="sek",
-        exposed=exposed,
-        room_players=room_players,
-    )
+def _bridge(client, exposed=(), room_players=None):
+    return HAToolBridge("tok", client, exposed=exposed, room_players=room_players)
 
 
-async def test_declarations_include_home_and_podconnect():
+async def test_declarations_cover_home_and_music_only():
     async with httpx.AsyncClient() as client:
         names = {d["name"] for d in _bridge(client).declarations()}
-    assert {
-        "list_home",
-        "turn_on",
-        "media_control",
-        "set_volume",
-        "add_todo",
-        "podconnect",
-    } <= names
+    assert {"list_home", "turn_on", "add_todo", "music"} <= names
+    # The old overlapping / PodConnect-interface surfaces are gone.
+    assert not ({"podconnect", "play_music", "media_control", "set_volume"} & names)
 
 
 async def test_allowlist_denies_unexposed(respx_mock):
@@ -57,16 +45,6 @@ async def test_turn_on_allowed_by_domain(respx_mock):
     assert json.loads(route.calls.last.request.content)["entity_id"] == "light.kitchen"
 
 
-async def test_set_volume_scales_to_level(respx_mock):
-    route = respx_mock.post(f"{SVC}/services/media_player/volume_set").respond(200, json=[])
-    async with httpx.AsyncClient() as client:
-        r = await _bridge(client, exposed=["media_player"]).dispatch(
-            "set_volume", {"entity_id": "media_player.hp", "volume_pct": 50}
-        )
-    assert r["ok"] is True
-    assert json.loads(route.calls.last.request.content)["volume_level"] == 0.5
-
-
 async def test_list_home_filters_to_exposed(respx_mock):
     states = [
         {"entity_id": "light.kitchen", "state": "on", "attributes": {"friendly_name": "Kitchen"}},
@@ -76,23 +54,6 @@ async def test_list_home_filters_to_exposed(respx_mock):
     async with httpx.AsyncClient() as client:
         r = await _bridge(client, exposed=["light"]).dispatch("list_home", {})
     assert [e["entity_id"] for e in r["entities"]] == ["light.kitchen"]  # lock not exposed
-
-
-async def test_podconnect_passthrough_with_token(respx_mock):
-    route = respx_mock.get(f"{PC}/api/state").respond(200, json={"playing": True})
-    async with httpx.AsyncClient() as client:
-        r = await _bridge(client).dispatch("podconnect", {"method": "GET", "path": "/api/state"})
-    assert r["ok"] is True and r["result"] == {"playing": True}
-    assert route.calls.last.request.headers["X-PodConnect-Token"] == "sek"
-
-
-async def test_podconnect_play_post(respx_mock):
-    route = respx_mock.post(f"{PC}/api/play").respond(200, json={"ok": True})
-    async with httpx.AsyncClient() as client:
-        r = await _bridge(client).dispatch(
-            "podconnect", {"method": "POST", "path": "/api/play", "body": {"room": "r0"}}
-        )
-    assert r["ok"] is True and route.called
 
 
 async def test_list_services_filters_to_allowed_domains(respx_mock):
@@ -131,8 +92,11 @@ async def test_home_call_denied_when_unexposed(respx_mock):
     assert r["ok"] is False
 
 
-async def test_play_music_searches_then_plays_best_match(respx_mock):
-    search = respx_mock.post(url__regex=r".*/services/media_player/search_media.*").respond(
+# --------------------------------------------------------------------- music tool
+
+
+async def test_music_play_searches_then_plays_best_match(respx_mock):
+    search = respx_mock.post(url__regex=SEARCH).respond(
         200,
         json={
             "service_response": {
@@ -152,39 +116,57 @@ async def test_play_music_searches_then_plays_best_match(respx_mock):
     play = respx_mock.post(f"{SVC}/services/media_player/play_media").respond(200, json=[])
     async with httpx.AsyncClient() as client:
         b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
-        r = await b.dispatch("play_music", {"query": "Dua Lipa", "room": "kitchen"})
+        r = await b.dispatch("music", {"action": "play", "query": "Dua Lipa", "room": "kitchen"})
     assert r["ok"] is True and search.called
     body = json.loads(play.calls.last.request.content)
     assert body["entity_id"] == "media_player.kitchen"  # one speaker, not all
     assert body["media_content_id"] == "spotify:artist:6M2wZ"  # the resolved URI, not raw text
 
 
-async def test_play_music_uri_skips_search(respx_mock):
-    search = respx_mock.post(url__regex=r".*/services/media_player/search_media.*")
+async def test_music_play_uri_skips_search(respx_mock):
+    search = respx_mock.post(url__regex=SEARCH)
     play = respx_mock.post(f"{SVC}/services/media_player/play_media").respond(200, json=[])
     async with httpx.AsyncClient() as client:
         b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
         r = await b.dispatch(
-            "play_music", {"query": "x", "uri": "spotify:track:abc", "room": "kitchen"}
+            "music",
+            {"action": "play", "uri": "spotify:track:abc", "room": "kitchen"},
         )
     assert r["ok"] is True and not search.called  # uri -> no search step
     assert json.loads(play.calls.last.request.content)["media_content_id"] == "spotify:track:abc"
 
 
-async def test_play_music_no_search_match_is_soft_error(respx_mock):
-    respx_mock.post(url__regex=r".*/services/media_player/search_media.*").respond(
+async def test_music_play_no_match_is_soft_error(respx_mock):
+    respx_mock.post(url__regex=SEARCH).respond(
         200, json={"service_response": {"media_player.kitchen": {"result": []}}}
     )
     async with httpx.AsyncClient() as client:
         b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
-        r = await b.dispatch("play_music", {"query": "zzzz", "room": "kitchen"})
+        r = await b.dispatch("music", {"action": "play", "query": "zzzz", "room": "kitchen"})
     assert r["ok"] is False and "matched" in r["error"]
 
 
-async def test_play_music_without_speaker_is_soft_error(respx_mock):
+async def test_music_without_speaker_is_soft_error(respx_mock):
     async with httpx.AsyncClient() as client:
-        r = await _bridge(client).dispatch("play_music", {"query": "Dua Lipa", "room": "nowhere"})
+        r = await _bridge(client).dispatch("music", {"action": "play", "query": "x", "room": "no"})
     assert r["ok"] is False and "speaker" in r["error"]
+
+
+async def test_music_volume_scales_to_level(respx_mock):
+    route = respx_mock.post(f"{SVC}/services/media_player/volume_set").respond(200, json=[])
+    async with httpx.AsyncClient() as client:
+        b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
+        r = await b.dispatch("music", {"action": "volume", "volume_pct": 50, "room": "kitchen"})
+    assert r["ok"] is True
+    assert json.loads(route.calls.last.request.content)["volume_level"] == 0.5
+
+
+async def test_music_transport_maps_to_media_player_service(respx_mock):
+    route = respx_mock.post(f"{SVC}/services/media_player/media_pause").respond(200, json=[])
+    async with httpx.AsyncClient() as client:
+        b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
+        r = await b.dispatch("music", {"action": "pause", "room": "kitchen"})
+    assert r["ok"] is True and route.called
 
 
 async def test_unknown_tool_and_ha_error_are_soft(respx_mock):
