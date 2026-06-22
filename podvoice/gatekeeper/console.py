@@ -87,6 +87,10 @@ _OPENAI_STATIC = [
     {"id": "gpt-realtime", "label": "GPT Realtime", "live": True},
     {"id": "gpt-realtime-mini", "label": "GPT Realtime mini", "live": True},
 ]
+# Prebuilt voices to choose from (timbre; all multilingual incl. Danish). No official
+# Danish-quality benchmark exists — A/B them in the console and keep your favourite.
+_GEMINI_VOICES = ["Kore", "Puck", "Charon", "Aoede", "Zephyr", "Leda", "Orus"]
+_OPENAI_VOICES = ["marin", "cedar", "alloy", "echo", "shimmer"]
 
 
 def _resolve_provider(cfg: Config, provider: str | None) -> str:
@@ -102,7 +106,9 @@ def console_factory(cfg: Config, tools=None):
     """
     decls = tools.declarations() if tools is not None else None
 
-    def _make(provider: str | None = None, model: str | None = None) -> ConsoleGemini:
+    def _make(
+        provider: str | None = None, model: str | None = None, voice: str | None = None
+    ) -> ConsoleGemini:
         p = _resolve_provider(cfg, provider)
         if cfg.simulate:
             return SimConsoleGemini()
@@ -114,7 +120,7 @@ def console_factory(cfg: Config, tools=None):
             return OpenAIRealtimeSession(
                 api_key=cfg.openai_api_key,
                 model=model or cfg.openai_model,
-                voice=cfg.openai_voice or "marin",
+                voice=voice or cfg.openai_voice or "marin",
                 instructions=cfg.system_prompt,
                 tool_declarations=decls,
             )
@@ -125,7 +131,7 @@ def console_factory(cfg: Config, tools=None):
         return GeminiLiveSession(
             api_key=cfg.gemini_api_key,
             model=model or cfg.gemini_model,
-            config=build_config(cfg, decls),
+            config=build_config(cfg, decls, voice=voice or None),
         )
 
     return _make
@@ -143,6 +149,8 @@ def list_models(cfg: Config, provider: str | None = None) -> dict:
         return {
             "provider": "openai",
             "default": cfg.openai_model,
+            "voice": cfg.openai_voice,
+            "voices": list(_OPENAI_VOICES),
             "source": src,
             "models": list(_OPENAI_STATIC),
         }
@@ -152,6 +160,8 @@ def list_models(cfg: Config, provider: str | None = None) -> dict:
         return {
             "provider": "gemini",
             "default": default,
+            "voice": cfg.gemini_voice,
+            "voices": list(_GEMINI_VOICES),
             "source": "static",
             "models": list(_GEMINI_STATIC),
         }
@@ -181,12 +191,21 @@ def list_models(cfg: Config, provider: str | None = None) -> dict:
         out.sort(key=lambda x: (not x["live"], x["id"]))
         if default and not any(x["id"] == default for x in out):
             out.insert(0, {"id": default, "label": default, "live": True})
-        return {"provider": "gemini", "default": default, "source": "api", "models": out}
+        return {
+            "provider": "gemini",
+            "default": default,
+            "voice": cfg.gemini_voice,
+            "voices": list(_GEMINI_VOICES),
+            "source": "api",
+            "models": out,
+        }
     except Exception as e:  # never let the panel break on a list failure
         _LOG.warning("model list failed: %s", e)
         return {
             "provider": "gemini",
             "default": default,
+            "voice": cfg.gemini_voice,
+            "voices": list(_GEMINI_VOICES),
             "source": "static",
             "models": list(_GEMINI_STATIC),
             "error": str(e),

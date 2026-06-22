@@ -79,7 +79,9 @@ Stil ikke unødvendige opfølgende spørgsmål. Tal kun når det er relevant."""
 # --- Config builder (PLAN §5.9) ------------------------------------------------
 
 
-def build_config(cfg: Config, tool_declarations: list[dict] | None = None) -> dict:
+def build_config(
+    cfg: Config, tool_declarations: list[dict] | None = None, voice: str | None = None
+) -> dict:
     """Assemble the Live ``config`` dict (PLAN §5.9).
 
     Plain dict (not ``types.LiveConnectConfig``) so this function — and therefore
@@ -97,7 +99,9 @@ def build_config(cfg: Config, tool_declarations: list[dict] | None = None) -> di
         # VERIFY: "Kore" is a Danish-suitable prebuilt voice (PLAN §5.9 flags this).
         "speech_config": {
             "voice_config": {
-                "prebuilt_voice_config": {"voice_name": getattr(cfg, "gemini_voice", "") or "Kore"}
+                "prebuilt_voice_config": {
+                    "voice_name": voice or getattr(cfg, "gemini_voice", "") or "Kore"
+                }
             }
         },
         # VERIFY: empty dicts enable transcription; the input transcript drives barge-in.

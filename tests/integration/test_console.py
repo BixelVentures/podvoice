@@ -14,7 +14,9 @@ from gatekeeper.web import create_app
 
 async def test_console_text_roundtrip():
     app = create_app(
-        StatusHub(), {}, make_console=lambda provider=None, model=None: SimConsoleGemini()
+        StatusHub(),
+        {},
+        make_console=lambda provider=None, model=None, voice=None: SimConsoleGemini(),
     )
     async with TestClient(TestServer(app)) as client:
         ws = await client.ws_connect("/api/console")

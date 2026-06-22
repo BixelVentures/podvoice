@@ -145,8 +145,11 @@ async def _console_ws(request: web.Request) -> web.WebSocketResponse:
         await ws.send_json({"type": "error", "error": "console not configured"})
         await ws.close()
         return ws
+    q = request.query
     await run_console(
-        ws, make(request.query.get("provider"), request.query.get("model")), request.app[TOOLS]
+        ws,
+        make(q.get("provider"), q.get("model"), q.get("voice")),
+        request.app[TOOLS],
     )
     return ws
 

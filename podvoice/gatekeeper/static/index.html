@@ -215,6 +215,7 @@
           <option value="openai">OpenAI</option>
         </select>
         <select id="cmodel" aria-label="Model"></select>
+        <select id="cvoice" aria-label="Voice" style="flex:0 0 auto;width:120px" title="Voice"></select>
       </div>
       <div id="clog" class="tx" style="min-height:120px;max-height:300px"></div>
       <div class="crow">
@@ -501,7 +502,8 @@ setInterval(poll, 3000);
 
   var modelSel = document.getElementById("cmodel");
   var providerSel = document.getElementById("cprovider");
-  var ws = null, wsReady = false, currentModel = null, currentProvider = null, manualClose = false;
+  var voiceSel = document.getElementById("cvoice");
+  var ws = null, wsReady = false, currentModel = null, currentProvider = null, currentVoice = null, manualClose = false;
   var playCtx = null, outRate = 24000, nextStart = 0;
   var capCtx = null, capStream = null, capNode = null, micOn = false;
 
@@ -573,6 +575,15 @@ setInterval(poll, 3000);
       currentModel = (hasDef ? def : (models[0] && models[0].id)) || def || null;
       if (currentModel) modelSel.value = currentModel;
       if (!models.length) { var o = document.createElement("option"); o.textContent = "(default model)"; modelSel.appendChild(o); }
+      if (voiceSel) {
+        var voices = data.voices || [];
+        voiceSel.innerHTML = "";
+        voices.forEach(function (v) {
+          var o = document.createElement("option"); o.value = v; o.textContent = v; voiceSel.appendChild(o);
+        });
+        currentVoice = data.voice || (voices[0] || null);
+        if (currentVoice) voiceSel.value = currentVoice;
+      }
     } catch (e) { /* leave selector empty; console still uses the server default */ }
   }
   function persistChoice() {
@@ -585,6 +596,12 @@ setInterval(poll, 3000);
     var pEl = document.getElementById("s_provider"); if (pEl) pEl.value = currentProvider;
     var mEl = document.getElementById(currentProvider === "openai" ? "s_openai_model" : "s_gemini_model");
     if (mEl && currentModel) mEl.value = currentModel;
+    if (currentVoice) {
+      if (currentProvider === "openai") body.openai_voice = currentVoice;
+      else body.gemini_voice = currentVoice;
+      var vEl = document.getElementById(currentProvider === "openai" ? "s_openai_voice" : "s_gemini_voice");
+      if (vEl) vEl.value = currentVoice;
+    }
     try {
       fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
                               body: JSON.stringify(body) });
@@ -596,6 +613,7 @@ setInterval(poll, 3000);
     connect();
   }
   modelSel.onchange = function () { currentModel = modelSel.value; persistChoice(); reconnect(); };
+  if (voiceSel) voiceSel.onchange = function () { currentVoice = voiceSel.value; persistChoice(); reconnect(); };
   if (providerSel) providerSel.onchange = function () {
     loadModels(providerSel.value).then(function () { persistChoice(); reconnect(); });
   };
@@ -605,6 +623,7 @@ setInterval(poll, 3000);
     try { url = new URL("api/console", window.location.href); } catch (e) { return; }
     if (currentProvider) url.searchParams.set("provider", currentProvider);
     if (currentModel) url.searchParams.set("model", currentModel);
+    if (currentVoice) url.searchParams.set("voice", currentVoice);
     url.protocol = (url.protocol === "https:") ? "wss:" : "ws:";
     setState("connecting…", "pill-degraded");
     try { ws = new WebSocket(url.href); } catch (e) { setState("offline", "pill-down"); return; }

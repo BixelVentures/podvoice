@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+
+- **Voice picker in Talk**: choose the TTS voice right next to provider/model, switch live to
+  A/B them, and it's **saved** (per provider). Find your favourite Danish-sounding voice by ear.
+- Provider/model/voice choices all persist to settings (the saved model stays selected on reload).
+
 ## 0.7.1
 
 - **Service discovery**: new `list_services` tool lets the assistant see each exposed domain's
