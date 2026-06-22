@@ -13,13 +13,14 @@ SVC = C.SUPERVISOR_CORE_API
 PC = "http://pc:8099"
 
 
-def _bridge(client, exposed=(), pc=True):
+def _bridge(client, exposed=(), pc=True, room_players=None):
     return HAToolBridge(
         "tok",
         client,
         podconnect_base_url=PC if pc else "",
         podconnect_token="sek",
         exposed=exposed,
+        room_players=room_players,
     )
 
 
@@ -128,6 +129,35 @@ async def test_home_call_denied_when_unexposed(respx_mock):
             "home_call", {"domain": "vacuum", "service": "start", "entity_id": "vacuum.roborock"}
         )
     assert r["ok"] is False
+
+
+async def test_play_music_routes_to_play_media_on_room_speaker(respx_mock):
+    route = respx_mock.post(f"{SVC}/services/media_player/play_media").respond(200, json=[])
+    async with httpx.AsyncClient() as client:
+        b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
+        r = await b.dispatch("play_music", {"query": "Dua Lipa", "room": "kitchen"})
+    assert r["ok"] is True and r["entity_id"] == "media_player.kitchen"
+    body = json.loads(route.calls.last.request.content)
+    assert body["entity_id"] == "media_player.kitchen"  # one speaker, not all
+    assert body["media_content_id"] == "Dua Lipa"
+    assert body["media_content_type"] == "music"
+
+
+async def test_play_music_uri_overrides_query(respx_mock):
+    route = respx_mock.post(f"{SVC}/services/media_player/play_media").respond(200, json=[])
+    async with httpx.AsyncClient() as client:
+        b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
+        r = await b.dispatch(
+            "play_music", {"query": "x", "uri": "spotify:track:abc", "room": "kitchen"}
+        )
+    assert r["ok"] is True
+    assert json.loads(route.calls.last.request.content)["media_content_id"] == "spotify:track:abc"
+
+
+async def test_play_music_without_speaker_is_soft_error(respx_mock):
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client).dispatch("play_music", {"query": "Dua Lipa", "room": "nowhere"})
+    assert r["ok"] is False and "speaker" in r["error"]
 
 
 async def test_unknown_tool_and_ha_error_are_soft(respx_mock):

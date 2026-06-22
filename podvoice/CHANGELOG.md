@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.0
+
+- **Fix: “play <song>” now actually plays that song, on the right speaker.** Play-by-name used to
+  hit PodConnect `POST /api/play?query=`, but PodConnect (go-librespot) can only *resume* the
+  last track — so it un-paused random old music on every HomePod (and returns 400 since
+  Speakers 0.19.0). New **`play_music`** tool routes content selection through Home Assistant
+  (`media_player.play_media`) on the room's PodConnect **Control** entity (Spotify Web API),
+  targeting ONE speaker; accepts a free-text query or an exact `uri`.
+- PodConnect is now used ONLY for local transport/volume/duck (stop, resume, volume, attention);
+  its tool description forbids play-by-query.
+- **Settings → Rooms** gains a per-room **media_player** field (the Control entity for that
+  speaker). Configured room players are implicitly allowed.
+
 ## 0.8.1
 
 - **Quieter log**: the add-on Log tab no longer drowns in `GET /api/status` polling lines

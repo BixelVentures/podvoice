@@ -45,7 +45,7 @@ DEFAULTS: dict = {
     "podconnect_base_url": "http://homeassistant.local:8099",
     "podconnect_token": "",
     "voicepe_noise_psk": "",
-    "rooms": [],  # list of {"voicepe_host": str, "room": str}
+    "rooms": [],  # list of {"voicepe_host": str, "room": str, "media_player": str}
     "exposed": [],  # HA entity_ids / domains the assistant may control (allowlist)
     "duck_level": C.DUCK_LEVEL,
     "lounge_level": C.LOUNGE_LEVEL,

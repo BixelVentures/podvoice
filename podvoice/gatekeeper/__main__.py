@@ -181,6 +181,7 @@ async def run(cfg: Config) -> None:
             podconnect_base_url=cfg.podconnect_base_url,
             podconnect_token=cfg.podconnect_token or "",
             exposed=cfg.exposed,
+            room_players={r.room: r.media_player for r in cfg.rooms if r.media_player},
         )
         if not cfg.supervisor_token:
             _LOG.warning("no SUPERVISOR_TOKEN — HA control disabled (PodConnect tool still works)")

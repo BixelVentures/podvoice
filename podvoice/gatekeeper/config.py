@@ -22,6 +22,7 @@ class RoomMap:
     voicepe_host: str
     room: str
     voicepe_noise_psk: str = ""
+    media_player: str = ""  # HA Control media_player entity for play-by-query in this room
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,7 @@ def from_options(opts: dict) -> Config:
             voicepe_host=r["voicepe_host"],
             room=r["room"],
             voicepe_noise_psk=r.get("voicepe_noise_psk", opts.get("voicepe_noise_psk", "")),
+            media_player=r.get("media_player", ""),
         )
         for r in rooms_raw
     )
