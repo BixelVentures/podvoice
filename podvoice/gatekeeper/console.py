@@ -69,7 +69,7 @@ class SimConsoleGemini:
 
 
 # Curated fallback when the live model list can't be fetched (no key / offline).
-_STATIC_MODELS = [
+_GEMINI_STATIC = [
     {
         "id": "gemini-2.5-flash-native-audio-preview-12-2025",
         "label": "2.5 Flash — native audio (voice)",
@@ -77,42 +77,72 @@ _STATIC_MODELS = [
     },
     {"id": "gemini-3.1-flash-live-preview", "label": "3.1 Flash — live", "live": True},
 ]
+# OpenAI Realtime models are a small fixed set; all are voice-capable.
+_OPENAI_STATIC = [
+    {"id": "gpt-realtime-2", "label": "GPT Realtime 2", "live": True},
+    {"id": "gpt-realtime", "label": "GPT Realtime", "live": True},
+    {"id": "gpt-realtime-mini", "label": "GPT Realtime mini", "live": True},
+]
+
+
+def _resolve_provider(cfg: Config, provider: str | None) -> str:
+    return (provider or cfg.provider or "gemini").lower()
 
 
 def console_factory(cfg: Config):
-    """Return ``make(model=None)`` that builds a fresh console session per browser.
+    """Return ``make(provider=None, model=None)`` building a session per browser.
 
-    Real Gemini when a key is set and not simulating; otherwise the echo demo.
-    ``model`` (from the panel's selector) overrides the configured default.
+    Real brain when that provider's key is set and not simulating; otherwise the
+    keyless echo demo. ``provider``/``model`` come from the panel's selectors.
     """
-    if cfg.simulate or not cfg.gemini_api_key:
 
-        def _make_sim(model: str | None = None) -> ConsoleGemini:
+    def _make(provider: str | None = None, model: str | None = None) -> ConsoleGemini:
+        p = _resolve_provider(cfg, provider)
+        if cfg.simulate:
             return SimConsoleGemini()
+        if p == "openai":
+            if not cfg.openai_api_key:
+                return SimConsoleGemini()
+            from .openai_realtime import OpenAIRealtimeSession
 
-        return _make_sim
-
-    def _make(model: str | None = None) -> ConsoleGemini:
+            return OpenAIRealtimeSession(
+                api_key=cfg.openai_api_key, model=model or cfg.openai_model
+            )
+        if not cfg.gemini_api_key:
+            return SimConsoleGemini()
         from .gemini import GeminiLiveSession, build_config
 
         return GeminiLiveSession(
-            api_key=cfg.gemini_api_key,
-            model=model or cfg.gemini_model,
-            config=build_config(cfg),
+            api_key=cfg.gemini_api_key, model=model or cfg.gemini_model, config=build_config(cfg)
         )
 
     return _make
 
 
-def list_models(cfg: Config) -> dict:
-    """List models the key can use, flagging which support the Live (voice) API.
+def list_models(cfg: Config, provider: str | None = None) -> dict:
+    """List a provider's models, flagging which support the Live (voice) API.
 
-    Falls back to a small curated list when there's no key or the API call fails,
-    so the panel selector always has something to show.
+    Falls back to a curated list when there's no key or the call fails, so the
+    panel selector always has something to show.
     """
+    p = _resolve_provider(cfg, provider)
+    if p == "openai":
+        src = "static" if cfg.openai_api_key else "static (no key)"
+        return {
+            "provider": "openai",
+            "default": cfg.openai_model,
+            "source": src,
+            "models": list(_OPENAI_STATIC),
+        }
+
     default = cfg.gemini_model
     if cfg.simulate or not cfg.gemini_api_key:
-        return {"default": default, "source": "static", "models": list(_STATIC_MODELS)}
+        return {
+            "provider": "gemini",
+            "default": default,
+            "source": "static",
+            "models": list(_GEMINI_STATIC),
+        }
     try:
         from google import genai
 
@@ -139,13 +169,14 @@ def list_models(cfg: Config) -> dict:
         out.sort(key=lambda x: (not x["live"], x["id"]))
         if default and not any(x["id"] == default for x in out):
             out.insert(0, {"id": default, "label": default, "live": True})
-        return {"default": default, "source": "api", "models": out}
+        return {"provider": "gemini", "default": default, "source": "api", "models": out}
     except Exception as e:  # never let the panel break on a list failure
         _LOG.warning("model list failed: %s", e)
         return {
+            "provider": "gemini",
             "default": default,
             "source": "static",
-            "models": list(_STATIC_MODELS),
+            "models": list(_GEMINI_STATIC),
             "error": str(e),
         }
 

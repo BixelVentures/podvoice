@@ -82,7 +82,10 @@ The panel has a **Talk to Gemini** console — a software stand-in for the Voice
 and Gemini answers out loud (the reply is spoken in your browser) with a live transcript. With a real
 Gemini key set it's the real assistant; with `simulate: true` (or no key) it echoes a demo reply.
 
-A **model dropdown** lets you switch Gemini models on the fly — it lists the models your key can use.
+A **provider dropdown** (Gemini / OpenAI) lets you switch the voice brain, and a **model dropdown**
+lists that provider's models. Gemini Live is the default (best Danish, lowest cost); OpenAI Realtime
+(`gpt-realtime`) is a stable alternative — to use it, set **`openai_api_key`** in the Configuration tab.
+The model dropdown lists the models your key can use.
 Real-time **voice needs a *Live* model** (e.g. `gemini-2.5-flash-native-audio-preview-12-2025` or
 `gemini-3.1-flash-live-preview`). Ordinary models like `gemini-3.5-flash` have no bidirectional audio,
 so they appear as **"text only (no voice)"** and can't be picked for the spoken console. The

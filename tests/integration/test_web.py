@@ -67,7 +67,7 @@ async def test_models_endpoint():
             {"id": "gemini-3.5-flash", "label": "3.5 Flash", "live": False},
         ],
     }
-    app = create_app(StatusHub(), {}, models_provider=lambda: payload)
+    app = create_app(StatusHub(), {}, models_provider=lambda provider=None: payload)
     async with TestClient(TestServer(app)) as client:
         r = await client.get("/api/models")
         body = await r.json()

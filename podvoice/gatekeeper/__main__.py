@@ -19,13 +19,13 @@ from . import __version__
 from .config import Config, RoomMap, load_config
 from .console import console_factory, list_models
 from .gatekeeper import Gatekeeper
-from .gemini import GeminiLiveSession, build_config
 from .ha_tools import HAToolBridge
 from .heartbeat import Heartbeat
 from .hub import StatusHub
 from .orchestrator import RoomSession
 from .playback import Playback
 from .podconnect import AttentionClient
+from .providers import make_session
 from .sim import build_sim_sessions, run_driver
 from .voicepe import VoicePELink
 from .watchdog import BargeIn, TurnWatchdog
@@ -71,11 +71,7 @@ def _build_session(
 ) -> RoomSession:
     psk = room.voicepe_noise_psk or cfg.voicepe_noise_psk
     declarations = tools.declarations() if tools is not None else []
-    gemini = GeminiLiveSession(
-        api_key=cfg.gemini_api_key,
-        model=cfg.gemini_model,
-        config=build_config(cfg, declarations or None),
-    )
+    gemini = make_session(cfg, tool_declarations=declarations or None)  # provider per config
     voicepe = VoicePELink(room.voicepe_host, psk, room=room.room)
     gatekeeper = Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False)
     playback = Playback(sink=voicepe.play_pcm)
@@ -128,7 +124,7 @@ async def run(cfg: Config) -> None:
         hub,
         sessions,
         make_console=console_factory(cfg),
-        models_provider=lambda: list_models(cfg),
+        models_provider=lambda provider=None: list_models(cfg, provider),
     )
     runner = await start_web(app)
 

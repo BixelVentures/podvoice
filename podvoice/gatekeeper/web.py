@@ -63,7 +63,7 @@ async def _models(request: web.Request) -> web.Response:
     provider = request.app[MODELS]
     if provider is None:
         return web.json_response({"default": "", "source": "none", "models": []})
-    return web.json_response(provider())
+    return web.json_response(provider(request.query.get("provider")))
 
 
 async def _console_ws(request: web.Request) -> web.WebSocketResponse:
@@ -74,7 +74,7 @@ async def _console_ws(request: web.Request) -> web.WebSocketResponse:
         await ws.send_json({"type": "error", "error": "console not configured"})
         await ws.close()
         return ws
-    await run_console(ws, make(request.query.get("model")))
+    await run_console(ws, make(request.query.get("provider"), request.query.get("model")))
     return ws
 
 

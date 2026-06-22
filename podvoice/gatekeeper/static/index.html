@@ -167,7 +167,11 @@
   <div class="section">
     <h2>Talk to Gemini <span id="cstate" class="pill pill-down">offline</span></h2>
     <div class="crow" style="margin-bottom:10px">
-      <select id="cmodel" aria-label="Gemini model"></select>
+      <select id="cprovider" aria-label="Provider" style="flex:0 0 auto;max-width:150px">
+        <option value="gemini">Gemini</option>
+        <option value="openai">OpenAI</option>
+      </select>
+      <select id="cmodel" aria-label="Model"></select>
     </div>
     <div id="clog" class="tx" style="min-height:90px;max-height:240px"></div>
     <div class="crow">
@@ -378,7 +382,8 @@ setInterval(poll, 3000);
   var micHint = document.getElementById("cmichint");
 
   var modelSel = document.getElementById("cmodel");
-  var ws = null, wsReady = false, currentModel = null, manualClose = false;
+  var providerSel = document.getElementById("cprovider");
+  var ws = null, wsReady = false, currentModel = null, currentProvider = null, manualClose = false;
   var playCtx = null, outRate = 24000, nextStart = 0;
   var capCtx = null, capStream = null, capNode = null, micOn = false;
 
@@ -412,9 +417,11 @@ setInterval(poll, 3000);
     var t = Math.max(playCtx.currentTime, nextStart); src.start(t); nextStart = t + ab.duration;
   }
 
-  async function loadModels() {
+  async function loadModels(provider) {
     try {
-      var data = await (await fetch("api/models", { cache: "no-store" })).json();
+      var url = "api/models" + (provider ? "?provider=" + encodeURIComponent(provider) : "");
+      var data = await (await fetch(url, { cache: "no-store" })).json();
+      if (data.provider) { currentProvider = data.provider; if (providerSel) providerSel.value = currentProvider; }
       var models = data.models || [];
       modelSel.innerHTML = "";
       var firstLive = null;
@@ -433,16 +440,20 @@ setInterval(poll, 3000);
       if (!models.length) { var o = document.createElement("option"); o.textContent = "(default model)"; modelSel.appendChild(o); }
     } catch (e) { /* leave selector empty; console still uses the server default */ }
   }
-  modelSel.onchange = function () {
-    currentModel = modelSel.value;
+  function reconnect() {
     manualClose = true;
     if (ws) { try { ws.close(); } catch (e) {} }
     connect();
+  }
+  modelSel.onchange = function () { currentModel = modelSel.value; reconnect(); };
+  if (providerSel) providerSel.onchange = function () {
+    loadModels(providerSel.value).then(reconnect);
   };
 
   function connect() {
     var url;
     try { url = new URL("api/console", window.location.href); } catch (e) { return; }
+    if (currentProvider) url.searchParams.set("provider", currentProvider);
     if (currentModel) url.searchParams.set("model", currentModel);
     url.protocol = (url.protocol === "https:") ? "wss:" : "ws:";
     setState("connecting…", "pill-degraded");

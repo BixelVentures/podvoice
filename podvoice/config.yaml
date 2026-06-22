@@ -29,7 +29,8 @@ options:
   watchdog_ms: 800
   vad_threshold: 0.015
 schema:
-  gemini_api_key: password
+  gemini_api_key: "password?"
+  openai_api_key: "password?"
   gemini_model: str
   podconnect_base_url: url
   podconnect_token: password

@@ -33,6 +33,9 @@ class Config:
     voicepe_noise_psk: str
     rooms: tuple[RoomMap, ...]
     supervisor_token: str = ""
+    provider: str = "gemini"  # "gemini" | "openai" — the default voice brain
+    openai_api_key: str = ""
+    openai_model: str = "gpt-realtime-2"
     simulate: bool = False
     lounge_window_s: int = C.LOUNGE_WINDOW_S
     duck_level: int = C.DUCK_LEVEL
@@ -58,7 +61,13 @@ class Config:
 
 # Keys that must never appear in logs (see logging redaction).
 SECRET_KEYS: frozenset[str] = frozenset(
-    {"gemini_api_key", "podconnect_token", "voicepe_noise_psk", "supervisor_token"}
+    {
+        "gemini_api_key",
+        "openai_api_key",
+        "podconnect_token",
+        "voicepe_noise_psk",
+        "supervisor_token",
+    }
 )
 
 
@@ -81,6 +90,9 @@ def from_options(opts: dict) -> Config:
         voicepe_noise_psk=opts.get("voicepe_noise_psk", ""),
         rooms=rooms,
         supervisor_token=opts.get("supervisor_token", ""),
+        provider=str(opts.get("provider", "gemini") or "gemini"),
+        openai_api_key=opts.get("openai_api_key", ""),
+        openai_model=opts.get("openai_model", "gpt-realtime-2"),
         simulate=bool(opts.get("simulate", False)),
         lounge_window_s=int(opts.get("lounge_window_s", C.LOUNGE_WINDOW_S)),
         duck_level=int(opts.get("duck_level", C.DUCK_LEVEL)),
