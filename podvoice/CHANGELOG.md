@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.0
+
+- **PodVoice no longer embeds any PodConnect/music logic.** Removed the `music` tool and all the
+  Control-specific machinery (search_media→play_media stitching, room→media_player mapping, the
+  per-room media_player setting/UI). PodVoice is just Gemini voice + GENERIC Home Assistant
+  access: `list_home`, `list_services`, `home_call`, plus the curated convenience tools.
+- Music/speakers (PodConnect Control), a vacuum, a fan, … are now reached the SAME generic way
+  (`list_services` + `home_call`) — like any HA device. Any nicer 'play X' belongs in PodConnect's
+  own API, not here.
+- PodVoice's only PodConnect contact remains the Attention duck (orchestrator/health), unchanged.
+
 ## 0.10.0
 
 - **One clean music integration.** Replaced the three overlapping surfaces (generic `podconnect`

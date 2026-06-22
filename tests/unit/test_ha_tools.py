@@ -1,4 +1,9 @@
-"""Tool bridge: curated allowlisted home tools + the single `music` tool."""
+"""Tool bridge: curated allowlisted home tools + generic list/home_call access.
+
+PodVoice only speaks Home Assistant generically — there is NO device-specific
+integration here. Music/speakers (PodConnect), a vacuum, a fan, etc. are all reached
+the same way: list_services + home_call.
+"""
 
 from __future__ import annotations
 
@@ -10,19 +15,18 @@ from gatekeeper import constants as C
 from gatekeeper.ha_tools import HAToolBridge
 
 SVC = C.SUPERVISOR_CORE_API
-SEARCH = r".*/services/media_player/search_media.*"
 
 
-def _bridge(client, exposed=(), room_players=None):
-    return HAToolBridge("tok", client, exposed=exposed, room_players=room_players)
+def _bridge(client, exposed=()):
+    return HAToolBridge("tok", client, exposed=exposed)
 
 
-async def test_declarations_cover_home_and_music_only():
+async def test_declarations_are_generic_ha_only():
     async with httpx.AsyncClient() as client:
         names = {d["name"] for d in _bridge(client).declarations()}
-    assert {"list_home", "turn_on", "add_todo", "music"} <= names
-    # The old overlapping / PodConnect-interface surfaces are gone.
-    assert not ({"podconnect", "play_music", "media_control", "set_volume"} & names)
+    assert {"list_home", "list_services", "turn_on", "home_call", "add_todo"} <= names
+    # No device-specific / PodConnect-Control machinery baked into PodVoice.
+    assert not ({"music", "play_music", "podconnect", "media_control", "set_volume"} & names)
 
 
 async def test_allowlist_denies_unexposed(respx_mock):
@@ -59,29 +63,36 @@ async def test_list_home_filters_to_exposed(respx_mock):
 async def test_list_services_filters_to_allowed_domains(respx_mock):
     services = [
         {
-            "domain": "vacuum",
+            "domain": "media_player",
             "services": {
-                "start": {"fields": {}},
-                "send_command": {"fields": {"command": {}, "params": {}}},
-                "set_fan_speed": {"fields": {"fan_speed": {}}},
+                "play_media": {"fields": {"media_content_id": {}, "media_content_type": {}}},
+                "search_media": {"fields": {"search_query": {}}},
             },
         },
         {"domain": "lock", "services": {"lock": {"fields": {}}}},
     ]
     respx_mock.get(f"{SVC}/services").respond(200, json=services)
     async with httpx.AsyncClient() as client:
-        r = await _bridge(client, exposed=["vacuum"]).dispatch("list_services", {})
-    assert "vacuum" in r["services"] and "lock" not in r["services"]  # only exposed domains
-    assert "fan_speed" in r["services"]["vacuum"]["set_fan_speed"]["fields"]
+        r = await _bridge(client, exposed=["media_player"]).dispatch("list_services", {})
+    assert "media_player" in r["services"] and "lock" not in r["services"]  # only exposed domains
+    assert "search_query" in r["services"]["media_player"]["search_media"]["fields"]
 
 
-async def test_home_call_vacuum_allowed(respx_mock):
-    route = respx_mock.post(f"{SVC}/services/vacuum/start").respond(200, json=[])
+async def test_home_call_plays_media_generically(respx_mock):
+    # "Play X" is just a generic home_call on the exposed media_player — no special tool.
+    route = respx_mock.post(f"{SVC}/services/media_player/play_media").respond(200, json=[])
     async with httpx.AsyncClient() as client:
-        r = await _bridge(client, exposed=["vacuum"]).dispatch(
-            "home_call", {"domain": "vacuum", "service": "start", "entity_id": "vacuum.roborock"}
+        r = await _bridge(client, exposed=["media_player"]).dispatch(
+            "home_call",
+            {
+                "domain": "media_player",
+                "service": "play_media",
+                "entity_id": "media_player.kitchen",
+                "data": {"media_content_type": "music", "media_content_id": "spotify:track:abc"},
+            },
         )
     assert r["ok"] is True and route.called
+    assert json.loads(route.calls.last.request.content)["entity_id"] == "media_player.kitchen"
 
 
 async def test_home_call_denied_when_unexposed(respx_mock):
@@ -90,83 +101,6 @@ async def test_home_call_denied_when_unexposed(respx_mock):
             "home_call", {"domain": "vacuum", "service": "start", "entity_id": "vacuum.roborock"}
         )
     assert r["ok"] is False
-
-
-# --------------------------------------------------------------------- music tool
-
-
-async def test_music_play_searches_then_plays_best_match(respx_mock):
-    search = respx_mock.post(url__regex=SEARCH).respond(
-        200,
-        json={
-            "service_response": {
-                "media_player.kitchen": {
-                    "result": [
-                        {
-                            "title": "Dua Lipa",
-                            "media_content_id": "spotify:artist:6M2wZ",
-                            "media_content_type": "artist",
-                            "can_play": True,
-                        }
-                    ]
-                }
-            }
-        },
-    )
-    play = respx_mock.post(f"{SVC}/services/media_player/play_media").respond(200, json=[])
-    async with httpx.AsyncClient() as client:
-        b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
-        r = await b.dispatch("music", {"action": "play", "query": "Dua Lipa", "room": "kitchen"})
-    assert r["ok"] is True and search.called
-    body = json.loads(play.calls.last.request.content)
-    assert body["entity_id"] == "media_player.kitchen"  # one speaker, not all
-    assert body["media_content_id"] == "spotify:artist:6M2wZ"  # the resolved URI, not raw text
-
-
-async def test_music_play_uri_skips_search(respx_mock):
-    search = respx_mock.post(url__regex=SEARCH)
-    play = respx_mock.post(f"{SVC}/services/media_player/play_media").respond(200, json=[])
-    async with httpx.AsyncClient() as client:
-        b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
-        r = await b.dispatch(
-            "music",
-            {"action": "play", "uri": "spotify:track:abc", "room": "kitchen"},
-        )
-    assert r["ok"] is True and not search.called  # uri -> no search step
-    assert json.loads(play.calls.last.request.content)["media_content_id"] == "spotify:track:abc"
-
-
-async def test_music_play_no_match_is_soft_error(respx_mock):
-    respx_mock.post(url__regex=SEARCH).respond(
-        200, json={"service_response": {"media_player.kitchen": {"result": []}}}
-    )
-    async with httpx.AsyncClient() as client:
-        b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
-        r = await b.dispatch("music", {"action": "play", "query": "zzzz", "room": "kitchen"})
-    assert r["ok"] is False and "matched" in r["error"]
-
-
-async def test_music_without_speaker_is_soft_error(respx_mock):
-    async with httpx.AsyncClient() as client:
-        r = await _bridge(client).dispatch("music", {"action": "play", "query": "x", "room": "no"})
-    assert r["ok"] is False and "speaker" in r["error"]
-
-
-async def test_music_volume_scales_to_level(respx_mock):
-    route = respx_mock.post(f"{SVC}/services/media_player/volume_set").respond(200, json=[])
-    async with httpx.AsyncClient() as client:
-        b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
-        r = await b.dispatch("music", {"action": "volume", "volume_pct": 50, "room": "kitchen"})
-    assert r["ok"] is True
-    assert json.loads(route.calls.last.request.content)["volume_level"] == 0.5
-
-
-async def test_music_transport_maps_to_media_player_service(respx_mock):
-    route = respx_mock.post(f"{SVC}/services/media_player/media_pause").respond(200, json=[])
-    async with httpx.AsyncClient() as client:
-        b = _bridge(client, room_players={"kitchen": "media_player.kitchen"})
-        r = await b.dispatch("music", {"action": "pause", "room": "kitchen"})
-    assert r["ok"] is True and route.called
 
 
 async def test_unknown_tool_and_ha_error_are_soft(respx_mock):
