@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.12.1
+
+- **Home control picker redesigned.** It was being squeezed into the 2-column settings grid (broken layout). It's now its own full-width section: a heading with a live “N groups · M entities allowed” counter, **Allow whole groups** chips, an **Or pick individual entities** search + scrollable list grouped by room (two-line rows: name + entity_id, domain-covered rows greyed “via group”), and a collapsed manual field. Friendlier empty state.
+
 ## 0.12.0
 
 - **Live selectors instead of typed/hardcoded ids.** Settings now reads the real data:
