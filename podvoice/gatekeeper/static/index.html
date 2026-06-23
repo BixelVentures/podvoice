@@ -174,6 +174,12 @@
   .roomrow input { flex: 1; font: inherit; padding: 7px 9px; border-radius: 9px;
              border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
   details.adv > summary { margin-top: 6px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; margin: 2px 0 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px;
+          border: 1px solid var(--border-strong); border-radius: 999px; background: var(--field);
+          font-size: .82rem; cursor: pointer; user-select: none; }
+  .chip input { margin: 0; }
+  .chip.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--field)); }
   .actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
   #cmic.live { background: var(--danger); color: #fff; border-color: transparent; }
   h2 #cstate { font-size: .62rem; text-transform: none; letter-spacing: 0; }
@@ -253,12 +259,13 @@
         <input id="s_podconnect_token" type="password" autocomplete="off" placeholder="(leave blank if PodConnect has none)">
         <label for="s_voicepe_noise_psk">Voice PE PSK</label>
         <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
-        <label for="s_exposed">Home control</label>
-        <input id="s_exposed" type="text" autocomplete="off" placeholder="light, media_player, todo.shopping_list">
+        <label>Home control</label>
+        <div id="s_exposed_chips" class="chips" role="group" aria-label="Exposed domains"></div>
+        <input id="s_exposed_extra" type="text" autocomplete="off" placeholder="specific entity_ids, e.g. media_player.koekkenalrum, todo.shopping_list">
         <label for="s_simulate">Simulation mode</label>
         <input id="s_simulate" type="checkbox">
       </div>
-      <p class="sub" style="margin:2px 0 0">Home control = entities/domains the assistant may control (comma-separated). Empty = none. PodConnect music control is always available when its URL is set.</p>
+      <p class="sub" style="margin:2px 0 0">Home control = what the assistant may control. Tick a domain to allow all its entities, or add specific <code>entity_id</code>s below. Empty = none. 🎵 Tick <b>media_player</b> (or add your speaker entity) to let it play/▶/pause music on the PodConnect Control speaker.</p>
       <h2 style="margin:18px 0 8px">System prompt <button id="s_resetprompt" class="ghost" style="padding:4px 10px;font-size:.74rem">Reset</button></h2>
       <textarea id="s_system_prompt" class="prompt" rows="8" spellcheck="false"></textarea>
       <p class="sub" style="margin:6px 0 0">Tells the assistant who it is and what it can do (so it answers "what can you do?" and never goes silent). Edit freely, then Save &amp; restart.</p>
@@ -744,13 +751,44 @@ setInterval(poll, 3000);
     return out;
   }
 
+  // Home-control multiselect: tick a domain to allow all its entities; the text field
+  // below holds specific entity_ids (anything containing a ".") or rarer domains.
+  var EXPOSE_DOMAINS = ["light", "switch", "media_player", "scene", "climate", "cover",
+                        "vacuum", "fan", "lock", "humidifier", "todo", "script", "button"];
+  var chipsWrap = document.getElementById("s_exposed_chips");
+  var extraEl = document.getElementById("s_exposed_extra");
+  function renderExposed(selected) {
+    var domains = {}, extras = [];
+    (selected || []).forEach(function (e) {
+      e = (e || "").trim(); if (!e) return;
+      if (e.indexOf(".") === -1 && EXPOSE_DOMAINS.indexOf(e) !== -1) domains[e] = true;
+      else extras.push(e);  // specific entity_id, or a domain not in the common list
+    });
+    chipsWrap.innerHTML = "";
+    EXPOSE_DOMAINS.forEach(function (d) {
+      var lab = document.createElement("label"); lab.className = "chip" + (domains[d] ? " on" : "");
+      var cb = document.createElement("input"); cb.type = "checkbox"; cb.value = d; cb.checked = !!domains[d];
+      cb.onchange = function () { lab.classList.toggle("on", cb.checked); };
+      var txt = document.createElement("span"); txt.textContent = d === "media_player" ? "media_player 🎵" : d;
+      lab.appendChild(cb); lab.appendChild(txt); chipsWrap.appendChild(lab);
+    });
+    if (extraEl) extraEl.value = extras.join(", ");
+  }
+  function collectExposed() {
+    var out = [];
+    chipsWrap.querySelectorAll("input:checked").forEach(function (cb) { out.push(cb.value); });
+    if (extraEl) {
+      extraEl.value.split(/[,\n]/).forEach(function (x) { x = x.trim(); if (x) out.push(x); });
+    }
+    return out.filter(function (v, i) { return out.indexOf(v) === i; });  // dedup
+  }
+
   async function load() {
     try {
       var s = await (await fetch("api/settings", { cache: "no-store" })).json();
       promptDefault = s.system_prompt_default || promptDefault;
       FIELDS.forEach(function (id) { if (id in s) setVal(id, s[id]); });
-      var ex = document.getElementById("s_exposed");
-      if (ex) ex.value = (s.exposed || []).join(", ");
+      renderExposed(s.exposed || []);
       roomsWrap.innerHTML = "";
       (s.rooms || []).forEach(function (rm) { addRoom(rm.voicepe_host, rm.room); });
     } catch (e) { /* leave defaults */ }
@@ -759,8 +797,7 @@ setInterval(poll, 3000);
     var body = {};
     FIELDS.forEach(function (id) { var v = getVal(id); if (v !== undefined) body[id] = v; });
     body.rooms = collectRooms();
-    var ex = document.getElementById("s_exposed");
-    if (ex) body.exposed = ex.value.split(/[,\n]/).map(function (x) { return x.trim(); }).filter(Boolean);
+    body.exposed = collectExposed();
     return body;
   }
 

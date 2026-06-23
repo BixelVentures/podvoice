@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.1
+
+- **Home control is now a multiselect.** Tick domain chips (light, media_player 🎵, scene, climate, cover, vacuum, …) to expose them, plus a text field for specific entity_ids. Saved value is unchanged (a list of domains/entity_ids).
+
 ## 0.11.0
 
 - **PodVoice no longer embeds any PodConnect/music logic.** Removed the `music` tool and all the
