@@ -53,24 +53,50 @@ class OpenAIRealtimeSession:
     instructions: str = ""  # empty -> built-in SYSTEM_PROMPT_DA
     tool_declarations: list[dict] | None = None
     language: str = "da"
+    # Turn detection + noise reduction (tunable in Settings).
+    turn: str = "semantic_vad"  # server_vad | semantic_vad | none
+    threshold: float = 0.5  # server_vad only
+    prefix_ms: int = 300  # server_vad only
+    silence_ms: int = 500  # server_vad only
+    eagerness: str = "auto"  # semantic_vad: auto | low | medium | high
+    noise: str = "near_field"  # near_field | far_field | off
     _http: aiohttp.ClientSession | None = field(default=None, init=False, repr=False)
     _ws: aiohttp.ClientWebSocketResponse | None = field(default=None, init=False, repr=False)
 
+    def _turn_detection(self) -> dict | None:
+        """Build the turn_detection block from the tunable knobs. VERIFY field names."""
+        if self.turn == "none":
+            return None
+        if self.turn == "semantic_vad":
+            return {
+                "type": "semantic_vad",
+                "eagerness": self.eagerness or "auto",
+                "create_response": True,
+                "interrupt_response": True,
+            }
+        return {  # server_vad
+            "type": "server_vad",
+            "threshold": float(self.threshold),
+            "prefix_padding_ms": int(self.prefix_ms),
+            "silence_duration_ms": int(self.silence_ms),
+            "create_response": True,
+            "interrupt_response": True,
+        }
+
     def _session_update(self) -> dict:
+        audio_input: dict = {
+            "format": {"type": "audio/pcm", "rate": OPENAI_RATE},
+            "transcription": {"model": "gpt-realtime-whisper", "language": self.language},
+            "turn_detection": self._turn_detection(),
+        }
+        if self.noise and self.noise != "off":
+            audio_input["noise_reduction"] = {"type": self.noise}  # near_field | far_field
         session: dict = {
             "type": "realtime",  # speech-to-speech (vs "transcription")
             "output_modalities": ["audio"],
             "instructions": self.instructions or SYSTEM_PROMPT_DA,
             "audio": {
-                "input": {
-                    "format": {"type": "audio/pcm", "rate": OPENAI_RATE},
-                    "transcription": {"model": "gpt-realtime-whisper", "language": self.language},
-                    "turn_detection": {
-                        "type": "server_vad",
-                        "create_response": True,
-                        "interrupt_response": True,
-                    },
-                },
+                "input": audio_input,
                 "output": {
                     "format": {"type": "audio/pcm", "rate": OPENAI_RATE},
                     "voice": self.voice,

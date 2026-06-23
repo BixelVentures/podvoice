@@ -123,6 +123,12 @@ def console_factory(cfg: Config, tools=None):
                 voice=voice or cfg.openai_voice or "marin",
                 instructions=cfg.system_prompt,
                 tool_declarations=decls,
+                turn=cfg.openai_turn,
+                threshold=cfg.openai_threshold,
+                prefix_ms=cfg.openai_prefix_ms,
+                silence_ms=cfg.openai_silence_ms,
+                eagerness=cfg.openai_eagerness,
+                noise=cfg.openai_noise,
             )
         if not cfg.gemini_api_key:
             return SimConsoleGemini()

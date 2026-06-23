@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.14.0
+
+- **Settings split per provider — Gemini vs ChatGPT (OpenAI) — with the key tuning knobs to test.**
+  - **Gemini (Live):** model, voice, VAD start/end sensitivity, prefix padding, silence ms.
+  - **ChatGPT (OpenAI Realtime):** model, voice, turn detection (Semantic/Normal/Disabled),
+    eagerness (semantic), threshold (normal), prefix padding, silence ms, noise reduction
+    (near/far/off).
+  Wired end-to-end: Gemini VAD → `realtime_input_config` (applied defensively, never breaks
+  connect); OpenAI knobs → the `session.update` turn_detection + noise_reduction. Both the
+  console and the room pipeline use them. Ducking/tuning kept in its own block.
+
 ## 0.13.0
 
 - **Seamless session resume (no more mid-conversation drops/reloads).** `GeminiLiveSession.events()`

@@ -117,6 +117,16 @@ def build_config(
         "context_window_compression": {"sliding_window": {}},
         # VERIFY: session_resumption {} opts in; handle is injected per-connect below.
         "session_resumption": {},
+        # Automatic activity detection (VAD) — tunable in Settings. connect() upgrades
+        # this to typed objects defensively (so a wrong enum name can't break connect).
+        "realtime_input_config": {
+            "automatic_activity_detection": {
+                "start_of_speech_sensitivity": getattr(cfg, "gemini_vad_start", "high") or "high",
+                "end_of_speech_sensitivity": getattr(cfg, "gemini_vad_end", "high") or "high",
+                "prefix_padding_ms": int(getattr(cfg, "gemini_prefix_ms", 300)),
+                "silence_duration_ms": int(getattr(cfg, "gemini_silence_ms", 500)),
+            }
+        },
         # NOTE: max_output_tokens is intentionally UNSET. On native-audio models it
         #       counts AUDIO tokens, so any small cap TRUNCATES speech mid-sentence.
         #       Brevity is enforced via the system prompt instead.
@@ -173,12 +183,35 @@ class GeminiLiveSession:
         cfg = {
             k: v
             for k, v in self.config.items()
-            if k not in ("session_resumption", "context_window_compression")
+            if k
+            not in ("session_resumption", "context_window_compression", "realtime_input_config")
         }
         cfg["session_resumption"] = types.SessionResumptionConfig(handle=self._resume_handle)
         cfg["context_window_compression"] = types.ContextWindowCompressionConfig(
             sliding_window=types.SlidingWindow()
         )
+
+        # VAD (automatic activity detection) — typed, but never let it break connect.
+        ric = self.config.get("realtime_input_config")
+        if ric:
+            try:  # VERIFY: enum + field names against current google-genai types.
+                aad = ric["automatic_activity_detection"]
+                start = types.StartSensitivity.START_SENSITIVITY_LOW
+                if (aad.get("start_of_speech_sensitivity") or "high") == "high":
+                    start = types.StartSensitivity.START_SENSITIVITY_HIGH
+                end = types.EndSensitivity.END_SENSITIVITY_LOW
+                if (aad.get("end_of_speech_sensitivity") or "high") == "high":
+                    end = types.EndSensitivity.END_SENSITIVITY_HIGH
+                cfg["realtime_input_config"] = types.RealtimeInputConfig(
+                    automatic_activity_detection=types.AutomaticActivityDetection(
+                        start_of_speech_sensitivity=start,
+                        end_of_speech_sensitivity=end,
+                        prefix_padding_ms=int(aad.get("prefix_padding_ms", 300)),
+                        silence_duration_ms=int(aad.get("silence_duration_ms", 500)),
+                    )
+                )
+            except Exception as e:  # VAD is a tuning nicety, never load-bearing
+                _LOG.warning("Gemini VAD config not applied (%s) — using server defaults", e)
 
         # CONFIRMED: client.aio.live.connect(model=, config=) is an async context manager.
         self._cm = self._client.aio.live.connect(model=self.model, config=cfg)  # type: ignore[attr-defined]

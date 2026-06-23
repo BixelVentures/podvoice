@@ -312,12 +312,37 @@
       <div id="s_rooms"></div>
       <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
       <details class="adv">
-        <summary>Advanced (models, voices &amp; tuning)</summary>
+        <summary>Advanced — models, voices &amp; per-provider tuning</summary>
+
+        <div class="exsub" style="margin-top:12px">Gemini (Live)</div>
         <div class="setgrid">
-          <label for="s_gemini_model">Gemini model</label><input id="s_gemini_model" type="text" autocomplete="off">
-          <label for="s_gemini_voice">Gemini voice</label><input id="s_gemini_voice" list="dl_gemini_voice" autocomplete="off">
-          <label for="s_openai_model">OpenAI model</label><input id="s_openai_model" type="text" autocomplete="off">
-          <label for="s_openai_voice">OpenAI voice</label><input id="s_openai_voice" list="dl_openai_voice" autocomplete="off">
+          <label for="s_gemini_model">Model</label><input id="s_gemini_model" type="text" autocomplete="off">
+          <label for="s_gemini_voice">Voice</label><input id="s_gemini_voice" list="dl_gemini_voice" autocomplete="off">
+          <label for="s_gemini_vad_start">Start sensitivity</label>
+          <select id="s_gemini_vad_start"><option value="high">high — easy to trigger</option><option value="low">low</option></select>
+          <label for="s_gemini_vad_end">End sensitivity</label>
+          <select id="s_gemini_vad_end"><option value="high">high — ends turn fast</option><option value="low">low — waits for you</option></select>
+          <label for="s_gemini_prefix_ms">Prefix padding ms</label><input id="s_gemini_prefix_ms" type="number" min="0" max="2000">
+          <label for="s_gemini_silence_ms">Silence ms</label><input id="s_gemini_silence_ms" type="number" min="0" max="5000">
+        </div>
+
+        <div class="exsub" style="margin-top:16px">ChatGPT (OpenAI Realtime)</div>
+        <div class="setgrid">
+          <label for="s_openai_model">Model</label><input id="s_openai_model" type="text" autocomplete="off">
+          <label for="s_openai_voice">Voice</label><input id="s_openai_voice" list="dl_openai_voice" autocomplete="off">
+          <label for="s_openai_turn">Turn detection</label>
+          <select id="s_openai_turn"><option value="semantic_vad">Semantic — natural</option><option value="server_vad">Normal — snappy</option><option value="none">Disabled</option></select>
+          <label for="s_openai_eagerness">Eagerness <span style="color:var(--fg-dim)">(semantic)</span></label>
+          <select id="s_openai_eagerness"><option value="auto">auto</option><option value="low">low — patient</option><option value="medium">medium</option><option value="high">high — snappy</option></select>
+          <label for="s_openai_threshold">Threshold <span style="color:var(--fg-dim)">(normal)</span></label><input id="s_openai_threshold" type="number" step="0.01" min="0" max="1">
+          <label for="s_openai_prefix_ms">Prefix padding ms</label><input id="s_openai_prefix_ms" type="number" min="0" max="2000">
+          <label for="s_openai_silence_ms">Silence ms</label><input id="s_openai_silence_ms" type="number" min="0" max="5000">
+          <label for="s_openai_noise">Noise reduction</label>
+          <select id="s_openai_noise"><option value="near_field">Near field — phone/headset</option><option value="far_field">Far field — room</option><option value="off">Off</option></select>
+        </div>
+
+        <div class="exsub" style="margin-top:16px">Ducking &amp; tuning</div>
+        <div class="setgrid">
           <label for="s_duck_level">Duck level %</label><input id="s_duck_level" type="number" min="0" max="100">
           <label for="s_lounge_level">Lounge level %</label><input id="s_lounge_level" type="number" min="0" max="100">
           <label for="s_lounge_window_s">Lounge window s</label><input id="s_lounge_window_s" type="number" min="1" max="120">
@@ -754,10 +779,15 @@ setInterval(poll, 3000);
 "use strict";
 // ---- Settings page (saved to the add-on's /data; HA Configuration holds only keys) ----
 (function () {
-  var FIELDS = ["provider", "system_prompt", "gemini_model", "gemini_voice", "openai_model",
-    "openai_voice", "podconnect_base_url", "podconnect_token", "voicepe_noise_psk", "simulate",
+  var FIELDS = ["provider", "system_prompt", "gemini_model", "gemini_voice",
+    "gemini_vad_start", "gemini_vad_end", "gemini_prefix_ms", "gemini_silence_ms",
+    "openai_model", "openai_voice", "openai_turn", "openai_eagerness", "openai_threshold",
+    "openai_prefix_ms", "openai_silence_ms", "openai_noise",
+    "podconnect_base_url", "podconnect_token", "voicepe_noise_psk", "simulate",
     "duck_level", "lounge_level", "lounge_window_s", "heartbeat_ms", "watchdog_ms", "vad_threshold"];
-  var NUM = { duck_level: 1, lounge_level: 1, lounge_window_s: 1, heartbeat_ms: 1, watchdog_ms: 1, vad_threshold: 1 };
+  var NUM = { duck_level: 1, lounge_level: 1, lounge_window_s: 1, heartbeat_ms: 1, watchdog_ms: 1,
+    vad_threshold: 1, gemini_prefix_ms: 1, gemini_silence_ms: 1, openai_threshold: 1,
+    openai_prefix_ms: 1, openai_silence_ms: 1 };
   function f(id) { return document.getElementById("s_" + id); }
   function setVal(id, v) {
     var e = f(id); if (!e) return;

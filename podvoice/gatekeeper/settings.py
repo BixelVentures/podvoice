@@ -40,8 +40,20 @@ DEFAULTS: dict = {
     "system_prompt": SYSTEM_PROMPT_DA,  # who the assistant is + what it can do (editable)
     "gemini_model": "gemini-2.5-flash-native-audio-preview-12-2025",
     "gemini_voice": "Kore",
+    # Gemini Live VAD (automatic activity detection)
+    "gemini_vad_start": "high",  # high|low — start-of-speech sensitivity
+    "gemini_vad_end": "high",  # high|low — end-of-speech sensitivity
+    "gemini_prefix_ms": 300,
+    "gemini_silence_ms": 500,
     "openai_model": "gpt-realtime-2",
     "openai_voice": "marin",
+    # OpenAI Realtime turn detection + noise reduction
+    "openai_turn": "semantic_vad",  # server_vad|semantic_vad|none
+    "openai_threshold": 0.5,  # server_vad only
+    "openai_prefix_ms": 300,  # server_vad only
+    "openai_silence_ms": 500,  # server_vad only
+    "openai_eagerness": "auto",  # semantic_vad: auto|low|medium|high
+    "openai_noise": "near_field",  # near_field|far_field|off
     "podconnect_base_url": "http://homeassistant.local:8099",
     "podconnect_token": "",
     "voicepe_noise_psk": "",

@@ -27,6 +27,12 @@ def make_session(
             voice=cfg.openai_voice or "marin",
             instructions=cfg.system_prompt,
             tool_declarations=tool_declarations,
+            turn=cfg.openai_turn,
+            threshold=cfg.openai_threshold,
+            prefix_ms=cfg.openai_prefix_ms,
+            silence_ms=cfg.openai_silence_ms,
+            eagerness=cfg.openai_eagerness,
+            noise=cfg.openai_noise,
         )
     from .gemini import GeminiLiveSession, build_config
 
