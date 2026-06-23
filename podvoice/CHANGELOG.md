@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.0
+
+- **Clear error when the add-on has no HA token.** The empty-token case used to crash with a cryptic `Illegal header value b'Bearer '`; Home control now says exactly what's wrong and how to fix it (reinstall the add-on so Supervisor grants homeassistant_api).
+- **Settings page reorganised for clarity.** Logical sections: **Assistant** (provider + web search; note that model/voice live in Talk) → **Music ducking (PodConnect)** → **Home control** → **System prompt** → collapsed **Voice PE (hardware)** (PSK, rooms, simulation — not needed for the console/Assist) → collapsed **Advanced** (per-provider tuning + ducking). Every control now has a labelled home and a one-line purpose.
+
 ## 0.15.0
 
 - **Stop button in Talk.** A ⏹ next to Send instantly silences the spoken reply (flushes the

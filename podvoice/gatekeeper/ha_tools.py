@@ -206,6 +206,14 @@ class HAToolBridge:
         NOT a model tool and NOT allowlist-filtered — the panel needs the full list to
         choose what to expose. Area comes from one best-effort template render.
         """
+        if not self._has_ha:
+            return {
+                "ok": False,
+                "entities": [],
+                "domains": [],
+                "error": "No Home Assistant token. Reinstall the add-on (uninstall → install) so "
+                "Supervisor grants core-API access (homeassistant_api), then restart.",
+            }
         r = await self._client.get(f"{C.SUPERVISOR_CORE_API}/states", headers=self._ha_headers)
         r.raise_for_status()
         areas: dict[str, str] = {}
