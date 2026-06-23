@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.17.0
+
+- **FIX: Home control list was empty because the add-on never received `SUPERVISOR_TOKEN`.**
+  Root cause (multi-expert, high confidence): the entrypoint started Python WITHOUT s6-overlay's
+  `with-contenv` wrapper, so the Supervisor token (written to /run/s6/container_environment/) was
+  never exported into the process env → the HA core-API call sent an empty `Bearer ` header. That's
+  why PodConnect & Gemini worked (own creds) but only HA failed.
+  - `run.sh` now uses `#!/usr/bin/with-contenv bashio`.
+  - `config.py` also reads the token directly from the s6 container_environment file as a fallback.
+  Update the add-on (it rebuilds) + restart — NO uninstall needed. The entity list then fills.
+
 ## 0.16.0
 
 - **Clear error when the add-on has no HA token.** The empty-token case used to crash with a cryptic `Illegal header value b'Bearer '`; Home control now says exactly what's wrong and how to fix it (reinstall the add-on so Supervisor grants homeassistant_api).

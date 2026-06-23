@@ -133,6 +133,24 @@ def from_options(opts: dict) -> Config:
     )
 
 
+def _supervisor_token() -> str:
+    """The per-container Supervisor token (rotates each start — read at runtime).
+
+    Normally ``SUPERVISOR_TOKEN`` is in the env (the entrypoint runs through s6's
+    ``with-contenv``). Belt-and-suspenders: if the env var is missing (entrypoint
+    not wrapped), read s6-overlay v3's container_environment file directly.
+    """
+    token = os.environ.get("SUPERVISOR_TOKEN") or ""
+    if not token:
+        try:
+            token = (
+                pathlib.Path("/run/s6/container_environment/SUPERVISOR_TOKEN").read_text().strip()
+            )
+        except OSError:
+            token = ""
+    return token
+
+
 def load_options(path: pathlib.Path = OPTIONS_PATH) -> dict:
     """Read the options file and inject the supervisor token.
 
@@ -142,7 +160,7 @@ def load_options(path: pathlib.Path = OPTIONS_PATH) -> dict:
     env = os.environ.get("PODVOICE_OPTIONS")
     src = pathlib.Path(env) if env else path
     opts: dict = json.loads(src.read_text()) if src.exists() else {}
-    token = os.environ.get("SUPERVISOR_TOKEN")
+    token = _supervisor_token()
     if token:
         opts["supervisor_token"] = token
     return opts
