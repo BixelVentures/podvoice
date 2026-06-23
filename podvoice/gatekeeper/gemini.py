@@ -17,6 +17,8 @@ is marked ``# VERIFY:`` — re-confirm against the pinned google-genai at impl t
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -35,6 +37,8 @@ from .voice import (
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, never imported at runtime
     from collections.abc import AsyncIterator
+
+_LOG = logging.getLogger("podvoice.gemini")
 
 # The typed events now live in voice.py (shared across providers). Re-exported
 # here so existing ``from gatekeeper.gemini import AudioChunk, ...`` keep working.
@@ -236,57 +240,89 @@ class GeminiLiveSession:
         await self._session.send_tool_response(function_responses=frs)  # type: ignore[attr-defined]
 
     async def events(self) -> AsyncIterator[GeminiEvent]:
-        """Async generator of typed events across the WHOLE session (PLAN §5.11).
+        """Async generator of typed events for the WHOLE session — with SEAMLESS resume.
 
-        ``session.receive()`` yields one turn's messages then returns; we re-enter
-        it in a loop so the reader keeps working for follow-up turns (otherwise the
-        conversation goes silent after the first reply / tool call). The loop ends
-        when the session is closed (``close()`` sets ``_session`` to None).
+        Two layers of resilience so BOTH the in-panel console and the Voice PE room
+        pipeline keep talking without the consumer noticing:
+        - ``session.receive()`` yields one turn then returns; we re-enter it so the
+          conversation continues across turns (no silence after the first reply).
+        - On a server ``go_away`` (session time cap) OR a dropped socket, we transparently
+          ``reconnect()`` using the stored resumption handle (make-before-break) and keep
+          yielding — the consumer's ``async for`` never ends. Bounded backoff on failure.
+        ``close()`` (deliberate teardown) sets ``_session`` to None and stops the loop.
         """
+        backoff = 0.5
         while self._session is not None:
             session = self._session
-            # VERIFY: session.receive() yields a turn's responses then completes.
-            async for r in session.receive():  # type: ignore[attr-defined]
-                # VERIFY: r.data is the convenience accessor for raw 24 kHz PCM bytes.
-                data = getattr(r, "data", None)
-                if data is not None:
-                    yield AudioChunk(data)
+            resume = False
+            try:
+                # VERIFY: session.receive() yields a turn's responses then completes.
+                async for r in session.receive():  # type: ignore[attr-defined]
+                    # VERIFY: r.data is the convenience accessor for raw 24 kHz PCM bytes.
+                    data = getattr(r, "data", None)
+                    if data is not None:
+                        yield AudioChunk(data)
 
-                # VERIFY: r.tool_call.function_calls[].{id,name,args}.
-                tool_call = getattr(r, "tool_call", None)
-                if tool_call is not None:
-                    for fc in tool_call.function_calls:
-                        yield ToolCall(fc.id, fc.name, fc.args)
+                    # VERIFY: r.tool_call.function_calls[].{id,name,args}.
+                    tool_call = getattr(r, "tool_call", None)
+                    if tool_call is not None:
+                        for fc in tool_call.function_calls:
+                            yield ToolCall(fc.id, fc.name, fc.args)
 
-                # VERIFY: r.server_content.{input_transcription,output_transcription,
-                #         interrupted,turn_complete}.
-                sc = getattr(r, "server_content", None)
-                if sc is not None:
-                    in_tx = getattr(sc, "input_transcription", None)
-                    if in_tx is not None:
-                        yield InputTranscript(in_tx.text)  # VERIFY: .text attribute
-                    out_tx = getattr(sc, "output_transcription", None)
-                    if out_tx is not None:
-                        yield OutputTranscript(out_tx.text)  # VERIFY: .text attribute
-                    if getattr(sc, "interrupted", None):
-                        yield Interrupted()
-                    if getattr(sc, "turn_complete", None):
-                        yield TurnComplete()
+                    # VERIFY: r.server_content.{input_transcription,output_transcription,
+                    #         interrupted,turn_complete}.
+                    sc = getattr(r, "server_content", None)
+                    if sc is not None:
+                        in_tx = getattr(sc, "input_transcription", None)
+                        if in_tx is not None:
+                            yield InputTranscript(in_tx.text)  # VERIFY: .text attribute
+                        out_tx = getattr(sc, "output_transcription", None)
+                        if out_tx is not None:
+                            yield OutputTranscript(out_tx.text)  # VERIFY: .text attribute
+                        if getattr(sc, "interrupted", None):
+                            yield Interrupted()
+                        if getattr(sc, "turn_complete", None):
+                            yield TurnComplete()
 
-                # VERIFY: r.session_resumption_update.{resumable,new_handle}.
-                update = getattr(r, "session_resumption_update", None)
-                if update is not None and getattr(update, "resumable", False):
-                    new_handle = getattr(update, "new_handle", None)
-                    if new_handle:
-                        self._resume_handle = new_handle
+                    # VERIFY: r.session_resumption_update.{resumable,new_handle}.
+                    update = getattr(r, "session_resumption_update", None)
+                    if update is not None and getattr(update, "resumable", False):
+                        new_handle = getattr(update, "new_handle", None)
+                        if new_handle:
+                            self._resume_handle = new_handle
 
-                # VERIFY: r.go_away.time_left (server's pre-disconnect warning).
-                go_away = getattr(r, "go_away", None)
-                if go_away is not None:
-                    yield GoAway(getattr(go_away, "time_left", None))
+                    # VERIFY: r.go_away.time_left (server's pre-disconnect warning).
+                    go_away = getattr(r, "go_away", None)
+                    if go_away is not None:
+                        yield GoAway(getattr(go_away, "time_left", None))
+                        resume = True  # session is closing — resume below, seamlessly
+                        break
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:  # dropped socket / server hiccup -> resume
+                _LOG.warning("gemini stream dropped (%s) — resuming", e)
+                resume = True
+
+            if self._session is None:
+                break  # deliberate close()
+            if resume:
+                try:
+                    await self.reconnect()  # preserves _resume_handle (make-before-break)
+                    backoff = 0.5
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    _LOG.warning("gemini resume failed (%s) — retry in %.1fs", e, backoff)
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, 8.0)
+            # else: clean turn-batch end -> loop re-enters receive() on the same session
 
     async def reconnect(self) -> None:
-        """Close + connect. Bounded-backoff retry logic lives in the orchestrator."""
+        """Close + reconnect, preserving the resumption handle (make-before-break).
+
+        ``events()`` calls this automatically on go_away / socket drop, so both the
+        console and the room pipeline resume seamlessly without the consumer noticing.
+        """
         await self.close()
         await self.connect()
 

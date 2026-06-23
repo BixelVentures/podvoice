@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.13.0
+
+- **Seamless session resume (no more mid-conversation drops/reloads).** `GeminiLiveSession.events()`
+  now transparently reconnects on the server's `go_away` (Live session time cap) OR a dropped
+  socket, using the stored resumption handle (make-before-break), with bounded backoff — the
+  consumer's stream never ends. This is in the SHARED session layer, so it works in BOTH the
+  in-panel Talk console AND the Voice PE room pipeline. The orchestrator no longer double-
+  reconnects on go_away (events() owns it). The console WebSocket already pings (heartbeat=20s)
+  so the Nabu Casa tunnel won't recycle an idle connection.
+
 ## 0.12.1
 
 - **Home control picker redesigned.** It was being squeezed into the 2-column settings grid (broken layout). It's now its own full-width section: a heading with a live “N groups · M entities allowed” counter, **Allow whole groups** chips, an **Or pick individual entities** search + scrollable list grouped by room (two-line rows: name + entity_id, domain-covered rows greyed “via group”), and a collapsed manual field. Friendlier empty state.

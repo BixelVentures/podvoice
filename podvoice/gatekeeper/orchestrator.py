@@ -274,10 +274,10 @@ class RoomSession:
             self.playback.flush()
             await self.sm.post(Event(EventType.GEMINI_INTERRUPTED, self.room))
         elif isinstance(ev, GoAway):
-            _LOG.info("Gemini go_away (%.1fs left) — reconnecting", ev.time_left or 0.0)
-            with contextlib.suppress(Exception):
-                await self.gemini.reconnect()
-                self._start_reader()
+            # events() resumes the session transparently (make-before-break) and keeps
+            # yielding on the SAME reader — so we must NOT reconnect/restart here, or we'd
+            # double-connect. Just note it (and keep ducking; transport stays up).
+            _LOG.info("Gemini go_away (%.1fs left) — auto-resuming", ev.time_left or 0.0)
 
     async def _maybe_barge_in(self, text: str) -> None:
         if self.bargein is None:
