@@ -193,6 +193,8 @@ async def run(cfg: Config) -> None:
         on_restart=lambda: _restart_addon(cfg.supervisor_token),
         diag=_DIAG,
         tools=tools,
+        ha_entities=(tools.list_entities if tools is not None else None),
+        pc_rooms=(attention.rooms if attention is not None else None),
     )
     runner = await start_web(app)
 

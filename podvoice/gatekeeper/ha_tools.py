@@ -16,6 +16,7 @@ model is never left waiting.
 
 from __future__ import annotations
 
+import json
 import logging
 
 import httpx
@@ -25,6 +26,16 @@ from . import constants as C
 log = logging.getLogger(__name__)
 
 _COVER_ACTIONS = {"open": "open_cover", "close": "close_cover", "stop": "stop_cover"}
+
+# One template render gives each entity's HA Area (the area registry isn't in the REST
+# /states; this is the REST-friendly way to read it).
+_AREA_TEMPLATE = (
+    "{% set out = namespace(x=[]) %}"
+    "{% for s in states %}"
+    "{% set out.x = out.x + [[s.entity_id, area_name(s.entity_id)]] %}"
+    "{% endfor %}"
+    "{{ out.x | tojson }}"
+)
 
 
 class HAToolBridge:
@@ -188,6 +199,45 @@ class HAToolBridge:
                     }
                 )
         return {"ok": True, "entities": out[:100]}
+
+    async def list_entities(self) -> dict:
+        """All HA entities (id, name, domain, area) for the panel's Home-control picker.
+
+        NOT a model tool and NOT allowlist-filtered — the panel needs the full list to
+        choose what to expose. Area comes from one best-effort template render.
+        """
+        r = await self._client.get(f"{C.SUPERVISOR_CORE_API}/states", headers=self._ha_headers)
+        r.raise_for_status()
+        areas: dict[str, str] = {}
+        try:
+            tr = await self._client.post(
+                f"{C.SUPERVISOR_CORE_API}/template",
+                json={"template": _AREA_TEMPLATE},
+                headers=self._ha_headers,
+            )
+            tr.raise_for_status()
+            for eid, area in json.loads(tr.text):
+                if area:
+                    areas[eid] = area
+        except Exception as e:  # areas are a nice-to-have; entities still list without them
+            log.info("area lookup unavailable: %s", e)
+        ents, domains = [], set()
+        for s in r.json():
+            eid = s.get("entity_id", "")
+            if "." not in eid:
+                continue
+            dom = eid.split(".")[0]
+            domains.add(dom)
+            ents.append(
+                {
+                    "entity_id": eid,
+                    "name": s.get("attributes", {}).get("friendly_name", eid),
+                    "domain": dom,
+                    "area": areas.get(eid),
+                }
+            )
+        ents.sort(key=lambda e: ((e["area"] or "~"), e["domain"], e["name"]))
+        return {"ok": True, "entities": ents, "domains": sorted(domains)}
 
     def _allowed_domains(self) -> set[str]:
         return {e.split(".")[0] if "." in e else e for e in self._exposed}

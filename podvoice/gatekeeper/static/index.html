@@ -180,6 +180,18 @@
           font-size: .82rem; cursor: pointer; user-select: none; }
   .chip input { margin: 0; }
   .chip.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--field)); }
+  .entlist { max-height: 230px; overflow-y: auto; border: 1px solid var(--border-strong);
+             border-radius: 12px; background: var(--field); margin: 2px 0 6px; }
+  .entlist .grp { padding: 6px 11px 2px; font-size: .72rem; font-weight: 700; letter-spacing: .03em;
+                  text-transform: uppercase; color: var(--fg-dim); position: sticky; top: 0;
+                  background: var(--field); }
+  .entrow { display: flex; align-items: center; gap: 9px; padding: 5px 11px; cursor: pointer; }
+  .entrow:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .entrow input { margin: 0; }
+  .entrow .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .entrow .eid { color: var(--fg-dim); font-size: .76rem; }
+  .entrow.cov { opacity: .55; }
+  .entempty { padding: 10px 11px; color: var(--fg-dim); font-size: .85rem; }
   .actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
   #cmic.live { background: var(--danger); color: #fff; border-color: transparent; }
   h2 #cstate { font-size: .62rem; text-transform: none; letter-spacing: 0; }
@@ -260,8 +272,12 @@
         <label for="s_voicepe_noise_psk">Voice PE PSK</label>
         <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
         <label>Home control</label>
-        <div id="s_exposed_chips" class="chips" role="group" aria-label="Exposed domains"></div>
-        <input id="s_exposed_extra" type="text" autocomplete="off" placeholder="specific entity_ids, e.g. media_player.koekkenalrum, todo.shopping_list">
+        <div id="s_exposed_domains" class="chips" role="group" aria-label="Allow whole domains"></div>
+        <input id="s_exposed_search" type="search" autocomplete="off" placeholder="search your entities by name / id / room…">
+        <div id="s_exposed_list" class="entlist" role="group" aria-label="Entities"></div>
+        <details class="adv"><summary>Add an id manually</summary>
+          <input id="s_exposed_extra" type="text" autocomplete="off" placeholder="entity_ids not in the list, comma-separated">
+        </details>
         <label for="s_simulate">Simulation mode</label>
         <input id="s_simulate" type="checkbox">
       </div>
@@ -732,11 +748,31 @@ setInterval(poll, 3000);
   }
 
   var promptDefault = "";
+  // Live data — entities/areas from HA, rooms from PodConnect (no hardcoded ids).
+  var allEntities = [], allDomains = [], pcRooms = [], pickedDomains = {}, pickedEnts = {};
+
   var roomsWrap = document.getElementById("s_rooms");
+  function roomField(room) {
+    if (pcRooms.length) {
+      var sel = document.createElement("select"); sel.className = "rr";
+      var blank = document.createElement("option"); blank.value = ""; blank.textContent = "— pick room —"; sel.appendChild(blank);
+      var seen = false;
+      pcRooms.forEach(function (rm) {
+        var o = document.createElement("option"); o.value = rm.id;
+        o.textContent = rm.name && rm.name !== rm.id ? (rm.name + " (" + rm.id + ")") : rm.id;
+        if (rm.id === room) { o.selected = true; seen = true; }
+        sel.appendChild(o);
+      });
+      if (room && !seen) { var k = document.createElement("option"); k.value = room; k.textContent = room + " (saved)"; k.selected = true; sel.appendChild(k); }
+      return sel;
+    }
+    var inp = document.createElement("input"); inp.className = "rr"; inp.placeholder = "room id (e.g. r0)"; inp.value = room || "";
+    return inp;
+  }
   function addRoom(host, room) {
     var row = document.createElement("div"); row.className = "roomrow";
     var h = document.createElement("input"); h.className = "rh"; h.placeholder = "voice-pe.local"; h.value = host || "";
-    var r = document.createElement("input"); r.className = "rr"; r.placeholder = "room id (e.g. r0)"; r.value = room || "";
+    var r = roomField(room);
     var x = document.createElement("button"); x.className = "ghost"; x.textContent = "✕";
     x.setAttribute("aria-label", "Remove room"); x.onclick = function () { row.remove(); };
     row.appendChild(h); row.appendChild(r); row.appendChild(x); roomsWrap.appendChild(row);
@@ -751,44 +787,86 @@ setInterval(poll, 3000);
     return out;
   }
 
-  // Home-control multiselect: tick a domain to allow all its entities; the text field
-  // below holds specific entity_ids (anything containing a ".") or rarer domains.
-  var EXPOSE_DOMAINS = ["light", "switch", "media_player", "scene", "climate", "cover",
-                        "vacuum", "fan", "lock", "humidifier", "todo", "script", "button"];
-  var chipsWrap = document.getElementById("s_exposed_chips");
+  // Home control: a LIVE picker over the home's real entities/areas (from HA) — no
+  // hardcoded ids. Tick a domain chip to allow the whole domain, or tick single entities.
+  var domainsWrap = document.getElementById("s_exposed_domains");
+  var listWrap = document.getElementById("s_exposed_list");
+  var searchEl = document.getElementById("s_exposed_search");
   var extraEl = document.getElementById("s_exposed_extra");
-  function renderExposed(selected) {
-    var domains = {}, extras = [];
-    (selected || []).forEach(function (e) {
-      e = (e || "").trim(); if (!e) return;
-      if (e.indexOf(".") === -1 && EXPOSE_DOMAINS.indexOf(e) !== -1) domains[e] = true;
-      else extras.push(e);  // specific entity_id, or a domain not in the common list
+
+  function renderDomainChips() {
+    var doms = {}; allDomains.forEach(function (d) { doms[d] = 1; });
+    Object.keys(pickedDomains).forEach(function (d) { doms[d] = 1; });
+    domainsWrap.innerHTML = "";
+    Object.keys(doms).sort().forEach(function (d) {
+      var lab = document.createElement("label"); lab.className = "chip" + (pickedDomains[d] ? " on" : "");
+      var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!pickedDomains[d];
+      cb.onchange = function () {
+        if (cb.checked) pickedDomains[d] = true; else delete pickedDomains[d];
+        lab.classList.toggle("on", cb.checked); renderEntityList();
+      };
+      var t = document.createElement("span"); t.textContent = d === "media_player" ? "media_player 🎵" : d;
+      lab.appendChild(cb); lab.appendChild(t); domainsWrap.appendChild(lab);
     });
-    chipsWrap.innerHTML = "";
-    EXPOSE_DOMAINS.forEach(function (d) {
-      var lab = document.createElement("label"); lab.className = "chip" + (domains[d] ? " on" : "");
-      var cb = document.createElement("input"); cb.type = "checkbox"; cb.value = d; cb.checked = !!domains[d];
-      cb.onchange = function () { lab.classList.toggle("on", cb.checked); };
-      var txt = document.createElement("span"); txt.textContent = d === "media_player" ? "media_player 🎵" : d;
-      lab.appendChild(cb); lab.appendChild(txt); chipsWrap.appendChild(lab);
+  }
+  function renderEntityList() {
+    var q = (searchEl.value || "").trim().toLowerCase();
+    listWrap.innerHTML = ""; var shown = 0, lastGrp = null;
+    allEntities.forEach(function (e) {
+      if (q && (e.name + " " + e.entity_id + " " + (e.area || "")).toLowerCase().indexOf(q) === -1) return;
+      shown++;
+      var grp = e.area || "No area";
+      if (grp !== lastGrp) { lastGrp = grp; var g = document.createElement("div"); g.className = "grp"; g.textContent = grp; listWrap.appendChild(g); }
+      var covered = !!pickedDomains[e.domain];
+      var row = document.createElement("label"); row.className = "entrow" + (covered ? " cov" : "");
+      var cb = document.createElement("input"); cb.type = "checkbox";
+      cb.checked = covered || !!pickedEnts[e.entity_id]; cb.disabled = covered;
+      cb.title = covered ? ("covered by domain '" + e.domain + "'") : "";
+      cb.onchange = function () { if (cb.checked) pickedEnts[e.entity_id] = true; else delete pickedEnts[e.entity_id]; };
+      var nm = document.createElement("span"); nm.className = "nm";
+      var strong = document.createElement("span"); strong.textContent = e.name;
+      var eid = document.createElement("span"); eid.className = "eid"; eid.textContent = "  " + e.entity_id;
+      nm.appendChild(strong); nm.appendChild(eid);
+      row.appendChild(cb); row.appendChild(nm); listWrap.appendChild(row);
     });
-    if (extraEl) extraEl.value = extras.join(", ");
+    if (!shown) {
+      var em = document.createElement("div"); em.className = "entempty";
+      em.textContent = allEntities.length ? "No match." : "No entities loaded (HA unreachable, or none yet).";
+      listWrap.appendChild(em);
+    }
+  }
+  searchEl.oninput = renderEntityList;
+  function applyExposed(saved) {
+    pickedDomains = {}; pickedEnts = {};
+    var known = {}; allEntities.forEach(function (e) { known[e.entity_id] = 1; });
+    var extras = [];
+    (saved || []).forEach(function (t) {
+      t = (t || "").trim(); if (!t) return;
+      if (t.indexOf(".") === -1) pickedDomains[t] = true;       // whole domain
+      else if (known[t]) pickedEnts[t] = true;                  // a real entity
+      else extras.push(t);                                      // entity not in list -> manual field
+    });
+    extraEl.value = extras.join(", ");
+    renderDomainChips(); renderEntityList();
   }
   function collectExposed() {
     var out = [];
-    chipsWrap.querySelectorAll("input:checked").forEach(function (cb) { out.push(cb.value); });
-    if (extraEl) {
-      extraEl.value.split(/[,\n]/).forEach(function (x) { x = x.trim(); if (x) out.push(x); });
-    }
+    Object.keys(pickedDomains).forEach(function (d) { out.push(d); });
+    Object.keys(pickedEnts).forEach(function (e) { out.push(e); });
+    extraEl.value.split(/[,\n]/).forEach(function (x) { x = x.trim(); if (x) out.push(x); });
     return out.filter(function (v, i) { return out.indexOf(v) === i; });  // dedup
   }
 
   async function load() {
     try {
-      var s = await (await fetch("api/settings", { cache: "no-store" })).json();
+      var nofail = function (u) { return fetch(u, { cache: "no-store" }).then(function (r) { return r.json(); }).catch(function () { return {}; }); };
+      var jobs = await Promise.all([nofail("api/settings"), nofail("api/ha/entities"), nofail("api/podconnect/rooms")]);
+      var s = jobs[0];
+      allEntities = jobs[1].entities || []; allDomains = jobs[1].domains || [];
+      pcRooms = jobs[2].rooms || [];
       promptDefault = s.system_prompt_default || promptDefault;
       FIELDS.forEach(function (id) { if (id in s) setVal(id, s[id]); });
-      renderExposed(s.exposed || []);
+      applyExposed(s.exposed || []);
       roomsWrap.innerHTML = "";
       (s.rooms || []).forEach(function (rm) { addRoom(rm.voicepe_host, rm.room); });
     } catch (e) { /* leave defaults */ }

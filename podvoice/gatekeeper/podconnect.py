@@ -100,6 +100,27 @@ class AttentionClient:
         self._recover()
         return r.json()
 
+    async def rooms(self) -> list[dict]:
+        """List PodConnect rooms (id + name) for the panel's duck-room dropdown.
+
+        Best-effort: returns ``[]`` if PodConnect is unreachable so the panel can fall
+        back to a free-text room field.
+        """
+        try:
+            r = await self._client.get("/api/rooms")
+            r.raise_for_status()
+            data = r.json()
+        except Exception as e:
+            log.info("podconnect rooms unavailable: %s", e)
+            return []
+        items = data if isinstance(data, list) else data.get("rooms", [])
+        out = []
+        for x in items if isinstance(items, list) else []:
+            rid = x.get("id")
+            if rid:
+                out.append({"id": rid, "name": x.get("name") or x.get("homepod_name") or rid})
+        return out
+
     async def _post(self, path: str, body: dict, room: str) -> dict | None:
         try:
             r = await self._client.post(path, json=body)

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.12.0
+
+- **Live selectors instead of typed/hardcoded ids.** Settings now reads the real data:
+  - **Home control** is a live picker over your actual HA entities (grouped by Area) + domain
+    chips derived from what you really have — tick a domain or individual entities. Search box;
+    a collapsed manual field remains for ids HA hasn't loaded.
+  - **Rooms → room** is a dropdown populated from PodConnect `GET /api/rooms` (real room ids/
+    names) instead of typing `r0`. Falls back to a text field if PodConnect is unreachable.
+- New read-only panel endpoints: `GET /api/ha/entities` (entities+areas+domains) and
+  `GET /api/podconnect/rooms`. The saved `exposed` format is unchanged (domains + entity_ids).
+
 ## 0.11.1
 
 - **Home control is now a multiselect.** Tick domain chips (light, media_player 🎵, scene, climate, cover, vacuum, …) to expose them, plus a text field for specific entity_ids. Saved value is unchanged (a list of domains/entity_ids).

@@ -103,6 +103,34 @@ async def test_home_call_denied_when_unexposed(respx_mock):
     assert r["ok"] is False
 
 
+async def test_list_entities_includes_area_and_domains(respx_mock):
+    states = [
+        {"entity_id": "light.kitchen", "state": "on", "attributes": {"friendly_name": "Kitchen"}},
+        {"entity_id": "media_player.koek", "state": "idle", "attributes": {"friendly_name": "Køk"}},
+    ]
+    respx_mock.get(f"{SVC}/states").respond(200, json=states)
+    respx_mock.post(f"{SVC}/template").respond(
+        200, text='[["light.kitchen", "Køkken"], ["media_player.koek", "Køkken"]]'
+    )
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client).list_entities()
+    assert r["ok"] is True
+    assert "media_player" in r["domains"] and "light" in r["domains"]
+    by_id = {e["entity_id"]: e for e in r["entities"]}
+    assert by_id["light.kitchen"]["area"] == "Køkken"
+    assert by_id["media_player.koek"]["name"] == "Køk"
+
+
+async def test_list_entities_survives_no_area_template(respx_mock):
+    respx_mock.get(f"{SVC}/states").respond(
+        200, json=[{"entity_id": "fan.office", "state": "on", "attributes": {}}]
+    )
+    respx_mock.post(f"{SVC}/template").respond(500)  # area lookup down -> still lists entities
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client).list_entities()
+    assert r["ok"] is True and r["entities"][0]["area"] is None
+
+
 async def test_unknown_tool_and_ha_error_are_soft(respx_mock):
     respx_mock.post(f"{SVC}/services/homeassistant/turn_on").respond(500)
     async with httpx.AsyncClient() as client:

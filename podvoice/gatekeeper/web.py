@@ -33,6 +33,8 @@ SETTINGS_SET: web.AppKey = web.AppKey("settings_set")
 RESTART: web.AppKey = web.AppKey("restart")
 DIAG: web.AppKey = web.AppKey("diag")
 TOOLS: web.AppKey = web.AppKey("tools")
+HA_ENTITIES: web.AppKey = web.AppKey("ha_entities")
+PC_ROOMS: web.AppKey = web.AppKey("pc_rooms")
 
 
 def create_app(
@@ -45,6 +47,8 @@ def create_app(
     on_restart=None,
     diag=None,
     tools=None,
+    ha_entities=None,
+    pc_rooms=None,
 ) -> web.Application:
     """Build the aiohttp app.
 
@@ -63,6 +67,8 @@ def create_app(
     app[RESTART] = on_restart
     app[DIAG] = diag or {}
     app[TOOLS] = tools
+    app[HA_ENTITIES] = ha_entities
+    app[PC_ROOMS] = pc_rooms
     app.add_routes(
         [
             web.get("/", _index),
@@ -73,6 +79,8 @@ def create_app(
             web.get("/api/models", _models),
             web.get("/api/settings", _settings_get),
             web.post("/api/settings", _settings_set),
+            web.get("/api/ha/entities", _ha_entities),
+            web.get("/api/podconnect/rooms", _pc_rooms),
             web.post("/api/restart", _restart),
             web.get("/api/voicepe/status", _diag_status),
             web.post("/api/voicepe/s1", _diag_s1),
@@ -101,6 +109,26 @@ async def _diag_s1(request: web.Request) -> web.Response:
 
 async def _diag_s2(request: web.Request) -> web.Response:
     return await _run_diag(request, "s2")
+
+
+async def _ha_entities(request: web.Request) -> web.Response:
+    fn = request.app[HA_ENTITIES]
+    if fn is None:
+        return web.json_response({"ok": False, "entities": [], "domains": []})
+    try:
+        return web.json_response(await fn())
+    except Exception as e:  # panel must still render
+        return web.json_response({"ok": False, "entities": [], "domains": [], "error": str(e)})
+
+
+async def _pc_rooms(request: web.Request) -> web.Response:
+    fn = request.app[PC_ROOMS]
+    if fn is None:
+        return web.json_response({"rooms": []})
+    try:
+        return web.json_response({"rooms": await fn()})
+    except Exception as e:
+        return web.json_response({"rooms": [], "error": str(e)})
 
 
 async def _settings_get(request: web.Request) -> web.Response:
