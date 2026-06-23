@@ -254,6 +254,7 @@
       <div class="crow">
         <input id="ctext" type="text" autocomplete="off" placeholder="Skriv til Gemini…" aria-label="Message to Gemini" />
         <button id="csend">Send</button>
+        <button id="cstop" class="ghost" aria-label="Stop speaking" title="Stop the spoken reply">⏹</button>
         <button id="cmic" class="ghost" aria-label="Hold to talk">🎤</button>
       </div>
       <p id="cmichint" class="sub" style="margin-top:8px"></p>
@@ -288,6 +289,8 @@
         <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
         <label for="s_simulate">Simulation mode</label>
         <input id="s_simulate" type="checkbox">
+        <label for="s_web_search" title="Lets the assistant search the web (Gemini google_search / OpenAI web_search). Experimental.">Web search</label>
+        <input id="s_web_search" type="checkbox" title="Experimental — may not combine with home control on every model.">
       </div>
 
       <section class="expose">
@@ -575,8 +578,9 @@ setInterval(poll, 3000);
   var providerSel = document.getElementById("cprovider");
   var voiceSel = document.getElementById("cvoice");
   var ws = null, wsReady = false, currentModel = null, currentProvider = null, currentVoice = null, manualClose = false;
-  var playCtx = null, outRate = 24000, nextStart = 0;
+  var playCtx = null, outRate = 24000, nextStart = 0, halted = false;
   var capCtx = null, capStream = null, capNode = null, micOn = false;
+  var stopBtn = document.getElementById("cstop");
 
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function setState(s, cls) { cstate.textContent = s; cstate.className = "pill " + cls; }
@@ -627,6 +631,15 @@ setInterval(poll, 3000);
     var src = playCtx.createBufferSource(); src.buffer = ab; src.connect(playCtx.destination);
     var t = Math.max(playCtx.currentTime, nextStart); src.start(t); nextStart = t + ab.duration;
   }
+  // Stop the spoken reply NOW: kill scheduled audio + ignore further chunks until the
+  // next user turn (the model finishes server-side; we just go silent).
+  function stopSpeaking() {
+    halted = true;
+    if (playCtx) { try { playCtx.close(); } catch (e) {} playCtx = null; }
+    nextStart = 0; endTurn();
+    if (wsReady && ws) { try { ws.send(JSON.stringify({ type: "stop" })); } catch (e) {} }
+  }
+  if (stopBtn) stopBtn.onclick = stopSpeaking;
 
   async function loadModels(provider) {
     try {
@@ -707,7 +720,7 @@ setInterval(poll, 3000);
     };
     ws.onerror = function () { setState("offline", "pill-down"); };
     ws.onmessage = function (m) {
-      if (typeof m.data !== "string") { playPcm(m.data); return; }
+      if (typeof m.data !== "string") { if (!halted) playPcm(m.data); return; }
       var ev; try { ev = JSON.parse(m.data); } catch (e) { return; }
       if (ev.type === "hello" && ev.rate) outRate = ev.rate;
       else if (ev.type === "transcript") streamT(ev.dir === "in" ? "in" : "out", ev.text);
@@ -724,7 +737,7 @@ setInterval(poll, 3000);
   function sendText() {
     var t = (input.value || "").trim(); if (!t) return;
     if (!wsReady) { logLine("out", "system", "Not connected yet…"); return; }
-    ensurePlay();
+    halted = false; ensurePlay();
     endTurn();              // close any prior turn so this Q + its reply are fresh bubbles
     logLine("in", "you", t);
     ws.send(JSON.stringify({ type: "text", text: t }));
@@ -744,7 +757,7 @@ setInterval(poll, 3000);
     try {
       capStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
     } catch (e) { micHint.textContent = "Microphone permission denied."; return; }
-    ensurePlay();
+    halted = false; ensurePlay();
     capCtx = new (window.AudioContext || window.webkitAudioContext)();
     var src = capCtx.createMediaStreamSource(capStream);
     capNode = capCtx.createScriptProcessor(4096, 1, 1);
@@ -779,7 +792,7 @@ setInterval(poll, 3000);
 "use strict";
 // ---- Settings page (saved to the add-on's /data; HA Configuration holds only keys) ----
 (function () {
-  var FIELDS = ["provider", "system_prompt", "gemini_model", "gemini_voice",
+  var FIELDS = ["provider", "web_search", "system_prompt", "gemini_model", "gemini_voice",
     "gemini_vad_start", "gemini_vad_end", "gemini_prefix_ms", "gemini_silence_ms",
     "openai_model", "openai_voice", "openai_turn", "openai_eagerness", "openai_threshold",
     "openai_prefix_ms", "openai_silence_ms", "openai_noise",

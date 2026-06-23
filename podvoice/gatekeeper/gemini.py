@@ -134,9 +134,16 @@ def build_config(
         # NOTE: language_code is intentionally NOT set — native-audio auto-selects
         #       the spoken language; Danish is driven by SYSTEM_PROMPT_DA.
     }
+    tools: list[dict] = []
     if tool_declarations:
         # VERIFY: tools is a list of {"function_declarations": [...]} blocks (PLAN §5.6).
-        config["tools"] = [{"function_declarations": list(tool_declarations)}]
+        tools.append({"function_declarations": list(tool_declarations)})
+    if getattr(cfg, "web_search", False):
+        # VERIFY: native Google Search grounding tool; may not combine with function
+        # tools on every model (cf. HA's "Search vs Control" limitation). Opt-in.
+        tools.append({"google_search": {}})
+    if tools:
+        config["tools"] = tools
     return config
 
 

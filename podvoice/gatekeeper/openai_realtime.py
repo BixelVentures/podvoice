@@ -60,6 +60,7 @@ class OpenAIRealtimeSession:
     silence_ms: int = 500  # server_vad only
     eagerness: str = "auto"  # semantic_vad: auto | low | medium | high
     noise: str = "near_field"  # near_field | far_field | off
+    web_search: bool = False  # expose OpenAI's hosted web search tool
     _http: aiohttp.ClientSession | None = field(default=None, init=False, repr=False)
     _ws: aiohttp.ClientWebSocketResponse | None = field(default=None, init=False, repr=False)
 
@@ -103,9 +104,10 @@ class OpenAIRealtimeSession:
                 },
             },
         }
+        tools: list[dict] = []
         if self.tool_declarations:
             # Gemini-style {name,description,parameters} -> OpenAI {type:function, ...}.
-            session["tools"] = [
+            tools += [
                 {
                     "type": "function",
                     "name": d.get("name"),
@@ -114,6 +116,10 @@ class OpenAIRealtimeSession:
                 }
                 for d in self.tool_declarations
             ]
+        if self.web_search:
+            tools.append({"type": "web_search"})  # VERIFY: hosted web-search tool name
+        if tools:
+            session["tools"] = tools
         return {"type": "session.update", "session": session}
 
     async def connect(self) -> None:

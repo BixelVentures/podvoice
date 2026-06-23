@@ -33,6 +33,7 @@ def make_session(
             silence_ms=cfg.openai_silence_ms,
             eagerness=cfg.openai_eagerness,
             noise=cfg.openai_noise,
+            web_search=cfg.web_search,
         )
     from .gemini import GeminiLiveSession, build_config
 

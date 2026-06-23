@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.15.0
+
+- **Stop button in Talk.** A ⏹ next to Send instantly silences the spoken reply (flushes the
+  audio + ignores further chunks until your next turn) — for when the model rambles or you want
+  to barge in by hand.
+- **Web search (opt-in).** New Settings toggle exposes the provider's NATIVE web search — Gemini
+  `google_search` grounding / OpenAI `web_search` — so the assistant can answer live questions
+  (e.g. a match result). Off by default; experimental (may not combine with home control on
+  every model). VERIFY tool names per provider.
+
 ## 0.14.1
 
 - **Home control now shows WHY it's empty.** When no entities load, the picker surfaces the actual
