@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.1
+
+- **Home control now shows WHY it's empty.** When no entities load, the picker surfaces the actual
+  Home Assistant error (e.g. auth/connection) instead of a generic message — so an unreachable
+  HA core API is diagnosable. `/api/ha/entities` returns an error string when home tools are off.
+
 ## 0.14.0
 
 - **Settings split per provider — Gemini vs ChatGPT (OpenAI) — with the key tuning knobs to test.**

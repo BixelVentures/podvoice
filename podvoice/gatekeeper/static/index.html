@@ -802,7 +802,7 @@ setInterval(poll, 3000);
 
   var promptDefault = "";
   // Live data — entities/areas from HA, rooms from PodConnect (no hardcoded ids).
-  var allEntities = [], allDomains = [], pcRooms = [], pickedDomains = {}, pickedEnts = {};
+  var allEntities = [], allDomains = [], pcRooms = [], pickedDomains = {}, pickedEnts = {}, entErr = "";
 
   var roomsWrap = document.getElementById("s_rooms");
   function roomField(room) {
@@ -887,9 +887,18 @@ setInterval(poll, 3000);
     });
     if (!shown) {
       var em = document.createElement("div"); em.className = "entempty";
-      em.textContent = allEntities.length
-        ? "No entity matches your search."
-        : "No entities yet. Check that the add-on can reach Home Assistant — then reopen Settings. You can still allow whole groups above, or add an id manually below.";
+      if (allEntities.length) {
+        em.textContent = "No entity matches your search.";
+      } else {
+        em.textContent = "No entities loaded — the add-on can't read Home Assistant. "
+          + "You can still allow whole groups above, or add an id manually below.";
+        if (entErr) {
+          var er = document.createElement("div");
+          er.style.cssText = "margin-top:8px;color:var(--danger,#c00);font-size:.78rem;word-break:break-word";
+          er.textContent = "HA error: " + entErr;
+          em.appendChild(er);
+        }
+      }
       listWrap.appendChild(em);
     }
   }
@@ -932,6 +941,7 @@ setInterval(poll, 3000);
       var jobs = await Promise.all([nofail("api/settings"), nofail("api/ha/entities"), nofail("api/podconnect/rooms")]);
       var s = jobs[0];
       allEntities = jobs[1].entities || []; allDomains = jobs[1].domains || [];
+      entErr = jobs[1].error || (jobs[1].ok === false ? "Home Assistant API call failed" : "");
       pcRooms = jobs[2].rooms || [];
       promptDefault = s.system_prompt_default || promptDefault;
       FIELDS.forEach(function (id) { if (id in s) setVal(id, s[id]); });

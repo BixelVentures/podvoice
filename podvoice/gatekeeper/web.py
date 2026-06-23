@@ -114,7 +114,14 @@ async def _diag_s2(request: web.Request) -> web.Response:
 async def _ha_entities(request: web.Request) -> web.Response:
     fn = request.app[HA_ENTITIES]
     if fn is None:
-        return web.json_response({"ok": False, "entities": [], "domains": []})
+        return web.json_response(
+            {
+                "ok": False,
+                "entities": [],
+                "domains": [],
+                "error": "home tools off (simulation mode, or no Supervisor token)",
+            }
+        )
     try:
         return web.json_response(await fn())
     except Exception as e:  # panel must still render
