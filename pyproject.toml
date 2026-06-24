@@ -1,6 +1,6 @@
 [project]
 name = "podvoice-gatekeeper"
-version = "0.21.0"
+version = "0.22.0"
 description = "Standalone voice-AI gatekeeper (Gemini Live) for a PodConnect home, shipped as an HA add-on"
 requires-python = ">=3.12"
 readme = "README.md"
@@ -15,6 +15,8 @@ addopts = "-q"
 line-length = 100
 target-version = "py312"
 src = ["podvoice"]
+# esphome/ is firmware codegen (depends on the esphome package, not our add-on source).
+extend-exclude = ["esphome"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]

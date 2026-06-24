@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.22.0 — Voice PE firmware Phase 1a (podvoice_audio)
+
+- **`podvoice_audio` ESPHome component built** (the S1 continuous-audio shim) — multi-expert build (lead draft → 3 adversarial reviewers → assembled). A *passive* MicrophoneSource tap on the already-running mic → fixed PSRAM ring buffer (filled on the audio task) → drained from loop() as VoiceAssistantAudio over the native API connection PodVoice already holds. NOT start_continuous, NOT a voice_assistant.cpp fork. Lives at `esphome/components/podvoice_audio/`; wired in `esphome/podvoice.yaml`.
+- **Consumer fix:** `voicepe.py._handle_audio(data, data2=None)` matches aioesphomeapi's real callback (2nd arg = optional 2nd channel, not an `end` flag). diag.run_s1 unchanged.
+- ruff now excludes `esphome/` (firmware codegen, depends on the esphome package, not add-on source).
+- ⚠️ UNVALIDATED on hardware — first flash is the S1 gate; expect a flash→report→fix cycle.
+
 ## 0.21.0 — Voice PE firmware Phase 0
 
 - **Maintainable firmware overlay** (`esphome/podvoice.yaml`): replaces the copy-pasted sketch with a thin, pinned `packages:` include of the official firmware + tiny overrides (PSK, wake→event, voice_assistant ownership). Board/pin/audio-graph drift is inherited, not copied. The hard part (continuous-audio `podvoice_audio` component) is a documented Phase-1a placeholder, added only after the hardware gates pass.

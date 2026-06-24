@@ -92,7 +92,12 @@ class VoicePELink:
     def _handle_stop(self, *args: Any, **kwargs: Any) -> Any:  # VERIFY: VA stop cb signature
         return None
 
-    def _handle_audio(self, data: bytes, end: bool = False) -> None:  # VERIFY: (data, end) shape
+    def _handle_audio(self, data: bytes, data2: bytes | None = None) -> None:
+        # aioesphomeapi==45.3.* calls handle_audio(audio.data, audio.data2); the
+        # second positional arg is the optional 2nd-channel bytes (or None), NOT
+        # an `end` flag. A VoiceAssistantAudio{end=true} is intercepted by
+        # aioesphomeapi and routed to handle_stop, never here. podvoice_audio
+        # forwards a single channel, so data2 is always None — we ignore it.
         """Push one raw 16 kHz PCM frame into the queue; drop on backpressure."""
         try:
             self._audio_q.put_nowait(data)

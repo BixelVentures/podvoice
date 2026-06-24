@@ -60,16 +60,39 @@ event:
     device_class: button
     event_types: [single_press, double_press, triple_press, long_press, wake_okay_nabu, wake_stop]
 
-# NOTE (Phase 1a — the ONE hard part, added after the hardware gates pass):
-#   The continuous-audio shim lives in its OWN pinned repo so it is versioned apart
-#   from this overlay. It taps microphone on_data -> PSRAM ring buffer -> streams to
-#   PodVoice (VoiceAssistantAudio over the native API; dedicated L16 socket as fallback).
+# --- Phase 1a: the continuous-audio shim (the ONE custom C++ piece) ------------------
+#   Taps the already-free-running mic (micro_wake_word keeps i2s_mics running with
+#   stop_after_detection:false) via a *passive* MicrophoneSource -> PSRAM ring buffer
+#   -> drains from loop() as VoiceAssistantAudio over the native API connection PodVoice
+#   already holds (it subscribed via subscribe_voice_assistant). NOT start_continuous,
+#   NOT a voice_assistant.cpp fork. Same wire message: diag.py run_s1 needs NO change;
+#   voicepe.py's _handle_audio was fixed to the real (data, data2) callback shape.
 #
-# external_components:
-#   - source: { type: git, url: https://github.com/BixelVentures/podvoice-esphome, ref: <sha> }
-#     components: [podvoice_audio]
-#     refresh: never
+#   DURING DEVELOPMENT this points at the in-repo component (local path). Once S1/S2/AEC
+#   pass on hardware, move it to its OWN pinned repo (BixelVentures/podvoice-esphome) and
+#   switch `source` to the git form below; bump that ref deliberately with the ESPHome +
+#   package refs (the update ritual).
 #
-# podvoice_audio:
-#   microphone: i2s_mics      # VERIFY: upstream mic id; prefer the less-processed source
-#   ring_ms: 400              # PSRAM jitter buffer
+external_components:
+  # In-repo (development): the component lives alongside this overlay.
+  - source:
+      type: local
+      path: components
+    components: [podvoice_audio]
+  # Pinned-repo (production) — swap to this once it graduates:
+  # - source: { type: git, url: https://github.com/BixelVentures/podvoice-esphome, ref: <sha> }
+  #   components: [podvoice_audio]
+  #   refresh: never
+
+podvoice_audio:
+  # The `microphone:` sub-block IS the ESPHome microphone_source schema (same shape
+  # voice_assistant uses). Short form `microphone: i2s_mics` also works.
+  microphone:
+    microphone: i2s_mics   # upstream Voice PE mic id (i2s_audio, 16 kHz, 32-bit stereo)
+    channels: [0]          # channel 0 = XMOS-processed (AEC'd) mic; mww uses channel 1
+    gain_factor: 1         # extra digital gain (1..64); raise only if levels are low.
+                           # (gain lives HERE, inside the source block — there is no
+                           #  separate top-level gain_factor key.)
+    # bits_per_sample is pinned to 16 by the component (VoiceAssistantAudio carries L16);
+    # the MicrophoneSource truncates the mic's native 32-bit samples for us.
+  ring_ms: 400             # fixed PSRAM jitter buffer (~12.8 KB @ 16 kHz/16-bit/mono)
