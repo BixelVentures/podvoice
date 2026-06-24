@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.0 — Voice PE firmware Phase 0
+
+- **Maintainable firmware overlay** (`esphome/podvoice.yaml`): replaces the copy-pasted sketch with a thin, pinned `packages:` include of the official firmware + tiny overrides (PSK, wake→event, voice_assistant ownership). Board/pin/audio-graph drift is inherited, not copied. The hard part (continuous-audio `podvoice_audio` component) is a documented Phase-1a placeholder, added only after the hardware gates pass.
+- **Dummy-proof Voice PE control tab**: rebuilt as 3 ordered gates (Connection → Audio stream S1 → Speaker S2) with clear pass/fail, friendly edge-case messages (no room, simulation on, panel offline, no audio), and a **Copy result** button so a non-developer can run a gate and paste the outcome. Marked experimental (firmware still in build).
+
 ## 0.20.0
 
 - **`list_services` now shows each field's valid values + description**, not just names — so the model calls services correctly. E.g. it sees `podconnect.play_from_library.source = liked | top_tracks | recent`, so "play something I like / play my recent" works in one `home_call` (no gu. The new PodConnect `play_from_library` action is reached fully generically.

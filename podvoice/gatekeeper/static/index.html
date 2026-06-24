@@ -207,6 +207,15 @@
   .entrow.cov { opacity: .5; }
   .entrow.cov .nm::after { content: " · via group"; color: var(--accent); font-size: .72rem; }
   .entempty { padding: 22px 12px; text-align: center; color: var(--fg-dim); font-size: .85rem; line-height: 1.5; }
+  .vpbadge { font-size: .62rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+             vertical-align: middle; padding: 2px 8px; border-radius: 999px; margin-left: 8px;
+             background: var(--field); border: 1px solid var(--border-strong); color: var(--fg-dim); }
+  .vpgate { border: 1px solid var(--border-strong); border-radius: 12px; background: var(--field); margin-top: 8px; }
+  .vpg-row { display: flex; align-items: center; gap: 12px; padding: 11px 13px; }
+  .vpg-row + .vpg-row { border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
+  .vpg-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+  .vpg-txt .sub { font-size: .8rem; }
+  .vpg-row button { flex: 0 0 auto; }
   .actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
   #cmic.live { background: var(--danger); color: #fff; border-color: transparent; }
   h2 #cstate { font-size: .62rem; text-transform: none; letter-spacing: 0; }
@@ -379,19 +388,33 @@
 
   <div class="pane" id="pane-voicepe">
     <div class="section">
-      <h2>Voice PE setup</h2>
+      <h2>Voice PE (hardware) <span class="vpbadge">experimental</span></h2>
+      <p class="sub" style="margin:2px 0 0">Full-duplex on the physical Voice PE needs custom firmware that's still in build. The <b>Talk</b> tab is the working full-duplex surface today. This page runs the 3 hardware gates that must pass before the device is ready — run them in order and send each result to your PodVoice helper.</p>
+
+      <div class="exsub" style="margin-top:16px">Before you start</div>
       <ol class="vpsteps">
-        <li>Flash <code>esphome/voice-pe.yaml</code> via the ESPHome add-on; set its API encryption key (your PSK).</li>
-        <li>Do <b>not</b> add the Voice PE to Home Assistant Assist — PodVoice must own its microphone.</li>
-        <li>In <b>Settings</b>, set the Voice PE PSK + add a room, then <b>Save &amp; restart</b>.</li>
-        <li>Then run the checks below.</li>
+        <li>Flash the PodVoice firmware (you'll be given a ready file + click-steps).</li>
+        <li>Do <b>not</b> add the Voice PE to Home Assistant Assist — PodVoice owns the mic.</li>
+        <li>In <b>Settings → Voice PE (hardware)</b>: set the PSK + add a room → <b>Save &amp; restart</b>.</li>
       </ol>
-      <div class="actions">
-        <button id="vp_status" class="ghost">Check connection</button>
-        <button id="vp_s1" class="ghost">Check audio stream</button>
-        <button id="vp_s2" class="ghost">Test speaker</button>
+
+      <div class="exsub" style="margin-top:16px">The 3 gates — run in order</div>
+      <div class="vpgate">
+        <div class="vpg-row">
+          <div class="vpg-txt"><b>1 · Connection</b><span class="sub">Can PodVoice reach the device?</span></div>
+          <button id="vp_status" class="ghost">Check connection</button>
+        </div>
+        <div class="vpg-row">
+          <div class="vpg-txt"><b>2 · Audio stream (S1)</b><span class="sub">Gap-free continuous mic? (~15&nbsp;s)</span></div>
+          <button id="vp_s1" class="ghost">Check audio stream</button>
+        </div>
+        <div class="vpg-row">
+          <div class="vpg-txt"><b>3 · Speaker (S2)</b><span class="sub">Do you hear the test tone?</span></div>
+          <button id="vp_s2" class="ghost">Test speaker</button>
+        </div>
       </div>
       <div id="vp_result" class="status" style="display:none;margin-top:12px"></div>
+      <button id="vp_copy" class="ghost" style="display:none;margin-top:8px;padding:5px 11px;font-size:.78rem">Copy result</button>
     </div>
   </div>
 </div>
@@ -1017,35 +1040,54 @@ setInterval(poll, 3000);
 // ---- Voice PE setup diagnostics (server-side S1/S2 as click-buttons) ----
 (function () {
   var out = document.getElementById("vp_result");
+  var copyBtn = document.getElementById("vp_copy");
   var btns = ["vp_status", "vp_s1", "vp_s2"].map(function (id) { return document.getElementById(id); });
-  function show(cls, text) { out.style.display = "block"; out.className = "status " + cls; out.textContent = text; }
+  if (!out) return;
+  var last = "";
+  function show(cls, text) {
+    out.style.display = "block"; out.className = "status " + cls; out.textContent = text;
+    last = text; if (copyBtn) copyBtn.style.display = "inline-block";
+  }
   function busy(on) { btns.forEach(function (b) { if (b) b.disabled = on; }); }
 
   async function run(path, method, pending) {
-    show("info", pending);
-    busy(true);
-    try {
-      var r = await fetch("api/voicepe/" + path, { method: method });
-      var j = await r.json();
-      if (r.status === 501) { show("warn", "Diagnostics unavailable (running in simulation?)."); return; }
-      if (!j.ok) { show("warn", j.error || j.hint || "Check failed."); return; }
-      if (path === "status") {
-        show("ok", "✅ Connected: " + (j.name || j.host) + " (ESPHome " + (j.esphome || "?") + ")");
-      } else if (path === "s1") {
-        if (j.verdict === "pass") {
-          show("ok", "✅ Continuous audio: " + j.continuity_pct + "% continuity, " + j.gaps_over_60ms + " gaps over " + j.seconds + "s.");
-        } else {
-          show("warn", "⚠️ " + (j.verdict === "no-audio" ? "No audio. " : "Gaps: " + j.continuity_pct + "% continuity, " + j.gaps_over_60ms + " gaps. ") + (j.hint || ""));
-        }
+    show("info", pending); busy(true);
+    var r, j;
+    try { r = await fetch("api/voicepe/" + path, { method: method }); }
+    catch (e) { show("warn", "Couldn't reach PodVoice (panel offline?). Reload and try again."); busy(false); return; }
+    try { j = await r.json(); }
+    catch (e) { j = null; }
+    busy(false);
+    if (r.status === 501 || (j && j.error && /unavailable|simulation/i.test(j.error))) {
+      show("warn", "Diagnostics unavailable — turn Simulation mode OFF (Settings → Voice PE) and Save & restart."); return;
+    }
+    if (!j) { show("warn", "Unexpected response from the add-on. Check the add-on Log."); return; }
+    if (!j.ok) {
+      // Common, friendly causes first.
+      var e = (j.error || j.hint || "Check failed.");
+      if (/no voice pe host|add a room/i.test(e)) e = "No Voice PE configured — go to Settings → Voice PE (hardware), add a room (host + PSK), Save & restart, then retry.";
+      show("warn", "⚠️ " + e); return;
+    }
+    if (path === "status") {
+      show("ok", "✅ Gate 1 PASS — Connected: " + (j.name || j.host) + " (ESPHome " + (j.esphome || "?") + "). Now run Gate 2.");
+    } else if (path === "s1") {
+      if (j.verdict === "pass") {
+        show("ok", "✅ Gate 2 PASS — continuous audio: " + j.continuity_pct + "% continuity, " + j.gaps_over_60ms + " gaps over " + j.seconds + "s. Now run Gate 3.");
+      } else if (j.verdict === "no-audio") {
+        show("warn", "⚠️ Gate 2 — NO audio received. " + (j.hint || "Trigger the device and make sure it is NOT in HA Assist."));
       } else {
-        show("info", "🔊 " + (j.hint || "Tone sent — did you hear it on the Voice PE speaker?"));
+        show("warn", "⚠️ Gate 2 — gaps: " + j.continuity_pct + "% continuity, " + j.gaps_over_60ms + " gaps over " + (j.seconds || "?") + "s, max " + (j.max_gap_ms || "?") + "ms. " + (j.hint || "") + " (Send me this — it decides the firmware path.)");
       }
-    } catch (e) { show("warn", "Request failed."); }
-    finally { busy(false); }
+    } else {
+      show("info", "🔊 Gate 3 — " + (j.hint || "Tone sent.") + " Did you HEAR it on the Voice PE speaker? Tell me yes/no.");
+    }
   }
 
+  if (copyBtn) copyBtn.onclick = function () {
+    try { navigator.clipboard.writeText(last); copyBtn.textContent = "Copied ✓"; setTimeout(function () { copyBtn.textContent = "Copy result"; }, 1500); } catch (e) {}
+  };
   if (btns[0]) btns[0].onclick = function () { run("status", "GET", "Checking connection…"); };
-  if (btns[1]) btns[1].onclick = function () { run("s1", "POST", "Measuring the audio stream (~15s)…"); };
+  if (btns[1]) btns[1].onclick = function () { run("s1", "POST", "Measuring the audio stream (~15s)… keep this tab open."); };
   if (btns[2]) btns[2].onclick = function () { run("s2", "POST", "Playing a test tone…"); };
 })();
 </script>

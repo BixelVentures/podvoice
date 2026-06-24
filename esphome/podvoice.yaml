@@ -1,0 +1,75 @@
+# =============================================================================
+# podvoice.yaml — PodVoice Voice PE firmware (THIN OVERLAY)
+# =============================================================================
+#
+# This is the MAINTAINABLE replacement for the old copy-pasted voice-pe.yaml sketch.
+# Per the engineering review (4-expert synthesis): inherit the official firmware as a
+# pinned remote `packages:` include and express PodVoice's changes as small overrides,
+# so board/pin/audio-graph drift is absorbed automatically on the next ref bump.
+#
+# WHAT THIS FILE DOES NOT DO YET:
+#   The continuous-audio mechanism (Spike S1) is the `podvoice_audio` external_component
+#   — added in Phase 1a, ONLY after run_s1/run_s2/AEC pass on real hardware. It is
+#   commented out below. This overlay alone flashes a stock-equivalent device plus the
+#   PSK + wake->event redirect, which is enough to run the Connection check.
+#
+# GATE before flashing (do this once): `esphome config podvoice.yaml` must render clean.
+#   The rendered-config DIFF vs upstream is your early warning if an upstream id was
+#   renamed (which would make an !extend/!remove silently no-op).
+# =============================================================================
+
+substitutions:
+  name: podvoice-pe
+  friendly_name: PodVoice PE
+  # Pin the upstream firmware ref here; bump deliberately (see the update ritual in DOCS).
+  ha_voice_ref: "26.4.0" # VERIFY: a real tag/branch of esphome/home-assistant-voice-pe
+
+# Inherit the ENTIRE official firmware (board, PSRAM, i2s pins, mic, speaker+mixer+
+# resampler, AIC3204 DAC, LEDs, rotary, button, mute, micro_wake_word, voice_kit/XMOS,
+# sdkconfig, on_boot). We never copy these — they ride the ref.
+packages:
+  ha_voice:
+    url: https://github.com/esphome/home-assistant-voice-pe
+    files: [home-assistant-voice.yaml]
+    ref: ${ha_voice_ref}
+    refresh: never # reproducible builds; bump ha_voice_ref to update on purpose
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+# --- PodVoice overrides (kept tiny so upstream updates re-merge cheaply) -------------
+
+# API encryption with the PodVoice Noise PSK. The SAME value goes in the add-on's
+# Settings -> Voice PE PSK. (A local !secret works here; this file is not a remote pkg.)
+api:
+  encryption:
+    key: !secret podvoice_api_key # VERIFY: define podvoice_api_key in ESPHome secrets
+
+# PodVoice owns conversation lifecycle — never let HA Assist drive the wake/pipeline.
+voice_assistant:
+  id: !extend va # VERIFY: upstream's voice_assistant id is `va`
+  use_wake_word: false
+
+# Redirect on-device wake-word + center single-press to a PodVoice event the add-on
+# subscribes to, instead of starting the HA Assist pipeline.
+event:
+  - platform: template
+    id: podvoice_event
+    name: "PodVoice event"
+    device_class: button
+    event_types: [single_press, double_press, triple_press, long_press, wake_okay_nabu, wake_stop]
+
+# NOTE (Phase 1a — the ONE hard part, added after the hardware gates pass):
+#   The continuous-audio shim lives in its OWN pinned repo so it is versioned apart
+#   from this overlay. It taps microphone on_data -> PSRAM ring buffer -> streams to
+#   PodVoice (VoiceAssistantAudio over the native API; dedicated L16 socket as fallback).
+#
+# external_components:
+#   - source: { type: git, url: https://github.com/BixelVentures/podvoice-esphome, ref: <sha> }
+#     components: [podvoice_audio]
+#     refresh: never
+#
+# podvoice_audio:
+#   microphone: i2s_mics      # VERIFY: upstream mic id; prefer the less-processed source
+#   ring_ms: 400              # PSRAM jitter buffer

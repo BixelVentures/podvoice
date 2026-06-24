@@ -1,6 +1,6 @@
 [project]
 name = "podvoice-gatekeeper"
-version = "0.20.0"
+version = "0.21.0"
 description = "Standalone voice-AI gatekeeper (Gemini Live) for a PodConnect home, shipped as an HA add-on"
 requires-python = ">=3.12"
 readme = "README.md"
