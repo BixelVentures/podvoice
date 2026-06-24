@@ -74,15 +74,19 @@ event:
 #   package refs (the update ritual).
 #
 external_components:
-  # In-repo (development): the component lives alongside this overlay.
+  # GIT (default — so you only need THIS one file in ESPHome; the component is fetched
+  # automatically from the PodVoice repo under esphome/components/podvoice_audio/).
+  # During the S1 hardware-iteration loop we point at `main` with refresh:0s so a
+  # re-Install always pulls the latest fix — you change nothing on your side.
   - source:
-      type: local
-      path: components
+      type: git
+      url: https://github.com/BixelVentures/podvoice
+      ref: main
     components: [podvoice_audio]
-  # Pinned-repo (production) — swap to this once it graduates:
-  # - source: { type: git, url: https://github.com/BixelVentures/podvoice-esphome, ref: <sha> }
+    refresh: 0s   # dev: always re-fetch. PIN to a tag/SHA + refresh:never for production.
+  # Local alternative (only if you copied the repo's esphome/ folder into /config/esphome):
+  # - source: { type: local, path: components }
   #   components: [podvoice_audio]
-  #   refresh: never
 
 podvoice_audio:
   # The `microphone:` sub-block IS the ESPHome microphone_source schema (same shape
