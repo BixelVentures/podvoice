@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.18.0
+
+- **`home_call` can now read data-services + call account-level services.** Two additions so the
+  assistant can reach the *data plane* (e.g. a future PodConnect `top_tracks`/listening-history
+  service) generically:
+  - `return_response: true` → calls the HA service with `?return_response` and returns its payload
+    (e.g. `media_player.search_media`, `podconnect.top_tracks`).
+  - `entity_id` is now optional: omit it for account-level services (then the **domain** must be
+    exposed in Home control). Entity services still require an exposed entity.
+  Stays fully generic — no PodConnect-specific code; the data service is added on the PodConnect side.
+
 ## 0.17.0
 
 - **FIX: Home control list was empty because the add-on never received `SUPERVISOR_TOKEN`.**

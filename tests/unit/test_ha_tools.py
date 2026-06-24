@@ -103,6 +103,28 @@ async def test_home_call_denied_when_unexposed(respx_mock):
     assert r["ok"] is False
 
 
+async def test_home_call_account_level_needs_domain_exposed(respx_mock):
+    # No entity_id (account-level service) -> the DOMAIN must be exposed.
+    async with httpx.AsyncClient() as client:
+        denied = await _bridge(client, exposed=[]).dispatch(
+            "home_call", {"domain": "podconnect", "service": "top_tracks"}
+        )
+    assert denied["ok"] is False and "podconnect" in denied["error"]
+
+
+async def test_home_call_return_response_reads_data(respx_mock):
+    route = respx_mock.post(url__regex=r".*/services/podconnect/top_tracks.*").respond(
+        200, json={"service_response": {"tracks": ["a", "b", "c"]}}
+    )
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=["podconnect"]).dispatch(
+            "home_call",
+            {"domain": "podconnect", "service": "top_tracks", "return_response": True},
+        )
+    assert r["ok"] is True and route.called
+    assert r["response"] == {"tracks": ["a", "b", "c"]}
+
+
 async def test_list_entities_includes_area_and_domains(respx_mock):
     states = [
         {"entity_id": "light.kitchen", "state": "on", "attributes": {"friendly_name": "Kitchen"}},

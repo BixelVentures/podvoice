@@ -150,28 +150,38 @@ class HAToolBridge:
                 },
                 {
                     "name": "home_call",
-                    "description": "Call ANY Home Assistant service on an allowed entity — for "
-                    "anything beyond the tools above: music/speakers (media_player.play_media, "
-                    "search_media, media_pause, volume_set), a vacuum, fan, lock, humidifier, … "
-                    "Use list_home for entity ids and list_services for a domain's services/fields.",
+                    "description": "Call ANY Home Assistant service — for anything beyond the tools "
+                    "above: music/speakers (media_player.play_media, search_media, media_pause, "
+                    "volume_set), a vacuum, fan, lock, … OR a data service that RETURNS info "
+                    "(set return_response=true), e.g. media_player.search_media or a listening-"
+                    "history service. Pass entity_id for entity services; for account-level "
+                    "services leave it out (the domain must be exposed). Use list_services to "
+                    "find a domain's services + fields.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "domain": {
                                 "type": "string",
-                                "description": "e.g. media_player, vacuum",
+                                "description": "e.g. media_player, vacuum, podconnect",
                             },
                             "service": {
                                 "type": "string",
-                                "description": "e.g. play_media, start",
+                                "description": "e.g. play_media, start, top_tracks",
                             },
-                            "entity_id": {"type": "string"},
+                            "entity_id": {
+                                "type": "string",
+                                "description": "target entity (omit for account-level services)",
+                            },
                             "data": {
                                 "type": "object",
                                 "description": "extra service data (optional)",
                             },
+                            "return_response": {
+                                "type": "boolean",
+                                "description": "true to read data back from a service that returns it",
+                            },
                         },
-                        "required": ["domain", "service", "entity_id"],
+                        "required": ["domain", "service"],
                     },
                 },
             ]
@@ -183,6 +193,42 @@ class HAToolBridge:
         r = await self._client.post(url, json=data, headers=self._ha_headers)
         r.raise_for_status()
         return r.json()
+
+    async def call_service_response(self, domain: str, service: str, data: dict) -> object:
+        """Call a service that RETURNS data (HA response service) and return its payload.
+
+        Uses ``?return_response``; HA replies ``{changed_states, service_response}``.
+        """
+        url = f"{C.SUPERVISOR_CORE_API}/services/{domain}/{service}?return_response"
+        r = await self._client.post(url, json=data, headers=self._ha_headers)
+        r.raise_for_status()
+        body = r.json()
+        if isinstance(body, dict) and "service_response" in body:
+            return body["service_response"]
+        return body
+
+    async def _home_call(self, args: dict) -> dict:
+        """Generic HA service call. Entity services need an exposed entity_id; account-
+        level services need the domain exposed. ``return_response`` reads data back."""
+        domain, service = args.get("domain"), args.get("service")
+        if not domain or not service:
+            return {"ok": False, "error": "home_call needs domain + service."}
+        data = dict(args.get("data") or {})
+        eid = (args.get("entity_id") or "").strip()
+        if eid:
+            if not self._allowed(eid):
+                return {"ok": False, "error": f"'{eid}' is not exposed (add it in Settings)."}
+            data["entity_id"] = eid
+        elif domain.lower() not in self._exposed:
+            return {
+                "ok": False,
+                "error": f"domain '{domain}' is not exposed — add it in Settings to allow "
+                "account-level calls without an entity_id.",
+            }
+        if args.get("return_response"):
+            return {"ok": True, "response": await self.call_service_response(domain, service, data)}
+        changed = await self.call_service(domain, service, data)
+        return {"ok": True, "changed": changed}
 
     async def _list_home(self) -> dict:
         r = await self._client.get(f"{C.SUPERVISOR_CORE_API}/states", headers=self._ha_headers)
@@ -272,6 +318,8 @@ class HAToolBridge:
                 return await self._list_home()
             if name == "list_services":
                 return await self._list_services(args.get("domain"))
+            if name == "home_call":  # own gating (optional entity + return_response)
+                return await self._home_call(args)
 
             # All remaining tools act on an entity that must be exposed.
             if name == "add_todo":
@@ -308,10 +356,6 @@ class HAToolBridge:
                 if not svc:
                     return {"ok": False, "error": f"unknown cover action {args.get('action')}"}
                 changed = await self.call_service("cover", svc, {"entity_id": eid})
-            elif name == "home_call":
-                data = dict(args.get("data") or {})
-                data["entity_id"] = eid
-                changed = await self.call_service(args["domain"], args["service"], data)
             elif name == "add_todo":
                 changed = await self.call_service(
                     "todo", "add_item", {"entity_id": eid, "item": args["item"]}
