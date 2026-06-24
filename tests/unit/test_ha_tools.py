@@ -66,7 +66,7 @@ async def test_list_services_filters_to_allowed_domains(respx_mock):
             "domain": "media_player",
             "services": {
                 "play_media": {"fields": {"media_content_id": {}, "media_content_type": {}}},
-                "search_media": {"fields": {"search_query": {}}},
+                "search_media": {"fields": {"search_query": {}}, "response": {"optional": False}},
             },
         },
         {"domain": "lock", "services": {"lock": {"fields": {}}}},
@@ -75,7 +75,10 @@ async def test_list_services_filters_to_allowed_domains(respx_mock):
     async with httpx.AsyncClient() as client:
         r = await _bridge(client, exposed=["media_player"]).dispatch("list_services", {})
     assert "media_player" in r["services"] and "lock" not in r["services"]  # only exposed domains
-    assert "search_query" in r["services"]["media_player"]["search_media"]["fields"]
+    mp = r["services"]["media_player"]
+    assert "search_query" in mp["search_media"]["fields"]
+    assert mp["search_media"]["returns_response"] is True  # data service surfaced
+    assert mp["play_media"]["returns_response"] is False
 
 
 async def test_home_call_plays_media_generically(respx_mock):

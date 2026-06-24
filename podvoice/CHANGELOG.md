@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.19.0
+
+- **`list_services` now reveals which services return data.** Each service shows `returns_response: true/false` (from HA's service registry). So the model can SEE that e.g. `podconnect.top_tracks` / `recently_played` / `media_player.search_media` give data back, and knows to call them via `home_call` with `return_response: true` — instead of giving up. Fixes "I can't see your listening history" even when the data service exists.
+
 ## 0.18.0
 
 - **`home_call` can now read data-services + call account-level services.** Two additions so the

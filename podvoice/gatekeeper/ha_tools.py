@@ -84,7 +84,9 @@ class HAToolBridge:
                     "description": "Discover the available services AND their parameters for the "
                     "domains you can control — use this to find any action (e.g. a media_player's "
                     "play_media/search_media, a vacuum's room/segment cleaning, fan speed), then "
-                    "run them with home_call. Optionally pass a domain to narrow it.",
+                    "run them with home_call. A service with returns_response:true gives data back "
+                    "(e.g. listening history) — call it via home_call with return_response:true. "
+                    "Optionally pass a domain to narrow it.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -306,7 +308,13 @@ class HAToolBridge:
             if d not in allowed or (domain and d != domain):
                 continue
             out[d] = {
-                svc: {"fields": list((info.get("fields") or {}).keys())}
+                svc: {
+                    "fields": list((info.get("fields") or {}).keys()),
+                    # HA marks data-returning services with a "response" block. Surfacing it
+                    # tells the model to call home_call with return_response=true to read it
+                    # (e.g. podconnect.top_tracks / recently_played).
+                    "returns_response": bool(info.get("response")),
+                }
                 for svc, info in (entry.get("services") or {}).items()
             }
         return {"ok": True, "services": out}
