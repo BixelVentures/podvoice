@@ -63,22 +63,35 @@ async def test_list_home_filters_to_exposed(respx_mock):
 async def test_list_services_filters_to_allowed_domains(respx_mock):
     services = [
         {
-            "domain": "media_player",
+            "domain": "podconnect",
             "services": {
-                "play_media": {"fields": {"media_content_id": {}, "media_content_type": {}}},
-                "search_media": {"fields": {"search_query": {}}, "response": {"optional": False}},
+                "play_from_library": {
+                    "fields": {
+                        "source": {
+                            "description": "Which collection",
+                            "selector": {"select": {"options": ["liked", "top_tracks", "recent"]}},
+                        },
+                        "shuffle": {"description": "Shuffle first"},
+                    }
+                },
+                "top_tracks": {"fields": {}, "response": {"optional": False}},
             },
         },
         {"domain": "lock", "services": {"lock": {"fields": {}}}},
     ]
     respx_mock.get(f"{SVC}/services").respond(200, json=services)
     async with httpx.AsyncClient() as client:
-        r = await _bridge(client, exposed=["media_player"]).dispatch("list_services", {})
-    assert "media_player" in r["services"] and "lock" not in r["services"]  # only exposed domains
-    mp = r["services"]["media_player"]
-    assert "search_query" in mp["search_media"]["fields"]
-    assert mp["search_media"]["returns_response"] is True  # data service surfaced
-    assert mp["play_media"]["returns_response"] is False
+        r = await _bridge(client, exposed=["podconnect"]).dispatch("list_services", {})
+    assert "podconnect" in r["services"] and "lock" not in r["services"]  # only exposed domains
+    pc = r["services"]["podconnect"]
+    # the model can SEE the valid source values + that top_tracks returns data
+    assert pc["play_from_library"]["fields"]["source"]["values"] == [
+        "liked",
+        "top_tracks",
+        "recent",
+    ]
+    assert pc["top_tracks"]["returns_response"] is True
+    assert pc["play_from_library"]["returns_response"] is False
 
 
 async def test_home_call_plays_media_generically(respx_mock):

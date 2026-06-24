@@ -27,6 +27,24 @@ log = logging.getLogger(__name__)
 
 _COVER_ACTIONS = {"open": "open_cover", "close": "close_cover", "stop": "stop_cover"}
 
+
+def _field_info(f: dict) -> dict:
+    """Compact field hint for list_services: description + select values (if any).
+
+    Surfaces a service field's valid inputs so the model calls it correctly — e.g.
+    podconnect.play_from_library.source = liked | top_tracks | recent.
+    """
+    out: dict = {}
+    if isinstance(f, dict):
+        desc = f.get("description")
+        if desc:
+            out["description"] = desc
+        opts = ((f.get("selector") or {}).get("select") or {}).get("options")
+        if opts:
+            out["values"] = [o.get("value", o) if isinstance(o, dict) else o for o in opts]
+    return out
+
+
 # One template render gives each entity's HA Area (the area registry isn't in the REST
 # /states; this is the REST-friendly way to read it).
 _AREA_TEMPLATE = (
@@ -309,7 +327,11 @@ class HAToolBridge:
                 continue
             out[d] = {
                 svc: {
-                    "fields": list((info.get("fields") or {}).keys()),
+                    # name -> {description?, values?} so the model knows valid inputs
+                    # (e.g. play_from_library.source = liked|top_tracks|recent).
+                    "fields": {
+                        name: _field_info(f) for name, f in (info.get("fields") or {}).items()
+                    },
                     # HA marks data-returning services with a "response" block. Surfacing it
                     # tells the model to call home_call with return_response=true to read it
                     # (e.g. podconnect.top_tracks / recently_played).
