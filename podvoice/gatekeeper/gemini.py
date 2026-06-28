@@ -81,6 +81,21 @@ Hvis du ikke kan udføre noget: sig "Det kan jeg desværre ikke."
 
 Stil ikke unødvendige opfølgende spørgsmål. Tal kun når det er relevant."""
 
+# Appended to the prompt ONLY when web search is enabled, so the model actually uses
+# the search tool instead of replying "I have no live data". (Reliable on Gemini's
+# native google_search; OpenAI Realtime hosted search is not guaranteed.)
+WEB_SEARCH_HINT = (
+    "\n\nDu HAR et web-søgeværktøj. Brug det til aktuelle/live spørgsmål (sport, nyheder, "
+    "vejr lige nu, priser) i stedet for at sige at du ikke har live-data."
+)
+
+
+def _instructions(cfg) -> str:
+    instr = getattr(cfg, "system_prompt", "") or SYSTEM_PROMPT_DA
+    if getattr(cfg, "web_search", False):
+        instr += WEB_SEARCH_HINT
+    return instr
+
 
 # --- Config builder (PLAN §5.9) ------------------------------------------------
 
@@ -100,7 +115,7 @@ def build_config(
         # VERIFY: response_modalities is the field name; ["AUDIO"] for voice out.
         "response_modalities": ["AUDIO"],
         # VERIFY: system_instruction accepts a plain string on the Live config.
-        "system_instruction": getattr(cfg, "system_prompt", "") or SYSTEM_PROMPT_DA,
+        "system_instruction": _instructions(cfg),
         # VERIFY: speech_config -> voice_config -> prebuilt_voice_config -> voice_name
         # VERIFY: "Kore" is a Danish-suitable prebuilt voice (PLAN §5.9 flags this).
         "speech_config": {

@@ -24,7 +24,7 @@ import aiohttp
 
 from . import constants as C
 from .audio import resample_pcm16
-from .gemini import SYSTEM_PROMPT_DA
+from .gemini import SYSTEM_PROMPT_DA, WEB_SEARCH_HINT
 from .voice import (
     AudioChunk,
     InputTranscript,
@@ -95,7 +95,8 @@ class OpenAIRealtimeSession:
         session: dict = {
             "type": "realtime",  # speech-to-speech (vs "transcription")
             "output_modalities": ["audio"],
-            "instructions": self.instructions or SYSTEM_PROMPT_DA,
+            "instructions": (self.instructions or SYSTEM_PROMPT_DA)
+            + (WEB_SEARCH_HINT if self.web_search else ""),
             "audio": {
                 "input": audio_input,
                 "output": {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.23.0
+
+- **Web search now actually gets used when enabled.** With the Web search toggle on, the system prompt now tells the model it HAS a web tool (for live sport/news/weather) — so it stops replying "I have no live data" and calls the tool. Reliable on Gemini (native google_search); OpenAI Realtime hosted web search is not guaranteed by the API — use Gemini for dependable web search.
+
 ## 0.22.0 — Voice PE firmware Phase 1a (podvoice_audio)
 
 - **`podvoice_audio` ESPHome component built** (the S1 continuous-audio shim) — multi-expert build (lead draft → 3 adversarial reviewers → assembled). A *passive* MicrophoneSource tap on the already-running mic → fixed PSRAM ring buffer (filled on the audio task) → drained from loop() as VoiceAssistantAudio over the native API connection PodVoice already holds. NOT start_continuous, NOT a voice_assistant.cpp fork. Lives at `esphome/components/podvoice_audio/`; wired in `esphome/podvoice.yaml`.
