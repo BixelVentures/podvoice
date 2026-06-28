@@ -208,10 +208,18 @@ class HAToolBridge:
         return decls
 
     # ------------------------------------------------------------------ HA helpers
+    @staticmethod
+    def _raise_for_status(r: httpx.Response) -> None:
+        """Like raise_for_status, but include HA's error body so the model can self-correct
+        (e.g. a 400 says exactly which field is missing) instead of a bare status code."""
+        if r.status_code >= 400:
+            detail = r.text.strip()[:400] or r.reason_phrase
+            raise RuntimeError(f"HA {r.status_code}: {detail}")
+
     async def call_service(self, domain: str, service: str, data: dict) -> list:
         url = f"{C.SUPERVISOR_CORE_API}/services/{domain}/{service}"
         r = await self._client.post(url, json=data, headers=self._ha_headers)
-        r.raise_for_status()
+        self._raise_for_status(r)
         return r.json()
 
     async def call_service_response(self, domain: str, service: str, data: dict) -> object:
@@ -221,7 +229,7 @@ class HAToolBridge:
         """
         url = f"{C.SUPERVISOR_CORE_API}/services/{domain}/{service}?return_response"
         r = await self._client.post(url, json=data, headers=self._ha_headers)
-        r.raise_for_status()
+        self._raise_for_status(r)
         body = r.json()
         if isinstance(body, dict) and "service_response" in body:
             return body["service_response"]

@@ -47,6 +47,24 @@ async def test_web_search_is_generic_conversation_process(respx_mock):
     assert r["response"]["response"]["speech"]["plain"]["speech"] == "Canada vandt 3-2."
 
 
+async def test_home_call_surfaces_ha_error_body(respx_mock):
+    # A 400 from HA must include HA's explanation (which field is missing), not a bare code.
+    respx_mock.post(url__regex=r".*/services/conversation/process.*").respond(
+        400, json={"message": "required key not provided @ data['text']"}
+    )
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=["conversation"]).dispatch(
+            "home_call",
+            {
+                "domain": "conversation",
+                "service": "process",
+                "return_response": True,
+                "data": {"agent_id": "conversation.google_ai_search"},
+            },
+        )
+    assert r["ok"] is False and "text" in r["error"] and "400" in r["error"]
+
+
 async def test_web_search_blocked_when_conversation_not_exposed(respx_mock):
     # Same gating as everything else: not exposed -> denied, HA never hit.
     async with httpx.AsyncClient() as client:
