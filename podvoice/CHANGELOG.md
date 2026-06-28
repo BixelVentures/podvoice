@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.26.0
+
+- **Panel never caches stale UI.** The panel HTML is now served with `Cache-Control: no-store`, so new Settings fields (e.g. Search agent) appear right after an add-on update without a manual browser hard-reload.
+
 ## 0.25.0
 
 - **Anti-drift Danish.** The default prompt now says "ALTID rigsdansk — ALDRIG norsk eller svensk", so the assistant stops drifting into Norwegian/Swedish when speech is ambiguous.

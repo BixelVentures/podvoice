@@ -193,7 +193,9 @@ async def _index(request: web.Request) -> web.StreamResponse:
     index = _STATIC / "index.html"
     if not index.exists():
         return web.Response(text="panel not found", status=404)
-    return web.FileResponse(index)
+    # Never let the browser/Ingress cache a stale panel — new settings fields must
+    # show up immediately after an add-on update (no manual hard-reload).
+    return web.FileResponse(index, headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 async def _status(request: web.Request) -> web.Response:
