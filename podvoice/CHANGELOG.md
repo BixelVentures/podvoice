@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.24.0
+
+- **Reliable `web_search` tool (works on ANY provider, incl. OpenAI Realtime).** Set a **Search agent** in Settings (an HA conversation agent with Google Search on, e.g. `conversation.google_ai_search`) and the assistant gets a clean first-class `web_search(query)` tool that routes to it (via `conversation.process`, returns the answer). No more relying on the model to hand-compose a generic call — it just calls `web_search`. Keeps the system prompt natural (no tool-syntax needed). The native Web-search toggle stays for Gemini's google_search.
+
 ## 0.23.0
 
 - **Web search now actually gets used when enabled.** With the Web search toggle on, the system prompt now tells the model it HAS a web tool (for live sport/news/weather) — so it stops replying "I have no live data" and calls the tool. Reliable on Gemini (native google_search); OpenAI Realtime hosted web search is not guaranteed by the API — use Gemini for dependable web search.

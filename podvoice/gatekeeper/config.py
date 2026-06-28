@@ -36,6 +36,9 @@ class Config:
     supervisor_token: str = ""
     provider: str = "gemini"  # "gemini" | "openai" — the default voice brain
     web_search: bool = False  # expose the provider's native web search
+    search_agent: str = (
+        ""  # HA conversation agent for web search (provider-agnostic web_search tool)
+    )
     system_prompt: str = ""  # who the assistant is + capabilities (empty -> built-in default)
     gemini_voice: str = "Kore"
     gemini_vad_start: str = "high"
@@ -108,6 +111,7 @@ def from_options(opts: dict) -> Config:
         supervisor_token=opts.get("supervisor_token", ""),
         provider=str(opts.get("provider", "gemini") or "gemini"),
         web_search=bool(opts.get("web_search", False)),
+        search_agent=str(opts.get("search_agent", "") or ""),
         system_prompt=opts.get("system_prompt", ""),
         gemini_voice=opts.get("gemini_voice", "") or "Kore",
         gemini_vad_start=str(opts.get("gemini_vad_start", "high") or "high"),

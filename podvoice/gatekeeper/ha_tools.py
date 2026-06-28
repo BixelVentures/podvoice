@@ -65,6 +65,7 @@ class HAToolBridge:
         client: httpx.AsyncClient,
         *,
         exposed: list[str] | tuple[str, ...] = (),
+        search_agent: str = "",
     ) -> None:
         self._client = client
         self._has_ha = bool(supervisor_token)
@@ -73,6 +74,10 @@ class HAToolBridge:
             "Content-Type": "application/json",
         }
         self._exposed = [e.strip().lower() for e in exposed if e and e.strip()]
+        # An HA conversation agent (e.g. conversation.google_ai_search) that does web
+        # search. When set, we expose a clean `web_search` tool that routes to it —
+        # reliable on ANY provider (OpenAI Realtime included), unlike provider-native search.
+        self._search_agent = (search_agent or "").strip()
 
     # ------------------------------------------------------------------ allowlist
     def _allowed(self, entity_id: str | None) -> bool:
@@ -205,6 +210,25 @@ class HAToolBridge:
                     },
                 },
             ]
+            if self._search_agent:
+                decls.append(
+                    {
+                        "name": "web_search",
+                        "description": "Search the web / look up CURRENT, live information — sports "
+                        "scores, news, weather right now, prices, anything you don't already know. "
+                        "Returns a short answer you can read aloud.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {
+                                    "type": "string",
+                                    "description": "what to look up, in natural language",
+                                }
+                            },
+                            "required": ["query"],
+                        },
+                    }
+                )
         return decls
 
     # ------------------------------------------------------------------ HA helpers
@@ -226,6 +250,27 @@ class HAToolBridge:
         if isinstance(body, dict) and "service_response" in body:
             return body["service_response"]
         return body
+
+    async def _web_search(self, args: dict) -> dict:
+        """Route a query to the configured HA conversation agent (web search) and return
+        its answer. Works on ANY provider (it's a plain HA service call under the hood)."""
+        if not self._search_agent:
+            return {"ok": False, "error": "No search agent configured."}
+        query = (args.get("query") or "").strip()
+        if not query:
+            return {"ok": False, "error": "web_search needs a query."}
+        resp = await self.call_service_response(
+            "conversation", "process", {"agent_id": self._search_agent, "text": query}
+        )
+        # conversation.process -> {"response": {"speech": {"plain": {"speech": "..."}}}, ...}
+        answer = ""
+        try:
+            answer = resp["response"]["speech"]["plain"]["speech"]  # type: ignore[index]
+        except (KeyError, TypeError, IndexError):
+            answer = ""
+        if not answer:
+            return {"ok": False, "error": "No answer from the search agent.", "raw": resp}
+        return {"ok": True, "answer": answer}
 
     async def _home_call(self, args: dict) -> dict:
         """Generic HA service call. Entity services need an exposed entity_id; account-
@@ -350,6 +395,8 @@ class HAToolBridge:
                 return await self._list_services(args.get("domain"))
             if name == "home_call":  # own gating (optional entity + return_response)
                 return await self._home_call(args)
+            if name == "web_search":
+                return await self._web_search(args)
 
             # All remaining tools act on an entity that must be exposed.
             if name == "add_todo":
