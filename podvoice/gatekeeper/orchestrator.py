@@ -291,9 +291,16 @@ class RoomSession:
 
     async def _handle_tool(self, tc: ToolCall) -> None:
         if self.tools is None:
-            result: dict = {"ok": False, "error": "no tools configured"}
+            result: dict = {"ok": False, "error_kind": "no_tools", "error": "no tools configured"}
         else:
             result = await self.tools.dispatch(tc.name, tc.args)
+        if self.hub is not None:  # distinguish the outcomes (ok / empty / error) on Status
+            if not result.get("ok"):
+                self.hub.incr("tool_error")
+            elif result.get("empty"):
+                self.hub.incr("tool_empty")
+            else:
+                self.hub.incr("tool_ok")
         await self.gemini.send_tool_results([{"id": tc.id, "name": tc.name, "response": result}])
 
     # ------------------------------------------------------------------ device events

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.30.0 — tool-access architecture (5-expert consensus)
+
+Root cause of "home_call ✓ but the assistant still says it can't": a tool-RESULT contract problem. Fixed generically in ha_tools.py, below the provider split, so Gemini and OpenAI behave identically.
+
+- **One flat result contract.** Every home_call/tool result is now `{ok, summary?, data}` on success (`empty:true` when no data), `{ok:false, error_kind, status?, error, hint}` on failure. The model reads the spoken answer from `summary` and structure from `data` — one predictable place, no digging.
+- **Generic speech-envelope normalizer.** A shape-driven (never service-named) helper promotes HA's intent/assist speech (`response.speech.plain.speech`) to `summary`; every other payload (track lists, search results) passes through unchanged under `data`. This is what makes conversation.process / web search actually get read aloud.
+- **Authoritative discovery.** list_services now surfaces per-field `required` and a tri-state `response_mode` (none/optional/only); home_call auto-corrects the return_response flag from it (forces it for response-only services, drops it for none) — so a guessed flag or a hallucinated service can't 400.
+- **Honest, classified errors + observability.** Failures carry error_kind/status/hint; one INFO log line per tool call (secrets redacted) and ok/empty/error counters on the Status tab.
+- **Prompt: generic, not locked.** Removed per-service syntax; the model is told to discover via list_services and to only say it can't when a tool actually fails (ok:false).
+- **Console UX.** Labels by active provider (Gemini/ChatGPT) instead of always "Gemini"; each tool call shows a collapsed raw-result body so a green check next to a refusal is diagnosable.
+
 ## 0.29.0
 
 - **Listening-history questions now point at the right tool.** "What did I play / my top tracks" now go to PodConnect Control's data services (`podconnect.recently_played`, `top_tracks`, `liked`) via `home_call` with return_response — not `media_player.browse_media` (which isn't a history service and 400s). The cleanup did NOT change the return_response request path (verified in git); only error wording.

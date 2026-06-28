@@ -119,6 +119,10 @@
   .line .who { font-size: .68rem; color: var(--fg-dim); margin-bottom: 1px; }
   .line.in  { align-self: flex-end; background: var(--accent-soft); }
   .line.out { align-self: flex-start; background: var(--green-bg); }
+  .line details > summary { cursor: pointer; list-style: revert; }
+  .line .toolbody { margin: 6px 0 0; padding: 8px 10px; border-radius: 9px; background: var(--card);
+                    color: var(--fg-dim); font-size: .74rem; white-space: pre-wrap; word-break: break-word;
+                    max-height: 220px; overflow: auto; }
 
   /* Metrics. */
   .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -250,7 +254,7 @@
 
   <div class="pane active" id="pane-talk">
     <div class="section">
-      <h2>Talk to Gemini <span id="cstate" class="pill pill-down">offline</span></h2>
+      <h2><span id="ctitle">Talk to the assistant</span> <span id="cstate" class="pill pill-down">offline</span></h2>
       <div class="crow" style="margin-bottom:10px">
         <select id="cprovider" aria-label="Provider" style="flex:0 0 auto;width:120px">
           <option value="gemini">Gemini</option>
@@ -423,6 +427,8 @@
 var STATE_PILL = { IDLE: "pill-idle", LISTENING: "pill-listening", AI_SPEAKING: "pill-speaking", LOUNGE_WINDOW: "pill-lounge" };
 var STATE_LABEL = { IDLE: "idle", LISTENING: "listening", AI_SPEAKING: "speaking", LOUNGE_WINDOW: "follow-up" };
 var SVC_LABEL = { gemini: "Gemini", voicepe: "Voice PE", podconnect: "PodConnect" };
+// The "gemini" service dot reflects whichever provider is active — label it accordingly.
+var PROVIDER_PILL = { gemini: "Gemini", openai: "ChatGPT" };
 var METRIC_LABEL = { sessions: "Sessions", barge_ins: "Barge-ins", watchdog_aborts: "Watchdog aborts",
                      tool_calls: "Tool calls", attention_engages: "Attn. engages", attention_releases: "Attn. releases" };
 
@@ -454,7 +460,8 @@ function renderServices(services) {
     var st = safe(services, name, "down");
     var cls = st === "up" ? "pill-up" : st === "degraded" ? "pill-degraded" : "pill-down";
     var p = el("span", "pill " + cls);
-    p.appendChild(document.createTextNode(SVC_LABEL[name]));
+    var label = name === "gemini" ? (PROVIDER_PILL[window.__activeProvider] || "Gemini") : SVC_LABEL[name];
+    p.appendChild(document.createTextNode(label));
     wrap.appendChild(p);
   });
 }
@@ -612,6 +619,15 @@ setInterval(poll, 3000);
   var providerSel = document.getElementById("cprovider");
   var voiceSel = document.getElementById("cvoice");
   var ws = null, wsReady = false, currentModel = null, currentProvider = null, currentVoice = null, manualClose = false;
+  var PROVIDER_LABEL = { gemini: "Gemini", openai: "ChatGPT" };
+  function providerName() { return PROVIDER_LABEL[currentProvider] || "assistenten"; }
+  function applyProviderLabels() {
+    var nm = providerName();
+    window.__activeProvider = currentProvider;  // so the status pill labels by provider too
+    var t = document.getElementById("ctitle"); if (t) t.textContent = "Talk to " + nm;
+    var c = document.getElementById("ctext");
+    if (c) { c.placeholder = "Skriv til " + nm + "…"; c.setAttribute("aria-label", "Message to " + nm); }
+  }
   var playCtx = null, outRate = 24000, nextStart = 0, halted = false;
   var capCtx = null, capStream = null, capNode = null, micOn = false;
   var stopBtn = document.getElementById("cstop");
@@ -619,13 +635,35 @@ setInterval(poll, 3000);
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function setState(s, cls) { cstate.textContent = s; cstate.className = "pill " + cls; }
 
-  function emptyLog() { if (!clog.querySelector(".line")) { clog.innerHTML = ""; clog.appendChild(el("div", "empty", "Type below to talk to Gemini. Replies are spoken aloud here.")); } }
+  function emptyLog() { if (!clog.querySelector(".line")) { clog.innerHTML = ""; clog.appendChild(el("div", "empty", "Type below to talk to " + providerName() + ". Replies are spoken aloud here.")); } }
   function logLine(dir, who, text) {
     var e = clog.querySelector(".empty"); if (e) e.remove();
     var atBottom = clog.scrollHeight - clog.scrollTop - clog.clientHeight < 40;
     var line = el("div", "line " + (dir === "in" ? "in" : "out"));
     line.appendChild(el("div", "who", who));
     line.appendChild(document.createTextNode(text));
+    clog.appendChild(line);
+    if (atBottom) clog.scrollTop = clog.scrollHeight;
+  }
+
+  // A tool call: one-line ✓/✕ header (with the spoken summary or error) + a collapsed
+  // raw-result body, so a green check next to a refusal is diagnosable.
+  function toolLine(ev) {
+    var e = clog.querySelector(".empty"); if (e) e.remove();
+    var atBottom = clog.scrollHeight - clog.scrollTop - clog.clientHeight < 40;
+    var r = ev.result || {};
+    var head = ev.name + (r.ok ? " ✓" : " ✕");
+    if (r.ok && r.summary && r.summary !== "Done.") head += " — " + r.summary;
+    else if (r.ok && r.empty) head += " — (ingen data)";
+    else if (!r.ok && r.error) head += " — " + r.error;
+    var line = el("div", "line out");
+    line.appendChild(el("div", "who", "🔧 tool"));
+    var det = document.createElement("details");
+    var sum = document.createElement("summary"); sum.textContent = head; det.appendChild(sum);
+    var pre = el("pre", "toolbody");
+    try { pre.textContent = JSON.stringify(r, null, 2).slice(0, 1500); } catch (_) { pre.textContent = String(r); }
+    det.appendChild(pre);
+    line.appendChild(det);
     clog.appendChild(line);
     if (atBottom) clog.scrollTop = clog.scrollHeight;
   }
@@ -639,7 +677,7 @@ setInterval(poll, 3000);
     var atBottom = clog.scrollHeight - clog.scrollTop - clog.clientHeight < 40;
     if (!curT || curTDir !== dir) {
       curT = el("div", "line " + (dir === "in" ? "in" : "out"));
-      curT.appendChild(el("div", "who", dir === "in" ? "you" : "Gemini"));
+      curT.appendChild(el("div", "who", dir === "in" ? "you" : providerName()));
       curT._body = document.createTextNode("");
       curT.appendChild(curT._body);
       clog.appendChild(curT);
@@ -679,7 +717,7 @@ setInterval(poll, 3000);
     try {
       var url = "api/models" + (provider ? "?provider=" + encodeURIComponent(provider) : "");
       var data = await (await fetch(url, { cache: "no-store" })).json();
-      if (data.provider) { currentProvider = data.provider; if (providerSel) providerSel.value = currentProvider; }
+      if (data.provider) { currentProvider = data.provider; if (providerSel) providerSel.value = currentProvider; applyProviderLabels(); }
       // Voice-only: the realtime console needs a voice-capable model.
       var models = (data.models || []).filter(function (m) { return m.live; });
       modelSel.innerHTML = "";
@@ -761,8 +799,7 @@ setInterval(poll, 3000);
       else if (ev.type === "turn_complete") endTurn();
       else if (ev.type === "tool") {
         endTurn();
-        var ok = ev.result && ev.result.ok;
-        logLine("out", "🔧 tool", ev.name + (ok ? " ✓" : " ✕" + (ev.result && ev.result.error ? " — " + ev.result.error : "")));
+        toolLine(ev);
       }
       else if (ev.type === "error") { endTurn(); logLine("out", "system", ev.error || "console unavailable"); }
     };

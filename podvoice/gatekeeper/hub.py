@@ -23,6 +23,9 @@ _METRIC_KEYS = (
     "barge_ins",
     "watchdog_aborts",
     "tool_calls",
+    "tool_ok",
+    "tool_empty",
+    "tool_error",
     "attention_engages",
     "attention_releases",
 )

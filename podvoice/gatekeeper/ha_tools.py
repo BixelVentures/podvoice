@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 import httpx
 
@@ -29,20 +30,70 @@ _COVER_ACTIONS = {"open": "open_cover", "close": "close_cover", "stop": "stop_co
 
 
 def _field_info(f: dict) -> dict:
-    """Compact field hint for list_services: description + select values (if any).
+    """Compact field hint for list_services: description + required + select values.
 
     Surfaces a service field's valid inputs so the model calls it correctly — e.g.
-    podconnect.play_from_library.source = liked | top_tracks | recent.
+    podconnect.play_from_library.source = liked | top_tracks | recent — and whether the
+    field is REQUIRED, so the model never sends a malformed call (the old missing-'text'
+    400 on conversation.process).
     """
     out: dict = {}
     if isinstance(f, dict):
         desc = f.get("description")
         if desc:
             out["description"] = desc
+        if f.get("required"):
+            out["required"] = True
         opts = ((f.get("selector") or {}).get("select") or {}).get("options")
         if opts:
             out["values"] = [o.get("value", o) if isinstance(o, dict) else o for o in opts]
     return out
+
+
+def _iter_fields(fields: object):
+    """Yield (name, field) pairs, flattening HA collapsible 'section' fields one level
+    (advanced/collapsed groups nest their real fields under a 'fields' sub-dict)."""
+    if isinstance(fields, dict):
+        for name, f in fields.items():
+            if isinstance(f, dict) and isinstance(f.get("fields"), dict):
+                yield from _iter_fields(f["fields"])
+            else:
+                yield name, f
+
+
+def _response_mode_of(info: object) -> str:
+    """HA's tri-state response support for a service: none | optional | only.
+
+    Tells the model when return_response is forbidden / allowed / mandatory, so home_call
+    can auto-correct the flag instead of 400-ing on a guess.
+    """
+    resp = info.get("response") if isinstance(info, dict) else None
+    if not resp:
+        return "none"
+    return "optional" if (isinstance(resp, dict) and resp.get("optional")) else "only"
+
+
+def _normalize_service_response(payload: object) -> tuple[str | None, object]:
+    """Promote HA's intent/assist speech envelope to a short ``summary`` — SHAPE-driven,
+    never service-name-driven.
+
+    Recognizes exactly ONE HA-wide convention: ``payload[response][speech][plain][speech]``
+    (emitted by every conversation/intent agent, incl. response_type=='error'), and returns
+    that string as the summary. Any other shape (track lists, search results, query data)
+    passes through unchanged with summary=None. Never reshapes or drops ``data``; every
+    access is guarded so a surprise shape can't raise.
+    VERIFY: HA intent-response envelope (response.speech.plain.speech).
+    """
+    if isinstance(payload, dict):
+        inner = payload.get("response")
+        if not isinstance(inner, dict):
+            inner = payload
+        speech = inner.get("speech") if isinstance(inner, dict) else None
+        plain = speech.get("plain") if isinstance(speech, dict) else None
+        text = plain.get("speech") if isinstance(plain, dict) else None
+        if isinstance(text, str) and text.strip():
+            return text.strip(), payload
+    return None, payload
 
 
 # One template render gives each entity's HA Area (the area registry isn't in the REST
@@ -73,6 +124,7 @@ class HAToolBridge:
             "Content-Type": "application/json",
         }
         self._exposed = [e.strip().lower() for e in exposed if e and e.strip()]
+        self._services_cache: list | None = None  # memoized /services catalog (stable per session)
 
     # ------------------------------------------------------------------ allowlist
     def _allowed(self, entity_id: str | None) -> bool:
@@ -237,26 +289,83 @@ class HAToolBridge:
 
     async def _home_call(self, args: dict) -> dict:
         """Generic HA service call. Entity services need an exposed entity_id; account-
-        level services need the domain exposed. ``return_response`` reads data back."""
+        level services need the domain exposed.
+
+        Returns the ONE flat contract (see module docstring): success-with-data is
+        ``{ok, summary?, data}`` (summary = the spoken answer when HA emits a speech
+        envelope; data = the full payload), empty success adds ``empty``, and a plain
+        action is ``{ok, summary:'Done.', data:{changed}}``. ``return_response`` is
+        auto-corrected from HA's response mode so a guess can't 400.
+        """
         domain, service = args.get("domain"), args.get("service")
         if not domain or not service:
-            return {"ok": False, "error": "home_call needs domain + service."}
+            return {
+                "ok": False,
+                "error_kind": "bad_args",
+                "error": "home_call needs domain + service.",
+                "hint": "Provide both 'domain' and 'service'.",
+            }
         data = dict(args.get("data") or {})
         eid = (args.get("entity_id") or "").strip()
         if eid:
             if not self._allowed(eid):
-                return {"ok": False, "error": f"'{eid}' is not exposed (add it in Settings)."}
+                return {
+                    "ok": False,
+                    "error_kind": "denied",
+                    "error": f"'{eid}' is not exposed (add it in Settings).",
+                }
             data["entity_id"] = eid
         elif domain.lower() not in self._exposed:
             return {
                 "ok": False,
+                "error_kind": "denied",
                 "error": f"domain '{domain}' is not exposed — add it in Settings to allow "
                 "account-level calls without an entity_id.",
             }
-        if args.get("return_response"):
-            return {"ok": True, "response": await self.call_service_response(domain, service, data)}
+        # Auto-correct return_response from HA's own metadata: force it for response-ONLY
+        # services, drop it for NONE; otherwise honor the model's flag.
+        want = bool(args.get("return_response"))
+        mode = await self._response_mode(domain, service)
+        if mode == "only":
+            want = True
+        elif mode == "none":
+            want = False
+        if want:
+            payload = await self.call_service_response(domain, service, data)
+            summary, body = _normalize_service_response(payload)
+            out: dict = {"ok": True, "data": body}
+            if summary:
+                out["summary"] = summary
+            elif not body:
+                out["empty"] = True
+            return out
         changed = await self.call_service(domain, service, data)
-        return {"ok": True, "changed": changed}
+        return {"ok": True, "summary": "Done.", "data": {"changed": changed}}
+
+    async def _services_raw(self) -> list:
+        """Memoized GET /services (the catalog is stable within a session). Best-effort:
+        returns [] if unavailable so callers degrade to the model's own flags."""
+        if self._services_cache is None:
+            try:
+                r = await self._client.get(
+                    f"{C.SUPERVISOR_CORE_API}/services", headers=self._ha_headers
+                )
+                self._raise_for_status(r)
+                self._services_cache = r.json()
+            except Exception as e:
+                log.info("services catalog unavailable: %s", e)
+                return []
+        return self._services_cache
+
+    async def _response_mode(self, domain: str, service: str) -> str | None:
+        """'none' | 'optional' | 'only' for a service, or None if unknown (cold cache /
+        service not found) — callers then fall back to the model's flag."""
+        for entry in await self._services_raw():
+            if entry.get("domain") != domain:
+                continue
+            info = (entry.get("services") or {}).get(service)
+            return _response_mode_of(info) if isinstance(info, dict) else None
+        return None
 
     async def _list_home(self) -> dict:
         r = await self._client.get(f"{C.SUPERVISOR_CORE_API}/states", headers=self._ha_headers)
@@ -325,32 +434,71 @@ class HAToolBridge:
         return {e.split(".")[0] if "." in e else e for e in self._exposed}
 
     async def _list_services(self, domain: str | None = None) -> dict:
-        r = await self._client.get(f"{C.SUPERVISOR_CORE_API}/services", headers=self._ha_headers)
-        r.raise_for_status()
         allowed = self._allowed_domains()
         out: dict = {}
-        for entry in r.json():
+        for entry in await self._services_raw():
             d = entry.get("domain")
             if d not in allowed or (domain and d != domain):
                 continue
             out[d] = {
                 svc: {
-                    # name -> {description?, values?} so the model knows valid inputs
-                    # (e.g. play_from_library.source = liked|top_tracks|recent).
+                    # name -> {description?, required?, values?} so the model knows valid
+                    # inputs AND which fields are mandatory (e.g. conversation.process.text).
                     "fields": {
-                        name: _field_info(f) for name, f in (info.get("fields") or {}).items()
+                        name: _field_info(f) for name, f in _iter_fields(info.get("fields"))
                     },
-                    # HA marks data-returning services with a "response" block. Surfacing it
-                    # tells the model to call home_call with return_response=true to read it
-                    # (e.g. podconnect.top_tracks / recently_played).
+                    # returns_response (bool, back-compat) + tri-state response_mode tell the
+                    # model when home_call needs return_response (none|optional|only).
                     "returns_response": bool(info.get("response")),
+                    "response_mode": _response_mode_of(info),
                 }
                 for svc, info in (entry.get("services") or {}).items()
             }
         return {"ok": True, "services": out}
 
     # ------------------------------------------------------------------ dispatch
+    @staticmethod
+    def _error_result(e: Exception) -> dict:
+        """Fold an exception into the standard failure dict: {ok, error_kind, status?,
+        error, hint}. Parses the 'HA <code>: <body>' raised by _raise_for_status so the
+        model gets an actionable error (it can fix args and retry in-turn)."""
+        msg = str(e)
+        out: dict = {"ok": False, "error_kind": "http", "error": msg}
+        m = re.match(r"HA (\d+):", msg)
+        if m:
+            out["status"] = int(m.group(1))
+            out["error_kind"] = f"ha_{m.group(1)}"
+        out["hint"] = (
+            "Use list_services to check the exact service name, required fields and "
+            "response mode, then retry with corrected arguments."
+        )
+        return out
+
+    def _log_tool(self, name: str, args: dict, result: dict) -> None:
+        """One line per dispatched tool so the owner can debug from the Log tab (secrets
+        are masked by the global redactor)."""
+        target = ""
+        if name == "home_call":
+            target = f" {args.get('domain')}.{args.get('service')}"
+        elif args.get("entity_id") or args.get("list"):
+            target = f" {args.get('entity_id') or args.get('list')}"
+        if result.get("ok"):
+            log.info("tool %s%s -> %s", name, target, "empty" if result.get("empty") else "ok")
+        else:
+            log.warning(
+                "tool %s%s -> FAILED kind=%s status=%s",
+                name,
+                target,
+                result.get("error_kind"),
+                result.get("status"),
+            )
+
     async def dispatch(self, name: str, args: dict) -> dict:
+        result = await self._dispatch(name, args)
+        self._log_tool(name, args, result)
+        return result
+
+    async def _dispatch(self, name: str, args: dict) -> dict:
         try:
             if name == "list_home":
                 return await self._list_home()
@@ -367,6 +515,7 @@ class HAToolBridge:
             if not self._allowed(eid):
                 return {
                     "ok": False,
+                    "error_kind": "denied",
                     "error": f"'{eid}' is not exposed to PodVoice (add it in Settings).",
                 }
 
@@ -392,15 +541,19 @@ class HAToolBridge:
             elif name == "cover_control":
                 svc = _COVER_ACTIONS.get(args.get("action", ""))
                 if not svc:
-                    return {"ok": False, "error": f"unknown cover action {args.get('action')}"}
+                    return {
+                        "ok": False,
+                        "error_kind": "bad_args",
+                        "error": f"unknown cover action {args.get('action')}",
+                    }
                 changed = await self.call_service("cover", svc, {"entity_id": eid})
             elif name == "add_todo":
                 changed = await self.call_service(
                     "todo", "add_item", {"entity_id": eid, "item": args["item"]}
                 )
             else:
-                return {"ok": False, "error": f"unknown tool {name}"}
+                return {"ok": False, "error_kind": "bad_args", "error": f"unknown tool {name}"}
         except Exception as e:  # broad on purpose - never leave the model waiting
-            log.warning("tool %s failed: %s", name, e)
-            return {"ok": False, "error": str(e)}
-        return {"ok": True, "changed": changed}
+            return self._error_result(e)
+        # Uniform success contract (same shape as home_call): the model reads 'summary'.
+        return {"ok": True, "summary": "Done.", "data": {"changed": changed}}

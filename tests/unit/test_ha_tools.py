@@ -24,6 +24,9 @@ def _bridge(client, exposed=()):
 async def test_web_search_is_generic_conversation_process(respx_mock):
     # Web search is NOT a special tool — it's the same generic path as podconnect/media:
     # expose the `conversation` domain, then home_call conversation.process (return_response).
+    # The buried speech envelope must be promoted to a flat `summary` the model can read,
+    # while `data` keeps the full payload.
+    respx_mock.get(f"{SVC}/services").respond(200, json=[])  # auto-correct: unknown -> honor flag
     route = respx_mock.post(url__regex=r".*/services/conversation/process.*").respond(
         200,
         json={
@@ -44,11 +47,16 @@ async def test_web_search_is_generic_conversation_process(respx_mock):
             },
         )
     assert r["ok"] is True and route.called
-    assert r["response"]["response"]["speech"]["plain"]["speech"] == "Canada vandt 3-2."
+    assert r["summary"] == "Canada vandt 3-2."  # the spoken answer, flat
+    assert (
+        r["data"]["response"]["speech"]["plain"]["speech"] == "Canada vandt 3-2."
+    )  # full payload kept
 
 
 async def test_home_call_surfaces_ha_error_body(respx_mock):
-    # A 400 from HA must include HA's explanation (which field is missing), not a bare code.
+    # A 400 from HA must include HA's explanation (which field is missing), not a bare code,
+    # and be classified (error_kind/status) so the model can self-correct.
+    respx_mock.get(f"{SVC}/services").respond(200, json=[])
     respx_mock.post(url__regex=r".*/services/conversation/process.*").respond(
         400, json={"message": "required key not provided @ data['text']"}
     )
@@ -63,6 +71,42 @@ async def test_home_call_surfaces_ha_error_body(respx_mock):
             },
         )
     assert r["ok"] is False and "text" in r["error"] and "400" in r["error"]
+    assert r["error_kind"] == "ha_400" and r["status"] == 400 and r["hint"]
+
+
+async def test_home_call_empty_response_flags_empty(respx_mock):
+    # A successful-but-empty data service is distinguishable from a failure (empty flag),
+    # so the model says "no results" rather than refusing.
+    respx_mock.get(f"{SVC}/services").respond(200, json=[])
+    respx_mock.post(url__regex=r".*/services/podconnect/recently_played.*").respond(
+        200, json={"service_response": {}}
+    )
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=["podconnect"]).dispatch(
+            "home_call",
+            {"domain": "podconnect", "service": "recently_played", "return_response": True},
+        )
+    assert r["ok"] is True and r.get("empty") is True and "summary" not in r
+
+
+async def test_home_call_forces_return_response_for_only_services(respx_mock):
+    # Discovery is authoritative: a SupportsResponse.ONLY service gets return_response even
+    # if the model forgot the flag (no more 400 on a guess).
+    respx_mock.get(f"{SVC}/services").respond(
+        200,
+        json=[
+            {"domain": "podconnect", "services": {"top_tracks": {"response": {"optional": False}}}}
+        ],
+    )
+    route = respx_mock.post(
+        url__regex=r".*/services/podconnect/top_tracks\?return_response.*"
+    ).respond(200, json={"service_response": {"tracks": ["x"]}})
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=["podconnect"]).dispatch(
+            "home_call",
+            {"domain": "podconnect", "service": "top_tracks"},  # NOTE: no return_response flag
+        )
+    assert r["ok"] is True and route.called and r["data"] == {"tracks": ["x"]}
 
 
 async def test_web_search_blocked_when_conversation_not_exposed(respx_mock):
@@ -183,6 +227,9 @@ async def test_home_call_account_level_needs_domain_exposed(respx_mock):
 
 
 async def test_home_call_return_response_reads_data(respx_mock):
+    # A non-speech payload (a list/dict) passes through UNCHANGED under `data` with no
+    # `summary` — the normalizer must never flatten history/track lists.
+    respx_mock.get(f"{SVC}/services").respond(200, json=[])
     route = respx_mock.post(url__regex=r".*/services/podconnect/top_tracks.*").respond(
         200, json={"service_response": {"tracks": ["a", "b", "c"]}}
     )
@@ -192,7 +239,7 @@ async def test_home_call_return_response_reads_data(respx_mock):
             {"domain": "podconnect", "service": "top_tracks", "return_response": True},
         )
     assert r["ok"] is True and route.called
-    assert r["response"] == {"tracks": ["a", "b", "c"]}
+    assert r["data"] == {"tracks": ["a", "b", "c"]} and "summary" not in r
 
 
 async def test_list_entities_includes_area_and_domains(respx_mock):
