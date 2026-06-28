@@ -129,7 +129,6 @@ def console_factory(cfg: Config, tools=None):
                 silence_ms=cfg.openai_silence_ms,
                 eagerness=cfg.openai_eagerness,
                 noise=cfg.openai_noise,
-                web_search=cfg.web_search,
             )
         if not cfg.gemini_api_key:
             return SimConsoleGemini()

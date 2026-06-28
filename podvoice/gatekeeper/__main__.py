@@ -175,9 +175,7 @@ async def run(cfg: Config) -> None:
             _LOG.error("no rooms configured (set the Voice-PE -> room map); panel only")
         attention = AttentionClient(cfg.podconnect_base_url, cfg.podconnect_token or None)
         ha_client = httpx.AsyncClient()
-        tools = HAToolBridge(
-            cfg.supervisor_token, ha_client, exposed=cfg.exposed, search_agent=cfg.search_agent
-        )
+        tools = HAToolBridge(cfg.supervisor_token, ha_client, exposed=cfg.exposed)
         if not cfg.supervisor_token:
             _LOG.warning("no SUPERVISOR_TOKEN — HA control disabled (PodConnect tool still works)")
         sessions = {r.room: _build_session(cfg, r, attention, tools, hub) for r in cfg.rooms}

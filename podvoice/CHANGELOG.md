@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.0
+
+- **Web search is no longer special — it's just Home control, like PodConnect.** Removed the bespoke `web_search` tool, the `Search agent` setting, the `Web search` toggle and all provider-native search (Gemini google_search / OpenAI web_search). Live/web questions now go through the SAME generic path as everything else: expose a conversation agent that has Google Search on (e.g. `conversation.google_ai_search`) in Home control, and the assistant calls `conversation.process` via `home_call` with return_response — exactly like `podconnect.top_tracks` or `media_player.play_media`. The default prompt now points at the search agent in natural language. One mental model, nothing to misconfigure.
+
 ## 0.26.0
 
 - **Panel never caches stale UI.** The panel HTML is now served with `Cache-Control: no-store`, so new Settings fields (e.g. Search agent) appear right after an add-on update without a manual browser hard-reload.

@@ -17,11 +17,13 @@ from gatekeeper.ha_tools import HAToolBridge
 SVC = C.SUPERVISOR_CORE_API
 
 
-def _bridge(client, exposed=(), search_agent=""):
-    return HAToolBridge("tok", client, exposed=exposed, search_agent=search_agent)
+def _bridge(client, exposed=()):
+    return HAToolBridge("tok", client, exposed=exposed)
 
 
-async def test_web_search_routes_to_conversation_agent(respx_mock):
+async def test_web_search_is_generic_conversation_process(respx_mock):
+    # Web search is NOT a special tool — it's the same generic path as podconnect/media:
+    # expose the `conversation` domain, then home_call conversation.process (return_response).
     route = respx_mock.post(url__regex=r".*/services/conversation/process.*").respond(
         200,
         json={
@@ -29,18 +31,30 @@ async def test_web_search_routes_to_conversation_agent(respx_mock):
         },
     )
     async with httpx.AsyncClient() as client:
-        b = _bridge(client, search_agent="conversation.google_ai_search")
-        assert "web_search" in {d["name"] for d in b.declarations()}  # exposed when agent set
-        r = await b.dispatch("web_search", {"query": "Canada-kampen"})
-    assert r["ok"] is True and r["answer"] == "Canada vandt 3-2." and route.called
+        b = _bridge(client, exposed=["conversation"])
+        # No bespoke web_search tool exists — only the generic bridge.
+        assert "web_search" not in {d["name"] for d in b.declarations()}
+        r = await b.dispatch(
+            "home_call",
+            {
+                "domain": "conversation",
+                "service": "process",
+                "return_response": True,
+                "data": {"agent_id": "conversation.google_ai_search", "text": "Canada-kampen"},
+            },
+        )
+    assert r["ok"] is True and route.called
+    assert r["response"]["response"]["speech"]["plain"]["speech"] == "Canada vandt 3-2."
 
 
-async def test_web_search_absent_without_agent():
-    import httpx as _h
-
-    async with _h.AsyncClient() as client:
-        names = {d["name"] for d in HAToolBridge("tok", client).declarations()}
-    assert "web_search" not in names  # no agent configured -> no tool
+async def test_web_search_blocked_when_conversation_not_exposed(respx_mock):
+    # Same gating as everything else: not exposed -> denied, HA never hit.
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=[]).dispatch(
+            "home_call",
+            {"domain": "conversation", "service": "process", "return_response": True},
+        )
+    assert r["ok"] is False and "conversation" in r["error"]
 
 
 async def test_declarations_are_generic_ha_only():

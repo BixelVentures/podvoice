@@ -39,17 +39,11 @@ def test_openai_session_turn_none_and_noise_off():
     assert "noise_reduction" not in inp
 
 
-def test_web_search_off_by_default_then_on():
-    cfg = from_options({})
-    assert "tools" not in build_config(cfg)  # no web search, no function tools
-    cfg = from_options({"web_search": True})
-    tools = build_config(cfg)["tools"]
-    assert {"google_search": {}} in tools  # Gemini native search appended
-
-    s = OpenAIRealtimeSession(api_key="k", web_search=True)
-    assert {"type": "web_search"} in s._session_update()["session"]["tools"]
-    s2 = OpenAIRealtimeSession(api_key="k", web_search=False)
-    assert "tools" not in s2._session_update()["session"]
+def test_no_special_web_search_tooling():
+    # Web search is plain HA access (conversation.process) — no provider-native search tool.
+    assert "tools" not in build_config(from_options({}))
+    s = OpenAIRealtimeSession(api_key="k")
+    assert "tools" not in s._session_update()["session"]
 
 
 def test_settings_roundtrip_new_keys(tmp_path):

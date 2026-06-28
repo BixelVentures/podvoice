@@ -72,6 +72,9 @@ Du kan styre hjemmet og musikken via dine værktøjer:
 - Musik/højttalere er bare HA-enheder som alt andet: find dem med "list_home", se deres services
   med "list_services" (fx media_player.play_media, search_media, media_pause, volume_set) og udfør
   med "home_call". Du har ingen særskilt musik-funktion — det går gennem Home Assistant.
+- Aktuelle/live spørgsmål du ikke selv kan svare på (sport, nyheder, vejr lige nu, priser): slå dem op
+  via søge-agenten "conversation.google_ai_search". Den nås som enhver anden HA-tjeneste — kald
+  "conversation.process" med "home_call" (return_response slået til) og send spørgsmålet med. Læs svaret op.
 Når nogen spørger "hvad kan du?", så fortæl kort om disse muligheder.
 
 Når du kalder et værktøj eller slår noget op, SIG FØRST en kort kvittering, fx
@@ -81,21 +84,6 @@ Hvis du ikke forstår brugeren: sig "Det forstod jeg ikke helt."
 Hvis du ikke kan udføre noget: sig "Det kan jeg desværre ikke."
 
 Stil ikke unødvendige opfølgende spørgsmål. Tal kun når det er relevant."""
-
-# Appended to the prompt ONLY when web search is enabled, so the model actually uses
-# the search tool instead of replying "I have no live data". (Reliable on Gemini's
-# native google_search; OpenAI Realtime hosted search is not guaranteed.)
-WEB_SEARCH_HINT = (
-    "\n\nDu HAR et web-søgeværktøj. Brug det til aktuelle/live spørgsmål (sport, nyheder, "
-    "vejr lige nu, priser) i stedet for at sige at du ikke har live-data."
-)
-
-
-def _instructions(cfg) -> str:
-    instr = getattr(cfg, "system_prompt", "") or SYSTEM_PROMPT_DA
-    if getattr(cfg, "web_search", False):
-        instr += WEB_SEARCH_HINT
-    return instr
 
 
 # --- Config builder (PLAN §5.9) ------------------------------------------------
@@ -116,7 +104,7 @@ def build_config(
         # VERIFY: response_modalities is the field name; ["AUDIO"] for voice out.
         "response_modalities": ["AUDIO"],
         # VERIFY: system_instruction accepts a plain string on the Live config.
-        "system_instruction": _instructions(cfg),
+        "system_instruction": getattr(cfg, "system_prompt", "") or SYSTEM_PROMPT_DA,
         # VERIFY: speech_config -> voice_config -> prebuilt_voice_config -> voice_name
         # VERIFY: "Kore" is a Danish-suitable prebuilt voice (PLAN §5.9 flags this).
         "speech_config": {
@@ -154,10 +142,6 @@ def build_config(
     if tool_declarations:
         # VERIFY: tools is a list of {"function_declarations": [...]} blocks (PLAN §5.6).
         tools.append({"function_declarations": list(tool_declarations)})
-    if getattr(cfg, "web_search", False):
-        # VERIFY: native Google Search grounding tool; may not combine with function
-        # tools on every model (cf. HA's "Search vs Control" limitation). Opt-in.
-        tools.append({"google_search": {}})
     if tools:
         config["tools"] = tools
     return config

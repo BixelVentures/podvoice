@@ -24,7 +24,7 @@ import aiohttp
 
 from . import constants as C
 from .audio import resample_pcm16
-from .gemini import SYSTEM_PROMPT_DA, WEB_SEARCH_HINT
+from .gemini import SYSTEM_PROMPT_DA
 from .voice import (
     AudioChunk,
     InputTranscript,
@@ -60,7 +60,6 @@ class OpenAIRealtimeSession:
     silence_ms: int = 500  # server_vad only
     eagerness: str = "auto"  # semantic_vad: auto | low | medium | high
     noise: str = "near_field"  # near_field | far_field | off
-    web_search: bool = False  # expose OpenAI's hosted web search tool
     _http: aiohttp.ClientSession | None = field(default=None, init=False, repr=False)
     _ws: aiohttp.ClientWebSocketResponse | None = field(default=None, init=False, repr=False)
 
@@ -95,8 +94,7 @@ class OpenAIRealtimeSession:
         session: dict = {
             "type": "realtime",  # speech-to-speech (vs "transcription")
             "output_modalities": ["audio"],
-            "instructions": (self.instructions or SYSTEM_PROMPT_DA)
-            + (WEB_SEARCH_HINT if self.web_search else ""),
+            "instructions": self.instructions or SYSTEM_PROMPT_DA,
             "audio": {
                 "input": audio_input,
                 "output": {
@@ -117,8 +115,6 @@ class OpenAIRealtimeSession:
                 }
                 for d in self.tool_declarations
             ]
-        if self.web_search:
-            tools.append({"type": "web_search"})  # VERIFY: hosted web-search tool name
         if tools:
             session["tools"] = tools
         return {"type": "session.update", "session": session}

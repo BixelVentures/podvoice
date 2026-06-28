@@ -37,8 +37,6 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 DEFAULTS: dict = {
     "simulate": False,
     "provider": "gemini",  # "gemini" | "openai" — default voice brain
-    "web_search": False,  # expose the provider's native web search (Gemini google_search / OpenAI web_search)
-    "search_agent": "",  # HA conversation agent for the provider-agnostic web_search tool
     "system_prompt": SYSTEM_PROMPT_DA,  # who the assistant is + what it can do (editable)
     "gemini_model": "gemini-2.5-flash-native-audio-preview-12-2025",
     "gemini_voice": "Kore",

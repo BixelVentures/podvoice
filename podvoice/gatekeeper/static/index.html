@@ -291,12 +291,8 @@
       <div class="setgrid">
         <label for="s_provider">Provider</label>
         <select id="s_provider"><option value="gemini">Gemini</option><option value="openai">OpenAI</option></select>
-        <label for="s_web_search" title="Native provider search (Gemini google_search). Optional if you set a Search agent below.">Web search</label>
-        <input id="s_web_search" type="checkbox" title="Gemini-only native search. For OpenAI use the Search agent below instead.">
-        <label for="s_search_agent">Search agent</label>
-        <input id="s_search_agent" type="text" autocomplete="off" placeholder="conversation.google_ai_search (works on any provider)">
       </div>
-      <p class="sub" style="margin:2px 0 0">Model &amp; voice are chosen in the <b>Talk</b> tab; per-provider fine-tuning is under Advanced. <b>Search agent</b> = an HA conversation agent (with Google Search on) — set it and the assistant gets a reliable <code>web_search</code> tool on <i>any</i> provider (incl. OpenAI).</p>
+      <p class="sub" style="margin:2px 0 0">Model &amp; voice are chosen in the <b>Talk</b> tab; per-provider fine-tuning is under Advanced. <b>Web search &amp; live info</b> is just Home control: expose a conversation agent that has Google Search on (e.g. <code>conversation.google_ai_search</code>) below, and the assistant looks things up through it like any other HA tool.</p>
 
       <div class="exsub" style="margin-top:14px">Music ducking (PodConnect)</div>
       <div class="setgrid">
@@ -830,7 +826,7 @@ setInterval(poll, 3000);
 "use strict";
 // ---- Settings page (saved to the add-on's /data; HA Configuration holds only keys) ----
 (function () {
-  var FIELDS = ["provider", "web_search", "search_agent", "system_prompt", "gemini_model", "gemini_voice",
+  var FIELDS = ["provider", "system_prompt", "gemini_model", "gemini_voice",
     "gemini_vad_start", "gemini_vad_end", "gemini_prefix_ms", "gemini_silence_ms",
     "openai_model", "openai_voice", "openai_turn", "openai_eagerness", "openai_threshold",
     "openai_prefix_ms", "openai_silence_ms", "openai_noise",
