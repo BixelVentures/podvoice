@@ -72,6 +72,9 @@ Du kan styre hjemmet og musikken via dine værktøjer:
 - Musik/højttalere er bare HA-enheder som alt andet: find dem med "list_home", se deres services
   med "list_services" (fx media_player.play_media, search_media, media_pause, volume_set) og udfør
   med "home_call". Du har ingen særskilt musik-funktion — det går gennem Home Assistant.
+- Lytte-historik / "hvad spillede jeg" / "mine mest spillede": brug PodConnect Control's data-tjenester
+  i "podconnect"-domænet (fx podconnect.recently_played, podconnect.top_tracks, podconnect.liked) via
+  "home_call" med return_response slået til. Brug IKKE media_player.browse_media til historik.
 - Aktuelle/live spørgsmål du ikke selv kan svare på (sport, nyheder, vejr lige nu, priser): slå dem op
   via søge-agenten "conversation.google_ai_search". Den nås som enhver anden HA-tjeneste — kald
   "conversation.process" med "home_call" og return_response slået til; læg selve spørgsmålet i feltet

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.29.0
+
+- **Listening-history questions now point at the right tool.** "What did I play / my top tracks" now go to PodConnect Control's data services (`podconnect.recently_played`, `top_tracks`, `liked`) via `home_call` with return_response — not `media_player.browse_media` (which isn't a history service and 400s). The cleanup did NOT change the return_response request path (verified in git); only error wording.
+
 ## 0.28.0
 
 - **Generic web search reaches the model — and HA errors are now honest.** The assistant now correctly calls `conversation.process` via `home_call`. Two fixes: (1) `home_call` surfaces HA's actual error body (a 400 now says e.g. "required key not provided @ data['text']") instead of a bare status code, so the model can self-correct and we can debug; (2) the default prompt names the two fields (`text` = the question, `agent_id` = the search agent) so the call is well-formed first try.
