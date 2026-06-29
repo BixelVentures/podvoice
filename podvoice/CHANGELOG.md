@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.36.0 — OpenAI Realtime: fix double transcript + instrument the turn state machine
+
+Targets two reported symptoms on the OpenAI/ChatGPT provider (not the prompt; Gemini's native-audio tool-discovery miss is tracked separately).
+
+- **Double "you" transcript fixed.** `openai_realtime.py` emitted `InputTranscript` on **both** `conversation.item.input_audio_transcription.delta` and `.completed`; the console renders one bubble per event (no accumulation), so each utterance showed twice. We now emit only on `.completed` (the authoritative final transcript). Output transcript path unchanged.
+- **Turn state machine instrumented (diagnostic).** To find the cross-wired answers ("Hvem scorede?" → "Summen er 137") and the stalls, every turn transition now logs at INFO: `response.created` (id + active/pending), `response.done` (id + **status** + whether it fired the deferred create or ended the turn), tool-calls (name/call_id/response), barge-in clears, and tool-result submit (defer vs. create-now). A first-audio check emits `turn: ANSWER CROSSING …` when a response speaks audio whose id doesn't match the current response — the smoking gun for answers landing on the wrong turn. Logging is once-per-turn (not per audio frame) and can be trimmed once the root cause is pinned.
+
 ## 0.35.0 — realtime voice prompt overhaul (10-expert research + adversarial red-team)
 
 Rewrote the default Danish system prompt (`SYSTEM_PROMPT_DA`) from a ~1.5 KB note into a structured, sectioned realtime-voice prompt. Built by a 10-expert research pass (realtime/Gemini-Live, voice-UX, Danish localization, HA tooling, music, knowledge/QA grounding, safety, prompt structure, accessibility, latency) and hardened by a 5-reviewer adversarial red-team (35 issues fixed). Every result-contract claim was validated against `ha_tools.py` before shipping; the canonical fallback phrases in `constants.py` are preserved verbatim (tests green).

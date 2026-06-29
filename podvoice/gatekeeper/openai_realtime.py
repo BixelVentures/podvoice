@@ -43,6 +43,22 @@ DEFAULT_MODEL = "gpt-realtime-2"
 DEFAULT_VOICE = "marin"  # VERIFY: a current realtime voice name
 
 
+def _rid(ev: dict) -> str:
+    """Best-effort response id from any event shape (or '?' if absent)."""
+    r = ev.get("response")
+    if isinstance(r, dict) and r.get("id"):
+        return str(r["id"])
+    return str(ev.get("response_id") or "?")
+
+
+def _rstatus(ev: dict) -> str:
+    """response.done status ('completed' | 'cancelled' | 'failed' | ...) or '?'."""
+    r = ev.get("response")
+    if isinstance(r, dict) and r.get("status"):
+        return str(r["status"])
+    return "?"
+
+
 @dataclass
 class OpenAIRealtimeSession:
     """One OpenAI Realtime WebSocket. Satisfies voice.VoiceSession."""
@@ -178,7 +194,14 @@ class OpenAIRealtimeSession:
         # speaks). If the function-call response hasn't finished yet, defer until response.done.
         if self._active_response:
             self._pending_create = True
+            _LOG.info(
+                "turn: tool results submitted while active -> DEFER create (%d result(s))",
+                len(results),
+            )
         else:
+            _LOG.info(
+                "turn: tool results submitted while idle -> create NOW (%d result(s))", len(results)
+            )
             await self._ws.send_json({"type": "response.create"})
 
     async def events(self) -> AsyncIterator[VoiceEvent]:
@@ -195,6 +218,10 @@ class OpenAIRealtimeSession:
 
     async def _iter_events(self) -> AsyncIterator[VoiceEvent]:
         assert self._ws is not None
+        # Per-stream turn tracking (diagnostics for cross-wired answers): the id of the
+        # response currently being created, and the id we last logged as "speaking".
+        cur_rid: str | None = None
+        spoke_rid: str | None = None
         async for msg in self._ws:
             if msg.type is not aiohttp.WSMsgType.TEXT:
                 continue
@@ -205,37 +232,73 @@ class OpenAIRealtimeSession:
             t = ev.get("type")
             if t == "response.created":
                 self._active_response = True
+                cur_rid = _rid(ev)
+                _LOG.info(
+                    "turn: response.created id=%s (active=True pending=%s)",
+                    cur_rid,
+                    self._pending_create,
+                )
             elif t == "response.output_audio.delta":  # VERIFY: GA event name
                 d = ev.get("delta")
                 if d:
+                    drid = _rid(ev)
+                    if drid != spoke_rid:  # first audio chunk of this response
+                        spoke_rid = drid
+                        if drid != "?" and cur_rid not in ("?", None) and drid != cur_rid:
+                            _LOG.warning(
+                                "turn: ANSWER CROSSING — audio for response %s but current is %s",
+                                drid,
+                                cur_rid,
+                            )
+                        else:
+                            _LOG.info("turn: speaking response %s", drid)
                     yield AudioChunk(base64.b64decode(d))
             elif t == "response.output_audio_transcript.delta":
                 yield OutputTranscript(ev.get("delta", ""))
             elif t == "conversation.item.input_audio_transcription.completed":
+                # ONLY the completed (final) transcript drives the displayed line. We used to
+                # ALSO emit on '.delta', but the console renders one bubble per event (no
+                # accumulation), so delta + completed showed the same utterance twice.
                 yield InputTranscript(ev.get("transcript", ""))
-            elif t == "conversation.item.input_audio_transcription.delta":
-                yield InputTranscript(ev.get("delta", ""))
             elif t == "response.function_call_arguments.done":
                 try:
                     args = json.loads(ev.get("arguments") or "{}")
                 except (json.JSONDecodeError, ValueError):
                     args = {}
+                _LOG.info(
+                    "turn: tool-call name=%s call_id=%s (response %s)",
+                    ev.get("name"),
+                    ev.get("call_id"),
+                    _rid(ev),
+                )
                 yield ToolCall(ev.get("call_id", ""), ev.get("name", ""), args)
             elif t == "input_audio_buffer.speech_started":
                 # Barge-in: the server cancels the active response. Drop any deferred
                 # follow-up so we don't speak the tool result the user just interrupted.
+                _LOG.info(
+                    "turn: barge-in (speech_started) — clearing active=%s pending=%s",
+                    self._active_response,
+                    self._pending_create,
+                )
                 self._active_response = False
                 self._pending_create = False
                 yield Interrupted()
             elif t == "response.done":
                 self._active_response = False
+                rid, status = _rid(ev), _rstatus(ev)
                 if self._pending_create and self._ws is not None:
                     # This response.done only closed the function-call response. Fire the
                     # deferred follow-up that speaks the result, and DON'T end the turn here
                     # (the follow-up response's own response.done is the real end-of-turn).
                     self._pending_create = False
+                    _LOG.info(
+                        "turn: response.done id=%s status=%s -> firing DEFERRED create (turn stays open)",
+                        rid,
+                        status,
+                    )
                     await self._ws.send_json({"type": "response.create"})
                     continue
+                _LOG.info("turn: response.done id=%s status=%s -> TurnComplete", rid, status)
                 yield TurnComplete()
             elif t == "error":
                 _LOG.warning("openai realtime error: %s", ev.get("error"))
