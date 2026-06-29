@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.35.0 — realtime voice prompt overhaul (10-expert research + adversarial red-team)
+
+Rewrote the default Danish system prompt (`SYSTEM_PROMPT_DA`) from a ~1.5 KB note into a structured, sectioned realtime-voice prompt. Built by a 10-expert research pass (realtime/Gemini-Live, voice-UX, Danish localization, HA tooling, music, knowledge/QA grounding, safety, prompt structure, accessibility, latency) and hardened by a 5-reviewer adversarial red-team (35 issues fixed). Every result-contract claim was validated against `ha_tools.py` before shipping; the canonical fallback phrases in `constants.py` are preserved verbatim (tests green).
+
+- **Anti-drift Danish, strengthened.** Positive "umiskendeligt rigsdansk" lock with a danico word-pair checklist (noget/meget/findes/igen/kun/hvad/hvordan/godt…) and a radioavis self-check on every word. Foreign-language tool `summary` strings are now translated before speaking instead of echoed verbatim — closing a real drift path. Proper names (song titles, brands, rooms, scenes) and names containing digits (Blink-182, U2) are exempt from translation and the numbers-as-words rule.
+- **Realtime-native behavior.** Explicit barge-in handling (stop, listen, don't repeat, don't apologize), a turn that mixes an instant action + a slow lookup ("Slukket — vejret tjekker jeg"), and barge-in during a sensitive confirmation cancels the pending action.
+- **Latency-shaped speech.** Instant local actions = do-then-confirm (no leading filler); slow lookups = short acknowledgement first, then silence until the result. Numbers, times, prices, years spoken as Danish words for correct TTS.
+- **Tool-contract aligned to the real result shape.** The internal `summary:"Done."` action sentinel is never spoken (fixed Danish receipt used instead); `empty:true` success is reported as a fact, not a failure; `error_kind:"denied"` gets a distinct "not set up yet" line; a human-readable `error` (e.g. `intent_error` from a failed search/conversation agent) is relayed briefly in Danish, otherwise the generic fallback; never read ids/JSON/field-names aloud; relative volume routed through `list_services` rather than a guessed percentage.
+- **Knowledge grounding.** Replaced temporal trigger-words with a content test — anything with a holder/record/price/latest-version/changing count is looked up even when phrased timelessly; no-service-available means "I can't check that here", never a hallucinated answer; calibrated uncertainty (round or hedge rather than a crisp-wrong number); spoken answers capped to one sentence / two facts.
+- **Safety re-tiered by reversibility + blast radius.** Confirm-before only for hard-to-undo / security / money / privacy actions (unlock, garage, alarm-OFF, calls, messages, deletes, purchases, large/low heating changes); arm/lock/close and small heat nudges stay instant. Shared-speaker guard: unlock/alarm-off/call/purchase require a full unambiguous "yes" to the actual question; private content is summarized in one word and read aloud only on explicit yes.
+
 ## 0.34.0 — review follow-ups (3 owner-approved design calls)
 
 - **Failed agents are reported as failures.** When a conversation/search agent errors (`response_type=='error'`) the call now returns `ok:false, error_kind:'intent_error'` (so Status no longer counts it as success) while keeping the agent's message so the assistant can relay it. Prompt updated to speak the `error` text when present.
@@ -17,7 +28,6 @@ Fixes for real edge cases found reviewing 0.30-0.32 (false alarms discarded):
 - **P1 — OpenAI session state resets on (re)connect/disconnect**, so a dropped socket can't poison the next session (stuck-silent or spurious reply).
 - **P1 — mic barge-in now stops browser playback** in the Talk console (the console forwards the interrupt and flushes scheduled audio instead of talking over you).
 - **P2 — mixed-case domain guesses resolve** (domain/service lowercased so the gate, auto-correct and the call URL agree). **P2 — speech-summary promotion requires HA's `response` wrapper** (no promoting arbitrary data as the spoken answer).
-
 ## 0.32.0
 
 - **OpenAI Realtime: the assistant now actually speaks the tool result.** Fixed a race where, after a tool call, PodVoice asked OpenAI for a reply (`response.create`) while the function-call response was still active — Realtime rejects that, so the model stayed silent ("searches but never returns", worst on chained calls like the music/history question). We now submit the tool output immediately but DEFER `response.create` until the active response finishes. Gemini was unaffected.
