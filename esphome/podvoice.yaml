@@ -32,7 +32,10 @@ packages:
     url: https://github.com/esphome/home-assistant-voice-pe
     files: [home-assistant-voice.yaml]
     ref: ${ha_voice_ref}
-    refresh: never # reproducible builds; bump ha_voice_ref to update on purpose
+    # NOT `never`: refresh:never serves a STALE cached base even when ha_voice_ref
+    # changes (this caused the 26.4.0 esphome-const clash on a 26.6.x host). 1d picks
+    # up a ref bump within a day; do "Clean Build Files" once after changing the ref.
+    refresh: 1d
 
 esphome:
   name: ${name}

@@ -19,7 +19,7 @@ packages:
     url: https://github.com/esphome/home-assistant-voice-pe
     files: [home-assistant-voice.yaml]
     ref: ${ha_voice_ref}
-    refresh: never
+    refresh: 1d  # NOT never — never serves a stale cached base after a ref bump
 
 esphome:
   name: ${name}
