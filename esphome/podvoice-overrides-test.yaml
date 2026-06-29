@@ -1,0 +1,16 @@
+# =============================================================================
+# podvoice-overrides-test.yaml — !extend INSIDE A PACKAGE (Builder can't mangle it)
+# =============================================================================
+# The ESPHome Builder editor mangles the !extend tag into a literal id whenever it
+# is in the config the Builder itself edits (raw OR visual). Workaround: put the
+# !extend override in a PACKAGE that the main config merely includes. The Builder
+# never edits package contents — they are fetched fresh and `esphome config`
+# applies !extend at resolve time.
+#
+# If the main config that includes this validates + flashes, !extend works via
+# packages and full-duplex Phase 1b is UNBLOCKED.
+# =============================================================================
+
+voice_assistant:
+  id: !extend va
+  use_wake_word: false
