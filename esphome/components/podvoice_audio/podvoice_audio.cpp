@@ -102,6 +102,11 @@ void PodVoiceAudio::setup() {
   // start() is a guaranteed no-op when passive_ is true. Calling it would muddy
   // the "we never touch mic lifecycle" invariant (micro_wake_word owns i2s_mics).
 
+  if (this->autostart_) {
+    this->user_enabled_ = true;  // S1 test: stream from boot, no PodVoice start needed
+    ESP_LOGCONFIG(TAG, "autostart ON — forwarding from boot (dead-man timer disabled)");
+  }
+
   ESP_LOGCONFIG(TAG, "PodVoice audio shim ready (passive mic tap installed)");
 }
 
@@ -116,7 +121,8 @@ void PodVoiceAudio::loop() {
   // Dead-man safety stop: if PodVoice hasn't re-asserted start/keepalive within
   // SAFETY_MS, force forwarding OFF (covers a crashed / hung / half-open add-on
   // that a clean TCP disconnect — client==nullptr below — would not catch).
-  if (this->user_enabled_ && (millis() - this->last_keepalive_ms_) > SAFETY_MS) {
+  if (!this->autostart_ && this->user_enabled_ &&
+      (millis() - this->last_keepalive_ms_) > SAFETY_MS) {
     ESP_LOGW(TAG, "dead-man timeout (%u ms) — force-stopping mic forward", (unsigned) SAFETY_MS);
     this->stop_streaming();
   }

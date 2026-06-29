@@ -60,6 +60,8 @@ class PodVoiceAudio : public Component {
   void set_microphone_source(microphone::MicrophoneSource *mic_source) { this->mic_source_ = mic_source; }
   void set_ring_ms(uint32_t ring_ms) { this->ring_ms_ = ring_ms; }
   void set_sample_rate(uint32_t sample_rate) { this->sample_rate_ = sample_rate; }
+  // autostart: boot streaming + disable the dead-man timeout (S1 test mode).
+  void set_autostart(bool autostart) { this->autostart_ = autostart; }
 
   // --- Component -------------------------------------------------------------
   void setup() override;
@@ -106,6 +108,7 @@ class PodVoiceAudio : public Component {
   // Boots OFF: the device must EARN the right to stream by receiving a wake-driven
   // start from PodVoice. This is the privacy gate (no audio leaves until wake).
   bool user_enabled_{false};
+  bool autostart_{false};  // boot streaming + skip the dead-man timer (S1 test mode)
   uint32_t last_keepalive_ms_{0};  // dead-man timer: last start/keepalive from PodVoice
   bool was_connected_{false};  // tracks subscribe/unsubscribe edges for logging
 

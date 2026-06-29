@@ -60,6 +60,7 @@ podvoice_audio_ns = cg.esphome_ns.namespace("podvoice_audio")
 PodVoiceAudio = podvoice_audio_ns.class_("PodVoiceAudio", cg.Component)
 
 CONF_RING_MS = "ring_ms"
+CONF_AUTOSTART = "autostart"
 
 # Voice PE i2s_mics is 16 kHz; the MicrophoneSource converts 32-bit -> 16-bit for us.
 SAMPLE_RATE = 16000
@@ -86,6 +87,11 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         # Fixed PSRAM jitter/drain buffer. 400 ms @ 16 kHz/16-bit/mono = 12.8 KB.
         cv.Optional(CONF_RING_MS, default=400): cv.int_range(min=64, max=4000),
+        # autostart: stream continuously from boot and DISABLE the dead-man safety
+        # timeout. For the S1 hardware gate (gap-free continuous audio) without the
+        # wake/start plumbing. Production wake-gating leaves this false (PodVoice
+        # drives start/stop + keepalive).
+        cv.Optional(CONF_AUTOSTART, default=False): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -126,6 +132,7 @@ async def to_code(config):
 
     cg.add(var.set_ring_ms(config[CONF_RING_MS]))
     cg.add(var.set_sample_rate(SAMPLE_RATE))
+    cg.add(var.set_autostart(config[CONF_AUTOSTART]))
     # NOTE: USE_API + USE_VOICE_ASSISTANT defines come from the `api` and
     # `voice_assistant` dependencies respectively — do NOT add_define them here
     # (that risks duplicate-define and is not how ESPHome guards work).
