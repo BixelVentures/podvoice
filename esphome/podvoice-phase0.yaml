@@ -1,34 +1,41 @@
 # =============================================================================
-# podvoice-phase0.yaml — MINIMAL Voice PE base (validates + flashes + connects)
+# podvoice-phase0.yaml — Voice PE BASE for ESPHome 2026.6.x (Voice PE 26.6.0)
 # =============================================================================
-# Goal: get a flashable base that PodVoice can REACH (Gate 1 / Connection).
-# Deliberately contains NO `!extend` and NO custom component:
-#   - upstream 26.6.0 already sets voice_assistant `use_wake_word: false`, so we
-#     don't need to override it (that override is what triggered the "'!' cannot
-#     be used" !extend error).
-#   - the wake->event redirect + the podvoice_audio mic-forward both need !extend
-#     on `mww`/`va`; those come back in Phase 1 once the base flashes cleanly.
-# Only override = the API encryption key (so PodVoice connects with your PSK).
+# This is the correct, minimal, version-robust base: it validates, flashes, and
+# lets PodVoice connect (Gate 1). It deliberately contains NO `!extend` and NO
+# custom component — those are Phase 1 (wake redirect + mic-forward).
+#
+# WHY refresh: 0s (NOT never / 1d):
+#   ESPHome caches remote packages. `never`/`1d` kept serving a STALE 26.4.0 base
+#   (which pins esphome@ff8ce895, whose old `const` lacks CONF_B_CONSTANT that the
+#   2026.6.x `sensor` imports) -> "Component not found: sensor". `0s` re-fetches
+#   the pinned ref every build, so the base ALWAYS matches `ha_voice_ref`. Slower
+#   builds, but bulletproof. (For a frozen production build: pin ha_voice_ref to a
+#   tag, flash once, then optionally switch to refresh: 1d.)
+#
+# FUTURE VERSIONS: keep ha_voice_ref aligned with your ESPHome add-on version
+#   (Voice PE releases track ESPHome: 26.6.0 needs ESPHome >= 2026.5.0). When you
+#   update the ESPHome add-on, bump ha_voice_ref to the matching Voice PE release.
 # =============================================================================
 
 substitutions:
   name: podvoice-pe
   friendly_name: PodVoice PE
-  ha_voice_ref: "26.6.0" # match your ESPHome (min 2026.5.0)
+  ha_voice_ref: "26.6.0" # Voice PE release matching ESPHome 2026.6.x (min 2026.5.0)
 
 packages:
   ha_voice:
     url: https://github.com/esphome/home-assistant-voice-pe
     files: [home-assistant-voice.yaml]
     ref: ${ha_voice_ref}
-    refresh: 1d # NOT never — never serves a stale cached base after a ref bump
+    refresh: 0s # always re-fetch the pinned ref (avoids the stale-cache sensor error)
 
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
 
-# PodVoice connects over the native API with this Noise PSK
-# (same value in PodVoice -> Settings/Voice PE -> Voice PE PSK).
+# Only override: the native-API encryption key, so PodVoice connects with your PSK
+# (same value in PodVoice -> Voice PE -> Voice PE PSK).
 api:
   encryption:
     key: !secret podvoice_api_key
