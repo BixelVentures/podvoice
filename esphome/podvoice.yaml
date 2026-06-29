@@ -22,7 +22,7 @@ substitutions:
   name: podvoice-pe
   friendly_name: PodVoice PE
   # Pin the upstream firmware ref here; bump deliberately (see the update ritual in DOCS).
-  ha_voice_ref: "26.4.0" # VERIFY: a real tag/branch of esphome/home-assistant-voice-pe
+  ha_voice_ref: "26.6.0" # pin to the upstream release matching your ESPHome (2026.6.x)
 
 # Inherit the ENTIRE official firmware (board, PSRAM, i2s pins, mic, speaker+mixer+
 # resampler, AIC3204 DAC, LEDs, rotary, button, mute, micro_wake_word, voice_kit/XMOS,
