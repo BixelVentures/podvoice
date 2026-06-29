@@ -62,6 +62,10 @@ class OpenAIRealtimeSession:
     noise: str = "near_field"  # near_field | far_field | off
     _http: aiohttp.ClientSession | None = field(default=None, init=False, repr=False)
     _ws: aiohttp.ClientWebSocketResponse | None = field(default=None, init=False, repr=False)
+    # Realtime rejects response.create while a response is active. A function call arrives
+    # mid-response, so we submit the output now but DEFER response.create until response.done.
+    _active_response: bool = field(default=False, init=False, repr=False)
+    _pending_create: bool = field(default=False, init=False, repr=False)
 
     def _turn_detection(self) -> dict | None:
         """Build the turn_detection block from the tunable knobs. VERIFY field names."""
@@ -167,7 +171,12 @@ class OpenAIRealtimeSession:
                     },
                 }
             )
-        await self._ws.send_json({"type": "response.create"})
+        # Asking for a response while one is still active errors out (and the model never
+        # speaks). If the function-call response hasn't finished yet, defer until response.done.
+        if self._active_response:
+            self._pending_create = True
+        else:
+            await self._ws.send_json({"type": "response.create"})
 
     async def events(self) -> AsyncIterator[VoiceEvent]:
         if self._ws is None:
@@ -180,7 +189,9 @@ class OpenAIRealtimeSession:
             except (json.JSONDecodeError, ValueError):
                 continue
             t = ev.get("type")
-            if t == "response.output_audio.delta":  # VERIFY: GA event name
+            if t == "response.created":
+                self._active_response = True
+            elif t == "response.output_audio.delta":  # VERIFY: GA event name
                 d = ev.get("delta")
                 if d:
                     yield AudioChunk(base64.b64decode(d))
@@ -199,6 +210,12 @@ class OpenAIRealtimeSession:
             elif t == "input_audio_buffer.speech_started":
                 yield Interrupted()  # barge-in: server cancels response (interrupt_response)
             elif t == "response.done":
+                self._active_response = False
+                # The response that carried a function call has finished — now it's safe to
+                # ask for the follow-up response that speaks the tool result.
+                if self._pending_create and self._ws is not None:
+                    self._pending_create = False
+                    await self._ws.send_json({"type": "response.create"})
                 yield TurnComplete()
             elif t == "error":
                 _LOG.warning("openai realtime error: %s", ev.get("error"))

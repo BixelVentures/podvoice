@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.32.0
+
+- **OpenAI Realtime: the assistant now actually speaks the tool result.** Fixed a race where, after a tool call, PodVoice asked OpenAI for a reply (`response.create`) while the function-call response was still active — Realtime rejects that, so the model stayed silent ("searches but never returns", worst on chained calls like the music/history question). We now submit the tool output immediately but DEFER `response.create` until the active response finishes. Gemini was unaffected.
+
 ## 0.31.0
 
 - **All Voice PE hardware settings live in the Voice PE tab now.** Moved PSK, Simulation mode and Rooms out of Settings into a "Setup" section on the Voice PE tab (with its own Save & restart), so everything about the device — setup + the 3 hardware gates — is in one place. Settings is now just the assistant (provider, prompt, ducking, home control, advanced tuning).

@@ -2,10 +2,71 @@
 
 from __future__ import annotations
 
+import json
+
+import aiohttp
+
 from gatekeeper.config import from_options
 from gatekeeper.gemini import build_config
 from gatekeeper.openai_realtime import OpenAIRealtimeSession
 from gatekeeper.settings import load_settings, save_settings
+from gatekeeper.voice import TurnComplete
+
+
+class _Msg:
+    type = aiohttp.WSMsgType.TEXT
+
+    def __init__(self, data: str) -> None:
+        self.data = data
+
+
+class _FakeWS:
+    def __init__(self, incoming=()) -> None:
+        self.sent: list = []
+        self._incoming = list(incoming)
+
+    async def send_json(self, d: dict) -> None:
+        self.sent.append(d)
+
+    def __aiter__(self):  # type: ignore[no-untyped-def]
+        return self._gen()
+
+    async def _gen(self):  # type: ignore[no-untyped-def]
+        for m in self._incoming:
+            yield m
+
+
+async def test_openai_defers_response_create_during_active_response():
+    # A tool result that arrives mid-response must NOT trigger response.create yet
+    # (Realtime errors on response.create while a response is active -> model goes silent).
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._active_response = True
+    await s.send_tool_results([{"id": "c1", "name": "home_call", "response": {"ok": True}}])
+    assert s._pending_create is True
+    assert s._ws.sent[-1]["type"] == "conversation.item.create"  # output submitted
+    assert all(m["type"] != "response.create" for m in s._ws.sent)  # but NOT asked to speak yet
+
+
+async def test_openai_fires_deferred_create_on_response_done():
+    # When the active response finishes, the deferred response.create is sent so the model
+    # finally speaks the tool result.
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS([_Msg(json.dumps({"type": "response.done"}))])  # type: ignore[assignment]
+    s._active_response = True
+    s._pending_create = True
+    evs = [e async for e in s.events()]
+    assert any(isinstance(e, TurnComplete) for e in evs)
+    assert s._ws.sent == [{"type": "response.create"}] and s._pending_create is False
+
+
+async def test_openai_sends_create_immediately_when_idle():
+    # No active response -> send response.create right away (no deferral).
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._active_response = False
+    await s.send_tool_results([{"id": "c1", "name": "x", "response": {"ok": True}}])
+    assert s._ws.sent[-1] == {"type": "response.create"} and s._pending_create is False
 
 
 def test_build_config_includes_gemini_vad():
