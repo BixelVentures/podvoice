@@ -1,0 +1,45 @@
+# =============================================================================
+# podvoice-phase0.yaml — MINIMAL Voice PE overlay (no custom component)
+# =============================================================================
+# Flashes a stock-equivalent Voice PE + PodVoice PSK + wake->event redirect.
+# NO podvoice_audio / external_components yet — this is the base that must
+# validate + flash + connect (Gate 1) before we layer the audio shim back on.
+# If THIS validates, the earlier "Component not found: sensor" was our custom
+# component, not the upstream base.
+# =============================================================================
+
+substitutions:
+  name: podvoice-pe
+  friendly_name: PodVoice PE
+  ha_voice_ref: "26.6.0" # match your ESPHome (2026.6.x)
+
+# Inherit the ENTIRE official firmware (board, mic, speaker, LEDs, micro_wake_word, XMOS).
+packages:
+  ha_voice:
+    url: https://github.com/esphome/home-assistant-voice-pe
+    files: [home-assistant-voice.yaml]
+    ref: ${ha_voice_ref}
+    refresh: never
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+# PodVoice connects over the native API with this Noise PSK (same value in
+# PodVoice -> Settings -> Voice PE PSK).
+api:
+  encryption:
+    key: !secret podvoice_api_key
+
+# PodVoice owns conversation lifecycle — never let HA Assist drive the pipeline.
+voice_assistant:
+  id: !extend va
+  use_wake_word: false
+
+# Redirect on-device wake-word + center press to a PodVoice event (not HA Assist).
+event:
+  - platform: template
+    id: podvoice_event
+    name: "PodVoice event"
+    device_class: button
+    event_types: [single_press, double_press, triple_press, long_press, wake_okay_nabu, wake_stop]
