@@ -1,0 +1,45 @@
+# =============================================================================
+# podvoice-phase1b-extend-test.yaml — DOES !extend WORK on the clean 26.6.0 base?
+# =============================================================================
+# The earlier "IDs must only consist of ... '!' cannot be used" error on
+# `id: !extend va` happened while the build was still serving the STALE 26.4.0
+# cache (the sensor/const mess). Now that the base is clean (26.6.0, fresh fetch),
+# we need to know if !extend works — because full-duplex Phase 1b needs it
+# (to override micro_wake_word.on_wake_word_detected so wake fires OUR signal
+# instead of voice_assistant.start, avoiding the dual-audio-stream conflict).
+#
+# TEST: flash this. If it VALIDATES + flashes -> !extend works -> full-duplex
+# Phase 1b is viable. If it errors on `!extend va` again -> we use the
+# half-duplex fallback (wake -> voice_assistant.start -> handle_start, no
+# podvoice_audio, no !extend).
+# =============================================================================
+
+substitutions:
+  name: podvoice-pe
+  friendly_name: PodVoice PE
+  ha_voice_ref: "26.6.0"
+
+packages:
+  ha_voice:
+    url: https://github.com/esphome/home-assistant-voice-pe
+    files: [home-assistant-voice.yaml]
+    ref: ${ha_voice_ref}
+    refresh: 0s
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret podvoice_api_key
+
+# THE TEST: extend the upstream voice_assistant (id `va`). If this validates,
+# !extend works on the clean base and full-duplex Phase 1b is unblocked.
+voice_assistant:
+  id: !extend va
+  use_wake_word: false
