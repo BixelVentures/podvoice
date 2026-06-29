@@ -110,15 +110,8 @@ async def _diag_status(room: str | None = None) -> dict:
     return await check_status(*resolve_target(load_settings(), room))
 
 
-async def _diag_s1(room: str | None = None) -> dict:
-    return await run_s1(*resolve_target(load_settings(), room))
-
-
 async def _diag_s2(room: str | None = None) -> dict:
     return await run_s2(*resolve_target(load_settings(), room))
-
-
-_DIAG = {"status": _diag_status, "s1": _diag_s1, "s2": _diag_s2}
 
 
 async def _health_probe(cfg: Config, hub: StatusHub, attention: AttentionClient) -> None:
@@ -180,6 +173,20 @@ async def run(cfg: Config) -> None:
             _LOG.warning("no SUPERVISOR_TOKEN — HA control disabled (PodConnect tool still works)")
         sessions = {r.room: _build_session(cfg, r, attention, tools, hub) for r in cfg.rooms}
 
+    # S1 (audio stream) reads the LIVE room session's audio reception when one is
+    # running — it owns the single voice_assistant slot, so a separate run_s1
+    # subscription would be rejected and falsely report "no audio". Falls back to the
+    # standalone probe when no session is up (e.g. before first connect / simulate).
+    async def _diag_s1_live(room: str | None = None) -> dict:
+        sess = sessions.get(room) if room else next(iter(sessions.values()), None)
+        if sess is not None and hasattr(sess, "audio_health"):
+            h = sess.audio_health()
+            if h is not None:
+                return h
+        return await run_s1(*resolve_target(load_settings(), room))
+
+    diag = {"status": _diag_status, "s1": _diag_s1_live, "s2": _diag_s2}
+
     app = create_app(
         hub,
         sessions,
@@ -191,7 +198,7 @@ async def run(cfg: Config) -> None:
         },
         settings_set=save_settings,
         on_restart=lambda: _restart_addon(cfg.supervisor_token),
-        diag=_DIAG,
+        diag=diag,
         tools=tools,
         ha_entities=(tools.list_entities if tools is not None else None),
         pc_rooms=(attention.rooms if attention is not None else None),

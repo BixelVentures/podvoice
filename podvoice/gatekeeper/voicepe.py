@@ -45,6 +45,10 @@ class VoicePELink:
         self._unsub_va: Callable[[], None] | None = None
         self._unsub_states: Callable[[], None] | None = None
         self._audio_q: asyncio.Queue[bytes] = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
+        # Live audio-in health (read by the Voice PE tab's S1 check).
+        self.frames_in = 0
+        self.bytes_in = 0
+        self.last_audio_ts = 0.0
         # Wake/button events -> state machine. Signature: on_event(room, state).
         self.on_event: Callable[[str, object], Any] | None = None
         # Called at the end of every (re)connect so the orchestrator can re-assert the
@@ -172,6 +176,11 @@ class VoicePELink:
         # aioesphomeapi and routed to handle_stop, never here. podvoice_audio
         # forwards a single channel, so data2 is always None — we ignore it.
         """Push one raw 16 kHz PCM frame into the queue; drop on backpressure."""
+        # Live S1 health: count frames + bytes so the panel can confirm the device is
+        # streaming WITHOUT a competing diag subscription (we own the single VA slot).
+        self.frames_in += 1
+        self.bytes_in += len(data)
+        self.last_audio_ts = asyncio.get_event_loop().time()
         try:
             self._audio_q.put_nowait(data)
         except asyncio.QueueFull:

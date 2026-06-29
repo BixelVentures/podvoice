@@ -99,6 +99,37 @@ class RoomSession:
         if hasattr(voicepe, "on_reconnect"):
             voicepe.on_reconnect = self._reassert_device
 
+    def audio_health(self) -> dict | None:
+        """Live S1 read: is the device streaming mic audio to THIS running session?
+
+        Returns None if there's nothing to read (so the caller can fall back to a
+        standalone probe). This avoids a competing diag subscription — PodVoice's
+        room session already owns the single voice_assistant slot, so a separate
+        run_s1 connection would be rejected and falsely report "no audio".
+        """
+        vp = self.voicepe
+        if not hasattr(vp, "frames_in"):
+            return None
+        frames = vp.frames_in
+        if frames <= 0:
+            return {
+                "ok": False,
+                "frames": 0,
+                "error": "Device reachable but no mic audio yet. Make sure it's NOT in "
+                "HA Assist (PodVoice must own the mic), and that the firmware has "
+                "podvoice_audio (Phase 1).",
+            }
+        age = max(0.0, asyncio.get_event_loop().time() - vp.last_audio_ts)
+        return {
+            "ok": age < 5.0,
+            "frames": frames,
+            "bytes": vp.bytes_in,
+            "age_s": round(age, 1),
+            "note": "live session is receiving gap-free device audio"
+            if age < 5.0
+            else f"audio stalled (last frame {age:.0f}s ago)",
+        }
+
     # ------------------------------------------------------------------ lifecycle
     def _on_transition(self, old, new, event) -> None:
         if self.hub is not None:

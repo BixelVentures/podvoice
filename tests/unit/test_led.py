@@ -24,7 +24,9 @@ def test_speaking_distinct_from_listening():
 def test_grace_is_dim_cyan():
     grace = led_command_for(State.LOUNGE_WINDOW)
     listening = led_command_for(State.LISTENING)
-    assert grace.on is True and grace.rgb == listening.rgb and grace.brightness < listening.brightness
+    assert (
+        grace.on is True and grace.rgb == listening.rgb and grace.brightness < listening.brightness
+    )
 
 
 def test_muted_overrides_state():
