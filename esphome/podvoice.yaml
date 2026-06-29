@@ -48,12 +48,12 @@ api:
   # Wake-gating control plane: PodVoice flips forwarding on/off over the native API.
   # start doubles as the dead-man keepalive (PodVoice re-asserts it while a session
   # is active; the device force-stops if it goes quiet — see podvoice_audio SAFETY_MS).
-  # VERIFY: on the pinned ESPHome ref this key may be `actions:` instead of `services:`.
-  services:
-    - service: podvoice_stream_start
+  # NOTE: ESPHome 2026.x renamed `api: services:` -> `api: actions:` (confirmed on 2026.6.2).
+  actions:
+    - action: podvoice_stream_start
       then:
         - lambda: "id(pv_audio).start_streaming();"
-    - service: podvoice_stream_stop
+    - action: podvoice_stream_stop
       then:
         - lambda: "id(pv_audio).stop_streaming();"
 
