@@ -98,6 +98,9 @@ class RoomSession:
         # Re-assert the device stream + LED for the current state on every reconnect.
         if hasattr(voicepe, "on_reconnect"):
             voicepe.on_reconnect = self._reassert_device
+        # Wake word (via voice_assistant.start -> handle_start) -> WAKE_WORD event.
+        if hasattr(voicepe, "on_wake"):
+            voicepe.on_wake = self._on_wake
 
     def audio_health(self) -> dict | None:
         """Live S1 read: is the device streaming mic audio to THIS running session?
@@ -286,8 +289,11 @@ class RoomSession:
         elif k is ActionKind.ERROR_TONE:
             await self.playback.play_tone(audio_mod.error_tone(C.GEMINI_OUTPUT_RATE))
         elif k is ActionKind.STREAM_START:
-            # Wake opened the gate: tell the device to start forwarding the mic and
-            # keep the dead-man timer fresh for the whole session.
+            # Wake opened the gate. First abort the stock voice_assistant turn the wake
+            # triggered (so its turn-audio can't collide with podvoice_audio), THEN start
+            # our continuous stream + keep the dead-man timer fresh.
+            if hasattr(self.voicepe, "abort_va"):
+                await self.voicepe.abort_va()
             if hasattr(self.voicepe, "start_streaming"):
                 await self.voicepe.start_streaming()
             self._start_keepalive()
@@ -406,6 +412,10 @@ class RoomSession:
         await self.gemini.send_tool_results([{"id": tc.id, "name": tc.name, "response": result}])
 
     # ------------------------------------------------------------------ device events
+    def _on_wake(self) -> None:
+        """Device wake (handle_start) -> drive a WAKE_WORD into the state machine."""
+        asyncio.create_task(self.sm.post(Event(EventType.WAKE_WORD, self.room)))  # noqa: RUF006
+
     def _on_device_event(self, room: str, state: object) -> None:
         # VERIFY: ESPHome event-entity state shape (event_type attribute name).
         etype = getattr(state, "event_type", None) or getattr(state, "event", None)

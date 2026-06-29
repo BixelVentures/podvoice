@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.41.0 — wake-gated full-duplex Voice PE (no !extend)
+
+- **Full-duplex on the device without !extend** (which is unusable on ESPHome 2026.6.x). Wake (Okay Nabu) fires voice_assistant.start, which PodVoice receives as the wake signal (handle_start). PodVoice then aborts that stock turn (podvoice_va_abort -> voice_assistant.stop) so its turn-audio can't collide with podvoice_audio, and starts our continuous wake-gated stream. Result: barge-in-capable full-duplex on the hardware. Firmware config: esphome/podvoice-phase1b.yaml (api actions stream_start/stop + va_abort; podvoice_audio wake-gated). UNVALIDATED on hardware — first wake-flow test.
+
 ## 0.40.0
 
 - **Ducking & tuning moved to the Voice PE tab.** Duck/lounge levels, lounge window, heartbeat, watchdog and VAD threshold now live under Voice PE (they only affect the per-room Voice PE flow, not the Talk console). Settings is now purely the assistant. IDs unchanged — config preserved.

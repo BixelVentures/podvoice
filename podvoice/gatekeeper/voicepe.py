@@ -55,6 +55,10 @@ class VoicePELink:
         # device stream + LED for the CURRENT state (subscriptions/flags don't survive a
         # reconnect, and the device must never be left streaming or stuck dark).
         self.on_reconnect: Callable[[], Any] | None = None
+        # Wake signal: voice_assistant.start (fired by the device's wake word) arrives as
+        # the VA-run-start callback. We use it as "wake" since !extend (to redirect the
+        # wake handler) is unusable on ESPHome 2026.6.x. on_wake() -> orchestrator.
+        self.on_wake: Callable[[], Any] | None = None
         self._pending: set[asyncio.Task[Any]] = set()
         # Resolved once per connect from the device's published entities/services.
         self._user_services: dict[str, Any] = {}  # name -> UserService (start/stop forward)
@@ -164,7 +168,15 @@ class VoicePELink:
         log.warning("voicepe %s disconnected (expected=%s)", self.host, expected_disconnect)
 
     def _handle_start(self, *args: Any, **kwargs: Any) -> Any:  # VERIFY: VA start cb signature
+        # The device fired voice_assistant.start (wake word) -> treat as WAKE.
+        if self.on_wake is not None:
+            self.on_wake()
         return None
+
+    async def abort_va(self) -> None:
+        """Stop the stock voice_assistant turn the wake triggered, so its turn-audio
+        does not collide with podvoice_audio's continuous stream. Best-effort."""
+        await self._call_service("podvoice_va_abort")
 
     def _handle_stop(self, *args: Any, **kwargs: Any) -> Any:  # VERIFY: VA stop cb signature
         return None
