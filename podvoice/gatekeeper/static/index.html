@@ -326,19 +326,6 @@
       <textarea id="s_system_prompt" class="prompt" rows="8" spellcheck="false"></textarea>
       <p class="sub" style="margin:6px 0 0">Tells the assistant who it is and what it can do (so it answers "what can you do?" and never goes silent). Edit freely, then Save &amp; restart.</p>
       <details class="adv">
-        <summary>Voice PE (hardware) — PSK, rooms, simulation</summary>
-        <p class="sub" style="margin:8px 0 10px">For the Voice PE device + per-room music ducking. The <b>Talk</b> console and HA Assist don't need any of this.</p>
-        <div class="setgrid">
-          <label for="s_voicepe_noise_psk">Voice PE PSK</label>
-          <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
-          <label for="s_simulate">Simulation mode</label>
-          <input id="s_simulate" type="checkbox">
-        </div>
-        <div class="exsub" style="margin-top:12px">Rooms</div>
-        <div id="s_rooms"></div>
-        <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
-      </details>
-      <details class="adv">
         <summary>Advanced — models, voices &amp; per-provider tuning</summary>
 
         <div class="exsub" style="margin-top:12px">Gemini (Live)</div>
@@ -397,8 +384,24 @@
       <ol class="vpsteps">
         <li>Flash the PodVoice firmware (you'll be given a ready file + click-steps).</li>
         <li>Do <b>not</b> add the Voice PE to Home Assistant Assist — PodVoice owns the mic.</li>
-        <li>In <b>Settings → Voice PE (hardware)</b>: set the PSK + add a room → <b>Save &amp; restart</b>.</li>
+        <li>Fill in <b>Setup</b> below: set the PSK + add a room → <b>Save &amp; restart</b>.</li>
       </ol>
+
+      <div class="exsub" style="margin-top:16px">Setup</div>
+      <p class="sub" style="margin:2px 0 10px">For the Voice PE device + per-room music ducking. The <b>Talk</b> console and HA Assist don't need any of this.</p>
+      <div class="setgrid">
+        <label for="s_voicepe_noise_psk">Voice PE PSK</label>
+        <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
+        <label for="s_simulate">Simulation mode</label>
+        <input id="s_simulate" type="checkbox">
+      </div>
+      <div class="exsub" style="margin-top:12px">Rooms</div>
+      <div id="s_rooms"></div>
+      <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
+      <div style="margin-top:14px">
+        <button id="vp_saverestart" class="ghost">Save &amp; restart</button>
+        <span id="vp_savestatus" class="sub" style="margin-left:8px"></span>
+      </div>
 
       <div class="exsub" style="margin-top:16px">The 3 gates — run in order</div>
       <div class="vpgate">
@@ -1043,23 +1046,31 @@ setInterval(poll, 3000);
   }
 
   var statusEl = document.getElementById("s_status");
+  // Settings live in two panes now (Settings + the Voice PE tab share one save), so mirror
+  // the save status to whichever pane the user is looking at.
+  function setSaveStatus(msg) {
+    statusEl.textContent = msg;
+    var v = document.getElementById("vp_savestatus"); if (v) v.textContent = msg;
+  }
   async function save(restart) {
-    statusEl.textContent = "Saving…";
+    setSaveStatus("Saving…");
     try {
       var r = await fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
                                             body: JSON.stringify(collect()) });
       var j = await r.json();
-      if (!j.ok) { statusEl.textContent = "Could not save"; return; }
-      if (!restart) { statusEl.textContent = "Saved — restart the add-on to apply"; return; }
-      statusEl.textContent = "Saved — restarting…";
+      if (!j.ok) { setSaveStatus("Could not save"); return; }
+      if (!restart) { setSaveStatus("Saved — restart the add-on to apply"); return; }
+      setSaveStatus("Saved — restarting…");
       var rr = await fetch("api/restart", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       var jj = await rr.json();
-      statusEl.textContent = jj.ok ? "Restarting… reload the page in a moment"
-                                   : "Saved (restart unavailable — restart the add-on manually)";
-    } catch (e) { statusEl.textContent = "Request failed"; }
+      setSaveStatus(jj.ok ? "Restarting… reload the page in a moment"
+                          : "Saved (restart unavailable — restart the add-on manually)");
+    } catch (e) { setSaveStatus("Request failed"); }
   }
   document.getElementById("s_save").onclick = function () { save(false); };
   document.getElementById("s_saverestart").onclick = function () { save(true); };
+  var vpSave = document.getElementById("vp_saverestart");
+  if (vpSave) vpSave.onclick = function () { save(true); };
   var resetBtn = document.getElementById("s_resetprompt");
   if (resetBtn) resetBtn.onclick = function () {
     var t = document.getElementById("s_system_prompt");
@@ -1094,13 +1105,13 @@ setInterval(poll, 3000);
     catch (e) { j = null; }
     busy(false);
     if (r.status === 501 || (j && j.error && /unavailable|simulation/i.test(j.error))) {
-      show("warn", "Diagnostics unavailable — turn Simulation mode OFF (Settings → Voice PE) and Save & restart."); return;
+      show("warn", "Diagnostics unavailable — turn Simulation mode OFF (in Setup above) and Save & restart."); return;
     }
     if (!j) { show("warn", "Unexpected response from the add-on. Check the add-on Log."); return; }
     if (!j.ok) {
       // Common, friendly causes first.
       var e = (j.error || j.hint || "Check failed.");
-      if (/no voice pe host|add a room/i.test(e)) e = "No Voice PE configured — go to Settings → Voice PE (hardware), add a room (host + PSK), Save & restart, then retry.";
+      if (/no voice pe host|add a room/i.test(e)) e = "No Voice PE configured — in Setup above, add a room (host + PSK), Save & restart, then retry.";
       show("warn", "⚠️ " + e); return;
     }
     if (path === "status") {
