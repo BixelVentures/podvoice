@@ -109,6 +109,57 @@ async def test_home_call_forces_return_response_for_only_services(respx_mock):
     assert r["ok"] is True and route.called and r["data"] == {"tracks": ["x"]}
 
 
+async def test_home_call_falsy_scalar_is_real_data_not_empty(respx_mock):
+    # A falsy-but-meaningful payload (0, False, "") is REAL data — must not be flagged empty.
+    respx_mock.get(f"{SVC}/services").respond(200, json=[])
+    respx_mock.post(url__regex=r".*/services/podconnect/count.*").respond(
+        200, json={"service_response": 0}
+    )
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=["podconnect"]).dispatch(
+            "home_call",
+            {"domain": "podconnect", "service": "count", "return_response": True},
+        )
+    assert r["ok"] is True and r["data"] == 0 and "empty" not in r
+
+
+async def test_home_call_explicit_return_response_survives_none_mode(respx_mock):
+    # Catalog says the service has no response block (mode 'none'), but the model explicitly
+    # asked for a response -> we must NOT silently drop it (re-triggers the 0.30 data-loss bug).
+    respx_mock.get(f"{SVC}/services").respond(
+        200,
+        json=[{"domain": "podconnect", "services": {"history": {}}}],  # no 'response' key
+    )
+    route = respx_mock.post(
+        url__regex=r".*/services/podconnect/history\?return_response.*"
+    ).respond(200, json={"service_response": {"tracks": ["a"]}})
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=["podconnect"]).dispatch(
+            "home_call",
+            {"domain": "podconnect", "service": "history", "return_response": True},
+        )
+    assert r["ok"] is True and route.called and r["data"] == {"tracks": ["a"]}
+
+
+async def test_home_call_normalizes_mixed_case_domain(respx_mock):
+    # A mixed-case domain guess must resolve (gate + auto-correct + URL all agree).
+    respx_mock.get(f"{SVC}/services").respond(200, json=[])
+    route = respx_mock.post(url__regex=r".*/services/conversation/process.*").respond(
+        200, json={"service_response": {"response": {"speech": {"plain": {"speech": "hej"}}}}}
+    )
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=["conversation"]).dispatch(
+            "home_call",
+            {
+                "domain": "Conversation",
+                "service": "Process",
+                "return_response": True,
+                "data": {"text": "hej"},
+            },
+        )
+    assert r["ok"] is True and route.called and r["summary"] == "hej"
+
+
 async def test_web_search_blocked_when_conversation_not_exposed(respx_mock):
     # Same gating as everything else: not exposed -> denied, HA never hit.
     async with httpx.AsyncClient() as client:

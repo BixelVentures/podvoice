@@ -23,7 +23,14 @@ from aiohttp import WSMsgType
 from . import audio as audio_mod
 from . import constants as C
 from .config import Config
-from .gemini import AudioChunk, InputTranscript, OutputTranscript, ToolCall, TurnComplete
+from .gemini import (
+    AudioChunk,
+    InputTranscript,
+    Interrupted,
+    OutputTranscript,
+    ToolCall,
+    TurnComplete,
+)
 
 _LOG = logging.getLogger("podvoice.console")
 
@@ -262,6 +269,8 @@ async def _pump(ws, gemini: ConsoleGemini, tools=None) -> None:
                 )
                 await ws.send_json({"type": "tool", "name": ev.name, "result": result})
                 await gemini.send_tool_results([{"id": ev.id, "name": ev.name, "response": result}])
+            elif isinstance(ev, Interrupted):
+                await ws.send_json({"type": "interrupted"})  # barge-in: flush browser audio
             elif isinstance(ev, TurnComplete):
                 await ws.send_json({"type": "turn_complete"})
     except asyncio.CancelledError:

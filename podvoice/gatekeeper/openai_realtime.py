@@ -124,6 +124,9 @@ class OpenAIRealtimeSession:
         return {"type": "session.update", "session": session}
 
     async def connect(self) -> None:
+        # Fresh socket -> fresh state machine (a prior session may have died mid-response).
+        self._active_response = False
+        self._pending_create = False
         self._http = aiohttp.ClientSession()
         self._ws = await self._http.ws_connect(
             f"{_URL}?model={self.model}",
@@ -181,6 +184,17 @@ class OpenAIRealtimeSession:
     async def events(self) -> AsyncIterator[VoiceEvent]:
         if self._ws is None:
             return
+        try:
+            async for ev in self._iter_events():
+                yield ev
+        finally:
+            # On any exit (incl. a socket drop mid-response) don't carry stale state into
+            # the next socket, or tool calls would defer forever / fire a spurious create.
+            self._active_response = False
+            self._pending_create = False
+
+    async def _iter_events(self) -> AsyncIterator[VoiceEvent]:
+        assert self._ws is not None
         async for msg in self._ws:
             if msg.type is not aiohttp.WSMsgType.TEXT:
                 continue
@@ -208,14 +222,20 @@ class OpenAIRealtimeSession:
                     args = {}
                 yield ToolCall(ev.get("call_id", ""), ev.get("name", ""), args)
             elif t == "input_audio_buffer.speech_started":
-                yield Interrupted()  # barge-in: server cancels response (interrupt_response)
+                # Barge-in: the server cancels the active response. Drop any deferred
+                # follow-up so we don't speak the tool result the user just interrupted.
+                self._active_response = False
+                self._pending_create = False
+                yield Interrupted()
             elif t == "response.done":
                 self._active_response = False
-                # The response that carried a function call has finished — now it's safe to
-                # ask for the follow-up response that speaks the tool result.
                 if self._pending_create and self._ws is not None:
+                    # This response.done only closed the function-call response. Fire the
+                    # deferred follow-up that speaks the result, and DON'T end the turn here
+                    # (the follow-up response's own response.done is the real end-of-turn).
                     self._pending_create = False
                     await self._ws.send_json({"type": "response.create"})
+                    continue
                 yield TurnComplete()
             elif t == "error":
                 _LOG.warning("openai realtime error: %s", ev.get("error"))

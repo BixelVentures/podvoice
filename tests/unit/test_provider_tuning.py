@@ -10,7 +10,7 @@ from gatekeeper.config import from_options
 from gatekeeper.gemini import build_config
 from gatekeeper.openai_realtime import OpenAIRealtimeSession
 from gatekeeper.settings import load_settings, save_settings
-from gatekeeper.voice import TurnComplete
+from gatekeeper.voice import Interrupted, TurnComplete
 
 
 class _Msg:
@@ -48,16 +48,33 @@ async def test_openai_defers_response_create_during_active_response():
     assert all(m["type"] != "response.create" for m in s._ws.sent)  # but NOT asked to speak yet
 
 
-async def test_openai_fires_deferred_create_on_response_done():
-    # When the active response finishes, the deferred response.create is sent so the model
-    # finally speaks the tool result.
+async def test_openai_fires_deferred_create_without_ending_turn():
+    # The function-call response.done fires the deferred create but must NOT emit
+    # TurnComplete (that would end the turn before the answer is spoken). The SECOND
+    # response.done (the spoken answer) is the real end-of-turn.
     s = OpenAIRealtimeSession(api_key="k")
-    s._ws = _FakeWS([_Msg(json.dumps({"type": "response.done"}))])  # type: ignore[assignment]
+    s._ws = _FakeWS(  # type: ignore[assignment]
+        [_Msg(json.dumps({"type": "response.done"})), _Msg(json.dumps({"type": "response.done"}))]
+    )
     s._active_response = True
     s._pending_create = True
     evs = [e async for e in s.events()]
-    assert any(isinstance(e, TurnComplete) for e in evs)
-    assert s._ws.sent == [{"type": "response.create"}] and s._pending_create is False
+    assert sum(isinstance(e, TurnComplete) for e in evs) == 1  # only the real end-of-turn
+    assert {"type": "response.create"} in s._ws.sent and s._pending_create is False
+
+
+async def test_openai_barge_in_drops_deferred_create():
+    # Interrupting a deferred tool turn must NOT resurrect the answer the user cancelled.
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS(  # type: ignore[assignment]
+        [_Msg(json.dumps({"type": "input_audio_buffer.speech_started"}))]
+    )
+    s._active_response = True
+    s._pending_create = True
+    evs = [e async for e in s.events()]
+    assert any(isinstance(e, Interrupted) for e in evs)
+    assert s._pending_create is False and s._active_response is False
+    assert all(m["type"] != "response.create" for m in s._ws.sent)  # no resurrection
 
 
 async def test_openai_sends_create_immediately_when_idle():

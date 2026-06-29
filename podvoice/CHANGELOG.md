@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.33.0 — hardening from a 20-agent adversarial review
+
+Fixes for real edge cases found reviewing 0.30-0.32 (false alarms discarded):
+
+- **P0 — turn no longer ends before the tool answer is spoken (OpenAI).** The function-call `response.done` was emitting `TurnComplete`, so the state machine ended the turn / shut the duck gate BEFORE the deferred reply spoke. We now fire the deferred `response.create` and suppress that premature `TurnComplete`; the spoken reply's own `response.done` is the real end-of-turn.
+- **P0 — barge-in no longer resurrects the interrupted answer (OpenAI).** Interrupting a deferred tool turn now clears the pending follow-up, so it stops instead of speaking what you cut off.
+- **P1 — falsy data no longer mislabeled empty.** A real `0`/`false`/`""` from a data service is kept as data; only genuinely-empty containers/None are flagged `empty`.
+- **P1 — explicit return_response is never silently dropped.** A stale/incomplete `/services` catalog can no longer override an explicit `return_response=true` (was re-triggering the 0.30 data-loss bug).
+- **P1 — OpenAI session state resets on (re)connect/disconnect**, so a dropped socket can't poison the next session (stuck-silent or spurious reply).
+- **P1 — mic barge-in now stops browser playback** in the Talk console (the console forwards the interrupt and flushes scheduled audio instead of talking over you).
+- **P2 — mixed-case domain guesses resolve** (domain/service lowercased so the gate, auto-correct and the call URL agree). **P2 — speech-summary promotion requires HA's `response` wrapper** (no promoting arbitrary data as the spoken answer).
+
 ## 0.32.0
 
 - **OpenAI Realtime: the assistant now actually speaks the tool result.** Fixed a race where, after a tool call, PodVoice asked OpenAI for a reply (`response.create`) while the function-call response was still active — Realtime rejects that, so the model stayed silent ("searches but never returns", worst on chained calls like the music/history question). We now submit the tool output immediately but DEFER `response.create` until the active response finishes. Gemini was unaffected.

@@ -799,6 +799,12 @@ setInterval(poll, 3000);
       var ev; try { ev = JSON.parse(m.data); } catch (e) { return; }
       if (ev.type === "hello" && ev.rate) outRate = ev.rate;
       else if (ev.type === "transcript") streamT(ev.dir === "in" ? "in" : "out", ev.text);
+      else if (ev.type === "interrupted") {
+        // Server cancelled the reply (mic barge-in) — flush scheduled audio so we stop
+        // talking over the user. Keep the mic live; the next response recreates playCtx.
+        if (playCtx) { try { playCtx.close(); } catch (e) {} playCtx = null; }
+        nextStart = 0; endTurn();
+      }
       else if (ev.type === "turn_complete") endTurn();
       else if (ev.type === "tool") {
         endTurn();

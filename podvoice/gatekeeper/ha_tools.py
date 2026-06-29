@@ -85,9 +85,9 @@ def _normalize_service_response(payload: object) -> tuple[str | None, object]:
     VERIFY: HA intent-response envelope (response.speech.plain.speech).
     """
     if isinstance(payload, dict):
+        # Require the HA `response` wrapper — don't promote a stray top-level
+        # speech.plain.speech that just happens to be in some service's data.
         inner = payload.get("response")
-        if not isinstance(inner, dict):
-            inner = payload
         speech = inner.get("speech") if isinstance(inner, dict) else None
         plain = speech.get("plain") if isinstance(speech, dict) else None
         text = plain.get("speech") if isinstance(plain, dict) else None
@@ -297,7 +297,11 @@ class HAToolBridge:
         action is ``{ok, summary:'Done.', data:{changed}}``. ``return_response`` is
         auto-corrected from HA's response mode so a guess can't 400.
         """
-        domain, service = args.get("domain"), args.get("service")
+        # HA domains/services are lowercase snake_case; normalize so the allowlist gate,
+        # the response-mode lookup, and the outgoing URL all agree (a mixed-case guess
+        # would otherwise pass the gate but skip auto-correct and 404).
+        domain = (args.get("domain") or "").strip().lower()
+        service = (args.get("service") or "").strip().lower()
         if not domain or not service:
             return {
                 "ok": False,
@@ -315,7 +319,7 @@ class HAToolBridge:
                     "error": f"'{eid}' is not exposed (add it in Settings).",
                 }
             data["entity_id"] = eid
-        elif domain.lower() not in self._exposed:
+        elif domain not in self._exposed:
             return {
                 "ok": False,
                 "error_kind": "denied",
@@ -323,12 +327,14 @@ class HAToolBridge:
                 "account-level calls without an entity_id.",
             }
         # Auto-correct return_response from HA's own metadata: force it for response-ONLY
-        # services, drop it for NONE; otherwise honor the model's flag.
-        want = bool(args.get("return_response"))
+        # services; for NONE drop it ONLY if the model didn't explicitly ask (a stale/
+        # incomplete catalog must never silently discard an explicitly-requested response).
+        explicit = bool(args.get("return_response"))
+        want = explicit
         mode = await self._response_mode(domain, service)
         if mode == "only":
             want = True
-        elif mode == "none":
+        elif mode == "none" and not explicit:
             want = False
         if want:
             payload = await self.call_service_response(domain, service, data)
@@ -336,7 +342,9 @@ class HAToolBridge:
             out: dict = {"ok": True, "data": body}
             if summary:
                 out["summary"] = summary
-            elif not body:
+            elif body is None or body == {} or body == []:
+                # Genuinely-empty containers/None = "no results" (model says so plainly).
+                # Falsy scalars (0, False, "") are REAL data and must not be flagged empty.
                 out["empty"] = True
             return out
         changed = await self.call_service(domain, service, data)
