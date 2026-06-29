@@ -47,7 +47,14 @@ class VoicePELink:
         self._audio_q: asyncio.Queue[bytes] = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
         # Wake/button events -> state machine. Signature: on_event(room, state).
         self.on_event: Callable[[str, object], Any] | None = None
+        # Called at the end of every (re)connect so the orchestrator can re-assert the
+        # device stream + LED for the CURRENT state (subscriptions/flags don't survive a
+        # reconnect, and the device must never be left streaming or stuck dark).
+        self.on_reconnect: Callable[[], Any] | None = None
         self._pending: set[asyncio.Task[Any]] = set()
+        # Resolved once per connect from the device's published entities/services.
+        self._user_services: dict[str, Any] = {}  # name -> UserService (start/stop forward)
+        self._light_key: int | None = None  # the LED-ring light entity key (None = no LED)
 
     async def start(self) -> None:
         """Build the client and start the reconnect loop (owns the connection)."""
@@ -80,6 +87,72 @@ class VoicePELink:
         )
         # VERIFY: subscribe_states(callback) -> unsubscribe callable.
         self._unsub_states = self._client.subscribe_states(self._on_state)
+        # Resolve the wake-gate services + LED-ring light from the device catalog.
+        await self._resolve_entities()
+        # Let the orchestrator re-assert stream + LED for the CURRENT state.
+        if self.on_reconnect is not None:
+            result = self.on_reconnect()
+            if asyncio.iscoroutine(result):
+                await result
+
+    async def _resolve_entities(self) -> None:
+        """Cache the podvoice_stream_* user services + the LED-ring light key.
+
+        Best-effort: if the device doesn't publish them (older/renamed firmware),
+        start/stop and the LED degrade to no-ops rather than crashing the link.
+        """
+        self._user_services = {}
+        self._light_key = None
+        try:
+            # VERIFY: list_entities_services() -> (entities, services) on aioesphomeapi.
+            entities, services = await self._client.list_entities_services()
+            for s in services or []:
+                name = getattr(s, "name", None)
+                if name:
+                    self._user_services[name] = s
+            # Prefer the canonical ring ids; fall back to the first light entity.
+            lights = [e for e in (entities or []) if type(e).__name__ == "LightInfo"]
+            preferred = ("led_ring", "voice_assistant_leds", "leds_internal")
+            chosen = next((e for e in lights if getattr(e, "object_id", "") in preferred), None)
+            chosen = chosen or (lights[0] if lights else None)
+            self._light_key = getattr(chosen, "key", None) if chosen else None
+        except Exception as e:  # never let discovery break the connection
+            log.info("voicepe %s entity discovery unavailable: %s", self.host, e)
+
+    async def _call_service(self, name: str) -> None:
+        """Invoke a podvoice_stream_* user-defined service. Best-effort (swallow on
+        disconnect) and idempotent — the device just flips a bool."""
+        svc = self._user_services.get(name)
+        if svc is None or self._client is None:
+            return
+        try:
+            # VERIFY: execute_service(UserService, data: dict) on aioesphomeapi.
+            self._client.execute_service(svc, {})
+        except Exception as e:  # disconnect / busy — device safety timer covers stop
+            log.debug("voicepe %s service %s failed: %s", self.host, name, e)
+
+    async def start_streaming(self) -> None:
+        """Open the device mic-forward (wake) AND keepalive the dead-man timer."""
+        await self._call_service("podvoice_stream_start")
+
+    async def stop_streaming(self) -> None:
+        """Close the device mic-forward (session end / grace expiry)."""
+        await self._call_service("podvoice_stream_stop")
+
+    async def set_light(self, on: bool, rgb: tuple[float, float, float], brightness: float) -> None:
+        """Drive the LED ring. Best-effort; no-op if the device has no resolvable light."""
+        if self._light_key is None or self._client is None:
+            return
+        try:
+            # VERIFY: light_command kwargs (key/state/rgb floats 0-1/brightness 0-1).
+            if on:
+                self._client.light_command(
+                    key=self._light_key, state=True, rgb=rgb, brightness=max(brightness, 0.0)
+                )
+            else:
+                self._client.light_command(key=self._light_key, state=False)
+        except Exception as e:
+            log.debug("voicepe %s light_command failed: %s", self.host, e)
 
     async def _on_disconnect(
         self, expected_disconnect: bool = False

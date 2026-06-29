@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.37.0 — wake-gated full-duplex Voice PE + LED feedback (5-expert design)
+
+Re-architects the Voice PE firmware so the device streams audio ONLY between wake and grace-expiry (privacy + cost) while keeping TRUE full-duplex barge-in during the conversation. Minimal firmware; the brain stays in PodVoice.
+
+- **Wake-gated mic.** The device boots with forwarding OFF. PodVoice opens it on wake (IDLE→LISTENING) and closes it on every return to IDLE (closure / grace timeout / error). It stays open continuously through the assistant's reply + grace, so you can interrupt by speaking (full-duplex via channel-0 XMOS AEC).
+- **Dead-man safety stop.** The device force-stops the mic if PodVoice stops re-asserting for ~25s (crash / half-open socket), so the mic can never be left streaming. PodVoice keepalives every 10s while active.
+- **LED ring feedback.** PodVoice drives the stock ring over the native API from a pure state→LED map: idle=off (privacy), listening=cyan, speaking=green, grace=dim cyan, muted=red, error=red blink. (The stock voice_assistant LED phases are dead under use_wake_word:false.)
+- **Reconnect-safe.** On every (re)connect PodVoice re-asserts the correct stream + LED for the live state, so a reconnect never leaks audio nor leaves the ring stuck.
+- Firmware deltas are tiny: boot-OFF default + the safety timer + two native-API services (podvoice_stream_start/stop). Still UNVALIDATED on hardware — new gates added (privacy gate, safety stop, LED states) to the runbook.
+
 ## 0.36.0 — OpenAI Realtime: fix double transcript + instrument the turn state machine
 
 Targets two reported symptoms on the OpenAI/ChatGPT provider (not the prompt; Gemini's native-audio tool-discovery miss is tracked separately).

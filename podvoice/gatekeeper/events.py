@@ -64,6 +64,8 @@ class ActionKind(enum.Enum):
     START_LOUNGE_VAD = enum.auto()
     STOP_LOUNGE_VAD = enum.auto()
     ERROR_TONE = enum.auto()
+    STREAM_START = enum.auto()  # tell the Voice PE to START forwarding mic (wake-gate open)
+    STREAM_STOP = enum.auto()  # tell the Voice PE to STOP forwarding mic (back to wake-only)
 
 
 @dataclass(frozen=True)
@@ -137,3 +139,11 @@ def stop_lounge_vad() -> Action:
 
 def error_tone() -> Action:
     return Action(ActionKind.ERROR_TONE)
+
+
+def stream_start() -> Action:
+    return Action(ActionKind.STREAM_START)
+
+
+def stream_stop() -> Action:
+    return Action(ActionKind.STREAM_STOP)

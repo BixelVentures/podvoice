@@ -69,12 +69,17 @@ class PodVoiceAudio : public Component {
   // populated before our first loop(). LATE keeps us out of the audio-setup path.
   float get_setup_priority() const override { return setup_priority::LATE; }
 
-  // --- control (optional; safe to ignore — component free-runs by default) ---
-  // Streaming is gated on whether a client is subscribed, not on these. They
-  // exist so a future automation / button could pause forwarding without
-  // tearing down the mic tap.
-  void start_streaming() { this->user_enabled_ = true; }
-  void stop_streaming() { this->user_enabled_ = false; }
+  // --- control (WAKE-GATED) --------------------------------------------------
+  // The device boots with forwarding OFF (privacy default). PodVoice turns it ON
+  // on wake (IDLE->LISTENING) and OFF on every return to IDLE (closure / grace
+  // expiry / error), via the podvoice_stream_start/stop native-API services.
+  // start_streaming() doubles as the dead-man KEEPALIVE: PodVoice re-asserts it
+  // periodically while a session is active; if those stop arriving for SAFETY_MS
+  // (PodVoice crashed / half-open socket) loop() force-stops so the mic can NEVER
+  // be left streaming. Defined in the .cpp (need millis()).
+  void start_streaming();
+  void stop_streaming();
+  void keepalive();  // refresh the dead-man timer without changing enabled state
   bool is_streaming() const { return this->user_enabled_; }
 
  protected:
@@ -98,7 +103,10 @@ class PodVoiceAudio : public Component {
   uint32_t ring_ms_{400};
   uint32_t sample_rate_{16000};
 
-  bool user_enabled_{true};
+  // Boots OFF: the device must EARN the right to stream by receiving a wake-driven
+  // start from PodVoice. This is the privacy gate (no audio leaves until wake).
+  bool user_enabled_{false};
+  uint32_t last_keepalive_ms_{0};  // dead-man timer: last start/keepalive from PodVoice
   bool was_connected_{false};  // tracks subscribe/unsubscribe edges for logging
 
   // Diagnostics (surfaced in dump_config / logged periodically).

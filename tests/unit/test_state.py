@@ -55,9 +55,19 @@ K = ActionKind
 
 # Each row: (current_state, event, expected_next_state, expected_action_kinds)
 TABLE = [
-    # --- IDLE ---
-    (State.IDLE, ev(EventType.WAKE_WORD), State.LISTENING, [K.OPEN_WS, K.GATE_OPEN, K.HB_START]),
-    (State.IDLE, ev(EventType.BUTTON_PRESS), State.LISTENING, [K.OPEN_WS, K.GATE_OPEN, K.HB_START]),
+    # --- IDLE ---  (wake opens the device mic-forward via STREAM_START)
+    (
+        State.IDLE,
+        ev(EventType.WAKE_WORD),
+        State.LISTENING,
+        [K.STREAM_START, K.OPEN_WS, K.GATE_OPEN, K.HB_START],
+    ),
+    (
+        State.IDLE,
+        ev(EventType.BUTTON_PRESS),
+        State.LISTENING,
+        [K.STREAM_START, K.OPEN_WS, K.GATE_OPEN, K.HB_START],
+    ),
     (State.IDLE, ev(EventType.GEMINI_TURN_COMPLETE), State.IDLE, []),
     (State.IDLE, ev(EventType.LOCAL_VOICE_DETECTED), State.IDLE, []),
     (State.IDLE, ev(EventType.CLOSURE_TOKEN, "stop"), State.IDLE, []),
@@ -74,13 +84,14 @@ TABLE = [
         State.LISTENING,
         ev(EventType.CLOSURE_TOKEN, "stop"),
         State.IDLE,
-        [K.GATE_SHUT, K.HB_STOP, K.RELEASE, K.CLOSE_WS],
+        [K.STREAM_STOP, K.GATE_SHUT, K.HB_STOP, K.RELEASE, K.CLOSE_WS],
     ),
     (
         State.LISTENING,
         ev(EventType.WATCHDOG_TIMEOUT),
         State.IDLE,
         [
+            K.STREAM_STOP,
             K.STOP_LOUNGE_VAD,
             K.CANCEL_LOUNGE_TIMER,
             K.PLAYBACK_STOP,
@@ -96,6 +107,7 @@ TABLE = [
         ev(EventType.ERROR),
         State.IDLE,
         [
+            K.STREAM_STOP,
             K.STOP_LOUNGE_VAD,
             K.CANCEL_LOUNGE_TIMER,
             K.PLAYBACK_STOP,
@@ -121,17 +133,25 @@ TABLE = [
         State.LISTENING,
         [K.PLAYBACK_STOP, K.GATE_OPEN],
     ),
+    # A hardware re-wake while speaking is a barge-in too (stream stays ON).
+    (
+        State.AI_SPEAKING,
+        ev(EventType.WAKE_WORD),
+        State.LISTENING,
+        [K.PLAYBACK_STOP, K.GATE_OPEN],
+    ),
     (
         State.AI_SPEAKING,
         ev(EventType.CLOSURE_TOKEN, "vent"),
         State.IDLE,
-        [K.PLAYBACK_STOP, K.GATE_SHUT, K.HB_STOP, K.RELEASE, K.CLOSE_WS],
+        [K.STREAM_STOP, K.PLAYBACK_STOP, K.GATE_SHUT, K.HB_STOP, K.RELEASE, K.CLOSE_WS],
     ),
     (
         State.AI_SPEAKING,
         ev(EventType.WATCHDOG_TIMEOUT),
         State.IDLE,
         [
+            K.STREAM_STOP,
             K.STOP_LOUNGE_VAD,
             K.CANCEL_LOUNGE_TIMER,
             K.PLAYBACK_STOP,
@@ -147,6 +167,7 @@ TABLE = [
         ev(EventType.ERROR),
         State.IDLE,
         [
+            K.STREAM_STOP,
             K.STOP_LOUNGE_VAD,
             K.CANCEL_LOUNGE_TIMER,
             K.PLAYBACK_STOP,
@@ -169,19 +190,28 @@ TABLE = [
         State.LOUNGE_WINDOW,
         ev(EventType.CLOSURE_TOKEN, "tak"),
         State.IDLE,
-        [K.STOP_LOUNGE_VAD, K.CANCEL_LOUNGE_TIMER, K.GATE_SHUT, K.HB_STOP, K.RELEASE, K.CLOSE_WS],
+        [
+            K.STREAM_STOP,
+            K.STOP_LOUNGE_VAD,
+            K.CANCEL_LOUNGE_TIMER,
+            K.GATE_SHUT,
+            K.HB_STOP,
+            K.RELEASE,
+            K.CLOSE_WS,
+        ],
     ),
     (
         State.LOUNGE_WINDOW,
         ev(EventType.LOUNGE_TIMEOUT),
         State.IDLE,
-        [K.STOP_LOUNGE_VAD, K.GATE_SHUT, K.HB_STOP, K.RELEASE, K.CLOSE_WS],
+        [K.STREAM_STOP, K.STOP_LOUNGE_VAD, K.GATE_SHUT, K.HB_STOP, K.RELEASE, K.CLOSE_WS],
     ),
     (
         State.LOUNGE_WINDOW,
         ev(EventType.WATCHDOG_TIMEOUT),
         State.IDLE,
         [
+            K.STREAM_STOP,
             K.STOP_LOUNGE_VAD,
             K.CANCEL_LOUNGE_TIMER,
             K.PLAYBACK_STOP,
@@ -197,6 +227,7 @@ TABLE = [
         ev(EventType.ERROR),
         State.IDLE,
         [
+            K.STREAM_STOP,
             K.STOP_LOUNGE_VAD,
             K.CANCEL_LOUNGE_TIMER,
             K.PLAYBACK_STOP,

@@ -35,6 +35,8 @@ from .events import (
     start_lounge_timer,
     start_lounge_vad,
     stop_lounge_vad,
+    stream_start,
+    stream_stop,
 )
 
 log = logging.getLogger(__name__)
@@ -105,6 +107,7 @@ class StateMachine:
     def _teardown(self) -> list[Action]:
         """Full teardown + local error tone (the ERROR / WATCHDOG path)."""
         return [
+            stream_stop(),  # stop the device mic forward on any teardown (privacy)
             stop_lounge_vad(),
             cancel_lounge_timer(),
             playback_stop(),
@@ -122,6 +125,7 @@ class StateMachine:
         if state is State.IDLE:
             if et in (EventType.WAKE_WORD, EventType.BUTTON_PRESS):
                 return State.LISTENING, [
+                    stream_start(),  # wake opens the device mic forward (start of session)
                     open_ws(),
                     gate_open(),
                     hb_start(self.duck_level, self.ttl_listening_ms),
@@ -141,7 +145,7 @@ class StateMachine:
                     start_lounge_timer(self.lounge_window_s),
                 ]
             if et is EventType.CLOSURE_TOKEN:
-                return State.IDLE, [gate_shut(), hb_stop(), release(), close_ws()]
+                return State.IDLE, [stream_stop(), gate_shut(), hb_stop(), release(), close_ws()]
             if et in (EventType.WATCHDOG_TIMEOUT, EventType.ERROR):
                 return State.IDLE, self._teardown()
             return State.LISTENING, []
@@ -154,10 +158,13 @@ class StateMachine:
                     start_lounge_vad(),
                     start_lounge_timer(self.lounge_window_s),
                 ]
-            if et is EventType.GEMINI_INTERRUPTED:
+            # A spoken-over barge-in (provider VAD) OR a hardware re-wake both
+            # interrupt the assistant and return to listening (stream stays ON).
+            if et in (EventType.GEMINI_INTERRUPTED, EventType.WAKE_WORD):
                 return State.LISTENING, [playback_stop(), gate_open()]
             if et is EventType.CLOSURE_TOKEN:
                 return State.IDLE, [
+                    stream_stop(),
                     playback_stop(),
                     gate_shut(),
                     hb_stop(),
@@ -178,6 +185,7 @@ class StateMachine:
                 ]
             if et is EventType.CLOSURE_TOKEN:
                 return State.IDLE, [
+                    stream_stop(),
                     stop_lounge_vad(),
                     cancel_lounge_timer(),
                     gate_shut(),
@@ -187,6 +195,7 @@ class StateMachine:
                 ]
             if et is EventType.LOUNGE_TIMEOUT:
                 return State.IDLE, [
+                    stream_stop(),  # grace expired -> stop forwarding, back to wake-only
                     stop_lounge_vad(),
                     gate_shut(),
                     hb_stop(),

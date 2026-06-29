@@ -17,6 +17,9 @@ TTL_LOUNGE_MS = 8000  # Attention TTL while LOUNGE_WINDOW
 HEARTBEAT_MS = 500  # re-POST cadence (4 beats per 2 s TTL)
 HEARTBEAT_JITTER_MS = 50  # +-jitter on the heartbeat cadence
 LOUNGE_WINDOW_S = 8  # follow-up window length
+STREAM_KEEPALIVE_S = (
+    10  # re-assert the device mic-forward while active (dead-man keepalive < device SAFETY_MS=25s)
+)
 WATCHDOG_MS = 800  # round-trip (TTFR) latency abort threshold
 STREAM_STALL_MS = 1500  # mid-stream silence => treated as a drop
 BARGE_COOLDOWN_MS = 700  # de-dup window for barge-in signals

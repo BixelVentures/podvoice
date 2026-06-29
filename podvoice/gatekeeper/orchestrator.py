@@ -17,7 +17,7 @@ import logging
 
 from . import audio as audio_mod
 from . import constants as C
-from .events import Action, ActionKind, Event, EventType
+from .events import Action, ActionKind, Event, EventType, State
 from .gemini import (
     AudioChunk,
     GoAway,
@@ -27,6 +27,7 @@ from .gemini import (
     ToolCall,
     TurnComplete,
 )
+from .led import led_command_for
 from .podconnect import AttentionDown, UnknownRoom, Unsupervised
 from .state import StateMachine
 
@@ -73,13 +74,14 @@ class RoomSession:
         if hub is not None:
             hub.register_room(room)
 
+        # Observer drives the hub AND the LED ring (LED works even with no hub).
         self.sm = StateMachine(
             self,
             room=room,
             lounge_window_s=lounge_window_s,
             duck_level=duck_level,
             lounge_level=lounge_level,
-            observer=self._on_transition if hub is not None else None,
+            observer=self._on_transition,
         )
         self._lounge_vad = audio_mod.LoungeVAD(threshold=vad_threshold)
         self._lounge_vad_on = False
@@ -87,18 +89,67 @@ class RoomSession:
         self._reader: asyncio.Task | None = None
         self._tasks: list[asyncio.Task] = []
         self._responded = False  # whether GEMINI_RESPONDING was posted this turn
+        self._keepalive_task: asyncio.Task | None = None  # re-asserts the device mic-forward
+        self._muted = False  # device mute state (LED override)
 
         # Route device wake/button events into the state machine.
         if hasattr(voicepe, "on_event"):
             voicepe.on_event = self._on_device_event
+        # Re-assert the device stream + LED for the current state on every reconnect.
+        if hasattr(voicepe, "on_reconnect"):
+            voicepe.on_reconnect = self._reassert_device
 
     # ------------------------------------------------------------------ lifecycle
     def _on_transition(self, old, new, event) -> None:
-        if self.hub is None:
+        if self.hub is not None:
+            self.hub.set_state(self.room, new.name)
+            if old.name == "IDLE" and new.name == "LISTENING":
+                self.hub.incr("sessions")
+        # Repaint the LED ring for the new state (error events flash red first).
+        is_err = event.type in (EventType.ERROR, EventType.WATCHDOG_TIMEOUT)
+        self._paint_led(new, error=is_err)
+
+    def _paint_led(self, state: State, *, error: bool = False) -> None:
+        """Schedule a best-effort LED ring update (observer is sync; set_light is async)."""
+        if not hasattr(self.voicepe, "set_light"):
             return
-        self.hub.set_state(self.room, new.name)
-        if old.name == "IDLE" and new.name == "LISTENING":
-            self.hub.incr("sessions")
+        cmd = led_command_for(state, muted=self._muted, error=error)
+        task = asyncio.ensure_future(self.voicepe.set_light(cmd.on, cmd.rgb, cmd.brightness))
+        self._tasks.append(task)
+        task.add_done_callback(lambda t: self._tasks.remove(t) if t in self._tasks else None)
+
+    async def _reassert_device(self) -> None:
+        """On (re)connect, match the device to the CURRENT state: stream + LED. Reading
+        the live state (not a cached snapshot) avoids leaking audio after a reconnect."""
+        active = self.sm.state in (State.LISTENING, State.AI_SPEAKING, State.LOUNGE_WINDOW)
+        if active:
+            await self.voicepe.start_streaming()
+            self._start_keepalive()
+        else:
+            await self.voicepe.stop_streaming()
+        self._paint_led(self.sm.state)
+
+    def _start_keepalive(self) -> None:
+        if self._keepalive_task is None or self._keepalive_task.done():
+            self._keepalive_task = asyncio.create_task(
+                self._keepalive_loop(), name=f"keepalive-{self.room}"
+            )
+
+    def _stop_keepalive(self) -> None:
+        if self._keepalive_task is not None:
+            self._keepalive_task.cancel()
+            self._keepalive_task = None
+
+    async def _keepalive_loop(self) -> None:
+        """Re-assert the device mic-forward while a session is active so the device's
+        dead-man safety timer never fires mid-conversation."""
+        try:
+            while True:
+                await asyncio.sleep(C.STREAM_KEEPALIVE_S)
+                with contextlib.suppress(Exception):
+                    await self.voicepe.start_streaming()
+        except asyncio.CancelledError:
+            raise
 
     async def start(self) -> None:
         await self.voicepe.start()
@@ -115,6 +166,15 @@ class RoomSession:
 
     async def aclose(self) -> None:
         self._cancel_lounge_timer()
+        self._stop_keepalive()
+        # Best-effort: stop the device mic-forward + turn the ring off so a dead add-on
+        # never leaves the device streaming or the LED stuck mid-conversation.
+        with contextlib.suppress(Exception):
+            if hasattr(self.voicepe, "stop_streaming"):
+                await self.voicepe.stop_streaming()
+        with contextlib.suppress(Exception):
+            if hasattr(self.voicepe, "set_light"):
+                await self.voicepe.set_light(False, (0.0, 0.0, 0.0), 0.0)
         await self._stop_reader()
         for t in self._tasks:
             t.cancel()
@@ -194,6 +254,17 @@ class RoomSession:
             self.gatekeeper.set_silence(False)
         elif k is ActionKind.ERROR_TONE:
             await self.playback.play_tone(audio_mod.error_tone(C.GEMINI_OUTPUT_RATE))
+        elif k is ActionKind.STREAM_START:
+            # Wake opened the gate: tell the device to start forwarding the mic and
+            # keep the dead-man timer fresh for the whole session.
+            if hasattr(self.voicepe, "start_streaming"):
+                await self.voicepe.start_streaming()
+            self._start_keepalive()
+        elif k is ActionKind.STREAM_STOP:
+            # Session ended (closure / grace expiry / error): stop the mic forward.
+            self._stop_keepalive()
+            if hasattr(self.voicepe, "stop_streaming"):
+                await self.voicepe.stop_streaming()
 
     async def _safe_attention(self, coro) -> None:
         """Run an attention call best-effort: ducking degrades, never blocks."""

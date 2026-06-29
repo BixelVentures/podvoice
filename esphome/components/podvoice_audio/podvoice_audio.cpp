@@ -38,6 +38,20 @@ static const size_t MAX_SENDS_PER_LOOP = 8;
 // How often to emit the throughput/drop stats line.
 static const uint32_t STAT_LOG_INTERVAL_MS = 10000;
 
+// Dead-man safety: if PodVoice stops re-asserting start/keepalive for this long,
+// force-stop forwarding so a crashed/half-open add-on can NEVER leave the mic
+// streaming. MUST exceed lounge_window_s (8 s) + PodVoice's keepalive cadence +
+// jitter so it never cuts a live conversation/grace short. // VERIFY on hardware.
+static const uint32_t SAFETY_MS = 25000;
+
+// --- WAKE-GATED control (also the dead-man keepalive) ---
+void PodVoiceAudio::start_streaming() {
+  this->user_enabled_ = true;
+  this->last_keepalive_ms_ = millis();
+}
+void PodVoiceAudio::stop_streaming() { this->user_enabled_ = false; }
+void PodVoiceAudio::keepalive() { this->last_keepalive_ms_ = millis(); }
+
 void PodVoiceAudio::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PodVoice audio shim...");
 
@@ -99,6 +113,14 @@ void PodVoiceAudio::loop() {
   // VERIFY (hardware): global_voice_assistant is non-null on Voice PE (the overlay
   // keeps the upstream voice_assistant: block) and get_api_connection() returns
   // PodVoice's connection — AND no other client holds the single VA slot.
+  // Dead-man safety stop: if PodVoice hasn't re-asserted start/keepalive within
+  // SAFETY_MS, force forwarding OFF (covers a crashed / hung / half-open add-on
+  // that a clean TCP disconnect — client==nullptr below — would not catch).
+  if (this->user_enabled_ && (millis() - this->last_keepalive_ms_) > SAFETY_MS) {
+    ESP_LOGW(TAG, "dead-man timeout (%u ms) — force-stopping mic forward", (unsigned) SAFETY_MS);
+    this->stop_streaming();
+  }
+
   voice_assistant::VoiceAssistant *va = voice_assistant::global_voice_assistant;
   api::APIConnection *client = (va != nullptr) ? va->get_api_connection() : nullptr;
 
