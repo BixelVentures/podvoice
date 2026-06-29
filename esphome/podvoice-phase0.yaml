@@ -34,6 +34,12 @@ esphome:
   name: ${name}
   friendly_name: ${friendly_name}
 
+# The Voice PE base does not hardcode WiFi (it expects improv provisioning); when
+# building from the dashboard we must supply it. Uses your ESPHome secrets.
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
 # Only override: the native-API encryption key, so PodVoice connects with your PSK
 # (same value in PodVoice -> Voice PE -> Voice PE PSK).
 api:
