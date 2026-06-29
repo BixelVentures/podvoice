@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.38.0 — Gemini native-audio: don't give up on a lookup without trying
+
+Fixes a regression from 0.35.0 on the Gemini 2.5 Flash **Native Audio** model: asked "hvordan gik Canada-kampen i går?", it answered "Det kan jeg desværre ikke slå op her." **without calling `list_services` at all** — while the same prompt on OpenAI correctly ran `list_services` → `home_call`. Gemini's tool wiring is fine (it calls `list_home` for device status); the weaker native-audio model just took the 0.35.0 "no service available" escape hatch as a first response instead of doing the two-step web lookup.
+
+- **The give-up line is now gated behind an actual `list_services` call.** The prompt requires looking up in `list_services` and calling a relevant service FIRST (a web/sports question → a search/conversation service), and forbids saying "Det kan jeg ikke slå op her" until it has actually checked and found nothing. No assuming up front that the service doesn't exist, no skipping the lookup. Memory-based answers for current facts remain forbidden.
+
+Note: native-audio Gemini is weaker at multi-step agentic tool use, so this raises reliability but isn't a guarantee — a single-step web-search shortcut (partially reverting 0.27.0's "web search is just generic HA access") remains the bulletproof option if needed.
+
 ## 0.37.0 — wake-gated full-duplex Voice PE + LED feedback (5-expert design)
 
 Re-architects the Voice PE firmware so the device streams audio ONLY between wake and grace-expiry (privacy + cost) while keeping TRUE full-duplex barge-in during the conversation. Minimal firmware; the brain stays in PodVoice.
