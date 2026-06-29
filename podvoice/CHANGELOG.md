@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.39.0
+
+- **Voice PE Gate 2 (Audio stream) now reads the LIVE room session** instead of opening a competing voice_assistant subscription. The device allows only one VA subscriber; the running session owns it, so the old standalone probe was rejected and falsely reported "No audio received" even while the device streamed gap-free. S1 health now comes from the session's actual frame reception (frames_in/bytes/age).
+
 ## 0.38.0 — Gemini native-audio: don't give up on a lookup without trying
 
 Fixes a regression from 0.35.0 on the Gemini 2.5 Flash **Native Audio** model: asked "hvordan gik Canada-kampen i går?", it answered "Det kan jeg desværre ikke slå op her." **without calling `list_services` at all** — while the same prompt on OpenAI correctly ran `list_services` → `home_call`. Gemini's tool wiring is fine (it calls `list_home` for device status); the weaker native-audio model just took the 0.35.0 "no service available" escape hatch as a first response instead of doing the two-step web lookup.
