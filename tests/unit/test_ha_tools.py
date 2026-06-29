@@ -160,6 +160,49 @@ async def test_home_call_normalizes_mixed_case_domain(respx_mock):
     assert r["ok"] is True and route.called and r["summary"] == "hej"
 
 
+async def test_home_call_intent_error_is_a_failure(respx_mock):
+    # A conversation/intent agent that FAILED (response_type=='error') is surfaced as a
+    # failure (not counted ok), but its message is kept for the model to relay.
+    respx_mock.get(f"{SVC}/services").respond(200, json=[])
+    respx_mock.post(url__regex=r".*/services/conversation/process.*").respond(
+        200,
+        json={
+            "service_response": {
+                "response": {
+                    "response_type": "error",
+                    "speech": {"plain": {"speech": "Jeg kunne ikke nå søgningen."}},
+                }
+            }
+        },
+    )
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=["conversation"]).dispatch(
+            "home_call",
+            {
+                "domain": "conversation",
+                "service": "process",
+                "return_response": True,
+                "data": {"text": "x"},
+            },
+        )
+    assert r["ok"] is False and r["error_kind"] == "intent_error"
+    assert r["error"] == "Jeg kunne ikke nå søgningen."
+
+
+async def test_home_call_account_level_allowed_via_exposed_entity(respx_mock):
+    # Exposing an ENTITY of a domain enables that domain's account-level data services.
+    respx_mock.get(f"{SVC}/services").respond(200, json=[])
+    route = respx_mock.post(url__regex=r".*/services/podconnect/top_tracks.*").respond(
+        200, json={"service_response": {"tracks": ["a"]}}
+    )
+    async with httpx.AsyncClient() as client:
+        r = await _bridge(client, exposed=["podconnect.living_room"]).dispatch(
+            "home_call",
+            {"domain": "podconnect", "service": "top_tracks", "return_response": True},
+        )
+    assert r["ok"] is True and route.called and r["data"] == {"tracks": ["a"]}
+
+
 async def test_web_search_blocked_when_conversation_not_exposed(respx_mock):
     # Same gating as everything else: not exposed -> denied, HA never hit.
     async with httpx.AsyncClient() as client:

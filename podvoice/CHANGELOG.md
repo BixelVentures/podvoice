@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.34.0 — review follow-ups (3 owner-approved design calls)
+
+- **Failed agents are reported as failures.** When a conversation/search agent errors (`response_type=='error'`) the call now returns `ok:false, error_kind:'intent_error'` (so Status no longer counts it as success) while keeping the agent's message so the assistant can relay it. Prompt updated to speak the `error` text when present.
+- **Service catalog self-heals.** The `/services` catalog is now re-fetched after ~10 min (and immediately after a 404), so adding/removing an integration mid-session no longer leaves return_response auto-correct or list_services stale until restart.
+- **Exposing an entity enables its domain's data services.** Account-level calls (no entity_id, e.g. listening history) are now allowed if you've exposed the bare domain OR any entity of it — no more confusing denials when you exposed the speakers by entity.
+
 ## 0.33.0 — hardening from a 20-agent adversarial review
 
 Fixes for real edge cases found reviewing 0.30-0.32 (false alarms discarded):

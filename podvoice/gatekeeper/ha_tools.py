@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 
 import httpx
 
@@ -27,6 +28,7 @@ from . import constants as C
 log = logging.getLogger(__name__)
 
 _COVER_ACTIONS = {"open": "open_cover", "close": "close_cover", "stop": "stop_cover"}
+_SERVICES_TTL_S = 600.0  # re-fetch the /services catalog at most this stale (integrations change)
 
 
 def _field_info(f: dict) -> dict:
@@ -73,27 +75,31 @@ def _response_mode_of(info: object) -> str:
     return "optional" if (isinstance(resp, dict) and resp.get("optional")) else "only"
 
 
-def _normalize_service_response(payload: object) -> tuple[str | None, object]:
+def _normalize_service_response(payload: object) -> tuple[str | None, object, bool]:
     """Promote HA's intent/assist speech envelope to a short ``summary`` — SHAPE-driven,
     never service-name-driven.
 
     Recognizes exactly ONE HA-wide convention: ``payload[response][speech][plain][speech]``
-    (emitted by every conversation/intent agent, incl. response_type=='error'), and returns
-    that string as the summary. Any other shape (track lists, search results, query data)
-    passes through unchanged with summary=None. Never reshapes or drops ``data``; every
-    access is guarded so a surprise shape can't raise.
-    VERIFY: HA intent-response envelope (response.speech.plain.speech).
+    (emitted by every conversation/intent agent), and returns that string as the summary.
+    Also reports ``is_error`` when ``response_type == 'error'`` so a failed agent (timeout,
+    "couldn't reach the service") is surfaced as a failure, not a cheerful answer. Any other
+    shape (track lists, search results, query data) passes through unchanged (summary=None).
+    Never reshapes or drops ``data``; every access is guarded so a surprise shape can't raise.
+    VERIFY: HA intent-response envelope (response.speech.plain.speech / response_type).
     """
+    is_error = False
     if isinstance(payload, dict):
         # Require the HA `response` wrapper — don't promote a stray top-level
         # speech.plain.speech that just happens to be in some service's data.
         inner = payload.get("response")
-        speech = inner.get("speech") if isinstance(inner, dict) else None
-        plain = speech.get("plain") if isinstance(speech, dict) else None
-        text = plain.get("speech") if isinstance(plain, dict) else None
-        if isinstance(text, str) and text.strip():
-            return text.strip(), payload
-    return None, payload
+        if isinstance(inner, dict):
+            is_error = inner.get("response_type") == "error"
+            speech = inner.get("speech")
+            plain = speech.get("plain") if isinstance(speech, dict) else None
+            text = plain.get("speech") if isinstance(plain, dict) else None
+            if isinstance(text, str) and text.strip():
+                return text.strip(), payload, is_error
+    return None, payload, is_error
 
 
 # One template render gives each entity's HA Area (the area registry isn't in the REST
@@ -124,7 +130,8 @@ class HAToolBridge:
             "Content-Type": "application/json",
         }
         self._exposed = [e.strip().lower() for e in exposed if e and e.strip()]
-        self._services_cache: list | None = None  # memoized /services catalog (stable per session)
+        self._services_cache: list | None = None  # memoized /services catalog (TTL'd)
+        self._services_ts: float = 0.0
 
     # ------------------------------------------------------------------ allowlist
     def _allowed(self, entity_id: str | None) -> bool:
@@ -319,12 +326,15 @@ class HAToolBridge:
                     "error": f"'{eid}' is not exposed (add it in Settings).",
                 }
             data["entity_id"] = eid
-        elif domain not in self._exposed:
+        elif domain not in self._allowed_domains():
+            # Account-level call (no entity_id): allowed if the bare domain OR any of its
+            # entities is exposed — so exposing media_player.kitchen also enables the
+            # domain's account-level data services (e.g. history) without surprise denials.
             return {
                 "ok": False,
                 "error_kind": "denied",
-                "error": f"domain '{domain}' is not exposed — add it in Settings to allow "
-                "account-level calls without an entity_id.",
+                "error": f"domain '{domain}' is not exposed — expose it (or one of its "
+                "entities) in Settings to allow account-level calls.",
             }
         # Auto-correct return_response from HA's own metadata: force it for response-ONLY
         # services; for NONE drop it ONLY if the model didn't explicitly ask (a stale/
@@ -338,7 +348,17 @@ class HAToolBridge:
             want = False
         if want:
             payload = await self.call_service_response(domain, service, data)
-            summary, body = _normalize_service_response(payload)
+            summary, body, is_error = _normalize_service_response(payload)
+            if is_error:
+                # The conversation/intent agent failed — surface it as a failure (so Status
+                # doesn't count it ok) while keeping its message for the model to relay.
+                return {
+                    "ok": False,
+                    "error_kind": "intent_error",
+                    "error": summary or "the agent reported an error",
+                    "data": body,
+                    "hint": "The agent (e.g. search) failed — relay its message or try again.",
+                }
             out: dict = {"ok": True, "data": body}
             if summary:
                 out["summary"] = summary
@@ -351,19 +371,25 @@ class HAToolBridge:
         return {"ok": True, "summary": "Done.", "data": {"changed": changed}}
 
     async def _services_raw(self) -> list:
-        """Memoized GET /services (the catalog is stable within a session). Best-effort:
-        returns [] if unavailable so callers degrade to the model's own flags."""
-        if self._services_cache is None:
+        """GET /services, cached with a TTL so mid-session integration changes are picked up
+        (and invalidated on a 404, see dispatch). Best-effort: returns [] if unavailable so
+        callers degrade to the model's own flags."""
+        fresh = (
+            self._services_cache is not None
+            and (time.monotonic() - self._services_ts) < _SERVICES_TTL_S
+        )
+        if not fresh:
             try:
                 r = await self._client.get(
                     f"{C.SUPERVISOR_CORE_API}/services", headers=self._ha_headers
                 )
                 self._raise_for_status(r)
                 self._services_cache = r.json()
+                self._services_ts = time.monotonic()
             except Exception as e:
                 log.info("services catalog unavailable: %s", e)
-                return []
-        return self._services_cache
+                return self._services_cache or []
+        return self._services_cache or []
 
     async def _response_mode(self, domain: str, service: str) -> str | None:
         """'none' | 'optional' | 'only' for a service, or None if unknown (cold cache /
@@ -562,6 +588,9 @@ class HAToolBridge:
             else:
                 return {"ok": False, "error_kind": "bad_args", "error": f"unknown tool {name}"}
         except Exception as e:  # broad on purpose - never leave the model waiting
-            return self._error_result(e)
+            result = self._error_result(e)
+            if result.get("status") == 404:  # service/entity gone -> catalog may be stale
+                self._services_cache = None
+            return result
         # Uniform success contract (same shape as home_call): the model reads 'summary'.
         return {"ok": True, "summary": "Done.", "data": {"changed": changed}}

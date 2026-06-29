@@ -83,7 +83,8 @@ og data/lister ligger i "data"). Sig KUN at noget mislykkedes, hvis værktøjet 
 (ok er falsk) — ikke bare fordi svaret ser anderledes ud end forventet.
 
 Hvis du ikke forstår brugeren: sig "Det forstod jeg ikke helt."
-Hvis et værktøj faktisk fejler (ok er falsk): sig kort "Det kan jeg desværre ikke."
+Hvis et værktøj faktisk fejler (ok er falsk): står der en forklaring i "error", så sig den kort
+til brugeren; ellers sig "Det kan jeg desværre ikke."
 
 Stil ikke unødvendige opfølgende spørgsmål. Tal kun når det er relevant."""
 
