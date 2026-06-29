@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.40.0
+
+- **Ducking & tuning moved to the Voice PE tab.** Duck/lounge levels, lounge window, heartbeat, watchdog and VAD threshold now live under Voice PE (they only affect the per-room Voice PE flow, not the Talk console). Settings is now purely the assistant. IDs unchanged — config preserved.
+
 ## 0.39.0
 
 - **Voice PE Gate 2 (Audio stream) now reads the LIVE room session** instead of opening a competing voice_assistant subscription. The device allows only one VA subscriber; the running session owns it, so the old standalone probe was rejected and falsely reported "No audio received" even while the device streamed gap-free. S1 health now comes from the session's actual frame reception (frames_in/bytes/age).
