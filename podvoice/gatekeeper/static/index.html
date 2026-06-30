@@ -248,7 +248,6 @@
   <div class="tabs" role="tablist">
     <button class="tabbtn active" data-tab="talk">Talk</button>
     <button class="tabbtn" data-tab="history">History</button>
-    <button class="tabbtn" data-tab="status">Status</button>
     <button class="tabbtn" data-tab="settings">Settings</button>
     <button class="tabbtn" data-tab="voicepe">Voice PE</button>
   </div>
@@ -284,21 +283,6 @@
         <button id="h_refresh" class="ghost" style="flex:0 0 auto">↻ Refresh</button>
       </div>
       <div id="h_list" class="list"></div>
-    </div>
-  </div>
-
-  <div class="pane" id="pane-status">
-    <div class="section" id="rooms-section" style="display:none">
-      <h2>Rooms</h2>
-      <div id="rooms" class="list"></div>
-    </div>
-    <div class="section" id="tx-section" style="display:none">
-      <h2>Room transcript <button id="clear" class="ghost" style="padding:4px 10px;font-size:.74rem">Clear</button></h2>
-      <div id="tx" class="tx"></div>
-    </div>
-    <div class="section">
-      <h2>Activity</h2>
-      <div id="metrics" class="metrics"></div>
     </div>
   </div>
 
@@ -380,6 +364,10 @@
   </div>
 
   <div class="pane" id="pane-voicepe">
+    <div class="section" id="rooms-section" style="display:none">
+      <h2>Live rooms</h2>
+      <div id="rooms" class="list"></div>
+    </div>
     <div class="section">
       <h2>Voice PE (hardware) <span class="vpbadge">experimental</span></h2>
       <p class="sub" style="margin:2px 0 0">Full-duplex on the physical Voice PE needs custom firmware that's still in build. The <b>Talk</b> tab is the working full-duplex surface today. This page runs the 3 hardware gates that must pass before the device is ready — run them in order and send each result to your PodVoice helper.</p>
@@ -533,7 +521,8 @@ function renderRooms() {
 }
 
 function renderMetrics(m) {
-  var wrap = document.getElementById("metrics"); wrap.innerHTML = "";
+  var wrap = document.getElementById("metrics"); if (!wrap) return;  // metrics removed from UI
+  wrap.innerHTML = "";
   Object.keys(METRIC_LABEL).forEach(function (k) {
     var box = el("div", "metric");
     box.appendChild(el("div", "n", String(safe(m, k, 0))));
@@ -555,7 +544,7 @@ function applyStatus(data) {
 
 var MAX_LINES = 200;
 function addTranscript(room, dir, text) {
-  var tx = document.getElementById("tx");
+  var tx = document.getElementById("tx"); if (!tx) return;  // live room-transcript folded into History
   var empty = tx.querySelector(".empty"); if (empty) empty.remove();
   var atBottom = tx.scrollHeight - tx.scrollTop - tx.clientHeight < 40;
   var line = el("div", "line " + (dir === "in" ? "in" : "out"));
@@ -566,7 +555,7 @@ function addTranscript(room, dir, text) {
   if (atBottom) tx.scrollTop = tx.scrollHeight;
 }
 function txEmpty() {
-  var tx = document.getElementById("tx");
+  var tx = document.getElementById("tx"); if (!tx) return;
   if (!tx.querySelector(".line")) { tx.innerHTML = ""; tx.appendChild(el("div", "empty", "No transcript yet — waiting for activity…")); }
 }
 
@@ -612,8 +601,9 @@ function openStream() {
   es.onmessage = function (m) { try { applyEvent(JSON.parse(m.data)); } catch (e) {} };
 }
 
-document.getElementById("clear").onclick = function () {
-  var tx = document.getElementById("tx"); tx.innerHTML = ""; txEmpty();
+var _clearBtn = document.getElementById("clear");
+if (_clearBtn) _clearBtn.onclick = function () {
+  var tx = document.getElementById("tx"); if (tx) { tx.innerHTML = ""; txEmpty(); }
 };
 
 txEmpty();

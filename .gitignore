@@ -17,3 +17,6 @@ __pycache__/
 .DS_Store
 
 # NOTE: config.example.yaml, repository.yaml and build.yaml ARE committed.
+
+# local preview server config (machine-specific path)
+.claude/launch.json
