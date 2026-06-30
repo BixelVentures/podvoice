@@ -20,7 +20,11 @@ LOUNGE_WINDOW_S = 8  # follow-up window length
 STREAM_KEEPALIVE_S = (
     10  # re-assert the device mic-forward while active (dead-man keepalive < device SAFETY_MS=25s)
 )
-WATCHDOG_MS = 800  # round-trip (TTFR) latency abort threshold
+WATCHDOG_MS = 3000  # TTFR HANG threshold (armed at end-of-user-speech). NOT a latency
+# SLA — it only catches a model that never replies. 800ms (the old value) false-aborts
+# on normal first-token latency + network jitter; a real hang is obvious by ~3s.
+WATCHDOG_FLOOR_MS = 2000  # sane floor: a saved value below this is treated as a stale
+# default and raised, so an old 800ms in /data/podvoice.json can't keep aborting turns.
 STREAM_STALL_MS = 1500  # mid-stream silence => treated as a drop
 BARGE_COOLDOWN_MS = 700  # de-dup window for barge-in signals
 VAD_OPEN_MS = 250  # sustained voice needed to re-open in lounge

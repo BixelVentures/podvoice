@@ -126,7 +126,9 @@ def from_options(opts: dict) -> Config:
         duck_level=int(opts.get("duck_level", C.DUCK_LEVEL)),
         lounge_level=int(opts.get("lounge_level", C.LOUNGE_LEVEL)),
         heartbeat_ms=int(opts.get("heartbeat_ms", C.HEARTBEAT_MS)),
-        watchdog_ms=int(opts.get("watchdog_ms", C.WATCHDOG_MS)),
+        # Floor a stale/too-low saved value: sub-2s TTFR is a latency SLA, not a hang
+        # detector, and false-aborts every turn. Raise it to the safe default.
+        watchdog_ms=max(int(opts.get("watchdog_ms", C.WATCHDOG_MS)), C.WATCHDOG_FLOOR_MS),
         vad_threshold=float(opts.get("vad_threshold", C.VAD_THRESHOLD)),
     )
 

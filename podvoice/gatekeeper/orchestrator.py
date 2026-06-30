@@ -145,13 +145,35 @@ class RoomSession:
         self._paint_led(new, error=is_err)
 
     def _paint_led(self, state: State, *, error: bool = False) -> None:
-        """Schedule a best-effort LED ring update (observer is sync; set_light is async)."""
+        """Schedule a best-effort LED ring update (observer is sync; set_light is async).
+
+        An error/watchdog event flashes red, then SETTLES to the real state colour a
+        beat later. Without the settle, an error that transitions straight to IDLE
+        paints led_command_for(IDLE, error=True) = red and — since IDLE is terminal and
+        error overrides the idle=off colour — the ring stays stuck red forever."""
         if not hasattr(self.voicepe, "set_light"):
             return
         cmd = led_command_for(state, muted=self._muted, error=error)
-        task = asyncio.ensure_future(self.voicepe.set_light(cmd.on, cmd.rgb, cmd.brightness))
+        self._schedule_light(cmd.on, cmd.rgb, cmd.brightness)
+        if error:
+            self._schedule_task(self._settle_led())
+
+    def _schedule_light(self, on: bool, rgb: tuple[float, float, float], brightness: float) -> None:
+        self._schedule_task(self.voicepe.set_light(on, rgb, brightness))
+
+    def _schedule_task(self, coro) -> None:
+        task = asyncio.ensure_future(coro)
         self._tasks.append(task)
         task.add_done_callback(lambda t: self._tasks.remove(t) if t in self._tasks else None)
+
+    async def _settle_led(self) -> None:
+        """After an error flash, repaint the CURRENT live state without the error overlay
+        so the ring can't get stuck red. Reads sm.state live, so a re-wake during the
+        flash still wins (it settles to cyan, not back to off)."""
+        await asyncio.sleep(1.2)
+        cmd = led_command_for(self.sm.state, muted=self._muted, error=False)
+        with contextlib.suppress(Exception):
+            await self.voicepe.set_light(cmd.on, cmd.rgb, cmd.brightness)
 
     async def _reassert_device(self) -> None:
         """On (re)connect, match the device to the CURRENT state: stream + LED. Reading
