@@ -167,21 +167,31 @@ class VoicePELink:
     ) -> None:  # VERIFY: cb signature
         log.warning("voicepe %s disconnected (expected=%s)", self.host, expected_disconnect)
 
-    def _handle_start(self, *args: Any, **kwargs: Any) -> Any:  # VERIFY: VA start cb signature
+    async def _handle_start(self, *args: Any, **kwargs: Any) -> int | None:
+        # aioesphomeapi calls handle_start(conversation_id, flags, audio_settings,
+        # wake_word_phrase) and AWAITS the result (create_eager_task), then sends
+        # VoiceAssistantResponse(port=<return>). A None return makes it send
+        # error=True instead -> the device flashes its RED error LED and plays an
+        # error tone. So we ack with 0 (the API-audio path uses no UDP port), fire
+        # the wake, and let abort_va() kill the stock turn; podvoice_audio is the
+        # real stream. MUST be async: aioesphomeapi wraps the call in a Task.
         # The device fired voice_assistant.start (wake word) -> treat as WAKE.
         if self.on_wake is not None:
             self.on_wake()
-        return None
+        return 0
 
     async def abort_va(self) -> None:
         """Stop the stock voice_assistant turn the wake triggered, so its turn-audio
         does not collide with podvoice_audio's continuous stream. Best-effort."""
         await self._call_service("podvoice_va_abort")
 
-    def _handle_stop(self, *args: Any, **kwargs: Any) -> Any:  # VERIFY: VA stop cb signature
+    async def _handle_stop(self, *args: Any, **kwargs: Any) -> None:
+        # Awaited by aioesphomeapi (create_background_task). Stock-turn teardown is
+        # driven by our own state machine, so this is a no-op — but it MUST be a
+        # coroutine or aioesphomeapi raises "a coroutine was expected, got None".
         return None
 
-    def _handle_audio(self, data: bytes, data2: bytes | None = None) -> None:
+    async def _handle_audio(self, data: bytes, data2: bytes | None = None) -> None:
         # aioesphomeapi==45.3.* calls handle_audio(audio.data, audio.data2); the
         # second positional arg is the optional 2nd-channel bytes (or None), NOT
         # an `end` flag. A VoiceAssistantAudio{end=true} is intercepted by
