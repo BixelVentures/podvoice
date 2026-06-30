@@ -34,6 +34,14 @@ from .voice import UserSpeechStopped
 
 _LOG = logging.getLogger("podvoice.orchestrator")
 
+# Friendly per-state lines for the panel's live activity feed.
+_ACTIVITY_LABELS = {
+    "LISTENING": "🎙️ Listening to you",
+    "AI_SPEAKING": "💬 Assistant replying",
+    "LOUNGE_WINDOW": "⏳ Follow-up window (grace)",
+    "IDLE": "💤 Idle — waiting for “Okay Nabu” (music restored)",
+}
+
 
 class RoomSession:
     def __init__(
@@ -149,6 +157,11 @@ class RoomSession:
             self.hub.set_state(self.room, new.name)
             if old.name == "IDLE" and new.name == "LISTENING":
                 self.hub.incr("sessions")
+                self.hub.activity(self.room, "👋 Woke up — listening")
+            elif event.type in (EventType.ERROR, EventType.WATCHDOG_TIMEOUT):
+                self.hub.activity(self.room, "⚠️ Error / timeout — closing")
+            elif new.name in _ACTIVITY_LABELS and new is not old:
+                self.hub.activity(self.room, _ACTIVITY_LABELS[new.name])
         # The idle-close timer only guards LISTENING; cancel it the moment we leave
         # (model started responding, went to grace, or closed).
         if new is not State.LISTENING:
@@ -323,6 +336,8 @@ class RoomSession:
                 self.reply_bus.start(self.room)  # fresh reply audio stream
                 # Tell the device to fetch + play the reply URL (announce path).
                 self._schedule_task(self.voicepe.play_url(self.reply_url))
+                if self.hub is not None:
+                    self.hub.activity(self.room, "🔊 Playing reply on the speaker")
         elif k is ActionKind.PLAYBACK_STOP:
             self.playback.flush()
             if self.reply_bus is not None:
@@ -345,6 +360,8 @@ class RoomSession:
             # triggered (so its turn-audio can't collide with podvoice_audio), THEN start
             # our continuous stream + keep the dead-man timer fresh.
             _LOG.info("stream start [room=%s] — abort_va + start_streaming", self.room)
+            if self.hub is not None:
+                self.hub.activity(self.room, "📡 Mic stream started")
             if hasattr(self.voicepe, "abort_va"):
                 await self.voicepe.abort_va()
             if hasattr(self.voicepe, "start_streaming"):
@@ -373,7 +390,12 @@ class RoomSession:
 
     # ------------------------------------------------------------------ ingest loop
     async def _ingest(self) -> None:
+        seen_audio = False
         async for frame in self.voicepe.pcm_frames():
+            if not seen_audio:
+                seen_audio = True
+                if self.hub is not None:
+                    self.hub.activity(self.room, "✅ Hearing audio from the device")
             if self._lounge_vad_on and self._lounge_vad.feed(frame):
                 self._lounge_vad_on = False
                 await self.sm.post(Event(EventType.LOCAL_VOICE_DETECTED, self.room))

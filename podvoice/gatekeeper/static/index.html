@@ -368,6 +368,11 @@
       <h2>Live rooms</h2>
       <div id="rooms" class="list"></div>
     </div>
+    <div class="section" id="activity-section">
+      <h2>Live activity</h2>
+      <p class="sub" style="margin:2px 0 8px">What the Voice PE is doing right now — wake, listening, replying, playing, closing.</p>
+      <div id="activity" class="tx" style="min-height:0;max-height:240px"></div>
+    </div>
     <div class="section">
       <h2>Voice PE (hardware) <span class="vpbadge">experimental</span></h2>
       <p class="sub" style="margin:2px 0 0">Full-duplex on the physical Voice PE needs custom firmware that's still in build. The <b>Talk</b> tab is the working full-duplex surface today. This page runs the 3 hardware gates that must pass before the device is ready — run them in order and send each result to your PodVoice helper.</p>
@@ -545,6 +550,29 @@ function applyStatus(data) {
   renderServices(data.services || {});
   renderRooms();
   renderMetrics(data.metrics || {});
+  renderActivity(data.activity || []);
+}
+
+function fmtClock(ts) {
+  try { return new Date(ts * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }); }
+  catch (e) { return ""; }
+}
+function addActivity(item) {
+  var box = document.getElementById("activity"); if (!box) return;
+  var empty = box.querySelector(".empty"); if (empty) empty.remove();
+  var atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  var line = el("div", "line out");
+  line.appendChild(el("div", "who", (item.room || "") + " · " + fmtClock(item.ts)));
+  line.appendChild(document.createTextNode(item.text || ""));
+  box.appendChild(line);
+  while (box.children.length > 60) box.removeChild(box.firstChild);
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+function renderActivity(list) {
+  var box = document.getElementById("activity"); if (!box) return;
+  box.innerHTML = "";
+  if (!list || !list.length) { box.appendChild(el("div", "empty", "No activity yet — say “Okay Nabu”.")); return; }
+  list.forEach(addActivity);
 }
 
 var MAX_LINES = 200;
@@ -578,6 +606,8 @@ function applyEvent(ev) {
     renderMetrics(m);
   } else if (ev.type === "transcript") {
     addTranscript(ev.room, ev.dir, ev.text);
+  } else if (ev.type === "activity") {
+    addActivity(ev);
   }
 }
 

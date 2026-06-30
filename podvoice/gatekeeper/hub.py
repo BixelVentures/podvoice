@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from collections import deque
 
 from . import __version__
 from .history import History
@@ -40,6 +42,10 @@ class StatusHub:
         self._services: dict[str, str] = {"gemini": "down", "voicepe": "down", "podconnect": "down"}
         self._metrics: dict[str, int] = dict.fromkeys(_METRIC_KEYS, 0)
         self._subs: set[asyncio.Queue] = set()
+        # Recent human-readable activity, so the panel can show a LIVE feed of what each
+        # Voice PE is doing (wake / listening / speaking / playing / closed) — the whole
+        # point of the panel: see the hardware live, never dig through add-on logs.
+        self._activity: deque[dict] = deque(maxlen=40)
 
     # ------------------------------------------------------------------ rooms
     def register_room(self, room: str) -> None:
@@ -62,7 +68,14 @@ class StatusHub:
             "services": dict(self._services),
             "rooms": [dict(r) for r in self._rooms.values()],
             "metrics": dict(self._metrics),
+            "activity": list(self._activity),
         }
+
+    def activity(self, room: str, text: str) -> None:
+        """Record + broadcast one human-readable activity line for the live panel feed."""
+        item = {"ts": time.time(), "room": room, "text": text}
+        self._activity.append(item)
+        self._broadcast({"type": "activity", **item})
 
     # ------------------------------------------------------------------ SSE bus
     async def subscribe(self) -> asyncio.Queue:
