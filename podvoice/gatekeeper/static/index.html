@@ -247,6 +247,7 @@
 
   <div class="tabs" role="tablist">
     <button class="tabbtn active" data-tab="talk">Talk</button>
+    <button class="tabbtn" data-tab="history">History</button>
     <button class="tabbtn" data-tab="status">Status</button>
     <button class="tabbtn" data-tab="settings">Settings</button>
     <button class="tabbtn" data-tab="voicepe">Voice PE</button>
@@ -271,6 +272,18 @@
         <button id="cmic" class="ghost" aria-label="Hold to talk">🎤</button>
       </div>
       <p id="cmichint" class="sub" style="margin-top:8px"></p>
+    </div>
+  </div>
+
+  <div class="pane" id="pane-history">
+    <div class="section">
+      <h2>Conversations <button id="h_clear" class="ghost" style="padding:4px 10px;font-size:.74rem">Clear all</button></h2>
+      <p class="sub" style="margin:2px 0 10px">Past conversations — the Talk console and each Voice PE room. Saved across restarts.</p>
+      <div class="crow" style="margin-bottom:12px">
+        <select id="h_room" aria-label="Filter by room" style="flex:1 1 auto"><option value="">All conversations</option></select>
+        <button id="h_refresh" class="ghost" style="flex:0 0 auto">↻ Refresh</button>
+      </div>
+      <div id="h_list" class="list"></div>
     </div>
   </div>
 
@@ -1144,6 +1157,88 @@ setInterval(poll, 3000);
   if (btns[0]) btns[0].onclick = function () { run("status", "GET", "Checking connection…"); };
   if (btns[1]) btns[1].onclick = function () { run("s1", "POST", "Measuring the audio stream (~15s)… keep this tab open."); };
   if (btns[2]) btns[2].onclick = function () { run("s2", "POST", "Playing a test tone…"); };
+})();
+</script>
+
+<script>
+"use strict";
+// ---- History (persisted conversations) ----
+(function () {
+  var listEl = document.getElementById("h_list");
+  var roomSel = document.getElementById("h_room");
+  var refreshBtn = document.getElementById("h_refresh");
+  var clearBtn = document.getElementById("h_clear");
+  if (!listEl) return;
+
+  function he(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  function roomLabel(id) { return id === "talk" ? "Talk console" : (id || "?"); }
+  function when(startTs, endTs) {
+    try {
+      var d = new Date(startTs * 1000);
+      var day = d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+      var t1 = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      var t2 = new Date(endTs * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      return day + " · " + t1 + (t2 !== t1 ? "–" + t2 : "");
+    } catch (e) { return ""; }
+  }
+
+  function card(conv) {
+    var box = he("div", "room");
+    var top = he("div", "top");
+    top.appendChild(he("span", "rname", roomLabel(conv.room)));
+    var n = (conv.turns || []).length;
+    top.appendChild(he("span", "pill pill-idle", n + (n === 1 ? " turn" : " turns")));
+    box.appendChild(top);
+    box.appendChild(he("div", "meta")).appendChild(he("span", null, when(conv.started, conv.ended)));
+    var tx = he("div", "tx"); tx.style.marginTop = "10px"; tx.style.minHeight = "0";
+    (conv.turns || []).forEach(function (t) {
+      var line = he("div", "line " + (t.dir === "in" ? "in" : "out"));
+      line.appendChild(he("div", "who", t.dir === "in" ? "you" : "assistant"));
+      line.appendChild(document.createTextNode(t.text || ""));
+      tx.appendChild(line);
+    });
+    box.appendChild(tx);
+    return box;
+  }
+
+  function fillRooms(rooms, sel) {
+    var keep = sel || roomSel.value || "";
+    roomSel.innerHTML = "";
+    roomSel.appendChild(he("option", null, "All conversations")).value = "";
+    (rooms || []).forEach(function (r) {
+      var o = he("option", null, roomLabel(r)); o.value = r; roomSel.appendChild(o);
+    });
+    roomSel.value = keep;
+  }
+
+  async function load() {
+    listEl.innerHTML = "";
+    listEl.appendChild(he("div", "empty", "Loading…"));
+    try {
+      var room = roomSel.value || "";
+      var url = "api/history" + (room ? "?room=" + encodeURIComponent(room) : "");
+      var data = await (await fetch(url, { cache: "no-store" })).json();
+      fillRooms(data.rooms || [], room);
+      listEl.innerHTML = "";
+      var convs = data.conversations || [];
+      if (!convs.length) { listEl.appendChild(he("div", "empty", "No conversations yet — they'll appear here after you talk.")); return; }
+      convs.forEach(function (c) { listEl.appendChild(card(c)); });
+    } catch (e) {
+      listEl.innerHTML = ""; listEl.appendChild(he("div", "empty", "Couldn't load history."));
+    }
+  }
+
+  if (refreshBtn) refreshBtn.onclick = load;
+  if (roomSel) roomSel.onchange = load;
+  if (clearBtn) clearBtn.onclick = async function () {
+    if (!window.confirm("Delete all saved conversations?")) return;
+    try { await fetch("api/history/clear", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); } catch (e) {}
+    load();
+  };
+  // Load when the History tab is opened (and once now so it's warm).
+  var hbtn = document.querySelector('.tabbtn[data-tab="history"]');
+  if (hbtn) hbtn.addEventListener("click", load);
+  load();
 })();
 </script>
 
