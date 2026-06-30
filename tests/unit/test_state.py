@@ -73,7 +73,12 @@ TABLE = [
     (State.IDLE, ev(EventType.CLOSURE_TOKEN, "stop"), State.IDLE, []),
     (State.IDLE, ev(EventType.ERROR), State.IDLE, []),
     # --- LISTENING ---
-    (State.LISTENING, ev(EventType.GEMINI_RESPONDING), State.AI_SPEAKING, [K.PLAYBACK_ARM]),
+    (
+        State.LISTENING,
+        ev(EventType.GEMINI_RESPONDING),
+        State.AI_SPEAKING,
+        [K.GATE_MUTE, K.PLAYBACK_ARM],  # mic muted while the AI speaks (no self-interrupt)
+    ),
     (
         State.LISTENING,
         ev(EventType.GEMINI_TURN_COMPLETE),

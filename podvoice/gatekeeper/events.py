@@ -57,6 +57,7 @@ class ActionKind(enum.Enum):
     HB_STOP = enum.auto()
     GATE_OPEN = enum.auto()
     GATE_SHUT = enum.auto()
+    GATE_MUTE = enum.auto()  # shut the gate AND send silence (while the AI is speaking)
     PLAYBACK_ARM = enum.auto()
     PLAYBACK_STOP = enum.auto()
     START_LOUNGE_TIMER = enum.auto()  # timeout_s
@@ -111,6 +112,13 @@ def gate_open() -> Action:
 
 def gate_shut() -> Action:
     return Action(ActionKind.GATE_SHUT)
+
+
+def gate_mute() -> Action:
+    """Shut the gate and send silence (not real mic) — used while the AI is speaking,
+    so residual echo / ambient noise can't trip the provider's VAD and self-interrupt
+    the reply."""
+    return Action(ActionKind.GATE_MUTE)
 
 
 def playback_arm() -> Action:

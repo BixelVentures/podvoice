@@ -125,7 +125,17 @@ class StatusHub:
             self._services[name] = status
             self._broadcast({"type": "service", "name": name, "status": status})
 
+    def transcript_delta(self, room: str, direction: str, text: str) -> None:
+        """A live partial token for the panel's streaming display — broadcast ONLY,
+        never persisted. History gets the coalesced whole turn via transcript()."""
+        if text:
+            self._broadcast(
+                {"type": "transcript_delta", "room": room, "dir": direction, "text": text}
+            )
+
     def transcript(self, room: str, direction: str, text: str) -> None:
+        """A complete turn (one utterance): broadcast AND persist to history. This is
+        what the History tab shows — one clean turn, not per-token fragments."""
         if text:
             self._broadcast({"type": "transcript", "room": room, "dir": direction, "text": text})
             if self._history is not None:  # persist so the History tab survives restarts

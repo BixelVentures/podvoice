@@ -90,6 +90,8 @@ class RoomSession:
         self._reader: asyncio.Task | None = None
         self._tasks: list[asyncio.Task] = []
         self._responded = False  # whether GEMINI_RESPONDING was posted this turn
+        self._out_buf: list[str] = []  # AI transcript deltas, coalesced + flushed per turn
+        self._in_buf: list[str] = []  # user transcript deltas, coalesced + flushed per turn
         self._keepalive_task: asyncio.Task | None = None  # re-asserts the device mic-forward
         self._muted = False  # device mute state (LED override)
 
@@ -289,12 +291,19 @@ class RoomSession:
             self.gatekeeper.set_silence(False)
             self.gatekeeper.open()
             self._responded = False
+            self._out_buf = []  # fresh turn — drop any stale transcript fragments
+            self._in_buf = []
             # NB: do NOT arm the TTFR watchdog here. Gate-open is the START of the
             # user's turn; arming now counts the user's own speaking time as model
             # latency and aborts every turn at WATCHDOG_MS. We arm at end-of-user-
             # speech instead (UserSpeechStopped, see _on_gemini_event).
         elif k is ActionKind.GATE_SHUT:
             self.gatekeeper.shut()
+        elif k is ActionKind.GATE_MUTE:
+            # While the AI speaks: shut the gate AND send silence (not real mic) so
+            # echo/noise can't trip the provider VAD and self-interrupt the reply.
+            self.gatekeeper.shut()
+            self.gatekeeper.set_silence(True)
         elif k is ActionKind.PLAYBACK_ARM:
             self.playback.start()
         elif k is ActionKind.PLAYBACK_STOP:
@@ -384,13 +393,15 @@ class RoomSession:
         elif isinstance(ev, OutputTranscript):
             if self.watchdog is not None:
                 self.watchdog.on_output()
+            self._out_buf.append(ev.text)  # coalesce: flushed as one turn on TurnComplete
             if self.hub is not None:
-                self.hub.transcript(self.room, "out", ev.text)
+                self.hub.transcript_delta(self.room, "out", ev.text)
         elif isinstance(ev, InputTranscript):
             if self.watchdog is not None:
                 self.watchdog.on_output()
+            self._in_buf.append(ev.text)  # coalesce: flushed as one turn on UserSpeechStopped
             if self.hub is not None:
-                self.hub.transcript(self.room, "in", ev.text)
+                self.hub.transcript_delta(self.room, "in", ev.text)
             await self._maybe_barge_in(ev.text)
         elif isinstance(ev, ToolCall):
             if self.watchdog is not None:
@@ -399,17 +410,24 @@ class RoomSession:
                 self.hub.incr("tool_calls")
             await self._handle_tool(ev)
         elif isinstance(ev, TurnComplete):
+            if self._out_buf and self.hub is not None:  # persist the whole reply as ONE turn
+                self.hub.transcript(self.room, "out", "".join(self._out_buf))
+            self._out_buf = []
             if self.watchdog is not None:
                 self.watchdog.disarm()
                 if self.hub is not None and self.watchdog.samples:
                     self.hub.set_latency(self.room, self.watchdog.samples[-1] * 1000)
             await self.sm.post(Event(EventType.GEMINI_TURN_COMPLETE, self.room))
         elif isinstance(ev, UserSpeechStopped):
+            if self._in_buf and self.hub is not None:  # persist the whole utterance as ONE turn
+                self.hub.transcript(self.room, "in", "".join(self._in_buf))
+            self._in_buf = []
             # End of the user's turn: NOW the model owes us a reply within WATCHDOG_MS.
             # This is the correct arming point for the time-to-first-response watchdog.
             if self.watchdog is not None:
                 self.watchdog.arm(self.room)
         elif isinstance(ev, Interrupted):
+            self._out_buf = []  # the partial reply was cancelled — don't persist a fragment
             self.playback.flush()
             await self.sm.post(Event(EventType.GEMINI_INTERRUPTED, self.room))
         elif isinstance(ev, GoAway):

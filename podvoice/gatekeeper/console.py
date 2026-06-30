@@ -252,6 +252,18 @@ async def run_console(ws, gemini: ConsoleGemini, tools=None, history=None) -> No
 
 async def _pump(ws, gemini: ConsoleGemini, tools=None, history=None) -> None:
     """Forward Gemini events to the browser (binary = audio, JSON = transcript)."""
+    out_buf: list[str] = []  # coalesce transcript deltas -> one persisted turn each
+    in_buf: list[str] = []
+
+    def _flush() -> None:
+        if history is not None:
+            if in_buf:
+                history.append(HISTORY_TALK_ROOM, "in", "".join(in_buf))
+            if out_buf:
+                history.append(HISTORY_TALK_ROOM, "out", "".join(out_buf))
+        in_buf.clear()
+        out_buf.clear()
+
     try:
         async for ev in gemini.events():
             if ev is None:
@@ -260,12 +272,10 @@ async def _pump(ws, gemini: ConsoleGemini, tools=None, history=None) -> None:
                 await ws.send_bytes(ev.pcm)
             elif isinstance(ev, OutputTranscript):
                 await ws.send_json({"type": "transcript", "dir": "out", "text": ev.text})
-                if history is not None:  # persist Talk turns to the History tab
-                    history.append(HISTORY_TALK_ROOM, "out", ev.text)
+                out_buf.append(ev.text)  # live to browser; persisted whole on turn end
             elif isinstance(ev, InputTranscript):
                 await ws.send_json({"type": "transcript", "dir": "in", "text": ev.text})
-                if history is not None:
-                    history.append(HISTORY_TALK_ROOM, "in", ev.text)
+                in_buf.append(ev.text)
             elif isinstance(ev, ToolCall):
                 result = (
                     await tools.dispatch(ev.name, ev.args)
@@ -275,8 +285,10 @@ async def _pump(ws, gemini: ConsoleGemini, tools=None, history=None) -> None:
                 await ws.send_json({"type": "tool", "name": ev.name, "result": result})
                 await gemini.send_tool_results([{"id": ev.id, "name": ev.name, "response": result}])
             elif isinstance(ev, Interrupted):
+                out_buf.clear()  # cancelled reply — don't persist a fragment
                 await ws.send_json({"type": "interrupted"})  # barge-in: flush browser audio
             elif isinstance(ev, TurnComplete):
+                _flush()  # persist this turn (user + AI) as coalesced whole utterances
                 await ws.send_json({"type": "turn_complete"})
     except asyncio.CancelledError:
         raise

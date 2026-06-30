@@ -23,6 +23,7 @@ from .events import (
     cancel_lounge_timer,
     close_ws,
     error_tone,
+    gate_mute,
     gate_open,
     gate_shut,
     hb_retarget,
@@ -134,7 +135,10 @@ class StateMachine:
 
         if state is State.LISTENING:
             if et is EventType.GEMINI_RESPONDING:
-                return State.AI_SPEAKING, [playback_arm()]
+                # Mute the mic toward the provider while the AI speaks: with the gate
+                # open, residual echo + ambient noise trip the server VAD and cancel the
+                # reply in a self-interrupt loop. Re-open on re-wake / barge-in below.
+                return State.AI_SPEAKING, [gate_mute(), playback_arm()]
             if et is EventType.GEMINI_TURN_COMPLETE:
                 # A turn ended while still listening (e.g. an empty/instant turn):
                 # open the follow-up window rather than getting stuck.
