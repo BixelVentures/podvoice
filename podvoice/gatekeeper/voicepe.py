@@ -213,6 +213,8 @@ class VoicePELink:
         """Push one raw 16 kHz PCM frame into the queue; drop on backpressure."""
         # Live S1 health: count frames + bytes so the panel can confirm the device is
         # streaming WITHOUT a competing diag subscription (we own the single VA slot).
+        if self.frames_in == 0:
+            log.info("voicepe %s: first device mic frame received (audio is flowing)", self.host)
         self.frames_in += 1
         self.bytes_in += len(data)
         self.last_audio_ts = asyncio.get_event_loop().time()

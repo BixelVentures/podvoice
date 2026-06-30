@@ -91,15 +91,15 @@ class StateMachine:
                     log.exception("decide_failed", extra={"state": self.state, "event": event.type})
                     new, actions = State.IDLE, self._teardown()
                 await self._apply(actions)
+                # Put from->to+event IN the message (the default log format drops `extra`),
+                # so the add-on Log tab actually shows the conversation flow for debugging.
                 log.info(
-                    "transition",
-                    extra={
-                        "room": self.room,
-                        "from": self.state.value,
-                        "event": event.type.name,
-                        "kind": event.kind,
-                        "to": new.value,
-                    },
+                    "transition %s -> %s on %s%s [room=%s]",
+                    self.state.value,
+                    new.value,
+                    event.type.name,
+                    f" ({event.kind})" if event.kind else "",
+                    self.room,
                 )
                 old, self.state = self.state, new
                 if self._observer is not None and old is not new:

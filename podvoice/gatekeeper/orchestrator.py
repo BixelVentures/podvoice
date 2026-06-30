@@ -344,6 +344,7 @@ class RoomSession:
             # Wake opened the gate. First abort the stock voice_assistant turn the wake
             # triggered (so its turn-audio can't collide with podvoice_audio), THEN start
             # our continuous stream + keep the dead-man timer fresh.
+            _LOG.info("stream start [room=%s] — abort_va + start_streaming", self.room)
             if hasattr(self.voicepe, "abort_va"):
                 await self.voicepe.abort_va()
             if hasattr(self.voicepe, "start_streaming"):
