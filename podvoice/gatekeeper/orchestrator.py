@@ -456,6 +456,10 @@ class RoomSession:
                 self.hub.incr("tool_calls")
             await self._handle_tool(ev)
         elif isinstance(ev, TurnComplete):
+            # Flush the USER turn FIRST (before the reply) so History reads you -> assistant.
+            # OpenAI's complete input transcript lands AFTER speech_stopped, so the
+            # UserSpeechStopped flush ran on an empty buffer — catch it here.
+            self._flush_user_turn()
             if self.reply_bus is not None:
                 self.reply_bus.end(self.room)  # reply done -> close the announce WAV stream
             if self._out_buf and self.hub is not None:  # persist the whole reply as ONE turn
@@ -467,9 +471,7 @@ class RoomSession:
                     self.hub.set_latency(self.room, self.watchdog.samples[-1] * 1000)
             await self.sm.post(Event(EventType.GEMINI_TURN_COMPLETE, self.room))
         elif isinstance(ev, UserSpeechStopped):
-            if self._in_buf and self.hub is not None:  # persist the whole utterance as ONE turn
-                self.hub.transcript(self.room, "in", "".join(self._in_buf))
-            self._in_buf = []
+            self._flush_user_turn()  # Gemini streams deltas that are all in by end-of-speech
             # End of the user's turn: NOW the model owes us a reply within WATCHDOG_MS.
             # This is the correct arming point for the time-to-first-response watchdog.
             if self.watchdog is not None:
@@ -507,6 +509,21 @@ class RoomSession:
             else:
                 self.hub.incr("tool_ok")
         await self.gemini.send_tool_results([{"id": tc.id, "name": tc.name, "response": result}])
+
+    def _flush_user_turn(self) -> None:
+        """Persist the buffered user utterance as ONE 'in' turn, then clear.
+
+        Called on BOTH UserSpeechStopped and TurnComplete because the two providers
+        deliver the input transcript at different times: Gemini streams deltas that are
+        all in by end-of-speech (UserSpeechStopped), while OpenAI sends ONE complete
+        transcript that arrives AFTER speech_stopped (so it's only present by
+        TurnComplete). Idempotent — whichever trigger holds the text flushes it; the
+        other finds an empty buffer. This is why History was showing assistant turns
+        with no matching 'you' turn: the old single flush ran before the text existed.
+        """
+        if self._in_buf and self.hub is not None:
+            self.hub.transcript(self.room, "in", "".join(self._in_buf))
+        self._in_buf = []
 
     # ------------------------------------------------------------------ device events
     def _on_wake(self) -> None:
