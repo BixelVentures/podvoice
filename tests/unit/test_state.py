@@ -191,6 +191,24 @@ TABLE = [
         State.LISTENING,
         [K.STOP_LOUNGE_VAD, K.CANCEL_LOUNGE_TIMER, K.GATE_OPEN, K.HB_RETARGET],
     ),
+    (  # re-wake during grace re-opens listening without a fresh "Okay Nabu"
+        State.LOUNGE_WINDOW,
+        ev(EventType.WAKE_WORD),
+        State.LISTENING,
+        [K.STOP_LOUNGE_VAD, K.CANCEL_LOUNGE_TIMER, K.GATE_OPEN, K.HB_RETARGET],
+    ),
+    (  # a late follow-up reply that arrives after we returned to grace
+        State.LOUNGE_WINDOW,
+        ev(EventType.GEMINI_RESPONDING),
+        State.AI_SPEAKING,
+        [K.STOP_LOUNGE_VAD, K.CANCEL_LOUNGE_TIMER, K.GATE_MUTE, K.PLAYBACK_ARM, K.HB_RETARGET],
+    ),
+    (  # button while the AI speaks = interrupt back to listening
+        State.AI_SPEAKING,
+        ev(EventType.BUTTON_PRESS),
+        State.LISTENING,
+        [K.PLAYBACK_STOP, K.GATE_OPEN],
+    ),
     (
         State.LOUNGE_WINDOW,
         ev(EventType.CLOSURE_TOKEN, "tak"),

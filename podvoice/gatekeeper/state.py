@@ -162,9 +162,9 @@ class StateMachine:
                     start_lounge_vad(),
                     start_lounge_timer(self.lounge_window_s),
                 ]
-            # A spoken-over barge-in (provider VAD) OR a hardware re-wake both
+            # A spoken-over barge-in (provider VAD) OR a hardware re-wake / button both
             # interrupt the assistant and return to listening (stream stays ON).
-            if et in (EventType.GEMINI_INTERRUPTED, EventType.WAKE_WORD):
+            if et in (EventType.GEMINI_INTERRUPTED, EventType.WAKE_WORD, EventType.BUTTON_PRESS):
                 return State.LISTENING, [playback_stop(), gate_open()]
             if et is EventType.CLOSURE_TOKEN:
                 return State.IDLE, [
@@ -180,11 +180,26 @@ class StateMachine:
             return State.AI_SPEAKING, []
 
         if state is State.LOUNGE_WINDOW:
-            if et is EventType.LOCAL_VOICE_DETECTED:
+            # Follow-up within the grace window — local voice, a re-wake, or a button —
+            # all re-open listening without needing a fresh "Okay Nabu".
+            if et in (
+                EventType.LOCAL_VOICE_DETECTED,
+                EventType.WAKE_WORD,
+                EventType.BUTTON_PRESS,
+            ):
                 return State.LISTENING, [
                     stop_lounge_vad(),
                     cancel_lounge_timer(),
                     gate_open(),
+                    hb_retarget(self.duck_level, self.ttl_listening_ms),
+                ]
+            # A late follow-up reply that starts after we already returned to grace.
+            if et is EventType.GEMINI_RESPONDING:
+                return State.AI_SPEAKING, [
+                    stop_lounge_vad(),
+                    cancel_lounge_timer(),
+                    gate_mute(),
+                    playback_arm(),
                     hb_retarget(self.duck_level, self.ttl_listening_ms),
                 ]
             if et is EventType.CLOSURE_TOKEN:
