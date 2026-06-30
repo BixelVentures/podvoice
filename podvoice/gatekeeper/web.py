@@ -155,6 +155,7 @@ async def _reply(request: web.Request) -> web.StreamResponse:
     room = request.match_info.get("room", "")
     if room.endswith(".wav"):
         room = room[:-4]
+    _LOG.info("device fetching reply stream for room %s from %s", room, request.remote)
     resp = web.StreamResponse(
         headers={"Content-Type": "audio/wav", "Cache-Control": "no-store", "Connection": "close"}
     )

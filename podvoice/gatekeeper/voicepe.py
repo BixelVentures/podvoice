@@ -258,16 +258,25 @@ class VoicePELink:
         media_player. This is the ONLY working speaker-out path on the Voice PE (the VA
         is wired to a media_player, not a speaker), and it keeps the XMOS AEC correct."""
         if self._media_key is None or self._client is None:
-            log.warning("voicepe %s: no media_player resolved — cannot play reply", self.host)
+            log.warning(
+                "voicepe %s: NO media_player key resolved — cannot play reply (url=%s)",
+                self.host,
+                url,
+            )
             return
+        log.info(
+            "voicepe %s: announcing reply via media_player key=%s url=%s",
+            self.host,
+            self._media_key,
+            url,
+        )
         try:
             # media_player_command(key, media_url, announcement=True) — async on aioesphomeapi.
             await self._client.media_player_command(
                 key=self._media_key, media_url=url, announcement=True
             )
-            log.info("voicepe %s: announcing reply %s", self.host, url)
-        except Exception as e:
-            log.debug("voicepe %s play_url failed: %s", self.host, e)
+        except Exception as e:  # surface failures (was DEBUG — hid the no-sound cause)
+            log.warning("voicepe %s: media_player_command FAILED: %s", self.host, e)
 
     async def aclose(self) -> None:
         """Unsubscribe, stop reconnect, and disconnect."""
