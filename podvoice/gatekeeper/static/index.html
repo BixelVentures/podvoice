@@ -384,9 +384,12 @@
       <div class="setgrid">
         <label for="s_voicepe_noise_psk">Voice PE PSK</label>
         <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
+        <label for="s_full_duplex">Voice barge-in</label>
+        <input id="s_full_duplex" type="checkbox">
         <label for="s_simulate">Simulation mode</label>
         <input id="s_simulate" type="checkbox">
       </div>
+      <p class="sub" style="margin:2px 0 0"><b>Voice barge-in</b> on = interrupt the assistant by just talking (full-duplex). Off = it finishes its answer first; press the button or re-wake to cut in (half-duplex — turn this off if the speaker echoes into the mic).</p>
       <div class="exsub" style="margin-top:12px">Rooms</div>
       <div id="s_rooms"></div>
       <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
@@ -407,23 +410,25 @@
         <span id="vp_savestatus" class="sub" style="margin-left:8px"></span>
       </div>
 
-      <div class="exsub" style="margin-top:16px">The 3 gates — run in order</div>
-      <div class="vpgate">
-        <div class="vpg-row">
-          <div class="vpg-txt"><b>1 · Connection</b><span class="sub">Can PodVoice reach the device?</span></div>
-          <button id="vp_status" class="ghost">Check connection</button>
+      <details class="adv" style="margin-top:16px">
+        <summary>Advanced diagnostics</summary>
+        <div class="vpgate" style="margin-top:8px">
+          <div class="vpg-row">
+            <div class="vpg-txt"><b>Connection</b><span class="sub">Can PodVoice reach the device?</span></div>
+            <button id="vp_status" class="ghost">Check</button>
+          </div>
+          <div class="vpg-row">
+            <div class="vpg-txt"><b>Audio in</b><span class="sub">Gap-free mic stream (~15&nbsp;s)</span></div>
+            <button id="vp_s1" class="ghost">Check</button>
+          </div>
+          <div class="vpg-row">
+            <div class="vpg-txt"><b>Speaker</b><span class="sub">Do you hear the test tone?</span></div>
+            <button id="vp_s2" class="ghost">Test</button>
+          </div>
         </div>
-        <div class="vpg-row">
-          <div class="vpg-txt"><b>2 · Audio stream (S1)</b><span class="sub">Gap-free continuous mic? (~15&nbsp;s)</span></div>
-          <button id="vp_s1" class="ghost">Check audio stream</button>
-        </div>
-        <div class="vpg-row">
-          <div class="vpg-txt"><b>3 · Speaker (S2)</b><span class="sub">Do you hear the test tone?</span></div>
-          <button id="vp_s2" class="ghost">Test speaker</button>
-        </div>
-      </div>
-      <div id="vp_result" class="status" style="display:none;margin-top:12px"></div>
-      <button id="vp_copy" class="ghost" style="display:none;margin-top:8px;padding:5px 11px;font-size:.78rem">Copy result</button>
+        <div id="vp_result" class="status" style="display:none;margin-top:12px"></div>
+        <button id="vp_copy" class="ghost" style="display:none;margin-top:8px;padding:5px 11px;font-size:.78rem">Copy result</button>
+      </details>
     </div>
   </div>
 </div>
@@ -865,7 +870,7 @@ setInterval(poll, 3000);
     "gemini_vad_start", "gemini_vad_end", "gemini_prefix_ms", "gemini_silence_ms",
     "openai_model", "openai_voice", "openai_turn", "openai_eagerness", "openai_threshold",
     "openai_prefix_ms", "openai_silence_ms", "openai_noise",
-    "podconnect_base_url", "podconnect_token", "voicepe_noise_psk", "simulate",
+    "podconnect_base_url", "podconnect_token", "voicepe_noise_psk", "simulate", "full_duplex",
     "duck_level", "lounge_level", "lounge_window_s", "heartbeat_ms", "watchdog_ms", "vad_threshold"];
   var NUM = { duck_level: 1, lounge_level: 1, lounge_window_s: 1, heartbeat_ms: 1, watchdog_ms: 1,
     vad_threshold: 1, gemini_prefix_ms: 1, gemini_silence_ms: 1, openai_threshold: 1,
