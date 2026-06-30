@@ -761,36 +761,19 @@ setInterval(poll, 3000);
       }
     } catch (e) { /* leave selector empty; console still uses the server default */ }
   }
-  function persistChoice() {
-    // Remember provider + chosen model as the default (so it sticks across restarts).
-    if (!currentProvider) return;
-    var body = { provider: currentProvider };
-    if (currentProvider === "openai") body.openai_model = currentModel;
-    else body.gemini_model = currentModel;
-    // Live-sync the Settings tab fields so they don't show a stale value.
-    var pEl = document.getElementById("s_provider"); if (pEl) pEl.value = currentProvider;
-    var mEl = document.getElementById(currentProvider === "openai" ? "s_openai_model" : "s_gemini_model");
-    if (mEl && currentModel) mEl.value = currentModel;
-    if (currentVoice) {
-      if (currentProvider === "openai") body.openai_voice = currentVoice;
-      else body.gemini_voice = currentVoice;
-      var vEl = document.getElementById(currentProvider === "openai" ? "s_openai_voice" : "s_gemini_voice");
-      if (vEl) vEl.value = currentVoice;
-    }
-    try {
-      fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify(body) });
-    } catch (e) { /* best effort */ }
-  }
+  // Talk picker is SESSION-LOCAL: changing provider/model/voice here affects ONLY this
+  // console session — it does NOT write back to the global settings. The single source
+  // of truth lives in the Settings tab. This kills the footgun where a casual Talk-tab
+  // click silently changed the default the Voice PE rooms use after the next restart.
   function reconnect() {
     manualClose = true;
     if (ws) { try { ws.close(); } catch (e) {} }
     connect();
   }
-  modelSel.onchange = function () { currentModel = modelSel.value; persistChoice(); reconnect(); };
-  if (voiceSel) voiceSel.onchange = function () { currentVoice = voiceSel.value; persistChoice(); reconnect(); };
+  modelSel.onchange = function () { currentModel = modelSel.value; reconnect(); };
+  if (voiceSel) voiceSel.onchange = function () { currentVoice = voiceSel.value; reconnect(); };
   if (providerSel) providerSel.onchange = function () {
-    loadModels(providerSel.value).then(function () { persistChoice(); reconnect(); });
+    loadModels(providerSel.value).then(reconnect);
   };
 
   function connect() {
