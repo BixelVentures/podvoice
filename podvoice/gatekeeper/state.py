@@ -156,7 +156,9 @@ class StateMachine:
                     start_lounge_vad(),
                     start_lounge_timer(self.lounge_window_s),
                 ]
-            if et is EventType.CLOSURE_TOKEN:
+            # Button is a TOGGLE: a press while listening stops the session (like a
+            # closure). IDLE+press starts it; any active state+press stops it.
+            if et in (EventType.CLOSURE_TOKEN, EventType.BUTTON_PRESS):
                 return State.IDLE, [stream_stop(), gate_shut(), hb_stop(), release(), close_ws()]
             if et in (EventType.WATCHDOG_TIMEOUT, EventType.ERROR):
                 return State.IDLE, self._teardown()
@@ -170,11 +172,12 @@ class StateMachine:
                     start_lounge_vad(),
                     start_lounge_timer(self.lounge_window_s),
                 ]
-            # A spoken-over barge-in (provider VAD) OR a hardware re-wake / button both
-            # interrupt the assistant and return to listening (stream stays ON).
-            if et in (EventType.GEMINI_INTERRUPTED, EventType.WAKE_WORD, EventType.BUTTON_PRESS):
+            # A spoken-over barge-in (provider VAD) OR a hardware re-wake interrupt the
+            # assistant and return to listening (stream stays ON). The BUTTON is a
+            # toggle, so a press here STOPS the session (handled with CLOSURE below).
+            if et in (EventType.GEMINI_INTERRUPTED, EventType.WAKE_WORD):
                 return State.LISTENING, [playback_stop(), gate_open()]
-            if et is EventType.CLOSURE_TOKEN:
+            if et in (EventType.CLOSURE_TOKEN, EventType.BUTTON_PRESS):
                 return State.IDLE, [
                     stream_stop(),
                     playback_stop(),
@@ -188,13 +191,10 @@ class StateMachine:
             return State.AI_SPEAKING, []
 
         if state is State.LOUNGE_WINDOW:
-            # Follow-up within the grace window — local voice, a re-wake, or a button —
-            # all re-open listening without needing a fresh "Okay Nabu".
-            if et in (
-                EventType.LOCAL_VOICE_DETECTED,
-                EventType.WAKE_WORD,
-                EventType.BUTTON_PRESS,
-            ):
+            # Follow-up within the grace window — local voice or a re-wake — re-opens
+            # listening without a fresh "Okay Nabu". (The button is a toggle: a press
+            # during grace STOPS the session, handled with CLOSURE below.)
+            if et in (EventType.LOCAL_VOICE_DETECTED, EventType.WAKE_WORD):
                 return State.LISTENING, [
                     stop_lounge_vad(),
                     cancel_lounge_timer(),
@@ -211,7 +211,7 @@ class StateMachine:
                     playback_arm(),
                     hb_retarget(self.duck_level, self.ttl_listening_ms),
                 ]
-            if et is EventType.CLOSURE_TOKEN:
+            if et in (EventType.CLOSURE_TOKEN, EventType.BUTTON_PRESS):
                 return State.IDLE, [
                     stream_stop(),
                     stop_lounge_vad(),

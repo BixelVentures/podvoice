@@ -203,11 +203,23 @@ TABLE = [
         State.AI_SPEAKING,
         [K.STOP_LOUNGE_VAD, K.CANCEL_LOUNGE_TIMER, K.GATE_OPEN, K.PLAYBACK_ARM, K.HB_RETARGET],
     ),
-    (  # button while the AI speaks = interrupt back to listening
+    (  # button is a toggle: a press while LISTENING stops the session
+        State.LISTENING,
+        ev(EventType.BUTTON_PRESS),
+        State.IDLE,
+        [K.STREAM_STOP, K.GATE_SHUT, K.HB_STOP, K.RELEASE, K.CLOSE_WS],
+    ),
+    (  # button while the AI speaks = stop the session (toggle off), not "interrupt-to-talk"
         State.AI_SPEAKING,
         ev(EventType.BUTTON_PRESS),
-        State.LISTENING,
-        [K.PLAYBACK_STOP, K.GATE_OPEN],
+        State.IDLE,
+        [K.STREAM_STOP, K.PLAYBACK_STOP, K.GATE_SHUT, K.HB_STOP, K.RELEASE, K.CLOSE_WS],
+    ),
+    (  # button during grace = stop the session
+        State.LOUNGE_WINDOW,
+        ev(EventType.BUTTON_PRESS),
+        State.IDLE,
+        [K.STREAM_STOP, K.STOP_LOUNGE_VAD, K.CANCEL_LOUNGE_TIMER, K.GATE_SHUT, K.HB_STOP, K.RELEASE, K.CLOSE_WS],
     ),
     (
         State.LOUNGE_WINDOW,
