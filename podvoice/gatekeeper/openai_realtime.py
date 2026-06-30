@@ -107,7 +107,10 @@ class OpenAIRealtimeSession:
     def _session_update(self) -> dict:
         audio_input: dict = {
             "format": {"type": "audio/pcm", "rate": OPENAI_RATE},
-            "transcription": {"model": "gpt-realtime-whisper", "language": self.language},
+            # whisper-1 is the documented, broadly-supported input-transcription model
+            # (the previous "gpt-realtime-whisper" is not a real model id). This only
+            # affects the DISPLAYED transcript, not the model's own speech understanding.
+            "transcription": {"model": "whisper-1", "language": self.language},
             "turn_detection": self._turn_detection(),
         }
         if self.noise and self.noise != "off":

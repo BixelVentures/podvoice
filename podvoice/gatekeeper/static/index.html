@@ -862,7 +862,11 @@ setInterval(poll, 3000);
       capStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
     } catch (e) { micHint.textContent = "Microphone permission denied."; return; }
     halted = false; ensurePlay();
-    capCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // Capture AT 16 kHz so the BROWSER does the resample (with proper anti-aliasing).
+    // Our old manual nearest-neighbour downsample from 48 kHz aliased badly -> the
+    // model mis-heard words. Fall back to the default rate if 16 kHz is unsupported.
+    var AC = window.AudioContext || window.webkitAudioContext;
+    try { capCtx = new AC({ sampleRate: 16000 }); } catch (e) { capCtx = new AC(); }
     var src = capCtx.createMediaStreamSource(capStream);
     capNode = capCtx.createScriptProcessor(4096, 1, 1);
     capNode.onaudioprocess = function (ev) {
