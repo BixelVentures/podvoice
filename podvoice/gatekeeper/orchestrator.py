@@ -50,6 +50,8 @@ class RoomSession:
         watchdog=None,
         bargein=None,
         hub=None,
+        reply_bus=None,  # ReplyBus for the media_player announce path (speaker-out)
+        reply_url: str | None = None,  # the device-reachable /reply/<room>.wav URL
         lounge_window_s: int = C.LOUNGE_WINDOW_S,
         duck_level: int = C.DUCK_LEVEL,
         lounge_level: int = C.LOUNGE_LEVEL,
@@ -67,6 +69,8 @@ class RoomSession:
         self.watchdog = watchdog
         self.bargein = bargein
         self.hub = hub
+        self.reply_bus = reply_bus
+        self.reply_url = reply_url
         self.duck_level = duck_level
         self.lounge_level = lounge_level
         self.lounge_window_s = lounge_window_s
@@ -306,8 +310,14 @@ class RoomSession:
             self.gatekeeper.set_silence(True)
         elif k is ActionKind.PLAYBACK_ARM:
             self.playback.start()
+            if self.reply_bus is not None and self.reply_url:
+                self.reply_bus.start(self.room)  # fresh reply audio stream
+                # Tell the device to fetch + play the reply URL (announce path).
+                self._schedule_task(self.voicepe.play_url(self.reply_url))
         elif k is ActionKind.PLAYBACK_STOP:
             self.playback.flush()
+            if self.reply_bus is not None:
+                self.reply_bus.end(self.room)  # close the announce stream (barge-in / teardown)
         elif k is ActionKind.START_LOUNGE_TIMER:
             self._start_lounge_timer(action.timeout_s or self.lounge_window_s)
         elif k is ActionKind.CANCEL_LOUNGE_TIMER:
@@ -389,7 +399,10 @@ class RoomSession:
                 await self.sm.post(Event(EventType.GEMINI_RESPONDING, self.room))
             if self.watchdog is not None:
                 self.watchdog.on_output()
-            await self.playback.play(ev.pcm)
+            if self.reply_bus is not None:
+                self.reply_bus.push(self.room, ev.pcm)  # -> /reply WAV stream -> device speaker
+            else:
+                await self.playback.play(ev.pcm)  # sim/console fallback
         elif isinstance(ev, OutputTranscript):
             if self.watchdog is not None:
                 self.watchdog.on_output()
@@ -410,6 +423,8 @@ class RoomSession:
                 self.hub.incr("tool_calls")
             await self._handle_tool(ev)
         elif isinstance(ev, TurnComplete):
+            if self.reply_bus is not None:
+                self.reply_bus.end(self.room)  # reply done -> close the announce WAV stream
             if self._out_buf and self.hub is not None:  # persist the whole reply as ONE turn
                 self.hub.transcript(self.room, "out", "".join(self._out_buf))
             self._out_buf = []

@@ -63,6 +63,7 @@ class VoicePELink:
         # Resolved once per connect from the device's published entities/services.
         self._user_services: dict[str, Any] = {}  # name -> UserService (start/stop forward)
         self._light_key: int | None = None  # the LED-ring light entity key (None = no LED)
+        self._media_key: int | None = None  # the media_player key (AI-reply announce path)
 
     async def start(self) -> None:
         """Build the client and start the reconnect loop (owns the connection)."""
@@ -114,6 +115,7 @@ class VoicePELink:
         """
         self._user_services = {}
         self._light_key = None
+        self._media_key = None
         try:
             # VERIFY: list_entities_services() -> (entities, services) on aioesphomeapi.
             entities, services = await self._client.list_entities_services()
@@ -127,6 +129,13 @@ class VoicePELink:
             chosen = next((e for e in lights if getattr(e, "object_id", "") in preferred), None)
             chosen = chosen or (lights[0] if lights else None)
             self._light_key = getattr(chosen, "key", None) if chosen else None
+            # The media_player we announce the AI reply through (speaker-out path).
+            players = [e for e in (entities or []) if type(e).__name__ == "MediaPlayerInfo"]
+            mp = next(
+                (e for e in players if getattr(e, "object_id", "") == "external_media_player"), None
+            )
+            mp = mp or (players[0] if players else None)
+            self._media_key = getattr(mp, "key", None) if mp else None
         except Exception as e:  # never let discovery break the connection
             log.info("voicepe %s entity discovery unavailable: %s", self.host, e)
 
@@ -234,13 +243,29 @@ class VoicePELink:
                 task.add_done_callback(self._pending.discard)
 
     async def play_pcm(self, chunk: bytes) -> None:
-        """Send raw PCM dialogue down to the device speaker (low-latency path).
+        """DEAD on Voice PE firmware — kept for the sim/console fallback only.
 
-        VERIFY: coupled to the firmware speaker decision (PLAN §4.5). If the
-        speaker is fed via the announce/URL path instead, this call changes.
+        send_voice_assistant_audio only feeds a speaker that the VPE firmware never
+        configures (it uses a media_player), so on real hardware this is a no-op.
+        Real reply audio goes out via play_url() -> the media_player announce path.
         """
-        # VERIFY: send_voice_assistant_audio(data: bytes) is sync on the client.
         self._client.send_voice_assistant_audio(chunk)
+
+    async def play_url(self, url: str) -> None:
+        """Play the AI reply on the device by announcing a streaming-WAV URL through the
+        media_player. This is the ONLY working speaker-out path on the Voice PE (the VA
+        is wired to a media_player, not a speaker), and it keeps the XMOS AEC correct."""
+        if self._media_key is None or self._client is None:
+            log.warning("voicepe %s: no media_player resolved — cannot play reply", self.host)
+            return
+        try:
+            # media_player_command(key, media_url, announcement=True) — async on aioesphomeapi.
+            await self._client.media_player_command(
+                key=self._media_key, media_url=url, announcement=True
+            )
+            log.info("voicepe %s: announcing reply %s", self.host, url)
+        except Exception as e:
+            log.debug("voicepe %s play_url failed: %s", self.host, e)
 
     async def aclose(self) -> None:
         """Unsubscribe, stop reconnect, and disconnect."""

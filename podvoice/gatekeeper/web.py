@@ -18,6 +18,7 @@ from aiohttp import web
 from .console import run_console
 from .events import Event, EventType
 from .hub import StatusHub
+from .reply import wav_header
 
 _LOG = logging.getLogger("podvoice.web")
 
@@ -36,6 +37,7 @@ TOOLS: web.AppKey = web.AppKey("tools")
 HA_ENTITIES: web.AppKey = web.AppKey("ha_entities")
 PC_ROOMS: web.AppKey = web.AppKey("pc_rooms")
 HISTORY: web.AppKey = web.AppKey("history")
+REPLY: web.AppKey = web.AppKey("reply")
 
 
 def create_app(
@@ -51,6 +53,7 @@ def create_app(
     ha_entities=None,
     pc_rooms=None,
     history=None,
+    reply_bus=None,
 ) -> web.Application:
     """Build the aiohttp app.
 
@@ -72,6 +75,7 @@ def create_app(
     app[HA_ENTITIES] = ha_entities
     app[PC_ROOMS] = pc_rooms
     app[HISTORY] = history
+    app[REPLY] = reply_bus
     app.add_routes(
         [
             web.get("/", _index),
@@ -86,6 +90,7 @@ def create_app(
             web.get("/api/podconnect/rooms", _pc_rooms),
             web.get("/api/history", _history),
             web.post("/api/history/clear", _history_clear),
+            web.get("/reply/{room}", _reply),
             web.post("/api/restart", _restart),
             web.get("/api/voicepe/status", _diag_status),
             web.post("/api/voicepe/s1", _diag_s1),
@@ -141,6 +146,32 @@ async def _pc_rooms(request: web.Request) -> web.Response:
         return web.json_response({"rooms": await fn()})
     except Exception as e:
         return web.json_response({"rooms": [], "error": str(e)})
+
+
+async def _reply(request: web.Request) -> web.StreamResponse:
+    """Stream the AI reply for a room as a WAV the Voice PE plays via media_player
+    announce. The device fetches this after media_player_command(announcement=True)."""
+    bus = request.app[REPLY]
+    room = request.match_info.get("room", "")
+    if room.endswith(".wav"):
+        room = room[:-4]
+    resp = web.StreamResponse(
+        headers={"Content-Type": "audio/wav", "Cache-Control": "no-store", "Connection": "close"}
+    )
+    if bus is None:
+        resp.set_status(503)
+        await resp.prepare(request)
+        return resp
+    await resp.prepare(request)
+    try:
+        await resp.write(wav_header())
+        async for chunk in bus.stream(room):
+            await resp.write(chunk)
+    except (ConnectionResetError, asyncio.CancelledError):
+        pass
+    with contextlib.suppress(Exception):
+        await resp.write_eof()
+    return resp
 
 
 async def _history(request: web.Request) -> web.Response:

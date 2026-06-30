@@ -12,6 +12,7 @@ import asyncio
 import contextlib
 import logging
 import signal
+import socket
 
 import httpx
 
@@ -28,12 +29,13 @@ from .orchestrator import RoomSession
 from .playback import Playback
 from .podconnect import AttentionClient
 from .providers import make_session
+from .reply import ReplyBus
 from .settings import DEFAULTS as SETTINGS_DEFAULTS
 from .settings import load_settings, save_settings
 from .sim import build_sim_sessions, run_driver
 from .voicepe import VoicePELink
 from .watchdog import BargeIn, TurnWatchdog
-from .web import create_app, start_web
+from .web import DEFAULT_PORT, create_app, start_web
 
 _LOG = logging.getLogger("podvoice")
 
@@ -69,12 +71,27 @@ def _setup_logging(cfg: Config) -> None:
     logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
 
 
+def _host_ip_for(target_host: str) -> str:
+    """The local LAN IP the device can reach us back on. With host_network:true the
+    add-on shares the host stack, so the route-local IP toward the device IS the LAN
+    IP to put in the reply URL. No packets are sent (UDP connect just picks a route)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect((target_host, 80))
+        return s.getsockname()[0]
+    except OSError:
+        return "homeassistant.local"  # fallback; user can still reach by hostname
+    finally:
+        s.close()
+
+
 def _build_session(
     cfg: Config,
     room: RoomMap,
     attention: AttentionClient,
     tools: HAToolBridge | None,
     hub: StatusHub,
+    reply_bus: ReplyBus | None = None,
 ) -> RoomSession:
     psk = room.voicepe_noise_psk or cfg.voicepe_noise_psk
     declarations = tools.declarations() if tools is not None else []
@@ -83,6 +100,8 @@ def _build_session(
     gatekeeper = Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False)
     playback = Playback(sink=voicepe.play_pcm)
     heartbeat = Heartbeat(attention, period_ms=cfg.heartbeat_ms)
+    # The device-reachable URL it fetches to play the AI reply (announce path).
+    reply_url = f"http://{_host_ip_for(room.voicepe_host)}:{DEFAULT_PORT}/reply/{room.room}.wav"
 
     async def _on_abort(reason: str, elapsed: float) -> None:  # watchdog poll loop handles posting
         _LOG.warning("watchdog abort (%s, %.0fms)", reason, elapsed * 1000)
@@ -100,6 +119,8 @@ def _build_session(
         watchdog=watchdog,
         bargein=BargeIn(),
         hub=hub,
+        reply_bus=reply_bus,
+        reply_url=reply_url,
         lounge_window_s=cfg.lounge_window_s,
         duck_level=cfg.duck_level,
         lounge_level=cfg.lounge_level,
@@ -159,6 +180,7 @@ async def _restart_addon(token: str) -> bool:
 async def run(cfg: Config) -> None:
     history = History()  # persisted conversations (Talk + Voice PE rooms) for the History tab
     hub = StatusHub(simulate=cfg.simulate, history=history)
+    reply_bus = ReplyBus()  # AI-reply audio -> /reply/<room>.wav -> device media_player announce
     attention: AttentionClient | None = None
     ha_client: httpx.AsyncClient | None = None
     tools: HAToolBridge | None = None
@@ -177,7 +199,9 @@ async def run(cfg: Config) -> None:
         tools = HAToolBridge(cfg.supervisor_token, ha_client, exposed=cfg.exposed)
         if not cfg.supervisor_token:
             _LOG.warning("no SUPERVISOR_TOKEN — HA control disabled (PodConnect tool still works)")
-        sessions = {r.room: _build_session(cfg, r, attention, tools, hub) for r in cfg.rooms}
+        sessions = {
+            r.room: _build_session(cfg, r, attention, tools, hub, reply_bus) for r in cfg.rooms
+        }
 
     # S1 (audio stream) reads the LIVE room session's audio reception when one is
     # running — it owns the single voice_assistant slot, so a separate run_s1
@@ -209,6 +233,7 @@ async def run(cfg: Config) -> None:
         ha_entities=(tools.list_entities if tools is not None else None),
         pc_rooms=(attention.rooms if attention is not None else None),
         history=history,
+        reply_bus=reply_bus,
     )
     runner = await start_web(app)
 
