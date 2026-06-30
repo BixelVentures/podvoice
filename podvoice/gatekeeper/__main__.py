@@ -121,6 +121,7 @@ def _build_session(
         hub=hub,
         reply_bus=reply_bus,
         reply_url=reply_url,
+        full_duplex=cfg.full_duplex,
         lounge_window_s=cfg.lounge_window_s,
         duck_level=cfg.duck_level,
         lounge_level=cfg.lounge_level,

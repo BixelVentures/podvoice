@@ -274,16 +274,16 @@ class OpenAIRealtimeSession:
                 )
                 yield ToolCall(ev.get("call_id", ""), ev.get("name", ""), args)
             elif t == "input_audio_buffer.speech_started":
-                # Barge-in: the server cancels the active response. Drop any deferred
-                # follow-up so we don't speak the tool result the user just interrupted.
-                _LOG.info(
-                    "turn: barge-in (speech_started) — clearing active=%s pending=%s",
-                    self._active_response,
-                    self._pending_create,
-                )
-                self._active_response = False
-                self._pending_create = False
-                yield Interrupted()
+                # A barge-in only counts when a reply is ACTUALLY playing — otherwise
+                # this is just the user starting their normal turn (LISTENING), not an
+                # interruption. Gating on _active_response is what makes the open-mic
+                # full-duplex path safe: ambient noise while idle-listening can't fire a
+                # spurious "interrupt". The server cancels the active response itself.
+                if self._active_response:
+                    _LOG.info("turn: barge-in (speech_started) over active reply")
+                    self._active_response = False
+                    self._pending_create = False
+                    yield Interrupted()
             elif t == "input_audio_buffer.speech_stopped":
                 # The user finished their turn — arm the TTFR watchdog from HERE (the
                 # model should now reply within WATCHDOG_MS). Arming at wake/gate-open

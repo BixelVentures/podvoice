@@ -60,11 +60,16 @@ class StateMachine:
         lounge_level: int = C.LOUNGE_LEVEL,
         ttl_listening_ms: int = C.TTL_LISTENING_MS,
         ttl_lounge_ms: int = C.TTL_LOUNGE_MS,
+        full_duplex: bool = True,
         observer: Callable[[State, State, Event], None] | None = None,
     ) -> None:
         self._effects = effects
         self._observer = observer
         self.room = room
+        # True = keep the mic OPEN while the AI speaks so you can barge in by voice
+        # (relies on the XMOS AEC removing the AI's own voice from the mic). False =
+        # mute the mic while the AI speaks (half-duplex; safe fallback if AEC leaks).
+        self.full_duplex = full_duplex
         self.lounge_window_s = lounge_window_s
         self.duck_level = duck_level
         self.lounge_level = lounge_level
@@ -135,9 +140,12 @@ class StateMachine:
 
         if state is State.LISTENING:
             if et is EventType.GEMINI_RESPONDING:
-                # Mute the mic toward the provider while the AI speaks: with the gate
-                # open, residual echo + ambient noise trip the server VAD and cancel the
-                # reply in a self-interrupt loop. Re-open on re-wake / barge-in below.
+                # full_duplex: keep the mic OPEN so you can interrupt by voice (the XMOS
+                # AEC keeps the AI's own voice out of the mic; only a genuinely active
+                # reply is barge-interruptible — see openai_realtime). half-duplex falls
+                # back to gate_mute (silence) to guarantee no self-interrupt.
+                if self.full_duplex:
+                    return State.AI_SPEAKING, [playback_arm()]
                 return State.AI_SPEAKING, [gate_mute(), playback_arm()]
             if et is EventType.GEMINI_TURN_COMPLETE:
                 # A turn ended while still listening (e.g. an empty/instant turn):
@@ -195,10 +203,11 @@ class StateMachine:
                 ]
             # A late follow-up reply that starts after we already returned to grace.
             if et is EventType.GEMINI_RESPONDING:
+                gate = gate_open() if self.full_duplex else gate_mute()
                 return State.AI_SPEAKING, [
                     stop_lounge_vad(),
                     cancel_lounge_timer(),
-                    gate_mute(),
+                    gate,
                     playback_arm(),
                     hb_retarget(self.duck_level, self.ttl_listening_ms),
                 ]

@@ -77,7 +77,7 @@ TABLE = [
         State.LISTENING,
         ev(EventType.GEMINI_RESPONDING),
         State.AI_SPEAKING,
-        [K.GATE_MUTE, K.PLAYBACK_ARM],  # mic muted while the AI speaks (no self-interrupt)
+        [K.PLAYBACK_ARM],  # full_duplex (default): gate stays OPEN so you can barge in
     ),
     (
         State.LISTENING,
@@ -201,7 +201,7 @@ TABLE = [
         State.LOUNGE_WINDOW,
         ev(EventType.GEMINI_RESPONDING),
         State.AI_SPEAKING,
-        [K.STOP_LOUNGE_VAD, K.CANCEL_LOUNGE_TIMER, K.GATE_MUTE, K.PLAYBACK_ARM, K.HB_RETARGET],
+        [K.STOP_LOUNGE_VAD, K.CANCEL_LOUNGE_TIMER, K.GATE_OPEN, K.PLAYBACK_ARM, K.HB_RETARGET],
     ),
     (  # button while the AI speaks = interrupt back to listening
         State.AI_SPEAKING,
@@ -275,6 +275,15 @@ def test_decide_table(state, event, exp_next, exp_kinds):
     new, actions = sm._decide(state, event)
     assert new is exp_next
     assert [a.kind for a in actions] == exp_kinds
+
+
+def test_half_duplex_mutes_mic_while_ai_speaks():
+    """full_duplex=False is the safe fallback: entering AI_SPEAKING shuts the gate +
+    sends silence (no barge-in, but no self-interrupt either)."""
+    sm = StateMachine(RecordingEffects(), room="kitchen", full_duplex=False)
+    new, actions = sm._decide(State.LISTENING, ev(EventType.GEMINI_RESPONDING))
+    assert new is State.AI_SPEAKING
+    assert [a.kind for a in actions] == [K.GATE_MUTE, K.PLAYBACK_ARM]
 
 
 def _by_kind(actions: list[Action], kind: ActionKind) -> Action:

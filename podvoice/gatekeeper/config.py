@@ -51,6 +51,7 @@ class Config:
     openai_eagerness: str = "auto"
     openai_noise: str = "near_field"
     simulate: bool = False
+    full_duplex: bool = True  # mic open while AI speaks (barge-in); False = half-duplex
     lounge_window_s: int = C.LOUNGE_WINDOW_S
     duck_level: int = C.DUCK_LEVEL
     lounge_level: int = C.LOUNGE_LEVEL
@@ -122,6 +123,7 @@ def from_options(opts: dict) -> Config:
         openai_eagerness=str(opts.get("openai_eagerness", "auto") or "auto"),
         openai_noise=str(opts.get("openai_noise", "near_field") or "near_field"),
         simulate=bool(opts.get("simulate", False)),
+        full_duplex=bool(opts.get("full_duplex", True)),
         lounge_window_s=int(opts.get("lounge_window_s", C.LOUNGE_WINDOW_S)),
         duck_level=int(opts.get("duck_level", C.DUCK_LEVEL)),
         lounge_level=int(opts.get("lounge_level", C.LOUNGE_LEVEL)),

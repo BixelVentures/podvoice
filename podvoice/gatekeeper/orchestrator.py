@@ -57,6 +57,7 @@ class RoomSession:
         lounge_level: int = C.LOUNGE_LEVEL,
         vad_threshold: float = C.VAD_THRESHOLD,
         enable_watchdog: bool = True,
+        full_duplex: bool = True,
     ) -> None:
         self.room = room
         self.attention = attention
@@ -86,6 +87,7 @@ class RoomSession:
             lounge_window_s=lounge_window_s,
             duck_level=duck_level,
             lounge_level=lounge_level,
+            full_duplex=full_duplex,
             observer=self._on_transition,
         )
         self._lounge_vad = audio_mod.LoungeVAD(threshold=vad_threshold)
