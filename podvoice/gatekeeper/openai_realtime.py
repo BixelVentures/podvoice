@@ -32,6 +32,7 @@ from .voice import (
     OutputTranscript,
     ToolCall,
     TurnComplete,
+    UserSpeechStopped,
     VoiceEvent,
 )
 
@@ -283,6 +284,16 @@ class OpenAIRealtimeSession:
                 self._active_response = False
                 self._pending_create = False
                 yield Interrupted()
+            elif t == "input_audio_buffer.speech_stopped":
+                # The user finished their turn — arm the TTFR watchdog from HERE (the
+                # model should now reply within WATCHDOG_MS). Arming at wake/gate-open
+                # would count the user's own speaking time as latency and abort every
+                # turn before a reply is even possible.
+                yield UserSpeechStopped()
+            elif t == "input_audio_buffer.committed":
+                # Belt-and-suspenders end-of-user-turn signal (fires for both
+                # server_vad and semantic_vad). Re-arming the watchdog is harmless.
+                yield UserSpeechStopped()
             elif t == "response.done":
                 self._active_response = False
                 rid, status = _rid(ev), _rstatus(ev)

@@ -30,6 +30,7 @@ from .gemini import (
 from .led import led_command_for
 from .podconnect import AttentionDown, UnknownRoom, Unsupervised
 from .state import StateMachine
+from .voice import UserSpeechStopped
 
 _LOG = logging.getLogger("podvoice.orchestrator")
 
@@ -266,9 +267,10 @@ class RoomSession:
             self.gatekeeper.set_silence(False)
             self.gatekeeper.open()
             self._responded = False
-            if self.watchdog is not None:
-                # VERIFY: ideally arm at end-of-user-speech; gate-open is a v1 approximation.
-                self.watchdog.arm(self.room)
+            # NB: do NOT arm the TTFR watchdog here. Gate-open is the START of the
+            # user's turn; arming now counts the user's own speaking time as model
+            # latency and aborts every turn at WATCHDOG_MS. We arm at end-of-user-
+            # speech instead (UserSpeechStopped, see _on_gemini_event).
         elif k is ActionKind.GATE_SHUT:
             self.gatekeeper.shut()
         elif k is ActionKind.PLAYBACK_ARM:
@@ -369,6 +371,8 @@ class RoomSession:
                 self.hub.transcript(self.room, "in", ev.text)
             await self._maybe_barge_in(ev.text)
         elif isinstance(ev, ToolCall):
+            if self.watchdog is not None:
+                self.watchdog.on_output()  # a tool call IS the model's first response
             if self.hub is not None:
                 self.hub.incr("tool_calls")
             await self._handle_tool(ev)
@@ -378,6 +382,11 @@ class RoomSession:
                 if self.hub is not None and self.watchdog.samples:
                     self.hub.set_latency(self.room, self.watchdog.samples[-1] * 1000)
             await self.sm.post(Event(EventType.GEMINI_TURN_COMPLETE, self.room))
+        elif isinstance(ev, UserSpeechStopped):
+            # End of the user's turn: NOW the model owes us a reply within WATCHDOG_MS.
+            # This is the correct arming point for the time-to-first-response watchdog.
+            if self.watchdog is not None:
+                self.watchdog.arm(self.room)
         elif isinstance(ev, Interrupted):
             self.playback.flush()
             await self.sm.post(Event(EventType.GEMINI_INTERRUPTED, self.room))

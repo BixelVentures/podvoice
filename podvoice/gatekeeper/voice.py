@@ -57,6 +57,17 @@ class Interrupted:
 
 
 @dataclass
+class UserSpeechStopped:
+    """The user finished their turn (server VAD end-of-speech / buffer committed).
+
+    This is the correct anchor to ARM the time-to-first-response watchdog: from
+    here the model should reply within WATCHDOG_MS. Arming earlier (at wake /
+    gate-open) wrongly counts the user's own speaking time as model latency.
+    Providers that don't surface a clean end-of-speech signal simply never emit
+    this, leaving their TTFR watchdog inactive (safe)."""
+
+
+@dataclass
 class GoAway:
     """Server's pre-disconnect warning; reconnect make-before-break."""
 
@@ -73,6 +84,7 @@ VoiceEvent = Union[  # noqa: UP007
     OutputTranscript,
     TurnComplete,
     Interrupted,
+    UserSpeechStopped,
     GoAway,
 ]
 
