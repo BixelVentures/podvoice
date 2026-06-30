@@ -134,8 +134,9 @@ class VoicePELink:
         if svc is None or self._client is None:
             return
         try:
-            # VERIFY: execute_service(UserService, data: dict) on aioesphomeapi.
-            self._client.execute_service(svc, {})
+            # execute_service is a coroutine on aioesphomeapi — MUST be awaited, or the
+            # device service (stream start/stop, va_abort) is never actually invoked.
+            await self._client.execute_service(svc, {})
         except Exception as e:  # disconnect / busy — device safety timer covers stop
             log.debug("voicepe %s service %s failed: %s", self.host, name, e)
 

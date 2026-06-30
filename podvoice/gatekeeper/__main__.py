@@ -124,7 +124,11 @@ async def _health_probe(cfg: Config, hub: StatusHub, attention: AttentionClient)
     single-client native-API subscription).
     """
     while True:
-        state = await attention.state()
+        try:
+            state = await attention.state()
+        except Exception as e:  # PodConnect down must degrade the dot, never crash the add-on
+            _LOG.debug("podconnect health probe failed: %s", e)
+            state = None
         if state is not None:
             hub.set_service("podconnect", "up")
         else:
