@@ -35,6 +35,7 @@ DIAG: web.AppKey = web.AppKey("diag")
 TOOLS: web.AppKey = web.AppKey("tools")
 HA_ENTITIES: web.AppKey = web.AppKey("ha_entities")
 PC_ROOMS: web.AppKey = web.AppKey("pc_rooms")
+HISTORY: web.AppKey = web.AppKey("history")
 
 
 def create_app(
@@ -49,6 +50,7 @@ def create_app(
     tools=None,
     ha_entities=None,
     pc_rooms=None,
+    history=None,
 ) -> web.Application:
     """Build the aiohttp app.
 
@@ -69,6 +71,7 @@ def create_app(
     app[TOOLS] = tools
     app[HA_ENTITIES] = ha_entities
     app[PC_ROOMS] = pc_rooms
+    app[HISTORY] = history
     app.add_routes(
         [
             web.get("/", _index),
@@ -81,6 +84,8 @@ def create_app(
             web.post("/api/settings", _settings_set),
             web.get("/api/ha/entities", _ha_entities),
             web.get("/api/podconnect/rooms", _pc_rooms),
+            web.get("/api/history", _history),
+            web.post("/api/history/clear", _history_clear),
             web.post("/api/restart", _restart),
             web.get("/api/voicepe/status", _diag_status),
             web.post("/api/voicepe/s1", _diag_s1),
@@ -138,6 +143,32 @@ async def _pc_rooms(request: web.Request) -> web.Response:
         return web.json_response({"rooms": [], "error": str(e)})
 
 
+async def _history(request: web.Request) -> web.Response:
+    hist = request.app[HISTORY]
+    if hist is None:
+        return web.json_response({"conversations": [], "rooms": []})
+    room = request.query.get("room") or None
+    try:
+        limit = int(request.query.get("limit", "50"))
+    except (TypeError, ValueError):
+        limit = 50
+    return web.json_response(
+        {"conversations": hist.conversations(limit=limit, room=room), "rooms": hist.rooms()}
+    )
+
+
+async def _history_clear(request: web.Request) -> web.Response:
+    hist = request.app[HISTORY]
+    if hist is None:
+        return web.json_response({"ok": False, "error": "history unavailable"}, status=501)
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+    hist.clear(room=(body or {}).get("room"))
+    return web.json_response({"ok": True})
+
+
 async def _settings_get(request: web.Request) -> web.Response:
     fn = request.app[SETTINGS_GET]
     return web.json_response(fn() if fn is not None else {})
@@ -185,6 +216,7 @@ async def _console_ws(request: web.Request) -> web.WebSocketResponse:
         ws,
         make(q.get("provider"), q.get("model"), q.get("voice")),
         request.app[TOOLS],
+        history=request.app[HISTORY],
     )
     return ws
 

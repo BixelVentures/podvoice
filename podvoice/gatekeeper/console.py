@@ -31,6 +31,7 @@ from .gemini import (
     ToolCall,
     TurnComplete,
 )
+from .history import TALK_ROOM as HISTORY_TALK_ROOM
 
 _LOG = logging.getLogger("podvoice.console")
 
@@ -223,11 +224,11 @@ def list_models(cfg: Config, provider: str | None = None) -> dict:
         }
 
 
-async def run_console(ws, gemini: ConsoleGemini, tools=None) -> None:
+async def run_console(ws, gemini: ConsoleGemini, tools=None, history=None) -> None:
     """Bridge one browser WebSocket to one Gemini session until the socket closes."""
     await gemini.connect()
     await ws.send_json({"type": "hello", "rate": OUTPUT_RATE})
-    reader = asyncio.create_task(_pump(ws, gemini, tools))
+    reader = asyncio.create_task(_pump(ws, gemini, tools, history))
     try:
         async for msg in ws:
             if msg.type == WSMsgType.TEXT:
@@ -249,7 +250,7 @@ async def run_console(ws, gemini: ConsoleGemini, tools=None) -> None:
             await gemini.close()
 
 
-async def _pump(ws, gemini: ConsoleGemini, tools=None) -> None:
+async def _pump(ws, gemini: ConsoleGemini, tools=None, history=None) -> None:
     """Forward Gemini events to the browser (binary = audio, JSON = transcript)."""
     try:
         async for ev in gemini.events():
@@ -259,8 +260,12 @@ async def _pump(ws, gemini: ConsoleGemini, tools=None) -> None:
                 await ws.send_bytes(ev.pcm)
             elif isinstance(ev, OutputTranscript):
                 await ws.send_json({"type": "transcript", "dir": "out", "text": ev.text})
+                if history is not None:  # persist Talk turns to the History tab
+                    history.append(HISTORY_TALK_ROOM, "out", ev.text)
             elif isinstance(ev, InputTranscript):
                 await ws.send_json({"type": "transcript", "dir": "in", "text": ev.text})
+                if history is not None:
+                    history.append(HISTORY_TALK_ROOM, "in", ev.text)
             elif isinstance(ev, ToolCall):
                 result = (
                     await tools.dispatch(ev.name, ev.args)

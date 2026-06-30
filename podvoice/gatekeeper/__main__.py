@@ -22,6 +22,7 @@ from .diag import check_status, resolve_target, run_s1, run_s2
 from .gatekeeper import Gatekeeper
 from .ha_tools import HAToolBridge
 from .heartbeat import Heartbeat
+from .history import History
 from .hub import StatusHub
 from .orchestrator import RoomSession
 from .playback import Playback
@@ -152,7 +153,8 @@ async def _restart_addon(token: str) -> bool:
 
 
 async def run(cfg: Config) -> None:
-    hub = StatusHub(simulate=cfg.simulate)
+    history = History()  # persisted conversations (Talk + Voice PE rooms) for the History tab
+    hub = StatusHub(simulate=cfg.simulate, history=history)
     attention: AttentionClient | None = None
     ha_client: httpx.AsyncClient | None = None
     tools: HAToolBridge | None = None
@@ -202,6 +204,7 @@ async def run(cfg: Config) -> None:
         tools=tools,
         ha_entities=(tools.list_entities if tools is not None else None),
         pc_rooms=(attention.rooms if attention is not None else None),
+        history=history,
     )
     runner = await start_web(app)
 

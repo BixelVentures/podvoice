@@ -12,6 +12,7 @@ import asyncio
 import logging
 
 from . import __version__
+from .history import History
 
 _LOG = logging.getLogger("podvoice.hub")
 
@@ -32,8 +33,9 @@ _METRIC_KEYS = (
 
 
 class StatusHub:
-    def __init__(self, simulate: bool = False) -> None:
+    def __init__(self, simulate: bool = False, history: History | None = None) -> None:
         self.simulate = simulate
+        self._history = history  # optional History; room transcripts are persisted to it
         self._rooms: dict[str, dict] = {}
         self._services: dict[str, str] = {"gemini": "down", "voicepe": "down", "podconnect": "down"}
         self._metrics: dict[str, int] = dict.fromkeys(_METRIC_KEYS, 0)
@@ -126,6 +128,8 @@ class StatusHub:
     def transcript(self, room: str, direction: str, text: str) -> None:
         if text:
             self._broadcast({"type": "transcript", "room": room, "dir": direction, "text": text})
+            if self._history is not None:  # persist so the History tab survives restarts
+                self._history.append(room, direction, text)
 
     def incr(self, metric: str, n: int = 1) -> None:
         if metric in self._metrics:
