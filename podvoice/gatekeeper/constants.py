@@ -13,6 +13,8 @@ OWNER = "voice"  # Attention owner string
 
 # --- Timing (milliseconds unless noted) ---
 TTL_LISTENING_MS = 2000  # Attention TTL while LISTENING / AI_SPEAKING
+LISTEN_IDLE_S = 20  # auto-close a LISTENING session after this much silence (no user
+# speech, no model response) so a wake-then-nothing can't stick listening + duck forever
 TTL_LOUNGE_MS = 8000  # Attention TTL while LOUNGE_WINDOW
 HEARTBEAT_MS = 500  # re-POST cadence (4 beats per 2 s TTL)
 HEARTBEAT_JITTER_MS = 50  # +-jitter on the heartbeat cadence

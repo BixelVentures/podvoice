@@ -93,6 +93,7 @@ class RoomSession:
         self._lounge_vad = audio_mod.LoungeVAD(threshold=vad_threshold)
         self._lounge_vad_on = False
         self._lounge_timer: asyncio.Task | None = None
+        self._listen_timer: asyncio.Task | None = None  # auto-close a stuck LISTENING session
         self._reader: asyncio.Task | None = None
         self._tasks: list[asyncio.Task] = []
         self._responded = False  # whether GEMINI_RESPONDING was posted this turn
@@ -148,6 +149,10 @@ class RoomSession:
             self.hub.set_state(self.room, new.name)
             if old.name == "IDLE" and new.name == "LISTENING":
                 self.hub.incr("sessions")
+        # The idle-close timer only guards LISTENING; cancel it the moment we leave
+        # (model started responding, went to grace, or closed).
+        if new is not State.LISTENING:
+            self._cancel_listen_timer()
         # Repaint the LED ring for the new state (error events flash red first).
         is_err = event.type in (EventType.ERROR, EventType.WATCHDOG_TIMEOUT)
         self._paint_led(new, error=is_err)
@@ -231,6 +236,7 @@ class RoomSession:
 
     async def aclose(self) -> None:
         self._cancel_lounge_timer()
+        self._cancel_listen_timer()
         self._stop_keepalive()
         # Best-effort: stop the device mic-forward + turn the ring off so a dead add-on
         # never leaves the device streaming or the LED stuck mid-conversation.
@@ -299,6 +305,7 @@ class RoomSession:
             self._responded = False
             self._out_buf = []  # fresh turn — drop any stale transcript fragments
             self._in_buf = []
+            self._start_listen_timer()  # never sit in LISTENING forever (wake-then-nothing)
             # NB: do NOT arm the TTFR watchdog here. Gate-open is the START of the
             # user's turn; arming now counts the user's own speaking time as model
             # latency and aborts every turn at WATCHDOG_MS. We arm at end-of-user-
@@ -415,6 +422,7 @@ class RoomSession:
             if self.watchdog is not None:
                 self.watchdog.on_output()
             self._in_buf.append(ev.text)  # coalesce: flushed as one turn on UserSpeechStopped
+            self._start_listen_timer()  # the user is engaged — push the idle-close back
             if self.hub is not None:
                 self.hub.transcript_delta(self.room, "in", ev.text)
             await self._maybe_barge_in(ev.text)
@@ -514,6 +522,26 @@ class RoomSession:
         with contextlib.suppress(asyncio.CancelledError):
             await asyncio.sleep(timeout_s)
             await self.sm.post(Event(EventType.LOUNGE_TIMEOUT, self.room))
+
+    def _start_listen_timer(self) -> None:
+        """(Re)arm the idle-close timer for the LISTENING state."""
+        self._cancel_listen_timer()
+        self._listen_timer = asyncio.create_task(
+            self._listen_timeout(), name=f"listen-{self.room}"
+        )
+
+    def _cancel_listen_timer(self) -> None:
+        if self._listen_timer is not None and not self._listen_timer.done():
+            self._listen_timer.cancel()
+        self._listen_timer = None
+
+    async def _listen_timeout(self) -> None:
+        """If LISTENING goes quiet for LISTEN_IDLE_S (wake-then-nothing, or a wedged
+        turn), close the session cleanly so it can't stay listening + ducking forever."""
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.sleep(C.LISTEN_IDLE_S)
+            _LOG.info("listen idle-timeout for room %s — closing session", self.room)
+            await self.sm.post(Event(EventType.CLOSURE_TOKEN, self.room, {"kind": "idle"}))
 
     async def _watchdog_loop(self, interval: float = 0.05) -> None:
         while True:
