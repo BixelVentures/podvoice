@@ -437,6 +437,7 @@ class RoomSession:
         elif etype == "wake_stop":
             ev = Event(EventType.CLOSURE_TOKEN, room, {"kind": "stop"})
         else:
+            _LOG.debug("ignoring device event_type=%r for room %s", etype, room)
             return
         asyncio.create_task(self.sm.post(ev))  # noqa: RUF006
 

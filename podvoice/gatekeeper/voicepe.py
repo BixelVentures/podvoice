@@ -86,6 +86,11 @@ class VoicePELink:
         """Re-subscribe on every (re)connect — subscriptions don't survive a reconnect."""
         # VERIFY: device_info() coroutine name/shape.
         await self._client.device_info()
+        # Resolve the wake-gate services + LED-ring light + mute key from the device
+        # catalog FIRST — subscribe_states fires an immediate full state dump, so the
+        # entity keys must already be cached or that first dump can't be routed (the
+        # LED/mute key would still be None). Resolve before subscribing.
+        await self._resolve_entities()
         # VERIFY: subscribe_voice_assistant signature. Passing a non-None
         # handle_audio auto-sets VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO (no flags arg).
         self._unsub_va = self._client.subscribe_voice_assistant(
@@ -95,8 +100,6 @@ class VoicePELink:
         )
         # VERIFY: subscribe_states(callback) -> unsubscribe callable.
         self._unsub_states = self._client.subscribe_states(self._on_state)
-        # Resolve the wake-gate services + LED-ring light from the device catalog.
-        await self._resolve_entities()
         # Let the orchestrator re-assert stream + LED for the CURRENT state.
         if self.on_reconnect is not None:
             result = self.on_reconnect()
