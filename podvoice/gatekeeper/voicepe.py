@@ -271,8 +271,11 @@ class VoicePELink:
             url,
         )
         try:
-            # media_player_command(key, media_url, announcement=True) — async on aioesphomeapi.
-            await self._client.media_player_command(
+            # media_player_command is SYNCHRONOUS in aioesphomeapi (returns None, just
+            # queues send_message) — it must NOT be awaited. Awaiting the None it returns
+            # raised "NoneType can't be used in 'await' expression" every reply (the
+            # command still went out, but the exception was logged as a FAILED).
+            self._client.media_player_command(
                 key=self._media_key, media_url=url, announcement=True
             )
         except Exception as e:  # surface failures (was DEBUG — hid the no-sound cause)

@@ -38,13 +38,26 @@ async def test_empty_push_ignored():
 
 
 @pytest.mark.asyncio
-async def test_start_clears_stale_audio():
+async def test_clear_drops_stale_audio():
     bus = ReplyBus()
     bus.push("r0", b"stale")  # leftover from a previous reply
-    bus.start("r0")  # new reply must not replay the stale chunk
+    bus.clear("r0")  # turn start drops stale BEFORE the new reply's audio arrives
     bus.push("r0", b"fresh")
     bus.end("r0")
     assert await _drain(bus, "r0") == [b"fresh"]
+
+
+@pytest.mark.asyncio
+async def test_start_does_not_drop_front_loaded_audio():
+    """Regression: the model front-loads the reply, so chunks are queued BEFORE the
+    state machine runs PLAYBACK_ARM -> start(). start() must NOT drop them (that was the
+    'device fetches the WAV but plays silence' bug)."""
+    bus = ReplyBus()
+    bus.push("r0", b"chunk1")  # audio arrives first (front-loaded)
+    bus.push("r0", b"chunk2")
+    bus.start("r0")  # PLAYBACK_ARM runs later — must keep the already-queued audio
+    bus.end("r0")
+    assert await _drain(bus, "r0") == [b"chunk1", b"chunk2"]
 
 
 @pytest.mark.asyncio

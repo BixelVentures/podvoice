@@ -68,7 +68,16 @@ class ReplyBus:
         return q
 
     def start(self, room: str) -> None:
-        """Begin a fresh reply: drop any stale audio still queued for this room."""
+        """Begin a fresh reply. Does NOT drop queued audio: the model FRONT-LOADS the
+        reply, so by the time the state machine processes GEMINI_RESPONDING and runs
+        PLAYBACK_ARM, chunks are already queued — dropping here discarded the whole
+        reply and was the 'device fetches the WAV but plays silence' bug. Stale audio
+        from a prior/cancelled reply is instead cleared at turn start via clear()."""
+        self._q(room)
+
+    def clear(self, room: str) -> None:
+        """Drop any queued audio. Called at the START of a user turn (gate-open), BEFORE
+        this turn's reply audio can arrive — so there's no race with incoming chunks."""
         q = self._q(room)
         while not q.empty():
             try:

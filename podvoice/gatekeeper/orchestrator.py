@@ -318,6 +318,10 @@ class RoomSession:
             self._responded = False
             self._out_buf = []  # fresh turn — drop any stale transcript fragments
             self._in_buf = []
+            if self.reply_bus is not None:
+                # Drop stale reply audio NOW (turn start), before this turn's reply can
+                # arrive — so PLAYBACK_ARM's start() no longer races the front-loaded audio.
+                self.reply_bus.clear(self.room)
             self._start_listen_timer()  # never sit in LISTENING forever (wake-then-nothing)
             # NB: do NOT arm the TTFR watchdog here. Gate-open is the START of the
             # user's turn; arming now counts the user's own speaking time as model
