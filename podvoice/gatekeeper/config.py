@@ -124,11 +124,17 @@ def from_options(opts: dict) -> Config:
         openai_eagerness=str(opts.get("openai_eagerness", "auto") or "auto"),
         openai_noise=str(opts.get("openai_noise", "far_field") or "far_field"),
         simulate=bool(opts.get("simulate", False)),
-        full_duplex=bool(opts.get("full_duplex", False)),
+        # Full-duplex (open-mic barge-in) is NOT shipped yet — it's the future opt-in. Force
+        # half-duplex regardless of any stale saved "full_duplex": true, so continued
+        # conversation is guaranteed without the owner having to un-tick a toggle. Restore
+        # `bool(opts.get("full_duplex", False))` here when full-duplex is actually built.
+        full_duplex=False,
         lounge_window_s=int(opts.get("lounge_window_s", C.LOUNGE_WINDOW_S)),
         duck_level=int(opts.get("duck_level", C.DUCK_LEVEL)),
         lounge_level=int(opts.get("lounge_level", C.LOUNGE_LEVEL)),
-        heartbeat_ms=int(opts.get("heartbeat_ms", C.HEARTBEAT_MS)),
+        # Floor the heartbeat at the retuned default: an old saved 500ms would keep the ~2
+        # req/s attention flood alive, so treat any sub-default saved value as stale.
+        heartbeat_ms=max(int(opts.get("heartbeat_ms", C.HEARTBEAT_MS)), C.HEARTBEAT_MS),
         # Floor a stale/too-low saved value: sub-2s TTFR is a latency SLA, not a hang
         # detector, and false-aborts every turn. Raise it to the safe default.
         watchdog_ms=max(int(opts.get("watchdog_ms", C.WATCHDOG_MS)), C.WATCHDOG_FLOOR_MS),
