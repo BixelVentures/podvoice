@@ -483,6 +483,11 @@ class RoomSession:
             if self.hub is not None:
                 self.hub.incr("tool_calls")
             await self._handle_tool(ev)
+            if self.watchdog is not None:
+                # The post-tool answer now has to be reasoned + generated (seconds of
+                # legitimate silence). Wait for its first audio as TTFR, not a stall —
+                # otherwise the stall watchdog kills every tool-using turn mid-reply.
+                self.watchdog.expect_response()
         elif isinstance(ev, TurnComplete):
             # Flush the USER turn FIRST (before the reply) so History reads you -> assistant.
             # OpenAI's complete input transcript lands AFTER speech_stopped, so the

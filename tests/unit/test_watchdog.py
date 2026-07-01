@@ -46,6 +46,20 @@ def test_stall_window(fake_clock):
     assert wd.check() == "stall"
 
 
+def test_expect_response_survives_tool_gap(fake_clock):
+    """After a tool call the post-tool answer needs reasoning time (> stall). expect_response
+    resets to the TTFR window so the stall watchdog doesn't kill a tool-using turn."""
+    wd = _watchdog(fake_clock)
+    wd.arm("turn-1")
+    wd.on_output()  # first audio (the acknowledgment)
+    wd.on_output()  # tool call
+    wd.expect_response()  # tool result submitted -> a fresh response is coming
+    fake_clock.advance(C.STREAM_STALL_MS / 1000.0 + 0.2)  # past the OLD stall window
+    assert wd.check() is None  # not killed — waiting on the post-tool answer
+    fake_clock.advance(C.WATCHDOG_MS / 1000.0)  # but a genuinely dead follow-up still trips
+    assert wd.check() == "ttfr"
+
+
 def test_check_none_when_not_armed(fake_clock):
     wd = _watchdog(fake_clock)
     assert wd.check() is None

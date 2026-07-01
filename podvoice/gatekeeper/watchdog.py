@@ -120,6 +120,18 @@ class TurnWatchdog:
             self.samples.append(now - self._armed_at)
         self._last_chunk_at = now
 
+    def expect_response(self) -> None:
+        """A tool result was just submitted; the model now generates a FRESH response,
+        which can be several seconds of legitimate silence (reasoning about the result)
+        before its first audio. Reset to the TTFR window (not the shorter mid-stream
+        stall) so a tool-using turn isn't killed in the gap. Chained tools reset it each."""
+        if not self._armed:
+            return
+        now = self._clock()
+        self._progressing = False
+        self._armed_at = now
+        self._last_chunk_at = now
+
     def disarm(self) -> None:
         """Stand the watchdog down (turn finished / aborted)."""
         self._armed = False
