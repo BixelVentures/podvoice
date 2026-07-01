@@ -16,6 +16,7 @@ model is never left waiting.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -159,10 +160,11 @@ class HAToolBridge:
                 {
                     "name": "list_services",
                     "description": "Discover the available services AND their parameters for the "
-                    "domains you can control — use this to find any action (e.g. a media_player's "
-                    "play_media/search_media, a vacuum's room/segment cleaning, fan speed), then "
-                    "run them with home_call. A service with returns_response:true gives data back "
-                    "(e.g. listening history) — call it via home_call with return_response:true. "
+                    "domains you can control — use this to find any action (e.g. a lock's "
+                    "lock/unlock, a climate set_temperature, a cover's open/close, a vacuum's "
+                    "segment cleaning, or a media_player's play_media), then run them with "
+                    "home_call. A service with returns_response:true gives data back (e.g. a "
+                    "search or history lookup) — call it via home_call with return_response:true. "
                     "Optionally pass a domain to narrow it.",
                     "parameters": {
                         "type": "object",
@@ -229,23 +231,22 @@ class HAToolBridge:
                 },
                 {
                     "name": "home_call",
-                    "description": "Call ANY Home Assistant service — for anything beyond the tools "
-                    "above: music/speakers (media_player.play_media, search_media, media_pause, "
-                    "volume_set), a vacuum, fan, lock, … OR a data service that RETURNS info "
-                    "(set return_response=true), e.g. media_player.search_media or a listening-"
-                    "history service. Pass entity_id for entity services; for account-level "
+                    "description": "Call ANY Home Assistant service for anything beyond the tools "
+                    "above — a lock, cover, climate, fan, vacuum, or a media_player — OR a data "
+                    "service that RETURNS info (set return_response=true), e.g. a search or a "
+                    "history lookup. Pass entity_id for entity services; for account-level "
                     "services leave it out (the domain must be exposed). Use list_services to "
-                    "find a domain's services + fields.",
+                    "find a domain's services + fields — never guess a service or field name.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "domain": {
                                 "type": "string",
-                                "description": "e.g. media_player, vacuum, podconnect",
+                                "description": "e.g. lock, climate, cover, media_player, vacuum",
                             },
                             "service": {
                                 "type": "string",
-                                "description": "e.g. play_media, start, top_tracks",
+                                "description": "e.g. unlock, set_temperature, open_cover, start",
                             },
                             "entity_id": {
                                 "type": "string",
@@ -528,7 +529,16 @@ class HAToolBridge:
             )
 
     async def dispatch(self, name: str, args: dict) -> dict:
-        result = await self._dispatch(name, args)
+        # Hard time-bound: _dispatch must always return within TOOL_TIMEOUT_S so the model
+        # always gets a result (and speaks a Danish failure) instead of freezing the turn.
+        try:
+            result = await asyncio.wait_for(self._dispatch(name, args), timeout=C.TOOL_TIMEOUT_S)
+        except TimeoutError:  # asyncio.TimeoutError is an alias for TimeoutError on 3.11+
+            result = {
+                "ok": False,
+                "error_kind": "timeout",
+                "error": "the service took too long to respond",
+            }
         self._log_tool(name, args, result)
         return result
 

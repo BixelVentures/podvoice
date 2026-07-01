@@ -11,7 +11,7 @@ from gatekeeper.config import load_config
 def test_defaults_and_roundtrip(tmp_path):
     p = tmp_path / "podvoice.json"
     d = S.load_settings(p)
-    assert d["provider"] == "gemini" and d["rooms"] == [] and d["duck_level"] == 5
+    assert d["provider"] == "gemini" and d["rooms"] == [] and d["duck_level"] == 0
 
     saved = S.save_settings({"provider": "openai", "duck_level": 7, "bogus": "x"}, p)
     assert saved["provider"] == "openai" and saved["duck_level"] == 7

@@ -25,7 +25,7 @@ async def test_subscribe_receives_broadcasts():
     q = await hub.subscribe()
     hub.set_state("kitchen", "LISTENING")
     ev = await asyncio.wait_for(q.get(), timeout=1)
-    assert ev["type"] == "state" and ev["state"] == "LISTENING" and ev["level"] == 5
+    assert ev["type"] == "state" and ev["state"] == "LISTENING" and ev["level"] == 0
     hub.set_service("gemini", "up")
     ev2 = await asyncio.wait_for(q.get(), timeout=1)
     assert ev2 == {"type": "service", "name": "gemini", "status": "up"}

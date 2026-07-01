@@ -60,7 +60,8 @@ class StateMachine:
         lounge_level: int = C.LOUNGE_LEVEL,
         ttl_listening_ms: int = C.TTL_LISTENING_MS,
         ttl_lounge_ms: int = C.TTL_LOUNGE_MS,
-        full_duplex: bool = True,
+        full_duplex: bool = False,  # DEFAULT = continued conversation (half-duplex): mute the
+        # mic while the AI speaks. Open-mic barge-in (True) is the future full-duplex opt-in.
         observer: Callable[[State, State, Event], None] | None = None,
     ) -> None:
         self._effects = effects

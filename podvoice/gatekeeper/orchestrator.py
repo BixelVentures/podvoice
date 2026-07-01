@@ -65,7 +65,7 @@ class RoomSession:
         lounge_level: int = C.LOUNGE_LEVEL,
         vad_threshold: float = C.VAD_THRESHOLD,
         enable_watchdog: bool = True,
-        full_duplex: bool = True,
+        full_duplex: bool = False,  # default half-duplex (continued conversation)
     ) -> None:
         self.room = room
         self.attention = attention
@@ -190,7 +190,18 @@ class RoomSession:
     def _schedule_task(self, coro) -> None:
         task = asyncio.ensure_future(coro)
         self._tasks.append(task)
-        task.add_done_callback(lambda t: self._tasks.remove(t) if t in self._tasks else None)
+        task.add_done_callback(self._reap_task)
+
+    def _reap_task(self, task: asyncio.Task) -> None:
+        """Untrack a finished background task AND surface its exception — a swallowed raise
+        in a scheduled LED/attention/reply coro is otherwise invisible (impossible to
+        debug remotely for a non-technical owner)."""
+        if task in self._tasks:
+            self._tasks.remove(task)
+        if not task.cancelled():
+            exc = task.exception()
+            if exc is not None:
+                _LOG.warning("background task failed: %s", exc, exc_info=exc)
 
     async def _settle_led(self) -> None:
         """After an error flash, repaint the CURRENT live state without the error overlay
@@ -281,7 +292,17 @@ class RoomSession:
     async def apply(self, action: Action, room: str | None) -> None:
         k = action.kind
         if k is ActionKind.OPEN_WS:
-            await self.gemini.connect()
+            # Bound the connect: a hung TLS handshake on the WAKE path would otherwise wedge
+            # the session with no recovery (the watchdog isn't armed until end-of-speech).
+            try:
+                await asyncio.wait_for(self.gemini.connect(), timeout=C.CONNECT_TIMEOUT_S)
+            except Exception as e:  # timeout or connect error
+                _LOG.warning("provider connect failed/timed out: %s", e)
+                if self.hub is not None:
+                    self.hub.set_service("gemini", "down")
+                    self.hub.activity(self.room, "⚠️ Kunne ikke nå assistenten")
+                await self.sm.post(Event(EventType.ERROR, self.room))
+                return
             self._start_reader()
             if self.hub is not None:
                 self.hub.set_service("gemini", "up")
@@ -292,11 +313,13 @@ class RoomSession:
             with contextlib.suppress(Exception):
                 await self.gemini.close()
         elif k is ActionKind.ENGAGE:
-            await self._safe_attention(
-                self.attention.engage(self.room, action.level, action.ttl_ms)
+            # Fire-and-forget: the heartbeat holds the duck authoritatively, so a slow duck
+            # POST must not stall the state-machine apply loop (blocks every transition).
+            self._schedule_task(
+                self._safe_attention(self.attention.engage(self.room, action.level, action.ttl_ms))
             )
         elif k is ActionKind.RELEASE:
-            await self._safe_attention(self.attention.release(self.room))
+            self._schedule_task(self._safe_attention(self.attention.release(self.room)))
             if self.hub is not None:
                 self.hub.incr("attention_releases")
                 self.hub.set_level(self.room, 100)

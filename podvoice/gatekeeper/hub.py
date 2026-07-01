@@ -19,7 +19,7 @@ from .history import History
 _LOG = logging.getLogger("podvoice.hub")
 
 # Music level implied by each state (HomePod volume %), for the panel's duck meter.
-_STATE_LEVEL = {"IDLE": 100, "LISTENING": 5, "AI_SPEAKING": 5, "LOUNGE_WINDOW": 35}
+_STATE_LEVEL = {"IDLE": 100, "LISTENING": 0, "AI_SPEAKING": 0, "LOUNGE_WINDOW": 35}
 
 _METRIC_KEYS = (
     "sessions",

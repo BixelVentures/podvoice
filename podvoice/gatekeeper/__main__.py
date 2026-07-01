@@ -196,7 +196,9 @@ async def run(cfg: Config) -> None:
         if not cfg.rooms:
             _LOG.error("no rooms configured (set the Voice-PE -> room map); panel only")
         attention = AttentionClient(cfg.podconnect_base_url, cfg.podconnect_token or None)
-        ha_client = httpx.AsyncClient()
+        # Bounded timeouts so a slow/wedged HA service can never hang a tool call (and thus
+        # the whole conversational turn). ha_tools also wraps dispatch in wait_for as a belt.
+        ha_client = httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=3.0))
         tools = HAToolBridge(cfg.supervisor_token, ha_client, exposed=cfg.exposed)
         if not cfg.supervisor_token:
             _LOG.warning("no SUPERVISOR_TOKEN — HA control disabled (PodConnect tool still works)")

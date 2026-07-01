@@ -77,7 +77,8 @@ TABLE = [
         State.LISTENING,
         ev(EventType.GEMINI_RESPONDING),
         State.AI_SPEAKING,
-        [K.PLAYBACK_ARM],  # full_duplex (default): gate stays OPEN so you can barge in
+        # half-duplex (default now): gate MUTES while the AI speaks (continued conversation).
+        [K.GATE_MUTE, K.PLAYBACK_ARM],
     ),
     (
         State.LISTENING,
@@ -201,7 +202,8 @@ TABLE = [
         State.LOUNGE_WINDOW,
         ev(EventType.GEMINI_RESPONDING),
         State.AI_SPEAKING,
-        [K.STOP_LOUNGE_VAD, K.CANCEL_LOUNGE_TIMER, K.GATE_OPEN, K.PLAYBACK_ARM, K.HB_RETARGET],
+        # half-duplex default: gate MUTES (not opens) while the late reply speaks.
+        [K.STOP_LOUNGE_VAD, K.CANCEL_LOUNGE_TIMER, K.GATE_MUTE, K.PLAYBACK_ARM, K.HB_RETARGET],
     ),
     (  # button is a toggle: a press while LISTENING stops the session
         State.LISTENING,
@@ -290,12 +292,20 @@ def test_decide_table(state, event, exp_next, exp_kinds):
 
 
 def test_half_duplex_mutes_mic_while_ai_speaks():
-    """full_duplex=False is the safe fallback: entering AI_SPEAKING shuts the gate +
-    sends silence (no barge-in, but no self-interrupt either)."""
+    """full_duplex=False (the shipped default) mutes the mic while the AI speaks — continued
+    conversation: no barge-in, no self-interrupt."""
     sm = StateMachine(RecordingEffects(), room="kitchen", full_duplex=False)
     new, actions = sm._decide(State.LISTENING, ev(EventType.GEMINI_RESPONDING))
     assert new is State.AI_SPEAKING
     assert [a.kind for a in actions] == [K.GATE_MUTE, K.PLAYBACK_ARM]
+
+
+def test_full_duplex_keeps_mic_open_while_ai_speaks():
+    """full_duplex=True (the future opt-in) keeps the gate OPEN so you can barge in by voice."""
+    sm = StateMachine(RecordingEffects(), room="kitchen", full_duplex=True)
+    new, actions = sm._decide(State.LISTENING, ev(EventType.GEMINI_RESPONDING))
+    assert new is State.AI_SPEAKING
+    assert [a.kind for a in actions] == [K.PLAYBACK_ARM]
 
 
 def _by_kind(actions: list[Action], kind: ActionKind) -> Action:

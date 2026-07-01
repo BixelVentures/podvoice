@@ -7,16 +7,20 @@ Everything else must agree with these. They are surfaced as add-on options
 from __future__ import annotations
 
 # --- Attention / ducking levels (HomePod volume %) ---
-DUCK_LEVEL = 5  # LISTENING / AI_SPEAKING
+DUCK_LEVEL = 0  # LISTENING / AI_SPEAKING — 0 = mute. Under half-duplex the mic is gated
+# while the assistant speaks, so it never needs to hear over the music; a clean mute reads
+# unambiguously as "it's my turn / its turn" and avoids a 5% bleed the far-field mic hears.
 LOUNGE_LEVEL = 35  # LOUNGE_WINDOW
 OWNER = "voice"  # Attention owner string
 
 # --- Timing (milliseconds unless noted) ---
-TTL_LISTENING_MS = 2000  # Attention TTL while LISTENING / AI_SPEAKING
+TTL_LISTENING_MS = 4000  # Attention TTL while LISTENING / AI_SPEAKING (longer lease so the
+# heartbeat can re-POST far less often; server auto-releases music within 4s if we die)
 LISTEN_IDLE_S = 20  # auto-close a LISTENING session after this much silence (no user
 # speech, no model response) so a wake-then-nothing can't stick listening + duck forever
 TTL_LOUNGE_MS = 8000  # Attention TTL while LOUNGE_WINDOW
-HEARTBEAT_MS = 500  # re-POST cadence (4 beats per 2 s TTL)
+HEARTBEAT_MS = 1500  # re-POST cadence (~2.7 beats per 4 s TTL: kills the ~2 req/s flood
+# while keeping >2x margin against a single dropped/slow beat)
 HEARTBEAT_JITTER_MS = 50  # +-jitter on the heartbeat cadence
 LOUNGE_WINDOW_S = 8  # follow-up window length
 STREAM_KEEPALIVE_S = (
@@ -28,6 +32,10 @@ WATCHDOG_MS = 3000  # TTFR HANG threshold (armed at end-of-user-speech). NOT a l
 WATCHDOG_FLOOR_MS = 2000  # sane floor: a saved value below this is treated as a stale
 # default and raised, so an old 800ms in /data/podvoice.json can't keep aborting turns.
 STREAM_STALL_MS = 1500  # mid-stream silence => treated as a drop
+TOOL_TIMEOUT_S = 9.0  # hard ceiling on a single tool dispatch so a slow HA service can
+# never hang the whole turn — on timeout the model gets a spoken failure and moves on
+CONNECT_TIMEOUT_S = 8.0  # hard ceiling on a provider WS connect() so a hung TLS handshake
+# on the wake path can't wedge the session with no recovery (posts ERROR -> error tone)
 BARGE_COOLDOWN_MS = 700  # de-dup window for barge-in signals
 VAD_OPEN_MS = 250  # sustained voice needed to re-open in lounge
 

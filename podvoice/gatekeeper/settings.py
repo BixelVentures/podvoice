@@ -36,7 +36,8 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 # NOT here (it's the one add-on option).
 DEFAULTS: dict = {
     "simulate": False,
-    "full_duplex": True,  # keep the mic open while the AI speaks so you can barge in by voice
+    "full_duplex": False,  # half-duplex (continued conversation) is the shipped mode; True is
+    # the future open-mic full-duplex opt-in (not built yet)
     "provider": "gemini",  # "gemini" | "openai" — default voice brain
     "system_prompt": SYSTEM_PROMPT_DA,  # who the assistant is + what it can do (editable)
     "gemini_model": "gemini-2.5-flash-native-audio-preview-12-2025",
