@@ -140,7 +140,13 @@ class StateMachine:
             return State.IDLE, []
 
         if state is State.LISTENING:
+            if et is EventType.USER_SPEECH_STOPPED:
+                # The user finished; we now wait for the model's first audio. Show a distinct
+                # THINKING state so a slow reply doesn't look like "still listening" (stale
+                # cyan). Half-duplex mutes the mic while thinking; full-duplex keeps it open.
+                return State.THINKING, ([] if self.full_duplex else [gate_mute()])
             if et is EventType.GEMINI_RESPONDING:
+                # A fast model that replies before end-of-speech skips the visible THINKING.
                 # full_duplex: keep the mic OPEN so you can interrupt by voice (the XMOS
                 # AEC keeps the AI's own voice out of the mic; only a genuinely active
                 # reply is barge-interruptible — see openai_realtime). half-duplex falls
@@ -164,6 +170,27 @@ class StateMachine:
             if et in (EventType.WATCHDOG_TIMEOUT, EventType.ERROR):
                 return State.IDLE, self._teardown()
             return State.LISTENING, []
+
+        if state is State.THINKING:
+            # Waiting for the model's first audio. The gate is already muted (half-duplex)
+            # from entry, so entering AI_SPEAKING only needs to arm playback.
+            if et is EventType.GEMINI_RESPONDING:
+                return State.AI_SPEAKING, [playback_arm()]
+            if et is EventType.GEMINI_TURN_COMPLETE:
+                # An empty/instant turn produced no audio: open the follow-up window.
+                return State.LOUNGE_WINDOW, [
+                    gate_shut(),
+                    hb_retarget(self.lounge_level, self.ttl_lounge_ms),
+                    start_lounge_vad(),
+                    start_lounge_timer(self.lounge_window_s),
+                ]
+            if et is EventType.WAKE_WORD:  # user re-engages mid-think -> back to listening
+                return State.LISTENING, [gate_open()]
+            if et in (EventType.CLOSURE_TOKEN, EventType.BUTTON_PRESS):
+                return State.IDLE, [stream_stop(), gate_shut(), hb_stop(), release(), close_ws()]
+            if et in (EventType.WATCHDOG_TIMEOUT, EventType.ERROR):
+                return State.IDLE, self._teardown()
+            return State.THINKING, []
 
         if state is State.AI_SPEAKING:
             if et is EventType.GEMINI_TURN_COMPLETE:

@@ -37,6 +37,7 @@ _LOG = logging.getLogger("podvoice.orchestrator")
 # Friendly per-state lines for the panel's live activity feed.
 _ACTIVITY_LABELS = {
     "LISTENING": "🎙️ Listening to you",
+    "THINKING": "🤔 Thinking…",
     "AI_SPEAKING": "💬 Assistant replying",
     "LOUNGE_WINDOW": "⏳ Follow-up window (grace)",
     "IDLE": "💤 Idle — waiting for “Okay Nabu” (music restored)",
@@ -499,6 +500,9 @@ class RoomSession:
             await self.sm.post(Event(EventType.GEMINI_TURN_COMPLETE, self.room))
         elif isinstance(ev, UserSpeechStopped):
             self._flush_user_turn()  # Gemini streams deltas that are all in by end-of-speech
+            # Drive the state machine into THINKING (distinct LED) so the gap before the
+            # reply's first audio doesn't look like "still listening".
+            await self.sm.post(Event(EventType.USER_SPEECH_STOPPED, self.room))
             # End of the user's turn: NOW the model owes us a reply within WATCHDOG_MS.
             # This is the correct arming point for the time-to-first-response watchdog.
             if self.watchdog is not None:

@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 class State(enum.Enum):
     IDLE = "idle"
     LISTENING = "listening"
+    THINKING = "thinking"  # end-of-user-speech -> first reply audio (distinct LED so a slow
+    # reply doesn't look like "still listening" — the #1 "feels finished" cue)
     AI_SPEAKING = "ai_speaking"
     LOUNGE_WINDOW = "lounge_window"
 
@@ -22,6 +24,7 @@ class State(enum.Enum):
 class EventType(enum.Enum):
     WAKE_WORD = enum.auto()
     BUTTON_PRESS = enum.auto()
+    USER_SPEECH_STOPPED = enum.auto()  # provider end-of-user-speech -> LISTENING -> THINKING
     GEMINI_RESPONDING = enum.auto()  # first model audio chunk of a turn
     GEMINI_TURN_COMPLETE = enum.auto()
     GEMINI_INTERRUPTED = enum.auto()

@@ -75,10 +75,41 @@ TABLE = [
     # --- LISTENING ---
     (
         State.LISTENING,
+        ev(EventType.USER_SPEECH_STOPPED),
+        State.THINKING,
+        [K.GATE_MUTE],  # half-duplex: mute the mic while we wait for the reply
+    ),
+    (
+        State.LISTENING,
         ev(EventType.GEMINI_RESPONDING),
         State.AI_SPEAKING,
         # half-duplex (default now): gate MUTES while the AI speaks (continued conversation).
         [K.GATE_MUTE, K.PLAYBACK_ARM],
+    ),
+    # --- THINKING (end-of-user-speech -> first reply audio) ---
+    (
+        State.THINKING,
+        ev(EventType.GEMINI_RESPONDING),
+        State.AI_SPEAKING,
+        [K.PLAYBACK_ARM],  # gate already muted on entry to THINKING
+    ),
+    (
+        State.THINKING,
+        ev(EventType.GEMINI_TURN_COMPLETE),
+        State.LOUNGE_WINDOW,
+        [K.GATE_SHUT, K.HB_RETARGET, K.START_LOUNGE_VAD, K.START_LOUNGE_TIMER],
+    ),
+    (
+        State.THINKING,
+        ev(EventType.CLOSURE_TOKEN, "stop"),
+        State.IDLE,
+        [K.STREAM_STOP, K.GATE_SHUT, K.HB_STOP, K.RELEASE, K.CLOSE_WS],
+    ),
+    (
+        State.THINKING,
+        ev(EventType.WAKE_WORD),
+        State.LISTENING,
+        [K.GATE_OPEN],
     ),
     (
         State.LISTENING,

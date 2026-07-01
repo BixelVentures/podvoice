@@ -28,6 +28,7 @@ class LedCmd:
 # HA cyan-blue (the "I am streaming you" colour), matching upstream's listening hue.
 _CYAN = (0.094, 0.733, 0.949)
 _GREEN = (0.470, 0.863, 0.549)  # assistant speaking — distinct hue from listening
+_AMBER = (1.0, 0.55, 0.0)  # thinking — distinct from listening-cyan and speaking-green
 
 
 def led_command_for(state: State, *, muted: bool = False, error: bool = False) -> LedCmd:
@@ -38,6 +39,8 @@ def led_command_for(state: State, *, muted: bool = False, error: bool = False) -
         return LedCmd(True, (1.0, 0.12, 0.12), 0.4)  # solid red = muted/silent
     if state is State.LISTENING:
         return LedCmd(True, _CYAN, 0.8)  # post-wake, mic streaming
+    if state is State.THINKING:
+        return LedCmd(True, _AMBER, 0.7)  # heard you, working on it (not still listening)
     if state is State.AI_SPEAKING:
         return LedCmd(True, _GREEN, 0.9)  # speaking (barge-in affordance)
     if state is State.LOUNGE_WINDOW:
