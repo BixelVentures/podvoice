@@ -68,7 +68,7 @@ TABLE = [
         State.LISTENING,
         [K.STREAM_START, K.OPEN_WS, K.GATE_OPEN, K.HB_START],
     ),
-    (State.IDLE, ev(EventType.GEMINI_TURN_COMPLETE), State.IDLE, []),
+    (State.IDLE, ev(EventType.MODEL_TURN_COMPLETE), State.IDLE, []),
     (State.IDLE, ev(EventType.LOCAL_VOICE_DETECTED), State.IDLE, []),
     (State.IDLE, ev(EventType.CLOSURE_TOKEN, "stop"), State.IDLE, []),
     (State.IDLE, ev(EventType.ERROR), State.IDLE, []),
@@ -81,7 +81,7 @@ TABLE = [
     ),
     (
         State.LISTENING,
-        ev(EventType.GEMINI_RESPONDING),
+        ev(EventType.MODEL_RESPONDING),
         State.AI_SPEAKING,
         # half-duplex (default now): gate MUTES while the AI speaks (continued conversation).
         [K.GATE_MUTE, K.PLAYBACK_ARM],
@@ -89,13 +89,13 @@ TABLE = [
     # --- THINKING (end-of-user-speech -> first reply audio) ---
     (
         State.THINKING,
-        ev(EventType.GEMINI_RESPONDING),
+        ev(EventType.MODEL_RESPONDING),
         State.AI_SPEAKING,
         [K.PLAYBACK_ARM],  # gate already muted on entry to THINKING
     ),
     (
         State.THINKING,
-        ev(EventType.GEMINI_TURN_COMPLETE),
+        ev(EventType.MODEL_TURN_COMPLETE),
         State.LOUNGE_WINDOW,
         [K.GATE_SHUT, K.HB_RETARGET, K.START_LOUNGE_VAD, K.START_LOUNGE_TIMER],
     ),
@@ -113,7 +113,7 @@ TABLE = [
     ),
     (
         State.LISTENING,
-        ev(EventType.GEMINI_TURN_COMPLETE),
+        ev(EventType.MODEL_TURN_COMPLETE),
         State.LOUNGE_WINDOW,
         [K.GATE_SHUT, K.HB_RETARGET, K.START_LOUNGE_VAD, K.START_LOUNGE_TIMER],
     ),
@@ -156,17 +156,17 @@ TABLE = [
         ],
     ),
     (State.LISTENING, ev(EventType.LOCAL_VOICE_DETECTED), State.LISTENING, []),
-    (State.LISTENING, ev(EventType.GEMINI_INTERRUPTED), State.LISTENING, []),
+    (State.LISTENING, ev(EventType.MODEL_INTERRUPTED), State.LISTENING, []),
     # --- AI_SPEAKING ---
     (
         State.AI_SPEAKING,
-        ev(EventType.GEMINI_TURN_COMPLETE),
+        ev(EventType.MODEL_TURN_COMPLETE),
         State.LOUNGE_WINDOW,
         [K.GATE_SHUT, K.HB_RETARGET, K.START_LOUNGE_VAD, K.START_LOUNGE_TIMER],
     ),
     (
         State.AI_SPEAKING,
-        ev(EventType.GEMINI_INTERRUPTED),
+        ev(EventType.MODEL_INTERRUPTED),
         State.LISTENING,
         [K.PLAYBACK_STOP, K.GATE_OPEN],
     ),
@@ -231,7 +231,7 @@ TABLE = [
     ),
     (  # a late follow-up reply that arrives after we returned to grace
         State.LOUNGE_WINDOW,
-        ev(EventType.GEMINI_RESPONDING),
+        ev(EventType.MODEL_RESPONDING),
         State.AI_SPEAKING,
         # half-duplex default: gate MUTES (not opens) while the late reply speaks.
         [K.STOP_LOUNGE_VAD, K.CANCEL_LOUNGE_TIMER, K.GATE_MUTE, K.PLAYBACK_ARM, K.HB_RETARGET],
@@ -306,7 +306,7 @@ TABLE = [
             K.ERROR_TONE,
         ],
     ),
-    (State.LOUNGE_WINDOW, ev(EventType.GEMINI_TURN_COMPLETE), State.LOUNGE_WINDOW, []),
+    (State.LOUNGE_WINDOW, ev(EventType.MODEL_TURN_COMPLETE), State.LOUNGE_WINDOW, []),
 ]
 
 
@@ -326,7 +326,7 @@ def test_half_duplex_mutes_mic_while_ai_speaks():
     """full_duplex=False (the shipped default) mutes the mic while the AI speaks — continued
     conversation: no barge-in, no self-interrupt."""
     sm = StateMachine(RecordingEffects(), room="kitchen", full_duplex=False)
-    new, actions = sm._decide(State.LISTENING, ev(EventType.GEMINI_RESPONDING))
+    new, actions = sm._decide(State.LISTENING, ev(EventType.MODEL_RESPONDING))
     assert new is State.AI_SPEAKING
     assert [a.kind for a in actions] == [K.GATE_MUTE, K.PLAYBACK_ARM]
 
@@ -334,7 +334,7 @@ def test_half_duplex_mutes_mic_while_ai_speaks():
 def test_full_duplex_keeps_mic_open_while_ai_speaks():
     """full_duplex=True (the future opt-in) keeps the gate OPEN so you can barge in by voice."""
     sm = StateMachine(RecordingEffects(), room="kitchen", full_duplex=True)
-    new, actions = sm._decide(State.LISTENING, ev(EventType.GEMINI_RESPONDING))
+    new, actions = sm._decide(State.LISTENING, ev(EventType.MODEL_RESPONDING))
     assert new is State.AI_SPEAKING
     assert [a.kind for a in actions] == [K.PLAYBACK_ARM]
 
@@ -355,7 +355,7 @@ def test_decide_hb_start_params():
 
 def test_decide_lounge_retarget_and_timer_params():
     sm = make_sm()
-    _, actions = sm._decide(State.AI_SPEAKING, ev(EventType.GEMINI_TURN_COMPLETE))
+    _, actions = sm._decide(State.AI_SPEAKING, ev(EventType.MODEL_TURN_COMPLETE))
     hb = _by_kind(actions, ActionKind.HB_RETARGET)
     assert (hb.level, hb.ttl_ms) == (L, TG)
     timer = _by_kind(actions, ActionKind.START_LOUNGE_TIMER)
@@ -372,7 +372,7 @@ def test_decide_lounge_to_listening_retarget_is_duck():
 def test_decide_is_pure_does_not_mutate_state():
     sm = make_sm()
     assert sm.state is State.IDLE
-    sm._decide(State.AI_SPEAKING, ev(EventType.GEMINI_TURN_COMPLETE))
+    sm._decide(State.AI_SPEAKING, ev(EventType.MODEL_TURN_COMPLETE))
     assert sm.state is State.IDLE  # unchanged by a pure call
 
 
@@ -399,7 +399,7 @@ async def test_race_turn_complete_then_local_voice():
     await _drive(
         sm,
         [
-            ev(EventType.GEMINI_TURN_COMPLETE),
+            ev(EventType.MODEL_TURN_COMPLETE),
             ev(EventType.LOCAL_VOICE_DETECTED),
         ],
     )

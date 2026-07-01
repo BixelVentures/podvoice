@@ -9,6 +9,12 @@ ENV LANG=C.UTF-8 \
 
 WORKDIR /app
 
+# `flac` = the reply-audio encoder. The Voice PE's on-device micro_decoder rejects our
+# streaming WAV at file-type detection ("Could not determine audio file type") but decodes
+# FLAC natively (it's what HA sends the device for TTS). We pipe the reply PCM through the
+# flac CLI (see reply.encode_flac) so the announce path actually plays out loud.
+RUN apk add --no-cache flac
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

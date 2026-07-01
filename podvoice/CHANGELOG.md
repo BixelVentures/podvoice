@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.64.0 — reply audio as FLAC (the real no-sound fix) + lounge-window floor + speaker self-test
+
+The device-side ESPHome log finally pinned the no-sound cause. The Voice PE's on-device decoder connects, gets our WAV, then rejects it **before reading a single sample**:
+
+```
+micro_decoder.http_client: Connected: status=200 content-type='audio/wav'
+E micro_decoder.audio_reader: Could not determine audio file type from URL or Content-Type
+E micro_decoder.decoder_source: Reader failed to open URL
+```
+
+It's file-type detection, not the data-size sentinel. The device's `micro_decoder` (Espressif esp-audio-libs, not mainline ESPHome) does not accept our streaming WAV — but it decodes **FLAC** natively (it's what HA sends the Voice PE for TTS).
+
+- **Reply audio now goes out as FLAC.** `/reply/<room>.flac` buffers the whole (front-loaded) reply, pipes the PCM through the `flac` CLI (added to the add-on image), and serves `audio/flac` with a real Content-Length. Both signals the decoder sniffs — the `.flac` URL and the `audio/flac` Content-Type — now say FLAC. Falls back to a finite WAV (logged loudly) only if the encoder is missing. **No firmware reflash needed — this is add-on-side only.**
+- **Buffered, finite reply response.** Replaced the chunked data-size-0 streaming WAV with a fully-collected, Content-Length'd body — a deterministic file the decoder can size.
+- **Lounge-window floor (`LOUNGE_WINDOW_FLOOR_S = 3`).** A stale saved `lounge_window_s: 0` in `/data/podvoice.json` was collapsing LOUNGE_WINDOW → IDLE in ~8 ms (observed in the device log), killing the follow-up window, snapping the music back instantly, and closing the WS every turn. Now floored like `heartbeat_ms` / `watchdog_ms`.
+- **"Test speaker 🔊" panel button** (`test_speaker` control action). Drives the *real* announce path — reply_bus → FLAC → media_player announce — with a tone, so speaker-out can be verified in isolation without OpenAI, the mic, or the wake word. (The old "Test tone" used the dead `send_voice_assistant_audio` path.)
+- **One-time stale-tuning reset (`settings_version` = 2).** Every saved tuning knob in `/data/podvoice.json` (duck/lounge/watchdog/heartbeat/VAD/turn-detection/noise) is reset to the current defaults ONCE on first start of 0.64 — ending the whole class of "an old saved value keeps overriding the retuned default" bugs (watchdog 800 ms, lounge 0 s, …). Identity settings (API keys, rooms, exposed, prompts, provider/models) are untouched. Values you save after the upgrade stick.
+- **`get_time` tool — "hvad er klokken?" now always works.** A local clock tool (no HA call, available even without a Supervisor token) answering in HA's configured timezone with a ready-to-speak Danish summary ("Klokken er 16:52, onsdag den 2. juli 2026."). The model was told it can't look up the time because it genuinely had no clock.
+- **`GEMINI_*` state-machine events renamed to `MODEL_*`** (`MODEL_RESPONDING`, `MODEL_TURN_COMPLETE`, `MODEL_INTERRUPTED`). They were provider-agnostic all along (OpenAI Realtime is what actually runs — see the `podvoice.openai` / `resp_…` log lines), but the old names made the log look like the wrong brain was answering.
+
+ruff + mypy clean; 196 unit tests green (added FLAC-encode, finite-WAV, collect, lounge-floor, settings-migration and get_time tests). The full `/reply` FLAC path is smoke-tested end-to-end over HTTP.
+
 ## 0.41.0 — wake-gated full-duplex Voice PE (no !extend)
 
 - **Full-duplex on the device without !extend** (which is unusable on ESPHome 2026.6.x). Wake (Okay Nabu) fires voice_assistant.start, which PodVoice receives as the wake signal (handle_start). PodVoice then aborts that stock turn (podvoice_va_abort -> voice_assistant.stop) so its turn-audio can't collide with podvoice_audio, and starts our continuous wake-gated stream. Result: barge-in-capable full-duplex on the hardware. Firmware config: esphome/podvoice-phase1b.yaml (api actions stream_start/stop + va_abort; podvoice_audio wake-gated). UNVALIDATED on hardware — first wake-flow test.

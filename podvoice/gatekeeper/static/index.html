@@ -529,7 +529,7 @@ function roomCard(rm) {
   box.appendChild(meta);
 
   var ctl = el("div", "ctl");
-  [["Listen", "listen"], ["Stop", "stop"], ["Test tone", "test_tone"]].forEach(function (pair) {
+  [["Listen", "listen"], ["Stop", "stop"], ["Test tone", "test_tone"], ["Test speaker 🔊", "test_speaker"]].forEach(function (pair) {
     var b = el("button", "ghost", pair[0]);
     b.setAttribute("aria-label", pair[0] + " in " + safe(rm, "room", ""));
     b.onclick = function () { control(rm.room, pair[1], b); };

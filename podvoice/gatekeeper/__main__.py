@@ -100,8 +100,10 @@ def _build_session(
     gatekeeper = Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False)
     playback = Playback(sink=voicepe.play_pcm)
     heartbeat = Heartbeat(attention, period_ms=cfg.heartbeat_ms)
-    # The device-reachable URL it fetches to play the AI reply (announce path).
-    reply_url = f"http://{_host_ip_for(room.voicepe_host)}:{DEFAULT_PORT}/reply/{room.room}.wav"
+    # The device-reachable URL it fetches to play the AI reply (announce path). .flac because
+    # the on-device micro_decoder rejects WAV at file-type detection but decodes FLAC (the
+    # extension is one of the two signals it sniffs, alongside the audio/flac Content-Type).
+    reply_url = f"http://{_host_ip_for(room.voicepe_host)}:{DEFAULT_PORT}/reply/{room.room}.flac"
 
     async def _on_abort(reason: str, elapsed: float) -> None:  # watchdog poll loop handles posting
         _LOG.warning("watchdog abort (%s, %.0fms)", reason, elapsed * 1000)

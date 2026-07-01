@@ -15,9 +15,12 @@ web layer's `/reply/<room>.wav` endpoint drains it as a WAV stream the device fe
 from __future__ import annotations
 
 import asyncio
+import logging
 import struct
 
 from . import constants as C
+
+_LOG = logging.getLogger("podvoice.reply")
 
 # Per-reply queue depth — ~ a few seconds of 24 kHz/16-bit audio at 20 ms frames.
 _QUEUE_MAX = 512
@@ -25,22 +28,72 @@ _QUEUE_MAX = 512
 _END = object()
 
 
-def wav_header(sample_rate: int = C.GEMINI_OUTPUT_RATE, *, channels: int = 1, bits: int = 16) -> bytes:
-    """A WAV header for a STREAMING body of unknown length.
+async def encode_flac(
+    pcm: bytes, *, sample_rate: int = C.GEMINI_OUTPUT_RATE, channels: int = 1, bits: int = 16
+) -> bytes | None:
+    """Encode raw PCM16 to a FLAC file via the `flac` CLI (in the add-on image).
 
-    The data-chunk size is 0 — the streaming sentinel the ESPHome micro-wav decoder
-    recognises as "unknown length, read until the source stops feeding" (it maps a 0
-    size to UINT32_MAX internally). A large placeholder like 0x7FFFFFFF is taken
-    LITERALLY as a ~2 GB length instead, which changes the device's buffering/EOF
-    behaviour and can leave the announcement never playing. RIFF size is 0 for the
-    same reason.
+    The Voice PE's on-device micro_decoder rejects our streaming WAV at file-type
+    detection but decodes FLAC natively, so the reply must go out as FLAC to actually
+    play (see docs/VOICE_PE_FLOW.md). Returns the FLAC bytes, or None if the encoder is
+    missing/failed — the caller falls back to a (device-rejected but logged) WAV so the
+    failure is visible rather than silent. The reply is short, so a one-shot buffered
+    encode adds only a few tens of ms.
+    """
+    if not pcm:
+        return None
+    args = [
+        "flac",
+        "--silent",
+        "--totally-silent",
+        "--force-raw-format",
+        "--endian=little",
+        "--sign=signed",
+        f"--channels={channels}",
+        f"--bps={bits}",
+        f"--sample-rate={sample_rate}",
+        "--stdout",
+        "-",  # read raw PCM from stdin
+    ]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except (FileNotFoundError, OSError) as e:  # flac not installed (dev/sim)
+        _LOG.warning("flac encoder unavailable (%s) — reply will fall back to WAV", e)
+        return None
+    out, err = await proc.communicate(pcm)
+    if proc.returncode != 0 or not out:
+        _LOG.warning("flac encode failed (rc=%s): %s", proc.returncode, err.decode(errors="replace"))
+        return None
+    return out
+
+
+def wav_header(
+    sample_rate: int = C.GEMINI_OUTPUT_RATE, *, data_size: int = 0, channels: int = 1, bits: int = 16
+) -> bytes:
+    """A canonical 44-byte PCM WAV header.
+
+    ``data_size`` = the real PCM byte count for a FINITE reply (the buffered announce
+    path): RIFF size = 36 + data_size, data-chunk size = data_size — a spec-valid WAV
+    the nabu media_player's decoder can size + play deterministically.
+
+    ``data_size`` = 0 is the STREAMING sentinel (legacy path): the ESPHome micro-wav
+    decoder maps a 0 data size to UINT32_MAX ("unknown length, read until the source
+    stops"). A large literal like 0x7FFFFFFF is taken as a ~2 GB length instead, which
+    can leave the announcement never playing. The buffered path (finite size) is the
+    device-friendly default; the 0 sentinel is kept for the streaming fallback.
     """
     byte_rate = sample_rate * channels * bits // 8
     block_align = channels * bits // 8
+    riff_size = (36 + data_size) if data_size else 0
     return b"".join(
         [
             b"RIFF",
-            struct.pack("<I", 0),  # streaming: unknown total length
+            struct.pack("<I", riff_size),
             b"WAVE",
             b"fmt ",
             struct.pack("<I", 16),  # fmt chunk size
@@ -51,7 +104,7 @@ def wav_header(sample_rate: int = C.GEMINI_OUTPUT_RATE, *, channels: int = 1, bi
             struct.pack("<H", block_align),
             struct.pack("<H", bits),
             b"data",
-            struct.pack("<I", 0),  # streaming sentinel: micro-wav reads until EOF
+            struct.pack("<I", data_size),  # finite size, or 0 = streaming sentinel
         ]
     )
 
@@ -72,7 +125,7 @@ class ReplyBus:
 
     def start(self, room: str) -> None:
         """Begin a fresh reply. Does NOT drop queued audio: the model FRONT-LOADS the
-        reply, so by the time the state machine processes GEMINI_RESPONDING and runs
+        reply, so by the time the state machine processes MODEL_RESPONDING and runs
         PLAYBACK_ARM, chunks are already queued — dropping here discarded the whole
         reply and was the 'device fetches the WAV but plays silence' bug. Stale audio
         from a prior/cancelled reply is instead cleared at turn start via clear()."""
@@ -119,3 +172,24 @@ class ReplyBus:
             if chunk is _END:
                 return
             yield chunk
+
+    async def collect(self, room: str, max_wait_s: float = 8.0) -> bytes:
+        """Drain the WHOLE reply into one PCM blob (the buffered announce path).
+
+        Waits for chunks until the _END sentinel, then joins them — so the web layer can
+        serve a FINITE WAV with a real data size + Content-Length (device-friendly) rather
+        than the data-size-0 streaming sentinel. Since the model front-loads the reply, the
+        wait is typically a few hundred ms. ``timeout`` bounds a reply that never ends
+        (interrupt / socket drop): we return whatever arrived so the device still plays it."""
+        q = self._q(room)
+        parts: list[bytes] = []
+        try:
+            async with asyncio.timeout(max_wait_s):
+                while True:
+                    chunk = await q.get()
+                    if chunk is _END:
+                        break
+                    parts.append(chunk)
+        except TimeoutError:
+            pass  # reply never ended — play whatever arrived
+        return b"".join(parts)

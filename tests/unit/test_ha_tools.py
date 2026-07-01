@@ -370,3 +370,28 @@ async def test_unknown_tool_and_ha_error_are_soft(respx_mock):
         b = _bridge(client, exposed=["light"])
         assert (await b.dispatch("nope", {}))["ok"] is False
         assert (await b.dispatch("turn_on", {"entity_id": "light.x"}))["ok"] is False
+
+
+async def test_get_time_always_available_without_ha():
+    """get_time is local: declared and answering even with NO Home Assistant token, in
+    HA's timezone when available (falls back to container-local here)."""
+    async with httpx.AsyncClient() as client:
+        b = HAToolBridge("", client)  # no token -> no HA tools...
+        assert "get_time" in {d["name"] for d in b.declarations()}  # ...but the clock stays
+        r = await b.dispatch("get_time", {})
+    assert r["ok"] and r["data"]["time"].count(":") == 1
+    assert r["summary"].startswith("Klokken er ")
+    assert r["data"]["weekday"] in r["summary"]
+
+
+async def test_get_time_uses_ha_timezone(respx_mock):
+    """The spoken clock is HA's configured wall clock, not the (UTC) container clock."""
+    respx_mock.get(f"{SVC}/config").respond(200, json={"time_zone": "Europe/Copenhagen"})
+    async with httpx.AsyncClient() as client:
+        b = _bridge(client)
+        r = await b.dispatch("get_time", {})
+    import datetime
+    import zoneinfo
+
+    expect = datetime.datetime.now(zoneinfo.ZoneInfo("Europe/Copenhagen"))
+    assert r["ok"] and r["data"]["time"] == f"{expect:%H:%M}"

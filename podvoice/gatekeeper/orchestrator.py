@@ -105,7 +105,7 @@ class RoomSession:
         self._listen_timer: asyncio.Task | None = None  # auto-close a stuck LISTENING session
         self._reader: asyncio.Task | None = None
         self._tasks: list[asyncio.Task] = []
-        self._responded = False  # whether GEMINI_RESPONDING was posted this turn
+        self._responded = False  # whether MODEL_RESPONDING was posted this turn
         self._out_buf: list[str] = []  # AI transcript deltas, coalesced + flushed per turn
         self._in_buf: list[str] = []  # user transcript deltas, coalesced + flushed per turn
         self._keepalive_task: asyncio.Task | None = None  # re-asserts the device mic-forward
@@ -456,7 +456,7 @@ class RoomSession:
         if isinstance(ev, AudioChunk):
             if not self._responded:
                 self._responded = True
-                await self.sm.post(Event(EventType.GEMINI_RESPONDING, self.room))
+                await self.sm.post(Event(EventType.MODEL_RESPONDING, self.room))
             if self.watchdog is not None:
                 self.watchdog.on_output()
             if self.reply_bus is not None:
@@ -502,7 +502,7 @@ class RoomSession:
                 self.watchdog.disarm()
                 if self.hub is not None and self.watchdog.samples:
                     self.hub.set_latency(self.room, self.watchdog.samples[-1] * 1000)
-            await self.sm.post(Event(EventType.GEMINI_TURN_COMPLETE, self.room))
+            await self.sm.post(Event(EventType.MODEL_TURN_COMPLETE, self.room))
         elif isinstance(ev, UserSpeechStopped):
             self._flush_user_turn()  # Gemini streams deltas that are all in by end-of-speech
             # Drive the state machine into THINKING (distinct LED) so the gap before the
@@ -515,7 +515,7 @@ class RoomSession:
         elif isinstance(ev, Interrupted):
             self._out_buf = []  # the partial reply was cancelled — don't persist a fragment
             self.playback.flush()
-            await self.sm.post(Event(EventType.GEMINI_INTERRUPTED, self.room))
+            await self.sm.post(Event(EventType.MODEL_INTERRUPTED, self.room))
         elif isinstance(ev, GoAway):
             # events() resumes the session transparently (make-before-break) and keeps
             # yielding on the SAME reader — so we must NOT reconnect/restart here, or we'd

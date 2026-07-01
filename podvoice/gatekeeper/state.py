@@ -145,7 +145,7 @@ class StateMachine:
                 # THINKING state so a slow reply doesn't look like "still listening" (stale
                 # cyan). Half-duplex mutes the mic while thinking; full-duplex keeps it open.
                 return State.THINKING, ([] if self.full_duplex else [gate_mute()])
-            if et is EventType.GEMINI_RESPONDING:
+            if et is EventType.MODEL_RESPONDING:
                 # A fast model that replies before end-of-speech skips the visible THINKING.
                 # full_duplex: keep the mic OPEN so you can interrupt by voice (the XMOS
                 # AEC keeps the AI's own voice out of the mic; only a genuinely active
@@ -154,7 +154,7 @@ class StateMachine:
                 if self.full_duplex:
                     return State.AI_SPEAKING, [playback_arm()]
                 return State.AI_SPEAKING, [gate_mute(), playback_arm()]
-            if et is EventType.GEMINI_TURN_COMPLETE:
+            if et is EventType.MODEL_TURN_COMPLETE:
                 # A turn ended while still listening (e.g. an empty/instant turn):
                 # open the follow-up window rather than getting stuck.
                 return State.LOUNGE_WINDOW, [
@@ -174,9 +174,9 @@ class StateMachine:
         if state is State.THINKING:
             # Waiting for the model's first audio. The gate is already muted (half-duplex)
             # from entry, so entering AI_SPEAKING only needs to arm playback.
-            if et is EventType.GEMINI_RESPONDING:
+            if et is EventType.MODEL_RESPONDING:
                 return State.AI_SPEAKING, [playback_arm()]
-            if et is EventType.GEMINI_TURN_COMPLETE:
+            if et is EventType.MODEL_TURN_COMPLETE:
                 # An empty/instant turn produced no audio: open the follow-up window.
                 return State.LOUNGE_WINDOW, [
                     gate_shut(),
@@ -193,7 +193,7 @@ class StateMachine:
             return State.THINKING, []
 
         if state is State.AI_SPEAKING:
-            if et is EventType.GEMINI_TURN_COMPLETE:
+            if et is EventType.MODEL_TURN_COMPLETE:
                 return State.LOUNGE_WINDOW, [
                     gate_shut(),
                     hb_retarget(self.lounge_level, self.ttl_lounge_ms),
@@ -203,7 +203,7 @@ class StateMachine:
             # A spoken-over barge-in (provider VAD) OR a hardware re-wake interrupt the
             # assistant and return to listening (stream stays ON). The BUTTON is a
             # toggle, so a press here STOPS the session (handled with CLOSURE below).
-            if et in (EventType.GEMINI_INTERRUPTED, EventType.WAKE_WORD):
+            if et in (EventType.MODEL_INTERRUPTED, EventType.WAKE_WORD):
                 return State.LISTENING, [playback_stop(), gate_open()]
             if et in (EventType.CLOSURE_TOKEN, EventType.BUTTON_PRESS):
                 return State.IDLE, [
@@ -230,7 +230,7 @@ class StateMachine:
                     hb_retarget(self.duck_level, self.ttl_listening_ms),
                 ]
             # A late follow-up reply that starts after we already returned to grace.
-            if et is EventType.GEMINI_RESPONDING:
+            if et is EventType.MODEL_RESPONDING:
                 gate = gate_open() if self.full_duplex else gate_mute()
                 return State.AI_SPEAKING, [
                     stop_lounge_vad(),

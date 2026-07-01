@@ -23,6 +23,8 @@ HEARTBEAT_MS = 1500  # re-POST cadence (~2.7 beats per 4 s TTL: kills the ~2 req
 # while keeping >2x margin against a single dropped/slow beat)
 HEARTBEAT_JITTER_MS = 50  # +-jitter on the heartbeat cadence
 LOUNGE_WINDOW_S = 8  # follow-up window length
+LOUNGE_WINDOW_FLOOR_S = 3  # sane floor: a saved value below this (esp. a stale 0) collapses
+# the grace window to nothing (lounge->idle in one tick), so treat sub-floor as stale and raise.
 STREAM_KEEPALIVE_S = (
     10  # re-assert the device mic-forward while active (dead-man keepalive < device SAFETY_MS=25s)
 )

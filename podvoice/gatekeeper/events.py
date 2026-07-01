@@ -25,9 +25,9 @@ class EventType(enum.Enum):
     WAKE_WORD = enum.auto()
     BUTTON_PRESS = enum.auto()
     USER_SPEECH_STOPPED = enum.auto()  # provider end-of-user-speech -> LISTENING -> THINKING
-    GEMINI_RESPONDING = enum.auto()  # first model audio chunk of a turn
-    GEMINI_TURN_COMPLETE = enum.auto()
-    GEMINI_INTERRUPTED = enum.auto()
+    MODEL_RESPONDING = enum.auto()  # first model audio chunk of a turn
+    MODEL_TURN_COMPLETE = enum.auto()
+    MODEL_INTERRUPTED = enum.auto()
     CLOSURE_TOKEN = enum.auto()  # payload["kind"] in {"stop","vent","stille","tak"}
     LOUNGE_TIMEOUT = enum.auto()
     LOCAL_VOICE_DETECTED = enum.auto()

@@ -8,6 +8,7 @@ is the right place for it.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -32,9 +33,38 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
     return pathlib.Path(env) if env else SETTINGS_PATH
 
 
+# Bumping this triggers the one-time stale-tuning reset in load_settings(): any saved
+# file with an older (or missing) version gets its TUNING_KEYS dropped, so values saved
+# under old defaults (watchdog 800ms, lounge 0s, near_field noise…) can't keep overriding
+# retuned defaults forever. Identity settings (keys, rooms, exposed, prompts) are kept.
+SETTINGS_VERSION = 2
+
+# The tunable knobs that the version bump resets. Everything NOT here survives a reset.
+TUNING_KEYS: frozenset[str] = frozenset(
+    {
+        "duck_level",
+        "lounge_level",
+        "lounge_window_s",
+        "heartbeat_ms",
+        "watchdog_ms",
+        "vad_threshold",
+        "gemini_vad_start",
+        "gemini_vad_end",
+        "gemini_prefix_ms",
+        "gemini_silence_ms",
+        "openai_turn",
+        "openai_threshold",
+        "openai_prefix_ms",
+        "openai_silence_ms",
+        "openai_eagerness",
+        "openai_noise",
+    }
+)
+
 # Panel-editable fields and their defaults. The Gemini API key is intentionally
 # NOT here (it's the one add-on option).
 DEFAULTS: dict = {
+    "settings_version": SETTINGS_VERSION,
     "simulate": False,
     "full_duplex": False,  # half-duplex (continued conversation) is the shipped mode; True is
     # the future open-mic full-duplex opt-in (not built yet)
@@ -71,12 +101,30 @@ DEFAULTS: dict = {
 
 
 def load_settings(path: pathlib.Path | None = None) -> dict:
-    """Return defaults overlaid with any saved panel settings."""
+    """Return defaults overlaid with any saved panel settings.
+
+    Saved files from an older SETTINGS_VERSION get their TUNING_KEYS dropped (one-time
+    stale-tuning reset) and are re-stamped, so old bad knob values can't silently override
+    retuned defaults across upgrades. Identity settings always survive.
+    """
     src = _resolve(path)
     data = dict(DEFAULTS)
     try:
         if src.exists():
             saved = json.loads(src.read_text())
+            if int(saved.get("settings_version") or 1) < SETTINGS_VERSION:
+                stale = sorted(k for k in saved if k in TUNING_KEYS)
+                if stale:
+                    _LOG.info(
+                        "settings v%s -> v%s: resetting stale tuning to defaults: %s",
+                        saved.get("settings_version") or 1,
+                        SETTINGS_VERSION,
+                        ", ".join(stale),
+                    )
+                saved = {k: v for k, v in saved.items() if k not in TUNING_KEYS}
+                saved["settings_version"] = SETTINGS_VERSION
+                with contextlib.suppress(Exception):  # migration write-back is best-effort
+                    src.write_text(json.dumps(saved, indent=2))
             data.update({k: v for k, v in saved.items() if k in DEFAULTS})
     except Exception as e:  # corrupt file must not stop the add-on
         _LOG.warning("could not read %s: %s — using defaults", src, e)

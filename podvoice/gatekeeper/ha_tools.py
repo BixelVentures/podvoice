@@ -17,10 +17,12 @@ model is never left waiting.
 from __future__ import annotations
 
 import asyncio
+import datetime
 import json
 import logging
 import re
 import time
+import zoneinfo
 
 import httpx
 
@@ -30,6 +32,24 @@ log = logging.getLogger(__name__)
 
 _COVER_ACTIONS = {"open": "open_cover", "close": "close_cover", "stop": "stop_cover"}
 _SERVICES_TTL_S = 600.0  # re-fetch the /services catalog at most this stale (integrations change)
+
+# Danish day/month names for the spoken get_time summary (strftime is locale-dependent
+# and the Alpine container has no da_DK locale — hardcoding is the reliable way).
+_WEEKDAYS_DA = ("mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag")
+_MONTHS_DA = (
+    "januar",
+    "februar",
+    "marts",
+    "april",
+    "maj",
+    "juni",
+    "juli",
+    "august",
+    "september",
+    "oktober",
+    "november",
+    "december",
+)
 
 
 def _field_info(f: dict) -> dict:
@@ -133,6 +153,7 @@ class HAToolBridge:
         self._exposed = [e.strip().lower() for e in exposed if e and e.strip()]
         self._services_cache: list | None = None  # memoized /services catalog (TTL'd)
         self._services_ts: float = 0.0
+        self._tz: datetime.tzinfo | None = None  # memoized HA-configured timezone (get_time)
 
     # ------------------------------------------------------------------ allowlist
     def _allowed(self, entity_id: str | None) -> bool:
@@ -143,7 +164,17 @@ class HAToolBridge:
 
     # ------------------------------------------------------------------ declarations
     def declarations(self) -> list[dict]:
-        decls: list[dict] = []
+        # get_time is LOCAL (no HA call) and always available — "hvad er klokken?" must
+        # never fail with "det kan jeg ikke slå op her". Answers with HA's configured
+        # timezone (the container itself may run UTC).
+        decls: list[dict] = [
+            {
+                "name": "get_time",
+                "description": "The current local time and date (clock, weekday, date). "
+                "Call this whenever the user asks what time it is, today's date or weekday.",
+                "parameters": {"type": "object", "properties": {}},
+            }
+        ]
         if self._has_ha:
             ent = {
                 "type": "object",
@@ -402,6 +433,45 @@ class HAToolBridge:
             return _response_mode_of(info) if isinstance(info, dict) else None
         return None
 
+    async def _get_timezone(self) -> datetime.tzinfo:
+        """HA's configured timezone (memoized). The add-on container itself typically runs
+        UTC, so the wall clock the household lives by comes from HA's /config. Falls back
+        to the container's local zone if HA is unreachable."""
+        if self._tz is not None:
+            return self._tz
+        if self._has_ha:
+            try:
+                r = await self._client.get(
+                    f"{C.SUPERVISOR_CORE_API}/config", headers=self._ha_headers
+                )
+                self._raise_for_status(r)
+                name = r.json().get("time_zone")
+                if name:
+                    self._tz = zoneinfo.ZoneInfo(name)
+                    return self._tz
+            except Exception as e:  # tz lookup must never break the clock
+                log.info("HA timezone unavailable (%s) — using container local time", e)
+        self._tz = datetime.datetime.now().astimezone().tzinfo or datetime.UTC
+        return self._tz
+
+    async def _get_time(self) -> dict:
+        """Local wall-clock time + date, with a ready-to-speak Danish summary."""
+        now = datetime.datetime.now(await self._get_timezone())
+        spoken = (
+            f"Klokken er {now:%H:%M}, {_WEEKDAYS_DA[now.weekday()]} den "
+            f"{now.day}. {_MONTHS_DA[now.month - 1]} {now.year}."
+        )
+        return {
+            "ok": True,
+            "summary": spoken,
+            "data": {
+                "time": f"{now:%H:%M}",
+                "date": f"{now:%Y-%m-%d}",
+                "weekday": _WEEKDAYS_DA[now.weekday()],
+                "iso": now.isoformat(timespec="seconds"),
+            },
+        }
+
     async def _list_home(self) -> dict:
         r = await self._client.get(f"{C.SUPERVISOR_CORE_API}/states", headers=self._ha_headers)
         r.raise_for_status()
@@ -544,6 +614,8 @@ class HAToolBridge:
 
     async def _dispatch(self, name: str, args: dict) -> dict:
         try:
+            if name == "get_time":  # local, no HA gate — the clock always answers
+                return await self._get_time()
             if name == "list_home":
                 return await self._list_home()
             if name == "list_services":

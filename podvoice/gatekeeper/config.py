@@ -129,7 +129,11 @@ def from_options(opts: dict) -> Config:
         # conversation is guaranteed without the owner having to un-tick a toggle. Restore
         # `bool(opts.get("full_duplex", False))` here when full-duplex is actually built.
         full_duplex=False,
-        lounge_window_s=int(opts.get("lounge_window_s", C.LOUNGE_WINDOW_S)),
+        # Floor the follow-up window: a stale saved 0 (or any sub-floor value) collapses
+        # LOUNGE_WINDOW to IDLE within a tick (observed: lounge->idle in 8ms), killing the
+        # grace window, snapping the music back instantly, and closing the WS every turn.
+        # Treat a sub-floor saved value as stale and raise it to the safe minimum.
+        lounge_window_s=max(int(opts.get("lounge_window_s", C.LOUNGE_WINDOW_S)), C.LOUNGE_WINDOW_FLOOR_S),
         duck_level=int(opts.get("duck_level", C.DUCK_LEVEL)),
         lounge_level=int(opts.get("lounge_level", C.LOUNGE_LEVEL)),
         # Floor the heartbeat at the retuned default: an old saved 500ms would keep the ~2

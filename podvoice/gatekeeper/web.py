@@ -18,7 +18,7 @@ from aiohttp import web
 from .console import run_console
 from .events import Event, EventType
 from .hub import StatusHub
-from .reply import wav_header
+from .reply import encode_flac, wav_header
 
 _LOG = logging.getLogger("podvoice.web")
 
@@ -149,30 +149,35 @@ async def _pc_rooms(request: web.Request) -> web.Response:
 
 
 async def _reply(request: web.Request) -> web.StreamResponse:
-    """Stream the AI reply for a room as a WAV the Voice PE plays via media_player
-    announce. The device fetches this after media_player_command(announcement=True)."""
+    """Serve the AI reply for a room as a FINITE FLAC the Voice PE plays via media_player
+    announce. The device fetches this after media_player_command(announcement=True).
+
+    FLAC, not WAV: the on-device micro_decoder rejects our WAV at file-type detection
+    ("Could not determine audio file type from URL or Content-Type" in the device log) but
+    decodes FLAC natively. We buffer the whole reply (it's front-loaded, ~a few hundred ms),
+    encode it once, and send it with a real Content-Length. If the encoder is unavailable we
+    fall back to a finite WAV so the failure is visible in the log rather than silent."""
     bus = request.app[REPLY]
     room = request.match_info.get("room", "")
-    if room.endswith(".wav"):
-        room = room[:-4]
-    _LOG.info("device fetching reply stream for room %s from %s", room, request.remote)
-    resp = web.StreamResponse(
-        headers={"Content-Type": "audio/wav", "Cache-Control": "no-store", "Connection": "close"}
-    )
+    for suffix in (".flac", ".wav"):
+        if room.endswith(suffix):
+            room = room[: -len(suffix)]
+            break
+    _LOG.info("device fetching reply for room %s from %s", room, request.remote)
     if bus is None:
-        resp.set_status(503)
-        await resp.prepare(request)
-        return resp
-    await resp.prepare(request)
-    try:
-        await resp.write(wav_header())
-        async for chunk in bus.stream(room):
-            await resp.write(chunk)
-    except (ConnectionResetError, asyncio.CancelledError):
-        pass
-    with contextlib.suppress(Exception):
-        await resp.write_eof()
-    return resp
+        return web.Response(status=503)
+    pcm = await bus.collect(room)
+    flac = await encode_flac(pcm)
+    if flac is not None:
+        _LOG.info("serving reply FLAC for room %s: %d B PCM -> %d B FLAC", room, len(pcm), len(flac))
+        body, ctype = flac, "audio/flac"
+    else:
+        body, ctype = wav_header(data_size=len(pcm)) + pcm, "audio/wav"
+        _LOG.warning("serving reply as WAV fallback for room %s (%d B) — device may reject", room, len(pcm))
+    return web.Response(
+        body=body,
+        headers={"Content-Type": ctype, "Cache-Control": "no-store", "Connection": "close"},
+    )
 
 
 async def _history(request: web.Request) -> web.Response:
@@ -330,6 +335,25 @@ async def _control(request: web.Request) -> web.Response:
 
         with contextlib.suppress(Exception):
             await session.playback.play_tone(audio_mod.error_tone(C.GEMINI_OUTPUT_RATE))
+    elif action == "test_speaker":
+        # Drive the REAL announce path (reply_bus -> FLAC -> media_player announce) with a
+        # tone, so the device speaker-out can be verified in isolation — no OpenAI, mic, or
+        # wake needed. If you hear the bonk, collect->encode_flac->play_url->decode all work.
+        from . import audio as audio_mod
+        from . import constants as C
+
+        bus = getattr(session, "reply_bus", None)
+        url = getattr(session, "reply_url", None)
+        if bus is None or url is None:
+            return web.json_response({"ok": False, "error": "no reply path on this session"}, status=400)
+        tone = audio_mod.error_tone(C.GEMINI_OUTPUT_RATE) * 2  # ~0.7s, clearly audible
+        bus.clear(room)
+        bus.start(room)
+        bus.push(room, tone)
+        bus.end(room)
+        with contextlib.suppress(Exception):
+            await session.voicepe.play_url(url)
+        _LOG.info("test_speaker: pushed %d B tone to announce path for room %s", len(tone), room)
     else:
         return web.json_response({"ok": False, "error": f"unknown action {action!r}"}, status=400)
     return web.json_response({"ok": True})
