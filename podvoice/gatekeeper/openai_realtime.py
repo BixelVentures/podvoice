@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 import aiohttp
 
 from . import constants as C
-from .audio import resample_pcm16
+from .audio import StreamResampler, resample_pcm16
 from .gemini import SYSTEM_PROMPT_DA
 from .voice import (
     AudioChunk,
@@ -76,9 +76,13 @@ class OpenAIRealtimeSession:
     prefix_ms: int = 300  # server_vad only
     silence_ms: int = 500  # server_vad only
     eagerness: str = "auto"  # semantic_vad: auto | low | medium | high
-    noise: str = "near_field"  # near_field | far_field | off
+    # far_field: the Voice PE mic is across a room, not a headset — this is the right
+    # noise-reduction profile for a shared living space (near_field assumed close talk).
+    noise: str = "far_field"  # near_field | far_field | off
     _http: aiohttp.ClientSession | None = field(default=None, init=False, repr=False)
     _ws: aiohttp.ClientWebSocketResponse | None = field(default=None, init=False, repr=False)
+    # High-quality 16k->24k resampler, rebuilt per connect() so filter state is fresh.
+    _resampler: StreamResampler | None = field(default=None, init=False, repr=False)
     # Realtime rejects response.create while a response is active. A function call arrives
     # mid-response, so we submit the output now but DEFER response.create until response.done.
     _active_response: bool = field(default=False, init=False, repr=False)
@@ -147,6 +151,7 @@ class OpenAIRealtimeSession:
         # Fresh socket -> fresh state machine (a prior session may have died mid-response).
         self._active_response = False
         self._pending_create = False
+        self._resampler = StreamResampler(C.GEMINI_INPUT_RATE, OPENAI_RATE)  # fresh filter state
         self._http = aiohttp.ClientSession()
         self._ws = await self._http.ws_connect(
             f"{_URL}?model={self.model}",
@@ -159,7 +164,13 @@ class OpenAIRealtimeSession:
     async def send_audio(self, pcm16k: bytes) -> None:
         if self._ws is None:
             return
-        pcm = resample_pcm16(pcm16k, C.GEMINI_INPUT_RATE, OPENAI_RATE)  # 16 kHz -> 24 kHz
+        # 16 kHz -> 24 kHz through the stateful soxr resampler (falls back to linear).
+        if self._resampler is not None:
+            pcm = self._resampler.process(pcm16k)
+        else:
+            pcm = resample_pcm16(pcm16k, C.GEMINI_INPUT_RATE, OPENAI_RATE)
+        if not pcm:  # streaming resampler may hold a sub-frame tail; nothing to send yet
+            return
         b64 = base64.b64encode(pcm).decode("ascii")
         await self._ws.send_json({"type": "input_audio_buffer.append", "audio": b64})
 

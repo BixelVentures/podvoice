@@ -54,7 +54,7 @@ DEFAULTS: dict = {
     "openai_prefix_ms": 300,  # server_vad only
     "openai_silence_ms": 500,  # server_vad only
     "openai_eagerness": "auto",  # semantic_vad: auto|low|medium|high
-    "openai_noise": "near_field",  # near_field|far_field|off
+    "openai_noise": "far_field",  # near_field|far_field|off
     "podconnect_base_url": "http://homeassistant.local:8099",
     "podconnect_token": "",
     "voicepe_noise_psk": "",

@@ -1,8 +1,8 @@
 """PCM helpers for 16-bit little-endian mono audio (PLAN.md §7.5).
 
-STDLIB ONLY: uses ``array`` and ``math``. No numpy, no audioop (removed in
-3.13), no third-party packages. Everything operates on raw little-endian
-16-bit mono PCM ``bytes``.
+STDLIB ONLY: uses ``array`` and ``math``. No numpy/soxr (no musllinux wheels for
+the Alpine add-on base image, so they'd break the build) and no audioop (removed
+in 3.13). Everything operates on raw little-endian 16-bit mono PCM ``bytes``.
 """
 
 from __future__ import annotations
@@ -117,6 +117,52 @@ def resample_pcm16(frame: bytes, src_hz: int, dst_hz: int) -> bytes:
             right = left + 1 if left + 1 < n_src else left
             out[i] = round(src[left] * (1 - frac) + src[right] * frac)
     return out.tobytes()
+
+
+class StreamResampler:
+    """STATEFUL linear resampler for ONE continuous PCM16 mono stream.
+
+    ``resample_pcm16`` resamples each frame in isolation, pinning both endpoints —
+    which injects a discontinuity at every ~20 ms frame boundary. Those boundary
+    clicks are broadband noise across the whole spectrum (including the speech
+    band), and they were a real contributor to the "garbled / wrong words"
+    symptom on the upsampled OpenAI mic path. This class instead carries the read
+    cursor AND the previous chunk's last sample across calls, so interpolation
+    spans frame boundaries seamlessly — no clicks. (Linear interpolation still
+    isn't a perfect anti-imaging filter, but the boundary clicks were the
+    dominant artifact; a polyphase upgrade would need a glibc base image.)
+
+    One instance per stream; not thread-safe (the session drives it serially).
+    """
+
+    def __init__(self, src_hz: int, dst_hz: int) -> None:
+        self.src_hz = src_hz
+        self.dst_hz = dst_hz
+        self._ratio = src_hz / dst_hz  # input samples advanced per output sample
+        self._carry: list[int] = []  # previous chunk's last sample, for boundary interp
+        self._t = 0.0  # position (in samples) of the next output, relative to the buffer
+
+    def process(self, pcm: bytes) -> bytes:
+        if self.src_hz == self.dst_hz or not pcm:
+            return pcm
+        x = array("h")
+        x.frombytes(pcm)
+        buf = self._carry + x.tolist()  # carried sample sits at index 0 (if any)
+        last_idx = len(buf) - 1
+        out = array("h")
+        t = self._t
+        while t <= last_idx:
+            i = int(t)
+            frac = t - i
+            left = buf[i]
+            right = buf[i + 1] if i + 1 <= last_idx else buf[i]
+            out.append(round(left * (1 - frac) + right * frac))
+            t += self._ratio
+        # Carry the final sample so the next chunk interpolates across the seam;
+        # rebase the cursor so old index last_idx == new index 0.
+        self._carry = [buf[last_idx]]
+        self._t = t - last_idx
+        return out.tobytes()
 
 
 def error_tone(

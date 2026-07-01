@@ -49,7 +49,7 @@ class Config:
     openai_prefix_ms: int = 300
     openai_silence_ms: int = 500
     openai_eagerness: str = "auto"
-    openai_noise: str = "near_field"
+    openai_noise: str = "far_field"
     simulate: bool = False
     full_duplex: bool = True  # mic open while AI speaks (barge-in); False = half-duplex
     lounge_window_s: int = C.LOUNGE_WINDOW_S
@@ -121,7 +121,7 @@ def from_options(opts: dict) -> Config:
         openai_prefix_ms=int(opts.get("openai_prefix_ms", 300)),
         openai_silence_ms=int(opts.get("openai_silence_ms", 500)),
         openai_eagerness=str(opts.get("openai_eagerness", "auto") or "auto"),
-        openai_noise=str(opts.get("openai_noise", "near_field") or "near_field"),
+        openai_noise=str(opts.get("openai_noise", "far_field") or "far_field"),
         simulate=bool(opts.get("simulate", False)),
         full_duplex=bool(opts.get("full_duplex", True)),
         lounge_window_s=int(opts.get("lounge_window_s", C.LOUNGE_WINDOW_S)),
