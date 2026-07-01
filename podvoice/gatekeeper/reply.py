@@ -28,16 +28,19 @@ _END = object()
 def wav_header(sample_rate: int = C.GEMINI_OUTPUT_RATE, *, channels: int = 1, bits: int = 16) -> bytes:
     """A WAV header for a STREAMING body of unknown length.
 
-    The RIFF / data sizes are set to a max placeholder (0x7FFFFFFF) because we stream
-    the body as it arrives — players that handle streaming WAV read until the socket
-    closes rather than trusting the size field.
+    The data-chunk size is 0 — the streaming sentinel the ESPHome micro-wav decoder
+    recognises as "unknown length, read until the source stops feeding" (it maps a 0
+    size to UINT32_MAX internally). A large placeholder like 0x7FFFFFFF is taken
+    LITERALLY as a ~2 GB length instead, which changes the device's buffering/EOF
+    behaviour and can leave the announcement never playing. RIFF size is 0 for the
+    same reason.
     """
     byte_rate = sample_rate * channels * bits // 8
     block_align = channels * bits // 8
     return b"".join(
         [
             b"RIFF",
-            struct.pack("<I", 0x7FFFFFFF),
+            struct.pack("<I", 0),  # streaming: unknown total length
             b"WAVE",
             b"fmt ",
             struct.pack("<I", 16),  # fmt chunk size
@@ -48,7 +51,7 @@ def wav_header(sample_rate: int = C.GEMINI_OUTPUT_RATE, *, channels: int = 1, bi
             struct.pack("<H", block_align),
             struct.pack("<H", bits),
             b"data",
-            struct.pack("<I", 0x7FFFFFFF),
+            struct.pack("<I", 0),  # streaming sentinel: micro-wav reads until EOF
         ]
     )
 
