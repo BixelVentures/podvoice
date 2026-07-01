@@ -60,13 +60,12 @@ api:
       then:
         - lambda: "id(pv_audio).stop_streaming();"
 
-# PodVoice owns conversation lifecycle — never let HA Assist drive the wake/pipeline.
-# NOTE: voice_assistant is a SINGLE-instance component, so `!extend` (which targets a
-# list item by id) is invalid here. Packages deep-MERGE same-key single components, so
-# we just declare the override fields plainly and they merge into the upstream block
-# (keeping its microphone / media_player: external_media_player / micro_wake_word wiring).
-voice_assistant:
-  use_wake_word: false
+# NO voice_assistant override. PodVoice takes over the pipeline simply by SUBSCRIBING
+# over the native API (subscribe_voice_assistant) — the on-device wake then starts the
+# upstream VA, which forwards to the add-on via handle_start (that's how wake reaches
+# PodVoice). Setting use_wake_word:false here would BREAK wake, because nothing in this
+# config redirects micro_wake_word to fire podvoice_event instead. Keep upstream defaults.
+# (external_media_player, dac, mics, mww all come from the ha_voice package unchanged.)
 
 # Upstream ships wifi via improv provisioning (no hard-coded network); a headless
 # PodVoice flash needs credentials, so merge them in from secrets.yaml.
