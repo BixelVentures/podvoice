@@ -68,6 +68,15 @@ class UserSpeechStopped:
 
 
 @dataclass
+class ToolCallCancellation:
+    """The user barged in while tool calls were in flight (Gemini Live): those calls
+    "should not have been executed" — cancel the pending dispatches so a stale
+    result is never submitted after the interrupt."""
+
+    ids: list[str]
+
+
+@dataclass
 class GoAway:
     """Server's pre-disconnect warning; reconnect make-before-break."""
 
@@ -80,6 +89,7 @@ class GoAway:
 VoiceEvent = Union[  # noqa: UP007
     AudioChunk,
     ToolCall,
+    ToolCallCancellation,
     InputTranscript,
     OutputTranscript,
     TurnComplete,

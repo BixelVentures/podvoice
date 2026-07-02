@@ -26,6 +26,7 @@ from .gemini import (
     Interrupted,
     OutputTranscript,
     ToolCall,
+    ToolCallCancellation,
     TurnComplete,
 )
 from .led import led_command_for
@@ -124,6 +125,7 @@ class RoomSession:
         self._closing = False  # aclose() in progress — suppress task-restart callbacks
         self._ingest_error_posted = False  # one ERROR per failure episode, not per frame
         self._tool_lock = asyncio.Lock()  # serialize tool-result sends (dispatches run async)
+        self._tool_tasks: dict[str, asyncio.Task] = {}  # in-flight dispatches by call id
         self._direct_sender: asyncio.Task | None = None  # direct-path reply pump (0.67)
 
         # Route device wake/button events into the state machine.
@@ -683,7 +685,23 @@ class RoomSession:
             # Dispatch on a task so the reader keeps consuming audio/interrupts while a
             # slow tool runs (the inline await froze barge-in + transcripts for up to
             # 9s, and serialized the parallel calls the system prompt asks for).
-            self._schedule_task(self._run_tool(ev))
+            task = asyncio.create_task(self._run_tool(ev), name=f"tool-{ev.id}")
+            self._tool_tasks[ev.id] = task
+            self._tasks.append(task)
+            task.add_done_callback(self._reap_task)
+
+            def _untrack(_t: asyncio.Task, _id: str = ev.id) -> None:
+                self._tool_tasks.pop(_id, None)
+
+            task.add_done_callback(_untrack)
+        elif isinstance(ev, ToolCallCancellation):
+            # The user barged in mid-tool (Gemini Live rescinds the calls): cancel the
+            # pending dispatches so a stale result is never submitted post-interrupt.
+            for call_id in ev.ids:
+                pending = self._tool_tasks.pop(call_id, None)
+                if pending is not None and not pending.done():
+                    pending.cancel()
+                    _LOG.info("tool call %s cancelled by barge-in", call_id)
         elif isinstance(ev, TurnComplete):
             # Flush the USER turn FIRST (before the reply) so History reads you -> assistant.
             # OpenAI's complete input transcript lands AFTER speech_stopped, so the

@@ -31,6 +31,7 @@ from .voice import (
     Interrupted,
     OutputTranscript,
     ToolCall,
+    ToolCallCancellation,
     TurnComplete,
     VoiceEvent,
 )
@@ -53,6 +54,7 @@ __all__ = [
     "Interrupted",
     "OutputTranscript",
     "ToolCall",
+    "ToolCallCancellation",
     "TurnComplete",
     "build_config",
 ]
@@ -371,6 +373,13 @@ class GeminiLiveSession:
                     if tool_call is not None:
                         for fc in tool_call.function_calls:
                             yield ToolCall(fc.id, fc.name, fc.args)
+
+                    # Barge-in mid-tool: the server rescinds in-flight calls — cancel
+                    # the pending dispatches so a stale result is never submitted after
+                    # the interrupt (Live API: BidiGenerateContentToolCallCancellation).
+                    tcc = getattr(r, "tool_call_cancellation", None)
+                    if tcc is not None and getattr(tcc, "ids", None):
+                        yield ToolCallCancellation(list(tcc.ids))
 
                     # VERIFY: r.server_content.{input_transcription,output_transcription,
                     #         interrupted,turn_complete}.

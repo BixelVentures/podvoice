@@ -18,7 +18,14 @@ from fakes.fake_voicepe import FakeVoicePELink
 from gatekeeper import constants as C
 from gatekeeper.events import Event, EventType
 from gatekeeper.gatekeeper import Gatekeeper
-from gatekeeper.gemini import AudioChunk, InputTranscript, ToolCall, TurnComplete
+from gatekeeper.gemini import (
+    AudioChunk,
+    InputTranscript,
+    Interrupted,
+    ToolCall,
+    ToolCallCancellation,
+    TurnComplete,
+)
 from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.led import led_command_for
 from gatekeeper.orchestrator import RoomSession
@@ -305,6 +312,63 @@ async def test_direct_speaker_path_plays_and_finishes():
         await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW, max_wait=2.0)
         assert voicepe.announced_urls == []  # no HTTP announce in direct mode
         assert False in voicepe.stop_word_states  # disarmed after the reply
+    finally:
+        await session.aclose()
+
+
+async def test_voice_barge_in_full_duplex_interrupts_playback():
+    """0.68: with full_duplex on, the provider's Interrupted (user talked over the
+    reply) must flush playback, STOP the device speaker and return to LISTENING."""
+    gemini = FakeGeminiSession()
+    gemini.script(AudioChunk(_frame(2000)), Interrupted())
+    attention = FakeAttention()
+    voicepe = FakeVoicePELink(room=ROOM)
+    session = RoomSession(
+        room=ROOM,
+        attention=attention,
+        heartbeat=Heartbeat(attention, period_ms=20),
+        gatekeeper=Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False),
+        gemini=gemini,
+        voicepe=voicepe,
+        playback=Playback(sink=voicepe.play_pcm),
+        tools=FakeTools(),
+        bargein=BargeIn(),
+        enable_watchdog=False,
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+        full_duplex=True,
+        lounge_window_s=30,
+    )
+    await session.start()
+    try:
+        await session.sm.post(Event(EventType.WAKE_WORD, ROOM))
+        # AI_SPEAKING flashes by faster than the poll; the observable outcome is the
+        # barge-in result: back to LISTENING with the device speaker silenced.
+        await _wait_until(lambda: voicepe.stop_playback_calls >= 1)  # speaker silenced
+        assert session.sm.state is State.LISTENING  # barge-in landed, still listening
+    finally:
+        await session.aclose()
+
+
+async def test_tool_call_cancellation_drops_pending_dispatch():
+    """Gemini rescinds in-flight tool calls on barge-in: the pending dispatch must be
+    cancelled so a stale result is never submitted after the interrupt."""
+
+    class SlowTools(FakeTools):
+        async def dispatch(self, name: str, args: dict) -> dict:
+            await asyncio.sleep(5)  # never finishes within the test
+            return {"ok": True}
+
+    gemini = FakeGeminiSession()
+    gemini.script(ToolCall("c9", "home_call", {}), ToolCallCancellation(["c9"]))
+    session, _attention, _voicepe = _build(gemini)
+    session.tools = SlowTools()
+    await session.start()
+    try:
+        await session.sm.post(Event(EventType.WAKE_WORD, ROOM))
+        await asyncio.sleep(0.3)  # both events processed; dispatch task cancelled
+        assert session._tool_tasks == {}  # untracked
+        assert gemini.sent_tool_results == []  # and never submitted
     finally:
         await session.aclose()
 

@@ -418,12 +418,12 @@
         <label for="s_voicepe_noise_psk">Voice PE PSK</label>
         <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
         <span></span><span id="s_voicepe_noise_psk_hint" class="sub" style="display:none;font-size:.76rem">Saved — type to replace.</span>
-        <label for="s_full_duplex">Voice barge-in <span style="opacity:.6">(soon)</span></label>
-        <input id="s_full_duplex" type="checkbox" disabled title="Not available yet">
+        <label for="s_full_duplex">Voice barge-in <span style="opacity:.6">(experimental)</span></label>
+        <input id="s_full_duplex" type="checkbox">
         <label for="s_simulate">Simulation mode</label>
         <input id="s_simulate" type="checkbox">
       </div>
-      <p class="sub" style="margin:2px 0 0"><b>Voice barge-in</b> (interrupt by just talking over it) is a <b>future</b> update and isn't active yet. For now it's continued conversation: it finishes its answer, and you cut it off by saying <b>“Okay Nabu”</b> again or pressing the center button.</p>
+      <p class="sub" style="margin:2px 0 0"><b>Voice barge-in</b> (experimental): interrupt the assistant <b>by just talking over it</b>. The mic stays open while it speaks — the device's echo cancellation keeps its own voice out, and real speech interrupts the reply instantly. If it starts interrupting itself (echo leaking through), untick this and it's back to safe mode. Works best with <b>Audio path: Direct</b>. Off = it finishes its answer, and you cut it off with <b>“stop”</b>, <b>“Okay Nabu”</b> or the center button.</p>
       <div class="exsub" style="margin-top:12px">Rooms</div>
       <p class="sub" style="margin:2px 0 8px">Each row links one Voice PE (its IP) to the PodConnect room it stands in — so PodVoice knows which speaker's music to quiet when you talk to it.</p>
       <div id="s_rooms"></div>

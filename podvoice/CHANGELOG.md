@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.68.0 — voice barge-in (experimental): interrupt it by just talking
+
+The capability that separates "2026 state of the art" from "2024 with better answers" (the SOTA audit's words) — shipped as an explicit opt-in.
+
+**How it works.** Tick **Voice barge-in** under Voice PE → Setup. The mic gate now stays OPEN while the assistant speaks (the state machine supported this all along; it was force-disabled). The XMOS chip's echo cancellation keeps the assistant's own voice out of mic channel 0, so only *real* speech reaches the provider — whose server VAD detects it, cancels the reply (`Interrupted`), and PodVoice instantly silences the device (media STOP on the announce path; `voice_assistant.stop` on the direct path) and returns to LISTENING. Per the Gemini Live docs, `START_OF_ACTIVITY_INTERRUPTS` is the API's default behavior — the work was entirely client-side playback-flush, which 0.67 delivered.
+
+**Barge-in mid-lookup is safe.** Gemini rescinds in-flight tool calls on interrupt (`tool_call_cancellation`); PodVoice now cancels the pending dispatches so a stale result is never submitted after you cut it off.
+
+**If it misbehaves** (interrupting itself because echo leaks through — possible at high volume or in harsh rooms): untick the toggle and you're back on the proven half-duplex mode. The 0.66 barge-in debounce/cooldown and the "stop"-word path (0.67) are unaffected either way.
+
+Recommended combo for the best feel: **Audio path: Direct** + **Voice barge-in** on the same room, tested one toggle at a time with Test speaker between.
+
+ruff + mypy clean; 237 tests green (full-duplex barge-in end-to-end, tool-call cancellation drops pending dispatches).
+
 ## 0.67.0 — firmware release: direct audio highway, "stop" while it talks, kitchen timers
 
 **Requires the 0.67 firmware** (already flashed to the device over USB — no action needed). The firmware is a pure-YAML overlay change (validated with `esphome config`, compiled and flashed 2026-07-02): no C++ was added.

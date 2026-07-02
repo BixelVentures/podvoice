@@ -148,11 +148,11 @@ def from_options(opts: dict) -> Config:
         reply_streaming=bool(opts.get("reply_streaming", False)),
         speaker_path=("direct" if opts.get("speaker_path") == "direct" else "announce"),
         panel_lan_open=bool(opts.get("panel_lan_open", False)),
-        # Full-duplex (open-mic barge-in) is NOT shipped yet — it's the future opt-in. Force
-        # half-duplex regardless of any stale saved "full_duplex": true, so continued
-        # conversation is guaranteed without the owner having to un-tick a toggle. Restore
-        # `bool(opts.get("full_duplex", False))` here when full-duplex is actually built.
-        full_duplex=False,
+        # 0.68: full-duplex (open-mic voice barge-in) is now an EXPERIMENTAL opt-in. The
+        # XMOS AEC keeps the assistant's own voice out of mic channel 0; the provider's
+        # server VAD detects real speech during a reply and interrupts (Interrupted ->
+        # playback flush + instant device stop via the 0.67 direct path). Default off.
+        full_duplex=bool(opts.get("full_duplex", False)),
         # Floor the follow-up window: a stale saved 0 (or any sub-floor value) collapses
         # LOUNGE_WINDOW to IDLE within a tick (observed: lounge->idle in 8ms), killing the
         # grace window, snapping the music back instantly, and closing the WS every turn.
