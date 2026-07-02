@@ -146,7 +146,12 @@ def from_options(opts: dict) -> Config:
         openai_noise=str(opts.get("openai_noise", "far_field") or "far_field"),
         simulate=bool(opts.get("simulate", False)),
         reply_streaming=bool(opts.get("reply_streaming", False)),
-        speaker_path=("direct" if opts.get("speaker_path") == "direct" else "announce"),
+        # The DIRECT VA-speaker path needs a firmware that overrides voice_assistant's
+        # output to a speaker. That firmware (0.67) played 24 kHz PCM at the wrong rate
+        # (chipmunk) AND destabilised wake, so it was reverted — the shipped firmware is
+        # announce-only. Force "announce" until the direct firmware is re-validated on
+        # hardware; a stray saved "direct" must not produce silence/garbage.
+        speaker_path="announce",
         panel_lan_open=bool(opts.get("panel_lan_open", False)),
         # 0.68: full-duplex (open-mic voice barge-in) is now an EXPERIMENTAL opt-in. The
         # XMOS AEC keeps the assistant's own voice out of mic channel 0; the provider's

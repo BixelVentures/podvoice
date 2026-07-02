@@ -67,6 +67,7 @@ class RoomSession:
         reply_bus=None,  # ReplyBus for the media_player announce path (speaker-out)
         reply_url: str | None = None,  # the device-reachable /reply/<room>.flac URL
         reply_streaming: bool = False,  # reply FLAC streams live (no post-generation playback lag)
+        speech=None,  # Speech — synthesizes the fixed spoken lines in the assistant's voice
         speaker_path: str = "announce",  # "announce" (HTTP/FLAC via media_player, proven) |
         # "direct" (raw PCM down the native API into the VA speaker — 0.67 firmware)
         lounge_window_s: int = C.LOUNGE_WINDOW_S,
@@ -90,6 +91,7 @@ class RoomSession:
         self.reply_bus = reply_bus
         self.reply_url = reply_url
         self.reply_streaming = reply_streaming
+        self.speech = speech
         self.speaker_path = speaker_path
         self.duck_level = duck_level
         self.lounge_level = lounge_level
@@ -573,20 +575,24 @@ class RoomSession:
         "det tog for lang tid — prøv igen" instead of blaming the wifi (which trains
         the family to distrust the connection for a merely-slow model). Falls back to
         the local tone path in sim/console mode (no reply bus)."""
-        # A clean earcon, NOT robotic TTS. The pre-rendered macOS clips were embarrassing
-        # quality; proper spoken errors need neural TTS generated offline (a follow-up).
-        # The tone says "something went wrong" without sounding broken.
+        # Speak the error in the assistant's OWN voice (synthesized once + cached, so it
+        # works even when the live connection is what's down). Fall back to a short tone
+        # only if TTS is unavailable — never the old robotic macOS clips.
         tone = audio_mod.error_tone(C.GEMINI_OUTPUT_RATE)
+        spoken = None
+        if self.speech is not None:
+            spoken = await self.speech.say(C.ERROR_PHRASES.get(reason, C.FALLBACK_CONNECTION))
         if self.reply_bus is not None and self.reply_url:
             self.reply_bus.clear(self.room)
             self.reply_bus.start(self.room)
-            self.reply_bus.push(self.room, tone)
+            self.reply_bus.push(self.room, spoken or tone)
             self.reply_bus.end(self.room)
             with contextlib.suppress(Exception):
                 await self.voicepe.play_url(self.reply_url)
             if self.hub is not None:
                 label = "⏳ Timeout" if reason == "timeout" else "🔴 Forbindelsesfejl"
-                self.hub.activity(self.room, f"{label} — tone afspillet")
+                how = "sagt i assistentens stemme" if spoken else "tone afspillet"
+                self.hub.activity(self.room, f"{label} — {how}")
         else:
             await self.playback.play_tone(tone)
 

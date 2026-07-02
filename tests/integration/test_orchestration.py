@@ -196,11 +196,46 @@ async def test_error_is_audible_on_device():
         await session.aclose()
 
 
-async def test_danish_error_clip_asset_present():
-    from gatekeeper import clips
+async def test_error_speaks_in_assistant_voice_when_available():
+    """When a Speech synthesizer is available, the error is SPOKEN (its PCM announced),
+    not the tone. The reverted-firmware clips are gone."""
 
-    pcm = clips.load_clip("connection")
-    assert pcm is not None and len(pcm) > 24000  # at least half a second of audio
+    class FakeSpeech:
+        available = True
+
+        async def say(self, text: str) -> bytes:
+            return b"\x11\x22" * 5000  # non-tone marker PCM
+
+    gemini = FakeGeminiSession()
+    voicepe = FakeVoicePELink(room=ROOM)
+    bus = ReplyBus()
+    session = RoomSession(
+        room=ROOM,
+        attention=FakeAttention(),
+        heartbeat=Heartbeat(FakeAttention(), period_ms=20),
+        gatekeeper=Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False),
+        gemini=gemini,
+        voicepe=voicepe,
+        playback=Playback(sink=voicepe.play_pcm),
+        tools=FakeTools(),
+        bargein=BargeIn(),
+        enable_watchdog=False,
+        reply_bus=bus,
+        reply_url=REPLY_URL,
+        speech=FakeSpeech(),
+        lounge_window_s=30,
+    )
+    await session.start()
+    try:
+        await session.sm.post(Event(EventType.WAKE_WORD, ROOM))
+        await _wait_until(lambda: session.sm.state is State.LISTENING)
+        await session.sm.post(Event(EventType.ERROR, ROOM))
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        drained = await bus.collect(ROOM, max_wait_s=0.5)
+        assert b"\x11\x22" in drained  # the synthesized voice, not the error tone
+    finally:
+        await session.aclose()
 
 
 async def test_wake_prepaints_listening_led():

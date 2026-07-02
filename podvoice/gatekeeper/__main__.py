@@ -34,6 +34,7 @@ from .reply import ReplyBus
 from .settings import DEFAULTS as SETTINGS_DEFAULTS
 from .settings import load_settings, masked, save_settings
 from .sim import build_sim_sessions, run_driver
+from .speech import Speech
 from .timers import TimerManager
 from .voicepe import VoicePELink
 from .watchdog import BargeIn, TurnWatchdog
@@ -95,6 +96,7 @@ def _build_session(
     hub: StatusHub,
     reply_bus: ReplyBus | None = None,
     reply_token: str = "",
+    speech: Speech | None = None,
 ) -> RoomSession:
     psk = room.voicepe_noise_psk or cfg.voicepe_noise_psk
     declarations = tools.declarations() if tools is not None else []
@@ -131,6 +133,7 @@ def _build_session(
         reply_bus=reply_bus,
         reply_url=reply_url,
         reply_streaming=cfg.reply_streaming,
+        speech=speech,
         speaker_path=cfg.speaker_path,
         full_duplex=cfg.full_duplex,
         lounge_window_s=cfg.lounge_window_s,
@@ -200,8 +203,10 @@ async def run(cfg: Config) -> None:
     ha_client: httpx.AsyncClient | None = None
     tools: HAToolBridge | None = None
     timers: TimerManager | None = None
+    speech: Speech | None = None
     driver: asyncio.Task | None = None
     probe: asyncio.Task | None = None
+    prewarm: asyncio.Task | None = None
 
     if cfg.simulate:
         rooms = [r.room for r in cfg.rooms] or ["kitchen", "living"]
@@ -215,23 +220,27 @@ async def run(cfg: Config) -> None:
         # the whole conversational turn). ha_tools also wraps dispatch in wait_for as a belt.
         ha_client = httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=3.0))
 
-        # Kitchen timers ring on the Voice PE via each room's reply path. The announce
-        # closure reads `sessions` late (the dict is filled a few lines below).
+        # The assistant's own voice for the fixed spoken lines (errors, timer). Uses the
+        # OpenAI TTS key + the configured voice; degrades to a tone if no key / on failure.
+        speech = Speech(cfg.openai_api_key, voice=cfg.openai_voice)
+        if not speech.available:
+            _LOG.info("no OpenAI key for speech — fixed lines (errors/timer) play a tone")
+
+        # Kitchen timers ring on the Voice PE via each room's reply path, in the assistant's
+        # voice. The closure reads `sessions` late (the dict is filled a few lines below).
         async def _timer_ring(label: str) -> None:
             from . import audio as audio_mod
-            from . import clips
             from . import constants as CC
 
+            spoken = await speech.say(CC.TIMER_DONE)
+            tone = audio_mod.error_tone(CC.GEMINI_OUTPUT_RATE) * 2
             for s in sessions.values():
                 bus, url = getattr(s, "reply_bus", None), getattr(s, "reply_url", None)
                 if bus is None or not url:
                     continue
                 bus.clear(s.room)
                 bus.start(s.room)
-                bus.push(s.room, audio_mod.error_tone(CC.GEMINI_OUTPUT_RATE) * 2)
-                clip = clips.load_clip("timer_done")
-                if clip:
-                    bus.push(s.room, clip)
+                bus.push(s.room, spoken or tone)
                 bus.end(s.room)
                 with contextlib.suppress(Exception):
                     await s.voicepe.play_url(url)
@@ -244,7 +253,7 @@ async def run(cfg: Config) -> None:
         if not cfg.supervisor_token:
             _LOG.warning("no SUPERVISOR_TOKEN — HA control disabled (PodConnect tool still works)")
         sessions = {
-            r.room: _build_session(cfg, r, attention, tools, hub, reply_bus, reply_token)
+            r.room: _build_session(cfg, r, attention, tools, hub, reply_bus, reply_token, speech)
             for r in cfg.rooms
         }
 
@@ -295,6 +304,17 @@ async def run(cfg: Config) -> None:
     _LOG.info("PodVoice ready — rooms: %s", list(sessions))
     for s in sessions.values():
         await s.start()
+    # Pre-warm the fixed spoken lines in the assistant's voice so the first error is
+    # instant AND cached for when the live connection is later down (the whole point of
+    # a spoken error). Degrades to a tone if the key/API is unavailable.
+    if speech is not None and speech.available:
+        from . import constants as _C
+
+        prewarm = asyncio.create_task(
+            speech.prewarm([_C.FALLBACK_CONNECTION, _C.FALLBACK_TIMEOUT, _C.TIMER_DONE]),
+            name="speech-prewarm",
+        )
+        _LOG.info("pre-warming spoken lines in the assistant's voice")
     if cfg.simulate:
         driver = asyncio.create_task(run_driver(sessions), name="sim-driver")
     if attention is not None:
@@ -303,7 +323,7 @@ async def run(cfg: Config) -> None:
         await stop.wait()
     finally:
         _LOG.info("PodVoice shutting down — restoring music")
-        for task in (driver, probe):
+        for task in (driver, probe, prewarm):
             if task is not None:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):

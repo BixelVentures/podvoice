@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.70.0 — revert the broken firmware (wake works again), speak fixed lines in the assistant's own voice
+
+**Firmware rolled back and re-flashed.** The 0.67 direct-audio firmware broke two things on real hardware: wake ("Okay Nabu") stopped working, and the direct path played 24 kHz PCM at the wrong rate — a high-pitched, sped-up blip you couldn't even hear. Both are firmware faults I shipped without validating on the device. The firmware is reverted to the proven 0.66 announce-only overlay (no voice_assistant output override, no appended wake automations) and re-flashed over USB. **Wake and the buffered announce path work again.**
+
+**Direct path forced off.** Until the direct firmware is genuinely validated on hardware, the add-on ignores a saved `speaker_path: direct` and always uses the announce path — a stray setting can't produce silence or chipmunk audio.
+
+**Fixed spoken lines now use the assistant's OWN voice.** Per your point — we should say things with our AI voice, not a macOS robot. The error phrases and the timer chime are synthesized once via OpenAI `/v1/audio/speech` (`gpt-4o-mini-tts`, the same `marin` voice as replies, raw 24 kHz PCM straight into the announce path), cached in memory, and pre-warmed at startup so the first one is instant AND still plays when the live connection is what's down. Falls back to a plain tone only if no OpenAI key is set or synthesis fails. The old pre-rendered macOS clips are deleted.
+
+**Recommended config (unchanged, now enforced where it matters):** Announce path, Streaming replies OFF, Voice barge-in OFF. That's the proven experience.
+
+ruff + mypy clean; 243 tests green (speech synth/cache/fallback/voice-validation; error spoken in the assistant voice).
+
 ## 0.69.0 — stabilization: kill the self-reply loop (again), fix garbage transcription, drop the bad TTS
 
 Field test of 0.68 exposed regressions I shipped too eagerly. This release walks them back to the proven base.

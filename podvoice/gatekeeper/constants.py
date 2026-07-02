@@ -108,7 +108,15 @@ CLOSURE_COMPANION_WORDS = frozenset(
     }
 )
 
-# --- Danish spoken fallbacks (pre-rendered clip keys) ---
+# --- Danish spoken fallbacks (synthesized ONCE in the assistant's own voice, cached) ---
 FALLBACK_NOT_UNDERSTOOD = "Det forstod jeg ikke helt."
 FALLBACK_CANNOT = "Det kan jeg desværre ikke."
 FALLBACK_CONNECTION = "Der er problemer med forbindelsen lige nu."
+FALLBACK_TIMEOUT = "Det tog for lang tid. Prøv lige igen."
+TIMER_DONE = "Din timer er færdig!"
+
+# reason -> the Danish line spoken on an ERROR/WATCHDOG teardown.
+ERROR_PHRASES = {
+    "connection": FALLBACK_CONNECTION,
+    "timeout": FALLBACK_TIMEOUT,
+}
