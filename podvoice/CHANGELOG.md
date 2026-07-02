@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.71.0 — timers: no more unit arithmetic in the model, and the ring says WHICH timer
+
+Field feedback: the timer behaved as if hardcoded. Two real fixes:
+
+- **The model no longer converts units.** `set_timer` used to take only `seconds`, forcing the voice model to compute "ti minutter" → 600 itself — the classic way a spoken duration silently becomes an hour. The tool now takes `minutes` and `seconds` as separate fields ("pass the duration EXACTLY as the user said it — do NOT convert"), and PodVoice does the arithmetic.
+- **The ring announcement was one hardcoded phrase.** It now says which timer finished — "Din pasta-timer er færdig!" — synthesized in the assistant's own voice per label (cached); the generic line remains the fallback.
+
+ruff + mypy clean; 244 tests green.
+
 ## 0.70.0 — revert the broken firmware (wake works again), speak fixed lines in the assistant's own voice
 
 **Firmware rolled back and re-flashed.** The 0.67 direct-audio firmware broke two things on real hardware: wake ("Okay Nabu") stopped working, and the direct path played 24 kHz PCM at the wrong rate — a high-pitched, sped-up blip you couldn't even hear. Both are firmware faults I shipped without validating on the device. The firmware is reverted to the proven 0.66 announce-only overlay (no voice_assistant output override, no appended wake automations) and re-flashed over USB. **Wake and the buffered announce path work again.**

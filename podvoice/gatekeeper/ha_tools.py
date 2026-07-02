@@ -184,21 +184,26 @@ class HAToolBridge:
                 {
                     "name": "set_timer",
                     "description": "Start a countdown timer that will ring on this speaker "
-                    "when it finishes (e.g. 'sæt en timer på 10 minutter'). Confirm the "
-                    "duration back to the user in Danish.",
+                    "when it finishes. Pass the duration EXACTLY as the user said it, split "
+                    "into minutes and seconds — 'ti minutter' -> minutes=10; 'halvandet "
+                    "minut' -> minutes=1, seconds=30. Do NOT convert units yourself. "
+                    "Confirm the duration back to the user in Danish.",
                     "parameters": {
                         "type": "object",
                         "properties": {
+                            "minutes": {
+                                "type": "integer",
+                                "description": "Minutes part of the duration (0 if none).",
+                            },
                             "seconds": {
                                 "type": "integer",
-                                "description": "Duration in seconds (e.g. 10 minutes = 600).",
+                                "description": "Seconds part of the duration (0 if none).",
                             },
                             "label": {
                                 "type": "string",
                                 "description": "Optional short label, e.g. 'pasta'.",
                             },
                         },
-                        "required": ["seconds"],
                     },
                 },
                 {
@@ -660,9 +665,10 @@ class HAToolBridge:
             # Local kitchen timers — no HA gate; the expiry rings on the Voice PE.
             if self._timers is not None and name in ("set_timer", "list_timers", "cancel_timer"):
                 if name == "set_timer":
-                    return self._timers.set_timer(
-                        int(args.get("seconds", 0)), str(args.get("label", "") or "")
-                    )
+                    # minutes+seconds as SEPARATE fields: a voice model doing its own
+                    # unit arithmetic is how "ti minutter" becomes an hour.
+                    total = int(args.get("minutes", 0) or 0) * 60 + int(args.get("seconds", 0) or 0)
+                    return self._timers.set_timer(total, str(args.get("label", "") or ""))
                 if name == "list_timers":
                     return self._timers.list_timers()
                 return self._timers.cancel_timer(args.get("id"))

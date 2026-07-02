@@ -232,7 +232,10 @@ async def run(cfg: Config) -> None:
             from . import audio as audio_mod
             from . import constants as CC
 
-            spoken = await speech.say(CC.TIMER_DONE)
+            # Say WHICH timer rang ("Din pasta-timer er færdig!") — synthesized per label
+            # in the assistant's voice and cached; the generic line is the fallback.
+            text = f"Din {label}-timer er færdig!" if label and label != "timer" else CC.TIMER_DONE
+            spoken = await speech.say(text) or await speech.say(CC.TIMER_DONE)
             tone = audio_mod.error_tone(CC.GEMINI_OUTPUT_RATE) * 2
             for s in sessions.values():
                 bus, url = getattr(s, "reply_bus", None), getattr(s, "reply_url", None)

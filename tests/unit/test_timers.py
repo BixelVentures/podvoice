@@ -46,6 +46,26 @@ async def test_cancel_without_id_takes_next_to_expire():
     await tm.aclose()
 
 
+async def test_dispatch_takes_minutes_and_seconds_separately():
+    """The tool schema passes minutes/seconds as SEPARATE fields so the voice model
+    never does unit arithmetic ('ti minutter' must not become an hour)."""
+    import httpx
+
+    from gatekeeper.ha_tools import HAToolBridge
+
+    tm, _ = _manager()
+    bridge = HAToolBridge("", httpx.AsyncClient(), timers=tm)
+    r = await bridge.dispatch("set_timer", {"minutes": 10, "label": "pasta"})
+    assert r["ok"] and r["seconds"] == 600
+    r = await bridge.dispatch("set_timer", {"minutes": 1, "seconds": 30})
+    assert r["ok"] and r["seconds"] == 90
+    r = await bridge.dispatch("set_timer", {"seconds": 45})
+    assert r["ok"] and r["seconds"] == 45
+    r = await bridge.dispatch("set_timer", {})  # no duration at all -> clean error
+    assert r["ok"] is False
+    await tm.aclose()
+
+
 async def test_bounds():
     tm, _ = _manager()
     assert tm.set_timer(0)["ok"] is False
