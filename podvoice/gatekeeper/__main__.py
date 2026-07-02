@@ -106,10 +106,14 @@ def _build_session(
     # turn-taking/barge-in, the server idle timeout ends it. The provider session gets
     # the idle signal enabled; ThinSession replaces the whole state machine.
     if cfg.engine == "thin":
-        from .thin import IDLE_TIMEOUT_MS, ThinSession
+        from .thin import END_CONVERSATION_TOOL, IDLE_TIMEOUT_MS, ThinSession
 
         if hasattr(gemini, "idle_timeout_ms"):
             gemini.idle_timeout_ms = IDLE_TIMEOUT_MS
+        # The thin-native closure: the MODEL ends the conversation (no word lists).
+        # (Protocol-typed as VoiceSession; the OpenAI dataclass carries the attr.)
+        existing = getattr(gemini, "tool_declarations", None) or []
+        gemini.tool_declarations = [*existing, END_CONVERSATION_TOOL]  # type: ignore[attr-defined]
         reply_url = (
             f"http://{_host_ip_for(room.voicepe_host)}:{DEFAULT_PORT}/reply/{room.room}.flac"
         )
@@ -268,6 +272,10 @@ async def run(cfg: Config) -> None:
                 bus, url = getattr(s, "reply_bus", None), getattr(s, "reply_url", None)
                 if bus is None or not url:
                     continue
+                if not getattr(s, "_active", False):  # conversation already ducks
+                    with contextlib.suppress(Exception):
+                        # Short TTL: PodConnect auto-restores the music ~5s later.
+                        await s.attention.engage(s.room, 20, 5000)
                 bus.clear(s.room)
                 bus.start(s.room)
                 bus.push(s.room, spoken or tone)

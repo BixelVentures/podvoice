@@ -260,3 +260,36 @@ async def test_client_idle_fallback_closes(monkeypatch):
         await _wait_until(lambda: len(attention.release_calls) >= 1)
     finally:
         await session.aclose()
+
+
+async def test_model_ends_conversation_via_tool():
+    """The thin-native closure: the MODEL calls end_conversation (it understood
+    "farvel"/"stop"/anything) -> short goodbye finishes -> conversation closes."""
+    gemini = LiveFake()
+    session, attention, _voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(ToolCall("c9", "end_conversation", {}))
+        await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)  # tool ack'd
+        await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=3.0)
+        await _wait_until(lambda: len(attention.release_calls) >= 1)
+    finally:
+        await session.aclose()
+
+
+async def test_rewake_during_reply_hushes_but_keeps_conversation():
+    """handle_start mid-conversation (button or habitual re-wake): silence playback,
+    stay open — never a surprise close."""
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(AudioChunk(_frame(), item_id="i"))
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_wake_cb()  # button / "Okay Nabu" again
+        await _wait_until(lambda: voicepe.stop_playback_calls >= 1)
+        assert session.sm.state is not State.IDLE  # still open
+    finally:
+        await session.aclose()

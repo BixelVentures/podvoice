@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.75.0 — the gap-closing release: model-owned goodbye, re-wake hush, timer ducking
+
+Closing the ranked honest-gaps list from the scenario review:
+
+- **The model now ends the conversation itself** (thin engine): a new `end_conversation` tool lets the AI understand ANY phrasing of "we're done" — stop, farvel, tak for hjælpen, det var det — say a short goodbye, and close. No word lists; this is the thin-native answer to the old closure machinery, and it also gives the physical button's intent a voice equivalent that always works.
+- **Re-wake / button mid-conversation = hush, not chaos:** "Okay Nabu" out of habit (or the center button) while it talks now just silences the current reply and keeps listening — never a surprise close, never a double conversation.
+- **Timer rings now duck the music** for ~5 s via a short-TTL attention lease — PodConnect auto-restores, zero bookkeeping. (Skipped when a conversation is already ducking.)
+- **False-barge counter is visible** on the panel's metrics ("False barges (filtered)") — the KPI that tells us how the blip filter performs in YOUR room.
+- **The Direct audio-path option is greyed out** in the panel until the firmware is re-validated (the backend has forced Announce since 0.70 — now the UI tells the truth too).
+
+ruff + mypy clean; 261 tests green (new: model-ends-conversation, re-wake hush).
+
 ## 0.74.0 — thin engine hardened: the self-review pass (R1-R5)
 
 A critical self-review of 0.73's thin engine against the beat-Gemini goal found five real holes. All closed, all tested:

@@ -446,7 +446,7 @@
         <label for="s_speaker_path">Audio path</label>
         <select id="s_speaker_path">
           <option value="announce">Announce — proven (via HTTP)</option>
-          <option value="direct">Direct — instant (needs the 0.67 firmware)</option>
+          <option value="direct" disabled>Direct — instant (coming back after firmware re-validation)</option>
         </select>
         <label for="s_reply_streaming">Streaming replies <span style="opacity:.6">(experimental)</span></label>
         <input id="s_reply_streaming" type="checkbox">
@@ -501,7 +501,7 @@ var STATE_LABEL = { IDLE: "idle", LISTENING: "listening", AI_SPEAKING: "speaking
 var SVC_LABEL = { gemini: "Gemini", voicepe: "Voice PE", podconnect: "PodConnect" };
 // The "gemini" service dot reflects whichever provider is active — label it accordingly.
 var PROVIDER_PILL = { gemini: "Gemini", openai: "ChatGPT" };
-var METRIC_LABEL = { sessions: "Sessions", barge_ins: "Barge-ins", watchdog_aborts: "Watchdog aborts",
+var METRIC_LABEL = { sessions: "Sessions", barge_ins: "Barge-ins", false_barges: "False barges (filtered)", watchdog_aborts: "Watchdog aborts",
                      tool_calls: "Tool calls", attention_engages: "Attn. engages", attention_releases: "Attn. releases" };
 
 var rooms = {};

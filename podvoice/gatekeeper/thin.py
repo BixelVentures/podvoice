@@ -48,6 +48,15 @@ _LOG = logging.getLogger("podvoice.thin")
 # Server-side "the user went quiet, conversation is over" signal. Replaces the old
 # client-side lounge window + listen-idle timers with one provider-owned number.
 IDLE_TIMEOUT_MS = 8000
+# The thin-native closure: instead of client-side word lists, the MODEL gets a tool it
+# calls when the user is clearly done ("stop", "farvel", "det var det", any phrasing).
+END_CONVERSATION_TOOL = {
+    "name": "end_conversation",
+    "description": "Call this when the user clearly wants to END the conversation - "
+    "says stop, farvel, tak for hjælpen, det var det, or similar. Say a SHORT goodbye "
+    "FIRST (one word or two), then call this.",
+    "parameters": {"type": "object", "properties": {}},
+}
 # Hard ceiling on one conversation (the provider caps sessions at 60 min; close cleanly
 # well before so the family never hits a mid-sentence provider cut).
 MAX_CONVERSATION_S = 20 * 60
@@ -445,6 +454,15 @@ class ThinSession:
             await self.voicepe.play_url(self.reply_url)
 
     async def _run_tool(self, tc: ToolCall) -> None:
+        if tc.name == "end_conversation":
+            # The model says the user is done. Let the goodbye finish playing, then close.
+            async with self._tool_lock:
+                with contextlib.suppress(Exception):
+                    await self.gemini.send_tool_results(
+                        [{"id": tc.id, "name": tc.name, "response": {"ok": True}}]
+                    )
+            self._spawn(self._close_after_goodbye(), "thin-goodbye")
+            return
         if self.tools is None:
             result: dict = {"ok": False, "error": "no tools configured"}
         else:
@@ -457,8 +475,23 @@ class ThinSession:
                     [{"id": tc.id, "name": tc.name, "response": result}]
                 )
 
+    async def _close_after_goodbye(self, max_wait_s: float = 6.0) -> None:
+        """Close once the goodbye stops playing (or after a short ceiling)."""
+        deadline = time.monotonic() + max_wait_s
+        await asyncio.sleep(0.5)
+        while time.monotonic() < deadline and self._speaking:  # noqa: ASYNC110 — polling the
+            await asyncio.sleep(0.2)  # playback flag is the simple, correct thing here
+        await asyncio.sleep(0.8)  # let the last word land
+        await self.stop(reason="model-close")
+
     # ------------------------------------------------------------- device signals
     def _on_wake_cb(self) -> None:
+        if self._active:
+            # Button press / habitual re-wake mid-conversation: silence any reply and
+            # keep listening (the proven firmware can't distinguish the two sources).
+            if self._speaking:
+                self._spawn(self._silence_device(), "thin-hush")
+            return
         self._spawn(self.wake(), "thin-wake")
 
     def _on_device_event(self, room: str, state: object) -> None:
