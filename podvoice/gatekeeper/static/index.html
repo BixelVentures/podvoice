@@ -243,16 +243,51 @@
 <div class="wrap">
   <h1>PodVoice</h1>
   <p class="sub" id="sub">Voice gatekeeper</p>
-  <div class="svc" id="svc"></div>
 
   <div class="tabs" role="tablist">
-    <button class="tabbtn active" data-tab="talk">Talk</button>
+    <button class="tabbtn active" data-tab="home">Home</button>
+    <button class="tabbtn" data-tab="settings">Setup</button>
+    <button class="tabbtn" data-tab="talk">Talk</button>
     <button class="tabbtn" data-tab="history">History</button>
-    <button class="tabbtn" data-tab="settings">Settings</button>
-    <button class="tabbtn" data-tab="voicepe">Voice PE</button>
   </div>
 
-  <div class="pane active" id="pane-talk">
+  <div class="pane active" id="pane-home">
+    <div class="section">
+      <h2>Status</h2>
+      <div class="svc" id="svc"></div>
+      <p class="sub" style="margin:10px 0 0">Say <b>“Okay Nabu”</b>, then just talk — it handles interrupting, follow-ups and knowing when you're done. Say <b>“farvel”</b> or <b>“stop”</b> to end.</p>
+    </div>
+
+    <div class="section" id="rooms-section" style="display:none">
+      <h2>Rooms</h2>
+      <div id="rooms" class="list"></div>
+    </div>
+
+    <div class="section" id="activity-section">
+      <h2>Live activity</h2>
+      <p class="sub" style="margin:2px 0 8px">What the assistant is doing right now — wake, listening, thinking, replying, closing.</p>
+      <div id="activity" class="tx" style="min-height:0;max-height:240px"></div>
+    </div>
+
+    <div class="section">
+      <h2>What the light ring means</h2>
+      <div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px">
+        <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#2f3742;vertical-align:-1px;margin-right:5px"></span>Off — asleep</span>
+        <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#18bbf2;vertical-align:-1px;margin-right:5px"></span>Cyan — listening</span>
+        <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#ff8c00;vertical-align:-1px;margin-right:5px"></span>Amber — thinking</span>
+        <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#78dc8c;vertical-align:-1px;margin-right:5px"></span>Green — speaking</span>
+        <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#18bbf2;opacity:.45;vertical-align:-1px;margin-right:5px"></span>Dim cyan — follow-up</span>
+        <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#ff2222;vertical-align:-1px;margin-right:5px"></span>Red — muted / problem</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Metrics</h2>
+      <div id="metrics" class="metrics"></div>
+    </div>
+  </div>
+
+  <div class="pane" id="pane-talk">
     <div class="section">
       <h2><span id="ctitle">Talk to the assistant</span> <span id="cstate" class="pill pill-down">offline</span></h2>
       <div class="crow" style="margin-bottom:10px">
@@ -290,26 +325,38 @@
     <div class="section">
       <div class="exsub" style="margin-top:4px">Assistant</div>
       <div class="setgrid">
-        <label for="s_provider">Provider</label>
-        <select id="s_provider"><option value="gemini">Gemini</option><option value="openai">OpenAI</option></select>
         <label for="s_engine">Conversation engine</label>
         <select id="s_engine">
           <option value="classic">Classic — proven (state machine)</option>
           <option value="thin">Thin — the model owns the conversation (Track B)</option>
         </select>
+        <label for="s_provider">Provider</label>
+        <select id="s_provider"><option value="gemini">Gemini</option><option value="openai">OpenAI</option></select>
+        <label for="s_openai_voice">Voice</label>
+        <input id="s_openai_voice" list="dl_openai_voice" autocomplete="off">
       </div>
-      <p class="sub" style="margin:2px 0 0"><b>Thin</b> (new): the AI itself handles turn-taking, interruptions and knowing when you're done — you can talk over it, and there are no artificial windows. Works with the OpenAI provider. If anything feels off, switch back to <b>Classic</b> and Save &amp; restart.</p>
-      <p class="sub" style="margin:2px 0 0">Model &amp; voice are chosen in the <b>Talk</b> tab; per-provider fine-tuning is under Advanced. <b>Web search &amp; live info</b> is just Home control: expose a conversation agent that has Google Search on (e.g. <code>conversation.google_ai_search</code>) below, and the assistant looks things up through it like any other HA tool.</p>
+      <p class="sub" style="margin:2px 0 0"><b>Thin</b> is the new model-owned mode — the AI handles turn-taking, interruptions and knowing when you're done. Recommended; needs the <b>OpenAI</b> provider.</p>
+      <p class="sub" style="margin:2px 0 0">Your API key lives in the Home Assistant add-on <b>Configuration</b> tab, not here.</p>
+      <datalist id="dl_openai_voice"><option>marin</option><option>cedar</option><option>alloy</option><option>echo</option><option>shimmer</option></datalist>
 
-      <div class="exsub" style="margin-top:14px">Music ducking (PodConnect)</div>
+      <div class="exsub" style="margin-top:16px">Voice PE speaker</div>
+      <p class="sub" style="margin:2px 0 8px">The model handles interruption and follow-ups on its own now — just say <b>“Okay Nabu”</b> and talk.</p>
       <div class="setgrid">
-        <label for="s_podconnect_base_url">PodConnect URL</label>
-        <input id="s_podconnect_base_url" type="text" autocomplete="off">
-        <label for="s_podconnect_token">PodConnect token</label>
-        <input id="s_podconnect_token" type="password" autocomplete="off" placeholder="(leave blank if PodConnect has none)">
-        <span></span><span id="s_podconnect_token_hint" class="sub" style="display:none;font-size:.76rem">Saved — type to replace.</span>
+        <label for="s_voicepe_noise_psk">Voice PE PSK</label>
+        <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
+        <span></span><span id="s_voicepe_noise_psk_hint" class="sub" style="display:none;font-size:.76rem">Saved — type to replace.</span>
       </div>
-      <p class="sub" style="margin:2px 0 0">Only used to dim music while the assistant talks (Attention API).</p>
+
+      <div class="exsub" style="margin-top:16px">Rooms</div>
+      <p class="sub" style="margin:2px 0 8px">Each row links one Voice PE (its IP) to the PodConnect room it stands in — so PodVoice knows which speaker's music to quiet when you talk to it.</p>
+      <div id="s_rooms"></div>
+      <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
+
+      <div class="exsub" style="margin-top:16px">Music ducking</div>
+      <p class="sub" style="margin:2px 0 10px">How much to quiet this room's music while you're talking to the assistant. <b>0 = mute it completely</b> (best when the speaker is in the same room as the Voice PE).</p>
+      <div class="setgrid">
+        <label for="s_duck_level">Music volume while talking %</label><input id="s_duck_level" type="number" min="0" max="100">
+      </div>
 
       <section class="expose">
         <div class="exhead">
@@ -326,49 +373,53 @@
           <input id="s_exposed_extra" class="exfield" type="text" autocomplete="off" placeholder="entity_ids not in the list, comma-separated" style="margin-top:8px">
         </details>
       </section>
-      <h2 style="margin:18px 0 8px">System prompt <button id="s_resetprompt" class="ghost" style="padding:4px 10px;font-size:.74rem">Reset</button></h2>
-      <textarea id="s_system_prompt" class="prompt" rows="8" spellcheck="false"></textarea>
-      <p class="sub" style="margin:6px 0 0">Tells the assistant who it is and what it can do (so it answers "what can you do?" and never goes silent). Edit freely, then Save &amp; restart.</p>
-      <details class="adv">
-        <summary>Advanced — models, voices &amp; per-provider tuning</summary>
 
-        <div class="exsub" style="margin-top:12px">Gemini (Live)</div>
-        <div class="setgrid">
-          <label for="s_gemini_model">Model</label><input id="s_gemini_model" type="text" autocomplete="off">
-          <label for="s_gemini_voice">Voice</label><input id="s_gemini_voice" list="dl_gemini_voice" autocomplete="off">
-          <label for="s_gemini_vad_start">Start sensitivity</label>
-          <select id="s_gemini_vad_start"><option value="high">high — easy to trigger</option><option value="low">low</option></select>
-          <label for="s_gemini_vad_end">End sensitivity</label>
-          <select id="s_gemini_vad_end"><option value="high">high — ends turn fast</option><option value="low">low — waits for you</option></select>
-          <label for="s_gemini_prefix_ms">Prefix padding ms</label><input id="s_gemini_prefix_ms" type="number" min="0" max="2000">
-          <label for="s_gemini_silence_ms">Silence ms</label><input id="s_gemini_silence_ms" type="number" min="0" max="5000">
-        </div>
+      <details class="adv" style="margin-top:18px">
+        <summary>Advanced</summary>
 
-        <div class="exsub" style="margin-top:16px">ChatGPT (OpenAI Realtime)</div>
-        <div class="setgrid">
-          <label for="s_openai_model">Model</label><input id="s_openai_model" type="text" autocomplete="off">
-          <label for="s_openai_voice">Voice</label><input id="s_openai_voice" list="dl_openai_voice" autocomplete="off">
-          <label for="s_openai_turn">Turn detection</label>
-          <select id="s_openai_turn"><option value="semantic_vad">Semantic — natural</option><option value="server_vad">Normal — snappy</option><option value="none">Disabled</option></select>
-          <label for="s_openai_eagerness">Eagerness <span style="color:var(--fg-dim)">(semantic)</span></label>
-          <select id="s_openai_eagerness"><option value="auto">auto</option><option value="low">low — patient</option><option value="medium">medium</option><option value="high">high — snappy</option></select>
-          <label for="s_openai_threshold">Threshold <span style="color:var(--fg-dim)">(normal)</span></label><input id="s_openai_threshold" type="number" step="0.01" min="0" max="1">
-          <label for="s_openai_prefix_ms">Prefix padding ms</label><input id="s_openai_prefix_ms" type="number" min="0" max="2000">
-          <label for="s_openai_silence_ms">Silence ms</label><input id="s_openai_silence_ms" type="number" min="0" max="5000">
-          <label for="s_openai_noise">Noise reduction</label>
-          <select id="s_openai_noise"><option value="near_field">Near field — phone/headset</option><option value="far_field">Far field — room</option><option value="off">Off</option></select>
-        </div>
+        <h2 style="margin:14px 0 8px">System prompt <button id="s_resetprompt" class="ghost" style="padding:4px 10px;font-size:.74rem">Reset</button></h2>
+        <textarea id="s_system_prompt" class="prompt" rows="8" spellcheck="false"></textarea>
+        <p class="sub" style="margin:6px 0 0">Tells the assistant who it is and what it can do (so it answers "what can you do?" and never goes silent). Edit freely, then Save &amp; restart.</p>
 
-        <datalist id="dl_gemini_voice"><option>Kore</option><option>Puck</option><option>Charon</option><option>Aoede</option><option>Zephyr</option><option>Leda</option><option>Orus</option></datalist>
-        <datalist id="dl_openai_voice"><option>marin</option><option>cedar</option><option>alloy</option><option>echo</option><option>shimmer</option></datalist>
-      </details>
-      <details class="adv" style="margin-top:12px">
-        <summary>Security</summary>
-        <div class="setgrid" style="margin-top:8px">
-          <label for="s_panel_lan_open">Allow panel on the LAN</label>
-          <input id="s_panel_lan_open" type="checkbox">
+        <div class="setgrid" style="margin-top:14px">
+          <label for="s_simulate">Simulation mode</label>
+          <input id="s_simulate" type="checkbox">
+          <label for="s_podconnect_base_url">PodConnect URL</label>
+          <input id="s_podconnect_base_url" type="text" autocomplete="off">
+          <label for="s_podconnect_token">PodConnect token</label>
+          <input id="s_podconnect_token" type="password" autocomplete="off" placeholder="(blank if PodConnect has none)">
+          <span></span><span id="s_podconnect_token_hint" class="sub" style="display:none;font-size:.76rem">Saved — type to replace.</span>
         </div>
-        <p class="sub" style="margin:2px 0 0">Off (recommended): this panel and its API only work through the Home Assistant sidebar (Ingress). On: anyone on your wifi can open <code>:8098</code> directly — including these settings and your tokens. Leave it off unless you know why you need it.</p>
+        <p class="sub" style="margin:2px 0 0">PodConnect is what dims the music. You normally never change these.</p>
+
+        <details class="adv" style="margin-top:12px">
+          <summary>Security</summary>
+          <div class="setgrid" style="margin-top:8px">
+            <label for="s_panel_lan_open">Allow panel on the LAN</label>
+            <input id="s_panel_lan_open" type="checkbox">
+          </div>
+          <p class="sub" style="margin:2px 0 0">Off (recommended): this panel and its API only work through the Home Assistant sidebar (Ingress). On: anyone on your wifi can open <code>:8098</code> directly — including these settings and your tokens. Leave it off unless you know why you need it.</p>
+        </details>
+
+        <details class="adv" style="margin-top:12px">
+          <summary>Diagnostics</summary>
+          <div class="vpgate" style="margin-top:8px">
+            <div class="vpg-row">
+              <div class="vpg-txt"><b>Connection</b><span class="sub">Can PodVoice reach the device?</span></div>
+              <button id="vp_status" class="ghost">Check</button>
+            </div>
+            <div class="vpg-row">
+              <div class="vpg-txt"><b>Audio in</b><span class="sub">Gap-free mic stream (~15&nbsp;s)</span></div>
+              <button id="vp_s1" class="ghost">Check</button>
+            </div>
+            <div class="vpg-row">
+              <div class="vpg-txt"><b>Speaker</b><span class="sub">Do you hear the test tone?</span></div>
+              <button id="vp_s2" class="ghost">Test</button>
+            </div>
+          </div>
+          <div id="vp_result" class="status" style="display:none;margin-top:12px"></div>
+          <button id="vp_copy" class="ghost" style="display:none;margin-top:8px;padding:5px 11px;font-size:.78rem">Copy result</button>
+        </details>
       </details>
 
       <div class="actions">
@@ -376,119 +427,6 @@
         <button id="s_saverestart" class="ghost">Save &amp; restart</button>
         <span id="s_status" class="sub" role="status"></span>
       </div>
-    </div>
-  </div>
-
-  <div class="pane" id="pane-voicepe">
-    <div class="section" id="rooms-section" style="display:none">
-      <h2>Live rooms</h2>
-      <div id="rooms" class="list"></div>
-    </div>
-    <div class="section" id="activity-section">
-      <h2>Live activity</h2>
-      <p class="sub" style="margin:2px 0 8px">What the Voice PE is doing right now — wake, listening, replying, playing, closing.</p>
-      <div id="activity" class="tx" style="min-height:0;max-height:240px"></div>
-    </div>
-    <div class="section">
-      <h2>Voice PE (hardware)</h2>
-      <p class="sub" style="margin:2px 0 0">Set up the physical Voice PE speaker + per-room music ducking. The <b>Talk</b> tab and HA Assist don't need any of this.</p>
-
-      <div class="exsub" style="margin-top:16px">How to talk to it</div>
-      <div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-top:6px">
-        <p class="sub" style="margin:0 0 8px">Say <b>“Okay Nabu”</b> to wake it, then just talk. After it answers, the ring turns <b>dim cyan</b> for a few seconds — you can keep talking, no wake word needed.</p>
-        <p class="sub" style="margin:0 0 8px"><b>While it's speaking</b>, saying “stop” does <b>not</b> work yet (that arrives in the next firmware update). To cut it off: say <b>“Okay Nabu”</b> again, or <b>press the center button</b>.</p>
-        <p class="sub" style="margin:0 0 8px"><b>While it's listening to you</b>, say <b>“stop”</b>, <b>“vent”</b> or <b>“stille”</b> to cancel.</p>
-        <p class="sub" style="margin:0 0 10px"><b>To end politely</b>, say <b>“tak”</b>, “mange tak”, “tak for hjælpen” or “farvel” on its own. Said inside a command (“sluk lyset, tak”) the command still wins and runs.</p>
-        <div class="exsub" style="margin:0 0 6px">What the light ring means</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px 16px">
-          <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#2f3742;vertical-align:-1px;margin-right:5px"></span>Off — asleep</span>
-          <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#18bbf2;vertical-align:-1px;margin-right:5px"></span>Cyan — listening to you</span>
-          <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#ff8c00;vertical-align:-1px;margin-right:5px"></span>Amber — thinking</span>
-          <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#78dc8c;vertical-align:-1px;margin-right:5px"></span>Green — replying</span>
-          <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#18bbf2;opacity:.45;vertical-align:-1px;margin-right:5px"></span>Dim cyan — follow-up: just keep talking</span>
-          <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#ff2222;vertical-align:-1px;margin-right:5px"></span>Red, solid — muted (the switch on the device)</span>
-          <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#ff2222;box-shadow:0 0 0 2px rgba(255,34,34,.3);vertical-align:-1px;margin-right:5px"></span>Red, flashing — a problem</span>
-        </div>
-      </div>
-
-      <div class="exsub" style="margin-top:16px">Before you start</div>
-      <ol class="vpsteps">
-        <li>Flash the PodVoice firmware (you'll be given a ready file + click-steps).</li>
-        <li>Do <b>not</b> add the Voice PE to Home Assistant Assist — PodVoice owns the mic.</li>
-        <li>Fill in <b>Setup</b> below: set the PSK + add a room → <b>Save &amp; restart</b>.</li>
-      </ol>
-
-      <div class="exsub" style="margin-top:16px">Setup</div>
-      <p class="sub" style="margin:2px 0 10px">For the Voice PE device + per-room music ducking. The <b>Talk</b> console and HA Assist don't need any of this.</p>
-      <div class="setgrid">
-        <label for="s_voicepe_noise_psk">Voice PE PSK</label>
-        <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
-        <span></span><span id="s_voicepe_noise_psk_hint" class="sub" style="display:none;font-size:.76rem">Saved — type to replace.</span>
-        <label for="s_full_duplex">Voice barge-in <span style="opacity:.6">(experimental)</span></label>
-        <input id="s_full_duplex" type="checkbox">
-        <label for="s_simulate">Simulation mode</label>
-        <input id="s_simulate" type="checkbox">
-      </div>
-      <p class="sub" style="margin:2px 0 0"><b>Voice barge-in</b> (experimental): interrupt the assistant <b>by just talking over it</b>. The mic stays open while it speaks — the device's echo cancellation keeps its own voice out, and real speech interrupts the reply instantly. If it starts interrupting itself (echo leaking through), untick this and it's back to safe mode. Works best with <b>Audio path: Direct</b>. Off = it finishes its answer, and you cut it off with <b>“stop”</b>, <b>“Okay Nabu”</b> or the center button.</p>
-      <div class="exsub" style="margin-top:12px">Rooms</div>
-      <p class="sub" style="margin:2px 0 8px">Each row links one Voice PE (its IP) to the PodConnect room it stands in — so PodVoice knows which speaker's music to quiet when you talk to it.</p>
-      <div id="s_rooms"></div>
-      <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
-
-      <div class="exsub" style="margin-top:16px">Music ducking</div>
-      <p class="sub" style="margin:2px 0 10px">How much to quiet this room's music while you're talking to the assistant. <b>0 = mute it completely</b> (best when the speaker is in the same room as the Voice PE).</p>
-      <div class="setgrid">
-        <label for="s_duck_level">Music volume while talking %</label><input id="s_duck_level" type="number" min="0" max="100">
-      </div>
-
-      <div class="exsub" style="margin-top:16px">Reply delivery</div>
-      <div class="setgrid">
-        <label for="s_speaker_path">Audio path</label>
-        <select id="s_speaker_path">
-          <option value="announce">Announce — proven (via HTTP)</option>
-          <option value="direct" disabled>Direct — instant (coming back after firmware re-validation)</option>
-        </select>
-        <label for="s_reply_streaming">Streaming replies <span style="opacity:.6">(experimental)</span></label>
-        <input id="s_reply_streaming" type="checkbox">
-      </div>
-      <p class="sub" style="margin:2px 0 0">Play the answer <b>while it's being generated</b> instead of waiting for the whole reply. Expect a pause of about <b>1 second</b> before it starts speaking, and brief quiet moments while it looks something up — both are normal. Verify with the <b>Speaker</b> test below after enabling; untick if the speaker goes silent.</p>
-
-      <details class="adv" style="margin-top:12px">
-        <summary>Advanced tuning</summary>
-        <p class="sub" style="margin:8px 0 10px">Conversation-flow timings. The defaults are good — only change these if your PodVoice helper asks you to.</p>
-        <div class="setgrid">
-          <label for="s_lounge_level">Lounge level %</label><input id="s_lounge_level" type="number" min="0" max="100">
-          <label for="s_lounge_window_s">Lounge window s</label><input id="s_lounge_window_s" type="number" min="1" max="120">
-          <label for="s_heartbeat_ms">Heartbeat ms</label><input id="s_heartbeat_ms" type="number" min="100" max="60000">
-          <label for="s_watchdog_ms">Watchdog ms</label><input id="s_watchdog_ms" type="number" min="200" max="120000">
-          <label for="s_vad_threshold">VAD threshold</label><input id="s_vad_threshold" type="number" step="0.001" min="0" max="1">
-        </div>
-      </details>
-
-      <div style="margin-top:14px">
-        <button id="vp_saverestart" class="ghost">Save &amp; restart</button>
-        <span id="vp_savestatus" class="sub" style="margin-left:8px"></span>
-      </div>
-
-      <details class="adv" style="margin-top:16px">
-        <summary>Advanced diagnostics</summary>
-        <div class="vpgate" style="margin-top:8px">
-          <div class="vpg-row">
-            <div class="vpg-txt"><b>Connection</b><span class="sub">Can PodVoice reach the device?</span></div>
-            <button id="vp_status" class="ghost">Check</button>
-          </div>
-          <div class="vpg-row">
-            <div class="vpg-txt"><b>Audio in</b><span class="sub">Gap-free mic stream (~15&nbsp;s)</span></div>
-            <button id="vp_s1" class="ghost">Check</button>
-          </div>
-          <div class="vpg-row">
-            <div class="vpg-txt"><b>Speaker</b><span class="sub">Do you hear the test tone?</span></div>
-            <button id="vp_s2" class="ghost">Test</button>
-          </div>
-        </div>
-        <div id="vp_result" class="status" style="display:none;margin-top:12px"></div>
-        <button id="vp_copy" class="ghost" style="display:none;margin-top:8px;padding:5px 11px;font-size:.78rem">Copy result</button>
-      </details>
     </div>
   </div>
 </div>
@@ -501,8 +439,7 @@ var STATE_LABEL = { IDLE: "idle", LISTENING: "listening", AI_SPEAKING: "speaking
 var SVC_LABEL = { gemini: "Gemini", voicepe: "Voice PE", podconnect: "PodConnect" };
 // The "gemini" service dot reflects whichever provider is active — label it accordingly.
 var PROVIDER_PILL = { gemini: "Gemini", openai: "ChatGPT" };
-var METRIC_LABEL = { sessions: "Sessions", barge_ins: "Barge-ins", false_barges: "False barges (filtered)", watchdog_aborts: "Watchdog aborts",
-                     tool_calls: "Tool calls", attention_engages: "Attn. engages", attention_releases: "Attn. releases" };
+var METRIC_LABEL = { sessions: "Sessions", barge_ins: "Barge-ins", false_barges: "False barges (filtered)" };
 
 var rooms = {};
 var connected = false;
@@ -959,16 +896,10 @@ setInterval(poll, 3000);
 "use strict";
 // ---- Settings page (saved to the add-on's /data; HA Configuration holds only keys) ----
 (function () {
-  var FIELDS = ["provider", "system_prompt", "gemini_model", "gemini_voice",
-    "gemini_vad_start", "gemini_vad_end", "gemini_prefix_ms", "gemini_silence_ms",
-    "openai_model", "openai_voice", "openai_turn", "openai_eagerness", "openai_threshold",
-    "openai_prefix_ms", "openai_silence_ms", "openai_noise",
-    "podconnect_base_url", "podconnect_token", "voicepe_noise_psk", "simulate", "full_duplex",
-    "engine", "reply_streaming", "speaker_path", "panel_lan_open",
-    "duck_level", "lounge_level", "lounge_window_s", "heartbeat_ms", "watchdog_ms", "vad_threshold"];
-  var NUM = { duck_level: 1, lounge_level: 1, lounge_window_s: 1, heartbeat_ms: 1, watchdog_ms: 1,
-    vad_threshold: 1, gemini_prefix_ms: 1, gemini_silence_ms: 1, openai_threshold: 1,
-    openai_prefix_ms: 1, openai_silence_ms: 1 };
+  var FIELDS = ["provider", "engine", "openai_voice", "voicepe_noise_psk",
+    "duck_level", "system_prompt", "simulate", "panel_lan_open",
+    "podconnect_base_url", "podconnect_token"];
+  var NUM = { duck_level: 1 };
   function f(id) { return document.getElementById("s_" + id); }
   function setVal(id, v) {
     var e = f(id); if (!e) return;
@@ -1120,14 +1051,14 @@ setInterval(poll, 3000);
   // initial GET failed — keep the save buttons disabled until settings really loaded.
   var settingsLoaded = false;
   function setSaveEnabled(on) {
-    ["s_save", "s_saverestart", "vp_saverestart"].forEach(function (id) {
+    ["s_save", "s_saverestart"].forEach(function (id) {
       var b = document.getElementById(id); if (b) b.disabled = !on;
     });
   }
   // GET /api/settings returns "********" for saved secrets; round-tripping that mask
   // keeps the stored secret. Show a hint so the stars don't look like a glitch.
   function updateSecretHints(s) {
-    ["podconnect_token", "voicepe_noise_psk"].forEach(function (id) {
+    ["voicepe_noise_psk", "podconnect_token"].forEach(function (id) {
       var h = document.getElementById("s_" + id + "_hint");
       if (h) h.style.display = (s && s[id] === "********") ? "" : "none";
     });
@@ -1161,11 +1092,8 @@ setInterval(poll, 3000);
   }
 
   var statusEl = document.getElementById("s_status");
-  // Settings live in two panes now (Settings + the Voice PE tab share one save), so mirror
-  // the save status to whichever pane the user is looking at.
   function setSaveStatus(msg) {
     statusEl.textContent = msg;
-    var v = document.getElementById("vp_savestatus"); if (v) v.textContent = msg;
   }
   async function save(restart) {
     setSaveStatus("Saving…");
@@ -1197,8 +1125,6 @@ setInterval(poll, 3000);
   }
   document.getElementById("s_save").onclick = function () { save(false); };
   document.getElementById("s_saverestart").onclick = function () { save(true); };
-  var vpSave = document.getElementById("vp_saverestart");
-  if (vpSave) vpSave.onclick = function () { save(true); };
   var resetBtn = document.getElementById("s_resetprompt");
   if (resetBtn) resetBtn.onclick = function () {
     var t = document.getElementById("s_system_prompt");

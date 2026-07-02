@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.76.0 — the streamlined panel: one clear focus
+
+The panel is rebuilt around the thin-client era — everything classic-era, experimental or redundant is GONE from the UI:
+
+- **Home** (new default): is it working right now? Connection dots, each room's live state, the activity feed, the LED legend, and three metrics that matter (Sessions, Barge-ins, False barges). Plus the only instruction anyone needs: *"Say 'Okay Nabu', then just talk — it handles interrupting, follow-ups and knowing when you're done. Say 'farvel' or 'stop' to end."*
+- **Setup**: exactly the eight things an owner actually sets — engine, provider, voice, Voice PE PSK, rooms, music ducking, home control — with System prompt, Simulation, PodConnect connection, Security and Diagnostics folded under Advanced.
+- **Talk** and **History**: unchanged.
+
+**Removed from the UI** (the backend keeps sane defaults): all VAD/turn-detection tuning for both providers, model-name fields, lounge/heartbeat/watchdog/VAD knobs, Audio path + Streaming replies, the Voice barge-in checkbox, the old Voice PE tab, four dead metrics, and the long how-to card. 1376 → ~1300 lines, every remaining field verified against the save/load wiring, all script blocks syntax-checked, rendered and screenshotted.
+
 ## 0.75.0 — the gap-closing release: model-owned goodbye, re-wake hush, timer ducking
 
 Closing the ranked honest-gaps list from the scenario review:
