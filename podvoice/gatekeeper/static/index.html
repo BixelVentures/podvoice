@@ -292,7 +292,13 @@
       <div class="setgrid">
         <label for="s_provider">Provider</label>
         <select id="s_provider"><option value="gemini">Gemini</option><option value="openai">OpenAI</option></select>
+        <label for="s_engine">Conversation engine</label>
+        <select id="s_engine">
+          <option value="classic">Classic — proven (state machine)</option>
+          <option value="thin">Thin — the model owns the conversation (Track B)</option>
+        </select>
       </div>
+      <p class="sub" style="margin:2px 0 0"><b>Thin</b> (new): the AI itself handles turn-taking, interruptions and knowing when you're done — you can talk over it, and there are no artificial windows. Works with the OpenAI provider. If anything feels off, switch back to <b>Classic</b> and Save &amp; restart.</p>
       <p class="sub" style="margin:2px 0 0">Model &amp; voice are chosen in the <b>Talk</b> tab; per-provider fine-tuning is under Advanced. <b>Web search &amp; live info</b> is just Home control: expose a conversation agent that has Google Search on (e.g. <code>conversation.google_ai_search</code>) below, and the assistant looks things up through it like any other HA tool.</p>
 
       <div class="exsub" style="margin-top:14px">Music ducking (PodConnect)</div>
@@ -958,7 +964,7 @@ setInterval(poll, 3000);
     "openai_model", "openai_voice", "openai_turn", "openai_eagerness", "openai_threshold",
     "openai_prefix_ms", "openai_silence_ms", "openai_noise",
     "podconnect_base_url", "podconnect_token", "voicepe_noise_psk", "simulate", "full_duplex",
-    "reply_streaming", "speaker_path", "panel_lan_open",
+    "engine", "reply_streaming", "speaker_path", "panel_lan_open",
     "duck_level", "lounge_level", "lounge_window_s", "heartbeat_ms", "watchdog_ms", "vad_threshold"];
   var NUM = { duck_level: 1, lounge_level: 1, lounge_window_s: 1, heartbeat_ms: 1, watchdog_ms: 1,
     vad_threshold: 1, gemini_prefix_ms: 1, gemini_silence_ms: 1, openai_threshold: 1,

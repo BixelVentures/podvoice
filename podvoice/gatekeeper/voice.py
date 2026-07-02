@@ -74,6 +74,13 @@ class UserSpeechStopped:
 
 
 @dataclass
+class Idle:
+    """The provider's server-side VAD reports the user has gone quiet long enough that
+    the conversation is over (OpenAI ``input_audio_buffer.timeout_triggered``). Track B's
+    server-owned replacement for our old client-side idle/lounge timers."""
+
+
+@dataclass
 class ToolCallCancellation:
     """The user barged in while tool calls were in flight (Gemini Live): those calls
     "should not have been executed" — cancel the pending dispatches so a stale
@@ -101,6 +108,7 @@ VoiceEvent = Union[  # noqa: UP007
     TurnComplete,
     Interrupted,
     UserSpeechStopped,
+    Idle,
     GoAway,
 ]
 

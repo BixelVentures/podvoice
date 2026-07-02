@@ -27,6 +27,7 @@ from .config import Config
 from .voice import (
     AudioChunk,
     GoAway,
+    Idle,
     InputTranscript,
     Interrupted,
     OutputTranscript,
@@ -50,6 +51,7 @@ __all__ = [
     "GeminiEvent",
     "GeminiLiveSession",
     "GoAway",
+    "Idle",
     "InputTranscript",
     "Interrupted",
     "OutputTranscript",

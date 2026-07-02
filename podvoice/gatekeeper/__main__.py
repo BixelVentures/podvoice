@@ -97,11 +97,38 @@ def _build_session(
     reply_bus: ReplyBus | None = None,
     reply_token: str = "",
     speech: Speech | None = None,
-) -> RoomSession:
+):
     psk = room.voicepe_noise_psk or cfg.voicepe_noise_psk
     declarations = tools.declarations() if tools is not None else []
     gemini = make_session(cfg, tool_declarations=declarations or None)  # provider per config
     voicepe = VoicePELink(room.voicepe_host, psk, room=room.room)
+    # Track B (engine: thin): the model owns the conversation — server VAD handles
+    # turn-taking/barge-in, the server idle timeout ends it. The provider session gets
+    # the idle signal enabled; ThinSession replaces the whole state machine.
+    if cfg.engine == "thin":
+        from .thin import IDLE_TIMEOUT_MS, ThinSession
+
+        if hasattr(gemini, "idle_timeout_ms"):
+            gemini.idle_timeout_ms = IDLE_TIMEOUT_MS
+        reply_url = (
+            f"http://{_host_ip_for(room.voicepe_host)}:{DEFAULT_PORT}/reply/{room.room}.flac"
+        )
+        if reply_token:
+            reply_url += f"?t={reply_token}"
+        return ThinSession(
+            room=room.room,
+            attention=attention,
+            heartbeat=Heartbeat(attention, period_ms=cfg.heartbeat_ms),
+            gemini=gemini,
+            voicepe=voicepe,
+            playback=Playback(sink=voicepe.play_pcm),
+            tools=tools,
+            hub=hub,
+            speech=speech,
+            reply_bus=reply_bus,
+            reply_url=reply_url,
+            duck_level=cfg.duck_level,
+        )
     gatekeeper = Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False)
     playback = Playback(sink=voicepe.play_pcm)
     heartbeat = Heartbeat(attention, period_ms=cfg.heartbeat_ms)

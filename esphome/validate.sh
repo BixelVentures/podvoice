@@ -9,7 +9,7 @@
 # that proved !extend can't extend single-instance components like voice_assistant,
 # and that the no-!extend full-duplex config is valid.)
 #
-# Usage:   ./validate.sh [file.yaml ...]      (defaults to podvoice-phase1b.yaml)
+# Usage:   ./validate.sh [file.yaml ...]      (defaults to podvoice.yaml)
 # Needs:   Python 3.12+ (brew install python@3.12). Creates an isolated venv.
 # =============================================================================
 set -euo pipefail
@@ -33,7 +33,7 @@ EOF
 trap 'rm -f secrets.yaml' EXIT
 
 rc=0
-for f in "${@:-podvoice-phase1b.yaml}"; do
+for f in "${@:-podvoice.yaml}"; do
   echo "=================== esphome config $f ==================="
   "$VENV/bin/esphome" config "$f" >/tmp/esphome-validate.out 2>&1 && \
     echo "VALID: $f" || { rc=1; echo "INVALID: $f"; tail -30 /tmp/esphome-validate.out; }

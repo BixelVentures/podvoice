@@ -86,6 +86,8 @@ DEFAULTS: dict = {
     "openai_silence_ms": 500,  # server_vad only
     "openai_eagerness": "auto",  # semantic_vad: auto|low|medium|high
     "openai_noise": "far_field",  # near_field|far_field|off
+    "engine": "classic",  # "classic" (the proven state-machine engine) | "thin" (Track B:
+    # the model owns the conversation — turn-taking, barge-in, idle — via server VAD)
     "reply_streaming": False,  # stream the reply FLAC as it's generated (kills the pre-reply
     # silence) — experimental until verified on the device; buffered is the safe default
     "speaker_path": "announce",  # "announce" (HTTP/FLAC via media_player, hardware-proven) |

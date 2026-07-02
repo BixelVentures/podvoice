@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.73.0 — Track B: the THIN engine. The model owns the conversation.
+
+The pivot (docs/PLAN-BEAT-GEMINI.md), delivered. Settings → **Conversation engine → Thin** (+ Save & restart) switches a room to the new engine; **Classic remains the default and the one-click fallback**.
+
+**What Thin is:** one open conversation per wake. The mic streams to GPT-Realtime-2 for the whole conversation (and ONLY then — the wake gate is the privacy line); the server's semantic VAD owns turn-taking, interruption and "is the user done". No lounge windows, no closure word lists, no byte estimates, no gate-mute machinery — three states (asleep / conversation / error) instead of five plus timers.
+
+**What that means in the room:**
+- **Talk over it, it stops.** Barge-in is server-detected; the device is silenced instantly and the server is told exactly how many milliseconds you actually HEARD (`conversation.item.truncate` fed by the new playout clock) — so the assistant's memory matches your ears, and "hvad sagde du?" works honestly after an interruption.
+- **Just keep talking.** After a reply the conversation simply stays open — follow-ups need no wake word and no artificial window. The SERVER decides when you're done (8 s of quiet) and the music comes back.
+- **Music ducks once, calmly**, for the whole conversation — no per-turn pumping.
+- **One audible failure mode:** anything dying mid-conversation (socket, reader, pump — watched by a 5 s pipeline heartbeat) says the error in the assistant's own voice and lands in clean IDLE. 20-minute conversation ceiling keeps clear of the provider's 60-minute hard cut.
+- Tools/timers work unchanged (async dispatch; barge-in cancels in-flight calls via the server's cancellation signal).
+
+**Cleanup:** the dead firmware sketches (voice-pe.yaml + four phase yamls + overrides-test) and the spikes/ folder are deleted; validate.sh now defaults to podvoice.yaml. The classic engine stays untouched until Thin has been field-stable — then the big deletion (state machine, lounge/VAD/closure machinery) follows.
+
+ruff + mypy clean; 256 tests green (6 new thin end-to-end: full conversation incl. server-idle close, truncate-at-heard-position, tools, provider-death audibility, stop control, mute).
+
 ## 0.72.0 — recognition restored: the mic pre-roll fed the model un-ducked music
 
 Field report on 0.70: "den fatter ikke hvad jeg siger". Root cause: the 0.66 mic pre-roll replays ~1.5 s of audio captured BEFORE the gate opens — but in that window the music is NOT yet ducked (ducking is the last step of the wake sequence). So every turn started with a second of raw room audio/music glued in front of your words, and the model tried to transcribe that. 0.64/0.65 understood you precisely because the model only ever heard from gate-open.

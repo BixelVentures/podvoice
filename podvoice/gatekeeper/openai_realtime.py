@@ -27,6 +27,7 @@ from .audio import StreamResampler, resample_pcm16
 from .gemini import SYSTEM_PROMPT_DA
 from .voice import (
     AudioChunk,
+    Idle,
     InputTranscript,
     Interrupted,
     OutputTranscript,
@@ -76,6 +77,10 @@ class OpenAIRealtimeSession:
     prefix_ms: int = 300  # server_vad only
     silence_ms: int = 500  # server_vad only
     eagerness: str = "auto"  # semantic_vad: auto | low | medium | high
+    # Server-side conversation-idle signal (Track B): >0 makes the server emit
+    # input_audio_buffer.timeout_triggered after this much user silence -> Idle event.
+    # 0 (classic engine default) omits it, so the classic path is byte-for-byte unchanged.
+    idle_timeout_ms: int = 0
     # far_field: the Voice PE mic is across a room, not a headset — this is the right
     # noise-reduction profile for a shared living space (near_field assumed close talk).
     noise: str = "far_field"  # near_field | far_field | off
@@ -99,6 +104,7 @@ class OpenAIRealtimeSession:
                 "eagerness": self.eagerness or "auto",
                 "create_response": True,
                 "interrupt_response": True,
+                **({"idle_timeout_ms": self.idle_timeout_ms} if self.idle_timeout_ms else {}),
             }
         return {  # server_vad
             "type": "server_vad",
@@ -107,6 +113,7 @@ class OpenAIRealtimeSession:
             "silence_duration_ms": int(self.silence_ms),
             "create_response": True,
             "interrupt_response": True,
+            **({"idle_timeout_ms": self.idle_timeout_ms} if self.idle_timeout_ms else {}),
         }
 
     def _session_update(self) -> dict:
@@ -313,6 +320,9 @@ class OpenAIRealtimeSession:
                 # would count the user's own speaking time as latency and abort every
                 # turn before a reply is even possible.
                 yield UserSpeechStopped()
+            elif t == "input_audio_buffer.timeout_triggered":
+                _LOG.info("turn: server idle timeout -> conversation over")
+                yield Idle()
             elif t == "input_audio_buffer.committed":
                 # Belt-and-suspenders end-of-user-turn signal (fires for both
                 # server_vad and semantic_vad). Re-arming the watchdog is harmless.

@@ -35,6 +35,8 @@ class FakeGeminiSession:
         self.closed: bool = False
         self.connect_count: int = 0
         self.reconnect_count: int = 0
+        self.truncations: list[tuple[str, int]] = []
+        self.idle_timeout_ms: int = 0  # set by __main__ wiring in thin mode
 
     # --- scripting helpers -------------------------------------------------
 
@@ -48,6 +50,10 @@ class FakeGeminiSession:
         self.connected = True
         self.closed = False
         self.connect_count += 1
+
+    async def truncate(self, item_id: str, audio_end_ms: int) -> None:
+        """Track B: record the heard-position report for assertions."""
+        self.truncations.append((item_id, audio_end_ms))
 
     async def send_audio(self, pcm16k: bytes) -> None:
         self.sent_audio.append(pcm16k)

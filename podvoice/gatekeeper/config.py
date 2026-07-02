@@ -51,6 +51,7 @@ class Config:
     openai_eagerness: str = "auto"
     openai_noise: str = "far_field"
     simulate: bool = False
+    engine: str = "classic"  # "classic" | "thin" (Track B — the model owns the conversation)
     reply_streaming: bool = False  # stream the reply FLAC while it generates (experimental)
     speaker_path: str = "announce"  # "announce" | "direct" (0.67 firmware VA-speaker path)
     panel_lan_open: bool = False  # True = allow direct LAN access to the panel (unauth'd)
@@ -145,6 +146,7 @@ def from_options(opts: dict) -> Config:
         openai_eagerness=str(opts.get("openai_eagerness", "auto") or "auto"),
         openai_noise=str(opts.get("openai_noise", "far_field") or "far_field"),
         simulate=bool(opts.get("simulate", False)),
+        engine=("thin" if opts.get("engine") == "thin" else "classic"),
         reply_streaming=bool(opts.get("reply_streaming", False)),
         # The DIRECT VA-speaker path needs a firmware that overrides voice_assistant's
         # output to a speaker. That firmware (0.67) played 24 kHz PCM at the wrong rate
