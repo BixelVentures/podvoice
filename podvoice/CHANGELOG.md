@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.72.0 — recognition restored: the mic pre-roll fed the model un-ducked music
+
+Field report on 0.70: "den fatter ikke hvad jeg siger". Root cause: the 0.66 mic pre-roll replays ~1.5 s of audio captured BEFORE the gate opens — but in that window the music is NOT yet ducked (ducking is the last step of the wake sequence). So every turn started with a second of raw room audio/music glued in front of your words, and the model tried to transcribe that. 0.64/0.65 understood you precisely because the model only ever heard from gate-open.
+
+The pre-roll is now DEFAULT OFF (the only change to the audio-in path since 0.65 is gone from the hot path). It can only return after a duck-first redesign, validated on the device.
+
+ruff + mypy clean; 244 tests green.
+
 ## 0.71.0 — timers: no more unit arithmetic in the model, and the ring says WHICH timer
 
 Field feedback: the timer behaved as if hardcoded. Two real fixes:

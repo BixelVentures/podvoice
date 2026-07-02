@@ -68,6 +68,10 @@ class RoomSession:
         reply_url: str | None = None,  # the device-reachable /reply/<room>.flac URL
         reply_streaming: bool = False,  # reply FLAC streams live (no post-generation playback lag)
         speech=None,  # Speech — synthesizes the fixed spoken lines in the assistant's voice
+        mic_preroll: bool = False,  # replay the pre-gate mic run-up on cold wake. DEFAULT OFF:
+        # the run-up is captured BEFORE the music ducks, so it front-loads un-ducked room
+        # audio/music into the model's ears and wrecks recognition (0.70 field regression
+        # "den fatter ikke hvad jeg siger"). Re-enable only after a duck-first redesign.
         speaker_path: str = "announce",  # "announce" (HTTP/FLAC via media_player, proven) |
         # "direct" (raw PCM down the native API into the VA speaker — 0.67 firmware)
         lounge_window_s: int = C.LOUNGE_WINDOW_S,
@@ -92,6 +96,7 @@ class RoomSession:
         self.reply_url = reply_url
         self.reply_streaming = reply_streaming
         self.speech = speech
+        self.mic_preroll = mic_preroll
         self.speaker_path = speaker_path
         self.duck_level = duck_level
         self.lounge_level = lounge_level
@@ -868,7 +873,7 @@ class RoomSession:
         repaint that follows paints the same colour. A cold wake also arms the pre-roll
         replay (only the cold-wake gate_open has the connect gap worth covering)."""
         if self.sm.state is State.IDLE:
-            self._preroll_armed = True
+            self._preroll_armed = self.mic_preroll  # default off — see __init__
             self._paint_led(State.LISTENING)
 
     def _on_device_event(self, room: str, state: object) -> None:
