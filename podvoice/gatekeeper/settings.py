@@ -88,6 +88,8 @@ DEFAULTS: dict = {
     "openai_noise": "far_field",  # near_field|far_field|off
     "reply_streaming": False,  # stream the reply FLAC as it's generated (kills the pre-reply
     # silence) — experimental until verified on the device; buffered is the safe default
+    "speaker_path": "announce",  # "announce" (HTTP/FLAC via media_player, hardware-proven) |
+    # "direct" (raw PCM over the native API into the VA speaker — needs the 0.67 firmware)
     "panel_lan_open": False,  # False = panel/API only via HA Ingress (the sidebar). True
     # re-opens direct LAN access to :8098 (unauthenticated — you're on your own)
     "podconnect_base_url": "http://homeassistant.local:8099",

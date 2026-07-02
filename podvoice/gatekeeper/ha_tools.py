@@ -143,6 +143,7 @@ class HAToolBridge:
         client: httpx.AsyncClient,
         *,
         exposed: list[str] | tuple[str, ...] = (),
+        timers=None,  # TimerManager — local kitchen timers ("sæt en timer på ti minutter")
     ) -> None:
         self._client = client
         self._has_ha = bool(supervisor_token)
@@ -151,6 +152,7 @@ class HAToolBridge:
             "Content-Type": "application/json",
         }
         self._exposed = [e.strip().lower() for e in exposed if e and e.strip()]
+        self._timers = timers
         self._services_cache: list | None = None  # memoized /services catalog (TTL'd)
         self._services_ts: float = 0.0
         self._tz: datetime.tzinfo | None = None  # memoized HA-configured timezone (get_time)
@@ -175,6 +177,45 @@ class HAToolBridge:
                 "parameters": {"type": "object", "properties": {}},
             }
         ]
+        if self._timers is not None:
+            # Local kitchen timers — no HA dependency. The expiry rings ON the Voice PE
+            # ("Din timer er færdig!"), so the model must never claim it can't set timers.
+            decls += [
+                {
+                    "name": "set_timer",
+                    "description": "Start a countdown timer that will ring on this speaker "
+                    "when it finishes (e.g. 'sæt en timer på 10 minutter'). Confirm the "
+                    "duration back to the user in Danish.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "seconds": {
+                                "type": "integer",
+                                "description": "Duration in seconds (e.g. 10 minutes = 600).",
+                            },
+                            "label": {
+                                "type": "string",
+                                "description": "Optional short label, e.g. 'pasta'.",
+                            },
+                        },
+                        "required": ["seconds"],
+                    },
+                },
+                {
+                    "name": "list_timers",
+                    "description": "List the currently running timers with remaining time.",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+                {
+                    "name": "cancel_timer",
+                    "description": "Cancel a running timer. Without an id, cancels the one "
+                    "expiring next.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"id": {"type": "integer", "description": "Timer id."}},
+                    },
+                },
+            ]
         if self._has_ha:
             ent = {
                 "type": "object",
@@ -616,6 +657,15 @@ class HAToolBridge:
         try:
             if name == "get_time":  # local, no HA gate — the clock always answers
                 return await self._get_time()
+            # Local kitchen timers — no HA gate; the expiry rings on the Voice PE.
+            if self._timers is not None and name in ("set_timer", "list_timers", "cancel_timer"):
+                if name == "set_timer":
+                    return self._timers.set_timer(
+                        int(args.get("seconds", 0)), str(args.get("label", "") or "")
+                    )
+                if name == "list_timers":
+                    return self._timers.list_timers()
+                return self._timers.cancel_timer(args.get("id"))
             if name == "list_home":
                 return await self._list_home()
             if name == "list_services":

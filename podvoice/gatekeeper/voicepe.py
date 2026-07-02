@@ -320,6 +320,51 @@ class VoicePELink:
         except Exception as e:  # surface failures (was DEBUG — hid the no-sound cause)
             log.warning("voicepe %s: media_player_command FAILED: %s", self.host, e)
 
+    # ------------------------------------------------------------------ direct speaker path (0.67)
+    async def begin_direct_reply(self) -> bool:
+        """Open the VA-speaker pipeline on the 0.67 firmware: TTS_START fires the
+        on_tts_start trigger (which pins the resampler to our 24 kHz), the non-empty
+        TTS_END url flips the device into STREAMING_RESPONSE, and subsequent
+        VoiceAssistantAudio frames play straight through resampler -> mixer -> speaker.
+        Returns False if the link isn't up (caller falls back to the announce path)."""
+        if self._client is None:
+            return False
+        try:
+            from aioesphomeapi.model import VoiceAssistantEventType as T
+
+            self._client.send_voice_assistant_event(T.VOICE_ASSISTANT_TTS_START, {})
+            self._client.send_voice_assistant_event(T.VOICE_ASSISTANT_TTS_STREAM_START, None)
+            self._client.send_voice_assistant_event(
+                T.VOICE_ASSISTANT_TTS_END, {"url": "stream://podvoice"}
+            )
+            return True
+        except Exception as e:
+            log.warning("voicepe %s: begin_direct_reply failed: %s", self.host, e)
+            return False
+
+    def send_direct_pcm(self, chunk: bytes) -> None:
+        """One paced PCM frame into the device's 16 KB speaker buffer (synchronous send)."""
+        if self._client is not None:
+            self._client.send_voice_assistant_audio(chunk)
+
+    async def end_direct_reply(self) -> None:
+        """Close the stream: the device drains its buffer, then finishes the response."""
+        if self._client is None:
+            return
+        try:
+            from aioesphomeapi.model import VoiceAssistantEventType as T
+
+            self._client.send_voice_assistant_event(T.VOICE_ASSISTANT_TTS_STREAM_END, None)
+        except Exception as e:
+            log.debug("voicepe %s: end_direct_reply failed: %s", self.host, e)
+
+    async def set_stop_word(self, on: bool) -> None:
+        """Arm/disarm the on-device 'stop' wake model around our replies (0.67 firmware
+        actions). While armed, saying 'stop' fires podvoice_event wake_stop -> CLOSURE."""
+        await self._call_service(
+            "podvoice_stop_word_enable" if on else "podvoice_stop_word_disable"
+        )
+
     async def stop_playback(self) -> None:
         """STOP the announcement pipeline on the device — the missing half of "stop".
 

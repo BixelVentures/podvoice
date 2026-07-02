@@ -268,6 +268,47 @@ async def test_hardware_mute_closes_session_and_paints_red():
         await session.aclose()
 
 
+async def test_direct_speaker_path_plays_and_finishes():
+    """0.67 direct path: reply PCM goes down the native API (begin -> paced frames ->
+    end), the on-device stop word is armed for the reply, and the turn completes after
+    the paced send finishes."""
+    pcm = _frame(2000, n_samples=2400)  # 4800 B = 0.1 s
+    gemini = FakeGeminiSession()
+    gemini.script(AudioChunk(pcm), TurnComplete())
+    attention = FakeAttention()
+    voicepe = FakeVoicePELink(room=ROOM)
+    gatekeeper = Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False)
+    session = RoomSession(
+        room=ROOM,
+        attention=attention,
+        heartbeat=Heartbeat(attention, period_ms=20),
+        gatekeeper=gatekeeper,
+        gemini=gemini,
+        voicepe=voicepe,
+        playback=Playback(sink=voicepe.play_pcm),
+        tools=FakeTools(),
+        bargein=BargeIn(),
+        enable_watchdog=False,
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+        speaker_path="direct",
+        lounge_window_s=30,
+    )
+    await session.start()
+    try:
+        await session.sm.post(Event(EventType.WAKE_WORD, ROOM))
+        await _wait_until(lambda: session.sm.state is State.AI_SPEAKING)
+        await _wait_until(lambda: "begin" in voicepe.direct_events)  # stream opened
+        assert True in voicepe.stop_word_states  # "stop" armed during the reply
+        await _wait_until(lambda: sum(len(c) for c in voicepe.direct_pcm) == len(pcm))
+        await _wait_until(lambda: "end" in voicepe.direct_events, max_wait=2.0)
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW, max_wait=2.0)
+        assert voicepe.announced_urls == []  # no HTTP announce in direct mode
+        assert False in voicepe.stop_word_states  # disarmed after the reply
+    finally:
+        await session.aclose()
+
+
 async def test_tool_call_dispatched_and_answered():
     gemini = FakeGeminiSession()
     gemini.script(ToolCall("1", "add_todo", {"list": "todo.shopping_list", "item": "mælk"}))

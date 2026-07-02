@@ -534,9 +534,18 @@ async def _control(request: web.Request) -> web.Response:
         bus.start(room)
         bus.push(room, tone)
         bus.end(room)
-        with contextlib.suppress(Exception):
-            await session.voicepe.play_url(url)
-        _LOG.info("test_speaker: pushed %d B tone to announce path for room %s", len(tone), room)
+        if getattr(session, "speaker_path", "announce") == "direct" and hasattr(
+            session, "_start_direct_sender"
+        ):
+            # Exercise the 0.67 direct VA-speaker path with the same tone.
+            session._start_direct_sender()
+            _LOG.info("test_speaker: pushed %d B tone to DIRECT path for room %s", len(tone), room)
+        else:
+            with contextlib.suppress(Exception):
+                await session.voicepe.play_url(url)
+            _LOG.info(
+                "test_speaker: pushed %d B tone to announce path for room %s", len(tone), room
+            )
     else:
         return web.json_response({"ok": False, "error": f"unknown action {action!r}"}, status=400)
     return web.json_response({"ok": True})

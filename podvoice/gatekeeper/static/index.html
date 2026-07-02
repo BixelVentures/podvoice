@@ -437,6 +437,11 @@
 
       <div class="exsub" style="margin-top:16px">Reply delivery</div>
       <div class="setgrid">
+        <label for="s_speaker_path">Audio path</label>
+        <select id="s_speaker_path">
+          <option value="announce">Announce — proven (via HTTP)</option>
+          <option value="direct">Direct — instant (needs the 0.67 firmware)</option>
+        </select>
         <label for="s_reply_streaming">Streaming replies <span style="opacity:.6">(experimental)</span></label>
         <input id="s_reply_streaming" type="checkbox">
       </div>
@@ -953,7 +958,7 @@ setInterval(poll, 3000);
     "openai_model", "openai_voice", "openai_turn", "openai_eagerness", "openai_threshold",
     "openai_prefix_ms", "openai_silence_ms", "openai_noise",
     "podconnect_base_url", "podconnect_token", "voicepe_noise_psk", "simulate", "full_duplex",
-    "reply_streaming", "panel_lan_open",
+    "reply_streaming", "speaker_path", "panel_lan_open",
     "duck_level", "lounge_level", "lounge_window_s", "heartbeat_ms", "watchdog_ms", "vad_threshold"];
   var NUM = { duck_level: 1, lounge_level: 1, lounge_window_s: 1, heartbeat_ms: 1, watchdog_ms: 1,
     vad_threshold: 1, gemini_prefix_ms: 1, gemini_silence_ms: 1, openai_threshold: 1,

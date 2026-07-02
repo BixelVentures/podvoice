@@ -21,6 +21,9 @@ class FakeVoicePELink:
         self.announced_urls: list[str] = []
         self.stop_playback_calls = 0
         self.light_commands: list[tuple[bool, tuple[float, float, float], float]] = []
+        self.direct_events: list[str] = []
+        self.direct_pcm: list[bytes] = []
+        self.stop_word_states: list[bool] = []
         self.started = False
         self.closed = False
 
@@ -50,6 +53,23 @@ class FakeVoicePELink:
 
     async def set_light(self, on: bool, rgb: tuple[float, float, float], brightness: float) -> None:
         self.light_commands.append((on, rgb, brightness))
+
+    # --- direct VA-speaker path (0.67) ---
+    async def begin_direct_reply(self) -> bool:
+        self.direct_events.append("begin")
+        return True
+
+    def send_direct_pcm(self, chunk: bytes) -> None:
+        self.direct_pcm.append(chunk)
+
+    async def end_direct_reply(self) -> None:
+        self.direct_events.append("end")
+
+    async def abort_va(self) -> None:
+        self.direct_events.append("abort")
+
+    async def set_stop_word(self, on: bool) -> None:
+        self.stop_word_states.append(on)
 
     async def aclose(self) -> None:
         self.closed = True

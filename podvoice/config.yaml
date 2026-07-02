@@ -2,7 +2,7 @@
 # Defaults below are the canonical operational constants from PLAN.md §3
 # (single source of truth, mirrored in gatekeeper/constants.py).
 name: PodVoice
-version: "0.66.0"
+version: "0.67.0"
 slug: podvoice
 description: Gemini Live voice assistant bridge for custom-firmware Voice PE
 arch:

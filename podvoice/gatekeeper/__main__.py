@@ -34,6 +34,7 @@ from .reply import ReplyBus
 from .settings import DEFAULTS as SETTINGS_DEFAULTS
 from .settings import load_settings, masked, save_settings
 from .sim import build_sim_sessions, run_driver
+from .timers import TimerManager
 from .voicepe import VoicePELink
 from .watchdog import BargeIn, TurnWatchdog
 from .web import DEFAULT_PORT, create_app, start_web
@@ -130,6 +131,7 @@ def _build_session(
         reply_bus=reply_bus,
         reply_url=reply_url,
         reply_streaming=cfg.reply_streaming,
+        speaker_path=cfg.speaker_path,
         full_duplex=cfg.full_duplex,
         lounge_window_s=cfg.lounge_window_s,
         duck_level=cfg.duck_level,
@@ -197,6 +199,7 @@ async def run(cfg: Config) -> None:
     attention: AttentionClient | None = None
     ha_client: httpx.AsyncClient | None = None
     tools: HAToolBridge | None = None
+    timers: TimerManager | None = None
     driver: asyncio.Task | None = None
     probe: asyncio.Task | None = None
 
@@ -211,7 +214,33 @@ async def run(cfg: Config) -> None:
         # Bounded timeouts so a slow/wedged HA service can never hang a tool call (and thus
         # the whole conversational turn). ha_tools also wraps dispatch in wait_for as a belt.
         ha_client = httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=3.0))
-        tools = HAToolBridge(cfg.supervisor_token, ha_client, exposed=cfg.exposed)
+
+        # Kitchen timers ring on the Voice PE via each room's reply path. The announce
+        # closure reads `sessions` late (the dict is filled a few lines below).
+        async def _timer_ring(label: str) -> None:
+            from . import audio as audio_mod
+            from . import clips
+            from . import constants as CC
+
+            for s in sessions.values():
+                bus, url = getattr(s, "reply_bus", None), getattr(s, "reply_url", None)
+                if bus is None or not url:
+                    continue
+                bus.clear(s.room)
+                bus.start(s.room)
+                bus.push(s.room, audio_mod.error_tone(CC.GEMINI_OUTPUT_RATE) * 2)
+                clip = clips.load_clip("timer_done")
+                if clip:
+                    bus.push(s.room, clip)
+                bus.end(s.room)
+                with contextlib.suppress(Exception):
+                    await s.voicepe.play_url(url)
+                if hub is not None:
+                    hub.activity(s.room, f"⏰ Timer færdig: {label}")
+
+        timers = TimerManager(_timer_ring)
+        _LOG.info("timers: in-memory (an add-on restart clears running timers)")
+        tools = HAToolBridge(cfg.supervisor_token, ha_client, exposed=cfg.exposed, timers=timers)
         if not cfg.supervisor_token:
             _LOG.warning("no SUPERVISOR_TOKEN — HA control disabled (PodConnect tool still works)")
         sessions = {
@@ -279,6 +308,8 @@ async def run(cfg: Config) -> None:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await task
+        if timers is not None:
+            await timers.aclose()
         for s in sessions.values():
             await s.aclose()
         await runner.cleanup()

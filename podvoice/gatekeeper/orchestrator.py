@@ -67,6 +67,8 @@ class RoomSession:
         reply_bus=None,  # ReplyBus for the media_player announce path (speaker-out)
         reply_url: str | None = None,  # the device-reachable /reply/<room>.flac URL
         reply_streaming: bool = False,  # reply FLAC streams live (no post-generation playback lag)
+        speaker_path: str = "announce",  # "announce" (HTTP/FLAC via media_player, proven) |
+        # "direct" (raw PCM down the native API into the VA speaker — 0.67 firmware)
         lounge_window_s: int = C.LOUNGE_WINDOW_S,
         duck_level: int = C.DUCK_LEVEL,
         lounge_level: int = C.LOUNGE_LEVEL,
@@ -88,6 +90,7 @@ class RoomSession:
         self.reply_bus = reply_bus
         self.reply_url = reply_url
         self.reply_streaming = reply_streaming
+        self.speaker_path = speaker_path
         self.duck_level = duck_level
         self.lounge_level = lounge_level
         self.lounge_window_s = lounge_window_s
@@ -121,6 +124,7 @@ class RoomSession:
         self._closing = False  # aclose() in progress — suppress task-restart callbacks
         self._ingest_error_posted = False  # one ERROR per failure episode, not per frame
         self._tool_lock = asyncio.Lock()  # serialize tool-result sends (dispatches run async)
+        self._direct_sender: asyncio.Task | None = None  # direct-path reply pump (0.67)
 
         # Route device wake/button events into the state machine.
         if hasattr(voicepe, "on_event"):
@@ -184,6 +188,11 @@ class RoomSession:
         # (model started responding, went to grace, or closed).
         if new is not State.LISTENING:
             self._cancel_listen_timer()
+        # Disarm the on-device "stop" wake model whenever a reply ends, however it ends
+        # (armed in PLAYBACK_ARM; the enable/disable services are idempotent).
+        if old is State.AI_SPEAKING and new is not State.AI_SPEAKING:
+            if hasattr(self.voicepe, "set_stop_word"):
+                self._schedule_task(self.voicepe.set_stop_word(False))
         # Repaint the LED ring for the new state (error events flash red first).
         is_err = event.type in (EventType.ERROR, EventType.WATCHDOG_TIMEOUT)
         self._paint_led(new, error=is_err)
@@ -300,6 +309,7 @@ class RoomSession:
         self._cancel_lounge_timer()
         self._cancel_listen_timer()
         self._cancel_turn_done_timer()
+        self._cancel_direct_sender()
         self._stop_keepalive()
         # Best-effort: stop the device mic-forward + turn the ring off so a dead add-on
         # never leaves the device streaming or the LED stuck mid-conversation.
@@ -406,23 +416,37 @@ class RoomSession:
             self.playback.start()
             if self.reply_bus is not None and self.reply_url:
                 self.reply_bus.start(self.room)  # fresh reply audio stream
-                # Tell the device to fetch + play the reply URL (announce path) —
-                # and verify it actually fetched, re-announcing once if not.
-                self._schedule_task(self._announce_with_retry())
+                if self.speaker_path == "direct" and hasattr(self.voicepe, "begin_direct_reply"):
+                    # 0.67: pump raw PCM straight down the native API (no HTTP/FLAC).
+                    self._start_direct_sender()
+                else:
+                    # Tell the device to fetch + play the reply URL (announce path) —
+                    # and verify it actually fetched, re-announcing once if not.
+                    self._schedule_task(self._announce_with_retry())
                 if self.hub is not None:
                     self.hub.activity(self.room, "🔊 Playing reply on the speaker")
+                # Arm the on-device "stop" wake model for the duration of the reply
+                # (0.67 firmware): saying "stop" now interrupts even while it talks.
+                if hasattr(self.voicepe, "set_stop_word"):
+                    self._schedule_task(self.voicepe.set_stop_word(True))
         elif k is ActionKind.PLAYBACK_STOP:
             self.playback.flush()
             self._cancel_turn_done_timer()  # the turn is over NOW (stop / barge-in / error)
+            self._cancel_direct_sender()
             if self.reply_bus is not None:
                 self.reply_bus.end(self.room)  # close the announce stream (barge-in / teardown)
-            # The device already holds the fetched reply, so ending the stream alone
-            # doesn't silence it — send a real media_player STOP at the announcement.
-            # Inline (not scheduled): the ERROR_TONE announce that can follow in the same
-            # action list must hit the wire AFTER this stop, or the stop kills the clip.
+            if self.speaker_path == "direct" and hasattr(self.voicepe, "abort_va"):
+                # Direct path: voice_assistant.stop tears the speaker stream instantly.
+                with contextlib.suppress(Exception):
+                    await self.voicepe.abort_va()
+            # The device may also hold a fetched announce reply — send a real media_player
+            # STOP at the announcement. Inline (not scheduled): the ERROR_TONE announce
+            # that can follow in the same action list must hit the wire AFTER this stop.
             if hasattr(self.voicepe, "stop_playback"):
                 with contextlib.suppress(Exception):
                     await self.voicepe.stop_playback()
+            if hasattr(self.voicepe, "set_stop_word"):
+                self._schedule_task(self.voicepe.set_stop_word(False))
         elif k is ActionKind.START_LOUNGE_TIMER:
             self._start_lounge_timer(action.timeout_s or self.lounge_window_s)
         elif k is ActionKind.CANCEL_LOUNGE_TIMER:
@@ -455,6 +479,61 @@ class RoomSession:
                 self.gatekeeper.clear_preroll()  # never leak run-up audio across sessions
             if hasattr(self.voicepe, "stop_streaming"):
                 await self.voicepe.stop_streaming()
+
+    # ------------------------------------------------------------------ direct path (0.67)
+    def _start_direct_sender(self) -> None:
+        self._cancel_direct_sender()
+        self._direct_sender = asyncio.create_task(
+            self._direct_send_loop(), name=f"direct-{self.room}"
+        )
+
+    def _cancel_direct_sender(self) -> None:
+        if self._direct_sender is not None and not self._direct_sender.done():
+            self._direct_sender.cancel()
+        self._direct_sender = None
+
+    async def _direct_send_loop(self) -> None:
+        """Pump the reply bus into VoiceAssistantAudio frames, paced to real time.
+
+        The device's VA speaker buffer is 16 KB (~0.33 s at 24 kHz/16-bit): sending
+        faster than playback drops chunks silently, so we keep at most ~0.25 s of
+        headroom in flight. When the bus ends (generation done), we close the stream
+        and — since sends were paced — playback finishes ~buffer-depth later, which is
+        when we post MODEL_TURN_COMPLETE. Cancellation (stop/barge-in) skips the
+        graceful close; PLAYBACK_STOP's abort_va already silenced the device."""
+        loop = asyncio.get_event_loop()
+        if not await self.voicepe.begin_direct_reply():
+            _LOG.warning("direct path unavailable — falling back to announce for %s", self.room)
+            await self._announce_with_retry()
+            return
+        byte_rate = float(C.GEMINI_OUTPUT_RATE * C.SAMPLE_WIDTH)
+        sent = 0
+        t0 = loop.time()
+        try:
+            while True:
+                try:
+                    chunk = await self.reply_bus.next_chunk(self.room, timeout_s=30.0)
+                except EOFError:
+                    break
+                if chunk is None:  # 30 s with no audio and no end — a wedged reply
+                    _LOG.warning("direct reply for %s never ended — closing stream", self.room)
+                    break
+                # Pace: sleep whenever we're more than 0.25 s ahead of real time.
+                ahead = sent / byte_rate - (loop.time() - t0)
+                if ahead > 0.25:
+                    await asyncio.sleep(ahead - 0.25)
+                for i in range(0, len(chunk), 2048):  # stay well under the 16 KB buffer
+                    self.voicepe.send_direct_pcm(chunk[i : i + 2048])
+                sent += len(chunk)
+            await self.voicepe.end_direct_reply()
+            # Sends were paced, so the device finishes ~its buffer depth after the last
+            # frame: fire the turn-done a tail later (media-state may still beat it).
+            self._start_turn_done_timer(PLAYBACK_TAIL_S)
+        except asyncio.CancelledError:
+            raise  # stop/barge-in: abort_va silenced the device; no graceful close
+        except Exception as e:
+            _LOG.warning("direct send loop failed for %s: %s", self.room, e)
+            await self.sm.post(Event(EventType.ERROR, self.room))
 
     async def _announce_with_retry(self, retry_after_s: float = 2.5) -> None:
         """Announce the reply URL and verify the device actually FETCHED it.
@@ -638,7 +717,9 @@ class RoomSession:
             # Posting it at generation end opened the lounge window while the speaker
             # was still talking — the lounge VAD then heard the assistant's own reply
             # and re-opened LISTENING, so it answered itself in a loop (0.64 field bug).
-            if est_playback_s > 0.05 or (self.reply_streaming and self.reply_bus is not None):
+            if self.speaker_path == "direct" and self._direct_sender is not None:
+                pass  # the paced direct sender fires turn-done when playback truly ends
+            elif est_playback_s > 0.05 or (self.reply_streaming and self.reply_bus is not None):
                 self._start_turn_done_timer(min(est_playback_s, 60.0) + PLAYBACK_TAIL_S)
             else:
                 await self.sm.post(Event(EventType.MODEL_TURN_COMPLETE, self.room))

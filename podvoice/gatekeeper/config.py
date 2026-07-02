@@ -52,6 +52,7 @@ class Config:
     openai_noise: str = "far_field"
     simulate: bool = False
     reply_streaming: bool = False  # stream the reply FLAC while it generates (experimental)
+    speaker_path: str = "announce"  # "announce" | "direct" (0.67 firmware VA-speaker path)
     panel_lan_open: bool = False  # True = allow direct LAN access to the panel (unauth'd)
     full_duplex: bool = False  # half-duplex (continued conversation) is the shipped mode;
     # True = open-mic barge-in, the future full-duplex opt-in (not built/validated yet)
@@ -145,6 +146,7 @@ def from_options(opts: dict) -> Config:
         openai_noise=str(opts.get("openai_noise", "far_field") or "far_field"),
         simulate=bool(opts.get("simulate", False)),
         reply_streaming=bool(opts.get("reply_streaming", False)),
+        speaker_path=("direct" if opts.get("speaker_path") == "direct" else "announce"),
         panel_lan_open=bool(opts.get("panel_lan_open", False)),
         # Full-duplex (open-mic barge-in) is NOT shipped yet — it's the future opt-in. Force
         # half-duplex regardless of any stale saved "full_duplex": true, so continued

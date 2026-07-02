@@ -23,6 +23,7 @@ CLIP_FILES = {
     "connection": "connection.pcm",  # "Der er problemer med forbindelsen lige nu."
     "timeout": "timeout.pcm",  # "Det tog for lang tid. Prøv lige igen." — the honest
     # message for a watchdog abort (blaming the wifi trains distrust of the wifi)
+    "timer_done": "timer_done.pcm",  # "Din timer er færdig!" — kitchen-timer expiry
 }
 
 

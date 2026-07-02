@@ -59,13 +59,56 @@ api:
     - action: podvoice_stream_stop
       then:
         - lambda: "id(pv_audio).stop_streaming();"
+    # 0.67: let the add-on arm/disarm the on-device "stop" wake model around its own
+    # replies (upstream's activate_stop_word_once only arms it for media_player
+    # announcements, not for the direct VA-speaker path).
+    - action: podvoice_stop_word_enable
+      then:
+        - micro_wake_word.enable_model: stop
+    - action: podvoice_stop_word_disable
+      then:
+        - micro_wake_word.disable_model: stop
 
-# NO voice_assistant override. PodVoice takes over the pipeline simply by SUBSCRIBING
-# over the native API (subscribe_voice_assistant) — the on-device wake then starts the
-# upstream VA, which forwards to the add-on via handle_start (that's how wake reaches
-# PodVoice). Setting use_wake_word:false here would BREAK wake, because nothing in this
-# config redirects micro_wake_word to fire podvoice_event instead. Keep upstream defaults.
-# (external_media_player, dac, mics, mww all come from the ha_voice package unchanged.)
+# 0.67: DIRECT SPEAKER PATH. Package maps merge key-by-key (no !extend needed for maps),
+# so we remove upstream's `media_player:` output (it's cv.Exclusive with `speaker:`) and
+# point the VA at the announcement resampler instead. Effect: the add-on can push raw
+# PCM straight down the already-open encrypted API connection (TTS_START/TTS_STREAM_START
+# + VoiceAssistantAudio frames + TTS_END/TTS_STREAM_END) -> resampler -> mixer -> speaker.
+# ~100ms to first sound instead of the HTTP/FLAC announce round-trip. The
+# external_media_player ENTITY still exists (it's a separate component), so the proven
+# FLAC-announce path keeps working as the fallback — the add-on picks per its
+# speaker_path setting. AEC stays correct: both paths play through the same mixer chain
+# the XMOS taps as its echo reference.
+voice_assistant:
+  media_player: !remove
+  speaker: announcement_resampling_speaker
+  # Our reply PCM is 24 kHz mono/16-bit, but the VA speaker path plays with the
+  # speaker's CURRENT stream info (defaults to 16 kHz — would play 2/3 speed, and the
+  # media announcement pipeline resets it whenever a chime plays). Re-assert per reply:
+  # the add-on sends TTS_START before the first audio frame, which fires this trigger.
+  on_tts_start:
+    - lambda: |-
+        id(announcement_resampling_speaker).set_audio_stream_info(
+            esphome::audio::AudioStreamInfo(16, 1, 24000));
+
+# Surface wake words to the add-on REGARDLESS of upstream's branching. Automations are
+# lists -> package merge CONCATENATES, so these run AFTER upstream's handler (which,
+# during a reply, only stops local audio and never calls voice_assistant.start — i.e.
+# without this, a re-wake mid-reply never reached PodVoice at all, and the "stop" model
+# had no path to us whatsoever).
+micro_wake_word:
+  on_wake_word_detected:
+    - if:
+        condition:
+          lambda: return wake_word == "stop";
+        then:
+          - event.trigger:
+              id: podvoice_event
+              event_type: wake_stop
+        else:
+          - event.trigger:
+              id: podvoice_event
+              event_type: wake_okay_nabu
 
 # Upstream ships wifi via improv provisioning (no hard-coded network); a headless
 # PodVoice flash needs credentials, so merge them in from secrets.yaml.

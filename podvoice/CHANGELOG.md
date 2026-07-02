@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.67.0 — firmware release: direct audio highway, "stop" while it talks, kitchen timers
+
+**Requires the 0.67 firmware** (already flashed to the device over USB — no action needed). The firmware is a pure-YAML overlay change (validated with `esphome config`, compiled and flashed 2026-07-02): no C++ was added.
+
+**The direct audio highway (`speaker_path: direct`, opt-in).** The recon of upstream 26.6.0 proved the whole HTTP/FLAC detour is unnecessary: package maps merge key-by-key, so the overlay swaps the voice assistant's output from `media_player:` to the announcement resampler (`media_player: !remove` + `speaker:`), and the add-on drives the reply with four client events + raw PCM frames down the already-open encrypted API connection — paced to the device's 16 KB buffer, with a per-reply 24 kHz stream-info pin (the resampler otherwise assumes 16 kHz and would play at 2/3 speed). Result: **~0.1 s to first sound, instant precise stop (voice_assistant.stop), no file-type sniffing, and turn-done timing that's exact by construction** (paced sends end when playback ends). The hardware-proven announce path remains the default AND the automatic fallback — switch under Voice PE → Audio path, verify with Test speaker.
+
+**"Stop" now works while it talks.** Upstream firmware already ships an internal "stop" wake model listening on the echo-cancelled mic channel; the overlay appends an automation that surfaces it (plus every wake) to PodVoice via the `podvoice_event` entity — which it turns out was NEVER fired by the old firmware (the 0.66 audit found the whole button/stop event path was dead code; even a re-wake mid-reply never reached PodVoice, because upstream's handler only stopped local audio). The add-on arms the stop model for exactly the duration of each reply. Saying **"stop"** while it speaks now interrupts locally on the device AND closes the PodVoice session.
+
+**Kitchen timers — "sæt en timer på ti minutter" finally works.** The UX audit's #1 family gap. Three local tools (set/list/cancel, no HA dependency), and at expiry the Voice PE rings + says **"Din timer er færdig!"** (pre-rendered clip) through the reply path — works even when the room is idle. v1 is in-memory: an add-on restart clears running timers (logged at startup).
+
+Also: the reply token stays out of announce logs on the direct path (no URL at all), and the media-state ground truth from 0.66 keeps guarding the announce path.
+
 ## 0.66.0 — "aldrig døv, aldrig dum": armoured core, first-word pre-roll, smooth streaming, honest errors
 
 Driven by the post-0.65 triple audit (code C1/H1/H2/H3, UX C−, SOTA benchmark) + the streaming field test ("lyd kommer ud 🙂 … dog falder den lidt over ordene").
