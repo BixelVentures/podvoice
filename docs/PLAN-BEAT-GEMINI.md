@@ -38,6 +38,13 @@ asyncio-loops — dét har vi allerede. Vi **stjæler frameworkenes mønstre** i
 | Kendte lydfejl | få (GA) | ctrl-token-lækage → tavse svar; "bag ElevenLabs" | bedst prosodi af de tre |
 | Dansk | Uvalideret i felten | Uvalideret i felten | Uvalideret + language hints |
 
+**AFGJORT af ejeren (2026-07-02): Realtime-2 er motoren.** Dansk er felt-bedst på marin i
+dag; Gemini genbesøges først når en nyere Live-model (3.5-flash-live e.l.) lander med
+proactive audio + ordentlig prosodi. B3 nedprioriteres tilsvarende.
+
+**Eksekverings-princip: token-mager.** Ingen agent-sværme; direkte, små, testbare trin.
+Researchen er FÆRDIG og ligger her + i memory — genopdag den ikke.
+
 **Rækkefølge:** B2 bygges på **GPT-Realtime-2** (GA, truncate tilgiver buffer-unøjagtighed,
 det er vores kørende provider med nøgler + DEFER-maskineri). B3 tilføjer **Gemini 2.5 m/
 proactive audio** som grace-vindue-eksperiment (og 3-4× billigere drift) — vi HAR allerede to

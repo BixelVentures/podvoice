@@ -18,9 +18,15 @@ from typing import Protocol, Union, runtime_checkable
 
 @dataclass
 class AudioChunk:
-    """Raw 24 kHz / 16-bit / mono PCM emitted by the model."""
+    """Raw 24 kHz / 16-bit / mono PCM emitted by the model.
+
+    ``item_id`` identifies the assistant conversation item the audio belongs to
+    (OpenAI Realtime) — Track B's playout clock + ``conversation.item.truncate``
+    need it to report the heard position on barge-in. None on providers/paths
+    that don't carry item identity (Gemini, sim)."""
 
     pcm: bytes
+    item_id: str | None = None
 
 
 @dataclass

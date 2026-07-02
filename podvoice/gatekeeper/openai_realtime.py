@@ -275,7 +275,8 @@ class OpenAIRealtimeSession:
                             )
                         else:
                             _LOG.info("turn: speaking response %s", drid)
-                    yield AudioChunk(base64.b64decode(d))
+                    # item_id feeds the Track-B playout clock -> conversation.item.truncate.
+                    yield AudioChunk(base64.b64decode(d), item_id=ev.get("item_id"))
             elif t == "response.output_audio_transcript.delta":
                 yield OutputTranscript(ev.get("delta", ""))
             elif t == "conversation.item.input_audio_transcription.completed":
@@ -339,6 +340,24 @@ class OpenAIRealtimeSession:
     async def reconnect(self) -> None:
         await self.close()
         await self.connect()
+
+    async def truncate(self, item_id: str, audio_end_ms: int) -> None:
+        """Tell the server how much of an assistant item the user ACTUALLY heard
+        before barging in (Track B). The server drops the unheard audio AND its
+        transcript from the conversation, so follow-ups reference only heard
+        content. ``audio_end_ms`` comes from the playout clock, never from the
+        receive position (we buffer ahead of playback)."""
+        if self._ws is None:
+            return
+        await self._ws.send_json(
+            {
+                "type": "conversation.item.truncate",
+                "item_id": item_id,
+                "content_index": 0,
+                "audio_end_ms": max(0, int(audio_end_ms)),
+            }
+        )
+        _LOG.info("truncated item %s at %dms (heard position)", item_id, audio_end_ms)
 
     async def close(self) -> None:
         self._deliberate_close = True
