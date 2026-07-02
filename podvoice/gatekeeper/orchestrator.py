@@ -16,7 +16,6 @@ import contextlib
 import logging
 
 from . import audio as audio_mod
-from . import clips
 from . import constants as C
 from .events import Action, ActionKind, Event, EventType, State
 from .gemini import (
@@ -127,6 +126,7 @@ class RoomSession:
         self._tool_lock = asyncio.Lock()  # serialize tool-result sends (dispatches run async)
         self._tool_tasks: dict[str, asyncio.Task] = {}  # in-flight dispatches by call id
         self._direct_sender: asyncio.Task | None = None  # direct-path reply pump (0.67)
+        self._preroll_armed = False  # replay the mic run-up ONLY on a cold wake (see below)
 
         # Route device wake/button events into the state machine.
         if hasattr(voicepe, "on_event"):
@@ -389,12 +389,16 @@ class RoomSession:
         elif k is ActionKind.GATE_OPEN:
             self.gatekeeper.set_silence(False)
             self._ingest_error_posted = False  # new turn — a fresh failure may speak again
-            if hasattr(self.gatekeeper, "open_with_preroll"):
-                # Replay the buffered run-up: the user starts talking the moment the
-                # ring turns cyan, ~1s before the provider WS is even connected.
+            # Replay the buffered run-up ONLY on a cold wake (the ~1s gap between the cyan
+            # ring and the provider WS connect). On a lounge re-open the WS is already up
+            # (no gap) AND the buffer may hold the tail/echo of the reply just spoken —
+            # replaying it there fed the model its own voice as your words, which is what
+            # produced the garbage "you" turns (0.66/0.68 field regression). Plain open.
+            if self._preroll_armed and hasattr(self.gatekeeper, "open_with_preroll"):
                 await self.gatekeeper.open_with_preroll()
             else:
                 self.gatekeeper.open()
+            self._preroll_armed = False
             self._responded = False
             self._out_buf = []  # fresh turn — drop any stale transcript fragments
             self._in_buf = []
@@ -569,19 +573,20 @@ class RoomSession:
         "det tog for lang tid — prøv igen" instead of blaming the wifi (which trains
         the family to distrust the connection for a merely-slow model). Falls back to
         the local tone path in sim/console mode (no reply bus)."""
+        # A clean earcon, NOT robotic TTS. The pre-rendered macOS clips were embarrassing
+        # quality; proper spoken errors need neural TTS generated offline (a follow-up).
+        # The tone says "something went wrong" without sounding broken.
         tone = audio_mod.error_tone(C.GEMINI_OUTPUT_RATE)
         if self.reply_bus is not None and self.reply_url:
             self.reply_bus.clear(self.room)
             self.reply_bus.start(self.room)
             self.reply_bus.push(self.room, tone)
-            clip = clips.load_clip(reason) or clips.load_clip("connection")
-            if clip:
-                self.reply_bus.push(self.room, clip)
             self.reply_bus.end(self.room)
             with contextlib.suppress(Exception):
                 await self.voicepe.play_url(self.reply_url)
             if self.hub is not None:
-                self.hub.activity(self.room, "🔴 Fejl — sagt højt på enheden")
+                label = "⏳ Timeout" if reason == "timeout" else "🔴 Forbindelsesfejl"
+                self.hub.activity(self.room, f"{label} — tone afspillet")
         else:
             await self.playback.play_tone(tone)
 
@@ -714,15 +719,14 @@ class RoomSession:
                     if hasattr(self.reply_bus, "take_turn_bytes")
                     else 0
                 )
-                if self.reply_streaming:
-                    # Playback tracked generation live; only the jitter prebuffer remains.
-                    est_playback_s = C.STREAM_PREBUFFER_S
-                else:
-                    # GENERATION is done, but the device only STARTS playing the buffered
-                    # FLAC around now (it's served when end() closes the stream). Estimate
-                    # how long it will keep talking so the turn doesn't "complete" while
-                    # the speaker is mid-sentence.
-                    est_playback_s = turn_bytes / float(C.GEMINI_OUTPUT_RATE * C.SAMPLE_WIDTH)
+                # GENERATION is done, but the device only STARTS playing the audio around
+                # now (announce: served when end() closes the stream; streaming: the device
+                # still BUFFERS the whole fetch and plays it after). Either way the estimate
+                # must be the FULL reply duration — the 0.68 streaming special-case used just
+                # the 1 s prebuffer, so the follow-up window opened ~1.5 s into a longer reply
+                # and the lounge VAD heard the reply itself → self-answer loop + garbage
+                # "you" turns (0.68 field regression). Always use the byte count.
+                est_playback_s = turn_bytes / float(C.GEMINI_OUTPUT_RATE * C.SAMPLE_WIDTH)
                 self.reply_bus.end(self.room)  # reply done -> close the announce stream
             if self._out_buf and self.hub is not None:  # persist the whole reply as ONE turn
                 self.hub.transcript(self.room, "out", "".join(self._out_buf))
@@ -855,8 +859,10 @@ class RoomSession:
         """Paint the ring cyan the INSTANT wake arrives. The WAKE action list awaits the
         provider WS connect (~1 s) before the observer repaints, and that dark second
         reads as "did it even hear me?" (0.64 field feedback). Idempotent — the observer
-        repaint that follows paints the same colour."""
+        repaint that follows paints the same colour. A cold wake also arms the pre-roll
+        replay (only the cold-wake gate_open has the connect gap worth covering)."""
         if self.sm.state is State.IDLE:
+            self._preroll_armed = True
             self._paint_led(State.LISTENING)
 
     def _on_device_event(self, room: str, state: object) -> None:

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.69.0 — stabilization: kill the self-reply loop (again), fix garbage transcription, drop the bad TTS
+
+Field test of 0.68 exposed regressions I shipped too eagerly. This release walks them back to the proven base.
+
+**The self-reply loop was back — and it's the transcription "garbage" too.** In streaming mode the "how long will it keep talking" estimate was set to just the 1 s prebuffer, so the follow-up window opened ~1.5 s into a 2-3 s reply; the lounge VAD then heard the reply itself and re-opened LISTENING, and the model transcribed its own voice as your words ("Velbekomme", "Det er sjovt at du kan…"). Fixed: the estimate is always the full reply length again, whether streaming or buffered.
+
+**The mic pre-roll no longer corrupts follow-ups.** The 1.5 s run-up replay now fires ONLY on a cold wake (the gap between the cyan ring and the provider connecting) — never on a lounge re-open, where the buffer could hold the echo/tail of the reply just spoken and prepend it to your next sentence.
+
+**Error audio is a clean tone, not robotic TTS.** The pre-rendered macOS clips were poor quality; they're gone from the shipped path. A distinct tone signals a problem without sounding broken. (Proper spoken Danish errors need neural TTS generated offline — a real follow-up, not compact-voice TTS.)
+
+**Recommended stable config after this release:** Audio path **Announce**, Streaming replies **OFF**, Voice barge-in **OFF**. That's the hardware-proven buffered path. Streaming (stutters via the announce delivery) and the Direct path only make sense once each is validated on the device one at a time — Direct needs **Save & restart**, not just Save.
+
+ruff + mypy clean; 237 tests green.
+
 ## 0.68.0 — voice barge-in (experimental): interrupt it by just talking
 
 The capability that separates "2026 state of the art" from "2024 with better answers" (the SOTA audit's words) — shipped as an explicit opt-in.
