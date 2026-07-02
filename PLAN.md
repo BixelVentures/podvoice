@@ -1,5 +1,13 @@
 # PodVoice — Master Plan
 
+> **HISTORICAL DOCUMENT (superseded 2026-07-02).** This was the original architecture
+> plan. The project has since pivoted to **Track B — the thin client** (the model owns
+> the conversation): see **docs/PLAN-BEAT-GEMINI.md** for the current plan, and
+> CHANGELOG.md for what actually shipped. File references below (e.g. voice-pe.yaml)
+> may describe deleted scaffolding.
+
+
+
 > Standalone voice-AI gatekeeper for a PodConnect home, shipped as a **Home Assistant Add-on**.
 > A custom-firmware HA Voice PE streams raw audio to PodVoice; PodVoice runs a full-duplex
 > Gemini Live conversation and **ducks the room's music** through PodConnect's Attention API

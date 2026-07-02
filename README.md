@@ -62,7 +62,7 @@ IDLE ──wake word / button──▶ LISTENING ──Gemini replies──▶ A
 ```
 
 ## Components
-- `esphome/voice-pe.yaml` — custom Voice PE firmware (continuous raw PCM, on-device wake word, button event).
+- `esphome/podvoice.yaml` — the Voice PE firmware overlay (thin `packages:` include of the official firmware + PodVoice's few overrides).
 - `gatekeeper/` — the Python asyncio service (state machine, Gemini Live client, Attention client +
   heartbeat, 800 ms watchdog, barge-in, HA tool bridge).
 - `podvoice/` — the HA add-on packaging (`config.yaml`, `Dockerfile`, `run.sh`).
