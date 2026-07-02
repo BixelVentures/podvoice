@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import secrets
 import signal
 import socket
 
@@ -92,6 +93,7 @@ def _build_session(
     tools: HAToolBridge | None,
     hub: StatusHub,
     reply_bus: ReplyBus | None = None,
+    reply_token: str = "",
 ) -> RoomSession:
     psk = room.voicepe_noise_psk or cfg.voicepe_noise_psk
     declarations = tools.declarations() if tools is not None else []
@@ -103,7 +105,11 @@ def _build_session(
     # The device-reachable URL it fetches to play the AI reply (announce path). .flac because
     # the on-device micro_decoder rejects WAV at file-type detection but decodes FLAC (the
     # extension is one of the two signals it sniffs, alongside the audio/flac Content-Type).
+    # ?t=<per-boot token>: /reply is exempt from the ingress lock (the device fetches it
+    # over the LAN), so the token is what keeps reply audio from being fetchable by anyone.
     reply_url = f"http://{_host_ip_for(room.voicepe_host)}:{DEFAULT_PORT}/reply/{room.room}.flac"
+    if reply_token:
+        reply_url += f"?t={reply_token}"
 
     async def _on_abort(reason: str, elapsed: float) -> None:  # watchdog poll loop handles posting
         _LOG.warning("watchdog abort (%s, %.0fms)", reason, elapsed * 1000)
@@ -123,6 +129,7 @@ def _build_session(
         hub=hub,
         reply_bus=reply_bus,
         reply_url=reply_url,
+        reply_streaming=cfg.reply_streaming,
         full_duplex=cfg.full_duplex,
         lounge_window_s=cfg.lounge_window_s,
         duck_level=cfg.duck_level,
@@ -183,7 +190,10 @@ async def _restart_addon(token: str) -> bool:
 async def run(cfg: Config) -> None:
     history = History()  # persisted conversations (Talk + Voice PE rooms) for the History tab
     hub = StatusHub(simulate=cfg.simulate, history=history)
-    reply_bus = ReplyBus()  # AI-reply audio -> /reply/<room>.wav -> device media_player announce
+    reply_bus = ReplyBus()  # AI-reply audio -> /reply/<room>.flac -> device media_player announce
+    # Per-boot token protecting /reply/* (the one route exempt from the ingress lock,
+    # because the device fetches it over the LAN).
+    reply_token = secrets.token_urlsafe(16)
     attention: AttentionClient | None = None
     ha_client: httpx.AsyncClient | None = None
     tools: HAToolBridge | None = None
@@ -205,7 +215,8 @@ async def run(cfg: Config) -> None:
         if not cfg.supervisor_token:
             _LOG.warning("no SUPERVISOR_TOKEN — HA control disabled (PodConnect tool still works)")
         sessions = {
-            r.room: _build_session(cfg, r, attention, tools, hub, reply_bus) for r in cfg.rooms
+            r.room: _build_session(cfg, r, attention, tools, hub, reply_bus, reply_token)
+            for r in cfg.rooms
         }
 
     # S1 (audio stream) reads the LIVE room session's audio reception when one is
@@ -239,6 +250,10 @@ async def run(cfg: Config) -> None:
         pc_rooms=(attention.rooms if attention is not None else None),
         history=history,
         reply_bus=reply_bus,
+        reply_token=reply_token,
+        # Lock the panel to ingress/loopback when running under HA (Supervisor token
+        # present) unless the owner explicitly re-opened LAN access in Settings.
+        locked=bool(cfg.supervisor_token) and not cfg.panel_lan_open,
     )
     runner = await start_web(app)
 

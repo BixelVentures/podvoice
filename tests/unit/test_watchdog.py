@@ -111,6 +111,24 @@ def test_classify_token():
     assert bi.classify_token("") is None
 
 
+def test_closure_only_on_pure_politeness():
+    """Politeness embedded in a command must NOT close the session mid-turn."""
+    bi = BargeIn()
+    # pure politeness phrases -> close
+    assert bi.classify_token("Tak!") == "close"
+    assert bi.classify_token("mange tak") == "close"
+    assert bi.classify_token("tusind tak") == "close"
+    assert bi.classify_token("tak for hjælpen") == "close"
+    assert bi.classify_token("det var alt, tak") == "close"
+    assert bi.classify_token("ok tak") == "close"
+    # "tak" inside a real command -> NOT a closure (the command must survive)
+    assert bi.classify_token("sluk lyset, tak") is None
+    assert bi.classify_token("tænd for musikken tak") is None
+    assert bi.classify_token("skru op for varmen, tak") is None
+    # hard stop still fires even inside a longer utterance
+    assert bi.classify_token("nej stop det der") == "hard"
+
+
 # --- BargeIn cooldown -------------------------------------------------------
 def test_fire_cooldown(fake_clock):
     bi = BargeIn(clock=fake_clock.time)

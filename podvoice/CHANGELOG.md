@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.65.0 — the "det bare virker" release: kill the self-reply loop, real stop, audible errors, panel lockdown
+
+Driven directly by the 0.64 field test (sound works! — and the log it produced found the worst remaining bug) plus the three-auditor service check.
+
+**The self-reply loop (the "den bliver ved med at svare" bug).** The field log showed the exact sequence: `MODEL_TURN_COMPLETE` fires when the reply is *generated*, but the buffered FLAC only *starts playing* on the device at that moment — so the state machine opened LOUNGE_WINDOW, armed the lounge VAD, and the VAD heard **the assistant's own reply** still coming out of the speaker (`lounge_window -> listening on LOCAL_VOICE_DETECTED` 400 ms after serving the FLAC, every turn). It then answered itself, forever, until the button was pressed.
+- **`MODEL_TURN_COMPLETE` is now held until the reply has actually finished playing** (reply size / 48 000 B/s + a 0.5 s tail; cancelled instantly by stop/barge-in/error). The green "replying" LED now also matches when the speaker is actually talking, and the follow-up window no longer burns while it speaks.
+
+**"Stop" now actually stops the speaker.** Since the buffered reply, the device holds the whole FLAC once fetched — closing our stream did nothing and the speaker talked on through IDLE. Every stop path (the word, the button, barge-in, errors) now also sends a real `media_player` **STOP** at the announcement pipeline (verified against aioesphomeapi 45.3.1).
+
+**Errors are audible now — in Danish.** The error tone went through `send_voice_assistant_audio`, which we ourselves documented as dead on this firmware — so every failure was pure silence (music snaps back, nothing said = "it ignored me"). Errors now play a short tone + a pre-rendered **"Der er problemer med forbindelsen lige nu."** through the *working* announce path. (Clips shipped as raw PCM assets; no TTS dependency, works precisely when the provider is what's down.)
+
+**Politeness is no longer punished.** "Sluk lyset, tak" used to die mid-command — `tak` in any transcript delta closed the session. Closure now fires only when the *whole accumulated utterance* is a politeness phrase ("tak", "mange tak", "tak for hjælpen", "det var alt, tak"); any real command word defeats it. "stop"/"vent"/"stille" still fire anywhere, whole-word.
+
+**"Hvordan gik Senegal-kampen" no longer dies mid-lookup.** The field log showed `watchdog stall` killing the turn 1.5 s into `home_call` — the mid-stream stall clock was ticking while *our own tool* ran. The watchdog now switches to the patient TTFR window *before* dispatching a tool, not only after.
+
+**Instant light on wake.** ~1 s of dark ring between "Okay Nabu" and cyan (the LED waited for the provider WS connect) read as "did it hear me?". The ring is now pre-painted cyan the instant wake arrives.
+
+**Panel locked down (security).** The sidebar panel on `:8098` was reachable — unauthenticated — by anything on the wifi (`host_network: true`), including `/api/settings` (tokens + PSK in cleartext), the mic controls, and restart. The panel/API now only answers Home Assistant Ingress + loopback; the reply audio the device fetches over LAN is instead protected by a per-boot token in the URL; `/health` stays open. An explicit `panel_lan_open` setting (default **off**) re-opens direct LAN access for those who want it.
+
+**Streaming replies (experimental, default off).** `reply_streaming` pipes the reply through a live `flac` encoder and chunks it out **as the model generates** — removing the buffered path's silence between the green LED and the first word (the 0.64 field test's "betænkelig tid"). Off by default until hardware-verified: tick it in Settings → Reply delivery, press **Test speaker**, and untick if silent. The turn-done hold collapses to just the 0.5 s tail in this mode.
+
+**Never silently deaf.** If the device doesn't fetch the announced reply within 2.5 s, PodVoice logs it, says so in the activity feed ("🔇 Enheden hentede ikke svaret — prøver igen") and re-announces once.
+
+ruff + mypy clean; 219 tests green (new: closure-politeness rules, device STOP on closure, playback-hold before lounge, audible-error announce, Danish clip asset, wake LED pre-paint, ingress lock + reply token, streaming FLAC end-to-end).
+
 ## 0.64.0 — reply audio as FLAC (the real no-sound fix) + lounge-window floor + speaker self-test
 
 The device-side ESPHome log finally pinned the no-sound cause. The Voice PE's on-device decoder connects, gets our WAV, then rejects it **before reading a single sample**:

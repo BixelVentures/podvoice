@@ -64,6 +64,10 @@ def _word_set(words: frozenset[str]) -> frozenset[str]:
 
 _HARD = _word_set(C.HARD_STOP_WORDS)
 _CLOSE = _word_set(C.CLOSURE_WORDS)
+# Words allowed to accompany a closure word without defeating it ("mange tak",
+# "tak for hjælpen"). Any OTHER word in the utterance means it's a real command
+# ("sluk lyset, tak") and closure must NOT fire.
+_POLITE = _CLOSE | _word_set(C.CLOSURE_COMPANION_WORDS)
 
 
 class TurnWatchdog:
@@ -198,11 +202,15 @@ class BargeIn:
         self._last_fire: float | None = None
 
     def classify_token(self, text: str) -> str | None:
-        """Whole-word classify a finalized transcript token.
+        """Classify the user's utterance-so-far (pass the ACCUMULATED turn text).
 
-        Returns ``"hard"`` if any hard-stop word is present, ``"close"`` if any
-        closure word is present, else ``None``. Matches whole words only — never
-        substrings (so "ventil"/"eventuelt"/"fortak" do not fire).
+        Returns ``"hard"`` if any hard-stop word is present anywhere (whole-word,
+        never substrings — "ventil"/"eventuelt"/"fortak" do not fire). Returns
+        ``"close"`` only when the utterance is a PURE politeness phrase: it
+        contains a closure word and every word is closure/companion vocabulary
+        ("tak", "mange tak", "tak for hjælpen"). Politeness embedded in a command
+        ("sluk lyset, tak") must not close the session mid-turn, so any
+        non-polite word defeats closure.
         """
         norm = normalize(text)
         tokens = set(re.findall(r"\b\w+\b", norm))
@@ -210,7 +218,7 @@ class BargeIn:
             return None
         if tokens & _HARD:
             return "hard"
-        if tokens & _CLOSE:
+        if tokens & _CLOSE and tokens <= _POLITE:
             return "close"
         return None
 

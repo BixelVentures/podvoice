@@ -86,6 +86,10 @@ DEFAULTS: dict = {
     "openai_silence_ms": 500,  # server_vad only
     "openai_eagerness": "auto",  # semantic_vad: auto|low|medium|high
     "openai_noise": "far_field",  # near_field|far_field|off
+    "reply_streaming": False,  # stream the reply FLAC as it's generated (kills the pre-reply
+    # silence) — experimental until verified on the device; buffered is the safe default
+    "panel_lan_open": False,  # False = panel/API only via HA Ingress (the sidebar). True
+    # re-opens direct LAN access to :8098 (unauthenticated — you're on your own)
     "podconnect_base_url": "http://homeassistant.local:8099",
     "podconnect_token": "",
     "voicepe_noise_psk": "",

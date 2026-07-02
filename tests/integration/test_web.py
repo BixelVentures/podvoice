@@ -164,6 +164,69 @@ async def test_voicepe_diag_unavailable():
         assert r.status == 501
 
 
+async def test_locked_panel_blocks_non_ingress_sources():
+    """When locked, panel/API routes 403 for LAN peers; /health stays open. The test
+    client connects from 127.0.0.1 (trusted), so the pure source check carries the
+    LAN-blocking assertion."""
+    from gatekeeper.web import source_allowed
+
+    # the pure gate: ingress + loopback yes, LAN no
+    assert source_allowed("127.0.0.1") is True
+    assert source_allowed("::1") is True
+    assert source_allowed("172.30.32.2") is True  # HA ingress proxy
+    assert source_allowed("192.168.86.30") is False  # random wifi client
+    assert source_allowed(None) is False
+    assert source_allowed("not-an-ip") is False
+
+    # locked app still serves loopback (the test client) and /health
+    app = create_app(StatusHub(), {}, locked=True)
+    async with TestClient(TestServer(app)) as client:
+        assert (await client.get("/api/status")).status == 200
+        assert (await client.get("/health")).status == 200
+
+
+async def test_reply_requires_token():
+    from gatekeeper.reply import ReplyBus
+
+    bus = ReplyBus()
+    bus.start("kitchen")
+    bus.push("kitchen", b"\x00\x01" * 1200)
+    bus.end("kitchen")
+    app = create_app(StatusHub(), {}, reply_bus=bus, reply_token="sekret", locked=True)
+    async with TestClient(TestServer(app)) as client:
+        r = await client.get("/reply/kitchen.flac")
+        assert r.status == 403  # no token -> blocked (even from loopback)
+        r = await client.get("/reply/kitchen.flac?t=wrong")
+        assert r.status == 403
+        r = await client.get("/reply/kitchen.flac?t=sekret")
+        assert r.status == 200
+        assert r.headers["Content-Type"] in ("audio/flac", "audio/wav")
+        assert bus.fetch_count("kitchen") == 1  # only the authorized fetch counts
+
+
+async def test_reply_streaming_mode_serves_chunked_flac():
+    """With reply_streaming on, /reply streams a live-encoded FLAC (no Content-Length)."""
+    import shutil
+
+    import pytest
+
+    if shutil.which("flac") is None:
+        pytest.skip("flac CLI not installed")
+    from gatekeeper.reply import ReplyBus
+
+    bus = ReplyBus()
+    bus.start("kitchen")
+    bus.push("kitchen", b"\x00\x01" * 2400)
+    bus.end("kitchen")
+    app = create_app(StatusHub(), {}, reply_bus=bus, settings_get=lambda: {"reply_streaming": True})
+    async with TestClient(TestServer(app)) as client:
+        r = await client.get("/reply/kitchen.flac")
+        assert r.status == 200
+        assert r.headers["Content-Type"] == "audio/flac"
+        body = await r.read()
+        assert body.startswith(b"fLaC")  # a real FLAC stream, encoded live
+
+
 async def test_sse_stream_delivers_events():
     hub = StatusHub()
     async with _client(hub, {}) as client:

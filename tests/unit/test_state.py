@@ -252,7 +252,15 @@ TABLE = [
         State.LOUNGE_WINDOW,
         ev(EventType.BUTTON_PRESS),
         State.IDLE,
-        [K.STREAM_STOP, K.STOP_LOUNGE_VAD, K.CANCEL_LOUNGE_TIMER, K.GATE_SHUT, K.HB_STOP, K.RELEASE, K.CLOSE_WS],
+        [
+            K.STREAM_STOP,
+            K.STOP_LOUNGE_VAD,
+            K.CANCEL_LOUNGE_TIMER,
+            K.GATE_SHUT,
+            K.HB_STOP,
+            K.RELEASE,
+            K.CLOSE_WS,
+        ],
     ),
     (
         State.LOUNGE_WINDOW,

@@ -61,6 +61,33 @@ SUPERVISOR_CORE_API = "http://supervisor/core/api"  # HA core via supervisor pro
 # --- Danish keyword spotting (barge-in / closure) ---
 HARD_STOP_WORDS = frozenset({"stop", "vent", "stille"})  # interrupt now
 CLOSURE_WORDS = frozenset({"tak"})  # wrap up politely
+# A closure word only closes when the WHOLE utterance is a politeness phrase built from
+# these companions (+ the closure word itself) — "mange tak", "tak for hjælpen", "det var
+# alt, tak". Embedded politeness ("sluk lyset, tak") must NOT kill the command mid-turn.
+CLOSURE_COMPANION_WORDS = frozenset(
+    {
+        "mange",
+        "tusind",
+        "tusinde",
+        "ja",
+        "nej",
+        "ok",
+        "okay",
+        "fint",
+        "super",
+        "perfekt",
+        "godt",
+        "det",
+        "var",
+        "alt",
+        "skal",
+        "du",
+        "have",
+        "for",
+        "hjælpen",
+        "så",
+    }
+)
 
 # --- Danish spoken fallbacks (pre-rendered clip keys) ---
 FALLBACK_NOT_UNDERSTOOD = "Det forstod jeg ikke helt."

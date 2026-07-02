@@ -16,6 +16,7 @@ import contextlib
 import logging
 
 from . import audio as audio_mod
+from . import clips
 from . import constants as C
 from .events import Action, ActionKind, Event, EventType, State
 from .gemini import (
@@ -31,6 +32,10 @@ from .led import led_command_for
 from .podconnect import AttentionDown, UnknownRoom, Unsupervised
 from .state import StateMachine
 from .voice import UserSpeechStopped
+
+# Extra playback margin after the reply's estimated duration before we declare the
+# turn "done" (device fetch + decode + mixer latency). See _on_gemini_event/TurnComplete.
+PLAYBACK_TAIL_S = 0.5
 
 _LOG = logging.getLogger("podvoice.orchestrator")
 
@@ -60,7 +65,8 @@ class RoomSession:
         bargein=None,
         hub=None,
         reply_bus=None,  # ReplyBus for the media_player announce path (speaker-out)
-        reply_url: str | None = None,  # the device-reachable /reply/<room>.wav URL
+        reply_url: str | None = None,  # the device-reachable /reply/<room>.flac URL
+        reply_streaming: bool = False,  # reply FLAC streams live (no post-generation playback lag)
         lounge_window_s: int = C.LOUNGE_WINDOW_S,
         duck_level: int = C.DUCK_LEVEL,
         lounge_level: int = C.LOUNGE_LEVEL,
@@ -81,6 +87,7 @@ class RoomSession:
         self.hub = hub
         self.reply_bus = reply_bus
         self.reply_url = reply_url
+        self.reply_streaming = reply_streaming
         self.duck_level = duck_level
         self.lounge_level = lounge_level
         self.lounge_window_s = lounge_window_s
@@ -110,6 +117,7 @@ class RoomSession:
         self._in_buf: list[str] = []  # user transcript deltas, coalesced + flushed per turn
         self._keepalive_task: asyncio.Task | None = None  # re-asserts the device mic-forward
         self._muted = False  # device mute state (LED override)
+        self._turn_done_timer: asyncio.Task | None = None  # delayed MODEL_TURN_COMPLETE (playback)
 
         # Route device wake/button events into the state machine.
         if hasattr(voicepe, "on_event"):
@@ -262,6 +270,7 @@ class RoomSession:
     async def aclose(self) -> None:
         self._cancel_lounge_timer()
         self._cancel_listen_timer()
+        self._cancel_turn_done_timer()
         self._stop_keepalive()
         # Best-effort: stop the device mic-forward + turn the ring off so a dead add-on
         # never leaves the device streaming or the LED stuck mid-conversation.
@@ -362,14 +371,23 @@ class RoomSession:
             self.playback.start()
             if self.reply_bus is not None and self.reply_url:
                 self.reply_bus.start(self.room)  # fresh reply audio stream
-                # Tell the device to fetch + play the reply URL (announce path).
-                self._schedule_task(self.voicepe.play_url(self.reply_url))
+                # Tell the device to fetch + play the reply URL (announce path) —
+                # and verify it actually fetched, re-announcing once if not.
+                self._schedule_task(self._announce_with_retry())
                 if self.hub is not None:
                     self.hub.activity(self.room, "🔊 Playing reply on the speaker")
         elif k is ActionKind.PLAYBACK_STOP:
             self.playback.flush()
+            self._cancel_turn_done_timer()  # the turn is over NOW (stop / barge-in / error)
             if self.reply_bus is not None:
                 self.reply_bus.end(self.room)  # close the announce stream (barge-in / teardown)
+            # The device already holds the fetched reply, so ending the stream alone
+            # doesn't silence it — send a real media_player STOP at the announcement.
+            # Inline (not scheduled): the ERROR_TONE announce that can follow in the same
+            # action list must hit the wire AFTER this stop, or the stop kills the clip.
+            if hasattr(self.voicepe, "stop_playback"):
+                with contextlib.suppress(Exception):
+                    await self.voicepe.stop_playback()
         elif k is ActionKind.START_LOUNGE_TIMER:
             self._start_lounge_timer(action.timeout_s or self.lounge_window_s)
         elif k is ActionKind.CANCEL_LOUNGE_TIMER:
@@ -382,7 +400,7 @@ class RoomSession:
             self._lounge_vad_on = False
             self.gatekeeper.set_silence(False)
         elif k is ActionKind.ERROR_TONE:
-            await self.playback.play_tone(audio_mod.error_tone(C.GEMINI_OUTPUT_RATE))
+            await self._play_error_audible()
         elif k is ActionKind.STREAM_START:
             # Wake opened the gate. First abort the stock voice_assistant turn the wake
             # triggered (so its turn-audio can't collide with podvoice_audio), THEN start
@@ -400,6 +418,52 @@ class RoomSession:
             self._stop_keepalive()
             if hasattr(self.voicepe, "stop_streaming"):
                 await self.voicepe.stop_streaming()
+
+    async def _announce_with_retry(self, retry_after_s: float = 2.5) -> None:
+        """Announce the reply URL and verify the device actually FETCHED it.
+
+        A dropped announce used to mean total silence with no trace ("went deaf").
+        The web layer bumps a per-room fetch counter on every /reply GET; if it
+        hasn't moved after ``retry_after_s`` and we're still speaking, re-announce
+        once and say so in the activity feed."""
+        can_track = hasattr(self.reply_bus, "fetch_count")
+        before = self.reply_bus.fetch_count(self.room) if can_track else 0
+        await self.voicepe.play_url(self.reply_url)
+        if not can_track:
+            return
+        await asyncio.sleep(retry_after_s)
+        if self.sm.state is not State.AI_SPEAKING:
+            return  # turn already over (stopped / interrupted) — nothing to rescue
+        if self.reply_bus.fetch_count(self.room) == before:
+            _LOG.warning("device never fetched the reply for room %s — re-announcing", self.room)
+            if self.hub is not None:
+                self.hub.activity(self.room, "🔇 Enheden hentede ikke svaret — prøver igen")
+            await self.voicepe.play_url(self.reply_url)
+
+    async def _play_error_audible(self) -> None:
+        """Say the error OUT LOUD on the device via the WORKING announce path.
+
+        The old path (playback.play_tone -> play_pcm -> send_voice_assistant_audio) is
+        architecturally dead on the Voice PE, so every error was silent: the music just
+        snapped back and the room got stillness — which reads as being ignored. Push a
+        short tone + the pre-rendered Danish "Der er problemer med forbindelsen lige
+        nu." clip through the reply bus and announce it. Falls back to the local tone
+        path in sim/console mode (no reply bus)."""
+        tone = audio_mod.error_tone(C.GEMINI_OUTPUT_RATE)
+        if self.reply_bus is not None and self.reply_url:
+            self.reply_bus.clear(self.room)
+            self.reply_bus.start(self.room)
+            self.reply_bus.push(self.room, tone)
+            clip = clips.load_clip("connection")
+            if clip:
+                self.reply_bus.push(self.room, clip)
+            self.reply_bus.end(self.room)
+            with contextlib.suppress(Exception):
+                await self.voicepe.play_url(self.reply_url)
+            if self.hub is not None:
+                self.hub.activity(self.room, "🔴 Fejl — sagt højt på enheden")
+        else:
+            await self.playback.play_tone(tone)
 
     async def _safe_attention(self, coro) -> None:
         """Run an attention call best-effort: ducking degrades, never blocks."""
@@ -476,10 +540,17 @@ class RoomSession:
             self._start_listen_timer()  # the user is engaged — push the idle-close back
             if self.hub is not None:
                 self.hub.transcript_delta(self.room, "in", ev.text)
-            await self._maybe_barge_in(ev.text)
+            # Classify on the ACCUMULATED utterance, not the delta: "tak" arriving as
+            # its own delta after "sluk lyset" must not read as a standalone closure.
+            await self._maybe_barge_in("".join(self._in_buf))
         elif isinstance(ev, ToolCall):
             if self.watchdog is not None:
                 self.watchdog.on_output()  # a tool call IS the model's first response
+                # While WE run the tool, the model is waiting on US — the mid-stream
+                # stall clock (1.5 s) must not tick during our own dispatch, or a slow
+                # tool (HA web lookup >1.5 s) aborts the turn mid-call (0.64 field bug:
+                # "hvordan gik Senegal-kampen" died in home_call on a watchdog stall).
+                self.watchdog.expect_response()
             if self.hub is not None:
                 self.hub.incr("tool_calls")
             await self._handle_tool(ev)
@@ -493,8 +564,18 @@ class RoomSession:
             # OpenAI's complete input transcript lands AFTER speech_stopped, so the
             # UserSpeechStopped flush ran on an empty buffer — catch it here.
             self._flush_user_turn()
+            est_playback_s = 0.0
             if self.reply_bus is not None:
-                self.reply_bus.end(self.room)  # reply done -> close the announce WAV stream
+                if not self.reply_streaming:
+                    # GENERATION is done, but the device only STARTS playing the buffered
+                    # FLAC around now (it's served when end() closes the stream). Estimate
+                    # how long it will keep talking so the turn doesn't "complete" while
+                    # the speaker is mid-sentence. (Streaming mode played along with
+                    # generation, so only the PLAYBACK_TAIL_S buffer remains.)
+                    est_playback_s = self.reply_bus.turn_bytes(self.room) / float(
+                        C.GEMINI_OUTPUT_RATE * C.SAMPLE_WIDTH
+                    )
+                self.reply_bus.end(self.room)  # reply done -> close the announce stream
             if self._out_buf and self.hub is not None:  # persist the whole reply as ONE turn
                 self.hub.transcript(self.room, "out", "".join(self._out_buf))
             self._out_buf = []
@@ -502,7 +583,14 @@ class RoomSession:
                 self.watchdog.disarm()
                 if self.hub is not None and self.watchdog.samples:
                     self.hub.set_latency(self.room, self.watchdog.samples[-1] * 1000)
-            await self.sm.post(Event(EventType.MODEL_TURN_COMPLETE, self.room))
+            # Hold MODEL_TURN_COMPLETE until the reply has actually FINISHED PLAYING.
+            # Posting it at generation end opened the lounge window while the speaker
+            # was still talking — the lounge VAD then heard the assistant's own reply
+            # and re-opened LISTENING, so it answered itself in a loop (0.64 field bug).
+            if est_playback_s > 0.05 or (self.reply_streaming and self.reply_bus is not None):
+                self._start_turn_done_timer(min(est_playback_s, 60.0) + PLAYBACK_TAIL_S)
+            else:
+                await self.sm.post(Event(EventType.MODEL_TURN_COMPLETE, self.room))
         elif isinstance(ev, UserSpeechStopped):
             self._flush_user_turn()  # Gemini streams deltas that are all in by end-of-speech
             # Drive the state machine into THINKING (distinct LED) so the gap before the
@@ -564,7 +652,16 @@ class RoomSession:
     # ------------------------------------------------------------------ device events
     def _on_wake(self) -> None:
         """Device wake (handle_start) -> drive a WAKE_WORD into the state machine."""
+        self._prepaint_wake_led()
         asyncio.create_task(self.sm.post(Event(EventType.WAKE_WORD, self.room)))  # noqa: RUF006
+
+    def _prepaint_wake_led(self) -> None:
+        """Paint the ring cyan the INSTANT wake arrives. The WAKE action list awaits the
+        provider WS connect (~1 s) before the observer repaints, and that dark second
+        reads as "did it even hear me?" (0.64 field feedback). Idempotent — the observer
+        repaint that follows paints the same colour."""
+        if self.sm.state is State.IDLE:
+            self._paint_led(State.LISTENING)
 
     def _on_device_event(self, room: str, state: object) -> None:
         # VERIFY: ESPHome event-entity state shape (event_type attribute name).
@@ -572,6 +669,7 @@ class RoomSession:
         if etype is None:
             return
         if etype in ("wake_okay_nabu", "wake"):
+            self._prepaint_wake_led()
             ev = Event(EventType.WAKE_WORD, room)
         elif etype == "single_press":
             ev = Event(EventType.BUTTON_PRESS, room)
@@ -599,12 +697,28 @@ class RoomSession:
             await asyncio.sleep(timeout_s)
             await self.sm.post(Event(EventType.LOUNGE_TIMEOUT, self.room))
 
+    def _start_turn_done_timer(self, delay_s: float) -> None:
+        """Post MODEL_TURN_COMPLETE after the reply has finished PLAYING (not merely
+        generating). Cancelled by PLAYBACK_STOP (stop / barge-in / error teardown)."""
+        self._cancel_turn_done_timer()
+        self._turn_done_timer = asyncio.create_task(
+            self._turn_done_after(delay_s), name=f"turndone-{self.room}"
+        )
+
+    def _cancel_turn_done_timer(self) -> None:
+        if self._turn_done_timer is not None and not self._turn_done_timer.done():
+            self._turn_done_timer.cancel()
+        self._turn_done_timer = None
+
+    async def _turn_done_after(self, delay_s: float) -> None:
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.sleep(delay_s)
+            await self.sm.post(Event(EventType.MODEL_TURN_COMPLETE, self.room))
+
     def _start_listen_timer(self) -> None:
         """(Re)arm the idle-close timer for the LISTENING state."""
         self._cancel_listen_timer()
-        self._listen_timer = asyncio.create_task(
-            self._listen_timeout(), name=f"listen-{self.room}"
-        )
+        self._listen_timer = asyncio.create_task(self._listen_timeout(), name=f"listen-{self.room}")
 
     def _cancel_listen_timer(self) -> None:
         if self._listen_timer is not None and not self._listen_timer.done():

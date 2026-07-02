@@ -18,6 +18,9 @@ class FakeVoicePELink:
         self.room = room
         self._audio_q: asyncio.Queue[bytes] = asyncio.Queue()
         self.played: list[bytes] = []
+        self.announced_urls: list[str] = []
+        self.stop_playback_calls = 0
+        self.light_commands: list[tuple[bool, tuple[float, float, float], float]] = []
         self.started = False
         self.closed = False
 
@@ -38,6 +41,15 @@ class FakeVoicePELink:
 
     async def play_pcm(self, chunk: bytes) -> None:
         self.played.append(chunk)
+
+    async def play_url(self, url: str) -> None:
+        self.announced_urls.append(url)
+
+    async def stop_playback(self) -> None:
+        self.stop_playback_calls += 1
+
+    async def set_light(self, on: bool, rgb: tuple[float, float, float], brightness: float) -> None:
+        self.light_commands.append((on, rgb, brightness))
 
     async def aclose(self) -> None:
         self.closed = True

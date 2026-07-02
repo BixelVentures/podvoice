@@ -275,11 +275,30 @@ class VoicePELink:
             # queues send_message) — it must NOT be awaited. Awaiting the None it returns
             # raised "NoneType can't be used in 'await' expression" every reply (the
             # command still went out, but the exception was logged as a FAILED).
-            self._client.media_player_command(
-                key=self._media_key, media_url=url, announcement=True
-            )
+            self._client.media_player_command(key=self._media_key, media_url=url, announcement=True)
         except Exception as e:  # surface failures (was DEBUG — hid the no-sound cause)
             log.warning("voicepe %s: media_player_command FAILED: %s", self.host, e)
+
+    async def stop_playback(self) -> None:
+        """STOP the announcement pipeline on the device — the missing half of "stop".
+
+        With the buffered FLAC reply the device holds the WHOLE reply once fetched, so
+        ending our HTTP stream does nothing: the speaker talks on. A real stop must be a
+        media_player STOP command aimed at the announcement pipeline (announcement=True,
+        verified against aioesphomeapi 45.3.1). Best-effort: a failure must never block
+        the state machine's teardown."""
+        if self._media_key is None or self._client is None:
+            return
+        try:
+            from aioesphomeapi.model import MediaPlayerCommand  # lazy like the other imports
+
+            # Synchronous (queues the message) — must NOT be awaited, same as play_url.
+            self._client.media_player_command(
+                key=self._media_key, command=MediaPlayerCommand.STOP, announcement=True
+            )
+            log.info("voicepe %s: sent media_player STOP (announcement)", self.host)
+        except Exception as e:
+            log.warning("voicepe %s: media_player STOP failed: %s", self.host, e)
 
     async def aclose(self) -> None:
         """Unsubscribe, stop reconnect, and disconnect."""

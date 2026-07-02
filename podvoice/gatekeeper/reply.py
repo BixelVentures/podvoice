@@ -28,6 +28,29 @@ _QUEUE_MAX = 512
 _END = object()
 
 
+def flac_stream_args(
+    *, sample_rate: int = C.GEMINI_OUTPUT_RATE, channels: int = 1, bits: int = 16
+) -> list[str]:
+    """The `flac` CLI invocation for encoding raw PCM from stdin to stdout.
+
+    Shared by the one-shot buffered encode and the live streaming encode — with no
+    length known up front, flac writes STREAMINFO total_samples=0 ("unknown"), which
+    the on-device decoder accepts (it's a legal streaming FLAC)."""
+    return [
+        "flac",
+        "--silent",
+        "--totally-silent",
+        "--force-raw-format",
+        "--endian=little",
+        "--sign=signed",
+        f"--channels={channels}",
+        f"--bps={bits}",
+        f"--sample-rate={sample_rate}",
+        "--stdout",
+        "-",  # read raw PCM from stdin
+    ]
+
+
 async def encode_flac(
     pcm: bytes, *, sample_rate: int = C.GEMINI_OUTPUT_RATE, channels: int = 1, bits: int = 16
 ) -> bytes | None:
@@ -42,19 +65,7 @@ async def encode_flac(
     """
     if not pcm:
         return None
-    args = [
-        "flac",
-        "--silent",
-        "--totally-silent",
-        "--force-raw-format",
-        "--endian=little",
-        "--sign=signed",
-        f"--channels={channels}",
-        f"--bps={bits}",
-        f"--sample-rate={sample_rate}",
-        "--stdout",
-        "-",  # read raw PCM from stdin
-    ]
+    args = flac_stream_args(sample_rate=sample_rate, channels=channels, bits=bits)
     try:
         proc = await asyncio.create_subprocess_exec(
             *args,
@@ -67,13 +78,19 @@ async def encode_flac(
         return None
     out, err = await proc.communicate(pcm)
     if proc.returncode != 0 or not out:
-        _LOG.warning("flac encode failed (rc=%s): %s", proc.returncode, err.decode(errors="replace"))
+        _LOG.warning(
+            "flac encode failed (rc=%s): %s", proc.returncode, err.decode(errors="replace")
+        )
         return None
     return out
 
 
 def wav_header(
-    sample_rate: int = C.GEMINI_OUTPUT_RATE, *, data_size: int = 0, channels: int = 1, bits: int = 16
+    sample_rate: int = C.GEMINI_OUTPUT_RATE,
+    *,
+    data_size: int = 0,
+    channels: int = 1,
+    bits: int = 16,
 ) -> bytes:
     """A canonical 44-byte PCM WAV header.
 
@@ -115,6 +132,20 @@ class ReplyBus:
 
     def __init__(self) -> None:
         self._queues: dict[str, asyncio.Queue] = {}
+        # Successfully-queued reply bytes since the last clear() (= this turn's reply).
+        # The orchestrator reads this to estimate how long the device will keep TALKING
+        # after generation ends (bytes / 48000 B/s at 24 kHz/16-bit mono).
+        self._turn_bytes: dict[str, int] = {}
+        # Monotonic per-room fetch counter (bumped by the web layer on every /reply GET).
+        # The orchestrator compares it around play_url to detect a device that never
+        # fetched the announce — and re-announces instead of going silently deaf.
+        self._fetches: dict[str, int] = {}
+
+    def mark_fetched(self, room: str) -> None:
+        self._fetches[room] = self._fetches.get(room, 0) + 1
+
+    def fetch_count(self, room: str) -> int:
+        return self._fetches.get(room, 0)
 
     def _q(self, room: str) -> asyncio.Queue:
         q = self._queues.get(room)
@@ -140,6 +171,7 @@ class ReplyBus:
                 q.get_nowait()
             except asyncio.QueueEmpty:
                 break
+        self._turn_bytes[room] = 0
 
     def push(self, room: str, pcm: bytes) -> None:
         """Queue one PCM chunk for the device to play. Drops on backpressure rather
@@ -148,8 +180,13 @@ class ReplyBus:
             return
         try:
             self._q(room).put_nowait(pcm)
+            self._turn_bytes[room] = self._turn_bytes.get(room, 0) + len(pcm)
         except asyncio.QueueFull:
             pass
+
+    def turn_bytes(self, room: str) -> int:
+        """Reply bytes queued since the last clear() — the current turn's reply size."""
+        return self._turn_bytes.get(room, 0)
 
     def end(self, room: str) -> None:
         """Mark end-of-reply so the HTTP stream closes (device finishes playing)."""

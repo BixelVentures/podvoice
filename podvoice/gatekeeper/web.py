@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import ipaddress
 import json
 import logging
 from pathlib import Path
@@ -18,12 +19,61 @@ from aiohttp import web
 from .console import run_console
 from .events import Event, EventType
 from .hub import StatusHub
-from .reply import encode_flac, wav_header
+from .reply import encode_flac, flac_stream_args, wav_header
 
 _LOG = logging.getLogger("podvoice.web")
 
 _STATIC = Path(__file__).parent / "static"
 DEFAULT_PORT = 8098
+
+# Sources allowed to reach the panel/API when locked (the default under HA):
+# loopback + the Supervisor/Ingress docker network (HA proxies ingress from
+# 172.30.32.2). Everything else on the LAN gets 403 — the panel can read secrets
+# and flip the mic, so "anyone on the wifi" must not reach it (host_network:true
+# exposes :8098 LAN-wide). The device still fetches /reply/* — that route is
+# exempted here and protected by the per-boot reply token instead.
+_TRUSTED_NETS = (
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("172.30.32.0/23"),
+)
+
+
+def source_allowed(remote: str | None) -> bool:
+    """True if the peer address may use the panel/API when ingress-locked. Pure."""
+    if not remote:
+        return False
+    try:
+        ip = ipaddress.ip_address(remote)
+    except ValueError:
+        return False
+    return any(ip in net for net in _TRUSTED_NETS)
+
+
+def _make_guard(locked: bool, reply_token: str | None):
+    """aiohttp middleware: /health open; /reply/* by token; the rest ingress-only."""
+
+    @web.middleware
+    async def guard(request: web.Request, handler):
+        path = request.path
+        if path == "/health":
+            return await handler(request)
+        if path.startswith("/reply/"):
+            if reply_token and request.query.get("t") != reply_token:
+                _LOG.warning("reply fetch with bad/missing token from %s", request.remote)
+                return web.Response(status=403, text="bad reply token")
+            return await handler(request)
+        if locked and not source_allowed(request.remote):
+            return web.Response(
+                status=403,
+                text="PodVoice panel is ingress-only — open it from the Home Assistant "
+                "sidebar. (Direct LAN access can be re-enabled in Settings: "
+                "panel_lan_open, at your own risk.)",
+            )
+        return await handler(request)
+
+    return guard
+
 
 HUB: web.AppKey[StatusHub] = web.AppKey("hub", StatusHub)
 SESSIONS: web.AppKey[dict] = web.AppKey("sessions", dict)
@@ -54,6 +104,8 @@ def create_app(
     pc_rooms=None,
     history=None,
     reply_bus=None,
+    reply_token: str | None = None,
+    locked: bool = False,
 ) -> web.Application:
     """Build the aiohttp app.
 
@@ -61,8 +113,10 @@ def create_app(
     ``make(provider=None, model=None)`` factory; ``models_provider(provider)`` feeds
     the model selector; ``settings_get()`` / ``settings_set(dict)`` back the panel
     Settings page; ``on_restart()`` (async) restarts the add-on. All optional.
+    ``reply_token`` gates /reply/*; ``locked`` restricts everything else to
+    ingress/loopback sources (see _make_guard).
     """
-    app = web.Application()
+    app = web.Application(middlewares=[_make_guard(locked, reply_token)])
     app[HUB] = hub
     app[SESSIONS] = sessions
     app[CONSOLE] = make_console
@@ -149,14 +203,19 @@ async def _pc_rooms(request: web.Request) -> web.Response:
 
 
 async def _reply(request: web.Request) -> web.StreamResponse:
-    """Serve the AI reply for a room as a FINITE FLAC the Voice PE plays via media_player
+    """Serve the AI reply for a room as FLAC the Voice PE plays via media_player
     announce. The device fetches this after media_player_command(announcement=True).
 
     FLAC, not WAV: the on-device micro_decoder rejects our WAV at file-type detection
     ("Could not determine audio file type from URL or Content-Type" in the device log) but
-    decodes FLAC natively. We buffer the whole reply (it's front-loaded, ~a few hundred ms),
-    encode it once, and send it with a real Content-Length. If the encoder is unavailable we
-    fall back to a finite WAV so the failure is visible in the log rather than silent."""
+    decodes FLAC natively.
+
+    Two modes:
+    - buffered (default): collect the whole reply, encode once, serve with a real
+      Content-Length — deterministic, hardware-proven on 0.64.
+    - streaming (settings.reply_streaming): pipe PCM through a live `flac` process and
+      chunk it out AS THE MODEL GENERATES — kills the silent gap between the green LED
+      and the first audible word. Experimental until verified on the device."""
     bus = request.app[REPLY]
     room = request.match_info.get("room", "")
     for suffix in (".flac", ".wav"):
@@ -166,18 +225,90 @@ async def _reply(request: web.Request) -> web.StreamResponse:
     _LOG.info("device fetching reply for room %s from %s", room, request.remote)
     if bus is None:
         return web.Response(status=503)
+    if hasattr(bus, "mark_fetched"):
+        bus.mark_fetched(room)
+    settings_fn = request.app[SETTINGS_GET]
+    streaming = bool((settings_fn() if settings_fn is not None else {}).get("reply_streaming"))
+    if streaming:
+        resp = await _reply_streaming(bus, room, request)
+        if resp is not None:
+            return resp
+        _LOG.warning("streaming FLAC unavailable — falling back to buffered for %s", room)
     pcm = await bus.collect(room)
     flac = await encode_flac(pcm)
     if flac is not None:
-        _LOG.info("serving reply FLAC for room %s: %d B PCM -> %d B FLAC", room, len(pcm), len(flac))
+        _LOG.info(
+            "serving reply FLAC for room %s: %d B PCM -> %d B FLAC", room, len(pcm), len(flac)
+        )
         body, ctype = flac, "audio/flac"
     else:
         body, ctype = wav_header(data_size=len(pcm)) + pcm, "audio/wav"
-        _LOG.warning("serving reply as WAV fallback for room %s (%d B) — device may reject", room, len(pcm))
+        _LOG.warning(
+            "serving reply as WAV fallback for room %s (%d B) — device may reject", room, len(pcm)
+        )
     return web.Response(
         body=body,
         headers={"Content-Type": ctype, "Cache-Control": "no-store", "Connection": "close"},
     )
+
+
+async def _reply_streaming(bus, room: str, request: web.Request) -> web.StreamResponse | None:
+    """Chunked live-encoded FLAC: bus PCM -> `flac` stdin; flac stdout -> HTTP.
+
+    Returns None if the encoder can't start (caller falls back to buffered). The
+    feeder is bounded (60 s) so a reply that never end()s can't hold the socket and
+    the encoder open forever."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *flac_stream_args(),
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+    except (FileNotFoundError, OSError) as e:
+        _LOG.warning("flac streaming encoder unavailable (%s)", e)
+        return None
+    stdin, stdout = proc.stdin, proc.stdout
+    assert stdin is not None and stdout is not None  # PIPEd above
+
+    resp = web.StreamResponse(headers={"Content-Type": "audio/flac", "Cache-Control": "no-store"})
+    resp.enable_chunked_encoding()
+    await resp.prepare(request)
+
+    async def _feed() -> None:
+        try:
+            async with asyncio.timeout(60):
+                async for chunk in bus.stream(room):
+                    stdin.write(chunk)
+                    await stdin.drain()
+        except TimeoutError:
+            _LOG.warning("streaming reply for %s never ended — flushing what arrived", room)
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # encoder died / client went away — the read loop handles teardown
+        finally:
+            with contextlib.suppress(Exception):
+                stdin.close()
+
+    feeder = asyncio.create_task(_feed())
+    total = 0
+    try:
+        while True:
+            out = await stdout.read(4096)
+            if not out:
+                break
+            total += len(out)
+            await resp.write(out)
+    except (asyncio.CancelledError, ConnectionResetError):
+        pass  # device dropped the fetch (stop / barge-in) — normal teardown
+    finally:
+        feeder.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await feeder
+        with contextlib.suppress(ProcessLookupError):
+            proc.kill()
+        await proc.wait()
+    _LOG.info("streamed reply FLAC for room %s: %d B", room, total)
+    return resp
 
 
 async def _history(request: web.Request) -> web.Response:
@@ -345,7 +476,9 @@ async def _control(request: web.Request) -> web.Response:
         bus = getattr(session, "reply_bus", None)
         url = getattr(session, "reply_url", None)
         if bus is None or url is None:
-            return web.json_response({"ok": False, "error": "no reply path on this session"}, status=400)
+            return web.json_response(
+                {"ok": False, "error": "no reply path on this session"}, status=400
+            )
         tone = audio_mod.error_tone(C.GEMINI_OUTPUT_RATE) * 2  # ~0.7s, clearly audible
         bus.clear(room)
         bus.start(room)

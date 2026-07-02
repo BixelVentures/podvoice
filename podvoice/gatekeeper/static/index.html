@@ -355,6 +355,15 @@
         <datalist id="dl_gemini_voice"><option>Kore</option><option>Puck</option><option>Charon</option><option>Aoede</option><option>Zephyr</option><option>Leda</option><option>Orus</option></datalist>
         <datalist id="dl_openai_voice"><option>marin</option><option>cedar</option><option>alloy</option><option>echo</option><option>shimmer</option></datalist>
       </details>
+      <details class="adv" style="margin-top:12px">
+        <summary>Security</summary>
+        <div class="setgrid" style="margin-top:8px">
+          <label for="s_panel_lan_open">Allow panel on the LAN</label>
+          <input id="s_panel_lan_open" type="checkbox">
+        </div>
+        <p class="sub" style="margin:2px 0 0">Off (recommended): this panel and its API only work through the Home Assistant sidebar (Ingress). On: anyone on your wifi can open <code>:8098</code> directly — including these settings and your tokens. Leave it off unless you know why you need it.</p>
+      </details>
+
       <div class="actions">
         <button id="s_save">Save</button>
         <button id="s_saverestart" class="ghost">Save &amp; restart</button>
@@ -419,6 +428,13 @@
       <div class="setgrid">
         <label for="s_duck_level">Music volume while talking %</label><input id="s_duck_level" type="number" min="0" max="100">
       </div>
+
+      <div class="exsub" style="margin-top:16px">Reply delivery</div>
+      <div class="setgrid">
+        <label for="s_reply_streaming">Streaming replies <span style="opacity:.6">(experimental)</span></label>
+        <input id="s_reply_streaming" type="checkbox">
+      </div>
+      <p class="sub" style="margin:2px 0 0">Play the answer <b>while it's being generated</b> instead of waiting for the whole reply — removes the silent pause before it speaks. Verify with the <b>Speaker</b> test below after enabling; untick if the speaker goes silent.</p>
 
       <details class="adv" style="margin-top:12px">
         <summary>Advanced tuning</summary>
@@ -927,6 +943,7 @@ setInterval(poll, 3000);
     "openai_model", "openai_voice", "openai_turn", "openai_eagerness", "openai_threshold",
     "openai_prefix_ms", "openai_silence_ms", "openai_noise",
     "podconnect_base_url", "podconnect_token", "voicepe_noise_psk", "simulate", "full_duplex",
+    "reply_streaming", "panel_lan_open",
     "duck_level", "lounge_level", "lounge_window_s", "heartbeat_ms", "watchdog_ms", "vad_threshold"];
   var NUM = { duck_level: 1, lounge_level: 1, lounge_window_s: 1, heartbeat_ms: 1, watchdog_ms: 1,
     vad_threshold: 1, gemini_prefix_ms: 1, gemini_silence_ms: 1, openai_threshold: 1,
