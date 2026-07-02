@@ -41,6 +41,7 @@ from .gemini import (
 from .led import led_command_for
 from .playout import PlayoutClock
 from .podconnect import AttentionDown, UnknownRoom, Unsupervised
+from .voice import UserSpeechStopped
 
 _LOG = logging.getLogger("podvoice.thin")
 
@@ -53,6 +54,13 @@ MAX_CONVERSATION_S = 20 * 60
 # Pipeline heartbeat cadence (replaces the old per-turn watchdogs): if the provider
 # reader has died while a conversation is open, say so and go home.
 HEARTBEAT_S = 5.0
+# Barge-in blip filter: a speech_started that ends again within this window (cough,
+# clatter, echo residue) is a FALSE interruption — playback continues. Real speech
+# sustains past it and silences the device. (LiveKit ships 0.5 s; we start tighter.)
+BARGE_DEBOUNCE_S = 0.25
+# Client-side idle fallback: if the server-side idle_timeout_ms were ever rejected
+# (field drift), a quiet-open conversation still closes after this long.
+IDLE_FALLBACK_S = (IDLE_TIMEOUT_MS / 1000.0) * 2
 
 
 class _Mini:
@@ -121,6 +129,8 @@ class ThinSession:
         self._conv_started = 0.0
         self._buf_in: list[str] = []  # user transcript deltas (flushed per utterance)
         self._buf_out: list[str] = []  # assistant transcript deltas (flushed per turn)
+        self._barge_task: asyncio.Task | None = None  # pending blip-debounced barge-in
+        self._last_activity = 0.0  # monotonic — feeds the client-side idle fallback
 
         if hub is not None:
             hub.register_room(room)
@@ -171,6 +181,7 @@ class ThinSession:
             return
         self._active = True
         self._conv_started = time.monotonic()
+        self._last_activity = self._conv_started
         self.sm.state = State.LISTENING
         self._set_led(State.LISTENING)  # instantly — before the WS connect
         self._hub_state("LISTENING", "👋 Vågnede — samtalen er åben")
@@ -179,6 +190,10 @@ class ThinSession:
         if self.hub is not None:
             self.hub.incr("sessions")
             self.hub.set_level(self.room, self.duck_level)
+        if hasattr(self.voicepe, "drain_mic"):
+            dropped = self.voicepe.drain_mic()  # never feed last conversation's tail
+            if dropped:
+                _LOG.info("thin: dropped %d stale mic frames at wake", dropped)
         if hasattr(self.voicepe, "abort_va"):
             await self.voicepe.abort_va()
         if hasattr(self.voicepe, "start_streaming"):
@@ -218,7 +233,7 @@ class ThinSession:
         self._active = False
         self._speaking = False
         self.sm.state = State.IDLE
-        for t in (self._reader, self._pump, self._beat):
+        for t in (self._reader, self._pump, self._beat, self._barge_task):
             if t is not None and not t.done():
                 t.cancel()
         self._reader = self._pump = self._beat = None
@@ -288,6 +303,11 @@ class ThinSession:
                 _LOG.warning("thin: audio pipeline died while active — failing over")
                 await self._fail("connection")
                 return
+            quiet = time.monotonic() - self._last_activity
+            if self._active and not self._speaking and quiet > IDLE_FALLBACK_S:
+                _LOG.info("thin: client-side idle fallback (%.0fs quiet) — closing", quiet)
+                await self.stop(reason="idle-fallback")
+                return
             if time.monotonic() - self._conv_started > MAX_CONVERSATION_S:
                 _LOG.info("thin: conversation hit the max duration — closing politely")
                 await self.stop(reason="max_duration")
@@ -295,10 +315,11 @@ class ThinSession:
 
     # ------------------------------------------------------------- provider events
     async def _on_event(self, ev) -> None:
+        self._last_activity = time.monotonic()
         if isinstance(ev, AudioChunk):
             self._on_reply_audio(ev)
         elif isinstance(ev, Interrupted):
-            await self._on_interrupted()
+            self._start_barge_debounce()
         elif isinstance(ev, TurnComplete):
             if self.reply_bus is not None:
                 self.reply_bus.end(self.room)
@@ -327,6 +348,8 @@ class ThinSession:
                 pending = self._tool_tasks.pop(call_id, None)
                 if pending is not None and not pending.done():
                     pending.cancel()
+        elif isinstance(ev, UserSpeechStopped):
+            self._cancel_barge_debounce()
         elif isinstance(ev, InputTranscript):
             self._buf_in.append(ev.text)
             if self.hub is not None:
@@ -353,14 +376,42 @@ class ThinSession:
             self.sm.state = State.AI_SPEAKING
             self.playout.reset()
             self._playback_t0 = None
+            self.reply_bus.clear(self.room)  # a never-fetched previous reply must not lead
             self.reply_bus.start(self.room)
             self._set_led(State.AI_SPEAKING)
             self._hub_state("AI_SPEAKING", "💬 Svarer")
-            self._spawn(self.voicepe.play_url(self.reply_url), "thin-announce")
+            self._spawn(self._announce_with_retry(), "thin-announce")
         self.reply_bus.push(self.room, ev.pcm)
         item = ev.item_id or self._last_item or "reply"
         self._last_item = item
         self.playout.on_sent(item, len(ev.pcm))
+
+    def _start_barge_debounce(self) -> None:
+        """speech_started during a reply: wait BARGE_DEBOUNCE_S before silencing. A
+        blip (cough/clatter/echo residue) produces speech_stopped inside the window
+        and the reply keeps playing — the announce buffer already holds it, so a
+        server-side generation cancel costs nothing audible. Sustained speech is a
+        real barge-in."""
+        if not self._speaking:
+            return  # nothing playing — nothing to protect
+        if self._barge_task is not None and not self._barge_task.done():
+            return
+        if self.hub is not None:
+            self.hub.activity(self.room, "👂 Mulig afbrydelse — lytter efter")
+        self._barge_task = self._spawn(self._barge_after_debounce(), "thin-barge")
+
+    async def _barge_after_debounce(self) -> None:
+        await asyncio.sleep(BARGE_DEBOUNCE_S)
+        await self._on_interrupted()
+
+    def _cancel_barge_debounce(self) -> None:
+        """speech_stopped landed inside the window — false alarm, keep playing."""
+        if self._barge_task is not None and not self._barge_task.done():
+            self._barge_task.cancel()
+            if self.hub is not None:
+                self.hub.incr("false_barges")
+                self.hub.activity(self.room, "😮‍💨 Falsk alarm — spiller videre")
+        self._barge_task = None
 
     async def _on_interrupted(self) -> None:
         """The user talked over the reply: silence the device NOW and tell the server
@@ -379,6 +430,19 @@ class ThinSession:
             self.sm.state = State.LISTENING
             self._set_led(State.LISTENING)
             self._hub_state("LISTENING", "✋ Afbrudt — lytter")
+
+    async def _announce_with_retry(self, retry_after_s: float = 2.5) -> None:
+        can_track = hasattr(self.reply_bus, "fetch_count")
+        before = self.reply_bus.fetch_count(self.room) if can_track else 0
+        await self.voicepe.play_url(self.reply_url)
+        if not can_track:
+            return
+        await asyncio.sleep(retry_after_s)
+        if self._speaking and self.reply_bus.fetch_count(self.room) == before:
+            _LOG.warning("thin: device never fetched the reply — re-announcing")
+            if self.hub is not None:
+                self.hub.activity(self.room, "🔇 Enheden hentede ikke svaret — prøver igen")
+            await self.voicepe.play_url(self.reply_url)
 
     async def _run_tool(self, tc: ToolCall) -> None:
         if self.tools is None:

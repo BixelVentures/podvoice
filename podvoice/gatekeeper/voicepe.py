@@ -241,6 +241,20 @@ class VoicePELink:
             # Drop the frame rather than block the API receive path.
             pass
 
+    def drain_mic(self) -> int:
+        """Drop any queued mic frames. Called at conversation START: the queue is
+        shared across conversations, so the tail of the previous one (up to ~4 s of
+        buffered frames after the pump stops) must never become the FIRST audio of a
+        new session — that's stale speech/echo poisoning the model's ears."""
+        n = 0
+        while not self._audio_q.empty():
+            try:
+                self._audio_q.get_nowait()
+                n += 1
+            except asyncio.QueueEmpty:
+                break
+        return n
+
     def pcm_frames(self) -> AsyncIterator[bytes]:
         """Async-iterate raw 16 kHz PCM frames as they arrive."""
 

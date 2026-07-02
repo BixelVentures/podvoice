@@ -201,3 +201,62 @@ async def test_mute_switch_closes_and_wake_is_refused():
         assert session.sm.state is State.IDLE
     finally:
         await session.aclose()
+
+
+async def test_blip_does_not_interrupt_playback():
+    """A speech blip (speech_started then speech_stopped inside the debounce window)
+    must NOT silence the reply — coughs/echo residue keep playing (R2)."""
+    from gatekeeper.voice import UserSpeechStopped
+
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(AudioChunk(_frame(), item_id="i"))
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        gemini.emit(Interrupted(), UserSpeechStopped())  # blip: stops immediately
+        await asyncio.sleep(0.4)  # past the debounce window
+        assert voicepe.stop_playback_calls == 0  # playback untouched
+        assert len(gemini.truncations) == 0
+        # ...but SUSTAINED speech (no speech_stopped) does interrupt:
+        gemini.emit(Interrupted())
+        await _wait_until(lambda: voicepe.stop_playback_calls >= 1)
+    finally:
+        await session.aclose()
+
+
+async def test_stale_mic_frames_dropped_at_wake():
+    """The mic queue is shared across conversations: last conversation's tail must
+    never become the first audio of a new one (R1 — the preroll-poison class)."""
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        voicepe.feed([_frame(11), _frame(22)])  # stale frames from "yesterday"
+        await session.wake()
+        voicepe.feed([_frame(33)])  # the user's actual speech
+        await _wait_until(lambda: len(gemini.sent_audio) >= 1)
+        await asyncio.sleep(0.05)
+        assert gemini.sent_audio[0] == _frame(33)  # stale frames never sent
+        assert len(gemini.sent_audio) == 1
+    finally:
+        await session.aclose()
+
+
+async def test_client_idle_fallback_closes(monkeypatch):
+    """If the server never sends Idle (field rejected), the client fallback closes
+    the conversation anyway (R3)."""
+    import gatekeeper.thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "IDLE_FALLBACK_S", 0.15)
+    monkeypatch.setattr(thin_mod, "HEARTBEAT_S", 0.05)
+    gemini = LiveFake()
+    session, attention, _voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=2.0)
+        await _wait_until(lambda: len(attention.release_calls) >= 1)
+    finally:
+        await session.aclose()

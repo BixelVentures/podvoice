@@ -35,6 +35,13 @@ class FakeVoicePELink:
     async def start(self) -> None:
         self.started = True
 
+    def drain_mic(self) -> int:
+        n = 0
+        while not self._audio_q.empty():
+            self._audio_q.get_nowait()
+            n += 1
+        return n
+
     def pcm_frames(self) -> AsyncIterator[bytes]:
         async def _gen() -> AsyncIterator[bytes]:
             while True:

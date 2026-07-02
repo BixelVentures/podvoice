@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.74.0 — thin engine hardened: the self-review pass (R1-R5)
+
+A critical self-review of 0.73's thin engine against the beat-Gemini goal found five real holes. All closed, all tested:
+
+- **R1 — stale-mic poisoning (the serious one):** the mic queue is shared across conversations, so up to ~4 s of the PREVIOUS conversation's tail became the FIRST audio of the next one — the same failure class as the 0.66 pre-roll bug, reborn. The queue is now drained at every wake.
+- **R2 — blip-proof barge-in:** a speech blip (cough, clatter, echo residue) no longer silences the reply. speech_started starts a 250 ms debounce; if speech ends inside the window it's a false alarm (playback continues — the reply is already buffered on the device, so the server-side generation cancel costs nothing audible), sustained speech interrupts for real. False barges are counted in metrics ("false_barges") — the KPI the pros track.
+- **R3 — idle fallback:** if the server-side idle signal ever fails to arrive (e.g. the `idle_timeout_ms` field being rejected by API drift), a client-side fallback closes the quiet conversation after 16 s. The music can never stay ducked forever.
+- **R4 — stale reply audio:** a never-fetched previous reply can no longer lead the next one (bus cleared at each reply start).
+- **R5 — announce-retry in thin:** if the device misses the announce, it's retried once and reported — same never-silently-deaf guarantee as classic.
+
+ruff + mypy clean; 259 tests green (new: blip-vs-sustained barge-in, stale-mic drop at wake, client idle fallback).
+
 ## 0.73.0 — Track B: the THIN engine. The model owns the conversation.
 
 The pivot (docs/PLAN-BEAT-GEMINI.md), delivered. Settings → **Conversation engine → Thin** (+ Save & restart) switches a room to the new engine; **Classic remains the default and the one-click fallback**.
