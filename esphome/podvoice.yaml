@@ -60,12 +60,19 @@ api:
       then:
         - lambda: "id(pv_audio).stop_streaming();"
 
-# NO voice_assistant override. PodVoice takes over the pipeline simply by SUBSCRIBING
-# over the native API (subscribe_voice_assistant) — the on-device wake then starts the
-# upstream VA, which forwards to the add-on via handle_start (that's how wake reaches
-# PodVoice). Setting use_wake_word:false here would BREAK wake, because nothing in this
-# config redirects micro_wake_word to fire podvoice_event instead. Keep upstream defaults.
-# (external_media_player, dac, mics, mww all come from the ha_voice package unchanged.)
+# B1 step 2a — the ISOLATED VA-output swap (and NOTHING else; the 0.67 firmware bundled
+# this with a mww automation + a stream-info lambda and broke wake — this flash isolates
+# which change was the culprit). Package maps merge key-by-key: `!remove` deletes the
+# upstream `media_player:` key (cv.Exclusive with `speaker:`), and the VA's output
+# becomes the announcement resampler. Effects:
+#   - wake path UNCHANGED (mww -> voice_assistant.start -> handle_start -> add-on),
+#   - the announce/FLAC reply path UNCHANGED (the external_media_player ENTITY remains;
+#     only VA-internal announce requests go away, which we never used),
+#   - the direct PCM path becomes POSSIBLE (client-driven TTS events + audio frames),
+#     but the add-on keeps it disabled until this flash is wake-validated.
+voice_assistant:
+  media_player: !remove
+  speaker: announcement_resampling_speaker
 
 # Upstream ships wifi via improv provisioning (no hard-coded network); a headless
 # PodVoice flash needs credentials, so merge them in from secrets.yaml.
