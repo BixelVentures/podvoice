@@ -111,8 +111,9 @@ class StateMachine:
             finally:
                 self.q.task_done()
 
-    def _teardown(self) -> list[Action]:
-        """Full teardown + local error tone (the ERROR / WATCHDOG path)."""
+    def _teardown(self, reason: str = "connection") -> list[Action]:
+        """Full teardown + spoken error (the ERROR / WATCHDOG path). ``reason`` picks the
+        Danish clip: "timeout" (the model/tool was too slow — try again) vs "connection"."""
         return [
             stream_stop(),  # stop the device mic forward on any teardown (privacy)
             stop_lounge_vad(),
@@ -122,8 +123,12 @@ class StateMachine:
             hb_stop(),
             release(),
             close_ws(),
-            error_tone(),
+            error_tone(reason),
         ]
+
+    @staticmethod
+    def _fail_reason(et: EventType) -> str:
+        return "timeout" if et is EventType.WATCHDOG_TIMEOUT else "connection"
 
     def _decide(self, state: State, event: Event) -> tuple[State, list[Action]]:
         """PURE transition function — no awaits, no I/O. Implements the §7.1 table."""
@@ -168,7 +173,7 @@ class StateMachine:
             if et in (EventType.CLOSURE_TOKEN, EventType.BUTTON_PRESS):
                 return State.IDLE, [stream_stop(), gate_shut(), hb_stop(), release(), close_ws()]
             if et in (EventType.WATCHDOG_TIMEOUT, EventType.ERROR):
-                return State.IDLE, self._teardown()
+                return State.IDLE, self._teardown(self._fail_reason(et))
             return State.LISTENING, []
 
         if state is State.THINKING:
@@ -189,7 +194,7 @@ class StateMachine:
             if et in (EventType.CLOSURE_TOKEN, EventType.BUTTON_PRESS):
                 return State.IDLE, [stream_stop(), gate_shut(), hb_stop(), release(), close_ws()]
             if et in (EventType.WATCHDOG_TIMEOUT, EventType.ERROR):
-                return State.IDLE, self._teardown()
+                return State.IDLE, self._teardown(self._fail_reason(et))
             return State.THINKING, []
 
         if state is State.AI_SPEAKING:
@@ -215,7 +220,7 @@ class StateMachine:
                     close_ws(),
                 ]
             if et in (EventType.WATCHDOG_TIMEOUT, EventType.ERROR):
-                return State.IDLE, self._teardown()
+                return State.IDLE, self._teardown(self._fail_reason(et))
             return State.AI_SPEAKING, []
 
         if state is State.LOUNGE_WINDOW:
@@ -259,7 +264,7 @@ class StateMachine:
                     close_ws(),
                 ]
             if et in (EventType.WATCHDOG_TIMEOUT, EventType.ERROR):
-                return State.IDLE, self._teardown()
+                return State.IDLE, self._teardown(self._fail_reason(et))
             return State.LOUNGE_WINDOW, []
 
         # unreachable; degrade to IDLE rather than crash.

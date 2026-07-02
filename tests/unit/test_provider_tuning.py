@@ -36,6 +36,19 @@ class _FakeWS:
             yield m
 
 
+async def _drain(session) -> list:
+    """Collect events until the fake WS runs dry. Exhaustion without close() now raises
+    ConnectionError by design (a silently-closed socket must surface as an error, 0.66);
+    the tests only care about the events yielded before that."""
+    evs = []
+    try:
+        async for e in session.events():
+            evs.append(e)
+    except ConnectionError:
+        pass
+    return evs
+
+
 async def test_openai_defers_response_create_during_active_response():
     # A tool result that arrives mid-response must NOT trigger response.create yet
     # (Realtime errors on response.create while a response is active -> model goes silent).
@@ -58,7 +71,7 @@ async def test_openai_fires_deferred_create_without_ending_turn():
     )
     s._active_response = True
     s._pending_create = True
-    evs = [e async for e in s.events()]
+    evs = await _drain(s)
     assert sum(isinstance(e, TurnComplete) for e in evs) == 1  # only the real end-of-turn
     assert {"type": "response.create"} in s._ws.sent and s._pending_create is False
 
@@ -71,7 +84,7 @@ async def test_openai_barge_in_drops_deferred_create():
     )
     s._active_response = True
     s._pending_create = True
-    evs = [e async for e in s.events()]
+    evs = await _drain(s)
     assert any(isinstance(e, Interrupted) for e in evs)
     assert s._pending_create is False and s._active_response is False
     assert all(m["type"] != "response.create" for m in s._ws.sent)  # no resurrection

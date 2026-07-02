@@ -78,6 +78,8 @@ class Action:
     level: int | None = None
     ttl_ms: int | None = None
     timeout_s: float | None = None
+    reason: str | None = None  # ERROR_TONE: which failure ("timeout" | "connection") — picks
+    # the matching spoken Danish clip instead of blaming the connection for everything
 
 
 # --- Action constructors (terse, keep transition tables readable) ---
@@ -148,8 +150,8 @@ def stop_lounge_vad() -> Action:
     return Action(ActionKind.STOP_LOUNGE_VAD)
 
 
-def error_tone() -> Action:
-    return Action(ActionKind.ERROR_TONE)
+def error_tone(reason: str = "connection") -> Action:
+    return Action(ActionKind.ERROR_TONE, reason=reason)
 
 
 def stream_start() -> Action:

@@ -46,6 +46,22 @@ def test_stall_window(fake_clock):
     assert wd.check() == "stall"
 
 
+def test_tool_window_survives_slow_lookup(fake_clock):
+    """A 3-9s tool is legitimate (TOOL_TIMEOUT_S=9): the widened window must not abort
+    mid-lookup (the "Senegal" bug — 0.65 only moved the cliff from 1.5s to 3s)."""
+    wd = _watchdog(fake_clock)
+    wd.arm("turn-1")
+    wd.on_output()  # tool call received = first output
+    wd.expect_response(C.TOOL_WATCHDOG_S)  # our dispatch starts — widen the window
+    fake_clock.advance(C.TOOL_TIMEOUT_S - 1.0)  # an 8s lookup, still inside its budget
+    assert wd.check() is None
+    wd.expect_response()  # result submitted -> back to the normal TTFR window
+    fake_clock.advance(C.WATCHDOG_MS / 1000.0 - 0.5)
+    assert wd.check() is None
+    fake_clock.advance(1.0)  # but a truly dead post-tool answer still trips
+    assert wd.check() == "ttfr"
+
+
 def test_expect_response_survives_tool_gap(fake_clock):
     """After a tool call the post-tool answer needs reasoning time (> stall). expect_response
     resets to the TTFR window so the stall watchdog doesn't kill a tool-using turn."""

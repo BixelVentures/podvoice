@@ -32,7 +32,7 @@ from .podconnect import AttentionClient
 from .providers import make_session
 from .reply import ReplyBus
 from .settings import DEFAULTS as SETTINGS_DEFAULTS
-from .settings import load_settings, save_settings
+from .settings import load_settings, masked, save_settings
 from .sim import build_sim_sessions, run_driver
 from .voicepe import VoicePELink
 from .watchdog import BargeIn, TurnWatchdog
@@ -239,7 +239,7 @@ async def run(cfg: Config) -> None:
         make_console=console_factory(cfg, tools),
         models_provider=lambda provider=None: list_models(cfg, provider),
         settings_get=lambda: {
-            **load_settings(),
+            **masked(load_settings()),  # tokens/PSK never leave the box in cleartext
             "system_prompt_default": SETTINGS_DEFAULTS["system_prompt"],
         },
         settings_set=save_settings,

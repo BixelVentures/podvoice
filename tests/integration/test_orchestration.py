@@ -210,6 +210,64 @@ async def test_wake_prepaints_listening_led():
         await session.aclose()
 
 
+async def test_ingest_survives_provider_send_failure():
+    """A dead provider socket mid-LISTENING must NOT silently kill the room's hearing:
+    one audible ERROR, the ingest loop stays alive (0.66 audit C1)."""
+    gemini = FakeGeminiSession()
+    session, _attention, voicepe = _build(gemini, reply_bus=ReplyBus())
+    await session.start()
+    try:
+        await session.sm.post(Event(EventType.WAKE_WORD, ROOM))
+        await _wait_until(lambda: session.sm.state is State.LISTENING)
+
+        async def _boom(_frame: bytes) -> None:
+            raise ConnectionError("socket died")
+
+        session.gatekeeper._send = _boom  # provider send dies under us
+        voicepe.feed([_frame(2000)])  # a frame with the gate open -> raises inside ingest
+        await _wait_until(lambda: session.sm.state is State.IDLE)  # audible teardown
+        await _wait_until(lambda: len(voicepe.announced_urls) >= 1)  # error clip announced
+        # The ingest loop is still alive: more frames don't crash anything.
+        voicepe.feed([_frame(10)])
+        await asyncio.sleep(0.05)
+    finally:
+        await session.aclose()
+
+
+async def test_media_state_finishes_turn_early():
+    """Device-reported 'announcement finished' beats the byte-estimate: the lounge
+    window opens the moment the speaker actually goes quiet."""
+    pcm = _frame(2000, n_samples=24000)  # 48000 B = 1.0 s estimate
+    gemini = FakeGeminiSession()
+    gemini.script(AudioChunk(pcm), TurnComplete())
+    session, _attention, _voicepe = _build(gemini, reply_bus=ReplyBus())
+    await session.start()
+    try:
+        await session.sm.post(Event(EventType.WAKE_WORD, ROOM))
+        await _wait_until(lambda: session.sm.state is State.AI_SPEAKING)
+        await _wait_until(lambda: session._turn_done_timer is not None)  # estimate armed
+        session._on_media_announcing(True)  # device started playing
+        session._on_media_announcing(False)  # ...and finished (ground truth)
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW, max_wait=0.5)
+    finally:
+        await session.aclose()
+
+
+async def test_hardware_mute_closes_session_and_paints_red():
+    gemini = FakeGeminiSession()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.sm.post(Event(EventType.WAKE_WORD, ROOM))
+        await _wait_until(lambda: session.sm.state is State.LISTENING)
+        session._on_mute(True)
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        red = led_command_for(State.IDLE, muted=True)
+        await _wait_until(lambda: (True, red.rgb, red.brightness) in voicepe.light_commands)
+    finally:
+        await session.aclose()
+
+
 async def test_tool_call_dispatched_and_answered():
     gemini = FakeGeminiSession()
     gemini.script(ToolCall("1", "add_todo", {"list": "todo.shopping_list", "item": "mælk"}))

@@ -135,13 +135,68 @@ def load_settings(path: pathlib.Path | None = None) -> dict:
     return data
 
 
+# Secret-valued settings: masked on read (panel GET), and a masked value coming BACK
+# on save is ignored so a round-tripped form can't overwrite the real secret.
+SECRET_SETTINGS = frozenset({"podconnect_token", "voicepe_noise_psk"})
+SECRET_MASK = "********"
+
+
+def masked(settings: dict) -> dict:
+    """Copy with secret values replaced by the mask (empty stays empty)."""
+    out = dict(settings)
+    for k in SECRET_SETTINGS:
+        if out.get(k):
+            out[k] = SECRET_MASK
+    return out
+
+
+def _coerce(key: str, value, template) -> object:
+    """Coerce ``value`` to the DEFAULTS type for ``key``; raise ValueError if it can't.
+
+    Persisting an unvalidated value used to crash-loop the whole add-on at next boot
+    (int("loud") in config loading) — one bad panel POST bricked the assistant."""
+    if isinstance(template, bool):
+        if isinstance(value, bool):
+            return value
+        raise ValueError(f"{key}: expected true/false")
+    if isinstance(template, int) and not isinstance(template, bool):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{key}: expected a number") from None
+    if isinstance(template, float):
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{key}: expected a number") from None
+    if isinstance(template, str):
+        if isinstance(value, str):
+            return value
+        raise ValueError(f"{key}: expected text")
+    if isinstance(template, list):
+        if not isinstance(value, list):
+            raise ValueError(f"{key}: expected a list")
+        if key == "rooms":
+            for r in value:
+                if not (isinstance(r, dict) and r.get("voicepe_host") and r.get("room")):
+                    raise ValueError("rooms: each row needs a Voice PE host and a room")
+        return value
+    return value
+
+
 def save_settings(values: dict, path: pathlib.Path | None = None) -> dict:
-    """Merge ``values`` (only known keys) into the saved settings and persist."""
+    """Validate + merge ``values`` (only known keys) into the saved settings and persist.
+
+    Raises ValueError (with a human-readable message for the panel) instead of ever
+    persisting a value the boot path can't parse. Masked secrets are skipped."""
     src = _resolve(path)
     data = load_settings(src)
     for k, v in values.items():
-        if k in DEFAULTS:
-            data[k] = v
+        if k not in DEFAULTS:
+            continue
+        if k in SECRET_SETTINGS and v == SECRET_MASK:
+            continue  # round-tripped mask — keep the stored secret
+        data[k] = _coerce(k, v, DEFAULTS[k])
     src.parent.mkdir(parents=True, exist_ok=True)
     src.write_text(json.dumps(data, indent=2))
     _LOG.info("settings saved to %s", src)

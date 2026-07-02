@@ -118,10 +118,19 @@ class RoomSession:
         self._keepalive_task: asyncio.Task | None = None  # re-asserts the device mic-forward
         self._muted = False  # device mute state (LED override)
         self._turn_done_timer: asyncio.Task | None = None  # delayed MODEL_TURN_COMPLETE (playback)
+        self._closing = False  # aclose() in progress — suppress task-restart callbacks
+        self._ingest_error_posted = False  # one ERROR per failure episode, not per frame
+        self._tool_lock = asyncio.Lock()  # serialize tool-result sends (dispatches run async)
 
         # Route device wake/button events into the state machine.
         if hasattr(voicepe, "on_event"):
             voicepe.on_event = self._on_device_event
+        # Device media-player state -> ground truth for "the reply finished PLAYING".
+        if hasattr(voicepe, "on_media_state"):
+            voicepe.on_media_state = self._on_media_announcing
+        # Hardware mute switch -> red ring + close any live session (family-visible truth).
+        if hasattr(voicepe, "on_mute"):
+            voicepe.on_mute = self._on_mute
         # Re-assert the device stream + LED for the current state on every reconnect.
         if hasattr(voicepe, "on_reconnect"):
             voicepe.on_reconnect = self._reassert_device
@@ -262,12 +271,32 @@ class RoomSession:
         self.playback.start()
         self._tasks = [
             asyncio.create_task(self.sm.run(), name=f"sm-{self.room}"),
-            asyncio.create_task(self._ingest(), name=f"ingest-{self.room}"),
+            self._spawn_ingest(),
         ]
         if self.enable_watchdog:
             self._tasks.append(asyncio.create_task(self._watchdog_loop(), name=f"wd-{self.room}"))
 
+    def _spawn_ingest(self) -> asyncio.Task:
+        """Start the mic-ingest loop WITH a death watch. The old bare task meant any
+        uncaught exception killed the room's hearing permanently and silently — the
+        single riskiest failure in the codebase (0.66 audit C1)."""
+        task = asyncio.create_task(self._ingest(), name=f"ingest-{self.room}")
+        task.add_done_callback(self._ingest_died)
+        return task
+
+    def _ingest_died(self, task: asyncio.Task) -> None:
+        if task in self._tasks:
+            self._tasks.remove(task)
+        if self._closing or task.cancelled():
+            return
+        exc = task.exception()
+        _LOG.error("mic ingest died for room %s (%s) — RESTARTING", self.room, exc)
+        if self.hub is not None:
+            self.hub.activity(self.room, "🎤 Mikrofon-flowet genstartede efter en fejl")
+        self._tasks.append(self._spawn_ingest())
+
     async def aclose(self) -> None:
+        self._closing = True  # suppress the ingest death-watch restart
         self._cancel_lounge_timer()
         self._cancel_listen_timer()
         self._cancel_turn_done_timer()
@@ -347,7 +376,13 @@ class RoomSession:
             await self.heartbeat.stop()
         elif k is ActionKind.GATE_OPEN:
             self.gatekeeper.set_silence(False)
-            self.gatekeeper.open()
+            self._ingest_error_posted = False  # new turn — a fresh failure may speak again
+            if hasattr(self.gatekeeper, "open_with_preroll"):
+                # Replay the buffered run-up: the user starts talking the moment the
+                # ring turns cyan, ~1s before the provider WS is even connected.
+                await self.gatekeeper.open_with_preroll()
+            else:
+                self.gatekeeper.open()
             self._responded = False
             self._out_buf = []  # fresh turn — drop any stale transcript fragments
             self._in_buf = []
@@ -400,7 +435,7 @@ class RoomSession:
             self._lounge_vad_on = False
             self.gatekeeper.set_silence(False)
         elif k is ActionKind.ERROR_TONE:
-            await self._play_error_audible()
+            await self._play_error_audible(action.reason or "connection")
         elif k is ActionKind.STREAM_START:
             # Wake opened the gate. First abort the stock voice_assistant turn the wake
             # triggered (so its turn-audio can't collide with podvoice_audio), THEN start
@@ -416,6 +451,8 @@ class RoomSession:
         elif k is ActionKind.STREAM_STOP:
             # Session ended (closure / grace expiry / error): stop the mic forward.
             self._stop_keepalive()
+            if hasattr(self.gatekeeper, "clear_preroll"):
+                self.gatekeeper.clear_preroll()  # never leak run-up audio across sessions
             if hasattr(self.voicepe, "stop_streaming"):
                 await self.voicepe.stop_streaming()
 
@@ -440,21 +477,23 @@ class RoomSession:
                 self.hub.activity(self.room, "🔇 Enheden hentede ikke svaret — prøver igen")
             await self.voicepe.play_url(self.reply_url)
 
-    async def _play_error_audible(self) -> None:
+    async def _play_error_audible(self, reason: str = "connection") -> None:
         """Say the error OUT LOUD on the device via the WORKING announce path.
 
         The old path (playback.play_tone -> play_pcm -> send_voice_assistant_audio) is
         architecturally dead on the Voice PE, so every error was silent: the music just
         snapped back and the room got stillness — which reads as being ignored. Push a
-        short tone + the pre-rendered Danish "Der er problemer med forbindelsen lige
-        nu." clip through the reply bus and announce it. Falls back to the local tone
-        path in sim/console mode (no reply bus)."""
+        short tone + the matching pre-rendered Danish clip through the reply bus and
+        announce it. ``reason`` picks the honest message: a watchdog "timeout" says
+        "det tog for lang tid — prøv igen" instead of blaming the wifi (which trains
+        the family to distrust the connection for a merely-slow model). Falls back to
+        the local tone path in sim/console mode (no reply bus)."""
         tone = audio_mod.error_tone(C.GEMINI_OUTPUT_RATE)
         if self.reply_bus is not None and self.reply_url:
             self.reply_bus.clear(self.room)
             self.reply_bus.start(self.room)
             self.reply_bus.push(self.room, tone)
-            clip = clips.load_clip("connection")
+            clip = clips.load_clip(reason) or clips.load_clip("connection")
             if clip:
                 self.reply_bus.push(self.room, clip)
             self.reply_bus.end(self.room)
@@ -491,7 +530,16 @@ class RoomSession:
             if self._lounge_vad_on and self._lounge_vad.feed(frame):
                 self._lounge_vad_on = False
                 await self.sm.post(Event(EventType.LOCAL_VOICE_DETECTED, self.room))
-            await self.gatekeeper.offer(frame)
+            try:
+                await self.gatekeeper.offer(frame)
+            except Exception as e:
+                # A dead provider socket raises here on EVERY frame while the gate is
+                # open. Drop the frame, surface ONE audible ERROR (the teardown shuts
+                # the gate, which stops the raising), and keep the loop alive.
+                if not self._ingest_error_posted:
+                    self._ingest_error_posted = True
+                    _LOG.warning("provider send failed mid-stream (%s) — posting ERROR", e)
+                    await self.sm.post(Event(EventType.ERROR, self.room))
 
     # ------------------------------------------------------------------ gemini loop
     def _start_reader(self) -> None:
@@ -546,19 +594,17 @@ class RoomSession:
         elif isinstance(ev, ToolCall):
             if self.watchdog is not None:
                 self.watchdog.on_output()  # a tool call IS the model's first response
-                # While WE run the tool, the model is waiting on US — the mid-stream
-                # stall clock (1.5 s) must not tick during our own dispatch, or a slow
-                # tool (HA web lookup >1.5 s) aborts the turn mid-call (0.64 field bug:
-                # "hvordan gik Senegal-kampen" died in home_call on a watchdog stall).
-                self.watchdog.expect_response()
+                # While WE run the tool, the model is waiting on US — neither the 1.5s
+                # stall clock nor the 3s TTFR window may tick during a legitimate
+                # 3-9s lookup. Widen to the tool budget ("Senegal": 0.65 only moved
+                # the abort cliff from 1.5s to 3s; this removes it).
+                self.watchdog.expect_response(C.TOOL_WATCHDOG_S)
             if self.hub is not None:
                 self.hub.incr("tool_calls")
-            await self._handle_tool(ev)
-            if self.watchdog is not None:
-                # The post-tool answer now has to be reasoned + generated (seconds of
-                # legitimate silence). Wait for its first audio as TTFR, not a stall —
-                # otherwise the stall watchdog kills every tool-using turn mid-reply.
-                self.watchdog.expect_response()
+            # Dispatch on a task so the reader keeps consuming audio/interrupts while a
+            # slow tool runs (the inline await froze barge-in + transcripts for up to
+            # 9s, and serialized the parallel calls the system prompt asks for).
+            self._schedule_task(self._run_tool(ev))
         elif isinstance(ev, TurnComplete):
             # Flush the USER turn FIRST (before the reply) so History reads you -> assistant.
             # OpenAI's complete input transcript lands AFTER speech_stopped, so the
@@ -566,15 +612,20 @@ class RoomSession:
             self._flush_user_turn()
             est_playback_s = 0.0
             if self.reply_bus is not None:
-                if not self.reply_streaming:
+                turn_bytes = (
+                    self.reply_bus.take_turn_bytes(self.room)  # read AND reset (see reply.py)
+                    if hasattr(self.reply_bus, "take_turn_bytes")
+                    else 0
+                )
+                if self.reply_streaming:
+                    # Playback tracked generation live; only the jitter prebuffer remains.
+                    est_playback_s = C.STREAM_PREBUFFER_S
+                else:
                     # GENERATION is done, but the device only STARTS playing the buffered
                     # FLAC around now (it's served when end() closes the stream). Estimate
                     # how long it will keep talking so the turn doesn't "complete" while
-                    # the speaker is mid-sentence. (Streaming mode played along with
-                    # generation, so only the PLAYBACK_TAIL_S buffer remains.)
-                    est_playback_s = self.reply_bus.turn_bytes(self.room) / float(
-                        C.GEMINI_OUTPUT_RATE * C.SAMPLE_WIDTH
-                    )
+                    # the speaker is mid-sentence.
+                    est_playback_s = turn_bytes / float(C.GEMINI_OUTPUT_RATE * C.SAMPLE_WIDTH)
                 self.reply_bus.end(self.room)  # reply done -> close the announce stream
             if self._out_buf and self.hub is not None:  # persist the whole reply as ONE turn
                 self.hub.transcript(self.room, "out", "".join(self._out_buf))
@@ -620,6 +671,16 @@ class RoomSession:
             token = "stop" if kind == "hard" else "tak"
             await self.sm.post(Event(EventType.CLOSURE_TOKEN, self.room, {"kind": token}))
 
+    async def _run_tool(self, tc: ToolCall) -> None:
+        """Dispatch one tool concurrently with the event loop; result sends are
+        serialized (one WS write at a time) and the watchdog is reset to the normal
+        response window once OUR part is done."""
+        await self._handle_tool(tc)
+        if self.watchdog is not None:
+            # The post-tool answer now has to be reasoned + generated (seconds of
+            # legitimate silence). Back to the normal TTFR window.
+            self.watchdog.expect_response()
+
     async def _handle_tool(self, tc: ToolCall) -> None:
         if self.tools is None:
             result: dict = {"ok": False, "error_kind": "no_tools", "error": "no tools configured"}
@@ -632,7 +693,10 @@ class RoomSession:
                 self.hub.incr("tool_empty")
             else:
                 self.hub.incr("tool_ok")
-        await self.gemini.send_tool_results([{"id": tc.id, "name": tc.name, "response": result}])
+        async with self._tool_lock:  # dispatches run concurrently; WS writes must not
+            await self.gemini.send_tool_results(
+                [{"id": tc.id, "name": tc.name, "response": result}]
+            )
 
     def _flush_user_turn(self) -> None:
         """Persist the buffered user utterance as ONE 'in' turn, then clear.
@@ -650,6 +714,39 @@ class RoomSession:
         self._in_buf = []
 
     # ------------------------------------------------------------------ device events
+    def _on_media_announcing(self, announcing: bool) -> None:
+        """Device media-player state: the announcement pipeline started/stopped.
+
+        When the reply's generation is done (turn-done timer armed) and the device
+        reports the announcement FINISHED, the turn is really over — fire
+        MODEL_TURN_COMPLETE now instead of waiting out the byte-estimate. The estimate
+        timer stays as the backstop for devices/firmwares that don't report state."""
+        if announcing or self._turn_done_timer is None:
+            return
+        _LOG.info(
+            "device reports announcement finished for %s — turn done (ground truth)", self.room
+        )
+        self._cancel_turn_done_timer()
+        self._schedule_task(self.sm.post(Event(EventType.MODEL_TURN_COMPLETE, self.room)))
+
+    def _on_mute(self, muted: bool) -> None:
+        """Hardware mute switch observed over the API: paint the ring red and close any
+        live session. Without this the family flips the switch, wake silently dies, the
+        ring stays dark, and the only possible reading is 'it's broken'."""
+        if muted == self._muted:
+            return
+        self._muted = muted
+        self._paint_led(self.sm.state)
+        if self.hub is not None:
+            self.hub.activity(
+                self.room,
+                "🔇 Mikrofonen er slukket på kontakten" if muted else "🎙️ Mikrofonen er tændt igen",
+            )
+        if muted and self.sm.state is not State.IDLE:
+            self._schedule_task(
+                self.sm.post(Event(EventType.CLOSURE_TOKEN, self.room, {"kind": "mute"}))
+            )
+
     def _on_wake(self) -> None:
         """Device wake (handle_start) -> drive a WAKE_WORD into the state machine."""
         self._prepaint_wake_led()

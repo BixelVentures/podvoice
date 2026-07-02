@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.66.0 — "aldrig døv, aldrig dum": armoured core, first-word pre-roll, smooth streaming, honest errors
+
+Driven by the post-0.65 triple audit (code C1/H1/H2/H3, UX C−, SOTA benchmark) + the streaming field test ("lyd kommer ud 🙂 … dog falder den lidt over ordene").
+
+**Never permanently deaf (audit C1 — the single riskiest bug).** The mic-ingest loop had no error handling: ONE failed provider send (a wifi blip mid-LISTENING) killed the room's hearing forever, silently, while LEDs and wake kept looking alive. Now: the send failure is caught, ONE audible ERROR is posted (gate shuts, which stops the raising), and the ingest task itself has a death-watch that logs + restarts it if anything else ever kills it.
+
+**Provider death is visible and honest (audit H3).** OpenAI's WS iterator ends silently on socket close — the room used to sit ducked-and-dead until the idle timeout. It now raises → ERROR → spoken Danish error + clean IDLE. Gemini's resume loop no longer retries a bad API key forever (auth errors and 6 consecutive failures abandon with an audible error).
+
+**The first word of your command is never eaten again (UX audit #2).** The instant-cyan ring invited you to talk ~1 s before the provider WS was connected — those frames were discarded ("SLUK lyset" → "-set"). A ~1.5 s rolling **pre-roll buffer** now records while the gate is shut and replays the run-up the moment it opens — on wake AND on lounge re-open (where the VAD attack ate the onset). Cleared at session end (privacy).
+
+**"Senegal" fixed for real (audit H1 + UX #4).** Two compounding bugs: the buffered reply collector gave up after 8 s while a tool may lawfully take 9 (the answer was collected into a closed HTTP response — you heard only "Lige et øjeblik…"), and the watchdog's 3 s TTFR window ticked while OUR OWN tool ran (0.65 moved the abort from 1.5 s → 3 s; a 3-9 s lookup still died). Now: collect ceiling 25 s, and the watchdog switches to an 11 s tool window at dispatch. Tools also dispatch **concurrently** — the event loop keeps consuming audio/interrupts during a slow lookup, and the parallel calls the system prompt requests actually run in parallel.
+
+**Smooth streaming replies (the stutter fix).** Field test confirmed streaming FLAC plays — but "falder lidt over ordene" and stops mid-sentence around tool calls: classic underrun (the device drains its buffer whenever generation pauses). Now: a **~1 s jitter prebuffer** before the first byte, and **silence-filling** during generation gaps (a tool lookup becomes a calm pause, not a stutter). Still opt-in this release — flip it on, if it sounds right it becomes the default in 0.67.
+
+**The device now tells us when it's done talking.** The media player's ANNOUNCING state is observed over the native API: the moment the speaker actually goes quiet, the follow-up window opens (the 0.65 byte-estimate stays as backstop). Timing truth instead of arithmetic.
+
+**The physical mute switch is finally respected.** The Mute switch is observed: ring turns solid red, any live session closes, activity feed says so. Before, muting made wake silently do nothing with a dark ring — indistinguishable from "broken".
+
+**Honest error messages.** A timeout now says *"Det tog for lang tid. Prøv lige igen."* (new clip) — only real connection failures blame the connection. (Blaming wifi for a slow model trains the family to distrust the wifi.)
+
+**One bad settings value can no longer brick the add-on (audit H2).** POST /api/settings validates every key (clear 400 message to the panel), and the boot path degrades bad saved values to defaults per-field instead of crash-looping. Secrets (PodConnect token, Voice PE PSK) are **masked** on read — they never leave the box in cleartext — and a round-tripped mask never overwrites the stored secret. The reply token is stripped from announce logs and compared constant-time.
+
+**Faster edges.** False wake / cough-in-the-lounge penalty cut from 20 s to 8 s (LISTEN_IDLE_S). Danish sign-offs "tak for i dag", "ellers tak", "farvel" now close politely. Reply-queue overflow is logged instead of silently dropping audio.
+
+**Panel truth pass.** LED legend gains the missing dim-cyan follow-up entry + splits red into muted/problem; the how-to card no longer promises a "stop"-word that can't work while it speaks (that arrives with the 0.67 firmware); settings validation errors are shown; every user-initiated action surfaces its failure.
+
+ruff + mypy clean; 230 tests green (new: pre-roll replay/bounds/privacy, ingest-survives-provider-death, media-state ground truth, hardware-mute close+red, tool-window watchdog, settings validation + secret-mask round-trip, config garbage-tolerance).
+
 ## 0.65.0 — the "det bare virker" release: kill the self-reply loop, real stop, audible errors, panel lockdown
 
 Driven directly by the 0.64 field test (sound works! — and the log it produced found the worst remaining bug) plus the three-auditor service check.

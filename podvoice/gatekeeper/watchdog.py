@@ -88,6 +88,7 @@ class TurnWatchdog:
     ) -> None:
         self._on_abort = on_abort
         self._ttfr = ttfr_ms / 1000.0
+        self._ttfr_current = self._ttfr  # per-phase override (widened while a tool runs)
         self._stall = stall_ms / 1000.0
         self._clock = clock or time.monotonic
 
@@ -109,6 +110,7 @@ class TurnWatchdog:
         self._progressing = False
         self._armed_at = now
         self._last_chunk_at = now
+        self._ttfr_current = self._ttfr  # any tool-window override ended with the last turn
 
     def on_output(self) -> None:
         """Record a model output (audio chunk / transcript token / tool event).
@@ -124,17 +126,22 @@ class TurnWatchdog:
             self.samples.append(now - self._armed_at)
         self._last_chunk_at = now
 
-    def expect_response(self) -> None:
-        """A tool result was just submitted; the model now generates a FRESH response,
-        which can be several seconds of legitimate silence (reasoning about the result)
-        before its first audio. Reset to the TTFR window (not the shorter mid-stream
-        stall) so a tool-using turn isn't killed in the gap. Chained tools reset it each."""
+    def expect_response(self, window_s: float | None = None) -> None:
+        """Reset to a fresh wait-for-response window (default: the TTFR window).
+
+        Two callers: (1) a tool call was just RECEIVED — the model is now waiting on OUR
+        dispatch, which may legitimately take TOOL_TIMEOUT_S, so pass a window that
+        covers it (the 3 s TTFR would abort a working 3-9 s lookup — the "Senegal" bug);
+        (2) a tool result was just SUBMITTED — the model generates a fresh response,
+        seconds of legitimate silence, default TTFR window applies. Chained tools reset
+        it each time."""
         if not self._armed:
             return
         now = self._clock()
         self._progressing = False
         self._armed_at = now
         self._last_chunk_at = now
+        self._ttfr_current = window_s if window_s is not None else self._ttfr
 
     def disarm(self) -> None:
         """Stand the watchdog down (turn finished / aborted)."""
@@ -155,7 +162,7 @@ class TurnWatchdog:
             return None
         now = self._clock()
         if not self._progressing:
-            if now - self._armed_at > self._ttfr:
+            if now - self._armed_at > self._ttfr_current:
                 return "ttfr"
             return None
         if now - self._last_chunk_at > self._stall:

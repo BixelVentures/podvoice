@@ -354,6 +354,7 @@ class GeminiLiveSession:
         ``close()`` (deliberate teardown) sets ``_session`` to None and stops the loop.
         """
         backoff = 0.5
+        failures = 0
         while self._session is not None:
             session = self._session
             resume = False
@@ -411,9 +412,22 @@ class GeminiLiveSession:
                 try:
                     await self.reconnect()  # preserves _resume_handle (make-before-break)
                     backoff = 0.5
+                    failures = 0
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
+                    # A bad/expired API key is not a transient hiccup: retrying forever
+                    # just hides "your key is wrong" from the owner (0.66 audit H3).
+                    # Raise -> the orchestrator posts ERROR -> audible clip + clean IDLE.
+                    msg = str(e)
+                    fatal = any(
+                        tok in msg
+                        for tok in ("401", "403", "UNAUTHENTICATED", "PERMISSION_DENIED", "API key")
+                    )
+                    failures = failures + 1
+                    if fatal or failures >= 6:
+                        _LOG.error("gemini resume abandoned (%s) after %d attempts", e, failures)
+                        raise
                     _LOG.warning("gemini resume failed (%s) — retry in %.1fs", e, backoff)
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, 8.0)

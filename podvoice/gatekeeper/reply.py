@@ -140,6 +140,7 @@ class ReplyBus:
         # The orchestrator compares it around play_url to detect a device that never
         # fetched the announce — and re-announces instead of going silently deaf.
         self._fetches: dict[str, int] = {}
+        self._dropped: dict[str, bool] = {}  # per-room "currently dropping" flag (log once)
 
     def mark_fetched(self, room: str) -> None:
         self._fetches[room] = self._fetches.get(room, 0) + 1
@@ -175,18 +176,25 @@ class ReplyBus:
 
     def push(self, room: str, pcm: bytes) -> None:
         """Queue one PCM chunk for the device to play. Drops on backpressure rather
-        than blocking the model-read path (the device buffers downstream)."""
+        than blocking the model-read path (the device buffers downstream) — but LOUDLY:
+        a silent drop reads as "covered everything" when audio was actually lost."""
         if not pcm:
             return
         try:
             self._q(room).put_nowait(pcm)
             self._turn_bytes[room] = self._turn_bytes.get(room, 0) + len(pcm)
+            self._dropped.pop(room, None)
         except asyncio.QueueFull:
-            pass
+            if room not in self._dropped:  # once per backlog episode, not per frame
+                self._dropped[room] = True
+                _LOG.warning("reply queue full for %s — dropping audio (device fetch slow?)", room)
 
-    def turn_bytes(self, room: str) -> int:
-        """Reply bytes queued since the last clear() — the current turn's reply size."""
-        return self._turn_bytes.get(room, 0)
+    def take_turn_bytes(self, room: str) -> int:
+        """Return and RESET the bytes queued for the current turn. Resetting here (at
+        turn end, when the estimate is taken) stops a lounge-window follow-up reply —
+        which never passes gate-open/clear() — from inheriting the previous reply's
+        byte count and overestimating its playback hold."""
+        return self._turn_bytes.pop(room, 0)
 
     def end(self, room: str) -> None:
         """Mark end-of-reply so the HTTP stream closes (device finishes playing)."""
@@ -210,14 +218,31 @@ class ReplyBus:
                 return
             yield chunk
 
-    async def collect(self, room: str, max_wait_s: float = 8.0) -> bytes:
+    async def next_chunk(self, room: str, timeout_s: float) -> bytes | None:
+        """One chunk for the live-streaming path: PCM bytes, ``None`` on a gap
+        (nothing arrived within ``timeout_s`` — the caller injects silence so the
+        device hears a calm pause instead of underrunning), or raises ``EOFError``
+        at end-of-reply. Direct queue access (not the ``stream`` generator) because
+        cancelling a generator's ``anext`` mid-``get`` wedges the generator."""
+        q = self._q(room)
+        try:
+            chunk = await asyncio.wait_for(q.get(), timeout_s)
+        except TimeoutError:
+            return None
+        if chunk is _END:
+            raise EOFError
+        return chunk
+
+    async def collect(self, room: str, max_wait_s: float = C.REPLY_COLLECT_S) -> bytes:
         """Drain the WHOLE reply into one PCM blob (the buffered announce path).
 
         Waits for chunks until the _END sentinel, then joins them — so the web layer can
-        serve a FINITE WAV with a real data size + Content-Length (device-friendly) rather
-        than the data-size-0 streaming sentinel. Since the model front-loads the reply, the
-        wait is typically a few hundred ms. ``timeout`` bounds a reply that never ends
-        (interrupt / socket drop): we return whatever arrived so the device still plays it."""
+        serve a FINITE FLAC/WAV with a real Content-Length (device-friendly). The ceiling
+        must cover filler + a legitimate TOOL_TIMEOUT_S lookup + post-tool generation:
+        the old 8 s (< TOOL_TIMEOUT_S) guaranteed that every slow-but-successful lookup
+        played only the filler and dropped the actual answer. ``max_wait_s`` now only
+        bounds a reply that truly never ends (interrupt / socket drop): we return
+        whatever arrived so the device still plays it."""
         q = self._q(room)
         parts: list[bytes] = []
         try:

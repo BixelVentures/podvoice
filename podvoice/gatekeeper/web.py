@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hmac
 import ipaddress
 import json
 import logging
@@ -59,7 +60,7 @@ def _make_guard(locked: bool, reply_token: str | None):
         if path == "/health":
             return await handler(request)
         if path.startswith("/reply/"):
-            if reply_token and request.query.get("t") != reply_token:
+            if reply_token and not hmac.compare_digest(request.query.get("t", ""), reply_token):
                 _LOG.warning("reply fetch with bad/missing token from %s", request.remote)
                 return web.Response(status=403, text="bad reply token")
             return await handler(request)
@@ -276,16 +277,60 @@ async def _reply_streaming(bus, room: str, request: web.Request) -> web.StreamRe
     await resp.prepare(request)
 
     async def _feed() -> None:
+        from . import constants as C
+
+        # 100 ms of digital silence at 24 kHz/16-bit mono — injected during model
+        # gaps (tool calls!) so the device hears a calm pause, not underrun stutter.
+        silence = b"\x00" * (C.GEMINI_OUTPUT_RATE * 2 // 10)
+        byte_rate = float(C.GEMINI_OUTPUT_RATE * 2)
+        prebuffer_target = int(C.STREAM_PREBUFFER_S * byte_rate)
+        loop = asyncio.get_event_loop()
+        fed = 0
+        filled = 0
+        held: list[bytes] = []
+        held_bytes = 0
+        deadline = loop.time() + C.STREAM_PREBUFFER_S + 0.3
         try:
-            async with asyncio.timeout(60):
-                async for chunk in bus.stream(room):
-                    stdin.write(chunk)
+            async with asyncio.timeout(90):
+                # Phase 1 — jitter prebuffer: hold the first ~1 s of audio back so the
+                # device always has headroom against generation jitter mid-word.
+                while held_bytes < prebuffer_target and loop.time() < deadline:
+                    try:
+                        chunk = await bus.next_chunk(room, timeout_s=0.1)
+                    except EOFError:
+                        break  # short reply — serve what we have
+                    if chunk:
+                        held.append(chunk)
+                        held_bytes += len(chunk)
+                for c in held:
+                    stdin.write(c)
+                fed += held_bytes
+                await stdin.drain()
+                # Phase 2 — live: forward chunks; on a gap, feed silence to keep the
+                # decoder's clock running smoothly until real audio resumes.
+                while True:
+                    try:
+                        chunk = await bus.next_chunk(room, timeout_s=C.STREAM_FILL_GAP_S)
+                    except EOFError:
+                        break
+                    if chunk is None:
+                        stdin.write(silence)
+                        filled += len(silence)
+                    else:
+                        stdin.write(chunk)
+                        fed += len(chunk)
                     await stdin.drain()
         except TimeoutError:
             _LOG.warning("streaming reply for %s never ended — flushing what arrived", room)
         except (BrokenPipeError, ConnectionResetError):
             pass  # encoder died / client went away — the read loop handles teardown
         finally:
+            if filled:
+                _LOG.info(
+                    "streaming reply %s: injected %.1fs silence over generation gaps",
+                    room,
+                    filled / byte_rate,
+                )
             with contextlib.suppress(Exception):
                 stdin.close()
 
@@ -352,8 +397,13 @@ async def _settings_set(request: web.Request) -> web.Response:
         return web.json_response({"ok": False, "error": "bad json"}, status=400)
     if not isinstance(body, dict):
         return web.json_response({"ok": False, "error": "expected object"}, status=400)
-    saved = fn(body)
-    return web.json_response({"ok": True, "settings": saved})
+    try:
+        saved = fn(body)
+    except ValueError as e:  # human-readable validation error for the panel
+        return web.json_response({"ok": False, "error": str(e)}, status=400)
+    from .settings import masked
+
+    return web.json_response({"ok": True, "settings": masked(saved)})
 
 
 async def _restart(request: web.Request) -> web.Response:

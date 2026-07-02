@@ -301,6 +301,7 @@
         <input id="s_podconnect_base_url" type="text" autocomplete="off">
         <label for="s_podconnect_token">PodConnect token</label>
         <input id="s_podconnect_token" type="password" autocomplete="off" placeholder="(leave blank if PodConnect has none)">
+        <span></span><span id="s_podconnect_token_hint" class="sub" style="display:none;font-size:.76rem">Saved — type to replace.</span>
       </div>
       <p class="sub" style="margin:2px 0 0">Only used to dim music while the assistant talks (Attention API).</p>
 
@@ -387,16 +388,20 @@
       <p class="sub" style="margin:2px 0 0">Set up the physical Voice PE speaker + per-room music ducking. The <b>Talk</b> tab and HA Assist don't need any of this.</p>
 
       <div class="exsub" style="margin-top:16px">How to talk to it</div>
-      <div style="border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:6px">
-        <p class="sub" style="margin:0 0 8px">Say <b>“Okay Nabu”</b> to wake it, then just talk. After it replies you have a few seconds to keep going — no need to say “Okay Nabu” again.</p>
-        <p class="sub" style="margin:0 0 10px">To interrupt or stop it: say <b>“stop”</b> or <b>press the button</b>. (Talking over it doesn't interrupt yet — that's a future update.)</p>
+      <div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-top:6px">
+        <p class="sub" style="margin:0 0 8px">Say <b>“Okay Nabu”</b> to wake it, then just talk. After it answers, the ring turns <b>dim cyan</b> for a few seconds — you can keep talking, no wake word needed.</p>
+        <p class="sub" style="margin:0 0 8px"><b>While it's speaking</b>, saying “stop” does <b>not</b> work yet (that arrives in the next firmware update). To cut it off: say <b>“Okay Nabu”</b> again, or <b>press the center button</b>.</p>
+        <p class="sub" style="margin:0 0 8px"><b>While it's listening to you</b>, say <b>“stop”</b>, <b>“vent”</b> or <b>“stille”</b> to cancel.</p>
+        <p class="sub" style="margin:0 0 10px"><b>To end politely</b>, say <b>“tak”</b>, “mange tak”, “tak for hjælpen” or “farvel” on its own. Said inside a command (“sluk lyset, tak”) the command still wins and runs.</p>
         <div class="exsub" style="margin:0 0 6px">What the light ring means</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px 16px">
           <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#2f3742;vertical-align:-1px;margin-right:5px"></span>Off — asleep</span>
           <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#18bbf2;vertical-align:-1px;margin-right:5px"></span>Cyan — listening to you</span>
           <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#ff8c00;vertical-align:-1px;margin-right:5px"></span>Amber — thinking</span>
           <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#78dc8c;vertical-align:-1px;margin-right:5px"></span>Green — replying</span>
-          <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#ff2222;vertical-align:-1px;margin-right:5px"></span>Red — muted or a problem</span>
+          <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#18bbf2;opacity:.45;vertical-align:-1px;margin-right:5px"></span>Dim cyan — follow-up: just keep talking</span>
+          <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#ff2222;vertical-align:-1px;margin-right:5px"></span>Red, solid — muted (the switch on the device)</span>
+          <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#ff2222;box-shadow:0 0 0 2px rgba(255,34,34,.3);vertical-align:-1px;margin-right:5px"></span>Red, flashing — a problem</span>
         </div>
       </div>
 
@@ -412,12 +417,13 @@
       <div class="setgrid">
         <label for="s_voicepe_noise_psk">Voice PE PSK</label>
         <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
+        <span></span><span id="s_voicepe_noise_psk_hint" class="sub" style="display:none;font-size:.76rem">Saved — type to replace.</span>
         <label for="s_full_duplex">Voice barge-in <span style="opacity:.6">(soon)</span></label>
         <input id="s_full_duplex" type="checkbox" disabled title="Not available yet">
         <label for="s_simulate">Simulation mode</label>
         <input id="s_simulate" type="checkbox">
       </div>
-      <p class="sub" style="margin:2px 0 0"><b>Voice barge-in</b> (interrupt by just talking over it) is a <b>future</b> update and isn't active yet. For now it's continued conversation: it finishes its answer, and you interrupt by saying <b>“stop”</b> or pressing the button.</p>
+      <p class="sub" style="margin:2px 0 0"><b>Voice barge-in</b> (interrupt by just talking over it) is a <b>future</b> update and isn't active yet. For now it's continued conversation: it finishes its answer, and you cut it off by saying <b>“Okay Nabu”</b> again or pressing the center button.</p>
       <div class="exsub" style="margin-top:12px">Rooms</div>
       <p class="sub" style="margin:2px 0 8px">Each row links one Voice PE (its IP) to the PodConnect room it stands in — so PodVoice knows which speaker's music to quiet when you talk to it.</p>
       <div id="s_rooms"></div>
@@ -434,7 +440,7 @@
         <label for="s_reply_streaming">Streaming replies <span style="opacity:.6">(experimental)</span></label>
         <input id="s_reply_streaming" type="checkbox">
       </div>
-      <p class="sub" style="margin:2px 0 0">Play the answer <b>while it's being generated</b> instead of waiting for the whole reply — removes the silent pause before it speaks. Verify with the <b>Speaker</b> test below after enabling; untick if the speaker goes silent.</p>
+      <p class="sub" style="margin:2px 0 0">Play the answer <b>while it's being generated</b> instead of waiting for the whole reply. Expect a pause of about <b>1 second</b> before it starts speaking, and brief quiet moments while it looks something up — both are normal. Verify with the <b>Speaker</b> test below after enabling; untick if the speaker goes silent.</p>
 
       <details class="adv" style="margin-top:12px">
         <summary>Advanced tuning</summary>
@@ -654,9 +660,10 @@ async function control(room, action, btn) {
   try {
     var r = await fetch("api/control", { method: "POST", headers: { "Content-Type": "application/json" },
                                          body: JSON.stringify({ room: room, action: action }) });
-    var j = await r.json();
-    toast(j.ok ? "OK" : ("Error: " + (j.error || r.status)));
-  } catch (e) { toast("Request failed"); }
+    var j = null; try { j = await r.json(); } catch (e2) { /* non-JSON error page */ }
+    if (j && j.ok) toast("OK");
+    else toast("Error: " + ((j && j.error) || ("HTTP " + r.status)));
+  } catch (e) { toast("Request failed — couldn't reach PodVoice"); }
 }
 
 async function poll() {
@@ -822,7 +829,10 @@ setInterval(poll, 3000);
         currentVoice = data.voice || (voices[0] || null);
         if (currentVoice) voiceSel.value = currentVoice;
       }
-    } catch (e) { /* leave selector empty; console still uses the server default */ }
+    } catch (e) {
+      // Surface it — a user-initiated provider switch must not fail silently.
+      logLine("out", "system", "Couldn't load the model list — using the server default.");
+    }
   }
   // Talk picker is SESSION-LOCAL: changing provider/model/voice here affects ONLY this
   // console session — it does NOT write back to the global settings. The single source
@@ -1095,7 +1105,24 @@ setInterval(poll, 3000);
     return out.filter(function (v, i) { return out.indexOf(v) === i; });  // dedup
   }
 
+  // The panel must never save "blank defaults" over real settings just because the
+  // initial GET failed — keep the save buttons disabled until settings really loaded.
+  var settingsLoaded = false;
+  function setSaveEnabled(on) {
+    ["s_save", "s_saverestart", "vp_saverestart"].forEach(function (id) {
+      var b = document.getElementById(id); if (b) b.disabled = !on;
+    });
+  }
+  // GET /api/settings returns "********" for saved secrets; round-tripping that mask
+  // keeps the stored secret. Show a hint so the stars don't look like a glitch.
+  function updateSecretHints(s) {
+    ["podconnect_token", "voicepe_noise_psk"].forEach(function (id) {
+      var h = document.getElementById("s_" + id + "_hint");
+      if (h) h.style.display = (s && s[id] === "********") ? "" : "none";
+    });
+  }
   async function load() {
+    setSaveEnabled(false);
     try {
       var nofail = function (u) { return fetch(u, { cache: "no-store" }).then(function (r) { return r.json(); }).catch(function () { return {}; }); };
       var jobs = await Promise.all([nofail("api/settings"), nofail("api/ha/entities"), nofail("api/podconnect/rooms")]);
@@ -1105,10 +1132,14 @@ setInterval(poll, 3000);
       pcRooms = jobs[2].rooms || [];
       promptDefault = s.system_prompt_default || promptDefault;
       FIELDS.forEach(function (id) { if (id in s) setVal(id, s[id]); });
+      updateSecretHints(s);
       applyExposed(s.exposed || []);
       roomsWrap.innerHTML = "";
       (s.rooms || []).forEach(function (rm) { addRoom(rm.voicepe_host, rm.room); });
-    } catch (e) { /* leave defaults */ }
+      settingsLoaded = ("provider" in s);
+    } catch (e) { settingsLoaded = false; }
+    if (settingsLoaded) { setSaveEnabled(true); }
+    else { setSaveStatus("⚠️ Couldn't load the saved settings — reload the page before changing anything."); }
   }
   function collect() {
     var body = {};
@@ -1127,18 +1158,31 @@ setInterval(poll, 3000);
   }
   async function save(restart) {
     setSaveStatus("Saving…");
+    var r, j = null;
     try {
-      var r = await fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify(collect()) });
-      var j = await r.json();
-      if (!j.ok) { setSaveStatus("Could not save"); return; }
-      if (!restart) { setSaveStatus("Saved — restart the add-on to apply"); return; }
-      setSaveStatus("Saved — restarting…");
+      r = await fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify(collect()) });
+    } catch (e) {
+      setSaveStatus("⚠️ Not saved — couldn't reach PodVoice. Is the add-on running?");
+      toast("Not saved — request failed"); return;
+    }
+    try { j = await r.json(); } catch (e) { /* non-JSON error page */ }
+    if (!r.ok || !j || j.ok !== true) {
+      // The backend validates and answers 400 with a human-readable reason — show it.
+      var msg = (j && j.error) ? j.error : ("HTTP " + r.status);
+      setSaveStatus("⚠️ Not saved — " + msg);
+      toast("Not saved: " + msg);
+      return;
+    }
+    if (j.settings) updateSecretHints(j.settings);   // freshly saved secrets get the hint
+    if (!restart) { setSaveStatus("Saved — restart the add-on to apply"); return; }
+    setSaveStatus("Saved — restarting…");
+    try {
       var rr = await fetch("api/restart", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-      var jj = await rr.json();
-      setSaveStatus(jj.ok ? "Restarting… reload the page in a moment"
-                          : "Saved (restart unavailable — restart the add-on manually)");
-    } catch (e) { setSaveStatus("Request failed"); }
+      var jj = null; try { jj = await rr.json(); } catch (e) {}
+      setSaveStatus(jj && jj.ok ? "Restarting… reload the page in a moment"
+                                : "Saved ✓ — but restart failed (" + ((jj && jj.error) || ("HTTP " + rr.status)) + "). Restart the add-on manually.");
+    } catch (e) { setSaveStatus("Saved ✓ — but the restart request failed. Restart the add-on manually."); }
   }
   document.getElementById("s_save").onclick = function () { save(false); };
   document.getElementById("s_saverestart").onclick = function () { save(true); };
@@ -1203,7 +1247,11 @@ setInterval(poll, 3000);
   }
 
   if (copyBtn) copyBtn.onclick = function () {
-    try { navigator.clipboard.writeText(last); copyBtn.textContent = "Copied ✓"; setTimeout(function () { copyBtn.textContent = "Copy result"; }, 1500); } catch (e) {}
+    function done(label) { copyBtn.textContent = label; setTimeout(function () { copyBtn.textContent = "Copy result"; }, 1500); }
+    try {
+      navigator.clipboard.writeText(last).then(function () { done("Copied ✓"); },
+                                               function () { done("Copy failed"); });
+    } catch (e) { done("Copy failed"); }
   };
   if (btns[0]) btns[0].onclick = function () { run("status", "GET", "Checking connection…"); };
   if (btns[1]) btns[1].onclick = function () { run("s1", "POST", "Measuring the audio stream (~15s)… keep this tab open."); };
@@ -1282,8 +1330,13 @@ setInterval(poll, 3000);
   if (refreshBtn) refreshBtn.onclick = load;
   if (roomSel) roomSel.onchange = load;
   if (clearBtn) clearBtn.onclick = async function () {
-    if (!window.confirm("Delete all saved conversations?")) return;
-    try { await fetch("api/history/clear", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); } catch (e) {}
+    if (!window.confirm("Delete ALL saved conversations? This cannot be undone.")) return;
+    try {
+      var r = await fetch("api/history/clear", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      var j = null; try { j = await r.json(); } catch (e2) {}
+      if (j && j.ok) toast("History cleared");
+      else toast("Couldn't clear history: " + ((j && j.error) || ("HTTP " + r.status)));
+    } catch (e) { toast("Couldn't clear history — request failed"); }
     load();
   };
   // Load when the History tab is opened (and once now so it's warm).

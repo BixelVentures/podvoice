@@ -59,11 +59,18 @@ class VoicePELink:
         # the VA-run-start callback. We use it as "wake" since !extend (to redirect the
         # wake handler) is unusable on ESPHome 2026.6.x. on_wake() -> orchestrator.
         self.on_wake: Callable[[], Any] | None = None
+        # Media-player announcement state (True while ANNOUNCING) — the ground truth for
+        # "the reply finished PLAYING" (replaces the byte-estimate when available).
+        self.on_media_state: Callable[[bool], Any] | None = None
+        # Hardware mute switch state -> red ring + session close in the orchestrator.
+        self.on_mute: Callable[[bool], Any] | None = None
         self._pending: set[asyncio.Task[Any]] = set()
         # Resolved once per connect from the device's published entities/services.
         self._user_services: dict[str, Any] = {}  # name -> UserService (start/stop forward)
         self._light_key: int | None = None  # the LED-ring light entity key (None = no LED)
         self._media_key: int | None = None  # the media_player key (AI-reply announce path)
+        self._mute_key: int | None = None  # the mute switch/sensor key (None = not published)
+        self._announcing = False  # last observed media_player ANNOUNCING state
 
     async def start(self) -> None:
         """Build the client and start the reconnect loop (owns the connection)."""
@@ -116,6 +123,7 @@ class VoicePELink:
         self._user_services = {}
         self._light_key = None
         self._media_key = None
+        self._mute_key = None
         try:
             # VERIFY: list_entities_services() -> (entities, services) on aioesphomeapi.
             entities, services = await self._client.list_entities_services()
@@ -136,6 +144,15 @@ class VoicePELink:
             )
             mp = mp or (players[0] if players else None)
             self._media_key = getattr(mp, "key", None) if mp else None
+            # The mute switch (upstream publishes a switch/binary_sensor whose object_id
+            # contains "mute") — observed so the ring can show red + close the session.
+            mutes = [
+                e
+                for e in (entities or [])
+                if type(e).__name__ in ("SwitchInfo", "BinarySensorInfo")
+                and "mute" in getattr(e, "object_id", "")
+            ]
+            self._mute_key = getattr(mutes[0], "key", None) if mutes else None
         except Exception as e:  # never let discovery break the connection
             log.info("voicepe %s entity discovery unavailable: %s", self.host, e)
 
@@ -234,15 +251,39 @@ class VoicePELink:
         return _gen()
 
     def _on_state(self, state: object) -> None:
-        """Route wake/button (and other) state updates to the state machine."""
+        """Route wake/button/media/mute state updates to the orchestrator."""
+        key = getattr(state, "key", None)
+        tname = type(state).__name__
+        # Media-player announce state -> "reply finished playing" ground truth.
+        if key == self._media_key and tname == "MediaPlayerEntityState" and self.on_media_state:
+            try:
+                from aioesphomeapi.model import MediaPlayerState  # lazy, like the client
+
+                announcing = getattr(state, "state", None) == MediaPlayerState.ANNOUNCING
+            except Exception:  # enum unavailable — compare the raw protobuf value
+                announcing = getattr(getattr(state, "state", None), "value", None) == 4
+            if announcing != self._announcing:
+                self._announcing = announcing
+                self._run_cb(self.on_media_state, announcing)
+        # Hardware mute switch -> red ring + close session.
+        elif (
+            key is not None
+            and key == self._mute_key
+            and self.on_mute is not None
+            and tname in ("SwitchEntityState", "BinarySensorEntityState")
+        ):
+            self._run_cb(self.on_mute, bool(getattr(state, "state", False)))
         if self.on_event is not None:
             # on_event may be a coroutine function; schedule without blocking the cb.
-            result = self.on_event(self.room, state)
-            if asyncio.iscoroutine(result):
-                # Keep a reference so the task isn't GC'd mid-flight (RUF006).
-                task = asyncio.ensure_future(result)
-                self._pending.add(task)
-                task.add_done_callback(self._pending.discard)
+            self._run_cb(self.on_event, self.room, state)
+
+    def _run_cb(self, cb: Callable[..., Any], *args: Any) -> None:
+        """Invoke a state callback; if it returns a coroutine, schedule + keep a ref."""
+        result = cb(*args)
+        if asyncio.iscoroutine(result):
+            task = asyncio.ensure_future(result)
+            self._pending.add(task)
+            task.add_done_callback(self._pending.discard)
 
     async def play_pcm(self, chunk: bytes) -> None:
         """DEAD on Voice PE firmware — kept for the sim/console fallback only.
@@ -268,7 +309,7 @@ class VoicePELink:
             "voicepe %s: announcing reply via media_player key=%s url=%s",
             self.host,
             self._media_key,
-            url,
+            url.split("?")[0],  # never log the ?t= reply token
         )
         try:
             # media_player_command is SYNCHRONOUS in aioesphomeapi (returns None, just

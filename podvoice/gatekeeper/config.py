@@ -89,6 +89,22 @@ SECRET_KEYS: frozenset[str] = frozenset(
 )
 
 
+def _int(opts: dict, key: str, default: int) -> int:
+    """int() with a per-field fallback — one bad saved value must degrade to its
+    default, never crash-loop the whole add-on at boot (0.66 audit H2)."""
+    try:
+        return int(opts.get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _float(opts: dict, key: str, default: float) -> float:
+    try:
+        return float(opts.get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
 def from_options(opts: dict) -> Config:
     """Build a Config from a parsed options dict (Supervisor or YAML shape)."""
     rooms_raw = opts.get("rooms") or []
@@ -99,6 +115,8 @@ def from_options(opts: dict) -> Config:
             voicepe_noise_psk=r.get("voicepe_noise_psk", opts.get("voicepe_noise_psk", "")),
         )
         for r in rooms_raw
+        # A malformed room row is skipped (logged by the caller's room list), not fatal.
+        if isinstance(r, dict) and r.get("voicepe_host") and r.get("room")
     )
     return Config(
         gemini_api_key=opts.get("gemini_api_key", ""),
@@ -114,15 +132,15 @@ def from_options(opts: dict) -> Config:
         gemini_voice=opts.get("gemini_voice", "") or "Kore",
         gemini_vad_start=str(opts.get("gemini_vad_start", "high") or "high"),
         gemini_vad_end=str(opts.get("gemini_vad_end", "high") or "high"),
-        gemini_prefix_ms=int(opts.get("gemini_prefix_ms", 300)),
-        gemini_silence_ms=int(opts.get("gemini_silence_ms", 500)),
+        gemini_prefix_ms=_int(opts, "gemini_prefix_ms", 300),
+        gemini_silence_ms=_int(opts, "gemini_silence_ms", 500),
         openai_api_key=opts.get("openai_api_key", ""),
         openai_model=opts.get("openai_model", "gpt-realtime-2"),
         openai_voice=opts.get("openai_voice", "") or "marin",
         openai_turn=str(opts.get("openai_turn", "semantic_vad") or "semantic_vad"),
-        openai_threshold=float(opts.get("openai_threshold", 0.5)),
-        openai_prefix_ms=int(opts.get("openai_prefix_ms", 300)),
-        openai_silence_ms=int(opts.get("openai_silence_ms", 500)),
+        openai_threshold=_float(opts, "openai_threshold", 0.5),
+        openai_prefix_ms=_int(opts, "openai_prefix_ms", 300),
+        openai_silence_ms=_int(opts, "openai_silence_ms", 500),
         openai_eagerness=str(opts.get("openai_eagerness", "auto") or "auto"),
         openai_noise=str(opts.get("openai_noise", "far_field") or "far_field"),
         simulate=bool(opts.get("simulate", False)),
@@ -138,17 +156,17 @@ def from_options(opts: dict) -> Config:
         # grace window, snapping the music back instantly, and closing the WS every turn.
         # Treat a sub-floor saved value as stale and raise it to the safe minimum.
         lounge_window_s=max(
-            int(opts.get("lounge_window_s", C.LOUNGE_WINDOW_S)), C.LOUNGE_WINDOW_FLOOR_S
+            _int(opts, "lounge_window_s", C.LOUNGE_WINDOW_S), C.LOUNGE_WINDOW_FLOOR_S
         ),
-        duck_level=int(opts.get("duck_level", C.DUCK_LEVEL)),
-        lounge_level=int(opts.get("lounge_level", C.LOUNGE_LEVEL)),
+        duck_level=_int(opts, "duck_level", C.DUCK_LEVEL),
+        lounge_level=_int(opts, "lounge_level", C.LOUNGE_LEVEL),
         # Floor the heartbeat at the retuned default: an old saved 500ms would keep the ~2
         # req/s attention flood alive, so treat any sub-default saved value as stale.
-        heartbeat_ms=max(int(opts.get("heartbeat_ms", C.HEARTBEAT_MS)), C.HEARTBEAT_MS),
+        heartbeat_ms=max(_int(opts, "heartbeat_ms", C.HEARTBEAT_MS), C.HEARTBEAT_MS),
         # Floor a stale/too-low saved value: sub-2s TTFR is a latency SLA, not a hang
         # detector, and false-aborts every turn. Raise it to the safe default.
-        watchdog_ms=max(int(opts.get("watchdog_ms", C.WATCHDOG_MS)), C.WATCHDOG_FLOOR_MS),
-        vad_threshold=float(opts.get("vad_threshold", C.VAD_THRESHOLD)),
+        watchdog_ms=max(_int(opts, "watchdog_ms", C.WATCHDOG_MS), C.WATCHDOG_FLOOR_MS),
+        vad_threshold=_float(opts, "vad_threshold", C.VAD_THRESHOLD),
     )
 
 

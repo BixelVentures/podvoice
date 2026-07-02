@@ -87,6 +87,7 @@ class OpenAIRealtimeSession:
     # mid-response, so we submit the output now but DEFER response.create until response.done.
     _active_response: bool = field(default=False, init=False, repr=False)
     _pending_create: bool = field(default=False, init=False, repr=False)
+    _deliberate_close: bool = field(default=False, init=False, repr=False)
 
     def _turn_detection(self) -> dict | None:
         """Build the turn_detection block from the tunable knobs. VERIFY field names."""
@@ -222,6 +223,7 @@ class OpenAIRealtimeSession:
     async def events(self) -> AsyncIterator[VoiceEvent]:
         if self._ws is None:
             return
+        self._deliberate_close = False
         try:
             async for ev in self._iter_events():
                 yield ev
@@ -230,6 +232,12 @@ class OpenAIRealtimeSession:
             # the next socket, or tool calls would defer forever / fire a spurious create.
             self._active_response = False
             self._pending_create = False
+        # aiohttp's WS iterator ENDS SILENTLY when the socket closes — no exception. A
+        # normal-looking return here therefore meant the room sat in LISTENING, music
+        # ducked, with a dead brain and no error until the idle timeout (0.66 audit H3).
+        # Raise so the orchestrator's reader posts ERROR -> audible clip + clean IDLE.
+        if not self._deliberate_close:
+            raise ConnectionError("OpenAI realtime socket closed unexpectedly")
 
     async def _iter_events(self) -> AsyncIterator[VoiceEvent]:
         assert self._ws is not None
@@ -333,6 +341,7 @@ class OpenAIRealtimeSession:
         await self.connect()
 
     async def close(self) -> None:
+        self._deliberate_close = True
         if self._ws is not None:
             await self._ws.close()
             self._ws = None

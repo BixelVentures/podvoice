@@ -21,6 +21,8 @@ CLIP_FILES = {
     "not_understood": "not_understood.pcm",  # "Det forstod jeg ikke helt."
     "cannot": "cannot.pcm",  # "Det kan jeg desværre ikke."
     "connection": "connection.pcm",  # "Der er problemer med forbindelsen lige nu."
+    "timeout": "timeout.pcm",  # "Det tog for lang tid. Prøv lige igen." — the honest
+    # message for a watchdog abort (blaming the wifi trains distrust of the wifi)
 }
 
 
