@@ -67,9 +67,11 @@ HEARTBEAT_S = 5.0
 # clatter, echo residue) is a FALSE interruption — playback continues. Real speech
 # sustains past it and silences the device. (LiveKit ships 0.5 s; we start tighter.)
 BARGE_DEBOUNCE_S = 0.25
-# Client-side idle fallback: if the server-side idle_timeout_ms were ever rejected
-# (field drift), a quiet-open conversation still closes after this long.
-IDLE_FALLBACK_S = (IDLE_TIMEOUT_MS / 1000.0) * 2
+# Client-side idle close: OpenAI Realtime has no server-side conversation-idle signal
+# (the idle_timeout_ms field does not exist), so THIS is the primary "you're done"
+# mechanism — close after this many seconds of true silence once the assistant has
+# stopped speaking. Resets on every user/model event.
+IDLE_FALLBACK_S = 8.0
 
 
 class _Mini:

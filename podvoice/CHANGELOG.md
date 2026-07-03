@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.77.0 — CRITICAL thin-engine fix: an invented API field was silently breaking everything
+
+The field test exposed a serious bug I introduced. The device log named it:
+
+```
+openai realtime error: Unknown parameter: 'session.audio.input.turn_detection.idle_timeout_ms'
+```
+
+`idle_timeout_ms` does not exist in the OpenAI Realtime GA API — I trusted a research claim without verifying against the live server. Worse: one unknown parameter makes OpenAI **reject the ENTIRE session.update**, so the Danish system prompt, ALL tools (get_time, end_conversation, home control), and the turn-detection config (semantic_vad + interrupt_response) were **never applied**. Every symptom traced to this one bug:
+
+- **Answered in English/Russian, rambling** — the terse Danish system prompt was thrown away, so it ran as a raw, verbose, English ChatGPT.
+- **"I can't see the time"** — the tools were never registered.
+- **Never closed / stayed blue** — end_conversation missing; only a 21 s client fallback closed it.
+- **Sluggish, unstoppable barge-in** — interrupt_response never took effect.
+
+**Fix:** the invented field is gone. The Danish prompt, tools and semantic-VAD interruption now actually apply. The client-side idle close is now the intended primary mechanism, tightened to **8 s** of true silence after the assistant stops. (The device firmware and audio path were healthy throughout — the log confirms wake, mic forward and FLAC playback all working.)
+
+ruff + mypy clean; 261 tests green.
+
 ## 0.76.0 — the streamlined panel: one clear focus
 
 The panel is rebuilt around the thin-client era — everything classic-era, experimental or redundant is GONE from the UI:

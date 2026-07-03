@@ -106,10 +106,8 @@ def _build_session(
     # turn-taking/barge-in, the server idle timeout ends it. The provider session gets
     # the idle signal enabled; ThinSession replaces the whole state machine.
     if cfg.engine == "thin":
-        from .thin import END_CONVERSATION_TOOL, IDLE_TIMEOUT_MS, ThinSession
+        from .thin import END_CONVERSATION_TOOL, ThinSession
 
-        if hasattr(gemini, "idle_timeout_ms"):
-            gemini.idle_timeout_ms = IDLE_TIMEOUT_MS
         # The thin-native closure: the MODEL ends the conversation (no word lists).
         # (Protocol-typed as VoiceSession; the OpenAI dataclass carries the attr.)
         existing = getattr(gemini, "tool_declarations", None) or []
