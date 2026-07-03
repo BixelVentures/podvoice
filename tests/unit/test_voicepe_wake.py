@@ -12,7 +12,7 @@ class _StubClient:
     def __init__(self) -> None:
         self.events: list = []
 
-    def send_voice_assistant_event(self, event_type, data):  # noqa: ANN001
+    def send_voice_assistant_event(self, event_type, data):
         self.events.append((event_type, data))
 
 
