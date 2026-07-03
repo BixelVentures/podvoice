@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.79.0 — the 10x prompt: assistant, not conversation partner
+
+The system prompt was 3,358 words (~5,700 tokens) written for the RETIRED classic engine — no timers, no end_conversation, no open-conversation rules, no side-talk restraint, and "Svar ALTID" (actively harmful with an open mic). Rewritten from scratch for the thin era:
+
+- **68% shorter** (1,087 words ≈ 1,850 tokens): realtime models follow short prompts better (our research: simple beats elaborate for language pinning), and every instruction now earns its tokens.
+- **Identity first:** *"hjemmets stemmeassistent, ikke en samtalepartner — udfør, svar kort, ti stille"* — the owner's exact field feedback, as sentence one.
+- **Thin-era native:** the open conversation (follow-ups, barge-in etiquette), ending via end_conversation on "farvel/stop/det var det", timers (minutes/seconds passed separately), and NEW: side-talk restraint — speech clearly not addressed to the assistant gets silence, or at most "Skal jeg hjælpe?".
+- **All the hard-won gold kept, tightened:** language pinning w/ the radioavis test, proper-noun rules, numbers-as-words, fast-vs-slow acknowledgments, tool discipline (never guess field names, look up once), summary/data handling, empty≠error, know-vs-believe, and the full security-confirmation block (unchanged in substance — it weighs heaviest).
+- **Migration:** a saved settings copy of ANY historical default prompt (16 revisions hashed from git) is auto-replaced by the new default on load; a genuinely customized prompt is always kept.
+
+ruff + mypy clean; 262 tests green (new: legacy-prompt migration; prompt-constants consistency enforced).
+
 ## 0.78.0 — the latency release: stream every reply, ring lights WITH the sound, measure what we claim
 
 A millisecond-by-millisecond audit of the whole chain (code + the owner's device log with real timestamps) found one dominant self-inflicted waste and two honesty gaps:

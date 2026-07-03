@@ -39,6 +39,31 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 # retuned defaults forever. Identity settings (keys, rooms, exposed, prompts) are kept.
 SETTINGS_VERSION = 2
 
+# sha256 of RETIRED default system prompts. A saved prompt matching one of these is
+# just a persisted copy of an old default (the panel saves every field on Save) —
+# drop it on load so the CURRENT default applies. A genuinely customized prompt
+# never matches and is always kept.
+LEGACY_PROMPT_HASHES = frozenset(
+    {
+        "0f96cf58ee764eb07fb0d98618ce592e17fea22d92bc1b44fff8d3b79f964ae4",
+        "110b997af4109665dca58344c421d43096c220d4a4bd2e817794d988a5ad2051",
+        "15190f65641d422d3ce1406c4aefafc7943d8e24ffbfd281183b4fad50324559",
+        "362dd769128e25955d51c99388f97746fbade4ed848063c7c736870d98792253",
+        "3c00a2f3527c4da041dfac3186589adb36efaee1cc03a40f9cc0d0b607c871c0",
+        "48fb7e5e8aa9bf09d0af0dd835ae845034a54137d06e605bb096ef61e8b92d8c",
+        "502f06d06e168bcca2fdb24267cc1b92bcf11e05822afdf5701dd22e68361559",
+        "6a011af37bff0706624c9fb2172b60e32c2b840c3b7a619238acce2a89f12c7c",
+        "a666b92c790f220210c648e82f248e9167c8ff54e1f4f60ff3a8263312c76371",
+        "ab05b51319d2e3ee41b87170017b944c25e79bc983cc419e3c51dd1137cea3cb",
+        "b477a58004a5404e5ec43808d2848628db8bae492e0657e89ab425171a3a5291",
+        "bf688e5ce5fc74b9828b4d92473a3b832f823501b502b220ad78c08cd165123c",
+        "c4225cd129121611a8a02b29c7fca3289d55bcc5edc612eb3a3a448b41b12f7a",
+        "ce4450bcdddc7dabb0adb74fad2231f2f071e993f61957d3a1a1cdca71ad2fff",
+        "dec42bbffe405fa6ce80758409300764843d6a8c7ad00b6c3d637ea90437e540",
+        "f9ca666875134a52804ee2275f81ca17c8bfcd96278c973c83f574096274841d",
+    }
+)
+
 # The tunable knobs that the version bump resets. Everything NOT here survives a reset.
 TUNING_KEYS: frozenset[str] = frozenset(
     {
@@ -133,6 +158,12 @@ def load_settings(path: pathlib.Path | None = None) -> dict:
                 saved["settings_version"] = SETTINGS_VERSION
                 with contextlib.suppress(Exception):  # migration write-back is best-effort
                     src.write_text(json.dumps(saved, indent=2))
+            sp = saved.get("system_prompt")
+            if isinstance(sp, str):
+                import hashlib
+
+                if hashlib.sha256(sp.strip().encode()).hexdigest() in LEGACY_PROMPT_HASHES:
+                    saved.pop("system_prompt", None)  # stale copy of an old default
             data.update({k: v for k, v in saved.items() if k in DEFAULTS})
     except Exception as e:  # corrupt file must not stop the add-on
         _LOG.warning("could not read %s: %s — using defaults", src, e)

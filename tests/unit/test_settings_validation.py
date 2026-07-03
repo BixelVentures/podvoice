@@ -47,3 +47,28 @@ def test_config_survives_garbage_values():
     )
     assert cfg.duck_level == 0 and cfg.vad_threshold > 0
     assert [r.room for r in cfg.rooms] == ["ok"]  # malformed rows skipped, not fatal
+
+
+def test_legacy_default_prompt_is_migrated(tmp_path):
+    """A saved copy of an OLD default prompt must not shadow the new default; a
+    genuinely customized prompt must survive."""
+    import subprocess
+
+    from gatekeeper.gemini import SYSTEM_PROMPT_DA
+
+    p = tmp_path / "s.json"
+    # take a real historical default from git (0.70-era gemini.py)
+    src = subprocess.run(
+        ["git", "show", "988774f:podvoice/gatekeeper/gemini.py"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    import re
+
+    old_prompt = re.search(r'SYSTEM_PROMPT_DA = """(.*?)"""', src, re.S).group(1)
+    save_settings({"system_prompt": old_prompt}, p)
+    assert load_settings(p)["system_prompt"] == SYSTEM_PROMPT_DA  # migrated to new default
+
+    save_settings({"system_prompt": "Min helt egen prompt."}, p)
+    assert load_settings(p)["system_prompt"] == "Min helt egen prompt."  # custom survives
