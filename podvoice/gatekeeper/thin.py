@@ -138,6 +138,7 @@ class ThinSession:
         self._playback_t0: float | None = None  # monotonic when the device started playing
         self._last_item: str | None = None
         self._conv_started = 0.0
+        self._speech_stop_t: float | None = None  # end-of-user-speech -> audible metric
         self._buf_in: list[str] = []  # user transcript deltas (flushed per utterance)
         self._buf_out: list[str] = []  # assistant transcript deltas (flushed per turn)
         self._barge_task: asyncio.Task | None = None  # pending blip-debounced barge-in
@@ -360,6 +361,7 @@ class ThinSession:
                 if pending is not None and not pending.done():
                     pending.cancel()
         elif isinstance(ev, UserSpeechStopped):
+            self._speech_stop_t = time.monotonic()  # the clock the family actually feels
             self._cancel_barge_debounce()
         elif isinstance(ev, InputTranscript):
             self._buf_in.append(ev.text)
@@ -389,7 +391,9 @@ class ThinSession:
             self._playback_t0 = None
             self.reply_bus.clear(self.room)  # a never-fetched previous reply must not lead
             self.reply_bus.start(self.room)
-            self._set_led(State.AI_SPEAKING)
+            # NOTE: the LED goes green on the device's ANNOUNCING edge (_on_media_state),
+            # i.e. when sound actually STARTS — not here at generation start. The ring
+            # must be simultaneous with the ears, not with the network.
             self._hub_state("AI_SPEAKING", "💬 Svarer")
             self._spawn(self._announce_with_retry(), "thin-announce")
         self.reply_bus.push(self.room, ev.pcm)
@@ -504,12 +508,25 @@ class ThinSession:
             self._spawn(self.stop(reason="stop"), "thin-stop")
 
     def _on_media_state(self, announcing: bool) -> None:
-        """ANNOUNCING edge = playback ground truth for the playout clock + green LED."""
+        """ANNOUNCING edge = playback ground truth: playout clock, the GREEN ring
+        (simultaneous with actual sound), and the real speech-stop->audible metric."""
         if announcing:
             self._playback_t0 = time.monotonic()
+            if self._active:
+                self._set_led(State.AI_SPEAKING)
+                if self._speech_stop_t is not None:
+                    ttfr_ms = (time.monotonic() - self._speech_stop_t) * 1000
+                    self._speech_stop_t = None
+                    _LOG.info(
+                        "thin: speech-stop -> audible = %.0f ms [room=%s]", ttfr_ms, self.room
+                    )
+                    if self.hub is not None:
+                        self.hub.set_latency(self.room, ttfr_ms)
         else:
             self._sync_playout()
             self._playback_t0 = None
+            if self._active and not self._speaking:
+                self._set_led(State.LISTENING)  # sound ended -> ring says "your turn"
 
     def _on_mute(self, muted: bool) -> None:
         if muted == self._muted:

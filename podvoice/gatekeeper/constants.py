@@ -45,7 +45,9 @@ REPLY_COLLECT_S = 25.0  # buffered /reply ceiling: must cover filler + tool (9s)
 # generation. The old 8.0 < TOOL_TIMEOUT_S guaranteed truncation on slow-but-successful
 # lookups (the reply played only "Lige et øjeblik…" and dropped the actual answer).
 # --- Streaming reply smoothing ---
-STREAM_PREBUFFER_S = 1.0  # hold this much audio before first byte to the device (jitter)
+STREAM_PREBUFFER_S = 0.4  # hold this much audio before first byte to the device. Covers
+# LAN/network jitter only — mid-reply GENERATION gaps are handled by the silence-fill,
+# so this number is pure added latency per reply start: keep it tight.
 STREAM_FILL_GAP_S = 0.25  # if no model audio for this long mid-reply, start feeding silence
 # frames into the live FLAC encode so the device hears a calm pause instead of underrun
 # stutter ("det tjekker jeg…(hakkende)…for dig" — 0.65 field test, tool-call gaps)

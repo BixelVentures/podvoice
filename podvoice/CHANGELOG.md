@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.78.0 — the latency release: stream every reply, ring lights WITH the sound, measure what we claim
+
+A millisecond-by-millisecond audit of the whole chain (code + the owner's device log with real timestamps) found one dominant self-inflicted waste and two honesty gaps:
+
+- **Thin always streams the reply now.** The buffered path waited for the ENTIRE generation before serving the first byte — 1-4 s of pure waste per reply. Thin now uses the smoothed streaming FLAC delivery (jitter prebuffer + silence-fill over generation gaps) unconditionally; classic keeps its opt-in. Expected effect: the answer STARTS while it's still being generated.
+- **Prebuffer tightened 1.0 s → 0.4 s.** The silence-fill handles mid-reply generation gaps; the prebuffer only needs to cover LAN jitter — every extra millisecond there is pure added latency.
+- **The ring is now simultaneous with the sound.** Green fires on the device's own ANNOUNCING edge (the moment audio physically starts), not at generation start; back to cyan the moment the sound ends. The LED now tells the ears' truth.
+- **We measure instead of claim:** every reply logs `speech-stop -> audible = N ms` and feeds the panel's latency metric — the number the family actually feels.
+
+**The honest physics** (what remains, and whose it is): end-of-speech detection ~0.4-0.6 s + model first-audio ~0.3 s are the provider's floor; our delivery is now ~0.5-0.7 s (prebuffer + FLAC + fetch + decode) and drops to ~0.1 s with the direct speaker path (2b, firmware validated healthy and ready to build). A literal 50 ms end-to-end is beyond ANY cloud voice product in 2026 — but sub-1.5 s speech-stop→first-word, with an instant ring, is now in reach and measurable.
+
+ruff + mypy clean; 261 tests green.
+
 ## 0.77.0 — CRITICAL thin-engine fix: an invented API field was silently breaking everything
 
 The field test exposed a serious bug I introduced. The device log named it:

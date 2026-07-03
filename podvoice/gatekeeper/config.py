@@ -147,7 +147,13 @@ def from_options(opts: dict) -> Config:
         openai_noise=str(opts.get("openai_noise", "far_field") or "far_field"),
         simulate=bool(opts.get("simulate", False)),
         engine=("thin" if opts.get("engine") == "thin" else "classic"),
-        reply_streaming=bool(opts.get("reply_streaming", False)),
+        # Thin engine ALWAYS streams the reply: waiting for full generation before the
+        # first byte was 1-4s of pure self-inflicted latency per reply. The smoothed
+        # streaming path (prebuffer + silence-fill) is the delivery for thin; classic
+        # keeps its opt-in.
+        reply_streaming=(
+            True if opts.get("engine") == "thin" else bool(opts.get("reply_streaming", False))
+        ),
         # The DIRECT VA-speaker path needs a firmware that overrides voice_assistant's
         # output to a speaker. That firmware (0.67) played 24 kHz PCM at the wrong rate
         # (chipmunk) AND destabilised wake, so it was reverted — the shipped firmware is
