@@ -318,3 +318,32 @@ async def test_self_initiated_close_completes_teardown_fully():
         assert session.sm.state is State.LISTENING
     finally:
         await session.aclose()
+
+
+async def test_mic_keepalive_reasserts_the_forward(monkeypatch):
+    """The firmware dead-man stops the mic forward after 25s without a fresh start —
+    the keepalive must re-assert it for the WHOLE conversation (0.78 field bug: the
+    assistant went deaf mid-conversation and Whisper hallucinated 'Tak.'/'Skål!')."""
+    import gatekeeper.constants as C
+
+    monkeypatch.setattr(C, "STREAM_KEEPALIVE_S", 0.05)
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    voicepe.start_streaming_calls = 0
+    orig = voicepe.start_streaming
+
+    async def counting(*a, **k):
+        voicepe.start_streaming_calls += 1
+        await orig(*a, **k)
+
+    voicepe.start_streaming = counting
+    await session.start()
+    try:
+        await session.wake()
+        await _wait_until(lambda: voicepe.start_streaming_calls >= 3, max_wait=2.0)
+        await session.stop()
+        n = voicepe.start_streaming_calls
+        await asyncio.sleep(0.2)
+        assert voicepe.start_streaming_calls == n  # keepalive stops with the conversation
+    finally:
+        await session.aclose()

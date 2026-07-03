@@ -132,6 +132,7 @@ class ThinSession:
         self._reader: asyncio.Task | None = None
         self._pump: asyncio.Task | None = None
         self._beat: asyncio.Task | None = None
+        self._keepalive: asyncio.Task | None = None  # re-asserts the device mic-forward
         self._tasks: list[asyncio.Task] = []
         self._tool_lock = asyncio.Lock()
         self._tool_tasks: dict[str, asyncio.Task] = {}
@@ -221,6 +222,7 @@ class ThinSession:
         self._reader = self._spawn(self._read_events(), "thin-reader")
         self._pump = self._spawn(self._pump_mic(), "thin-pump")
         self._beat = self._spawn(self._heartbeat(), "thin-beat")
+        self._keepalive = self._spawn(self._keepalive_mic(), "thin-keepalive")
 
     async def stop(self, reason: str = "stop") -> None:
         """Close the conversation NOW (stop word/button/panel/mute/idle)."""
@@ -253,7 +255,7 @@ class ThinSession:
         # "locked, solid blue, can't talk to it" field failure. The calling task ends
         # naturally right after this returns.
         cur = asyncio.current_task()
-        for t in (self._reader, self._pump, self._beat, self._barge_task):
+        for t in (self._reader, self._pump, self._beat, self._keepalive, self._barge_task):
             if t is not None and t is not cur and not t.done():
                 t.cancel()
         self._reader = self._pump = self._beat = None
@@ -308,6 +310,18 @@ class ThinSession:
             _LOG.warning("thin: provider reader died (%s)", e)
             if self._active:
                 await self._fail("connection")
+
+    async def _keepalive_mic(self) -> None:
+        """Re-assert the device mic-forward while the conversation is open. The
+        firmware's dead-man timer FORCE-STOPS the forward after 25 s without a fresh
+        start — without this keepalive the assistant literally went deaf 25 s into
+        every conversation, and Whisper then hallucinated turns ("Tak.", "Skål!")
+        from the silence that the model happily acted on (0.78/0.80 field bug)."""
+        while self._active:
+            await asyncio.sleep(C.STREAM_KEEPALIVE_S)
+            if self._active and hasattr(self.voicepe, "start_streaming"):
+                with contextlib.suppress(Exception):
+                    await self.voicepe.start_streaming()
 
     async def _heartbeat(self) -> None:
         """Pipeline heartbeat: while a conversation is open, the reader must be alive

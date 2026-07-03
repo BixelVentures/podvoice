@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.81.0 — CRITICAL: the thin engine went DEAF 25 seconds into every conversation
+
+The History screenshot told the whole story: "you: Tak." / "you: Skål!" / "you: Det skal jeg godt godt godt" — textbook Whisper hallucinations on SILENCE — while the assistant set timers and switched things off in response to speech nobody spoke.
+
+Root cause, matched to the device log's `dead-man timeout (25000 ms) — force-stopping mic forward`: the firmware's safety timer stops the mic-forward after 25 s without a fresh start command. The classic engine re-asserted it every 10 s; **the thin engine never got that keepalive**. So exactly 25 s into every thin conversation the assistant literally stopped hearing the room — the user talks about the Portugal match, the model receives silence, Whisper invents "Tak.", and the model acts on the inventions.
+
+Fix: a keepalive task re-asserts the mic-forward every 10 s for the whole conversation, stops with it, and is covered by a regression test. (The garbled-hearing report was NOT mishearing — it was no hearing.)
+
+ruff + mypy clean; 264 tests green.
+
 ## 0.80.0 — CRITICAL: the "locked, solid blue" bug — teardown was cancelling itself
 
 Field test on 0.78: stuck solid-cyan ring, wake dead, music never restored, and the log's endless attention POSTs + "Unclosed client session". One precise bug behind all of it:
