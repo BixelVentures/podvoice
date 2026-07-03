@@ -245,8 +245,16 @@ class ThinSession:
         self._active = False
         self._speaking = False
         self.sm.state = State.IDLE
+        # NEVER cancel the task that is RUNNING this teardown (stop()/_fail() are called
+        # from inside the reader/heartbeat tasks). Cancelling self meant CancelledError
+        # fired at the first real await below and the rest of the teardown was silently
+        # skipped: gemini never closed (leaked session), the duck heartbeat never
+        # stopped (music stuck quiet forever) and the LED stayed solid cyan — the
+        # "locked, solid blue, can't talk to it" field failure. The calling task ends
+        # naturally right after this returns.
+        cur = asyncio.current_task()
         for t in (self._reader, self._pump, self._beat, self._barge_task):
-            if t is not None and not t.done():
+            if t is not None and t is not cur and not t.done():
                 t.cancel()
         self._reader = self._pump = self._beat = None
         for t in self._tool_tasks.values():

@@ -25,6 +25,7 @@ class FakeVoicePELink:
         self.direct_pcm: list[bytes] = []
         self.stop_word_states: list[bool] = []
         self.started = False
+        self.streaming = False
         self.closed = False
 
     def feed(self, frames: list[bytes]) -> None:
@@ -34,6 +35,14 @@ class FakeVoicePELink:
 
     async def start(self) -> None:
         self.started = True
+
+    async def start_streaming(self) -> None:
+        await asyncio.sleep(0)  # a real suspension point, like the real network call
+        self.streaming = True
+
+    async def stop_streaming(self) -> None:
+        await asyncio.sleep(0)  # ensures cancellation is DELIVERED here in tests
+        self.streaming = False
 
     def drain_mic(self) -> int:
         n = 0

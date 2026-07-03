@@ -293,3 +293,28 @@ async def test_rewake_during_reply_hushes_but_keeps_conversation():
         assert session.sm.state is not State.IDLE  # still open
     finally:
         await session.aclose()
+
+
+async def test_self_initiated_close_completes_teardown_fully():
+    """stop() runs INSIDE the heartbeat/reader tasks. Tearing down must never cancel
+    the task performing the teardown — that skipped gemini.close, the duck release and
+    the LED-off, leaving the room stuck ducked with a solid cyan ring (0.78 field bug)."""
+
+    gemini = LiveFake()
+    session, attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        assert voicepe.streaming is True
+        gemini.emit(Idle())  # close initiated FROM the reader task itself
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        await _wait_until(lambda: gemini.closed is True)  # session really closed
+        await _wait_until(lambda: len(attention.release_calls) >= 1)  # music really back
+        await _wait_until(lambda: voicepe.streaming is False)  # mic forward really stopped
+        off = (False, (0.0, 0.0, 0.0), 0.0)
+        await _wait_until(lambda: off in voicepe.light_commands)  # ring really off
+        # ...and the room is immediately usable again:
+        await session.wake()
+        assert session.sm.state is State.LISTENING
+    finally:
+        await session.aclose()

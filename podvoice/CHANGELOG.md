@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.80.0 — CRITICAL: the "locked, solid blue" bug — teardown was cancelling itself
+
+Field test on 0.78: stuck solid-cyan ring, wake dead, music never restored, and the log's endless attention POSTs + "Unclosed client session". One precise bug behind all of it:
+
+**The conversation teardown cancelled the very task running it.** stop()/fail paths run INSIDE the reader/heartbeat tasks; teardown cancelled all pipeline tasks including the current one, so at the first real network await the teardown was killed mid-way — everything after it silently skipped: the provider session never closed (leaked), the duck heartbeat never stopped (music stuck quiet FOREVER), the mic-forward never stopped, and the ring never turned off. The room looked "locked in a state" because it literally was: a half-dead conversation nothing could restart cleanly.
+
+Fix: teardown never cancels the task performing it (the caller ends naturally). The test fakes now include SUSPENDING stream calls (the reason the suite missed this), and a regression test proves the full teardown completes when the close is self-initiated — verified to FAIL without the fix.
+
+Note: the misunderstanding/random-answer part of the field report is a separate track — 0.79's rewritten prompt (not yet in that test) addresses response discipline; if mishearing persists on 0.80, the History tab's "you" lines will show exactly what it heard, which is the next diagnostic.
+
+ruff + mypy clean; 263 tests green.
+
 ## 0.79.0 — the 10x prompt: assistant, not conversation partner
 
 The system prompt was 3,358 words (~5,700 tokens) written for the RETIRED classic engine — no timers, no end_conversation, no open-conversation rules, no side-talk restraint, and "Svar ALTID" (actively harmful with an open mic). Rewritten from scratch for the thin era:
