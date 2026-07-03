@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.84.0 — firmware-kontrakten: mismatch mellem add-on og Voice PE kan aldrig mere være lydløs
+
+Rodårsagen bag 0.82-klassen af fejl ("2. Okay Nabu gør ingenting") var ikke selve buggen — det var at add-on'et kaldte en firmware-service (`podvoice_va_abort`) som den flashede firmware slet ikke har, og at det fejlede LYDLØST. Den klasse af huller er nu lukket ved design:
+
+- **Kontrakt-verifikation ved hver (gen)forbindelse**: add-on'et sammenligner nu ALT hvad det antager om firmwaren (services + media_player/LED/mute-entiteter) med hvad enheden faktisk publicerer. Match → én rolig log-linje med ESPHome-version og service-liste. Mismatch → tydelige "FIRMWARE MISMATCH"-advarsler der siger præcis hvad der mangler og hvad konsekvensen er.
+- **Panelet viser det**: Voice PE-prikken går gul (degraded) og aktivitetsfeeden skriver "⚠️ Firmware-mismatch: mangler … — genflash Voice PE". Ingen felttest-gætteri.
+- **Ingen lydløse service-kald**: et kald til en service firmwaren ikke har logges nu som en advarsel (én gang pr. forbindelse — genoprustet efter reflash) i stedet for at forsvinde sporløst.
+- **Oprydning**: thin-motorens ekstra RUN_END ved wake er fjernet — den var overflødig (handle_start-ankeret fra 0.83 dækker ALLE wakes) og kunne i teorien race kørsels-opsætningen.
+
+Nye tests: kontrakt OK / mismatch-er-højlydt / skip-advares-én-gang / reflash genopruster advarslen.
+
+ruff + mypy rene; 270 tests grønne.
+
 ## 0.83.0 — repeated wake, made bulletproof: end the stock VA run in handle_start
 
 0.82 ended the stock voice_assistant run from inside the thin engine's wake() — but that could be skipped by a race or a wake that's ignored. Moved to `handle_start` itself: now EVERY wake the device delivers ends its own stock run (RUN_END, scheduled with a 0.2 s delay so it never races the run's setup), independent of engine or state. The mic is unaffected (podvoice_audio is separate), so the conversation still hears you — and the device always returns to wake-detecting, so "Okay Nabu" works every single time. New unit tests prove every handle_start schedules the run-end.

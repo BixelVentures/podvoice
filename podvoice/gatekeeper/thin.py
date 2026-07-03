@@ -157,6 +157,8 @@ class ThinSession:
             voicepe.on_mute = self._on_mute
         if hasattr(voicepe, "on_reconnect"):
             voicepe.on_reconnect = self._reassert_device
+        if hasattr(voicepe, "on_contract"):
+            voicepe.on_contract = self._on_contract
 
     # ------------------------------------------------------------- lifecycle
     async def start(self) -> None:
@@ -214,8 +216,9 @@ class ThinSession:
             dropped = self.voicepe.drain_mic()  # never feed last conversation's tail
             if dropped:
                 _LOG.info("thin: dropped %d stale mic frames at wake", dropped)
-        if hasattr(self.voicepe, "abort_va"):
-            await self.voicepe.abort_va()
+        # NOTE: no abort_va here — ending the stock VA run is anchored in the link's
+        # handle_start (scheduled RUN_END on EVERY delivered wake); a second, immediate
+        # RUN_END from here could race the run's own setup and is redundant.
         if hasattr(self.voicepe, "start_streaming"):
             await self.voicepe.start_streaming()
         try:
@@ -576,6 +579,25 @@ class ThinSession:
             )
         if muted and self._active:
             self._spawn(self.stop(reason="mute"), "thin-mute")
+
+    def _on_contract(self, contract: dict) -> None:
+        """Firmware-contract report from the link (every reconnect) -> panel.
+
+        The service dot goes amber and the activity feed names EXACTLY what the
+        flashed firmware is missing, so an add-on/firmware mismatch is diagnosed
+        at a glance instead of surfacing as a mystery field-test failure."""
+        if self.hub is None:
+            return
+        ok = bool(contract.get("ok", True))
+        self.hub.set_service("voicepe", "up" if ok else "degraded")
+        missing = list(contract.get("missing_required", [])) + [
+            e for e in contract.get("missing_entities", []) if e == "media_player"
+        ]
+        if not ok and missing:
+            self.hub.activity(
+                self.room,
+                "⚠️ Firmware-mismatch: mangler " + ", ".join(missing) + " — genflash Voice PE",
+            )
 
     async def _reassert_device(self) -> None:
         if self._active:

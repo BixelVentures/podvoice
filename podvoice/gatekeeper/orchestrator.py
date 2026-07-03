@@ -150,6 +150,24 @@ class RoomSession:
         # Wake word (via voice_assistant.start -> handle_start) -> WAKE_WORD event.
         if hasattr(voicepe, "on_wake"):
             voicepe.on_wake = self._on_wake
+        # Firmware-contract report (every reconnect) -> panel service dot + activity.
+        if hasattr(voicepe, "on_contract"):
+            voicepe.on_contract = self._on_contract
+
+    def _on_contract(self, contract: dict) -> None:
+        """Add-on/firmware mismatch -> amber dot + a named-missing-pieces activity line."""
+        if self.hub is None:
+            return
+        ok = bool(contract.get("ok", True))
+        self.hub.set_service("voicepe", "up" if ok else "degraded")
+        missing = list(contract.get("missing_required", [])) + [
+            e for e in contract.get("missing_entities", []) if e == "media_player"
+        ]
+        if not ok and missing:
+            self.hub.activity(
+                self.room,
+                "⚠️ Firmware-mismatch: mangler " + ", ".join(missing) + " — genflash Voice PE",
+            )
 
     def audio_health(self) -> dict | None:
         """Live S1 read: is the device streaming mic audio to THIS running session?

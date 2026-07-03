@@ -24,6 +24,21 @@ log = logging.getLogger(__name__)
 # Max PCM frames to buffer before dropping on backpressure. ~200 * 20 ms = ~4 s.
 _QUEUE_MAXSIZE = 200
 
+# --- Firmware contract ----------------------------------------------------------
+# Everything the add-on ASSUMES the flashed firmware provides, verified on EVERY
+# (re)connect. A mismatch is logged loudly and pushed to the panel instead of
+# degrading silently — the 0.82 lesson: the add-on called podvoice_va_abort, the
+# flashed firmware didn't have it, and the no-op hid the repeated-wake bug for weeks.
+REQUIRED_SERVICES: dict[str, str] = {
+    "podvoice_stream_start": "mic-forward: the assistant is DEAF without it",
+    "podvoice_stream_stop": "mic-forward close: the mic can never gate off",
+}
+OPTIONAL_SERVICES: dict[str, str] = {
+    "podvoice_va_abort": "stock-run abort (covered by the RUN_END fallback)",
+    "podvoice_stop_word_enable": "on-device 'stop' word during replies (classic engine)",
+    "podvoice_stop_word_disable": "on-device 'stop' word disarm (classic engine)",
+}
+
 
 class VoicePELink:
     """aioesphomeapi client for one Voice PE. Satisfies ``VoicePELinkLike``."""
@@ -71,6 +86,10 @@ class VoicePELink:
         self._media_key: int | None = None  # the media_player key (AI-reply announce path)
         self._mute_key: int | None = None  # the mute switch/sensor key (None = not published)
         self._announcing = False  # last observed media_player ANNOUNCING state
+        # Firmware-contract report, rebuilt on every (re)connect (see _verify_contract).
+        self.contract: dict[str, Any] = {}
+        self.on_contract: Callable[[dict[str, Any]], Any] | None = None
+        self._warned_missing: set[str] = set()  # once-per-connect missing-service warnings
 
     async def start(self) -> None:
         """Build the client and start the reconnect loop (owns the connection)."""
@@ -93,12 +112,13 @@ class VoicePELink:
     async def _on_connect(self) -> None:
         """Re-subscribe on every (re)connect — subscriptions don't survive a reconnect."""
         # VERIFY: device_info() coroutine name/shape.
-        await self._client.device_info()
+        info = await self._client.device_info()
         # Resolve the wake-gate services + LED-ring light + mute key from the device
         # catalog FIRST — subscribe_states fires an immediate full state dump, so the
         # entity keys must already be cached or that first dump can't be routed (the
         # LED/mute key would still be None). Resolve before subscribing.
         await self._resolve_entities()
+        self._verify_contract(info)
         # VERIFY: subscribe_voice_assistant signature. Passing a non-None
         # handle_audio auto-sets VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO (no flags arg).
         self._unsub_va = self._client.subscribe_voice_assistant(
@@ -124,6 +144,7 @@ class VoicePELink:
         self._light_key = None
         self._media_key = None
         self._mute_key = None
+        self._warned_missing = set()  # a reflash may have added the service — warn fresh
         try:
             # VERIFY: list_entities_services() -> (entities, services) on aioesphomeapi.
             entities, services = await self._client.list_entities_services()
@@ -156,11 +177,73 @@ class VoicePELink:
         except Exception as e:  # never let discovery break the connection
             log.info("voicepe %s entity discovery unavailable: %s", self.host, e)
 
+    def _verify_contract(self, info: Any = None) -> dict[str, Any]:
+        """Compare what the connected firmware ACTUALLY publishes against what the
+        add-on assumes (services + the reply media_player). One loud, plain-language
+        report per (re)connect — a mismatch must never again be a silent no-op."""
+        missing_required = sorted(n for n in REQUIRED_SERVICES if n not in self._user_services)
+        missing_optional = sorted(n for n in OPTIONAL_SERVICES if n not in self._user_services)
+        missing_entities = []
+        if self._media_key is None:
+            missing_entities.append("media_player")  # the reply path — required
+        if self._light_key is None:
+            missing_entities.append("light")  # LED feedback — degraded UX only
+        if self._mute_key is None:
+            missing_entities.append("mute")  # hardware-mute detection — degraded only
+        ok = not missing_required and self._media_key is not None
+        self.contract = {
+            "ok": ok,
+            "esphome_version": getattr(info, "esphome_version", None),
+            "services": sorted(self._user_services),
+            "missing_required": missing_required,
+            "missing_optional": missing_optional,
+            "missing_entities": missing_entities,
+        }
+        if ok:
+            log.info(
+                "voicepe %s: firmware contract OK (esphome %s; services: %s%s)",
+                self.host,
+                self.contract["esphome_version"] or "?",
+                ", ".join(self.contract["services"]) or "none",
+                ("; degraded: " + ", ".join(missing_optional + missing_entities))
+                if (missing_optional or missing_entities)
+                else "",
+            )
+        else:
+            for n in missing_required:
+                log.warning(
+                    "voicepe %s: FIRMWARE MISMATCH — service %s is missing (%s)",
+                    self.host,
+                    n,
+                    REQUIRED_SERVICES[n],
+                )
+            if self._media_key is None:
+                log.warning(
+                    "voicepe %s: FIRMWARE MISMATCH — no media_player entity: "
+                    "replies CANNOT play. Reflash esphome/podvoice.yaml.",
+                    self.host,
+                )
+        if self.on_contract is not None:
+            self._run_cb(self.on_contract, dict(self.contract))
+        return self.contract
+
     async def _call_service(self, name: str) -> None:
-        """Invoke a podvoice_stream_* user-defined service. Best-effort (swallow on
-        disconnect) and idempotent — the device just flips a bool."""
+        """Invoke a podvoice_* user-defined service. Best-effort (swallow on
+        disconnect) and idempotent — the device just flips a bool. A service the
+        firmware doesn't publish is SKIPPED with a loud once-per-connect warning
+        (never silently: that's how the va_abort no-op hid the repeated-wake bug)."""
         svc = self._user_services.get(name)
-        if svc is None or self._client is None:
+        if svc is None:
+            if name not in self._warned_missing:
+                self._warned_missing.add(name)
+                log.warning(
+                    "voicepe %s: service %s not on this firmware — call SKIPPED (%s)",
+                    self.host,
+                    name,
+                    {**REQUIRED_SERVICES, **OPTIONAL_SERVICES}.get(name, "unknown service"),
+                )
+            return
+        if self._client is None:
             return
         try:
             # execute_service is a coroutine on aioesphomeapi — MUST be awaited, or the
