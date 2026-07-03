@@ -206,14 +206,32 @@ class VoicePELink:
         # the wake, and let abort_va() kill the stock turn; podvoice_audio is the
         # real stream. MUST be async: aioesphomeapi wraps the call in a Task.
         # The device fired voice_assistant.start (wake word) -> treat as WAKE.
+        log.info("voicepe %s: WAKE received (handle_start)", self.host)
         if self.on_wake is not None:
             self.on_wake()
         return 0
 
     async def abort_va(self) -> None:
-        """Stop the stock voice_assistant turn the wake triggered, so its turn-audio
-        does not collide with podvoice_audio's continuous stream. Best-effort."""
+        """End the stock voice_assistant run the wake word started.
+
+        Critical for REPEATED wakes: if the run is left open, the upstream
+        micro_wake_word handler STOPS it on the next wake ('if voice_assistant.is_running:
+        stop') instead of starting a fresh run — so the 2nd 'Okay Nabu' never reaches
+        handle_start and PodVoice never wakes. On firmware WITH the podvoice_va_abort
+        service we use it; everywhere else we end the run directly with a RUN_END event.
+        Our mic comes from podvoice_audio (independent of the VA run), so ending the run
+        costs no audio."""
         await self._call_service("podvoice_va_abort")
+        if self._client is None:
+            return
+        try:
+            from aioesphomeapi.model import VoiceAssistantEventType as T
+
+            # Synchronous send (queues the message) — do NOT await.
+            self._client.send_voice_assistant_event(T.VOICE_ASSISTANT_RUN_END, {})
+            log.info("voicepe %s: ended stock VA run (RUN_END) so the next wake fires", self.host)
+        except Exception as e:  # best-effort — never block the conversation start
+            log.debug("voicepe %s: VA RUN_END failed: %s", self.host, e)
 
     async def _handle_stop(self, *args: Any, **kwargs: Any) -> None:
         # Awaited by aioesphomeapi (create_background_task). Stock-turn teardown is

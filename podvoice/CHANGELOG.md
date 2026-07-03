@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.82.0 — the "2nd Okay Nabu does nothing" fix (traced, not guessed)
+
+Full mechanism, verified in code + firmware:
+1. The flashed (proven) firmware has no `podvoice_va_abort` service, so our `abort_va()` was a no-op.
+2. The wake word starts the device's stock `voice_assistant` run; we drive audio via the independent `podvoice_audio` component and never ended that run — so it stayed "running".
+3. The upstream micro_wake_word handler is `if voice_assistant.is_running: voice_assistant.stop  else: voice_assistant.start`. With the run stuck open, the 2nd "Okay Nabu" just STOPPED it instead of starting a new run → `handle_start` never fired → PodVoice never woke.
+
+**Fix (add-on only, no reflash):** `abort_va()` now ends the stock VA run firmware-agnostically with a `RUN_END` event right after wake. The mic is unaffected (it comes from `podvoice_audio`, not the VA run), so the conversation still hears you — and the device returns to wake-detecting, so every subsequent "Okay Nabu" works. Plus wake-path logging on both the device link ("WAKE received") and the thin engine (why a wake was ignored, if ever) so any residual case is one glance in the log.
+
+ruff + mypy clean; 264 tests green.
+
 ## 0.81.0 — CRITICAL: the thin engine went DEAF 25 seconds into every conversation
 
 The History screenshot told the whole story: "you: Tak." / "you: Skål!" / "you: Det skal jeg godt godt godt" — textbook Whisper hallucinations on SILENCE — while the assistant set timers and switched things off in response to speech nobody spoke.

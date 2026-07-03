@@ -191,6 +191,13 @@ class ThinSession:
     async def wake(self) -> None:
         """Open ONE conversation: duck, stream mic, connect the brain. Idempotent."""
         if self._muted or self._active or self._closing:
+            _LOG.info(
+                "thin: wake IGNORED [room=%s] (muted=%s active=%s closing=%s)",
+                self.room,
+                self._muted,
+                self._active,
+                self._closing,
+            )
             return
         self._active = True
         self._conv_started = time.monotonic()
@@ -514,6 +521,14 @@ class ThinSession:
 
     # ------------------------------------------------------------- device signals
     def _on_wake_cb(self) -> None:
+        _LOG.info(
+            "thin: wake signal [room=%s] (active=%s muted=%s closing=%s speaking=%s)",
+            self.room,
+            self._active,
+            self._muted,
+            self._closing,
+            self._speaking,
+        )
         if self._active:
             # Button press / habitual re-wake mid-conversation: silence any reply and
             # keep listening (the proven firmware can't distinguish the two sources).
