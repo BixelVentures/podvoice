@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.85.0 — den hører aldrig sig selv igen (ekko-skjold + ét sammenhængende svar + firmware-kanalfix)
+
+Felttesten fangede det præcist: assistenten hørte SIN EGEN stemme gennem mikrofonen — transskriberede den som dig, svarede sig selv ("Velbekomme", "Farvel"×2), afbrød sig selv, og dit rigtige spørgsmål druknede. Tre rettelser:
+
+- **Ekko-skjold (add-on)**: mens enheden afspiller et svar (+0,35 s efterklang), sendes mikrofonen IKKE til modellen, og køen drænes bagefter. Den kan fysisk ikke længere høre sig selv. Ærlig konsekvens indtil firmware-fixet er valideret: du kan ikke afbryde med stemmen MENS den taler (knappen virker) — men svarene er korte, og du bliver hørt i alle pauser.
+- **Ét sammenhængende svar pr. tur**: "Lige et øjeblik…" og selve svaret spilles nu som ÉN afspilning (tool-pausen udfyldes med ro), i stedet for at svar nr. 2 kappede filler-sætningen midt i ordet. Og end_conversation beder ikke længere om et ekstra svar — kun ét "farvel".
+- **Firmware-kanalfix (kræver genflash)**: vi tappede mikrofonkanal 0, men den ekko-rensede kanal er kanal 1 — BEVIS: upstreams wake-ord kører på kanal 1 og virker dokumenteret MENS højttaleren spiller (verificeret mod upstream 26.6.0). esphome/podvoice.yaml er rettet til channels: [1]. Efter genflash + validering kan skjoldet afløses af ægte fuld-duplex barge-in.
+
+Nye tests: skjoldet blokerer mic under afspilning, tool-tur = én announce, end_conversation = intet ekstra svar.
+
+ruff + mypy rene; alle tests grønne.
+
 ## 0.84.0 — firmware-kontrakten: mismatch mellem add-on og Voice PE kan aldrig mere være lydløs
 
 Rodårsagen bag 0.82-klassen af fejl ("2. Okay Nabu gør ingenting") var ikke selve buggen — det var at add-on'et kaldte en firmware-service (`podvoice_va_abort`) som den flashede firmware slet ikke har, og at det fejlede LYDLØST. Den klasse af huller er nu lukket ved design:

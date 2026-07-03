@@ -347,3 +347,70 @@ async def test_mic_keepalive_reasserts_the_forward(monkeypatch):
         assert voicepe.start_streaming_calls == n  # keepalive stops with the conversation
     finally:
         await session.aclose()
+
+
+async def test_echo_shield_mic_never_reaches_model_during_reply():
+    """While the device plays OUR reply, mic frames must NOT reach the model — the
+    0.83 field bug: the model heard its own reply, transcribed it as the user and
+    answered itself in a loop while the real user went unheard."""
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        voicepe.feed([_frame(50)])
+        await _wait_until(lambda: len(gemini.sent_audio) == 1)  # open mic pre-reply
+
+        gemini.emit(AudioChunk(_frame(), item_id="i1"))
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)  # the room now hears the assistant
+        voicepe.feed([_frame(3000), _frame(3000)])  # "speech" = the reply's echo
+        await asyncio.sleep(0.1)
+        assert len(gemini.sent_audio) == 1  # shield up: nothing reached the model
+
+        session._on_media_state(False)  # playback ended
+        await asyncio.sleep(0.5)  # reverb tail + drain
+        voicepe.feed([_frame(60)])  # the user actually speaks
+        await _wait_until(lambda: len(gemini.sent_audio) == 2)  # heard again
+    finally:
+        await session.aclose()
+
+
+async def test_tool_turn_keeps_one_continuous_announce():
+    """Filler + post-tool answer must be ONE announce — a second announce mid-burst
+    cut the filler off mid-word ('Lige et øjebl-') in the 0.83 field test."""
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(AudioChunk(_frame(), item_id="fill"))  # "Lige et øjeblik…"
+        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
+        gemini.emit(ToolCall("c1", "get_time", {}))
+        gemini.emit(TurnComplete())  # tool pending -> the reply stream STAYS open
+        await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)
+        await asyncio.sleep(0.05)
+        assert session._speaking is True  # still one ongoing spoken burst
+
+        gemini.emit(AudioChunk(_frame(), item_id="answer"))  # the real answer
+        gemini.emit(TurnComplete())  # no tool pending -> burst really ends
+        await _wait_until(lambda: session.sm.state is State.LISTENING)
+        assert len(voicepe.announced_urls) == 1  # ONE announce for the whole burst
+    finally:
+        await session.aclose()
+
+
+async def test_end_conversation_result_requests_no_extra_reply():
+    """The goodbye is spoken in the SAME response as end_conversation — the tool
+    result must not request another response (the double-'Farvel.' field bug)."""
+    gemini = LiveFake()
+    session, _attention, _voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(ToolCall("c9", "end_conversation", {}))
+        await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)
+        assert gemini.tool_result_creates == [False]
+        await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=3.0)
+    finally:
+        await session.aclose()

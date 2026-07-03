@@ -299,12 +299,15 @@ class GeminiLiveSession:
         # VERIFY: send_realtime_input(audio_stream_end=True) is the flush shape.
         await self._session.send_realtime_input(audio_stream_end=True)  # type: ignore[attr-defined]
 
-    async def send_tool_results(self, results: list) -> None:
+    async def send_tool_results(self, results: list, *, create: bool = True) -> None:
         """Return FunctionResponses for dispatched tool calls (PLAN §5.6).
 
         Accepts either pre-built SDK FunctionResponse objects or plain dicts with
         ``id`` / ``name`` / ``response`` keys (so callers stay SDK-free).
+        ``create`` exists for signature parity with the OpenAI provider; Gemini Live
+        decides for itself whether a FunctionResponse warrants more speech.
         """
+        del create
         if self._session is None:
             return
         from google.genai import types  # VERIFY: FunctionResponse import path

@@ -191,7 +191,7 @@ class OpenAIRealtimeSession:
         )
         await self._ws.send_json({"type": "response.create"})
 
-    async def send_tool_results(self, results: list) -> None:
+    async def send_tool_results(self, results: list, *, create: bool = True) -> None:
         if self._ws is None:
             return
         for r in results:
@@ -207,6 +207,12 @@ class OpenAIRealtimeSession:
                     },
                 }
             )
+        if not create:
+            # A pure acknowledgement (end_conversation): the model already SAID its
+            # goodbye in the same response as the tool call — requesting another
+            # response here was the double-"Farvel." field bug.
+            _LOG.info("turn: tool results submitted, no response requested (%d)", len(results))
+            return
         # Asking for a response while one is still active errors out (and the model never
         # speaks). If the function-call response hasn't finished yet, defer until response.done.
         if self._active_response:

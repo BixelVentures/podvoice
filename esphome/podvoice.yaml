@@ -123,7 +123,14 @@ podvoice_audio:
   # voice_assistant uses). Short form `microphone: i2s_mics` also works.
   microphone:
     microphone: i2s_mics   # upstream Voice PE mic id (i2s_audio, 16 kHz, 32-bit stereo)
-    channels: [0]          # channel 0 = XMOS-processed (AEC'd) mic; mww uses channel 1
+    channels: [1]          # channel 1 = the echo-cancelled channel. PROOF: upstream
+                           # micro_wake_word runs on channel 1 and wake DEMONSTRABLY
+                           # works while the speaker plays — only an AEC'd channel can
+                           # do that. We shipped channel 0 first and the 0.83 field test
+                           # showed the model hearing its own replies loud and clear
+                           # (answering itself, "Farvel" loops) -> channel 0 is not
+                           # echo-cancelled for our purposes. Verified against upstream
+                           # 26.6.0 home-assistant-voice.yaml (va: ch 0+1, mww: ch 1).
     gain_factor: 1         # extra digital gain (1..64); raise only if levels are low.
                            # (gain lives HERE, inside the source block — there is no
                            #  separate top-level gain_factor key.)

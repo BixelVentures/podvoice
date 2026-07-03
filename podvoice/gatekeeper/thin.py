@@ -72,6 +72,13 @@ BARGE_DEBOUNCE_S = 0.25
 # mechanism — close after this many seconds of true silence once the assistant has
 # stopped speaking. Resets on every user/model event.
 IDLE_FALLBACK_S = 8.0
+# Echo shield: while the device is playing OUR reply, mic frames are NOT forwarded to
+# the model. The 0.83 field test showed the model hearing its own reply through the mic
+# (the tapped firmware channel is not echo-cancelled), transcribing it as the user and
+# answering itself in a loop — while the real user went unheard. Belt-and-braces even
+# after the firmware moves to the AEC channel.
+ECHO_GATE_TAIL_S = 0.35  # keep the shield up briefly after playback ends (room reverb)
+ANNOUNCE_PREARM_S = 0.5  # cover the announce -> ANNOUNCING window before state arrives
 
 
 class _Mini:
@@ -127,6 +134,10 @@ class ThinSession:
         self.playout = PlayoutClock()
         self._active = False  # one conversation open?
         self._speaking = False  # assistant audio currently announced/playing
+        self._device_playing = False  # media_player ANNOUNCING — playback ground truth
+        self._gate_until = 0.0  # echo-shield tail / pre-arm deadline (monotonic)
+        self._gate_dropped = 0  # mic frames shielded during the current reply
+        self._turn_had_tool = False  # response called a tool -> the reply stream stays open
         self._muted = False
         self._closing = False
         self._reader: asyncio.Task | None = None
@@ -256,6 +267,10 @@ class ThinSession:
     async def _teardown(self, *, release_music: bool) -> None:
         self._active = False
         self._speaking = False
+        self._device_playing = False
+        self._gate_until = 0.0
+        self._gate_dropped = 0
+        self._turn_had_tool = False
         self.sm.state = State.IDLE
         # NEVER cancel the task that is RUNNING this teardown (stop()/_fail() are called
         # from inside the reader/heartbeat tasks). Cancelling self meant CancelledError
@@ -301,6 +316,9 @@ class ThinSession:
             async for frame in self.voicepe.pcm_frames():
                 if not self._active:
                     continue  # drain quietly; stream stop is in flight
+                if self._device_playing or time.monotonic() < self._gate_until:
+                    self._gate_dropped += 1  # echo shield: the device is speaking —
+                    continue  # its own voice must never reach the model's ears
                 try:
                     await self.gemini.send_audio(frame)
                 except Exception as e:
@@ -365,19 +383,31 @@ class ThinSession:
         elif isinstance(ev, Interrupted):
             self._start_barge_debounce()
         elif isinstance(ev, TurnComplete):
-            if self.reply_bus is not None:
-                self.reply_bus.end(self.room)
-            self._flush_transcript("out")
-            # Conversation stays OPEN (continued conversation, free) — LED back to
-            # "listening". The server's idle timeout decides when it's really over.
-            if self._active:
-                self._speaking = False
-                self.sm.state = State.LISTENING
-                self._set_led(State.LISTENING)
-                self._hub_state("LISTENING", None)
+            if self._turn_had_tool or self._tool_tasks:
+                # This response called a tool: the model will speak AGAIN after the
+                # result. Keep the reply stream OPEN so filler + answer play as ONE
+                # continuous announce (the gap is silence-filled) — ending it here made
+                # the follow-up announce CUT the filler mid-word ("Lige et øjebl-").
+                self._turn_had_tool = False
+                _LOG.info("thin: turn paused on a tool — reply stream stays open")
+            else:
+                if self.reply_bus is not None:
+                    self.reply_bus.end(self.room)
+                self._flush_transcript("out")
+                # Conversation stays OPEN (continued conversation, free) — LED back to
+                # "listening". The server's idle timeout decides when it's really over.
+                if self._active:
+                    self._speaking = False
+                    self.sm.state = State.LISTENING
+                    self._set_led(State.LISTENING)
+                    self._hub_state("LISTENING", None)
         elif isinstance(ev, Idle):
             await self.stop(reason="idle")
         elif isinstance(ev, ToolCall):
+            if ev.name != "end_conversation":
+                # A real tool means MORE speech follows in this burst; end_conversation
+                # means the goodbye already playing is the LAST speech (no follow-up).
+                self._turn_had_tool = True
             if self.hub is not None:
                 self.hub.incr("tool_calls")
             task = asyncio.create_task(self._run_tool(ev), name=f"thin-tool-{ev.id}")
@@ -479,6 +509,8 @@ class ThinSession:
             self._hub_state("LISTENING", "✋ Afbrudt — lytter")
 
     async def _announce_with_retry(self, retry_after_s: float = 2.5) -> None:
+        # Pre-arm the echo shield: sound can start before the ANNOUNCING state lands.
+        self._gate_until = max(self._gate_until, time.monotonic() + ANNOUNCE_PREARM_S)
         can_track = hasattr(self.reply_bus, "fetch_count")
         before = self.reply_bus.fetch_count(self.room) if can_track else 0
         await self.voicepe.play_url(self.reply_url)
@@ -497,7 +529,9 @@ class ThinSession:
             async with self._tool_lock:
                 with contextlib.suppress(Exception):
                     await self.gemini.send_tool_results(
-                        [{"id": tc.id, "name": tc.name, "response": {"ok": True}}]
+                        [{"id": tc.id, "name": tc.name, "response": {"ok": True}}],
+                        create=False,  # the goodbye was already spoken — requesting
+                        # another response here produced the double "Farvel." bug
                     )
             self._spawn(self._close_after_goodbye(), "thin-goodbye")
             return
@@ -517,8 +551,10 @@ class ThinSession:
         """Close once the goodbye stops playing (or after a short ceiling)."""
         deadline = time.monotonic() + max_wait_s
         await asyncio.sleep(0.5)
-        while time.monotonic() < deadline and self._speaking:  # noqa: ASYNC110 — polling the
-            await asyncio.sleep(0.2)  # playback flag is the simple, correct thing here
+        while time.monotonic() < deadline and (  # noqa: ASYNC110 — polling the playback
+            self._speaking or self._device_playing  # flags is the simple, correct thing
+        ):
+            await asyncio.sleep(0.2)
         await asyncio.sleep(0.8)  # let the last word land
         await self.stop(reason="model-close")
 
@@ -551,6 +587,7 @@ class ThinSession:
         """ANNOUNCING edge = playback ground truth: playout clock, the GREEN ring
         (simultaneous with actual sound), and the real speech-stop->audible metric."""
         if announcing:
+            self._device_playing = True  # echo shield UP: the room hears the assistant
             self._playback_t0 = time.monotonic()
             if self._active:
                 self._set_led(State.AI_SPEAKING)
@@ -563,10 +600,28 @@ class ThinSession:
                     if self.hub is not None:
                         self.hub.set_latency(self.room, ttfr_ms)
         else:
+            self._device_playing = False
+            self._gate_until = time.monotonic() + ECHO_GATE_TAIL_S  # cover room reverb
+            self._spawn(self._end_echo_gate(), "thin-gate-end")
             self._sync_playout()
             self._playback_t0 = None
             if self._active and not self._speaking:
                 self._set_led(State.LISTENING)  # sound ended -> ring says "your turn"
+
+    async def _end_echo_gate(self) -> None:
+        """After the reverb tail: drop what the mic queued during the reply and report
+        how much the shield absorbed — the assistant literally cannot hear itself."""
+        await asyncio.sleep(ECHO_GATE_TAIL_S)
+        if self._device_playing:
+            return  # a new reply started inside the tail — the shield is still up
+        stale = self.voicepe.drain_mic() if hasattr(self.voicepe, "drain_mic") else 0
+        if self._gate_dropped or stale:
+            _LOG.info(
+                "thin: echo shield absorbed %d mic frames during the reply (+%d drained)",
+                self._gate_dropped,
+                stale,
+            )
+        self._gate_dropped = 0
 
     def _on_mute(self, muted: bool) -> None:
         if muted == self._muted:
