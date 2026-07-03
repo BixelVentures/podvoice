@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.83.0 — repeated wake, made bulletproof: end the stock VA run in handle_start
+
+0.82 ended the stock voice_assistant run from inside the thin engine's wake() — but that could be skipped by a race or a wake that's ignored. Moved to `handle_start` itself: now EVERY wake the device delivers ends its own stock run (RUN_END, scheduled with a 0.2 s delay so it never races the run's setup), independent of engine or state. The mic is unaffected (podvoice_audio is separate), so the conversation still hears you — and the device always returns to wake-detecting, so "Okay Nabu" works every single time. New unit tests prove every handle_start schedules the run-end.
+
+(The log you shared was v0.80 — before this fix — and confirmed the diagnosis exactly: after the conversation closed cleanly at 10:24:24, the 2nd wake never reached the add-on at all.)
+
+ruff + mypy clean; 266 tests green.
+
 ## 0.82.0 — the "2nd Okay Nabu does nothing" fix (traced, not guessed)
 
 Full mechanism, verified in code + firmware:

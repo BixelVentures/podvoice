@@ -209,7 +209,31 @@ class VoicePELink:
         log.info("voicepe %s: WAKE received (handle_start)", self.host)
         if self.on_wake is not None:
             self.on_wake()
+        # End this stock VA run shortly after it starts, so the device returns to
+        # wake-detecting for the NEXT wake. If left open, the upstream micro_wake_word
+        # handler STOPS the running VA on the next wake instead of starting a new one —
+        # the "2nd Okay Nabu does nothing" bug. Our mic is podvoice_audio (independent of
+        # the VA run), so ending the run costs no audio. Scheduled (small delay) so it
+        # never races the run's own setup, and guaranteed on EVERY delivered wake.
+        self._schedule_end_va_run()
         return 0
+
+    def _schedule_end_va_run(self) -> None:
+        async def _end() -> None:
+            await asyncio.sleep(0.2)
+            if self._client is None:
+                return
+            try:
+                from aioesphomeapi.model import VoiceAssistantEventType as T
+
+                self._client.send_voice_assistant_event(T.VOICE_ASSISTANT_RUN_END, {})
+                log.info("voicepe %s: ended stock VA run so the next wake fires", self.host)
+            except Exception as e:  # best-effort — never break the conversation start
+                log.debug("voicepe %s: VA RUN_END failed: %s", self.host, e)
+
+        task = asyncio.ensure_future(_end())
+        self._pending.add(task)
+        task.add_done_callback(self._pending.discard)
 
     async def abort_va(self) -> None:
         """End the stock voice_assistant run the wake word started.
