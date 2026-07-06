@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.89.0 — 0.88 var en fejldiagnose: websøgningen FINDES, og England-svaret var KORREKT
+
+Verificeret mod ESPN m.fl.: England slog faktisk Mexico 3-2 i VM-ottendedelsfinalen 5. juli. Assistentens svar i Talk-testen var altså et ÆGTE, korrekt live-opslag gennem hjemmets søgetjeneste (HA-tjeneste med returns_response, kaldt via home_call) — hele kæden dansk tale -> søgning -> korrekt svar VIRKEDE. 0.88 stemplede det som "opdigtet" og forbød søgevejen i prompten. Undskyld.
+
+- VIDEN-sektionen genåbner søgevejen: verden udenfor hjemmet slås op via hjemmets søgetjeneste (list_services -> home_call med return_response). 'Det kan jeg ikke slå op her.' er nu KUN fallback når søgetjenesten mangler eller fejler — aldrig i stedet for at prøve. Digtning er stadig forbudt.
+- 0.88-promptens hash er føjet til legacy-listen, så genåbningen reelt slår igennem.
+
+(Release forsinket af maskinproblemer: disken var 98% fuld og iCloud-synk brød sammen (ContainerReset) og kvalte al fil-I/O i Documents — ~5 GB build-caches ryddet; overvej at holde repoet ude af iCloud-synk.)
+
+ruff + mypy rene; 274 tests grønne.
+
 ## 0.88.0 — prompten lovede websøgning, værktøjerne har ingen: kontrakten er rettet
 
 Talk-fane-testen afslørede en ÆGTE logik-fejl (uafhængig af mikrofon og firmware): spurgt om en fodboldkamp kaldte modellen hjemme-værktøjerne som "opslag" og DIGTEDE så et resultat. Rodårsagen var prompt-værktøjs-kontrakten: prompten bad den slå "nyheder, priser, websøgning" op — men værktøjssættet kan KUN nå hjemmet. Samme sygdom som firmware-kontrakten, ét lag oppe.
