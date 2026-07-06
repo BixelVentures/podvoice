@@ -79,6 +79,7 @@ def _make_guard(locked: bool, reply_token: str | None):
 HUB: web.AppKey[StatusHub] = web.AppKey("hub", StatusHub)
 SESSIONS: web.AppKey[dict] = web.AppKey("sessions", dict)
 CONSOLE: web.AppKey = web.AppKey("console")
+TALK: web.AppKey = web.AppKey("talk")
 MODELS: web.AppKey = web.AppKey("models")
 SETTINGS_GET: web.AppKey = web.AppKey("settings_get")
 SETTINGS_SET: web.AppKey = web.AppKey("settings_set")
@@ -95,6 +96,7 @@ def create_app(
     hub: StatusHub,
     sessions: dict,
     make_console=None,
+    make_talk=None,
     models_provider=None,
     settings_get=None,
     settings_set=None,
@@ -121,6 +123,7 @@ def create_app(
     app[HUB] = hub
     app[SESSIONS] = sessions
     app[CONSOLE] = make_console
+    app[TALK] = make_talk
     app[MODELS] = models_provider
     app[SETTINGS_GET] = settings_get
     app[SETTINGS_SET] = settings_set
@@ -138,6 +141,7 @@ def create_app(
             web.get("/api/events", _events),
             web.post("/api/control", _control),
             web.get("/api/console", _console_ws),
+            web.get("/api/talk", _talk_ws),
             web.get("/api/models", _models),
             web.get("/api/settings", _settings_get),
             web.post("/api/settings", _settings_set),
@@ -419,6 +423,34 @@ async def _models(request: web.Request) -> web.Response:
     if provider is None:
         return web.json_response({"default": "", "source": "none", "models": []})
     return web.json_response(provider(request.query.get("provider")))
+
+
+async def _talk_ws(request: web.Request) -> web.WebSocketResponse:
+    """Talk tab on the REAL engine: the browser is a device, the mic button is the
+    wake word, and every rule (tools, idle close, echo shield, goodbye) is the same
+    ThinSession the puck runs — the tab PROVES the product instead of bypassing it."""
+    ws = web.WebSocketResponse(heartbeat=20)
+    await ws.prepare(request)
+    make = request.app[TALK]
+    if make is None:
+        await ws.send_json(
+            {"type": "error", "error": "talk engine not available (needs engine: thin)"}
+        )
+        await ws.close()
+        return ws
+    from .talk import run_talk
+
+    q = request.query
+    try:
+        session, link = make(
+            ws.send_json, ws.send_bytes, q.get("provider"), q.get("model"), q.get("voice")
+        )
+    except Exception as e:  # e.g. no attention client in bare simulate mode
+        await ws.send_json({"type": "error", "error": str(e)})
+        await ws.close()
+        return ws
+    await run_talk(ws, session, link)
+    return ws
 
 
 async def _console_ws(request: web.Request) -> web.WebSocketResponse:

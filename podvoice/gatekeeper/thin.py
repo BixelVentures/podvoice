@@ -566,6 +566,9 @@ class ThinSession:
             result = await self.tools.dispatch(tc.name, tc.args)
         if self.hub is not None:
             self.hub.incr("tool_ok" if result.get("ok") else "tool_error")
+            self.hub.activity(
+                self.room, f"🔧 {tc.name} {'✓' if result.get('ok') else '✕'}"
+            )  # tool calls visible in the feed (room card AND the Talk tab)
         async with self._tool_lock:
             with contextlib.suppress(Exception):
                 await self.gemini.send_tool_results(

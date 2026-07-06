@@ -307,10 +307,46 @@ async def run(cfg: Config) -> None:
 
     diag = {"status": _diag_status, "s1": _diag_s1_live, "s2": _diag_s2}
 
+    console_make = console_factory(cfg, tools)
+
+    def _make_talk(send_json, send_bytes, provider=None, model=None, voice=None):
+        """One REAL ThinSession per Talk socket: the browser as a device. The mic
+        button fires the same wake() as 'Okay Nabu'; the reply plays from the same
+        reply-bus stream the puck fetches — every engine rule proven in the tab."""
+        from .talk import TALK_ROOM, BrowserLink, TalkHub
+        from .thin import END_CONVERSATION_TOOL, ThinSession
+
+        if attention is None:  # no PodConnect client (bare simulate) — no ducking to run
+            raise RuntimeError("talk session needs the attention client")
+        gemini = console_make(provider, model, voice)
+        existing = getattr(gemini, "tool_declarations", None) or []
+        with contextlib.suppress(Exception):
+            gemini.tool_declarations = [*existing, END_CONVERSATION_TOOL]
+        link = BrowserLink(send_json, send_bytes)
+        # RELATIVE url: the browser resolves it against the panel page, so it works
+        # through HA Ingress (direct :8098 stays closed); the token still gates it.
+        url = f"reply/{TALK_ROOM}.flac" + (f"?t={reply_token}" if reply_token else "")
+        session = ThinSession(
+            room=TALK_ROOM,
+            attention=attention,
+            heartbeat=Heartbeat(attention, period_ms=cfg.heartbeat_ms),
+            gemini=gemini,
+            voicepe=link,
+            playback=Playback(sink=link.play_pcm),
+            tools=tools,
+            hub=TalkHub(send_json, history=history),
+            speech=speech,
+            reply_bus=reply_bus,
+            reply_url=url,
+            duck_level=cfg.duck_level,
+        )
+        return session, link
+
     app = create_app(
         hub,
         sessions,
-        make_console=console_factory(cfg, tools),
+        make_console=console_make,
+        make_talk=_make_talk,
         models_provider=lambda provider=None: list_models(cfg, provider),
         settings_get=lambda: {
             **masked(load_settings()),  # tokens/PSK never leave the box in cleartext

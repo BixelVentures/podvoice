@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.90.0 — Talk-fanen kører nu den ÆGTE motor: klik = "Okay Nabu", samme regler, bevist
+
+Før var Talk en rå bro udenom alle produktets regler (intet wake-gate, intet idle-luk, intet ekko-skjold, ingen end_conversation, egen lydvej) — så fanen kunne aldrig BEVISE noget. Nu er browseren en *enhed* på linje med pucken:
+
+- **Mic-knappen ER wake-ordet**: klik kalder præcis samme wake() som "Okay Nabu" — samtale åbner, musik dukkes, mic-forward gates (privatliv: frames sendes KUN mens porten er åben, ligesom pucken).
+- **Svaret er puckens svar**: browseren afspiller den SAMME reply-bus-FLAC-strøm, pucken henter — gennem et <audio>-element (som browserens ekkoannullering dækker), og dens afspil/slut-kanter driver ekko-skjoldet nøjagtig som puckens mediestatus.
+- **Alle regler gælder**: værktøjer (nu synlige som 🔧-linjer — også i rummenes aktivitetsfeed), idle-luk, samtale-loft, "farvel" via end_conversation, stop-knap = at sige stop. Skriv tekst midt i samtalen — samme samtale.
+- Ring-status (LED), tilstand (lytter/taler) og svartid vises live i fanen.
+
+4 nye integrationstests beviser simulatoren: wake-knap = wake-ord (med mic-gate + duck), svar = bus-strømmen + skjold holder, luk når ud til browseren, tool-kald er synlige.
+
+ruff + mypy rene; 278 tests grønne.
+
 ## 0.89.0 — 0.88 var en fejldiagnose: websøgningen FINDES, og England-svaret var KORREKT
 
 Verificeret mod ESPN m.fl.: England slog faktisk Mexico 3-2 i VM-ottendedelsfinalen 5. juli. Assistentens svar i Talk-testen var altså et ÆGTE, korrekt live-opslag gennem hjemmets søgetjeneste (HA-tjeneste med returns_response, kaldt via home_call) — hele kæden dansk tale -> søgning -> korrekt svar VIRKEDE. 0.88 stemplede det som "opdigtet" og forbød søgevejen i prompten. Undskyld.

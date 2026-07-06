@@ -744,9 +744,10 @@ setInterval(poll, 3000);
   // next user turn (the model finishes server-side; we just go silent).
   function stopSpeaking() {
     halted = true;
+    stopReply(true);
     if (playCtx) { try { playCtx.close(); } catch (e) {} playCtx = null; }
     nextStart = 0; endTurn();
-    if (wsReady && ws) { try { ws.send(JSON.stringify({ type: "stop" })); } catch (e) {} }
+    sendJson({ type: "stop" });  // = saying "stop" in the room: the ENGINE closes
   }
   if (stopBtn) stopBtn.onclick = stopSpeaking;
 
@@ -797,9 +798,41 @@ setInterval(poll, 3000);
     loadModels(providerSel.value).then(reconnect);
   };
 
+  // ---- Reply playback: the SAME reply-bus FLAC stream the puck fetches, played
+  // through an <audio> element (which browser echo-cancellation actually covers,
+  // unlike raw WebAudio). Its play/ended edges are reported back as the engine's
+  // playback ground truth — driving the echo shield exactly like puck media state.
+  var replyAudio = null;
+  function replyEl() {
+    if (replyAudio) return replyAudio;
+    replyAudio = new Audio();
+    replyAudio.preload = "none";
+    replyAudio.onplaying = function () { sendJson({ type: "media", announcing: true }); };
+    replyAudio.onended = function () { sendJson({ type: "media", announcing: false }); };
+    replyAudio.onerror = function () { sendJson({ type: "media", announcing: false }); };
+    return replyAudio;
+  }
+  function playReply(url) {
+    var a = replyEl();
+    a.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "r=" + Date.now(); // never a cached reply
+    a.play().catch(function () { micHint.textContent = "Klik på siden én gang, så lyden må spille."; });
+  }
+  function stopReply(report) {
+    if (!replyAudio) return;
+    try { replyAudio.pause(); replyAudio.removeAttribute("src"); replyAudio.load(); } catch (e) {}
+    if (report) sendJson({ type: "media", announcing: false });
+  }
+  function sendJson(o) { if (wsReady && ws) { try { ws.send(JSON.stringify(o)); } catch (e) {} } }
+  function sendWake() { ensurePlay(); sendJson({ type: "wake" }); }
+  function ledColor(ev) {
+    var c = ev.on ? "rgb(" + (ev.rgb || [0,1,1]).map(function (v) { return Math.round(v * 255); }).join(",") + ")" : "transparent";
+    micBtn.style.boxShadow = ev.on ? "0 0 0 3px " + c : "none";
+  }
+  var STATE_DA = { IDLE: ["klar", "pill-degraded"], LISTENING: ["lytter…", "pill-up"], AI_SPEAKING: ["taler", "pill-up"] };
+
   function connect() {
     var url;
-    try { url = new URL("api/console", window.location.href); } catch (e) { return; }
+    try { url = new URL("api/talk", window.location.href); } catch (e) { return; }
     if (currentProvider) url.searchParams.set("provider", currentProvider);
     if (currentModel) url.searchParams.set("model", currentModel);
     if (currentVoice) url.searchParams.set("voice", currentVoice);
@@ -819,18 +852,22 @@ setInterval(poll, 3000);
       var ev; try { ev = JSON.parse(m.data); } catch (e) { return; }
       if (ev.type === "hello" && ev.rate) outRate = ev.rate;
       else if (ev.type === "transcript") streamT(ev.dir === "in" ? "in" : "out", ev.text);
-      else if (ev.type === "interrupted") {
-        // Server cancelled the reply (mic barge-in) — flush scheduled audio so we stop
-        // talking over the user. Keep the mic live; the next response recreates playCtx.
-        if (playCtx) { try { playCtx.close(); } catch (e) {} playCtx = null; }
-        nextStart = 0; endTurn();
+      else if (ev.type === "play") { halted = false; playReply(ev.url); }
+      else if (ev.type === "stop_playback") { stopReply(true); endTurn(); }
+      else if (ev.type === "mic") {
+        micBtn.classList.toggle("live", !!ev.on);
+        micHint.textContent = ev.on ? "🎙️ Samtalen er åben — den lytter (brug hovedtelefoner)."
+                                    : "Klik 🎤 for at vække — det ER \u201dOkay Nabu\u201d.";
       }
-      else if (ev.type === "turn_complete") endTurn();
-      else if (ev.type === "tool") {
-        endTurn();
-        toolLine(ev);
+      else if (ev.type === "led") ledColor(ev);
+      else if (ev.type === "state") {
+        var st = STATE_DA[ev.state] || [ev.state.toLowerCase(), "pill-degraded"];
+        setState(st[0], st[1]); endTurn();
       }
-      else if (ev.type === "error") { endTurn(); logLine("out", "system", ev.error || "console unavailable"); }
+      else if (ev.type === "activity") { micHint.textContent = ev.text; }
+      else if (ev.type === "latency") { micHint.textContent = "⚡ svar på " + ev.ms + " ms"; }
+      else if (ev.type === "tool") { endTurn(); toolLine(ev); }
+      else if (ev.type === "error") { endTurn(); logLine("out", "system", ev.error || "talk unavailable"); }
     };
   }
 
@@ -880,8 +917,11 @@ setInterval(poll, 3000);
     if (capStream) { capStream.getTracks().forEach(function (t) { t.stop(); }); capStream = null; }
   }
   if (window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    micBtn.onclick = function () { micOn ? micStop() : micStart(); };
-    micHint.textContent = "🎤 Hold a conversation by voice — click the mic to talk, click again to stop. Use HEADPHONES: on speakers the model hears its own replies (browser echo-cancellation does not cover this page's audio).";
+    micBtn.onclick = function () {
+      if (!micOn) { micStart().then(function () { sendWake(); }); }
+      else sendWake();  // re-wake mid-conversation hushes the reply, same as the puck
+    };
+    micHint.textContent = "\ud83c\udfa4 Klik = \u201dOkay Nabu\u201d. Samme motor og regler som pucken. Brug gerne hovedtelefoner.";
   } else {
     micBtn.disabled = true;
     micHint.textContent = "🎤 Voice input needs HTTPS (e.g. Nabu Casa) — typing + spoken replies work here.";
