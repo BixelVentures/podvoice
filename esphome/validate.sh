@@ -24,13 +24,21 @@ if [ ! -x "$VENV/bin/esphome" ]; then
 fi
 
 # Dummy secrets so !secret resolves during validation (real values live in the
-# ESPHome add-on's Secrets, never in git). Removed on exit.
+# ESPHome add-on's Secrets, never in git). An EXISTING secrets.yaml is real and
+# user-owned: back it up and restore it on exit — the old 'rm -f secrets.yaml'
+# trap DELETED the owner's real file, and the next flash then ran on dummy wifi
+# credentials and stranded the device off the network (2026-07-06 incident).
+if [ -f secrets.yaml ]; then
+  cp secrets.yaml .secrets.yaml.bak
+  trap 'mv -f .secrets.yaml.bak secrets.yaml' EXIT
+else
+  trap 'rm -f secrets.yaml' EXIT
+fi
 cat > secrets.yaml <<'EOF'
 wifi_ssid: "validate-ssid"
 wifi_password: "validate-pass"
 podvoice_api_key: "j9cvcoCxSjNVzRghGcJ8AHMcR9t/IGH5h4UbaJyfH3I="
 EOF
-trap 'rm -f secrets.yaml' EXIT
 
 rc=0
 for f in "${@:-podvoice.yaml}"; do
