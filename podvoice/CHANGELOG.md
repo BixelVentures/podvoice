@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.88.0 — prompten lovede websøgning, værktøjerne har ingen: kontrakten er rettet
+
+Talk-fane-testen afslørede en ÆGTE logik-fejl (uafhængig af mikrofon og firmware): spurgt om en fodboldkamp kaldte modellen hjemme-værktøjerne som "opslag" og DIGTEDE så et resultat. Rodårsagen var prompt-værktøjs-kontrakten: prompten bad den slå "nyheder, priser, websøgning" op — men værktøjssættet kan KUN nå hjemmet. Samme sygdom som firmware-kontrakten, ét lag oppe.
+
+- **VIDEN-sektionen omskrevet**: "Du har INGEN internetadgang… Nyheder, sportsresultater, priser… kan du IKKE slå op — prøv ALDRIG med hjemme-værktøjerne, og digt ALDRIG et svar: sig straks 'Det kan jeg ikke slå op her.'" Hjemmets egne data (sensorer, vejrudsigt, musik) slås stadig op.
+- Den gamle standardprompts hash er føjet til legacy-listen, så den nye prompt reelt tager over hos alle.
+- **Talk-fanen mærket ærligt**: browserens ekko-annullering dækker ikke sidens egen afspilning — på højttalere hører modellen sig selv dér. Brug hovedtelefoner; pucken har sit eget ekko-skjold og er upåvirket.
+
+Websøgning som RIGTIG feature (så den faktisk KAN svare på kampen) er en produktbeslutning til listen — det ville slå Gemini på ærlighed OG evne.
+
+ruff + mypy rene; alle tests grønne.
+
 ## 0.87.0 — kanal 1 var stum for tale: tilbage til kanal 0 + mic-niveau i loggen
 
 Felttesten (2026-07-06 12:17) var entydig: wake kom igennem, mic-frames flød — men OpenAI så IKKE ÉN hændelse på 12 sekunders tale (ikke engang speech_started). Kanal 1 bærer bytes, men intet talbart: den er wake-ordets specialkanal, ikke STT-kanalen. Kanal-1-eksperimentet var min fejlslutning — målingen vandt over teorien:

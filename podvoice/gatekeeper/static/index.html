@@ -881,7 +881,7 @@ setInterval(poll, 3000);
   }
   if (window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     micBtn.onclick = function () { micOn ? micStop() : micStart(); };
-    micHint.textContent = "🎤 Hold a conversation by voice — click the mic to talk, click again to stop.";
+    micHint.textContent = "🎤 Hold a conversation by voice — click the mic to talk, click again to stop. Use HEADPHONES: on speakers the model hears its own replies (browser echo-cancellation does not cover this page's audio).";
   } else {
     micBtn.disabled = true;
     micHint.textContent = "🎤 Voice input needs HTTPS (e.g. Nabu Casa) — typing + spoken replies work here.";
