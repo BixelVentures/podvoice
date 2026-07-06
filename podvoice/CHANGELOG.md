@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.86.0 — enheden flyttede IP-adresse, og ingen sagde noget: nu er link-status ÆRLIG
+
+Felttest-diagnosen (2026-07-06): Voice PE'en fik NY IP af routeren efter firmware-genstarten (192.168.86.25 → 192.168.86.20). Add-on'et bankede trofast på den gamle, døde adresse — og derfor virkede "Okay Nabu" slet ikke. Værre: panelet VISTE GRØNT, fordi prikken blev sat ved opstart ("løkken kører"), ikke ved ægte forbindelse. Tre rettelser:
+
+- **Ærlig link-status**: prikken/Connected følger nu ÆGTE connect/disconnect fra enheden. Ryger forbindelsen, går prikken rød og aktivitetsfeeden skriver "🔌 Mistet forbindelsen til Voice PE — tjek at host-navnet passer".
+- **Rå-IP-advarsel**: står der en IP-adresse som Voice PE-host, advarer loggen ved opstart — brug enhedens .local-navn (fx podvoice-pe-0a7e7a.local), som selv finder enheden igen efter ethvert IP-skift.
+- **DIT FIX NU**: sæt Voice PE-host til `podvoice-pe-0a7e7a.local` i Setup (eller den nye IP 192.168.86.20 som lappeløsning — .local-navnet er det holdbare).
+
+Nye tests: link-status er sandfærdig (grøn kun efter ægte connect, rød ved tab); rå IP advarer, .local gør ikke.
+
+ruff + mypy rene; alle tests grønne.
+
 ## 0.85.0 — den hører aldrig sig selv igen (ekko-skjold + ét sammenhængende svar + firmware-kanalfix)
 
 Felttesten fangede det præcist: assistenten hørte SIN EGEN stemme gennem mikrofonen — transskriberede den som dig, svarede sig selv ("Velbekomme", "Farvel"×2), afbrød sig selv, og dit rigtige spørgsmål druknede. Tre rettelser:

@@ -40,7 +40,7 @@ class _StubClient:
 
 
 def _link(client: _StubClient) -> VoicePELink:
-    link = VoicePELink("1.2.3.4", "psk", room="stue")
+    link = VoicePELink("pv-test.local", "psk", room="stue")
     link._client = client  # type: ignore[assignment]
     return link
 
@@ -99,3 +99,46 @@ async def test_reflash_rearms_the_missing_service_warning(caplog):
         await link._call_service("podvoice_va_abort")
     warnings = [r for r in caplog.records if "SKIPPED" in r.getMessage()]
     assert len(warnings) == 2  # warned fresh after the reconnect
+
+
+class _ConnectableClient(_StubClient):
+    """Stub rich enough to run the full _on_connect path."""
+
+    async def device_info(self):
+        class Info:
+            esphome_version = "2026.6.3"
+
+        return Info()
+
+    def subscribe_voice_assistant(self, **kwargs):
+        return lambda: None
+
+    def subscribe_states(self, cb):
+        return lambda: None
+
+
+async def test_link_state_is_truthful(caplog):
+    """The panel dot must track REAL connects/disconnects — not 'loop started'.
+    Field bug: the device DHCP'd to a new IP and the dot stayed green for days
+    while every wake died silently."""
+    client = _ConnectableClient(
+        ["podvoice_stream_start", "podvoice_stream_stop"],
+        [MediaPlayerInfo("external_media_player", 7), LightInfo("led_ring", 9)],
+    )
+    link = _link(client)
+    states: list[bool] = []
+    link.on_link = states.append
+    await link._on_connect()
+    assert states == [True]  # green only after a REAL completed connect
+    await link._on_disconnect(expected_disconnect=False)
+    assert states == [True, False]  # and honest about losing the device
+
+
+async def test_raw_ip_host_gets_a_warning(caplog):
+    import logging
+
+    with caplog.at_level(logging.WARNING, logger="gatekeeper.voicepe"):
+        VoicePELink("192.168.86.25", "psk", room="stue")
+        VoicePELink("podvoice-pe-0a7e7a.local", "psk", room="stue")
+    hints = [r for r in caplog.records if "raw IP" in r.getMessage()]
+    assert len(hints) == 1  # the IP host warns; the .local host does not

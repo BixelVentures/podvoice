@@ -170,6 +170,8 @@ class ThinSession:
             voicepe.on_reconnect = self._reassert_device
         if hasattr(voicepe, "on_contract"):
             voicepe.on_contract = self._on_contract
+        if hasattr(voicepe, "on_link"):
+            voicepe.on_link = self._on_link
 
     # ------------------------------------------------------------- lifecycle
     async def start(self) -> None:
@@ -634,6 +636,21 @@ class ThinSession:
             )
         if muted and self._active:
             self._spawn(self.stop(reason="mute"), "thin-mute")
+
+    def _on_link(self, up: bool) -> None:
+        """TRUE device-link state -> panel dot + a plain activity line. Before this,
+        the dot went green at STARTUP (loop started != device reached) — a DHCP'd-away
+        device looked healthy while every 'Okay Nabu' died silently."""
+        if self.hub is None:
+            return
+        self.hub.set_connected(self.room, up)
+        self.hub.set_service("voicepe", "up" if up else "down")
+        if not up:
+            self.hub.activity(
+                self.room,
+                "🔌 Mistet forbindelsen til Voice PE — tjek at host-navnet passer "
+                "(brug enhedens .local-navn, ikke en IP)",
+            )
 
     def _on_contract(self, contract: dict) -> None:
         """Firmware-contract report from the link (every reconnect) -> panel.

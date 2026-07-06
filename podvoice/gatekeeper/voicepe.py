@@ -55,6 +55,15 @@ class VoicePELink:
         self.room = room
         self._port = port
         self._noise_psk = noise_psk
+        if host.replace(".", "").isdigit():
+            # A raw IP is a time bomb: one DHCP renewal after a reboot/reflash and the
+            # reconnect loop knocks on a dead address forever (field bug: device moved
+            # .25 -> .20 and every wake died silently). The .local name re-resolves.
+            log.warning(
+                "voicepe %s: host is a raw IP — use the device's .local name "
+                "(e.g. podvoice-pe-XXXXXX.local) so a DHCP change can't strand the link",
+                host,
+            )
         self._client: Any = None  # APIClient, built lazily in start()
         self._reconnect: Any = None  # ReconnectLogic
         self._unsub_va: Callable[[], None] | None = None
@@ -90,6 +99,10 @@ class VoicePELink:
         self.contract: dict[str, Any] = {}
         self.on_contract: Callable[[dict[str, Any]], Any] | None = None
         self._warned_missing: set[str] = set()  # once-per-connect missing-service warnings
+        # TRUE link state -> panel. Fires True after a real (re)connect completes and
+        # False on disconnect — the panel dot must never claim "connected" just because
+        # the reconnect loop was STARTED (a DHCP'd-away device looked green for days).
+        self.on_link: Callable[[bool], Any] | None = None
 
     async def start(self) -> None:
         """Build the client and start the reconnect loop (owns the connection)."""
@@ -133,6 +146,8 @@ class VoicePELink:
             result = self.on_reconnect()
             if asyncio.iscoroutine(result):
                 await result
+        if self.on_link is not None:
+            self._run_cb(self.on_link, True)
 
     async def _resolve_entities(self) -> None:
         """Cache the podvoice_stream_* user services + the LED-ring light key.
@@ -279,6 +294,8 @@ class VoicePELink:
         self, expected_disconnect: bool = False
     ) -> None:  # VERIFY: cb signature
         log.warning("voicepe %s disconnected (expected=%s)", self.host, expected_disconnect)
+        if self.on_link is not None:
+            self._run_cb(self.on_link, False)
 
     async def _handle_start(self, *args: Any, **kwargs: Any) -> int | None:
         # aioesphomeapi calls handle_start(conversation_id, flags, audio_settings,

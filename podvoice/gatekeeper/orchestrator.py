@@ -153,6 +153,21 @@ class RoomSession:
         # Firmware-contract report (every reconnect) -> panel service dot + activity.
         if hasattr(voicepe, "on_contract"):
             voicepe.on_contract = self._on_contract
+        # TRUE device-link state (loop started != device reached) -> honest panel dot.
+        if hasattr(voicepe, "on_link"):
+            voicepe.on_link = self._on_link
+
+    def _on_link(self, up: bool) -> None:
+        if self.hub is None:
+            return
+        self.hub.set_connected(self.room, up)
+        self.hub.set_service("voicepe", "up" if up else "down")
+        if not up:
+            self.hub.activity(
+                self.room,
+                "🔌 Mistet forbindelsen til Voice PE — tjek at host-navnet passer "
+                "(brug enhedens .local-navn, ikke en IP)",
+            )
 
     def _on_contract(self, contract: dict) -> None:
         """Add-on/firmware mismatch -> amber dot + a named-missing-pieces activity line."""

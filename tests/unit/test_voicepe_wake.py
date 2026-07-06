@@ -17,7 +17,7 @@ class _StubClient:
 
 
 async def test_handle_start_fires_wake_and_ends_stock_run():
-    link = VoicePELink("1.2.3.4", "psk", room="kitchen")
+    link = VoicePELink("pv-test.local", "psk", room="kitchen")
     link._client = _StubClient()  # type: ignore[assignment]
     woke = []
     link.on_wake = lambda: woke.append(True)
@@ -35,7 +35,7 @@ async def test_handle_start_fires_wake_and_ends_stock_run():
 
 async def test_every_wake_ends_its_run():
     """Repeated wakes: each one must end its own run (not just the first)."""
-    link = VoicePELink("1.2.3.4", "psk", room="kitchen")
+    link = VoicePELink("pv-test.local", "psk", room="kitchen")
     link._client = _StubClient()  # type: ignore[assignment]
     link.on_wake = lambda: None
     for _ in range(3):
