@@ -123,14 +123,15 @@ podvoice_audio:
   # voice_assistant uses). Short form `microphone: i2s_mics` also works.
   microphone:
     microphone: i2s_mics   # upstream Voice PE mic id (i2s_audio, 16 kHz, 32-bit stereo)
-    channels: [1]          # channel 1 = the echo-cancelled channel. PROOF: upstream
-                           # micro_wake_word runs on channel 1 and wake DEMONSTRABLY
-                           # works while the speaker plays — only an AEC'd channel can
-                           # do that. We shipped channel 0 first and the 0.83 field test
-                           # showed the model hearing its own replies loud and clear
-                           # (answering itself, "Farvel" loops) -> channel 0 is not
-                           # echo-cancelled for our purposes. Verified against upstream
-                           # 26.6.0 home-assistant-voice.yaml (va: ch 0+1, mww: ch 1).
+    channels: [0]          # channel 0 = the STT channel — FIELD-MEASURED, do not "fix":
+                           #   ch0: STT works (model understood Danish; 0.83 test) but
+                           #        carries speaker echo -> handled by the add-on's echo
+                           #        shield (0.85: mic gated while the device announces).
+                           #   ch1: mww's wake-special channel. Field-tested 2026-07-06:
+                           #        OpenAI produced ZERO speech events in 12 s of talking
+                           #        (not even speech_started) -> unusable for STT.
+                           # Upstream 26.6.0 agrees: HA STT consumes data (= ch0);
+                           # mww alone runs on ch1.
     gain_factor: 1         # extra digital gain (1..64); raise only if levels are low.
                            # (gain lives HERE, inside the source block — there is no
                            #  separate top-level gain_factor key.)

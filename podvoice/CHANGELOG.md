@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.87.0 — kanal 1 var stum for tale: tilbage til kanal 0 + mic-niveau i loggen
+
+Felttesten (2026-07-06 12:17) var entydig: wake kom igennem, mic-frames flød — men OpenAI så IKKE ÉN hændelse på 12 sekunders tale (ikke engang speech_started). Kanal 1 bærer bytes, men intet talbart: den er wake-ordets specialkanal, ikke STT-kanalen. Kanal-1-eksperimentet var min fejlslutning — målingen vandt over teorien:
+
+- **Firmware tilbage til kanal 0** (bevist: modellen forstod dansk på den i 0.83-testen). Ekkoet, som kanal 0 bærer, håndteres nu af 0.85's EKKO-SKJOLD — den kombination (kanal 0 + skjold) er den rigtige og har aldrig været testet endnu. Kommentaren i esphome/podvoice.yaml dokumenterer begge kanalers MÅLTE opførsel, så ingen "fikser" det tilbage.
+- **Mic-NIVEAU i loggen**: "frames flyder" siger intet om indholdet. Thin logger nu lydniveauet hvert ~5. sekund af fremsendt audio — og flager eksplicit "SILENT: the model hears nothing (wrong firmware channel?)" ved dødt signal. Denne ene linje havde udpeget kanal-fejlen på 5 sekunder.
+
+Kræver GENFLASH af firmwaren (sker over USB nu) + add-on-opdatering.
+
+ruff + mypy rene; alle tests grønne (+1 ny).
+
 ## 0.86.0 — enheden flyttede IP-adresse, og ingen sagde noget: nu er link-status ÆRLIG
 
 Felttest-diagnosen (2026-07-06): Voice PE'en fik NY IP af routeren efter firmware-genstarten (192.168.86.25 → 192.168.86.20). Add-on'et bankede trofast på den gamle, døde adresse — og derfor virkede "Okay Nabu" slet ikke. Værre: panelet VISTE GRØNT, fordi prikken blev sat ved opstart ("løkken kører"), ikke ved ægte forbindelse. Tre rettelser:

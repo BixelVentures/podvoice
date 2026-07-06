@@ -414,3 +414,22 @@ async def test_end_conversation_result_requests_no_extra_reply():
         await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=3.0)
     finally:
         await session.aclose()
+
+
+async def test_mic_level_logged_and_silence_flagged(caplog):
+    """250 forwarded frames -> one level line; a near-silent stream is FLAGGED (the
+    dead-channel field bug: bytes flowed, nothing audible, no pointer to the cause)."""
+    import logging as _logging
+
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        with caplog.at_level(_logging.INFO, logger="podvoice.thin"):
+            voicepe.feed([_frame(2)] * 250)  # essentially silence
+            await _wait_until(lambda: len(gemini.sent_audio) >= 250, max_wait=3.0)
+        lines = [r.getMessage() for r in caplog.records if "mic level" in r.getMessage()]
+        assert lines and "SILENT" in lines[0]
+    finally:
+        await session.aclose()

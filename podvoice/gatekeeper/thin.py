@@ -21,6 +21,7 @@ room. (The B1 direct speaker path upgrades this to byte-exact acks later.)
 
 from __future__ import annotations
 
+import array
 import asyncio
 import contextlib
 import logging
@@ -313,7 +314,14 @@ class ThinSession:
     # ------------------------------------------------------------- audio pumps
     async def _pump_mic(self) -> None:
         """Every mic frame goes to the model while the conversation is open — the
-        server VAD owns turn-taking. Guarded: one audible failure, never a dead room."""
+        server VAD owns turn-taking. Guarded: one audible failure, never a dead room.
+
+        Logs the mic LEVEL every ~5 s of forwarded audio: "frames are flowing" says
+        nothing about what's IN them (the 2026-07-06 field bug: the firmware channel
+        carried bytes but no usable speech — 12 s of talking produced zero provider
+        events, and nothing pointed at the dead channel)."""
+        sent = 0
+        level_acc = 0.0
         try:
             async for frame in self.voicepe.pcm_frames():
                 if not self._active:
@@ -327,6 +335,21 @@ class ThinSession:
                     _LOG.warning("thin: provider send failed (%s)", e)
                     await self._fail("connection")
                     return
+                samples = array.array("h")
+                samples.frombytes(frame[: len(frame) // 2 * 2])
+                if samples:
+                    level_acc += sum(abs(s) for s in samples) / len(samples)
+                sent += 1
+                if sent % 250 == 0:  # ~5 s of 20 ms frames
+                    avg = level_acc / 250
+                    level_acc = 0.0
+                    _LOG.info(
+                        "thin: mic level ~%d (avg |sample| over 5s)%s",
+                        int(avg),
+                        " — SILENT: the model hears nothing (wrong firmware channel?)"
+                        if avg < 30
+                        else "",
+                    )
         except asyncio.CancelledError:
             raise
 
