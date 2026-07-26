@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from . import constants as C
 
 # 24 kHz * 2 bytes/sample * 1 channel — the reply-audio byte rate.
-_BYTE_RATE = float(C.GEMINI_OUTPUT_RATE * C.SAMPLE_WIDTH)
+_BYTE_RATE = float(C.OUTPUT_RATE * C.SAMPLE_WIDTH)
 
 
 @dataclass

@@ -6,11 +6,15 @@ import array
 import asyncio
 
 from fakes.fake_attention import FakeAttention
-from fakes.fake_gemini import FakeGeminiSession
+from fakes.fake_brain import FakeBrainSession
 from fakes.fake_voicepe import FakeVoicePELink
 
 from gatekeeper.events import Event, EventType, State
-from gatekeeper.gemini import (
+from gatekeeper.heartbeat import Heartbeat
+from gatekeeper.playback import Playback
+from gatekeeper.reply import ReplyBus
+from gatekeeper.thin import ThinSession
+from gatekeeper.voice import (
     AudioChunk,
     Idle,
     InputTranscript,
@@ -18,10 +22,6 @@ from gatekeeper.gemini import (
     ToolCall,
     TurnComplete,
 )
-from gatekeeper.heartbeat import Heartbeat
-from gatekeeper.playback import Playback
-from gatekeeper.reply import ReplyBus
-from gatekeeper.thin import ThinSession
 
 ROOM = "kitchen"
 REPLY_URL = f"http://gatekeeper.test:8098/reply/{ROOM}.flac"
@@ -31,7 +31,7 @@ def _frame(amplitude: int = 2000, n_samples: int = 2400) -> bytes:
     return array.array("h", [amplitude] * n_samples).tobytes()
 
 
-class LiveFake(FakeGeminiSession):
+class LiveFake(FakeBrainSession):
     """Like a real socket: events arrive when the test emits them, and the stream
     stays OPEN in between (the base fake's events() ends after its script, which
     would instantly exhaust the thin engine's reader)."""
@@ -67,7 +67,7 @@ def _build(gemini):
         room=ROOM,
         attention=attention,
         heartbeat=Heartbeat(attention, period_ms=20),
-        gemini=gemini,
+        brain=gemini,
         voicepe=voicepe,
         playback=Playback(sink=voicepe.play_pcm),
         tools=FakeTools(),
@@ -154,7 +154,7 @@ async def test_tool_call_dispatched_and_conversation_survives():
 async def test_provider_death_is_audible_and_lands_idle():
     """The reader dying mid-conversation -> audible error -> clean IDLE + music back."""
 
-    class DyingSession(FakeGeminiSession):
+    class DyingSession(FakeBrainSession):
         async def events(self):
             raise ConnectionError("socket died")
             yield  # pragma: no cover
@@ -249,10 +249,10 @@ async def test_client_idle_fallback_closes(monkeypatch):
     the conversation anyway (R3)."""
     import gatekeeper.thin as thin_mod
 
-    monkeypatch.setattr(thin_mod, "IDLE_FALLBACK_S", 0.15)
     monkeypatch.setattr(thin_mod, "HEARTBEAT_S", 0.05)
     gemini = LiveFake()
     session, attention, _voicepe = _build(gemini)
+    session.idle_timeout_s = 0.15
     await session.start()
     try:
         await session.wake()

@@ -34,7 +34,7 @@ def test_noop_when_rates_match():
 def test_stream_converges_to_target_rate():
     """Over a continuous stream the 16k->24k output length approaches 1.5x input
     (a per-frame resampler can't guarantee this across boundaries)."""
-    rs = StreamResampler(C.GEMINI_INPUT_RATE, 24000)
+    rs = StreamResampler(C.INPUT_RATE, 24000)
     total_in = 0
     total_out = 0
     t = 0

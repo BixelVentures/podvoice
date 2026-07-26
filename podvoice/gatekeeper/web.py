@@ -285,8 +285,8 @@ async def _reply_streaming(bus, room: str, request: web.Request) -> web.StreamRe
 
         # 100 ms of digital silence at 24 kHz/16-bit mono — injected during model
         # gaps (tool calls!) so the device hears a calm pause, not underrun stutter.
-        silence = b"\x00" * (C.GEMINI_OUTPUT_RATE * 2 // 10)
-        byte_rate = float(C.GEMINI_OUTPUT_RATE * 2)
+        silence = b"\x00" * (C.OUTPUT_RATE * 2 // 10)
+        byte_rate = float(C.OUTPUT_RATE * 2)
         prebuffer_target = int(C.STREAM_PREBUFFER_S * byte_rate)
         loop = asyncio.get_event_loop()
         fed = 0
@@ -422,7 +422,7 @@ async def _models(request: web.Request) -> web.Response:
     provider = request.app[MODELS]
     if provider is None:
         return web.json_response({"default": "", "source": "none", "models": []})
-    return web.json_response(provider(request.query.get("provider")))
+    return web.json_response(provider())
 
 
 async def _talk_ws(request: web.Request) -> web.WebSocketResponse:
@@ -442,9 +442,7 @@ async def _talk_ws(request: web.Request) -> web.WebSocketResponse:
 
     q = request.query
     try:
-        session, link = make(
-            ws.send_json, ws.send_bytes, q.get("provider"), q.get("model"), q.get("voice")
-        )
+        session, link = make(ws.send_json, ws.send_bytes, q.get("model"), q.get("voice"))
     except Exception as e:  # e.g. no attention client in bare simulate mode
         await ws.send_json({"type": "error", "error": str(e)})
         await ws.close()
@@ -464,7 +462,7 @@ async def _console_ws(request: web.Request) -> web.WebSocketResponse:
     q = request.query
     await run_console(
         ws,
-        make(q.get("provider"), q.get("model"), q.get("voice")),
+        make(q.get("model"), q.get("voice")),
         request.app[TOOLS],
         history=request.app[HISTORY],
     )
@@ -547,7 +545,7 @@ async def _control(request: web.Request) -> web.Response:
         from . import constants as C
 
         with contextlib.suppress(Exception):
-            await session.playback.play_tone(audio_mod.error_tone(C.GEMINI_OUTPUT_RATE))
+            await session.playback.play_tone(audio_mod.error_tone(C.OUTPUT_RATE))
     elif action == "test_speaker":
         # Drive the REAL announce path (reply_bus -> FLAC -> media_player announce) with a
         # tone, so the device speaker-out can be verified in isolation — no OpenAI, mic, or
@@ -561,7 +559,7 @@ async def _control(request: web.Request) -> web.Response:
             return web.json_response(
                 {"ok": False, "error": "no reply path on this session"}, status=400
             )
-        tone = audio_mod.error_tone(C.GEMINI_OUTPUT_RATE) * 2  # ~0.7s, clearly audible
+        tone = audio_mod.error_tone(C.OUTPUT_RATE) * 2  # ~0.7s, clearly audible
         bus.clear(room)
         bus.start(room)
         bus.push(room, tone)

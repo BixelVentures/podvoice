@@ -63,11 +63,11 @@ VAD_ATTACK_FRAMES = 3  # consecutive hot frames to fire
 VAD_FLOOR_ALPHA = 0.05  # EMA rate for the ambient floor (non-voice frames only)
 
 # --- Audio formats ---
-GEMINI_INPUT_RATE = 16000  # PCM up to Gemini (Hz)
-GEMINI_OUTPUT_RATE = 24000  # PCM down from Gemini (Hz)
+INPUT_RATE = 16000  # PCM up from the device mic (Hz)
+OUTPUT_RATE = 24000  # PCM down from the model (Hz; OpenAI Realtime speaks 24 kHz)
 SAMPLE_WIDTH = 2  # bytes per sample (16-bit)
 FRAME_MS = 20  # nominal mic frame size
-INPUT_FRAME_BYTES = GEMINI_INPUT_RATE * SAMPLE_WIDTH * FRAME_MS // 1000  # 640
+INPUT_FRAME_BYTES = INPUT_RATE * SAMPLE_WIDTH * FRAME_MS // 1000  # 640
 
 # --- Network ---
 ESPHOME_API_PORT = 6053  # ESPHome native API default (VERIFY)

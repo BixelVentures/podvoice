@@ -54,7 +54,7 @@ def test_legacy_default_prompt_is_migrated(tmp_path):
     genuinely customized prompt must survive."""
     import subprocess
 
-    from gatekeeper.gemini import SYSTEM_PROMPT_DA
+    from gatekeeper.prompt import SYSTEM_PROMPT_DA
 
     p = tmp_path / "s.json"
     # take a real historical default from git (0.70-era gemini.py)

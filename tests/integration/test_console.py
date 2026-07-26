@@ -7,7 +7,7 @@ import asyncio
 from aiohttp import WSMsgType
 from aiohttp.test_utils import TestClient, TestServer
 
-from gatekeeper.console import SimConsoleGemini
+from gatekeeper.console import SimConsole
 from gatekeeper.hub import StatusHub
 from gatekeeper.web import create_app
 
@@ -16,7 +16,7 @@ async def test_console_text_roundtrip():
     app = create_app(
         StatusHub(),
         {},
-        make_console=lambda provider=None, model=None, voice=None: SimConsoleGemini(),
+        make_console=lambda model=None, voice=None: SimConsole(),
     )
     async with TestClient(TestServer(app)) as client:
         ws = await client.ws_connect("/api/console")

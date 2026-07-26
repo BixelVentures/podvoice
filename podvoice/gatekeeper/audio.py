@@ -166,7 +166,7 @@ class StreamResampler:
 
 
 def error_tone(
-    rate_hz: int = C.GEMINI_OUTPUT_RATE,
+    rate_hz: int = C.OUTPUT_RATE,
     freqs: tuple[float, ...] = (660.0, 440.0),
     ms: tuple[int, ...] = (150, 200),
     amp: float = 0.25,

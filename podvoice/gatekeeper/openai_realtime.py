@@ -1,14 +1,20 @@
-"""OpenAI Realtime API backend — a VoiceSession over the GA WebSocket protocol.
+"""OpenAI Realtime — THE provider module (model id, session config, lifecycle, events).
 
-Mirrors gemini.py's GeminiLiveSession and emits the same voice.py events, so the
-orchestrator / console / panel work unchanged. Implemented directly on aiohttp's
-WebSocket client (already a dependency) against the documented JSON protocol —
-more stable than betting on the openai SDK's evolving Python surface.
+Emits the typed voice.py events, so the engines / console / panel consume one
+interface. Implemented directly on aiohttp's WebSocket client (already a
+dependency) against the documented JSON protocol — more stable than betting on
+the openai SDK's evolving Python surface.
 
-Verified 2026-06-22 against developers.openai.com (GA `gpt-realtime`):
+GPT-Live-1 readiness: when its API opens, the migration is a model string plus
+new event handlers HERE — nothing upstream changes (see docs/realtime-config.md).
+
+Re-verified 2026-07 against developers.openai.com (GA surface; beta removed
+2026-05-12; gpt-realtime-2.1 / -2.1-mini released 2026-07-06):
 - wss://api.openai.com/v1/realtime?model=...  (Authorization: Bearer; NO OpenAI-Beta header)
 - session.update has session.type "realtime", audio nested under audio.input/output
-- OpenAI audio/pcm is **24 kHz** in AND out — so we upsample the 16 kHz mic.
+- OpenAI audio/pcm is **24 kHz only** in AND out — so we upsample the 16 kHz mic
+- turn_detection: server_vad (threshold/prefix_padding_ms/silence_duration_ms/
+  idle_timeout_ms) | semantic_vad (eagerness); event names as used below.
 Items that could drift are marked # VERIFY.
 """
 
@@ -24,7 +30,7 @@ import aiohttp
 
 from . import constants as C
 from .audio import StreamResampler, resample_pcm16
-from .gemini import SYSTEM_PROMPT_DA
+from .prompt import SYSTEM_PROMPT_DA
 from .voice import (
     AudioChunk,
     Idle,
@@ -33,6 +39,7 @@ from .voice import (
     OutputTranscript,
     ToolCall,
     TurnComplete,
+    Usage,
     UserSpeechStopped,
     VoiceEvent,
 )
@@ -41,8 +48,17 @@ _LOG = logging.getLogger("podvoice.openai")
 
 _URL = "wss://api.openai.com/v1/realtime"
 OPENAI_RATE = 24000  # OpenAI audio/pcm is 24 kHz for both directions (VERIFY: 16k unsupported)
-DEFAULT_MODEL = "gpt-realtime-2"
+DEFAULT_MODEL = "gpt-realtime-2.1-mini"  # distilled 2.1 — home control at family-budget cost
+FULL_MODEL = "gpt-realtime-2.1"  # opt-in when mini proves too weak (Settings/Talk picker)
 DEFAULT_VOICE = "marin"  # VERIFY: a current realtime voice name
+
+# The panel's model/voice selector set (all voice-capable; small fixed list).
+STATIC_MODELS = [
+    {"id": DEFAULT_MODEL, "label": "GPT Realtime 2.1 mini (standard)", "live": True},
+    {"id": FULL_MODEL, "label": "GPT Realtime 2.1", "live": True},
+    {"id": "gpt-realtime-2", "label": "GPT Realtime 2", "live": True},
+]
+STATIC_VOICES = ["marin", "cedar", "alloy", "echo", "shimmer"]
 
 
 def _rid(ev: dict) -> str:
@@ -71,15 +87,22 @@ class OpenAIRealtimeSession:
     instructions: str = ""  # empty -> built-in SYSTEM_PROMPT_DA
     tool_declarations: list[dict] | None = None
     language: str = "da"
-    # Turn detection + noise reduction (tunable in Settings).
-    turn: str = "semantic_vad"  # server_vad | semantic_vad | none
-    threshold: float = 0.5  # server_vad only
-    prefix_ms: int = 300  # server_vad only
-    silence_ms: int = 500  # server_vad only
-    eagerness: str = "auto"  # semantic_vad: auto | low | medium | high
+    # Turn detection: a PRESET (conservative/responsive) or "custom" via the raw knobs.
+    # conservative = server_vad tuned hard-to-interrupt, so residual echo past the XMOS
+    # AEC doesn't read as user barge-in (the self-interruption bug); responsive =
+    # semantic_vad, easiest to talk over. Tunable live in Settings — no redeploy.
+    preset: str = "conservative"  # conservative | responsive | custom
+    turn: str = "semantic_vad"  # custom: server_vad | semantic_vad | none
+    threshold: float = 0.5  # custom, server_vad only
+    prefix_ms: int = 300  # custom, server_vad only
+    silence_ms: int = 500  # custom, server_vad only
+    eagerness: str = "auto"  # custom, semantic_vad: auto | low | medium | high
     # far_field: the Voice PE mic is across a room, not a headset — this is the right
     # noise-reduction profile for a shared living space (near_field assumed close talk).
     noise: str = "far_field"  # near_field | far_field | off
+    # Server-side conversation-idle close (server_vad only — semantic_vad has no
+    # idle_timeout_ms; the engine's client-side fallback covers that mode).
+    idle_timeout_s: int = 25
     _http: aiohttp.ClientSession | None = field(default=None, init=False, repr=False)
     _ws: aiohttp.ClientWebSocketResponse | None = field(default=None, init=False, repr=False)
     # High-quality 16k->24k resampler, rebuilt per connect() so filter state is fresh.
@@ -91,7 +114,24 @@ class OpenAIRealtimeSession:
     _deliberate_close: bool = field(default=False, init=False, repr=False)
 
     def _turn_detection(self) -> dict | None:
-        """Build the turn_detection block from the tunable knobs. VERIFY field names."""
+        """Build the turn_detection block from the preset (or the custom knobs).
+
+        Field names verified 2026-07: threshold / prefix_padding_ms /
+        silence_duration_ms / idle_timeout_ms (server_vad); eagerness (semantic_vad).
+        """
+        if self.preset == "conservative":
+            # Hard to interrupt: a HIGH energy threshold means residual speaker echo
+            # (already ~cancelled by the XMOS AEC) can't fire speech_started; a longer
+            # end-of-speech silence forgives Danish mid-sentence pauses.
+            return self._server_vad(threshold=0.7, prefix_ms=300, silence_ms=700)
+        if self.preset == "responsive":
+            return {
+                "type": "semantic_vad",
+                "eagerness": "auto",
+                "create_response": True,
+                "interrupt_response": True,
+            }
+        # custom — raw knobs
         if self.turn == "none":
             return None
         if self.turn == "semantic_vad":
@@ -101,22 +141,35 @@ class OpenAIRealtimeSession:
                 "create_response": True,
                 "interrupt_response": True,
             }
-        return {  # server_vad
+        return self._server_vad(
+            threshold=float(self.threshold),
+            prefix_ms=int(self.prefix_ms),
+            silence_ms=int(self.silence_ms),
+        )
+
+    def _server_vad(self, *, threshold: float, prefix_ms: int, silence_ms: int) -> dict:
+        td = {
             "type": "server_vad",
-            "threshold": float(self.threshold),
-            "prefix_padding_ms": int(self.prefix_ms),
-            "silence_duration_ms": int(self.silence_ms),
+            "threshold": threshold,
+            "prefix_padding_ms": prefix_ms,
+            "silence_duration_ms": silence_ms,
             "create_response": True,
             "interrupt_response": True,
         }
+        if self.idle_timeout_s > 0:
+            # The server closes the conversation for us: idle_timeout_ms after the last
+            # reply finishes playing, input_audio_buffer.timeout_triggered arrives ->
+            # the engine goes home. (server_vad only; clamped >=5s in config.py.)
+            td["idle_timeout_ms"] = int(self.idle_timeout_s * 1000)
+        return td
 
     def _session_update(self) -> dict:
         audio_input: dict = {
             "format": {"type": "audio/pcm", "rate": OPENAI_RATE},
-            # whisper-1 is the documented, broadly-supported input-transcription model
-            # (the previous "gpt-realtime-whisper" is not a real model id). This only
-            # affects the DISPLAYED transcript, not the model's own speech understanding.
-            "transcription": {"model": "whisper-1", "language": self.language},
+            # gpt-4o-mini-transcribe (verified in the GA enum 2026-07) transcribes Danish
+            # far better than whisper-1. The transcript is not just display: the engine's
+            # end-phrase fallback ("det var det") reads it, so quality matters.
+            "transcription": {"model": "gpt-4o-mini-transcribe", "language": self.language},
             "turn_detection": self._turn_detection(),
         }
         if self.noise and self.noise != "off":
@@ -153,7 +206,7 @@ class OpenAIRealtimeSession:
         # Fresh socket -> fresh state machine (a prior session may have died mid-response).
         self._active_response = False
         self._pending_create = False
-        self._resampler = StreamResampler(C.GEMINI_INPUT_RATE, OPENAI_RATE)  # fresh filter state
+        self._resampler = StreamResampler(C.INPUT_RATE, OPENAI_RATE)  # fresh filter state
         self._http = aiohttp.ClientSession()
         self._ws = await self._http.ws_connect(
             f"{_URL}?model={self.model}",
@@ -170,7 +223,7 @@ class OpenAIRealtimeSession:
         if self._resampler is not None:
             pcm = self._resampler.process(pcm16k)
         else:
-            pcm = resample_pcm16(pcm16k, C.GEMINI_INPUT_RATE, OPENAI_RATE)
+            pcm = resample_pcm16(pcm16k, C.INPUT_RATE, OPENAI_RATE)
         if not pcm:  # streaming resampler may hold a sub-frame tail; nothing to send yet
             return
         b64 = base64.b64encode(pcm).decode("ascii")
@@ -329,6 +382,9 @@ class OpenAIRealtimeSession:
                 yield UserSpeechStopped()
             elif t == "response.done":
                 self._active_response = False
+                usage = self._usage_of(ev)
+                if usage is not None:
+                    yield usage
                 rid, status = _rid(ev), _rstatus(ev)
                 if self._pending_create and self._ws is not None:
                     # This response.done only closed the function-call response. Fire the
@@ -346,6 +402,27 @@ class OpenAIRealtimeSession:
                 yield TurnComplete()
             elif t == "error":
                 _LOG.warning("openai realtime error: %s", ev.get("error"))
+
+    @staticmethod
+    def _usage_of(ev: dict) -> Usage | None:
+        """Token counts from a response.done event (verified GA shape 2026-07:
+        response.usage.{input_token_details{text_tokens,audio_tokens,cached_tokens,
+        cached_tokens_details{...}},output_token_details{text_tokens,audio_tokens}})."""
+        r = ev.get("response")
+        u = r.get("usage") if isinstance(r, dict) else None
+        if not isinstance(u, dict):
+            return None
+        ind = u.get("input_token_details") or {}
+        outd = u.get("output_token_details") or {}
+        cached = ind.get("cached_tokens_details") or {}
+        return Usage(
+            input_text_tokens=int(ind.get("text_tokens") or 0),
+            input_audio_tokens=int(ind.get("audio_tokens") or 0),
+            cached_text_tokens=int(cached.get("text_tokens") or 0),
+            cached_audio_tokens=int(cached.get("audio_tokens") or 0),
+            output_text_tokens=int(outd.get("text_tokens") or 0),
+            output_audio_tokens=int(outd.get("audio_tokens") or 0),
+        )
 
     async def reconnect(self) -> None:
         await self.close()
@@ -377,3 +454,36 @@ class OpenAIRealtimeSession:
         if self._http is not None:
             await self._http.close()
             self._http = None
+
+
+def make_session(
+    cfg,
+    *,
+    model: str | None = None,
+    voice: str | None = None,
+    tool_declarations: list[dict] | None = None,
+) -> OpenAIRealtimeSession:
+    """Build the one voice brain from a Config (the old multi-provider factory).
+
+    This module is the whole provider surface: model id, session config,
+    connection lifecycle and event handling live here. A future GPT-Live-1
+    migration is a new model string + event handlers in this file only.
+    """
+    chosen = model or cfg.openai_model
+    if getattr(cfg, "force_mini", False):
+        chosen = DEFAULT_MODEL  # cost guard: every session runs the mini model
+    return OpenAIRealtimeSession(
+        api_key=cfg.openai_api_key,
+        model=chosen,
+        voice=voice or cfg.openai_voice or DEFAULT_VOICE,
+        instructions=cfg.system_prompt,
+        tool_declarations=tool_declarations,
+        preset=getattr(cfg, "turn_preset", "conservative"),
+        turn=cfg.openai_turn,
+        threshold=cfg.openai_threshold,
+        prefix_ms=cfg.openai_prefix_ms,
+        silence_ms=cfg.openai_silence_ms,
+        eagerness=cfg.openai_eagerness,
+        noise=cfg.openai_noise,
+        idle_timeout_s=getattr(cfg, "idle_timeout_s", 25),
+    )

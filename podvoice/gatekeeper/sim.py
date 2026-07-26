@@ -17,10 +17,10 @@ from . import constants as C
 from .audio import silence_frame
 from .events import Event, EventType
 from .gatekeeper import Gatekeeper
-from .gemini import AudioChunk, OutputTranscript, TurnComplete
 from .heartbeat import Heartbeat
 from .hub import StatusHub
 from .playback import Playback
+from .voice import AudioChunk, OutputTranscript, TurnComplete
 from .watchdog import BargeIn
 
 _LOG = logging.getLogger("podvoice.sim")
@@ -108,7 +108,7 @@ class SimGemini:
     async def events(self):
         # One spoken turn, then stay open until the reader is cancelled (CLOSE_WS).
         yield OutputTranscript(next(self._lines))
-        chunk = silence_frame(C.GEMINI_OUTPUT_RATE * C.FRAME_MS // 1000 * C.SAMPLE_WIDTH)
+        chunk = silence_frame(C.OUTPUT_RATE * C.FRAME_MS // 1000 * C.SAMPLE_WIDTH)
         for _ in range(6):
             await asyncio.sleep(0.12)
             yield AudioChunk(chunk)
@@ -132,13 +132,13 @@ def build_sim_sessions(hub: StatusHub, rooms: list[str]) -> dict:
     for room in rooms:
         attention = SimAttention()
         voicepe = SimVoicePELink(room)
-        gemini = SimGemini()
+        brain = SimGemini()
         sessions[room] = RoomSession(
             room=room,
             attention=attention,
             heartbeat=Heartbeat(attention, period_ms=500),
-            gatekeeper=Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False),
-            gemini=gemini,
+            gatekeeper=Gatekeeper(send_to_brain=brain.send_audio, send_silence=False),
+            brain=brain,
             voicepe=voicepe,
             playback=Playback(sink=voicepe.play_pcm),
             tools=SimTools(),

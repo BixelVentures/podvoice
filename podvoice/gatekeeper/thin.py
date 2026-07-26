@@ -29,26 +29,23 @@ import time
 
 from . import constants as C
 from .events import Event, EventType, State
-from .gemini import (
+from .led import led_command_for
+from .playout import PlayoutClock
+from .podconnect import AttentionDown, UnknownRoom, Unsupervised
+from .voice import (
     AudioChunk,
     Idle,
     InputTranscript,
     Interrupted,
     OutputTranscript,
     ToolCall,
-    ToolCallCancellation,
     TurnComplete,
+    Usage,
+    UserSpeechStopped,
 )
-from .led import led_command_for
-from .playout import PlayoutClock
-from .podconnect import AttentionDown, UnknownRoom, Unsupervised
-from .voice import UserSpeechStopped
 
 _LOG = logging.getLogger("podvoice.thin")
 
-# Server-side "the user went quiet, conversation is over" signal. Replaces the old
-# client-side lounge window + listen-idle timers with one provider-owned number.
-IDLE_TIMEOUT_MS = 8000
 # The thin-native closure: instead of client-side word lists, the MODEL gets a tool it
 # calls when the user is clearly done ("stop", "farvel", "det var det", any phrasing).
 END_CONVERSATION_TOOL = {
@@ -59,8 +56,9 @@ END_CONVERSATION_TOOL = {
     "parameters": {"type": "object", "properties": {}},
 }
 # Hard ceiling on one conversation (the provider caps sessions at 60 min; close cleanly
-# well before so the family never hits a mid-sentence provider cut).
-MAX_CONVERSATION_S = 20 * 60
+# well before so the family never hits a mid-sentence provider cut). Configurable per
+# session via max_session_s (Settings: max_session_min) — this is only the default.
+MAX_CONVERSATION_S = 15 * 60
 # Pipeline heartbeat cadence (replaces the old per-turn watchdogs): if the provider
 # reader has died while a conversation is open, say so and go home.
 HEARTBEAT_S = 5.0
@@ -68,11 +66,50 @@ HEARTBEAT_S = 5.0
 # clatter, echo residue) is a FALSE interruption — playback continues. Real speech
 # sustains past it and silences the device. (LiveKit ships 0.5 s; we start tighter.)
 BARGE_DEBOUNCE_S = 0.25
-# Client-side idle close: OpenAI Realtime has no server-side conversation-idle signal
-# (the idle_timeout_ms field does not exist), so THIS is the primary "you're done"
-# mechanism — close after this many seconds of true silence once the assistant has
-# stopped speaking. Resets on every user/model event.
-IDLE_FALLBACK_S = 8.0
+# Client-side idle close, default (Settings: idle_timeout_s). With the conservative
+# preset (server_vad) the SERVER also closes idle conversations via idle_timeout_ms;
+# this fallback is the belt for semantic_vad and for a server that never says so.
+IDLE_FALLBACK_S = 25.0
+# End-phrase fallback (ported behavior — ha-realtime-assist-style, DA + EN): if the
+# user's WHOLE utterance is a goodbye/closure phrase, close even when the model forgets
+# to call end_conversation. Hard words stop NOW; polite phrases close after the reply.
+END_NOW_WORDS = frozenset({"stop", "stille", "vent"})
+END_PHRASES = frozenset(
+    {
+        # Danish
+        "farvel",
+        "det var det",
+        "det var alt",
+        "det var det hele",
+        "tak det var det",
+        "tak det var alt",
+        "tak for hjælpen",
+        "ellers tak",
+        "nej tak",
+        "tak",
+        "mange tak",
+        "tusind tak",
+        # English
+        "goodbye",
+        "bye",
+        "that's all",
+        "that was all",
+        "that is all",
+        "thanks that's all",
+        "thank you that's all",
+        "no thanks",
+        "thanks",
+        "thank you",
+    }
+)
+
+
+def normalized_utterance(text: str) -> str:
+    """Lowercase, strip punctuation/whitespace — so 'Tak, det var alt!' matches."""
+    keep = [c for c in text.lower().strip() if c.isalnum() or c.isspace() or c == "'"]
+    return " ".join("".join(keep).split())
+
+
 # Echo shield: while the device is playing OUR reply, mic frames are NOT forwarded to
 # the model. The 0.83 field test showed the model hearing its own reply through the mic
 # (the tapped firmware channel is not echo-cancelled), transcribing it as the user and
@@ -108,7 +145,7 @@ class ThinSession:
         room: str,
         attention,
         heartbeat,
-        gemini,
+        brain,
         voicepe,
         playback,
         tools=None,
@@ -117,11 +154,16 @@ class ThinSession:
         reply_bus=None,
         reply_url: str | None = None,
         duck_level: int = C.DUCK_LEVEL,
+        usage=None,  # UsageMeter — per-response token/cost telemetry (optional)
+        full_duplex: bool = False,  # EXPERIMENTAL: mic stays open while the device plays
+        # (XMOS AEC + conservative turn detection carry echo rejection; Phase 1.4 gates it)
+        idle_timeout_s: float = IDLE_FALLBACK_S,
+        max_session_s: float = MAX_CONVERSATION_S,
     ) -> None:
         self.room = room
         self.attention = attention
         self.heartbeat = heartbeat
-        self.gemini = gemini
+        self.brain = brain
         self.voicepe = voicepe
         self.playback = playback  # sim/console fallback sink only
         self.tools = tools
@@ -130,6 +172,10 @@ class ThinSession:
         self.reply_bus = reply_bus
         self.reply_url = reply_url
         self.duck_level = duck_level
+        self.usage = usage
+        self.full_duplex = full_duplex
+        self.idle_timeout_s = float(idle_timeout_s)
+        self.max_session_s = float(max_session_s)
 
         self.sm = _Mini(self)
         self.playout = PlayoutClock()
@@ -236,7 +282,7 @@ class ThinSession:
         if hasattr(self.voicepe, "start_streaming"):
             await self.voicepe.start_streaming()
         try:
-            await asyncio.wait_for(self.gemini.connect(), timeout=C.CONNECT_TIMEOUT_S)
+            await asyncio.wait_for(self.brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
         except Exception as e:
             _LOG.warning("thin: provider connect failed: %s", e)
             await self._fail("connection")
@@ -278,7 +324,7 @@ class ThinSession:
         # NEVER cancel the task that is RUNNING this teardown (stop()/_fail() are called
         # from inside the reader/heartbeat tasks). Cancelling self meant CancelledError
         # fired at the first real await below and the rest of the teardown was silently
-        # skipped: gemini never closed (leaked session), the duck heartbeat never
+        # skipped: brain never closed (leaked session), the duck heartbeat never
         # stopped (music stuck quiet forever) and the LED stayed solid cyan — the
         # "locked, solid blue, can't talk to it" field failure. The calling task ends
         # naturally right after this returns.
@@ -296,7 +342,7 @@ class ThinSession:
             with contextlib.suppress(Exception):
                 await self.voicepe.stop_streaming()
         with contextlib.suppress(Exception):
-            await self.gemini.close()
+            await self.brain.close()
         if release_music:
             with contextlib.suppress(Exception):
                 await self.heartbeat.stop()
@@ -326,11 +372,17 @@ class ThinSession:
             async for frame in self.voicepe.pcm_frames():
                 if not self._active:
                     continue  # drain quietly; stream stop is in flight
-                if self._device_playing or time.monotonic() < self._gate_until:
-                    self._gate_dropped += 1  # echo shield: the device is speaking —
-                    continue  # its own voice must never reach the model's ears
+                if not self.full_duplex and (
+                    self._device_playing or time.monotonic() < self._gate_until
+                ):
+                    # Echo shield (half-duplex): the device is speaking — its own voice
+                    # must never reach the model's ears. In full_duplex the shield is
+                    # OFF: the XMOS AEC + the conservative turn preset carry echo
+                    # rejection, and talking over the reply is a real barge-in.
+                    self._gate_dropped += 1
+                    continue
                 try:
-                    await self.gemini.send_audio(frame)
+                    await self.brain.send_audio(frame)
                 except Exception as e:
                     _LOG.warning("thin: provider send failed (%s)", e)
                     await self._fail("connection")
@@ -355,7 +407,7 @@ class ThinSession:
 
     async def _read_events(self) -> None:
         try:
-            async for ev in self.gemini.events():
+            async for ev in self.brain.events():
                 await self._on_event(ev)
         except asyncio.CancelledError:
             raise
@@ -391,11 +443,11 @@ class ThinSession:
                 await self._fail("connection")
                 return
             quiet = time.monotonic() - self._last_activity
-            if self._active and not self._speaking and quiet > IDLE_FALLBACK_S:
+            if self._active and not self._speaking and quiet > self.idle_timeout_s:
                 _LOG.info("thin: client-side idle fallback (%.0fs quiet) — closing", quiet)
                 await self.stop(reason="idle-fallback")
                 return
-            if time.monotonic() - self._conv_started > MAX_CONVERSATION_S:
+            if time.monotonic() - self._conv_started > self.max_session_s:
                 _LOG.info("thin: conversation hit the max duration — closing politely")
                 await self.stop(reason="max_duration")
                 return
@@ -442,11 +494,6 @@ class ThinSession:
                 self._tool_tasks.pop(_id, None)
 
             task.add_done_callback(_untrack)
-        elif isinstance(ev, ToolCallCancellation):
-            for call_id in ev.ids:
-                pending = self._tool_tasks.pop(call_id, None)
-                if pending is not None and not pending.done():
-                    pending.cancel()
         elif isinstance(ev, UserSpeechStopped):
             self._speech_stop_t = time.monotonic()  # the clock the family actually feels
             self._cancel_barge_debounce()
@@ -455,10 +502,32 @@ class ThinSession:
             if self.hub is not None:
                 self.hub.transcript_delta(self.room, "in", ev.text)
             self._flush_transcript("in")  # OpenAI sends ONE completed utterance
+            await self._maybe_end_phrase(ev.text)
+        elif isinstance(ev, Usage):
+            if self.usage is not None:
+                model = getattr(self.brain, "model", "?") or "?"
+                self.usage.add(model, ev, room=self.room)
         elif isinstance(ev, OutputTranscript):
             self._buf_out.append(ev.text)
             if self.hub is not None:
                 self.hub.transcript_delta(self.room, "out", ev.text)
+
+    async def _maybe_end_phrase(self, text: str) -> None:
+        """Client-side closure fallback: the model owns goodbyes (end_conversation),
+        but when it forgets, a WHOLE utterance that is a closure phrase still ends the
+        conversation. Hard words silence the device NOW; polite phrases let the model's
+        goodbye finish first. Embedded politeness ('sluk lyset, tak') never matches."""
+        if not self._active:
+            return
+        phrase = normalized_utterance(text)
+        if not phrase:
+            return
+        if phrase in END_NOW_WORDS:
+            _LOG.info("thin: hard stop word %r — closing now", phrase)
+            await self.stop(reason="stop-word")
+        elif phrase in END_PHRASES:
+            _LOG.info("thin: end phrase %r — closing after the goodbye", phrase)
+            self._spawn(self._close_after_goodbye(), "thin-endphrase")
 
     def _flush_transcript(self, direction: str) -> None:
         buf = self._buf_in if direction == "in" else self._buf_out
@@ -521,9 +590,9 @@ class ThinSession:
         await self._silence_device()
         self._sync_playout()
         item = self.playout.current_item() or self._last_item
-        if item and hasattr(self.gemini, "truncate"):
+        if item and hasattr(self.brain, "truncate"):
             with contextlib.suppress(Exception):
-                await self.gemini.truncate(item, self.playout.heard_ms(item))
+                await self.brain.truncate(item, self.playout.heard_ms(item))
         self._buf_out.clear()  # the cancelled tail was never heard — don't persist it
         if self.hub is not None:
             self.hub.incr("barge_ins")
@@ -553,7 +622,7 @@ class ThinSession:
             # The model says the user is done. Let the goodbye finish playing, then close.
             async with self._tool_lock:
                 with contextlib.suppress(Exception):
-                    await self.gemini.send_tool_results(
+                    await self.brain.send_tool_results(
                         [{"id": tc.id, "name": tc.name, "response": {"ok": True}}],
                         create=False,  # the goodbye was already spoken — requesting
                         # another response here produced the double "Farvel." bug
@@ -571,7 +640,7 @@ class ThinSession:
             )  # tool calls visible in the feed (room card AND the Talk tab)
         async with self._tool_lock:
             with contextlib.suppress(Exception):
-                await self.gemini.send_tool_results(
+                await self.brain.send_tool_results(
                     [{"id": tc.id, "name": tc.name, "response": result}]
                 )
 
@@ -711,7 +780,7 @@ class ThinSession:
         path approximation; the B1 direct path replaces this with byte-exact acks)."""
         if self._playback_t0 is not None:
             elapsed = time.monotonic() - self._playback_t0
-            self.playout.set_played(int(elapsed * C.GEMINI_OUTPUT_RATE * C.SAMPLE_WIDTH))
+            self.playout.set_played(int(elapsed * C.OUTPUT_RATE * C.SAMPLE_WIDTH))
 
     async def _silence_device(self) -> None:
         if self.reply_bus is not None:
@@ -732,7 +801,7 @@ class ThinSession:
         if self.reply_bus is not None and self.reply_url:
             self.reply_bus.clear(self.room)
             self.reply_bus.start(self.room)
-            self.reply_bus.push(self.room, pcm or audio_mod.error_tone(C.GEMINI_OUTPUT_RATE))
+            self.reply_bus.push(self.room, pcm or audio_mod.error_tone(C.OUTPUT_RATE))
             self.reply_bus.end(self.room)
             with contextlib.suppress(Exception):
                 await self.voicepe.play_url(self.reply_url)

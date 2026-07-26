@@ -26,30 +26,26 @@ class RoomMap:
 
 @dataclass(frozen=True)
 class Config:
-    gemini_api_key: str
-    gemini_model: str
     podconnect_base_url: str
     podconnect_token: str
     voicepe_noise_psk: str
     rooms: tuple[RoomMap, ...]
     exposed: tuple[str, ...] = ()  # HA entity_ids / domains the assistant may control
     supervisor_token: str = ""
-    provider: str = "gemini"  # "gemini" | "openai" — the default voice brain
     system_prompt: str = ""  # who the assistant is + capabilities (empty -> built-in default)
-    gemini_voice: str = "Kore"
-    gemini_vad_start: str = "high"
-    gemini_vad_end: str = "high"
-    gemini_prefix_ms: int = 300
-    gemini_silence_ms: int = 500
     openai_api_key: str = ""
-    openai_model: str = "gpt-realtime-2"
+    openai_model: str = "gpt-realtime-2.1-mini"
     openai_voice: str = "marin"
-    openai_turn: str = "semantic_vad"
+    force_mini: bool = False  # cost guard: every session (rooms + Talk) runs the mini model
+    turn_preset: str = "conservative"  # conservative | responsive | custom (raw knobs below)
+    openai_turn: str = "semantic_vad"  # custom preset only
     openai_threshold: float = 0.5
     openai_prefix_ms: int = 300
     openai_silence_ms: int = 500
     openai_eagerness: str = "auto"
     openai_noise: str = "far_field"
+    idle_timeout_s: int = 25  # close the conversation after this much user silence
+    max_session_min: int = 15  # hard ceiling on one conversation (provider caps at 60)
     simulate: bool = False
     engine: str = "classic"  # "classic" | "thin" (Track B — the model owns the conversation)
     reply_streaming: bool = False  # stream the reply FLAC while it generates (experimental)
@@ -82,7 +78,6 @@ class Config:
 # Keys that must never appear in logs (see logging redaction).
 SECRET_KEYS: frozenset[str] = frozenset(
     {
-        "gemini_api_key",
         "openai_api_key",
         "podconnect_token",
         "voicepe_noise_psk",
@@ -121,30 +116,27 @@ def from_options(opts: dict) -> Config:
         if isinstance(r, dict) and r.get("voicepe_host") and r.get("room")
     )
     return Config(
-        gemini_api_key=opts.get("gemini_api_key", ""),
-        gemini_model=opts.get("gemini_model", ""),
         podconnect_base_url=opts.get("podconnect_base_url", ""),
         podconnect_token=opts.get("podconnect_token", ""),
         voicepe_noise_psk=opts.get("voicepe_noise_psk", ""),
         rooms=rooms,
         exposed=tuple(opts.get("exposed") or []),
         supervisor_token=opts.get("supervisor_token", ""),
-        provider=str(opts.get("provider", "gemini") or "gemini"),
         system_prompt=opts.get("system_prompt", ""),
-        gemini_voice=opts.get("gemini_voice", "") or "Kore",
-        gemini_vad_start=str(opts.get("gemini_vad_start", "high") or "high"),
-        gemini_vad_end=str(opts.get("gemini_vad_end", "high") or "high"),
-        gemini_prefix_ms=_int(opts, "gemini_prefix_ms", 300),
-        gemini_silence_ms=_int(opts, "gemini_silence_ms", 500),
         openai_api_key=opts.get("openai_api_key", ""),
-        openai_model=opts.get("openai_model", "gpt-realtime-2"),
+        openai_model=opts.get("openai_model", "gpt-realtime-2.1-mini"),
         openai_voice=opts.get("openai_voice", "") or "marin",
+        force_mini=bool(opts.get("force_mini", False)),
+        turn_preset=str(opts.get("turn_preset", "conservative") or "conservative"),
         openai_turn=str(opts.get("openai_turn", "semantic_vad") or "semantic_vad"),
         openai_threshold=_float(opts, "openai_threshold", 0.5),
         openai_prefix_ms=_int(opts, "openai_prefix_ms", 300),
         openai_silence_ms=_int(opts, "openai_silence_ms", 500),
         openai_eagerness=str(opts.get("openai_eagerness", "auto") or "auto"),
         openai_noise=str(opts.get("openai_noise", "far_field") or "far_field"),
+        # Cost control: both floored so a stray saved 0 can't strobe sessions open/shut.
+        idle_timeout_s=max(_int(opts, "idle_timeout_s", 25), 5),
+        max_session_min=min(max(_int(opts, "max_session_min", 15), 1), 55),
         simulate=bool(opts.get("simulate", False)),
         engine=("thin" if opts.get("engine") == "thin" else "classic"),
         # Thin engine ALWAYS streams the reply: waiting for full generation before the
@@ -227,7 +219,6 @@ def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
     opts = load_options(path)
     merged = dict(load_settings())
     # The add-on options provide only the secrets that stay in HA Configuration.
-    merged["gemini_api_key"] = opts.get("gemini_api_key", "")
     merged["openai_api_key"] = opts.get("openai_api_key", "")
     merged["supervisor_token"] = opts.get("supervisor_token", "")
     return from_options(merged)

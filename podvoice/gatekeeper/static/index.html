@@ -291,16 +291,12 @@
     <div class="section">
       <h2><span id="ctitle">Talk to the assistant</span> <span id="cstate" class="pill pill-down">offline</span></h2>
       <div class="crow" style="margin-bottom:10px">
-        <select id="cprovider" aria-label="Provider" style="flex:0 0 auto;width:120px">
-          <option value="gemini">Gemini</option>
-          <option value="openai">OpenAI</option>
-        </select>
         <select id="cmodel" aria-label="Model"></select>
         <select id="cvoice" aria-label="Voice" style="flex:0 0 auto;width:120px" title="Voice"></select>
       </div>
       <div id="clog" class="tx" style="min-height:120px;max-height:300px"></div>
       <div class="crow">
-        <input id="ctext" type="text" autocomplete="off" placeholder="Skriv til Gemini…" aria-label="Message to Gemini" />
+        <input id="ctext" type="text" autocomplete="off" placeholder="Skriv til assistenten…" aria-label="Message to the assistant" />
         <button id="csend">Send</button>
         <button id="cstop" class="ghost" aria-label="Stop speaking" title="Stop the spoken reply">⏹</button>
         <button id="cmic" class="ghost" aria-label="Hold to talk">🎤</button>
@@ -330,12 +326,15 @@
           <option value="classic">Classic — proven (state machine)</option>
           <option value="thin">Thin — the model owns the conversation (Track B)</option>
         </select>
-        <label for="s_provider">Provider</label>
-        <select id="s_provider"><option value="gemini">Gemini</option><option value="openai">OpenAI</option></select>
+        <label for="s_openai_model">Model</label>
+        <select id="s_openai_model">
+          <option value="gpt-realtime-2.1-mini">GPT Realtime 2.1 mini (standard — billigst)</option>
+          <option value="gpt-realtime-2.1">GPT Realtime 2.1 (dyrere, klogere)</option>
+        </select>
         <label for="s_openai_voice">Voice</label>
         <input id="s_openai_voice" list="dl_openai_voice" autocomplete="off">
       </div>
-      <p class="sub" style="margin:2px 0 0"><b>Thin</b> is the new model-owned mode — the AI handles turn-taking, interruptions and knowing when you're done. Recommended; needs the <b>OpenAI</b> provider.</p>
+      <p class="sub" style="margin:2px 0 0"><b>Thin</b> is the new model-owned mode — the AI handles turn-taking, interruptions and knowing when you're done. Recommended.</p>
       <p class="sub" style="margin:2px 0 0">Your API key lives in the Home Assistant add-on <b>Configuration</b> tab, not here.</p>
       <datalist id="dl_openai_voice"><option>marin</option><option>cedar</option><option>alloy</option><option>echo</option><option>shimmer</option></datalist>
 
@@ -351,6 +350,23 @@
       <p class="sub" style="margin:2px 0 8px">Each row links one Voice PE (its IP) to the PodConnect room it stands in — so PodVoice knows which speaker's music to quiet when you talk to it.</p>
       <div id="s_rooms"></div>
       <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
+
+      <div class="exsub" style="margin-top:16px">Turn taking &amp; cost</div>
+      <div class="setgrid">
+        <label for="s_turn_preset">Interruption style</label>
+        <select id="s_turn_preset">
+          <option value="conservative">Conservative — hard to interrupt (echo-safe)</option>
+          <option value="responsive">Responsive — easiest to talk over</option>
+          <option value="custom">Custom — use the raw knobs (Advanced)</option>
+        </select>
+        <label for="s_idle_timeout_s">Close after silence (s)</label>
+        <input id="s_idle_timeout_s" type="number" min="5" max="120">
+        <label for="s_max_session_min">Max conversation (min)</label>
+        <input id="s_max_session_min" type="number" min="1" max="55">
+        <label for="s_force_mini">Always use the mini model</label>
+        <input id="s_force_mini" type="checkbox">
+      </div>
+      <p class="sub" style="margin:2px 0 0">Conservative is tuned so the speaker's own voice can never cut the reply off. Cost shows up in Home Assistant as <code>sensor.podvoice_cost_today</code> / <code>_month</code>.</p>
 
       <div class="exsub" style="margin-top:16px">Music ducking</div>
       <p class="sub" style="margin:2px 0 10px">How much to quiet this room's music while you're talking to the assistant. <b>0 = mute it completely</b> (best when the speaker is in the same room as the Voice PE).</p>
@@ -436,9 +452,7 @@
 "use strict";
 var STATE_PILL = { IDLE: "pill-idle", LISTENING: "pill-listening", AI_SPEAKING: "pill-speaking", LOUNGE_WINDOW: "pill-lounge" };
 var STATE_LABEL = { IDLE: "idle", LISTENING: "listening", AI_SPEAKING: "speaking", LOUNGE_WINDOW: "follow-up" };
-var SVC_LABEL = { gemini: "Gemini", voicepe: "Voice PE", podconnect: "PodConnect" };
-// The "gemini" service dot reflects whichever provider is active — label it accordingly.
-var PROVIDER_PILL = { gemini: "Gemini", openai: "ChatGPT" };
+var SVC_LABEL = { openai: "ChatGPT", voicepe: "Voice PE", podconnect: "PodConnect" };
 var METRIC_LABEL = { sessions: "Sessions", barge_ins: "Barge-ins", false_barges: "False barges (filtered)" };
 
 var rooms = {};
@@ -465,12 +479,11 @@ function renderSub(data) {
 
 function renderServices(services) {
   var wrap = document.getElementById("svc"); wrap.innerHTML = "";
-  ["gemini", "voicepe", "podconnect"].forEach(function (name) {
+  ["openai", "voicepe", "podconnect"].forEach(function (name) {
     var st = safe(services, name, "down");
     var cls = st === "up" ? "pill-up" : st === "degraded" ? "pill-degraded" : "pill-down";
     var p = el("span", "pill " + cls);
-    var label = name === "gemini" ? (PROVIDER_PILL[window.__activeProvider] || "Gemini") : SVC_LABEL[name];
-    p.appendChild(document.createTextNode(label));
+    p.appendChild(document.createTextNode(SVC_LABEL[name]));
     wrap.appendChild(p);
   });
 }
@@ -643,7 +656,7 @@ setInterval(poll, 3000);
 
 <script>
 "use strict";
-// ---- In-panel "talk to Gemini" console ----
+// ---- In-panel talk console ----
 (function () {
   var clog = document.getElementById("clog");
   var cstate = document.getElementById("cstate");
@@ -653,18 +666,9 @@ setInterval(poll, 3000);
   var micHint = document.getElementById("cmichint");
 
   var modelSel = document.getElementById("cmodel");
-  var providerSel = document.getElementById("cprovider");
   var voiceSel = document.getElementById("cvoice");
-  var ws = null, wsReady = false, currentModel = null, currentProvider = null, currentVoice = null, manualClose = false;
-  var PROVIDER_LABEL = { gemini: "Gemini", openai: "ChatGPT" };
-  function providerName() { return PROVIDER_LABEL[currentProvider] || "assistenten"; }
-  function applyProviderLabels() {
-    var nm = providerName();
-    window.__activeProvider = currentProvider;  // so the status pill labels by provider too
-    var t = document.getElementById("ctitle"); if (t) t.textContent = "Talk to " + nm;
-    var c = document.getElementById("ctext");
-    if (c) { c.placeholder = "Skriv til " + nm + "…"; c.setAttribute("aria-label", "Message to " + nm); }
-  }
+  var ws = null, wsReady = false, currentModel = null, currentVoice = null, manualClose = false;
+  function providerName() { return "assistenten"; }
   var playCtx = null, outRate = 24000, nextStart = 0, halted = false;
   var capCtx = null, capStream = null, capNode = null, micOn = false;
   var stopBtn = document.getElementById("cstop");
@@ -751,11 +755,9 @@ setInterval(poll, 3000);
   }
   if (stopBtn) stopBtn.onclick = stopSpeaking;
 
-  async function loadModels(provider) {
+  async function loadModels() {
     try {
-      var url = "api/models" + (provider ? "?provider=" + encodeURIComponent(provider) : "");
-      var data = await (await fetch(url, { cache: "no-store" })).json();
-      if (data.provider) { currentProvider = data.provider; if (providerSel) providerSel.value = currentProvider; applyProviderLabels(); }
+      var data = await (await fetch("api/models", { cache: "no-store" })).json();
       // Voice-only: the realtime console needs a voice-capable model.
       var models = (data.models || []).filter(function (m) { return m.live; });
       modelSel.innerHTML = "";
@@ -779,11 +781,10 @@ setInterval(poll, 3000);
         if (currentVoice) voiceSel.value = currentVoice;
       }
     } catch (e) {
-      // Surface it — a user-initiated provider switch must not fail silently.
       logLine("out", "system", "Couldn't load the model list — using the server default.");
     }
   }
-  // Talk picker is SESSION-LOCAL: changing provider/model/voice here affects ONLY this
+  // Talk picker is SESSION-LOCAL: changing model/voice here affects ONLY this
   // console session — it does NOT write back to the global settings. The single source
   // of truth lives in the Settings tab. This kills the footgun where a casual Talk-tab
   // click silently changed the default the Voice PE rooms use after the next restart.
@@ -794,9 +795,6 @@ setInterval(poll, 3000);
   }
   modelSel.onchange = function () { currentModel = modelSel.value; reconnect(); };
   if (voiceSel) voiceSel.onchange = function () { currentVoice = voiceSel.value; reconnect(); };
-  if (providerSel) providerSel.onchange = function () {
-    loadModels(providerSel.value).then(reconnect);
-  };
 
   // ---- Reply playback: the SAME reply-bus FLAC stream the puck fetches, played
   // through an <audio> element (which browser echo-cancellation actually covers,
@@ -833,7 +831,6 @@ setInterval(poll, 3000);
   function connect() {
     var url;
     try { url = new URL("api/talk", window.location.href); } catch (e) { return; }
-    if (currentProvider) url.searchParams.set("provider", currentProvider);
     if (currentModel) url.searchParams.set("model", currentModel);
     if (currentVoice) url.searchParams.set("voice", currentVoice);
     url.protocol = (url.protocol === "https:") ? "wss:" : "ws:";
@@ -936,10 +933,11 @@ setInterval(poll, 3000);
 "use strict";
 // ---- Settings page (saved to the add-on's /data; HA Configuration holds only keys) ----
 (function () {
-  var FIELDS = ["provider", "engine", "openai_voice", "voicepe_noise_psk",
+  var FIELDS = ["engine", "openai_model", "openai_voice", "voicepe_noise_psk",
+    "turn_preset", "idle_timeout_s", "max_session_min", "force_mini",
     "duck_level", "system_prompt", "simulate", "panel_lan_open",
     "podconnect_base_url", "podconnect_token"];
-  var NUM = { duck_level: 1 };
+  var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1 };
   function f(id) { return document.getElementById("s_" + id); }
   function setVal(id, v) {
     var e = f(id); if (!e) return;
@@ -1118,7 +1116,7 @@ setInterval(poll, 3000);
       applyExposed(s.exposed || []);
       roomsWrap.innerHTML = "";
       (s.rooms || []).forEach(function (rm) { addRoom(rm.voicepe_host, rm.room); });
-      settingsLoaded = ("provider" in s);
+      settingsLoaded = ("engine" in s);
     } catch (e) { settingsLoaded = false; }
     if (settingsLoaded) { setSaveEnabled(true); }
     else { setSaveStatus("⚠️ Couldn't load the saved settings — reload the page before changing anything."); }

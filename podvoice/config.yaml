@@ -2,9 +2,9 @@
 # Defaults below are the canonical operational constants from PLAN.md §3
 # (single source of truth, mirrored in gatekeeper/constants.py).
 name: PodVoice
-version: "0.90.0"
+version: "0.91.0"
 slug: podvoice
-description: Gemini Live voice assistant bridge for custom-firmware Voice PE
+description: OpenAI Realtime voice assistant bridge for custom-firmware Voice PE
 arch:
   - aarch64
 startup: application
@@ -17,12 +17,10 @@ ingress: true
 ingress_port: 8098
 panel_icon: mdi:microphone-message
 panel_title: PodVoice
-# Configuration holds ONLY the API keys. Everything else (provider, models,
-# PodConnect URL/token, Voice-PE PSK, rooms, tuning, simulate) is edited in the
-# panel's Settings page and stored in the add-on's /data (see settings.py).
+# Configuration holds ONLY the API key. Everything else (model, PodConnect
+# URL/token, Voice-PE PSK, rooms, tuning, simulate) is edited in the panel's
+# Settings page and stored in the add-on's /data (see settings.py).
 options:
-  gemini_api_key: ""
   openai_api_key: ""
 schema:
-  gemini_api_key: "password?"
   openai_api_key: "password?"

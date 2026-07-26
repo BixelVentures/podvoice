@@ -1,4 +1,4 @@
-"""Per-provider tuning knobs flow into the session configs (Gemini VAD / OpenAI)."""
+"""Provider tuning knobs flow into the OpenAI Realtime session config."""
 
 from __future__ import annotations
 
@@ -6,8 +6,6 @@ import json
 
 import aiohttp
 
-from gatekeeper.config import from_options
-from gatekeeper.gemini import build_config
 from gatekeeper.openai_realtime import OpenAIRealtimeSession
 from gatekeeper.settings import load_settings, save_settings
 from gatekeeper.voice import Interrupted, TurnComplete
@@ -99,16 +97,10 @@ async def test_openai_sends_create_immediately_when_idle():
     assert s._ws.sent[-1] == {"type": "response.create"} and s._pending_create is False
 
 
-def test_build_config_includes_gemini_vad():
-    cfg = from_options({"gemini_vad_start": "low", "gemini_silence_ms": 700})
-    aad = build_config(cfg)["realtime_input_config"]["automatic_activity_detection"]
-    assert aad["start_of_speech_sensitivity"] == "low"
-    assert aad["end_of_speech_sensitivity"] == "high"  # default
-    assert aad["silence_duration_ms"] == 700
-
-
 def test_openai_session_semantic_with_noise():
-    s = OpenAIRealtimeSession(api_key="k", turn="semantic_vad", eagerness="low", noise="far_field")
+    s = OpenAIRealtimeSession(
+        api_key="k", preset="custom", turn="semantic_vad", eagerness="low", noise="far_field"
+    )
     inp = s._session_update()["session"]["audio"]["input"]
     assert inp["turn_detection"]["type"] == "semantic_vad"
     assert inp["turn_detection"]["eagerness"] == "low"
@@ -116,7 +108,9 @@ def test_openai_session_semantic_with_noise():
 
 
 def test_openai_session_server_vad_threshold():
-    s = OpenAIRealtimeSession(api_key="k", turn="server_vad", threshold=0.45, silence_ms=600)
+    s = OpenAIRealtimeSession(
+        api_key="k", preset="custom", turn="server_vad", threshold=0.45, silence_ms=600
+    )
     td = s._session_update()["session"]["audio"]["input"]["turn_detection"]
     assert td["type"] == "server_vad"
     assert td["threshold"] == 0.45
@@ -124,25 +118,58 @@ def test_openai_session_server_vad_threshold():
 
 
 def test_openai_session_turn_none_and_noise_off():
-    s = OpenAIRealtimeSession(api_key="k", turn="none", noise="off")
+    s = OpenAIRealtimeSession(api_key="k", preset="custom", turn="none", noise="off")
     inp = s._session_update()["session"]["audio"]["input"]
     assert inp["turn_detection"] is None
     assert "noise_reduction" not in inp
 
 
 def test_no_special_web_search_tooling():
-    # Web search is plain HA access (conversation.process) — no provider-native search tool.
-    assert "tools" not in build_config(from_options({}))
+    # Web search is plain HA access — no provider-native search tool.
     s = OpenAIRealtimeSession(api_key="k")
     assert "tools" not in s._session_update()["session"]
 
 
 def test_settings_roundtrip_new_keys(tmp_path):
     p = tmp_path / "s.json"
-    save_settings(
-        {"openai_turn": "server_vad", "gemini_vad_end": "low", "openai_threshold": 0.3}, p
-    )
+    save_settings({"openai_turn": "server_vad", "openai_threshold": 0.3}, p)
     s = load_settings(p)
     assert s["openai_turn"] == "server_vad"
-    assert s["gemini_vad_end"] == "low"
     assert s["openai_threshold"] == 0.3
+
+
+def test_preset_conservative_is_hard_to_interrupt():
+    s = OpenAIRealtimeSession(api_key="k", idle_timeout_s=25)
+    td = s._session_update()["session"]["audio"]["input"]["turn_detection"]
+    assert td["type"] == "server_vad"
+    assert td["threshold"] == 0.7 and td["silence_duration_ms"] == 700
+    assert td["idle_timeout_ms"] == 25000  # server closes idle conversations for us
+
+
+def test_preset_responsive_is_semantic():
+    s = OpenAIRealtimeSession(api_key="k", preset="responsive")
+    td = s._session_update()["session"]["audio"]["input"]["turn_detection"]
+    assert td["type"] == "semantic_vad" and td["interrupt_response"] is True
+
+
+def test_usage_event_from_response_done():
+    from gatekeeper.voice import Usage
+
+    ev = {
+        "type": "response.done",
+        "response": {
+            "usage": {
+                "input_token_details": {
+                    "text_tokens": 10,
+                    "audio_tokens": 200,
+                    "cached_tokens": 120,
+                    "cached_tokens_details": {"text_tokens": 5, "audio_tokens": 115},
+                },
+                "output_token_details": {"text_tokens": 20, "audio_tokens": 400},
+            }
+        },
+    }
+    u = OpenAIRealtimeSession._usage_of(ev)
+    assert isinstance(u, Usage)
+    assert u.input_audio_tokens == 200 and u.cached_audio_tokens == 115
+    assert u.output_audio_tokens == 400 and u.output_text_tokens == 20

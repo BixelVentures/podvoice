@@ -1,12 +1,9 @@
-"""Provider-neutral voice-session interface shared by all brains.
+"""Provider-neutral voice-session interface — the one seam a new brain plugs into.
 
-Both the Gemini Live backend (gemini.py) and the OpenAI Realtime backend
-(openai_realtime.py) emit these same typed events and satisfy ``VoiceSession``,
-so the orchestrator, console, and panel work unchanged across providers.
-
-These dataclasses used to live in gemini.py; they're here now so a second
-provider doesn't have to import the first. gemini.py re-exports them for
-backwards compatibility.
+The OpenAI Realtime backend (openai_realtime.py) emits these typed events and
+satisfies ``VoiceSession``; the orchestrator, thin engine, console and panel
+consume ONLY this interface. When GPT-Live-1's API opens, its provider
+implements the same contract and nothing upstream changes.
 """
 
 from __future__ import annotations
@@ -81,19 +78,19 @@ class Idle:
 
 
 @dataclass
-class ToolCallCancellation:
-    """The user barged in while tool calls were in flight (Gemini Live): those calls
-    "should not have been executed" — cancel the pending dispatches so a stale
-    result is never submitted after the interrupt."""
+class Usage:
+    """Token consumption for one completed response (``response.done`` usage block).
 
-    ids: list[str]
+    Feeds the cost meter: audio tokens dominate spend on a voice device, so they
+    are carried separately from text. ``cached_tokens`` are billed at the cached
+    rate (a large discount) and are subtracted from ``input_*`` by the meter."""
 
-
-@dataclass
-class GoAway:
-    """Server's pre-disconnect warning; reconnect make-before-break."""
-
-    time_left: float | None = None
+    input_text_tokens: int = 0
+    input_audio_tokens: int = 0
+    cached_text_tokens: int = 0
+    cached_audio_tokens: int = 0
+    output_text_tokens: int = 0
+    output_audio_tokens: int = 0
 
 
 # Union of everything ``events()`` can yield. Runtime assignment (not an
@@ -102,14 +99,13 @@ class GoAway:
 VoiceEvent = Union[  # noqa: UP007
     AudioChunk,
     ToolCall,
-    ToolCallCancellation,
     InputTranscript,
     OutputTranscript,
     TurnComplete,
     Interrupted,
     UserSpeechStopped,
     Idle,
-    GoAway,
+    Usage,
 ]
 
 
