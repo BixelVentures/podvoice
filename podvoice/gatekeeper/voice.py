@@ -28,7 +28,7 @@ class AudioChunk:
 
 @dataclass
 class ToolCall:
-    """A function call the model wants dispatched (to ha_tools.py)."""
+    """A function call the model wants dispatched (to the tool router)."""
 
     id: str
     name: str

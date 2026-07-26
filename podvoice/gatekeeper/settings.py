@@ -47,6 +47,8 @@ SETTINGS_VERSION = 3
 # never matches and is always kept.
 LEGACY_PROMPT_HASHES = frozenset(
     {
+        # pre-MCP default (referenced list_home/list_services/home_call) — retired 0.91
+        "38e4311b176b5f3696516e36c5d3c38ee4b23294f84753860c01e7a03991619b",
         "0f96cf58ee764eb07fb0d98618ce592e17fea22d92bc1b44fff8d3b79f964ae4",
         "93e0a784292b139f0af3e2ab514295c229f32ca08a0360f6719a84a7a8e656c5",
         "fbdfefcea1f6da605e9db71121a3b3eb129f88f490263831ac74fb05ad0bf238",
@@ -124,8 +126,12 @@ DEFAULTS: dict = {
     "podconnect_base_url": "http://homeassistant.local:8099",
     "podconnect_token": "",
     "voicepe_noise_psk": "",
+    # HA MCP server (home control). Empty url = the Supervisor proxy default
+    # (http://supervisor/core/api/mcp with the add-on's own token). Which entities
+    # the assistant may touch is governed by HA: Settings -> Voice assistants.
+    "ha_mcp_url": "",
+    "ha_mcp_token": "",
     "rooms": [],  # list of {"voicepe_host": str, "room": str}
-    "exposed": [],  # HA entity_ids / domains the assistant may control (allowlist)
     "duck_level": C.DUCK_LEVEL,
     "lounge_level": C.LOUNGE_LEVEL,
     "lounge_window_s": C.LOUNGE_WINDOW_S,
@@ -174,7 +180,7 @@ def load_settings(path: pathlib.Path | None = None) -> dict:
 
 # Secret-valued settings: masked on read (panel GET), and a masked value coming BACK
 # on save is ignored so a round-tripped form can't overwrite the real secret.
-SECRET_SETTINGS = frozenset({"podconnect_token", "voicepe_noise_psk"})
+SECRET_SETTINGS = frozenset({"podconnect_token", "voicepe_noise_psk", "ha_mcp_token"})
 SECRET_MASK = "********"
 
 

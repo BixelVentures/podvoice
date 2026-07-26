@@ -30,8 +30,12 @@ class Config:
     podconnect_token: str
     voicepe_noise_psk: str
     rooms: tuple[RoomMap, ...]
-    exposed: tuple[str, ...] = ()  # HA entity_ids / domains the assistant may control
     supervisor_token: str = ""
+    # HA's MCP server (LAN). Default rides the Supervisor proxy with the token the
+    # add-on already holds; override both for a non-supervised setup (direct
+    # http://<ha>:8123/api/mcp + a long-lived access token).
+    ha_mcp_url: str = ""
+    ha_mcp_token: str = ""
     system_prompt: str = ""  # who the assistant is + capabilities (empty -> built-in default)
     openai_api_key: str = ""
     openai_model: str = "gpt-realtime-2.1-mini"
@@ -82,6 +86,7 @@ SECRET_KEYS: frozenset[str] = frozenset(
         "podconnect_token",
         "voicepe_noise_psk",
         "supervisor_token",
+        "ha_mcp_token",
     }
 )
 
@@ -120,8 +125,9 @@ def from_options(opts: dict) -> Config:
         podconnect_token=opts.get("podconnect_token", ""),
         voicepe_noise_psk=opts.get("voicepe_noise_psk", ""),
         rooms=rooms,
-        exposed=tuple(opts.get("exposed") or []),
         supervisor_token=opts.get("supervisor_token", ""),
+        ha_mcp_url=str(opts.get("ha_mcp_url", "") or ""),
+        ha_mcp_token=str(opts.get("ha_mcp_token", "") or ""),
         system_prompt=opts.get("system_prompt", ""),
         openai_api_key=opts.get("openai_api_key", ""),
         openai_model=opts.get("openai_model", "gpt-realtime-2.1-mini"),

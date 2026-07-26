@@ -39,7 +39,12 @@ class StatusHub:
         self.simulate = simulate
         self._history = history  # optional History; room transcripts are persisted to it
         self._rooms: dict[str, dict] = {}
-        self._services: dict[str, str] = {"openai": "down", "voicepe": "down", "podconnect": "down"}
+        self._services: dict[str, str] = {
+            "openai": "down",
+            "voicepe": "down",
+            "podconnect": "down",
+            "mcp": "down",
+        }
         self._metrics: dict[str, int] = dict.fromkeys(_METRIC_KEYS, 0)
         self._subs: set[asyncio.Queue] = set()
         # Recent human-readable activity, so the panel can show a LIVE feed of what each

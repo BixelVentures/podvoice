@@ -377,17 +377,8 @@
       <section class="expose">
         <div class="exhead">
           <h2 style="margin:0">Home control</h2>
-          <span id="s_exposed_count" class="excount">nothing exposed</span>
         </div>
-        <p class="sub" style="margin:2px 0 12px">What the assistant is allowed to control. Allow whole groups, or pick individual entities (grouped by room). 🎵 <b>media_player</b> = music on the PodConnect speaker. Nothing ticked = it can't touch anything.</p>
-        <div class="exsub">Allow whole groups</div>
-        <div id="s_exposed_domains" class="chips" role="group" aria-label="Allow whole domains"></div>
-        <div class="exsub" style="margin-top:12px">Or pick individual entities</div>
-        <input id="s_exposed_search" class="exfield" type="search" autocomplete="off" placeholder="Search by name, entity id or room…">
-        <div id="s_exposed_list" class="entlist" role="group" aria-label="Entities"></div>
-        <details class="adv" style="margin-top:10px"><summary>Add an id manually</summary>
-          <input id="s_exposed_extra" class="exfield" type="text" autocomplete="off" placeholder="entity_ids not in the list, comma-separated" style="margin-top:8px">
-        </details>
+        <p class="sub" style="margin:2px 0 0">What the assistant may control now lives in <b>Home Assistant</b>: Settings → Voice assistants → <i>Expose</i>. PodVoice reaches the home through Home Assistant's own MCP server, so the exposed-entities list there is the single source of truth. (Enable the “Model Context Protocol Server” integration in HA once.)</p>
       </section>
 
       <details class="adv" style="margin-top:18px">
@@ -405,8 +396,13 @@
           <label for="s_podconnect_token">PodConnect token</label>
           <input id="s_podconnect_token" type="password" autocomplete="off" placeholder="(blank if PodConnect has none)">
           <span></span><span id="s_podconnect_token_hint" class="sub" style="display:none;font-size:.76rem">Saved — type to replace.</span>
+          <label for="s_ha_mcp_url">HA MCP URL</label>
+          <input id="s_ha_mcp_url" type="text" autocomplete="off" placeholder="(blank = via Supervisor: /core/api/mcp)">
+          <label for="s_ha_mcp_token">HA MCP token</label>
+          <input id="s_ha_mcp_token" type="password" autocomplete="off" placeholder="(blank = the add-on's own token)">
+          <span></span><span id="s_ha_mcp_token_hint" class="sub" style="display:none;font-size:.76rem">Saved — type to replace.</span>
         </div>
-        <p class="sub" style="margin:2px 0 0">PodConnect is what dims the music. You normally never change these.</p>
+        <p class="sub" style="margin:2px 0 0">PodConnect is what dims the music. The MCP fields are only for setups where the Supervisor proxy can't reach HA's MCP server — then point the URL at <code>http://&lt;ha&gt;:8123/api/mcp</code> with a long-lived access token. You normally never change these.</p>
 
         <details class="adv" style="margin-top:12px">
           <summary>Security</summary>
@@ -452,7 +448,7 @@
 "use strict";
 var STATE_PILL = { IDLE: "pill-idle", LISTENING: "pill-listening", AI_SPEAKING: "pill-speaking", LOUNGE_WINDOW: "pill-lounge" };
 var STATE_LABEL = { IDLE: "idle", LISTENING: "listening", AI_SPEAKING: "speaking", LOUNGE_WINDOW: "follow-up" };
-var SVC_LABEL = { openai: "ChatGPT", voicepe: "Voice PE", podconnect: "PodConnect" };
+var SVC_LABEL = { openai: "ChatGPT", voicepe: "Voice PE", podconnect: "PodConnect", mcp: "Home control" };
 var METRIC_LABEL = { sessions: "Sessions", barge_ins: "Barge-ins", false_barges: "False barges (filtered)" };
 
 var rooms = {};
@@ -479,7 +475,7 @@ function renderSub(data) {
 
 function renderServices(services) {
   var wrap = document.getElementById("svc"); wrap.innerHTML = "";
-  ["openai", "voicepe", "podconnect"].forEach(function (name) {
+  ["openai", "voicepe", "podconnect", "mcp"].forEach(function (name) {
     var st = safe(services, name, "down");
     var cls = st === "up" ? "pill-up" : st === "degraded" ? "pill-degraded" : "pill-down";
     var p = el("span", "pill " + cls);
@@ -936,7 +932,7 @@ setInterval(poll, 3000);
   var FIELDS = ["engine", "openai_model", "openai_voice", "voicepe_noise_psk",
     "turn_preset", "idle_timeout_s", "max_session_min", "force_mini",
     "duck_level", "system_prompt", "simulate", "panel_lan_open",
-    "podconnect_base_url", "podconnect_token"];
+    "podconnect_base_url", "podconnect_token", "ha_mcp_url", "ha_mcp_token"];
   var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1 };
   function f(id) { return document.getElementById("s_" + id); }
   function setVal(id, v) {
@@ -951,8 +947,7 @@ setInterval(poll, 3000);
   }
 
   var promptDefault = "";
-  // Live data — entities/areas from HA, rooms from PodConnect (no hardcoded ids).
-  var allEntities = [], allDomains = [], pcRooms = [], pickedDomains = {}, pickedEnts = {}, entErr = "";
+  var pcRooms = [];  // rooms from PodConnect (no hardcoded ids)
 
   var roomsWrap = document.getElementById("s_rooms");
   function roomField(room) {
@@ -990,101 +985,6 @@ setInterval(poll, 3000);
     return out;
   }
 
-  // Home control: a LIVE picker over the home's real entities/areas (from HA) — no
-  // hardcoded ids. Tick a domain chip to allow the whole domain, or tick single entities.
-  var domainsWrap = document.getElementById("s_exposed_domains");
-  var listWrap = document.getElementById("s_exposed_list");
-  var searchEl = document.getElementById("s_exposed_search");
-  var extraEl = document.getElementById("s_exposed_extra");
-
-  function renderDomainChips() {
-    var doms = {}; allDomains.forEach(function (d) { doms[d] = 1; });
-    Object.keys(pickedDomains).forEach(function (d) { doms[d] = 1; });
-    domainsWrap.innerHTML = "";
-    Object.keys(doms).sort().forEach(function (d) {
-      var lab = document.createElement("label"); lab.className = "chip" + (pickedDomains[d] ? " on" : "");
-      var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!pickedDomains[d];
-      cb.onchange = function () {
-        if (cb.checked) pickedDomains[d] = true; else delete pickedDomains[d];
-        lab.classList.toggle("on", cb.checked); renderEntityList(); updateExposedCount();
-      };
-      var t = document.createElement("span"); t.textContent = d === "media_player" ? "media_player 🎵" : d;
-      lab.appendChild(cb); lab.appendChild(t); domainsWrap.appendChild(lab);
-    });
-  }
-  function renderEntityList() {
-    var q = (searchEl.value || "").trim().toLowerCase();
-    listWrap.innerHTML = ""; var shown = 0, lastGrp = null;
-    allEntities.forEach(function (e) {
-      if (q && (e.name + " " + e.entity_id + " " + (e.area || "")).toLowerCase().indexOf(q) === -1) return;
-      shown++;
-      var grp = e.area || "No area";
-      if (grp !== lastGrp) { lastGrp = grp; var g = document.createElement("div"); g.className = "grp"; g.textContent = grp; listWrap.appendChild(g); }
-      var covered = !!pickedDomains[e.domain];
-      var row = document.createElement("label"); row.className = "entrow" + (covered ? " cov" : "");
-      var cb = document.createElement("input"); cb.type = "checkbox";
-      cb.checked = covered || !!pickedEnts[e.entity_id]; cb.disabled = covered;
-      cb.title = covered ? ("already allowed via the '" + e.domain + "' group") : "";
-      cb.onchange = function () {
-        if (cb.checked) pickedEnts[e.entity_id] = true; else delete pickedEnts[e.entity_id];
-        updateExposedCount();
-      };
-      var nm = document.createElement("span"); nm.className = "nm";
-      var strong = document.createElement("b"); strong.textContent = e.name;
-      var eid = document.createElement("span"); eid.className = "eid"; eid.textContent = e.entity_id;
-      nm.appendChild(strong); nm.appendChild(eid);
-      row.appendChild(cb); row.appendChild(nm); listWrap.appendChild(row);
-    });
-    if (!shown) {
-      var em = document.createElement("div"); em.className = "entempty";
-      if (allEntities.length) {
-        em.textContent = "No entity matches your search.";
-      } else {
-        em.textContent = "No entities loaded — the add-on can't read Home Assistant. "
-          + "You can still allow whole groups above, or add an id manually below.";
-        if (entErr) {
-          var er = document.createElement("div");
-          er.style.cssText = "margin-top:8px;color:var(--danger,#c00);font-size:.78rem;word-break:break-word";
-          er.textContent = "HA error: " + entErr;
-          em.appendChild(er);
-        }
-      }
-      listWrap.appendChild(em);
-    }
-  }
-  function updateExposedCount() {
-    var el = document.getElementById("s_exposed_count"); if (!el) return;
-    var nd = Object.keys(pickedDomains).length, ne = Object.keys(pickedEnts).length;
-    var nx = extraEl.value.split(/[,\n]/).filter(function (x) { return x.trim(); }).length;
-    if (!nd && !ne && !nx) { el.textContent = "nothing exposed"; el.className = "excount"; return; }
-    var p = [];
-    if (nd) p.push(nd + (nd === 1 ? " group" : " groups"));
-    if (ne + nx) p.push((ne + nx) + (ne + nx === 1 ? " entity" : " entities"));
-    el.textContent = p.join(" · ") + " allowed"; el.className = "excount on";
-  }
-  searchEl.oninput = renderEntityList;
-  extraEl.oninput = updateExposedCount;
-  function applyExposed(saved) {
-    pickedDomains = {}; pickedEnts = {};
-    var known = {}; allEntities.forEach(function (e) { known[e.entity_id] = 1; });
-    var extras = [];
-    (saved || []).forEach(function (t) {
-      t = (t || "").trim(); if (!t) return;
-      if (t.indexOf(".") === -1) pickedDomains[t] = true;       // whole domain
-      else if (known[t]) pickedEnts[t] = true;                  // a real entity
-      else extras.push(t);                                      // entity not in list -> manual field
-    });
-    extraEl.value = extras.join(", ");
-    renderDomainChips(); renderEntityList(); updateExposedCount();
-  }
-  function collectExposed() {
-    var out = [];
-    Object.keys(pickedDomains).forEach(function (d) { out.push(d); });
-    Object.keys(pickedEnts).forEach(function (e) { out.push(e); });
-    extraEl.value.split(/[,\n]/).forEach(function (x) { x = x.trim(); if (x) out.push(x); });
-    return out.filter(function (v, i) { return out.indexOf(v) === i; });  // dedup
-  }
-
   // The panel must never save "blank defaults" over real settings just because the
   // initial GET failed — keep the save buttons disabled until settings really loaded.
   var settingsLoaded = false;
@@ -1096,7 +996,7 @@ setInterval(poll, 3000);
   // GET /api/settings returns "********" for saved secrets; round-tripping that mask
   // keeps the stored secret. Show a hint so the stars don't look like a glitch.
   function updateSecretHints(s) {
-    ["voicepe_noise_psk", "podconnect_token"].forEach(function (id) {
+    ["voicepe_noise_psk", "podconnect_token", "ha_mcp_token"].forEach(function (id) {
       var h = document.getElementById("s_" + id + "_hint");
       if (h) h.style.display = (s && s[id] === "********") ? "" : "none";
     });
@@ -1105,15 +1005,12 @@ setInterval(poll, 3000);
     setSaveEnabled(false);
     try {
       var nofail = function (u) { return fetch(u, { cache: "no-store" }).then(function (r) { return r.json(); }).catch(function () { return {}; }); };
-      var jobs = await Promise.all([nofail("api/settings"), nofail("api/ha/entities"), nofail("api/podconnect/rooms")]);
+      var jobs = await Promise.all([nofail("api/settings"), nofail("api/podconnect/rooms")]);
       var s = jobs[0];
-      allEntities = jobs[1].entities || []; allDomains = jobs[1].domains || [];
-      entErr = jobs[1].error || (jobs[1].ok === false ? "Home Assistant API call failed" : "");
-      pcRooms = jobs[2].rooms || [];
+      pcRooms = jobs[1].rooms || [];
       promptDefault = s.system_prompt_default || promptDefault;
       FIELDS.forEach(function (id) { if (id in s) setVal(id, s[id]); });
       updateSecretHints(s);
-      applyExposed(s.exposed || []);
       roomsWrap.innerHTML = "";
       (s.rooms || []).forEach(function (rm) { addRoom(rm.voicepe_host, rm.room); });
       settingsLoaded = ("engine" in s);
@@ -1125,7 +1022,6 @@ setInterval(poll, 3000);
     var body = {};
     FIELDS.forEach(function (id) { var v = getVal(id); if (v !== undefined) body[id] = v; });
     body.rooms = collectRooms();
-    body.exposed = collectExposed();
     return body;
   }
 

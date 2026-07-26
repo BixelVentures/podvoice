@@ -433,3 +433,38 @@ async def test_mic_level_logged_and_silence_flagged(caplog):
         assert lines and "SILENT" in lines[0]
     finally:
         await session.aclose()
+
+
+async def test_end_phrase_fallback_closes(monkeypatch):
+    """Ported lifecycle behavior (3.3): a WHOLE utterance that is a closure phrase
+    ends the conversation even when the model never calls end_conversation. Embedded
+    politeness ('sluk lyset, tak') must NOT close."""
+    from gatekeeper.voice import InputTranscript
+
+    gemini = LiveFake()
+    session, attention, _voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(InputTranscript("Sluk lyset, tak"))  # embedded politeness — stays open
+        await asyncio.sleep(0.1)
+        assert session._active is True
+        gemini.emit(InputTranscript("Tak, det var alt!"))  # pure closure — closes
+        await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=9.0)
+        await _wait_until(lambda: len(attention.release_calls) >= 1)
+    finally:
+        await session.aclose()
+
+
+async def test_hard_stop_word_closes_now():
+    from gatekeeper.voice import InputTranscript
+
+    gemini = LiveFake()
+    session, _attention, _voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(InputTranscript("Stop."))
+        await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=2.0)
+    finally:
+        await session.aclose()

@@ -54,7 +54,6 @@ def test_stale_tuning_reset_on_version_bump(tmp_path):
                 "openai_model": "gpt-realtime-2",  # pre-2.1 model must not survive
                 # identity settings that MUST survive the reset
                 "engine": "thin",
-                "exposed": ["light.stue"],
                 "rooms": [{"voicepe_host": "1.2.3.4", "room": "r0"}],
             }
         )
@@ -64,7 +63,8 @@ def test_stale_tuning_reset_on_version_bump(tmp_path):
     assert d["lounge_window_s"] == S.DEFAULTS["lounge_window_s"]  # reset
     assert d["openai_noise"] == "far_field"  # reset
     assert d["openai_model"] == "gpt-realtime-2.1-mini"  # migrated to the new default
-    assert d["engine"] == "thin" and d["exposed"] == ["light.stue"]  # kept
+    assert d["engine"] == "thin"  # kept
+    assert d["rooms"] == [{"voicepe_host": "1.2.3.4", "room": "r0"}]  # kept
     # re-stamped: a value saved AFTER the migration sticks (no repeated resets)
     S.save_settings({"watchdog_ms": 5000}, p)
     assert S.load_settings(p)["watchdog_ms"] == 5000

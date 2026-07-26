@@ -13,7 +13,7 @@ async def test_snapshot_shape_and_state_levels():
     hub.set_state("kitchen", "LOUNGE_WINDOW")
     snap = hub.snapshot()
     assert snap["simulate"] is True
-    assert set(snap["services"]) == {"openai", "voicepe", "podconnect"}
+    assert set(snap["services"]) == {"openai", "voicepe", "podconnect", "mcp"}
     room = snap["rooms"][0]
     assert room["room"] == "kitchen"
     assert room["state"] == "LOUNGE_WINDOW"

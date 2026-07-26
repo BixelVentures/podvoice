@@ -2,8 +2,8 @@
 
 Reads /data/options.json + SUPERVISOR_TOKEN (config.py), wires the real
 components (AttentionClient, OpenAIRealtimeSession, VoicePELink, Heartbeat,
-Gatekeeper, Playback, HAToolBridge) per room, and runs until SIGTERM — at which
-point it releases attention so the music is restored before exit.
+Gatekeeper, Playback, ToolRouter+MCP) per room, and runs until SIGTERM — at
+which point it releases attention so the music is restored before exit.
 """
 
 from __future__ import annotations
@@ -18,14 +18,15 @@ import socket
 import httpx
 
 from . import __version__
+from . import constants as C
 from .config import Config, RoomMap, load_config
 from .console import console_factory, list_models
 from .diag import check_status, resolve_target, run_s1, run_s2
 from .gatekeeper import Gatekeeper
-from .ha_tools import HAToolBridge
 from .heartbeat import Heartbeat
 from .history import History
 from .hub import StatusHub
+from .mcp_client import HomeAssistantMCP
 from .openai_realtime import make_session
 from .orchestrator import RoomSession
 from .playback import Playback
@@ -36,6 +37,7 @@ from .settings import load_settings, masked, save_settings
 from .sim import build_sim_sessions, run_driver
 from .speech import Speech
 from .timers import TimerManager
+from .tools import ToolRouter
 from .usage import UsageMeter
 from .voicepe import VoicePELink
 from .watchdog import BargeIn, TurnWatchdog
@@ -93,7 +95,7 @@ def _build_session(
     cfg: Config,
     room: RoomMap,
     attention: AttentionClient,
-    tools: HAToolBridge | None,
+    tools: ToolRouter | None,
     hub: StatusHub,
     reply_bus: ReplyBus | None = None,
     reply_token: str = "",
@@ -236,7 +238,7 @@ async def run(cfg: Config) -> None:
     reply_token = secrets.token_urlsafe(16)
     attention: AttentionClient | None = None
     ha_client: httpx.AsyncClient | None = None
-    tools: HAToolBridge | None = None
+    tools: ToolRouter | None = None
     timers: TimerManager | None = None
     speech: Speech | None = None
     usage: UsageMeter | None = None
@@ -292,9 +294,21 @@ async def run(cfg: Config) -> None:
 
         timers = TimerManager(_timer_ring)
         _LOG.info("timers: in-memory (an add-on restart clears running timers)")
-        tools = HAToolBridge(cfg.supervisor_token, ha_client, exposed=cfg.exposed, timers=timers)
-        if not cfg.supervisor_token:
-            _LOG.warning("no SUPERVISOR_TOKEN — HA control disabled (PodConnect tool still works)")
+        # Home control = HA's own MCP server on the LAN. Default: the Supervisor proxy
+        # with the token the add-on already holds; Settings can point directly at
+        # http://<ha>:8123/api/mcp with a long-lived token for non-supervised setups.
+        mcp_url = cfg.ha_mcp_url or f"{C.SUPERVISOR_CORE_API}/mcp"
+        mcp_token = cfg.ha_mcp_token or cfg.supervisor_token
+        mcp = HomeAssistantMCP(mcp_url, mcp_token, ha_client) if mcp_token else None
+        tools = ToolRouter(
+            mcp, supervisor_token=cfg.supervisor_token, client=ha_client, timers=timers, hub=hub
+        )
+        await tools.start()  # fetch the MCP tool list BEFORE sessions copy declarations
+        if mcp is None:
+            _LOG.warning(
+                "no SUPERVISOR_TOKEN and no ha_mcp_token — home control disabled "
+                "(clock + timers still work)"
+            )
         # Cost telemetry: every response's token usage -> /data + two HA cost sensors.
         usage = UsageMeter(cfg.supervisor_token, ha_client)
         sessions = {
@@ -370,7 +384,6 @@ async def run(cfg: Config) -> None:
         on_restart=lambda: _restart_addon(cfg.supervisor_token),
         diag=diag,
         tools=tools,
-        ha_entities=(tools.list_entities if tools is not None else None),
         pc_rooms=(attention.rooms if attention is not None else None),
         history=history,
         reply_bus=reply_bus,
