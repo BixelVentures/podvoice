@@ -1,7 +1,7 @@
 # PodVoice
 
 PodVoice turns a custom-firmware Home Assistant Voice PE into a hands-free, spoken
-assistant that talks back in Danish using Google's Gemini Live AI. When you start
+assistant that talks back in Danish using OpenAI's Realtime API. When you start
 talking, PodVoice politely turns your music down on the HomePod so you can be heard,
 runs the conversation, and turns the music back up when you are done. It runs as its
 own add-on so a hiccup in the AI or the network can never crash Home Assistant or
@@ -18,8 +18,11 @@ You need three things working first:
    The stock firmware will not work — PodVoice needs the custom firmware so it can
    listen continuously. You will set an encryption key (Noise PSK) when you flash it;
    keep that key, you will paste it into PodVoice below.
-3. **A Google Gemini API key with Live access** (from Google AI Studio, with billing
-   enabled). This is what powers the spoken conversation.
+3. **An OpenAI API key** (platform.openai.com, billing enabled). This powers the
+   spoken conversation (`gpt-realtime-2.1-mini` by default — the cheap one).
+4. **Home Assistant's MCP server** — add the "Model Context Protocol Server"
+   integration once, and expose the devices the assistant may touch under
+   **Settings → Voice assistants**. That list IS the assistant's permissions.
 
 ## Installing
 
@@ -28,23 +31,24 @@ You need three things working first:
    URL, and click **Add**.
 3. Find **PodVoice** in the store list and click **Install**. The first install takes
    a few minutes while the container is built.
-4. Open the **Configuration** tab. It holds **only the API keys** (everything else is set
+4. Open the **Configuration** tab. It holds **only the API key** (everything else is set
    in the panel — see below):
-   - **gemini_api_key** — your Gemini API key (for the default Gemini brain)
-   - **openai_api_key** — *optional*, only if you want the OpenAI Realtime provider
+   - **openai_api_key** — your OpenAI API key
 5. Click **Save**, then go to the **Info** tab and press **Start**.
 6. Open **PodVoice** in the sidebar → expand **Settings** → fill in the rest (PodConnect URL +
-   token, your Voice PE PSK, rooms, provider/model) → **Save & restart**.
+   token, your Voice PE PSK, rooms, model) → **Save & restart**.
 
 ## Settings (in the panel, not the Configuration tab)
 
-Everything except the API keys lives on the panel's **Settings** page (saved inside the add-on, with
-a **Save & restart** button). The HA **Configuration** tab is intentionally just the two keys.
+Everything except the API key lives on the panel's **Settings** page (saved inside the add-on, with
+a **Save & restart** button). The HA **Configuration** tab is intentionally just the key.
 
 | Setting | What it does |
 |---|---|
-| Provider | Which voice brain — **Gemini** (default, best Danish) or **OpenAI** Realtime. |
-| Gemini model / OpenAI model | The default model for each provider. |
+| Model | `gpt-realtime-2.1-mini` (default, cheap) or `gpt-realtime-2.1` (smarter, ~3× audio cost). |
+| Interruption style | **Conservative** (default — the speaker's own voice can never cut a reply off), Responsive, or Custom (raw knobs under Advanced). |
+| Close after silence / Max conversation | Cost control: how long a conversation may idle (default 25 s) and run (default 15 min). |
+| Always use the mini model | Cost guard — clamps every session (rooms + Talk tab) to the mini model. |
 | PodConnect URL | Where PodConnect's Attention API lives. Usually `http://homeassistant.local:8099`. |
 | PodConnect token | The secret token that lets PodVoice control the music. |
 | Voice PE PSK | The encryption key shared with the Voice PE firmware. |
@@ -61,7 +65,7 @@ Open the add-on's **Log** tab. A healthy PodVoice prints a plain-language status
 roughly once a minute, for example:
 
 ```
-[PodVoice] OK · lytter · Gemini: forbundet · HomePod-styring: forbundet · sidste svar: 0.34s
+[PodVoice] OK · lytter · ChatGPT: forbundet · HomePod-styring: forbundet · sidste svar: 0.34s
 ```
 
 A steady stream of these `OK` lines means everything is connected and working. If
@@ -98,26 +102,19 @@ control. (Ducking music while you talk is automatic and separate.)
 
 Once started, PodVoice adds a **PodVoice** item to the Home Assistant sidebar. Open it to see,
 per room: the current state (idle / listening / speaking / follow-up), whether the music is
-ducked and how far, the last response time, and live connection health for Gemini, the Voice PE,
+ducked and how far, the last response time, and live connection health for ChatGPT, the Voice PE, Home control (MCP),
 and PodConnect. There's a live transcript and three buttons per room — **Listen** (start a
 conversation as if you pressed the button), **Stop** (end it and restore music), and **Test tone**
 (play a sound out the Voice PE speaker to check audio). No secrets are shown here; configuration
 still lives in the **Configuration** tab.
 
-### Talk to Gemini from the panel
+### Talk to the assistant from the panel
 
-The panel has a **Talk to Gemini** console — a software stand-in for the Voice PE. Type a message
-and Gemini answers out loud (the reply is spoken in your browser) with a live transcript. With a real
-Gemini key set it's the real assistant; with `simulate: true` (or no key) it echoes a demo reply.
-
-A **provider dropdown** (Gemini / OpenAI) lets you switch the voice brain, and a **model dropdown**
-lists that provider's models. Gemini Live is the default (best Danish, lowest cost); OpenAI Realtime
-(`gpt-realtime`) is a stable alternative — to use it, set **`openai_api_key`** in the Configuration tab.
-The model dropdown lists the models your key can use.
-Real-time **voice needs a *Live* model** (e.g. `gemini-2.5-flash-native-audio-preview-12-2025` or
-`gemini-3.1-flash-live-preview`). Ordinary models like `gemini-3.5-flash` have no bidirectional audio,
-so they appear as **"text only (no voice)"** and can't be picked for the spoken console. The
-`gemini_model` option in Configuration sets the default.
+The panel has a **Talk** tab — a software stand-in for the Voice PE running the REAL engine. Type or
+speak and the assistant answers out loud (the reply is spoken in your browser) with a live transcript.
+With a real OpenAI key set it's the real assistant; with `simulate: true` (or no key) it echoes a
+demo reply. A **model dropdown** and a **voice dropdown** affect only that browser session.
+All the selectable models are realtime voice models — there is nothing to get wrong here.
 
 There's also a 🎤 mic button for hands-free voice **in** — but browsers only allow microphone access on
 a secure page. If you open Home Assistant over plain `http://…` on your LAN, the mic is disabled
@@ -127,14 +124,14 @@ a secure page. If you open Home Assistant over plain `http://…` on your LAN, t
 ## Try it without hardware (simulation)
 
 Set the **simulate** option to `true` and start the add-on. PodVoice will run a built-in demo —
-no Gemini key, Voice PE, or PodConnect required — that cycles realistic conversations through the
+no OpenAI key, Voice PE, or PodConnect required — that cycles realistic conversations through the
 panel so you can see exactly how it behaves before your hardware arrives. Turn it back to `false`
 for real use.
 
 ## Troubleshooting
 
 - **The add-on will not start / errors right away.** Check the Log tab. The most common
-  cause is a missing or mistyped required field (Gemini key, PodConnect token, Voice PE
+  cause is a missing or mistyped required field (OpenAI key, PodConnect token, Voice PE
   host, or Noise PSK). Re-check the **Configuration** tab and Save again.
 - **It hears me but the music does not turn down.** PodConnect is probably unreachable.
   Confirm the PodConnect add-on is running, that `podconnect_base_url` is correct
@@ -147,7 +144,7 @@ for real use.
   Assist — PodVoice must be the only thing using its microphone.
 - **The reply gets cut off, or there is a short error tone.** PodVoice gave up on a
   slow turn (the watchdog). This is normal protection against a stuck connection; just
-  ask again. If it happens constantly, check your internet connection and the Gemini
+  ask again. If it happens constantly, check your internet connection and the OpenAI
   API key's quota.
 - **A warning about the music control keeps appearing.** PodConnect is down or the
   token is wrong. The music will automatically return to its normal volume on its own

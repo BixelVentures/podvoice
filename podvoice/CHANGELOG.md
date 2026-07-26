@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.91.0 — Pålideligheds-overhaul v2: OpenAI-only, MCP-hjemmestyring, prisstyring (fase 0–3)
+
+Én pipeline, mindre kode, verificerede præmisser. Netto **−1.224 linjer** på tværs af fase 1–3.
+
+**Fase 0 — præmisserne efterprøvet (docs/audio-path.md + docs/realtime-config.md):**
+- Voice PE-firmwarens "unprocessed audio" er PR **#591** (opgaven pegede på #555 = en tastefejls-fix), og "unprocessed" betyder *uden AGC* — **stadig AEC-behandlet**. Begge XMOS-kanaler er AEC'ede; 0.83-ekkoet var rest-ekko, og 0.87's "kanal 1 er stum" skyldtes gain 1 uden AGC (mww bruger gain 4). "Raw"-testrækken er nåbar via `channels:[1]` + `gain_factor:4` (kommenteret i podvoice.yaml).
+- OpenAI-provideren er GA-ren (beta blev fjernet 2026-05-12; alle event-navne verificeret). To forældede antagelser rettet: `idle_timeout_ms` FINDES (server_vad), og `gpt-4o-mini-transcribe` er den rigtige danske transskription.
+
+**Fase 1 — selv-afbrydelsen:**
+- Gemini-provideren, provider-vælgeren, google-genai og alle gemini_*-indstillinger er SLETTET. `openai_realtime.py` er hele provider-modulet (GPT-Live-1 = ny modelstreng + handlers dér).
+- Default-model **gpt-realtime-2.1-mini** (udgivet 2026-07-06, distilleret og billig); 2.1 er opt-in; `force_mini` klemmer alle sessioner.
+- **Afbrydelsesstil-presets** i Settings (live, ingen redeploy): *conservative* (server_vad threshold 0.7 / silence 700 ms — rest-ekko kan ikke læses som barge-in; serveren lukker selv døde samtaler via idle_timeout_ms) / *responsive* / *custom*.
+- `full_duplex: true` virker nu i thin-motoren (ekko-skjold fra; AEC + preset bærer afvisningen) — promoveres KUN hvis 1.4-matricen består (docs/HANDOVER-v2.md).
+- **Prisstyring:** hver response måles → `/data/podvoice-usage.json` + `sensor.podvoice_cost_today`/`_month` i HA; `idle_timeout_s` (25 s) og `max_session_min` (15) er indstillinger.
+
+**Fase 3 — skrøbelig kode slettet:**
+- ha_tools.py (734 linjer REST-bro + allowlist + discovery) er DØD. Hjemmestyring = **lokal MCP-klient** mod HA's indbyggede MCP-server på LAN'et (default via Supervisor-proxyen; `ha_mcp_url`/`ha_mcp_token` som fallback). Intet i hjemmet er internet-nåbart.
+- Enheds-eksponering ejes af HA (Indstillinger → Stemmeassistenter → Expose); panelets entity-vælger er slettet. Websøgning = et HA-script eksponeret til Assist.
+- Slutfrase-fallback (DA+EN) oven på modellens end_conversation: "stop/stille/vent" lukker NU; "tak, det var alt" lukker efter farvellet. (Referencen ha-realtime-assist er i øvrigt slettet fra GitHub — adfærden er porteret fra dokumentation.)
+- Prompten omskrevet til MCP-verdenen (GetLiveContext, værktøjernes egne navne); gammel default-hash pensioneret.
+
+**Fase 2 — wake-ord:** beslutning + runbook i docs/wake-word.md (custom microWakeWord først; repoet bor nu hos OHF-Voice); firmware-blok klar til den trænede model. Træning/felttest er Mads'.
+
+Settings-migrering v3: gamle gemini_*/provider-nøgler og en gemt gpt-realtime-2 droppes én gang; rooms/prompt overlever. ruff + mypy rene; **320 tests grønne**.
+
 ## 0.90.0 — Talk-fanen kører nu den ÆGTE motor: klik = "Okay Nabu", samme regler, bevist
 
 Før var Talk en rå bro udenom alle produktets regler (intet wake-gate, intet idle-luk, intet ekko-skjold, ingen end_conversation, egen lydvej) — så fanen kunne aldrig BEVISE noget. Nu er browseren en *enhed* på linje med pucken:
