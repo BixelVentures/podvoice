@@ -1,4 +1,15 @@
-# PLAN-DUPLEX — Fuld-duplex stemme i huset (kanonisk plan, 2026-08-05)
+# PLAN-DUPLEX — det gatede duplex-spor (bilag til ARKITEKTUR.md)
+
+> **UNDERORDNET [ARKITEKTUR.md](ARKITEKTUR.md) (2026-08-07).** Duplex er en FINESSE
+> bag målbare gates — ikke målet. 3-dages-framingen er annulleret: robusthed før
+> deadline (ugerne 1-3 i ARKITEKTUR.md løses først), og matrix-C-promoveringskravet
+> kan afvise duplex permanent uden at "solidt bedre end Gemini" falder (G4/G5/G7/G2
+> vindes af half-duplex-systemet). Det tekniske indhold herunder — minimal-diffs,
+> ch1+gain4-testen, matrix-kravene — bevares ordret som OPSKRIFTEN for uge-4+-etapen.
+> OBS: §4b's idle_timeout_ms-afsnit er skærpet af modprøven: feltet droppes HELT
+> (genprompt-semantik = G7-race), ikke kun "sendes ikke i v1".
+
+
 
 > Resultatet af dyb multi-agent-research (6 kortlæggere: motor-kode 0.90, 0.91-branchen,
 > firmware, live OpenAI-docs, Voice PE/XMOS-kildekode, konkurrent-UX) + 1 arkitekt +
