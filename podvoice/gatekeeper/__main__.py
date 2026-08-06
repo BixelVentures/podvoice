@@ -135,7 +135,8 @@ def _build_session(
             reply_url=reply_url,
             duck_level=cfg.duck_level,
             usage=usage,
-            full_duplex=cfg.full_duplex,  # EXPERIMENTAL open-mic duplex (Phase 1.4 gates it)
+            full_duplex=True,  # Talk = duplex PROVING GROUND (browser-AEC; ARKITEKTUR §3):
+            # the puck follows settings (default False) until the matrix-C gate passes
             idle_timeout_s=cfg.idle_timeout_s,
             max_session_s=cfg.max_session_min * 60,
         )
@@ -245,6 +246,7 @@ async def run(cfg: Config) -> None:
     driver: asyncio.Task | None = None
     probe: asyncio.Task | None = None
     prewarm: asyncio.Task | None = None
+    probe_task: asyncio.Task | None = None  # periodic MCP real-probe
 
     if cfg.simulate:
         rooms = [r.room for r in cfg.rooms] or ["kitchen", "living"]
@@ -304,6 +306,16 @@ async def run(cfg: Config) -> None:
             mcp, supervisor_token=cfg.supervisor_token, client=ha_client, timers=timers, hub=hub
         )
         await tools.start()  # fetch the MCP tool list BEFORE sessions copy declarations
+
+        async def _probe_loop() -> None:
+            # MCP dies mid-day (HA restart, token, proxy) — not at boot. Re-PROVE home
+            # control every 10 min so 'lam men lyder rask' can't survive an afternoon.
+            while True:
+                await asyncio.sleep(600)
+                with contextlib.suppress(Exception):
+                    await tools.probe()
+
+        probe_task = asyncio.create_task(_probe_loop(), name="mcp-probe")
         if mcp is None:
             _LOG.warning(
                 "no SUPERVISOR_TOKEN and no ha_mcp_token — home control disabled "
@@ -410,7 +422,15 @@ async def run(cfg: Config) -> None:
         from . import constants as _C
 
         prewarm = asyncio.create_task(
-            speech.prewarm([_C.FALLBACK_CONNECTION, _C.FALLBACK_TIMEOUT, _C.TIMER_DONE]),
+            speech.prewarm(
+                [
+                    _C.FALLBACK_CONNECTION,
+                    _C.FALLBACK_TIMEOUT,
+                    _C.TIMER_DONE,
+                    _C.FALLBACK_HOME_UNREACHABLE,
+                    _C.FALLBACK_ACCOUNT,
+                ]
+            ),
             name="speech-prewarm",
         )
         _LOG.info("pre-warming spoken lines in the assistant's voice")
@@ -422,7 +442,7 @@ async def run(cfg: Config) -> None:
         await stop.wait()
     finally:
         _LOG.info("PodVoice shutting down — restoring music")
-        for task in (driver, probe, prewarm):
+        for task in (driver, probe, prewarm, probe_task):
             if task is not None:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):

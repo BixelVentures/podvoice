@@ -112,10 +112,13 @@ class ToolRouter:
         self._tz: datetime.tzinfo | None = None
 
     # ------------------------------------------------------------------ startup
+    healthy: bool = True  # last REAL-probe outcome; wake speaks up when False
+
     async def start(self) -> None:
         """Fetch the MCP tool list once at boot. Failure degrades to local-only
         tools with a LOUD log line — a silent no-tool assistant is the old bug."""
         await self._refresh(force=True)
+        await self.probe()
         if self._mcp is not None and not self._mcp_tools:
             log.warning(
                 "MCP tools unavailable at startup — home control is OFF until %s answers "
@@ -159,6 +162,24 @@ class ToolRouter:
                 len(self._mcp_tools),
                 ", ".join(sorted(self._mcp_names)) or "none",
             )
+
+    async def probe(self) -> bool:
+        """PROVE home control by touching a REAL read-only tool. A tool COUNT lies:
+        HassTurnOn/GetLiveContext exist as tools even with ZERO exposed entities
+        (modprøve A2 — 'lam men lyder rask'). Called at boot and periodically."""
+        ok = False
+        if self._mcp is not None and "GetLiveContext" in self._mcp_names:
+            try:
+                r = await self.dispatch("GetLiveContext", {})
+                ok = bool(r.get("ok")) and bool(r.get("data") or r.get("summary"))
+            except Exception as e:
+                log.warning("MCP probe failed: %s", e)
+        if ok != self.healthy:
+            log.warning("home-control probe: %s", "RECOVERED" if ok else "FAILED (no live context)")
+        self.healthy = ok
+        if self._hub is not None and self._mcp is not None:
+            self._hub.set_service("mcp", "up" if ok else "degraded")
+        return ok
 
     # ------------------------------------------------------------------ declarations
     def declarations(self) -> list[dict]:

@@ -185,6 +185,7 @@ class ThinSession:
         self._gate_until = 0.0  # echo-shield tail / pre-arm deadline (monotonic)
         self._gate_dropped = 0  # mic frames shielded during the current reply
         self._turn_had_tool = False  # response called a tool -> the reply stream stays open
+        self._stop_sent_t: float | None = None  # stop-latency marker (ARKITEKTUR G1)
         self._muted = False
         self._closing = False
         self._reader: asyncio.Task | None = None
@@ -289,6 +290,11 @@ class ThinSession:
             return
         if self.reply_bus is not None:
             self.reply_bus.clear(self.room)
+        if self.tools is not None and getattr(self.tools, "healthy", True) is False:
+            # Honest at the door (modprøve A2/F2): home control is provably down —
+            # say it ONCE, keep the conversation open (chat/lookup still works).
+            self._hub_state("LISTENING", "⚠️ Hjemmestyring nede — samtalen fortsætter")
+            self._spawn(self._speak_home_unreachable(), "thin-home-warn")
         self._reader = self._spawn(self._read_events(), "thin-reader")
         self._pump = self._spawn(self._pump_mic(), "thin-pump")
         self._beat = self._spawn(self._heartbeat(), "thin-beat")
@@ -517,6 +523,8 @@ class ThinSession:
         but when it forgets, a WHOLE utterance that is a closure phrase still ends the
         conversation. Hard words silence the device NOW; polite phrases let the model's
         goodbye finish first. Embedded politeness ('sluk lyset, tak') never matches."""
+        if self._device_playing:
+            return  # residual echo of the model's own 'farvel' must never close the chat
         if not self._active:
             return
         phrase = normalized_utterance(text)
@@ -563,8 +571,11 @@ class ThinSession:
         and the reply keeps playing — the announce buffer already holds it, so a
         server-side generation cancel costs nothing audible. Sustained speech is a
         real barge-in."""
-        if not self._speaking:
-            return  # nothing playing — nothing to protect
+        if not (self._speaking or self._device_playing):
+            # Nothing is audibly playing: this speech_started is the user's NORMAL
+            # turn start, not an interruption. This guard is ALSO the spurious-idle
+            # safety for the provider's now-unconditional Interrupted (ARKITEKTUR §5).
+            return
         if self._barge_task is not None and not self._barge_task.done():
             return
         if self.hub is not None:
@@ -698,6 +709,12 @@ class ThinSession:
                         self.hub.set_latency(self.room, ttfr_ms)
         else:
             self._device_playing = False
+            if self._stop_sent_t is not None:
+                _LOG.info(
+                    "stop-latency: %d ms (silence command -> device silent)",
+                    int((time.monotonic() - self._stop_sent_t) * 1000),
+                )
+                self._stop_sent_t = None
             self._gate_until = time.monotonic() + ECHO_GATE_TAIL_S  # cover room reverb
             self._spawn(self._end_echo_gate(), "thin-gate-end")
             self._sync_playout()
@@ -783,12 +800,25 @@ class ThinSession:
             self.playout.set_played(int(elapsed * C.OUTPUT_RATE * C.SAMPLE_WIDTH))
 
     async def _silence_device(self) -> None:
+        self._stop_sent_t = time.monotonic()  # G1: measure stop -> actually silent
         if self.reply_bus is not None:
             self.reply_bus.end(self.room)
         if hasattr(self.voicepe, "stop_playback"):
             with contextlib.suppress(Exception):
                 await self.voicepe.stop_playback()
         self.playback.flush()
+
+    async def _speak_home_unreachable(self) -> None:
+        """One spoken heads-up when the MCP probe says home control is down."""
+        if self.speech is None or self.reply_bus is None or not self.reply_url:
+            return
+        with contextlib.suppress(Exception):
+            pcm = await self.speech.say(C.FALLBACK_HOME_UNREACHABLE)
+            self.reply_bus.clear(self.room)
+            self.reply_bus.start(self.room)
+            self.reply_bus.push(self.room, pcm)
+            self.reply_bus.end(self.room)
+            await self.voicepe.play_url(self.reply_url)
 
     async def _speak_error(self, kind: str) -> None:
         """The error, out loud, in the assistant's own voice (tone as last resort)."""

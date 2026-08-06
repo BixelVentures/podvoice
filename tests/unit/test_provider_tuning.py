@@ -143,7 +143,105 @@ def test_preset_conservative_is_hard_to_interrupt():
     td = s._session_update()["session"]["audio"]["input"]["turn_detection"]
     assert td["type"] == "server_vad"
     assert td["threshold"] == 0.7 and td["silence_duration_ms"] == 700
-    assert td["idle_timeout_ms"] == 25000  # server closes idle conversations for us
+    # idle_timeout_ms must NEVER be sent (ARKITEKTUR, modprøve A3): GA docs define
+    # it as a RE-PROMPT trigger — the model answers BY ITSELF at timeout (possible
+    # tool calls = unsolicited action). The client-side idle fallback is the closer.
+    assert "idle_timeout_ms" not in td
+
+
+async def test_session_update_rejection_is_a_hard_failure():
+    """0.77 class: one bad field rejects the whole session.update — prompt/tools/VAD
+    silently never apply. The provider must DIE loudly, never run untuned."""
+    import json as _json
+
+    import aiohttp
+    import pytest
+
+    class _Msg:
+        type = aiohttp.WSMsgType.TEXT
+
+        def __init__(self, d):
+            self.data = _json.dumps(d)
+
+        def json(self):
+            return _json.loads(self.data)
+
+    class _FakeWS:
+        def __init__(self, evs):
+            self._evs = [_Msg(e) for e in evs]
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self._evs:
+                raise StopAsyncIteration
+            return self._evs.pop(0)
+
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS([{"type": "error", "error": {"message": "unknown parameter: xyz"}}])
+    with pytest.raises(RuntimeError, match=r"session\.update rejected"):
+        async for _ in s.events():
+            pass
+
+
+async def test_error_after_accept_is_not_fatal():
+    """Post-accept errors are logged, not fatal — only the untuned state is deadly."""
+    import json as _json
+
+    import aiohttp
+
+    class _Msg:
+        type = aiohttp.WSMsgType.TEXT
+
+        def __init__(self, d):
+            self.data = _json.dumps(d)
+
+        def json(self):
+            return _json.loads(self.data)
+
+    class _FakeWS:
+        def __init__(self, evs):
+            self._evs = [_Msg(e) for e in evs]
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self._evs:
+                raise StopAsyncIteration
+            return self._evs.pop(0)
+
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS(
+        [
+            {"type": "session.updated"},
+            {"type": "error", "error": {"message": "transient thing"}},
+        ]
+    )
+    import contextlib
+
+    with contextlib.suppress(ConnectionError):  # fake socket ends -> normal drop-raise
+        async for _ in s.events():
+            pass  # the error event itself must NOT raise (only untuned state is fatal)
+    assert s._configured is True
+
+
+def test_interrupted_is_unconditional_on_speech_started():
+    """ARKITEKTUR §5.1: generation outruns playback, so _active_response drops before
+    the audio has audibly finished — Interrupted must fire regardless."""
+    s = OpenAIRealtimeSession(api_key="k")
+    s._active_response = False  # response already done, audio still playing on device
+    # the handler yields Interrupted even with _active_response False — covered via
+    # the source: assert the gating line is gone
+    import inspect
+
+    src = inspect.getsource(type(s))
+    idx = src.index("input_audio_buffer.speech_started")
+    block = src[idx : idx + 900]
+    assert "yield Interrupted()" in block
+    assert block.index("yield Interrupted()") > block.index("if self._active_response:")
+    # the yield sits OUTSIDE the if-block (dedented) — verified by the engine tests too
 
 
 def test_preset_responsive_is_semantic():

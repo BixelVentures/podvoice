@@ -13,8 +13,9 @@ Re-verified 2026-07 against developers.openai.com (GA surface; beta removed
 - wss://api.openai.com/v1/realtime?model=...  (Authorization: Bearer; NO OpenAI-Beta header)
 - session.update has session.type "realtime", audio nested under audio.input/output
 - OpenAI audio/pcm is **24 kHz only** in AND out — so we upsample the 16 kHz mic
-- turn_detection: server_vad (threshold/prefix_padding_ms/silence_duration_ms/
-  idle_timeout_ms) | semantic_vad (eagerness); event names as used below.
+- turn_detection: server_vad (threshold/prefix_padding_ms/silence_duration_ms)
+  | semantic_vad (eagerness); idle_timeout_ms exists but is a re-prompt trigger,
+  never sent (see _server_vad); event names as used below.
 Items that could drift are marked # VERIFY.
 """
 
@@ -33,7 +34,6 @@ from .audio import StreamResampler, resample_pcm16
 from .prompt import SYSTEM_PROMPT_DA
 from .voice import (
     AudioChunk,
-    Idle,
     InputTranscript,
     Interrupted,
     OutputTranscript,
@@ -100,8 +100,8 @@ class OpenAIRealtimeSession:
     # far_field: the Voice PE mic is across a room, not a headset — this is the right
     # noise-reduction profile for a shared living space (near_field assumed close talk).
     noise: str = "far_field"  # near_field | far_field | off
-    # Server-side conversation-idle close (server_vad only — semantic_vad has no
-    # idle_timeout_ms; the engine's client-side fallback covers that mode).
+    # RETIRED knob: kept for settings compatibility, NEVER sent to the server
+    # (idle_timeout_ms is a re-prompt trigger, not a closer — see _server_vad).
     idle_timeout_s: int = 25
     _http: aiohttp.ClientSession | None = field(default=None, init=False, repr=False)
     _ws: aiohttp.ClientWebSocketResponse | None = field(default=None, init=False, repr=False)
@@ -112,6 +112,8 @@ class OpenAIRealtimeSession:
     _active_response: bool = field(default=False, init=False, repr=False)
     _pending_create: bool = field(default=False, init=False, repr=False)
     _deliberate_close: bool = field(default=False, init=False, repr=False)
+    # True once the server ACCEPTED our session.update (hard-fail guard, 0.77 class).
+    _configured: bool = field(default=False, init=False, repr=False)
 
     def _turn_detection(self) -> dict | None:
         """Build the turn_detection block from the preset (or the custom knobs).
@@ -156,11 +158,12 @@ class OpenAIRealtimeSession:
             "create_response": True,
             "interrupt_response": True,
         }
-        if self.idle_timeout_s > 0:
-            # The server closes the conversation for us: idle_timeout_ms after the last
-            # reply finishes playing, input_audio_buffer.timeout_triggered arrives ->
-            # the engine goes home. (server_vad only; clamped >=5s in config.py.)
-            td["idle_timeout_ms"] = int(self.idle_timeout_s * 1000)
+        # idle_timeout_ms is DELIBERATELY NOT SENT (ARKITEKTUR.md, modprøve A3):
+        # the GA docs define it as a RE-PROMPT trigger — on timeout the server commits
+        # empty audio and the MODEL GENERATES A RESPONSE ITSELF (possibly with tool
+        # calls) — an unsolicited-action race, the exact Gemini sin we refuse. The
+        # engine's client-side idle fallback covers conversation close for BOTH VAD
+        # modes, so the field is redundant as a closer and dangerous as a feature.
         return td
 
     def _session_update(self) -> dict:
@@ -203,6 +206,7 @@ class OpenAIRealtimeSession:
         return {"type": "session.update", "session": session}
 
     async def connect(self) -> None:
+        self._configured = False  # fresh socket -> fresh accept required
         # Fresh socket -> fresh state machine (a prior session may have died mid-response).
         self._active_response = False
         self._pending_create = False
@@ -357,16 +361,16 @@ class OpenAIRealtimeSession:
                 )
                 yield ToolCall(ev.get("call_id", ""), ev.get("name", ""), args)
             elif t == "input_audio_buffer.speech_started":
-                # A barge-in only counts when a reply is ACTUALLY playing — otherwise
-                # this is just the user starting their normal turn (LISTENING), not an
-                # interruption. Gating on _active_response is what makes the open-mic
-                # full-duplex path safe: ambient noise while idle-listening can't fire a
-                # spurious "interrupt". The server cancels the active response itself.
+                # UNCONDITIONAL (ARKITEKTUR §5.1): generation finishes faster than
+                # real time, so _active_response drops BEFORE most of the reply has
+                # audibly PLAYED — gating here made tail/duplex barge-in unreachable.
+                # Spurious-idle safety lives in the ENGINE's debounce guard instead
+                # (it only silences when something is actually speaking/playing).
                 if self._active_response:
-                    _LOG.info("turn: barge-in (speech_started) over active reply")
+                    _LOG.info("turn: barge-in (speech_started) over active response")
                     self._active_response = False
                     self._pending_create = False
-                    yield Interrupted()
+                yield Interrupted()
             elif t == "input_audio_buffer.speech_stopped":
                 # The user finished their turn — arm the TTFR watchdog from HERE (the
                 # model should now reply within WATCHDOG_MS). Arming at wake/gate-open
@@ -374,8 +378,10 @@ class OpenAIRealtimeSession:
                 # turn before a reply is even possible.
                 yield UserSpeechStopped()
             elif t == "input_audio_buffer.timeout_triggered":
-                _LOG.info("turn: server idle timeout -> conversation over")
-                yield Idle()
+                # Can only fire if idle_timeout_ms were sent — which we never do.
+                # If it EVER appears, the server is about to generate an unsolicited
+                # response: log loudly, do NOT treat as a clean close.
+                _LOG.warning("unexpected timeout_triggered (idle_timeout_ms not sent!)")
             elif t == "input_audio_buffer.committed":
                 # Belt-and-suspenders end-of-user-turn signal (fires for both
                 # server_vad and semantic_vad). Re-arming the watchdog is harmless.
@@ -400,8 +406,18 @@ class OpenAIRealtimeSession:
                     continue
                 _LOG.info("turn: response.done id=%s status=%s -> TurnComplete", rid, status)
                 yield TurnComplete()
+            elif t == "session.updated":
+                self._configured = True
+                _LOG.info("session.updated ACCEPTED (preset=%s)", self.preset)
             elif t == "error":
-                _LOG.warning("openai realtime error: %s", ev.get("error"))
+                err = ev.get("error") or {}
+                if not self._configured:
+                    # The 0.77 class: ONE bad field rejects the WHOLE session.update —
+                    # prompt, tools and VAD silently never apply. Never run untuned:
+                    # die loudly so the engine fails audibly and the log names the field.
+                    _LOG.error("session.update REJECTED — failing loudly: %s", err)
+                    raise RuntimeError(f"session.update rejected: {err.get('message', err)}")
+                _LOG.warning("openai realtime error: %s", err)
 
     @staticmethod
     def _usage_of(ev: dict) -> Usage | None:

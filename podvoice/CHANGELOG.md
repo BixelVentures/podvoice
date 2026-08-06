@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.92.0 — ARKITEKTUR-releasen: 0.91 merged gated, alle modprøve-værn på plads
+
+Den holistiske dom (docs/ARKITEKTUR.md) eksekveret — én pipeline, robusthed først:
+
+- **0.91 merged**: OpenAI-only (Gemini slettet), gpt-realtime-2.1-mini standard, conservative-preset (server_vad 0.7/300/700 + far_field), MCP-hjemmestyring, prisstyring, −1.200 linjer.
+- **idle_timeout_ms sendes ALDRIG** (modprøve A3): GA-docs definerer feltet som en GENPROMPT-trigger — modellen svarer SELV ved timeout, potentielt med tool-kald (uopfordret handling, Geminis dødssynd). Klient-idle er eneste lukker. Fyrer eventet alligevel, logges det højt i stedet for at lukke.
+- **Hårdt config-værn (0.77-klassen lukket for altid)**: afvises session.update af ét eneste ukendt felt, dør provideren HØJLYDT (hørbar fejl + feltnavnet i loggen) i stedet for at køre videre uden prompt/tools/VAD.
+- **Barge-kæden gjort duplex-klar men skjoldet består**: Interrupted fyrer nu ubetinget på speech_started (generering overhaler afspilning — den gamle gating gjorde hale-afbrydelse unåelig); sikkerheden bor i motorens guard (kun når noget faktisk spiller). End-phrase-fallbacken er gated mod rest-ekko af modellens eget "farvel".
+- **Ægte MCP-probe** (modprøve A2): hjemmestyringen BEVISES ved at røre GetLiveContext — ved boot og hvert 10. minut. Tool-antal lyver ("lam men lyder rask"). Er hjemmet nede, siger assistenten det ÆRLIGT ved wake ("Jeg kan ikke nå hjemmets enheder lige nu") og fortsætter samtalen.
+- **Stop-latens-metrik** (G1): loggen måler nu kommando→reelt-stille i ms ved hver afbrydelse/stop.
+- **Talk-fanen = duplex-proving-ground**: browser-sessionen kører full_duplex (browser-AEC); pucken følger settings (default FRA til matrix-C-gaten består).
+- Ny talt konto-fejl-linje; HANDOVER-idle-påstanden rettet.
+
+VIGTIGT FØR OPDATERING (én gang): kør MCP-checklisten i HA FØRST — (1) Indstillinger → Enheder & tjenester → Tilføj integration → "Model Context Protocol Server"; (2) Indstillinger → Stemmeassistenter → Eksponér de enheder assistenten må styre. Uden dette er hjemmestyringen nede efter opdateringen (assistenten SIGER det ærligt, resten virker).
+
+Firmware: uændret funktionelt — den flashede kanal-0-firmware ER den rigtige; ingen flash nødvendig.
+
+ruff + mypy rene; hele suiten grøn.
+
 ## 0.91.0 — Pålideligheds-overhaul v2: OpenAI-only, MCP-hjemmestyring, prisstyring (fase 0–3)
 
 Én pipeline, mindre kode, verificerede præmisser. Netto **−1.224 linjer** på tværs af fase 1–3.

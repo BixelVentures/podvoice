@@ -61,7 +61,7 @@ Med `engine: thin`, `turn_preset: conservative`:
 3. Gentag på engelsk ("turn on…", "that's all").
 4. "Stop" midt i et langt svar → lyden dør MED DET SAMME.
 5. Sig ingenting efter et svar → samtalen lukker selv efter ~25 s
-   (`idle_timeout_s` i Settings; serveren lukker den også selv på conservative).
+   (`idle_timeout_s` i Settings — klient-side; idle_timeout_ms sendes ALDRIG til serveren: GA-docs definerer det som en GENPROMPT-trigger, ikke en lukker — se ARKITEKTUR.md, modprøve A3).
 
 ## 3. Fase 2 — wake-ord [HUMAN + træning]
 
