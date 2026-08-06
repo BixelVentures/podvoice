@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.98.0 — fire fejl fra felt-loggen: rum-kontekst, mDNS-faldback, Talk-støj, medie-mål
+
+Felttesten 14:35-14:36 gav fire konkrete fejl, alle rettet:
+
+- **Musikkommandoer fejlede med "multiple targets"**: modellen vidste ikke hvilken højttaler den står ved, så HA afviste kaldet (`HassMediaSearchAndPlay FAILED`). Sessionen får nu rummets egen højttaler med i prompten ("brug ALTID name='Køkkenalrum HomePod'"), og prompten siger eksplicit at medie-kald KRÆVER et mål.
+- **Pucken gik OFFLINE i minutter** fordi mDNS holdt op med at svare (`Name has no usable address`). Linket husker nu enhedens numeriske adresse og tilbyder BÅDE .local-navnet (overlever IP-skift) og den kendte adresse (overlever dødt mDNS) — den der svarer først vinder. Listeformen er verificeret direkte mod aioesphomeapi 45.3, ikke antaget.
+- **Talk-fanen 404'ede på hver eneste ducking-puls** ("unknown room 'talk'") og slog sin egen puls ihjel. En browser-session ejer ikke et rums musik — den får nu en no-op i stedet.
+- Advarslen om den forældede gemte prompt gentages ikke længere unødigt i loggen.
+
+ruff + mypy rene; hele suiten grøn (+1 test).
+
 ## 0.97.0 — systemprompten lærte modellen at kalde værktøjer der ikke findes
 
 Ejeren spurgte om prompten var i orden. Det var den ikke: den GEMTE prompt (3030 ord) beskrev hele det gamle værktøjs-univers — `list_home`, `list_services`, `home_call` — som blev SLETTET ved MCP-skiftet i 0.92. Modellen fik altså besked på at kalde værktøjer, der ikke eksisterer (0.88-klassen: prompten lover, værktøjskassen kan ikke). Selv kodens egen standardprompt havde ét levn tilbage.

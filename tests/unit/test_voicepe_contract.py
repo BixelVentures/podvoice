@@ -142,3 +142,40 @@ async def test_raw_ip_host_gets_a_warning(caplog):
         VoicePELink("podvoice-pe-0a7e7a.local", "psk", room="stue")
     hints = [r for r in caplog.records if "raw IP" in r.getMessage()]
     assert len(hints) == 1  # the IP host warns; the .local host does not
+
+
+async def test_cached_ip_is_offered_alongside_the_hostname(tmp_path, monkeypatch):
+    """mDNS can stop resolving (field: 'Name has no usable address' -> puck OFFLINE for
+    minutes). The link must offer BOTH the .local name and the last known IP."""
+    import json as _json
+
+    from gatekeeper import voicepe as vp
+
+    cache = tmp_path / "ip.json"
+    cache.write_text(_json.dumps({"pv.local": "192.168.86.140"}))
+    monkeypatch.setattr(vp.VoicePELink, "_IP_CACHE", cache)
+
+    captured: dict = {}
+
+    class _FakeClient:
+        def __init__(self, address, port, password, noise_psk=None):
+            captured["address"] = address
+
+    class _FakeReconnect:
+        def __init__(self, **kw):
+            pass
+
+        async def start(self):
+            return None
+
+    import sys
+    import types
+
+    mod = types.ModuleType("aioesphomeapi")
+    mod.APIClient = _FakeClient
+    mod.ReconnectLogic = _FakeReconnect
+    monkeypatch.setitem(sys.modules, "aioesphomeapi", mod)
+
+    link = vp.VoicePELink("pv.local", "psk", room="stue")
+    await link.start()
+    assert captured["address"] == ["pv.local", "192.168.86.140"]

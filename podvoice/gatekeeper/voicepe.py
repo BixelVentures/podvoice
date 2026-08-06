@@ -13,7 +13,11 @@ suite) imports cleanly on a box without the package installed.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import json
 import logging
+import pathlib
+import socket
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
@@ -111,7 +115,21 @@ class VoicePELink:
 
         # VERIFY: APIClient(address, port, password, *, noise_psk=...) signature.
         # Password is "" because the device uses Noise PSK encryption (§4.6).
-        self._client = APIClient(self.host, self._port, "", noise_psk=self._noise_psk)
+        # mDNS can stop resolving (container DNS hiccup, IPv6 flap) — the field log
+        # showed "Name has no usable address" and the puck went OFFLINE for minutes
+        # even though it was on the network. Remember the last address that WORKED and
+        # hand aioesphomeapi both: the name (survives DHCP) and the cached IP (survives
+        # a dead mDNS). Whichever answers first wins.
+        addrs: list[str] = [self.host]
+        cached = self._load_cached_ip()
+        if cached and cached not in addrs:
+            addrs.append(cached)
+        self._client = APIClient(
+            addrs,  # type: ignore[arg-type]  # list form VERIFIED against aioesphomeapi 45.3
+            self._port,
+            "",
+            noise_psk=self._noise_psk,
+        )
         # VERIFY: ReconnectLogic kwargs (client/on_connect/on_disconnect/name).
         # start() owns the connect loop; do NOT call client.connect() ourselves.
         self._reconnect = ReconnectLogic(
@@ -122,7 +140,38 @@ class VoicePELink:
         )
         await self._reconnect.start()
 
+    _IP_CACHE = pathlib.Path("/data/podvoice-device-ip.json")
+
+    def _load_cached_ip(self) -> str:
+        try:
+            data = json.loads(self._IP_CACHE.read_text())
+            return str(data.get(self.host) or "")
+        except Exception:
+            return ""
+
+    def _remember_ip(self) -> None:
+        """Cache the host's CURRENT numeric address while name resolution still works.
+
+        (client.address echoes back whatever we passed in — a list renders as text —
+        so resolve it ourselves instead of parroting our own input into the cache.)"""
+        ip = ""
+        with contextlib.suppress(Exception):
+            infos = socket.getaddrinfo(self.host, self._port, proto=socket.IPPROTO_TCP)
+            ip = str(infos[0][4][0]) if infos else ""
+        if not ip or ip == self.host:
+            return
+        with contextlib.suppress(Exception):
+            data = {}
+            if self._IP_CACHE.exists():
+                data = json.loads(self._IP_CACHE.read_text())
+            if data.get(self.host) != ip:
+                data[self.host] = ip
+                self._IP_CACHE.parent.mkdir(parents=True, exist_ok=True)
+                self._IP_CACHE.write_text(json.dumps(data))
+                log.info("voicepe %s: remembered address %s (mDNS fallback)", self.host, ip)
+
     async def _on_connect(self) -> None:
+        self._remember_ip()
         """Re-subscribe on every (re)connect — subscriptions don't survive a reconnect."""
         # VERIFY: device_info() coroutine name/shape.
         info = await self._client.device_info()

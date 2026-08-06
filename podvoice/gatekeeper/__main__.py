@@ -91,6 +91,28 @@ def _host_ip_for(target_host: str) -> str:
         s.close()
 
 
+class _NoAttention:
+    """Ducking no-op for the Talk tab: a browser session owns no room's music, so every
+    engage/release used to 404 ("unknown room 'talk'") and kill its own heartbeat."""
+
+    async def engage(self, room: str, level: int, ttl_ms: int) -> None:
+        return None
+
+    async def release(self, room: str) -> None:
+        return None
+
+    async def rooms(self) -> list[dict]:
+        return []
+
+
+_ROOM_NAMES: dict[str, str] = {}  # PodConnect room id -> friendly speaker name
+
+
+def _room_speaker_name(room_id: str) -> str:
+    """The friendly speaker name for a PodConnect room (filled once at boot)."""
+    return _ROOM_NAMES.get(room_id, "")
+
+
 def _build_session(
     cfg: Config,
     room: RoomMap,
@@ -104,7 +126,17 @@ def _build_session(
 ):
     psk = room.voicepe_noise_psk or cfg.voicepe_noise_psk
     declarations = tools.declarations() if tools is not None else []
-    brain = make_session(cfg, tool_declarations=declarations or None)
+    # WHERE this puck stands, in the model's own words. Without it, every media
+    # command hits HA's "multiple targets" error because the model has no default
+    # speaker to name (field log 14:36: HassMediaSearchAndPlay FAILED).
+    speaker = _room_speaker_name(room.room)
+    room_ctx = (
+        f"Du står i rummet med højttaleren '{speaker}'. Når brugeren IKKE nævner en "
+        f"højttaler eller et rum, så brug ALTID name='{speaker}' i medie-kald."
+        if speaker
+        else ""
+    )
+    brain = make_session(cfg, tool_declarations=declarations or None, room_context=room_ctx)
     voicepe = VoicePELink(room.voicepe_host, psk, room=room.room)
     # Track B (engine: thin): the model owns the conversation — server VAD handles
     # turn-taking/barge-in, the server idle timeout ends it. The provider session gets
@@ -306,6 +338,15 @@ async def run(cfg: Config) -> None:
         tools = ToolRouter(
             mcp, supervisor_token=cfg.supervisor_token, client=ha_client, timers=timers, hub=hub
         )
+        if attention is not None:
+            # Room names power the model's default speaker (see _build_session): without
+            # them every media call fails with HA's "multiple targets".
+            with contextlib.suppress(Exception):
+                for r in await attention.rooms():
+                    rid = str(r.get("id") or r.get("room") or "")
+                    if rid:
+                        _ROOM_NAMES[rid] = str(r.get("name") or rid)
+                _LOG.info("podconnect rooms: %s", _ROOM_NAMES or "none")
         await tools.start()  # fetch the MCP tool list BEFORE sessions copy declarations
 
         async def _probe_loop() -> None:
@@ -366,8 +407,10 @@ async def run(cfg: Config) -> None:
         url = f"reply/{TALK_ROOM}.flac" + (f"?t={reply_token}" if reply_token else "")
         session = ThinSession(
             room=TALK_ROOM,
-            attention=attention,
-            heartbeat=Heartbeat(attention, period_ms=cfg.heartbeat_ms),
+            # Talk is a BROWSER session, not a PodConnect room: ducking it 404s on every
+            # beat ("unknown room 'talk'"). Give it a no-op attention client instead.
+            attention=_NoAttention(),
+            heartbeat=Heartbeat(_NoAttention(), period_ms=cfg.heartbeat_ms),  # type: ignore[arg-type]
             brain=brain,
             voicepe=link,
             playback=Playback(sink=link.play_pcm),

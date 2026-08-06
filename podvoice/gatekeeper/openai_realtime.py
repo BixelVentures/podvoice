@@ -85,6 +85,9 @@ class OpenAIRealtimeSession:
     model: str = DEFAULT_MODEL
     voice: str = DEFAULT_VOICE
     instructions: str = ""  # empty -> built-in SYSTEM_PROMPT_DA
+    # WHERE this session physically is. Without it the model cannot target the room's
+    # own speaker and HA rejects media calls with "multiple targets" (field 14:36).
+    room_context: str = ""
     tool_declarations: list[dict] | None = None
     language: str = "da"
     # Turn detection: a PRESET (conservative/responsive) or "custom" via the raw knobs.
@@ -180,7 +183,8 @@ class OpenAIRealtimeSession:
         session: dict = {
             "type": "realtime",  # speech-to-speech (vs "transcription")
             "output_modalities": ["audio"],
-            "instructions": self.instructions or SYSTEM_PROMPT_DA,
+            "instructions": (self.instructions or SYSTEM_PROMPT_DA)
+            + (f"\n\nRUM\n{self.room_context}" if self.room_context else ""),
             "audio": {
                 "input": audio_input,
                 "output": {
@@ -478,6 +482,7 @@ def make_session(
     model: str | None = None,
     voice: str | None = None,
     tool_declarations: list[dict] | None = None,
+    room_context: str = "",
 ) -> OpenAIRealtimeSession:
     """Build the one voice brain from a Config (the old multi-provider factory).
 
@@ -493,6 +498,7 @@ def make_session(
         model=chosen,
         voice=voice or cfg.openai_voice or DEFAULT_VOICE,
         instructions=cfg.system_prompt,
+        room_context=room_context,
         tool_declarations=tool_declarations,
         preset=getattr(cfg, "turn_preset", "conservative"),
         turn=cfg.openai_turn,
