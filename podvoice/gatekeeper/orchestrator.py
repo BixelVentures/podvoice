@@ -18,23 +18,22 @@ import logging
 from . import audio as audio_mod
 from . import constants as C
 from .events import Action, ActionKind, Event, EventType, State
-from .gemini import (
+from .led import led_command_for
+from .podconnect import AttentionDown, UnknownRoom, Unsupervised
+from .state import StateMachine
+from .voice import (
     AudioChunk,
-    GoAway,
     InputTranscript,
     Interrupted,
     OutputTranscript,
     ToolCall,
-    ToolCallCancellation,
     TurnComplete,
+    Usage,
+    UserSpeechStopped,
 )
-from .led import led_command_for
-from .podconnect import AttentionDown, UnknownRoom, Unsupervised
-from .state import StateMachine
-from .voice import UserSpeechStopped
 
 # Extra playback margin after the reply's estimated duration before we declare the
-# turn "done" (device fetch + decode + mixer latency). See _on_gemini_event/TurnComplete.
+# turn "done" (device fetch + decode + mixer latency). See _on_brain_event/TurnComplete.
 PLAYBACK_TAIL_S = 0.5
 
 _LOG = logging.getLogger("podvoice.orchestrator")
@@ -57,7 +56,7 @@ class RoomSession:
         attention,
         heartbeat,
         gatekeeper,
-        gemini,
+        brain,
         voicepe,
         playback,
         tools=None,
@@ -80,12 +79,13 @@ class RoomSession:
         vad_threshold: float = C.VAD_THRESHOLD,
         enable_watchdog: bool = True,
         full_duplex: bool = False,  # default half-duplex (continued conversation)
+        usage=None,  # UsageMeter — per-response token/cost telemetry (optional)
     ) -> None:
         self.room = room
         self.attention = attention
         self.heartbeat = heartbeat
         self.gatekeeper = gatekeeper
-        self.gemini = gemini
+        self.brain = brain
         self.voicepe = voicepe
         self.playback = playback
         self.tools = tools
@@ -98,6 +98,7 @@ class RoomSession:
         self.speech = speech
         self.mic_preroll = mic_preroll
         self.speaker_path = speaker_path
+        self.usage = usage
         self.duck_level = duck_level
         self.lounge_level = lounge_level
         self.lounge_window_s = lounge_window_s
@@ -375,7 +376,7 @@ class RoomSession:
         with contextlib.suppress(Exception):
             await self.playback.aclose()
         with contextlib.suppress(Exception):
-            await self.gemini.close()
+            await self.brain.close()
         with contextlib.suppress(Exception):
             await self.voicepe.aclose()
 
@@ -386,23 +387,23 @@ class RoomSession:
             # Bound the connect: a hung TLS handshake on the WAKE path would otherwise wedge
             # the session with no recovery (the watchdog isn't armed until end-of-speech).
             try:
-                await asyncio.wait_for(self.gemini.connect(), timeout=C.CONNECT_TIMEOUT_S)
+                await asyncio.wait_for(self.brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
             except Exception as e:  # timeout or connect error
                 _LOG.warning("provider connect failed/timed out: %s", e)
                 if self.hub is not None:
-                    self.hub.set_service("gemini", "down")
+                    self.hub.set_service("brain", "down")
                     self.hub.activity(self.room, "⚠️ Kunne ikke nå assistenten")
                 await self.sm.post(Event(EventType.ERROR, self.room))
                 return
             self._start_reader()
             if self.hub is not None:
-                self.hub.set_service("gemini", "up")
+                self.hub.set_service("brain", "up")
         elif k is ActionKind.CLOSE_WS:
             await self._stop_reader()
             if self.watchdog is not None:
                 self.watchdog.disarm()
             with contextlib.suppress(Exception):
-                await self.gemini.close()
+                await self.brain.close()
         elif k is ActionKind.ENGAGE:
             # Fire-and-forget: the heartbeat holds the duck authoritatively, so a slow duck
             # POST must not stall the state-machine apply loop (blocks every transition).
@@ -450,7 +451,7 @@ class RoomSession:
             # NB: do NOT arm the TTFR watchdog here. Gate-open is the START of the
             # user's turn; arming now counts the user's own speaking time as model
             # latency and aborts every turn at WATCHDOG_MS. We arm at end-of-user-
-            # speech instead (UserSpeechStopped, see _on_gemini_event).
+            # speech instead (UserSpeechStopped, see _on_brain_event).
         elif k is ActionKind.GATE_SHUT:
             self.gatekeeper.shut()
         elif k is ActionKind.GATE_MUTE:
@@ -552,7 +553,7 @@ class RoomSession:
             _LOG.warning("direct path unavailable — falling back to announce for %s", self.room)
             await self._announce_with_retry()
             return
-        byte_rate = float(C.GEMINI_OUTPUT_RATE * C.SAMPLE_WIDTH)
+        byte_rate = float(C.OUTPUT_RATE * C.SAMPLE_WIDTH)
         sent = 0
         t0 = loop.time()
         try:
@@ -616,7 +617,7 @@ class RoomSession:
         # Speak the error in the assistant's OWN voice (synthesized once + cached, so it
         # works even when the live connection is what's down). Fall back to a short tone
         # only if TTS is unavailable — never the old robotic macOS clips.
-        tone = audio_mod.error_tone(C.GEMINI_OUTPUT_RATE)
+        tone = audio_mod.error_tone(C.OUTPUT_RATE)
         spoken = None
         if self.speech is not None:
             spoken = await self.speech.say(C.ERROR_PHRASES.get(reason, C.FALLBACK_CONNECTION))
@@ -671,11 +672,11 @@ class RoomSession:
                     _LOG.warning("provider send failed mid-stream (%s) — posting ERROR", e)
                     await self.sm.post(Event(EventType.ERROR, self.room))
 
-    # ------------------------------------------------------------------ gemini loop
+    # ------------------------------------------------------------------ brain loop
     def _start_reader(self) -> None:
         if self._reader is not None and not self._reader.done():
             return
-        self._reader = asyncio.create_task(self._read_gemini(), name=f"gemini-{self.room}")
+        self._reader = asyncio.create_task(self._read_brain(), name=f"brain-{self.room}")
 
     async def _stop_reader(self) -> None:
         if self._reader is not None and not self._reader.done():
@@ -684,17 +685,17 @@ class RoomSession:
                 await self._reader
         self._reader = None
 
-    async def _read_gemini(self) -> None:
+    async def _read_brain(self) -> None:
         try:
-            async for ev in self.gemini.events():
-                await self._on_gemini_event(ev)
+            async for ev in self.brain.events():
+                await self._on_brain_event(ev)
         except asyncio.CancelledError:
             raise
         except Exception:
-            _LOG.exception("gemini reader error for room %s", self.room)
+            _LOG.exception("brain reader error for room %s", self.room)
             await self.sm.post(Event(EventType.ERROR, self.room))
 
-    async def _on_gemini_event(self, ev) -> None:
+    async def _on_brain_event(self, ev) -> None:
         if isinstance(ev, AudioChunk):
             if not self._responded:
                 self._responded = True
@@ -743,14 +744,6 @@ class RoomSession:
                 self._tool_tasks.pop(_id, None)
 
             task.add_done_callback(_untrack)
-        elif isinstance(ev, ToolCallCancellation):
-            # The user barged in mid-tool (Gemini Live rescinds the calls): cancel the
-            # pending dispatches so a stale result is never submitted post-interrupt.
-            for call_id in ev.ids:
-                pending = self._tool_tasks.pop(call_id, None)
-                if pending is not None and not pending.done():
-                    pending.cancel()
-                    _LOG.info("tool call %s cancelled by barge-in", call_id)
         elif isinstance(ev, TurnComplete):
             # Flush the USER turn FIRST (before the reply) so History reads you -> assistant.
             # OpenAI's complete input transcript lands AFTER speech_stopped, so the
@@ -770,7 +763,7 @@ class RoomSession:
                 # the 1 s prebuffer, so the follow-up window opened ~1.5 s into a longer reply
                 # and the lounge VAD heard the reply itself → self-answer loop + garbage
                 # "you" turns (0.68 field regression). Always use the byte count.
-                est_playback_s = turn_bytes / float(C.GEMINI_OUTPUT_RATE * C.SAMPLE_WIDTH)
+                est_playback_s = turn_bytes / float(C.OUTPUT_RATE * C.SAMPLE_WIDTH)
                 self.reply_bus.end(self.room)  # reply done -> close the announce stream
             if self._out_buf and self.hub is not None:  # persist the whole reply as ONE turn
                 self.hub.transcript(self.room, "out", "".join(self._out_buf))
@@ -802,11 +795,9 @@ class RoomSession:
             self._out_buf = []  # the partial reply was cancelled — don't persist a fragment
             self.playback.flush()
             await self.sm.post(Event(EventType.MODEL_INTERRUPTED, self.room))
-        elif isinstance(ev, GoAway):
-            # events() resumes the session transparently (make-before-break) and keeps
-            # yielding on the SAME reader — so we must NOT reconnect/restart here, or we'd
-            # double-connect. Just note it (and keep ducking; transport stays up).
-            _LOG.info("Gemini go_away (%.1fs left) — auto-resuming", ev.time_left or 0.0)
+        elif isinstance(ev, Usage):
+            if self.usage is not None:
+                self.usage.add(getattr(self.brain, "model", "?") or "?", ev, room=self.room)
 
     async def _maybe_barge_in(self, text: str) -> None:
         if self.bargein is None:
@@ -841,9 +832,7 @@ class RoomSession:
             else:
                 self.hub.incr("tool_ok")
         async with self._tool_lock:  # dispatches run concurrently; WS writes must not
-            await self.gemini.send_tool_results(
-                [{"id": tc.id, "name": tc.name, "response": result}]
-            )
+            await self.brain.send_tool_results([{"id": tc.id, "name": tc.name, "response": result}])
 
     def _flush_user_turn(self) -> None:
         """Persist the buffered user utterance as ONE 'in' turn, then clear.

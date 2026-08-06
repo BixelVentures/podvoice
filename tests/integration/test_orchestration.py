@@ -12,26 +12,25 @@ import array
 import asyncio
 
 from fakes.fake_attention import FakeAttention
-from fakes.fake_gemini import FakeGeminiSession
+from fakes.fake_brain import FakeBrainSession
 from fakes.fake_voicepe import FakeVoicePELink
 
 from gatekeeper import constants as C
 from gatekeeper.events import Event, EventType
 from gatekeeper.gatekeeper import Gatekeeper
-from gatekeeper.gemini import (
-    AudioChunk,
-    InputTranscript,
-    Interrupted,
-    ToolCall,
-    ToolCallCancellation,
-    TurnComplete,
-)
 from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.led import led_command_for
 from gatekeeper.orchestrator import RoomSession
 from gatekeeper.playback import Playback
 from gatekeeper.reply import ReplyBus
 from gatekeeper.state import State
+from gatekeeper.voice import (
+    AudioChunk,
+    InputTranscript,
+    Interrupted,
+    ToolCall,
+    TurnComplete,
+)
 from gatekeeper.watchdog import BargeIn
 
 ROOM = "kitchen"
@@ -50,10 +49,10 @@ def _frame(amplitude: int, n_samples: int = 320) -> bytes:
     return array.array("h", [amplitude] * n_samples).tobytes()
 
 
-def _build(gemini: FakeGeminiSession, *, reply_bus: ReplyBus | None = None):
+def _build(gemini: FakeBrainSession, *, reply_bus: ReplyBus | None = None):
     attention = FakeAttention()
     voicepe = FakeVoicePELink(room=ROOM)
-    gatekeeper = Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False)
+    gatekeeper = Gatekeeper(send_to_brain=gemini.send_audio, send_silence=False)
     playback = Playback(sink=voicepe.play_pcm)
     heartbeat = Heartbeat(attention, period_ms=20)
     session = RoomSession(
@@ -61,7 +60,7 @@ def _build(gemini: FakeGeminiSession, *, reply_bus: ReplyBus | None = None):
         attention=attention,
         heartbeat=heartbeat,
         gatekeeper=gatekeeper,
-        gemini=gemini,
+        brain=gemini,
         voicepe=voicepe,
         playback=playback,
         tools=FakeTools(),
@@ -94,7 +93,7 @@ async def _wait_until(pred, max_wait: float = 1.5) -> None:
 
 async def test_full_ducking_flow():
     chunk = _frame(2000)
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     gemini.script(AudioChunk(chunk), TurnComplete())
     session, attention, voicepe = _build(gemini)
     await session.start()
@@ -125,7 +124,7 @@ async def test_full_ducking_flow():
 
 
 async def test_voice_barge_in_during_ai_speaking():
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     gemini.script(AudioChunk(_frame(2000)), InputTranscript("stop"))
     session, attention, _ = _build(gemini)
     await session.start()
@@ -141,7 +140,7 @@ async def test_voice_barge_in_during_ai_speaking():
 async def test_stop_sends_media_player_stop_to_device():
     """A closure while the AI speaks must STOP the device speaker, not just our stream
     (the device holds the whole buffered FLAC reply once fetched)."""
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     gemini.script(AudioChunk(_frame(2000)))  # reply starts, never completes
     session, _attention, voicepe = _build(gemini)
     await session.start()
@@ -160,7 +159,7 @@ async def test_turn_complete_waits_for_playback():
     posting it at generation end let the lounge VAD hear the assistant's own reply and
     loop (0.64 field bug)."""
     pcm = _frame(2000, n_samples=2400)  # 4800 B = 0.1 s at 24 kHz/16-bit
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     gemini.script(AudioChunk(pcm), TurnComplete())
     session, _attention, voicepe = _build(gemini, reply_bus=ReplyBus())
     await session.start()
@@ -182,7 +181,7 @@ async def test_turn_complete_waits_for_playback():
 async def test_error_is_audible_on_device():
     """An ERROR teardown must SAY something on the device (announce path), not just
     flash the LED — silent errors read as being ignored."""
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     session, _attention, voicepe = _build(gemini, reply_bus=ReplyBus())
     await session.start()
     try:
@@ -206,15 +205,15 @@ async def test_error_speaks_in_assistant_voice_when_available():
         async def say(self, text: str) -> bytes:
             return b"\x11\x22" * 5000  # non-tone marker PCM
 
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     voicepe = FakeVoicePELink(room=ROOM)
     bus = ReplyBus()
     session = RoomSession(
         room=ROOM,
         attention=FakeAttention(),
         heartbeat=Heartbeat(FakeAttention(), period_ms=20),
-        gatekeeper=Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False),
-        gemini=gemini,
+        gatekeeper=Gatekeeper(send_to_brain=gemini.send_audio, send_silence=False),
+        brain=gemini,
         voicepe=voicepe,
         playback=Playback(sink=voicepe.play_pcm),
         tools=FakeTools(),
@@ -241,7 +240,7 @@ async def test_error_speaks_in_assistant_voice_when_available():
 async def test_wake_prepaints_listening_led():
     """The ring must go cyan the instant wake arrives — before the ~1 s provider WS
     connect — or the dark gap reads as 'did it hear me?' (0.64 field feedback)."""
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     session, _attention, voicepe = _build(gemini)
     await session.start()
     try:
@@ -255,7 +254,7 @@ async def test_wake_prepaints_listening_led():
 async def test_ingest_survives_provider_send_failure():
     """A dead provider socket mid-LISTENING must NOT silently kill the room's hearing:
     one audible ERROR, the ingest loop stays alive (0.66 audit C1)."""
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     session, _attention, voicepe = _build(gemini, reply_bus=ReplyBus())
     await session.start()
     try:
@@ -280,7 +279,7 @@ async def test_media_state_finishes_turn_early():
     """Device-reported 'announcement finished' beats the byte-estimate: the lounge
     window opens the moment the speaker actually goes quiet."""
     pcm = _frame(2000, n_samples=24000)  # 48000 B = 1.0 s estimate
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     gemini.script(AudioChunk(pcm), TurnComplete())
     session, _attention, _voicepe = _build(gemini, reply_bus=ReplyBus())
     await session.start()
@@ -296,7 +295,7 @@ async def test_media_state_finishes_turn_early():
 
 
 async def test_hardware_mute_closes_session_and_paints_red():
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     session, _attention, voicepe = _build(gemini)
     await session.start()
     try:
@@ -315,17 +314,17 @@ async def test_direct_speaker_path_plays_and_finishes():
     end), the on-device stop word is armed for the reply, and the turn completes after
     the paced send finishes."""
     pcm = _frame(2000, n_samples=2400)  # 4800 B = 0.1 s
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     gemini.script(AudioChunk(pcm), TurnComplete())
     attention = FakeAttention()
     voicepe = FakeVoicePELink(room=ROOM)
-    gatekeeper = Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False)
+    gatekeeper = Gatekeeper(send_to_brain=gemini.send_audio, send_silence=False)
     session = RoomSession(
         room=ROOM,
         attention=attention,
         heartbeat=Heartbeat(attention, period_ms=20),
         gatekeeper=gatekeeper,
-        gemini=gemini,
+        brain=gemini,
         voicepe=voicepe,
         playback=Playback(sink=voicepe.play_pcm),
         tools=FakeTools(),
@@ -354,7 +353,7 @@ async def test_direct_speaker_path_plays_and_finishes():
 async def test_voice_barge_in_full_duplex_interrupts_playback():
     """0.68: with full_duplex on, the provider's Interrupted (user talked over the
     reply) must flush playback, STOP the device speaker and return to LISTENING."""
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     gemini.script(AudioChunk(_frame(2000)), Interrupted())
     attention = FakeAttention()
     voicepe = FakeVoicePELink(room=ROOM)
@@ -362,8 +361,8 @@ async def test_voice_barge_in_full_duplex_interrupts_playback():
         room=ROOM,
         attention=attention,
         heartbeat=Heartbeat(attention, period_ms=20),
-        gatekeeper=Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False),
-        gemini=gemini,
+        gatekeeper=Gatekeeper(send_to_brain=gemini.send_audio, send_silence=False),
+        brain=gemini,
         voicepe=voicepe,
         playback=Playback(sink=voicepe.play_pcm),
         tools=FakeTools(),
@@ -385,31 +384,8 @@ async def test_voice_barge_in_full_duplex_interrupts_playback():
         await session.aclose()
 
 
-async def test_tool_call_cancellation_drops_pending_dispatch():
-    """Gemini rescinds in-flight tool calls on barge-in: the pending dispatch must be
-    cancelled so a stale result is never submitted after the interrupt."""
-
-    class SlowTools(FakeTools):
-        async def dispatch(self, name: str, args: dict) -> dict:
-            await asyncio.sleep(5)  # never finishes within the test
-            return {"ok": True}
-
-    gemini = FakeGeminiSession()
-    gemini.script(ToolCall("c9", "home_call", {}), ToolCallCancellation(["c9"]))
-    session, _attention, _voicepe = _build(gemini)
-    session.tools = SlowTools()
-    await session.start()
-    try:
-        await session.sm.post(Event(EventType.WAKE_WORD, ROOM))
-        await asyncio.sleep(0.3)  # both events processed; dispatch task cancelled
-        assert session._tool_tasks == {}  # untracked
-        assert gemini.sent_tool_results == []  # and never submitted
-    finally:
-        await session.aclose()
-
-
 async def test_tool_call_dispatched_and_answered():
-    gemini = FakeGeminiSession()
+    gemini = FakeBrainSession()
     gemini.script(ToolCall("1", "add_todo", {"list": "todo.shopping_list", "item": "mælk"}))
     session, _attention, _ = _build(gemini)
     await session.start()

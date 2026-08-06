@@ -1,9 +1,9 @@
 """Add-on entrypoint: build one RoomSession per configured Voice PE and run.
 
 Reads /data/options.json + SUPERVISOR_TOKEN (config.py), wires the real
-components (AttentionClient, GeminiLiveSession, VoicePELink, Heartbeat,
-Gatekeeper, Playback, HAToolBridge) per room, and runs until SIGTERM — at which
-point it releases attention so the music is restored before exit.
+components (AttentionClient, OpenAIRealtimeSession, VoicePELink, Heartbeat,
+Gatekeeper, Playback, ToolRouter+MCP) per room, and runs until SIGTERM — at
+which point it releases attention so the music is restored before exit.
 """
 
 from __future__ import annotations
@@ -18,24 +18,27 @@ import socket
 import httpx
 
 from . import __version__
+from . import constants as C
 from .config import Config, RoomMap, load_config
 from .console import console_factory, list_models
 from .diag import check_status, resolve_target, run_s1, run_s2
 from .gatekeeper import Gatekeeper
-from .ha_tools import HAToolBridge
 from .heartbeat import Heartbeat
 from .history import History
 from .hub import StatusHub
+from .mcp_client import HomeAssistantMCP
+from .openai_realtime import make_session
 from .orchestrator import RoomSession
 from .playback import Playback
 from .podconnect import AttentionClient
-from .providers import make_session
 from .reply import ReplyBus
 from .settings import DEFAULTS as SETTINGS_DEFAULTS
 from .settings import load_settings, masked, save_settings
 from .sim import build_sim_sessions, run_driver
 from .speech import Speech
 from .timers import TimerManager
+from .tools import ToolRouter
+from .usage import UsageMeter
 from .voicepe import VoicePELink
 from .watchdog import BargeIn, TurnWatchdog
 from .web import DEFAULT_PORT, create_app, start_web
@@ -66,7 +69,7 @@ def _setup_logging(cfg: Config) -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     redactor = _Redactor(
-        [cfg.gemini_api_key, cfg.podconnect_token, cfg.voicepe_noise_psk, cfg.supervisor_token]
+        [cfg.openai_api_key, cfg.podconnect_token, cfg.voicepe_noise_psk, cfg.supervisor_token]
     )
     logging.getLogger().addFilter(redactor)
     # Quiet the per-request access spam (the panel polls /api/status every 3s) so the
@@ -92,15 +95,16 @@ def _build_session(
     cfg: Config,
     room: RoomMap,
     attention: AttentionClient,
-    tools: HAToolBridge | None,
+    tools: ToolRouter | None,
     hub: StatusHub,
     reply_bus: ReplyBus | None = None,
     reply_token: str = "",
     speech: Speech | None = None,
+    usage: UsageMeter | None = None,
 ):
     psk = room.voicepe_noise_psk or cfg.voicepe_noise_psk
     declarations = tools.declarations() if tools is not None else []
-    gemini = make_session(cfg, tool_declarations=declarations or None)  # provider per config
+    brain = make_session(cfg, tool_declarations=declarations or None)
     voicepe = VoicePELink(room.voicepe_host, psk, room=room.room)
     # Track B (engine: thin): the model owns the conversation — server VAD handles
     # turn-taking/barge-in, the server idle timeout ends it. The provider session gets
@@ -110,8 +114,8 @@ def _build_session(
 
         # The thin-native closure: the MODEL ends the conversation (no word lists).
         # (Protocol-typed as VoiceSession; the OpenAI dataclass carries the attr.)
-        existing = getattr(gemini, "tool_declarations", None) or []
-        gemini.tool_declarations = [*existing, END_CONVERSATION_TOOL]  # type: ignore[attr-defined]
+        existing = getattr(brain, "tool_declarations", None) or []
+        brain.tool_declarations = [*existing, END_CONVERSATION_TOOL]
         reply_url = (
             f"http://{_host_ip_for(room.voicepe_host)}:{DEFAULT_PORT}/reply/{room.room}.flac"
         )
@@ -121,7 +125,7 @@ def _build_session(
             room=room.room,
             attention=attention,
             heartbeat=Heartbeat(attention, period_ms=cfg.heartbeat_ms),
-            gemini=gemini,
+            brain=brain,
             voicepe=voicepe,
             playback=Playback(sink=voicepe.play_pcm),
             tools=tools,
@@ -130,8 +134,12 @@ def _build_session(
             reply_bus=reply_bus,
             reply_url=reply_url,
             duck_level=cfg.duck_level,
+            usage=usage,
+            full_duplex=cfg.full_duplex,  # EXPERIMENTAL open-mic duplex (Phase 1.4 gates it)
+            idle_timeout_s=cfg.idle_timeout_s,
+            max_session_s=cfg.max_session_min * 60,
         )
-    gatekeeper = Gatekeeper(send_to_gemini=gemini.send_audio, send_silence=False)
+    gatekeeper = Gatekeeper(send_to_brain=brain.send_audio, send_silence=False)
     playback = Playback(sink=voicepe.play_pcm)
     heartbeat = Heartbeat(attention, period_ms=cfg.heartbeat_ms)
     # The device-reachable URL it fetches to play the AI reply (announce path). .flac because
@@ -152,7 +160,7 @@ def _build_session(
         attention=attention,
         heartbeat=heartbeat,
         gatekeeper=gatekeeper,
-        gemini=gemini,
+        brain=brain,
         voicepe=voicepe,
         playback=playback,
         tools=tools,
@@ -169,6 +177,7 @@ def _build_session(
         duck_level=cfg.duck_level,
         lounge_level=cfg.lounge_level,
         vad_threshold=cfg.vad_threshold,
+        usage=usage,
     )
 
 
@@ -184,7 +193,7 @@ async def _health_probe(cfg: Config, hub: StatusHub, attention: AttentionClient)
     """Keep the panel's service dots meaningful even with no rooms / no conversation.
 
     - PodConnect: actively GET /api/attention (HTTP, no device-exclusivity issue).
-    - Gemini/OpenAI: reflect whether the active provider's key is configured.
+    - OpenAI: reflect whether the API key is configured.
     Voice PE is left to the room link (a 2nd device connection would clash with the
     single-client native-API subscription).
     """
@@ -199,8 +208,7 @@ async def _health_probe(cfg: Config, hub: StatusHub, attention: AttentionClient)
         else:
             hub.set_service("podconnect", "degraded" if attention.degraded else "down")
 
-        key = cfg.openai_api_key if cfg.provider == "openai" else cfg.gemini_api_key
-        hub.set_service("gemini", "up" if key else "down")  # configured (not a live ping)
+        hub.set_service("openai", "up" if cfg.openai_api_key else "down")  # configured, not pinged
         await asyncio.sleep(30)
 
 
@@ -230,9 +238,10 @@ async def run(cfg: Config) -> None:
     reply_token = secrets.token_urlsafe(16)
     attention: AttentionClient | None = None
     ha_client: httpx.AsyncClient | None = None
-    tools: HAToolBridge | None = None
+    tools: ToolRouter | None = None
     timers: TimerManager | None = None
     speech: Speech | None = None
+    usage: UsageMeter | None = None
     driver: asyncio.Task | None = None
     probe: asyncio.Task | None = None
     prewarm: asyncio.Task | None = None
@@ -265,7 +274,7 @@ async def run(cfg: Config) -> None:
             # in the assistant's voice and cached; the generic line is the fallback.
             text = f"Din {label}-timer er færdig!" if label and label != "timer" else CC.TIMER_DONE
             spoken = await speech.say(text) or await speech.say(CC.TIMER_DONE)
-            tone = audio_mod.error_tone(CC.GEMINI_OUTPUT_RATE) * 2
+            tone = audio_mod.error_tone(CC.OUTPUT_RATE) * 2
             for s in sessions.values():
                 bus, url = getattr(s, "reply_bus", None), getattr(s, "reply_url", None)
                 if bus is None or not url:
@@ -285,11 +294,27 @@ async def run(cfg: Config) -> None:
 
         timers = TimerManager(_timer_ring)
         _LOG.info("timers: in-memory (an add-on restart clears running timers)")
-        tools = HAToolBridge(cfg.supervisor_token, ha_client, exposed=cfg.exposed, timers=timers)
-        if not cfg.supervisor_token:
-            _LOG.warning("no SUPERVISOR_TOKEN — HA control disabled (PodConnect tool still works)")
+        # Home control = HA's own MCP server on the LAN. Default: the Supervisor proxy
+        # with the token the add-on already holds; Settings can point directly at
+        # http://<ha>:8123/api/mcp with a long-lived token for non-supervised setups.
+        mcp_url = cfg.ha_mcp_url or f"{C.SUPERVISOR_CORE_API}/mcp"
+        mcp_token = cfg.ha_mcp_token or cfg.supervisor_token
+        mcp = HomeAssistantMCP(mcp_url, mcp_token, ha_client) if mcp_token else None
+        tools = ToolRouter(
+            mcp, supervisor_token=cfg.supervisor_token, client=ha_client, timers=timers, hub=hub
+        )
+        await tools.start()  # fetch the MCP tool list BEFORE sessions copy declarations
+        if mcp is None:
+            _LOG.warning(
+                "no SUPERVISOR_TOKEN and no ha_mcp_token — home control disabled "
+                "(clock + timers still work)"
+            )
+        # Cost telemetry: every response's token usage -> /data + two HA cost sensors.
+        usage = UsageMeter(cfg.supervisor_token, ha_client)
         sessions = {
-            r.room: _build_session(cfg, r, attention, tools, hub, reply_bus, reply_token, speech)
+            r.room: _build_session(
+                cfg, r, attention, tools, hub, reply_bus, reply_token, speech, usage
+            )
             for r in cfg.rooms
         }
 
@@ -309,7 +334,7 @@ async def run(cfg: Config) -> None:
 
     console_make = console_factory(cfg, tools)
 
-    def _make_talk(send_json, send_bytes, provider=None, model=None, voice=None):
+    def _make_talk(send_json, send_bytes, model=None, voice=None):
         """One REAL ThinSession per Talk socket: the browser as a device. The mic
         button fires the same wake() as 'Okay Nabu'; the reply plays from the same
         reply-bus stream the puck fetches — every engine rule proven in the tab."""
@@ -318,10 +343,10 @@ async def run(cfg: Config) -> None:
 
         if attention is None:  # no PodConnect client (bare simulate) — no ducking to run
             raise RuntimeError("talk session needs the attention client")
-        gemini = console_make(provider, model, voice)
-        existing = getattr(gemini, "tool_declarations", None) or []
+        brain = console_make(model, voice)
+        existing = getattr(brain, "tool_declarations", None) or []
         with contextlib.suppress(Exception):
-            gemini.tool_declarations = [*existing, END_CONVERSATION_TOOL]
+            brain.tool_declarations = [*existing, END_CONVERSATION_TOOL]
         link = BrowserLink(send_json, send_bytes)
         # RELATIVE url: the browser resolves it against the panel page, so it works
         # through HA Ingress (direct :8098 stays closed); the token still gates it.
@@ -330,7 +355,7 @@ async def run(cfg: Config) -> None:
             room=TALK_ROOM,
             attention=attention,
             heartbeat=Heartbeat(attention, period_ms=cfg.heartbeat_ms),
-            gemini=gemini,
+            brain=brain,
             voicepe=link,
             playback=Playback(sink=link.play_pcm),
             tools=tools,
@@ -339,6 +364,9 @@ async def run(cfg: Config) -> None:
             reply_bus=reply_bus,
             reply_url=url,
             duck_level=cfg.duck_level,
+            usage=usage,
+            idle_timeout_s=cfg.idle_timeout_s,
+            max_session_s=cfg.max_session_min * 60,
         )
         return session, link
 
@@ -347,7 +375,7 @@ async def run(cfg: Config) -> None:
         sessions,
         make_console=console_make,
         make_talk=_make_talk,
-        models_provider=lambda provider=None: list_models(cfg, provider),
+        models_provider=lambda: list_models(cfg),
         settings_get=lambda: {
             **masked(load_settings()),  # tokens/PSK never leave the box in cleartext
             "system_prompt_default": SETTINGS_DEFAULTS["system_prompt"],
@@ -356,7 +384,6 @@ async def run(cfg: Config) -> None:
         on_restart=lambda: _restart_addon(cfg.supervisor_token),
         diag=diag,
         tools=tools,
-        ha_entities=(tools.list_entities if tools is not None else None),
         pc_rooms=(attention.rooms if attention is not None else None),
         history=history,
         reply_bus=reply_bus,

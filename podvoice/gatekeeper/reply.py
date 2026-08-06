@@ -29,7 +29,7 @@ _END = object()
 
 
 def flac_stream_args(
-    *, sample_rate: int = C.GEMINI_OUTPUT_RATE, channels: int = 1, bits: int = 16
+    *, sample_rate: int = C.OUTPUT_RATE, channels: int = 1, bits: int = 16
 ) -> list[str]:
     """The `flac` CLI invocation for encoding raw PCM from stdin to stdout.
 
@@ -52,7 +52,7 @@ def flac_stream_args(
 
 
 async def encode_flac(
-    pcm: bytes, *, sample_rate: int = C.GEMINI_OUTPUT_RATE, channels: int = 1, bits: int = 16
+    pcm: bytes, *, sample_rate: int = C.OUTPUT_RATE, channels: int = 1, bits: int = 16
 ) -> bytes | None:
     """Encode raw PCM16 to a FLAC file via the `flac` CLI (in the add-on image).
 
@@ -86,7 +86,7 @@ async def encode_flac(
 
 
 def wav_header(
-    sample_rate: int = C.GEMINI_OUTPUT_RATE,
+    sample_rate: int = C.OUTPUT_RATE,
     *,
     data_size: int = 0,
     channels: int = 1,

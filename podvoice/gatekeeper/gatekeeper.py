@@ -27,11 +27,11 @@ class Gatekeeper:
 
     def __init__(
         self,
-        send_to_gemini: Callable[[bytes], Awaitable[None]],
+        send_to_brain: Callable[[bytes], Awaitable[None]],
         send_silence: bool = True,
         preroll_frames: int = PREROLL_FRAMES,
     ) -> None:
-        self._send = send_to_gemini
+        self._send = send_to_brain
         self._send_silence = send_silence
         self._open = False
         # Rolling buffer of the most recent REAL frames seen while the gate was shut.

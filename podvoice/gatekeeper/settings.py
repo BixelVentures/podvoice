@@ -1,6 +1,6 @@
 """Panel-managed settings, persisted to the add-on's own /data (not options.json).
 
-Everything except the Gemini API key lives here and is edited in the sidebar
+Everything except the OpenAI API key lives here and is edited in the sidebar
 panel's Settings page — keeping the HA add-on Configuration tab down to a single
 field (the key). The key stays an add-on option because HA's masked secret field
 is the right place for it.
@@ -15,7 +15,7 @@ import os
 import pathlib
 
 from . import constants as C
-from .gemini import SYSTEM_PROMPT_DA
+from .prompt import SYSTEM_PROMPT_DA
 
 _LOG = logging.getLogger("podvoice.settings")
 
@@ -36,8 +36,10 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 # Bumping this triggers the one-time stale-tuning reset in load_settings(): any saved
 # file with an older (or missing) version gets its TUNING_KEYS dropped, so values saved
 # under old defaults (watchdog 800ms, lounge 0s, near_field noise…) can't keep overriding
-# retuned defaults forever. Identity settings (keys, rooms, exposed, prompts) are kept.
-SETTINGS_VERSION = 2
+# retuned defaults forever. Identity settings (keys, rooms, prompts) are kept.
+# v3: the OpenAI-only overhaul — drops saved gemini_*/provider knobs (now unknown keys)
+# and resets openai_model so the gpt-realtime-2.1-mini default actually lands.
+SETTINGS_VERSION = 3
 
 # sha256 of RETIRED default system prompts. A saved prompt matching one of these is
 # just a persisted copy of an old default (the panel saves every field on Save) —
@@ -45,6 +47,8 @@ SETTINGS_VERSION = 2
 # never matches and is always kept.
 LEGACY_PROMPT_HASHES = frozenset(
     {
+        # pre-MCP default (referenced list_home/list_services/home_call) — retired 0.91
+        "38e4311b176b5f3696516e36c5d3c38ee4b23294f84753860c01e7a03991619b",
         "0f96cf58ee764eb07fb0d98618ce592e17fea22d92bc1b44fff8d3b79f964ae4",
         "93e0a784292b139f0af3e2ab514295c229f32ca08a0360f6719a84a7a8e656c5",
         "fbdfefcea1f6da605e9db71121a3b3eb129f88f490263831ac74fb05ad0bf238",
@@ -75,44 +79,42 @@ TUNING_KEYS: frozenset[str] = frozenset(
         "heartbeat_ms",
         "watchdog_ms",
         "vad_threshold",
-        "gemini_vad_start",
-        "gemini_vad_end",
-        "gemini_prefix_ms",
-        "gemini_silence_ms",
+        "openai_model",
+        "turn_preset",
         "openai_turn",
         "openai_threshold",
         "openai_prefix_ms",
         "openai_silence_ms",
         "openai_eagerness",
         "openai_noise",
+        "idle_timeout_s",
+        "max_session_min",
     }
 )
 
-# Panel-editable fields and their defaults. The Gemini API key is intentionally
+# Panel-editable fields and their defaults. The OpenAI API key is intentionally
 # NOT here (it's the one add-on option).
 DEFAULTS: dict = {
     "settings_version": SETTINGS_VERSION,
     "simulate": False,
     "full_duplex": False,  # half-duplex (continued conversation) is the shipped mode; True is
-    # the future open-mic full-duplex opt-in (not built yet)
-    "provider": "gemini",  # "gemini" | "openai" — default voice brain
+    # the experimental open-mic duplex opt-in (Phase 1.4 test matrix gates promotion)
     "system_prompt": SYSTEM_PROMPT_DA,  # who the assistant is + what it can do (editable)
-    "gemini_model": "gemini-2.5-flash-native-audio-preview-12-2025",
-    "gemini_voice": "Kore",
-    # Gemini Live VAD (automatic activity detection)
-    "gemini_vad_start": "high",  # high|low — start-of-speech sensitivity
-    "gemini_vad_end": "high",  # high|low — end-of-speech sensitivity
-    "gemini_prefix_ms": 300,
-    "gemini_silence_ms": 500,
-    "openai_model": "gpt-realtime-2",
+    "openai_model": "gpt-realtime-2.1-mini",
     "openai_voice": "marin",
-    # OpenAI Realtime turn detection + noise reduction
-    "openai_turn": "semantic_vad",  # server_vad|semantic_vad|none
-    "openai_threshold": 0.5,  # server_vad only
-    "openai_prefix_ms": 300,  # server_vad only
-    "openai_silence_ms": 500,  # server_vad only
-    "openai_eagerness": "auto",  # semantic_vad: auto|low|medium|high
+    "force_mini": False,  # cost guard: clamp EVERY session (rooms + Talk) to the mini model
+    # Turn detection: a preset, or "custom" driven by the raw knobs below.
+    # conservative = server_vad tuned hard-to-interrupt (residual echo past the XMOS AEC
+    # must not read as barge-in); responsive = semantic_vad, easiest to interrupt.
+    "turn_preset": "conservative",  # conservative|responsive|custom
+    "openai_turn": "semantic_vad",  # custom: server_vad|semantic_vad|none
+    "openai_threshold": 0.5,  # custom, server_vad only
+    "openai_prefix_ms": 300,  # custom, server_vad only
+    "openai_silence_ms": 500,  # custom, server_vad only
+    "openai_eagerness": "auto",  # custom, semantic_vad: auto|low|medium|high
     "openai_noise": "far_field",  # near_field|far_field|off
+    "idle_timeout_s": 25,  # close the conversation after this much user silence
+    "max_session_min": 15,  # hard ceiling on one conversation (cost control)
     "engine": "classic",  # "classic" (the proven state-machine engine) | "thin" (Track B:
     # the model owns the conversation — turn-taking, barge-in, idle — via server VAD)
     "reply_streaming": False,  # stream the reply FLAC as it's generated (kills the pre-reply
@@ -124,8 +126,12 @@ DEFAULTS: dict = {
     "podconnect_base_url": "http://homeassistant.local:8099",
     "podconnect_token": "",
     "voicepe_noise_psk": "",
+    # HA MCP server (home control). Empty url = the Supervisor proxy default
+    # (http://supervisor/core/api/mcp with the add-on's own token). Which entities
+    # the assistant may touch is governed by HA: Settings -> Voice assistants.
+    "ha_mcp_url": "",
+    "ha_mcp_token": "",
     "rooms": [],  # list of {"voicepe_host": str, "room": str}
-    "exposed": [],  # HA entity_ids / domains the assistant may control (allowlist)
     "duck_level": C.DUCK_LEVEL,
     "lounge_level": C.LOUNGE_LEVEL,
     "lounge_window_s": C.LOUNGE_WINDOW_S,
@@ -174,7 +180,7 @@ def load_settings(path: pathlib.Path | None = None) -> dict:
 
 # Secret-valued settings: masked on read (panel GET), and a masked value coming BACK
 # on save is ignored so a round-tripped form can't overwrite the real secret.
-SECRET_SETTINGS = frozenset({"podconnect_token", "voicepe_noise_psk"})
+SECRET_SETTINGS = frozenset({"podconnect_token", "voicepe_noise_psk", "ha_mcp_token"})
 SECRET_MASK = "********"
 
 

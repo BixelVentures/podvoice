@@ -9,7 +9,7 @@ OpenAI key is configured or a synthesis attempt fails.
 
 `gpt-4o-mini-tts` with `response_format: "pcm"` returns raw 24 kHz / 16-bit / mono PCM
 with no header — exactly what the reply bus + announce path expect
-(``constants.GEMINI_OUTPUT_RATE``), so no resampling or header stripping is needed.
+(``constants.OUTPUT_RATE``), so no resampling or header stripping is needed.
 """
 
 from __future__ import annotations
@@ -22,8 +22,8 @@ _LOG = logging.getLogger("podvoice.speech")
 
 _URL = "https://api.openai.com/v1/audio/speech"
 _MODEL = "gpt-4o-mini-tts"  # supports `instructions`; PCM out is 24 kHz/16-bit/mono
-# OpenAI TTS voice set (the chat provider may be Gemini with a Gemini voice name that
-# isn't valid here — fall back to marin). VERIFY against the speech-API docs on drift.
+# OpenAI TTS voice set (an unknown configured voice falls back to marin).
+# VERIFY against the speech-API docs on drift.
 _OPENAI_VOICES = frozenset(
     {"alloy", "ash", "ballad", "coral", "echo", "fable", "nova",
      "onyx", "sage", "shimmer", "verse", "marin", "cedar"}

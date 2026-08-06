@@ -63,7 +63,7 @@ def test_silence_frame_is_cached_per_size():
 
 def test_lounge_vad_ignores_ambient_music():
     # Low-amplitude ambient "music": a quiet sine well below the threshold.
-    rate = C.GEMINI_INPUT_RATE
+    rate = C.INPUT_RATE
     n = 320  # 20 ms
     ambient = _sine(220.0, rate, n, amp=0.005)
     assert rms(ambient) < C.VAD_THRESHOLD  # sanity: ambient is sub-threshold
@@ -74,13 +74,13 @@ def test_lounge_vad_ignores_ambient_music():
 
 def test_lounge_vad_seeds_floor_from_first_frame():
     vad = LoungeVAD()
-    first = _sine(220.0, C.GEMINI_INPUT_RATE, 320, amp=0.01)
+    first = _sine(220.0, C.INPUT_RATE, 320, amp=0.01)
     assert vad.feed(first) is False  # first frame only seeds, never fires
     assert vad._floor == rms(first)
 
 
 def test_lounge_vad_fires_on_voice_within_attack_frames():
-    rate = C.GEMINI_INPUT_RATE
+    rate = C.INPUT_RATE
     n = 320
     ambient = _sine(220.0, rate, n, amp=0.005)
     voice = _sine(300.0, rate, n, amp=0.3)  # loud, voice-level spike
@@ -96,7 +96,7 @@ def test_lounge_vad_fires_on_voice_within_attack_frames():
 
 def test_lounge_vad_reset_clears_state():
     vad = LoungeVAD()
-    voice = _sine(300.0, C.GEMINI_INPUT_RATE, 320, amp=0.3)
+    voice = _sine(300.0, C.INPUT_RATE, 320, amp=0.3)
     vad.feed(voice)
     vad.feed(voice)
     vad.reset()
@@ -135,7 +135,7 @@ def test_resample_round_trip_preserves_energy():
 
 
 def test_error_tone_byte_count():
-    rate = C.GEMINI_OUTPUT_RATE
+    rate = C.OUTPUT_RATE
     freqs = (660.0, 440.0)
     ms = (150, 200)
     tone = error_tone(rate_hz=rate, freqs=freqs, ms=ms)

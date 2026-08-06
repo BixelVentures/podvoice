@@ -102,7 +102,7 @@ async def run_s1(host: str | None, psk: str, seconds: float = 15.0) -> dict:
             "is NOT added to HA Assist (PodVoice must own the mic).",
         }
     span = frames[-1][0] - frames[0][0]
-    audio_s = sum(n for _, n in frames) / SAMPLE_WIDTH / C.GEMINI_INPUT_RATE
+    audio_s = sum(n for _, n in frames) / SAMPLE_WIDTH / C.INPUT_RATE
     gaps = [(frames[i][0] - frames[i - 1][0]) * 1000 for i in range(1, len(frames))]
     big = [g for g in gaps if g > 60]
     continuity = (audio_s / span * 100) if span else 0.0
@@ -134,9 +134,9 @@ async def run_s2(host: str | None, psk: str, seconds: float = 1.2) -> dict:
             return None
 
         client.subscribe_voice_assistant(handle_start=_noop, handle_stop=_noop, handle_audio=None)
-        tone = audio_mod.error_tone(C.GEMINI_OUTPUT_RATE)  # short 24 kHz tone
-        reps = max(1, int(seconds / (len(tone) / SAMPLE_WIDTH / C.GEMINI_OUTPUT_RATE)))
-        chunk = C.GEMINI_OUTPUT_RATE * SAMPLE_WIDTH * 20 // 1000  # 20 ms
+        tone = audio_mod.error_tone(C.OUTPUT_RATE)  # short 24 kHz tone
+        reps = max(1, int(seconds / (len(tone) / SAMPLE_WIDTH / C.OUTPUT_RATE)))
+        chunk = C.OUTPUT_RATE * SAMPLE_WIDTH * 20 // 1000  # 20 ms
         for _ in range(reps):
             for i in range(0, len(tone), chunk):
                 client.send_voice_assistant_audio(tone[i : i + chunk])  # VERIFY: sync method

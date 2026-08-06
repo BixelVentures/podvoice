@@ -1,24 +1,24 @@
-"""In-memory fake Gemini Live session for the unit/integration suites.
+"""In-memory fake voice session for the unit/integration suites.
 
-Satisfies ``interfaces.GeminiLike`` and reuses the typed event dataclasses from
-``gatekeeper.gemini``, so tests can script a deterministic event stream without
+Satisfies ``voice.VoiceSession`` and reuses the typed event dataclasses from
+``gatekeeper.voice``, so tests can script a deterministic event stream without
 the google-genai SDK or any network. Import as::
 
-    from fakes.fake_gemini import FakeGeminiSession
+    from fakes.fake_brain import FakeBrainSession
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from gatekeeper.gemini import GeminiEvent  # re-export the event dataclasses' union
+from gatekeeper.voice import VoiceEvent
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from collections.abc import AsyncIterator
 
 
-class FakeGeminiSession:
-    """A scriptable stand-in for ``GeminiLiveSession``.
+class FakeBrainSession:
+    """A scriptable stand-in for a real voice session.
 
     Construct with a list of events; ``events()`` yields them in order. Audio
     sent via ``send_audio`` and tool results via ``send_tool_results`` are
@@ -26,8 +26,8 @@ class FakeGeminiSession:
     bookkeeping flags.
     """
 
-    def __init__(self, events: list[GeminiEvent] | None = None) -> None:
-        self.scripted: list[GeminiEvent] = list(events or [])
+    def __init__(self, events: list[VoiceEvent] | None = None) -> None:
+        self.scripted: list[VoiceEvent] = list(events or [])
         self.sent_audio: list[bytes] = []
         self.sent_tool_results: list[list] = []
         self.tool_result_creates: list[bool] = []
@@ -41,11 +41,11 @@ class FakeGeminiSession:
 
     # --- scripting helpers -------------------------------------------------
 
-    def script(self, *events: GeminiEvent) -> None:
+    def script(self, *events: VoiceEvent) -> None:
         """Append more events to emit from ``events()``."""
         self.scripted.extend(events)
 
-    # --- GeminiLike --------------------------------------------------------
+    # --- VoiceSession ------------------------------------------------------
 
     async def connect(self) -> None:
         self.connected = True
@@ -66,7 +66,7 @@ class FakeGeminiSession:
         self.sent_tool_results.append(results)
         self.tool_result_creates.append(create)
 
-    async def events(self) -> AsyncIterator[GeminiEvent]:
+    async def events(self) -> AsyncIterator[VoiceEvent]:
         for ev in self.scripted:
             yield ev
 

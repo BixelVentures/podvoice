@@ -1,0 +1,96 @@
+# PodVoice audio ingestion path (Task 0.1 — verified 2026-07-26)
+
+**TL;DR: PodVoice does NOT use the HA Assist/STT pipeline.** Mic audio reaches the
+add-on through our own ESPHome external component (`podvoice_audio`), so the Voice PE
+26.6.0 "unprocessed audio" feature (which is delivered *through HA's STT interface*)
+does **not** apply to us as shipped — but the same channel it exposes **is directly
+reachable from our transport** with a one-line firmware overlay change (see §4).
+
+## 1. How mic audio actually flows today
+
+```
+XMOS XU316 (AEC → IC → NS → AGC) ──I2S──▶ ESP32-S3 i2s_mics (16 kHz / 32-bit / stereo)
+    ch0 = full chain (incl. AGC)             │
+    ch1 = same chain WITHOUT AGC             ▼
+                      podvoice_audio (passive MicrophoneSource tap, channels: [0],
+                      gain 1, 16-bit truncate, 400 ms PSRAM ring)
+                                             │  VoiceAssistantAudio messages over the
+                                             ▼  ESPHome native API (port 6053)
+                      gatekeeper/voicepe.py `_handle_audio` → asyncio queue
+                                             │  16 kHz PCM frames
+                                             ▼
+                      engine (thin/classic) → StreamResampler 16→24 kHz → OpenAI Realtime WS
+```
+
+- Wake-gated: `podvoice_stream_start/stop` (API actions) open/close the forward;
+  a 25 s dead-man timer force-stops it if the add-on dies. Audio streams to the
+  cloud only between wake and conversation end.
+- The stock `voice_assistant` component still exists on the device (it delivers the
+  wake signal via `handle_start`), but its own mic streaming to HA is not used.
+- Reply audio goes out via the `external_media_player` announce path (HTTP FLAC),
+  i.e. through the same mixer → speaker chain the XMOS taps as its echo reference —
+  **so the hardware AEC stays correct for everything we play.**
+
+## 2. Which XMOS stages apply to our stream
+
+Verified against `voice_kit` in home-assistant-voice-pe @ 26.6.0
+(`channel_0_stage: AGC`, `channel_1_stage: NS` are the defaults; the Voice PE YAML
+does not override them; unchanged across 25.12.4 → 26.6.0):
+
+| I2S channel | XMOS processing | Who consumes it | PodVoice reachable? |
+|---|---|---|---|
+| **0** | AEC + Interference Canceller + Noise Suppression + **AGC** (full chain) | HA STT (classic), **podvoice_audio today** | yes — current config |
+| **1** | AEC + IC + NS, **no AGC** (quieter — mww compensates with `gain_factor: 4`) | micro_wake_word; HA STT *optionally* since 26.6.0 | yes — `channels: [1]` + `gain_factor: 4` (reflash) |
+| (raw) | none — pre-AEC | nobody by default | only by overriding `voice_kit: channel_X_stage: NONE` (reflash) |
+
+**Correction to the task premise:** the field notes calling channel 0 "not
+echo-cancelled" (0.83/0.85 changelog) are wrong per upstream source — **both**
+channels are AEC-processed; what the 26.6.0 release notes call "unprocessed" is
+only *AGC-less*, not raw. The echo the 0.83 test heard was **residual** echo past
+the AEC (AGC re-amplifies it, and our announce path adds none of its own risk).
+That residual is exactly what server-side turn detection misread as barge-in —
+which is why Phase 1 tunes turn detection (conservative preset: `server_vad`
+threshold 0.7) instead of fighting the AEC. The 0.87 finding "channel 1 is mute
+for STT" is also explained: we tapped ch1 with `gain_factor: 1`; without AGC it
+needs gain ≈ 4 (micro_wake_word uses exactly that).
+
+## 3. The 26.6.0 "unprocessed audio" feature — what it actually is
+
+- The real PR is **esphome/home-assistant-voice-pe#591** ("Add second mic to voice
+  assistant with audio not passed through AGC", merged 2026-05-21, in firmware
+  26.6.0). The task file's reference, **PR #555, is a one-line typo fix** — nothing
+  to adopt there.
+- Mechanism: `voice_assistant:` now takes up to two microphone sources; the device
+  sets `FEATURE_MULTI_CHANNEL_AUDIO` and streams ch0 as `data` and ch1 as `data2`
+  in the same `VoiceAssistantAudio` message. **HA ≥ 2026.6** picks `data2` only
+  when the active STT engine declares it prefers no AGC/no NS. No select, no
+  switch, no new entity.
+- Because PodVoice bypasses HA's STT pipeline, none of that selection logic runs
+  for us. Our `_handle_audio(data, data2)` already receives `data2=None` (our
+  component forwards a single channel).
+
+## 4. How PodVoice reaches each Phase-1.4 matrix row
+
+| Matrix row | Change needed | Effort |
+|---|---|---|
+| XMOS-processed + default/tuned turn detection | none — current firmware; tune in Settings (presets are live) | none |
+| "Raw"/unprocessed (= AGC-less, still AEC'd) | `esphome/podvoice.yaml`: `podvoice_audio.microphone.channels: [1]`, `gain_factor: 4` → reflash | 5 min + flash |
+| Truly raw (pre-AEC) — diagnostic only | additionally `voice_kit: channel_1_stage: NONE` in the overlay → reflash | 10 min + flash |
+| Processed + software AEC in the add-on | do NOT build preemptively (task rule) | — |
+
+A commented-out block for the ch1 variant is in `esphome/podvoice.yaml` next to the
+`channels:` line. Remember: **an AGC-less channel is quieter** — if OpenAI stops
+detecting speech on ch1, raise `gain_factor` before concluding anything.
+
+## 5. Consequences for the rest of the overhaul
+
+- The XMOS AEC is an asset and it applies to our stream **today**. The
+  self-interruption fix is turn-detection tuning (Phase 1.3) + gpt-realtime-2.1's
+  improved interruption handling, layered on processed audio. Raw audio stays a
+  diagnostic.
+- The echo shield in the thin engine (mic gated while the device announces) remains
+  the shipped default; `full_duplex: true` disables it and leans on AEC + the
+  conservative preset — promoted only if the 1.4 matrix passes.
+- Sources: home-assistant-voice-pe 26.6.0 release + `home-assistant-voice.yaml` @
+  26.6.0; `voice_kit` component source; esphome `voice_assistant`/`api.proto` @ dev;
+  home-assistant core `esphome/assist_satellite.py` @ dev; PR #591 / #555.

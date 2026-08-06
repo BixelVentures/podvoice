@@ -15,11 +15,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from gatekeeper.gemini import InputTranscript, TurnComplete
 from gatekeeper.history import History
 from gatekeeper.hub import StatusHub
 from gatekeeper.orchestrator import RoomSession
-from gatekeeper.voice import UserSpeechStopped
+from gatekeeper.voice import InputTranscript, TurnComplete, UserSpeechStopped
 
 
 def _session(tmp_path) -> tuple[RoomSession, StatusHub]:
@@ -29,7 +28,7 @@ def _session(tmp_path) -> tuple[RoomSession, StatusHub]:
         attention=MagicMock(),
         heartbeat=MagicMock(),
         gatekeeper=MagicMock(),
-        gemini=MagicMock(),
+        brain=MagicMock(),
         voicepe=SimpleNamespace(),  # on_event/on_wake/on_reconnect are set via setattr
         playback=MagicMock(),
         hub=hub,
@@ -49,9 +48,9 @@ async def test_openai_ordering_transcript_after_speech_stopped(tmp_path):
     TurnComplete — the user turn must still land exactly once."""
     s, hub = _session(tmp_path)
 
-    await s._on_gemini_event(UserSpeechStopped())  # flush runs early — buffer empty
-    await s._on_gemini_event(InputTranscript("Hvordan gik Brøndby-kampen?"))  # arrives late
-    await s._on_gemini_event(TurnComplete())  # catches it here
+    await s._on_brain_event(UserSpeechStopped())  # flush runs early — buffer empty
+    await s._on_brain_event(InputTranscript("Hvordan gik Brøndby-kampen?"))  # arrives late
+    await s._on_brain_event(TurnComplete())  # catches it here
 
     assert _user_turns(hub) == ["Hvordan gik Brøndby-kampen?"]
 
@@ -62,9 +61,9 @@ async def test_gemini_ordering_deltas_before_speech_stopped(tmp_path):
     must persist once, and TurnComplete must not double it."""
     s, hub = _session(tmp_path)
 
-    await s._on_gemini_event(InputTranscript("Tænd "))
-    await s._on_gemini_event(InputTranscript("lyset"))
-    await s._on_gemini_event(UserSpeechStopped())  # deltas are all in — flush here
-    await s._on_gemini_event(TurnComplete())  # buffer empty — no duplicate
+    await s._on_brain_event(InputTranscript("Tænd "))
+    await s._on_brain_event(InputTranscript("lyset"))
+    await s._on_brain_event(UserSpeechStopped())  # deltas are all in — flush here
+    await s._on_brain_event(TurnComplete())  # buffer empty — no duplicate
 
     assert _user_turns(hub) == ["Tænd lyset"]

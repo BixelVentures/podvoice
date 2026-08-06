@@ -80,6 +80,18 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
+# --- Phase 2: custom wake-word model (docs/wake-word.md) -----------------------------
+# When the custom-trained microWakeWord model is ready, uncomment to load it. NOTE on
+# package-merge semantics: LISTS are appended, so this ADDS the model alongside the
+# stock okay_nabu (both wake words active — fine for A/B testing). GATE before flashing:
+# `esphome config podvoice.yaml` and check the rendered micro_wake_word.models list;
+# fully REPLACING okay_nabu needs the upstream entry removed (verify !remove behaviour
+# on the pinned ESPHome — !extend/!remove on single-instance components has burned us).
+# micro_wake_word:
+#   models:
+#     - model: https://github.com/BixelVentures/podvoice/releases/download/wake-v1/podvoice_wake.json
+#       id: podvoice_wake
+
 # Redirect on-device wake-word + center single-press to a PodVoice event the add-on
 # subscribes to, instead of starting the HA Assist pipeline.
 event:
@@ -123,18 +135,24 @@ podvoice_audio:
   # voice_assistant uses). Short form `microphone: i2s_mics` also works.
   microphone:
     microphone: i2s_mics   # upstream Voice PE mic id (i2s_audio, 16 kHz, 32-bit stereo)
-    channels: [0]          # channel 0 = the STT channel — FIELD-MEASURED, do not "fix":
-                           #   ch0: STT works (model understood Danish; 0.83 test) but
-                           #        carries speaker echo -> handled by the add-on's echo
-                           #        shield (0.85: mic gated while the device announces).
-                           #   ch1: mww's wake-special channel. Field-tested 2026-07-06:
-                           #        OpenAI produced ZERO speech events in 12 s of talking
-                           #        (not even speech_started) -> unusable for STT.
-                           # Upstream 26.6.0 agrees: HA STT consumes data (= ch0);
-                           # mww alone runs on ch1.
+    channels: [0]          # XMOS channel semantics (verified against voice_kit @ 26.6.0,
+                           # see docs/audio-path.md):
+                           #   ch0 = AEC + IC + NS + AGC (full chain; what HA STT uses).
+                           #        Carries RESIDUAL echo past the AEC -> the add-on's
+                           #        echo shield / conservative turn preset handle it.
+                           #   ch1 = same chain WITHOUT AGC (what mww listens on).
+                           #        The 2026-07-06 "ch1 is mute" field test used gain 1;
+                           #        without AGC it needs gain ~4 (mww uses exactly 4).
     gain_factor: 1         # extra digital gain (1..64); raise only if levels are low.
                            # (gain lives HERE, inside the source block — there is no
                            #  separate top-level gain_factor key.)
+    # --- Phase 1.4 "raw" matrix row (diagnostic): AGC-less audio, still AEC'd.
+    # Swap the two lines above for these and reflash:
+    # channels: [1]
+    # gain_factor: 4
+    # For TRULY raw (pre-AEC — firmware-diagnosis only) additionally add at top level:
+    # voice_kit:
+    #   channel_1_stage: NONE
     # bits_per_sample is pinned to 16 by the component (VoiceAssistantAudio carries L16);
     # the MicrophoneSource truncates the mic's native 32-bit samples for us.
   ring_ms: 400             # fixed PSRAM jitter buffer (~12.8 KB @ 16 kHz/16-bit/mono)

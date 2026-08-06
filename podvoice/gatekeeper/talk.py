@@ -227,7 +227,7 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                         link.fire_wake()
                         await asyncio.sleep(0.3)  # let the wake open the provider
                     with contextlib.suppress(Exception):
-                        await session.gemini.send_text(str(data["text"]))
+                        await session.brain.send_text(str(data["text"]))
             elif msg.type == WSMsgType.ERROR:
                 break
     finally:

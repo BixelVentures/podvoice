@@ -12,12 +12,12 @@ from fakes.fake_attention import FakeAttention
 from test_thin import FakeTools, LiveFake, _wait_until
 
 from gatekeeper.events import State
-from gatekeeper.gemini import AudioChunk, Idle, ToolCall
 from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.playback import Playback
 from gatekeeper.reply import ReplyBus
 from gatekeeper.talk import TALK_ROOM, BrowserLink, TalkHub
 from gatekeeper.thin import ThinSession
+from gatekeeper.voice import AudioChunk, Idle, ToolCall
 
 REPLY_URL = f"reply/{TALK_ROOM}.flac?t=tok"
 
@@ -51,7 +51,7 @@ def _build(gemini):
         room=TALK_ROOM,
         attention=attention,
         heartbeat=Heartbeat(attention, period_ms=20),
-        gemini=gemini,
+        brain=gemini,
         voicepe=link,
         playback=Playback(sink=link.play_pcm),
         tools=FakeTools(),
