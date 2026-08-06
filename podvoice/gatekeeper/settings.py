@@ -39,7 +39,7 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 # retuned defaults forever. Identity settings (keys, rooms, prompts) are kept.
 # v3: the OpenAI-only overhaul — drops saved gemini_*/provider knobs (now unknown keys)
 # and resets openai_model so the gpt-realtime-2.1-mini default actually lands.
-SETTINGS_VERSION = 3
+SETTINGS_VERSION = 4
 
 # sha256 of RETIRED default system prompts. A saved prompt matching one of these is
 # just a persisted copy of an old default (the panel saves every field on Save) —
@@ -81,6 +81,12 @@ TUNING_KEYS: frozenset[str] = frozenset(
         "vad_threshold",
         "openai_model",
         "turn_preset",
+        # v4: full_duplex is GATED (ARKITEKTUR matrix-C). A `true` saved back in the
+        # 0.68 experiments survived every migration and silently disabled the echo
+        # shield on 0.92+ (self-interrupting puck, broken audio, 2026-08-06). Any
+        # saved value is dropped on upgrade — it can only be turned on deliberately,
+        # after the gate. Same for a stale semantic_vad turn from that era.
+        "full_duplex",
         "openai_turn",
         "openai_threshold",
         "openai_prefix_ms",

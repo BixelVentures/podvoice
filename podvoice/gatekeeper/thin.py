@@ -116,7 +116,9 @@ def normalized_utterance(text: str) -> str:
 # answering itself in a loop — while the real user went unheard. Belt-and-braces even
 # after the firmware moves to the AEC channel.
 ECHO_GATE_TAIL_S = 0.35  # keep the shield up briefly after playback ends (room reverb)
-ANNOUNCE_PREARM_S = 1.5  # cover announce -> ANNOUNCING-edge fully: field log 11:20 showed sound+state
+ANNOUNCE_PREARM_S = (
+    1.5  # cover announce -> ANNOUNCING-edge fully: field log 11:20 showed sound+state
+)
 # arriving 0.8-1.1 s after the announce — the old 0.5 s left an unshielded gap that
 # let the reply's own first words fire speech_started and KILL the reply at 0 ms.
 
@@ -269,6 +271,10 @@ class ThinSession:
         self._last_activity = self._conv_started
         self.sm.state = State.LISTENING
         self._set_led(State.LISTENING)  # instantly — before the WS connect
+        # The link sends RUN_END ~0.2 s after wake (so the NEXT wake fires) and the
+        # FIRMWARE resets its ring on that event — wiping our colour. Re-assert just
+        # after, or the puck stays dark all conversation (0.94 field report).
+        self._spawn(self._reassert_led_after_run_end(), "thin-led-reassert")
         self._hub_state("LISTENING", "👋 Vågnede — samtalen er åben")
         # Duck for the WHOLE conversation (no per-turn pumping — one calm level).
         self.heartbeat.start(self.room, self.duck_level, C.TTL_LISTENING_MS)
@@ -630,6 +636,8 @@ class ThinSession:
         if not can_track:
             return
         await asyncio.sleep(retry_after_s)
+        if not self._active or not self._speaking:
+            return  # conversation ended meanwhile — re-announcing would serve 0 bytes
         if self._speaking and self.reply_bus.fetch_count(self.room) == before:
             _LOG.warning("thin: device never fetched the reply — re-announcing")
             if self.hub is not None:
@@ -843,6 +851,12 @@ class ThinSession:
             self.reply_bus.end(self.room)
             with contextlib.suppress(Exception):
                 await self.voicepe.play_url(self.reply_url)
+
+    async def _reassert_led_after_run_end(self, delay_s: float = 0.45) -> None:
+        """Repaint the ring after the firmware's RUN_END reset (see wake())."""
+        await asyncio.sleep(delay_s)
+        if self._active:
+            self._set_led(self.sm.state)
 
     def _set_led(self, state: State, *, error: bool = False) -> None:
         if not hasattr(self.voicepe, "set_light"):

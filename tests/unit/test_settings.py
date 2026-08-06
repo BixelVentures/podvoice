@@ -95,3 +95,19 @@ def test_current_version_tuning_survives(tmp_path):
     p = tmp_path / "podvoice.json"
     p.write_text(json.dumps({"settings_version": S.SETTINGS_VERSION, "duck_level": 15}))
     assert S.load_settings(p)["duck_level"] == 15
+
+
+def test_v4_drops_a_stale_full_duplex_flag(tmp_path):
+    from gatekeeper.settings import DEFAULTS, load_settings
+
+    """0.68-era experiment flags must never survive into the gated world: a saved
+    full_duplex=True silently disabled the echo shield on 0.92+ (field 2026-08-06)."""
+    import json
+
+    p = tmp_path / "s.json"
+    p.write_text(
+        json.dumps({"settings_version": 3, "full_duplex": True, "openai_turn": "semantic_vad"})
+    )
+    s = load_settings(p)
+    assert s["full_duplex"] is False  # reset by the upgrade
+    assert s["openai_turn"] == DEFAULTS["openai_turn"]

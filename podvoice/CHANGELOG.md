@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.95.0 — spøgelset fra 0.68: et gammelt full_duplex-flag havde slået ekko-skjoldet fra
+
+Rodårsagen til "den afbryder sig selv / lyden brækker / farverne skifter ikke": i din gemte konfiguration lå `full_duplex: true` og `openai_turn: semantic_vad` fra 0.68-eksperimenterne. I 0.92+ betyder det flag "SLÅ EKKO-SKJOLDET FRA" — så pucken kørte med åben mikrofon under sine egne svar. Alle migreringer havde pænt bevaret indstillingen.
+
+- **Settings v4**: et gemt `full_duplex` (og et gammelt `openai_turn`) nulstilles ved opgradering. Duplex kan KUN tændes bevidst efter matrix-C-gaten — aldrig arves fra gammel config. Regressionstest tilføjet.
+- **LED-ringen virker igen**: vi maler ringen ved wake, men firmwaren nulstiller den 0,2 s senere på RUN_END (som vi selv sender for at frigøre næste wake). Ringen males nu igen bagefter.
+- **Ingen 0-byte-svar mere**: en sen hentning efter samtalens luk fik serveret en tom lydfil, hvilket kan kile enhedens medieafspiller fast — og mens den tror den afspiller, er wake-ordet suspenderet (det er derfor "Okay Nabu" døde i perioder). Nu svares 204, og gen-annoncering springes over når samtalen er lukket.
+
+ruff + mypy rene; hele suiten grøn.
+
 ## 0.94.0 — selv-afbrydelsen fanget på fersk gerning: hullet i skjoldet lukket + roligere barge-filter + hurtigere luk
 
 Felt-loggen 11:20 viste kæden sort på hvidt: svar starter → 0,9 s efter fyrer "speech_started" → svaret dræbes ved 0 ms hørt → nyt svar genereres → 5+ sekunders død luft. Det var BÅDE "afbryder sig selv" OG "røv langsom" — samme fejl, to huller:

@@ -225,6 +225,12 @@ async def _reply(request: web.Request) -> web.StreamResponse:
             "serving reply FLAC for room %s: %d B PCM -> %d B FLAC", room, len(pcm), len(flac)
         )
         body, ctype = flac, "audio/flac"
+    elif not pcm:
+        # 0 bytes = a stale/late fetch after the conversation closed. Serving an empty
+        # body wedges the device's media player (and its wake stays suspended while it
+        # thinks it is announcing) — answer 204 so it drops the request cleanly.
+        _LOG.info("reply fetch for room %s arrived empty (closed) — 204", room)
+        return web.Response(status=204)
     else:
         body, ctype = wav_header(data_size=len(pcm)) + pcm, "audio/wav"
         _LOG.warning(
