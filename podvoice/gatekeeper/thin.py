@@ -59,6 +59,10 @@ END_CONVERSATION_TOOL = {
 # well before so the family never hits a mid-sentence provider cut). Configurable per
 # session via max_session_s (Settings: max_session_min) — this is only the default.
 MAX_CONVERSATION_S = 15 * 60
+# Hard ceiling on how long a single reply may claim to be playing. Without it, a stuck
+# ANNOUNCING state would hold the conversation (and the music duck) open forever — the
+# idle close is our only closer, so it must never be blocked indefinitely.
+MAX_REPLY_PLAY_S = 180.0
 # Pipeline heartbeat cadence (replaces the old per-turn watchdogs): if the provider
 # reader has died while a conversation is open, say so and go home.
 HEARTBEAT_S = 5.0
@@ -190,6 +194,10 @@ class ThinSession:
         self._gate_dropped = 0  # mic frames shielded during the current reply
         self._turn_had_tool = False  # response called a tool -> the reply stream stays open
         self._stop_sent_t: float | None = None  # stop-latency marker (ARKITEKTUR G1)
+        self._speech_tools: set[str] = set()  # tool calls whose result makes it SPEAK again
+        self._goodbye: asyncio.Task | None = None  # armed close-after-goodbye (one per conv)
+        self._epoch = 0.0  # conversation identity (monotonic start) for armed tasks
+        self._teardown_lock = asyncio.Lock()  # wake must never race a teardown in flight
         self._muted = False
         self._closing = False
         self._reader: asyncio.Task | None = None
@@ -228,9 +236,9 @@ class ThinSession:
     # ------------------------------------------------------------- lifecycle
     async def start(self) -> None:
         await self.voicepe.start()
-        if self.hub is not None:
-            self.hub.set_connected(self.room, True)
-            self.hub.set_service("voicepe", "up")
+        # NO optimistic green here: start() only starts the reconnect LOOP. The panel
+        # goes green from on_link(True) — a REAL completed connect (0.86 field bug:
+        # device changed IP, dot stayed green for days while every wake died).
         self.playback.start()
 
     async def aclose(self) -> None:
@@ -257,6 +265,17 @@ class ThinSession:
     # ------------------------------------------------------------- conversation
     async def wake(self) -> None:
         """Open ONE conversation: duck, stream mic, connect the brain. Idempotent."""
+        if self._teardown_lock.locked():
+            # A teardown is mid-flight: its remaining awaits (stop_streaming, brain
+            # close, heartbeat stop, attention release, LED off) would otherwise land
+            # ON TOP of the new conversation — music un-ducked, ring dark, mic gated.
+            try:
+                async with asyncio.timeout(3.0):
+                    async with self._teardown_lock:
+                        pass  # wait for the close to finish, then proceed
+            except TimeoutError:
+                _LOG.warning("thin: wake REFUSED — previous close is stuck [room=%s]", self.room)
+                return
         if self._muted or self._active or self._closing:
             _LOG.info(
                 "thin: wake IGNORED [room=%s] (muted=%s active=%s closing=%s)",
@@ -266,8 +285,15 @@ class ThinSession:
                 self._closing,
             )
             return
+        _LOG.info(
+            "thin: conversation open [room=%s] echo-shield=%s preset-mode=%s",
+            self.room,
+            "OFF (full_duplex)" if self.full_duplex else "ON",
+            getattr(self.brain, "preset", "?"),
+        )
         self._active = True
         self._conv_started = time.monotonic()
+        self._epoch = self._conv_started  # identity for tasks armed by THIS conversation
         self._last_activity = self._conv_started
         self.sm.state = State.LISTENING
         self._set_led(State.LISTENING)  # instantly — before the WS connect
@@ -334,12 +360,17 @@ class ThinSession:
         self._hub_state("IDLE", None)
 
     async def _teardown(self, *, release_music: bool) -> None:
+        async with self._teardown_lock:
+            await self._teardown_locked(release_music=release_music)
+
+    async def _teardown_locked(self, *, release_music: bool) -> None:
         self._active = False
         self._speaking = False
         self._device_playing = False
         self._gate_until = 0.0
         self._gate_dropped = 0
         self._turn_had_tool = False
+        self._speech_tools.clear()
         self.sm.state = State.IDLE
         # NEVER cancel the task that is RUNNING this teardown (stop()/_fail() are called
         # from inside the reader/heartbeat tasks). Cancelling self meant CancelledError
@@ -349,10 +380,18 @@ class ThinSession:
         # "locked, solid blue, can't talk to it" field failure. The calling task ends
         # naturally right after this returns.
         cur = asyncio.current_task()
-        for t in (self._reader, self._pump, self._beat, self._keepalive, self._barge_task):
+        for t in (
+            self._reader,
+            self._pump,
+            self._beat,
+            self._keepalive,
+            self._barge_task,
+            self._goodbye,
+        ):
             if t is not None and t is not cur and not t.done():
                 t.cancel()
         self._reader = self._pump = self._beat = None
+        self._goodbye = None
         for t in self._tool_tasks.values():
             t.cancel()
         self._tool_tasks.clear()
@@ -463,7 +502,13 @@ class ThinSession:
                 await self._fail("connection")
                 return
             quiet = time.monotonic() - self._last_activity
-            if self._active and not self._speaking and quiet > self.idle_timeout_s:
+            # _speaking means "the model is generating" — generation finishes long
+            # before the device stops PLAYING, so closing on it alone truncated long
+            # replies mid-sentence. Use the device's own playback truth, bounded.
+            playing = self._device_playing and (
+                self._playback_t0 is None or time.monotonic() - self._playback_t0 < MAX_REPLY_PLAY_S
+            )
+            if self._active and not self._speaking and not playing and quiet > self.idle_timeout_s:
                 _LOG.info("thin: client-side idle fallback (%.0fs quiet) — closing", quiet)
                 await self.stop(reason="idle-fallback")
                 return
@@ -480,7 +525,7 @@ class ThinSession:
         elif isinstance(ev, Interrupted):
             self._start_barge_debounce()
         elif isinstance(ev, TurnComplete):
-            if self._turn_had_tool or self._tool_tasks:
+            if self._turn_had_tool or self._speech_tools:
                 # This response called a tool: the model will speak AGAIN after the
                 # result. Keep the reply stream OPEN so filler + answer play as ONE
                 # continuous announce (the gap is silence-filled) — ending it here made
@@ -507,10 +552,16 @@ class ThinSession:
                 self._turn_had_tool = True
             if self.hub is not None:
                 self.hub.incr("tool_calls")
+            if ev.name != "end_conversation":
+                # Only tools whose RESULT makes the model speak again may hold the reply
+                # stream open. end_conversation produces no follow-up speech — counting
+                # it left the goodbye hanging with a ducked, silent room.
+                self._speech_tools.add(ev.id)
             task = asyncio.create_task(self._run_tool(ev), name=f"thin-tool-{ev.id}")
             self._tool_tasks[ev.id] = task
 
             def _untrack(_t: asyncio.Task, _id: str = ev.id) -> None:
+                self._speech_tools.discard(_id)
                 self._tool_tasks.pop(_id, None)
 
             task.add_done_callback(_untrack)
@@ -549,7 +600,7 @@ class ThinSession:
             await self.stop(reason="stop-word")
         elif phrase in END_PHRASES:
             _LOG.info("thin: end phrase %r — closing after the goodbye", phrase)
-            self._spawn(self._close_after_goodbye(), "thin-endphrase")
+            self._arm_goodbye("thin-endphrase")
 
     def _flush_transcript(self, direction: str) -> None:
         buf = self._buf_in if direction == "in" else self._buf_out
@@ -654,7 +705,7 @@ class ThinSession:
                         create=False,  # the goodbye was already spoken — requesting
                         # another response here produced the double "Farvel." bug
                     )
-            self._spawn(self._close_after_goodbye(), "thin-goodbye")
+            self._arm_goodbye("thin-goodbye")
             return
         if self.tools is None:
             result: dict = {"ok": False, "error": "no tools configured"}
@@ -671,7 +722,13 @@ class ThinSession:
                     [{"id": tc.id, "name": tc.name, "response": result}]
                 )
 
-    async def _close_after_goodbye(self, max_wait_s: float = 6.0) -> None:
+    def _arm_goodbye(self, name: str) -> None:
+        """Arm the close-after-goodbye for THIS conversation only (one at a time)."""
+        if self._goodbye is not None and not self._goodbye.done():
+            self._goodbye.cancel()
+        self._goodbye = self._spawn(self._close_after_goodbye(epoch=self._epoch), name)
+
+    async def _close_after_goodbye(self, max_wait_s: float = 6.0, epoch: float = 0.0) -> None:
         """Close once the goodbye stops playing (or after a short ceiling)."""
         deadline = time.monotonic() + max_wait_s
         await asyncio.sleep(0.5)
@@ -680,6 +737,12 @@ class ThinSession:
         ):
             await asyncio.sleep(0.2)
         await asyncio.sleep(0.8)  # let the last word land
+        if epoch and epoch != self._epoch:
+            # A NEW conversation started while this goodbye was armed (the family
+            # re-woke during the farewell — documented hush behaviour). Closing now
+            # would kill their fresh question mid-sentence.
+            _LOG.info("thin: stale goodbye ignored — a new conversation is live")
+            return
         await self.stop(reason="model-close")
 
     # ------------------------------------------------------------- device signals
@@ -693,6 +756,9 @@ class ThinSession:
             self._speaking,
         )
         if self._active:
+            if self._goodbye is not None and not self._goodbye.done():
+                self._goodbye.cancel()  # they kept talking — do not close on the old goodbye
+                self._goodbye = None
             # Button press / habitual re-wake mid-conversation: silence any reply and
             # keep listening (the proven firmware can't distinguish the two sources).
             if self._speaking:
@@ -725,6 +791,7 @@ class ThinSession:
                         self.hub.set_latency(self.room, ttfr_ms)
         else:
             self._device_playing = False
+            self._last_activity = time.monotonic()  # the room just went quiet: your turn
             if self._stop_sent_t is not None:
                 _LOG.info(
                     "stop-latency: %d ms (silence command -> device silent)",

@@ -468,3 +468,58 @@ async def test_hard_stop_word_closes_now():
         await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=2.0)
     finally:
         await session.aclose()
+
+
+async def test_puck_gets_the_shield_talk_gets_duplex():
+    """0.92-0.95 hardcoded full_duplex=True on the PUCK path (flags swapped) — the echo
+    shield was off on the device and NO setting could reach it. Lock the wiring down."""
+    import inspect
+
+    from gatekeeper import __main__ as main_mod
+
+    src = inspect.getsource(main_mod)
+    build = src[src.index("def _build_session") : src.index("def _make_talk")]
+    assert "full_duplex=cfg.full_duplex" in build  # puck follows settings (default OFF)
+    talk = src[src.index("def _make_talk") :]
+    assert "full_duplex=True" in talk  # Talk tab = proving ground (browser AEC)
+
+
+async def test_long_reply_is_not_cut_by_the_idle_close():
+    """Generation finishes long before playback does: closing on _speaking alone
+    truncated long replies mid-sentence once the shield was restored."""
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    session.idle_timeout_s = 0.05  # make the idle check trip instantly
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(AudioChunk(_frame(n_samples=2400), item_id="long"))
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)  # the device is PLAYING a long reply
+        gemini.emit(TurnComplete())  # generation done — but sound is still coming out
+        await asyncio.sleep(0.4)
+        assert session.sm.state is not State.IDLE  # must NOT close mid-sentence
+
+        session._on_media_state(False)  # playback finished -> that is fresh activity
+        # the pipeline heartbeat ticks every HEARTBEAT_S (5 s) — allow one full tick
+        await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=8.0)
+    finally:
+        await session.aclose()
+
+
+async def test_stale_goodbye_never_closes_the_next_conversation():
+    """Re-waking during a farewell keeps the room open (hush). The armed close from the
+    old conversation must not fire into the new one."""
+    gemini = LiveFake()
+    session, _attention, _voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        session._arm_goodbye("test-goodbye")
+        assert session._goodbye is not None
+        session._on_wake_cb()  # family keeps talking during the goodbye
+        await asyncio.sleep(0.05)
+        assert session._goodbye is None or session._goodbye.cancelled()
+        assert session.sm.state is not State.IDLE
+    finally:
+        await session.aclose()

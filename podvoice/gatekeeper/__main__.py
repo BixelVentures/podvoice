@@ -135,8 +135,9 @@ def _build_session(
             reply_url=reply_url,
             duck_level=cfg.duck_level,
             usage=usage,
-            full_duplex=True,  # Talk = duplex PROVING GROUND (browser-AEC; ARKITEKTUR §3):
-            # the puck follows settings (default False) until the matrix-C gate passes
+            full_duplex=cfg.full_duplex,  # PUCK: shield ON unless the owner deliberately
+            # enables duplex after the matrix-C gate. (0.92-0.95 hardcoded True HERE by
+            # mistake — the shield was off on the device and no setting could reach it.)
             idle_timeout_s=cfg.idle_timeout_s,
             max_session_s=cfg.max_session_min * 60,
         )
@@ -377,6 +378,8 @@ async def run(cfg: Config) -> None:
             reply_url=url,
             duck_level=cfg.duck_level,
             usage=usage,
+            full_duplex=True,  # TALK tab = the duplex proving ground: the browser's own
+            # AEC makes an open mic safe here (ARKITEKTUR §3). The puck stays gated.
             idle_timeout_s=cfg.idle_timeout_s,
             max_session_s=cfg.max_session_min * 60,
         )

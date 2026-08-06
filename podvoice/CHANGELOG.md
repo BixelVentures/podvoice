@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.96.0 — kode-revisionens dom: seks bekræftede fejl rettet, heraf én der forklarer HELE ugen
+
+En fuld gennemgang af hver eneste modul (7 revisorer + adversariel verifikation af hvert alvorligt fund) fandt 74 punkter; 6 blev bekræftet som reelle. Den vigtigste er pinlig og præcis:
+
+- **KRITISK — ekko-skjoldet var slået fra på PUCKEN og til i browseren: flagene var byttet om.** I 0.92 satte jeg `full_duplex=True` på det jeg troede var Talk-sessionen — det var puck-sessionen. Siden da har pucken kørt med åben mikrofon under sine egne svar, HARDKODET, hvor ingen indstilling (heller ikke 0.95's migrering) kunne nå det. Nu følger pucken indstillingen (skjold TIL), og Talk-fanen er duplex-øvebanen den skulle være. Ny test låser ledningsføringen fast, og loggen skriver nu "echo-shield=ON/OFF" ved hver samtale — fejlen var *dobbelt* lydløs.
+- **KRITISK — lange svar blev hugget over midt i en sætning.** Luk-uret så på "genererer modellen?" i stedet for "kommer der lyd ud?" — og generering er færdig længe før afspilningen. Nu bruges enhedens egen afspilnings-sandhed (med et 3-minutters loft, så en hængende afspilning aldrig kan låse rummet), og "svaret er slut" tæller som aktivitet, så du får din fulde taletid. **Fejlen var maskeret af den første — de skulle rettes sammen.**
+- **HØJ — efter "farvel" var huset dødt og musikken dæmpet i op til 7 sekunder** (og farvellen blev muligvis slet ikke hørt): luk-værktøjet blev talt som et "der kommer mere tale"-værktøj. Nu tælles kun værktøjer, hvis svar rent faktisk får den til at tale igen.
+- **HØJ — panelet lyste grønt selv om pucken aldrig blev forbundet** (0.86-fejlen genopstået et andet sted): prikken blev sat ved opstart, ikke ved ægte forbindelse. Fjernet begge steder.
+- **HØJ — "stop" efterfulgt straks af "Okay Nabu" kunne give en halvdød samtale** (musik på 100 %, mørk ring): et wake kunne smutte ind midt i en igangværende nedlukning. Wake venter nu på at lukningen er færdig (max 3 s, ellers afvises den højlydt).
+- **HØJ — en gammel "farvel"-opgave kunne lukke den NÆSTE samtale** midt i et spørgsmål: opgaven havde ingen samtale-identitet. Den annulleres nu ved nyt wake og ved nedlukning, og bærer et samtale-stempel som bælte og seler.
+
+3 nye regressionstests. ruff + mypy rene; hele suiten grøn.
+
 ## 0.95.0 — spøgelset fra 0.68: et gammelt full_duplex-flag havde slået ekko-skjoldet fra
 
 Rodårsagen til "den afbryder sig selv / lyden brækker / farverne skifter ikke": i din gemte konfiguration lå `full_duplex: true` og `openai_turn: semantic_vad` fra 0.68-eksperimenterne. I 0.92+ betyder det flag "SLÅ EKKO-SKJOLDET FRA" — så pucken kørte med åben mikrofon under sine egne svar. Alle migreringer havde pænt bevaret indstillingen.
