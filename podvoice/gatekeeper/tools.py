@@ -168,6 +168,11 @@ class ToolRouter:
         HassTurnOn/GetLiveContext exist as tools even with ZERO exposed entities
         (modprøve A2 — 'lam men lyder rask'). Called at boot and periodically."""
         ok = False
+        if self._mcp is not None and "GetLiveContext" not in self._mcp_names:
+            # A boot during an HA restart leaves an EMPTY tool list (tools/list failed
+            # while core was down). Re-fetch here so the 10-min loop SELF-HEALS home
+            # control instead of staying lame until someone restarts the add-on.
+            await self._refresh(force=True)
         if self._mcp is not None and "GetLiveContext" in self._mcp_names:
             try:
                 r = await self.dispatch("GetLiveContext", {})

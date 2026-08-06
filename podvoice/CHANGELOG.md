@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.93.0 — selvhelende hjemmestyring: én dårlig boot kan aldrig mere gøre den "lam"
+
+Felt-fanget 20 minutter efter 0.92: HA Core tog sin ventende genstart, add-on'et bootede FØR HA's API var klar → tom værktøjsliste → "Jeg kan ikke nå hjemmets enheder" (ærligheden virkede!) — men tilstanden var PERMANENT til næste manuelle genstart. To fixes:
+
+- **Proben selvhealer**: er værktøjslisten tom, gen-henter proben den (ved boot OG i 10-minutters-løkken) i stedet for at opgive. Testet: en fejlende tools/list ved boot heler nu sig selv med det samme.
+- **Frisk værktøjsliste ved hvert wake**: samtalen får den AKTUELLE liste (ikke boot-øjeblikkets), så en HA-genstart midt på dagen aldrig efterlader samtaler uden hjemme-værktøjer.
+
+ruff + mypy rene; hele suiten grøn (+1 regressionstest).
+
 ## 0.92.0 — ARKITEKTUR-releasen: 0.91 merged gated, alle modprøve-værn på plads
 
 Den holistiske dom (docs/ARKITEKTUR.md) eksekveret — én pipeline, robusthed først:

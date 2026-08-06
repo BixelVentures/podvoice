@@ -125,3 +125,33 @@ def test_sse_framed_response_parses():
         pass
     else:  # pragma: no cover
         raise AssertionError("wrong id must raise")
+
+
+async def test_probe_self_heals_an_empty_tool_list():
+    """Boot during an HA restart -> tools/list failed -> empty list. The periodic
+    probe must RE-FETCH the list (not stay lame until an add-on restart) — the
+    10:18 field bug: 'Jeg kan ikke nå hjemmets enheder' forever after one bad boot."""
+
+    class _FlakyMCP:
+        def __init__(self):
+            self.calls = 0
+            self.url = "http://test/mcp"
+
+        async def list_tools(self):
+            self.calls += 1
+            if self.calls == 1:
+                raise ConnectionError("core is restarting")  # the bad boot
+            return [
+                {"name": "GetLiveContext", "description": "live", "inputSchema": {}},
+            ]
+
+        async def call_tool(self, name, args):
+            return {"content": [{"type": "text", "text": "Live context: lamper..."}]}
+
+    from gatekeeper.tools import ToolRouter
+
+    mcp = _FlakyMCP()
+    router = ToolRouter(mcp, supervisor_token=None, client=None, timers=None, hub=None)
+    await router.start()  # boot: tools/list FAILS -> probe re-fetches and heals
+    assert router.healthy is True  # self-healed already AT BOOT (stronger than the fix asked)
+    assert mcp.calls >= 2  # the empty list triggered a forced re-fetch

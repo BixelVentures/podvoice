@@ -290,6 +290,12 @@ class ThinSession:
             return
         if self.reply_bus is not None:
             self.reply_bus.clear(self.room)
+        if self.tools is not None and hasattr(self.brain, "tool_declarations"):
+            # FRESH tool list every conversation: a session built during an HA outage
+            # would otherwise carry an empty home-tool set forever (10:18 field bug).
+            decls = self.tools.declarations()
+            if decls:
+                self.brain.tool_declarations = [*decls, END_CONVERSATION_TOOL]
         if self.tools is not None and getattr(self.tools, "healthy", True) is False:
             # Honest at the door (modprøve A2/F2): home control is provably down —
             # say it ONCE, keep the conversation open (chat/lookup still works).
