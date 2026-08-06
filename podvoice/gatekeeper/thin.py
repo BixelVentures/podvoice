@@ -65,7 +65,7 @@ HEARTBEAT_S = 5.0
 # Barge-in blip filter: a speech_started that ends again within this window (cough,
 # clatter, echo residue) is a FALSE interruption — playback continues. Real speech
 # sustains past it and silences the device. (LiveKit ships 0.5 s; we start tighter.)
-BARGE_DEBOUNCE_S = 0.25
+BARGE_DEBOUNCE_S = 0.6
 # Client-side idle close, default (Settings: idle_timeout_s). With the conservative
 # preset (server_vad) the SERVER also closes idle conversations via idle_timeout_ms;
 # this fallback is the belt for semantic_vad and for a server that never says so.
@@ -116,7 +116,9 @@ def normalized_utterance(text: str) -> str:
 # answering itself in a loop — while the real user went unheard. Belt-and-braces even
 # after the firmware moves to the AEC channel.
 ECHO_GATE_TAIL_S = 0.35  # keep the shield up briefly after playback ends (room reverb)
-ANNOUNCE_PREARM_S = 0.5  # cover the announce -> ANNOUNCING window before state arrives
+ANNOUNCE_PREARM_S = 1.5  # cover announce -> ANNOUNCING-edge fully: field log 11:20 showed sound+state
+# arriving 0.8-1.1 s after the announce — the old 0.5 s left an unshielded gap that
+# let the reply's own first words fire speech_started and KILL the reply at 0 ms.
 
 
 class _Mini:

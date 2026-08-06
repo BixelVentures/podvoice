@@ -48,7 +48,7 @@ class Config:
     openai_silence_ms: int = 500
     openai_eagerness: str = "auto"
     openai_noise: str = "far_field"
-    idle_timeout_s: int = 25  # close the conversation after this much user silence
+    idle_timeout_s: int = 8  # close the conversation after this much user silence
     max_session_min: int = 15  # hard ceiling on one conversation (provider caps at 60)
     simulate: bool = False
     engine: str = "classic"  # "classic" | "thin" (Track B — the model owns the conversation)
@@ -141,7 +141,7 @@ def from_options(opts: dict) -> Config:
         openai_eagerness=str(opts.get("openai_eagerness", "auto") or "auto"),
         openai_noise=str(opts.get("openai_noise", "far_field") or "far_field"),
         # Cost control: both floored so a stray saved 0 can't strobe sessions open/shut.
-        idle_timeout_s=max(_int(opts, "idle_timeout_s", 25), 5),
+        idle_timeout_s=max(_int(opts, "idle_timeout_s", 8), 3),
         max_session_min=min(max(_int(opts, "max_session_min", 15), 1), 55),
         simulate=bool(opts.get("simulate", False)),
         engine=("thin" if opts.get("engine") == "thin" else "classic"),

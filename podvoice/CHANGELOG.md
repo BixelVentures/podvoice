@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.94.0 — selv-afbrydelsen fanget på fersk gerning: hullet i skjoldet lukket + roligere barge-filter + hurtigere luk
+
+Felt-loggen 11:20 viste kæden sort på hvidt: svar starter → 0,9 s efter fyrer "speech_started" → svaret dræbes ved 0 ms hørt → nyt svar genereres → 5+ sekunders død luft. Det var BÅDE "afbryder sig selv" OG "røv langsom" — samme fejl, to huller:
+
+- **Skjold-hullet lukket**: for-armen dækkede kun 0,5 s efter announce, men lyd + mediestatus kommer først efter 0,8-1,1 s — det åbne vindue lod svarets egne første ord (eller din efterhængende stavelse) tælle som afbrydelse. Nu dækker for-armen 1,5 s, til mediestatussen tager over.
+- **Roligere barge-filter**: 0,25 s → 0,6 s. Et "øhm", host eller ekko-blip dræber ikke længere svaret (det bufferede announce betyder at et filtreret blip koster NUL hørbart); en ægte afbrydelse varer altid længere og virker som før.
+- **Hurtigere luk efter stilhed**: standard 25 s → 8 s (gulv 3 s) — og ejerens eget panel-felt kan sættes helt ned til 3-5 s.
+
+ruff + mypy rene; hele suiten grøn.
+
 ## 0.93.0 — selvhelende hjemmestyring: én dårlig boot kan aldrig mere gøre den "lam"
 
 Felt-fanget 20 minutter efter 0.92: HA Core tog sin ventende genstart, add-on'et bootede FØR HA's API var klar → tom værktøjsliste → "Jeg kan ikke nå hjemmets enheder" (ærligheden virkede!) — men tilstanden var PERMANENT til næste manuelle genstart. To fixes:

@@ -113,7 +113,7 @@ DEFAULTS: dict = {
     "openai_silence_ms": 500,  # custom, server_vad only
     "openai_eagerness": "auto",  # custom, semantic_vad: auto|low|medium|high
     "openai_noise": "far_field",  # near_field|far_field|off
-    "idle_timeout_s": 25,  # close the conversation after this much user silence
+    "idle_timeout_s": 8,  # close the conversation after this much user silence (owner-tunable 3+)
     "max_session_min": 15,  # hard ceiling on one conversation (cost control)
     "engine": "classic",  # "classic" (the proven state-machine engine) | "thin" (Track B:
     # the model owns the conversation — turn-taking, barge-in, idle — via server VAD)
