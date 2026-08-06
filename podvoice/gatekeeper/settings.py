@@ -173,6 +173,20 @@ def load_settings(path: pathlib.Path | None = None) -> dict:
                 with contextlib.suppress(Exception):  # migration write-back is best-effort
                     src.write_text(json.dumps(saved, indent=2))
             sp = saved.get("system_prompt")
+            # A saved prompt that still teaches the RETIRED REST tools (list_home /
+            # list_services / home_call) is stale by construction: those tools were
+            # deleted with the MCP switch, so the model is being told to call things
+            # that do not exist (the 0.88 class — prompt promises, toolset can't).
+            # Hash-matching only catches untouched defaults; this catches edited ones.
+            if isinstance(sp, str) and any(
+                dead in sp for dead in ("list_home", "list_services", "home_call")
+            ):
+                _LOG.warning(
+                    "saved system_prompt names RETIRED tools (list_home/list_services/"
+                    "home_call) — dropping it and using the current default"
+                )
+                saved.pop("system_prompt", None)
+                sp = None
             if isinstance(sp, str):
                 import hashlib
 

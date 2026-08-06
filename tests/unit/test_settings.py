@@ -111,3 +111,35 @@ def test_v4_drops_a_stale_full_duplex_flag(tmp_path):
     s = load_settings(p)
     assert s["full_duplex"] is False  # reset by the upgrade
     assert s["openai_turn"] == DEFAULTS["openai_turn"]
+
+
+def test_saved_prompt_naming_dead_tools_is_dropped(tmp_path):
+    """0.88 class: a saved prompt that teaches list_home/list_services/home_call tells
+    the model to call tools deleted in the MCP switch. Drop it, whoever edited it."""
+    import json
+
+    from gatekeeper.settings import DEFAULTS, load_settings
+
+    p = tmp_path / "s.json"
+    p.write_text(
+        json.dumps(
+            {
+                "settings_version": 4,
+                "system_prompt": "Du er PodVoice. Brug list_services til at finde tjenesten.",
+            }
+        )
+    )
+    s = load_settings(p)
+    assert s["system_prompt"] == DEFAULTS["system_prompt"]  # stale prompt discarded
+
+
+def test_a_genuinely_custom_prompt_survives(tmp_path):
+    """Only DEAD-tool prompts are dropped — the owner's own wording must stay."""
+    import json
+
+    from gatekeeper.settings import load_settings
+
+    p = tmp_path / "s.json"
+    mine = "Du er PodVoice. Sig altid 'hej med dig' først."
+    p.write_text(json.dumps({"settings_version": 4, "system_prompt": mine}))
+    assert load_settings(p)["system_prompt"] == mine

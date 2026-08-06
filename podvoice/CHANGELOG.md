@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.97.0 — systemprompten lærte modellen at kalde værktøjer der ikke findes
+
+Ejeren spurgte om prompten var i orden. Det var den ikke: den GEMTE prompt (3030 ord) beskrev hele det gamle værktøjs-univers — `list_home`, `list_services`, `home_call` — som blev SLETTET ved MCP-skiftet i 0.92. Modellen fik altså besked på at kalde værktøjer, der ikke eksisterer (0.88-klassen: prompten lover, værktøjskassen kan ikke). Selv kodens egen standardprompt havde ét levn tilbage.
+
+- **Standardprompten renset**: sidste reference til et dødt værktøj fjernet (multi-room-linjen peger nu på hjemmets rigtige medie-værktøjer).
+- **Generel beskyttelse — stærkere end hash-listen**: en gemt prompt, der nævner de pensionerede REST-værktøjer, droppes ved indlæsning med en tydelig advarsel i loggen. Hash-metoden fangede kun urørte standardprompter; denne fanger også dem nogen har redigeret. En ægte egen-skrevet prompt overlever uberørt (test).
+
+ruff + mypy rene; hele suiten grøn (+2 tests).
+
 ## 0.96.0 — kode-revisionens dom: seks bekræftede fejl rettet, heraf én der forklarer HELE ugen
 
 En fuld gennemgang af hver eneste modul (7 revisorer + adversariel verifikation af hvert alvorligt fund) fandt 74 punkter; 6 blev bekræftet som reelle. Den vigtigste er pinlig og præcis:
