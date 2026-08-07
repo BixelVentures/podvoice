@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0 — "det ved jeg ikke" er ikke et svar: slå op i stedet for at trække på skuldrene
+
+Felttest på den nye mikrofonkanal: "Hvor er de fra?" → *"Det er et fodboldhold, men jeg er ikke sikker på, hvor det kommer fra."* Modellen fulgte faktisk prompten (geografi = uforanderligt = svar fra egen viden), men den VIDSTE det ikke — og så gav den op i stedet for at bruge søgningen, den har.
+
+- Prompten har nu en klar rækkefølge: **ved du det sikkert → svar; ellers → SLÅ OP; kun hvis opslaget fejler → sig at du ikke kan finde det.** Gælder også uforanderlige fakta. "Hvor kommer klubben fra?" skal give et svar, ikke et skuldertræk.
+
+Lydsiden (ingen kode): mikrofonens forstærkning er hævet live 4 → 12 → 16 via de nye runtime-services. Effekten er målt i History: "klappen" blev til **"Hvad er klokken?"**, og korte ytringer som "Hvor de fra?" rammer nu korrekt.
+
+ruff + mypy rene; hele suiten grøn.
+
 ## 1.0.0 — HASTEFIX: 0.98's adresse-liste brækkede forbindelsen til pucken
 
 0.98 gav ESPHome-klienten en LISTE af adresser (navn + cachet IP). Klienten accepterede den — og lavede den om til teksten "['podvoice-pe-...local']", som den så forsøgte at slå op som ét værtsnavn. Resultatet: pucken kunne ikke nås AD NOGEN VEJ, heller ikke via en ren IP-adresse. Panelet sagde ærligt "offline", men årsagen var min egen ændring.
