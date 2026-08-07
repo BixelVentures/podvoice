@@ -90,14 +90,44 @@ flaget låses** til matrix-C-gaten.
   senere. Room-scoped duck m/ ACK-timeout. G2/G7-protokollen (20 svar med TV-lyd:
   falske aktiveringer + uopfordrede handlinger tælles). *Ejer-gate:* tallene står i
   panelet; "man kan tysse på den" er bevist.
-- **UGE 4+ — Finesse, kun bag grønne gates.** Først 2b direct PCM (0,8-1,0 s;
-  announce forbliver fallback; wake-regression er kendt største risiko — én ændring,
-  én flash). Derefter duplex-rækken (matrix C, promoveringskrav <1 falsk barge pr. 10
+- **UGE 4+ — Finesse, kun bag grønne gates.** ~~Først 2b direct PCM~~ **LEVERET i 1.9.0
+  (se §6).** Derefter duplex-rækken (matrix C, promoveringskrav <1 falsk barge pr. 10
   svar i stille rum OG med musik) med ch1+gain4 som diagnostik — opskriften står i
   [PLAN-DUPLEX.md](PLAN-DUPLEX.md). Består C ikke, lever huset fint uden duplex:
   G4/G5/G7/G2 vindes allerede af det robuste half-duplex-system.
 
-## 6. Modprøvens tjekliste (indarbejdet — må ikke regressere)
+## 6. 2b direct PCM — leveret (1.9.0/1.10.0)
+
+Svaret sendes som rå 24 kHz PCM ned ad den åbne API-forbindelse i stedet for at blive
+hentet som FLAC over HTTP. Den vigtige gevinst er **ikke** latens, men sandhed:
+
+| | announce (gammel) | direct (2b) |
+|---|---|---|
+| "Er svaret færdigt?" | gæt ud fra bytes/varighed | `reply_played` fra enheden |
+| Hvornår fyrer det | media_player-state, kan udeblive | `RESPONSE_FINISHED`: `speaker_buffer_size_ == 0 && !has_buffered_data() && !is_running()` |
+| Hørt position | vægur | begrænset af bytes faktisk afleveret |
+
+**Hvorfor 0.67 fejlede (fundet i den pinnede C++, ikke gættet):** add-on'en sendte
+`TTS_START` med et tomt data-map, og handleren afbryder på `if (text.empty()) return;`
+*før* den fyrer `on_tts_start` og *før* `speaker_->start()`. Rate-pinningen 0.67 selv
+havde skrevet kørte derfor aldrig, resampleren beholdt de 48 kHz som den delte
+`external_media_player` sidst satte, og 24 kHz-svaret kørte i dobbelt tempo. Én tom dict.
+
+**Regler der nu er strukturelle, ikke disciplin:**
+- Vejen vælges af **enheden** (`supports_direct`, læst af de event-typer firmwaren
+  publicerer), aldrig af en gemt indstilling. 0.70's totale stilhed er uopnåelig.
+- `full_duplex` afvises på mikrofonkanal ≠ 0: duplex kræver ekkoannullering, og kun
+  XMOS-kanal 0 har den. Samme "spørg hardwaren"-regel.
+- Tempostyring er obligatorisk: `on_audio` dropper **hele** chunken ved bufferoverløb
+  (16 KB), hvilket taber ord lydløst. Forspringet er 0,15 s.
+
+**Kendt omkostning:** `request_stop()` gør intet for højttalervejen (hele grenen er
+`#ifdef USE_MEDIA_PLAYER`), så en afbrydelse lader de op til 0,15 s der allerede ligger
+i enhedens buffer spille færdig. Puckens lokale wake-ord-hush skærer stadig ved ~51 ms.
+
+## 7. Modprøvens tjekliste (indarbejdet — må ikke regressere)
+
+
 
 A1 hybrid=samme fejldomæne → droppet · A2 tool-antal beviser intet → ægte probe ·
 A3 idle_timeout=genprompt-race → feltet droppet · A4 målinger før preset-default →
