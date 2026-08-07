@@ -118,6 +118,7 @@ class VoicePELink:
         # Mic tuning to re-assert on every connect (set by the session builder).
         self.mic_channel: int | None = None
         self.mic_gain: int | None = None
+        self.wake_word: str | None = None  # re-asserted on every connect
 
     async def start(self) -> None:
         """Build the client and start the reconnect loop (owns the connection)."""
@@ -220,6 +221,7 @@ class VoicePELink:
             if asyncio.iscoroutine(result):
                 await result
         await self.apply_mic_tuning()  # survives puck reboots and add-on restarts
+        await self.apply_wake_word()  # ditto: the SETTING is the truth, not RAM
         if self.on_link is not None:
             self._run_cb(self.on_link, True)
 
@@ -346,6 +348,15 @@ class VoicePELink:
             self.mic_channel,
             self.mic_gain,
         )
+
+    async def apply_wake_word(self) -> None:
+        """Push the configured wake word to the device — on every connect, for the same
+        reason as the mic tuning: a runtime change lives in RAM and dies with the next
+        reboot, and nobody notices until 'Okay Nabu' quietly answers again."""
+        if not self.wake_word:
+            return
+        await self._call_service("podvoice_set_wake_word", {"name": str(self.wake_word)})
+        log.info("voicepe %s: wake word applied (%s)", self.host, self.wake_word)
 
     async def _call_service(self, name: str, args: dict | None = None) -> None:
         """Invoke a podvoice_* user-defined service. Best-effort (swallow on

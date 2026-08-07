@@ -1,7 +1,16 @@
--r requirements.txt
-pytest>=8.2
-pytest-asyncio>=0.23
-respx>=0.21
-ruff>=0.5
-mypy>=1.10
-PyYAML>=6,<7
+# Test/lint toolchain. Install ON TOP of requirements.txt, into a Python 3.12 venv:
+#
+#   python3.12 -m venv .venv
+#   .venv/bin/pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
+#
+# The version matters and is not cosmetic. A 3.9 venv was silently used for months: it
+# lacks asyncio.timeout (3.11+) and had no aioesphomeapi, so 7 tests "failed" for
+# environment reasons alone and every "suite green" claim from that machine was partly
+# meaningless. pyproject already declares requires-python = ">=3.12"; this file is the
+# reminder that the venv has to match it.
+pytest
+pytest-asyncio
+pytest-aiohttp
+respx
+ruff
+mypy

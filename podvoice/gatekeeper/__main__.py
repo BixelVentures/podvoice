@@ -140,6 +140,7 @@ def _build_session(
     voicepe = VoicePELink(room.voicepe_host, psk, room=room.room)
     voicepe.mic_channel = cfg.mic_channel
     voicepe.mic_gain = cfg.mic_gain
+    voicepe.wake_word = cfg.wake_word
     # Track B (engine: thin): the model owns the conversation — server VAD handles
     # turn-taking/barge-in, the server idle timeout ends it. The provider session gets
     # the idle signal enabled; ThinSession replaces the whole state machine.

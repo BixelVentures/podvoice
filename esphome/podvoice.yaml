@@ -70,6 +70,34 @@ api:
         gain: int
       then:
         - lambda: "id(pv_audio).set_mic_gain(gain);"
+    # WAKE WORD, switchable at runtime. The upstream package already ships three trained
+    # models (okay_nabu, hey_jarvis, hey_mycroft) — this exposes the choice instead of
+    # making it a 25-minute reflash. Exactly ONE is enabled at a time.
+    #
+    # A lambda, not micro_wake_word.enable_model:, because that action binds a model at
+    # COMPILE time (EnableModelAction holds a WakeWordModel*), so it cannot take a name
+    # chosen at runtime. `id(x)` expands to (*x) in ESPHome lambdas, hence the dot.
+    #
+    # The "stop" model is deliberately NOT touched here: upstream's activate_stop_word_once
+    # arms and disarms it around each reply, and stomping on it would break stop-while-
+    # talking (measured at ~51 ms — the fastest thing this device does).
+    - action: podvoice_set_wake_word
+      variables:
+        name: string
+      then:
+        - lambda: |-
+            const bool nabu    = (name == "okay_nabu");
+            const bool jarvis  = (name == "hey_jarvis");
+            const bool mycroft = (name == "hey_mycroft");
+            if (!nabu && !jarvis && !mycroft) {
+              ESP_LOGW("podvoice", "unknown wake word '%s' — keeping the current one",
+                       name.c_str());
+              return;
+            }
+            nabu    ? id(okay_nabu).enable()   : id(okay_nabu).disable();
+            jarvis  ? id(hey_jarvis).enable()  : id(hey_jarvis).disable();
+            mycroft ? id(hey_mycroft).enable() : id(hey_mycroft).disable();
+            ESP_LOGI("podvoice", "wake word set to %s", name.c_str());
 
 # B1 step 2a — the ISOLATED VA-output swap (and NOTHING else; the 0.67 firmware bundled
 # this with a mww automation + a stream-info lambda and broke wake — this flash isolates

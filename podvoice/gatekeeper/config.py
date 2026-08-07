@@ -50,12 +50,13 @@ class Config:
     openai_noise: str = "far_field"
     mic_channel: int = 1  # device mic tap, re-asserted on every connect
     mic_gain: int = 16  # device mic gain, re-asserted on every connect
+    wake_word: str = "okay_nabu"  # device wake model, re-asserted on every connect
     idle_timeout_s: int = 8  # close the conversation after this much user silence
     max_session_min: int = 15  # hard ceiling on one conversation (provider caps at 60)
     simulate: bool = False
     engine: str = "classic"  # "classic" | "thin" (Track B — the model owns the conversation)
     reply_streaming: bool = False  # stream the reply FLAC while it generates (experimental)
-    speaker_path: str = "announce"  # "announce" | "direct" (0.67 firmware VA-speaker path)
+    speaker_path: str = "auto"  # "auto" (direct iff the firmware advertises it) | announce | direct
     panel_lan_open: bool = False  # True = allow direct LAN access to the panel (unauth'd)
     full_duplex: bool = False  # half-duplex (continued conversation) is the shipped mode;
     # True = open-mic barge-in, the future full-duplex opt-in (not built/validated yet)
@@ -145,6 +146,14 @@ def from_options(opts: dict) -> Config:
         # Cost control: both floored so a stray saved 0 can't strobe sessions open/shut.
         mic_channel=1 if _int(opts, "mic_channel", 1) else 0,
         mic_gain=min(max(_int(opts, "mic_gain", 16), 1), 64),
+        # Only the three models the upstream firmware actually carries. An unknown
+        # name would be a silent no-op on the device, so it never leaves here.
+        wake_word=(
+            str(opts.get("wake_word", "okay_nabu") or "okay_nabu")
+            if str(opts.get("wake_word", "okay_nabu") or "okay_nabu")
+            in ("okay_nabu", "hey_jarvis", "hey_mycroft")
+            else "okay_nabu"
+        ),
         idle_timeout_s=max(_int(opts, "idle_timeout_s", 8), 3),
         max_session_min=min(max(_int(opts, "max_session_min", 15), 1), 55),
         simulate=bool(opts.get("simulate", False)),

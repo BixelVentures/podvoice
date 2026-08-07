@@ -755,3 +755,45 @@ async def test_stopping_a_direct_reply_always_brings_the_shield_down():
     finally:
         thin_mod.DIRECT_PLAYED_GRACE_S = original
         await session.aclose()
+
+
+async def test_full_duplex_is_refused_on_the_raw_mic_channel(caplog):
+    """Duplex needs echo cancellation, and only XMOS channel 0 has it. On channel 1 (raw,
+    our default) an open mic hears the speaker and the model answers itself — the 0.83
+    loop. full_duplex used to be a bare bool that disabled the shield regardless; that is
+    how 0.92-0.95 shipped a self-interrupting puck."""
+    import logging
+
+    gemini = LiveFake()
+    attention = FakeAttention()
+    voicepe = FakeVoicePELink(room=ROOM)
+    voicepe.mic_channel = 1  # raw — no AEC
+    with caplog.at_level(logging.ERROR, logger="podvoice.thin"):
+        session = ThinSession(
+            room=ROOM,
+            attention=attention,
+            heartbeat=Heartbeat(attention, period_ms=20),
+            brain=gemini,
+            voicepe=voicepe,
+            playback=Playback(sink=voicepe.play_pcm),
+            reply_bus=ReplyBus(),
+            reply_url=REPLY_URL,
+            full_duplex=True,
+        )
+    assert session.full_duplex is False  # shield stays UP
+    assert any("full_duplex REFUSED" in r.getMessage() for r in caplog.records)
+
+    voicepe0 = FakeVoicePELink(room=ROOM)
+    voicepe0.mic_channel = 0  # the echo-cancelled channel
+    session0 = ThinSession(
+        room=ROOM,
+        attention=attention,
+        heartbeat=Heartbeat(attention, period_ms=20),
+        brain=gemini,
+        voicepe=voicepe0,
+        playback=Playback(sink=voicepe0.play_pcm),
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+        full_duplex=True,
+    )
+    assert session0.full_duplex is True  # allowed where the hardware supports it

@@ -255,3 +255,19 @@ async def test_tts_start_must_carry_non_empty_text(monkeypatch):
     by_kind = dict(sent)
     assert by_kind["tts_start"].get("text"), "TTS_START without text -> the device bails out"
     assert by_kind["tts_end"].get("url"), "TTS_END without url -> never reaches STREAMING_RESPONSE"
+
+
+async def test_wake_word_is_reasserted_on_every_connect():
+    """Like the mic tuning: a runtime change lives in RAM and dies with the next power
+    cut (the 1.6.0 gain lesson). The SETTING has to be re-applied on each connect, or the
+    puck quietly goes back to answering "Okay Nabu"."""
+    client = _ConnectableClient(
+        ["podvoice_stream_start", "podvoice_stream_stop", "podvoice_set_wake_word"],
+        [MediaPlayerInfo("external_media_player", 7), LightInfo("led_ring", 9)],
+    )
+    link = _link(client)
+    link.wake_word = "hey_jarvis"
+    await link._on_connect()
+    assert client.executed.count("podvoice_set_wake_word") == 1
+    await link._on_connect()  # e.g. after a reboot
+    assert client.executed.count("podvoice_set_wake_word") == 2

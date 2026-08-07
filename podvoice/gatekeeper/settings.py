@@ -142,8 +142,15 @@ DEFAULTS: dict = {
     # the model owns the conversation — turn-taking, barge-in, idle — via server VAD)
     "reply_streaming": False,  # stream the reply FLAC as it's generated (kills the pre-reply
     # silence) — experimental until verified on the device; buffered is the safe default
-    "speaker_path": "announce",  # "announce" (HTTP/FLAC via media_player, hardware-proven) |
-    # "direct" (raw PCM over the native API into the VA speaker — needs the 0.67 firmware)
+    "speaker_path": "auto",  # "auto" = direct PCM iff the connected FIRMWARE advertises it
+    # (it publishes a "reply_played" event type), else announce. "announce"/"direct" force
+    # one path for debugging. NOTE: this default MUST stay "auto" — leaving it at the old
+    # "announce" would have made the settings-v5 cleanup fall straight back onto the
+    # announce path, so the 2b flash would have changed nothing with no error anywhere.
+    # Wake word: one of the three models the upstream firmware already carries. Applied on
+    # every device connect (a runtime change lives in RAM and dies with the next reboot —
+    # the 1.6.0 gain lesson). "Okay Chat" would need a custom-trained model (docs/wake-word.md).
+    "wake_word": "okay_nabu",  # okay_nabu | hey_jarvis | hey_mycroft
     "panel_lan_open": False,  # False = panel/API only via HA Ingress (the sidebar). True
     # re-opens direct LAN access to :8098 (unauthenticated — you're on your own)
     "podconnect_base_url": "http://homeassistant.local:8099",

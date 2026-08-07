@@ -365,6 +365,12 @@
 
       <div class="exsub" style="margin-top:16px">Turn taking &amp; cost</div>
       <div class="setgrid">
+        <label for="s_wake_word">Wake word</label>
+        <select id="s_wake_word">
+          <option value="okay_nabu">Okay Nabu</option>
+          <option value="hey_jarvis">Hey Jarvis</option>
+          <option value="hey_mycroft">Hey Mycroft</option>
+        </select>
         <label for="s_turn_preset">Interruption style</label>
         <select id="s_turn_preset">
           <option value="conservative">Conservative — hard to interrupt (echo-safe)</option>
@@ -378,7 +384,7 @@
         <label for="s_force_mini">Always use the mini model</label>
         <input id="s_force_mini" type="checkbox">
       </div>
-      <p class="sub" style="margin:2px 0 0">Conservative is tuned so the speaker's own voice can never cut the reply off. Cost shows up in Home Assistant as <code>sensor.podvoice_cost_today</code> / <code>_month</code>.</p>
+      <p class="sub" style="margin:2px 0 0">The wake word is applied to the puck every time it connects, so it survives a power cut. These three are the models the firmware carries; a custom one (e.g. &quot;Okay Chat&quot;) has to be trained and flashed. Conservative is tuned so the speaker's own voice can never cut the reply off. Cost shows up in Home Assistant as <code>sensor.podvoice_cost_today</code> / <code>_month</code>.</p>
 
       <div class="exsub" style="margin-top:16px">Music ducking</div>
       <p class="sub" style="margin:2px 0 10px">How much to quiet this room's music while you're talking to the assistant. <b>0 = mute it completely</b> (best when the speaker is in the same room as the Voice PE).</p>
@@ -956,7 +962,7 @@ setInterval(poll, 3000);
 // ---- Settings page (saved to the add-on's /data; HA Configuration holds only keys) ----
 (function () {
   var FIELDS = ["engine", "openai_model", "openai_voice", "voicepe_noise_psk",
-    "turn_preset", "idle_timeout_s", "max_session_min", "force_mini",
+    "turn_preset", "wake_word", "idle_timeout_s", "max_session_min", "force_mini",
     "duck_level", "system_prompt", "simulate", "panel_lan_open",
     "podconnect_base_url", "podconnect_token", "ha_mcp_url", "ha_mcp_token"];
   var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1 };

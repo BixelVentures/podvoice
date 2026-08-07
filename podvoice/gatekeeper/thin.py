@@ -12,11 +12,13 @@ conversation: listening and speaking interleave freely) · error (transient,
 audible, always lands back in IDLE). No decision table — live signals drive
 the few effects directly.
 
-Playback truth: reply audio goes out via the proven announce path for now; the
-playout clock approximates the heard position from the media player's ANNOUNCING
-edge + wall time, and reports it to the server on barge-in via
-``conversation.item.truncate`` — so the model's memory matches the ears in the
-room. (The B1 direct speaker path upgrades this to byte-exact acks later.)
+Playback truth, and how the room's ears are kept in sync with the model's memory:
+on B1-2b firmware the reply goes out as raw PCM over the native API and the device
+reports ``reply_played`` the instant the last byte leaves the DAC — byte-exact, no
+estimating. Older firmware keeps the proven announce path, where the heard position is
+approximated from the media player's ANNOUNCING edge plus wall time. Either way the
+position is reported on barge-in via ``conversation.item.truncate``. Which path runs is
+decided by the DEVICE (voicepe.supports_direct), never by a saved setting.
 """
 
 from __future__ import annotations
@@ -205,6 +207,22 @@ class ThinSession:
         self.usage = usage
         self.speaker_path = speaker_path
         self.full_duplex = full_duplex
+        # Duplex needs ECHO CANCELLATION, and only XMOS channel 0 has it. On channel 1
+        # (raw — our default, because modern STT wants unprocessed audio) an open mic
+        # hears the speaker directly, so the model transcribes its own reply as the user
+        # and answers itself: exactly the 0.83 loop the echo shield was built to stop.
+        # full_duplex was a bare bool that could disable the shield regardless of which
+        # channel was tapped; that is how 0.92-0.95 shipped a self-interrupting puck.
+        # Make the hardware the authority, like speaker_path now is.
+        if self.full_duplex:
+            channel = getattr(voicepe, "mic_channel", None)
+            if channel is not None and int(channel) != 0:
+                _LOG.error(
+                    "thin: full_duplex REFUSED — it needs the echo-cancelled mic channel 0, "
+                    "but the device is tapping channel %s (raw). Keeping the echo shield up.",
+                    channel,
+                )
+                self.full_duplex = False
         self.idle_timeout_s = float(idle_timeout_s)
         self.max_session_s = float(max_session_s)
 
@@ -224,6 +242,7 @@ class ThinSession:
         # so a reply can never start on one path and finish on the other.
         self._direct = False
         self._direct_q: asyncio.Queue[bytes | None] | None = None
+        self._direct_sent = 0  # bytes handed to the device this reply (playout ceiling)
         self._direct_task: asyncio.Task | None = None
         self._speech_tools: set[str] = set()  # tool calls whose result makes it SPEAK again
         self._heard_signal = False  # has this conversation carried real audio yet?
@@ -699,6 +718,7 @@ class ThinSession:
             # simultaneous with the ears, not with the network.
             self._hub_state("AI_SPEAKING", "💬 Svarer")
             if direct:
+                self._direct_sent = 0
                 self._direct_q = asyncio.Queue()
                 self._direct_task = self._spawn(self._direct_send_loop(), "thin-direct")
             else:
@@ -759,6 +779,7 @@ class ThinSession:
                         await asyncio.sleep(min(ahead - DIRECT_LEAD_S, 0.05))
                     self.voicepe.send_direct_pcm(piece)
                     sent += len(piece)
+                    self._direct_sent = sent
                     # EXACT, not estimated: every byte we have handed over is audible
                     # until t0 + sent/rate. No device report needed to keep the shield up.
                     self._reply_audible_until = t0 + (sent / bytes_per_s) + ECHO_GATE_TAIL_S
@@ -1139,11 +1160,22 @@ class ThinSession:
 
     # ------------------------------------------------------------- helpers
     def _sync_playout(self) -> None:
-        """Advance the playout clock by wall time since playback started (announce
-        path approximation; the B1 direct path replaces this with byte-exact acks)."""
-        if self._playback_t0 is not None:
-            elapsed = time.monotonic() - self._playback_t0
-            self.playout.set_played(int(elapsed * C.OUTPUT_RATE * C.SAMPLE_WIDTH))
+        """How much of the reply the room has actually HEARD — this is what the model is
+        told on a barge-in, so an error here rewrites its memory of the conversation.
+
+        Announce path: wall time since playback started, and nothing better exists —
+        the device holds the whole FLAC and never reports progress.
+        Direct path: bounded by what we have actually HANDED OVER. We pace to real time,
+        so wall clock and bytes agree to within DIRECT_LEAD_S, but the byte count is the
+        hard ceiling: the model must never be told the family heard audio that was still
+        sitting in our own queue."""
+        if self._playback_t0 is None:
+            return
+        elapsed = time.monotonic() - self._playback_t0
+        played = int(elapsed * C.OUTPUT_RATE * C.SAMPLE_WIDTH)
+        if self._direct:
+            played = min(played, self._direct_sent)
+        self.playout.set_played(played)
 
     async def _silence_device(self) -> None:
         self._stop_sent_t = time.monotonic()  # G1: measure stop -> actually silent
