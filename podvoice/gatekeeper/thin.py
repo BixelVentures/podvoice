@@ -797,8 +797,17 @@ class ThinSession:
                     if self.hub is not None:
                         self.hub.set_latency(self.room, ttfr_ms)
         else:
+            was_speaking = self._speaking
             self._device_playing = False
             self._last_activity = time.monotonic()  # the room just went quiet: your turn
+            if was_speaking and self._active:
+                # Playback stopped while the model still had more to say: the FIRMWARE
+                # silenced it because a wake word ("Okay Nabu" / "stop") was heard over
+                # the reply — the puck's built-in hush, on the echo-cancelled channel,
+                # with the mic still gated. Tell the model exactly how much was HEARD,
+                # or it will believe the family heard the whole answer.
+                _LOG.info("thin: reply hushed on the device — truncating at heard position")
+                self._spawn(self._truncate_at_heard(), "thin-hush-truncate")
             if self._stop_sent_t is not None:
                 _LOG.info(
                     "stop-latency: %d ms (silence command -> device silent)",
@@ -811,6 +820,22 @@ class ThinSession:
             self._playback_t0 = None
             if self._active and not self._speaking:
                 self._set_led(State.LISTENING)  # sound ended -> ring says "your turn"
+
+    async def _truncate_at_heard(self) -> None:
+        """Tell the provider what the room ACTUALLY heard after a device-side hush."""
+        self._sync_playout()
+        item = self.playout.current_item() or self._last_item
+        if item and hasattr(self.brain, "truncate"):
+            with contextlib.suppress(Exception):
+                await self.brain.truncate(item, self.playout.heard_ms(item))
+        self._buf_out.clear()  # the unheard tail must not be persisted as spoken
+        self._speaking = False
+        if self._active:
+            self.sm.state = State.LISTENING
+            self._set_led(State.LISTENING)
+            self._hub_state("LISTENING", "🤫 Stoppet — jeg lytter")
+        if self.hub is not None:
+            self.hub.incr("barge_ins")
 
     async def _end_echo_gate(self) -> None:
         """After the reverb tail: drop what the mic queued during the reply and report

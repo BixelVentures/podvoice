@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0 — du KAN afbryde den midt i et svar: pucken har altid kunnet høre "stop"
+
+Ejeren spurgte om wake-ordet kunne bruges til at stoppe talen. Undersøgelsen af firmwarens egen logik viste, at det allerede virker — vi har bare aldrig fortalt det, og modellen fik det aldrig at vide:
+
+- **Firmwaren lytter efter wake-ord HELE tiden, også mens den taler** (micro_wake_word kører frit på den ekko-rensede kanal). Høres et wake-ord — **"stop"** eller **"Okay Nabu"** — mens et svar afspilles, stopper enheden lyden ØJEBLIKKELIGT, lokalt, uden at mikrofonen åbnes. Ægte afbrydelse uden duplex-risiko.
+- **Hullet vi lukker nu**: add-on'et opdagede godt at lyden holdt op, men fortalte det ikke til modellen — så den troede familien havde hørt hele svaret, og byggede videre på noget, ingen havde hørt. Nu får modellen præcis den hørte position (samme mekanik som ved almindelig afbrydelse), ringen skifter til "lytter", og afbrydelsen tælles i panelets metrikker.
+- Panelet forklarer nu tysse-genvejen, så familien kender den.
+
+1 ny regressionstest. ruff + mypy rene; hele suiten grøn.
+
 ## 1.2.0 — lyset starter ikke længere "sent", og ringen siger nu hvornår den tænker
 
 To lys-fejl, begge målt i felten:

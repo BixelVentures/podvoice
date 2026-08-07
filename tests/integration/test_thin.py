@@ -557,3 +557,25 @@ async def test_ring_turns_amber_while_it_works():
         await _wait_until(lambda: session.sm.state is State.THINKING)
     finally:
         await session.aclose()
+
+
+async def test_device_side_hush_truncates_the_model():
+    """The firmware silences a playing reply when it hears a wake word ('Okay Nabu' /
+    'stop') — on the echo-cancelled channel, mic still gated. The model must be told
+    how much was HEARD, or it believes the family heard the whole answer."""
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(AudioChunk(_frame(n_samples=24000), item_id="hushed"))
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)
+        await asyncio.sleep(0.15)  # some of it was actually heard
+        session._on_media_state(False)  # firmware hushed it mid-reply
+        await _wait_until(lambda: len(gemini.truncations) == 1, max_wait=3.0)
+        item, heard_ms = gemini.truncations[0]
+        assert item == "hushed" and heard_ms >= 0
+        assert session.sm.state is State.LISTENING  # ring says "your turn" again
+    finally:
+        await session.aclose()

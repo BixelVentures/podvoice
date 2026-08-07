@@ -7,4 +7,4 @@ PodConnect's Attention API while the conversation is live.
 See PLAN.md for the full architecture.
 """
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
