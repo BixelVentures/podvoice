@@ -142,7 +142,11 @@ def test_preset_conservative_is_hard_to_interrupt():
     s = OpenAIRealtimeSession(api_key="k", idle_timeout_s=25)
     td = s._session_update()["session"]["audio"]["input"]["turn_detection"]
     assert td["type"] == "server_vad"
-    assert td["threshold"] == 0.7 and td["silence_duration_ms"] == 700
+    # Retuned on field evidence: a high threshold clipped the start of short
+    # utterances (same failure on the puck AND a clean Mac mic — so not the mic).
+    assert td["threshold"] == 0.45
+    assert td["prefix_padding_ms"] == 800  # enough pre-roll that nothing is cut
+    assert td["silence_duration_ms"] == 700  # Danish patience, unchanged
     # idle_timeout_ms must NEVER be sent (ARKITEKTUR, modprøve A3): GA docs define
     # it as a RE-PROMPT trigger — the model answers BY ITSELF at timeout (possible
     # tool calls = unsolicited action). The client-side idle fallback is the closer.

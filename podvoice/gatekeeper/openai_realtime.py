@@ -131,10 +131,17 @@ class OpenAIRealtimeSession:
         silence_duration_ms / idle_timeout_ms (server_vad); eagerness (semantic_vad).
         """
         if self.preset == "conservative":
-            # Hard to interrupt: a HIGH energy threshold means residual speaker echo
-            # (already ~cancelled by the XMOS AEC) can't fire speech_started; a longer
-            # end-of-speech silence forgives Danish mid-sentence pauses.
-            return self._server_vad(threshold=0.7, prefix_ms=300, silence_ms=700)
+            # Retuned 2026-08-07 on field evidence. The old 0.7 threshold existed to
+            # stop residual speaker echo from firing speech_started — a job now done by
+            # the echo shield AND the device's own wake-word hush. What the high
+            # threshold DID cost was the start of every SHORT utterance: detection fired
+            # late, and only 300 ms of pre-roll was kept, so "Okay Nabu" became
+            # "Tailam" and "Men hvad?" vanished — on BOTH the puck and a clean Mac mic,
+            # which is what proves it was never the microphone.
+            #   threshold 0.45: catch quiet/short speech from the first syllable
+            #   prefix 800 ms : keep enough pre-roll that nothing is clipped
+            #   silence 700 ms: unchanged — Danish turn-taking is the world's slowest
+            return self._server_vad(threshold=0.45, prefix_ms=800, silence_ms=700)
         if self.preset == "responsive":
             return {
                 "type": "semantic_vad",

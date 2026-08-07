@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.0 — korte sætninger blev hugget af: turdetektionen var tunet til et problem vi ikke har mere
+
+Felttesten afslørede et klart mønster: LANGE sætninger transskriberes perfekt ("Hvordan gik det AGF i deres seneste kamp?"), KORTE bliver til volapyk ("Tailam", "Hej deva", "Men hvad?"). Og **samme mønster i Talk-fanen med en ren Mac-mikrofon** — to vidt forskellige mikrofoner kan ikke fejle ens, så årsagen lå et fælles sted: serverens turdetektion.
+
+- **Tærsklen var sat til 0,7** for at forhindre, at assistentens eget ekko udløste en afbrydelse. Det job udfører ekko-skjoldet og puckens egen wake-ord-lytning nu — men den høje tærskel kostede stadig **starten af hver kort ytring**: detektionen udløste for sent, og kun 300 ms lyd blev gemt fra før. Derfor blev "Okay Nabu" til "Tailam".
+- Nu: **tærskel 0,45** (fanger svag og kort tale fra første stavelse) og **800 ms forlyd** (intet klippes af). Den danske tålmodighed på 700 ms er uændret.
+
+ruff + mypy rene; hele suiten grøn.
+
 ## 1.4.0 — lyd- og lys-UX er nu DESIGNET, ikke tilfældig
 
 Ejeren: "Det er random pt." — korrekt. Feedbacken var aldrig blevet tegnet som ét forløb; hvert signal var opstået enkeltvis. Hele tidslinjen er nu bevidst, og hvert trin har ÉT lys og HØJST én lyd:
