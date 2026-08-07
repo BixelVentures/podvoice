@@ -126,6 +126,26 @@ ANNOUNCE_PREARM_S = (
 # arriving 0.8-1.1 s after the announce — the old 0.5 s left an unshielded gap that
 # let the reply's own first words fire speech_started and KILL the reply at 0 ms.
 
+# ---------------------------------------------------------------- direct PCM path (B1-2b)
+# Raw 24 kHz PCM straight down the open API connection into the VA speaker. No HTTP
+# fetch, no FLAC encode, no announce round-trip — and, the reason this exists, the
+# device reports back the EXACT moment the last byte left the DAC (reply_played), so the
+# echo shield stops estimating playback duration and starts knowing it.
+DIRECT_CHUNK = 1024  # == VA's RECEIVE_SIZE; keeps each protobuf frame small and smooth
+DIRECT_LEAD_S = 0.15
+# How far ahead of real time we may buffer on the device. Two hard limits set this:
+#   UPPER: SPEAKER_BUFFER_SIZE is 16 KB (0.34 s @ 48000 B/s) and on_audio DROPS a whole
+#          chunk when it would overflow ("Cannot receive audio, buffer is full") — lost
+#          words, not a stutter. 0.15 s leaves >2x headroom.
+#   LOWER: this lead IS the barge-in cost. request_stop() does nothing for the speaker
+#          path (its STREAMING_RESPONSE branch is entirely #ifdef USE_MEDIA_PLAYER and
+#          media_player_ is nullptr here), so "stop" means "stop sending" and whatever
+#          is already buffered still plays. 0.15 s is the worst-case overhang — still
+#          ~15x faster than Gemini's ~2.2 s, and the puck's own wake-word hush (armed
+#          automatically by upstream's activate_stop_word_once on our TTS_START) keeps
+#          cutting "stop" locally at ~51 ms, unchanged.
+DIRECT_PLAYED_GRACE_S = 2.0  # wait this long past the expected end for reply_played
+
 
 class _Mini:
     """Tiny ``sm``-compatible shim so the existing panel/web controls keep working
@@ -163,6 +183,8 @@ class ThinSession:
         reply_url: str | None = None,
         duck_level: int = C.DUCK_LEVEL,
         usage=None,  # UsageMeter — per-response token/cost telemetry (optional)
+        speaker_path: str = "auto",  # "auto" (use direct iff the FIRMWARE advertises it)
+        # | "announce" (force the HTTP/FLAC path) | "direct" (force PCM, for the sim/tests)
         full_duplex: bool = False,  # EXPERIMENTAL: mic stays open while the device plays
         # (XMOS AEC + conservative turn detection carry echo rejection; Phase 1.4 gates it)
         idle_timeout_s: float = IDLE_FALLBACK_S,
@@ -181,6 +203,7 @@ class ThinSession:
         self.reply_url = reply_url
         self.duck_level = duck_level
         self.usage = usage
+        self.speaker_path = speaker_path
         self.full_duplex = full_duplex
         self.idle_timeout_s = float(idle_timeout_s)
         self.max_session_s = float(max_session_s)
@@ -197,6 +220,11 @@ class ThinSession:
         # Until when the reply we generated is still AUDIBLE (byte-derived). The shield
         # trusts this even if the device never reports that it is playing.
         self._reply_audible_until = 0.0
+        # Direct PCM path (B1-2b). _direct is decided ONCE per reply, at its first chunk,
+        # so a reply can never start on one path and finish on the other.
+        self._direct = False
+        self._direct_q: asyncio.Queue[bytes | None] | None = None
+        self._direct_task: asyncio.Task | None = None
         self._speech_tools: set[str] = set()  # tool calls whose result makes it SPEAK again
         self._heard_signal = False  # has this conversation carried real audio yet?
         self._goodbye: asyncio.Task | None = None  # armed close-after-goodbye (one per conv)
@@ -378,6 +406,7 @@ class ThinSession:
         self._turn_had_tool = False
         self._speech_tools.clear()
         self._reply_audible_until = 0.0
+        self._direct = False  # the next reply re-decides its path from scratch
         self._heard_signal = False
         self.sm.state = State.IDLE
         # NEVER cancel the task that is RUNNING this teardown (stop()/_fail() are called
@@ -549,7 +578,9 @@ class ThinSession:
                 self._turn_had_tool = False
                 _LOG.info("thin: turn paused on a tool — reply stream stays open")
             else:
-                if self.reply_bus is not None:
+                if self._direct:
+                    self._end_direct_stream()
+                elif self.reply_bus is not None:
                     self.reply_bus.end(self.room)
                 self._flush_transcript("out")
                 # Conversation stays OPEN (continued conversation, free) — LED back to
@@ -630,26 +661,55 @@ class ThinSession:
             self.hub.transcript(self.room, direction, "".join(buf))
         buf.clear()
 
+    def _use_direct(self) -> bool:
+        """Is the direct PCM path available RIGHT NOW?
+
+        "auto" asks the DEVICE (voicepe.supports_direct, read from the event types the
+        firmware advertises at connect) instead of trusting a saved setting. That is the
+        0.70 lesson made structural: a stray speaker_path="direct" against announce-only
+        firmware produced total silence, and no setting can cause that any more."""
+        if self.speaker_path == "announce":
+            return False
+        if not hasattr(self.voicepe, "begin_direct_reply"):
+            return False
+        if self.speaker_path == "direct":
+            return True  # forced (sim/tests)
+        return bool(getattr(self.voicepe, "supports_direct", False))
+
     def _on_reply_audio(self, ev: AudioChunk) -> None:
-        if self.reply_bus is None or not self.reply_url:
+        direct = self._direct if self._speaking else self._use_direct()
+        if not direct and (self.reply_bus is None or not self.reply_url):
             self._spawn(self.playback.play(ev.pcm), "thin-play")  # sim/console
             return
         first = not self._speaking
         if first:
             self._speaking = True
+            self._direct = direct
             # New reply: start its audible window from now (plus the announce lead-in).
+            # On the direct path there is no announce round-trip to cover, but the window
+            # is still armed here — _direct_send_loop replaces it with the exact figure
+            # the moment the first byte actually goes out.
             self._reply_audible_until = time.monotonic() + ANNOUNCE_PREARM_S
             self.sm.state = State.AI_SPEAKING
             self.playout.reset()
             self._playback_t0 = None
-            self.reply_bus.clear(self.room)  # a never-fetched previous reply must not lead
-            self.reply_bus.start(self.room)
-            # NOTE: the LED goes green on the device's ANNOUNCING edge (_on_media_state),
-            # i.e. when sound actually STARTS — not here at generation start. The ring
-            # must be simultaneous with the ears, not with the network.
+            # NOTE: the LED goes green when sound actually STARTS — on the announce path
+            # that is the device's ANNOUNCING edge, on the direct path it is our first
+            # sent byte. Both land in _on_media_state(True). The ring must be
+            # simultaneous with the ears, not with the network.
             self._hub_state("AI_SPEAKING", "💬 Svarer")
-            self._spawn(self._announce_with_retry(), "thin-announce")
-        self.reply_bus.push(self.room, ev.pcm)
+            if direct:
+                self._direct_q = asyncio.Queue()
+                self._direct_task = self._spawn(self._direct_send_loop(), "thin-direct")
+            else:
+                self.reply_bus.clear(self.room)  # a never-fetched reply must not lead
+                self.reply_bus.start(self.room)
+                self._spawn(self._announce_with_retry(), "thin-announce")
+        if direct:
+            if self._direct_q is not None:
+                self._direct_q.put_nowait(ev.pcm)
+        else:
+            self.reply_bus.push(self.room, ev.pcm)
         # Extend the shield by this chunk's REAL duration. The device's "I am playing"
         # report can be late or absent (field 16:42: mic level ~426 mid-reply -> the
         # model heard itself, barged in, and truncated its own answer at 0 ms). The
@@ -660,6 +720,94 @@ class ThinSession:
         item = ev.item_id or self._last_item or "reply"
         self._last_item = item
         self.playout.on_sent(item, len(ev.pcm))
+
+    async def _direct_send_loop(self) -> None:
+        """Pump the reply to the device as paced raw PCM, then wait for its own
+        "last byte left the DAC" report.
+
+        Pacing is mandatory, not cosmetic: the device's on_audio drops a WHOLE chunk
+        when its 16 KB buffer would overflow, which loses words silently. We therefore
+        never run more than DIRECT_LEAD_S ahead of real time.
+        """
+        q = self._direct_q
+        if q is None:
+            return
+        bytes_per_s = float(C.OUTPUT_RATE * C.SAMPLE_WIDTH)
+        if not await self.voicepe.begin_direct_reply():
+            _LOG.warning("thin: direct path could not open — falling back to announce")
+            await self._fallback_to_announce(q)
+            return
+        t0: float | None = None
+        sent = 0
+        try:
+            while True:
+                chunk = await q.get()
+                if chunk is None:  # end of reply
+                    break
+                for i in range(0, len(chunk), DIRECT_CHUNK):
+                    piece = chunk[i : i + DIRECT_CHUNK]
+                    if t0 is None:
+                        # The first byte IS the start of sound. Everything the announce
+                        # path hangs off the ANNOUNCING edge (green ring, the
+                        # speech-stop->audible metric, the playout clock) hangs off this.
+                        t0 = time.monotonic()
+                        self._on_media_state(True)
+                    while True:
+                        ahead = (sent / bytes_per_s) - (time.monotonic() - t0)
+                        if ahead <= DIRECT_LEAD_S:
+                            break
+                        await asyncio.sleep(min(ahead - DIRECT_LEAD_S, 0.05))
+                    self.voicepe.send_direct_pcm(piece)
+                    sent += len(piece)
+                    # EXACT, not estimated: every byte we have handed over is audible
+                    # until t0 + sent/rate. No device report needed to keep the shield up.
+                    self._reply_audible_until = t0 + (sent / bytes_per_s) + ECHO_GATE_TAIL_S
+        except asyncio.CancelledError:
+            with contextlib.suppress(Exception):
+                await self.voicepe.end_direct_reply()  # stop sending == stop talking
+            raise
+        await self.voicepe.end_direct_reply()
+        if t0 is not None:
+            await self._await_reply_played(t0 + sent / bytes_per_s)
+
+    async def _fallback_to_announce(self, q: asyncio.Queue[bytes | None]) -> None:
+        """The direct path failed to open mid-reply: replay everything queued so far
+        down the proven announce path rather than dropping the answer on the floor."""
+        if self.reply_bus is None or not self.reply_url:
+            return
+        self._direct = False
+        self.reply_bus.clear(self.room)
+        self.reply_bus.start(self.room)
+        while not q.empty():
+            chunk = q.get_nowait()
+            if chunk is not None:
+                self.reply_bus.push(self.room, chunk)
+        self._spawn(self._announce_with_retry(), "thin-announce")
+
+    async def _await_reply_played(self, expected_end: float) -> None:
+        """Wait for the device's byte-exact reply_played. If it never lands, release the
+        shield on the computed end time instead of leaving the mic deaf forever.
+
+        This is the whole point of 2b: reply_played is GROUND TRUTH, and the computed end
+        is now only a watchdog against a lost packet — not, as in 1.8.0, the primary
+        mechanism guessing at something it could not observe."""
+        await asyncio.sleep(max(0.0, expected_end - time.monotonic()) + DIRECT_PLAYED_GRACE_S)
+        if self._device_playing:
+            _LOG.warning("thin: no reply_played from the device — releasing on the computed end")
+            self._on_media_state(False)
+
+    def _cancel_direct(self) -> None:
+        """Stop the direct reply NOW (barge-in, hush, teardown)."""
+        if self._direct_task is not None and not self._direct_task.done():
+            self._direct_task.cancel()
+        self._direct_task = None
+        self._direct_q = None
+
+    def _end_direct_stream(self) -> None:
+        """Generation finished — tell the pump there is no more audio coming."""
+        if self._direct_q is not None:
+            with contextlib.suppress(Exception):
+                self._direct_q.put_nowait(None)
 
     def _start_barge_debounce(self) -> None:
         """speech_started during a reply: wait BARGE_DEBOUNCE_S before silencing. A
@@ -803,6 +951,14 @@ class ThinSession:
             self._spawn(self.wake(), "thin-wake")
         elif etype in ("wake_stop", "single_press") and self._active:
             self._spawn(self.stop(reason="stop"), "thin-stop")
+        elif etype == "reply_played":
+            # GROUND TRUTH from the firmware: VA reached RESPONSE_FINISHED, which it only
+            # does once speaker_buffer_size_ == 0 AND !has_buffered_data() AND
+            # !is_running() — the last byte has physically left the DAC. This is the
+            # signal 1.8.0 had to estimate. Route it into the same handler the announce
+            # path uses, so LED, playout clock, reverb tail and metrics stay identical.
+            if self._device_playing:
+                self._on_media_state(False)
 
     def _on_media_state(self, announcing: bool) -> None:
         """ANNOUNCING edge = playback ground truth: playout clock, the GREEN ring
@@ -971,6 +1127,12 @@ class ThinSession:
     async def _silence_device(self) -> None:
         self._stop_sent_t = time.monotonic()  # G1: measure stop -> actually silent
         self._reply_audible_until = 0.0  # nothing of ours is audible after a stop
+        # Direct path: "stop" means stop SENDING (request_stop() is a no-op for the
+        # speaker path — its whole STREAMING_RESPONSE branch is #ifdef USE_MEDIA_PLAYER
+        # and media_player_ is nullptr here). Cancelling the pump also sends
+        # TTS_STREAM_END, so the device drains at most DIRECT_LEAD_S and then reports
+        # reply_played normally — the shield still releases on real evidence.
+        self._cancel_direct()
         if self.reply_bus is not None:
             self.reply_bus.end(self.room)
         if hasattr(self.voicepe, "stop_playback"):
@@ -978,17 +1140,37 @@ class ThinSession:
                 await self.voicepe.stop_playback()
         self.playback.flush()
 
+    async def _play_oneshot(self, pcm: bytes) -> None:
+        """Play one short fixed clip (close cue, error line, spoken warning) on whichever
+        audio path is live.
+
+        ONE emitter for every sound the add-on makes. When the cues had their own copy of
+        the announce sequence, adding a path meant remembering to wire each of them —
+        and the ones that were forgotten simply went silent with no error anywhere."""
+        if self._use_direct():
+            if not await self.voicepe.begin_direct_reply():
+                return
+            bytes_per_s = float(C.OUTPUT_RATE * C.SAMPLE_WIDTH)
+            for i in range(0, len(pcm), DIRECT_CHUNK):
+                piece = pcm[i : i + DIRECT_CHUNK]
+                self.voicepe.send_direct_pcm(piece)
+                await asyncio.sleep(len(piece) / bytes_per_s)  # realtime pace: never floods
+            await self.voicepe.end_direct_reply()
+            return
+        if self.reply_bus is None or not self.reply_url:
+            return
+        self.reply_bus.clear(self.room)
+        self.reply_bus.start(self.room)
+        self.reply_bus.push(self.room, pcm)
+        self.reply_bus.end(self.room)
+        await self.voicepe.play_url(self.reply_url)
+
     async def _speak_home_unreachable(self) -> None:
         """One spoken heads-up when the MCP probe says home control is down."""
-        if self.speech is None or self.reply_bus is None or not self.reply_url:
+        if self.speech is None:
             return
         with contextlib.suppress(Exception):
-            pcm = await self.speech.say(C.FALLBACK_HOME_UNREACHABLE)
-            self.reply_bus.clear(self.room)
-            self.reply_bus.start(self.room)
-            self.reply_bus.push(self.room, pcm)
-            self.reply_bus.end(self.room)
-            await self.voicepe.play_url(self.reply_url)
+            await self._play_oneshot(await self.speech.say(C.FALLBACK_HOME_UNREACHABLE))
 
     async def _play_close_cue(self) -> None:
         """The audible full stop: a short soft fall when the conversation ends.
@@ -997,14 +1179,8 @@ class ThinSession:
         from "it died" — and cannot hear that the mic is shut again."""
         from . import audio as audio_mod
 
-        if self.reply_bus is None or not self.reply_url:
-            return
         with contextlib.suppress(Exception):
-            self.reply_bus.clear(self.room)
-            self.reply_bus.start(self.room)
-            self.reply_bus.push(self.room, audio_mod.close_tone(C.OUTPUT_RATE))
-            self.reply_bus.end(self.room)
-            await self.voicepe.play_url(self.reply_url)
+            await self._play_oneshot(audio_mod.close_tone(C.OUTPUT_RATE))
             await asyncio.sleep(0.45)  # let it actually reach the speaker before teardown
 
     async def _speak_error(self, kind: str) -> None:
@@ -1015,13 +1191,8 @@ class ThinSession:
         if self.speech is not None:
             with contextlib.suppress(Exception):
                 pcm = await self.speech.say(C.ERROR_PHRASES.get(kind, C.FALLBACK_CONNECTION))
-        if self.reply_bus is not None and self.reply_url:
-            self.reply_bus.clear(self.room)
-            self.reply_bus.start(self.room)
-            self.reply_bus.push(self.room, pcm or audio_mod.error_tone(C.OUTPUT_RATE))
-            self.reply_bus.end(self.room)
-            with contextlib.suppress(Exception):
-                await self.voicepe.play_url(self.reply_url)
+        with contextlib.suppress(Exception):
+            await self._play_oneshot(pcm or audio_mod.error_tone(C.OUTPUT_RATE))
 
     async def _hold_led_through_run_end(self) -> None:
         """Keep the ring lit across the firmware's RUN_END reset (see wake()).

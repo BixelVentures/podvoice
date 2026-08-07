@@ -169,6 +169,7 @@ def _build_session(
             reply_url=reply_url,
             duck_level=cfg.duck_level,
             usage=usage,
+            speaker_path=cfg.speaker_path,  # "auto" -> direct iff the FIRMWARE says so
             full_duplex=cfg.full_duplex,  # PUCK: shield ON unless the owner deliberately
             # enables duplex after the matrix-C gate. (0.92-0.95 hardcoded True HERE by
             # mistake — the shield was off on the device and no setting could reach it.)

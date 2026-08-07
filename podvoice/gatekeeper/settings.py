@@ -39,7 +39,9 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 # retuned defaults forever. Identity settings (keys, rooms, prompts) are kept.
 # v3: the OpenAI-only overhaul — drops saved gemini_*/provider knobs (now unknown keys)
 # and resets openai_model so the gpt-realtime-2.1-mini default actually lands.
-SETTINGS_VERSION = 4
+# v5: drops a saved speaker_path (0.70 forced "announce"; the B1-2b firmware makes the
+# path self-detecting, and a persisted "announce" would silently veto it forever).
+SETTINGS_VERSION = 5
 
 # sha256 of RETIRED default system prompts. A saved prompt matching one of these is
 # just a persisted copy of an old default (the panel saves every field on Save) —
@@ -95,6 +97,13 @@ TUNING_KEYS: frozenset[str] = frozenset(
         "openai_noise",
         "mic_channel",
         "mic_gain",
+        # v5: speaker_path. 0.70 hard-forced "announce" (the 0.67 direct firmware was
+        # broken), and the panel saves EVERY field on Save — so that value is sitting in
+        # real settings files. Left in place it would pin the add-on to the announce path
+        # forever, even on 2b firmware that advertises the direct one, and the symptom
+        # would be "nothing changed after the flash" with no error anywhere. Dropped on
+        # upgrade so the self-detecting "auto" default actually takes effect.
+        "speaker_path",
         "idle_timeout_s",
         "max_session_min",
     }

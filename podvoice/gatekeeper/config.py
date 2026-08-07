@@ -156,12 +156,13 @@ def from_options(opts: dict) -> Config:
         reply_streaming=(
             True if opts.get("engine") == "thin" else bool(opts.get("reply_streaming", False))
         ),
-        # The DIRECT VA-speaker path needs a firmware that overrides voice_assistant's
-        # output to a speaker. That firmware (0.67) played 24 kHz PCM at the wrong rate
-        # (chipmunk) AND destabilised wake, so it was reverted — the shipped firmware is
-        # announce-only. Force "announce" until the direct firmware is re-validated on
-        # hardware; a stray saved "direct" must not produce silence/garbage.
-        speaker_path="announce",
+        # "auto" = use the direct PCM path IFF the connected firmware advertises it
+        # (voicepe reads the event types the device publishes and looks for
+        # "reply_played"). Announce-only firmware therefore keeps working untouched, and
+        # no saved value can point at a capability the hardware does not have — which is
+        # exactly how 0.70 produced total silence. Explicit "announce"/"direct" remain
+        # available as an override for debugging.
+        speaker_path=str(opts.get("speaker_path", "auto") or "auto"),
         panel_lan_open=bool(opts.get("panel_lan_open", False)),
         # 0.68: full-duplex (open-mic voice barge-in) is now an EXPERIMENTAL opt-in. The
         # XMOS AEC keeps the assistant's own voice out of mic channel 0; the provider's

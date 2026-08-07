@@ -24,6 +24,9 @@ class FakeVoicePELink:
         self.direct_events: list[str] = []
         self.direct_pcm: list[bytes] = []
         self.stop_word_states: list[bool] = []
+        # Mirrors the real link: the DEVICE says whether it has the B1-2b direct path.
+        # False by default, so every pre-existing test keeps exercising the announce path.
+        self.supports_direct = False
         self.started = False
         self.streaming = False
         self.closed = False

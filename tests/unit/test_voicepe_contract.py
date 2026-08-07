@@ -183,3 +183,75 @@ async def test_cached_ip_is_offered_alongside_the_hostname(tmp_path, monkeypatch
     # configured name does not resolve in this container.
     assert isinstance(captured["address"], str)
     assert captured["address"] in ("pv.local", "192.168.86.140")
+
+
+# ------------------------------------------------------- B1-2b direct PCM path contract
+class EventInfo:
+    """_resolve_entities matches on the CLASS NAME, like the other entity stubs."""
+
+    def __init__(self, object_id: str, key: int, event_types: list[str]) -> None:
+        self.object_id = object_id
+        self.key = key
+        self.event_types = event_types
+
+
+async def test_direct_support_is_read_off_the_firmware_not_a_setting():
+    """Capability detection: the device advertises "reply_played" only on 2b firmware.
+
+    0.70's silence came from a saved speaker_path="direct" pointing at firmware that
+    could not do it. Asking the hardware makes that failure unreachable."""
+    old = _StubClient(
+        ["podvoice_stream_start", "podvoice_stream_stop"],
+        [EventInfo("podvoice_event", 3, ["wake_okay_nabu", "wake_stop"])],
+    )
+    link = _link(old)
+    await link._resolve_entities()
+    assert link.supports_direct is False  # announce-only firmware
+
+    new = _StubClient(
+        ["podvoice_stream_start", "podvoice_stream_stop"],
+        [EventInfo("podvoice_event", 3, ["wake_okay_nabu", "wake_stop", "reply_played"])],
+    )
+    link2 = _link(new)
+    await link2._resolve_entities()
+    assert link2.supports_direct is True
+
+
+async def test_tts_start_must_carry_non_empty_text(monkeypatch):
+    """THE 0.67 bug, locked shut.
+
+    voice_assistant.cpp opens its TTS_START handler with
+        if (text.empty()) { ESP_LOGW("No text in TTS_START event"); return; }
+    so an empty data map returns BEFORE firing on_tts_start (our 24 kHz rate pin) and
+    BEFORE speaker_->start(). The resampler then keeps whatever rate the shared
+    external_media_player last decoded (48 kHz) and our 24 kHz reply plays at 2x — the
+    "chipmunk" that got the whole direct path reverted. Same for TTS_END's url."""
+    import sys
+    import types
+
+    sent: list[tuple[str, object]] = []
+
+    class _T:
+        VOICE_ASSISTANT_TTS_START = "tts_start"
+        VOICE_ASSISTANT_TTS_STREAM_START = "tts_stream_start"
+        VOICE_ASSISTANT_TTS_END = "tts_end"
+        VOICE_ASSISTANT_TTS_STREAM_END = "tts_stream_end"
+
+    mod = types.ModuleType("aioesphomeapi.model")
+    mod.VoiceAssistantEventType = _T
+    pkg = types.ModuleType("aioesphomeapi")
+    pkg.model = mod
+    monkeypatch.setitem(sys.modules, "aioesphomeapi", pkg)
+    monkeypatch.setitem(sys.modules, "aioesphomeapi.model", mod)
+
+    class _C:
+        def send_voice_assistant_event(self, kind, data):
+            sent.append((kind, data))
+
+    link = _link(_StubClient([], []))
+    link._client = _C()  # type: ignore[assignment]
+    assert await link.begin_direct_reply() is True
+
+    by_kind = dict(sent)
+    assert by_kind["tts_start"].get("text"), "TTS_START without text -> the device bails out"
+    assert by_kind["tts_end"].get("url"), "TTS_END without url -> never reaches STREAMING_RESPONSE"

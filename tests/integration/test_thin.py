@@ -60,9 +60,10 @@ class FakeTools:
         return []
 
 
-def _build(gemini):
+def _build(gemini, *, speaker_path: str = "auto", supports_direct: bool = False):
     attention = FakeAttention()
     voicepe = FakeVoicePELink(room=ROOM)
+    voicepe.supports_direct = supports_direct
     session = ThinSession(
         room=ROOM,
         attention=attention,
@@ -73,6 +74,7 @@ def _build(gemini):
         tools=FakeTools(),
         reply_bus=ReplyBus(),
         reply_url=REPLY_URL,
+        speaker_path=speaker_path,
     )
     return session, attention, voicepe
 
@@ -620,3 +622,109 @@ async def test_shield_holds_for_the_whole_reply_without_device_reports():
         assert len(gemini.sent_audio) == sent_before  # shielded on duration alone
     finally:
         await session.aclose()
+
+
+# --------------------------------------------------------------- B1-2b direct PCM path
+async def test_direct_path_only_when_the_firmware_advertises_it():
+    """ "auto" must ask the DEVICE, never a saved setting.
+
+    0.70 shipped speaker_path="direct" against announce-only firmware and the puck went
+    totally silent — no error, no clue. Capability now comes from the event types the
+    firmware itself publishes, so that failure is unreachable by configuration."""
+    gemini = LiveFake()
+    session, _a, voicepe = _build(gemini, supports_direct=False)  # announce-only firmware
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(AudioChunk(_frame(), item_id="i1"))
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        assert voicepe.direct_events == []  # the direct path was NOT touched
+    finally:
+        await session.aclose()
+
+    gemini2 = LiveFake()
+    session2, _a2, voicepe2 = _build(gemini2, supports_direct=True)  # 2b firmware
+    await session2.start()
+    try:
+        await session2.wake()
+        gemini2.emit(AudioChunk(_frame(), item_id="i1"))
+        await _wait_until(lambda: "begin" in voicepe2.direct_events)
+        await _wait_until(lambda: len(voicepe2.direct_pcm) > 0)
+        assert voicepe2.announced_urls == []  # and no announce round-trip at all
+    finally:
+        await session2.aclose()
+
+
+async def test_direct_sender_paces_and_cannot_overflow_the_device_buffer():
+    """The device drops a WHOLE chunk when its 16 KB buffer would overflow
+    ("Cannot receive audio, buffer is full") — that is lost words, not a stutter. So the
+    sender must never run more than DIRECT_LEAD_S ahead of real time."""
+    from gatekeeper import constants as C
+    from gatekeeper.thin import DIRECT_CHUNK, DIRECT_LEAD_S
+
+    gemini = LiveFake()
+    session, _a, voicepe = _build(gemini, supports_direct=True)
+    await session.start()
+    try:
+        await session.wake()
+        # 1.0 s of reply audio at 24 kHz/16-bit mono.
+        pcm = _frame(n_samples=C.OUTPUT_RATE)
+        t0 = asyncio.get_event_loop().time()
+        gemini.emit(AudioChunk(pcm, item_id="i1"))
+        await _wait_until(lambda: sum(len(c) for c in voicepe.direct_pcm) >= len(pcm), 5.0)
+        elapsed = asyncio.get_event_loop().time() - t0
+        # Paced: 1 s of audio cannot be handed over in appreciably less than 1 s minus
+        # the allowed lead. Without pacing this completes in ~0 s.
+        assert elapsed > (1.0 - DIRECT_LEAD_S - 0.15), f"sender did not pace (took {elapsed:.3f}s)"
+        assert all(len(c) <= DIRECT_CHUNK for c in voicepe.direct_pcm)  # RECEIVE_SIZE frames
+    finally:
+        await session.aclose()
+
+
+async def test_reply_played_is_the_exact_shield_release():
+    """The firmware's reply_played fires from RESPONSE_FINISHED — i.e. the last byte has
+    left the DAC. It must release the echo shield immediately, with no estimate involved."""
+    gemini = LiveFake()
+    session, _a, voicepe = _build(gemini, supports_direct=True)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(AudioChunk(_frame(), item_id="i1"))
+        await _wait_until(lambda: "begin" in voicepe.direct_events)
+        await _wait_until(lambda: session._device_playing is True)  # first byte = sound
+        assert session._reply_audible_until > 0  # shield UP
+
+        session._on_device_event(ROOM, _Event("reply_played"))
+        assert session._device_playing is False  # released on EVIDENCE, not a timer
+        assert session._reply_audible_until == 0.0
+    finally:
+        await session.aclose()
+
+
+async def test_shield_releases_on_the_watchdog_if_reply_played_is_lost():
+    """reply_played is ground truth, but a lost packet must never leave the mic deaf
+    forever — the computed end time is the backstop (and only the backstop)."""
+    import gatekeeper.thin as thin_mod
+
+    gemini = LiveFake()
+    session, _a, _voicepe = _build(gemini, supports_direct=True)
+    original = thin_mod.DIRECT_PLAYED_GRACE_S
+    thin_mod.DIRECT_PLAYED_GRACE_S = 0.05  # keep the test quick
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(AudioChunk(_frame(n_samples=2400), item_id="i1"))  # 100 ms
+        await _wait_until(lambda: session._device_playing is True)
+        gemini.emit(TurnComplete())  # generation done -> stream closed, no device report
+        await _wait_until(lambda: session._device_playing is False, 3.0)
+        assert session._reply_audible_until == 0.0  # shield down, mic hears the room again
+    finally:
+        thin_mod.DIRECT_PLAYED_GRACE_S = original
+        await session.aclose()
+
+
+class _Event:
+    """Stand-in for the device's EventEntityState."""
+
+    def __init__(self, event_type: str) -> None:
+        self.event_type = event_type

@@ -98,6 +98,14 @@ class VoicePELink:
         self._light_key: int | None = None  # the LED-ring light entity key (None = no LED)
         self._media_key: int | None = None  # the media_player key (AI-reply announce path)
         self._mute_key: int | None = None  # the mute switch/sensor key (None = not published)
+        # B1-2b DIRECT PATH capability, read off the firmware itself rather than a saved
+        # setting. The device advertises event_types on its podvoice_event entity; the
+        # 2b firmware adds "reply_played" (fired from VA's RESPONSE_FINISHED, i.e. the
+        # last byte has left the DAC). If it is absent, the flashed firmware predates 2b
+        # and the add-on MUST stay on the announce path. This kills the whole class of
+        # "a stale saved setting points at a capability the firmware does not have"
+        # (0.70 shipped speaker_path=direct against announce-only firmware -> silence).
+        self.supports_direct = False
         self._announcing = False  # last observed media_player ANNOUNCING state
         # Firmware-contract report, rebuilt on every (re)connect (see _verify_contract).
         self.contract: dict[str, Any] = {}
@@ -255,6 +263,18 @@ class VoicePELink:
                 and "mute" in getattr(e, "object_id", "")
             ]
             self._mute_key = getattr(mutes[0], "key", None) if mutes else None
+            # Does this firmware have the 2b direct path? Ask the DEVICE, not a setting.
+            events = [e for e in (entities or []) if type(e).__name__ == "EventInfo"]
+            advertised: set[str] = set()
+            for e in events:
+                advertised.update(getattr(e, "event_types", None) or [])
+            self.supports_direct = "reply_played" in advertised
+            log.info(
+                "voicepe %s: direct PCM path %s (firmware advertises: %s)",
+                self.host,
+                "AVAILABLE" if self.supports_direct else "not available — using announce",
+                ", ".join(sorted(advertised)) or "no event types",
+            )
         except Exception as e:  # never let discovery break the connection
             log.info("voicepe %s entity discovery unavailable: %s", self.host, e)
 
@@ -563,17 +583,39 @@ class VoicePELink:
 
     # ------------------------------------------------------------------ direct speaker path (0.67)
     async def begin_direct_reply(self) -> bool:
-        """Open the VA-speaker pipeline on the 0.67 firmware: TTS_START fires the
-        on_tts_start trigger (which pins the resampler to our 24 kHz), the non-empty
-        TTS_END url flips the device into STREAMING_RESPONSE, and subsequent
-        VoiceAssistantAudio frames play straight through resampler -> mixer -> speaker.
+        """Open the VA-speaker pipeline: raw 24 kHz PCM goes down the already-open
+        encrypted API connection into resampler -> mixer -> speaker. No HTTP fetch, no
+        FLAC encode, no announce round-trip.
+
+        The three events, and why each one is exactly as it is (all verified against
+        voice_assistant.cpp on the pinned 2026.6.x):
+
+        TTS_START  MUST carry a NON-EMPTY "text". The handler opens with
+                   `if (text.empty()) { ESP_LOGW("No text in TTS_START event"); return; }`
+                   -- so an empty map makes it bail BEFORE it fires on_tts_start (our
+                   24 kHz rate pin) and BEFORE speaker_->start(). That single empty dict
+                   is the whole reason 0.67 played chipmunk audio: the resampler kept the
+                   48 kHz input rate that external_media_player (which SHARES this
+                   speaker) had latched, so our 24 kHz PCM ran at 2x. The text is only
+                   logged on the device and re-triggers upstream's LED + stop-word
+                   scripts, which is exactly what we want around a reply.
+        TTS_STREAM_START  sets wait_for_stream_end_ so the device waits for our frames
+                   instead of timing out.
+        TTS_END    needs a non-empty "url" for the same early-return reason; the value is
+                   never fetched on this path (VA's media_player is !remove'd, so the
+                   URL_SENT branch is skipped) -- it exists purely to flip the state to
+                   STREAMING_RESPONSE, which is the state that actually drains our frames
+                   to the speaker.
+
         Returns False if the link isn't up (caller falls back to the announce path)."""
         if self._client is None:
             return False
         try:
             from aioesphomeapi.model import VoiceAssistantEventType as T
 
-            self._client.send_voice_assistant_event(T.VOICE_ASSISTANT_TTS_START, {})
+            self._client.send_voice_assistant_event(
+                T.VOICE_ASSISTANT_TTS_START, {"text": "PodVoice"}
+            )
             self._client.send_voice_assistant_event(T.VOICE_ASSISTANT_TTS_STREAM_START, None)
             self._client.send_voice_assistant_event(
                 T.VOICE_ASSISTANT_TTS_END, {"url": "stream://podvoice"}
@@ -584,7 +626,12 @@ class VoicePELink:
             return False
 
     def send_direct_pcm(self, chunk: bytes) -> None:
-        """One paced PCM frame into the device's 16 KB speaker buffer (synchronous send)."""
+        """One paced PCM frame into the device's 16 KB speaker buffer (synchronous send).
+
+        Pacing is the CALLER's job and it is not optional: on_audio drops the WHOLE
+        chunk with ESP_LOGE("Cannot receive audio, buffer is full") when it would
+        overflow SPEAKER_BUFFER_SIZE (16 * 1024). An unpaced sender does not merely
+        stutter -- it silently loses whole words."""
         if self._client is not None:
             self._client.send_voice_assistant_audio(chunk)
 

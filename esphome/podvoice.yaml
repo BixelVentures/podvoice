@@ -84,6 +84,36 @@ api:
 voice_assistant:
   media_player: !remove
   speaker: announcement_resampling_speaker
+  # B1 step 2b — THE DIRECT PCM PATH. Two triggers, both verified against the pinned
+  # upstream C++ (2026.6.x, src/esphome/components/voice_assistant/voice_assistant.cpp).
+  #
+  # 1) RATE PIN. The VA never sets the speaker's stream info itself — it only calls
+  #    speaker_->start() and speaker_->play(). The announcement_resampling_speaker is
+  #    SHARED with external_media_player (main.cpp: set_speaker(ANNOUNCEMENT_PIPELINE,
+  #    announcement_resampling_speaker)), so whatever a chime/announcement last decoded
+  #    (48 kHz) is still latched when our reply starts -> our 24 kHz PCM plays at 2x =
+  #    the "chipmunk" that killed 0.67. TTS_START's handler fires this trigger and THEN
+  #    calls speaker_->start(), which is exactly the order speaker.h documents
+  #    ("should be called after calling set_audio_stream_info"). So pin it here, per reply.
+  #
+  #    0.67 ALSO had this lambda and still chipmunked — because the add-on sent TTS_START
+  #    with an EMPTY data map, and the handler bails out before the trigger:
+  #      if (text.empty()) { ESP_LOGW("No text in TTS_START event"); return; }
+  #    i.e. the lambda never ran AND speaker_->start() was never called. The add-on now
+  #    always sends a non-empty text (voicepe.begin_direct_reply) — that is the real fix.
+  on_tts_start:
+    - lambda: |-
+        id(announcement_resampling_speaker).set_audio_stream_info(
+            esphome::audio::AudioStreamInfo(16, 1, 24000));
+  # 2) BYTE-EXACT PLAYBACK ACK. State::RESPONSE_FINISHED only advances once
+  #    speaker_buffer_size_ == 0 AND !has_buffered_data() AND !is_running() — i.e. the
+  #    last byte has physically left the DAC — and then fires this trigger. Surfacing it
+  #    as an event gives the add-on GROUND TRUTH for "the reply is audible until now",
+  #    replacing the 1.8.0 byte-duration ESTIMATE that the echo shield had to guess with.
+  on_tts_stream_end:
+    - event.trigger:
+        id: podvoice_event
+        event_type: reply_played
 
 # Upstream ships wifi via improv provisioning (no hard-coded network); a headless
 # PodVoice flash needs credentials, so merge them in from secrets.yaml.
@@ -111,7 +141,18 @@ event:
     id: podvoice_event
     name: "PodVoice event"
     device_class: button
-    event_types: [single_press, double_press, triple_press, long_press, wake_okay_nabu, wake_stop]
+    # reply_played = the device finished PLAYING a direct-path reply (last byte out of
+    # the DAC). The echo shield keys off this instead of estimating from byte counts.
+    event_types:
+      [
+        single_press,
+        double_press,
+        triple_press,
+        long_press,
+        wake_okay_nabu,
+        wake_stop,
+        reply_played,
+      ]
 
 # --- Phase 1a: the continuous-audio shim (the ONE custom C++ piece) ------------------
 #   Taps the already-free-running mic (micro_wake_word keeps i2s_mics running with
