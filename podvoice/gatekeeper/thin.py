@@ -297,10 +297,11 @@ class ThinSession:
         self._last_activity = self._conv_started
         self.sm.state = State.LISTENING
         self._set_led(State.LISTENING)  # instantly — before the WS connect
-        # The link sends RUN_END ~0.2 s after wake (so the NEXT wake fires) and the
-        # FIRMWARE resets its ring on that event — wiping our colour. Re-assert just
-        # after, or the puck stays dark all conversation (0.94 field report).
-        self._spawn(self._reassert_led_after_run_end(), "thin-led-reassert")
+        # The firmware clears its ring on the RUN_END we send ~0.2 s after wake, so a
+        # SINGLE paint leaves a quarter-second dark hole and the ring looks slow to
+        # start (field 2026-08-07). Repaint across that window so the light is on from
+        # the first instant and never blinks out.
+        self._spawn(self._hold_led_through_run_end(), "thin-led-hold")
         self._hub_state("LISTENING", "👋 Vågnede — samtalen er åben")
         # Duck for the WHOLE conversation (no per-turn pumping — one calm level).
         self.heartbeat.start(self.room, self.duck_level, C.TTL_LISTENING_MS)
@@ -567,6 +568,12 @@ class ThinSession:
             task.add_done_callback(_untrack)
         elif isinstance(ev, UserSpeechStopped):
             self._speech_stop_t = time.monotonic()  # the clock the family actually feels
+            if self._active and not self._speaking and not self._device_playing:
+                # You stopped talking and it is working: amber. Without this the ring
+                # stayed cyan and the room could not tell "listening" from "thinking".
+                self.sm.state = State.THINKING
+                self._set_led(State.THINKING)
+                self._hub_state("THINKING", None)
             self._cancel_barge_debounce()
         elif isinstance(ev, InputTranscript):
             self._buf_in.append(ev.text)
@@ -919,10 +926,16 @@ class ThinSession:
             with contextlib.suppress(Exception):
                 await self.voicepe.play_url(self.reply_url)
 
-    async def _reassert_led_after_run_end(self, delay_s: float = 0.45) -> None:
-        """Repaint the ring after the firmware's RUN_END reset (see wake())."""
-        await asyncio.sleep(delay_s)
-        if self._active:
+    async def _hold_led_through_run_end(self) -> None:
+        """Keep the ring lit across the firmware's RUN_END reset (see wake()).
+
+        Three cheap repaints over ~0.6 s: one just before the reset lands, one just
+        after, one as insurance. Cheaper than a dark ring that makes a 100 ms wake
+        feel like a slow one."""
+        for gap in (0.15, 0.13, 0.27):  # ~0.15 s, ~0.28 s, ~0.55 s after wake
+            await asyncio.sleep(gap)
+            if not self._active:
+                return
             self._set_led(self.sm.state)
 
     def _set_led(self, state: State, *, error: bool = False) -> None:

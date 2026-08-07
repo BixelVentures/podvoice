@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0 — lyset starter ikke længere "sent", og ringen siger nu hvornår den tænker
+
+To lys-fejl, begge målt i felten:
+
+- **"Lyset starter sent"**: vi malede ringen i samme øjeblik du sagde "Okay Nabu" — men 0,2 s senere sender vi RUN_END til pucken (så næste wake kan fyre), og FIRMWAREN slukker sin egen ring på det signal. Først 0,45 s senere malede vi igen. Resultatet var et glimt, et mørkt hul på et kvart sekund, og så lys — en 100 ms wake FØLTES langsom. Ringen holdes nu tændt hen over firmwarens nulstilling (tre billige genmalinger inden for 0,6 s), så lyset er der fra første øjeblik og aldrig blinker ud.
+- **Ringen sagde aldrig "jeg tænker"**: den gule tilstand fandtes i koden, men blev aldrig brugt af den nye motor. Når du var holdt op med at tale, lyste ringen stadig cyan ("lytter"), mens den i virkeligheden arbejdede. Nu skifter den til gul, så rummet kan se forskel på *lytter*, *tænker* og *taler*.
+
+Lyd-siden (ingen kode, live-justeret): mikrofon-forstærkningen står nu på 16 via runtime-servicen.
+
+2 nye regressionstests. ruff + mypy rene; hele suiten grøn.
+
 ## 1.1.0 — "det ved jeg ikke" er ikke et svar: slå op i stedet for at trække på skuldrene
 
 Felttest på den nye mikrofonkanal: "Hvor er de fra?" → *"Det er et fodboldhold, men jeg er ikke sikker på, hvor det kommer fra."* Modellen fulgte faktisk prompten (geografi = uforanderligt = svar fra egen viden), men den VIDSTE det ikke — og så gav den op i stedet for at bruge søgningen, den har.

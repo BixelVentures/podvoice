@@ -523,3 +523,37 @@ async def test_stale_goodbye_never_closes_the_next_conversation():
         assert session.sm.state is not State.IDLE
     finally:
         await session.aclose()
+
+
+async def test_ring_survives_the_firmware_reset_after_wake():
+    """The firmware clears its ring on the RUN_END we send ~0.2 s after wake. A single
+    paint left a quarter-second dark hole and made a 100 ms wake feel slow."""
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        first = len(voicepe.light_commands)
+        assert first >= 1  # lit immediately, before the provider connect
+        await asyncio.sleep(0.7)  # the hold-through window
+        assert len(voicepe.light_commands) >= first + 2  # repainted across the reset
+        assert all(c[0] for c in voicepe.light_commands[-2:])  # and it is ON, not off
+    finally:
+        await session.aclose()
+
+
+async def test_ring_turns_amber_while_it_works():
+    """After you stop talking the ring must say 'thinking', not keep claiming to
+    listen — otherwise the room cannot tell the two apart."""
+    from gatekeeper.voice import UserSpeechStopped
+
+    gemini = LiveFake()
+    session, _attention, _voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        await _wait_until(lambda: session.sm.state is State.LISTENING)
+        gemini.emit(UserSpeechStopped())
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+    finally:
+        await session.aclose()
