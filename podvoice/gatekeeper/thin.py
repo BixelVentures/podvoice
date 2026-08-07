@@ -195,6 +195,7 @@ class ThinSession:
         self._turn_had_tool = False  # response called a tool -> the reply stream stays open
         self._stop_sent_t: float | None = None  # stop-latency marker (ARKITEKTUR G1)
         self._speech_tools: set[str] = set()  # tool calls whose result makes it SPEAK again
+        self._heard_signal = False  # has this conversation carried real audio yet?
         self._goodbye: asyncio.Task | None = None  # armed close-after-goodbye (one per conv)
         self._epoch = 0.0  # conversation identity (monotonic start) for armed tasks
         self._teardown_lock = asyncio.Lock()  # wake must never race a teardown in flight
@@ -373,6 +374,7 @@ class ThinSession:
         self._gate_dropped = 0
         self._turn_had_tool = False
         self._speech_tools.clear()
+        self._heard_signal = False
         self.sm.state = State.IDLE
         # NEVER cancel the task that is RUNNING this teardown (stop()/_fail() are called
         # from inside the reader/heartbeat tasks). Cancelling self meant CancelledError
@@ -456,12 +458,14 @@ class ThinSession:
                 if sent % 250 == 0:  # ~5 s of 20 ms frames
                     avg = level_acc / 250
                     level_acc = 0.0
+                    if avg >= 30:
+                        self._heard_signal = True  # this conversation has real audio
                     _LOG.info(
                         "thin: mic level ~%d (avg |sample| over 5s)%s",
                         int(avg),
-                        " — SILENT: the model hears nothing (wrong firmware channel?)"
-                        if avg < 30
-                        else "",
+                        ""
+                        if self._heard_signal
+                        else " — still no real signal this conversation (check mic channel/gain)",
                     )
         except asyncio.CancelledError:
             raise
@@ -503,6 +507,10 @@ class ThinSession:
                 _LOG.warning("thin: audio pipeline died while active — failing over")
                 await self._fail("connection")
                 return
+            # Silence starts when the ROOM goes quiet. While the device is still
+            # playing, the family is listening, not ignoring us — and the moment the
+            # reply ends we give them the FULL window to answer (playback end sets
+            # _last_activity). Field 2026-08-07: it "stopped suddenly" mid-thought.
             quiet = time.monotonic() - self._last_activity
             # _speaking means "the model is generating" — generation finishes long
             # before the device stops PLAYING, so closing on it alone truncated long

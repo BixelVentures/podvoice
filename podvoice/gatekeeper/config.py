@@ -48,6 +48,8 @@ class Config:
     openai_silence_ms: int = 500
     openai_eagerness: str = "auto"
     openai_noise: str = "far_field"
+    mic_channel: int = 1  # device mic tap, re-asserted on every connect
+    mic_gain: int = 16  # device mic gain, re-asserted on every connect
     idle_timeout_s: int = 8  # close the conversation after this much user silence
     max_session_min: int = 15  # hard ceiling on one conversation (provider caps at 60)
     simulate: bool = False
@@ -141,6 +143,8 @@ def from_options(opts: dict) -> Config:
         openai_eagerness=str(opts.get("openai_eagerness", "auto") or "auto"),
         openai_noise=str(opts.get("openai_noise", "far_field") or "far_field"),
         # Cost control: both floored so a stray saved 0 can't strobe sessions open/shut.
+        mic_channel=1 if _int(opts, "mic_channel", 1) else 0,
+        mic_gain=min(max(_int(opts, "mic_gain", 16), 1), 64),
         idle_timeout_s=max(_int(opts, "idle_timeout_s", 8), 3),
         max_session_min=min(max(_int(opts, "max_session_min", 15), 1), 55),
         simulate=bool(opts.get("simulate", False)),

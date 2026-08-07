@@ -430,7 +430,9 @@ async def test_mic_level_logged_and_silence_flagged(caplog):
             voicepe.feed([_frame(2)] * 250)  # essentially silence
             await _wait_until(lambda: len(gemini.sent_audio) >= 250, max_wait=3.0)
         lines = [r.getMessage() for r in caplog.records if "mic level" in r.getMessage()]
-        assert lines and "SILENT" in lines[0]
+        # A dead channel is "no real signal for the WHOLE conversation" — ordinary quiet
+        # between turns must NOT cry wolf (it did, and buried the real warnings).
+        assert lines and "still no real signal" in lines[0]
     finally:
         await session.aclose()
 

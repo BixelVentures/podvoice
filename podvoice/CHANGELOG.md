@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.0 — mikrofon-indstillingen overlever nu en strømafbrydelse (+ tre fund fra 1.5-loggen)
+
+Ejeren spurgte: "er der andre dele tunet til noget gammelt og forkert?" Ja — og ét var kritisk:
+
+- **KRITISK: mikrofon-forstærkningen levede kun i hukommelsen.** Firmwarens indbyggede standard er gain 4; de 16, vi justerede os frem til, lå i puckens RAM. Ved næste strømafbrydelse ville den lydløst falde tilbage — og transskriptionen ville blive dårligere igen, uden at nogen forstod hvorfor. Kanal og forstærkning er nu **rigtige indstillinger**, der sendes til enheden ved HVER forbindelse. Indstillingen er sandheden, ikke firmwarens gamle standard.
+- **Falsk alarm fjernet**: "SILENT — wrong firmware channel?" fyrede ved helt almindelig stilhed mellem to spørgsmål (mic level ~13 er tavshed, ikke en død kanal). Den advarsel råbte ulv hvert femte sekund og skjulte de ægte. Nu advarer den kun, hvis en HEL samtale er gået uden rigtigt signal — som er den ægte død-kanal-signatur.
+- **"Den stopper pludseligt"** står i loggen: `client-side idle fallback (7s quiet) — closing`. Luk-vinduet er din egen indstilling (6 s). Uret starter nu først, når rummet faktisk er stille — et svar, der stadig afspilles, tæller ikke som tavshed, så du får det fulde vindue til at svare.
+- **Færre unødvendige opslag**: 1.1.0 gjorde den søge-glad, og loggen viser websøgning på næsten hver tur (~2 s hver gang). Prompten siger nu: slå kun op, når du faktisk mangler noget — ved du det allerede (eller har du lige fået det at vide i samtalen), så svar straks.
+
+ruff + mypy rene; hele suiten grøn.
+
 ## 1.5.0 — korte sætninger blev hugget af: turdetektionen var tunet til et problem vi ikke har mere
 
 Felttesten afslørede et klart mønster: LANGE sætninger transskriberes perfekt ("Hvordan gik det AGF i deres seneste kamp?"), KORTE bliver til volapyk ("Tailam", "Hej deva", "Men hvad?"). Og **samme mønster i Talk-fanen med en ren Mac-mikrofon** — to vidt forskellige mikrofoner kan ikke fejle ens, så årsagen lå et fælles sted: serverens turdetektion.

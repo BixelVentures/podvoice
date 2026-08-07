@@ -107,6 +107,9 @@ class VoicePELink:
         # False on disconnect — the panel dot must never claim "connected" just because
         # the reconnect loop was STARTED (a DHCP'd-away device looked green for days).
         self.on_link: Callable[[bool], Any] | None = None
+        # Mic tuning to re-assert on every connect (set by the session builder).
+        self.mic_channel: int | None = None
+        self.mic_gain: int | None = None
 
     async def start(self) -> None:
         """Build the client and start the reconnect loop (owns the connection)."""
@@ -208,6 +211,7 @@ class VoicePELink:
             result = self.on_reconnect()
             if asyncio.iscoroutine(result):
                 await result
+        await self.apply_mic_tuning()  # survives puck reboots and add-on restarts
         if self.on_link is not None:
             self._run_cb(self.on_link, True)
 
@@ -304,7 +308,26 @@ class VoicePELink:
             self._run_cb(self.on_contract, dict(self.contract))
         return self.contract
 
-    async def _call_service(self, name: str) -> None:
+    async def apply_mic_tuning(self) -> None:
+        """Push the configured mic channel + gain to the device.
+
+        The firmware's compiled-in values are only a starting point; a live tweak
+        lives in RAM and dies with the next power cut, silently taking transcription
+        quality with it. Re-asserting on every connect makes the SETTING the truth."""
+        if self.mic_channel is None and self.mic_gain is None:
+            return
+        if self.mic_channel is not None:
+            await self._call_service("podvoice_set_mic_channel", {"channel": int(self.mic_channel)})
+        if self.mic_gain is not None:
+            await self._call_service("podvoice_set_mic_gain", {"gain": int(self.mic_gain)})
+        log.info(
+            "voicepe %s: mic tuning applied (channel=%s gain=%s)",
+            self.host,
+            self.mic_channel,
+            self.mic_gain,
+        )
+
+    async def _call_service(self, name: str, args: dict | None = None) -> None:
         """Invoke a podvoice_* user-defined service. Best-effort (swallow on
         disconnect) and idempotent — the device just flips a bool. A service the
         firmware doesn't publish is SKIPPED with a loud once-per-connect warning
@@ -325,7 +348,7 @@ class VoicePELink:
         try:
             # execute_service is a coroutine on aioesphomeapi — MUST be awaited, or the
             # device service (stream start/stop, va_abort) is never actually invoked.
-            await self._client.execute_service(svc, {})
+            await self._client.execute_service(svc, args or {})
         except Exception as e:  # disconnect / busy — device safety timer covers stop
             log.debug("voicepe %s service %s failed: %s", self.host, name, e)
 

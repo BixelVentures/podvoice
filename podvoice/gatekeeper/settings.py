@@ -93,6 +93,8 @@ TUNING_KEYS: frozenset[str] = frozenset(
         "openai_silence_ms",
         "openai_eagerness",
         "openai_noise",
+        "mic_channel",
+        "mic_gain",
         "idle_timeout_s",
         "max_session_min",
     }
@@ -119,6 +121,12 @@ DEFAULTS: dict = {
     "openai_silence_ms": 500,  # custom, server_vad only
     "openai_eagerness": "auto",  # custom, semantic_vad: auto|low|medium|high
     "openai_noise": "far_field",  # near_field|far_field|off
+    # Microphone tuning, re-asserted on EVERY device connect. The firmware's own
+    # defaults are only a starting point: a live tweak that lives in RAM is lost the
+    # moment the puck reboots, and nobody notices until transcription quietly gets
+    # worse again. These are the source of truth.
+    "mic_channel": 1,  # 1 = raw (what modern STT wants), 0 = the processed channel
+    "mic_gain": 16,  # replaces the AGC the raw channel lacks (1..64)
     "idle_timeout_s": 8,  # close the conversation after this much user silence (owner-tunable 3+)
     "max_session_min": 15,  # hard ceiling on one conversation (cost control)
     "engine": "classic",  # "classic" (the proven state-machine engine) | "thin" (Track B:
