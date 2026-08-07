@@ -763,8 +763,13 @@ class ThinSession:
                     # until t0 + sent/rate. No device report needed to keep the shield up.
                     self._reply_audible_until = t0 + (sent / bytes_per_s) + ECHO_GATE_TAIL_S
         except asyncio.CancelledError:
-            with contextlib.suppress(Exception):
-                await self.voicepe.end_direct_reply()  # stop sending == stop talking
+            # Do NOT try to close the stream from here. CancelledError derives from
+            # BaseException, so a second cancellation lands straight through any
+            # suppress(Exception) and the TTS_STREAM_END would be skipped — the device
+            # would sit in STREAMING_RESPONSE, never reach RESPONSE_FINISHED, never fire
+            # reply_played, and _device_playing would stay True forever: a permanently
+            # deaf mic with nothing in the log. _cancel_direct() owns the close, from a
+            # task that is not the one being cancelled.
             raise
         await self.voicepe.end_direct_reply()
         if t0 is not None:
@@ -797,11 +802,27 @@ class ThinSession:
             self._on_media_state(False)
 
     def _cancel_direct(self) -> None:
-        """Stop the direct reply NOW (barge-in, hush, teardown)."""
-        if self._direct_task is not None and not self._direct_task.done():
-            self._direct_task.cancel()
-        self._direct_task = None
+        """Stop the direct reply NOW (barge-in, hush, teardown).
+
+        Closing the stream is done HERE, from a task that is not the one being
+        cancelled — see the CancelledError note in _direct_send_loop. Whatever the
+        device already buffered (at most DIRECT_LEAD_S) still plays out, so we also
+        guarantee the shield comes down even if reply_played never arrives."""
+        task, self._direct_task = self._direct_task, None
         self._direct_q = None
+        if task is None:
+            return
+        if not task.done():
+            task.cancel()
+        self._spawn(self._close_direct_stream(), "thin-direct-close")
+
+    async def _close_direct_stream(self) -> None:
+        with contextlib.suppress(Exception):
+            await self.voicepe.end_direct_reply()
+        await asyncio.sleep(DIRECT_LEAD_S + DIRECT_PLAYED_GRACE_S)
+        if self._device_playing:
+            _LOG.warning("thin: no reply_played after a stop — releasing the shield")
+            self._on_media_state(False)
 
     def _end_direct_stream(self) -> None:
         """Generation finished — tell the pump there is no more audio coming."""

@@ -728,3 +728,30 @@ class _Event:
 
     def __init__(self, event_type: str) -> None:
         self.event_type = event_type
+
+
+async def test_stopping_a_direct_reply_always_brings_the_shield_down():
+    """Barge-in / stop on the direct path: the pump is cancelled, but the stream MUST
+    still be closed and the shield MUST still come down.
+
+    CancelledError derives from BaseException, so closing the stream from inside the
+    cancelled task can be skipped silently — leaving the device in STREAMING_RESPONSE,
+    reply_played never fired, and the mic gated forever with nothing in the log."""
+    import gatekeeper.thin as thin_mod
+
+    gemini = LiveFake()
+    session, _a, voicepe = _build(gemini, supports_direct=True)
+    original = thin_mod.DIRECT_PLAYED_GRACE_S
+    thin_mod.DIRECT_PLAYED_GRACE_S = 0.05
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(AudioChunk(_frame(n_samples=24000), item_id="i1"))  # 1 s reply
+        await _wait_until(lambda: session._device_playing is True)
+        await session._silence_device()  # barge-in / stop word / teardown
+        # closed from a task that is NOT the cancelled one, so it actually happens
+        await _wait_until(lambda: "end" in voicepe.direct_events)
+        await _wait_until(lambda: session._device_playing is False, 3.0)
+    finally:
+        thin_mod.DIRECT_PLAYED_GRACE_S = original
+        await session.aclose()
