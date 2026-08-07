@@ -855,7 +855,11 @@ setInterval(poll, 3000);
       else if (ev.type === "led") ledColor(ev);
       else if (ev.type === "state") {
         var st = STATE_DA[ev.state] || [ev.state.toLowerCase(), "pill-degraded"];
-        setState(st[0], st[1]); endTurn();
+        setState(st[0], st[1]);
+        // Do NOT endTurn() here: state changes arrive DURING a reply, and ending the
+        // bubble mid-stream split words across bubbles ("Lad mig lige tjek" +
+        // "ke klokken for dig" — 2026-08-07). Only a real turn end closes a bubble.
+        if (ev.state === "IDLE") endTurn();
       }
       else if (ev.type === "activity") { micHint.textContent = ev.text; }
       else if (ev.type === "latency") { micHint.textContent = "⚡ svar på " + ev.ms + " ms"; }
@@ -877,9 +881,12 @@ setInterval(poll, 3000);
   input.addEventListener("keydown", function (e) { if (e.key === "Enter") sendText(); });
 
   // ---- Mic (only on a secure origin: HTTPS / localhost) ----
+  // Target 24 kHz — OpenAI's native rate. At 24 kHz this is a pure float->int16
+  // conversion with NO rate change (the good path); anything else falls back to
+  // decimation, which is why we ask for 24 kHz in the first place.
   function downsample(f32, inRate) {
-    if (inRate === 16000) { var o = new Int16Array(f32.length); for (var i = 0; i < f32.length; i++) o[i] = Math.max(-1, Math.min(1, f32[i])) * 32767; return o; }
-    var ratio = inRate / 16000, n = Math.floor(f32.length / ratio), out = new Int16Array(n);
+    if (inRate === 24000) { var o = new Int16Array(f32.length); for (var i = 0; i < f32.length; i++) o[i] = Math.max(-1, Math.min(1, f32[i])) * 32767; return o; }
+    var ratio = inRate / 24000, n = Math.floor(f32.length / ratio), out = new Int16Array(n);
     for (var j = 0; j < n; j++) { var s = Math.max(-1, Math.min(1, f32[Math.floor(j * ratio)])); out[j] = s * 32767; }
     return out;
   }
@@ -891,8 +898,15 @@ setInterval(poll, 3000);
     // Capture AT 16 kHz so the BROWSER does the resample (with proper anti-aliasing).
     // Our old manual nearest-neighbour downsample from 48 kHz aliased badly -> the
     // model mis-heard words. Fall back to the default rate if 16 kHz is unsupported.
+    // Capture at OPENAI'S OWN 24 kHz: then nothing resamples the audio anywhere
+    // (the old 48k -> nearest-neighbour 16k -> server-side 24k round trip aliased
+    // badly and made Danish barely intelligible — 2026-08-07 field report: the same
+    // mic understood everything in a tool that does no resampling).
     var AC = window.AudioContext || window.webkitAudioContext;
-    try { capCtx = new AC({ sampleRate: 16000 }); } catch (e) { capCtx = new AC(); }
+    try { capCtx = new AC({ sampleRate: 24000 }); } catch (e) { capCtx = new AC(); }
+    if (capCtx.sampleRate !== 24000) {
+      micHint.textContent = "⚠️ Browseren gav " + capCtx.sampleRate + " Hz i stedet for 24000 — lyden nedskaleres og kan blive dårligere.";
+    }
     var src = capCtx.createMediaStreamSource(capStream);
     capNode = capCtx.createScriptProcessor(4096, 1, 1);
     capNode.onaudioprocess = function (ev) {

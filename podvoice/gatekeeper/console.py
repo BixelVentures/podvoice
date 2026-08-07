@@ -89,12 +89,21 @@ def console_factory(cfg: Config, tools=None):
     """
     decls = tools.declarations() if tools is not None else None
 
-    def _make(model: str | None = None, voice: str | None = None) -> ConsoleSession:
+    def _make(
+        model: str | None = None, voice: str | None = None, input_rate: int | None = None
+    ) -> ConsoleSession:
         if cfg.simulate or not cfg.openai_api_key:
             return SimConsole()
+        from . import constants as _C
         from .openai_realtime import make_session
 
-        return make_session(cfg, model=model, voice=voice, tool_declarations=decls)
+        return make_session(
+            cfg,
+            model=model,
+            voice=voice,
+            tool_declarations=decls,
+            input_rate=input_rate or _C.INPUT_RATE,
+        )
 
     return _make
 

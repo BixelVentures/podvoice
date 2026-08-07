@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.99.0 — Talk-fanens lyd blev ødelagt af vores egen omregning (og svar blev klippet midt i ordet)
+
+Ejeren: "Bruger jeg Whisper Flow på samme maskine og afstand, hører den 100 %." Det var det afgørende spor — det var ikke mikrofonen, det var VORES lydvej i browseren:
+
+- **Ingen omregning mere i Talk**: browseren optog 48 kHz, vi nedskalerede med den simpleste metode til 16 kHz (kraftig aliasing), og serveren skalerede så OP til 24 kHz igen. Dobbelt ødelæggelse af netop de frekvenser dansk tale bæres af. Nu optager browseren direkte ved OpenAI's egne **24 kHz** og lyden sendes urørt. Advarer synligt, hvis browseren nægter at give 24 kHz.
+- **Svar blev klippet midt i et ord** ("Lad mig lige tjek" + "ke klokken for dig"): en tilstands-besked midt i talestrømmen lukkede taleboblen. Nu lukkes en boble kun ved en ægte tur-afslutning.
+- Pucken sender 16 kHz (hardware-låst af mikrofonen, som wake-ordet deler) og opskaleres stadig — men opskalering uden aliasing er langt mildere end nedskalering, og resampleren er allerede rettet til at være sømløs hen over frame-grænser.
+
+ruff + mypy rene; hele suiten grøn.
+
 ## 0.98.0 — fire fejl fra felt-loggen: rum-kontekst, mDNS-faldback, Talk-støj, medie-mål
 
 Felttesten 14:35-14:36 gav fire konkrete fejl, alle rettet:

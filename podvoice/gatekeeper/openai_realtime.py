@@ -88,6 +88,12 @@ class OpenAIRealtimeSession:
     # WHERE this session physically is. Without it the model cannot target the room's
     # own speaker and HA rejects media calls with "multiple targets" (field 14:36).
     room_context: str = ""
+    # Sample rate of the audio WE are fed. The puck sends 16 kHz (firmware), but the
+    # browser can capture natively at OpenAI's own 24 kHz — and then every resampling
+    # step is pure damage. Field 2026-08-07: browser 48k -> nearest-neighbour 16k ->
+    # upsample 24k made Danish barely intelligible, while the same mic through a
+    # no-resampling tool understood everything.
+    input_rate: int = C.INPUT_RATE
     tool_declarations: list[dict] | None = None
     language: str = "da"
     # Turn detection: a PRESET (conservative/responsive) or "custom" via the raw knobs.
@@ -214,7 +220,11 @@ class OpenAIRealtimeSession:
         # Fresh socket -> fresh state machine (a prior session may have died mid-response).
         self._active_response = False
         self._pending_create = False
-        self._resampler = StreamResampler(C.INPUT_RATE, OPENAI_RATE)  # fresh filter state
+        self._resampler = (
+            None
+            if self.input_rate == OPENAI_RATE
+            else StreamResampler(self.input_rate, OPENAI_RATE)  # fresh filter state
+        )
         self._http = aiohttp.ClientSession()
         self._ws = await self._http.ws_connect(
             f"{_URL}?model={self.model}",
@@ -226,6 +236,11 @@ class OpenAIRealtimeSession:
 
     async def send_audio(self, pcm16k: bytes) -> None:
         if self._ws is None:
+            return
+        if self.input_rate == OPENAI_RATE:
+            # Already native: touching it could only make it worse.
+            b64 = base64.b64encode(pcm16k).decode("ascii")
+            await self._ws.send_json({"type": "input_audio_buffer.append", "audio": b64})
             return
         # 16 kHz -> 24 kHz through the stateful soxr resampler (falls back to linear).
         if self._resampler is not None:
@@ -483,6 +498,7 @@ def make_session(
     voice: str | None = None,
     tool_declarations: list[dict] | None = None,
     room_context: str = "",
+    input_rate: int = C.INPUT_RATE,
 ) -> OpenAIRealtimeSession:
     """Build the one voice brain from a Config (the old multi-provider factory).
 
@@ -499,6 +515,7 @@ def make_session(
         voice=voice or cfg.openai_voice or DEFAULT_VOICE,
         instructions=cfg.system_prompt,
         room_context=room_context,
+        input_rate=input_rate,
         tool_declarations=tool_declarations,
         preset=getattr(cfg, "turn_preset", "conservative"),
         turn=cfg.openai_turn,

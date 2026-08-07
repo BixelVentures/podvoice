@@ -27,7 +27,7 @@ from .heartbeat import Heartbeat
 from .history import History
 from .hub import StatusHub
 from .mcp_client import HomeAssistantMCP
-from .openai_realtime import make_session
+from .openai_realtime import OPENAI_RATE, make_session
 from .orchestrator import RoomSession
 from .playback import Playback
 from .podconnect import AttentionClient
@@ -397,7 +397,9 @@ async def run(cfg: Config) -> None:
 
         if attention is None:  # no PodConnect client (bare simulate) — no ducking to run
             raise RuntimeError("talk session needs the attention client")
-        brain = console_make(model, voice)
+        # The browser captures at OpenAI's OWN 24 kHz, so nothing resamples the
+        # audio on the way in (the 48k->16k->24k round trip was mangling Danish).
+        brain = console_make(model, voice, input_rate=OPENAI_RATE)
         existing = getattr(brain, "tool_declarations", None) or []
         with contextlib.suppress(Exception):
             brain.tool_declarations = [*existing, END_CONVERSATION_TOOL]
