@@ -50,6 +50,14 @@ void PodVoiceAudio::start_streaming() {
   this->last_keepalive_ms_ = millis();
 }
 void PodVoiceAudio::stop_streaming() { this->user_enabled_ = false; }
+
+void PodVoiceAudio::set_mic_gain(int gain) {
+  if (this->mic_source_ == nullptr || gain < 1 || gain > 64)
+    return;
+  this->mic_source_->set_gain_factor(gain);
+  this->gain_ = gain;
+  ESP_LOGI(TAG, "mic gain -> %d", gain);
+}
 void PodVoiceAudio::keepalive() { this->last_keepalive_ms_ = millis(); }
 
 void PodVoiceAudio::setup() {
@@ -87,13 +95,30 @@ void PodVoiceAudio::setup() {
   this->mic_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
     if (data.empty() || this->ring_buffer_ == nullptr)
       return;
+    // We subscribe to BOTH XMOS channels and de-interleave here, so the channel
+    // choice is a runtime service instead of a firmware rebuild. The source hands
+    // us interleaved 16-bit stereo: [ch0][ch1][ch0][ch1]...
+    const uint8_t *src = data.data();
+    size_t n_bytes = data.size();
+    if (this->stereo_in_ && n_bytes >= 4) {
+      const size_t frames = n_bytes / 4;  // 2 ch * 2 bytes
+      int16_t *out = this->mono_scratch_;
+      const int16_t *in = reinterpret_cast<const int16_t *>(src);
+      const size_t off = (this->channel_ == 1) ? 1 : 0;
+      const size_t max_frames = MONO_SCRATCH_SAMPLES;
+      const size_t take = frames < max_frames ? frames : max_frames;
+      for (size_t i = 0; i < take; i++)
+        out[i] = in[i * 2 + off];
+      src = reinterpret_cast<const uint8_t *>(out);
+      n_bytes = take * 2;
+    }
     // Overwriting write(): if the buffer is too full, it discards the OLDEST
     // bytes to make room and writes the new frame in full. For a continuous
     // stream that's the right policy (newest audio is most relevant). We only
     // detect+count the overwrite event here; the NEW frame is never dropped.
-    if (this->ring_buffer_->free() < data.size())
+    if (this->ring_buffer_->free() < n_bytes)
       this->overwrite_events_++;
-    this->ring_buffer_->write((const void *) data.data(), data.size());
+    this->ring_buffer_->write((const void *) src, n_bytes);
     this->frames_written_++;
   });
 

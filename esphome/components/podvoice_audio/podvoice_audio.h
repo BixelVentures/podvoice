@@ -55,6 +55,10 @@ namespace esphome {
 namespace podvoice_audio {
 
 class PodVoiceAudio : public Component {
+  // Max mono samples per callback batch (batches are ~10-30 ms; 2048 = 128 ms
+  // at 16 kHz, comfortably above any single delivery).
+  static constexpr size_t MONO_SCRATCH_SAMPLES = 2048;
+
  public:
   // --- codegen setters -------------------------------------------------------
   void set_microphone_source(microphone::MicrophoneSource *mic_source) { this->mic_source_ = mic_source; }
@@ -81,6 +85,22 @@ class PodVoiceAudio : public Component {
   // be left streaming. Defined in the .cpp (need millis()).
   void start_streaming();
   void stop_streaming();
+
+  // --- RUNTIME audio tuning (no reflash) -------------------------------------
+  // Which XMOS channel we tap and how much digital gain we apply are the two
+  // knobs that decide whether speech-to-text gets usable audio (ch0 = AGC+NS
+  // "enhanced", ch1 = raw — HA core itself switches STT to ch1 for engines that
+  // prefer raw input, and OpenAI Realtime does its own noise reduction). Making
+  // them reflashable-only turned a 30-second experiment into a 25-minute build,
+  // so they are services now: change, listen, change back.
+  // channel: 0 = XMOS "enhanced" (AEC+NS+AGC), 1 = raw (what HA core feeds STT
+  // engines that prefer raw input). We tap BOTH channels and pick one HERE, so
+  // switching is a service call, not a 25-minute rebuild.
+  void set_mic_channel(int channel) { this->channel_ = (channel == 1) ? 1 : 0; }
+  void set_mic_gain(int gain);
+  void set_default_channel(int channel) { this->channel_ = (channel == 1) ? 1 : 0; }
+  int mic_channel() const { return this->channel_; }
+  int mic_gain() const { return this->gain_; }
   void keepalive();  // refresh the dead-man timer without changing enabled state
   bool is_streaming() const { return this->user_enabled_; }
 
@@ -91,6 +111,26 @@ class PodVoiceAudio : public Component {
 
   // The passive tap. Created in codegen; we only register the callback.
   microphone::MicrophoneSource *mic_source_{nullptr};
+  // DEFAULT = 1 (raw), on evidence, not taste:
+  //  * HA core (assist_satellite.py) switches STT to channel 1 whenever the engine
+  //    reports prefers_auto_gain_enabled=False AND prefers_noise_reduction_enabled=
+  //    False — i.e. modern STT wants RAW audio, not the pre-processed channel.
+  //  * OpenAI Realtime runs its OWN far_field noise reduction, so channel 0's
+  //    AGC+NS is a second, uncontrolled pass; its AGC pumps room reverb between
+  //    words, which is exactly what wrecked far-field Danish transcription.
+  //  * Field evidence 2026-08-06: puck transcripts on ch0 were gibberish
+  //    ("Kaptejlen Brændekig") while the same model via a clean Mac mic (no AGC)
+  //    transcribed perfectly — the model was never the problem, the audio was.
+  // Runtime-settable, so if the room disproves this, it is a service call away.
+  int channel_{1};       // which interleaved channel we forward (runtime-settable)
+  // 4 = +12 dB: replaces the AGC that the raw channel deliberately lacks.
+  // Upstream micro_wake_word listens on ch1 with exactly gain 4 and hears the
+  // wake word across a room, so it is a measured starting point, not a guess.
+  int gain_{4};          // mirrors the MicrophoneSource gain factor (runtime-settable)
+  bool stereo_in_{true}; // the source hands us both XMOS channels interleaved
+  // De-interleave scratch, sized for the largest batch the source delivers
+  // (audio task only — never touched from loop()).
+  int16_t mono_scratch_[MONO_SCRATCH_SAMPLES]{};
 
   // Fixed-size PSRAM ring buffer (EXTERNAL_FIRST). Single producer (audio task,
   // overwriting write()) / single consumer (main task, read()). No held item is

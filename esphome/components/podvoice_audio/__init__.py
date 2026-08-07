@@ -83,7 +83,9 @@ CONFIG_SCHEMA = cv.Schema(
             min_bits_per_sample=16,
             max_bits_per_sample=16,
             min_channels=1,
-            max_channels=1,
+            max_channels=2,  # BOTH XMOS channels: the component de-interleaves and
+            # picks one at runtime (podvoice_set_mic_channel), so switching between
+            # enhanced (0) and raw (1) audio never needs a rebuild.
         ),
         # Fixed PSRAM jitter/drain buffer. 400 ms @ 16 kHz/16-bit/mono = 12.8 KB.
         cv.Optional(CONF_RING_MS, default=400): cv.int_range(min=64, max=4000),
@@ -92,6 +94,10 @@ CONFIG_SCHEMA = cv.Schema(
         # wake/start plumbing. Production wake-gating leaves this false (PodVoice
         # drives start/stop + keepalive).
         cv.Optional(CONF_AUTOSTART, default=False): cv.boolean,
+        # Which of the two tapped XMOS channels we forward by DEFAULT at boot.
+        # 1 = raw (evidence: HA core feeds raw audio to STT engines that prefer it;
+        # OpenAI Realtime does its own noise reduction). Runtime-switchable.
+        cv.Optional("default_channel", default=1): cv.int_range(min=0, max=1),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -119,6 +125,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_default_channel(config["default_channel"]))
     await cg.register_component(var, config)
 
     # passive=True => never start/stop the mic; only receive frames while the mic
