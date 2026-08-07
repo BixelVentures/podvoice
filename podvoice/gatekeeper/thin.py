@@ -882,11 +882,37 @@ class ThinSession:
         self.hub.set_connected(self.room, up)
         self.hub.set_service("voicepe", "up" if up else "down")
         if not up:
+            self._spawn_link_warning()
+
+    def _spawn_link_warning(self, delay_s: float = 20.0) -> None:
+        """Warn about a lost device — but only if it STAYS lost, and with advice that
+        actually fits.
+
+        A reflash or a Wi-Fi blip drops the link for a few seconds and heals itself;
+        shouting about it trains the family to ignore the feed. And the old text told
+        them to use the .local name even when the host was deliberately an IP (because
+        .local does not resolve inside the add-on container) — advice that was wrong."""
+        host = str(getattr(self.voicepe, "host", ""))
+        is_ip = host.replace(".", "").isdigit()
+
+        async def _warn() -> None:
+            await asyncio.sleep(delay_s)
+            if self.hub is None:
+                return
+            link_up = getattr(self.voicepe, "_client", None) is not None
+            if link_up and self.sm.state is not State.IDLE:
+                return  # already back — say nothing
             self.hub.activity(
                 self.room,
-                "🔌 Mistet forbindelsen til Voice PE — tjek at host-navnet passer "
-                "(brug enhedens .local-navn, ikke en IP)",
+                "🔌 Voice PE har været væk i 20 sekunder — tjek at den har strøm"
+                + (
+                    f" og stadig svarer på {host}"
+                    if is_ip
+                    else " (eller skift til enhedens IP-adresse i Setup)"
+                ),
             )
+
+        self._spawn(_warn(), "thin-link-warn")
 
     def _on_contract(self, contract: dict) -> None:
         """Firmware-contract report from the link (every reconnect) -> panel.

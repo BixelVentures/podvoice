@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.7.0 — advarslen om mistet forbindelse gav forkert råd og råbte for tidligt
+
+Panelet skrev: *"Mistet forbindelsen til Voice PE — brug enhedens .local-navn, ikke en IP"* — mens hosten **bevidst** var en IP-adresse, netop fordi .local ikke kan slås op inde i add-on'ets container. Rådet var altså ikke bare unyttigt, det var forkert. Og afbrydelsen varede få sekunder (en genflash) og helede sig selv.
+
+- Advarslen venter nu **20 sekunder** og siger kun noget, hvis enheden STADIG er væk. Et blink under en genstart eller en wifi-hikke skal ikke lære familien at ignorere feedet.
+- Teksten passer nu til situationen: står der en IP, foreslår den at tjekke strøm og netop den adresse; står der et navn, foreslår den at skifte til IP.
+
+ruff + mypy rene; hele suiten grøn.
+
 ## 1.6.0 — mikrofon-indstillingen overlever nu en strømafbrydelse (+ tre fund fra 1.5-loggen)
 
 Ejeren spurgte: "er der andre dele tunet til noget gammelt og forkert?" Ja — og ét var kritisk:

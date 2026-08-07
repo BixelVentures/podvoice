@@ -164,10 +164,10 @@ class RoomSession:
         self.hub.set_connected(self.room, up)
         self.hub.set_service("voicepe", "up" if up else "down")
         if not up:
+            host = str(getattr(self.voicepe, "host", ""))
             self.hub.activity(
                 self.room,
-                "🔌 Mistet forbindelsen til Voice PE — tjek at host-navnet passer "
-                "(brug enhedens .local-navn, ikke en IP)",
+                f"🔌 Mistet forbindelsen til Voice PE ({host}) — prøver igen automatisk",
             )
 
     def _on_contract(self, contract: dict) -> None:
