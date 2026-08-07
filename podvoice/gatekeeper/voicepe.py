@@ -120,16 +120,22 @@ class VoicePELink:
         # even though it was on the network. Remember the last address that WORKED and
         # hand aioesphomeapi both: the name (survives DHCP) and the cached IP (survives
         # a dead mDNS). Whichever answers first wins.
-        addrs: list[str] = [self.host]
+        # ONE address, always a plain string. (0.98 passed a LIST here: the client
+        # accepted it, stringified it, and then tried to resolve "['host']" as a
+        # hostname — which broke the link entirely, including for raw IPs. Accepting
+        # a value is not the same as it WORKING; this is that lesson, again.)
+        # Prefer the cached numeric address when the configured host is a name that
+        # this container cannot resolve (HA's add-on network often has no mDNS).
+        target = self.host
         cached = self._load_cached_ip()
-        if cached and cached not in addrs:
-            addrs.append(cached)
-        self._client = APIClient(
-            addrs,  # type: ignore[arg-type]  # list form VERIFIED against aioesphomeapi 45.3
-            self._port,
-            "",
-            noise_psk=self._noise_psk,
-        )
+        if cached and not self._host_resolves():
+            target = cached
+            log.warning(
+                "voicepe %s: name does not resolve here — using cached address %s",
+                self.host,
+                cached,
+            )
+        self._client = APIClient(target, self._port, "", noise_psk=self._noise_psk)
         # VERIFY: ReconnectLogic kwargs (client/on_connect/on_disconnect/name).
         # start() owns the connect loop; do NOT call client.connect() ourselves.
         self._reconnect = ReconnectLogic(
@@ -141,6 +147,13 @@ class VoicePELink:
         await self._reconnect.start()
 
     _IP_CACHE = pathlib.Path("/data/podvoice-device-ip.json")
+
+    def _host_resolves(self) -> bool:
+        try:
+            socket.getaddrinfo(self.host, self._port, proto=socket.IPPROTO_TCP)
+            return True
+        except Exception:
+            return False
 
     def _load_cached_ip(self) -> str:
         try:

@@ -178,4 +178,8 @@ async def test_cached_ip_is_offered_alongside_the_hostname(tmp_path, monkeypatch
 
     link = vp.VoicePELink("pv.local", "psk", room="stue")
     await link.start()
-    assert captured["address"] == ["pv.local", "192.168.86.140"]
+    # A LIST here breaks the client (0.98: it stringifies and then fails to resolve
+    # "['pv.local']"). One plain string, always — the cached IP is used only when the
+    # configured name does not resolve in this container.
+    assert isinstance(captured["address"], str)
+    assert captured["address"] in ("pv.local", "192.168.86.140")

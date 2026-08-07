@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0 — HASTEFIX: 0.98's adresse-liste brækkede forbindelsen til pucken
+
+0.98 gav ESPHome-klienten en LISTE af adresser (navn + cachet IP). Klienten accepterede den — og lavede den om til teksten "['podvoice-pe-...local']", som den så forsøgte at slå op som ét værtsnavn. Resultatet: pucken kunne ikke nås AD NOGEN VEJ, heller ikke via en ren IP-adresse. Panelet sagde ærligt "offline", men årsagen var min egen ændring.
+
+Lektien er den samme som med idle_timeout_ms: **at et bibliotek ACCEPTERER en værdi beviser ikke at den VIRKER.** Jeg testede kun at konstruktøren ikke smed en fejl.
+
+- Klienten får igen ÉN adresse som almindelig tekst.
+- Den cachede adresse bruges nu KUN når værtsnavnet ikke kan slås op i add-on'ets eget netværk (HA's container har typisk ingen mDNS — det er derfor .local kan virke fra en Mac og fejle inde i add-on'et).
+- Testen er skærpet: den kræver nu en tekst-adresse, ikke bare "en værdi".
+
+ruff + mypy rene; hele suiten grøn.
+
 ## 0.99.0 — Talk-fanens lyd blev ødelagt af vores egen omregning (og svar blev klippet midt i ordet)
 
 Ejeren: "Bruger jeg Whisper Flow på samme maskine og afstand, hører den 100 %." Det var det afgørende spor — det var ikke mikrofonen, det var VORES lydvej i browseren:
