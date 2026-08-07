@@ -347,6 +347,7 @@ class ThinSession:
             return
         _LOG.info("thin: closing conversation (%s) [room=%s]", reason, self.room)
         await self._silence_device()
+        await self._play_close_cue()
         await self._teardown(release_music=True)
         self._hub_state("IDLE", "💤 Samtale slut — musikken er tilbage")
 
@@ -934,6 +935,23 @@ class ThinSession:
             self.reply_bus.push(self.room, pcm)
             self.reply_bus.end(self.room)
             await self.voicepe.play_url(self.reply_url)
+
+    async def _play_close_cue(self) -> None:
+        """The audible full stop: a short soft fall when the conversation ends.
+
+        Without it the ring just goes dark and the family cannot tell "it closed"
+        from "it died" — and cannot hear that the mic is shut again."""
+        from . import audio as audio_mod
+
+        if self.reply_bus is None or not self.reply_url:
+            return
+        with contextlib.suppress(Exception):
+            self.reply_bus.clear(self.room)
+            self.reply_bus.start(self.room)
+            self.reply_bus.push(self.room, audio_mod.close_tone(C.OUTPUT_RATE))
+            self.reply_bus.end(self.room)
+            await self.voicepe.play_url(self.reply_url)
+            await asyncio.sleep(0.45)  # let it actually reach the speaker before teardown
 
     async def _speak_error(self, kind: str) -> None:
         """The error, out loud, in the assistant's own voice (tone as last resort)."""

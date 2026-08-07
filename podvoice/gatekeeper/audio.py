@@ -165,6 +165,17 @@ class StreamResampler:
         return out.tobytes()
 
 
+def close_tone(rate_hz: int = C.OUTPUT_RATE) -> bytes:
+    """A short, soft two-note fall: "the conversation is closed, the mic is shut".
+
+    Closing was the one moment in the whole flow with NO feedback at all — the ring
+    went dark and nothing was said, so the room could not tell "it stopped listening"
+    from "it crashed". That is a UX gap AND a privacy gap. Deliberately quieter and
+    shorter than the error tone so it reads as punctuation, not as a problem.
+    """
+    return error_tone(rate_hz, freqs=(620.0, 465.0), ms=(90, 130), amp=0.16)
+
+
 def error_tone(
     rate_hz: int = C.OUTPUT_RATE,
     freqs: tuple[float, ...] = (660.0, 440.0),

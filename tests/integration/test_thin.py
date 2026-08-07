@@ -579,3 +579,20 @@ async def test_device_side_hush_truncates_the_model():
         assert session.sm.state is State.LISTENING  # ring says "your turn" again
     finally:
         await session.aclose()
+
+
+async def test_closing_is_audible():
+    """Closing was the only moment with NO feedback: the ring went dark in silence,
+    so the room could not tell 'it stopped listening' from 'it died'. That is a UX
+    gap and a privacy gap — the mic state must be audible."""
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        before = len(voicepe.announced_urls)
+        await session.stop(reason="test")
+        assert len(voicepe.announced_urls) > before  # a cue was actually played
+        assert session.sm.state is State.IDLE
+    finally:
+        await session.aclose()

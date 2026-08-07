@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.4.0 — lyd- og lys-UX er nu DESIGNET, ikke tilfældig
+
+Ejeren: "Det er random pt." — korrekt. Feedbacken var aldrig blevet tegnet som ét forløb; hvert signal var opstået enkeltvis. Hele tidslinjen er nu bevidst, og hvert trin har ÉT lys og HØJST én lyd:
+
+| Øjeblik | Ring | Lyd |
+|---|---|---|
+| "Okay Nabu" | Cyan med det samme | Kort "ding" (enhedens egen) |
+| Du taler | Cyan | Stilhed — den lytter |
+| Du er færdig, den arbejder | **Gul** | Stilhed (eller "Lige et øjeblik" ved opslag) |
+| Den svarer | **Grøn** | Svaret |
+| "stop" midt i | Cyan igen | Øjeblikkelig stilhed |
+| **Samtalen lukker** | Slukket | **NY: kort, blid nedadgående tone** |
+| Fejl | Rød | Den siger højt hvad der er galt |
+
+- **Det store hul var lukningen**: ringen gik bare i sort, i stilhed. Man kunne ikke høre forskel på "den holdt op med at lytte" og "den døde" — og man kunne ikke høre, at mikrofonen var lukket igen. Det er både UX og privatliv. Nu er der en kort, blid tone, tydeligt mildere end fejltonen, så den læses som punktum og ikke som problem.
+- Panelets forside viser nu HELE forløbet som en tabel, så familien kan læse sproget i stedet for at gætte.
+
+1 ny regressionstest. ruff + mypy rene; hele suiten grøn.
+
 ## 1.3.0 — du KAN afbryde den midt i et svar: pucken har altid kunnet høre "stop"
 
 Ejeren spurgte om wake-ordet kunne bruges til at stoppe talen. Undersøgelsen af firmwarens egen logik viste, at det allerede virker — vi har bare aldrig fortalt det, og modellen fik det aldrig at vide:
