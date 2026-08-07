@@ -598,3 +598,25 @@ async def test_closing_is_audible():
         assert session.sm.state is State.IDLE
     finally:
         await session.aclose()
+
+
+async def test_shield_holds_for_the_whole_reply_without_device_reports():
+    """Field 16:42: the device's 'I am playing' report never arrived, the pre-arm
+    expired mid-reply, mic frames flowed, and the model heard itself — killing its own
+    answer at 0 ms. The shield must survive on the reply's OWN duration."""
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        # ~2 s of reply audio (24 kHz, 16-bit): 96000 bytes
+        gemini.emit(AudioChunk(_frame(n_samples=48000), item_id="long"))
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        # NOTE: no _on_media_state(True) at all — the device stays silent about it.
+        await asyncio.sleep(0.05)
+        sent_before = len(gemini.sent_audio)
+        voicepe.feed([_frame(3000)] * 3)  # the reply's own sound hits the mic
+        await asyncio.sleep(0.2)
+        assert len(gemini.sent_audio) == sent_before  # shielded on duration alone
+    finally:
+        await session.aclose()

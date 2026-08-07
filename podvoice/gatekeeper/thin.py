@@ -194,6 +194,9 @@ class ThinSession:
         self._gate_dropped = 0  # mic frames shielded during the current reply
         self._turn_had_tool = False  # response called a tool -> the reply stream stays open
         self._stop_sent_t: float | None = None  # stop-latency marker (ARKITEKTUR G1)
+        # Until when the reply we generated is still AUDIBLE (byte-derived). The shield
+        # trusts this even if the device never reports that it is playing.
+        self._reply_audible_until = 0.0
         self._speech_tools: set[str] = set()  # tool calls whose result makes it SPEAK again
         self._heard_signal = False  # has this conversation carried real audio yet?
         self._goodbye: asyncio.Task | None = None  # armed close-after-goodbye (one per conv)
@@ -374,6 +377,7 @@ class ThinSession:
         self._gate_dropped = 0
         self._turn_had_tool = False
         self._speech_tools.clear()
+        self._reply_audible_until = 0.0
         self._heard_signal = False
         self.sm.state = State.IDLE
         # NEVER cancel the task that is RUNNING this teardown (stop()/_fail() are called
@@ -436,7 +440,9 @@ class ThinSession:
                 if not self._active:
                     continue  # drain quietly; stream stop is in flight
                 if not self.full_duplex and (
-                    self._device_playing or time.monotonic() < self._gate_until
+                    self._device_playing
+                    or time.monotonic() < self._gate_until
+                    or time.monotonic() < self._reply_audible_until
                 ):
                     # Echo shield (half-duplex): the device is speaking — its own voice
                     # must never reach the model's ears. In full_duplex the shield is
@@ -631,6 +637,8 @@ class ThinSession:
         first = not self._speaking
         if first:
             self._speaking = True
+            # New reply: start its audible window from now (plus the announce lead-in).
+            self._reply_audible_until = time.monotonic() + ANNOUNCE_PREARM_S
             self.sm.state = State.AI_SPEAKING
             self.playout.reset()
             self._playback_t0 = None
@@ -642,6 +650,13 @@ class ThinSession:
             self._hub_state("AI_SPEAKING", "💬 Svarer")
             self._spawn(self._announce_with_retry(), "thin-announce")
         self.reply_bus.push(self.room, ev.pcm)
+        # Extend the shield by this chunk's REAL duration. The device's "I am playing"
+        # report can be late or absent (field 16:42: mic level ~426 mid-reply -> the
+        # model heard itself, barged in, and truncated its own answer at 0 ms). The
+        # byte count cannot lie: 24 kHz, 16-bit mono.
+        chunk_s = len(ev.pcm) / (C.OUTPUT_RATE * C.SAMPLE_WIDTH)
+        base = max(time.monotonic(), self._reply_audible_until)
+        self._reply_audible_until = base + chunk_s
         item = ev.item_id or self._last_item or "reply"
         self._last_item = item
         self.playout.on_sent(item, len(ev.pcm))
@@ -808,6 +823,10 @@ class ThinSession:
         else:
             was_speaking = self._speaking
             self._device_playing = False
+            # The device REPORTING "done" is better evidence than our byte estimate —
+            # trust it and release the window. The estimate only carries the shield
+            # when that report never arrives (field 16:42).
+            self._reply_audible_until = 0.0
             self._last_activity = time.monotonic()  # the room just went quiet: your turn
             if was_speaking and self._active:
                 # Playback stopped while the model still had more to say: the FIRMWARE
@@ -951,6 +970,7 @@ class ThinSession:
 
     async def _silence_device(self) -> None:
         self._stop_sent_t = time.monotonic()  # G1: measure stop -> actually silent
+        self._reply_audible_until = 0.0  # nothing of ours is audible after a stop
         if self.reply_bus is not None:
             self.reply_bus.end(self.room)
         if hasattr(self.voicepe, "stop_playback"):

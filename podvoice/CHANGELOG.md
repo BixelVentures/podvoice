@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.8.0 — ekko-skjoldet holder nu HELE svaret: det stolede på en melding, der kan udeblive
+
+Loggen 16:42 viste selv-afbrydelsen på fersk gerning igen:
+
+```
+16:42:23  svaret begynder at afspille
+16:42:27  mic level ~426        ← mikrofonen sender MENS den taler
+16:42:28  barge-in (speech_started)
+          truncated at 0ms      ← svaret dræber sig selv
+```
+
+- **Rodårsagen**: skjoldet hvilede på, at enheden MELDER "jeg afspiller". Kommer den melding sent — eller slet ikke — falder skjoldet efter for-armens 1,5 sekund, mens svaret stadig lyder i rummet. Så hører modellen sig selv, opfatter det som en afbrydelse, og kapper sit eget svar ved 0 ms hørt.
+- **Fixet**: vi HAR selv genereret hver eneste byte af svaret, så vi ved præcis hvor langt det er (24 kHz, 16-bit). Skjoldet holdes nu oppe i den **byte-beregnede varighed** — en kilde der ikke kan udeblive. Melder enheden alligevel "færdig", tror vi den (bedre evidens) og frigiver med det samme; melder den intet, bærer beregningen skjoldet hele vejen.
+- Ny regressionstest: et to-sekunders svar er beskyttet **uden en eneste melding fra enheden**.
+
+Mikrofon-forstærkningen (16) og kanal 1 er sat igen live — de gik tabt, da firmware-flashen genstartede pucken, hvilket er præcis det, 1.6.0's automatiske gensætning forhindrer fremover.
+
+ruff + mypy rene; hele suiten grøn.
+
 ## 1.7.0 — advarslen om mistet forbindelse gav forkert råd og råbte for tidligt
 
 Panelet skrev: *"Mistet forbindelsen til Voice PE — brug enhedens .local-navn, ikke en IP"* — mens hosten **bevidst** var en IP-adresse, netop fordi .local ikke kan slås op inde i add-on'ets container. Rådet var altså ikke bare unyttigt, det var forkert. Og afbrydelsen varede få sekunder (en genflash) og helede sig selv.
