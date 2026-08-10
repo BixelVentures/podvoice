@@ -56,7 +56,7 @@ class Config:
     simulate: bool = False
     engine: str = "classic"  # "classic" | "thin" (Track B — the model owns the conversation)
     reply_streaming: bool = False  # stream the reply FLAC while it generates (experimental)
-    speaker_path: str = "auto"  # "auto" (direct iff the firmware advertises it) | announce | direct
+    speaker_path: str = "announce"  # announce (proven) | auto | direct — see 1.11.1
     panel_lan_open: bool = False  # True = allow direct LAN access to the panel (unauth'd)
     full_duplex: bool = False  # half-duplex (continued conversation) is the shipped mode;
     # True = open-mic barge-in, the future full-duplex opt-in (not built/validated yet)
@@ -171,7 +171,7 @@ def from_options(opts: dict) -> Config:
         # no saved value can point at a capability the hardware does not have — which is
         # exactly how 0.70 produced total silence. Explicit "announce"/"direct" remain
         # available as an override for debugging.
-        speaker_path=str(opts.get("speaker_path", "auto") or "auto"),
+        speaker_path=str(opts.get("speaker_path", "announce") or "announce"),
         panel_lan_open=bool(opts.get("panel_lan_open", False)),
         # 0.68: full-duplex (open-mic voice barge-in) is now an EXPERIMENTAL opt-in. The
         # XMOS AEC keeps the assistant's own voice out of mic channel 0; the provider's

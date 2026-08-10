@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.11.1 — hastefix: direktvejen efterlod pucken hængende, tilbage til den beviste vej
+
+**Symptomet du så:** intet svar, og ringen der spandt blåt i det uendelige.
+
+**Årsagen, fra puckens egen log:**
+
+```
+15:24:43.960  State IDLE -> STREAMING_RESPONSE
+15:24:45.723  End of audio stream received
+15:24:45.723  State STREAMING_RESPONSE -> RESPONSE_FINISHED   ← og aldrig længere
+```
+
+Der står aldrig *"Speaker has finished outputting all audio"*. Enheden når `RESPONSE_FINISHED`, men kommer aldrig videre, fordi den venter på, at højttaleren melder sig færdig — og den højttaler er **delt med medieafspilleren**, som holder den kørende. Derfor kom `reply_played` aldrig, og derfor blev `voice_assistant_phase` hængende på 5 ("svarer"). Den blå spinner var pucken, der troede, den stadig talte.
+
+Jeg efterprøvede kontrakten på hardwaren før udrulning — tjenester, event-typer, wake-ord — men **jeg havde ikke hørt den sige en hel sætning over direktvejen.** Det var netop dét forbehold, jeg skrev, og det var netop dér, fejlen sad. Kontrakten var rigtig; adfærden var ikke.
+
+- **`speaker_path` er tvunget tilbage til `"announce"`** — den vej, der har virket hele tiden. Settings-version 6 kasserer et gemt `"auto"` fra 1.11.0, så opgraderingen faktisk lander.
+- `"auto"`/`"direct"` findes stadig som bevidst tilvalg, så firmware-fejlen kan testes, når den er rettet.
+- Ny regressionstest låser standarden fast.
+
+Firmwaren behøver ikke flashes om. Den nye 2b-firmware er bagudkompatibel og kører announce-vejen fint — de to ekstra triggere ligger bare ubrugte, indtil den delte højttaler er løst.
+
 ## 1.11.0 — Setup er tre felter; resten er maskinens arbejde, ikke ejerens
 
 Din kritik var berettiget: jeg havde præsenteret motorrummet som valg.

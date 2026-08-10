@@ -143,3 +143,23 @@ def test_a_genuinely_custom_prompt_survives(tmp_path):
     mine = "Du er PodVoice. Sig altid 'hej med dig' først."
     p.write_text(json.dumps({"settings_version": 4, "system_prompt": mine}))
     assert load_settings(p)["system_prompt"] == mine
+
+
+def test_speaker_path_defaults_to_the_proven_announce_path():
+    """1.11.1: the direct path wedges the device on real hardware.
+
+    VA reaches RESPONSE_FINISHED but never fires on_tts_stream_end, because it waits for
+    the speaker to report finished and that speaker is SHARED with external_media_player,
+    which keeps it running. voice_assistant_phase then sticks at 5 ("replying"), the ring
+    spins forever and the next question gets no answer. Until the firmware side is fixed,
+    nothing may select the direct path by default — including a settings file written
+    under 1.11.0, which is why speaker_path stays in TUNING_KEYS."""
+    from gatekeeper.config import from_options
+    from gatekeeper.settings import DEFAULTS, TUNING_KEYS
+
+    assert DEFAULTS["speaker_path"] == "announce"
+    assert from_options({}).speaker_path == "announce"
+    assert from_options(dict(DEFAULTS)).speaker_path == "announce"
+    assert "speaker_path" in TUNING_KEYS  # a saved "auto" is dropped on upgrade
+    # ...but an explicit override still works, so the fix can be tested on hardware.
+    assert from_options({"speaker_path": "auto"}).speaker_path == "auto"

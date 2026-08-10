@@ -39,9 +39,8 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 # retuned defaults forever. Identity settings (keys, rooms, prompts) are kept.
 # v3: the OpenAI-only overhaul — drops saved gemini_*/provider knobs (now unknown keys)
 # and resets openai_model so the gpt-realtime-2.1-mini default actually lands.
-# v5: drops a saved speaker_path (0.70 forced "announce"; the B1-2b firmware makes the
-# path self-detecting, and a persisted "announce" would silently veto it forever).
-SETTINGS_VERSION = 5
+# v6: drops a saved speaker_path again — 1.11.0 shipped "auto", which wedged the puck.
+SETTINGS_VERSION = 6
 
 # sha256 of RETIRED default system prompts. A saved prompt matching one of these is
 # just a persisted copy of an old default (the panel saves every field on Save) —
@@ -97,12 +96,9 @@ TUNING_KEYS: frozenset[str] = frozenset(
         "openai_noise",
         "mic_channel",
         "mic_gain",
-        # v5: speaker_path. 0.70 hard-forced "announce" (the 0.67 direct firmware was
-        # broken), and the panel saves EVERY field on Save — so that value is sitting in
-        # real settings files. Left in place it would pin the add-on to the announce path
-        # forever, even on 2b firmware that advertises the direct one, and the symptom
-        # would be "nothing changed after the flash" with no error anywhere. Dropped on
-        # upgrade so the self-detecting "auto" default actually takes effect.
+        # v5 dropped a saved speaker_path so the self-detecting "auto" could land; v6
+        # drops it AGAIN, because "auto" turned out to wedge the device (see DEFAULTS)
+        # and a settings file written under 1.11.0 still carries it.
         "speaker_path",
         "idle_timeout_s",
         "max_session_min",
@@ -142,15 +138,14 @@ DEFAULTS: dict = {
     # the model owns the conversation — turn-taking, barge-in, idle — via server VAD)
     "reply_streaming": False,  # stream the reply FLAC as it's generated (kills the pre-reply
     # silence) — experimental until verified on the device; buffered is the safe default
-    "speaker_path": "auto",  # "auto" = direct PCM iff the connected FIRMWARE advertises it
-    # (it publishes a "reply_played" event type), else announce. "announce"/"direct" force
-    # one path for debugging. NOTE: this default MUST stay "auto" — leaving it at the old
-    # "announce" would have made the settings-v5 cleanup fall straight back onto the
-    # announce path, so the 2b flash would have changed nothing with no error anywhere.
-    # Wake word: one of the three models the upstream firmware already carries. Applied on
-    # every device connect (a runtime change lives in RAM and dies with the next reboot —
-    # the 1.6.0 gain lesson). "Okay Chat" would need a custom-trained model (docs/wake-word.md).
-    "wake_word": "okay_nabu",  # okay_nabu | hey_jarvis | hey_mycroft
+    # 1.11.1: FORCED BACK to the announce path. On real hardware the 2b direct path
+    # left the device wedged: VA reaches RESPONSE_FINISHED but never fires
+    # on_tts_stream_end, because it waits for the speaker to report finished and that
+    # speaker is SHARED with external_media_player, which keeps it running. Symptoms:
+    # no reply_played (the watchdog carried it), voice_assistant_phase stuck at 5, so
+    # the ring span "replying" forever and the next question got no answer.
+    # "auto"/"direct" still work as an explicit override for testing the fix.
+    "speaker_path": "announce",
     "panel_lan_open": False,  # False = panel/API only via HA Ingress (the sidebar). True
     # re-opens direct LAN access to :8098 (unauthenticated — you're on your own)
     "podconnect_base_url": "http://homeassistant.local:8099",
