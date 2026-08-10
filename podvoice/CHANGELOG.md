@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.11.0 — Setup er tre felter; resten er maskinens arbejde, ikke ejerens
+
+Din kritik var berettiget: jeg havde præsenteret motorrummet som valg.
+
+- **Hverdag** står nu øverst med de tre indstillinger, der er en reel præference: **wake word**, **luk efter stilhed**, **musikvolumen mens du taler**.
+- **Hardware — sat én gang**: PSK og rum.
+- **Avanceret** (foldet sammen) rummer nu motor, model, stemme, afbrydelsesstil, maks. samtalelængde og mini-model — sammen med systemprompt, PodConnect/MCP, Sikkerhed og Diagnostik.
+
+Intet er slettet, og ingen `id` er ændret, så alle gemte værdier og alle 17 felter fungerer uændret. Efterprøvet ved at sammenholde DOM'en med panelets feltliste (17/17, ingen dubletter) og ved at åbne siden i en browser.
+
+## 1.10.0 — wake word i UI'et, duplex gated af hardwaren, og et testmiljø der betyder noget
+
+- **Wake word kan nu vælges** (Okay Nabu / Hey Jarvis / Hey Mycroft). Firmware-action + panelmenu. Påføres ved **hver** forbindelse, så den overlever en strømafbrydelse — samme lektion som forstærkningen i 1.6.0. "Okay Chat" kræver stadig en trænet model.
+- **To defaults ville have gjort hele 2b-flashen virkningsløs**: både settings og Config stod stadig på `speaker_path="announce"`. Med v5-oprydningen ville de være faldet tilbage dertil, og flashen havde ikke ændret noget — uden en fejlmeddelelse nogen steder. Begge er nu `"auto"`.
+- **`full_duplex` afvises nu på mikrofonkanal ≠ 0.** Duplex kræver ekkoannullering, og kun XMOS-kanal 0 har den. Flaget var en nøgen bool, der slog skjoldet fra uanset kanal — det var sådan 0.92-0.95 sendte en puck, der afbrød sig selv.
+- **Playout-uret er nu begrænset af virkeligheden**: på direktvejen kan den "hørte" position ikke overstige de bytes, der faktisk er afleveret. Det er dét tal, modellen får ved en afbrydelse, så en fejl her omskriver dens hukommelse om samtalen.
+- **Testmiljøet var Python 3.9** på et projekt, der kræver 3.12. Det manglede `asyncio.timeout` og `aioesphomeapi`, så syv tests fejlede af rene miljøårsager — og enhver "suite grøn"-påstand herfra var delvis meningsløs. Genopbygget: **271 tests grønne, ægte, for første gang.**
+
+## 1.9.1 — et stoppet direkte svar må aldrig efterlade mikrofonen døv
+
+Fundet under gennemgang af min egen 1.9.0: pumpen lukkede strømmen inde i sin egen `except asyncio.CancelledError`. `CancelledError` arver fra `BaseException`, så en anden annullering smutter forbi `suppress(Exception)`, og `TTS_STREAM_END` blev sprunget over. Enheden ville så sidde i STREAMING_RESPONSE, aldrig nå RESPONSE_FINISHED, aldrig sende `reply_played` — og skjoldet ville blive oppe for evigt: en permanent døv mikrofon, uden en linje i loggen.
+
+Lukningen sker nu fra en task, der **ikke** er den, som annulleres, efterfulgt af en garanteret frigivelse af skjoldet.
+
+## 1.9.0 — direktvejen: enheden FORTÆLLER os nu, hvornår svaret sluttede
+
+Ekko-skjoldet holder op med at gætte og begynder at vide.
+
+- **Firmware** (to triggere, isolerede): `on_tts_start` låser resampleren til 24 kHz per svar, og `on_tts_stream_end` sender `reply_played`. Enheden fyrer den fra `RESPONSE_FINISHED`, som den kun når, når `speaker_buffer_size_ == 0 && !has_buffered_data() && !is_running()` — altså når **sidste byte har forladt DAC'en**.
+- **Hvorfor 0.67 spillede chipmunk** (fundet i den pinnede C++, ikke gættet): add-on'en sendte `TTS_START` med et **tomt** data-map, og handleren afbryder på `if (text.empty()) return;` *før* den fyrer `on_tts_start` og *før* `speaker_->start()`. Rate-låsningen, som 0.67 selv havde skrevet, kørte derfor aldrig; resampleren beholdt de 48 kHz, som den delte `external_media_player` sidst satte, og 24 kHz-svaret kørte i dobbelt tempo. Én tom dict.
+- **Vejen vælges af enheden**, ikke af en gemt indstilling: firmwaren annoncerer `reply_played`, og add-on'en retter sig efter det. 0.70's totale stilhed er nu uopnåelig via konfiguration.
+- **Tempostyring er obligatorisk**, ikke kosmetik: enhedens `on_audio` dropper **hele** chunken ved bufferoverløb (16 KB), hvilket taber ord lydløst. Forspringet er 0,15 s.
+- **Kendt omkostning**: `request_stop()` gør intet for højttalervejen (hele grenen er `#ifdef USE_MEDIA_PLAYER`), så en afbrydelse lader de op til 0,15 s, der allerede ligger i enhedens buffer, spille færdig. Puckens lokale wake-ord-hush skærer stadig ved ~51 ms.
+
 ## 1.8.0 — ekko-skjoldet holder nu HELE svaret: det stolede på en melding, der kan udeblive
 
 Loggen 16:42 viste selv-afbrydelsen på fersk gerning igen:
