@@ -7,7 +7,8 @@ import shutil
 import struct
 
 import pytest
-from podvoice.gatekeeper.reply import ReplyBus, encode_flac, wav_header
+
+from gatekeeper.reply import ReplyBus, encode_flac, wav_header
 
 _HAS_FLAC = shutil.which("flac") is not None
 

@@ -29,6 +29,7 @@ import contextlib
 import logging
 import time
 
+from . import audio as audio_mod
 from . import constants as C
 from .events import Event, EventType, State
 from .led import led_command_for
@@ -122,6 +123,8 @@ def normalized_utterance(text: str) -> str:
 # answering itself in a loop — while the real user went unheard. Belt-and-braces even
 # after the firmware moves to the AEC channel.
 ECHO_GATE_TAIL_S = 0.35  # keep the shield up briefly after playback ends (room reverb)
+TURN_CUE_TAIL_S = 0.08  # the quiet cue needs less reverb shielding than spoken audio
+FOLLOWUP_EDGE_GRACE_S = 0.5  # let ANNOUNCING arrive before painting the follow-up ring
 ANNOUNCE_PREARM_S = (
     1.5  # cover announce -> ANNOUNCING-edge fully: field log 11:20 showed sound+state
 )
@@ -264,7 +267,11 @@ class ThinSession:
         self._speech_stop_t: float | None = None  # end-of-user-speech -> audible metric
         self._buf_in: list[str] = []  # user transcript deltas (flushed per utterance)
         self._buf_out: list[str] = []  # assistant transcript deltas (flushed per turn)
+        self._last_user_utterance = ""  # tool-policy evidence for this user turn
         self._barge_task: asyncio.Task | None = None  # pending blip-debounced barge-in
+        self._followup_task: asyncio.Task | None = None  # delayed turn-ready LED fallback
+        self._turn_cue_appended = False  # this reply ends with the audible hand-over cue
+        self._ending_conversation = False  # suppress "your turn" during a goodbye
         self._last_activity = 0.0  # monotonic — feeds the client-side idle fallback
 
         if hub is not None:
@@ -343,6 +350,9 @@ class ThinSession:
             getattr(self.brain, "preset", "?"),
         )
         self._active = True
+        self._ending_conversation = False
+        self._turn_cue_appended = False
+        self._last_user_utterance = ""
         self._conv_started = time.monotonic()
         self._epoch = self._conv_started  # identity for tasks armed by THIS conversation
         self._last_activity = self._conv_started
@@ -396,6 +406,7 @@ class ThinSession:
         """Close the conversation NOW (stop word/button/panel/mute/idle)."""
         if not self._active:
             return
+        self._ending_conversation = True
         _LOG.info("thin: closing conversation (%s) [room=%s]", reason, self.room)
         await self._silence_device()
         await self._play_close_cue()
@@ -424,6 +435,9 @@ class ThinSession:
         self._gate_dropped = 0
         self._turn_had_tool = False
         self._speech_tools.clear()
+        self._turn_cue_appended = False
+        self._ending_conversation = False
+        self._last_user_utterance = ""
         self._reply_audible_until = 0.0
         self._direct = False  # the next reply re-decides its path from scratch
         self._heard_signal = False
@@ -442,11 +456,13 @@ class ThinSession:
             self._beat,
             self._keepalive,
             self._barge_task,
+            self._followup_task,
             self._goodbye,
         ):
             if t is not None and t is not cur and not t.done():
                 t.cancel()
         self._reader = self._pump = self._beat = None
+        self._barge_task = self._followup_task = None
         self._goodbye = None
         for t in self._tool_tasks.values():
             t.cancel()
@@ -597,21 +613,39 @@ class ThinSession:
                 self._turn_had_tool = False
                 _LOG.info("thin: turn paused on a tool — reply stream stays open")
             else:
+                had_reply = self._speaking
+                if had_reply and self._active and not self._ending_conversation:
+                    cue = audio_mod.turn_tone(C.OUTPUT_RATE)
+                    if self._direct and self._direct_q is not None:
+                        self._direct_q.put_nowait(cue)
+                    elif self.reply_bus is not None:
+                        self.reply_bus.push(self.room, cue)
+                    cue_s = len(cue) / (C.OUTPUT_RATE * C.SAMPLE_WIDTH)
+                    self._reply_audible_until += cue_s
+                    self._turn_cue_appended = True
                 if self._direct:
                     self._end_direct_stream()
                 elif self.reply_bus is not None:
                     self.reply_bus.end(self.room)
                 self._flush_transcript("out")
-                # Conversation stays OPEN (continued conversation, free) — LED back to
-                # "listening". The server's idle timeout decides when it's really over.
                 if self._active:
                     self._speaking = False
-                    self.sm.state = State.LISTENING
-                    self._set_led(State.LISTENING)
-                    self._hub_state("LISTENING", None)
+                    if self._device_playing:
+                        # Generation is done, but the room is still HEARING the answer.
+                        # Keep green until the device reports the last byte played.
+                        self.sm.state = State.AI_SPEAKING
+                    elif had_reply:
+                        # ANNOUNCING can land just after TurnComplete. A short grace
+                        # avoids the old cyan flash over the first spoken words; if the
+                        # device never reports playback, this still fails open cleanly.
+                        self._schedule_followup_edge()
+                    else:
+                        self._enter_followup()
         elif isinstance(ev, Idle):
             await self.stop(reason="idle")
         elif isinstance(ev, ToolCall):
+            if ev.name == "end_conversation":
+                self._ending_conversation = True
             if ev.name != "end_conversation":
                 # A real tool means MORE speech follows in this burst; end_conversation
                 # means the goodbye already playing is the LAST speech (no follow-up).
@@ -642,6 +676,7 @@ class ThinSession:
             self._cancel_barge_debounce()
         elif isinstance(ev, InputTranscript):
             self._buf_in.append(ev.text)
+            self._last_user_utterance = ev.text.strip()
             if self.hub is not None:
                 self.hub.transcript_delta(self.room, "in", ev.text)
             self._flush_transcript("in")  # OpenAI sends ONE completed utterance
@@ -672,6 +707,7 @@ class ThinSession:
             await self.stop(reason="stop-word")
         elif phrase in END_PHRASES:
             _LOG.info("thin: end phrase %r — closing after the goodbye", phrase)
+            self._ending_conversation = True
             self._arm_goodbye("thin-endphrase")
 
     def _flush_transcript(self, direction: str) -> None:
@@ -704,6 +740,7 @@ class ThinSession:
         if first:
             self._speaking = True
             self._direct = direct
+            self._turn_cue_appended = False
             # New reply: start its audible window from now (plus the announce lead-in).
             # On the direct path there is no announce round-trip to cover, but the window
             # is still armed here — _direct_send_loop replaces it with the exact figure
@@ -861,6 +898,12 @@ class ThinSession:
             # Nothing is audibly playing: this speech_started is the user's NORMAL
             # turn start, not an interruption. This guard is ALSO the spurious-idle
             # safety for the provider's now-unconditional Interrupted (ARKITEKTUR §5).
+            if self._active:
+                self._cancel_followup_edge()
+                self._turn_cue_appended = False
+                self.sm.state = State.LISTENING
+                self._set_led(State.LISTENING)
+                self._hub_state("LISTENING", "🎙️ Lytter")
             return
         if self._barge_task is not None and not self._barge_task.done():
             return
@@ -1009,7 +1052,10 @@ class ThinSession:
             self._device_playing = True  # echo shield UP: the room hears the assistant
             self._playback_t0 = time.monotonic()
             if self._active:
-                self._set_led(State.AI_SPEAKING)
+                self._cancel_followup_edge()
+                self.sm.state = State.AI_SPEAKING
+                if not self._ending_conversation:
+                    self._set_led(State.AI_SPEAKING)
                 if self._speech_stop_t is not None:
                     ttfr_ms = (time.monotonic() - self._speech_stop_t) * 1000
                     self._speech_stop_t = None
@@ -1040,12 +1086,13 @@ class ThinSession:
                     int((time.monotonic() - self._stop_sent_t) * 1000),
                 )
                 self._stop_sent_t = None
-            self._gate_until = time.monotonic() + ECHO_GATE_TAIL_S  # cover room reverb
-            self._spawn(self._end_echo_gate(), "thin-gate-end")
+            tail_s = TURN_CUE_TAIL_S if self._turn_cue_appended else ECHO_GATE_TAIL_S
+            self._gate_until = time.monotonic() + tail_s
+            self._spawn(self._end_echo_gate(tail_s), "thin-gate-end")
             self._sync_playout()
             self._playback_t0 = None
-            if self._active and not self._speaking:
-                self._set_led(State.LISTENING)  # sound ended -> ring says "your turn"
+            if self._active and not self._speaking and not self._ending_conversation:
+                self._enter_followup()
 
     async def _truncate_at_heard(self) -> None:
         """Tell the provider what the room ACTUALLY heard after a device-side hush."""
@@ -1063,10 +1110,10 @@ class ThinSession:
         if self.hub is not None:
             self.hub.incr("barge_ins")
 
-    async def _end_echo_gate(self) -> None:
+    async def _end_echo_gate(self, tail_s: float = ECHO_GATE_TAIL_S) -> None:
         """After the reverb tail: drop what the mic queued during the reply and report
         how much the shield absorbed — the assistant literally cannot hear itself."""
-        await asyncio.sleep(ECHO_GATE_TAIL_S)
+        await asyncio.sleep(tail_s)
         if self._device_playing:
             return  # a new reply started inside the tail — the shield is still up
         stale = self.voicepe.drain_mic() if hasattr(self.voicepe, "drain_mic") else 0
@@ -1077,6 +1124,32 @@ class ThinSession:
                 stale,
             )
         self._gate_dropped = 0
+
+    def _enter_followup(self) -> None:
+        """The room is quiet again: dim ring, open mic, one clear next-turn state."""
+        if not self._active or self._speaking or self._device_playing or self._ending_conversation:
+            return
+        self._cancel_followup_edge()
+        self.sm.state = State.LOUNGE_WINDOW
+        self._set_led(State.LOUNGE_WINDOW)
+        activity = "🔉 Bip — din tur" if self._turn_cue_appended else "🎙️ Din tur"
+        self._hub_state("LOUNGE_WINDOW", activity)
+        self._last_activity = time.monotonic()
+
+    def _schedule_followup_edge(self) -> None:
+        self._cancel_followup_edge()
+
+        async def _after_grace() -> None:
+            await asyncio.sleep(FOLLOWUP_EDGE_GRACE_S)
+            self._followup_task = None
+            self._enter_followup()
+
+        self._followup_task = self._spawn(_after_grace(), "thin-followup-edge")
+
+    def _cancel_followup_edge(self) -> None:
+        task, self._followup_task = self._followup_task, None
+        if task is not None and task is not asyncio.current_task() and not task.done():
+            task.cancel()
 
     def _on_mute(self, muted: bool) -> None:
         if muted == self._muted:

@@ -278,6 +278,7 @@ async def _reply_streaming(bus, room: str, request: web.Request) -> web.StreamRe
         filled = 0
         held: list[bytes] = []
         held_bytes = 0
+        ended_during_prebuffer = False
         deadline = loop.time() + C.STREAM_PREBUFFER_S + 0.3
         try:
             async with asyncio.timeout(90):
@@ -287,6 +288,7 @@ async def _reply_streaming(bus, room: str, request: web.Request) -> web.StreamRe
                     try:
                         chunk = await bus.next_chunk(room, timeout_s=0.1)
                     except EOFError:
+                        ended_during_prebuffer = True
                         break  # short reply — serve what we have
                     if chunk:
                         held.append(chunk)
@@ -295,6 +297,11 @@ async def _reply_streaming(bus, room: str, request: web.Request) -> web.StreamRe
                     stdin.write(c)
                 fed += held_bytes
                 await stdin.drain()
+                # The END sentinel is consumed by next_chunk(). For a short reply it
+                # arrives before the prebuffer target, so phase 2 must not wait for a
+                # second sentinel that can never exist.
+                if ended_during_prebuffer:
+                    return
                 # Phase 2 — live: forward chunks; on a gap, feed silence to keep the
                 # decoder's clock running smoothly until real audio resumes.
                 while True:
@@ -322,6 +329,11 @@ async def _reply_streaming(bus, room: str, request: web.Request) -> web.StreamRe
                 )
             with contextlib.suppress(Exception):
                 stdin.close()
+                # asyncio's subprocess StreamWriter may not deliver EOF to the
+                # encoder before the transport has actually closed.  Merely
+                # calling close() left `flac` waiting forever on Python 3.12,
+                # while the response loop waited forever for flac's stdout EOF.
+                await stdin.wait_closed()
 
     feeder = asyncio.create_task(_feed())
     total = 0
@@ -341,6 +353,11 @@ async def _reply_streaming(bus, room: str, request: web.Request) -> web.StreamRe
         with contextlib.suppress(ProcessLookupError):
             proc.kill()
         await proc.wait()
+    # A prepared StreamResponse is our responsibility to finish. aiohttp 3.14 no
+    # longer made the client infer EOF merely because the handler returned, leaving
+    # both the device fetch and the integration test waiting on an open chunked body.
+    with contextlib.suppress(ConnectionResetError):
+        await resp.write_eof()
     _LOG.info("streamed reply FLAC for room %s: %d B", room, total)
     return resp
 

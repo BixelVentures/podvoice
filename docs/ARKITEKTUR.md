@@ -90,13 +90,27 @@ flaget låses** til matrix-C-gaten.
   senere. Room-scoped duck m/ ACK-timeout. G2/G7-protokollen (20 svar med TV-lyd:
   falske aktiveringer + uopfordrede handlinger tælles). *Ejer-gate:* tallene står i
   panelet; "man kan tysse på den" er bevist.
-- **UGE 4+ — Finesse, kun bag grønne gates.** ~~Først 2b direct PCM~~ **LEVERET i 1.9.0
-  (se §6).** Derefter duplex-rækken (matrix C, promoveringskrav <1 falsk barge pr. 10
+- **UGE 4+ — Finesse, kun bag grønne gates.** Først 2b direct PCM: **kandidat bygget,
+  men ikke fysisk slutverificeret** (se §6). Derefter duplex-rækken (matrix C,
+  promoveringskrav <1 falsk barge pr. 10
   svar i stille rum OG med musik) med ch1+gain4 som diagnostik — opskriften står i
   [PLAN-DUPLEX.md](PLAN-DUPLEX.md). Består C ikke, lever huset fint uden duplex:
   G4/G5/G7/G2 vindes allerede af det robuste half-duplex-system.
 
-## 6. 2b direct PCM — leveret (1.9.0/1.10.0)
+## 6. 2b direct PCM — kandidat, ikke leveret
+
+1.9.0/1.10.0 opfyldte firmwarekontrakten, men fejlede den nødvendige adfærdstest:
+Voice Assistant og external media player delte `announcement_resampling_speaker`.
+`RESPONSE_FINISHED` ventede derfor for evigt på en højttaler, medieafspilleren holdt
+kørende. `reply_played` kom aldrig, og fase 5 hang. 1.11.1 satte default tilbage på den
+beviste announce-vej.
+
+Kandidaten fra 2026-08-11 giver Voice Assistant både en privat resampler **og** en
+privat mixer-source med ESPHomes konservative 500 ms-timeout. Det sidste er nødvendigt,
+fordi resampleren videredelegerer `has_buffered_data()` til sit output. YAML er valideret, firmware er
+kompileret, og den genererede C++ viser de adskilte ejere. **En hel fysisk samtale,
+opfølgning og ny wake mangler stadig**, og direct må derfor ikke være standard. Den
+målbare gate står i [PRODUKTMÅL.md](PRODUKTMÅL.md).
 
 Svaret sendes som rå 24 kHz PCM ned ad den åbne API-forbindelse i stedet for at blive
 hentet som FLAC over HTTP. Den vigtige gevinst er **ikke** latens, men sandhed:
@@ -113,9 +127,11 @@ hentet som FLAC over HTTP. Den vigtige gevinst er **ikke** latens, men sandhed:
 havde skrevet kørte derfor aldrig, resampleren beholdt de 48 kHz som den delte
 `external_media_player` sidst satte, og 24 kHz-svaret kørte i dobbelt tempo. Én tom dict.
 
-**Regler der nu er strukturelle, ikke disciplin:**
+**Regler i kandidaten:**
 - Vejen vælges af **enheden** (`supports_direct`, læst af de event-typer firmwaren
-  publicerer), aldrig af en gemt indstilling. 0.70's totale stilhed er uopnåelig.
+  publicerer). Automatisk direct kræver `direct_speaker_v3` plus
+  `podvoice_direct_prepare`; `reply_played` alene er
+  ikke nok, fordi den defekte 1.11.0-firmware også annoncerede det.
 - `full_duplex` afvises på mikrofonkanal ≠ 0: duplex kræver ekkoannullering, og kun
   XMOS-kanal 0 har den. Samme "spørg hardwaren"-regel.
 - Tempostyring er obligatorisk: `on_audio` dropper **hele** chunken ved bufferoverløb

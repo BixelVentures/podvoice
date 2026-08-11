@@ -12,6 +12,7 @@ from gatekeeper.audio import (
     resample_pcm16,
     rms,
     silence_frame,
+    turn_tone,
 )
 
 
@@ -145,3 +146,10 @@ def test_error_tone_byte_count():
 
 def test_error_tone_is_non_silent():
     assert rms(error_tone()) > 0.01
+
+
+def test_turn_tone_has_a_silent_reverb_lead_then_a_quiet_rising_cue():
+    tone = turn_tone()
+    lead_bytes = int(C.OUTPUT_RATE * 0.220) * C.SAMPLE_WIDTH
+    assert tone[:lead_bytes] == bytes(lead_bytes)
+    assert 0.01 < rms(tone[lead_bytes:]) < rms(error_tone())

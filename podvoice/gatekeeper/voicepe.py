@@ -41,6 +41,7 @@ OPTIONAL_SERVICES: dict[str, str] = {
     "podvoice_va_abort": "stock-run abort (covered by the RUN_END fallback)",
     "podvoice_stop_word_enable": "on-device 'stop' word during replies (classic engine)",
     "podvoice_stop_word_disable": "on-device 'stop' word disarm (classic engine)",
+    "podvoice_direct_prepare": "switch direct replies from legacy UDP to native API audio",
 }
 
 
@@ -100,12 +101,21 @@ class VoicePELink:
         self._mute_key: int | None = None  # the mute switch/sensor key (None = not published)
         # B1-2b DIRECT PATH capability, read off the firmware itself rather than a saved
         # setting. The device advertises event_types on its podvoice_event entity; the
-        # 2b firmware adds "reply_played" (fired from VA's RESPONSE_FINISHED, i.e. the
-        # last byte has left the DAC). If it is absent, the flashed firmware predates 2b
-        # and the add-on MUST stay on the announce path. This kills the whole class of
+        # Fixed firmware adds the capability marker "direct_speaker_v3". It also emits
+        # "reply_played" from VA's RESPONSE_FINISHED. V2 fixed the shared speaker graph
+        # but could still crash before the first wake because API-audio mode was not
+        # primed. Requiring V3 plus its prepare action keeps both broken generations on
+        # announce. This kills the class of
         # "a stale saved setting points at a capability the firmware does not have"
         # (0.70 shipped speaker_path=direct against announce-only firmware -> silence).
         self.supports_direct = False
+        # VoiceAssistant starts in legacy UDP mode after every puck reboot. A native-API
+        # subscription alone does not change it; only a VA start whose client answers
+        # with port=0 does. Sending direct TTS while still in UDP mode dereferences an
+        # unopened socket in ESPHome and reboots the puck. V3 firmware exposes an
+        # explicit prepare action for tests/replies that happen before a real wake.
+        self._api_audio_ready = False
+        self._direct_prepare_waiter: asyncio.Event | None = None
         self._announcing = False  # last observed media_player ANNOUNCING state
         # Firmware-contract report, rebuilt on every (re)connect (see _verify_contract).
         self.contract: dict[str, Any] = {}
@@ -270,7 +280,10 @@ class VoicePELink:
             advertised: set[str] = set()
             for e in events:
                 advertised.update(getattr(e, "event_types", None) or [])
-            self.supports_direct = "reply_played" in advertised
+            self.supports_direct = (
+                "direct_speaker_v3" in advertised
+                and "podvoice_direct_prepare" in self._user_services
+            )
             log.info(
                 "voicepe %s: direct PCM path %s (firmware advertises: %s)",
                 self.host,
@@ -409,6 +422,10 @@ class VoicePELink:
     async def _on_disconnect(
         self, expected_disconnect: bool = False
     ) -> None:  # VERIFY: cb signature
+        self._api_audio_ready = False
+        if self._direct_prepare_waiter is not None:
+            self._direct_prepare_waiter.set()
+            self._direct_prepare_waiter = None
         log.warning("voicepe %s disconnected (expected=%s)", self.host, expected_disconnect)
         if self.on_link is not None:
             self._run_cb(self.on_link, False)
@@ -422,9 +439,15 @@ class VoicePELink:
         # the wake, and let abort_va() kill the stock turn; podvoice_audio is the
         # real stream. MUST be async: aioesphomeapi wraps the call in a Task.
         # The device fired voice_assistant.start (wake word) -> treat as WAKE.
-        log.info("voicepe %s: WAKE received (handle_start)", self.host)
-        if self.on_wake is not None:
-            self.on_wake()
+        prepare_waiter = self._direct_prepare_waiter
+        self._api_audio_ready = True
+        if prepare_waiter is not None:
+            log.info("voicepe %s: direct API-audio prepare handshake received", self.host)
+            prepare_waiter.set()
+        else:
+            log.info("voicepe %s: WAKE received (handle_start)", self.host)
+            if self.on_wake is not None:
+                self.on_wake()
         # End this stock VA run shortly after it starts, so the device returns to
         # wake-detecting for the NEXT wake. If left open, the upstream micro_wake_word
         # handler STOPS the running VA on the next wake instead of starting a new one —
@@ -619,7 +642,9 @@ class VoicePELink:
                    to the speaker.
 
         Returns False if the link isn't up (caller falls back to the announce path)."""
-        if self._client is None:
+        if self._client is None or not self.supports_direct:
+            return False
+        if not self._api_audio_ready and not await self._prepare_direct_api_audio():
             return False
         try:
             from aioesphomeapi.model import VoiceAssistantEventType as T
@@ -635,6 +660,41 @@ class VoicePELink:
         except Exception as e:
             log.warning("voicepe %s: begin_direct_reply failed: %s", self.host, e)
             return False
+
+    async def _prepare_direct_api_audio(self) -> bool:
+        """Put ESPHome's VA in native-API audio mode without creating a user wake.
+
+        The firmware action starts a stock VA run. Its request arrives in _handle_start;
+        returning port 0 performs the mode switch, while the normal delayed RUN_END puts
+        the stock state machine back in IDLE. The small settle delay is intentional: the
+        aioesphomeapi response is queued only after _handle_start returns.
+        """
+        if self._api_audio_ready:
+            return True
+        if self._client is None or "podvoice_direct_prepare" not in self._user_services:
+            log.warning(
+                "voicepe %s: direct path is not API-audio safe — using announce",
+                self.host,
+            )
+            return False
+
+        waiter = asyncio.Event()
+        self._direct_prepare_waiter = waiter
+        try:
+            await self._call_service("podvoice_direct_prepare")
+            await asyncio.wait_for(waiter.wait(), timeout=2.0)
+            if not self._api_audio_ready:
+                return False
+            await asyncio.sleep(0.35)
+            return True
+        except TimeoutError:
+            log.warning(
+                "voicepe %s: direct API-audio prepare timed out — using announce", self.host
+            )
+            return False
+        finally:
+            if self._direct_prepare_waiter is waiter:
+                self._direct_prepare_waiter = None
 
     def send_direct_pcm(self, chunk: bytes) -> None:
         """One paced PCM frame into the device's 16 KB speaker buffer (synchronous send).

@@ -10,40 +10,49 @@
 # and that the no-!extend full-duplex config is valid.)
 #
 # Usage:   ./validate.sh [file.yaml ...]      (defaults to podvoice.yaml)
+# Build:   ESPHOME_COMMAND=compile ESPHOME_SECRETS_FILE=/safe/path/secrets.yaml \
+#            ./validate.sh podvoice.yaml
 # Needs:   Python 3.12+ (brew install python@3.12). Creates an isolated venv.
+# All ESPHome work happens in /private/tmp by default — never in the iCloud repo.
 # =============================================================================
 set -euo pipefail
-cd "$(dirname "$0")"
-
-VENV="${ESPHOME_VENV:-/tmp/esphome-venv}"
+SOURCE_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORK_DIR="${ESPHOME_WORK_DIR:-/private/tmp/pv-esphome}"
+VENV="${ESPHOME_VENV:-/private/tmp/podvoice-esphome-venv}"
+COMMAND="${ESPHOME_COMMAND:-config}"
+SECRETS_FILE="${ESPHOME_SECRETS_FILE:-$SOURCE_DIR/secrets.yaml}"
 PY="$(command -v python3.12 || command -v python3.13 || command -v python3.11 || command -v python3)"
-if [ ! -x "$VENV/bin/esphome" ]; then
-  echo "Installing esphome into $VENV ..."
-  "$PY" -m venv "$VENV"
-  "$VENV/bin/pip" install -q --disable-pip-version-check esphome
+if [ ! -x "$VENV/bin/esphome" ] || ! "$VENV/bin/esphome" version | grep -q "2026.6.2"; then
+  echo "Installing ESPHome 2026.6.2 into $VENV ..."
+  "$PY" -m venv --clear "$VENV"
+  "$VENV/bin/pip" install -q --disable-pip-version-check esphome==2026.6.2
 fi
 
-# Dummy secrets so !secret resolves during validation (real values live in the
-# ESPHome add-on's Secrets, never in git). An EXISTING secrets.yaml is real and
-# user-owned: back it up and restore it on exit — the old 'rm -f secrets.yaml'
-# trap DELETED the owner's real file, and the next flash then ran on dummy wifi
-# credentials and stranded the device off the network (2026-07-06 incident).
-if [ -f secrets.yaml ]; then
-  cp secrets.yaml .secrets.yaml.bak
-  trap 'mv -f .secrets.yaml.bak secrets.yaml' EXIT
+# Copy source to the disposable build tree. The repository and its real secrets are
+# read-only inputs; a failed validation can never replace or delete them.
+mkdir -p "$WORK_DIR"
+rsync -a --exclude .esphome --exclude secrets.yaml "$SOURCE_DIR/" "$WORK_DIR/"
+if [ -f "$SECRETS_FILE" ]; then
+  if [ "$SECRETS_FILE" != "$WORK_DIR/secrets.yaml" ]; then
+    cp "$SECRETS_FILE" "$WORK_DIR/secrets.yaml"
+  fi
+elif [ "$COMMAND" != "config" ]; then
+  echo "FAILED: $COMMAND requires a real ESPHOME_SECRETS_FILE; refusing to build flashable firmware with the validation key."
+  exit 2
 else
-  trap 'rm -f secrets.yaml' EXIT
-fi
-cat > secrets.yaml <<'EOF'
+  cat > "$WORK_DIR/secrets.yaml" <<'EOF'
 wifi_ssid: "validate-ssid"
 wifi_password: "validate-pass"
 podvoice_api_key: "j9cvcoCxSjNVzRghGcJ8AHMcR9t/IGH5h4UbaJyfH3I="
 EOF
+fi
+cd "$WORK_DIR"
 
 rc=0
 for f in "${@:-podvoice.yaml}"; do
-  echo "=================== esphome config $f ==================="
-  "$VENV/bin/esphome" config "$f" >/tmp/esphome-validate.out 2>&1 && \
-    echo "VALID: $f" || { rc=1; echo "INVALID: $f"; tail -30 /tmp/esphome-validate.out; }
+  f="$(basename "$f")"
+  echo "=================== esphome $COMMAND $f ==================="
+  "$VENV/bin/esphome" "$COMMAND" "$f" >/private/tmp/podvoice-esphome.out 2>&1 && \
+    echo "OK: $f" || { rc=1; echo "FAILED: $f"; tail -30 /private/tmp/podvoice-esphome.out; }
 done
 exit $rc

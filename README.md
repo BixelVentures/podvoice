@@ -10,6 +10,10 @@ speaker; music keeps playing (quietly) on the HomePod underneath. Home control g
 Assistant's own MCP server on the LAN** — nothing about the house is internet-reachable, and HA's
 expose settings are the single permission list.
 
+Current public facts are handled by the home's existing Gemini search agent exposed through Home
+Assistant, alongside the other home tools. PodVoice does not install a second competing search
+provider.
+
 It is a **sibling** to PodConnect — separate process, separate failure domain, no shared code. They
 meet at exactly one contract: PodConnect's `POST /api/attention` (duck) / `/api/attention/release`.
 If PodVoice ever crashes, PodConnect's heartbeat TTL auto-restores the volume within ~2 seconds, so
@@ -21,7 +25,7 @@ hardware. But unlike a `custom_components` plugin, it runs in its **own containe
 socket hiccup or VAD confusion can't drag Home Assistant (or your music) down with it. Same
 deployment model as PodConnect.
 
-## Status (reliability overhaul v2, 0.91)
+## Status (1.12.0 reliability candidate)
 **OpenAI-only, single pipeline.** The Gemini provider, the provider switch, and the hand-rolled HA
 REST tool bridge are deleted. What ships now:
 - one thin provider module (`openai_realtime.py`) — GPT-Live-1 readiness = a model string + event
@@ -32,11 +36,12 @@ REST tool bridge are deleted. What ships now:
 - cost control: sessions open only on wake, idle/max-duration caps, per-response token metering and
   `sensor.podvoice_cost_today` / `_month` in HA;
 - home control via a **local MCP client** to HA's MCP server (LAN), plus local tools (clock, kitchen
-  timers that ring on the device);
+  timers that ring on the device) and the exposed Gemini search agent;
 - end-phrase fallback (Danish + English) on top of the model-owned `end_conversation` closure.
 
-Hardware-gated validation (echo matrix, wake word, lifecycle acceptance) is handed over in
-**[docs/HANDOVER-v2.md](docs/HANDOVER-v2.md)**. Wake-word plan: [docs/wake-word.md](docs/wake-word.md).
+The direct speaker fix is compiled but deliberately not called delivered until a complete physical
+conversation passes. The measurable product and release gates live in
+**[docs/PRODUKTMÅL.md](docs/PRODUKTMÅL.md)**.
 
 ## Sidebar panel & simulation mode
 PodVoice ships a **Home Assistant Ingress sidebar panel** (served on `:8098` — PodConnect owns `:8099`):
@@ -51,9 +56,9 @@ flow per room so you can watch the panel work before the Voice PE / OpenAI key a
 
 ## Develop & test
 ```sh
-python -m venv .venv && . .venv/bin/activate
-pip install -r podvoice/requirements-dev.txt
-ruff check . && ruff format --check . && mypy && pytest
+python3.12 -m venv .venv && . .venv/bin/activate
+pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
+ruff check . && ruff format --check . && mypy podvoice/gatekeeper && python -m pytest
 ```
 The core is stdlib/httpx/aiohttp-only and fully unit-tested; the SDK-bound module (`voicepe`)
 lazy-imports `aioesphomeapi` and is exercised through fakes, so the whole suite runs without

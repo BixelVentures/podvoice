@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="da">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -26,6 +26,7 @@
     --grey: #6b6b70;    --grey-bg: rgba(120,120,128,.16);
     --blue: #0a84ff;    --blue-bg: rgba(10,132,255,.14);
     --amber: #b8730a;   --amber-bg: rgba(255,159,10,.18);
+    --amber-border: rgba(184,115,10,.5);
     --red: #d93025;     --red-bg: rgba(255,59,48,.15);
   }
   @media (prefers-color-scheme: dark) {
@@ -42,6 +43,7 @@
       --grey: #a0a0a6;    --grey-bg: rgba(120,120,128,.22);
       --blue: #6cb6ff;    --blue-bg: rgba(10,132,255,.22);
       --amber: #ffb340;   --amber-bg: rgba(255,159,10,.22);
+      --amber-border: rgba(255,179,64,.52);
       --red: #ff6b60;     --red-bg: rgba(255,59,48,.22);
     }
   }
@@ -177,6 +179,11 @@
   .roomrow { display: flex; gap: 8px; margin-bottom: 6px; }
   .roomrow input { flex: 1; font: inherit; padding: 7px 9px; border-radius: 9px;
              border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
+  .notice { margin: 9px 0 10px; padding: 11px 12px; border: 1px solid var(--amber-border);
+            border-radius: 11px; background: var(--amber-bg); color: var(--fg);
+            font-size: .82rem; line-height: 1.45; }
+  .notice strong { color: var(--amber); }
+  .notice[hidden] { display: none; }
   details.adv > summary { margin-top: 6px; }
   /* Home control picker */
   .expose { margin: 18px 0 4px; }
@@ -242,13 +249,13 @@
 <body>
 <div class="wrap">
   <h1>PodVoice</h1>
-  <p class="sub" id="sub">Voice gatekeeper</p>
+  <p class="sub" id="sub">Dansk taleassistent</p>
 
   <div class="tabs" role="tablist">
-    <button class="tabbtn active" data-tab="home">Home</button>
-    <button class="tabbtn" data-tab="settings">Setup</button>
-    <button class="tabbtn" data-tab="talk">Talk</button>
-    <button class="tabbtn" data-tab="history">History</button>
+    <button class="tabbtn active" data-tab="home">Hjem</button>
+    <button class="tabbtn" data-tab="settings">Opsætning</button>
+    <button class="tabbtn" data-tab="talk">Tal</button>
+    <button class="tabbtn" data-tab="history">Historik</button>
   </div>
 
   <div class="pane active" id="pane-home">
@@ -282,15 +289,6 @@
         <tr><td style="padding:3px 8px 3px 0">Samtalen lukker</td><td style="padding:3px 8px 3px 0">Slukket</td><td style="padding:3px 0">Kort, blid nedadg&aring;ende tone &mdash; <b>mikrofonen er lukket</b></td></tr>
         <tr><td style="padding:3px 8px 3px 0">Noget gik galt</td><td style="padding:3px 8px 3px 0"><b>R&oslash;d</b></td><td style="padding:3px 0">Den siger h&oslash;jt hvad der er galt</td></tr>
       </table>
-      <h2>What the light ring means</h2>
-      <div style="display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px">
-        <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#2f3742;vertical-align:-1px;margin-right:5px"></span>Off — asleep</span>
-        <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#18bbf2;vertical-align:-1px;margin-right:5px"></span>Cyan — listening</span>
-        <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#ff8c00;vertical-align:-1px;margin-right:5px"></span>Amber — thinking</span>
-        <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#78dc8c;vertical-align:-1px;margin-right:5px"></span>Green — speaking</span>
-        <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#18bbf2;opacity:.45;vertical-align:-1px;margin-right:5px"></span>Dim cyan — follow-up</span>
-        <span class="sub"><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#ff2222;vertical-align:-1px;margin-right:5px"></span>Red — muted / problem</span>
-      </div>
     </div>
 
     <div class="section">
@@ -355,7 +353,13 @@
         <span></span><span id="s_voicepe_noise_psk_hint" class="sub" style="display:none;font-size:.76rem">Saved &mdash; type to replace.</span>
       </div>
       <div id="s_rooms" style="margin-top:8px"></div>
-      <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Add room</button>
+      <div id="s_room_warning" class="notice" role="alert" hidden>
+        <strong>Adressen kan flytte sig.</strong> En rå IP kan ændre sig efter genstart
+        eller flash. Brug puckens <code>.local</code>-navn, fx
+        <code>podvoice-pe-123456.local</code>. Hvis dit netværk ikke kan slå det op i
+        add-on&rsquo;en, så lav en fast DHCP-reservation i routeren.
+      </div>
+      <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Tilføj rum</button>
 
       <section class="expose">
         <div class="exhead">
@@ -477,9 +481,9 @@ function toast(msg) {
 
 function renderSub(data) {
   var sub = document.getElementById("sub");
-  var bits = ["Voice gatekeeper"];
+  var bits = ["Dansk taleassistent"];
   if (data && data.simulate) bits.push("simulation");
-  bits.push(connected ? "live" : "connecting…");
+  bits.push(connected ? "forbundet" : "forbinder…");
   sub.textContent = bits.join(" · ");
   sub.style.color = connected ? "" : "var(--amber)";
 }
@@ -543,7 +547,7 @@ function renderRooms() {
 }
 
 function renderMetrics(m) {
-  var wrap = document.getElementById("metrics"); if (!wrap) return;  // metrics removed from UI
+  var wrap = document.getElementById("metrics"); if (!wrap) return;
   wrap.innerHTML = "";
   Object.keys(METRIC_LABEL).forEach(function (k) {
     var box = el("div", "metric");
@@ -587,23 +591,6 @@ function renderActivity(list) {
   list.forEach(addActivity);
 }
 
-var MAX_LINES = 200;
-function addTranscript(room, dir, text) {
-  var tx = document.getElementById("tx"); if (!tx) return;  // live room-transcript folded into History
-  var empty = tx.querySelector(".empty"); if (empty) empty.remove();
-  var atBottom = tx.scrollHeight - tx.scrollTop - tx.clientHeight < 40;
-  var line = el("div", "line " + (dir === "in" ? "in" : "out"));
-  line.appendChild(el("div", "who", (room || "") + " · " + (dir === "in" ? "you" : "PodVoice")));
-  line.appendChild(document.createTextNode(text));
-  tx.appendChild(line);
-  while (tx.children.length > MAX_LINES) tx.removeChild(tx.firstChild);
-  if (atBottom) tx.scrollTop = tx.scrollHeight;
-}
-function txEmpty() {
-  var tx = document.getElementById("tx"); if (!tx) return;
-  if (!tx.querySelector(".line")) { tx.innerHTML = ""; tx.appendChild(el("div", "empty", "No transcript yet — waiting for activity…")); }
-}
-
 function applyEvent(ev) {
   if (!ev || !ev.type) return;
   if (ev.type === "state") {
@@ -616,8 +603,6 @@ function applyEvent(ev) {
     var m = {}; Object.keys(METRIC_LABEL).forEach(function (k) { if (ev[k] != null) m[k] = ev[k]; });
     if (lastStatus) lastStatus.metrics = m;
     renderMetrics(m);
-  } else if (ev.type === "transcript") {
-    addTranscript(ev.room, ev.dir, ev.text);
   } else if (ev.type === "activity") {
     addActivity(ev);
   }
@@ -649,12 +634,6 @@ function openStream() {
   es.onmessage = function (m) { try { applyEvent(JSON.parse(m.data)); } catch (e) {} };
 }
 
-var _clearBtn = document.getElementById("clear");
-if (_clearBtn) _clearBtn.onclick = function () {
-  var tx = document.getElementById("tx"); if (tx) { tx.innerHTML = ""; txEmpty(); }
-};
-
-txEmpty();
 renderMetrics({});
 poll();
 openStream();
@@ -975,10 +954,23 @@ setInterval(poll, 3000);
   var pcRooms = [];  // rooms from PodConnect (no hardcoded ids)
 
   var roomsWrap = document.getElementById("s_rooms");
+  var roomWarning = document.getElementById("s_room_warning");
+  function isRawIpv4(value) {
+    var parts = String(value || "").trim().split(".");
+    return parts.length === 4 && parts.every(function (part) {
+      return /^\d{1,3}$/.test(part) && Number(part) <= 255;
+    });
+  }
+  function updateAddressWarning() {
+    var raw = Array.prototype.some.call(roomsWrap.querySelectorAll(".rh"), function (field) {
+      return isRawIpv4(field.value);
+    });
+    roomWarning.hidden = !raw;
+  }
   function roomField(room) {
     if (pcRooms.length) {
       var sel = document.createElement("select"); sel.className = "rr";
-      var blank = document.createElement("option"); blank.value = ""; blank.textContent = "— pick room —"; sel.appendChild(blank);
+      var blank = document.createElement("option"); blank.value = ""; blank.textContent = "— vælg rum —"; sel.appendChild(blank);
       var seen = false;
       pcRooms.forEach(function (rm) {
         var o = document.createElement("option"); o.value = rm.id;
@@ -989,16 +981,18 @@ setInterval(poll, 3000);
       if (room && !seen) { var k = document.createElement("option"); k.value = room; k.textContent = room + " (saved)"; k.selected = true; sel.appendChild(k); }
       return sel;
     }
-    var inp = document.createElement("input"); inp.className = "rr"; inp.placeholder = "room id (e.g. r0)"; inp.value = room || "";
+    var inp = document.createElement("input"); inp.className = "rr"; inp.placeholder = "rum-id (fx r0)"; inp.value = room || "";
     return inp;
   }
   function addRoom(host, room) {
     var row = document.createElement("div"); row.className = "roomrow";
-    var h = document.createElement("input"); h.className = "rh"; h.placeholder = "voice-pe.local"; h.value = host || "";
+    var h = document.createElement("input"); h.className = "rh"; h.placeholder = "podvoice-pe-123456.local"; h.value = host || "";
+    h.addEventListener("input", updateAddressWarning);
     var r = roomField(room);
     var x = document.createElement("button"); x.className = "ghost"; x.textContent = "✕";
-    x.setAttribute("aria-label", "Remove room"); x.onclick = function () { row.remove(); };
+    x.setAttribute("aria-label", "Fjern rum"); x.onclick = function () { row.remove(); updateAddressWarning(); };
     row.appendChild(h); row.appendChild(r); row.appendChild(x); roomsWrap.appendChild(row);
+    updateAddressWarning();
   }
   document.getElementById("s_addroom").onclick = function () { addRoom("", ""); };
   function collectRooms() {
@@ -1038,6 +1032,7 @@ setInterval(poll, 3000);
       updateSecretHints(s);
       roomsWrap.innerHTML = "";
       (s.rooms || []).forEach(function (rm) { addRoom(rm.voicepe_host, rm.room); });
+      updateAddressWarning();
       settingsLoaded = ("engine" in s);
     } catch (e) { settingsLoaded = false; }
     if (settingsLoaded) { setSaveEnabled(true); }

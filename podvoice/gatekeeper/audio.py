@@ -173,7 +173,23 @@ def close_tone(rate_hz: int = C.OUTPUT_RATE) -> bytes:
     from "it crashed". That is a UX gap AND a privacy gap. Deliberately quieter and
     shorter than the error tone so it reads as punctuation, not as a problem.
     """
-    return error_tone(rate_hz, freqs=(620.0, 465.0), ms=(90, 130), amp=0.16)
+    # The original 0.16 / 220 ms cue was technically present in the device log but
+    # inaudible to the owner in a normal room. Keep it gentle, yet unmistakable.
+    return error_tone(rate_hz, freqs=(620.0, 465.0), ms=(105, 155), amp=0.21)
+
+
+def turn_tone(rate_hz: int = C.OUTPUT_RATE) -> bytes:
+    """A quiet rising cue that means: the reply is over, you may speak now.
+
+    The silent lead lets the room's last speech reflections die while the echo shield
+    is still up. The cue then marks the exact hand-over instead of asking the user to
+    guess when a cyan ring changed brightness. It is appended to the reply stream, so
+    it cannot open a second announcement or race the reply.
+    """
+    lead_ms = 220
+    silence = bytes(int(rate_hz * lead_ms / 1000) * C.SAMPLE_WIDTH)
+    cue = error_tone(rate_hz, freqs=(540.0, 720.0), ms=(45, 65), amp=0.11)
+    return silence + cue
 
 
 def error_tone(

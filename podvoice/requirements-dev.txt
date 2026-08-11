@@ -8,9 +8,9 @@
 # environment reasons alone and every "suite green" claim from that machine was partly
 # meaningless. pyproject already declares requires-python = ">=3.12"; this file is the
 # reminder that the venv has to match it.
-pytest
-pytest-asyncio
-pytest-aiohttp
-respx
-ruff
-mypy
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-aiohttp==1.1.1
+respx==0.23.1
+ruff==0.16.2
+mypy==2.3.0

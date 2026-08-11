@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.12.0 — ærlig turtagning, relevant værktøjsbrug og sikker direct-opstart
+
+- Voice Assistants direct-svar har nu både sin egen resampler og sin egen mixer-source
+  med endelig timeout. YAML, genereret C++ og fuld firmwarebygning er verificeret; en
+  hel fysisk samtale mangler stadig, så standarden forbliver `announce`.
+- Direct-opstarten har nu en eksplicit API-audio-handshake. En direct-TTS før første
+  wake efter boot kørte ellers Voice Assistant i standard-UDP-tilstand og crashede
+  enheden på en uåbnet socket. Kun firmware med både `direct_speaker_v3` og servicen
+  `podvoice_direct_prepare` kan vælges automatisk; ældre kandidater falder tilbage til
+  announce.
+- Feltprøven 11. august fangede `AGF spille` som `give spil`: modellen valgte
+  `GetLiveContext` og læste irrelevant vejr op. Prompten kræver nu semantisk relevans
+  og opklaring: GetLiveContext er kun hjemmets tilstand, og et faktuelt men irrelevant
+  værktøjsresultat må ikke siges højt.
+- Turtagningen følger nu det, familien faktisk hører: ringen forbliver grøn til sidste
+  svarbyte, et stille reverb-mellemrum + et kort stigende bip markerer "din tur", og
+  opfølgningsvinduet er dæmpet cyan. Ny tale gør cyan klar igen. Lukketonen er gjort
+  tydeligere; LED slukkes fortsat ved den fulde teardown.
+- Den eksisterende Gemini-søgeagent via Home Assistant forbliver eneste søgevej. En
+  konkurrerende OpenAI-søgefunktion blev afvist under review, fordi den kunne skygge
+  HA-værktøjet og endnu ikke havde vundet en live A/B-test.
+- FLAC-streaming afslutter korte svar korrekt og lukker chunked HTTP-responsen; den
+  tidligere testhang var en reel sluttilstandsfejl.
+- Panelet viser rå IP-adresser som et gult problem ved rumfeltet og forklarer `.local`
+  samt fast DHCP-reservation. Død transcript-JavaScript og den dobbelte lysforklaring
+  er fjernet.
+- Python 3.12-afhængigheder er låst, CI installerer runtime + dev sammen, og den
+  målbare releasekontrakt står i `docs/PRODUKTMÅL.md`.
+
 ## 1.11.1 — hastefix: direktvejen efterlod pucken hængende, tilbage til den beviste vej
 
 **Symptomet du så:** intet svar, og ringen der spandt blåt i det uendelige.

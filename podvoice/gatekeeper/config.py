@@ -166,8 +166,9 @@ def from_options(opts: dict) -> Config:
             True if opts.get("engine") == "thin" else bool(opts.get("reply_streaming", False))
         ),
         # "auto" = use the direct PCM path IFF the connected firmware advertises it
-        # (voicepe reads the event types the device publishes and looks for
-        # "reply_played"). Announce-only firmware therefore keeps working untouched, and
+        # (voicepe reads the event types the device publishes and looks for the fixed
+        # graph marker "direct_speaker_v3" plus its API-audio prepare action). Older/broken firmware therefore keeps
+        # using announce, and
         # no saved value can point at a capability the hardware does not have — which is
         # exactly how 0.70 produced total silence. Explicit "announce"/"direct" remain
         # available as an override for debugging.

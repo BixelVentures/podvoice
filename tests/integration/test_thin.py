@@ -105,7 +105,7 @@ async def test_full_conversation_wake_reply_idle_close():
         assert session.sm.state is State.AI_SPEAKING
 
         gemini.emit(TurnComplete())
-        await _wait_until(lambda: session.sm.state is State.LISTENING)  # stays open
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)  # dim follow-up
 
         gemini.emit(Idle())  # the SERVER ends the conversation — no client timers
         await _wait_until(lambda: session.sm.state is State.IDLE)
@@ -396,8 +396,52 @@ async def test_tool_turn_keeps_one_continuous_announce():
 
         gemini.emit(AudioChunk(_frame(), item_id="answer"))  # the real answer
         gemini.emit(TurnComplete())  # no tool pending -> burst really ends
-        await _wait_until(lambda: session.sm.state is State.LISTENING)
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
         assert len(voicepe.announced_urls) == 1  # ONE announce for the whole burst
+    finally:
+        await session.aclose()
+
+
+async def test_reply_led_and_audio_mark_the_real_turn_boundary():
+    """Green lasts until the device is silent; only then does the ring dim.
+
+    The rising cue is part of the same reply stream, so the family gets one audible
+    hand-over without a second announce race. Fresh speech brightens the ring again.
+    """
+    from gatekeeper import audio as audio_mod
+    from gatekeeper.led import led_command_for
+
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        reply = _frame(n_samples=2400)
+        gemini.emit(AudioChunk(reply, item_id="turn-boundary"))
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)
+        gemini.emit(TurnComplete())
+        await _wait_until(lambda: session._speaking is False)
+
+        green = led_command_for(State.AI_SPEAKING)
+        assert session.sm.state is State.AI_SPEAKING
+        assert (True, green.rgb, green.brightness) in voicepe.light_commands
+
+        streamed = await session.reply_bus.collect(ROOM, max_wait_s=0.5)
+        assert streamed.startswith(reply)
+        assert streamed.endswith(audio_mod.turn_tone())
+
+        session._on_media_state(False)
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+        dim = led_command_for(State.LOUNGE_WINDOW)
+        await _wait_until(lambda: voicepe.light_commands[-1] == (True, dim.rgb, dim.brightness))
+
+        gemini.emit(Interrupted())  # ordinary follow-up, not a barge-in
+        await _wait_until(lambda: session.sm.state is State.LISTENING)
+        bright = led_command_for(State.LISTENING)
+        await _wait_until(
+            lambda: voicepe.light_commands[-1] == (True, bright.rgb, bright.brightness)
+        )
     finally:
         await session.aclose()
 

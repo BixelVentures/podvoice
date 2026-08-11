@@ -68,6 +68,9 @@ LEGACY_PROMPT_HASHES = frozenset(
         "ce4450bcdddc7dabb0adb74fad2231f2f071e993f61957d3a1a1cdca71ad2fff",
         "dec42bbffe405fa6ce80758409300764843d6a8c7ad00b6c3d637ea90437e540",
         "f9ca666875134a52804ee2275f81ca17c8bfcd96278c973c83f574096274841d",
+        # 1.11.1 default — retired after the live "AGF spille" -> unrelated weather
+        # failure added the ambiguity/tool-result relevance contract.
+        "cd3a5a2d12ae7e971a09ad1ad233138fd5d19fcf8e200c8a8d970b51f4463bb0",
     }
 )
 

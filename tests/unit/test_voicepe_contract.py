@@ -196,10 +196,10 @@ class EventInfo:
 
 
 async def test_direct_support_is_read_off_the_firmware_not_a_setting():
-    """Capability detection: the device advertises "reply_played" only on 2b firmware.
+    """Capability detection requires the safe private-speaker v3 graph.
 
-    0.70's silence came from a saved speaker_path="direct" pointing at firmware that
-    could not do it. Asking the hardware makes that failure unreachable."""
+    1.11.0 advertised reply_played but shared VA's speaker with the media player, so
+    RESPONSE_FINISHED could wedge forever. That firmware must remain announce-only."""
     old = _StubClient(
         ["podvoice_stream_start", "podvoice_stream_stop"],
         [EventInfo("podvoice_event", 3, ["wake_okay_nabu", "wake_stop"])],
@@ -208,13 +208,43 @@ async def test_direct_support_is_read_off_the_firmware_not_a_setting():
     await link._resolve_entities()
     assert link.supports_direct is False  # announce-only firmware
 
-    new = _StubClient(
+    broken_1110 = _StubClient(
         ["podvoice_stream_start", "podvoice_stream_stop"],
         [EventInfo("podvoice_event", 3, ["wake_okay_nabu", "wake_stop", "reply_played"])],
     )
-    link2 = _link(new)
+    link2 = _link(broken_1110)
     await link2._resolve_entities()
-    assert link2.supports_direct is True
+    assert link2.supports_direct is False
+
+    unsafe_v2 = _StubClient(
+        ["podvoice_stream_start", "podvoice_stream_stop"],
+        [
+            EventInfo(
+                "podvoice_event",
+                3,
+                ["wake_okay_nabu", "wake_stop", "direct_speaker_v2", "reply_played"],
+            )
+        ],
+    )
+    link3 = _link(unsafe_v2)
+    await link3._resolve_entities()
+    assert link3.supports_direct is False  # crashes before first wake: still legacy UDP
+
+    marker_without_prepare = _StubClient(
+        ["podvoice_stream_start", "podvoice_stream_stop"],
+        [EventInfo("podvoice_event", 3, ["direct_speaker_v3", "reply_played"])],
+    )
+    link4 = _link(marker_without_prepare)
+    await link4._resolve_entities()
+    assert link4.supports_direct is False
+
+    fixed = _StubClient(
+        ["podvoice_stream_start", "podvoice_stream_stop", "podvoice_direct_prepare"],
+        [EventInfo("podvoice_event", 3, ["direct_speaker_v3", "reply_played"])],
+    )
+    link5 = _link(fixed)
+    await link5._resolve_entities()
+    assert link5.supports_direct is True
 
 
 async def test_tts_start_must_carry_non_empty_text(monkeypatch):
@@ -250,11 +280,43 @@ async def test_tts_start_must_carry_non_empty_text(monkeypatch):
 
     link = _link(_StubClient([], []))
     link._client = _C()  # type: ignore[assignment]
+    link.supports_direct = True
+    link._api_audio_ready = True
     assert await link.begin_direct_reply() is True
 
     by_kind = dict(sent)
     assert by_kind["tts_start"].get("text"), "TTS_START without text -> the device bails out"
     assert by_kind["tts_end"].get("url"), "TTS_END without url -> never reaches STREAMING_RESPONSE"
+
+
+async def test_direct_prepare_primes_api_audio_without_creating_a_user_wake(monkeypatch):
+    """After reboot ESPHome defaults to UDP. A direct reply before a port=0 handshake
+    crashed in VoiceAssistant::loop(), so V3 must prepare it and suppress the synthetic
+    start from the user-facing wake callback."""
+    import asyncio
+
+    client = _StubClient(["podvoice_direct_prepare"], [])
+    link = _link(client)
+    await link._resolve_entities()
+    wakes: list[bool] = []
+    link.on_wake = lambda: wakes.append(True)
+    monkeypatch.setattr(link, "_schedule_end_va_run", lambda: None)
+
+    prepare = asyncio.create_task(link._prepare_direct_api_audio())
+    await asyncio.sleep(0)
+    assert client.executed == ["podvoice_direct_prepare"]
+    assert await link._handle_start() == 0
+    assert await prepare is True
+    assert link._api_audio_ready is True
+    assert wakes == []
+
+
+async def test_direct_readiness_is_lost_on_disconnect(monkeypatch):
+    client = _StubClient([], [])
+    link = _link(client)
+    link._api_audio_ready = True
+    await link._on_disconnect(expected_disconnect=False)
+    assert link._api_audio_ready is False
 
 
 async def test_wake_word_is_reasserted_on_every_connect():

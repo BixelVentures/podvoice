@@ -59,6 +59,14 @@ api:
     - action: podvoice_stream_stop
       then:
         - lambda: "id(pv_audio).stop_streaming();"
+    # Prime ESPHome's Voice Assistant for native-API audio before a direct reply.
+    # VoiceAssistant defaults to legacy UDP mode after every reboot. Merely subscribing
+    # with API_AUDIO does not change that mode; a start/request/port=0 handshake does.
+    # Without this explicit preparation, a direct speaker test before the first wake
+    # dereferences the unopened UDP socket and reboots the puck (hardware-proven).
+    - action: podvoice_direct_prepare
+      then:
+        - voice_assistant.start:
     # RUNTIME audio tuning — no reflash. PodVoice's panel calls these.
     - action: podvoice_set_mic_channel
       variables:
@@ -103,24 +111,49 @@ api:
 # this with a mww automation + a stream-info lambda and broke wake — this flash isolates
 # which change was the culprit). Package maps merge key-by-key: `!remove` deletes the
 # upstream `media_player:` key (cv.Exclusive with `speaker:`), and the VA's output
-# becomes the announcement resampler. Effects:
+# becomes its own resampler + mixer source. Effects:
 #   - wake path UNCHANGED (mww -> voice_assistant.start -> handle_start -> add-on),
 #   - the announce/FLAC reply path UNCHANGED (the external_media_player ENTITY remains;
 #     only VA-internal announce requests go away, which we never used),
 #   - the direct PCM path becomes POSSIBLE (client-driven TTS events + audio frames),
 #     but the add-on keeps it disabled until this flash is wake-validated.
+#
+# Both nodes below MUST be private to Voice Assistant. A private resampler pointed at
+# the old announcement_mixing_input is not enough: ResamplerSpeaker::has_buffered_data()
+# delegates to its output speaker, and upstream deliberately gives that source
+# `timeout: never`. In 1.11.0 the external media player therefore kept VA's shared
+# resampler running forever after RESPONSE_FINISHED. This finite-timeout source stops
+# itself only after its own ring buffer and pending DAC frames are empty; the private
+# resampler then stops, so VA can emit on_tts_stream_end / reply_played.
+speaker:
+  - id: !extend mixing_speaker
+    source_speakers:
+      - id: voice_assistant_mixing_input
+        # ESPHome's mixer-source default. It starts counting only once both its
+        # buffer and pending DAC frames are empty, so it terminates VA ownership
+        # without making a normal short network gap restart the audio graph.
+        timeout: 500ms
+        buffer_duration: 100ms
+  - platform: resampler
+    id: voice_assistant_resampling_speaker
+    output_speaker: voice_assistant_mixing_input
+    sample_rate: 48000
+    bits_per_sample: 16
+    buffer_duration: 100ms
+    filters: 16
+    taps: 16
+
 voice_assistant:
   media_player: !remove
-  speaker: announcement_resampling_speaker
+  speaker: voice_assistant_resampling_speaker
   # B1 step 2b — THE DIRECT PCM PATH. Two triggers, both verified against the pinned
   # upstream C++ (2026.6.x, src/esphome/components/voice_assistant/voice_assistant.cpp).
   #
   # 1) RATE PIN. The VA never sets the speaker's stream info itself — it only calls
-  #    speaker_->start() and speaker_->play(). The announcement_resampling_speaker is
-  #    SHARED with external_media_player (main.cpp: set_speaker(ANNOUNCEMENT_PIPELINE,
-  #    announcement_resampling_speaker)), so whatever a chime/announcement last decoded
-  #    (48 kHz) is still latched when our reply starts -> our 24 kHz PCM plays at 2x =
-  #    the "chipmunk" that killed 0.67. TTS_START's handler fires this trigger and THEN
+  #    speaker_->start() and speaker_->play(). Pin the private resampler explicitly so a
+  #    future graph change cannot leave an old stream format latched: our PCM is 24 kHz,
+  #    while its output is fixed at the mixer's 48 kHz. TTS_START's handler fires this
+  #    trigger and THEN
   #    calls speaker_->start(), which is exactly the order speaker.h documents
   #    ("should be called after calling set_audio_stream_info"). So pin it here, per reply.
   #
@@ -131,7 +164,7 @@ voice_assistant:
   #    always sends a non-empty text (voicepe.begin_direct_reply) — that is the real fix.
   on_tts_start:
     - lambda: |-
-        id(announcement_resampling_speaker).set_audio_stream_info(
+        id(voice_assistant_resampling_speaker).set_audio_stream_info(
             esphome::audio::AudioStreamInfo(16, 1, 24000));
   # 2) BYTE-EXACT PLAYBACK ACK. State::RESPONSE_FINISHED only advances once
   #    speaker_buffer_size_ == 0 AND !has_buffered_data() AND !is_running() — i.e. the
@@ -143,12 +176,10 @@ voice_assistant:
         id: podvoice_event
         event_type: reply_played
 
-# Upstream ships wifi via improv provisioning (no hard-coded network); a headless
-# PodVoice flash needs credentials, so merge them in from secrets.yaml.
+# Upstream provisions Wi-Fi through Improv and stores it in NVS. An OTA update keeps
+# that network state, so this overlay must not bake a second SSID/password into firmware.
 wifi:
-  ap: {}  # No hardcoded credentials: the device reuses the wifi it was originally
-          # wifi it was originally provisioned with (stored in NVS, survives OTA).
-          # Put the real ssid/password in esphome/secrets.yaml for permanent builds.
+  ap: {}
 
 # --- Phase 2: custom wake-word model (docs/wake-word.md) -----------------------------
 # When the custom-trained microWakeWord model is ready, uncomment to load it. NOTE on
@@ -169,8 +200,11 @@ event:
     id: podvoice_event
     name: "PodVoice event"
     device_class: button
-    # reply_played = the device finished PLAYING a direct-path reply (last byte out of
-    # the DAC). The echo shield keys off this instead of estimating from byte counts.
+    # direct_speaker_v3 is a capability marker (not emitted). V2 fixed the shared
+    # speaker graph, but still crashed if direct audio was tested before the first wake
+    # had switched ESPHome from legacy UDP to API audio. V3 also publishes the explicit
+    # podvoice_direct_prepare handshake above. reply_played is emitted only after the
+    # private path has physically drained.
     event_types:
       [
         single_press,
@@ -179,6 +213,7 @@ event:
         long_press,
         wake_okay_nabu,
         wake_stop,
+        direct_speaker_v3,
         reply_played,
       ]
 
