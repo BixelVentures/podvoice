@@ -9,3 +9,6 @@ def test_ambiguous_transcript_never_turns_an_unrelated_tool_result_into_an_answe
     assert "getlivecontext er kun hjemmets aktuelle tilstand" in prompt
     assert "et faktuelt, men irrelevant resultat er ikke et svar" in prompt
     assert "vejr må aldrig blive svar på sport" in prompt
+    assert "give spil i aften" in prompt
+    assert "agf spille i aften" in prompt
+    assert "et vejrresultat pr. definition irrelevant" in prompt

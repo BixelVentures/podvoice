@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.12.1 — prompten håndterer dansk ASR-usikkerhed bedre
+
+- Den observerede `AGF spille` → `give spil`-fejl er nu gjort eksplicit i
+  systemprompten som en fonetisk ASR-usikkerhed: modellen skal spørge kort eller søge
+  målrettet, ikke vælge et irrelevant hjemme-/vejrresultat.
+- Der er stadig ingen deterministisk bypass i runtime. Realtime-modellen ejer fortsat
+  fortolkning og værktøjsbrug; kontrakten er bare skærpet, så den ikke belønnes for et
+  faktuelt men forkert svar.
+- En gemt 1.12.0-defaultprompt migreres automatisk til den nye 1.12.1-default, mens
+  reelle brugerændringer bevares.
+
 ## 1.12.0 — ærlig turtagning, relevant værktøjsbrug og sikker direct-opstart
 
 - Voice Assistants direct-svar har nu både sin egen resampler og sin egen mixer-source

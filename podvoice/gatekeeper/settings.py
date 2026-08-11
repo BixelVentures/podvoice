@@ -71,6 +71,10 @@ LEGACY_PROMPT_HASHES = frozenset(
         # 1.11.1 default — retired after the live "AGF spille" -> unrelated weather
         # failure added the ambiguity/tool-result relevance contract.
         "cd3a5a2d12ae7e971a09ad1ad233138fd5d19fcf8e200c8a8d970b51f4463bb0",
+        # 1.12.0 default — retired after the panel history proved the same ASR
+        # family ("AGF spille" heard as "give spil") needs an explicit prompt
+        # contract, not a deterministic tool bypass.
+        "9ee6d67e7275b36a146ba86ffc5b061aba8fe6bc18c7b308c896df173228adf9",
     }
 )
 
