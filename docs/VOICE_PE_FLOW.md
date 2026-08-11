@@ -1,5 +1,12 @@
 # Voice PE — Complete Audio & Conversation Flow Design
 
+> **Historisk designnotat, ikke kanonisk plan.** Dette dokument beskriver den
+> software-only announce-vej og de fejl, der førte frem til den nuværende
+> arkitektur. Den aktuelle sandhed står i [ARKITEKTUR.md](ARKITEKTUR.md) og de
+> målbare release-gates i [PRODUKTMÅL.md](PRODUKTMÅL.md). Især er 2b direct PCM nu en
+> bygget kandidat med separat VA-resampler/mixer-source, men **ikke** standard før en
+> fuld fysisk samtale er gennemført.
+
 Status: **DESIGN — for review before building.** Supersedes the ad-hoc "Vej A" bring-up.
 Grounded in two deep investigations (firmware audio architecture + gatekeeper flow) and
 the observed hardware failures (no sound out; self-interrupting/fragmented replies; LED
@@ -59,7 +66,7 @@ so **AEC stays correct**.
 |---|---|---|
 | **No sound from Voice PE** | `send_voice_assistant_audio` is dead (media_player config, not speaker) | Play reply via `external_media_player` HTTP announce (§5, Phase 1) |
 | **Reply fragmented into syllables, self-interrupting** | Mic forwarded to the provider **during AI_SPEAKING** → ambient noise/VAD (and later echo) fire `speech_started` → cancels the model's own reply → loop | Gate-shut (send silence) during AI_SPEAKING + barge-in sustain debounce (§4) |
-| **History shows每 syllable as a turn** | `hub.transcript()` persists every transcript *delta* | Coalesce deltas, flush one turn at end (§6) |
+| **History shows every syllable as a turn** | `hub.transcript()` persists every transcript *delta* | Coalesce deltas, flush one turn at end (§6) |
 | **LED stuck blue / session never closes** | The self-interrupt loop keeps it in LISTENING/AI_SPEAKING; no clean close | Fixed by the gating + the watchdog/no-speech timeout + the LED settle (already shipped) |
 
 ---
