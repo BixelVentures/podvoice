@@ -87,3 +87,34 @@ aldrig i samme release, som dens afløser første gang består en stuetest.
 3. Kør web-, HA- og musikmatrixen — herunder kildebevis fra Gemini-agenten — og ret én
    observeret fejl ad gangen.
 4. Udgiv en release candidate, kør syv-døgns soak, og ryd først derefter fallbackkode.
+
+## Stuetest — den korte protokol før noget kaldes “virker”
+
+Kør først på standardvejen (`speaker_path="announce"`), derefter kun på `direct` når
+Gate B specifikt testes. Gem panelhistorik og add-on-log for hvert run.
+
+1. **Turtagning og feedback**
+   - “Okay Nabu. Hvad er klokken?”
+   - Forvent: kort dansk svar, grøn ring mens svaret høres, tydeligt tur-bip/dæmpet cyan
+     når det er din tur, og LED slukker efter farvel/timeout.
+2. **ASR-usikkerhed og web**
+   - “Hvad tid skal AGF spille i aften?”
+   - Forvent: `Det tjekker jeg.`, et reelt `google_web_sogning`-/MCP-kald, ingen
+     vejr-svar medmindre du bad om vejret, og kilder i resultatet/historikken.
+3. **Opfølgning uden wake**
+   - Efter svaret: “Hvor spiller de?”
+   - Forvent: den forstår konteksten og svarer eller søger; ingen ny wake kræves.
+4. **Hjemmestyring**
+   - “Sluk/tænd [en ufarlig delt lampe i samme rum].”
+   - Forvent: korrekt HA-værktøj, korrekt mål, én fast dansk kvittering, ingen handling
+     på andre rum.
+5. **Musik**
+   - Start musik i rummet og sig “Pause”, “Næste”, “Skru lidt ned”.
+   - Forvent: korrekt rum hver gang, musik dæmpes under samtalen og gendannes bagefter.
+6. **Afbrydelse og lukning**
+   - Afbryd et langt svar med “stop” eller wake-ordet.
+   - Forvent: pucken bliver stille hurtigt, samtalen går tilbage til at lytte eller
+     lukker rent; ingen fastlåst LED, ingen stille spinner.
+
+Hvis ét punkt fejler, rettes den ene observerede fejl før næste runde. En grøn firmware-
+kontrakt eller en grøn unit-test må aldrig erstatte denne fysiske protokol.
