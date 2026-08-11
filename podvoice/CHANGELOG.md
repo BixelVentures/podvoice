@@ -10,6 +10,14 @@
   faktuelt men forkert svar.
 - En gemt 1.12.0-defaultprompt migreres automatisk til den nye 1.12.1-default, mens
   reelle brugerændringer bevares.
+- PodVoice-panelet viser nu den kørende version i toppen, og `/health` returnerer
+  samme version. Dermed kan vi se forskel på “repo er opdateret” og “HA kører faktisk
+  den nye add-on”.
+- `docs/PRODUKTMÅL.md` har nu en kort stuetest-protokol for turtagning, AGF/websøgning,
+  opfølgning, HA-kommandoer, musik, stop, LED og bip — den fysiske test er fortsat
+  det der afgør, om kandidaten virker.
+- De gamle Voice PE/Gemini-planer er markeret som historiske, så næste debugrunde ikke
+  læser dem som kanonisk leveranceplan.
 
 ## 1.12.0 — ærlig turtagning, relevant værktøjsbrug og sikker direct-opstart
 
