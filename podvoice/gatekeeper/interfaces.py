@@ -40,7 +40,7 @@ class GatekeeperLike(Protocol):
 
 
 @runtime_checkable
-class GeminiLike(Protocol):
+class BrainLike(Protocol):
     async def connect(self) -> None: ...
 
     async def send_audio(self, pcm16k: bytes) -> None: ...

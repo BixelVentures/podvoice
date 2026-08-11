@@ -98,7 +98,7 @@ async def test_full_ducking_flow():
     session, attention, voicepe = _build(gemini)
     await session.start()
     try:
-        # Wake -> LISTEN -> Gemini responds -> AI_SPEAKING -> turn done -> LOUNGE.
+        # Wake -> LISTEN -> brain responds -> AI_SPEAKING -> turn done -> LOUNGE.
         await session.sm.post(Event(EventType.WAKE_WORD, ROOM))
         await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
 

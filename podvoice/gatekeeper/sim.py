@@ -2,7 +2,7 @@
 
 Lets the sidebar panel show the whole IDLE -> LISTENING -> AI_SPEAKING ->
 LOUNGE -> release flow animating live, with working controls, before any real
-Voice PE / Gemini key exists. The doubles live in-package (not in tests/) so the
+Voice PE / provider key exists. The doubles live in-package (not in tests/) so the
 shipped add-on can run ``simulate: true``.
 """
 
@@ -80,8 +80,8 @@ class SimVoicePELink:
         pass
 
 
-class SimGemini:
-    """GeminiLike double — one scripted Danish turn per session, then parks."""
+class SimBrain:
+    """BrainLike double — one scripted Danish turn per session, then parks."""
 
     def __init__(self) -> None:
         self._lines = itertools.cycle(_LINES)
@@ -132,7 +132,7 @@ def build_sim_sessions(hub: StatusHub, rooms: list[str]) -> dict:
     for room in rooms:
         attention = SimAttention()
         voicepe = SimVoicePELink(room)
-        brain = SimGemini()
+        brain = SimBrain()
         sessions[room] = RoomSession(
             room=room,
             attention=attention,

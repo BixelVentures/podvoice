@@ -1,9 +1,9 @@
 """The 0-byte gate (PLAN.md §7.4).
 
 For every mic frame the device emits, the gatekeeper either forwards it to
-Gemini (gate open) or, during LOUNGE_WINDOW / IDLE, withholds it. The default
+the realtime brain (gate open) or, during LOUNGE_WINDOW / IDLE, withholds it. The default
 is to send *digital silence* of the same length rather than nothing at all:
-this keeps Gemini's audio clock advancing (avoiding stall/timeout misreads and a
+this keeps the provider's audio clock advancing (avoiding stall/timeout misreads and a
 re-sync hiccup when the gate re-opens) while guaranteeing the server "hears
 silence" so HomePod ambient never trips its VAD. Set ``send_silence=False`` to
 drop frames entirely (true 0 bytes).
@@ -23,7 +23,7 @@ PREROLL_FRAMES = 75
 
 
 class Gatekeeper:
-    """Gates raw mic frames toward the Gemini session (satisfies GatekeeperLike)."""
+    """Gates raw mic frames toward the realtime brain (satisfies GatekeeperLike)."""
 
     def __init__(
         self,

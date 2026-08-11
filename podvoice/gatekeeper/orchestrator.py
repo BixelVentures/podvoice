@@ -1,12 +1,12 @@
 """Per-room orchestrator — wires every component to the state machine (PLAN.md §7).
 
-A ``RoomSession`` owns one Voice PE, one Gemini session, the attention heartbeat,
-the gatekeeper, playback, and the state machine. It implements the state
-machine's ``Effects`` protocol (``apply``) and runs the audio-ingest and
-Gemini-event loops, translating real-world signals into state-machine events.
+A ``RoomSession`` owns one Voice PE, one realtime brain session, the attention
+heartbeat, the gatekeeper, playback, and the state machine. It implements the
+state machine's ``Effects`` protocol (``apply``) and runs the audio-ingest and
+brain-event loops, translating real-world signals into state-machine events.
 
 The session is fully dependency-injected, so it runs against the test fakes
-(FakeAttention / FakeVoicePELink / FakeGeminiSession) without any SDKs.
+(FakeAttention / FakeVoicePELink / fake brain sessions) without any SDKs.
 """
 
 from __future__ import annotations
@@ -783,7 +783,7 @@ class RoomSession:
             else:
                 await self.sm.post(Event(EventType.MODEL_TURN_COMPLETE, self.room))
         elif isinstance(ev, UserSpeechStopped):
-            self._flush_user_turn()  # Gemini streams deltas that are all in by end-of-speech
+            self._flush_user_turn()  # streaming providers may finish transcripts by end-of-speech
             # Drive the state machine into THINKING (distinct LED) so the gap before the
             # reply's first audio doesn't look like "still listening".
             await self.sm.post(Event(EventType.USER_SPEECH_STOPPED, self.room))
@@ -837,11 +837,11 @@ class RoomSession:
     def _flush_user_turn(self) -> None:
         """Persist the buffered user utterance as ONE 'in' turn, then clear.
 
-        Called on BOTH UserSpeechStopped and TurnComplete because the two providers
-        deliver the input transcript at different times: Gemini streams deltas that are
-        all in by end-of-speech (UserSpeechStopped), while OpenAI sends ONE complete
-        transcript that arrives AFTER speech_stopped (so it's only present by
-        TurnComplete). Idempotent — whichever trigger holds the text flushes it; the
+        Called on BOTH UserSpeechStopped and TurnComplete because providers can deliver
+        the input transcript at different times: some stream deltas before
+        end-of-speech (UserSpeechStopped), while OpenAI usually sends ONE complete
+        transcript after speech_stopped (so it's only present by TurnComplete).
+        Idempotent — whichever trigger holds the text flushes it; the
         other finds an empty buffer. This is why History was showing assistant turns
         with no matching 'you' turn: the old single flush ran before the text existed.
         """

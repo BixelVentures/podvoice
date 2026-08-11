@@ -1,8 +1,9 @@
-"""Playback worker: streams Gemini's 24 kHz dialogue PCM to the Voice PE speaker.
+"""Playback worker: streams realtime dialogue PCM to the Voice PE speaker.
 
 ``flush()`` drops queued + in-flight audio (barge-in) via a generation counter.
 ``play_tone()`` bypasses the queue for immediate local feedback (error tone),
-so it works even when Gemini is unreachable. Satisfies interfaces.PlaybackLike.
+so it works even when the realtime provider is unreachable. Satisfies
+interfaces.PlaybackLike.
 """
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ class Playback:
                 break
 
     async def play_tone(self, pcm: bytes) -> None:
-        """Play a local tone immediately, bypassing the Gemini audio queue."""
+        """Play a local tone immediately, bypassing the reply audio queue."""
         with contextlib.suppress(Exception):
             await self._sink(pcm)
 

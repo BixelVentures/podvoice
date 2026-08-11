@@ -287,7 +287,7 @@ async def run(cfg: Config) -> None:
 
     if cfg.simulate:
         rooms = [r.room for r in cfg.rooms] or ["kitchen", "living"]
-        _LOG.info("SIMULATION mode — no Gemini/Voice PE/PodConnect needed. Rooms: %s", rooms)
+        _LOG.info("SIMULATION mode — no provider/Voice PE/PodConnect needed. Rooms: %s", rooms)
         sessions = build_sim_sessions(hub, rooms)
     else:
         if not cfg.rooms:

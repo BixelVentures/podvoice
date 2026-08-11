@@ -2,7 +2,7 @@
 
 This is the only module that speaks ``aioesphomeapi``. It owns the device
 connection (with reconnect), pulls raw 16 kHz PCM up into a bounded queue,
-surfaces wake/button events to the state machine, and pushes Gemini's dialogue
+surfaces wake/button events to the state machine, and pushes assistant dialogue
 audio back down to the speaker. All ducking/state logic lives elsewhere; this
 module just moves bytes and events.
 
