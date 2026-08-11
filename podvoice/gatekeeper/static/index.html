@@ -482,6 +482,7 @@ function toast(msg) {
 function renderSub(data) {
   var sub = document.getElementById("sub");
   var bits = ["Dansk taleassistent"];
+  if (data && data.version) bits.push("v" + data.version);
   if (data && data.simulate) bits.push("simulation");
   bits.push(connected ? "forbundet" : "forbinder…");
   sub.textContent = bits.join(" · ");

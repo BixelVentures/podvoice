@@ -22,3 +22,9 @@ def test_duplicate_light_legend_and_dead_transcript_ui_are_gone():
     assert "What the light ring means" not in html
     assert "function addTranscript" not in html
     assert 'getElementById("tx")' not in html
+
+
+def test_panel_header_shows_running_version_from_status():
+    html = PANEL.read_text()
+
+    assert 'if (data && data.version) bits.push("v" + data.version);' in html

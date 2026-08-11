@@ -46,6 +46,7 @@ async def test_status_and_health():
         r = await client.get("/api/status")
         assert r.status == 200
         body = await r.json()
+        assert body["version"]
         assert body["simulate"] is True
         assert body["rooms"][0]["state"] == "AI_SPEAKING"
 
