@@ -52,7 +52,9 @@ async def test_status_and_health():
 
         h = await client.get("/health")
         assert h.status == 200
-        assert (await h.json())["status"] in ("ok", "degraded")
+        health = await h.json()
+        assert health["status"] in ("ok", "degraded")
+        assert health["version"] == body["version"]
 
 
 async def test_models_endpoint():

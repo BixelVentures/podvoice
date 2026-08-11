@@ -490,7 +490,12 @@ async def _health(request: web.Request) -> web.Response:
     status = "degraded" if degraded else "ok"
     # Always HTTP 200 — the process is alive; "degraded" rides in the body.
     return web.json_response(
-        {"status": status, "services": snap["services"], "rooms": snap["rooms"]}
+        {
+            "status": status,
+            "version": snap["version"],
+            "services": snap["services"],
+            "rooms": snap["rooms"],
+        }
     )
 
 
