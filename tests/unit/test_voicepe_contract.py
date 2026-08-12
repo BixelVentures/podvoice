@@ -387,6 +387,4 @@ async def test_reconnect_resets_stranded_stock_va_before_rearming_wake(monkeypat
     link.wake_word = "okay_nabu"
     await link._on_connect()
     assert "event:run_end" in client.executed
-    assert client.executed.index("event:run_end") < client.executed.index(
-        "podvoice_set_wake_word"
-    )
+    assert client.executed.index("event:run_end") < client.executed.index("podvoice_set_wake_word")

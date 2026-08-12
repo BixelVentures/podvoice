@@ -1239,9 +1239,11 @@ class ThinSession:
             return
         ok = bool(contract.get("ok", True))
         self.hub.set_service("voicepe", "up" if ok else "degraded")
-        missing = list(contract.get("missing_required", [])) + [
-            e for e in contract.get("missing_entities", []) if e == "media_player"
-        ] + list(contract.get("missing_capabilities", []))
+        missing = (
+            list(contract.get("missing_required", []))
+            + [e for e in contract.get("missing_entities", []) if e == "media_player"]
+            + list(contract.get("missing_capabilities", []))
+        )
         if not ok and missing:
             self.hub.activity(
                 self.room,

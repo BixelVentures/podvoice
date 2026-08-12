@@ -322,11 +322,7 @@ class VoicePELink:
         if self._mute_key is None:
             missing_entities.append("mute")  # hardware-mute detection — degraded only
         missing_capabilities = [] if self.supports_same_breath else ["same_breath_v1"]
-        ok = (
-            not missing_required
-            and self._media_key is not None
-            and not missing_capabilities
-        )
+        ok = not missing_required and self._media_key is not None and not missing_capabilities
         self.contract = {
             "ok": ok,
             "esphome_version": getattr(info, "esphome_version", None),

@@ -38,5 +38,5 @@ def test_announce_player_speaker_is_not_reused_by_voice_assistant():
 def test_same_breath_capture_precedes_stock_wake_delay():
     yaml = FIRMWARE.read_text()
     assert "same_breath_v1" in yaml
-    assert 'id(pv_audio).start_streaming();' in yaml
+    assert "id(pv_audio).start_streaming();" in yaml
     assert "event_type: wake_okay_nabu" in yaml
