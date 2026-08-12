@@ -17,7 +17,7 @@ from gatekeeper.playback import Playback
 from gatekeeper.reply import ReplyBus
 from gatekeeper.talk import TALK_ROOM, BrowserLink, TalkHub
 from gatekeeper.thin import ThinSession
-from gatekeeper.voice import AudioChunk, Idle, ToolCall
+from gatekeeper.voice import AudioChunk, Idle, InputTranscript, OutputTranscript, ToolCall
 
 REPLY_URL = f"reply/{TALK_ROOM}.flac?t=tok"
 
@@ -142,5 +142,28 @@ async def test_tool_calls_are_visible_in_the_tab():
         await _wait_until(lambda: len(wire.of("tool")) == 1)
         assert wire.of("tool")[0]["result"] == {"ok": True, "tool": "get_time"}
         await _wait_until(lambda: any("get_time" in m.get("text", "") for m in wire.of("activity")))
+    finally:
+        await session.aclose()
+
+
+async def test_async_input_transcript_cannot_split_assistant_acknowledgement():
+    """OpenAI may complete USER transcription after output has started. Talk must
+    still display complete USER -> acknowledgement -> tool turns, never split words."""
+    gemini = LiveFake()
+    session, link, wire, _attention = _build(gemini)
+    await session.start()
+    try:
+        link.fire_wake()
+        await _wait_until(lambda: session.sm.state is State.LISTENING)
+        gemini.emit(OutputTranscript("Det tjekker"))
+        gemini.emit(InputTranscript("Hvordan gik det AGF i går?"))
+        gemini.emit(OutputTranscript(" jeg."))
+        gemini.emit(ToolCall("c1", "get_time", {}))
+        await _wait_until(lambda: len(wire.of("tool")) == 1)
+        await _wait_until(lambda: len(wire.of("transcript")) == 2)
+        assert wire.of("transcript") == [
+            {"type": "transcript", "dir": "in", "text": "Hvordan gik det AGF i går?"},
+            {"type": "transcript", "dir": "out", "text": "Det tjekker jeg."},
+        ]
     finally:
         await session.aclose()

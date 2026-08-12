@@ -203,3 +203,73 @@ async def test_probe_self_heals_an_empty_tool_list():
     await router.start()  # boot: tools/list FAILS -> probe re-fetches and heals
     assert router.healthy is True  # self-healed already AT BOOT (stronger than the fix asked)
     assert mcp.calls >= 2  # the empty list triggered a forced re-fetch
+
+
+@respx.mock
+async def test_podconnect_control_data_services_are_real_conditional_tools():
+    """Only HA-reported PodConnect services are declared; recently_played calls
+    the documented return_response REST path and returns the exact track contract."""
+    services_url = "http://supervisor/core/api/services"
+    recent_url = "http://supervisor/core/api/services/podconnect/recently_played"
+    respx.get(services_url).mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "domain": "podconnect",
+                    "services": {
+                        "recently_played": {},
+                        "top_tracks": {},
+                        "liked": {},
+                    },
+                }
+            ],
+        )
+    )
+    call = respx.post(recent_url, params={"return_response": ""}).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "changed_states": [],
+                "service_response": {
+                    "tracks": [
+                        {
+                            "name": "The Adults Are Talking",
+                            "artist": "The Strokes",
+                            "uri": "spotify:track:123",
+                        }
+                    ]
+                },
+            },
+        )
+    )
+    async with httpx.AsyncClient() as client:
+        router = ToolRouter(None, supervisor_token="supervisor-token", client=client)
+        await router.start()
+        names = [d["name"] for d in router.declarations()]
+        assert "podconnect_recently_played" in names
+        result = await router.dispatch("podconnect_recently_played", {})
+    assert call.called
+    assert result == {
+        "ok": True,
+        "data": {
+            "tracks": [
+                {
+                    "name": "The Adults Are Talking",
+                    "artist": "The Strokes",
+                    "uri": "spotify:track:123",
+                }
+            ]
+        },
+    }
+
+
+@respx.mock
+async def test_podconnect_tools_are_absent_when_control_is_not_installed():
+    respx.get("http://supervisor/core/api/services").mock(
+        return_value=httpx.Response(200, json=[{"domain": "light", "services": {}}])
+    )
+    async with httpx.AsyncClient() as client:
+        router = ToolRouter(None, supervisor_token="supervisor-token", client=client)
+        await router.start()
+    assert not any(d["name"].startswith("podconnect_") for d in router.declarations())

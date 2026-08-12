@@ -55,6 +55,25 @@ _STANDARD_CAPABILITY_HINTS = {
     "music": "Eksponér PodConnect Control/media_player og podconnect.*-services til Assist/MCP. Brug HA til Spotify-søgning, transport, bibliotek og historik; PodConnect Speakers URL/token er kun til ducking/stop/release.",
 }
 
+_PODCONNECT_DATA_TOOLS = {
+    "podconnect_recently_played": (
+        "recently_played",
+        "Fetch the signed-in user's recently played Spotify tracks, newest first. "
+        "Use this for 'what was the last song I played/heard?' and listening history. "
+        "Returns {tracks:[{name,artist,uri}]}; this is private Spotify data, never use web instead.",
+    ),
+    "podconnect_top_tracks": (
+        "top_tracks",
+        "Fetch the signed-in user's Spotify top tracks. Returns "
+        "{tracks:[{name,artist,uri}]}; this is private Spotify library data.",
+    ),
+    "podconnect_liked": (
+        "liked",
+        "Fetch the signed-in user's Spotify Liked Songs. Returns "
+        "{tracks:[{name,artist,uri}]}; this is private Spotify library data.",
+    ),
+}
+
 # Danish day/month names for the spoken get_time summary (strftime is locale-dependent
 # and the Alpine container has no da_DK locale — hardcoding is the reliable way).
 _WEEKDAYS_DA = ("mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag")
@@ -127,6 +146,7 @@ class ToolRouter:
         self._hub = hub
         self._mcp_tools: list[dict] = []  # cached MCP declarations (OpenAI shape)
         self._mcp_names: set[str] = set()
+        self._podconnect_services: set[str] = set()
         self._fetched_at = 0.0
         self._fetch_lock = asyncio.Lock()
         self._tz: datetime.tzinfo | None = None
@@ -146,6 +166,41 @@ class ToolRouter:
                 "ha_mcp_url/ha_mcp_token in Settings)",
                 getattr(self._mcp, "url", "?"),
             )
+
+    async def _refresh_podconnect_services(self) -> None:
+        """Discover PodConnect Control's real HA services.
+
+        HA's MCP surface exposes entities/intents, but response-returning integration
+        services are not guaranteed to become MCP tools. PodConnect deliberately ships
+        recently_played/top_tracks/liked as REST-callable AI data services, so bridge
+        exactly those names — and only advertise ones HA says are installed.
+        """
+        if not self._token or self._client is None:
+            return
+        try:
+            response = await self._client.get(
+                f"{C.SUPERVISOR_CORE_API}/services",
+                headers={"Authorization": f"Bearer {self._token}"},
+            )
+            response.raise_for_status()
+            domains = response.json()
+            if isinstance(domains, dict):
+                domains = domains.get("services", [])
+            discovered: set[str] = set()
+            for domain in domains if isinstance(domains, list) else []:
+                if not isinstance(domain, dict) or domain.get("domain") != "podconnect":
+                    continue
+                services = domain.get("services") or {}
+                names = services.keys() if isinstance(services, dict) else services
+                discovered = {str(name) for name in names}
+                break
+            self._podconnect_services = discovered
+            log.info(
+                "PodConnect Control data services: %s",
+                ", ".join(sorted(self._podconnect_services)) or "none",
+            )
+        except Exception as e:
+            log.info("PodConnect Control service discovery unavailable: %s", e)
 
     async def _refresh(self, *, force: bool = False) -> None:
         if self._mcp is None:
@@ -187,6 +242,10 @@ class ToolRouter:
         """PROVE home control by touching a REAL read-only tool. A tool COUNT lies:
         HassTurnOn/GetLiveContext exist as tools even with ZERO exposed entities
         (modprøve A2 — 'lam men lyder rask'). Called at boot and periodically."""
+        # HACS can add/reload Control independently of this add-on. Refresh its
+        # services with the normal ten-minute probe; transient HA failures preserve
+        # the last proven service set instead of silently removing music tools.
+        await self._refresh_podconnect_services()
         ok = False
         if self._mcp is not None and "GetLiveContext" not in self._mcp_names:
             # A boot during an HA restart leaves an EMPTY tool list (tools/list failed
@@ -258,6 +317,15 @@ class ToolRouter:
                     },
                 },
             ]
+        for tool_name, (service_name, description) in _PODCONNECT_DATA_TOOLS.items():
+            if service_name in self._podconnect_services:
+                decls.append(
+                    {
+                        "name": tool_name,
+                        "description": description,
+                        "parameters": {"type": "object", "properties": {}},
+                    }
+                )
         local_names = {d["name"] for d in decls}
         decls += [t for t in self._mcp_tools if t["name"] not in local_names]
         return decls
@@ -331,6 +399,8 @@ class ToolRouter:
                 if name == "list_timers":
                     return self._timers.list_timers()
                 return self._timers.cancel_timer(args.get("id"))
+            if name in _PODCONNECT_DATA_TOOLS:
+                return await self._podconnect_data(name)
             if self._mcp is None:
                 return {
                     "ok": False,
@@ -354,6 +424,39 @@ class ToolRouter:
             }
         except Exception as e:  # broad on purpose — never leave the model waiting
             return {"ok": False, "error_kind": "internal", "error": str(e)}
+
+    async def _podconnect_data(self, tool_name: str) -> dict:
+        """Call one documented PodConnect Control response service through HA."""
+        service_name = _PODCONNECT_DATA_TOOLS[tool_name][0]
+        if service_name not in self._podconnect_services:
+            await self._refresh_podconnect_services()
+        if service_name not in self._podconnect_services:
+            return {
+                "ok": False,
+                "error_kind": "unavailable",
+                "error": f"PodConnect Control service podconnect.{service_name} is not installed",
+                "hint": "Install/update PodConnect Control in HACS and reload the integration.",
+            }
+        if not self._token or self._client is None:
+            return {
+                "ok": False,
+                "error_kind": "no_ha_api",
+                "error": "Home Assistant API access is unavailable",
+            }
+        response = await self._client.post(
+            f"{C.SUPERVISOR_CORE_API}/services/podconnect/{service_name}?return_response",
+            headers={"Authorization": f"Bearer {self._token}"},
+            json={},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        data = payload.get("service_response", {}) if isinstance(payload, dict) else {}
+        tracks = data.get("tracks") if isinstance(data, dict) else None
+        return {
+            "ok": True,
+            "data": data,
+            **({"empty": True} if isinstance(tracks, list) and not tracks else {}),
+        }
 
     # ------------------------------------------------------------------ helpers
     async def _get_timezone(self) -> datetime.tzinfo:

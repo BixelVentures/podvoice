@@ -841,8 +841,9 @@ setInterval(poll, 3000);
     if (atBottom) clog.scrollTop = clog.scrollHeight;
   }
 
-  // Transcripts arrive as many small deltas — coalesce them into ONE growing
-  // bubble per speaker/turn instead of a bubble per fragment. Reset on turn end.
+  // Talk receives complete display turns. The server intentionally hides raw
+  // Realtime transcript deltas because its asynchronous input transcript can land
+  // in the middle of the assistant's acknowledgement and visually scramble turns.
   var curT = null, curTDir = null;
   function streamT(dir, text) {
     if (!text) return;

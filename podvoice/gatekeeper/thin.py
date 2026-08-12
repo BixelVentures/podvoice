@@ -645,6 +645,11 @@ class ThinSession:
         elif isinstance(ev, Idle):
             await self.stop(reason="idle")
         elif isinstance(ev, ToolCall):
+            # A tool splits one audible answer into acknowledgement -> tool -> result.
+            # Flush the acknowledgement as its own complete transcript before the
+            # tool line. This also gives Talk deterministic USER -> acknowledgement ->
+            # tool -> answer ordering despite OpenAI's asynchronous input transcript.
+            self._flush_transcript("out")
             if ev.name == "end_conversation":
                 self._ending_conversation = True
             if ev.name != "end_conversation":

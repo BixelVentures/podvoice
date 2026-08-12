@@ -101,7 +101,9 @@ everything. PodConnect Speakers URL/token are for the physical HomePod path: aut
 the family talks, safe restore afterwards, and account-agnostic stop/release when needed. Normal
 voice music commands like *pause*, *next*, *play something*, *skru ned*, Spotify search, library and
 listening-history questions should go through PodConnect Control's Home Assistant `media_player` and
-`podconnect.*` services exposed through MCP. If the user asks external follow-up questions about a
+`podconnect.*` services. PodVoice discovers Control's response-returning `recently_played`,
+`top_tracks` and `liked` services directly through Home Assistant and exposes only those actually
+installed as Realtime tools; no wrapper script is required. If the user asks external follow-up questions about a
 song, artist, album, concert or meaning, PodVoice may use the normal web/search tool. The panel shows
 whether a music tool is actually visible.
 

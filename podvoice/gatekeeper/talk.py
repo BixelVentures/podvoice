@@ -186,9 +186,16 @@ class TalkHub:
         )
 
     def transcript_delta(self, room: str, direction: str, text: str) -> None:
-        self._post({"type": "transcript", "dir": direction, "text": text})
+        # Realtime input transcription is asynchronous: the completed USER text can
+        # arrive after the model has already started its spoken acknowledgement. Raw
+        # deltas therefore rendered as "Det tjekker" -> USER -> "jeg." in Talk even
+        # though the audible conversation was correct. ThinSession already coalesces
+        # whole utterances; only show those authoritative display turns here.
+        pass
 
     def transcript(self, room: str, direction: str, text: str) -> None:
+        if text:
+            self._post({"type": "transcript", "dir": direction, "text": text})
         if self._history is not None and text:
             self._history.append(room, direction, text)
 

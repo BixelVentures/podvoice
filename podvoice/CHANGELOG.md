@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.12.19 — PodConnect Control bruges som Spotify-autoritet
+
+- PodVoice opdager nu PodConnect Controls faktiske Home Assistant-services og
+  annoncerer kun de installerede `podconnect_recently_played`,
+  `podconnect_top_tracks` og `podconnect_liked` til Realtime GPT. Kald går gennem
+  HA's dokumenterede `return_response`-API til PodConnects egne
+  `{tracks:[{name,artist,uri}]}`-resultater — ingen webomvej, automation eller
+  duplikeret Spotify-klient.
+- "Hvad var det sidste nummer?" routes eksplicit til første resultat fra
+  `recently_played`; `GetLiveContext` er kun aktuel `media_player`-state og må ikke
+  bruges som en falsk historikvej. Mangler PodConnect Control, eksponeres værktøjet
+  slet ikke, og assistenten skal fejle ærligt.
+- Talk viser nu komplette vendinger i stedet for rå transcript-deltas. OpenAIs
+  asynkrone inputtranscript kan derfor ikke længere splitte "Det tjekker jeg" rundt
+  om brugerens boble; værktøjsforløbet vises som bruger → kort kvittering → værktøj
+  → svar.
+
 ## 1.12.18 — én dokumenteret dansk lydkæde for Talk og Voice PE
 
 - **Kvalitet er igen standarden:** `gpt-realtime-2.1` er nu standardhjerne. OpenAI
