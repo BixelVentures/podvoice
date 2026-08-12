@@ -40,3 +40,5 @@ def test_same_breath_capture_precedes_stock_wake_delay():
     assert "same_breath_v1" in yaml
     assert "id(pv_audio).start_streaming();" in yaml
     assert "event_type: wake_okay_nabu" in yaml
+    assert "id: !extend wake_sound" in yaml
+    assert "restore_mode: ALWAYS_OFF" in yaml

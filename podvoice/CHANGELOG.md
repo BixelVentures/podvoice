@@ -20,6 +20,10 @@
   kald bagefter”-regel ikke overlever opdateringen i `/data`.
 - Firmwaren annoncerer `same_breath_v1`. Ældre pausekrævende firmware vises nu
   ærligt som degraderet i stedet for grøn og “verificeret”.
+- Wake-bippet er som standard slået fra: cyan ring er det øjeblikkelige
+  lyttesignal, capture starter uden højttalerforurening, og den officielle ekstra
+  300 ms-pause forsvinder. HA's eksponerede Wake sound-switch kan stadig slås til
+  live ved et konkret tilgængelighedsbehov.
 
 ## 1.12.20 — sandfærdigt, tilgængeligt kontrolpanel
 

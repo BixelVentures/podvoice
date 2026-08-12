@@ -176,6 +176,14 @@ voice_assistant:
         id: podvoice_event
         event_type: reply_played
 
+# Snappy default: the cyan ring is the wake/listening acknowledgement.  The stock
+# chime adds a speaker event at the most timing-sensitive point and upstream waits
+# 300 ms after it before starting VA. ALWAYS_OFF initializes it off after every boot;
+# it remains an exposed switch and can still be enabled live for accessibility.
+switch:
+  - id: !extend wake_sound
+    restore_mode: ALWAYS_OFF
+
 # Upstream provisions Wi-Fi through Improv and stores it in NVS. An OTA update keeps
 # that network state, so this overlay must not bake a second SSID/password into firmware.
 wifi:
