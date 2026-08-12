@@ -203,7 +203,13 @@ _GROUNDTEST_STEPS: list[dict[str, Any]] = [
     },
 ]
 
-_GROUNDTEST_OUTCOMES = {"correct", "wrong_hearing", "wrong_answer", "no_response"}
+_GROUNDTEST_OUTCOMES = {
+    "correct",
+    "wrong_hearing",
+    "wrong_answer",
+    "no_response",
+    "blocked",
+}
 
 # Sources allowed to reach the panel/API when locked (the default under HA):
 # loopback + the Supervisor/Ingress docker network (HA proxies ingress from
@@ -267,6 +273,7 @@ TOOLS: web.AppKey = web.AppKey("tools")
 PC_ROOMS: web.AppKey = web.AppKey("pc_rooms")
 HISTORY: web.AppKey = web.AppKey("history")
 REPLY: web.AppKey = web.AppKey("reply")
+AUDIO_TRACE: web.AppKey = web.AppKey("audio_trace")
 
 
 def create_app(
@@ -282,6 +289,7 @@ def create_app(
     tools=None,
     pc_rooms=None,
     history=None,
+    audio_trace=None,
     reply_bus=None,
     reply_token: str | None = None,
     locked: bool = False,
@@ -308,6 +316,7 @@ def create_app(
     app[TOOLS] = tools
     app[PC_ROOMS] = pc_rooms
     app[HISTORY] = history
+    app[AUDIO_TRACE] = audio_trace
     app[REPLY] = reply_bus
     app.add_routes(
         [
@@ -319,6 +328,10 @@ def create_app(
             web.get("/api/groundtest", _groundtest),
             web.post("/api/groundtest/start", _groundtest_start),
             web.post("/api/groundtest/result", _groundtest_result),
+            web.get("/api/audio-trace", _audio_trace_status),
+            web.post("/api/audio-trace/arm", _audio_trace_arm),
+            web.post("/api/audio-trace/cancel", _audio_trace_cancel),
+            web.get("/api/audio-trace/{trace_id}/{stage}", _audio_trace_artifact),
             web.get("/api/events", _events),
             web.post("/api/control", _control),
             web.get("/api/console", _console_ws),
@@ -1015,6 +1028,7 @@ def _groundtest_payload(hub: StatusHub) -> dict:
         and counts["correct"] >= 19
         and counts["wrong_answer"] == 0
         and counts["no_response"] == 0
+        and counts["blocked"] == 0
         and summary["simple_p90_ms"] is not None
         and summary["simple_p90_ms"] <= 2500
         and summary["lookup_p90_ms"] is not None
@@ -1109,6 +1123,62 @@ async def _groundtest_result(request: web.Request) -> web.Response:
     except ValueError as exc:
         return web.json_response({"ok": False, "error": str(exc)}, status=409)
     return web.json_response({"ok": True, **_groundtest_payload(hub)})
+
+
+async def _audio_trace_status(request: web.Request) -> web.Response:
+    recorder = request.app[AUDIO_TRACE]
+    if recorder is None:
+        return web.json_response(
+            {"ok": False, "error": "Lydbevis er ikke tilgængeligt"}, status=501
+        )
+    return web.json_response({"ok": True, **recorder.snapshot()})
+
+
+async def _audio_trace_arm(request: web.Request) -> web.Response:
+    recorder = request.app[AUDIO_TRACE]
+    if recorder is None:
+        return web.json_response(
+            {"ok": False, "error": "Lydbevis er ikke tilgængeligt"}, status=501
+        )
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+    sessions = request.app[SESSIONS]
+    room = str(body.get("room") or next(iter(sessions), ""))
+    if not room or room not in sessions:
+        return web.json_response({"ok": False, "error": "Vælg et gyldigt Voice PE-rum"}, status=400)
+    try:
+        snapshot = recorder.arm(room)
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=409)
+    return web.json_response({"ok": True, **snapshot})
+
+
+async def _audio_trace_cancel(request: web.Request) -> web.Response:
+    recorder = request.app[AUDIO_TRACE]
+    if recorder is None:
+        return web.json_response(
+            {"ok": False, "error": "Lydbevis er ikke tilgængeligt"}, status=501
+        )
+    try:
+        snapshot = recorder.cancel()
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=409)
+    return web.json_response({"ok": True, **snapshot})
+
+
+async def _audio_trace_artifact(request: web.Request) -> web.StreamResponse:
+    recorder = request.app[AUDIO_TRACE]
+    if recorder is None:
+        raise web.HTTPNotFound()
+    trace_id = request.match_info.get("trace_id", "")
+    stage = request.match_info.get("stage", "")
+    target = recorder.artifact(trace_id, stage)
+    if target is None:
+        raise web.HTTPNotFound()
+    content_type = "application/json" if stage == "manifest" else "audio/wav"
+    return web.FileResponse(target, headers={"Content-Type": content_type})
 
 
 async def _events(request: web.Request) -> web.StreamResponse:

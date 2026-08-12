@@ -194,6 +194,7 @@ class ThinSession:
         # (XMOS AEC + conservative turn detection carry echo rejection; Phase 1.4 gates it)
         idle_timeout_s: float = IDLE_FALLBACK_S,
         max_session_s: float = MAX_CONVERSATION_S,
+        audio_trace=None,  # one-shot local diagnostic recorder (physical Voice PE only)
     ) -> None:
         self.room = room
         self.attention = attention
@@ -208,6 +209,7 @@ class ThinSession:
         self.reply_url = reply_url
         self.duck_level = duck_level
         self.usage = usage
+        self.audio_trace = audio_trace
         self.speaker_path = speaker_path
         self.full_duplex = full_duplex
         # Duplex is parked. It must not ride on the AGC-less ASR baseline: even though
@@ -270,6 +272,12 @@ class ThinSession:
         self._turn_cue_appended = False  # this reply ends with the audible hand-over cue
         self._ending_conversation = False  # suppress "your turn" during a goodbye
         self._last_activity = 0.0  # monotonic — feeds the client-side idle fallback
+        self._trace_reason = "teardown"
+
+        # Capture the exact post-resample bytes that the provider receives. The hook
+        # remains installed but is a no-op unless the owner explicitly arms one trace.
+        if self.audio_trace is not None and hasattr(self.brain, "audio_observer"):
+            self.brain.audio_observer = self._trace_provider_audio
 
         if hub is not None:
             hub.register_room(room)
@@ -298,6 +306,7 @@ class ThinSession:
 
     async def aclose(self) -> None:
         self._closing = True
+        self._trace_reason = "shutdown"
         await self._teardown(release_music=True)
         with contextlib.suppress(Exception):
             if hasattr(self.voicepe, "set_light"):
@@ -350,6 +359,22 @@ class ThinSession:
             getattr(self.voicepe, "mic_gain", "?"),
             getattr(self.brain, "noise", "?"),
         )
+        if self.audio_trace is not None:
+            self.audio_trace.begin(
+                self.room,
+                {
+                    "mic_channel": getattr(self.voicepe, "mic_channel", None),
+                    "mic_gain": getattr(self.voicepe, "mic_gain", None),
+                    "input_rate": getattr(self.brain, "input_rate", C.INPUT_RATE),
+                    "model": getattr(self.brain, "model", None),
+                    "turn_preset": getattr(self.brain, "preset", None),
+                    "openai_noise": getattr(self.brain, "noise", None),
+                    "speaker_path": self.speaker_path,
+                    "same_breath": getattr(self.voicepe, "supports_same_breath", None),
+                },
+            )
+            self._trace_event("wake_received")
+        self._trace_reason = "teardown"
         self._active = True
         self._ending_conversation = False
         self._turn_cue_appended = False
@@ -385,6 +410,7 @@ class ThinSession:
             _LOG.warning("thin: provider connect failed: %s", e)
             await self._fail("connection")
             return
+        self._trace_event("provider_connected")
         if self.reply_bus is not None:
             self.reply_bus.clear(self.room)
         if self.tools is not None and hasattr(self.brain, "tool_declarations"):
@@ -408,6 +434,8 @@ class ThinSession:
         if not self._active:
             return
         self._ending_conversation = True
+        self._trace_reason = reason
+        self._trace_event("close_requested", reason=reason)
         _LOG.info("thin: closing conversation (%s) [room=%s]", reason, self.room)
         await self._silence_device()
         await self._play_close_cue()
@@ -416,6 +444,8 @@ class ThinSession:
 
     async def _fail(self, kind: str) -> None:
         """Audible error -> clean IDLE. One sound, one activity line, no dead ends."""
+        self._trace_reason = f"error:{kind}"
+        self._trace_event("failure", kind=kind)
         if self.hub is not None:
             self.hub.activity(self.room, "⚠️ Fejl — lukker samtalen")
         await self._silence_device()
@@ -492,6 +522,12 @@ class ThinSession:
             except Exception:
                 pass
         self._set_led(State.IDLE)
+        if self.audio_trace is not None:
+            try:
+                self.audio_trace.finish(self._trace_reason)
+            except Exception as exc:
+                # Diagnostics may never wedge the real assistant teardown.
+                _LOG.warning("thin: could not save audio trace: %s", exc)
 
     # ------------------------------------------------------------- audio pumps
     async def _pump_mic(self) -> None:
@@ -508,6 +544,8 @@ class ThinSession:
             async for frame in self.voicepe.pcm_frames():
                 if not self._active:
                     continue  # drain quietly; stream stop is in flight
+                if self.audio_trace is not None:
+                    self.audio_trace.audio("device", frame, C.INPUT_RATE)
                 if not self.full_duplex and (
                     self._device_playing
                     or time.monotonic() < self._gate_until
@@ -608,8 +646,10 @@ class ThinSession:
         if isinstance(ev, AudioChunk):
             self._on_reply_audio(ev)
         elif isinstance(ev, Interrupted):
+            self._trace_event("speech_started_or_interrupted")
             self._start_barge_debounce()
         elif isinstance(ev, TurnComplete):
+            self._trace_event("response_done", had_tool=self._turn_had_tool)
             if self._turn_had_tool or self._speech_tools:
                 # This response called a tool: the model will speak AGAIN after the
                 # result. Keep the reply stream OPEN so filler + answer play as ONE
@@ -647,8 +687,10 @@ class ThinSession:
                     else:
                         self._enter_followup()
         elif isinstance(ev, Idle):
+            self._trace_event("provider_idle")
             await self.stop(reason="idle")
         elif isinstance(ev, ToolCall):
+            self._trace_event("tool_call", name=ev.name, call_id=ev.id)
             # A tool splits one audible answer into acknowledgement -> tool -> result.
             # Flush the acknowledgement as its own complete transcript before the
             # tool line. This also gives Talk deterministic USER -> acknowledgement ->
@@ -676,6 +718,7 @@ class ThinSession:
 
             task.add_done_callback(_untrack)
         elif isinstance(ev, UserSpeechStopped):
+            self._trace_event("speech_stopped")
             self._speech_stop_t = time.monotonic()  # the clock the family actually feels
             if self._active and not self._speaking and not self._device_playing:
                 # You stopped talking and it is working: amber. Without this the ring
@@ -685,6 +728,7 @@ class ThinSession:
                 self._hub_state("THINKING", None)
             self._cancel_barge_debounce()
         elif isinstance(ev, InputTranscript):
+            self._trace_event("input_transcript", text=ev.text[:500])
             self._buf_in.append(ev.text)
             self._last_user_utterance = ev.text.strip()
             if self.hub is not None:
@@ -722,6 +766,8 @@ class ThinSession:
 
     def _flush_transcript(self, direction: str) -> None:
         buf = self._buf_in if direction == "in" else self._buf_out
+        if buf:
+            self._trace_event("transcript_complete", direction=direction, text="".join(buf)[:1000])
         if buf and self.hub is not None:
             self.hub.transcript(self.room, direction, "".join(buf))
         buf.clear()
@@ -748,6 +794,7 @@ class ThinSession:
             return
         first = not self._speaking
         if first:
+            self._trace_event("response_audio_started", item_id=ev.item_id)
             self._speaking = True
             self._direct = direct
             self._turn_cue_appended = False
@@ -1074,6 +1121,7 @@ class ThinSession:
         """ANNOUNCING edge = playback ground truth: playout clock, the GREEN ring
         (simultaneous with actual sound), and the real speech-stop->audible metric."""
         if announcing:
+            self._trace_event("playback_started")
             self._device_playing = True  # echo shield UP: the room hears the assistant
             self._playback_t0 = time.monotonic()
             if self._active:
@@ -1090,6 +1138,7 @@ class ThinSession:
                     if self.hub is not None:
                         self.hub.set_latency(self.room, ttfr_ms)
         else:
+            self._trace_event("playback_finished", turn_cue=self._turn_cue_appended)
             was_speaking = self._speaking
             self._device_playing = False
             # The device REPORTING "done" is better evidence than our byte estimate —
@@ -1142,6 +1191,12 @@ class ThinSession:
         if self._device_playing:
             return  # a new reply started inside the tail — the shield is still up
         stale = self.voicepe.drain_mic() if hasattr(self.voicepe, "drain_mic") else 0
+        self._trace_event(
+            "echo_gate_released",
+            tail_ms=round(tail_s * 1000),
+            dropped=self._gate_dropped,
+            drained=stale,
+        )
         if self._gate_dropped or stale:
             _LOG.info(
                 "thin: echo shield absorbed %d mic frames during the reply (+%d drained)",
@@ -1149,6 +1204,14 @@ class ThinSession:
                 stale,
             )
         self._gate_dropped = 0
+
+    def _trace_provider_audio(self, pcm: bytes, rate: int) -> None:
+        if self.audio_trace is not None:
+            self.audio_trace.audio("provider", pcm, rate)
+
+    def _trace_event(self, event_name: str, **details) -> None:
+        if self.audio_trace is not None:
+            self.audio_trace.event(event_name, **details)
 
     def _enter_followup(self) -> None:
         """The room is quiet again: dim ring, open mic, one clear next-turn state."""

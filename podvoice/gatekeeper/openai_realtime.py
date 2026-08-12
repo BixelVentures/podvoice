@@ -25,7 +25,7 @@ import base64
 import json
 import logging
 from collections import deque
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 
 import aiohttp
@@ -124,6 +124,12 @@ class OpenAIRealtimeSession:
     # RETIRED knob: kept for settings compatibility, NEVER sent to the server
     # (idle_timeout_ms is a re-prompt trigger, not a closer — see _server_vad).
     idle_timeout_s: int = 25
+    # Optional one-shot diagnostic observer. It receives the EXACT 24 kHz PCM bytes
+    # appended to the provider input buffer, after resampling and immediately before
+    # base64/WebSocket transport. Disabled during normal operation.
+    audio_observer: Callable[[bytes, int], None] | None = field(
+        default=None, init=False, repr=False
+    )
     _http: aiohttp.ClientSession | None = field(default=None, init=False, repr=False)
     _ws: aiohttp.ClientWebSocketResponse | None = field(default=None, init=False, repr=False)
     # High-quality 16k->24k resampler, rebuilt per connect() so filter state is fresh.
@@ -298,6 +304,8 @@ class OpenAIRealtimeSession:
             return
         if self.input_rate == OPENAI_RATE:
             # Already native: touching it could only make it worse.
+            if self.audio_observer is not None:
+                self.audio_observer(pcm16k, OPENAI_RATE)
             b64 = base64.b64encode(pcm16k).decode("ascii")
             await self._ws.send_json({"type": "input_audio_buffer.append", "audio": b64})
             return
@@ -308,6 +316,8 @@ class OpenAIRealtimeSession:
             pcm = resample_pcm16(pcm16k, C.INPUT_RATE, OPENAI_RATE)
         if not pcm:  # streaming resampler may hold a sub-frame tail; nothing to send yet
             return
+        if self.audio_observer is not None:
+            self.audio_observer(pcm, OPENAI_RATE)
         b64 = base64.b64encode(pcm).decode("ascii")
         await self._ws.send_json({"type": "input_audio_buffer.append", "audio": b64})
 

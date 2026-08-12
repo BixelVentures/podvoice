@@ -350,6 +350,13 @@
 
   <div class="pane" id="pane-test" role="tabpanel" aria-labelledby="tab-test" hidden>
     <div class="section">
+      <h2>Lydbevis</h2>
+      <p class="sub" style="margin:2px 0 10px">Optag kun den næste samtale lokalt, så vi kan sammenligne lyden fra Voice PE med præcis den lyd, OpenAI modtog. Optagelsen stopper automatisk og forlader ikke Home Assistant ud over den normale samtale.</p>
+      <button id="trace_arm">Optag næste samtale</button>
+      <button id="trace_cancel" class="ghost" hidden>Annullér</button>
+      <div id="trace_status" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
+    </div>
+    <div class="section">
       <h2>Grundtest</h2>
       <p class="sub" style="margin:2px 0 10px">Én fast test af den fysiske Voice PE. Panelet gemmer, hvad Nabu hørte og gjorde; du afgør, om det faktisk var korrekt i rummet.</p>
       <button id="g_start">Start 20 sætninger</button>
@@ -359,6 +366,7 @@
         <button data-outcome="wrong_hearing" class="ghost">Forkert hørt</button>
         <button data-outcome="wrong_answer" class="ghost">Forkert svar</button>
         <button data-outcome="no_response" class="ghost">Intet skete</button>
+        <button data-outcome="blocked" class="ghost">Kan ikke testes nu</button>
       </div>
       <p id="g_hint" class="sub" style="margin-top:8px"></p>
     </div>
@@ -830,6 +838,67 @@ setInterval(function () {
 
 <script>
 "use strict";
+// ---- One-shot physical audio evidence ----
+(function () {
+  var arm = document.getElementById("trace_arm");
+  var cancel = document.getElementById("trace_cancel");
+  var box = document.getElementById("trace_status");
+  if (!arm || !box) return;
+  function te(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  function stageText(name, stage) {
+    if (!stage) return name + ": ingen lyd";
+    return name + ": " + (stage.duration_ms / 1000).toLocaleString("da-DK", {maximumFractionDigits:1}) + " s · RMS " + stage.rms + " · peak " + stage.peak_pct + "% · clipping " + stage.clipped_pct + "%";
+  }
+  function render(data) {
+    box.innerHTML = "";
+    if (!data || data.ok === false) { box.appendChild(te("div", "empty", (data && data.error) || "Lydbevis er ikke tilgængeligt.")); return; }
+    if (data.active) {
+      box.appendChild(te("div", "line out", "Optager samtalen i " + data.active.room + " — sig sætningen naturligt og afslut med “farvel”."));
+      arm.disabled = true; cancel.hidden = true; return;
+    }
+    if (data.armed_room) {
+      box.appendChild(te("div", "line out", "Klar i " + data.armed_room + ". Den næste “Okay Nabu …”-samtale bliver optaget én gang."));
+      arm.disabled = true; cancel.hidden = false; return;
+    }
+    arm.disabled = false; cancel.hidden = true;
+    if (!data.latest) {
+      box.appendChild(te("div", "empty", "Ingen lydoptagelse endnu.")); return;
+    }
+    var latest = data.latest, stages = latest.stages || {};
+    var line = te("div", "line out");
+    line.appendChild(te("div", "who", "Seneste lydbevis · " + latest.room));
+    line.appendChild(te("div", "sub", stageText("Voice PE", stages.device)));
+    line.appendChild(te("div", "sub", stageText("Sendt til OpenAI", stages.provider)));
+    ["device", "provider", "manifest"].forEach(function (stage) {
+      if (stage !== "manifest" && !stages[stage]) return;
+      var a = te("a", "", stage === "device" ? "Hør Voice PE-lyden" : stage === "provider" ? "Hør OpenAI-lyden" : "Se tidslinjen");
+      a.href = "api/audio-trace/" + encodeURIComponent(latest.id) + "/" + stage;
+      a.style.cssText = "display:inline-block;margin:8px 14px 0 0";
+      line.appendChild(a);
+    });
+    box.appendChild(line);
+  }
+  async function load() {
+    try { render(await (await fetch("api/audio-trace", {cache:"no-store"})).json()); }
+    catch (e) { render({ok:false,error:"Kunne ikke hente lydbevis."}); }
+  }
+  arm.onclick = async function () {
+    arm.disabled = true;
+    try {
+      var r = await fetch("api/audio-trace/arm", {method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+      var data = await r.json(); if (!r.ok) throw new Error(data.error || "HTTP " + r.status); render(data);
+    } catch (e) { toast("Kunne ikke gøre lydoptagelsen klar: " + e.message); arm.disabled = false; }
+  };
+  cancel.onclick = async function () {
+    try { render(await (await fetch("api/audio-trace/cancel", {method:"POST"})).json()); }
+    catch (e) { toast("Kunne ikke annullere lydoptagelsen"); }
+  };
+  load(); setInterval(load, 2000);
+})();
+</script>
+
+<script>
+"use strict";
 // ---- Guided physical baseline ----
 (function () {
   var box = document.getElementById("g_test");
@@ -856,7 +925,7 @@ setInterval(function () {
       (run.results || []).forEach(function (r) {
         if (r.outcome === "correct") return;
         var line = ge("div", "line in");
-        line.appendChild(ge("div", "who", (r.index + 1) + ". " + ({wrong_hearing:"Forkert hørt",wrong_answer:"Forkert svar",no_response:"Intet skete"}[r.outcome] || r.outcome)));
+        line.appendChild(ge("div", "who", (r.index + 1) + ". " + ({wrong_hearing:"Forkert hørt",wrong_answer:"Forkert svar",no_response:"Intet skete",blocked:"Kunne ikke testes"}[r.outcome] || r.outcome)));
         line.appendChild(document.createTextNode("Sag: “" + (r.say || "") + "” · Hørt: “" + ((r.inputs || []).join(" / ") || "intet") + "” · Svar: “" + ((r.outputs || []).join(" / ") || "intet") + "”"));
         box.appendChild(line);
       });

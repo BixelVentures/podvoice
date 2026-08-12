@@ -123,6 +123,7 @@ def _build_session(
     reply_token: str = "",
     speech: Speech | None = None,
     usage: UsageMeter | None = None,
+    audio_trace=None,
 ):
     psk = room.voicepe_noise_psk or cfg.voicepe_noise_psk
     declarations = tools.declarations() if tools is not None else []
@@ -176,6 +177,7 @@ def _build_session(
             # mistake — the shield was off on the device and no setting could reach it.)
             idle_timeout_s=cfg.idle_timeout_s,
             max_session_s=cfg.max_session_min * 60,
+            audio_trace=audio_trace,
         )
     gatekeeper = Gatekeeper(send_to_brain=brain.send_audio, send_silence=False)
     playback = Playback(sink=voicepe.play_pcm)
@@ -287,8 +289,13 @@ async def _restart_addon(token: str) -> bool:
 
 
 async def run(cfg: Config) -> None:
+    from .audio_trace import AudioTraceRecorder
+
     history = History()  # persisted conversations (Talk + Voice PE rooms) for the History tab
     hub = StatusHub(simulate=cfg.simulate, history=history)
+    # Privacy-safe evidence: disabled until the owner arms exactly one conversation
+    # from the ingress panel; local files are bounded and rotated automatically.
+    audio_trace = AudioTraceRecorder()
     reply_bus = ReplyBus()  # AI-reply audio -> /reply/<room>.flac -> device media_player announce
     # Per-boot token protecting /reply/* (the one route exempt from the ingress lock,
     # because the device fetches it over the LAN).
@@ -390,7 +397,16 @@ async def run(cfg: Config) -> None:
         usage = UsageMeter(cfg.supervisor_token, ha_client)
         sessions = {
             r.room: _build_session(
-                cfg, r, attention, tools, hub, reply_bus, reply_token, speech, usage
+                cfg,
+                r,
+                attention,
+                tools,
+                hub,
+                reply_bus,
+                reply_token,
+                speech,
+                usage,
+                audio_trace,
             )
             for r in cfg.rooms
         }
@@ -471,6 +487,7 @@ async def run(cfg: Config) -> None:
         tools=tools,
         pc_rooms=(attention.rooms if attention is not None else None),
         history=history,
+        audio_trace=audio_trace,
         reply_bus=reply_bus,
         reply_token=reply_token,
         # Lock the panel to ingress/loopback when running under HA (Supervisor token

@@ -233,6 +233,27 @@ async def test_groundtest_rejects_skipping_the_active_sentence():
     assert "aktive testsætning" in body["error"]
 
 
+async def test_audio_trace_can_be_armed_only_for_a_real_room(tmp_path):
+    from gatekeeper.audio_trace import AudioTraceRecorder
+
+    recorder = AudioTraceRecorder(tmp_path)
+    app = create_app(StatusHub(), {"r0": _StubSession("r0")}, audio_trace=recorder)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post("/api/audio-trace/arm", json={"room": "missing"})
+        assert response.status == 400
+
+        response = await client.post("/api/audio-trace/arm", json={"room": "r0"})
+        body = await response.json()
+        assert response.status == 200
+        assert body["armed_room"] == "r0"
+
+        response = await client.get("/api/audio-trace")
+        assert (await response.json())["armed_room"] == "r0"
+
+        response = await client.post("/api/audio-trace/cancel")
+        assert (await response.json())["armed_room"] is None
+
+
 async def test_models_endpoint():
     payload = {
         "default": "gemini-2.5-flash-native-audio-preview-12-2025",

@@ -97,3 +97,23 @@ the add-on log must show `mic tuning applied (channel=1 gain=4)` and
 - Sources: home-assistant-voice-pe 26.6.0 release + `home-assistant-voice.yaml` @
   26.6.0; `voice_kit` component source; esphome `voice_assistant`/`api.proto` @ dev;
   home-assistant core `esphome/assist_satellite.py` @ dev; PR #591 / #555.
+
+## 6. One-shot physical audio evidence (1.12.23)
+
+The Test tab can arm **one** conversation in a selected physical room. It captures
+the same privacy-gated turn at two boundaries:
+
+1. `device.wav`: channel-selected and gain-adjusted PCM received over the ESPHome
+   native API, 16 kHz mono PCM16.
+2. `provider.wav`: the exact post-resampler PCM appended to OpenAI's input buffer,
+   24 kHz mono PCM16.
+
+The JSON manifest records millisecond-relative wake, connection, VAD, transcript,
+tool, response-audio, physical playback, echo-gate and closure events together
+with the effective channel/gain/model/turn/noise configuration. This distinguishes
+source corruption from transport/resampling defects and turn-boundary pollution.
+
+Privacy and operational bounds are structural: recording is off by default,
+arming is one-shot, capture ends with the conversation, each stage is capped at
+60 seconds, files remain under `/data/podvoice-audio-traces`, ingress authentication
+protects downloads, and only the latest five manifests/WAV pairs are retained.

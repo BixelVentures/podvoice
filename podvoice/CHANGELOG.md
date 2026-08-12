@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.12.23 — mål den fysiske lyd før næste tuning
+
+- Test-fanen kan nu armere præcis én lokal Voice PE-samtale som lydbevis. Normal
+  drift optager aldrig, en armering bruges kun én gang, optagelsen stopper med
+  samtalen eller efter højst 60 sekunder, og kun de fem seneste beholdes i `/data`.
+- Samme samtale gemmes ved begge relevante grænser: valgt/gainet 16 kHz PCM fra
+  pucken og de eksakte 24 kHz PCM-bytes efter resampling, umiddelbart før de sendes
+  til OpenAI. RMS, peak, clipping, varighed og frameantal vises i panelet.
+- En millisekund-tidslinje binder wake, provider-connect, VAD, transskription,
+  værktøjer, svarlyd, fysisk afspilning, echo-gate og lukkeårsag sammen. Dermed kan
+  tabte førsteord, forurenede opfølgninger og falske `farvel` placeres i det rigtige
+  led uden flere blinde gain-/promptændringer.
+- Grundtesten har nu den særskilte dom “Kan ikke testes nu”, så manglende
+  PodConnect-/musikopsætning ikke registreres som en høre- eller svarfejl. En
+  blokeret funktion kan fortsat ikke gøre den samlede grundgate grøn.
+
 ## 1.12.22 — én fysisk grundtest før flere lokale lapper
 
 - Test-fanen guider nu ejeren gennem én fast baseline på 20 danske sætninger:

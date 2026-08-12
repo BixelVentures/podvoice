@@ -49,11 +49,20 @@ def test_guided_groundtest_requires_a_physical_verdict_for_each_sentence():
     assert 'fetch("api/groundtest"' in html
     assert 'fetch("api/groundtest/start"' in html
     assert 'fetch("api/groundtest/result"' in html
-    for outcome in ("correct", "wrong_hearing", "wrong_answer", "no_response"):
+    assert "Kan ikke testes nu" in html
+    for outcome in ("correct", "wrong_hearing", "wrong_answer", "no_response", "blocked"):
         assert f'data-outcome="{outcome}"' in html
     assert "Forkert hørt" in html
     assert "Forkert svar" in html
     assert "Intet skete" in html
+
+
+def test_test_tab_can_arm_one_local_physical_audio_trace():
+    html = PANEL.read_text()
+    assert "Lydbevis" in html
+    assert "Optag næste samtale" in html
+    assert 'fetch("api/audio-trace/arm"' in html
+    assert 'fetch("api/audio-trace"' in html
 
 
 def test_documented_mic_baseline_is_visible_in_panel():
