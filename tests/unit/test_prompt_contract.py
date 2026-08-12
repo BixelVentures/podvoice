@@ -12,3 +12,11 @@ def test_ambiguous_transcript_never_turns_an_unrelated_tool_result_into_an_answe
     assert "give spil i aften" in prompt
     assert "agf spille i aften" in prompt
     assert "et vejrresultat pr. definition irrelevant" in prompt
+
+
+def test_home_weather_and_music_are_ha_first():
+    prompt = SYSTEM_PROMPT_DA.lower()
+    assert "home assistant er autoriteten for hjemmet" in prompt
+    assert "brug ha/mcp-værktøjerne først" in prompt
+    assert "vejr hvor familien er = ha/weather først" in prompt
+    assert "web kun som fallback" in prompt

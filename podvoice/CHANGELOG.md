@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.12.7 — Home Assistant er førstevalg for hjemmet
+
+- Standardprompten siger nu eksplicit, at Home Assistant er autoriteten for hjemmets
+  enheder, rum, sensorer, vejr, scripts, scener, musikstatus og eksponerede
+  værktøjer. Realtime skal bruge HA/MCP først for hjem/placering og først bruge
+  web/søgning til verden udenfor eller som fallback.
+- Vejr dér hvor familien er, er nu promptet som `HA/weather først`; web er kun
+  fallback eller til et andet sted.
+- En gemt 1.12.6-standardprompt migreres automatisk til den nye standard, mens reelle
+  brugerændringer stadig bevares.
+
 ## 1.12.6 — stuetest kræver konkrete værktøjsbeviser
 
 - Hubben gemmer nu de seneste konkrete tool-navne og resultater, ikke kun samlede

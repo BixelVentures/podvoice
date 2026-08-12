@@ -75,6 +75,9 @@ LEGACY_PROMPT_HASHES = frozenset(
         # family ("AGF spille" heard as "give spil") needs an explicit prompt
         # contract, not a deterministic tool bypass.
         "9ee6d67e7275b36a146ba86ffc5b061aba8fe6bc18c7b308c896df173228adf9",
+        # 1.12.6 default — retired when weather/home/music were made explicitly
+        # HA-first instead of merely "relevant tools".
+        "65e1d425feebfef3e2b57071608b38aea8e18ebf03715bb24499c0d88ce01fef",
     }
 )
 
