@@ -56,6 +56,10 @@ class StatusHub:
         # but the living-room acceptance test needs to know whether the model actually
         # used web search, music and home-control tools — not just get_time.
         self._tool_activity: deque[dict] = deque(maxlen=40)
+        # Recent room state transitions. These are the software truth that drives
+        # LED/ducking/turntaking, so acceptance can prove a fresh physical run actually
+        # listened, thought/spoke and closed after the baseline.
+        self._state_activity: deque[dict] = deque(maxlen=80)
         # A non-destructive "start fresh stuetest now" marker. It lets acceptance
         # evidence ignore old persisted history and old in-memory counters without
         # deleting either.
@@ -86,6 +90,7 @@ class StatusHub:
             "metrics": dict(self._metrics),
             "activity": list(self._activity),
             "tool_activity": list(self._tool_activity),
+            "state_activity": list(self._state_activity),
             "stuetest_started_at": self._stuetest_started_at,
             "stuetest_metric_baseline": dict(self._stuetest_metric_baseline),
         }
@@ -150,6 +155,14 @@ class StatusHub:
         r["state"] = state
         r["level"] = _STATE_LEVEL.get(state, 100)
         r["ducked"] = r["level"] < 100
+        item = {
+            "ts": time.time(),
+            "room": room,
+            "state": state,
+            "level": r["level"],
+            "ducked": r["ducked"],
+        }
+        self._state_activity.append(item)
         self._broadcast(
             {
                 "type": "state",

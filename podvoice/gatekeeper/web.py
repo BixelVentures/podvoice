@@ -627,6 +627,11 @@ async def _acceptance(request: web.Request) -> web.Response:
         for t in (snap.get("tool_activity") or [])
         if not started_at or float(t.get("ts") or 0.0) >= started_at
     ]
+    state_activity = [
+        s
+        for s in (snap.get("state_activity") or [])
+        if not started_at or float(s.get("ts") or 0.0) >= started_at
+    ]
     tool_names = [str(t.get("name") or "") for t in tool_activity]
     tool_texts = [
         f"{t.get('name') or ''} {json.dumps(t.get('args') or {}, ensure_ascii=False)}"
@@ -676,6 +681,10 @@ async def _acceptance(request: web.Request) -> web.Response:
     )
     any_followup_shape = any(len(c.get("turns") or []) >= 4 for c in voice_convs)
     all_services_up = all(s == "up" for s in (snap.get("services") or {}).values())
+    states_seen = [str(s.get("state") or "") for s in state_activity]
+    any_listened = "LISTENING" in states_seen
+    any_thought_or_spoke = any(s in states_seen for s in ("THINKING", "AI_SPEAKING"))
+    any_closed_or_followup = any(s in states_seen for s in ("LOUNGE_WINDOW", "IDLE"))
 
     checks = [
         check(
@@ -707,6 +716,12 @@ async def _acceptance(request: web.Request) -> web.Response:
             "Historik viser en flerturn-samtale/opfølgning",
             any_followup_shape,
             "kræver mindst fire gemte turns i samme Voice PE-samtale",
+        ),
+        check(
+            "turntaking_states",
+            "Stuetest har set lytte-, tænke/tale- og afslutningsfase",
+            any_listened and any_thought_or_spoke and any_closed_or_followup,
+            "states: " + (", ".join(states_seen[-12:]) or "ingen state-skift registreret"),
         ),
         check(
             "tool_calls",
@@ -763,6 +778,7 @@ async def _acceptance(request: web.Request) -> web.Response:
             "checks": checks,
             "metrics": metrics,
             "tool_activity": tool_activity,
+            "state_activity": state_activity,
             "latest_voice_conversation": voice_convs[0] if voice_convs else None,
         }
     )

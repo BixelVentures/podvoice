@@ -84,6 +84,11 @@ async def test_acceptance_report_is_conservative(tmp_path):
     hub.set_service("mcp", "up")
     hub.register_room("kitchen")
     hub.set_connected("kitchen", True)
+    hub.set_state("kitchen", "LISTENING")
+    hub.set_state("kitchen", "THINKING")
+    hub.set_state("kitchen", "AI_SPEAKING")
+    hub.set_state("kitchen", "LOUNGE_WINDOW")
+    hub.set_state("kitchen", "IDLE")
     hub.set_latency("kitchen", 1234)
     hub.incr("tool_calls")
     hub.incr("tool_ok")
@@ -120,6 +125,9 @@ async def test_stuetest_start_makes_acceptance_ignore_old_evidence(tmp_path):
     hub.set_service("mcp", "up")
     hub.register_room("kitchen")
     hub.set_connected("kitchen", True)
+    hub.set_state("kitchen", "LISTENING")
+    hub.set_state("kitchen", "AI_SPEAKING")
+    hub.set_state("kitchen", "IDLE")
     hub.set_latency("kitchen", 1234)
     hub.incr("tool_calls")
     hub.incr("tool_ok")
@@ -143,6 +151,7 @@ async def test_stuetest_start_makes_acceptance_ignore_old_evidence(tmp_path):
     assert by_key["tool_calls"]["ok"] is False  # old metrics are below the baseline
     assert by_key["voice_history"]["ok"] is False  # old persisted history is ignored
     assert by_key["latency"]["ok"] is False  # old room latency is ignored too
+    assert by_key["turntaking_states"]["ok"] is False  # old state transitions are ignored
     assert body["metrics"]["tool_calls"] == 0
 
 

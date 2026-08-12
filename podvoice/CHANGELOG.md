@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.12.12 — stuetest beviser også turntaking-faser
+
+- Hubben gemmer nu seneste room state transitions med timestamps (`LISTENING`,
+  `THINKING`, `AI_SPEAKING`, `LOUNGE_WINDOW`, `IDLE`).
+- `/api/acceptance` kræver efter frisk stuetest, at runnet har set en lyttefase, en
+  tænke/talefase og en afslutnings-/follow-up-fase. Det er software-beviset for den
+  LED/bip-turntaking, der stadig skal verificeres fysisk på Voice PE.
+- State-evidens filtreres også efter “Start frisk stuetest”, så gamle state-skift ikke
+  kan gøre en ny test grøn.
+
 ## 1.12.11 — latency tæller også kun efter frisk stuetest
 
 - Room status gemmer nu `last_latency_ts` sammen med `last_latency_ms`.

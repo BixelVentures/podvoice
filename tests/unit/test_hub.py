@@ -19,6 +19,7 @@ async def test_snapshot_shape_and_state_levels():
     assert room["state"] == "LOUNGE_WINDOW"
     assert room["level"] == 35 and room["ducked"] is True
     assert room["last_latency_ts"] is None
+    assert snap["state_activity"][-1]["state"] == "LOUNGE_WINDOW"
 
 
 async def test_subscribe_receives_broadcasts():
@@ -27,6 +28,7 @@ async def test_subscribe_receives_broadcasts():
     hub.set_state("kitchen", "LISTENING")
     ev = await asyncio.wait_for(q.get(), timeout=1)
     assert ev["type"] == "state" and ev["state"] == "LISTENING" and ev["level"] == 0
+    assert hub.snapshot()["state_activity"][-1]["state"] == "LISTENING"
     hub.set_service("openai", "up")
     ev2 = await asyncio.wait_for(q.get(), timeout=1)
     assert ev2 == {"type": "service", "name": "openai", "status": "up"}
