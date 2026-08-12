@@ -58,6 +58,18 @@ async def test_tool_activity_is_recorded_and_broadcast():
     assert hub.snapshot()["tool_activity"][-1]["name"] == "google_web_sogning"
 
 
+async def test_stuetest_start_records_metric_baseline_and_event():
+    hub = StatusHub()
+    hub.incr("tool_calls", 3)
+    q = await hub.subscribe()
+    started = hub.start_stuetest()
+    snap = hub.snapshot()
+    assert snap["stuetest_started_at"] == started
+    assert snap["stuetest_metric_baseline"]["tool_calls"] == 3
+    events = [await asyncio.wait_for(q.get(), timeout=1) for _ in range(2)]
+    assert [e["type"] for e in events] == ["activity", "stuetest"]
+
+
 async def test_service_only_broadcasts_on_change():
     hub = StatusHub()
     q = await hub.subscribe()

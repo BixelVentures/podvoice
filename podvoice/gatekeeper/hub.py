@@ -56,6 +56,11 @@ class StatusHub:
         # but the living-room acceptance test needs to know whether the model actually
         # used web search, music and home-control tools — not just get_time.
         self._tool_activity: deque[dict] = deque(maxlen=40)
+        # A non-destructive "start fresh stuetest now" marker. It lets acceptance
+        # evidence ignore old persisted history and old in-memory counters without
+        # deleting either.
+        self._stuetest_started_at: float | None = None
+        self._stuetest_metric_baseline: dict[str, int] = dict.fromkeys(_METRIC_KEYS, 0)
 
     # ------------------------------------------------------------------ rooms
     def register_room(self, room: str) -> None:
@@ -80,6 +85,8 @@ class StatusHub:
             "metrics": dict(self._metrics),
             "activity": list(self._activity),
             "tool_activity": list(self._tool_activity),
+            "stuetest_started_at": self._stuetest_started_at,
+            "stuetest_metric_baseline": dict(self._stuetest_metric_baseline),
         }
 
     def activity(self, room: str, text: str) -> None:
@@ -104,6 +111,20 @@ class StatusHub:
         }
         self._tool_activity.append(item)
         self._broadcast({"type": "tool", **item})
+
+    def start_stuetest(self) -> float:
+        """Start a fresh non-destructive acceptance window from this moment."""
+        self._stuetest_started_at = time.time()
+        self._stuetest_metric_baseline = dict(self._metrics)
+        self.activity("*", "🧪 Frisk stuetest startet — ældre evidens ignoreres")
+        self._broadcast(
+            {
+                "type": "stuetest",
+                "started_at": self._stuetest_started_at,
+                "metric_baseline": dict(self._stuetest_metric_baseline),
+            }
+        )
+        return self._stuetest_started_at
 
     # ------------------------------------------------------------------ SSE bus
     async def subscribe(self) -> asyncio.Queue:

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.12.10 — frisk stuetest-baseline uden at slette historik
+
+- Panelet har nu “Start frisk stuetest”. Den sætter et baseline-tidspunkt og
+  metric-baseline uden at slette historik eller nulstille runtime-data.
+- `/api/acceptance` tæller derefter kun historik, tool-events og metric-delta efter
+  baseline. Dermed kan gamle samtaler eller gamle tool-kald ikke få en ny fysisk test
+  til at se grøn ud.
+- `/api/stuetest/start` gør baseline-starten testbar og scriptbar.
+
 ## 1.12.9 — panelet viser selve stuetesten
 
 - Nyt `/api/stuetest` eksponerer den kanoniske fysiske Voice PE-testmatrix som data:

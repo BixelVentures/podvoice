@@ -204,6 +204,7 @@ def create_app(
             web.get("/api/status", _status),
             web.get("/api/acceptance", _acceptance),
             web.get("/api/stuetest", _stuetest),
+            web.post("/api/stuetest/start", _stuetest_start),
             web.get("/api/events", _events),
             web.post("/api/control", _control),
             web.get("/api/console", _console_ws),
@@ -596,10 +597,36 @@ async def _acceptance(request: web.Request) -> web.Response:
     caps = _capabilities(request)
     hist = request.app[HISTORY]
     convs = hist.conversations(limit=20) if hist is not None else []
-    voice_convs = [c for c in convs if c.get("room") != "talk"]
-    metrics = snap.get("metrics") or {}
+    started_at = float(snap.get("stuetest_started_at") or 0.0)
+
+    def after_baseline(conv: dict) -> dict:
+        if not started_at:
+            return conv
+        turns = [t for t in conv.get("turns") or [] if float(t.get("ts") or 0.0) >= started_at]
+        if not turns:
+            return {}
+        return {
+            **conv,
+            "started": float(turns[0].get("ts") or conv.get("started") or 0.0),
+            "ended": float(turns[-1].get("ts") or conv.get("ended") or 0.0),
+            "turns": turns,
+        }
+
+    voice_convs = [
+        scoped for c in convs if c.get("room") != "talk" for scoped in [after_baseline(c)] if scoped
+    ]
+    raw_metrics = snap.get("metrics") or {}
+    baseline = snap.get("stuetest_metric_baseline") or {}
+    metrics = {
+        k: max(0, int(raw_metrics.get(k) or 0) - int(baseline.get(k) or 0))
+        for k in set(raw_metrics) | set(baseline)
+    }
     rooms = snap.get("rooms") or []
-    tool_activity = snap.get("tool_activity") or []
+    tool_activity = [
+        t
+        for t in (snap.get("tool_activity") or [])
+        if not started_at or float(t.get("ts") or 0.0) >= started_at
+    ]
     tool_names = [str(t.get("name") or "") for t in tool_activity]
     tool_texts = [
         f"{t.get('name') or ''} {json.dumps(t.get('args') or {}, ensure_ascii=False)}"
@@ -726,8 +753,10 @@ async def _acceptance(request: web.Request) -> web.Response:
         {
             "status": "evidence-present" if passed else "missing-evidence",
             "generated_at": time.time(),
+            "started_at": started_at or None,
             "does_not_replace_physical_matrix": True,
             "checks": checks,
+            "metrics": metrics,
             "tool_activity": tool_activity,
             "latest_voice_conversation": voice_convs[0] if voice_convs else None,
         }
@@ -743,6 +772,11 @@ async def _stuetest(request: web.Request) -> web.Response:
             "rule": "Hvis ét punkt fejler, ret den ene observerede fejl før næste runde.",
         }
     )
+
+
+async def _stuetest_start(request: web.Request) -> web.Response:
+    hub: StatusHub = request.app[HUB]
+    return web.json_response({"ok": True, "started_at": hub.start_stuetest()})
 
 
 async def _events(request: web.Request) -> web.StreamResponse:

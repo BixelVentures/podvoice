@@ -112,6 +112,39 @@ async def test_acceptance_report_is_conservative(tmp_path):
     assert body["latest_voice_conversation"]["room"] == "kitchen"
 
 
+async def test_stuetest_start_makes_acceptance_ignore_old_evidence(tmp_path):
+    hub = StatusHub()
+    hub.set_service("openai", "up")
+    hub.set_service("voicepe", "up")
+    hub.set_service("podconnect", "up")
+    hub.set_service("mcp", "up")
+    hub.register_room("kitchen")
+    hub.set_connected("kitchen", True)
+    hub.set_latency("kitchen", 1234)
+    hub.incr("tool_calls")
+    hub.incr("tool_ok")
+    hist = History(path=tmp_path / "history.jsonl")
+    hist.append("kitchen", "in", "Hvad er klokken?", ts=1)
+    hist.append("kitchen", "out", "Klokken er otte.", ts=2)
+    hist.append("kitchen", "in", "Hvor spiller AGF?", ts=3)
+    hist.append("kitchen", "out", "Det tjekker jeg.", ts=4)
+    app = create_app(hub, {"kitchen": _StubSession("kitchen")}, tools=_StubTools(), history=hist)
+    async with TestClient(TestServer(app)) as client:
+        r = await client.post("/api/stuetest/start")
+        start = await r.json()
+        assert start["ok"] is True
+
+        r = await client.get("/api/acceptance")
+        body = await r.json()
+
+    assert body["status"] == "missing-evidence"
+    assert body["started_at"] == start["started_at"]
+    by_key = {c["key"]: c for c in body["checks"]}
+    assert by_key["tool_calls"]["ok"] is False  # old metrics are below the baseline
+    assert by_key["voice_history"]["ok"] is False  # old persisted history is ignored
+    assert body["metrics"]["tool_calls"] == 0
+
+
 async def test_stuetest_endpoint_exposes_the_physical_matrix():
     async with TestClient(TestServer(create_app(StatusHub(), {}))) as client:
         r = await client.get("/api/stuetest")
