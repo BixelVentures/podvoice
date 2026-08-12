@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.12.5 — stuetest-metrics må ikke lyve
+
+- `false_barges` var incrementet i thin-engine, men manglede i hub'ens metrikliste og
+  blev derfor aldrig talt. Den tæller nu korrekt.
+- Thin-engine tæller nu tomme men succesfulde tool-resultater som `tool_empty`, ligesom
+  den ældre engine, i stedet for at blande dem sammen med `tool_ok`.
+- Panelets Metrics-sektion viser nu alle de tællere, der bruges til stuetest og soak:
+  tool calls/ok/empty/error, watchdog-aborts og musik-duck/restore.
+
 ## 1.12.4 — stuetesten får et beviskort
 
 - Nyt `/api/acceptance` samler status, capabilities, metrics og historik til et

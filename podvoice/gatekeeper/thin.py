@@ -976,7 +976,12 @@ class ThinSession:
         else:
             result = await self.tools.dispatch(tc.name, tc.args)
         if self.hub is not None:
-            self.hub.incr("tool_ok" if result.get("ok") else "tool_error")
+            if not result.get("ok"):
+                self.hub.incr("tool_error")
+            elif result.get("empty"):
+                self.hub.incr("tool_empty")
+            else:
+                self.hub.incr("tool_ok")
             self.hub.activity(
                 self.room, f"🔧 {tc.name} {'✓' if result.get('ok') else '✕'}"
             )  # tool calls visible in the feed (room card AND the Talk tab)

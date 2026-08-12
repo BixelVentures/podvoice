@@ -472,7 +472,18 @@
 var STATE_PILL = { IDLE: "pill-idle", LISTENING: "pill-listening", AI_SPEAKING: "pill-speaking", LOUNGE_WINDOW: "pill-lounge" };
 var STATE_LABEL = { IDLE: "idle", LISTENING: "listening", AI_SPEAKING: "speaking", LOUNGE_WINDOW: "follow-up" };
 var SVC_LABEL = { openai: "ChatGPT", voicepe: "Voice PE", podconnect: "PodConnect", mcp: "Home control" };
-var METRIC_LABEL = { sessions: "Sessions", barge_ins: "Barge-ins", false_barges: "False barges (filtered)" };
+var METRIC_LABEL = {
+  sessions: "Sessions",
+  barge_ins: "Barge-ins",
+  false_barges: "False barges (filtered)",
+  watchdog_aborts: "Watchdog aborts",
+  tool_calls: "Tool calls",
+  tool_ok: "Tools ok",
+  tool_empty: "Tools empty",
+  tool_error: "Tool errors",
+  attention_engages: "Music ducks",
+  attention_releases: "Music restores"
+};
 
 var rooms = {};
 var connected = false;

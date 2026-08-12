@@ -24,6 +24,7 @@ _STATE_LEVEL = {"IDLE": 100, "LISTENING": 0, "THINKING": 0, "AI_SPEAKING": 0, "L
 _METRIC_KEYS = (
     "sessions",
     "barge_ins",
+    "false_barges",
     "watchdog_aborts",
     "tool_calls",
     "tool_ok",

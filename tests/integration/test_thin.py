@@ -12,6 +12,7 @@ from fakes.fake_voicepe import FakeVoicePELink
 
 from gatekeeper.events import Event, EventType, State
 from gatekeeper.heartbeat import Heartbeat
+from gatekeeper.hub import StatusHub
 from gatekeeper.playback import Playback
 from gatekeeper.reply import ReplyBus
 from gatekeeper.thin import ThinSession
@@ -61,7 +62,7 @@ class FakeTools:
         return []
 
 
-def _build(gemini, *, speaker_path: str = "auto", supports_direct: bool = False):
+def _build(gemini, *, speaker_path: str = "auto", supports_direct: bool = False, hub=None):
     attention = FakeAttention()
     voicepe = FakeVoicePELink(room=ROOM)
     voicepe.supports_direct = supports_direct
@@ -73,6 +74,7 @@ def _build(gemini, *, speaker_path: str = "auto", supports_direct: bool = False)
         voicepe=voicepe,
         playback=Playback(sink=voicepe.play_pcm),
         tools=FakeTools(),
+        hub=hub,
         reply_bus=ReplyBus(),
         reply_url=REPLY_URL,
         speaker_path=speaker_path,
@@ -150,6 +152,29 @@ async def test_tool_call_dispatched_and_conversation_survives():
         await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)
         assert gemini.sent_tool_results[0][0]["name"] == "get_time"
         assert session.sm.state is not State.IDLE  # still open (model may keep talking)
+    finally:
+        await session.aclose()
+
+
+async def test_empty_tool_result_is_counted_separately():
+    class EmptyTools:
+        def declarations(self) -> list[dict]:
+            return []
+
+        async def dispatch(self, name: str, args: dict) -> dict:
+            return {"ok": True, "empty": True}
+
+    gemini = LiveFake()
+    hub = StatusHub()
+    session, _attention, _voicepe = _build(gemini, hub=hub)
+    session.tools = EmptyTools()
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(ToolCall("c_empty", "empty_lookup", {}))
+        await _wait_until(lambda: hub.snapshot()["metrics"]["tool_empty"] == 1)
+        assert hub.snapshot()["metrics"]["tool_ok"] == 0
+        assert hub.snapshot()["metrics"]["tool_error"] == 0
     finally:
         await session.aclose()
 

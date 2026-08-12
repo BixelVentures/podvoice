@@ -37,11 +37,13 @@ async def test_metrics_increment_and_transcript():
     q = await hub.subscribe()
     hub.incr("sessions")
     hub.incr("sessions")
+    hub.incr("false_barges")
     assert hub.snapshot()["metrics"]["sessions"] == 2
+    assert hub.snapshot()["metrics"]["false_barges"] == 1
     hub.transcript("kitchen", "in", "tænd lyset")
-    # drain: 2 metrics events then 1 transcript
-    kinds = [(await asyncio.wait_for(q.get(), timeout=1))["type"] for _ in range(3)]
-    assert kinds == ["metrics", "metrics", "transcript"]
+    # drain: 3 metrics events then 1 transcript
+    kinds = [(await asyncio.wait_for(q.get(), timeout=1))["type"] for _ in range(4)]
+    assert kinds == ["metrics", "metrics", "metrics", "transcript"]
 
 
 async def test_service_only_broadcasts_on_change():
