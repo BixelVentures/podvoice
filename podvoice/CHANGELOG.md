@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.12.16 — stuetest viser næste handling
+
+- `/api/acceptance` returnerer nu en kort `next_action`, så panelet siger hvad der
+  konkret skal rettes eller gentestes i stedet for kun at vise røde checks.
+- Stuetest-panelet viser “Næste handling” under statuslinjen. Grøn basis-evidens
+  minder stadig om, at den fysiske oplevelse skal vurderes før PodVoice kaldes færdig.
+
 ## 1.12.15 — panelet viser turn-cue som ja/nej
 
 - `/api/acceptance` viser nu eksplicit `turn_cue=ja/nej` i turtagningsdetaljen.

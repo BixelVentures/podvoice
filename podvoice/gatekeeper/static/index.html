@@ -735,6 +735,12 @@ setInterval(poll, 3000);
       head.appendChild(ae("div", "who", data.status === "evidence-present" ? "basis-evidens findes" : "mangler evidens"));
       head.appendChild(document.createTextNode(data.started_at ? "Tæller kun evidens efter frisk stuetest-start." : "Fysisk matrix skal stadig køres før release."));
       box.appendChild(head);
+      if (data.next_action) {
+        var nxt = ae("div", "line in");
+        nxt.appendChild(ae("div", "who", "Næste handling"));
+        nxt.appendChild(document.createTextNode(data.next_action));
+        box.appendChild(nxt);
+      }
       (data.checks || []).forEach(function (c) {
         var line = ae("div", "line " + (c.ok ? "out" : "in"));
         line.appendChild(ae("div", "who", (c.ok ? "✓ " : "✕ ") + c.label));

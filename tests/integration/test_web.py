@@ -107,6 +107,7 @@ async def test_acceptance_report_is_conservative(tmp_path):
         body = await r.json()
     assert body["status"] == "evidence-present"
     assert body["does_not_replace_physical_matrix"] is True
+    assert "fysiske oplevelse" in body["next_action"]
     assert all(c["ok"] for c in body["checks"])
     by_key = {c["key"]: c for c in body["checks"]}
     assert "turn_cue=ja" in by_key["turntaking_states"]["detail"]
@@ -149,6 +150,7 @@ async def test_stuetest_start_makes_acceptance_ignore_old_evidence(tmp_path):
 
     assert body["status"] == "missing-evidence"
     assert body["started_at"] == start["started_at"]
+    assert body["next_action"].startswith("Næste:")
     by_key = {c["key"]: c for c in body["checks"]}
     assert by_key["tool_calls"]["ok"] is False  # old metrics are below the baseline
     assert by_key["voice_history"]["ok"] is False  # old persisted history is ignored

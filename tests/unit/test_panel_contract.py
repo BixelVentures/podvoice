@@ -38,3 +38,4 @@ def test_living_room_test_script_is_visible_in_panel():
     assert 'fetch("api/stuetest"' in html
     assert 'fetch("api/stuetest/start"' in html
     assert "Fysisk stuetest" in html
+    assert "Næste handling" in html

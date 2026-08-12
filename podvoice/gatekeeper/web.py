@@ -775,12 +775,25 @@ async def _acceptance(request: web.Request) -> web.Response:
         ),
     ]
     passed = all(c["ok"] for c in checks)
+    first_missing = next((c for c in checks if not c["ok"]), None)
+    if passed:
+        next_action = (
+            "Basis-evidens er komplet. Vurdér nu den fysiske oplevelse: korrekt dansk, "
+            "hørbart svar, LED/bip, korrekt værktøj og ingen fastlåst puck."
+        )
+    elif not started_at:
+        next_action = "Tryk “Start frisk stuetest”, kør hele manuskriptet, og opdatér evidensen."
+    elif first_missing is not None:
+        next_action = f"Næste: ret eller gentest “{first_missing['label']}”."
+    else:
+        next_action = "Kør stuetesten igen og opdatér evidensen."
     return web.json_response(
         {
             "status": "evidence-present" if passed else "missing-evidence",
             "generated_at": time.time(),
             "started_at": started_at or None,
             "does_not_replace_physical_matrix": True,
+            "next_action": next_action,
             "checks": checks,
             "metrics": metrics,
             "tool_activity": tool_activity,
