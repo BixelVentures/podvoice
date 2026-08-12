@@ -383,7 +383,7 @@ class ToolRouter:
                 "error_kind": "timeout",
                 "error": "the service took too long to respond",
             }
-        self._log_tool(name, result)
+        self._log_tool(name, result, args)
         return result
 
     async def _dispatch(self, name: str, args: dict) -> dict:
@@ -499,11 +499,37 @@ class ToolRouter:
             },
         }
 
-    def _log_tool(self, name: str, result: dict) -> None:
-        """One line per dispatched tool so the owner can debug from the Log tab."""
+    def _log_tool(self, name: str, result: dict, args: dict | None = None) -> None:
+        """One bounded evidence line per tool: query plus the contract GPT received."""
+        try:
+            evidence = json.dumps(
+                {
+                    "args": args or {},
+                    "result": {
+                        key: result.get(key)
+                        for key in ("ok", "empty", "summary", "data", "error_kind", "error")
+                        if key in result
+                    },
+                },
+                ensure_ascii=False,
+                default=str,
+            )
+        except (TypeError, ValueError):
+            evidence = "<kunne ikke serialiseres>"
+        if len(evidence) > 4000:
+            evidence = evidence[:4000] + "…"
         if result.get("ok"):
-            log.info("tool %s -> %s", name, "empty" if result.get("empty") else "ok")
+            log.info(
+                "tool %s -> %s evidence=%s",
+                name,
+                "empty" if result.get("empty") else "ok",
+                evidence,
+            )
         else:
             log.warning(
-                "tool %s -> FAILED kind=%s: %s", name, result.get("error_kind"), result.get("error")
+                "tool %s -> FAILED kind=%s: %s evidence=%s",
+                name,
+                result.get("error_kind"),
+                result.get("error"),
+                evidence,
             )

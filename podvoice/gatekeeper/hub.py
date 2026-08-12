@@ -9,6 +9,7 @@ runs fine with no hub (hub=None).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from collections import deque
@@ -33,6 +34,26 @@ _METRIC_KEYS = (
     "attention_engages",
     "attention_releases",
 )
+
+
+def _bounded_result(result: dict, limit: int = 4000) -> dict:
+    """JSON-safe, bounded copy of the tool contract used for test evidence."""
+    keep = {
+        key: result.get(key)
+        for key in ("ok", "empty", "summary", "data", "error_kind", "error")
+        if key in result
+    }
+    try:
+        raw = json.dumps(keep, ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        return {"ok": bool(result.get("ok")), "error": "resultatet kunne ikke vises"}
+    if len(raw) <= limit:
+        return json.loads(raw)
+    return {
+        "ok": bool(result.get("ok")),
+        "truncated": True,
+        "preview": raw[:limit],
+    }
 
 
 class StatusHub:
@@ -69,11 +90,27 @@ class StatusHub:
         # LED/ducking/turntaking, so acceptance can prove a fresh physical run actually
         # listened, thought/spoke and closed after the baseline.
         self._state_activity: deque[dict] = deque(maxlen=80)
+        # Per-answer latency samples. A single ``last_latency_ms`` is useful for a
+        # room card, but it cannot prove p50/p90 or correlate one physical test
+        # sentence with the reply the family actually heard.
+        self._latency_activity: deque[dict] = deque(maxlen=200)
         # A non-destructive "start fresh stuetest now" marker. It lets acceptance
         # evidence ignore old persisted history and old in-memory counters without
         # deleting either.
         self._stuetest_started_at: float | None = None
         self._stuetest_metric_baseline: dict[str, int] = dict.fromkeys(_METRIC_KEYS, 0)
+        # Guided, physical 20-sentence baseline. The panel arms one sentence, the
+        # owner speaks it, and then records the physical verdict. Runtime evidence
+        # is attached by web.py; the human verdict is deliberately authoritative
+        # for "nothing happened" and answer relevance.
+        self._groundtest: dict = {
+            "started_at": None,
+            "step_started_at": None,
+            "current_index": 0,
+            "total": 0,
+            "results": [],
+            "completed_at": None,
+        }
 
     # ------------------------------------------------------------------ rooms
     def register_room(self, room: str) -> None:
@@ -104,8 +141,13 @@ class StatusHub:
             "activity": list(self._activity),
             "tool_activity": list(self._tool_activity),
             "state_activity": list(self._state_activity),
+            "latency_activity": list(self._latency_activity),
             "stuetest_started_at": self._stuetest_started_at,
             "stuetest_metric_baseline": dict(self._stuetest_metric_baseline),
+            "groundtest": {
+                **self._groundtest,
+                "results": [dict(item) for item in self._groundtest["results"]],
+            },
         }
 
     def activity(self, room: str, text: str) -> None:
@@ -127,6 +169,10 @@ class StatusHub:
             "ok": bool(result.get("ok")),
             "empty": bool(result.get("empty")),
             "error_kind": result.get("error_kind"),
+            # Keep the actual contract that GPT saw, not merely a misleading green
+            # "ok". Bound it so a verbose MCP result cannot grow the status feed
+            # without limit. The panel is ingress-only, like conversation history.
+            "result": _bounded_result(result),
         }
         self._tool_activity.append(item)
         self._broadcast({"type": "tool", **item})
@@ -144,6 +190,51 @@ class StatusHub:
             }
         )
         return self._stuetest_started_at
+
+    def start_groundtest(self, total: int) -> dict:
+        """Start and arm a fresh guided physical baseline."""
+        now = time.time()
+        self._groundtest = {
+            "started_at": now,
+            "step_started_at": now,
+            "current_index": 0,
+            "total": max(0, int(total)),
+            "results": [],
+            "completed_at": None,
+        }
+        self.activity("*", "🎯 Grundtest startet — sætning 1 er klar")
+        self._broadcast({"type": "groundtest", **self._groundtest})
+        return self.groundtest()
+
+    def groundtest(self) -> dict:
+        return {
+            **self._groundtest,
+            "results": [dict(item) for item in self._groundtest["results"]],
+        }
+
+    def record_groundtest(self, index: int, outcome: str, evidence: dict) -> dict:
+        """Record one verdict and immediately arm the next sentence."""
+        if self._groundtest["started_at"] is None:
+            raise ValueError("Grundtesten er ikke startet")
+        if index != self._groundtest["current_index"]:
+            raise ValueError("Det er ikke den aktive testsætning")
+        if index >= self._groundtest["total"]:
+            raise ValueError("Grundtesten er allerede færdig")
+        now = time.time()
+        self._groundtest["results"].append(
+            {"index": index, "outcome": outcome, "rated_at": now, **evidence}
+        )
+        next_index = index + 1
+        self._groundtest["current_index"] = next_index
+        if next_index >= self._groundtest["total"]:
+            self._groundtest["completed_at"] = now
+            self._groundtest["step_started_at"] = None
+            self.activity("*", "🏁 Grundtest færdig — resultatet er klar")
+        else:
+            self._groundtest["step_started_at"] = now
+            self.activity("*", f"🎯 Grundtest — sætning {next_index + 1} er klar")
+        self._broadcast({"type": "groundtest", **self._groundtest})
+        return self.groundtest()
 
     # ------------------------------------------------------------------ SSE bus
     async def subscribe(self) -> asyncio.Queue:
@@ -211,6 +302,10 @@ class StatusHub:
         self.register_room(room)
         self._rooms[room]["last_latency_ms"] = None if ms is None else round(ms)
         self._rooms[room]["last_latency_ts"] = None if ms is None else time.time()
+        if ms is not None:
+            self._latency_activity.append(
+                {"ts": self._rooms[room]["last_latency_ts"], "room": room, "ms": round(ms)}
+            )
 
     def set_service(
         self, name: str, status: str, *, reason: str | None = None, source: str = "runtime"

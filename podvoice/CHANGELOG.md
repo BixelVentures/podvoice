@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.12.22 — én fysisk grundtest før flere lokale lapper
+
+- Test-fanen guider nu ejeren gennem én fast baseline på 20 danske sætninger:
+  wake i samme åndedrag, opfølgning, tid/matematik, sport/web, lokalt vejr, HA-lys,
+  PodConnect/Spotify, timer, aktuelle nyheder og ren lukning.
+- Hver sætning kræver en fysisk dom: korrekt, forkert hørt, forkert svar eller intet
+  skete. Et grønt tool-kald kan derfor ikke længere få et irrelevant svar til at se
+  godkendt ud.
+- Resultatet gemmer den faktiske transskription, det hørte svar, states, svartid samt
+  tool-argumenter og det bundne resultat, GPT modtog. Grundgaten kræver mindst 19/20,
+  nul irrelevante/stonne svar, simpelt p90 højst 2,5 s og opslag p90 højst 8 s.
+- Tool-loggen viser nu et begrænset query/resultat-bevis i stedet for kun `-> ok`, så
+  en forkert sports-query eller irrelevant søgekilde kan diagnosticeres direkte.
+
 ## 1.12.21 — naturlig wake-sætning og hurtigere værktøjsflow
 
 - Voice PE starter nu den privatlivsgatede mikrofonstrøm ved den lokale

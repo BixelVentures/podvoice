@@ -82,10 +82,33 @@ async def test_latency_records_timestamp():
     room = hub.snapshot()["rooms"][0]
     assert room["last_latency_ms"] == 988
     assert isinstance(room["last_latency_ts"], float)
+    assert hub.snapshot()["latency_activity"][-1]["ms"] == 988
     hub.set_latency("kitchen", None)
     room = hub.snapshot()["rooms"][0]
     assert room["last_latency_ms"] is None
     assert room["last_latency_ts"] is None
+
+
+async def test_groundtest_records_sequential_physical_verdicts():
+    hub = StatusHub()
+    started = hub.start_groundtest(2)
+    assert started["current_index"] == 0
+    first_start = started["step_started_at"]
+
+    after_first = hub.record_groundtest(
+        0,
+        "wrong_hearing",
+        {"inputs": ["Ja klokken"], "outputs": ["Klokken er tre."], "latency_ms": 3000},
+    )
+    assert after_first["current_index"] == 1
+    assert after_first["step_started_at"] >= first_start
+    assert after_first["results"][0]["outcome"] == "wrong_hearing"
+
+    complete = hub.record_groundtest(
+        1, "correct", {"inputs": ["Hvilken dag?"], "outputs": ["Onsdag."]}
+    )
+    assert complete["completed_at"] is not None
+    assert complete["step_started_at"] is None
 
 
 async def test_service_only_broadcasts_on_change():

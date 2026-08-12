@@ -13,8 +13,10 @@ import hmac
 import ipaddress
 import json
 import logging
+import math
 import time
 from pathlib import Path
+from typing import Any
 
 from aiohttp import web
 
@@ -86,6 +88,122 @@ _STUETEST_STEPS = [
         "evidence": ["music_tool_call"],
     },
 ]
+
+# One fixed baseline, not an A/B experiment. Ten two-turn conversations exercise the
+# whole product at the owner's normal desk position: same-breath wake, Danish ASR,
+# context, local answers, current web facts, HA, PodConnect, timers and clean closure.
+# A human rates the physical outcome because software cannot know that nothing was
+# heard, the wrong lamp changed, or a factually fluent answer was irrelevant.
+_GROUNDTEST_STEPS: list[dict[str, Any]] = [
+    {
+        "say": "Okay Nabu, hvad er klokken?",
+        "expect": "Korrekt tid, uden mellemreplik.",
+        "kind": "simple",
+        "new": True,
+    },
+    {
+        "say": "Og hvilken ugedag er det?",
+        "expect": "Korrekt ugedag uden nyt wake-ord.",
+        "kind": "simple",
+    },
+    {
+        "say": "Okay Nabu, hvad er tolv gange syv?",
+        "expect": "Fireogfirs, straks og kort.",
+        "kind": "simple",
+        "new": True,
+    },
+    {"say": "Og læg seks til.", "expect": "Halvfems med konteksten bevaret.", "kind": "simple"},
+    {
+        "say": "Okay Nabu, hvordan gik FCK's seneste kamp?",
+        "expect": "Websøgning uden fyld; svaret handler om FCK og den seneste kamp.",
+        "kind": "lookup",
+        "new": True,
+    },
+    {
+        "say": "Og hvor blev den spillet?",
+        "expect": "Korrekt opfølgning på samme FCK-kamp.",
+        "kind": "lookup",
+    },
+    {
+        "say": "Okay Nabu, hvornår spiller AGF næste gang?",
+        "expect": "Websøgning og en relevant dato/modstander, eller en ærlig kildefejl.",
+        "kind": "lookup",
+        "new": True,
+    },
+    {
+        "say": "Og er det hjemme eller ude?",
+        "expect": "Korrekt opfølgning uden nyt wake-ord.",
+        "kind": "lookup",
+    },
+    {
+        "say": "Okay Nabu, hvordan bliver vejret her i eftermiddag?",
+        "expect": "Lokalt vejr via HA først; kort temperatur/nedbør.",
+        "kind": "lookup",
+        "new": True,
+    },
+    {
+        "say": "Og regner det i morgen?",
+        "expect": "Relevant opfølgning på lokalt vejr.",
+        "kind": "lookup",
+    },
+    {
+        "say": "Okay Nabu, tænd lyset i stuen.",
+        "expect": "Kun det tilsigtede stue-lys tændes; kort kvittering bagefter.",
+        "kind": "simple",
+        "new": True,
+    },
+    {
+        "say": "Sluk det igen.",
+        "expect": "Det samme lys slukkes uden nyt wake-ord.",
+        "kind": "simple",
+    },
+    {
+        "say": "Okay Nabu, spil noget afslappende her.",
+        "expect": "Musik starter i dette rum via HA/PodConnect.",
+        "kind": "lookup",
+        "new": True,
+    },
+    {
+        "say": "Skru lidt ned.",
+        "expect": "Kun dette rums musik skrues få trin ned.",
+        "kind": "simple",
+    },
+    {
+        "say": "Okay Nabu, hvad var det sidste nummer, jeg hørte på Spotify?",
+        "expect": "PodConnect-historik; korrekt sang og kunstner.",
+        "kind": "lookup",
+        "new": True,
+    },
+    {
+        "say": "Hvem er kunstneren?",
+        "expect": "Konteksten bevares; web er tilladt ved behov.",
+        "kind": "lookup",
+    },
+    {
+        "say": "Okay Nabu, sæt en timer på et minut.",
+        "expect": "Timeren oprettes korrekt og kort.",
+        "kind": "simple",
+        "new": True,
+    },
+    {
+        "say": "Hvor lang tid er der tilbage?",
+        "expect": "Den aktive timer aflæses uden nyt wake-ord.",
+        "kind": "simple",
+    },
+    {
+        "say": "Okay Nabu, hvad er den vigtigste danske nyhed lige nu?",
+        "expect": "Aktuel websøgning med relevant, kildebaseret svar og intet opdigtet.",
+        "kind": "lookup",
+        "new": True,
+    },
+    {
+        "say": "Farvel.",
+        "expect": "Kort farvel, ringen slukker, og næste wake virker.",
+        "kind": "simple",
+    },
+]
+
+_GROUNDTEST_OUTCOMES = {"correct", "wrong_hearing", "wrong_answer", "no_response"}
 
 # Sources allowed to reach the panel/API when locked (the default under HA):
 # loopback + the Supervisor/Ingress docker network (HA proxies ingress from
@@ -198,6 +316,9 @@ def create_app(
             web.get("/api/acceptance", _acceptance),
             web.get("/api/stuetest", _stuetest),
             web.post("/api/stuetest/start", _stuetest_start),
+            web.get("/api/groundtest", _groundtest),
+            web.post("/api/groundtest/start", _groundtest_start),
+            web.post("/api/groundtest/result", _groundtest_result),
             web.get("/api/events", _events),
             web.post("/api/control", _control),
             web.get("/api/console", _console_ws),
@@ -851,6 +972,143 @@ async def _stuetest(request: web.Request) -> web.Response:
 async def _stuetest_start(request: web.Request) -> web.Response:
     hub: StatusHub = request.app[HUB]
     return web.json_response({"ok": True, "started_at": hub.start_stuetest()})
+
+
+def _percentile(values: list[int], percentile: float) -> int | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    rank = max(1, math.ceil(percentile * len(ordered)))
+    return ordered[min(rank - 1, len(ordered) - 1)]
+
+
+def _groundtest_payload(hub: StatusHub) -> dict:
+    run = hub.groundtest()
+    results = run.get("results") or []
+    counts = {key: 0 for key in _GROUNDTEST_OUTCOMES}
+    for item in results:
+        outcome = str(item.get("outcome") or "")
+        if outcome in counts:
+            counts[outcome] += 1
+    simple = [
+        int(item["latency_ms"])
+        for item in results
+        if item.get("kind") == "simple" and item.get("latency_ms") is not None
+    ]
+    lookup = [
+        int(item["latency_ms"])
+        for item in results
+        if item.get("kind") == "lookup" and item.get("latency_ms") is not None
+    ]
+    completed = bool(run.get("completed_at"))
+    summary: dict[str, Any] = {
+        "rated": len(results),
+        "total": len(_GROUNDTEST_STEPS),
+        "counts": counts,
+        "simple_p50_ms": _percentile(simple, 0.50),
+        "simple_p90_ms": _percentile(simple, 0.90),
+        "lookup_p50_ms": _percentile(lookup, 0.50),
+        "lookup_p90_ms": _percentile(lookup, 0.90),
+    }
+    summary["passed"] = bool(
+        completed
+        and counts["correct"] >= 19
+        and counts["wrong_answer"] == 0
+        and counts["no_response"] == 0
+        and summary["simple_p90_ms"] is not None
+        and summary["simple_p90_ms"] <= 2500
+        and summary["lookup_p90_ms"] is not None
+        and summary["lookup_p90_ms"] <= 8000
+    )
+    steps = []
+    for index, step in enumerate(_GROUNDTEST_STEPS):
+        steps.append(
+            {
+                "index": index,
+                "number": index + 1,
+                **step,
+                "before": (
+                    'Vent til ringen er slukket. Hvis den stadig lyser, sig "farvel" først.'
+                    if step.get("new") and index
+                    else "Sig den straks efter tur-bippet — uden nyt wake-ord."
+                    if not step.get("new")
+                    else "Stå/sid normalt ved skrivebordet og sig hele sætningen uden pause."
+                ),
+            }
+        )
+    return {
+        "title": "Grundtest — 20 faste danske sætninger",
+        "steps": steps,
+        "run": run,
+        "summary": summary,
+    }
+
+
+async def _groundtest(request: web.Request) -> web.Response:
+    return web.json_response(_groundtest_payload(request.app[HUB]))
+
+
+async def _groundtest_start(request: web.Request) -> web.Response:
+    hub: StatusHub = request.app[HUB]
+    # Reuse the acceptance baseline so the old evidence card and the guided test
+    # describe the same physical run.
+    hub.start_stuetest()
+    hub.start_groundtest(len(_GROUNDTEST_STEPS))
+    return web.json_response({"ok": True, **_groundtest_payload(hub)})
+
+
+async def _groundtest_result(request: web.Request) -> web.Response:
+    hub: StatusHub = request.app[HUB]
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return web.json_response({"ok": False, "error": "Ugyldige testdata"}, status=400)
+    try:
+        index = int(body.get("index"))
+    except (TypeError, ValueError):
+        return web.json_response({"ok": False, "error": "Ugyldigt trin"}, status=400)
+    outcome = str(body.get("outcome") or "")
+    if outcome not in _GROUNDTEST_OUTCOMES:
+        return web.json_response({"ok": False, "error": "Ugyldigt resultat"}, status=400)
+    run = hub.groundtest()
+    since = float(run.get("step_started_at") or 0.0)
+    snap = hub.snapshot()
+    hist = request.app[HISTORY]
+    turns: list[dict] = []
+    if hist is not None:
+        for conv in hist.conversations(limit=20):
+            if conv.get("room") == "talk":
+                continue
+            turns.extend(
+                turn for turn in conv.get("turns") or [] if float(turn.get("ts") or 0.0) >= since
+            )
+    turns.sort(key=lambda item: float(item.get("ts") or 0.0))
+    tools = [
+        item for item in snap.get("tool_activity") or [] if float(item.get("ts") or 0.0) >= since
+    ]
+    states = [
+        item for item in snap.get("state_activity") or [] if float(item.get("ts") or 0.0) >= since
+    ]
+    latencies = [
+        item for item in snap.get("latency_activity") or [] if float(item.get("ts") or 0.0) >= since
+    ]
+    step = _GROUNDTEST_STEPS[index] if 0 <= index < len(_GROUNDTEST_STEPS) else {}
+    evidence = {
+        "say": step.get("say"),
+        "kind": step.get("kind"),
+        "started_at": since,
+        "inputs": [str(turn.get("text") or "") for turn in turns if turn.get("dir") == "in"],
+        "outputs": [str(turn.get("text") or "") for turn in turns if turn.get("dir") == "out"],
+        "tools": tools,
+        "states": states,
+        "latency_ms": int(latencies[-1]["ms"]) if latencies else None,
+        "note": str(body.get("note") or "")[:500],
+    }
+    try:
+        hub.record_groundtest(index, outcome, evidence)
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=409)
+    return web.json_response({"ok": True, **_groundtest_payload(hub)})
 
 
 async def _events(request: web.Request) -> web.StreamResponse:

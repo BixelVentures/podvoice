@@ -41,6 +41,21 @@ def test_living_room_test_script_is_visible_in_panel():
     assert "Næste handling" in html
 
 
+def test_guided_groundtest_requires_a_physical_verdict_for_each_sentence():
+    html = PANEL.read_text()
+
+    assert 'id="g_start"' in html
+    assert 'id="g_test"' in html
+    assert 'fetch("api/groundtest"' in html
+    assert 'fetch("api/groundtest/start"' in html
+    assert 'fetch("api/groundtest/result"' in html
+    for outcome in ("correct", "wrong_hearing", "wrong_answer", "no_response"):
+        assert f'data-outcome="{outcome}"' in html
+    assert "Forkert hørt" in html
+    assert "Forkert svar" in html
+    assert "Intet skete" in html
+
+
 def test_documented_mic_baseline_is_visible_in_panel():
     html = PANEL.read_text()
 

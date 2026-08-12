@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 
 from aiohttp.test_utils import TestClient, TestServer
 
@@ -174,6 +175,62 @@ async def test_stuetest_endpoint_exposes_the_physical_matrix():
     assert any("Okay Nabu" in s["say"] for s in body["steps"])
     assert any("AGF" in s["say"] for s in body["steps"])
     assert any(s["evidence"] == ["music_tool_call"] for s in body["steps"])
+
+
+async def test_groundtest_guides_twenty_sentences_and_captures_physical_evidence(tmp_path):
+    hub = StatusHub()
+    hist = History(path=tmp_path / "history.jsonl")
+    app = create_app(hub, {}, tools=_StubTools(), history=hist)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.get("/api/groundtest")
+        initial = await response.json()
+        assert len(initial["steps"]) == 20
+        assert initial["steps"][0]["say"] == "Okay Nabu, hvad er klokken?"
+        assert initial["steps"][1].get("new") is not True
+        assert initial["run"]["started_at"] is None
+
+        response = await client.post("/api/groundtest/start")
+        started = await response.json()
+        assert started["ok"] is True
+        assert started["run"]["current_index"] == 0
+
+        now = time.time()
+        hist.append("kitchen", "in", "Hvad er klokken?", ts=now)
+        hist.append("kitchen", "out", "Klokken er tre.", ts=now + 0.1)
+        hub.set_state("kitchen", "LISTENING")
+        hub.tool_call(
+            "kitchen",
+            "get_time",
+            {"ok": True, "summary": "Klokken er tre.", "data": {"time": "15:00"}},
+        )
+        hub.set_latency("kitchen", 1234)
+
+        response = await client.post(
+            "/api/groundtest/result", json={"index": 0, "outcome": "correct"}
+        )
+        rated = await response.json()
+
+    assert response.status == 200
+    assert rated["run"]["current_index"] == 1
+    result = rated["run"]["results"][0]
+    assert result["inputs"] == ["Hvad er klokken?"]
+    assert result["outputs"] == ["Klokken er tre."]
+    assert result["latency_ms"] == 1234
+    assert result["tools"][0]["args"] == {}
+    assert result["tools"][0]["result"]["data"]["time"] == "15:00"
+    assert rated["summary"]["counts"]["correct"] == 1
+
+
+async def test_groundtest_rejects_skipping_the_active_sentence():
+    hub = StatusHub()
+    async with TestClient(TestServer(create_app(hub, {}))) as client:
+        await client.post("/api/groundtest/start")
+        response = await client.post(
+            "/api/groundtest/result", json={"index": 2, "outcome": "correct"}
+        )
+        body = await response.json()
+    assert response.status == 409
+    assert "aktive testsætning" in body["error"]
 
 
 async def test_models_endpoint():
