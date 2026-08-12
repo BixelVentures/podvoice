@@ -962,6 +962,8 @@ class ThinSession:
     async def _run_tool(self, tc: ToolCall) -> None:
         if tc.name == "end_conversation":
             # The model says the user is done. Let the goodbye finish playing, then close.
+            if self.hub is not None:
+                self.hub.tool_call(self.room, tc.name, {"ok": True}, tc.args)
             async with self._tool_lock:
                 with contextlib.suppress(Exception):
                     await self.brain.send_tool_results(
@@ -982,6 +984,7 @@ class ThinSession:
                 self.hub.incr("tool_empty")
             else:
                 self.hub.incr("tool_ok")
+            self.hub.tool_call(self.room, tc.name, result, tc.args)
             self.hub.activity(
                 self.room, f"🔧 {tc.name} {'✓' if result.get('ok') else '✕'}"
             )  # tool calls visible in the feed (room card AND the Talk tab)

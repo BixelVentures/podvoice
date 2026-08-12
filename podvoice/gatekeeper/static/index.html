@@ -532,6 +532,7 @@ function renderCapabilities(caps) {
     ["time", "Tid"],
     ["home", "Hjem"],
     ["web_search", "Web/søgning"],
+    ["weather", "Vejr"],
     ["music", "Musik"],
     ["timers", "Timere"]
   ].forEach(function (pair) {
@@ -542,12 +543,13 @@ function renderCapabilities(caps) {
   });
   var missing = [];
   if (!caps.web_search) missing.push("websøgning");
+  if (!caps.weather) missing.push("vejr");
   if (!caps.music) missing.push("musikstyring");
   if (missing.length) {
     warn.hidden = false;
     warn.appendChild(el("strong", null, "Ikke alle standard-evner er synlige. "));
     warn.appendChild(document.createTextNode(
-      "Mangler: " + missing.join(" og ") + ". Eksponér Gemini-søgeagenten og PodConnect/medie-værktøjer til Home Assistant Assist/MCP, gem, og genstart PodVoice. Home control-prikken alene beviser ikke at de værktøjer findes."
+      "Mangler: " + missing.join(" og ") + ". Eksponér Gemini-søgeagenten, vejr-entity/script og PodConnect/medie-værktøjer til Home Assistant Assist/MCP, gem, og genstart PodVoice. Home control-prikken alene beviser ikke at de værktøjer findes."
     ));
   }
 }

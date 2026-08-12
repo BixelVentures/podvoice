@@ -52,6 +52,10 @@ class StatusHub:
         # Voice PE is doing (wake / listening / speaking / playing / closed) — the whole
         # point of the panel: see the hardware live, never dig through add-on logs.
         self._activity: deque[dict] = deque(maxlen=40)
+        # Recent concrete tool calls. Metrics alone can prove "something" was called,
+        # but the living-room acceptance test needs to know whether the model actually
+        # used web search, music and home-control tools — not just get_time.
+        self._tool_activity: deque[dict] = deque(maxlen=40)
 
     # ------------------------------------------------------------------ rooms
     def register_room(self, room: str) -> None:
@@ -75,6 +79,7 @@ class StatusHub:
             "rooms": [dict(r) for r in self._rooms.values()],
             "metrics": dict(self._metrics),
             "activity": list(self._activity),
+            "tool_activity": list(self._tool_activity),
         }
 
     def activity(self, room: str, text: str) -> None:
@@ -82,6 +87,23 @@ class StatusHub:
         item = {"ts": time.time(), "room": room, "text": text}
         self._activity.append(item)
         self._broadcast({"type": "activity", **item})
+
+    def tool_call(
+        self, room: str, name: str, result: dict | None = None, args: dict | None = None
+    ) -> None:
+        """Record one completed tool call for acceptance evidence and debugging."""
+        result = result or {}
+        item = {
+            "ts": time.time(),
+            "room": room,
+            "name": name,
+            "args": args or {},
+            "ok": bool(result.get("ok")),
+            "empty": bool(result.get("empty")),
+            "error_kind": result.get("error_kind"),
+        }
+        self._tool_activity.append(item)
+        self._broadcast({"type": "tool", **item})
 
     # ------------------------------------------------------------------ SSE bus
     async def subscribe(self) -> asyncio.Queue:

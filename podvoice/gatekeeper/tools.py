@@ -34,7 +34,8 @@ log = logging.getLogger("podvoice.tools")
 
 _TOOLS_TTL_S = 600.0  # re-fetch the MCP tool list at most this stale
 _RETRY_S = 30.0  # after a failed fetch, don't hammer HA — retry at this pace
-_WEB_HINTS = ("search", "søg", "web", "google", "nyheder", "news", "sport", "vejr", "weather")
+_WEB_HINTS = ("search", "søg", "web", "google", "nyheder", "news", "sport")
+_WEATHER_HINTS = ("vejr", "weather", "forecast", "udsigt", "temperatur", "temperature")
 _MUSIC_HINTS = (
     "music",
     "musik",
@@ -279,6 +280,7 @@ class ToolRouter:
             "timers": any(n in names for n in ("set_timer", "list_timers", "cancel_timer")),
             "home": bool(self._mcp_names),
             "web_search": has_any(_WEB_HINTS),
+            "weather": has_any(_WEATHER_HINTS),
             "music": has_any(_MUSIC_HINTS),
         }
 

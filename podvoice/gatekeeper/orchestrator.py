@@ -831,6 +831,7 @@ class RoomSession:
                 self.hub.incr("tool_empty")
             else:
                 self.hub.incr("tool_ok")
+            self.hub.tool_call(self.room, tc.name, result, tc.args)
         async with self._tool_lock:  # dispatches run concurrently; WS writes must not
             await self.brain.send_tool_results([{"id": tc.id, "name": tc.name, "response": result}])
 

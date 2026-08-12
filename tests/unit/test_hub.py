@@ -46,6 +46,18 @@ async def test_metrics_increment_and_transcript():
     assert kinds == ["metrics", "metrics", "metrics", "transcript"]
 
 
+async def test_tool_activity_is_recorded_and_broadcast():
+    hub = StatusHub()
+    q = await hub.subscribe()
+    hub.tool_call("kitchen", "google_web_sogning", {"ok": True})
+    ev = await asyncio.wait_for(q.get(), timeout=1)
+    assert ev["type"] == "tool"
+    assert ev["room"] == "kitchen"
+    assert ev["name"] == "google_web_sogning"
+    assert ev["ok"] is True
+    assert hub.snapshot()["tool_activity"][-1]["name"] == "google_web_sogning"
+
+
 async def test_service_only_broadcasts_on_change():
     hub = StatusHub()
     q = await hub.subscribe()

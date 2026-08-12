@@ -169,6 +169,22 @@ class TalkHub:
     def activity(self, room: str, text: str) -> None:
         self._post({"type": "activity", "text": text})
 
+    def tool_call(
+        self, room: str, name: str, result: dict | None = None, args: dict | None = None
+    ) -> None:
+        result = result or {}
+        self._post(
+            {
+                "type": "tool",
+                "room": room,
+                "name": name,
+                "args": args or {},
+                "ok": bool(result.get("ok")),
+                "empty": bool(result.get("empty")),
+                "error_kind": result.get("error_kind"),
+            }
+        )
+
     def transcript_delta(self, room: str, direction: str, text: str) -> None:
         self._post({"type": "transcript", "dir": direction, "text": text})
 

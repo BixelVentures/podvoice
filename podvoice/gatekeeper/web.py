@@ -27,6 +27,21 @@ _LOG = logging.getLogger("podvoice.web")
 
 _STATIC = Path(__file__).parent / "static"
 DEFAULT_PORT = 8098
+_LOCAL_TOOL_NAMES = {"get_time", "set_timer", "list_timers", "cancel_timer", "end_conversation"}
+_WEB_TOOL_HINTS = ("search", "søg", "web", "google", "nyheder", "news", "sport")
+_WEATHER_TOOL_HINTS = ("vejr", "weather", "forecast", "udsigt", "temperatur", "temperature")
+_MUSIC_TOOL_HINTS = (
+    "music",
+    "musik",
+    "media",
+    "spotify",
+    "podconnect",
+    "play",
+    "pause",
+    "next",
+    "volume",
+    "lydstyrke",
+)
 
 # Sources allowed to reach the panel/API when locked (the default under HA):
 # loopback + the Supervisor/Ingress docker network (HA proxies ingress from
@@ -532,9 +547,42 @@ async def _acceptance(request: web.Request) -> web.Response:
     voice_convs = [c for c in convs if c.get("room") != "talk"]
     metrics = snap.get("metrics") or {}
     rooms = snap.get("rooms") or []
+    tool_activity = snap.get("tool_activity") or []
+    tool_names = [str(t.get("name") or "") for t in tool_activity]
+    tool_texts = [
+        f"{t.get('name') or ''} {json.dumps(t.get('args') or {}, ensure_ascii=False)}"
+        for t in tool_activity
+    ]
 
     def check(key: str, label: str, ok: bool, detail: str) -> dict:
         return {"key": key, "label": label, "ok": bool(ok), "detail": detail}
+
+    def tool_text_has(text: str, hints: tuple[str, ...]) -> bool:
+        hay = text.lower()
+        return any(h in hay for h in hints)
+
+    def tool_seen(hints: tuple[str, ...]) -> bool:
+        return any(tool_text_has(t, hints) for t in tool_texts)
+
+    def home_tool_seen() -> bool:
+        return any(
+            n
+            and n not in _LOCAL_TOOL_NAMES
+            and not tool_text_has(text, _WEB_TOOL_HINTS)
+            and not tool_text_has(text, _WEATHER_TOOL_HINTS)
+            and not tool_text_has(text, _MUSIC_TOOL_HINTS)
+            for n, text in zip(tool_names, tool_texts, strict=True)
+        )
+
+    def weather_tool_seen() -> bool:
+        return any(
+            tool_text_has(text, _WEATHER_TOOL_HINTS)
+            or (
+                tool_text_has(text, _WEB_TOOL_HINTS)
+                and tool_text_has(text, ("vejret", "weather", "forecast"))
+            )
+            for text in tool_texts
+        )
 
     any_connected = any(bool(r.get("connected")) for r in rooms)
     any_latency = any(r.get("last_latency_ms") is not None for r in rooms)
@@ -561,8 +609,8 @@ async def _acceptance(request: web.Request) -> web.Response:
         ),
         check(
             "capabilities",
-            "Realtime ser tid, hjem, web/søgning og musik",
-            all(bool(caps.get(k)) for k in ("time", "home", "web_search", "music")),
+            "Realtime ser tid, hjem, web/søgning, vejr og musik",
+            all(bool(caps.get(k)) for k in ("time", "home", "web_search", "weather", "music")),
             "tools: " + ", ".join(caps.get("tools") or []),
         ),
         check(
@@ -586,6 +634,30 @@ async def _acceptance(request: web.Request) -> web.Response:
             f"tool_error={int(metrics.get('tool_error') or 0)}",
         ),
         check(
+            "home_tool_call",
+            "Stuetest har faktisk brugt et HA/MCP hjem-værktøj",
+            home_tool_seen(),
+            "seneste tools: " + (", ".join(tool_names[-8:]) or "ingen tool-navne registreret"),
+        ),
+        check(
+            "web_tool_call",
+            "Stuetest har faktisk brugt web/søgning",
+            tool_seen(_WEB_TOOL_HINTS),
+            "seneste tools: " + (", ".join(tool_names[-8:]) or "ingen tool-navne registreret"),
+        ),
+        check(
+            "weather_tool_call",
+            "Stuetest har faktisk brugt vejr for hjemmet/nærområdet",
+            weather_tool_seen(),
+            "seneste tools: " + (", ".join(tool_names[-8:]) or "ingen tool-navne registreret"),
+        ),
+        check(
+            "music_tool_call",
+            "Stuetest har faktisk brugt musik/media",
+            tool_seen(_MUSIC_TOOL_HINTS),
+            "seneste tools: " + (", ".join(tool_names[-8:]) or "ingen tool-navne registreret"),
+        ),
+        check(
             "latency",
             "Mindst ét fysisk svar har målt svartid",
             any_latency,
@@ -604,6 +676,7 @@ async def _acceptance(request: web.Request) -> web.Response:
             "generated_at": time.time(),
             "does_not_replace_physical_matrix": True,
             "checks": checks,
+            "tool_activity": tool_activity,
             "latest_voice_conversation": voice_convs[0] if voice_convs else None,
         }
     )

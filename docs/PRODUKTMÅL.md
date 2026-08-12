@@ -101,17 +101,21 @@ Gate B specifikt testes. Gem panelhistorik og add-on-log for hvert run.
    - “Hvad tid skal AGF spille i aften?”
    - Forvent: `Det tjekker jeg.`, et reelt `google_web_sogning`-/MCP-kald, ingen
      vejr-svar medmindre du bad om vejret, og kilder i resultatet/historikken.
-3. **Opfølgning uden wake**
+3. **Vejr dér hvor hjemmet er**
+   - “Hvordan bliver vejret her i eftermiddag?”
+   - Forvent: vejr-entity/script eller søgeværktøj bruges med hjemmets/nærområdets
+     placering; kort dansk svar med temperatur/nedbør/vind hvis tilgængeligt.
+4. **Opfølgning uden wake**
    - Efter svaret: “Hvor spiller de?”
    - Forvent: den forstår konteksten og svarer eller søger; ingen ny wake kræves.
-4. **Hjemmestyring**
+5. **Hjemmestyring**
    - “Sluk/tænd [en ufarlig delt lampe i samme rum].”
    - Forvent: korrekt HA-værktøj, korrekt mål, én fast dansk kvittering, ingen handling
      på andre rum.
-5. **Musik**
+6. **Musik**
    - Start musik i rummet og sig “Pause”, “Næste”, “Skru lidt ned”.
    - Forvent: korrekt rum hver gang, musik dæmpes under samtalen og gendannes bagefter.
-6. **Afbrydelse og lukning**
+7. **Afbrydelse og lukning**
    - Afbryd et langt svar med “stop” eller wake-ordet.
    - Forvent: pucken bliver stille hurtigt, samtalen går tilbage til at lytte eller
      lukker rent; ingen fastlåst LED, ingen stille spinner.

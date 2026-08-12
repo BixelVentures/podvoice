@@ -109,15 +109,21 @@ def test_no_mcp_at_all_still_serves_local():
     assert caps["time"] is True
     assert caps["home"] is False
     assert caps["web_search"] is False
+    assert caps["weather"] is False
     assert caps["music"] is False
 
 
-def test_capabilities_show_exposed_search_and_music_tools():
+def test_capabilities_show_exposed_search_weather_and_music_tools():
     router = ToolRouter(None)
     router._mcp_tools = [
         {
             "name": "google_web_sogning",
             "description": "Søg på nettet via husets Gemini agent",
+            "parameters": {},
+        },
+        {
+            "name": "weather_forecast",
+            "description": "Vejret og prognose for hjemmets nærområde",
             "parameters": {},
         },
         {
@@ -130,8 +136,14 @@ def test_capabilities_show_exposed_search_and_music_tools():
     caps = router.capabilities()
     assert caps["home"] is True
     assert caps["web_search"] is True
+    assert caps["weather"] is True
     assert caps["music"] is True
-    assert caps["tools"] == ["get_time", "google_web_sogning", "podconnect_pause"]
+    assert caps["tools"] == [
+        "get_time",
+        "google_web_sogning",
+        "weather_forecast",
+        "podconnect_pause",
+    ]
 
 
 def test_contract_folding_shapes():

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.12.6 — stuetest kræver konkrete værktøjsbeviser
+
+- Hubben gemmer nu de seneste konkrete tool-navne og resultater, ikke kun samlede
+  tællere. Dermed kan panelet vise om Realtime faktisk kaldte web/søgning, musik
+  eller et HA/MCP-hjemmeværktøj.
+- Panelet viser nu `Vejr` som sin egen kapabilitet ved siden af tid, hjem,
+  web/søgning, musik og timere.
+- `/api/acceptance` kræver nu separat evidens for hjemmestyring, web/søgning,
+  vejr og musik/media. Et ensomt `get_time`-kald kan derfor ikke længere få
+  stuetestens værktøjsdel til at se grøn ud.
+- Classic- og thin-engine skriver begge tool-evidens til hubben, inklusive
+  `end_conversation` i thin, så “stop/farvel” også kan ses som modelstyret handling.
+
 ## 1.12.5 — stuetest-metrics må ikke lyve
 
 - `false_barges` var incrementet i thin-engine, men manglede i hub'ens metrikliste og

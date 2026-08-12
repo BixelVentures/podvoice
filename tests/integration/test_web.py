@@ -45,6 +45,7 @@ class _StubTools:
             "timers": False,
             "home": True,
             "web_search": True,
+            "weather": True,
             "music": True,
         }
 
@@ -86,6 +87,10 @@ async def test_acceptance_report_is_conservative(tmp_path):
     hub.set_latency("kitchen", 1234)
     hub.incr("tool_calls")
     hub.incr("tool_ok")
+    hub.tool_call("kitchen", "light_turn_on", {"ok": True})
+    hub.tool_call("kitchen", "google_web_sogning", {"ok": True}, {"query": "AGF næste kamp"})
+    hub.tool_call("kitchen", "weather_forecast", {"ok": True}, {"location": "hjemme"})
+    hub.tool_call("kitchen", "podconnect_pause", {"ok": True})
     hist = History(path=tmp_path / "history.jsonl")
     hist.append("kitchen", "in", "Hvad er klokken?", ts=1)
     hist.append("kitchen", "out", "Klokken er otte.", ts=2)
@@ -98,6 +103,12 @@ async def test_acceptance_report_is_conservative(tmp_path):
     assert body["status"] == "evidence-present"
     assert body["does_not_replace_physical_matrix"] is True
     assert all(c["ok"] for c in body["checks"])
+    assert [t["name"] for t in body["tool_activity"]] == [
+        "light_turn_on",
+        "google_web_sogning",
+        "weather_forecast",
+        "podconnect_pause",
+    ]
     assert body["latest_voice_conversation"]["room"] == "kitchen"
 
 
