@@ -169,7 +169,7 @@ def test_settings_roundtrip_new_keys(tmp_path):
 
 
 def test_preset_conservative_is_hard_to_interrupt():
-    s = OpenAIRealtimeSession(api_key="k", idle_timeout_s=25)
+    s = OpenAIRealtimeSession(api_key="k", idle_timeout_s=25, preset="conservative")
     td = s._session_update()["session"]["audio"]["input"]["turn_detection"]
     assert td["type"] == "server_vad"
     # Retuned on field evidence: a high threshold clipped the start of short
@@ -181,6 +181,33 @@ def test_preset_conservative_is_hard_to_interrupt():
     # it as a RE-PROMPT trigger — the model answers BY ITSELF at timeout (possible
     # tool calls = unsolicited action). The client-side idle fallback is the closer.
     assert "idle_timeout_ms" not in td
+
+
+def test_default_preset_uses_semantic_completion_without_idle_reprompt():
+    td = OpenAIRealtimeSession(api_key="k")._session_update()["session"]["audio"]["input"][
+        "turn_detection"
+    ]
+    assert td == {
+        "type": "semantic_vad",
+        "eagerness": "auto",
+        "create_response": True,
+        "interrupt_response": True,
+    }
+
+
+async def test_speech_stop_and_commit_publish_one_turn_boundary():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS(  # type: ignore[assignment]
+        [
+            _Msg(json.dumps({"type": "input_audio_buffer.speech_started"})),
+            _Msg(json.dumps({"type": "input_audio_buffer.speech_stopped"})),
+            _Msg(json.dumps({"type": "input_audio_buffer.committed"})),
+        ]
+    )
+    from gatekeeper.voice import UserSpeechStopped
+
+    evs = await _drain(s)
+    assert sum(isinstance(e, UserSpeechStopped) for e in evs) == 1
 
 
 async def test_session_update_rejection_is_a_hard_failure():

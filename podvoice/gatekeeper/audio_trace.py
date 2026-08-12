@@ -5,7 +5,9 @@ one room from the ingress-only panel; the next conversation is captured at the t
 boundaries that matter for diagnosis:
 
 * ``device``: selected/gained 16 kHz PCM received from the Voice PE;
-* ``provider``: exact 24 kHz PCM appended to the OpenAI input buffer.
+* ``provider``: exact 24 kHz PCM appended to the OpenAI input buffer;
+* ``speaker``: exact final 24 kHz PCM handed to the physical output path, after
+  tool-preamble suppression and including the turn cue.
 
 The capture stops with the conversation (or at the hard duration ceiling), writes
 two WAV files plus an event manifest under /data, and keeps only a few recent runs.
@@ -129,7 +131,7 @@ class AudioTraceRecorder:
         return True
 
     def audio(self, stage: str, pcm: bytes, rate: int) -> None:
-        if self._active_room is None or stage not in {"device", "provider"} or not pcm:
+        if self._active_room is None or stage not in {"device", "provider", "speaker"} or not pcm:
             return
         bucket = self._stages.setdefault(stage, _Stage(rate=int(rate)))
         if bucket.rate != int(rate):
@@ -221,7 +223,12 @@ class AudioTraceRecorder:
         }
 
     def artifact(self, trace_id: str, stage: str) -> pathlib.Path | None:
-        if not _SAFE_ID.fullmatch(trace_id) or stage not in {"device", "provider", "manifest"}:
+        if not _SAFE_ID.fullmatch(trace_id) or stage not in {
+            "device",
+            "provider",
+            "speaker",
+            "manifest",
+        }:
             return None
         suffix = ".json" if stage == "manifest" else f"-{stage}.wav"
         target = self.path / f"{trace_id}{suffix}"

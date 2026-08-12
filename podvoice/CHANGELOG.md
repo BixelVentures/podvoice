@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.12.25 — Realtime bruges som hjerne, half-duplex gøres pålidelig
+
+- De to gain-16-traces beviser, at Voice PE kan levere både et korrekt første
+  spørgsmål og en hel AGF-opfølgning. Standard-turtagningen er derfor flyttet fra
+  energi-baseret `server_vad` til OpenAIs `semantic_vad` med auto-eagerness, så en
+  naturlig pause ikke bliver en tom mikrotur. `speech_stopped` og `committed` for
+  samme tur deduplikeres samtidig til én fysisk grænse.
+- Realtime vælger fortsat selv værktøjet. På den bufferede announce-vej holdes hver
+  modelrespons nu adskilt, så en promptstridig “Jeg tjekker…”-indledning kasseres,
+  hvis samme respons ender i et tool call. Kun resultatets svar og turlyden når den
+  færdige FLAC; LED'en er den umiddelbare tænker-feedback.
+- `get_time` returnerer et tale-klart dansk klokkeslæt (`et minut i seks`, `halv
+  tre`, `kvart i seks`) i stedet for at bede modellen fortolke `17:59`, som i den
+  fysiske trace blev til “sytten nioghalvfems”.
+- HA-/PodConnect-værktøjerne sættes nu før Realtime-sessionens `session.update`.
+  En integration, der er blevet genindlæst, er dermed synlig i den aktuelle
+  samtale i stedet for én samtale senere.
+- Den armerede lydtrace gemmer nu også den eksakte færdige 24 kHz svar-PCM, der
+  sendes til højttaleren. En skrattende start kan dermed placeres i modeloutput,
+  tool-sammenføjning eller den fysiske decoder i stedet for at gættes ud fra mic-input.
+- Den første pålidelige puck-version forbliver half-duplex: echo-shieldet er oppe
+  under fysisk afspilning, opfølgninger åbner straks bagefter, og lokal wake/stop
+  kan stadig hushe et svar. Fuld duplex er fortsat en særskilt fysisk AEC-gate.
+
 ## 1.12.24 — lydbeviset lukker den første målte fejl
 
 - Den første fysiske trace målte Voice PE ved skrivebordet til RMS 79,5, peak 8,85 %

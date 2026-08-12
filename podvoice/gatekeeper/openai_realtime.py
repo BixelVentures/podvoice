@@ -112,7 +112,7 @@ class OpenAIRealtimeSession:
     # conservative = server_vad tuned hard-to-interrupt, so residual echo past the XMOS
     # AEC doesn't read as user barge-in (the self-interruption bug); responsive =
     # semantic_vad, easiest to talk over. Tunable live in Settings — no redeploy.
-    preset: str = "conservative"  # conservative | responsive | custom
+    preset: str = "responsive"  # conservative | responsive | custom
     turn: str = "semantic_vad"  # custom: server_vad | semantic_vad | none
     threshold: float = 0.5  # custom, server_vad only
     prefix_ms: int = 300  # custom, server_vad only
@@ -146,6 +146,9 @@ class OpenAIRealtimeSession:
     # the wake word. Keep a short raw-input buffer and replay it once the server is ready.
     _preconnect_audio: deque[bytes] = field(default_factory=deque, init=False, repr=False)
     _preconnect_audio_bytes: int = field(default=0, init=False, repr=False)
+    # Realtime emits both speech_stopped and committed for the same VAD turn.  The
+    # engine needs one boundary, not two state transitions/latency samples.
+    _speech_stop_emitted: bool = field(default=False, init=False, repr=False)
 
     def _turn_detection(self) -> dict | None:
         """Build the turn_detection block from the preset (or the custom knobs).
@@ -256,6 +259,7 @@ class OpenAIRealtimeSession:
         # Fresh socket -> fresh state machine (a prior session may have died mid-response).
         self._active_response = False
         self._pending_create = False
+        self._speech_stop_emitted = False
         self._resampler = (
             None
             if self.input_rate == OPENAI_RATE
@@ -461,22 +465,28 @@ class OpenAIRealtimeSession:
                     _LOG.info("turn: barge-in (speech_started) over active response")
                     self._active_response = False
                     self._pending_create = False
+                self._speech_stop_emitted = False
                 yield Interrupted()
             elif t == "input_audio_buffer.speech_stopped":
                 # The user finished their turn — arm the TTFR watchdog from HERE (the
                 # model should now reply within WATCHDOG_MS). Arming at wake/gate-open
                 # would count the user's own speaking time as latency and abort every
                 # turn before a reply is even possible.
-                yield UserSpeechStopped()
+                if not self._speech_stop_emitted:
+                    self._speech_stop_emitted = True
+                    yield UserSpeechStopped()
             elif t == "input_audio_buffer.timeout_triggered":
                 # Can only fire if idle_timeout_ms were sent — which we never do.
                 # If it EVER appears, the server is about to generate an unsolicited
                 # response: log loudly, do NOT treat as a clean close.
                 _LOG.warning("unexpected timeout_triggered (idle_timeout_ms not sent!)")
             elif t == "input_audio_buffer.committed":
-                # Belt-and-suspenders end-of-user-turn signal (fires for both
-                # server_vad and semantic_vad). Re-arming the watchdog is harmless.
-                yield UserSpeechStopped()
+                # Belt-and-suspenders fallback for manual commits/providers that do
+                # not emit speech_stopped.  For normal VAD this is the SAME boundary,
+                # so never publish it twice.
+                if not self._speech_stop_emitted:
+                    self._speech_stop_emitted = True
+                    yield UserSpeechStopped()
             elif t == "response.done":
                 self._active_response = False
                 usage = self._usage_of(ev)

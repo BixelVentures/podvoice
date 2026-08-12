@@ -17,7 +17,14 @@ from gatekeeper.playback import Playback
 from gatekeeper.reply import ReplyBus
 from gatekeeper.talk import TALK_ROOM, BrowserLink, TalkHub
 from gatekeeper.thin import ThinSession
-from gatekeeper.voice import AudioChunk, Idle, InputTranscript, OutputTranscript, ToolCall
+from gatekeeper.voice import (
+    AudioChunk,
+    Idle,
+    InputTranscript,
+    OutputTranscript,
+    ToolCall,
+    TurnComplete,
+)
 
 REPLY_URL = f"reply/{TALK_ROOM}.flac?t=tok"
 
@@ -92,7 +99,7 @@ async def test_reply_plays_the_same_bus_stream_and_shield_holds():
     try:
         link.fire_wake()
         await _wait_until(lambda: session.sm.state is State.LISTENING)
-        gemini.emit(AudioChunk(_frame(n_samples=2400), item_id="i1"))
+        gemini.emit(AudioChunk(_frame(n_samples=2400), item_id="i1"), TurnComplete())
         await _wait_until(lambda: len(wire.of("play")) == 1)
         assert wire.of("play")[0]["url"] == REPLY_URL  # the puck's stream, verbatim
 
@@ -146,9 +153,9 @@ async def test_tool_calls_are_visible_in_the_tab():
         await session.aclose()
 
 
-async def test_async_input_transcript_cannot_split_assistant_acknowledgement():
-    """OpenAI may complete USER transcription after output has started. Talk must
-    still display complete USER -> acknowledgement -> tool turns, never split words."""
+async def test_async_input_transcript_hides_unheard_tool_preamble():
+    """OpenAI may complete USER transcription after output has started. Talk history
+    must show what was heard: user -> tool -> final answer, never discarded filler."""
     gemini = LiveFake()
     session, link, wire, _attention = _build(gemini)
     await session.start()
@@ -160,10 +167,13 @@ async def test_async_input_transcript_cannot_split_assistant_acknowledgement():
         gemini.emit(OutputTranscript(" jeg."))
         gemini.emit(ToolCall("c1", "get_time", {}))
         await _wait_until(lambda: len(wire.of("tool")) == 1)
+        gemini.emit(TurnComplete())
+        await _wait_until(lambda: len(gemini.sent_tool_results) == 1)
+        gemini.emit(OutputTranscript("AGF tabte to-en."), TurnComplete())
         await _wait_until(lambda: len(wire.of("transcript")) == 2)
         assert wire.of("transcript") == [
             {"type": "transcript", "dir": "in", "text": "Hvordan gik det AGF i går?"},
-            {"type": "transcript", "dir": "out", "text": "Det tjekker jeg."},
+            {"type": "transcript", "dir": "out", "text": "AGF tabte to-en."},
         ]
     finally:
         await session.aclose()

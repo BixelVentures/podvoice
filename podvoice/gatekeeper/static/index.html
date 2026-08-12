@@ -474,8 +474,8 @@
           <input id="s_openai_voice" list="dl_openai_voice" autocomplete="off">
           <label for="s_turn_preset">Turtagning</label>
           <select id="s_turn_preset">
-            <option value="conservative">Konservativ &mdash; ekkosikker</option>
-            <option value="responsive">Responsiv &mdash; lettest at afbryde</option>
+            <option value="responsive">Naturlig &mdash; hele sætninger</option>
+            <option value="conservative">Kort &mdash; energi-baseret</option>
             <option value="custom">Tilpasset &mdash; vis rå indstillinger</option>
           </select>
           <label for="s_max_session_min">Maks. samtale (min.)</label>
@@ -869,9 +869,10 @@ setInterval(function () {
     line.appendChild(te("div", "who", "Seneste lydbevis · " + latest.room));
     line.appendChild(te("div", "sub", stageText("Voice PE", stages.device)));
     line.appendChild(te("div", "sub", stageText("Sendt til OpenAI", stages.provider)));
-    ["device", "provider", "manifest"].forEach(function (stage) {
+    line.appendChild(te("div", "sub", stageText("Sendt til højttaler", stages.speaker)));
+    ["device", "provider", "speaker", "manifest"].forEach(function (stage) {
       if (stage !== "manifest" && !stages[stage]) return;
-      var a = te("a", "", stage === "device" ? "Hør Voice PE-lyden" : stage === "provider" ? "Hør OpenAI-lyden" : "Se tidslinjen");
+      var a = te("a", "", stage === "device" ? "Hør Voice PE-lyden" : stage === "provider" ? "Hør OpenAI-lyden" : stage === "speaker" ? "Hør den færdige svarlyd" : "Se tidslinjen");
       a.href = "api/audio-trace/" + encodeURIComponent(latest.id) + "/" + stage;
       a.style.cssText = "display:inline-block;margin:8px 14px 0 0";
       line.appendChild(a);

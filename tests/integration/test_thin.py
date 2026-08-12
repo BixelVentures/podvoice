@@ -62,6 +62,35 @@ class FakeTools:
         return []
 
 
+async def test_fresh_tools_are_present_when_realtime_connects():
+    class FreshTools(FakeTools):
+        def declarations(self) -> list[dict]:
+            return [{"name": "fresh_ha_tool", "description": "fresh", "parameters": {}}]
+
+    class CapturingBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.tool_declarations = []
+            self.seen_at_connect = []
+
+        async def connect(self) -> None:
+            self.seen_at_connect = list(self.tool_declarations)
+            await super().connect()
+
+    brain = CapturingBrain()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = FreshTools()
+    await session.start()
+    try:
+        await session.wake()
+        assert [d["name"] for d in brain.seen_at_connect] == [
+            "fresh_ha_tool",
+            "end_conversation",
+        ]
+    finally:
+        await session.aclose()
+
+
 def _build(gemini, *, speaker_path: str = "auto", supports_direct: bool = False, hub=None):
     attention = FakeAttention()
     voicepe = FakeVoicePELink(room=ROOM)
@@ -103,11 +132,11 @@ async def test_full_conversation_wake_reply_idle_close():
         voicepe.feed([_frame(50)])  # mic frames flow straight to the model (no gate)
         await _wait_until(lambda: len(gemini.sent_audio) >= 1)
 
-        gemini.emit(InputTranscript("hvad er klokken"), AudioChunk(_frame(), item_id="i1"))
+        gemini.emit(
+            InputTranscript("hvad er klokken"), AudioChunk(_frame(), item_id="i1"), TurnComplete()
+        )
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)  # reply announced
         assert session.sm.state is State.AI_SPEAKING
-
-        gemini.emit(TurnComplete())
         await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)  # dim follow-up
 
         gemini.emit(Idle())  # the SERVER ends the conversation — no client timers
@@ -128,7 +157,7 @@ async def test_barge_in_truncates_at_heard_position():
     try:
         await session.wake()
         pcm = _frame(n_samples=24000)  # 48000 B = 1000 ms sent
-        gemini.emit(AudioChunk(pcm, item_id="item_9"))
+        gemini.emit(AudioChunk(pcm, item_id="item_9"), TurnComplete())
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
         session._on_media_state(True)  # device reports playback started
         await asyncio.sleep(0.15)  # ~150 ms actually heard
@@ -208,7 +237,7 @@ async def test_stop_control_closes_now():
     try:
         await session.sm.post(Event(EventType.WAKE_WORD, ROOM))  # panel Listen
         await _wait_until(lambda: session.sm.state is not State.IDLE)
-        gemini.emit(AudioChunk(_frame(), item_id="i"))
+        gemini.emit(AudioChunk(_frame(), item_id="i"), TurnComplete())
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
         await session.sm.post(Event(EventType.CLOSURE_TOKEN, ROOM, {"kind": "stop"}))
         await _wait_until(lambda: session.sm.state is State.IDLE)
@@ -242,8 +271,9 @@ async def test_blip_does_not_interrupt_playback():
     await session.start()
     try:
         await session.wake()
-        gemini.emit(AudioChunk(_frame(), item_id="i"))
+        gemini.emit(AudioChunk(_frame(), item_id="i"), TurnComplete())
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)
         gemini.emit(Interrupted(), UserSpeechStopped())  # blip: stops immediately
         await asyncio.sleep(0.4)  # past the debounce window
         assert voicepe.stop_playback_calls == 0  # playback untouched
@@ -316,8 +346,9 @@ async def test_rewake_during_reply_hushes_but_keeps_conversation():
     await session.start()
     try:
         await session.wake()
-        gemini.emit(AudioChunk(_frame(), item_id="i"))
+        gemini.emit(AudioChunk(_frame(), item_id="i"), TurnComplete())
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)
         session._on_wake_cb()  # button / "Okay Nabu" again
         await _wait_until(lambda: voicepe.stop_playback_calls >= 1)
         assert session.sm.state is not State.IDLE  # still open
@@ -414,7 +445,7 @@ async def test_echo_shield_mic_never_reaches_model_during_reply():
         voicepe.feed([_frame(50)])
         await _wait_until(lambda: len(gemini.sent_audio) == 1)  # open mic pre-reply
 
-        gemini.emit(AudioChunk(_frame(), item_id="i1"))
+        gemini.emit(AudioChunk(_frame(), item_id="i1"), TurnComplete())
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
         session._on_media_state(True)  # the room now hears the assistant
         voicepe.feed([_frame(3000), _frame(3000)])  # "speech" = the reply's echo
@@ -429,26 +460,31 @@ async def test_echo_shield_mic_never_reaches_model_during_reply():
         await session.aclose()
 
 
-async def test_tool_turn_keeps_one_continuous_announce():
-    """Filler + post-tool answer must be ONE announce — a second announce mid-burst
-    cut the filler off mid-word ('Lige et øjebl-') in the 0.83 field test."""
+async def test_tool_preamble_is_never_published_to_the_buffered_announce():
+    """Realtime may speak before deciding to call a tool despite the prompt. The
+    thinking LED is status; only the result answer may reach the room."""
     gemini = LiveFake()
     session, _attention, voicepe = _build(gemini)
     await session.start()
     try:
         await session.wake()
-        gemini.emit(AudioChunk(_frame(), item_id="fill"))  # "Lige et øjeblik…"
-        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
-        gemini.emit(ToolCall("c1", "get_time", {}))
-        gemini.emit(TurnComplete())  # tool pending -> the reply stream STAYS open
-        await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)
+        filler = _frame(amplitude=111)
+        answer = _frame(amplitude=222)
+        gemini.emit(AudioChunk(filler, item_id="fill"))  # "Lige et øjeblik…"
         await asyncio.sleep(0.05)
-        assert session._speaking is True  # still one ongoing spoken burst
+        assert voicepe.announced_urls == []
+        gemini.emit(ToolCall("c1", "get_time", {}))
+        gemini.emit(TurnComplete())
+        await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)
+        assert gemini.truncations == [("fill", 0)]
+        assert voicepe.announced_urls == []
 
-        gemini.emit(AudioChunk(_frame(), item_id="answer"))  # the real answer
-        gemini.emit(TurnComplete())  # no tool pending -> burst really ends
+        gemini.emit(AudioChunk(answer, item_id="answer"), TurnComplete())
+        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
         await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
-        assert len(voicepe.announced_urls) == 1  # ONE announce for the whole burst
+        streamed = await session.reply_bus.collect(ROOM, max_wait_s=0.5)
+        assert filler not in streamed
+        assert streamed.startswith(answer)
     finally:
         await session.aclose()
 
@@ -469,15 +505,14 @@ async def test_reply_led_and_audio_mark_the_real_turn_boundary():
     try:
         await session.wake()
         reply = _frame(n_samples=2400)
-        gemini.emit(AudioChunk(reply, item_id="turn-boundary"))
+        gemini.emit(AudioChunk(reply, item_id="turn-boundary"), TurnComplete())
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
         session._on_media_state(True)
-        gemini.emit(TurnComplete())
         await _wait_until(lambda: session._speaking is False)
 
         green = led_command_for(State.AI_SPEAKING)
         assert session.sm.state is State.AI_SPEAKING
-        assert (True, green.rgb, green.brightness) in voicepe.light_commands
+        await _wait_until(lambda: (True, green.rgb, green.brightness) in voicepe.light_commands)
 
         streamed = await session.reply_bus.collect(ROOM, max_wait_s=0.5)
         assert streamed.startswith(reply)
@@ -595,10 +630,9 @@ async def test_long_reply_is_not_cut_by_the_idle_close():
     await session.start()
     try:
         await session.wake()
-        gemini.emit(AudioChunk(_frame(n_samples=2400), item_id="long"))
+        gemini.emit(AudioChunk(_frame(n_samples=2400), item_id="long"), TurnComplete())
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
         session._on_media_state(True)  # the device is PLAYING a long reply
-        gemini.emit(TurnComplete())  # generation done — but sound is still coming out
         await asyncio.sleep(0.4)
         assert session.sm.state is not State.IDLE  # must NOT close mid-sentence
 
@@ -670,7 +704,7 @@ async def test_device_side_hush_truncates_the_model():
     await session.start()
     try:
         await session.wake()
-        gemini.emit(AudioChunk(_frame(n_samples=24000), item_id="hushed"))
+        gemini.emit(AudioChunk(_frame(n_samples=24000), item_id="hushed"), TurnComplete())
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
         session._on_media_state(True)
         await asyncio.sleep(0.15)  # some of it was actually heard
@@ -710,7 +744,7 @@ async def test_shield_holds_for_the_whole_reply_without_device_reports():
     try:
         await session.wake()
         # ~2 s of reply audio (24 kHz, 16-bit): 96000 bytes
-        gemini.emit(AudioChunk(_frame(n_samples=48000), item_id="long"))
+        gemini.emit(AudioChunk(_frame(n_samples=48000), item_id="long"), TurnComplete())
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
         # NOTE: no _on_media_state(True) at all — the device stays silent about it.
         await asyncio.sleep(0.05)
@@ -734,7 +768,7 @@ async def test_direct_path_only_when_the_firmware_advertises_it():
     await session.start()
     try:
         await session.wake()
-        gemini.emit(AudioChunk(_frame(), item_id="i1"))
+        gemini.emit(AudioChunk(_frame(), item_id="i1"), TurnComplete())
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
         assert voicepe.direct_events == []  # the direct path was NOT touched
     finally:

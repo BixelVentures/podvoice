@@ -104,8 +104,9 @@ Gate B specifikt testes. Gem panelhistorik og add-on-log for hvert run.
      når det er din tur, og LED slukker efter farvel/timeout.
 2. **ASR-usikkerhed og web**
    - “Hvad tid skal AGF spille i aften?”
-   - Forvent: `Det tjekker jeg.`, et reelt `google_web_sogning`-/MCP-kald, ingen
-     vejr-svar medmindre du bad om vejret, og kilder i resultatet/historikken.
+   - Forvent: tænker-LED uden oplæst “Det tjekker jeg”-fyld, et reelt
+     `google_web_sogning`-/MCP-kald, ingen vejr-svar medmindre du bad om vejret,
+     og kilder i resultatet/historikken.
 3. **Vejr dér hvor hjemmet er**
    - “Hvordan bliver vejret her i eftermiddag?”
    - Forvent: vejr-entity/script eller søgeværktøj bruges med hjemmets/nærområdets

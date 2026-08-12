@@ -58,8 +58,8 @@ PodVoice presets (Settings → "Interruption style", applied live per session):
 
 | preset | wire config | rationale |
 |---|---|---|
-| `conservative` (default) | `server_vad` threshold **0.45**, prefix **800 ms**, silence **700 ms**, no `idle_timeout_ms` | catches soft/short Danish without clipping first syllables, while the half-duplex echo shield prevents the assistant from interrupting itself |
-| `responsive` | `semantic_vad`, eagerness `auto` | easiest to talk over; for quiet rooms / after 1.4 proves echo is a non-issue |
+| `responsive` (**default fra 1.12.25**) | `semantic_vad`, eagerness `auto` | de to fysiske gain-16-traces viste en tom server-VAD-mikrotur midt i en naturlig opfølgning; semantic VAD venter på meningsmæssig afslutning |
+| `conservative` | `server_vad` threshold **0.45**, prefix **800 ms**, silence **500 ms**, no `idle_timeout_ms` | eksplicit fallback til korte/energi-baserede ture; half-duplex-skjoldet håndterer stadig højttalerekko |
 | `custom` | raw knobs `openai_turn/threshold/prefix_ms/silence_ms/eagerness` | the 1.4 matrix sweeps |
 
 Other verified session facts: PodVoice uses PCM at **24 kHz** in and out;
@@ -67,7 +67,7 @@ Other verified session facts: PodVoice uses PCM at **24 kHz** in and out;
 `far_field` for laptop/conference microphones. Noise filtering runs before both VAD
 and the model. Therefore source processing is explicit:
 
-- Voice PE ch1: XMOS AEC+IC+NS, no AGC, gain 4 → OpenAI noise reduction `null`/off.
+- Voice PE ch1: XMOS AEC+IC+NS, no AGC, fysisk målt gain 16 → OpenAI noise reduction `null`/off.
 - Talk/Mac: browser echo cancellation on, browser NS/AGC requested off → OpenAI
   `far_field`. Actual browser settings and rates are logged because simple media
   constraints are best-effort.

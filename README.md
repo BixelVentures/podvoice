@@ -25,13 +25,14 @@ hardware. But unlike a `custom_components` plugin, it runs in its **own containe
 socket hiccup or VAD confusion can't drag Home Assistant (or your music) down with it. Same
 deployment model as PodConnect.
 
-## Status (1.12.20 truth-first panel + evidence-grounded ASR candidate)
+## Status (1.12.25 evidence-grounded half-duplex candidate)
 **OpenAI-only, single pipeline.** The Gemini provider, the provider switch, and the hand-rolled HA
 REST tool bridge are deleted. What ships now:
 - one thin provider module (`openai_realtime.py`) — GPT-Live-1 readiness = a model string + event
   handlers there ([docs/realtime-config.md](docs/realtime-config.md));
-- turn-detection **presets** (conservative / responsive / custom) tunable live in Settings — the
-  self-interruption fix rides the XMOS AEC + a hard-to-trip `server_vad`
+- turn-detection **presets** (responsive / conservative / custom) tunable live in Settings — the
+  default uses semantic completion for natural follow-ups, while the half-duplex echo shield
+  prevents the puck from feeding its own reply back to Realtime
   ([docs/audio-path.md](docs/audio-path.md) maps the audio path and corrects two firmware premises);
 - cost control: sessions open only on wake, idle/max-duration caps, per-response token metering and
   `sensor.podvoice_cost_today` / `_month` in HA;

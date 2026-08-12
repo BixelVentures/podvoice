@@ -266,6 +266,11 @@ class ThinSession:
         self._speech_stop_t: float | None = None  # end-of-user-speech -> audible metric
         self._buf_in: list[str] = []  # user transcript deltas (flushed per utterance)
         self._buf_out: list[str] = []  # assistant transcript deltas (flushed per turn)
+        # The proven announce path already buffers until generation is complete. Keep
+        # each response's PCM here too, so a model that says "Jeg tjekker..." and THEN
+        # calls a tool cannot leak that forbidden filler into the final FLAC.
+        self._held_announce_pcm: list[bytes] = []
+        self._held_announce_item: str | None = None
         self._last_user_utterance = ""  # tool-policy evidence for this user turn
         self._barge_task: asyncio.Task | None = None  # pending blip-debounced barge-in
         self._followup_task: asyncio.Task | None = None  # delayed turn-ready LED fallback
@@ -404,6 +409,11 @@ class ThinSession:
         # RUN_END from here could race the run's own setup and is redundant.
         if hasattr(self.voicepe, "start_streaming"):
             await self.voicepe.start_streaming()
+        # Tool declarations are part of session.update, which connect() sends. Setting
+        # them afterwards made HA/PodConnect changes arrive one conversation late.
+        if self.tools is not None and hasattr(self.brain, "tool_declarations"):
+            decls = self.tools.declarations()
+            self.brain.tool_declarations = [*decls, END_CONVERSATION_TOOL]
         try:
             await asyncio.wait_for(self.brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
         except Exception as e:
@@ -413,12 +423,6 @@ class ThinSession:
         self._trace_event("provider_connected")
         if self.reply_bus is not None:
             self.reply_bus.clear(self.room)
-        if self.tools is not None and hasattr(self.brain, "tool_declarations"):
-            # FRESH tool list every conversation: a session built during an HA outage
-            # would otherwise carry an empty home-tool set forever (10:18 field bug).
-            decls = self.tools.declarations()
-            if decls:
-                self.brain.tool_declarations = [*decls, END_CONVERSATION_TOOL]
         if self.tools is not None and getattr(self.tools, "healthy", True) is False:
             # Honest at the door (modprøve A2/F2): home control is provably down —
             # say it ONCE, keep the conversation open (chat/lookup still works).
@@ -466,6 +470,8 @@ class ThinSession:
         self._gate_dropped = 0
         self._turn_had_tool = False
         self._speech_tools.clear()
+        self._held_announce_pcm.clear()
+        self._held_announce_item = None
         self._turn_cue_appended = False
         self._ending_conversation = False
         self._last_user_utterance = ""
@@ -656,7 +662,7 @@ class ThinSession:
                 # continuous announce (the gap is silence-filled) — ending it here made
                 # the follow-up announce CUT the filler mid-word ("Lige et øjebl-").
                 self._turn_had_tool = False
-                _LOG.info("thin: turn paused on a tool — reply stream stays open")
+                _LOG.info("thin: tool decision complete — waiting for the result answer")
             else:
                 had_reply = self._speaking
                 if had_reply and self._active and not self._ending_conversation:
@@ -664,14 +670,14 @@ class ThinSession:
                     if self._direct and self._direct_q is not None:
                         self._direct_q.put_nowait(cue)
                     elif self.reply_bus is not None:
-                        self.reply_bus.push(self.room, cue)
+                        self._held_announce_pcm.append(cue)
                     cue_s = len(cue) / (C.OUTPUT_RATE * C.SAMPLE_WIDTH)
                     self._reply_audible_until += cue_s
                     self._turn_cue_appended = True
                 if self._direct:
                     self._end_direct_stream()
                 elif self.reply_bus is not None:
-                    self.reply_bus.end(self.room)
+                    self._publish_held_announce()
                 self._flush_transcript("out")
                 if self._active:
                     self._speaking = False
@@ -691,11 +697,15 @@ class ThinSession:
             await self.stop(reason="idle")
         elif isinstance(ev, ToolCall):
             self._trace_event("tool_call", name=ev.name, call_id=ev.id)
-            # A tool splits one audible answer into acknowledgement -> tool -> result.
-            # Flush the acknowledgement as its own complete transcript before the
-            # tool line. This also gives Talk deterministic USER -> acknowledgement ->
-            # tool -> answer ordering despite OpenAI's asynchronous input transcript.
-            self._flush_transcript("out")
+            if ev.name != "end_conversation" and not self._direct:
+                await self._discard_tool_preamble()
+                # History represents what the room heard. The preamble was truncated
+                # at zero and must not survive as a fake spoken assistant turn.
+                self._buf_out.clear()
+            else:
+                # Direct replies have already reached the DAC; end_conversation's
+                # goodbye is also intentionally audible. Preserve those transcripts.
+                self._flush_transcript("out")
             if ev.name == "end_conversation":
                 self._ending_conversation = True
             if ev.name != "end_conversation":
@@ -816,14 +826,15 @@ class ThinSession:
                 self._direct_q = asyncio.Queue()
                 self._direct_task = self._spawn(self._direct_send_loop(), "thin-direct")
             else:
-                self.reply_bus.clear(self.room)  # a never-fetched reply must not lead
-                self.reply_bus.start(self.room)
-                self._spawn(self._announce_with_retry(), "thin-announce")
+                self._held_announce_pcm.clear()
+                self._held_announce_item = ev.item_id
         if direct:
             if self._direct_q is not None:
                 self._direct_q.put_nowait(ev.pcm)
         else:
-            self.reply_bus.push(self.room, ev.pcm)
+            if not self._held_announce_pcm:
+                self._held_announce_item = ev.item_id
+            self._held_announce_pcm.append(ev.pcm)
         # Extend the shield by this chunk's REAL duration. The device's "I am playing"
         # report can be late or absent (field 16:42: mic level ~426 mid-reply -> the
         # model heard itself, barged in, and truncated its own answer at 0 ms). The
@@ -834,6 +845,40 @@ class ThinSession:
         item = ev.item_id or self._last_item or "reply"
         self._last_item = item
         self.playout.on_sent(item, len(ev.pcm))
+
+    async def _discard_tool_preamble(self) -> None:
+        """Drop speech generated before a tool call on the buffered announce path.
+
+        The thinking LED is the progress signal.  Keeping the filler in model memory
+        while the room never heard it also corrupts conversational state, so truncate
+        the audio item at zero just like an immediate physical interruption.
+        """
+        if not self._held_announce_pcm:
+            return
+        item = self._held_announce_item or self._last_item
+        self._held_announce_pcm.clear()
+        self._held_announce_item = None
+        self.playout.reset()
+        self._reply_audible_until = 0.0
+        if item and hasattr(self.brain, "truncate"):
+            with contextlib.suppress(Exception):
+                await self.brain.truncate(item, 0)
+        _LOG.info("thin: discarded pre-tool speech before it reached the room")
+
+    def _publish_held_announce(self) -> None:
+        """Atomically expose only the final, complete response to the HTTP/FLAC path."""
+        if self.reply_bus is None or not self._held_announce_pcm:
+            return
+        self.reply_bus.clear(self.room)
+        self.reply_bus.start(self.room)
+        for pcm in self._held_announce_pcm:
+            if self.audio_trace is not None:
+                self.audio_trace.audio("speaker", pcm, C.OUTPUT_RATE)
+            self.reply_bus.push(self.room, pcm)
+        self._held_announce_pcm.clear()
+        self._held_announce_item = None
+        self.reply_bus.end(self.room)
+        self._spawn(self._announce_with_retry(), "thin-announce")
 
     async def _direct_send_loop(self) -> None:
         """Pump the reply to the device as paced raw PCM, then wait for its own
@@ -872,6 +917,8 @@ class ThinSession:
                             break
                         await asyncio.sleep(min(ahead - DIRECT_LEAD_S, 0.05))
                     self.voicepe.send_direct_pcm(piece)
+                    if self.audio_trace is not None:
+                        self.audio_trace.audio("speaker", piece, C.OUTPUT_RATE)
                     sent += len(piece)
                     self._direct_sent = sent
                     # EXACT, not estimated: every byte we have handed over is audible
@@ -1092,7 +1139,7 @@ class ThinSession:
             # keep listening (the proven firmware can't distinguish the two sources).
             self._last_activity = time.monotonic()
             self._cancel_followup_edge()
-            if self._speaking:
+            if self._speaking or self._device_playing:
                 self._spawn(self._silence_device(), "thin-hush")
             else:
                 self._turn_cue_appended = False
@@ -1140,13 +1187,25 @@ class ThinSession:
         else:
             self._trace_event("playback_finished", turn_cue=self._turn_cue_appended)
             was_speaking = self._speaking
+            # On buffered announce, generation has already completed before physical
+            # playback starts, so `_speaking` is normally false.  Compare the elapsed
+            # playout with generated bytes to distinguish a local wake/stop hush from
+            # a natural media-player finish; otherwise the model remembers words the
+            # family never heard.
+            self._sync_playout()
+            unheard_threshold = int(0.15 * C.OUTPUT_RATE * C.SAMPLE_WIDTH)
+            was_hushed = (
+                not self._direct
+                and self._playback_t0 is not None
+                and self.playout.buffered_bytes > unheard_threshold
+            )
             self._device_playing = False
             # The device REPORTING "done" is better evidence than our byte estimate —
             # trust it and release the window. The estimate only carries the shield
             # when that report never arrives (field 16:42).
             self._reply_audible_until = 0.0
             self._last_activity = time.monotonic()  # the room just went quiet: your turn
-            if was_speaking and self._active:
+            if (was_speaking or was_hushed) and self._active:
                 # Playback stopped while the model still had more to say: the FIRMWARE
                 # silenced it because a wake word ("Okay Nabu" / "stop") was heard over
                 # the reply — the puck's built-in hush, on the echo-cancelled channel,

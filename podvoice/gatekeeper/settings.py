@@ -46,7 +46,10 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 # v9: the first two-boundary physical trace measured gain 4 at only RMS 79.5 / 8.85%
 # peak with zero clipping at the owner's real desk. Restore gain 16 (+12 dB over
 # that capture, still leaving roughly 9 dB peak headroom).
-SETTINGS_VERSION = 9
+# v10: two gain-16 traces proved usable audio but server_vad split a natural follow-up
+# into an empty micro-turn plus the real question.  OpenAI's semantic VAD is designed
+# to wait for semantic completion; auto eagerness keeps the latency/continuity balance.
+SETTINGS_VERSION = 10
 
 # sha256 of RETIRED default system prompts. A saved prompt matching one of these is
 # just a persisted copy of an old default (the panel saves every field on Save) —
@@ -139,7 +142,7 @@ DEFAULTS: dict = {
     # Turn detection: a preset, or "custom" driven by the raw knobs below.
     # conservative = server_vad tuned hard-to-interrupt (residual echo past the XMOS AEC
     # must not read as barge-in); responsive = semantic_vad, easiest to interrupt.
-    "turn_preset": "conservative",  # conservative|responsive|custom
+    "turn_preset": "responsive",  # conservative|responsive|custom
     "openai_turn": "semantic_vad",  # custom: server_vad|semantic_vad|none
     "openai_threshold": 0.5,  # custom, server_vad only
     "openai_prefix_ms": 300,  # custom, server_vad only

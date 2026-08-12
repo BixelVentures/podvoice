@@ -8,7 +8,7 @@ import httpx
 import respx
 
 from gatekeeper.mcp_client import HomeAssistantMCP, McpError, _sse_payload
-from gatekeeper.tools import ToolRouter, _mcp_result_to_contract
+from gatekeeper.tools import ToolRouter, _mcp_result_to_contract, _spoken_clock
 
 MCP_URL = "http://supervisor/core/api/mcp"
 
@@ -116,6 +116,16 @@ def test_no_mcp_at_all_still_serves_local():
     assert "weather-entity" in caps["setup_hints"]["weather"]
     assert caps["sources"]["time"] == "podvoice_local"
     assert caps["sources"]["home"] == "missing"
+
+
+def test_clock_tool_produces_natural_danish_instead_of_reading_digits():
+    assert _spoken_clock(17, 0) == "Klokken er fem."
+    assert _spoken_clock(17, 15) == "Klokken er kvart over fem."
+    assert _spoken_clock(17, 30) == "Klokken er halv seks."
+    assert _spoken_clock(17, 45) == "Klokken er kvart i seks."
+    assert _spoken_clock(17, 59) == "Klokken er et minut i seks."
+    assert _spoken_clock(14, 51) == "Klokken er ni minutter i tre."
+    assert _spoken_clock(14, 21) == "Klokken er enogtyve minutter over to."
 
 
 def test_capabilities_show_exposed_search_weather_and_music_tools():

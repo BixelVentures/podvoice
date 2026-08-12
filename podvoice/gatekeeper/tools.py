@@ -92,6 +92,74 @@ _MONTHS_DA = (
     "december",
 )
 
+_CLOCK_HOURS_DA = (
+    "tolv",
+    "et",
+    "to",
+    "tre",
+    "fire",
+    "fem",
+    "seks",
+    "syv",
+    "otte",
+    "ni",
+    "ti",
+    "elleve",
+)
+_NUMBERS_DA = {
+    1: "et",
+    2: "to",
+    3: "tre",
+    4: "fire",
+    5: "fem",
+    6: "seks",
+    7: "syv",
+    8: "otte",
+    9: "ni",
+    10: "ti",
+    11: "elleve",
+    12: "tolv",
+    13: "tretten",
+    14: "fjorten",
+    15: "femten",
+    16: "seksten",
+    17: "sytten",
+    18: "atten",
+    19: "nitten",
+    20: "tyve",
+    30: "tredive",
+    40: "fyrre",
+    50: "halvtreds",
+}
+
+
+def _number_da(value: int) -> str:
+    if value in _NUMBERS_DA:
+        return _NUMBERS_DA[value]
+    tens, ones = divmod(value, 10)
+    one_word = "en" if ones == 1 else _NUMBERS_DA[ones]
+    return f"{one_word}og{_NUMBERS_DA[tens * 10]}"
+
+
+def _spoken_clock(hour: int, minute: int) -> str:
+    """Natural Danish clock speech; never make the voice model pronounce ``17:59``."""
+    current = _CLOCK_HOURS_DA[hour % 12]
+    following = _CLOCK_HOURS_DA[(hour + 1) % 12]
+    if minute == 0:
+        return f"Klokken er {current}."
+    if minute == 15:
+        return f"Klokken er kvart over {current}."
+    if minute == 30:
+        return f"Klokken er halv {following}."
+    if minute == 45:
+        return f"Klokken er kvart i {following}."
+    if minute < 30:
+        unit = "minut" if minute == 1 else "minutter"
+        return f"Klokken er {_number_da(minute)} {unit} over {current}."
+    remaining = 60 - minute
+    unit = "minut" if remaining == 1 else "minutter"
+    return f"Klokken er {_number_da(remaining)} {unit} i {following}."
+
 
 def _mcp_result_to_contract(result: dict) -> dict:
     """Fold an MCP tools/call result into the one flat contract the prompt teaches:
@@ -484,14 +552,12 @@ class ToolRouter:
     async def _get_time(self) -> dict:
         """Local wall-clock time + date, with a ready-to-speak Danish summary."""
         now = datetime.datetime.now(await self._get_timezone())
-        spoken = (
-            f"Klokken er {now:%H:%M}, {_WEEKDAYS_DA[now.weekday()]} den "
-            f"{now.day}. {_MONTHS_DA[now.month - 1]} {now.year}."
-        )
+        spoken = _spoken_clock(now.hour, now.minute)
         return {
             "ok": True,
             "summary": spoken,
             "data": {
+                "spoken_time": spoken,
                 "time": f"{now:%H:%M}",
                 "date": f"{now:%Y-%m-%d}",
                 "weekday": _WEEKDAYS_DA[now.weekday()],
