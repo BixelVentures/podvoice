@@ -72,7 +72,7 @@ def test_documented_mic_baseline_is_visible_in_panel():
     assert 'id="s_mic_gain"' in html
     assert 'id="s_openai_noise"' in html
     assert "AGC-less channel 1" in html
-    assert "gain 4" in html
+    assert "gain 16" in html
     assert "ingen ekstra OpenAI-støjfiltrering" in html
     assert 'gpt-realtime-2.1">GPT Realtime 2.1 (quality standard)' in html
     assert "separat diagnostisk transcript" in html

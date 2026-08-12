@@ -49,7 +49,7 @@ class Config:
     openai_eagerness: str = "auto"
     openai_noise: str = "off"
     mic_channel: int = 1  # device mic tap, re-asserted on every connect
-    mic_gain: int = 4  # device mic gain, re-asserted on every connect
+    mic_gain: int = 16  # measured desk baseline, re-asserted on every connect
     wake_word: str = "okay_nabu"  # device wake model, re-asserted on every connect
     idle_timeout_s: int = 8  # close the conversation after this much user silence
     max_session_min: int = 15  # hard ceiling on one conversation (provider caps at 60)
@@ -145,7 +145,7 @@ def from_options(opts: dict) -> Config:
         openai_noise=str(opts.get("openai_noise", "off") or "off"),
         # Cost control: both floored so a stray saved 0 can't strobe sessions open/shut.
         mic_channel=1 if _int(opts, "mic_channel", 1) else 0,
-        mic_gain=min(max(_int(opts, "mic_gain", 4), 1), 64),
+        mic_gain=min(max(_int(opts, "mic_gain", 16), 1), 64),
         # Only the three models the upstream firmware actually carries. An unknown
         # name would be a silent no-op on the device, so it never leaves here.
         wake_word=(

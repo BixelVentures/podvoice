@@ -417,7 +417,7 @@
   <div class="pane" id="pane-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
     <div class="section">
       <div class="exsub" style="margin-top:4px">Daglig brug</div>
-      <p class="sub" style="margin:2px 0 8px">De indstillinger du normalt bruger. PodVoice påfører Voice PE-baseline ved hver forbindelse: kanal 1 med XMOS AEC/IC/NS uden AGC, gain 4 og intet ekstra provider-støjfilter.</p>
+      <p class="sub" style="margin:2px 0 8px">De indstillinger du normalt bruger. PodVoice påfører den fysisk målte Voice PE-baseline ved hver forbindelse: kanal 1 med XMOS AEC/IC/NS uden AGC, gain 16 og intet ekstra provider-støjfilter.</p>
       <div class="setgrid">
         <label for="s_wake_word">Vækkeord</label>
         <select id="s_wake_word">
@@ -515,7 +515,7 @@
             <option value="near_field">Kort afstand</option>
           </select>
         </div>
-        <p class="sub" style="margin:2px 0 0">Baseline: Voice PE bruger <b>channel 1</b> (XMOS AEC/IC/NS uden AGC), <b>gain 4</b> og derfor ingen ekstra OpenAI-støjfiltrering. Talk bruger browser-ekkoannullering uden browser-NS/AGC og én OpenAI <b>far field</b>-filtrering. <code>turn: input transcript</code> er en separat diagnostisk transcript &mdash; ikke nødvendigvis præcis hvad Realtime-modellen hørte.</p>
+        <p class="sub" style="margin:2px 0 0">Baseline: Voice PE bruger <b>channel 1</b> (XMOS AEC/IC/NS uden AGC), fysisk målt <b>gain 16</b> og derfor ingen ekstra OpenAI-støjfiltrering. Talk bruger browser-ekkoannullering uden browser-NS/AGC og én OpenAI <b>far field</b>-filtrering. <code>turn: input transcript</code> er en separat diagnostisk transcript &mdash; ikke nødvendigvis præcis hvad Realtime-modellen hørte.</p>
 
         <div style="margin:14px 0 8px"><label for="s_system_prompt"><b>Systemprompt</b></label> <button id="s_resetprompt" class="ghost">Nulstil</button></div>
         <textarea id="s_system_prompt" class="prompt" rows="8" spellcheck="false"></textarea>

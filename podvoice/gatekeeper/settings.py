@@ -43,7 +43,10 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 # v7: reset saved mic/noise tuning to ch1 without AGC and firmware gain 4.
 # v8: quality-first shared ASR baseline. Reset the saved mini model; Voice PE already
 # has XMOS noise suppression, so do not apply a second provider filter to that source.
-SETTINGS_VERSION = 8
+# v9: the first two-boundary physical trace measured gain 4 at only RMS 79.5 / 8.85%
+# peak with zero clipping at the owner's real desk. Restore gain 16 (+12 dB over
+# that capture, still leaving roughly 9 dB peak headroom).
+SETTINGS_VERSION = 9
 
 # sha256 of RETIRED default system prompts. A saved prompt matching one of these is
 # just a persisted copy of an old default (the panel saves every field on Save) —
@@ -148,7 +151,7 @@ DEFAULTS: dict = {
     # moment the puck reboots, and nobody notices until transcription quietly gets
     # worse again. These are the source of truth.
     "mic_channel": 1,  # 1 = AEC/NS without AGC, 0 = the full processed channel
-    "mic_gain": 4,  # firmware-documented AGC-less-channel start value (+12 dB), 1..64
+    "mic_gain": 16,  # physically measured desk baseline; re-asserted on every connect
     "idle_timeout_s": 8,  # close the conversation after this much user silence (owner-tunable 3+)
     "max_session_min": 15,  # hard ceiling on one conversation (cost control)
     "engine": "classic",  # "classic" (the proven state-machine engine) | "thin" (Track B:

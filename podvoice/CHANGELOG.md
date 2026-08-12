@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.12.24 — lydbeviset lukker den første målte fejl
+
+- Den første fysiske trace målte Voice PE ved skrivebordet til RMS 79,5, peak 8,85 %
+  og nul clipping på gain 4. Runtime-baselinen er derfor sat tilbage til gain 16,
+  som giver cirka 12 dB mere talesignal og stadig omtrent 9 dB peak-headroom i den
+  målte samtale. Værdien påføres igen ved hver forbindelse og overlever reboot.
+- Skratten i starten findes allerede i Voice PE's 16 kHz PCM og er bevaret, men
+  ikke skabt, af 24 kHz-resamplingen. Provider-støjfilteret forbliver derfor slukket;
+  problemet skal løses ved kilden i stedet for med endnu et destruktivt filter.
+- Lydtracens tool-event brugte `name` både som eventnavn og værktøjsdetalje. Det
+  crashede provider-læseren ved det første `podconnect_recently_played`-kald og
+  lignede en forbindelsesfejl. Signaturen er gjort kollisionsfri og regressionstestet.
+
 ## 1.12.23 — mål den fysiske lyd før næste tuning
 
 - Test-fanen kan nu armere præcis én lokal Voice PE-samtale som lydbevis. Normal

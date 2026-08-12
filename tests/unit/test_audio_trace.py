@@ -52,3 +52,18 @@ def test_trace_is_bounded_and_rejects_unsafe_artifact_names(tmp_path):
     assert any(event["event"] == "capture_limit" for event in manifest["events"])
     assert recorder.artifact("../secret", "device") is None
     assert recorder.artifact(manifest["id"], "other") is None
+
+
+def test_event_detail_may_be_named_name(tmp_path):
+    """Tool events carry a name detail; tracing it must never kill the provider reader."""
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    assert recorder.begin("r0") is True
+    recorder.event("tool_call", name="podconnect_recently_played", call_id="call-1")
+    manifest = recorder.finish("farvel")
+
+    assert manifest is not None
+    tool_event = manifest["events"][1]
+    assert tool_event["event"] == "tool_call"
+    assert tool_event["name"] == "podconnect_recently_played"
+    assert tool_event["call_id"] == "call-1"

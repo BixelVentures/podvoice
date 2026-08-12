@@ -147,7 +147,7 @@ class AudioTraceRecorder:
             self._limit_reported.add(stage)
             self.event("capture_limit", stage=stage, max_seconds=self.max_seconds)
 
-    def event(self, name: str, **details: Any) -> None:
+    def event(self, event_name: str, **details: Any) -> None:
         if self._active_room is None:
             return
         clean = {
@@ -158,7 +158,7 @@ class AudioTraceRecorder:
         self._events.append(
             {
                 "at_ms": round((time.monotonic() - self._started_mono) * 1000),
-                "event": str(name),
+                "event": str(event_name),
                 **clean,
             }
         )

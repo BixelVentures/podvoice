@@ -12,7 +12,7 @@ def test_defaults_and_roundtrip(tmp_path):
     p = tmp_path / "podvoice.json"
     d = S.load_settings(p)
     assert d["engine"] == "classic" and d["rooms"] == [] and d["duck_level"] == 0
-    assert d["mic_channel"] == 1 and d["mic_gain"] == 4
+    assert d["mic_channel"] == 1 and d["mic_gain"] == 16
     assert d["openai_noise"] == "off"
 
     saved = S.save_settings({"engine": "thin", "duck_level": 7, "bogus": "x"}, p)
@@ -64,7 +64,7 @@ def test_stale_tuning_reset_on_version_bump(tmp_path):
     assert d["watchdog_ms"] == S.DEFAULTS["watchdog_ms"]  # reset
     assert d["lounge_window_s"] == S.DEFAULTS["lounge_window_s"]  # reset
     assert d["openai_noise"] == "off"  # Voice PE channel 1 already has XMOS NS
-    assert d["mic_gain"] == 4  # reset to firmware-documented AGC-less-channel gain
+    assert d["mic_gain"] == 16  # reset to the physically measured desk baseline
     assert d["openai_model"] == "gpt-realtime-2.1"  # quality-first default
     assert d["engine"] == "thin"  # kept
     assert d["rooms"] == [{"voicepe_host": "1.2.3.4", "room": "r0"}]  # kept
