@@ -14,15 +14,15 @@ You need three things working first:
 1. **The PodConnect add-on**, with its Attention API reachable on port `:8099`.
    PodVoice asks PodConnect to turn the music down and back up; without it the
    conversation still works, but the music will not duck.
-2. **A Voice PE flashed with the PodVoice firmware** (`esphome/voice-pe.yaml`).
+2. **A Voice PE flashed with the PodVoice firmware** (`esphome/podvoice.yaml`).
    The stock firmware will not work — PodVoice needs the custom firmware so it can
    listen continuously. You will set an encryption key (Noise PSK) when you flash it;
    keep that key, you will paste it into PodVoice below.
 3. **An OpenAI API key** (platform.openai.com, billing enabled). This powers the
    spoken conversation (`gpt-realtime-2.1-mini` by default — the cheap one).
 4. **Home Assistant's MCP server** — add the "Model Context Protocol Server"
-   integration once, and expose the devices the assistant may touch under
-   **Settings → Voice assistants**. That list IS the assistant's permissions.
+   integration once, and expose the devices, scripts and agents the assistant may
+   touch under **Settings → Voice assistants**. That list IS the assistant's permissions.
 
 ## Installing
 
@@ -76,34 +76,37 @@ for example that the HomePod control is unavailable and the music will not duck.
 
 Open the **PodVoice** sidebar → **Voice PE setup**. It walks you through it and gives three
 click-buttons so you never need a terminal:
-1. Flash `esphome/voice-pe.yaml` via the **ESPHome** add-on (set its API encryption key = your PSK).
+1. Flash `esphome/podvoice.yaml` via the **ESPHome** add-on (set its API encryption key = your PSK).
 2. Do **not** add the Voice PE to Home Assistant Assist (PodVoice must own its mic).
 3. In **Settings**, enter the PSK and add a room → **Save & restart**.
 4. **Check connection** (is it reachable?), **Check audio stream** (continuous-audio test), and
    **Test speaker** (plays a tone — confirm you hear it).
 
-## Home control & music (like Assist)
+## Home control, web search & music (like Assist)
 
-PodVoice can control your home and music — both in the panel console and (later) by voice.
+PodVoice can control your home, run exposed lookup tools, and control music — both in the panel
+console and by voice — through the same Home Assistant MCP tool list that OpenAI Realtime receives.
 
-**Home control:** in **Settings → Home control**, list the entities or whole domains the
-assistant may control, comma-separated — e.g. `light, media_player, todo.shopping_list`. This is
-an **allowlist** (like Assist's "expose entities"): empty means it can control nothing. Once set,
-you can say things like *"tænd lyset i køkkenet"*, *"sæt varmen til 21"*, or *"tilføj mælk til
-indkøbslisten"*. Supported: on/off, lights (brightness/colour), media transport + volume, scenes,
-climate, covers, and to-do lists. It can also list what it's allowed to control.
+**Home control:** expose the entities and domains in Home Assistant's own Voice Assistant / Assist
+settings. PodVoice no longer keeps a separate allowlist. Once exposed through HA/MCP, you can say
+things like *"tænd lyset i køkkenet"*, *"sæt varmen til 21"*, or *"tilføj mælk til
+indkøbslisten"*.
 
-**Music:** when **PodConnect URL** is set, PodVoice gets generic access to PodConnect's whole API —
-so *play / pause / next / volume / "play in the kitchen"* work and keep working as PodConnect gains
-features (nothing is hardcoded). You can also expose the HomePod's `media_player` entity for HA-side
-control. (Ducking music while you talk is automatic and separate.)
+**Web search:** expose your existing Gemini/search agent or a search script to Assist/MCP. PodVoice
+does not add a second competing search provider. The panel shows whether a web/search tool is
+actually visible; if it is missing, current facts should fail honestly instead of being invented.
+
+**Music:** PodConnect URL/token are only for automatic ducking while the family talks. Voice music
+commands like *pause*, *next*, *play something*, and *skru ned* require media/PodConnect tools to be
+exposed through Home Assistant MCP. The panel shows whether a music tool is actually visible.
 
 ## The sidebar panel
 
 Once started, PodVoice adds a **PodVoice** item to the Home Assistant sidebar. Open it to see,
 per room: the current state (idle / listening / speaking / follow-up), whether the music is
-ducked and how far, the last response time, and live connection health for ChatGPT, the Voice PE, Home control (MCP),
-and PodConnect. There's a live transcript and three buttons per room — **Listen** (start a
+ducked and how far, the last response time, live connection health for ChatGPT, the Voice PE, Home
+control (MCP), and PodConnect, plus capability pills for time, home, web/search, music and timers.
+There's a live transcript and three buttons per room — **Listen** (start a
 conversation as if you pressed the button), **Stop** (end it and restore music), and **Test tone**
 (play a sound out the Voice PE speaker to check audio). No secrets are shown here; configuration
 still lives in the **Configuration** tab.

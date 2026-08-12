@@ -25,7 +25,7 @@ hardware. But unlike a `custom_components` plugin, it runs in its **own containe
 socket hiccup or VAD confusion can't drag Home Assistant (or your music) down with it. Same
 deployment model as PodConnect.
 
-## Status (1.12.0 reliability candidate)
+## Status (1.12.3 reliability candidate)
 **OpenAI-only, single pipeline.** The Gemini provider, the provider switch, and the hand-rolled HA
 REST tool bridge are deleted. What ships now:
 - one thin provider module (`openai_realtime.py`) — GPT-Live-1 readiness = a model string + event
@@ -37,6 +37,8 @@ REST tool bridge are deleted. What ships now:
   `sensor.podvoice_cost_today` / `_month` in HA;
 - home control via a **local MCP client** to HA's MCP server (LAN), plus local tools (clock, kitchen
   timers that ring on the device) and the exposed Gemini search agent;
+- a panel capability check that shows whether Realtime can actually see web/search and music tools,
+  not just whether HA's MCP server is reachable;
 - end-phrase fallback (Danish + English) on top of the model-owned `end_conversation` closure.
 
 The direct speaker fix is compiled but deliberately not called delivered until a complete physical
@@ -45,10 +47,11 @@ conversation passes. The measurable product and release gates live in
 
 ## Sidebar panel & simulation mode
 PodVoice ships a **Home Assistant Ingress sidebar panel** (served on `:8098` — PodConnect owns `:8099`):
-per-room state, service health (ChatGPT / Voice PE / PodConnect / Home control), the live ducking
-level, a live transcript, and controls, plus a `/health` endpoint and live metrics. The **Talk tab**
-runs the REAL engine with the browser as a device: the mic button is the wake word and every rule
-(tools, idle close, echo shield, goodbye) is the same code path the puck runs.
+per-room state, service health (ChatGPT / Voice PE / PodConnect / Home control), live capability
+pills (time / home / web-search / music / timers), the live ducking level, a live transcript, and
+controls, plus a `/health` endpoint and live metrics. The **Talk tab** runs the REAL engine with
+the browser as a device: the mic button is the wake word and every rule (tools, idle close, echo
+shield, goodbye) is the same code path the puck runs.
 
 **Try it with no hardware or keys:** set the add-on option `simulate: true` (or run `python -m gatekeeper`
 with it). A built-in scenario driver (`sim.py`) animates the full wake → duck → speak → lounge → release
