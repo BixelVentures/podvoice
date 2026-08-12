@@ -97,6 +97,21 @@ async def test_openai_sends_create_immediately_when_idle():
     assert s._ws.sent[-1] == {"type": "response.create"} and s._pending_create is False
 
 
+async def test_openai_buffers_wake_audio_until_session_update_is_accepted():
+    # Field bug: the puck starts streaming immediately after wake, while OpenAI may
+    # still need ~1-2s before session.updated. Those first words must be replayed,
+    # not thrown away.
+    s = OpenAIRealtimeSession(api_key="k", input_rate=24000)
+    s._ws = _FakeWS([_Msg(json.dumps({"type": "session.updated"}))])  # type: ignore[assignment]
+    await s.send_audio(b"first words")
+    assert s._ws.sent == []  # not sent before the server accepted the session config
+
+    await _drain(s)
+
+    assert s._ws.sent == [{"type": "input_audio_buffer.append", "audio": "Zmlyc3Qgd29yZHM="}]
+    assert s._preconnect_audio_bytes == 0
+
+
 def test_openai_session_semantic_with_noise():
     s = OpenAIRealtimeSession(
         api_key="k", preset="custom", turn="semantic_vad", eagerness="low", noise="far_field"

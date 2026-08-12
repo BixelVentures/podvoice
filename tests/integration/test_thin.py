@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import array
 import asyncio
+from types import SimpleNamespace
 
 from fakes.fake_attention import FakeAttention
 from fakes.fake_brain import FakeBrainSession
@@ -293,6 +294,29 @@ async def test_rewake_during_reply_hushes_but_keeps_conversation():
         session._on_wake_cb()  # button / "Okay Nabu" again
         await _wait_until(lambda: voicepe.stop_playback_calls >= 1)
         assert session.sm.state is not State.IDLE  # still open
+    finally:
+        await session.aclose()
+
+
+async def test_rewake_while_active_listens_again_instead_of_noop():
+    """A repeated "Okay Nabu" after a weak/failed utterance is the user's natural
+    recovery gesture. While the conversation is still active, it must refresh the
+    listening state instead of spawning an ignored wake and timing out as if dead."""
+    gemini = LiveFake()
+    session, _attention, _voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        session.sm.state = State.LOUNGE_WINDOW
+        session._turn_cue_appended = True
+        before = session._last_activity
+
+        session._on_device_event(ROOM, SimpleNamespace(event_type="wake_okay_nabu"))
+
+        assert gemini.connect_count == 1
+        assert session.sm.state is State.LISTENING
+        assert session._turn_cue_appended is False
+        assert session._last_activity >= before
     finally:
         await session.aclose()
 

@@ -24,6 +24,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+from collections import deque
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 
@@ -51,6 +52,7 @@ OPENAI_RATE = 24000  # OpenAI audio/pcm is 24 kHz for both directions (VERIFY: 1
 DEFAULT_MODEL = "gpt-realtime-2.1-mini"  # distilled 2.1 — home control at family-budget cost
 FULL_MODEL = "gpt-realtime-2.1"  # opt-in when mini proves too weak (Settings/Talk picker)
 DEFAULT_VOICE = "marin"  # VERIFY: a current realtime voice name
+PRECONNECT_AUDIO_MAX_S = 3.0  # wake tail + first words while session.update is still pending
 
 # The panel's model/voice selector set (all voice-capable; small fixed list).
 STATIC_MODELS = [
@@ -123,6 +125,11 @@ class OpenAIRealtimeSession:
     _deliberate_close: bool = field(default=False, init=False, repr=False)
     # True once the server ACCEPTED our session.update (hard-fail guard, 0.77 class).
     _configured: bool = field(default=False, init=False, repr=False)
+    # Mic audio can arrive before Realtime has accepted session.update. Dropping it makes
+    # "Okay Nabu hvad er klokken" become only "...klokken" unless the user pauses after
+    # the wake word. Keep a short raw-input buffer and replay it once the server is ready.
+    _preconnect_audio: deque[bytes] = field(default_factory=deque, init=False, repr=False)
+    _preconnect_audio_bytes: int = field(default=0, init=False, repr=False)
 
     def _turn_detection(self) -> dict | None:
         """Build the turn_detection block from the preset (or the custom knobs).
@@ -242,7 +249,36 @@ class OpenAIRealtimeSession:
         await self._ws.send_json(self._session_update())
 
     async def send_audio(self, pcm16k: bytes) -> None:
+        if self._ws is None or not self._configured:
+            self._buffer_preconnect_audio(pcm16k)
+            return
+        await self._send_audio_now(pcm16k)
+
+    def _buffer_preconnect_audio(self, pcm: bytes) -> None:
+        if not pcm:
+            return
+        self._preconnect_audio.append(bytes(pcm))
+        self._preconnect_audio_bytes += len(pcm)
+        max_bytes = int(self.input_rate * C.SAMPLE_WIDTH * PRECONNECT_AUDIO_MAX_S)
+        while self._preconnect_audio_bytes > max_bytes and self._preconnect_audio:
+            self._preconnect_audio_bytes -= len(self._preconnect_audio.popleft())
+
+    async def _flush_preconnect_audio(self) -> None:
+        if not self._preconnect_audio:
+            return
+        buffered_bytes = self._preconnect_audio_bytes
+        frames = 0
+        while self._preconnect_audio:
+            pcm = self._preconnect_audio.popleft()
+            self._preconnect_audio_bytes -= len(pcm)
+            await self._send_audio_now(pcm)
+            frames += 1
+        buffered_ms = buffered_bytes * 1000 // max(1, self.input_rate * C.SAMPLE_WIDTH)
+        _LOG.info("flushed %dms preconnect audio (%d frame(s))", buffered_ms, frames)
+
+    async def _send_audio_now(self, pcm16k: bytes) -> None:
         if self._ws is None:
+            self._buffer_preconnect_audio(pcm16k)
             return
         if self.input_rate == OPENAI_RATE:
             # Already native: touching it could only make it worse.
@@ -435,6 +471,7 @@ class OpenAIRealtimeSession:
             elif t == "session.updated":
                 self._configured = True
                 _LOG.info("session.updated ACCEPTED (preset=%s)", self.preset)
+                await self._flush_preconnect_audio()
             elif t == "error":
                 err = ev.get("error") or {}
                 if not self._configured:
@@ -490,6 +527,8 @@ class OpenAIRealtimeSession:
 
     async def close(self) -> None:
         self._deliberate_close = True
+        self._preconnect_audio.clear()
+        self._preconnect_audio_bytes = 0
         if self._ws is not None:
             await self._ws.close()
             self._ws = None

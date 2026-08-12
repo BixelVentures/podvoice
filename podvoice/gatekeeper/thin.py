@@ -1025,15 +1025,22 @@ class ThinSession:
                 self._goodbye = None
             # Button press / habitual re-wake mid-conversation: silence any reply and
             # keep listening (the proven firmware can't distinguish the two sources).
+            self._last_activity = time.monotonic()
+            self._cancel_followup_edge()
             if self._speaking:
                 self._spawn(self._silence_device(), "thin-hush")
+            else:
+                self._turn_cue_appended = False
+                self.sm.state = State.LISTENING
+                self._set_led(State.LISTENING)
+                self._hub_state("LISTENING", "👂 Vågnede igen — lytter")
             return
         self._spawn(self.wake(), "thin-wake")
 
     def _on_device_event(self, room: str, state: object) -> None:
         etype = getattr(state, "event_type", None) or getattr(state, "event", None)
         if etype in ("wake_okay_nabu", "wake"):
-            self._spawn(self.wake(), "thin-wake")
+            self._on_wake_cb()
         elif etype in ("wake_stop", "single_press") and self._active:
             self._spawn(self.stop(reason="stop"), "thin-stop")
         elif etype == "reply_played":

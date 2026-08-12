@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.12.2 — wake åbner rigtigt til Realtime
+
+- Mikrofonframes fra de første sekunder efter wake buffres nu, indtil OpenAI Realtime
+  har accepteret `session.update`. Det lukker feltfejlen hvor “Okay Nabu hvad er
+  klokken” kun virkede, hvis man holdt en kunstig pause efter wake-ordet.
+- Et nyt `wake_okay_nabu` mens samtalen allerede er aktiv, skifter nu tilbage til
+  “lytter”, nulstiller idle-vinduet og bevarer den samme Realtime-samtale. Det skal
+  føles som “jeg prøver igen”, ikke som en død assistent.
+- Regressionstests dækker både preconnect-lydbufferen og aktiv re-wake fra
+  Voice PE-firmware-eventet.
+
 ## 1.12.1 — prompten håndterer dansk ASR-usikkerhed bedre
 
 - Den observerede `AGF spille` → `give spil`-fejl er nu gjort eksplicit i
