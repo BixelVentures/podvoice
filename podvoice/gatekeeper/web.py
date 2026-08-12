@@ -203,6 +203,31 @@ _GROUNDTEST_STEPS: list[dict[str, Any]] = [
     },
 ]
 
+# The physical gate is ten uninterrupted two-turn conversations.  Earlier versions
+# asked the owner to rate the first sentence before revealing the follow-up.  That UI
+# pause competed with the eight-second lounge timeout and could close an otherwise
+# healthy conversation.  Keep the twenty canonical utterances above for documentation,
+# but present and score them as pairs so the follow-up is spoken naturally before the
+# owner touches the panel.
+_GROUNDTEST_CASES: list[dict[str, Any]] = [
+    {
+        "say": _GROUNDTEST_STEPS[index]["say"],
+        "expect": _GROUNDTEST_STEPS[index]["expect"],
+        "followup": _GROUNDTEST_STEPS[index + 1]["say"],
+        "followup_expect": _GROUNDTEST_STEPS[index + 1]["expect"],
+        "kind": (
+            "lookup"
+            if "lookup"
+            in {
+                _GROUNDTEST_STEPS[index]["kind"],
+                _GROUNDTEST_STEPS[index + 1]["kind"],
+            }
+            else "simple"
+        ),
+    }
+    for index in range(0, len(_GROUNDTEST_STEPS), 2)
+]
+
 _GROUNDTEST_OUTCOMES = {
     "correct",
     "wrong_hearing",
@@ -1016,7 +1041,8 @@ def _groundtest_payload(hub: StatusHub) -> dict:
     completed = bool(run.get("completed_at"))
     summary: dict[str, Any] = {
         "rated": len(results),
-        "total": len(_GROUNDTEST_STEPS),
+        "total": len(_GROUNDTEST_CASES),
+        "sentences": len(_GROUNDTEST_STEPS),
         "counts": counts,
         "simple_p50_ms": _percentile(simple, 0.50),
         "simple_p90_ms": _percentile(simple, 0.90),
@@ -1025,7 +1051,8 @@ def _groundtest_payload(hub: StatusHub) -> dict:
     }
     summary["passed"] = bool(
         completed
-        and counts["correct"] >= 19
+        # One ASR miss may be recorded, matching the former 19/20 sentence gate.
+        and counts["correct"] >= 9
         and counts["wrong_answer"] == 0
         and counts["no_response"] == 0
         and counts["blocked"] == 0
@@ -1034,25 +1061,26 @@ def _groundtest_payload(hub: StatusHub) -> dict:
         and summary["lookup_p90_ms"] is not None
         and summary["lookup_p90_ms"] <= 8000
     )
-    steps = []
-    for index, step in enumerate(_GROUNDTEST_STEPS):
-        steps.append(
+    cases = []
+    for index, case in enumerate(_GROUNDTEST_CASES):
+        cases.append(
             {
                 "index": index,
                 "number": index + 1,
-                **step,
+                **case,
                 "before": (
-                    'Vent til ringen er slukket. Hvis den stadig lyser, sig "farvel" først.'
-                    if step.get("new") and index
-                    else "Sig den straks efter tur-bippet — uden nyt wake-ord."
-                    if not step.get("new")
-                    else "Stå/sid normalt ved skrivebordet og sig hele sætningen uden pause."
+                    'Vent til ringen er slukket. Hvis den stadig lyser, sig "farvel" først. '
+                    "Sig derefter wake og spørgsmålet i én sammenhæng."
+                    if index
+                    else "Stå/sid normalt ved skrivebordet og sig wake og spørgsmålet i én sammenhæng."
                 ),
             }
         )
     return {
-        "title": "Grundtest — 20 faste danske sætninger",
-        "steps": steps,
+        "title": "Grundtest — 10 samtaler / 20 faste danske sætninger",
+        "cases": cases,
+        # Kept for API consumers and documentation that enumerate all utterances.
+        "steps": _GROUNDTEST_STEPS,
         "run": run,
         "summary": summary,
     }
@@ -1067,7 +1095,7 @@ async def _groundtest_start(request: web.Request) -> web.Response:
     # Reuse the acceptance baseline so the old evidence card and the guided test
     # describe the same physical run.
     hub.start_stuetest()
-    hub.start_groundtest(len(_GROUNDTEST_STEPS))
+    hub.start_groundtest(len(_GROUNDTEST_CASES))
     return web.json_response({"ok": True, **_groundtest_payload(hub)})
 
 
@@ -1085,6 +1113,10 @@ async def _groundtest_result(request: web.Request) -> web.Response:
     if outcome not in _GROUNDTEST_OUTCOMES:
         return web.json_response({"ok": False, "error": "Ugyldigt resultat"}, status=400)
     run = hub.groundtest()
+    if index != int(run.get("current_index") or 0):
+        return web.json_response(
+            {"ok": False, "error": "Det er ikke den aktive testsamtale"}, status=409
+        )
     since = float(run.get("step_started_at") or 0.0)
     snap = hub.snapshot()
     hist = request.app[HISTORY]
@@ -1106,16 +1138,35 @@ async def _groundtest_result(request: web.Request) -> web.Response:
     latencies = [
         item for item in snap.get("latency_activity") or [] if float(item.get("ts") or 0.0) >= since
     ]
-    step = _GROUNDTEST_STEPS[index] if 0 <= index < len(_GROUNDTEST_STEPS) else {}
+    case = _GROUNDTEST_CASES[index] if 0 <= index < len(_GROUNDTEST_CASES) else {}
+    inputs = [str(turn.get("text") or "") for turn in turns if turn.get("dir") == "in"]
+    outputs = [str(turn.get("text") or "") for turn in turns if turn.get("dir") == "out"]
+    if outcome == "correct" and (len(inputs) < 2 or len(outputs) < 2):
+        return web.json_response(
+            {
+                "ok": False,
+                "error": (
+                    "Vent med at godkende, til både spørgsmålet og opfølgningen "
+                    "har et hørbart svar."
+                ),
+            },
+            status=409,
+        )
+    latency_values = [int(item["ms"]) for item in latencies if item.get("ms") is not None]
     evidence = {
-        "say": step.get("say"),
-        "kind": step.get("kind"),
+        "say": case.get("say"),
+        "followup": case.get("followup"),
+        "says": [case.get("say"), case.get("followup")],
+        "kind": case.get("kind"),
         "started_at": since,
-        "inputs": [str(turn.get("text") or "") for turn in turns if turn.get("dir") == "in"],
-        "outputs": [str(turn.get("text") or "") for turn in turns if turn.get("dir") == "out"],
+        "inputs": inputs,
+        "outputs": outputs,
         "tools": tools,
         "states": states,
-        "latency_ms": int(latencies[-1]["ms"]) if latencies else None,
+        # Score the slower of the two turns.  This prevents a snappy first reply
+        # from hiding a sluggish follow-up.
+        "latency_ms": max(latency_values) if latency_values else None,
+        "latencies_ms": latency_values,
         "note": str(body.get("note") or "")[:500],
     }
     try:

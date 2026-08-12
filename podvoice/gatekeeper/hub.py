@@ -192,7 +192,7 @@ class StatusHub:
         return self._stuetest_started_at
 
     def start_groundtest(self, total: int) -> dict:
-        """Start and arm a fresh guided physical baseline."""
+        """Start and arm a fresh guided physical conversation baseline."""
         now = time.time()
         self._groundtest = {
             "started_at": now,
@@ -202,7 +202,7 @@ class StatusHub:
             "results": [],
             "completed_at": None,
         }
-        self.activity("*", "🎯 Grundtest startet — sætning 1 er klar")
+        self.activity("*", "🎯 Grundtest startet — samtale 1 er klar")
         self._broadcast({"type": "groundtest", **self._groundtest})
         return self.groundtest()
 
@@ -213,11 +213,11 @@ class StatusHub:
         }
 
     def record_groundtest(self, index: int, outcome: str, evidence: dict) -> dict:
-        """Record one verdict and immediately arm the next sentence."""
+        """Record one two-turn verdict and immediately arm the next conversation."""
         if self._groundtest["started_at"] is None:
             raise ValueError("Grundtesten er ikke startet")
         if index != self._groundtest["current_index"]:
-            raise ValueError("Det er ikke den aktive testsætning")
+            raise ValueError("Det er ikke den aktive testsamtale")
         if index >= self._groundtest["total"]:
             raise ValueError("Grundtesten er allerede færdig")
         now = time.time()
@@ -232,7 +232,7 @@ class StatusHub:
             self.activity("*", "🏁 Grundtest færdig — resultatet er klar")
         else:
             self._groundtest["step_started_at"] = now
-            self.activity("*", f"🎯 Grundtest — sætning {next_index + 1} er klar")
+            self.activity("*", f"🎯 Grundtest — samtale {next_index + 1} er klar")
         self._broadcast({"type": "groundtest", **self._groundtest})
         return self.groundtest()
 

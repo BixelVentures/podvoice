@@ -177,7 +177,9 @@ async def test_stuetest_endpoint_exposes_the_physical_matrix():
     assert any(s["evidence"] == ["music_tool_call"] for s in body["steps"])
 
 
-async def test_groundtest_guides_twenty_sentences_and_captures_physical_evidence(tmp_path):
+async def test_groundtest_guides_ten_uninterrupted_conversations_and_captures_evidence(
+    tmp_path,
+):
     hub = StatusHub()
     hist = History(path=tmp_path / "history.jsonl")
     app = create_app(hub, {}, tools=_StubTools(), history=hist)
@@ -185,8 +187,10 @@ async def test_groundtest_guides_twenty_sentences_and_captures_physical_evidence
         response = await client.get("/api/groundtest")
         initial = await response.json()
         assert len(initial["steps"]) == 20
+        assert len(initial["cases"]) == 10
         assert initial["steps"][0]["say"] == "Okay Nabu, hvad er klokken?"
         assert initial["steps"][1].get("new") is not True
+        assert initial["cases"][0]["followup"] == "Og hvilken ugedag er det?"
         assert initial["run"]["started_at"] is None
 
         response = await client.post("/api/groundtest/start")
@@ -197,6 +201,8 @@ async def test_groundtest_guides_twenty_sentences_and_captures_physical_evidence
         now = time.time()
         hist.append("kitchen", "in", "Hvad er klokken?", ts=now)
         hist.append("kitchen", "out", "Klokken er tre.", ts=now + 0.1)
+        hist.append("kitchen", "in", "Og hvilken ugedag er det?", ts=now + 0.2)
+        hist.append("kitchen", "out", "Det er onsdag.", ts=now + 0.3)
         hub.set_state("kitchen", "LISTENING")
         hub.tool_call(
             "kitchen",
@@ -204,6 +210,7 @@ async def test_groundtest_guides_twenty_sentences_and_captures_physical_evidence
             {"ok": True, "summary": "Klokken er tre.", "data": {"time": "15:00"}},
         )
         hub.set_latency("kitchen", 1234)
+        hub.set_latency("kitchen", 1456)
 
         response = await client.post(
             "/api/groundtest/result", json={"index": 0, "outcome": "correct"}
@@ -213,15 +220,17 @@ async def test_groundtest_guides_twenty_sentences_and_captures_physical_evidence
     assert response.status == 200
     assert rated["run"]["current_index"] == 1
     result = rated["run"]["results"][0]
-    assert result["inputs"] == ["Hvad er klokken?"]
-    assert result["outputs"] == ["Klokken er tre."]
-    assert result["latency_ms"] == 1234
+    assert result["inputs"] == ["Hvad er klokken?", "Og hvilken ugedag er det?"]
+    assert result["outputs"] == ["Klokken er tre.", "Det er onsdag."]
+    assert result["says"] == ["Okay Nabu, hvad er klokken?", "Og hvilken ugedag er det?"]
+    assert result["latency_ms"] == 1456
+    assert result["latencies_ms"] == [1234, 1456]
     assert result["tools"][0]["args"] == {}
     assert result["tools"][0]["result"]["data"]["time"] == "15:00"
     assert rated["summary"]["counts"]["correct"] == 1
 
 
-async def test_groundtest_rejects_skipping_the_active_sentence():
+async def test_groundtest_rejects_skipping_the_active_conversation():
     hub = StatusHub()
     async with TestClient(TestServer(create_app(hub, {}))) as client:
         await client.post("/api/groundtest/start")
@@ -230,7 +239,24 @@ async def test_groundtest_rejects_skipping_the_active_sentence():
         )
         body = await response.json()
     assert response.status == 409
-    assert "aktive testsætning" in body["error"]
+    assert "aktive testsamtale" in body["error"]
+
+
+async def test_groundtest_cannot_mark_a_half_finished_pair_correct(tmp_path):
+    hub = StatusHub()
+    hist = History(path=tmp_path / "history.jsonl")
+    async with TestClient(TestServer(create_app(hub, {}, history=hist))) as client:
+        await client.post("/api/groundtest/start")
+        now = time.time()
+        hist.append("kitchen", "in", "Hvad er klokken?", ts=now)
+        hist.append("kitchen", "out", "Klokken er tre.", ts=now + 0.1)
+        response = await client.post(
+            "/api/groundtest/result", json={"index": 0, "outcome": "correct"}
+        )
+        body = await response.json()
+
+    assert response.status == 409
+    assert "både spørgsmålet og opfølgningen" in body["error"]
 
 
 async def test_audio_trace_can_be_armed_only_for_a_real_room(tmp_path):

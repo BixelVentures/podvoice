@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.12.26 — grundtesten forstyrrer ikke længere opfølgningen
+
+- Den guidede fysiske test viser nu begge sætninger i hver af ti samtaler på
+  forhånd. Brugeren rører ikke panelet mellem hovedspørgsmålet og opfølgningen,
+  så testens eget klik/læseophold ikke konkurrerer med det otte sekunder lange
+  opfølgningsvindue.
+- En samtale kan kun bedømmes “korrekt”, når historikken faktisk indeholder både
+  to brugerudsagn og to hørbare svar. Gate-latensen er den langsomste af de to
+  ture, så en hurtig åbning ikke kan skjule en langsom opfølgning.
+- Wake-instruktionen er entydig: sig “Okay Nabu, …” i én sammenhæng og vent ikke
+  på et wake-bip. Tur-bippet efter svaret er fortsat signalet til opfølgningen.
+
 ## 1.12.25 — Realtime bruges som hjerne, half-duplex gøres pålidelig
 
 - De to gain-16-traces beviser, at Voice PE kan levere både et korrekt første

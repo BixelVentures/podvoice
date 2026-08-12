@@ -99,7 +99,7 @@ Kør først på standardvejen (`speaker_path="announce"`), derefter kun på `dir
 Gate B specifikt testes. Gem panelhistorik og add-on-log for hvert run.
 
 1. **Turtagning og feedback**
-   - “Okay Nabu. Hvad er klokken?”
+   - “Okay Nabu, hvad er klokken?” — sig det i én sammenhæng; vent ikke på et wake-bip.
    - Forvent: kort dansk svar, grøn ring mens svaret høres, tydeligt tur-bip/dæmpet cyan
      når det er din tur, og LED slukker efter farvel/timeout.
 2. **ASR-usikkerhed og web**

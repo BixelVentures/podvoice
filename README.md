@@ -25,7 +25,7 @@ hardware. But unlike a `custom_components` plugin, it runs in its **own containe
 socket hiccup or VAD confusion can't drag Home Assistant (or your music) down with it. Same
 deployment model as PodConnect.
 
-## Status (1.12.25 evidence-grounded half-duplex candidate)
+## Status (1.12.26 evidence-grounded half-duplex candidate)
 **OpenAI-only, single pipeline.** The Gemini provider, the provider switch, and the hand-rolled HA
 REST tool bridge are deleted. What ships now:
 - one thin provider module (`openai_realtime.py`) — GPT-Live-1 readiness = a model string + event

@@ -359,7 +359,7 @@
     <div class="section">
       <h2>Grundtest</h2>
       <p class="sub" style="margin:2px 0 10px">Én fast test af den fysiske Voice PE. Panelet gemmer, hvad Nabu hørte og gjorde; du afgør, om det faktisk var korrekt i rummet.</p>
-      <button id="g_start">Start 20 sætninger</button>
+      <button id="g_start">Start 10 samtaler</button>
       <div id="g_test" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
       <div id="g_actions" class="crow" hidden style="margin-top:10px;flex-wrap:wrap">
         <button data-outcome="correct">Korrekt</button>
@@ -911,43 +911,45 @@ setInterval(function () {
   function ms(v) { return v == null ? "—" : (v / 1000).toLocaleString("da-DK", { maximumFractionDigits: 2 }) + " s"; }
   function render(data) {
     current = data;
-    var run = data.run || {}, sum = data.summary || {}, steps = data.steps || [];
+    var run = data.run || {}, sum = data.summary || {}, cases = data.cases || [];
     box.innerHTML = "";
     if (!run.started_at) {
       box.appendChild(ge("div", "empty", "Ikke startet. Sæt dig som normalt ved skrivebordet; ændr ingen indstillinger under testen."));
-      actions.hidden = true; hint.textContent = "Testen tager cirka ti minutter. Vent på hele svaret, og vælg derefter det fysiske resultat.";
+      actions.hidden = true; hint.textContent = "Testen tager cirka ti minutter. Hver samtale har ét spørgsmål og én opfølgning; bedøm først efter begge svar.";
       return;
     }
     if (run.completed_at) {
       var head = ge("div", "line " + (sum.passed ? "out" : "in"));
       head.appendChild(ge("div", "who", sum.passed ? "✓ GRUNDTEST GODKENDT" : "✕ GRUNDTEST IKKE GODKENDT"));
-      head.appendChild(document.createTextNode((sum.counts.correct || 0) + " af " + sum.total + " korrekte · simpelt p90 " + ms(sum.simple_p90_ms) + " · opslag p90 " + ms(sum.lookup_p90_ms)));
+      head.appendChild(document.createTextNode((sum.counts.correct || 0) + " af " + sum.total + " samtaler korrekte · " + (sum.sentences || 20) + " sætninger · simpelt p90 " + ms(sum.simple_p90_ms) + " · opslag p90 " + ms(sum.lookup_p90_ms)));
       box.appendChild(head);
       (run.results || []).forEach(function (r) {
         if (r.outcome === "correct") return;
         var line = ge("div", "line in");
         line.appendChild(ge("div", "who", (r.index + 1) + ". " + ({wrong_hearing:"Forkert hørt",wrong_answer:"Forkert svar",no_response:"Intet skete",blocked:"Kunne ikke testes"}[r.outcome] || r.outcome)));
-        line.appendChild(document.createTextNode("Sag: “" + (r.say || "") + "” · Hørt: “" + ((r.inputs || []).join(" / ") || "intet") + "” · Svar: “" + ((r.outputs || []).join(" / ") || "intet") + "”"));
+        line.appendChild(document.createTextNode("Sagt: “" + ((r.says || [r.say]).join(" / ")) + "” · Hørt: “" + ((r.inputs || []).join(" / ") || "intet") + "” · Svar: “" + ((r.outputs || []).join(" / ") || "intet") + "”"));
         box.appendChild(line);
       });
       actions.hidden = true; start.textContent = "Start testen forfra";
       hint.textContent = sum.passed ? "Denne grundgate er bevist." : "Resultatet viser præcis, hvilket led der skal rettes før en ny fuld test.";
       return;
     }
-    var index = Number(run.current_index || 0), step = steps[index];
-    if (!step) return;
+    var index = Number(run.current_index || 0), testCase = cases[index];
+    if (!testCase) return;
     var line = ge("div", "line out");
-    line.appendChild(ge("div", "who", "Sætning " + step.number + " af " + steps.length + " · " + (step.kind === "lookup" ? "opslag" : "hurtigt svar")));
-    line.appendChild(ge("div", "sub", step.before));
-    var phrase = ge("div", "", "“" + step.say + "”"); phrase.style.cssText = "font-size:1.12rem;font-weight:750;margin:10px 0"; line.appendChild(phrase);
-    line.appendChild(ge("div", "sub", "Godkend kun hvis: " + step.expect));
+    line.appendChild(ge("div", "who", "Samtale " + testCase.number + " af " + cases.length + " · " + (testCase.kind === "lookup" ? "opslag" : "hurtigt svar")));
+    line.appendChild(ge("div", "sub", testCase.before));
+    var phrase = ge("div", "", "1. “" + testCase.say + "”"); phrase.style.cssText = "font-size:1.12rem;font-weight:750;margin:10px 0 4px"; line.appendChild(phrase);
+    line.appendChild(ge("div", "sub", "Forvent: " + testCase.expect));
+    var follow = ge("div", "", "2. Uden nyt wake-ord: “" + testCase.followup + "”"); follow.style.cssText = "font-size:1.12rem;font-weight:750;margin:12px 0 4px"; line.appendChild(follow);
+    line.appendChild(ge("div", "sub", "Forvent: " + testCase.followup_expect));
     box.appendChild(line);
     if ((run.results || []).length) {
       var prev = run.results[run.results.length - 1];
       box.appendChild(ge("div", "sub", "Forrige: " + (prev.outcome === "correct" ? "korrekt" : "fejl") + " · målt svar " + ms(prev.latency_ms)));
     }
     actions.hidden = false;
-    hint.textContent = "Vent til Nabu er færdig. Vælg derefter én dom — næste sætning bliver straks gjort klar.";
+    hint.textContent = "Rør ikke panelet mellem de to sætninger. Vælg først én dom, når opfølgningen også er besvaret.";
     start.textContent = "Start testen forfra";
   }
   async function load() {

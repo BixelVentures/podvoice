@@ -41,7 +41,7 @@ def test_living_room_test_script_is_visible_in_panel():
     assert "Næste handling" in html
 
 
-def test_guided_groundtest_requires_a_physical_verdict_for_each_sentence():
+def test_guided_groundtest_keeps_each_followup_uninterrupted_before_verdict():
     html = PANEL.read_text()
 
     assert 'id="g_start"' in html
@@ -55,6 +55,8 @@ def test_guided_groundtest_requires_a_physical_verdict_for_each_sentence():
     assert "Forkert hørt" in html
     assert "Forkert svar" in html
     assert "Intet skete" in html
+    assert "Rør ikke panelet mellem de to sætninger" in html
+    assert "Uden nyt wake-ord" in html
 
 
 def test_test_tab_can_arm_one_local_physical_audio_trace():
