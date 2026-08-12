@@ -28,3 +28,11 @@ def test_panel_header_shows_running_version_from_status():
     html = PANEL.read_text()
 
     assert 'if (data && data.version) bits.push("v" + data.version);' in html
+
+
+def test_living_room_test_script_is_visible_in_panel():
+    html = PANEL.read_text()
+
+    assert 'id="stuetest_script"' in html
+    assert 'fetch("api/stuetest"' in html
+    assert "Fysisk stuetest" in html

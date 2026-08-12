@@ -301,6 +301,7 @@
     <div class="section">
       <h2>Stuetest-evidens <button id="a_refresh" class="ghost" style="padding:4px 10px;font-size:.74rem">Opdatér</button></h2>
       <p class="sub" style="margin:2px 0 8px">Ikke en release-godkendelse — kun et beviskort for om fysisk test faktisk ramte Voice PE, tools, opfølgning og lyd.</p>
+      <div id="stuetest_script" class="tx" style="min-height:0;margin-bottom:10px"></div>
       <div id="acceptance" class="tx" style="min-height:0"></div>
     </div>
   </div>
@@ -701,9 +702,29 @@ setInterval(poll, 3000);
 // ---- Living-room acceptance evidence ----
 (function () {
   var box = document.getElementById("acceptance");
+  var scriptBox = document.getElementById("stuetest_script");
   var btn = document.getElementById("a_refresh");
   if (!box) return;
   function ae(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  async function loadScript() {
+    if (!scriptBox) return;
+    scriptBox.innerHTML = ""; scriptBox.appendChild(ae("div", "empty", "Henter testscript…"));
+    try {
+      var data = await (await fetch("api/stuetest", { cache: "no-store" })).json();
+      scriptBox.innerHTML = "";
+      scriptBox.appendChild(ae("div", "who", data.title || "Fysisk stuetest"));
+      (data.steps || []).forEach(function (s, i) {
+        var line = ae("div", "line out");
+        line.appendChild(ae("div", "who", (i + 1) + ". " + s.title));
+        line.appendChild(document.createTextNode("Sig: “" + s.say + "”"));
+        if (s.expect) line.appendChild(ae("div", "sub", "Forvent: " + s.expect));
+        scriptBox.appendChild(line);
+      });
+      if (data.rule) scriptBox.appendChild(ae("div", "sub", data.rule));
+    } catch (e) {
+      scriptBox.innerHTML = ""; scriptBox.appendChild(ae("div", "empty", "Kunne ikke hente stuetest-script."));
+    }
+  }
   async function loadAcceptance() {
     box.innerHTML = ""; box.appendChild(ae("div", "empty", "Tjekker…"));
     try {
@@ -723,7 +744,8 @@ setInterval(poll, 3000);
       box.innerHTML = ""; box.appendChild(ae("div", "empty", "Kunne ikke hente stuetest-evidens."));
     }
   }
-  if (btn) btn.onclick = loadAcceptance;
+  if (btn) btn.onclick = function () { loadScript(); loadAcceptance(); };
+  loadScript();
   loadAcceptance();
 })();
 </script>

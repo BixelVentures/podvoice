@@ -42,6 +42,57 @@ _MUSIC_TOOL_HINTS = (
     "volume",
     "lydstyrke",
 )
+_STUETEST_STEPS = [
+    {
+        "key": "turntaking",
+        "title": "Turtagning og feedback",
+        "say": "Okay Nabu. Hvad er klokken?",
+        "expect": "Kort dansk svar, grøn ring mens svaret høres, tydeligt tur-bip/dæmpet cyan når det er din tur, og LED slukker efter farvel/timeout.",
+        "evidence": ["voice_history", "followup_shape", "latency"],
+    },
+    {
+        "key": "web",
+        "title": "ASR-usikkerhed og web",
+        "say": "Hvad tid skal AGF spille i aften?",
+        "expect": "Den siger kort 'Det tjekker jeg.', bruger et reelt web-/søgeværktøj og svarer ikke med vejr medmindre du bad om vejr.",
+        "evidence": ["web_tool_call"],
+    },
+    {
+        "key": "weather",
+        "title": "Vejr dér hvor hjemmet er",
+        "say": "Hvordan bliver vejret her i eftermiddag?",
+        "expect": "HA weather-entity/script eller relevant søgeværktøj bruges med hjemmets/nærområdets placering.",
+        "evidence": ["weather_tool_call"],
+    },
+    {
+        "key": "followup",
+        "title": "Opfølgning uden wake",
+        "say": "Hvor spiller de?",
+        "expect": "Den bruger den igangværende samtales kontekst; ingen ny wake kræves.",
+        "evidence": ["followup_shape"],
+    },
+    {
+        "key": "home",
+        "title": "Hjemmestyring",
+        "say": "Sluk eller tænd en ufarlig delt lampe i samme rum.",
+        "expect": "Korrekt HA-værktøj, korrekt mål, én fast dansk kvittering og ingen handling i andre rum.",
+        "evidence": ["home_tool_call"],
+    },
+    {
+        "key": "music",
+        "title": "Musik",
+        "say": "Start musik i rummet og sig: Pause. Næste. Skru lidt ned.",
+        "expect": "Korrekt rum hver gang; musik dæmpes under samtalen og gendannes bagefter.",
+        "evidence": ["music_tool_call"],
+    },
+    {
+        "key": "stop",
+        "title": "Afbrydelse og lukning",
+        "say": "Afbryd et langt svar med stop eller wake-ordet.",
+        "expect": "Pucken bliver stille hurtigt, samtalen går tilbage til at lytte eller lukker rent; ingen fastlåst LED/spinner.",
+        "evidence": ["voice_history"],
+    },
+]
 
 # Sources allowed to reach the panel/API when locked (the default under HA):
 # loopback + the Supervisor/Ingress docker network (HA proxies ingress from
@@ -152,6 +203,7 @@ def create_app(
             web.get("/", _index),
             web.get("/api/status", _status),
             web.get("/api/acceptance", _acceptance),
+            web.get("/api/stuetest", _stuetest),
             web.get("/api/events", _events),
             web.post("/api/control", _control),
             web.get("/api/console", _console_ws),
@@ -678,6 +730,17 @@ async def _acceptance(request: web.Request) -> web.Response:
             "checks": checks,
             "tool_activity": tool_activity,
             "latest_voice_conversation": voice_convs[0] if voice_convs else None,
+        }
+    )
+
+
+async def _stuetest(request: web.Request) -> web.Response:
+    """Canonical physical Voice PE test script shown in the panel."""
+    return web.json_response(
+        {
+            "title": "Fysisk stuetest før PodVoice kaldes 'virker'",
+            "steps": _STUETEST_STEPS,
+            "rule": "Hvis ét punkt fejler, ret den ene observerede fejl før næste runde.",
         }
     )
 

@@ -112,6 +112,19 @@ async def test_acceptance_report_is_conservative(tmp_path):
     assert body["latest_voice_conversation"]["room"] == "kitchen"
 
 
+async def test_stuetest_endpoint_exposes_the_physical_matrix():
+    async with TestClient(TestServer(create_app(StatusHub(), {}))) as client:
+        r = await client.get("/api/stuetest")
+        body = await r.json()
+    assert r.status == 200
+    assert "Fysisk stuetest" in body["title"]
+    keys = [s["key"] for s in body["steps"]]
+    assert keys == ["turntaking", "web", "weather", "followup", "home", "music", "stop"]
+    assert any("Okay Nabu" in s["say"] for s in body["steps"])
+    assert any("AGF" in s["say"] for s in body["steps"])
+    assert any(s["evidence"] == ["music_tool_call"] for s in body["steps"])
+
+
 async def test_models_endpoint():
     payload = {
         "default": "gemini-2.5-flash-native-audio-preview-12-2025",

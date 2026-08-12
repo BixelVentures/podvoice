@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.12.9 — panelet viser selve stuetesten
+
+- Nyt `/api/stuetest` eksponerer den kanoniske fysiske Voice PE-testmatrix som data:
+  turtagning, AGF/web, lokalt vejr, opfølgning, hjemmestyring, musik og stop/lukning.
+- Panelets “Stuetest-evidens” viser nu både testscriptet og beviskortet samme sted.
+  Det gør næste live-test mindre tilfældig: først læses den konkrete sætning, bagefter
+  ses hvilke evidenspunkter der faktisk blev grønne.
+
 ## 1.12.8 — panelet guider HA-first opsætning
 
 - Tool-capabilities returnerer nu `missing`, `setup_hints` og `sources`, så panelet kan
