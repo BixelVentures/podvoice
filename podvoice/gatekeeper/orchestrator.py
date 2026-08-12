@@ -391,13 +391,20 @@ class RoomSession:
             except Exception as e:  # timeout or connect error
                 _LOG.warning("provider connect failed/timed out: %s", e)
                 if self.hub is not None:
-                    self.hub.set_service("brain", "down")
+                    self.hub.set_service(
+                        "openai", "down", reason=str(e), source="Realtime-forbindelse"
+                    )
                     self.hub.activity(self.room, "⚠️ Kunne ikke nå assistenten")
                 await self.sm.post(Event(EventType.ERROR, self.room))
                 return
             self._start_reader()
             if self.hub is not None:
-                self.hub.set_service("brain", "up")
+                self.hub.set_service(
+                    "openai",
+                    "up",
+                    reason="Realtime-session forbundet",
+                    source="Realtime-forbindelse",
+                )
         elif k is ActionKind.CLOSE_WS:
             await self._stop_reader()
             if self.watchdog is not None:

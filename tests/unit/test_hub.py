@@ -96,3 +96,16 @@ async def test_service_only_broadcasts_on_change():
     ev = await asyncio.wait_for(q.get(), timeout=1)
     assert ev["status"] == "up"
     assert q.empty()
+
+
+async def test_legacy_brain_service_is_canonical_openai_truth():
+    hub = StatusHub()
+    q = await hub.subscribe()
+    hub.set_service("brain", "up")
+    event = await asyncio.wait_for(q.get(), timeout=1)
+    assert event == {"type": "service", "name": "openai", "status": "up"}
+    assert "brain" not in hub.snapshot()["services"]
+    assert hub.snapshot()["services"]["openai"] == "up"
+    detail = hub.snapshot()["service_details"]["openai"]
+    assert detail["observed_at"] is not None
+    assert detail["source"] == "runtime"

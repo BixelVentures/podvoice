@@ -85,13 +85,6 @@ _STUETEST_STEPS = [
         "expect": "Korrekt rum hver gang; musik dæmpes under samtalen og gendannes bagefter.",
         "evidence": ["music_tool_call"],
     },
-    {
-        "key": "stop",
-        "title": "Afbrydelse og lukning",
-        "say": "Afbryd et langt svar med stop eller wake-ordet.",
-        "expect": "Pucken bliver stille hurtigt, samtalen går tilbage til at lytte eller lukker rent; ingen fastlåst LED/spinner.",
-        "evidence": ["voice_history"],
-    },
 ]
 
 # Sources allowed to reach the panel/API when locked (the default under HA):
@@ -553,6 +546,7 @@ async def _index(request: web.Request) -> web.StreamResponse:
 async def _status(request: web.Request) -> web.Response:
     snap = request.app[HUB].snapshot()
     snap["capabilities"] = _capabilities(request)
+    snap["capability_details"] = _capability_details(snap)
     return web.json_response(snap)
 
 
@@ -583,6 +577,46 @@ def _capabilities(request: web.Request) -> dict:
         _LOG.warning("capability snapshot failed: %s", e)
         return {"error": str(e)}
     return caps if isinstance(caps, dict) else {}
+
+
+_CAPABILITY_VERIFY_TTL_S = 3600.0
+
+
+def _capability_details(snapshot: dict) -> dict:
+    """Separate tool discovery from evidence that a call actually succeeded."""
+    caps = snapshot.get("capabilities") or {}
+    successful = [
+        item
+        for item in snapshot.get("tool_activity") or []
+        if item.get("ok") and not item.get("empty")
+    ]
+    now = time.time()
+    names = [
+        (str(item.get("name") or "").lower(), item.get("ts"))
+        for item in successful
+        if now - float(item.get("ts") or 0.0) <= _CAPABILITY_VERIFY_TTL_S
+    ]
+    needles = {
+        "time": ("time", "clock", "tid", "klok"),
+        "home": ("light", "switch", "cover", "scene", "home", "mcp", "hass", "turnon", "turnoff"),
+        "web_search": ("search", "søg", "sog", "google"),
+        "weather": ("weather", "vejr"),
+        "music": ("podconnect", "spotify", "music", "media_player"),
+        "timers": ("timer",),
+    }
+    details = {}
+    for key, terms in needles.items():
+        matches = [(name, ts) for name, ts in names if any(term in name for term in terms)]
+        details[key] = {
+            "available": bool(caps.get(key)),
+            "verified": bool(matches),
+            "last_verified_at": max((ts for _, ts in matches if ts), default=None),
+            "source": "lokal" if key in {"time", "timers"} else "Home Assistant / MCP",
+            "reason": "Vellykket værktøjskald registreret"
+            if matches
+            else "Fundet, men endnu ikke bevist i denne runtime",
+        }
+    return details
 
 
 async def _acceptance(request: web.Request) -> web.Response:

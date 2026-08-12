@@ -231,7 +231,8 @@ async def _health_probe(cfg: Config, hub: StatusHub, attention: AttentionClient)
     """Keep the panel's service dots meaningful even with no rooms / no conversation.
 
     - PodConnect: actively GET /api/attention (HTTP, no device-exclusivity issue).
-    - OpenAI: reflect whether the API key is configured.
+    - OpenAI: key presence is only "degraded/configured". A real Realtime
+      connection is the only event allowed to turn it green.
     Voice PE is left to the room link (a 2nd device connection would clash with the
     single-client native-API subscription).
     """
@@ -242,11 +243,29 @@ async def _health_probe(cfg: Config, hub: StatusHub, attention: AttentionClient)
             _LOG.debug("podconnect health probe failed: %s", e)
             state = None
         if state is not None:
-            hub.set_service("podconnect", "up")
+            hub.set_service(
+                "podconnect", "up", reason="Attention API svarede", source="aktiv probe"
+            )
         else:
-            hub.set_service("podconnect", "degraded" if attention.degraded else "down")
+            hub.set_service(
+                "podconnect",
+                "degraded" if attention.degraded else "down",
+                reason="Attention API svarede ikke",
+                source="aktiv probe",
+            )
 
-        hub.set_service("openai", "up" if cfg.openai_api_key else "down")  # configured, not pinged
+        current = hub.snapshot()["services"].get("openai")
+        if not cfg.openai_api_key:
+            hub.set_service(
+                "openai", "down", reason="OpenAI API-nøgle mangler", source="konfiguration"
+            )
+        elif current != "up":
+            hub.set_service(
+                "openai",
+                "degraded",
+                reason="API-nøgle fundet; afventer rigtig Realtime-forbindelse",
+                source="konfiguration",
+            )
         await asyncio.sleep(30)
 
 

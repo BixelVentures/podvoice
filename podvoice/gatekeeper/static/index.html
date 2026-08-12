@@ -11,21 +11,24 @@
   :root {
     color-scheme: light dark;
     --bg: transparent;
-    --fg: #1c1c1e;
-    --fg-dim: #6b6b70;
-    --card: rgba(255,255,255,.66);
-    --card-elev: 0 1px 2px rgba(0,0,0,.05), 0 1px 3px rgba(0,0,0,.04);
-    --border: rgba(120,120,128,.28);
-    --border-strong: rgba(120,120,128,.45);
+    --fg: #17222b;
+    --fg-dim: #4f606d;
+    --card: rgba(255,255,255,.82);
+    --card-elev: 0 10px 30px rgba(20,43,58,.07);
+    --border: #7f919d;
+    --border-strong: #758692;
     --field: rgba(255,255,255,.5);
-    --accent: #0a84ff;
-    --accent-soft: rgba(10,132,255,.12);
+    --accent: #006c7a;
+    --accent-hover: #005865;
+    --accent-soft: #d8f0f2;
+    --on-accent: #ffffff;
+    --focus: #b55200;
     --danger: #ff3b30;
     --danger-soft: rgba(255,59,48,.12);
-    --green: #1f9e57;   --green-bg: rgba(48,209,88,.16);
-    --grey: #6b6b70;    --grey-bg: rgba(120,120,128,.16);
-    --blue: #0a84ff;    --blue-bg: rgba(10,132,255,.14);
-    --amber: #b8730a;   --amber-bg: rgba(255,159,10,.18);
+    --green: #176b3a;   --green-bg: #def2e6;
+    --grey: #465762;    --grey-bg: #e7ecef;
+    --blue: #075d91;    --blue-bg: #dcecf7;
+    --amber: #7b4d00;   --amber-bg: #fff0cc;
     --amber-border: rgba(184,115,10,.5);
     --red: #d93025;     --red-bg: rgba(255,59,48,.15);
   }
@@ -35,10 +38,14 @@
       --fg-dim: #9a9aa0;
       --card: rgba(118,118,128,.12);
       --card-elev: 0 1px 2px rgba(0,0,0,.25);
-      --border: rgba(120,120,128,.32);
-      --border-strong: rgba(120,120,128,.5);
+      --border: #53616d;
+      --border-strong: #82909b;
       --field: rgba(118,118,128,.16);
-      --accent-soft: rgba(10,132,255,.22);
+      --accent: #5fd1dd;
+      --accent-hover: #7bdce5;
+      --accent-soft: #153f46;
+      --on-accent: #08262b;
+      --focus: #ffc46b;
       --green: #4ade80;   --green-bg: rgba(48,209,88,.2);
       --grey: #a0a0a6;    --grey-bg: rgba(120,120,128,.22);
       --blue: #6cb6ff;    --blue-bg: rgba(10,132,255,.22);
@@ -50,9 +57,15 @@
 
   * { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
-         margin: 0; padding: 20px 16px 40px; color: var(--fg); background: var(--bg);
+         margin: 0; padding: 24px 20px calc(52px + env(safe-area-inset-bottom)); color: var(--fg); background: var(--bg);
          -webkit-font-smoothing: antialiased; line-height: 1.45; }
-  .wrap { max-width: 560px; margin: 0 auto; }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  .brand { display:flex; align-items:center; gap:12px; }
+  .brandmark { width:42px; height:42px; border-radius:50%; display:grid; place-items:center;
+               border:3px solid var(--accent); box-shadow:inset 0 0 0 5px var(--accent-soft); font:700 .72rem ui-monospace,monospace; }
+  .home-grid { display:grid; grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr); gap:24px; align-items:start; }
+  .home-grid .section { margin-top:22px; }
 
   h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -.01em; margin: 0 0 2px; }
   .sub { margin: 0 0 4px; color: var(--fg-dim); font-size: .88rem; }
@@ -86,8 +99,8 @@
   .duck.ducked .fill { background: var(--amber); }
 
   /* Status pills. */
-  .pill { flex: none; font-size: .7rem; font-weight: 700; letter-spacing: .02em;
-          padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+  .pill { flex: none; font-size: .78rem; font-weight: 700; letter-spacing: .01em;
+          padding: 6px 10px; border-radius: 999px; white-space: nowrap;
           display: inline-flex; align-items: center; gap: 5px; }
   .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
   .pill-idle      { color: var(--grey);  background: var(--grey-bg); }
@@ -99,15 +112,15 @@
   .pill-down      { color: var(--grey);  background: var(--grey-bg); }
 
   /* Buttons (mirrors PodConnect). */
-  button { font: inherit; font-weight: 600; font-size: .9rem; padding: 10px 16px; border-radius: 10px;
-           border: 1px solid transparent; cursor: pointer; background: var(--accent); color: #fff;
+  button { min-height:44px; min-width:44px; font: inherit; font-weight: 700; font-size: .9rem; padding: 10px 16px; border-radius: 12px;
+           border: 1px solid transparent; cursor: pointer; background: var(--accent); color: var(--on-accent);
            transition: filter .12s, background .12s, border-color .12s; }
-  button:hover:not(:disabled) { filter: brightness(1.06); }
+  button:hover:not(:disabled) { background:var(--accent-hover); filter:none; }
   button:active:not(:disabled) { filter: brightness(.94); }
   button:disabled { opacity: .42; cursor: default; }
   button.ghost { background: transparent; color: var(--fg); border-color: var(--border-strong); }
   button.ghost:hover:not(:disabled) { background: var(--grey-bg); filter: none; }
-  .room button, .ctl button { padding: 7px 12px; font-size: .8rem; border-radius: 9px; }
+  .room button, .ctl button { padding: 9px 12px; font-size: .82rem; border-radius: 10px; }
 
   .empty { padding: 18px; border-radius: 14px; border: 1px dashed var(--border-strong);
            background: var(--card); color: var(--fg-dim); font-size: .9rem; text-align: center; }
@@ -133,13 +146,14 @@
   .metric .n { font-size: 1.3rem; font-weight: 700; letter-spacing: -.02em; }
   .metric .k { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em;
                color: var(--fg-dim); margin-top: 2px; }
+  table { table-layout:fixed; overflow-wrap:anywhere; }
 
   /* Console input row. */
   .crow { display: flex; gap: 8px; margin-top: 10px; }
-  .crow input { flex: 1; font: inherit; padding: 9px 12px; border-radius: 10px;
+  .crow input { min-height:44px; flex: 1; font: inherit; padding: 9px 12px; border-radius: 10px;
                 border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
   .crow input:focus { outline: none; border-color: var(--accent); }
-  .crow select { flex: 1; font: inherit; padding: 8px 10px; border-radius: 10px;
+  .crow select { min-height:44px; flex: 1; font: inherit; padding: 8px 10px; border-radius: 10px;
                  border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
   /* keep flex children from overflowing the column (dropdowns/inputs can't push wider) */
   .crow select, .crow input { min-width: 0; max-width: 100%; }
@@ -150,7 +164,7 @@
           overflow-x: auto; }
   .tabbtn { background: transparent; border: 0; border-bottom: 2px solid transparent;
             color: var(--fg-dim); font-weight: 700; font-size: .78rem; text-transform: uppercase;
-            letter-spacing: .04em; padding: 9px 12px; border-radius: 0; cursor: pointer;
+            letter-spacing: .04em; min-height:44px; padding: 11px 16px; border-radius: 0; cursor: pointer;
             white-space: nowrap; transition: color .12s, border-color .12s; }
   .tabbtn:hover:not(:disabled) { background: transparent; filter: none; color: var(--fg); }
   .tabbtn.active { color: var(--accent); border-bottom-color: var(--accent); }
@@ -160,18 +174,20 @@
 
   /* Settings form. */
   details.section > summary, details.adv > summary {
-    cursor: pointer; font-size: .82rem; font-weight: 700; text-transform: uppercase;
+    min-height:44px; display:flex; align-items:center; cursor: pointer; font-size: .82rem; font-weight: 700; text-transform: uppercase;
     letter-spacing: .05em; color: var(--fg-dim); list-style: none; }
   details.section > summary::after { content: " ▸"; }
   details.section[open] > summary::after { content: " ▾"; }
+  details.adv > summary::after { content:" ▸"; margin-left:6px; }
+  details.adv[open] > summary::after { content:" ▾"; }
   .vpsteps { font-size: .84rem; color: var(--fg-dim); line-height: 1.55; padding-left: 18px;
              margin: 10px 0; }
   .setgrid { display: grid; grid-template-columns: 132px 1fr; gap: 9px 10px; align-items: center;
              margin: 12px 0; }
   .setgrid label { font-size: .82rem; font-weight: 600; }
-  .setgrid input, .setgrid select { font: inherit; padding: 7px 9px; border-radius: 9px;
+  .setgrid input, .setgrid select { min-height:44px; font: inherit; padding: 9px 10px; border-radius: 9px;
              border: 1px solid var(--border-strong); background: var(--field); color: inherit; width: 100%; }
-  .setgrid input[type=checkbox] { width: auto; justify-self: start; }
+  .setgrid input[type=checkbox] { width: 44px; height:44px; justify-self: start; accent-color:var(--accent); }
   .prompt { width: 100%; font: inherit; font-size: .85rem; line-height: 1.45; padding: 10px 12px;
             border-radius: 12px; border: 1px solid var(--border-strong); background: var(--field);
             color: inherit; resize: vertical; box-sizing: border-box; }
@@ -195,13 +211,13 @@
   .exfield { width: 100%; font: inherit; padding: 9px 11px; border-radius: 10px;
              border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
   .chips { display: flex; flex-wrap: wrap; gap: 7px; }
-  .chip { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px;
+  .chip { min-height:44px; display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px;
           border: 1px solid var(--border-strong); border-radius: 999px; background: var(--field);
           font-size: .82rem; cursor: pointer; user-select: none; transition: background .1s, border-color .1s; }
   .chip input { margin: 0; }
   .chip.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--field));
              font-weight: 600; }
-  .chips:empty::after { content: "No groups found — is HA reachable?"; color: var(--fg-dim); font-size: .82rem; }
+  .chips:empty::after { content: "Ingen grupper fundet — kan Home Assistant nås?"; color: var(--fg-dim); font-size: .82rem; }
   .entlist { max-height: 280px; overflow-y: auto; border: 1px solid var(--border-strong);
              border-radius: 12px; background: var(--field); margin-top: 8px; }
   .entlist .grp { padding: 8px 12px 4px; font-size: .7rem; font-weight: 700; letter-spacing: .04em;
@@ -231,51 +247,84 @@
   #cmic.live { background: var(--danger); color: #fff; border-color: transparent; }
   h2 #cstate { font-size: .62rem; text-transform: none; letter-spacing: 0; }
 
-  .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
-           background: var(--fg); color: var(--bg); padding: 9px 16px; border-radius: 999px;
+  .toast { position: fixed; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+           background: var(--fg); color: #fff; padding: 11px 16px; border-radius: 999px;
            font-size: .82rem; font-weight: 600; opacity: 0; transition: opacity .2s;
            pointer-events: none; }
   .toast.show { opacity: .92; }
   @media (prefers-color-scheme: dark) { .toast { color: #1c1c1e; background: #f2f2f7; } }
 
+  :focus-visible { outline:3px solid var(--focus) !important; outline-offset:3px; }
+  input:focus, textarea:focus, select:focus { border-color:var(--accent); }
+  .talk-stage { border:1px solid var(--border); border-left:6px solid var(--accent); padding:16px 18px; border-radius:14px; background:var(--card); margin-bottom:12px; }
+  .talk-stage strong { display:block; font:700 1.2rem ui-rounded,"SF Pro Rounded",system-ui; }
+  .talk-stage .sub { margin:2px 0 0; }
+  .talk-actions { position:sticky; bottom:0; padding:10px 0 calc(8px + env(safe-area-inset-bottom)); background:linear-gradient(transparent 0, var(--card) 24%); z-index:4; }
+  #cmic { min-width:56px; min-height:56px; font-size:1.15rem; }
+  .screenreader { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  code { overflow-wrap:anywhere; word-break:break-word; }
+  @media (max-width: 760px) {
+    .home-grid { grid-template-columns:1fr; gap:0; }
+    .wrap { max-width:620px; }
+    .setgrid { grid-template-columns:1fr; gap:5px; }
+    .setgrid label { margin-top:8px; }
+    .setgrid > span:empty { display:none; }
+  }
   @media (max-width: 420px) {
     body { padding: 16px 12px 36px; }
     h1 { font-size: 1.28rem; }
     .metrics { grid-template-columns: repeat(2, 1fr); }
     .room button, .ctl button { flex: 1 1 calc(50% - 4px); }
+    .tabs { margin-left:-12px; margin-right:-12px; padding:0 6px; }
+    .tabbtn { flex:1 0 auto; padding-inline:11px; }
+    .crow { flex-wrap:wrap; }
+    #ctext { flex:1 1 calc(100% - 72px); }
+    #cmodel { max-width:100%; }
+    table { font-size:.76rem !important; }
+    .section > h2 { flex-wrap:wrap; gap:8px; }
+  }
+  @media (max-width: 220px) {
+    .section > h2 button { width:100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior:auto !important; transition:none !important; animation:none !important; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>PodVoice</h1>
-  <p class="sub" id="sub">Dansk taleassistent</p>
+  <header class="brand">
+    <div class="brandmark" aria-hidden="true">PV</div>
+    <div><h1>PodVoice</h1><p class="sub" id="sub">Dansk taleassistent</p></div>
+  </header>
 
   <div class="tabs" role="tablist">
-    <button class="tabbtn active" data-tab="home">Hjem</button>
-    <button class="tabbtn" data-tab="settings">Opsætning</button>
-    <button class="tabbtn" data-tab="talk">Tal</button>
-    <button class="tabbtn" data-tab="history">Historik</button>
+    <button id="tab-home" class="tabbtn active" data-tab="home" role="tab" aria-selected="true" aria-controls="pane-home">Hjem</button>
+    <button id="tab-talk" class="tabbtn" data-tab="talk" role="tab" aria-selected="false" aria-controls="pane-talk" tabindex="-1">Tal</button>
+    <button id="tab-test" class="tabbtn" data-tab="test" role="tab" aria-selected="false" aria-controls="pane-test" tabindex="-1">Test</button>
+    <button id="tab-history" class="tabbtn" data-tab="history" role="tab" aria-selected="false" aria-controls="pane-history" tabindex="-1">Historik</button>
+    <button id="tab-settings" class="tabbtn" data-tab="settings" role="tab" aria-selected="false" aria-controls="pane-settings" tabindex="-1">Indstillinger</button>
   </div>
 
-  <div class="pane active" id="pane-home">
+  <div class="pane active" id="pane-home" role="tabpanel" aria-labelledby="tab-home">
     <div class="section">
-      <h2>Status</h2>
-      <div class="svc" id="svc"></div>
+      <h2>Er Nabu klar?</h2>
+      <div class="svc" id="svc"><span class="pill pill-degraded">Henter faktisk status…</span></div>
+      <span id="svc_announce" class="screenreader" role="status" aria-live="polite"></span>
       <div id="capabilities" style="margin-top:10px"></div>
       <div id="cap_warning" class="notice" role="alert" hidden></div>
-      <p class="sub" style="margin:10px 0 0">Say <b>“Okay Nabu”</b>, then just talk — it handles interrupting, follow-ups and knowing when you're done. Say <b>“farvel”</b> or <b>“stop”</b> to end. <b>While it is speaking</b>, saying <b>“stop”</b> (or <b>“Okay Nabu”</b>) silences it instantly — the puck hears that even over its own voice.</p>
+      <p class="sub" style="margin:10px 0 0">Sig <b>“Okay Nabu”</b>, vent på det korte start-bip, og tal naturligt. Sig <b>“farvel”</b> for at afslutte. Afbrydelse mens Nabu taler er endnu ikke fysisk godkendt og loves derfor ikke her.</p>
     </div>
 
     <div class="section" id="rooms-section" style="display:none">
-      <h2>Rooms</h2>
+      <h2>Rum</h2>
       <div id="rooms" class="list"></div>
     </div>
 
     <div class="section" id="activity-section">
-      <h2>Live activity</h2>
-      <p class="sub" style="margin:2px 0 8px">What the assistant is doing right now — wake, listening, thinking, replying, closing.</p>
-      <div id="activity" class="tx" style="min-height:0;max-height:240px"></div>
+      <h2>Aktivitet nu</h2>
+      <p class="sub" style="margin:2px 0 8px">Vækning, lytning, tænkning, svar og afslutning — i den rækkefølge de sker.</p>
+      <div id="activity" class="tx" aria-label="Seneste aktivitet" style="min-height:0;max-height:240px"></div>
     </div>
 
     <div class="section">
@@ -287,17 +336,19 @@
         <tr><td style="padding:3px 8px 3px 0">Du taler</td><td style="padding:3px 8px 3px 0">Cyan</td><td style="padding:3px 0">Stilhed &mdash; den lytter</td></tr>
         <tr><td style="padding:3px 8px 3px 0">Du er færdig, den arbejder</td><td style="padding:3px 8px 3px 0"><b>Gul</b></td><td style="padding:3px 0">Stilhed (eller &ldquo;Lige et &oslash;jeblik&rdquo; ved opslag)</td></tr>
         <tr><td style="padding:3px 8px 3px 0">Den svarer</td><td style="padding:3px 8px 3px 0"><b>Gr&oslash;n</b></td><td style="padding:3px 0">Svaret</td></tr>
-        <tr><td style="padding:3px 8px 3px 0">Du siger &ldquo;stop&rdquo; midt i</td><td style="padding:3px 8px 3px 0">Cyan igen</td><td style="padding:3px 0">&Oslash;jeblikkelig stilhed</td></tr>
         <tr><td style="padding:3px 8px 3px 0">Samtalen lukker</td><td style="padding:3px 8px 3px 0">Slukket</td><td style="padding:3px 0">Kort, blid nedadg&aring;ende tone &mdash; <b>mikrofonen er lukket</b></td></tr>
         <tr><td style="padding:3px 8px 3px 0">Noget gik galt</td><td style="padding:3px 8px 3px 0"><b>R&oslash;d</b></td><td style="padding:3px 0">Den siger h&oslash;jt hvad der er galt</td></tr>
       </table>
     </div>
 
-    <div class="section">
-      <h2>Metrics</h2>
+    <details class="section">
+      <summary>Tekniske målinger</summary>
       <div id="metrics" class="metrics"></div>
-    </div>
+    </details>
 
+  </div>
+
+  <div class="pane" id="pane-test" role="tabpanel" aria-labelledby="tab-test" hidden>
     <div class="section">
       <h2>Stuetest-evidens <button id="a_start" class="ghost" style="padding:4px 10px;font-size:.74rem">Start frisk stuetest</button> <button id="a_refresh" class="ghost" style="padding:4px 10px;font-size:.74rem">Opdatér</button></h2>
       <p class="sub" style="margin:2px 0 8px">Ikke en release-godkendelse — kun et beviskort for om fysisk test faktisk ramte Voice PE, tools, opfølgning og lyd.</p>
@@ -306,60 +357,63 @@
     </div>
   </div>
 
-  <div class="pane" id="pane-talk">
+  <div class="pane" id="pane-talk" role="tabpanel" aria-labelledby="tab-talk" hidden>
     <div class="section">
-      <h2><span id="ctitle">Talk to the assistant</span> <span id="cstate" class="pill pill-down">offline</span></h2>
-      <div class="crow" style="margin-bottom:10px">
+      <h2><span id="ctitle">Tal med Nabu</span> <span id="cstate" class="pill pill-down" role="status" aria-live="polite">offline</span></h2>
+      <div class="talk-stage" id="cstage"><strong id="cstage_title">Klar</strong><p class="sub" id="cstage_next">Tryk på mikrofonen for at starte.</p></div>
+      <details class="adv" style="margin-bottom:12px"><summary>Model og stemme for denne session</summary><div class="crow">
         <select id="cmodel" aria-label="Model"></select>
-        <select id="cvoice" aria-label="Voice" style="flex:0 0 auto;width:120px" title="Voice"></select>
-      </div>
-      <div id="clog" class="tx" style="min-height:120px;max-height:300px"></div>
-      <div class="crow">
-        <input id="ctext" type="text" autocomplete="off" placeholder="Skriv til assistenten…" aria-label="Message to the assistant" />
+        <select id="cvoice" aria-label="Stemme" style="flex:0 0 auto;width:150px" title="Stemme"></select>
+      </div></details>
+      <div id="clog" class="tx" role="log" aria-label="Samtale" style="min-height:220px;max-height:52vh"></div>
+      <span id="turn_announce" class="screenreader" role="status" aria-live="polite"></span>
+      <div class="talk-actions"><div class="crow">
+        <input id="ctext" type="text" autocomplete="off" placeholder="Skriv til Nabu…" aria-label="Besked til Nabu" />
         <button id="csend">Send</button>
-        <button id="cstop" class="ghost" aria-label="Stop speaking" title="Stop the spoken reply">⏹</button>
-        <button id="cmic" class="ghost" aria-label="Hold to talk">🎤</button>
-      </div>
-      <p id="cmichint" class="sub" style="margin-top:8px"></p>
+        <button id="cstop" class="ghost" aria-label="Afslut samtalen" title="Afslut samtalen">Afslut</button>
+        <button id="cmic" class="ghost" aria-label="Start mikrofon" aria-pressed="false">🎤</button>
+      </div></div>
+      <p id="cmichint" class="sub" role="status" aria-live="polite" style="margin-top:8px"></p>
+      <button id="cplay" class="ghost" hidden>Afspil svaret</button>
     </div>
   </div>
 
-  <div class="pane" id="pane-history">
+  <div class="pane" id="pane-history" role="tabpanel" aria-labelledby="tab-history" hidden>
     <div class="section">
-      <h2>Conversations <button id="h_clear" class="ghost" style="padding:4px 10px;font-size:.74rem">Clear all</button></h2>
-      <p class="sub" style="margin:2px 0 10px">Past conversations — the Talk console and each Voice PE room. Saved across restarts.</p>
+      <h2>Samtaler <button id="h_clear" class="ghost" style="padding:4px 10px;font-size:.74rem">Slet alle</button></h2>
+      <p class="sub" style="margin:2px 0 10px">Tidligere samtaler fra Talk og hvert Voice PE-rum. Gemmes på tværs af genstarter.</p>
       <div class="crow" style="margin-bottom:12px">
-        <select id="h_room" aria-label="Filter by room" style="flex:1 1 auto"><option value="">All conversations</option></select>
-        <button id="h_refresh" class="ghost" style="flex:0 0 auto">↻ Refresh</button>
+        <select id="h_room" aria-label="Filtrér efter rum" style="flex:1 1 auto"><option value="">Alle samtaler</option></select>
+        <button id="h_refresh" class="ghost" style="flex:0 0 auto">↻ Opdatér</button>
       </div>
       <div id="h_list" class="list"></div>
     </div>
   </div>
 
-  <div class="pane" id="pane-settings">
+  <div class="pane" id="pane-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
     <div class="section">
-      <div class="exsub" style="margin-top:4px">Everyday</div>
-      <p class="sub" style="margin:2px 0 8px">These are the settings you normally touch. PodVoice re-applies the Voice PE baseline on every connect: channel 1 with XMOS AEC/IC/NS but no AGC, gain 4, and no second provider noise filter.</p>
+      <div class="exsub" style="margin-top:4px">Daglig brug</div>
+      <p class="sub" style="margin:2px 0 8px">De indstillinger du normalt bruger. PodVoice påfører Voice PE-baseline ved hver forbindelse: kanal 1 med XMOS AEC/IC/NS uden AGC, gain 4 og intet ekstra provider-støjfilter.</p>
       <div class="setgrid">
-        <label for="s_wake_word">Wake word</label>
+        <label for="s_wake_word">Vækkeord</label>
         <select id="s_wake_word">
           <option value="okay_nabu">Okay Nabu</option>
           <option value="hey_jarvis">Hey Jarvis</option>
           <option value="hey_mycroft">Hey Mycroft</option>
         </select>
-        <label for="s_idle_timeout_s">Close after silence (s)</label>
+        <label for="s_idle_timeout_s">Luk efter stilhed (sek.)</label>
         <input id="s_idle_timeout_s" type="number" min="5" max="120">
-        <label for="s_duck_level">Music volume while talking %</label>
+        <label for="s_duck_level">Musik mens Nabu lytter (%)</label>
         <input id="s_duck_level" type="number" min="0" max="100">
       </div>
-      <p class="sub" style="margin:2px 0 0">The wake word is pushed to the puck on every connect, so it survives a power cut. These three ship with the firmware; a custom one (e.g. &ldquo;Okay Chat&rdquo;) has to be trained and flashed. <b>0&nbsp;%</b> mutes the music completely &mdash; best when the speaker stands in the same room as the Voice PE.</p>
+      <p class="sub" style="margin:2px 0 0">Vækkeordet sendes til pucken ved hver forbindelse og overlever derfor strømsvigt. Et nyt vækkeord skal trænes og flashes. <b>0&nbsp;%</b> slukker musikken helt, mens Nabu lytter.</p>
 
-      <div class="exsub" style="margin-top:18px">Hardware &mdash; set once</div>
-      <p class="sub" style="margin:2px 0 8px">You filled these in when you installed PodVoice. Each room links one Voice PE to the PodConnect room it stands in, so it knows whose music to quiet.</p>
+      <div class="exsub" style="margin-top:18px">Enheder &mdash; sættes én gang</div>
+      <p class="sub" style="margin:2px 0 8px">Hvert rum forbinder én Voice PE med det PodConnect-rum, den står i, så den rigtige musik dæmpes.</p>
       <div class="setgrid">
         <label for="s_voicepe_noise_psk">Voice PE PSK</label>
         <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
-        <span></span><span id="s_voicepe_noise_psk_hint" class="sub" style="display:none;font-size:.76rem">Saved &mdash; type to replace.</span>
+        <span></span><span id="s_voicepe_noise_psk_hint" class="sub" style="display:none;font-size:.76rem">Gemt &mdash; skriv for at erstatte.</span>
       </div>
       <div id="s_rooms" style="margin-top:8px"></div>
       <div id="s_room_warning" class="notice" role="alert" hidden>
@@ -372,61 +426,74 @@
 
       <section class="expose">
         <div class="exhead">
-          <h2 style="margin:0">Home control</h2>
+          <h2 style="margin:0">Styring af hjemmet</h2>
         </div>
-        <p class="sub" style="margin:2px 0 0">What the assistant may control now lives in <b>Home Assistant</b>: Settings → Voice assistants → <i>Expose</i>. PodVoice reaches the home through Home Assistant's own MCP server, so the exposed-entities list there is the single source of truth. (Enable the “Model Context Protocol Server” integration in HA once.)</p>
+        <p class="sub" style="margin:2px 0 0">Det Nabu må styre, vælges i <b>Home Assistant</b>: Indstillinger → Stemmeassistenter → <i>Eksponér</i>. Listen i HA er den eneste sandhedskilde. Integrationen “Model Context Protocol Server” skal være aktiveret.</p>
       </section>
 
       <details class="adv" style="margin-top:18px">
-        <summary>Advanced</summary>
+        <summary>Avanceret</summary>
 
-        <div class="exsub" style="margin-top:14px">Assistant</div>
+        <div class="exsub" style="margin-top:14px">Assistent</div>
         <div class="setgrid">
-          <label for="s_engine">Conversation engine</label>
+          <label for="s_engine">Samtalemotor</label>
           <select id="s_engine">
-            <option value="classic">Classic &mdash; proven (state machine)</option>
-            <option value="thin">Thin &mdash; the model owns the conversation (Track B)</option>
+            <option value="classic">Klassisk &mdash; state machine</option>
+            <option value="thin">Thin &mdash; modellen ejer samtalen</option>
           </select>
           <label for="s_openai_model">Model</label>
           <select id="s_openai_model">
             <option value="gpt-realtime-2.1">GPT Realtime 2.1 (quality standard)</option>
             <option value="gpt-realtime-2.1-mini">GPT Realtime 2.1 mini (cost mode)</option>
           </select>
-          <label for="s_openai_voice">Voice</label>
+          <label for="s_openai_voice">Stemme</label>
           <input id="s_openai_voice" list="dl_openai_voice" autocomplete="off">
-          <label for="s_turn_preset">Interruption style</label>
+          <label for="s_turn_preset">Turtagning</label>
           <select id="s_turn_preset">
-            <option value="conservative">Conservative &mdash; hard to interrupt (echo-safe)</option>
-            <option value="responsive">Responsive &mdash; easiest to talk over</option>
-            <option value="custom">Custom &mdash; use the raw knobs</option>
+            <option value="conservative">Konservativ &mdash; ekkosikker</option>
+            <option value="responsive">Responsiv &mdash; lettest at afbryde</option>
+            <option value="custom">Tilpasset &mdash; vis rå indstillinger</option>
           </select>
-          <label for="s_max_session_min">Max conversation (min)</label>
+          <label for="s_max_session_min">Maks. samtale (min.)</label>
           <input id="s_max_session_min" type="number" min="1" max="55">
-          <label for="s_force_mini">Always use the mini model</label>
+          <label for="s_force_mini">Tving mini-model (tilsidesætter Model)</label>
           <input id="s_force_mini" type="checkbox">
         </div>
+        <p id="s_model_effective" class="sub" role="status"></p>
+        <div id="s_custom_turn" class="setgrid" hidden>
+          <label for="s_openai_turn">Turn detection</label>
+          <select id="s_openai_turn"><option value="server_vad">Server VAD</option><option value="semantic_vad">Semantisk VAD</option><option value="none">Fra</option></select>
+          <label for="s_openai_threshold">VAD-tærskel</label>
+          <input id="s_openai_threshold" type="number" min="0" max="1" step="0.05">
+          <label for="s_openai_prefix_ms">Lyd før tale (ms)</label>
+          <input id="s_openai_prefix_ms" type="number" min="0" max="5000">
+          <label for="s_openai_silence_ms">Stilhed før slut (ms)</label>
+          <input id="s_openai_silence_ms" type="number" min="100" max="10000">
+          <label for="s_openai_eagerness">Semantisk følsomhed</label>
+          <select id="s_openai_eagerness"><option value="auto">Auto</option><option value="low">Lav</option><option value="medium">Mellem</option><option value="high">Høj</option></select>
+        </div>
         <datalist id="dl_openai_voice"><option>marin</option><option>cedar</option><option>alloy</option><option>echo</option><option>shimmer</option></datalist>
-        <p class="sub" style="margin:2px 0 0"><b>Thin</b> is the model-owned mode &mdash; the AI handles turn-taking, interruptions and knowing when you are done. Conservative is tuned so the speaker&rsquo;s own voice can never cut a reply off. Your API key lives in the Home Assistant add-on <b>Configuration</b> tab, not here. Cost shows up as <code>sensor.podvoice_cost_today</code> / <code>_month</code>.</p>
+        <p class="sub" style="margin:2px 0 0"><b>Thin</b> lader modellen styre turtagningen. Konservativ er indstillet til at modstå rest-ekko. API-nøglen ligger i add-on'ens fane <b>Konfiguration</b>. Forbrug vises som <code>sensor.podvoice_cost_today</code> og <code>_month</code>.</p>
 
-        <div class="exsub" style="margin-top:14px">Mic quality</div>
+        <div class="exsub" style="margin-top:14px">Mikrofonkvalitet</div>
         <div class="setgrid">
-          <label for="s_mic_channel">Voice PE mic channel</label>
+          <label for="s_mic_channel">Voice PE-mikrofonkanal</label>
           <select id="s_mic_channel">
             <option value="1">AGC-less channel 1 &mdash; default</option>
             <option value="0">Enhanced channel 0 &mdash; AEC/NS/AGC</option>
           </select>
-          <label for="s_mic_gain">Raw mic gain</label>
+          <label for="s_mic_gain">Rå mikrofon-gain</label>
           <input id="s_mic_gain" type="number" min="1" max="64">
-          <label for="s_openai_noise">Voice PE OpenAI noise reduction</label>
+          <label for="s_openai_noise">OpenAI-støjreduktion på Voice PE</label>
           <select id="s_openai_noise">
-            <option value="off">Off</option>
-            <option value="far_field">Far field</option>
-            <option value="near_field">Near field</option>
+            <option value="off">Fra</option>
+            <option value="far_field">Lang afstand</option>
+            <option value="near_field">Kort afstand</option>
           </select>
         </div>
         <p class="sub" style="margin:2px 0 0">Baseline: Voice PE bruger <b>channel 1</b> (XMOS AEC/IC/NS uden AGC), <b>gain 4</b> og derfor ingen ekstra OpenAI-støjfiltrering. Talk bruger browser-ekkoannullering uden browser-NS/AGC og én OpenAI <b>far field</b>-filtrering. <code>turn: input transcript</code> er en separat diagnostisk transcript &mdash; ikke nødvendigvis præcis hvad Realtime-modellen hørte.</p>
 
-        <h2 style="margin:14px 0 8px">System prompt <button id="s_resetprompt" class="ghost" style="padding:4px 10px;font-size:.74rem">Reset</button></h2>
+        <div style="margin:14px 0 8px"><label for="s_system_prompt"><b>Systemprompt</b></label> <button id="s_resetprompt" class="ghost">Nulstil</button></div>
         <textarea id="s_system_prompt" class="prompt" rows="8" spellcheck="false"></textarea>
         <p class="sub" style="margin:6px 0 0">Tells the assistant who it is and what it can do (so it answers "what can you do?" and never goes silent). Edit freely, then Save &amp; restart.</p>
 
@@ -437,17 +504,17 @@
           <input id="s_podconnect_base_url" type="text" autocomplete="off">
           <label for="s_podconnect_token">PodConnect token</label>
           <input id="s_podconnect_token" type="password" autocomplete="off" placeholder="(blank if PodConnect has none)">
-          <span></span><span id="s_podconnect_token_hint" class="sub" style="display:none;font-size:.76rem">Saved — type to replace.</span>
+          <span></span><span id="s_podconnect_token_hint" class="sub" style="display:none;font-size:.76rem">Gemt — skriv for at erstatte.</span>
           <label for="s_ha_mcp_url">HA MCP URL</label>
           <input id="s_ha_mcp_url" type="text" autocomplete="off" placeholder="(blank = via Supervisor: /core/api/mcp)">
           <label for="s_ha_mcp_token">HA MCP token</label>
           <input id="s_ha_mcp_token" type="password" autocomplete="off" placeholder="(blank = the add-on's own token)">
-          <span></span><span id="s_ha_mcp_token_hint" class="sub" style="display:none;font-size:.76rem">Saved — type to replace.</span>
+          <span></span><span id="s_ha_mcp_token_hint" class="sub" style="display:none;font-size:.76rem">Gemt — skriv for at erstatte.</span>
         </div>
         <p class="sub" style="margin:2px 0 0">PodConnect is what dims the music. The MCP fields are only for setups where the Supervisor proxy can't reach HA's MCP server — then point the URL at <code>http://&lt;ha&gt;:8123/api/mcp</code> with a long-lived access token. You normally never change these.</p>
 
         <details class="adv" style="margin-top:12px">
-          <summary>Security</summary>
+          <summary>Sikkerhed</summary>
           <div class="setgrid" style="margin-top:8px">
             <label for="s_panel_lan_open">Allow panel on the LAN</label>
             <input id="s_panel_lan_open" type="checkbox">
@@ -456,57 +523,58 @@
         </details>
 
         <details class="adv" style="margin-top:12px">
-          <summary>Diagnostics</summary>
+          <summary>Diagnostik</summary>
           <div class="vpgate" style="margin-top:8px">
             <div class="vpg-row">
-              <div class="vpg-txt"><b>Connection</b><span class="sub">Can PodVoice reach the device?</span></div>
-              <button id="vp_status" class="ghost">Check</button>
+              <div class="vpg-txt"><b>Forbindelse</b><span class="sub">Kan PodVoice nå enheden?</span></div>
+              <button id="vp_status" class="ghost">Tjek</button>
             </div>
             <div class="vpg-row">
-              <div class="vpg-txt"><b>Audio in</b><span class="sub">Gap-free mic stream (~15&nbsp;s)</span></div>
-              <button id="vp_s1" class="ghost">Check</button>
+              <div class="vpg-txt"><b>Lyd ind</b><span class="sub">Sammenhængende mikrofonstream (~15&nbsp;s)</span></div>
+              <button id="vp_s1" class="ghost">Tjek</button>
             </div>
             <div class="vpg-row">
-              <div class="vpg-txt"><b>Speaker</b><span class="sub">Do you hear the test tone?</span></div>
-              <button id="vp_s2" class="ghost">Test</button>
+              <div class="vpg-txt"><b>Højttaler</b><span class="sub">Kan du høre testtonen?</span></div>
+              <button id="vp_s2" class="ghost">Afspil test</button>
             </div>
           </div>
-          <div id="vp_result" class="status" style="display:none;margin-top:12px"></div>
+          <div id="vp_result" class="status" role="status" aria-live="polite" style="display:none;margin-top:12px"></div>
           <button id="vp_copy" class="ghost" style="display:none;margin-top:8px;padding:5px 11px;font-size:.78rem">Copy result</button>
         </details>
       </details>
 
       <div class="actions">
-        <button id="s_save">Save</button>
-        <button id="s_saverestart" class="ghost">Save &amp; restart</button>
+        <button id="s_saverestart">Gem og genstart</button>
+        <button id="s_save" class="ghost">Gem til senere</button>
         <span id="s_status" class="sub" role="status"></span>
       </div>
     </div>
   </div>
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 "use strict";
-var STATE_PILL = { IDLE: "pill-idle", LISTENING: "pill-listening", AI_SPEAKING: "pill-speaking", LOUNGE_WINDOW: "pill-lounge" };
-var STATE_LABEL = { IDLE: "idle", LISTENING: "listening", AI_SPEAKING: "speaking", LOUNGE_WINDOW: "follow-up" };
-var SVC_LABEL = { openai: "ChatGPT", voicepe: "Voice PE", podconnect: "PodConnect", mcp: "Home control" };
+var STATE_PILL = { IDLE: "pill-idle", LISTENING: "pill-listening", THINKING: "pill-lounge", AI_SPEAKING: "pill-speaking", LOUNGE_WINDOW: "pill-lounge" };
+var STATE_LABEL = { IDLE: "klar", LISTENING: "lytter", THINKING: "tænker", AI_SPEAKING: "taler", LOUNGE_WINDOW: "opfølgning" };
+var SVC_LABEL = { openai: "ChatGPT", voicepe: "Voice PE", podconnect: "PodConnect", mcp: "Hjemmestyring" };
 var METRIC_LABEL = {
-  sessions: "Sessions",
-  barge_ins: "Barge-ins",
-  false_barges: "False barges (filtered)",
-  watchdog_aborts: "Watchdog aborts",
-  tool_calls: "Tool calls",
-  tool_ok: "Tools ok",
-  tool_empty: "Tools empty",
-  tool_error: "Tool errors",
-  attention_engages: "Music ducks",
-  attention_releases: "Music restores"
+  sessions: "Samtaler",
+  barge_ins: "Afbrydelser",
+  false_barges: "Fejl-registreringer filtreret",
+  watchdog_aborts: "Watchdog-afbrydelser",
+  tool_calls: "Værktøjskald",
+  tool_ok: "Værktøjer lykkedes",
+  tool_empty: "Værktøjer uden data",
+  tool_error: "Værktøjsfejl",
+  attention_engages: "Musik dæmpet",
+  attention_releases: "Musik gendannet"
 };
 
 var rooms = {};
 var connected = false;
 var lastStatus = null;
+var lastObservedMs = 0;
 
 function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
 function safe(o, k, d) { return (o && o[k] != null) ? o[k] : d; }
@@ -527,18 +595,30 @@ function renderSub(data) {
   sub.style.color = connected ? "" : "var(--amber)";
 }
 
-function renderServices(services) {
-  var wrap = document.getElementById("svc"); wrap.innerHTML = "";
+function renderServices(services, details) {
+  var wrap = document.getElementById("svc");
+  var signature = JSON.stringify(services || {});
+  if (wrap.dataset.signature === signature) return;
+  wrap.dataset.signature = signature; wrap.innerHTML = "";
+  var announcements = [];
   ["openai", "voicepe", "podconnect", "mcp"].forEach(function (name) {
     var st = safe(services, name, "down");
+    var detail = safe(details, name, {});
+    // Staleness is source-specific and belongs to the backend probe contract.
+    // Do not invent one client TTL for services with very different cadences.
     var cls = st === "up" ? "pill-up" : st === "degraded" ? "pill-degraded" : "pill-down";
     var p = el("span", "pill " + cls);
-    p.appendChild(document.createTextNode(SVC_LABEL[name]));
+    var label = st === "up" ? "verificeret" : st === "degraded" ? "ikke verificeret" : "utilgængelig";
+    p.appendChild(document.createTextNode(SVC_LABEL[name] + ": " + label));
+    p.title = [detail.reason, detail.source].filter(Boolean).join(" · ");
     wrap.appendChild(p);
+    announcements.push(SVC_LABEL[name] + " " + label);
   });
+  var live = document.getElementById("svc_announce");
+  if (live) live.textContent = announcements.join(", ");
 }
 
-function renderCapabilities(caps) {
+function renderCapabilities(caps, details) {
   var wrap = document.getElementById("capabilities");
   var warn = document.getElementById("cap_warning");
   if (!wrap || !warn) return;
@@ -555,9 +635,10 @@ function renderCapabilities(caps) {
     ["music", "Musik"],
     ["timers", "Timere"]
   ].forEach(function (pair) {
-    var ok = !!caps[pair[0]];
-    var p = el("span", "pill " + (ok ? "pill-up" : "pill-degraded"));
-    p.appendChild(document.createTextNode(pair[1]));
+    var ok = !!caps[pair[0]], detail = safe(details, pair[0], {}), verified = !!detail.verified;
+    var p = el("span", "pill " + (verified ? "pill-up" : ok ? "pill-degraded" : "pill-down"));
+    p.appendChild(document.createTextNode(pair[1] + ": " + (verified ? "verificeret" : ok ? "fundet" : "mangler")));
+    p.title = [detail.reason, detail.source].filter(Boolean).join(" · ");
     wrap.appendChild(p);
   });
   var missing = caps.missing || [];
@@ -586,18 +667,18 @@ function roomCard(rm) {
   var lvl = safe(rm, "level", 100);
   var ducked = !!rm.ducked || lvl < 100;
   var duck = el("div", "duck" + (ducked ? " ducked" : ""));
-  duck.appendChild(el("div", "lbl", "Music " + lvl + "%"));
+  duck.appendChild(el("div", "lbl", "Musik " + lvl + "%"));
   var track = el("div", "track"); var fill = el("div", "fill"); fill.style.width = lvl + "%";
   track.appendChild(fill); duck.appendChild(track); box.appendChild(duck);
 
   var meta = el("div", "meta");
   var lat = rm.last_latency_ms;
-  meta.appendChild(el("span", null, "Latency " + (lat == null ? "—" : Math.round(lat) + " ms")));
-  meta.appendChild(el("span", null, rm.connected ? "● connected" : "○ offline"));
+  meta.appendChild(el("span", null, "Svartid " + (lat == null ? "—" : Math.round(lat) + " ms")));
+  meta.appendChild(el("span", null, rm.connected ? "● forbundet" : "○ offline"));
   box.appendChild(meta);
 
   var ctl = el("div", "ctl");
-  [["Listen", "listen"], ["Stop", "stop"], ["Test tone", "test_tone"], ["Test speaker 🔊", "test_speaker"]].forEach(function (pair) {
+  [["Lyt", "listen"], ["Stop", "stop"], ["Test tone", "test_tone"], ["Test højttaler 🔊", "test_speaker"]].forEach(function (pair) {
     var b = el("button", "ghost", pair[0]);
     b.setAttribute("aria-label", pair[0] + " in " + safe(rm, "room", ""));
     b.onclick = function () { control(rm.room, pair[1], b); };
@@ -633,12 +714,13 @@ function renderMetrics(m) {
 
 function applyStatus(data) {
   if (!data) return;
+  lastObservedMs = Date.now();
   lastStatus = data;
   rooms = {};
   (data.rooms || []).forEach(function (r) { rooms[r.room] = r; });
   renderSub(data);
-  renderServices(data.services || {});
-  renderCapabilities(data.capabilities || {});
+  renderServices(data.services || {}, data.service_details || {});
+  renderCapabilities(data.capabilities || {}, data.capability_details || {});
   renderRooms();
   renderMetrics(data.metrics || {});
   renderActivity(data.activity || []);
@@ -661,8 +743,11 @@ function addActivity(item) {
 }
 function renderActivity(list) {
   var box = document.getElementById("activity"); if (!box) return;
+  var signature = JSON.stringify((list || []).map(function (x) { return [x.ts, x.text]; }));
+  if (box.dataset.signature === signature) return;
+  box.dataset.signature = signature;
   box.innerHTML = "";
-  if (!list || !list.length) { box.appendChild(el("div", "empty", "No activity yet — say “Okay Nabu”.")); return; }
+  if (!list || !list.length) { box.appendChild(el("div", "empty", "Ingen aktivitet endnu — sig “Okay Nabu”.")); return; }
   list.forEach(addActivity);
 }
 
@@ -673,7 +758,7 @@ function applyEvent(ev) {
     rm.state = ev.state; if (ev.level != null) rm.level = ev.level; rm.ducked = !!ev.ducked;
     renderRooms();
   } else if (ev.type === "service") {
-    if (lastStatus) { lastStatus.services = lastStatus.services || {}; lastStatus.services[ev.name] = ev.status; renderServices(lastStatus.services); }
+    if (lastStatus) { lastStatus.services = lastStatus.services || {}; lastStatus.services[ev.name] = ev.status; renderServices(lastStatus.services, lastStatus.service_details || {}); }
   } else if (ev.type === "metrics") {
     var m = {}; Object.keys(METRIC_LABEL).forEach(function (k) { if (ev[k] != null) m[k] = ev[k]; });
     if (lastStatus) lastStatus.metrics = m;
@@ -698,7 +783,12 @@ async function poll() {
   try {
     var r = await fetch("api/status", { cache: "no-store" });
     if (r.ok) applyStatus(await r.json());
-  } catch (e) { /* keep last render */ }
+  } catch (e) {
+    connected = false;
+    renderSub(lastStatus);
+    var svc = document.getElementById("svc");
+    if (svc) svc.setAttribute("aria-label", "Status kunne ikke opdateres; viste data kan være forældede");
+  }
 }
 
 function openStream() {
@@ -713,6 +803,13 @@ renderMetrics({});
 poll();
 openStream();
 setInterval(poll, 3000);
+setInterval(function () {
+  if (lastObservedMs && Date.now() - lastObservedMs > 10000) {
+    connected = false; renderSub(lastStatus);
+    var svc = document.getElementById("svc");
+    if (svc && !svc.querySelector(".stale")) svc.appendChild(el("span", "pill pill-down stale", "Status: forældet"));
+  }
+}, 2000);
 </script>
 
 <script>
@@ -796,6 +893,9 @@ setInterval(poll, 3000);
   var sendBtn = document.getElementById("csend");
   var micBtn = document.getElementById("cmic");
   var micHint = document.getElementById("cmichint");
+  var playRetryBtn = document.getElementById("cplay");
+  var stageTitle = document.getElementById("cstage_title");
+  var stageNext = document.getElementById("cstage_next");
 
   var modelSel = document.getElementById("cmodel");
   var voiceSel = document.getElementById("cvoice");
@@ -806,9 +906,17 @@ setInterval(poll, 3000);
   var stopBtn = document.getElementById("cstop");
 
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
-  function setState(s, cls) { cstate.textContent = s; cstate.className = "pill " + cls; }
+  function setState(s, cls) {
+    cstate.textContent = s; cstate.className = "pill " + cls;
+    var next = {
+      "forbinder…": ["Forbinder", "Vent et øjeblik."], online: ["Klar", "Tryk på mikrofonen for at starte."],
+      offline: ["Ikke forbundet", "Kontrollér add-on-status og prøv igen."], blokeret: ["Mikrofon blokeret", "Følg vejledningen nedenfor eller brug Voice PE."], klar: ["Klar", "Tryk på mikrofonen for at starte."],
+      "lytter…": ["Lytter", "Tal nu."], tænker: ["Tænker", "Vent et øjeblik."], taler: ["Nabu svarer", "Lyt til svaret."]
+    }[s];
+    if (next && stageTitle && stageNext) { stageTitle.textContent = next[0]; stageNext.textContent = next[1]; }
+  }
 
-  function emptyLog() { if (!clog.querySelector(".line")) { clog.innerHTML = ""; clog.appendChild(el("div", "empty", "Type below to talk to " + providerName() + ". Replies are spoken aloud here.")); } }
+  function emptyLog() { if (!clog.querySelector(".line")) { clog.innerHTML = ""; clog.appendChild(el("div", "empty", "Tryk på mikrofonen eller skriv nedenfor. Svaret afspilles her.")); } }
   function logLine(dir, who, text) {
     var e = clog.querySelector(".empty"); if (e) e.remove();
     var atBottom = clog.scrollHeight - clog.scrollTop - clog.clientHeight < 40;
@@ -860,7 +968,13 @@ setInterval(poll, 3000);
     curT._body.textContent += text;
     if (atBottom) clog.scrollTop = clog.scrollHeight;
   }
-  function endTurn() { curT = null; curTDir = null; }
+  function endTurn() {
+    if (curT && curT._body && curT._body.textContent) {
+      var live = document.getElementById("turn_announce");
+      if (live) live.textContent = (curTDir === "in" ? "Du: " : "Nabu: ") + curT._body.textContent;
+    }
+    curT = null; curTDir = null;
+  }
 
   function ensurePlay() {
     if (!playCtx) { try { playCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; } }
@@ -884,6 +998,7 @@ setInterval(poll, 3000);
     stopReply(true);
     if (playCtx) { try { playCtx.close(); } catch (e) {} playCtx = null; }
     nextStart = 0; endTurn();
+    micStop();
     sendJson({ type: "stop" });  // = saying "stop" in the room: the ENGINE closes
   }
   if (stopBtn) stopBtn.onclick = stopSpeaking;
@@ -914,7 +1029,7 @@ setInterval(poll, 3000);
         if (currentVoice) voiceSel.value = currentVoice;
       }
     } catch (e) {
-      logLine("out", "system", "Couldn't load the model list — using the server default.");
+      logLine("out", "system", "Kunne ikke hente modellisten — bruger serverens standard.");
     }
   }
   // Talk picker is SESSION-LOCAL: changing model/voice here affects ONLY this
@@ -938,7 +1053,7 @@ setInterval(poll, 3000);
     if (replyAudio) return replyAudio;
     replyAudio = new Audio();
     replyAudio.preload = "none";
-    replyAudio.onplaying = function () { sendJson({ type: "media", announcing: true }); };
+    replyAudio.onplaying = function () { playRetryBtn.hidden = true; sendJson({ type: "media", announcing: true }); };
     replyAudio.onended = function () { sendJson({ type: "media", announcing: false }); };
     replyAudio.onerror = function () { sendJson({ type: "media", announcing: false }); };
     return replyAudio;
@@ -946,8 +1061,12 @@ setInterval(poll, 3000);
   function playReply(url) {
     var a = replyEl();
     a.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "r=" + Date.now(); // never a cached reply
-    a.play().catch(function () { micHint.textContent = "Klik på siden én gang, så lyden må spille."; });
+    a.play().catch(function () { micHint.textContent = "Browseren blokerede automatisk lyd."; playRetryBtn.hidden = false; });
   }
+  playRetryBtn.onclick = function () {
+    if (!replyAudio) return;
+    replyAudio.play().catch(function () { micHint.textContent = "Lyden er stadig blokeret. Kontrollér lydtilladelsen i browseren."; });
+  };
   function stopReply(report) {
     if (!replyAudio) return;
     try { replyAudio.pause(); replyAudio.removeAttribute("src"); replyAudio.load(); } catch (e) {}
@@ -959,7 +1078,7 @@ setInterval(poll, 3000);
     var c = ev.on ? "rgb(" + (ev.rgb || [0,1,1]).map(function (v) { return Math.round(v * 255); }).join(",") + ")" : "transparent";
     micBtn.style.boxShadow = ev.on ? "0 0 0 3px " + c : "none";
   }
-  var STATE_DA = { IDLE: ["klar", "pill-degraded"], LISTENING: ["lytter…", "pill-up"], AI_SPEAKING: ["taler", "pill-up"] };
+  var STATE_DA = { IDLE: ["klar", "pill-degraded"], LISTENING: ["lytter…", "pill-up"], THINKING: ["tænker", "pill-degraded"], AI_SPEAKING: ["taler", "pill-up"], LOUNGE_WINDOW: ["klar", "pill-degraded"] };
 
   function connect() {
     var url;
@@ -967,16 +1086,16 @@ setInterval(poll, 3000);
     if (currentModel) url.searchParams.set("model", currentModel);
     if (currentVoice) url.searchParams.set("voice", currentVoice);
     url.protocol = (url.protocol === "https:") ? "wss:" : "ws:";
-    setState("connecting…", "pill-degraded");
+    setState("forbinder…", "pill-degraded");
     try { ws = new WebSocket(url.href); } catch (e) { setState("offline", "pill-down"); return; }
     ws.binaryType = "arraybuffer";
-    ws.onopen = function () { wsReady = true; setState("online", "pill-up"); };
+    ws.onopen = function () { wsReady = true; micBtn.disabled = false; setState("online", "pill-up"); };
     ws.onclose = function () {
-      wsReady = false; setState("offline", "pill-down");
+      wsReady = false; micBtn.disabled = true; micStop(); setState("offline", "pill-down");
       if (manualClose) { manualClose = false; return; }   // model switch handles its own reconnect
       setTimeout(connect, 2500);
     };
-    ws.onerror = function () { setState("offline", "pill-down"); };
+    ws.onerror = function () { micBtn.disabled = true; micStop(); setState("offline", "pill-down"); };
     ws.onmessage = function (m) {
       if (typeof m.data !== "string") { if (!halted) playPcm(m.data); return; }
       var ev; try { ev = JSON.parse(m.data); } catch (e) { return; }
@@ -985,7 +1104,8 @@ setInterval(poll, 3000);
       else if (ev.type === "play") { halted = false; playReply(ev.url); }
       else if (ev.type === "stop_playback") { stopReply(true); endTurn(); }
       else if (ev.type === "mic") {
-        micBtn.classList.toggle("live", !!ev.on);
+        if (!ev.on) micStop();
+        else micBtn.classList.add("live");
         micHint.textContent = ev.on ? "🎙️ Samtalen er åben — den lytter (brug hovedtelefoner)."
                                     : "Klik 🎤 for at vække — det ER \u201dOkay Nabu\u201d.";
       }
@@ -996,10 +1116,10 @@ setInterval(poll, 3000);
         // Do NOT endTurn() here: state changes arrive DURING a reply, and ending the
         // bubble mid-stream split words across bubbles ("Lad mig lige tjek" +
         // "ke klokken for dig" — 2026-08-07). Only a real turn end closes a bubble.
-        if (ev.state === "IDLE") endTurn();
+        if (ev.state === "IDLE") { endTurn(); micStop(); }
       }
-      else if (ev.type === "activity") { micHint.textContent = ev.text; }
-      else if (ev.type === "latency") { micHint.textContent = "⚡ svar på " + ev.ms + " ms"; }
+      else if (ev.type === "activity") { /* stage is authoritative; activity belongs in the log */ }
+      else if (ev.type === "latency") { cstate.title = "Seneste svar: " + ev.ms + " ms"; }
       else if (ev.type === "tool") { endTurn(); toolLine(ev); }
       else if (ev.type === "error") { endTurn(); logLine("out", "system", ev.error || "talk unavailable"); }
     };
@@ -1007,7 +1127,7 @@ setInterval(poll, 3000);
 
   function sendText() {
     var t = (input.value || "").trim(); if (!t) return;
-    if (!wsReady) { logLine("out", "system", "Not connected yet…"); return; }
+    if (!wsReady) { logLine("out", "system", "Ikke forbundet endnu."); return; }
     halted = false; ensurePlay();
     endTurn();              // close any prior turn so this Q + its reply are fresh bubbles
     logLine("in", "you", t);
@@ -1035,6 +1155,7 @@ setInterval(poll, 3000);
     return out;
   }
   async function micStart() {
+    micHint.textContent = "Beder om adgang til mikrofonen…";
     try {
       capStream = await navigator.mediaDevices.getUserMedia({ audio: {
         channelCount: 1,
@@ -1043,7 +1164,20 @@ setInterval(poll, 3000);
         noiseSuppression: false,
         autoGainControl: false
       } });
-    } catch (e) { micHint.textContent = "Microphone permission denied."; return; }
+    } catch (e) {
+      var framed = false; try { framed = window.self !== window.top; } catch (_) { framed = true; }
+      var name = (e && e.name) || "";
+      if (name === "NotFoundError") micHint.textContent = "Ingen mikrofon blev fundet på enheden.";
+      else if (name === "NotReadableError") micHint.textContent = "Mikrofonen bruges af en anden app. Luk den og prøv igen.";
+      else if (name === "SecurityError") micHint.textContent = "Browserens sikkerhedspolitik blokerer mikrofonen. Brug HTTPS eller Voice PE.";
+      else if (name === "AbortError") micHint.textContent = "Mikrofonstarten blev afbrudt. Prøv igen.";
+      else if (name === "OverconstrainedError") micHint.textContent = "Browseren kunne ikke levere det ønskede lydformat. Brug Voice PE eller en anden browser.";
+      else if (framed) micHint.textContent = "Talk-mikrofonen understøttes ikke inde i dette Home Assistant-panel. Brug Voice PE; du kan stadig skrive her.";
+      else micHint.textContent = "Mikrofonen er blokeret. På iPhone: Indstillinger → Apps → Home Assistant → Mikrofon.";
+      setState("blokeret", "pill-down");
+      return false;
+    }
+    try {
     halted = false; ensurePlay();
     // Capture at OPENAI'S OWN 24 kHz: then nothing resamples the audio anywhere
     // (the old 48k -> nearest-neighbour 16k -> server-side 24k round trip aliased
@@ -1071,23 +1205,38 @@ setInterval(poll, 3000);
     };
     src.connect(capNode); capNode.connect(capCtx.destination);
     micOn = true; micBtn.classList.add("live"); micBtn.textContent = "■";
+    micBtn.setAttribute("aria-pressed", "true"); micBtn.setAttribute("aria-label", "Mikrofon aktiv; væk Nabu igen");
+    micHint.textContent = "Browsermikrofon: aktiv.";
+    return true;
+    } catch (setupError) {
+      micStop();
+      micHint.textContent = "Mikrofonen blev åbnet, men lydkæden kunne ikke starte. Alt optagelse er stoppet; prøv igen.";
+      setState("blokeret", "pill-down");
+      return false;
+    }
   }
   function micStop() {
     micOn = false; micBtn.classList.remove("live"); micBtn.textContent = "🎤";
+    micBtn.setAttribute("aria-pressed", "false"); micBtn.setAttribute("aria-label", "Start mikrofon");
     if (capNode) { try { capNode.disconnect(); } catch (e) {} capNode = null; }
     if (capCtx) { try { capCtx.close(); } catch (e) {} capCtx = null; }
     if (capStream) { capStream.getTracks().forEach(function (t) { t.stop(); }); capStream = null; }
   }
   if (window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     micBtn.onclick = function () {
-      if (!micOn) { micStart().then(function () { sendWake(); }); }
+      if (!wsReady) { micStop(); setState("offline", "pill-down"); return; }
+      if (!micOn) { micStart().then(function (started) { if (started) sendWake(); }); }
       else sendWake();  // re-wake mid-conversation hushes the reply, same as the puck
     };
     micHint.textContent = "\ud83c\udfa4 Klik = \u201dOkay Nabu\u201d. Samme motor og regler som pucken. Brug gerne hovedtelefoner.";
+    micBtn.disabled = !wsReady;
   } else {
     micBtn.disabled = true;
-    micHint.textContent = "🎤 Voice input needs HTTPS (e.g. Nabu Casa) — typing + spoken replies work here.";
+    micHint.textContent = "Mikrofon kræver HTTPS. Du kan stadig skrive og få svar læst op.";
   }
+
+  window.addEventListener("pagehide", micStop);
+  window.addEventListener("beforeunload", micStop);
 
   emptyLog();
   loadModels().then(connect);
@@ -1100,11 +1249,22 @@ setInterval(poll, 3000);
 (function () {
   var FIELDS = ["engine", "openai_model", "openai_voice", "voicepe_noise_psk",
     "turn_preset", "wake_word", "idle_timeout_s", "max_session_min", "force_mini",
+    "openai_turn", "openai_threshold", "openai_prefix_ms", "openai_silence_ms", "openai_eagerness",
     "mic_channel", "mic_gain", "openai_noise",
     "duck_level", "system_prompt", "simulate", "panel_lan_open",
     "podconnect_base_url", "podconnect_token", "ha_mcp_url", "ha_mcp_token"];
-  var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1, mic_channel: 1, mic_gain: 1 };
+  var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1, mic_channel: 1, mic_gain: 1,
+              openai_threshold: 1, openai_prefix_ms: 1, openai_silence_ms: 1 };
+  var settingsDirty = false;
   function f(id) { return document.getElementById("s_" + id); }
+  function syncAdvancedTruth() {
+    var forced = !!(f("force_mini") && f("force_mini").checked);
+    if (f("openai_model")) f("openai_model").disabled = forced;
+    var effective = document.getElementById("s_model_effective");
+    if (effective) effective.textContent = forced ? "Effektiv model: GPT Realtime 2.1 mini (tvunget)" : "Effektiv model: " + (f("openai_model") ? f("openai_model").value : "serverens standard");
+    var custom = document.getElementById("s_custom_turn");
+    if (custom) custom.hidden = !f("turn_preset") || f("turn_preset").value !== "custom";
+  }
   function setVal(id, v) {
     var e = f(id); if (!e) return;
     if (e.type === "checkbox") e.checked = !!v; else e.value = (v == null ? "" : v);
@@ -1152,9 +1312,12 @@ setInterval(poll, 3000);
   }
   function addRoom(host, room) {
     var row = document.createElement("div"); row.className = "roomrow";
+    var n = roomsWrap.querySelectorAll(".roomrow").length + 1;
     var h = document.createElement("input"); h.className = "rh"; h.placeholder = "podvoice-pe-123456.local"; h.value = host || "";
+    h.setAttribute("aria-label", "Voice PE-adresse for rum " + n);
     h.addEventListener("input", updateAddressWarning);
     var r = roomField(room);
+    r.setAttribute("aria-label", "PodConnect-rum " + n);
     var x = document.createElement("button"); x.className = "ghost"; x.textContent = "✕";
     x.setAttribute("aria-label", "Fjern rum"); x.onclick = function () { row.remove(); updateAddressWarning(); };
     row.appendChild(h); row.appendChild(r); row.appendChild(x); roomsWrap.appendChild(row);
@@ -1162,11 +1325,15 @@ setInterval(poll, 3000);
   }
   document.getElementById("s_addroom").onclick = function () { addRoom("", ""); };
   function collectRooms() {
-    var out = [];
+    var out = [], valid = true;
     roomsWrap.querySelectorAll(".roomrow").forEach(function (row) {
       var h = row.querySelector(".rh").value.trim(), r = row.querySelector(".rr").value.trim();
+      row.querySelector(".rh").setCustomValidity((h || !r) ? "" : "Voice PE-adressen mangler");
+      row.querySelector(".rr").setCustomValidity((r || !h) ? "" : "PodConnect-rummet mangler");
+      if ((h && !r) || (!h && r)) valid = false;
       if (h && r) out.push({ voicepe_host: h, room: r });
     });
+    if (!valid) return null;
     return out;
   }
 
@@ -1195,6 +1362,7 @@ setInterval(poll, 3000);
       pcRooms = jobs[1].rooms || [];
       promptDefault = s.system_prompt_default || promptDefault;
       FIELDS.forEach(function (id) { if (id in s) setVal(id, s[id]); });
+      syncAdvancedTruth();
       updateSecretHints(s);
       roomsWrap.innerHTML = "";
       (s.rooms || []).forEach(function (rm) { addRoom(rm.voicepe_host, rm.room); });
@@ -1202,12 +1370,13 @@ setInterval(poll, 3000);
       settingsLoaded = ("engine" in s);
     } catch (e) { settingsLoaded = false; }
     if (settingsLoaded) { setSaveEnabled(true); }
-    else { setSaveStatus("⚠️ Couldn't load the saved settings — reload the page before changing anything."); }
+    else { setSaveStatus("⚠️ Kunne ikke hente de gemte indstillinger — genindlæs siden før du ændrer noget."); }
   }
   function collect() {
     var body = {};
     FIELDS.forEach(function (id) { var v = getVal(id); if (v !== undefined) body[id] = v; });
     body.rooms = collectRooms();
+    if (body.rooms === null) throw new Error("Udfyld både Voice PE-adresse og PodConnect-rum, eller fjern rækken.");
     return body;
   }
 
@@ -1216,11 +1385,17 @@ setInterval(poll, 3000);
     statusEl.textContent = msg;
   }
   async function save(restart) {
-    setSaveStatus("Saving…");
+    setSaveStatus("Gemmer…");
     var r, j = null;
+    var body;
+    try { body = collect(); } catch (validationError) {
+      setSaveStatus("⚠️ Ikke gemt — " + validationError.message);
+      var invalid = roomsWrap.querySelector(":invalid"); if (invalid) invalid.reportValidity();
+      return;
+    }
     try {
       r = await fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify(collect()) });
+                                        body: JSON.stringify(body) });
     } catch (e) {
       setSaveStatus("⚠️ Not saved — couldn't reach PodVoice. Is the add-on running?");
       toast("Not saved — request failed"); return;
@@ -1234,8 +1409,9 @@ setInterval(poll, 3000);
       return;
     }
     if (j.settings) updateSecretHints(j.settings);   // freshly saved secrets get the hint
-    if (!restart) { setSaveStatus("Saved — restart the add-on to apply"); return; }
-    setSaveStatus("Saved — restarting…");
+    settingsDirty = false;
+    if (!restart) { setSaveStatus("Gemt — genstart add-on'en for at anvende ændringerne"); return; }
+    setSaveStatus("Gemt — genstarter…");
     try {
       var rr = await fetch("api/restart", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       var jj = null; try { jj = await rr.json(); } catch (e) {}
@@ -1245,6 +1421,14 @@ setInterval(poll, 3000);
   }
   document.getElementById("s_save").onclick = function () { save(false); };
   document.getElementById("s_saverestart").onclick = function () { save(true); };
+  document.getElementById("pane-settings").addEventListener("input", function () {
+    settingsDirty = true; setSaveStatus("Ikke anvendt endnu"); syncAdvancedTruth();
+  });
+  document.getElementById("pane-settings").addEventListener("change", syncAdvancedTruth);
+  window.addEventListener("beforeunload", function (e) {
+    if (!settingsDirty) return;
+    e.preventDefault(); e.returnValue = "";
+  });
   var resetBtn = document.getElementById("s_resetprompt");
   if (resetBtn) resetBtn.onclick = function () {
     var t = document.getElementById("s_system_prompt");
@@ -1327,7 +1511,7 @@ setInterval(poll, 3000);
   if (!listEl) return;
 
   function he(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
-  function roomLabel(id) { return id === "talk" ? "Talk console" : (id || "?"); }
+  function roomLabel(id) { return id === "talk" ? "Talk-konsol" : (id || "?"); }
   function when(startTs, endTs) {
     try {
       var d = new Date(startTs * 1000);
@@ -1343,13 +1527,13 @@ setInterval(poll, 3000);
     var top = he("div", "top");
     top.appendChild(he("span", "rname", roomLabel(conv.room)));
     var n = (conv.turns || []).length;
-    top.appendChild(he("span", "pill pill-idle", n + (n === 1 ? " turn" : " turns")));
+    top.appendChild(he("span", "pill pill-idle", n + (n === 1 ? " tur" : " ture")));
     box.appendChild(top);
     box.appendChild(he("div", "meta")).appendChild(he("span", null, when(conv.started, conv.ended)));
     var tx = he("div", "tx"); tx.style.marginTop = "10px"; tx.style.minHeight = "0";
     (conv.turns || []).forEach(function (t) {
       var line = he("div", "line " + (t.dir === "in" ? "in" : "out"));
-      line.appendChild(he("div", "who", t.dir === "in" ? "you" : "assistant"));
+      line.appendChild(he("div", "who", t.dir === "in" ? "du" : "Nabu"));
       line.appendChild(document.createTextNode(t.text || ""));
       tx.appendChild(line);
     });
@@ -1407,13 +1591,30 @@ setInterval(poll, 3000);
 "use strict";
 // ---- Tab switching ----
 (function () {
-  var btns = document.querySelectorAll(".tabbtn");
+  var btns = Array.prototype.slice.call(document.querySelectorAll(".tabbtn"));
+  function selectTab(b, focus) {
+    btns.forEach(function (x) {
+      var on = x === b;
+      x.classList.toggle("active", on);
+      x.setAttribute("aria-selected", on ? "true" : "false");
+      x.tabIndex = on ? 0 : -1;
+    });
+    document.querySelectorAll(".pane").forEach(function (p) {
+      var on = p.id === "pane-" + b.dataset.tab;
+      p.classList.toggle("active", on);
+      p.hidden = !on;
+    });
+    if (focus) b.focus();
+  }
   btns.forEach(function (b) {
-    b.onclick = function () {
-      btns.forEach(function (x) { x.classList.toggle("active", x === b); });
-      document.querySelectorAll(".pane").forEach(function (p) {
-        p.classList.toggle("active", p.id === "pane-" + b.dataset.tab);
-      });
+    b.onclick = function () { selectTab(b, false); };
+    b.onkeydown = function (e) {
+      var i = btns.indexOf(b), next = null;
+      if (e.key === "ArrowRight") next = btns[(i + 1) % btns.length];
+      else if (e.key === "ArrowLeft") next = btns[(i - 1 + btns.length) % btns.length];
+      else if (e.key === "Home") next = btns[0];
+      else if (e.key === "End") next = btns[btns.length - 1];
+      if (next) { e.preventDefault(); selectTab(next, true); }
     };
   });
 })();

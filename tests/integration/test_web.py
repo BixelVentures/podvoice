@@ -67,6 +67,9 @@ async def test_status_and_health():
         assert body["rooms"][0]["state"] == "AI_SPEAKING"
         assert body["capabilities"]["web_search"] is True
         assert body["capabilities"]["music"] is True
+        assert body["capability_details"]["web_search"]["available"] is True
+        assert body["capability_details"]["web_search"]["verified"] is False
+        assert body["service_details"]["openai"]["reason"]
 
         h = await client.get("/health")
         assert h.status == 200
@@ -166,7 +169,8 @@ async def test_stuetest_endpoint_exposes_the_physical_matrix():
     assert r.status == 200
     assert "Fysisk stuetest" in body["title"]
     keys = [s["key"] for s in body["steps"]]
-    assert keys == ["turntaking", "web", "weather", "followup", "home", "music", "stop"]
+    assert keys == ["turntaking", "web", "weather", "followup", "home", "music"]
+    assert "stop" not in keys
     assert any("Okay Nabu" in s["say"] for s in body["steps"])
     assert any("AGF" in s["say"] for s in body["steps"])
     assert any(s["evidence"] == ["music_tool_call"] for s in body["steps"])

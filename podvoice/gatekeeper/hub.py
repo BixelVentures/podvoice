@@ -46,6 +46,15 @@ class StatusHub:
             "podconnect": "down",
             "mcp": "down",
         }
+        self._service_details: dict[str, dict] = {
+            name: {
+                "status": status,
+                "observed_at": None,
+                "reason": "Ikke kontrolleret endnu",
+                "source": "runtime",
+            }
+            for name, status in self._services.items()
+        }
         self._metrics: dict[str, int] = dict.fromkeys(_METRIC_KEYS, 0)
         self._subs: set[asyncio.Queue] = set()
         # Recent human-readable activity, so the panel can show a LIVE feed of what each
@@ -84,8 +93,12 @@ class StatusHub:
     def snapshot(self) -> dict:
         return {
             "version": __version__,
+            "observed_at": time.time(),
             "simulate": self.simulate,
             "services": dict(self._services),
+            "service_details": {
+                name: dict(detail) for name, detail in self._service_details.items()
+            },
             "rooms": [dict(r) for r in self._rooms.values()],
             "metrics": dict(self._metrics),
             "activity": list(self._activity),
@@ -199,7 +212,26 @@ class StatusHub:
         self._rooms[room]["last_latency_ms"] = None if ms is None else round(ms)
         self._rooms[room]["last_latency_ts"] = None if ms is None else time.time()
 
-    def set_service(self, name: str, status: str) -> None:
+    def set_service(
+        self, name: str, status: str, *, reason: str | None = None, source: str = "runtime"
+    ) -> None:
+        # ``openai`` is the canonical public service id. Older orchestrators used
+        # ``brain`` for the actual Realtime socket while the panel used ``openai``
+        # for key presence, which could show a green provider during a failed
+        # connection. Keep one truth everywhere.
+        if name == "brain":
+            name = "openai"
+        self._service_details[name] = {
+            "status": status,
+            "observed_at": time.time(),
+            "reason": reason
+            or {
+                "up": "Seneste kontrol lykkedes",
+                "degraded": "Konfigureret, men ikke verificeret",
+                "down": "Seneste kontrol fejlede",
+            }.get(status, status),
+            "source": source,
+        }
         if self._services.get(name) != status:
             self._services[name] = status
             self._broadcast({"type": "service", "name": name, "status": status})

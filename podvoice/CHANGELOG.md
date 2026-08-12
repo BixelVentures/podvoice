@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.12.20 — sandfærdigt, tilgængeligt kontrolpanel
+
+- Panelet viser kun OpenAI som verificeret efter en virkelig Realtime-forbindelse;
+  en konfigureret API-nøgle er ikke længere lig med en grøn driftsstatus.
+- Hjem, Tal, Test, Historik og Indstillinger har nu en klar dansk
+  informationsarkitektur, komplette tastaturtabs, synligt fokus, 44 px touchmål,
+  responsivt layout og tekstlige statusnavne, der ikke kræver farvesyn.
+- Talk starter kun en samtale efter vellykket mikrofonadgang, skelner mellem de
+  almindelige iPhone-/browserfejl og frigiver alle mikrofonspor ved Afslut eller
+  når siden forlades.
+- Den uverificerede påstand om øjeblikkelig stop under tale er fjernet. Delvist
+  udfyldte rummappings blokerer nu gemning i stedet for at blive slettet lydløst.
+
 ## 1.12.19 — PodConnect Control bruges som Spotify-autoritet
 
 - PodVoice opdager nu PodConnect Controls faktiske Home Assistant-services og
