@@ -8,6 +8,7 @@ import json
 from aiohttp.test_utils import TestClient, TestServer
 
 from gatekeeper.events import EventType
+from gatekeeper.history import History
 from gatekeeper.hub import StatusHub
 from gatekeeper.web import create_app
 
@@ -72,6 +73,32 @@ async def test_status_and_health():
         assert health["status"] in ("ok", "degraded")
         assert health["version"] == body["version"]
         assert health["capabilities"]["tools"] == body["capabilities"]["tools"]
+
+
+async def test_acceptance_report_is_conservative(tmp_path):
+    hub = StatusHub()
+    hub.set_service("openai", "up")
+    hub.set_service("voicepe", "up")
+    hub.set_service("podconnect", "up")
+    hub.set_service("mcp", "up")
+    hub.register_room("kitchen")
+    hub.set_connected("kitchen", True)
+    hub.set_latency("kitchen", 1234)
+    hub.incr("tool_calls")
+    hub.incr("tool_ok")
+    hist = History(path=tmp_path / "history.jsonl")
+    hist.append("kitchen", "in", "Hvad er klokken?", ts=1)
+    hist.append("kitchen", "out", "Klokken er otte.", ts=2)
+    hist.append("kitchen", "in", "Hvor spiller AGF?", ts=3)
+    hist.append("kitchen", "out", "Det tjekker jeg.", ts=4)
+    app = create_app(hub, {"kitchen": _StubSession("kitchen")}, tools=_StubTools(), history=hist)
+    async with TestClient(TestServer(app)) as client:
+        r = await client.get("/api/acceptance")
+        body = await r.json()
+    assert body["status"] == "evidence-present"
+    assert body["does_not_replace_physical_matrix"] is True
+    assert all(c["ok"] for c in body["checks"])
+    assert body["latest_voice_conversation"]["room"] == "kitchen"
 
 
 async def test_models_endpoint():

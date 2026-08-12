@@ -13,6 +13,7 @@ import hmac
 import ipaddress
 import json
 import logging
+import time
 from pathlib import Path
 
 from aiohttp import web
@@ -135,6 +136,7 @@ def create_app(
         [
             web.get("/", _index),
             web.get("/api/status", _status),
+            web.get("/api/acceptance", _acceptance),
             web.get("/api/events", _events),
             web.post("/api/control", _control),
             web.get("/api/console", _console_ws),
@@ -513,6 +515,98 @@ def _capabilities(request: web.Request) -> dict:
         _LOG.warning("capability snapshot failed: %s", e)
         return {"error": str(e)}
     return caps if isinstance(caps, dict) else {}
+
+
+async def _acceptance(request: web.Request) -> web.Response:
+    """Conservative live-evidence report for the living-room stuetest.
+
+    This is intentionally NOT a "release passed" button. It folds the data PodVoice
+    already has — status, capabilities, metrics and persisted history — into an
+    operator-readable checklist so a physical test can't quietly skip web/music/tools
+    and still feel green.
+    """
+    snap = request.app[HUB].snapshot()
+    caps = _capabilities(request)
+    hist = request.app[HISTORY]
+    convs = hist.conversations(limit=20) if hist is not None else []
+    voice_convs = [c for c in convs if c.get("room") != "talk"]
+    metrics = snap.get("metrics") or {}
+    rooms = snap.get("rooms") or []
+
+    def check(key: str, label: str, ok: bool, detail: str) -> dict:
+        return {"key": key, "label": label, "ok": bool(ok), "detail": detail}
+
+    any_connected = any(bool(r.get("connected")) for r in rooms)
+    any_latency = any(r.get("last_latency_ms") is not None for r in rooms)
+    any_voice_exchange = any(
+        any(t.get("dir") == "in" for t in c.get("turns") or [])
+        and any(t.get("dir") == "out" for t in c.get("turns") or [])
+        for c in voice_convs
+    )
+    any_followup_shape = any(len(c.get("turns") or []) >= 4 for c in voice_convs)
+    all_services_up = all(s == "up" for s in (snap.get("services") or {}).values())
+
+    checks = [
+        check(
+            "services",
+            "Alle services er oppe",
+            all_services_up,
+            ", ".join(f"{k}={v}" for k, v in sorted((snap.get("services") or {}).items())),
+        ),
+        check(
+            "voicepe_connected",
+            "Mindst én Voice PE er forbundet",
+            any_connected,
+            f"{sum(1 for r in rooms if r.get('connected'))}/{len(rooms)} rum forbundet",
+        ),
+        check(
+            "capabilities",
+            "Realtime ser tid, hjem, web/søgning og musik",
+            all(bool(caps.get(k)) for k in ("time", "home", "web_search", "music")),
+            "tools: " + ", ".join(caps.get("tools") or []),
+        ),
+        check(
+            "voice_history",
+            "Historik har en fysisk Voice PE-samtale med både bruger og assistent",
+            any_voice_exchange,
+            f"{len(voice_convs)} Voice PE-samtale(r) i historikken",
+        ),
+        check(
+            "followup_shape",
+            "Historik viser en flerturn-samtale/opfølgning",
+            any_followup_shape,
+            "kræver mindst fire gemte turns i samme Voice PE-samtale",
+        ),
+        check(
+            "tool_calls",
+            "Der er kørt mindst ét værktøjskald",
+            int(metrics.get("tool_calls") or 0) > 0,
+            f"tool_calls={int(metrics.get('tool_calls') or 0)}, "
+            f"tool_ok={int(metrics.get('tool_ok') or 0)}, "
+            f"tool_error={int(metrics.get('tool_error') or 0)}",
+        ),
+        check(
+            "latency",
+            "Mindst ét fysisk svar har målt svartid",
+            any_latency,
+            ", ".join(
+                f"{r.get('room')}={r.get('last_latency_ms')}ms"
+                for r in rooms
+                if r.get("last_latency_ms") is not None
+            )
+            or "ingen latency målt endnu",
+        ),
+    ]
+    passed = all(c["ok"] for c in checks)
+    return web.json_response(
+        {
+            "status": "evidence-present" if passed else "missing-evidence",
+            "generated_at": time.time(),
+            "does_not_replace_physical_matrix": True,
+            "checks": checks,
+            "latest_voice_conversation": voice_convs[0] if voice_convs else None,
+        }
+    )
 
 
 async def _events(request: web.Request) -> web.StreamResponse:

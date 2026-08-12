@@ -297,6 +297,12 @@
       <h2>Metrics</h2>
       <div id="metrics" class="metrics"></div>
     </div>
+
+    <div class="section">
+      <h2>Stuetest-evidens <button id="a_refresh" class="ghost" style="padding:4px 10px;font-size:.74rem">Opdatér</button></h2>
+      <p class="sub" style="margin:2px 0 8px">Ikke en release-godkendelse — kun et beviskort for om fysisk test faktisk ramte Voice PE, tools, opfølgning og lyd.</p>
+      <div id="acceptance" class="tx" style="min-height:0"></div>
+    </div>
   </div>
 
   <div class="pane" id="pane-talk">
@@ -675,6 +681,38 @@ renderMetrics({});
 poll();
 openStream();
 setInterval(poll, 3000);
+</script>
+
+<script>
+"use strict";
+// ---- Living-room acceptance evidence ----
+(function () {
+  var box = document.getElementById("acceptance");
+  var btn = document.getElementById("a_refresh");
+  if (!box) return;
+  function ae(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  async function loadAcceptance() {
+    box.innerHTML = ""; box.appendChild(ae("div", "empty", "Tjekker…"));
+    try {
+      var data = await (await fetch("api/acceptance", { cache: "no-store" })).json();
+      box.innerHTML = "";
+      var head = ae("div", data.status === "evidence-present" ? "line out" : "line in");
+      head.appendChild(ae("div", "who", data.status === "evidence-present" ? "basis-evidens findes" : "mangler evidens"));
+      head.appendChild(document.createTextNode("Fysisk matrix skal stadig køres før release."));
+      box.appendChild(head);
+      (data.checks || []).forEach(function (c) {
+        var line = ae("div", "line " + (c.ok ? "out" : "in"));
+        line.appendChild(ae("div", "who", (c.ok ? "✓ " : "✕ ") + c.label));
+        line.appendChild(document.createTextNode(c.detail || ""));
+        box.appendChild(line);
+      });
+    } catch (e) {
+      box.innerHTML = ""; box.appendChild(ae("div", "empty", "Kunne ikke hente stuetest-evidens."));
+    }
+  }
+  if (btn) btn.onclick = loadAcceptance;
+  loadAcceptance();
+})();
 </script>
 
 <script>

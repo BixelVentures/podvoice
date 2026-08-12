@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.12.4 — stuetesten får et beviskort
+
+- Nyt `/api/acceptance` samler status, capabilities, metrics og historik til et
+  konservativt stuetest-beviskort. Det kan vise “mangler evidens” eller
+  “basis-evidens findes”, men erstatter ikke den fysiske matrix i `docs/PRODUKTMÅL.md`.
+- Panelets forside viser samme beviskort: services, Voice PE-forbindelse, tool-
+  kapabiliteter, fysisk samtalehistorik, opfølgningsform, værktøjskald og målt
+  svartid. Formålet er at forhindre grøn mavefornemmelse uden faktisk logbevis.
+
 ## 1.12.3 — panelet viser om web og musik faktisk findes
 
 - `/api/status` og `/health` viser nu de aktuelle tool-kapabiliteter: tid, timere,
