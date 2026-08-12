@@ -16,7 +16,7 @@ Wire protocol (WebSocket):
                       {"type":"play","url":...}        fetch+play this reply stream
                       {"type":"stop_playback"}         barge/stop: silence NOW
                       {"type":"led","on":b,"rgb":[..],"brightness":f}  the "ring"
-                      {"type":"state","state":...}     IDLE/LISTENING/AI_SPEAKING
+                      {"type":"state","state":...,"turn_cue":b} IDLE/LISTENING/AI_SPEAKING
                       {"type":"activity","text":...}   the same activity feed lines
                       {"type":"transcript","dir":..,"text":..}
                       binary                            24 kHz PCM (error clips)
@@ -163,8 +163,8 @@ class TalkHub:
             await self._send(payload)
 
     # --- the StatusHub surface thin.py touches ---------------------------------
-    def set_state(self, room: str, state: str) -> None:
-        self._post({"type": "state", "state": state})
+    def set_state(self, room: str, state: str, *, turn_cue: bool = False) -> None:
+        self._post({"type": "state", "state": state, "turn_cue": bool(turn_cue)})
 
     def activity(self, room: str, text: str) -> None:
         self._post({"type": "activity", "text": text})

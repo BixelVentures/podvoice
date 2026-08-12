@@ -122,7 +122,8 @@ async def test_full_conversation_wake_reply_idle_close():
 async def test_barge_in_truncates_at_heard_position():
     """User talks over the reply: device silenced + the server told the HEARD ms."""
     gemini = LiveFake()
-    session, _attention, voicepe = _build(gemini)
+    hub = StatusHub()
+    session, _attention, voicepe = _build(gemini, hub=hub)
     await session.start()
     try:
         await session.wake()
@@ -461,7 +462,8 @@ async def test_reply_led_and_audio_mark_the_real_turn_boundary():
     from gatekeeper.led import led_command_for
 
     gemini = LiveFake()
-    session, _attention, voicepe = _build(gemini)
+    hub = StatusHub()
+    session, _attention, voicepe = _build(gemini, hub=hub)
     await session.start()
     try:
         await session.wake()
@@ -482,6 +484,8 @@ async def test_reply_led_and_audio_mark_the_real_turn_boundary():
 
         session._on_media_state(False)
         await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+        assert hub.snapshot()["state_activity"][-1]["state"] == "LOUNGE_WINDOW"
+        assert hub.snapshot()["state_activity"][-1]["turn_cue"] is True
         dim = led_command_for(State.LOUNGE_WINDOW)
         await _wait_until(lambda: voicepe.light_commands[-1] == (True, dim.rgb, dim.brightness))
 

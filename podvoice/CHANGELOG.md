@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.12.14 — stuetest beviser tur-bip, og musikspørgsmål må bruge web korrekt
+
+- Hub state-events markerer nu, når follow-up-fasen blev nået med den hørbare
+  turn-cue (`turn_cue=true`). `/api/acceptance` kræver den markør efter frisk
+  stuetest, så “dæmpet cyan” alene ikke længere kan ligne et bevist tur-bip.
+- Thin-engine-testen kobler nu den faktiske reply-stream-tone til hub-evidensen:
+  svar → turn-tone → `LOUNGE_WINDOW` med `turn_cue=true`.
+- Musikprompten er nu præciseret: PodConnect/HA er autoritet for Spotify-bibliotek,
+  historik og “hvad spiller der”, men web er korrekt til ekstern viden om en sang,
+  kunstner, album, koncert, genre eller tekstbetydning.
+
 ## 1.12.13 — musik er HA-first, men PodConnect-aware
 
 - Produktmålet og bruger-dokumentationen beskriver nu PodConnects reelle split:

@@ -87,7 +87,7 @@ async def test_acceptance_report_is_conservative(tmp_path):
     hub.set_state("kitchen", "LISTENING")
     hub.set_state("kitchen", "THINKING")
     hub.set_state("kitchen", "AI_SPEAKING")
-    hub.set_state("kitchen", "LOUNGE_WINDOW")
+    hub.set_state("kitchen", "LOUNGE_WINDOW", turn_cue=True)
     hub.set_state("kitchen", "IDLE")
     hub.set_latency("kitchen", 1234)
     hub.incr("tool_calls")

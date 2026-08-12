@@ -149,7 +149,7 @@ class StatusHub:
                 pass
 
     # ------------------------------------------------------------------ updates
-    def set_state(self, room: str, state: str) -> None:
+    def set_state(self, room: str, state: str, *, turn_cue: bool = False) -> None:
         self.register_room(room)
         r = self._rooms[room]
         r["state"] = state
@@ -161,6 +161,7 @@ class StatusHub:
             "state": state,
             "level": r["level"],
             "ducked": r["ducked"],
+            "turn_cue": bool(turn_cue),
         }
         self._state_activity.append(item)
         self._broadcast(
@@ -170,6 +171,7 @@ class StatusHub:
                 "state": state,
                 "level": r["level"],
                 "ducked": r["ducked"],
+                "turn_cue": bool(turn_cue),
             }
         )
 

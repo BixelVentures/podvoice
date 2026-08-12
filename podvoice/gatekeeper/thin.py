@@ -1148,7 +1148,7 @@ class ThinSession:
         self.sm.state = State.LOUNGE_WINDOW
         self._set_led(State.LOUNGE_WINDOW)
         activity = "🔉 Bip — din tur" if self._turn_cue_appended else "🎙️ Din tur"
-        self._hub_state("LOUNGE_WINDOW", activity)
+        self._hub_state("LOUNGE_WINDOW", activity, turn_cue=self._turn_cue_appended)
         self._last_activity = time.monotonic()
 
     def _schedule_followup_edge(self) -> None:
@@ -1353,10 +1353,10 @@ class ThinSession:
         cmd = led_command_for(state, muted=self._muted, error=error)
         self._spawn(self.voicepe.set_light(cmd.on, cmd.rgb, cmd.brightness), "thin-led")
 
-    def _hub_state(self, name: str, activity: str | None) -> None:
+    def _hub_state(self, name: str, activity: str | None, *, turn_cue: bool = False) -> None:
         if self.hub is None:
             return
-        self.hub.set_state(self.room, name)
+        self.hub.set_state(self.room, name, turn_cue=turn_cue)
         if activity:
             self.hub.activity(self.room, activity)
 

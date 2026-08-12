@@ -20,3 +20,6 @@ def test_home_weather_and_music_are_ha_first():
     assert "brug ha/mcp-værktøjerne først" in prompt
     assert "vejr hvor familien er = ha/weather først" in prompt
     assert "web kun som fallback" in prompt
+    assert "brug ikke web til spotify-bibliotek" in prompt
+    assert "hjemmets aktuelle afspilning" in prompt
+    assert "web er derimod ok til ekstern viden om en sang" in prompt

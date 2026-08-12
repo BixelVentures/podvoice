@@ -48,7 +48,7 @@ _STUETEST_STEPS = [
         "title": "Turtagning og feedback",
         "say": "Okay Nabu. Hvad er klokken?",
         "expect": "Kort dansk svar, grøn ring mens svaret høres, tydeligt tur-bip/dæmpet cyan når det er din tur, og LED slukker efter farvel/timeout.",
-        "evidence": ["voice_history", "followup_shape", "latency"],
+        "evidence": ["voice_history", "followup_shape", "latency", "turn_cue"],
     },
     {
         "key": "web",
@@ -685,6 +685,10 @@ async def _acceptance(request: web.Request) -> web.Response:
     any_listened = "LISTENING" in states_seen
     any_thought_or_spoke = any(s in states_seen for s in ("THINKING", "AI_SPEAKING"))
     any_closed_or_followup = any(s in states_seen for s in ("LOUNGE_WINDOW", "IDLE"))
+    any_turn_cue = any(
+        str(item.get("state") or "") == "LOUNGE_WINDOW" and bool(item.get("turn_cue"))
+        for item in state_activity
+    )
 
     checks = [
         check(
@@ -719,8 +723,8 @@ async def _acceptance(request: web.Request) -> web.Response:
         ),
         check(
             "turntaking_states",
-            "Stuetest har set lytte-, tænke/tale- og afslutningsfase",
-            any_listened and any_thought_or_spoke and any_closed_or_followup,
+            "Stuetest har set lytte-, tænke/tale-, turn-cue- og afslutningsfase",
+            any_listened and any_thought_or_spoke and any_closed_or_followup and any_turn_cue,
             "states: " + (", ".join(states_seen[-12:]) or "ingen state-skift registreret"),
         ),
         check(

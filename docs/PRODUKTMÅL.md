@@ -17,7 +17,8 @@ Systemets faste form er:
 - Home Assistants MCP-server er eneste vej til hjemmets eksponerede enheder.
 - Musik er HA-first, men ikke HA-only: PodConnect Control i Home Assistant ejer Spotify-søgning,
   bibliotek, historik og `media_player`-styring, mens PodConnect Speakers ejer den fysiske
-  HomePod-vej, ducking, account-agnostic stop/release og genopretning.
+  HomePod-vej, ducking, account-agnostic stop/release og genopretning. Web er stadig korrekt,
+  når spørgsmålet handler om ekstern viden om en sang, kunstner, album, koncert eller betydning.
 - Aktuel viden går gennem hjemmets eksisterende Gemini-søgeagent, eksponeret via
   Home Assistant/MCP. En OpenAI-baseret reserve må kun tilføjes, hvis en målt A/B-test
   viser en gevinst i kvalitet, svartid eller fejladfærd uden at skabe to tvetydige veje.
