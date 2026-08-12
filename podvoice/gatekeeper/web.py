@@ -725,7 +725,9 @@ async def _acceptance(request: web.Request) -> web.Response:
             "turntaking_states",
             "Stuetest har set lytte-, tænke/tale-, turn-cue- og afslutningsfase",
             any_listened and any_thought_or_spoke and any_closed_or_followup and any_turn_cue,
-            "states: " + (", ".join(states_seen[-12:]) or "ingen state-skift registreret"),
+            "states: "
+            + (", ".join(states_seen[-12:]) or "ingen state-skift registreret")
+            + f"; turn_cue={'ja' if any_turn_cue else 'nej'}",
         ),
         check(
             "tool_calls",

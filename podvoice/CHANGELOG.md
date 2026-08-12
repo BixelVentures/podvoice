@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.12.15 — panelet viser turn-cue som ja/nej
+
+- `/api/acceptance` viser nu eksplicit `turn_cue=ja/nej` i turtagningsdetaljen.
+  Hvis den fysiske stuetest fejler på “hvornår er det min tur?”, skal panelet nu
+  pege direkte på om bip-markøren blev set, i stedet for kun at vise state-listen.
+
 ## 1.12.14 — stuetest beviser tur-bip, og musikspørgsmål må bruge web korrekt
 
 - Hub state-events markerer nu, når follow-up-fasen blev nået med den hørbare

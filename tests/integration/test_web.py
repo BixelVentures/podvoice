@@ -108,6 +108,8 @@ async def test_acceptance_report_is_conservative(tmp_path):
     assert body["status"] == "evidence-present"
     assert body["does_not_replace_physical_matrix"] is True
     assert all(c["ok"] for c in body["checks"])
+    by_key = {c["key"]: c for c in body["checks"]}
+    assert "turn_cue=ja" in by_key["turntaking_states"]["detail"]
     assert [t["name"] for t in body["tool_activity"]] == [
         "light_turn_on",
         "google_web_sogning",
