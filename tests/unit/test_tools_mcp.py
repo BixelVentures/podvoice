@@ -105,6 +105,33 @@ async def test_mcp_down_degrades_to_local_tools():
 def test_no_mcp_at_all_still_serves_local():
     router = ToolRouter(None)
     assert [d["name"] for d in router.declarations()] == ["get_time"]
+    caps = router.capabilities()
+    assert caps["time"] is True
+    assert caps["home"] is False
+    assert caps["web_search"] is False
+    assert caps["music"] is False
+
+
+def test_capabilities_show_exposed_search_and_music_tools():
+    router = ToolRouter(None)
+    router._mcp_tools = [
+        {
+            "name": "google_web_sogning",
+            "description": "Søg på nettet via husets Gemini agent",
+            "parameters": {},
+        },
+        {
+            "name": "podconnect_pause",
+            "description": "Pause music in the current room",
+            "parameters": {},
+        },
+    ]
+    router._mcp_names = {t["name"] for t in router._mcp_tools}
+    caps = router.capabilities()
+    assert caps["home"] is True
+    assert caps["web_search"] is True
+    assert caps["music"] is True
+    assert caps["tools"] == ["get_time", "google_web_sogning", "podconnect_pause"]
 
 
 def test_contract_folding_shapes():

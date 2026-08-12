@@ -481,11 +481,14 @@ async def _index(request: web.Request) -> web.StreamResponse:
 
 
 async def _status(request: web.Request) -> web.Response:
-    return web.json_response(request.app[HUB].snapshot())
+    snap = request.app[HUB].snapshot()
+    snap["capabilities"] = _capabilities(request)
+    return web.json_response(snap)
 
 
 async def _health(request: web.Request) -> web.Response:
     snap = request.app[HUB].snapshot()
+    caps = _capabilities(request)
     degraded = any(s != "up" for s in snap["services"].values())
     status = "degraded" if degraded else "ok"
     # Always HTTP 200 — the process is alive; "degraded" rides in the body.
@@ -495,8 +498,21 @@ async def _health(request: web.Request) -> web.Response:
             "version": snap["version"],
             "services": snap["services"],
             "rooms": snap["rooms"],
+            "capabilities": caps,
         }
     )
+
+
+def _capabilities(request: web.Request) -> dict:
+    tools = request.app[TOOLS]
+    if tools is None or not hasattr(tools, "capabilities"):
+        return {}
+    try:
+        caps = tools.capabilities()
+    except Exception as e:
+        _LOG.warning("capability snapshot failed: %s", e)
+        return {"error": str(e)}
+    return caps if isinstance(caps, dict) else {}
 
 
 async def _events(request: web.Request) -> web.StreamResponse:

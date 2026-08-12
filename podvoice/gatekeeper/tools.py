@@ -34,6 +34,19 @@ log = logging.getLogger("podvoice.tools")
 
 _TOOLS_TTL_S = 600.0  # re-fetch the MCP tool list at most this stale
 _RETRY_S = 30.0  # after a failed fetch, don't hammer HA — retry at this pace
+_WEB_HINTS = ("search", "søg", "web", "google", "nyheder", "news", "sport", "vejr", "weather")
+_MUSIC_HINTS = (
+    "music",
+    "musik",
+    "media",
+    "spotify",
+    "podconnect",
+    "play",
+    "pause",
+    "next",
+    "volume",
+    "lydstyrke",
+)
 
 # Danish day/month names for the spoken get_time summary (strftime is locale-dependent
 # and the Alpine container has no da_DK locale — hardcoding is the reliable way).
@@ -241,6 +254,33 @@ class ToolRouter:
         local_names = {d["name"] for d in decls}
         decls += [t for t in self._mcp_tools if t["name"] not in local_names]
         return decls
+
+    def capabilities(self) -> dict:
+        """Panel/debug view of what the assistant can *actually* call right now.
+
+        Service dots are too coarse: "MCP up" only says Home Assistant answered,
+        not whether a search agent or music tools are exposed to Assist. This keeps
+        the product goal visible in the panel instead of hidden in add-on logs.
+        """
+        decls = self.declarations()
+        names = [str(d.get("name", "")) for d in decls if d.get("name")]
+
+        def has_any(hints: tuple[str, ...]) -> bool:
+            for d in decls:
+                hay = f"{d.get('name', '')} {d.get('description', '')}".lower()
+                if any(h in hay for h in hints):
+                    return True
+            return False
+
+        return {
+            "tools": names,
+            "count": len(names),
+            "time": "get_time" in names,
+            "timers": any(n in names for n in ("set_timer", "list_timers", "cancel_timer")),
+            "home": bool(self._mcp_names),
+            "web_search": has_any(_WEB_HINTS),
+            "music": has_any(_MUSIC_HINTS),
+        }
 
     # ------------------------------------------------------------------ dispatch
     async def dispatch(self, name: str, args: dict) -> dict:

@@ -262,6 +262,8 @@
     <div class="section">
       <h2>Status</h2>
       <div class="svc" id="svc"></div>
+      <div id="capabilities" style="margin-top:10px"></div>
+      <div id="cap_warning" class="notice" role="alert" hidden></div>
       <p class="sub" style="margin:10px 0 0">Say <b>“Okay Nabu”</b>, then just talk — it handles interrupting, follow-ups and knowing when you're done. Say <b>“farvel”</b> or <b>“stop”</b> to end. <b>While it is speaking</b>, saying <b>“stop”</b> (or <b>“Okay Nabu”</b>) silences it instantly — the puck hears that even over its own voice.</p>
     </div>
 
@@ -500,6 +502,39 @@ function renderServices(services) {
   });
 }
 
+function renderCapabilities(caps) {
+  var wrap = document.getElementById("capabilities");
+  var warn = document.getElementById("cap_warning");
+  if (!wrap || !warn) return;
+  wrap.innerHTML = ""; warn.innerHTML = ""; warn.hidden = true;
+  if (!caps || !Object.keys(caps).length) {
+    wrap.appendChild(el("span", "sub", "Kapabiliteter vises efter næste genstart."));
+    return;
+  }
+  [
+    ["time", "Tid"],
+    ["home", "Hjem"],
+    ["web_search", "Web/søgning"],
+    ["music", "Musik"],
+    ["timers", "Timere"]
+  ].forEach(function (pair) {
+    var ok = !!caps[pair[0]];
+    var p = el("span", "pill " + (ok ? "pill-up" : "pill-degraded"));
+    p.appendChild(document.createTextNode(pair[1]));
+    wrap.appendChild(p);
+  });
+  var missing = [];
+  if (!caps.web_search) missing.push("websøgning");
+  if (!caps.music) missing.push("musikstyring");
+  if (missing.length) {
+    warn.hidden = false;
+    warn.appendChild(el("strong", null, "Ikke alle standard-evner er synlige. "));
+    warn.appendChild(document.createTextNode(
+      "Mangler: " + missing.join(" og ") + ". Eksponér Gemini-søgeagenten og PodConnect/medie-værktøjer til Home Assistant Assist/MCP, gem, og genstart PodVoice. Home control-prikken alene beviser ikke at de værktøjer findes."
+    ));
+  }
+}
+
 function roomCard(rm) {
   var state = safe(rm, "state", "IDLE");
   var box = el("div", "room");
@@ -565,6 +600,7 @@ function applyStatus(data) {
   (data.rooms || []).forEach(function (r) { rooms[r.room] = r; });
   renderSub(data);
   renderServices(data.services || {});
+  renderCapabilities(data.capabilities || {});
   renderRooms();
   renderMetrics(data.metrics || {});
   renderActivity(data.activity || []);

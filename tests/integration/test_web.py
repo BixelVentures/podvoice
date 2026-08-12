@@ -35,6 +35,19 @@ class _StubSession:
         self.playback = _StubPlayback()
 
 
+class _StubTools:
+    def capabilities(self) -> dict:
+        return {
+            "tools": ["get_time", "google_web_sogning", "podconnect_pause"],
+            "count": 3,
+            "time": True,
+            "timers": False,
+            "home": True,
+            "web_search": True,
+            "music": True,
+        }
+
+
 def _client(hub: StatusHub, sessions: dict) -> TestClient:
     return TestClient(TestServer(create_app(hub, sessions)))
 
@@ -42,19 +55,23 @@ def _client(hub: StatusHub, sessions: dict) -> TestClient:
 async def test_status_and_health():
     hub = StatusHub(simulate=True)
     hub.set_state("kitchen", "AI_SPEAKING")
-    async with _client(hub, {"kitchen": _StubSession("kitchen")}) as client:
+    app = create_app(hub, {"kitchen": _StubSession("kitchen")}, tools=_StubTools())
+    async with TestClient(TestServer(app)) as client:
         r = await client.get("/api/status")
         assert r.status == 200
         body = await r.json()
         assert body["version"]
         assert body["simulate"] is True
         assert body["rooms"][0]["state"] == "AI_SPEAKING"
+        assert body["capabilities"]["web_search"] is True
+        assert body["capabilities"]["music"] is True
 
         h = await client.get("/health")
         assert h.status == 200
         health = await h.json()
         assert health["status"] in ("ok", "degraded")
         assert health["version"] == body["version"]
+        assert health["capabilities"]["tools"] == body["capabilities"]["tools"]
 
 
 async def test_models_endpoint():

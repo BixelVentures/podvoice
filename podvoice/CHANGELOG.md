@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.12.3 — panelet viser om web og musik faktisk findes
+
+- `/api/status` og `/health` viser nu de aktuelle tool-kapabiliteter: tid, timere,
+  Home Assistant, web/søgning og musik — plus de konkrete toolnavne Realtime får.
+- Panelet viser en gul advarsel, hvis web/søgning eller musikstyring ikke er
+  eksponeret via Home Assistant/MCP. Dermed er “Home control er grøn” ikke længere
+  falsk bevis for, at AGF/websøgning eller PodConnect-musik kan bruges.
+- Tests dækker både capability-klassificering i ToolRouter og status/health-output.
+
 ## 1.12.2 — wake åbner rigtigt til Realtime
 
 - Mikrofonframes fra de første sekunder efter wake buffres nu, indtil OpenAI Realtime
