@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.12.11 — latency tæller også kun efter frisk stuetest
+
+- Room status gemmer nu `last_latency_ts` sammen med `last_latency_ms`.
+- Når “Start frisk stuetest” er brugt, tæller `/api/acceptance` kun latency målt
+  efter baseline. En gammel svartidsmåling kan derfor ikke længere gøre det fysiske
+  testbevis grønt.
+
 ## 1.12.10 — frisk stuetest-baseline uden at slette historik
 
 - Panelet har nu “Start frisk stuetest”. Den sætter et baseline-tidspunkt og

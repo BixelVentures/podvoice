@@ -18,6 +18,7 @@ async def test_snapshot_shape_and_state_levels():
     assert room["room"] == "kitchen"
     assert room["state"] == "LOUNGE_WINDOW"
     assert room["level"] == 35 and room["ducked"] is True
+    assert room["last_latency_ts"] is None
 
 
 async def test_subscribe_receives_broadcasts():
@@ -68,6 +69,18 @@ async def test_stuetest_start_records_metric_baseline_and_event():
     assert snap["stuetest_metric_baseline"]["tool_calls"] == 3
     events = [await asyncio.wait_for(q.get(), timeout=1) for _ in range(2)]
     assert [e["type"] for e in events] == ["activity", "stuetest"]
+
+
+async def test_latency_records_timestamp():
+    hub = StatusHub()
+    hub.set_latency("kitchen", 987.6)
+    room = hub.snapshot()["rooms"][0]
+    assert room["last_latency_ms"] == 988
+    assert isinstance(room["last_latency_ts"], float)
+    hub.set_latency("kitchen", None)
+    room = hub.snapshot()["rooms"][0]
+    assert room["last_latency_ms"] is None
+    assert room["last_latency_ts"] is None
 
 
 async def test_service_only_broadcasts_on_change():

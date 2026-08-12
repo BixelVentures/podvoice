@@ -72,6 +72,7 @@ class StatusHub:
                 "ducked": False,
                 "level": 100,
                 "last_latency_ms": None,
+                "last_latency_ts": None,
                 "connected": False,
             },
         )
@@ -181,6 +182,7 @@ class StatusHub:
     def set_latency(self, room: str, ms: float | None) -> None:
         self.register_room(room)
         self._rooms[room]["last_latency_ms"] = None if ms is None else round(ms)
+        self._rooms[room]["last_latency_ts"] = None if ms is None else time.time()
 
     def set_service(self, name: str, status: str) -> None:
         if self._services.get(name) != status:

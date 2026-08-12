@@ -664,7 +664,11 @@ async def _acceptance(request: web.Request) -> web.Response:
         )
 
     any_connected = any(bool(r.get("connected")) for r in rooms)
-    any_latency = any(r.get("last_latency_ms") is not None for r in rooms)
+    any_latency = any(
+        r.get("last_latency_ms") is not None
+        and (not started_at or float(r.get("last_latency_ts") or 0.0) >= started_at)
+        for r in rooms
+    )
     any_voice_exchange = any(
         any(t.get("dir") == "in" for t in c.get("turns") or [])
         and any(t.get("dir") == "out" for t in c.get("turns") or [])
@@ -744,8 +748,9 @@ async def _acceptance(request: web.Request) -> web.Response:
                 f"{r.get('room')}={r.get('last_latency_ms')}ms"
                 for r in rooms
                 if r.get("last_latency_ms") is not None
+                and (not started_at or float(r.get("last_latency_ts") or 0.0) >= started_at)
             )
-            or "ingen latency målt endnu",
+            or "ingen frisk latency målt endnu",
         ),
     ]
     passed = all(c["ok"] for c in checks)

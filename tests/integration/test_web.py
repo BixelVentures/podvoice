@@ -142,6 +142,7 @@ async def test_stuetest_start_makes_acceptance_ignore_old_evidence(tmp_path):
     by_key = {c["key"]: c for c in body["checks"]}
     assert by_key["tool_calls"]["ok"] is False  # old metrics are below the baseline
     assert by_key["voice_history"]["ok"] is False  # old persisted history is ignored
+    assert by_key["latency"]["ok"] is False  # old room latency is ignored too
     assert body["metrics"]["tool_calls"] == 0
 
 
