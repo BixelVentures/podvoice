@@ -339,7 +339,7 @@
   <div class="pane" id="pane-settings">
     <div class="section">
       <div class="exsub" style="margin-top:4px">Everyday</div>
-      <p class="sub" style="margin:2px 0 8px">These three are the only settings you normally touch. Everything else PodVoice works out from the hardware itself each time the puck connects — which audio path the firmware supports, which microphone channel it taps, whether open-mic interruption is physically possible. There is nothing for you to choose.</p>
+      <p class="sub" style="margin:2px 0 8px">These are the settings you normally touch. PodVoice now re-applies the documented Voice PE input baseline on every connect: AGC-less mic channel 1, gain 4, OpenAI far-field noise reduction.</p>
       <div class="setgrid">
         <label for="s_wake_word">Wake word</label>
         <select id="s_wake_word">
@@ -407,6 +407,24 @@
         </div>
         <datalist id="dl_openai_voice"><option>marin</option><option>cedar</option><option>alloy</option><option>echo</option><option>shimmer</option></datalist>
         <p class="sub" style="margin:2px 0 0"><b>Thin</b> is the model-owned mode &mdash; the AI handles turn-taking, interruptions and knowing when you are done. Conservative is tuned so the speaker&rsquo;s own voice can never cut a reply off. Your API key lives in the Home Assistant add-on <b>Configuration</b> tab, not here. Cost shows up as <code>sensor.podvoice_cost_today</code> / <code>_month</code>.</p>
+
+        <div class="exsub" style="margin-top:14px">Mic quality</div>
+        <div class="setgrid">
+          <label for="s_mic_channel">Voice PE mic channel</label>
+          <select id="s_mic_channel">
+            <option value="1">AGC-less channel 1 &mdash; default</option>
+            <option value="0">Enhanced channel 0 &mdash; AEC/NS/AGC</option>
+          </select>
+          <label for="s_mic_gain">Raw mic gain</label>
+          <input id="s_mic_gain" type="number" min="1" max="64">
+          <label for="s_openai_noise">OpenAI noise reduction</label>
+          <select id="s_openai_noise">
+            <option value="off">Off</option>
+            <option value="far_field">Far field</option>
+            <option value="near_field">Near field</option>
+          </select>
+        </div>
+        <p class="sub" style="margin:2px 0 0">Dokumenteret baseline: <b>AGC-less channel 1</b>, <b>gain 4</b>, <b>OpenAI far field</b>. Loggen viser nu <code>turn: input transcript</code>, så vi kan se præcis hvad Realtime hørte.</p>
 
         <h2 style="margin:14px 0 8px">System prompt <button id="s_resetprompt" class="ghost" style="padding:4px 10px;font-size:.74rem">Reset</button></h2>
         <textarea id="s_system_prompt" class="prompt" rows="8" spellcheck="false"></textarea>
@@ -1063,9 +1081,10 @@ setInterval(poll, 3000);
 (function () {
   var FIELDS = ["engine", "openai_model", "openai_voice", "voicepe_noise_psk",
     "turn_preset", "wake_word", "idle_timeout_s", "max_session_min", "force_mini",
+    "mic_channel", "mic_gain", "openai_noise",
     "duck_level", "system_prompt", "simulate", "panel_lan_open",
     "podconnect_base_url", "podconnect_token", "ha_mcp_url", "ha_mcp_token"];
-  var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1 };
+  var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1, mic_channel: 1, mic_gain: 1 };
   function f(id) { return document.getElementById("s_" + id); }
   function setVal(id, v) {
     var e = f(id); if (!e) return;

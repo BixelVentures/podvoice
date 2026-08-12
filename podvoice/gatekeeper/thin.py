@@ -118,10 +118,10 @@ def normalized_utterance(text: str) -> str:
 
 
 # Echo shield: while the device is playing OUR reply, mic frames are NOT forwarded to
-# the model. The 0.83 field test showed the model hearing its own reply through the mic
-# (the tapped firmware channel is not echo-cancelled), transcribing it as the user and
-# answering itself in a loop — while the real user went unheard. Belt-and-braces even
-# after the firmware moves to the AEC channel.
+# the model. The 0.83 field test showed residual speaker audio getting transcribed as
+# the user and making the model answer itself in a loop — while the real user went
+# unheard. Both XMOS channels are AEC-processed, but half-duplex remains the shipped
+# safety rail until a separate interruption/duplex gate proves otherwise.
 ECHO_GATE_TAIL_S = 0.35  # keep the shield up briefly after playback ends (room reverb)
 TURN_CUE_TAIL_S = 0.08  # the quiet cue needs less reverb shielding than spoken audio
 FOLLOWUP_EDGE_GRACE_S = 0.5  # let ANNOUNCING arrive before painting the follow-up ring
@@ -210,19 +210,16 @@ class ThinSession:
         self.usage = usage
         self.speaker_path = speaker_path
         self.full_duplex = full_duplex
-        # Duplex needs ECHO CANCELLATION, and only XMOS channel 0 has it. On channel 1
-        # (raw — our default, because modern STT wants unprocessed audio) an open mic
-        # hears the speaker directly, so the model transcribes its own reply as the user
-        # and answers itself: exactly the 0.83 loop the echo shield was built to stop.
-        # full_duplex was a bare bool that could disable the shield regardless of which
-        # channel was tapped; that is how 0.92-0.95 shipped a self-interrupting puck.
-        # Make the hardware the authority, like speaker_path now is.
+        # Duplex is parked. It must not ride on the AGC-less ASR baseline: even though
+        # channel 1 is still AEC-processed, it deliberately lacks AGC and has not
+        # passed the physical open-mic interruption gate. Keep the echo shield up unless
+        # the diagnostic enhanced channel 0 is explicitly selected.
         if self.full_duplex:
             channel = getattr(voicepe, "mic_channel", None)
             if channel is not None and int(channel) != 0:
                 _LOG.error(
-                    "thin: full_duplex REFUSED — it needs the echo-cancelled mic channel 0, "
-                    "but the device is tapping channel %s (raw). Keeping the echo shield up.",
+                    "thin: full_duplex REFUSED — it is not validated on the "
+                    "AGC-less ASR baseline channel %s. Keeping the echo shield up.",
                     channel,
                 )
                 self.full_duplex = False
@@ -344,10 +341,14 @@ class ThinSession:
             )
             return
         _LOG.info(
-            "thin: conversation open [room=%s] echo-shield=%s preset-mode=%s",
+            "thin: conversation open [room=%s] echo-shield=%s preset-mode=%s "
+            "mic_channel=%s mic_gain=%s openai_noise=%s",
             self.room,
             "OFF (full_duplex)" if self.full_duplex else "ON",
             getattr(self.brain, "preset", "?"),
+            getattr(self.voicepe, "mic_channel", "?"),
+            getattr(self.voicepe, "mic_gain", "?"),
+            getattr(self.brain, "noise", "?"),
         )
         self._active = True
         self._ending_conversation = False

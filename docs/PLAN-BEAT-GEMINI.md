@@ -30,7 +30,7 @@ asyncio-loops — dét har vi allerede. Vi **stjæler frameworkenes mønstre** i
    wakeword-arkitektur og Gemini for Homes "Continued Conversation"). Altid-åben addressee-
    detektion er research-grade, ikke produkt-grade. Vores wake-gate er ikke arv — den er facit.
 
-## Motorvalg: byg provider-agnostisk, start på GPT-Realtime-2, A/B mod Gemini
+## Motorvalg (historisk): byg provider-agnostisk, start på GPT-Realtime-2
 
 | | GPT-Realtime-2 (GA) | Gemini 2.5 native-audio (preview, v1alpha) | Gemini 3.1 Flash Live |
 |---|---|---|---|
@@ -53,8 +53,8 @@ Researchen er FÆRDIG og ligger her + i memory — genopdag den ikke.
 **Rækkefølge:** B2 bygges på **GPT-Realtime-2** (GA, truncate tilgiver buffer-unøjagtighed,
 det er vores kørende provider med nøgler + DEFER-maskineri). B3 tilføjer **Gemini 2.5 m/
 proactive audio** som grace-vindue-eksperiment (og 3-4× billigere drift) — vi HAR allerede to
-provider-implementeringer, så togglen findes. **Øretest på dansk afgør defaulten** — ingen
-af motorerne har publicerede danske felt-rapporter.
+provider-implementeringer, så togglen findes. **Øretest på dansk afgør om retningen stadig
+holder** — ingen af motorerne havde publicerede danske felt-rapporter på beslutningstidspunktet.
 
 ## Sletteliste (koden der dør når B2 er ejer-valideret)
 

@@ -145,6 +145,12 @@ def test_no_special_web_search_tooling():
     assert "tools" not in s._session_update()["session"]
 
 
+def test_default_input_noise_matches_documented_voicepe_baseline():
+    s = OpenAIRealtimeSession(api_key="k")
+    inp = s._session_update()["session"]["audio"]["input"]
+    assert inp["noise_reduction"] == {"type": "far_field"}
+
+
 def test_settings_roundtrip_new_keys(tmp_path):
     p = tmp_path / "s.json"
     save_settings({"openai_turn": "server_vad", "openai_threshold": 0.3}, p)

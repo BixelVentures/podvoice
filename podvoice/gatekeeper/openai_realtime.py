@@ -108,8 +108,9 @@ class OpenAIRealtimeSession:
     prefix_ms: int = 300  # custom, server_vad only
     silence_ms: int = 500  # custom, server_vad only
     eagerness: str = "auto"  # custom, semantic_vad: auto | low | medium | high
-    # far_field: the Voice PE mic is across a room, not a headset — this is the right
-    # noise-reduction profile for a shared living space (near_field assumed close talk).
+    # Documented Voice PE input path: AGC-less XMOS channel 1 at firmware gain 4, then
+    # ONE far-field noise-reduction pass in OpenAI. The old field failure was
+    # double-processing (enhanced ch0 + provider NR) or over-gaining AGC-less audio.
     noise: str = "far_field"  # near_field | far_field | off
     # RETIRED knob: kept for settings compatibility, NEVER sent to the server
     # (idle_timeout_ms is a re-prompt trigger, not a closer — see _server_vad).
@@ -409,7 +410,10 @@ class OpenAIRealtimeSession:
                 # ONLY the completed (final) transcript drives the displayed line. We used to
                 # ALSO emit on '.delta', but the console renders one bubble per event (no
                 # accumulation), so delta + completed showed the same utterance twice.
-                yield InputTranscript(ev.get("transcript", ""))
+                text = ev.get("transcript", "")
+                if text:
+                    _LOG.info("turn: input transcript %r", text)
+                yield InputTranscript(text)
             elif t == "response.function_call_arguments.done":
                 try:
                     args = json.loads(ev.get("arguments") or "{}")

@@ -89,12 +89,12 @@ class PodVoiceAudio : public Component {
   // --- RUNTIME audio tuning (no reflash) -------------------------------------
   // Which XMOS channel we tap and how much digital gain we apply are the two
   // knobs that decide whether speech-to-text gets usable audio (ch0 = AGC+NS
-  // "enhanced", ch1 = raw — HA core itself switches STT to ch1 for engines that
-  // prefer raw input, and OpenAI Realtime does its own noise reduction). Making
+  // "enhanced", ch1 = AGC-less — HA core itself switches STT to ch1 for engines that
+  // prefer no auto-gain, and OpenAI Realtime does its own noise reduction). Making
   // them reflashable-only turned a 30-second experiment into a 25-minute build,
   // so they are services now: change, listen, change back.
-  // channel: 0 = XMOS "enhanced" (AEC+NS+AGC), 1 = raw (what HA core feeds STT
-  // engines that prefer raw input). We tap BOTH channels and pick one HERE, so
+  // channel: 0 = XMOS "enhanced" (AEC+NS+AGC), 1 = AGC-less (what HA core feeds STT
+  // engines that prefer no auto-gain). We tap BOTH channels and pick one HERE, so
   // switching is a service call, not a 25-minute rebuild.
   void set_mic_channel(int channel) { this->channel_ = (channel == 1) ? 1 : 0; }
   void set_mic_gain(int gain);
@@ -114,7 +114,7 @@ class PodVoiceAudio : public Component {
   // DEFAULT = 1 (raw), on evidence, not taste:
   //  * HA core (assist_satellite.py) switches STT to channel 1 whenever the engine
   //    reports prefers_auto_gain_enabled=False AND prefers_noise_reduction_enabled=
-  //    False — i.e. modern STT wants RAW audio, not the pre-processed channel.
+  //    False — i.e. modern STT wants AGC-less audio, not the pre-processed channel.
   //  * OpenAI Realtime runs its OWN far_field noise reduction, so channel 0's
   //    AGC+NS is a second, uncontrolled pass; its AGC pumps room reverb between
   //    words, which is exactly what wrecked far-field Danish transcription.

@@ -184,7 +184,7 @@ wifi:
 # --- Phase 2: custom wake-word model (docs/wake-word.md) -----------------------------
 # When the custom-trained microWakeWord model is ready, uncomment to load it. NOTE on
 # package-merge semantics: LISTS are appended, so this ADDS the model alongside the
-# stock okay_nabu (both wake words active — fine for A/B testing). GATE before flashing:
+# stock okay_nabu (both wake words active — fine for side-by-side wake validation). GATE before flashing:
 # `esphome config podvoice.yaml` and check the rendered micro_wake_word.models list;
 # fully REPLACING okay_nabu needs the upstream entry removed (verify !remove behaviour
 # on the pinned ESPHome — !extend/!remove on single-instance components has burned us).
@@ -257,12 +257,12 @@ podvoice_audio:
                            # picks one at RUNTIME (services below), so trying the
                            # other channel is a 5-second service call, never a
                            # 25-minute rebuild. ch0 = enhanced (AEC+NS+AGC),
-                           # ch1 = raw (what HA core feeds STT engines that prefer
-                           # raw audio; OpenAI Realtime does its own noise
+                           # ch1 = AGC-less (what HA core feeds STT engines that prefer
+                           # no auto-gain; OpenAI Realtime does its own noise
                            # reduction, so the extra AGC pass hurt it).
     gain_factor: 4         # +12 dB start value, also runtime-settable below.
-  default_channel: 1       # RAW audio by default (evidence in podvoice_audio.h):
-                           # HA core feeds raw audio to STT engines that ask for it,
+  default_channel: 1       # AGC-less audio by default (evidence in podvoice_audio.h):
+                           # HA core feeds non-auto-gained audio to STT engines that ask for it,
                            # and OpenAI Realtime does its own noise reduction — ch0's
                            # AGC was a second pass that pumped room reverb and made
                            # far-field Danish unintelligible (field 2026-08-06).

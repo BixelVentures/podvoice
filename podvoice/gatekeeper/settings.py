@@ -40,7 +40,10 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 # v3: the OpenAI-only overhaul — drops saved gemini_*/provider knobs (now unknown keys)
 # and resets openai_model so the gpt-realtime-2.1-mini default actually lands.
 # v6: drops a saved speaker_path again — 1.11.0 shipped "auto", which wedged the puck.
-SETTINGS_VERSION = 6
+# v7: ASR documented input baseline — reset saved mic/noise tuning to ch1 without AGC,
+# firmware gain 4 and OpenAI far_field, so stale field experiments cannot keep
+# mangling Danish.
+SETTINGS_VERSION = 7
 
 # sha256 of RETIRED default system prompts. A saved prompt matching one of these is
 # just a persisted copy of an old default (the panel saves every field on Save) —
@@ -135,13 +138,13 @@ DEFAULTS: dict = {
     "openai_prefix_ms": 300,  # custom, server_vad only
     "openai_silence_ms": 500,  # custom, server_vad only
     "openai_eagerness": "auto",  # custom, semantic_vad: auto|low|medium|high
-    "openai_noise": "far_field",  # near_field|far_field|off
+    "openai_noise": "far_field",  # far_field|near_field|off
     # Microphone tuning, re-asserted on EVERY device connect. The firmware's own
     # defaults are only a starting point: a live tweak that lives in RAM is lost the
     # moment the puck reboots, and nobody notices until transcription quietly gets
     # worse again. These are the source of truth.
-    "mic_channel": 1,  # 1 = raw (what modern STT wants), 0 = the processed channel
-    "mic_gain": 16,  # replaces the AGC the raw channel lacks (1..64)
+    "mic_channel": 1,  # 1 = AEC/NS without AGC, 0 = the full processed channel
+    "mic_gain": 4,  # firmware-documented AGC-less-channel start value (+12 dB), 1..64
     "idle_timeout_s": 8,  # close the conversation after this much user silence (owner-tunable 3+)
     "max_session_min": 15,  # hard ceiling on one conversation (cost control)
     "engine": "classic",  # "classic" (the proven state-machine engine) | "thin" (Track B:

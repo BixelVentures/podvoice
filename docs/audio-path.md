@@ -12,8 +12,8 @@ reachable from our transport** with a one-line firmware overlay change (see §4)
 XMOS XU316 (AEC → IC → NS → AGC) ──I2S──▶ ESP32-S3 i2s_mics (16 kHz / 32-bit / stereo)
     ch0 = full chain (incl. AGC)             │
     ch1 = same chain WITHOUT AGC             ▼
-                      podvoice_audio (passive MicrophoneSource tap, channels: [0],
-                      gain 1, 16-bit truncate, 400 ms PSRAM ring)
+                      podvoice_audio (passive MicrophoneSource tap, channels: [0, 1],
+                      default_channel 1, gain 4, 16-bit truncate, 400 ms PSRAM ring)
                                              │  VoiceAssistantAudio messages over the
                                              ▼  ESPHome native API (port 6053)
                       gatekeeper/voicepe.py `_handle_audio` → asyncio queue
@@ -39,8 +39,8 @@ does not override them; unchanged across 25.12.4 → 26.6.0):
 
 | I2S channel | XMOS processing | Who consumes it | PodVoice reachable? |
 |---|---|---|---|
-| **0** | AEC + Interference Canceller + Noise Suppression + **AGC** (full chain) | HA STT (classic), **podvoice_audio today** | yes — current config |
-| **1** | AEC + IC + NS, **no AGC** (quieter — mww compensates with `gain_factor: 4`) | micro_wake_word; HA STT *optionally* since 26.6.0 | yes — `channels: [1]` + `gain_factor: 4` (reflash) |
+| **0** | AEC + Interference Canceller + Noise Suppression + **AGC** (full chain) | HA STT (classic), PodVoice fallback/diagnostic | yes — runtime-selectable |
+| **1** | AEC + IC + NS, **no AGC** (quieter — mww compensates with `gain_factor: 4`) | micro_wake_word; HA STT *optionally* since 26.6.0; **PodVoice default** | yes — runtime-selectable, default `channel=1`, `gain=4` |
 | (raw) | none — pre-AEC | nobody by default | only by overriding `voice_kit: channel_X_stage: NONE` (reflash) |
 
 **Correction to the task premise:** the field notes calling channel 0 "not
@@ -50,7 +50,7 @@ only *AGC-less*, not raw. The echo the 0.83 test heard was **residual** echo pas
 the AEC (AGC re-amplifies it, and our announce path adds none of its own risk).
 That residual is exactly what server-side turn detection misread as barge-in —
 which is why Phase 1 tunes turn detection (conservative preset: `server_vad`
-threshold 0.7) instead of fighting the AEC. The 0.87 finding "channel 1 is mute
+threshold 0.45 with 800 ms prefix padding) instead of fighting the AEC. The 0.87 finding "channel 1 is mute
 for STT" is also explained: we tapped ch1 with `gain_factor: 1`; without AGC it
 needs gain ≈ 4 (micro_wake_word uses exactly that).
 
@@ -73,21 +73,21 @@ needs gain ≈ 4 (micro_wake_word uses exactly that).
 
 | Matrix row | Change needed | Effort |
 |---|---|---|
-| XMOS-processed + default/tuned turn detection | none — current firmware; tune in Settings (presets are live) | none |
-| "Raw"/unprocessed (= AGC-less, still AEC'd) | `esphome/podvoice.yaml`: `podvoice_audio.microphone.channels: [1]`, `gain_factor: 4` → reflash | 5 min + flash |
+| Documented PodVoice baseline: AGC-less XMOS channel 1 + default/tuned turn detection | current firmware exposes both channels; add-on re-applies `mic_channel=1`, `mic_gain=4`, `openai_noise=far_field` on every connect | none after 1.12.17 |
+| XMOS-processed fallback: channel 0 (AEC+NS+AGC) | Settings/API service sets `mic_channel=0`; useful only as a diagnostic if the room disproves the baseline | no flash |
 | Truly raw (pre-AEC) — diagnostic only | additionally `voice_kit: channel_1_stage: NONE` in the overlay → reflash | 10 min + flash |
 | Processed + software AEC in the add-on | do NOT build preemptively (task rule) | — |
 
-A commented-out block for the ch1 variant is in `esphome/podvoice.yaml` next to the
-`channels:` line. Remember: **an AGC-less channel is quieter** — if OpenAI stops
-detecting speech on ch1, raise `gain_factor` before concluding anything.
+Remember: **an AGC-less channel is quieter** — if OpenAI stops detecting speech on ch1,
+fix the documented gain first. Do not silently return to high gain or double-processing:
+the add-on log must show `mic tuning applied (channel=1 gain=4)` and
+`openai_noise=far_field` before a physical ASR result counts.
 
 ## 5. Consequences for the rest of the overhaul
 
-- The XMOS AEC is an asset and it applies to our stream **today**. The
-  self-interruption fix is turn-detection tuning (Phase 1.3) + gpt-realtime-2.1's
-  improved interruption handling, layered on processed audio. Raw audio stays a
-  diagnostic.
+- The XMOS AEC is an asset and it applies to both PodVoice input channels. The shipped
+  ASR baseline is channel 1 (AEC/NS without AGC) + gain 4 + OpenAI `far_field`, so
+  the model sees one controlled noise-reduction pass instead of AGC-pumped room audio.
 - The echo shield in the thin engine (mic gated while the device announces) remains
   the shipped default; `full_duplex: true` disables it and leans on AEC + the
   conservative preset — promoted only if the 1.4 matrix passes.

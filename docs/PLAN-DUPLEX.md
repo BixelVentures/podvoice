@@ -56,7 +56,7 @@ promoveringsargument, opdaget på dag 1, ikke dag 3 (verifikator-krav).
 
 ## 4. Beslutninger (med verifikator-domme)
 
-### (a) Kanal-strategi: ch1+gain4 er hoved-hypotesen; ch0+skjold er default til testen består
+### (a) Kanal-strategi: ch1+gain4 er den dokumenterede ASR-baseline; ch0 er fallback-diagnostik
 
 Verifikator-dom: **kunne ikke afvises — styrket på 3 punkter**:
 1. Begge XMOS-kanaler er AEC'ede (kildekode: voice-kit-xmos main.c; ch0 = AEC+IC+NS+**AGC**,
@@ -66,8 +66,8 @@ Verifikator-dom: **kunne ikke afvises — styrket på 3 punkter**:
    og Nabu Casas egen wake kører ch1+gain4 (upstream-yaml). 0.87's "ch1 er stum" var gain-1-tappen.
    0.87-committen beviser selv at wake (ch1+gain4) fyrede under testen.
 
-Ubevist (deraf TESTEN, ikke troen): +12 dB rækker måske ikke på 3-4 m (AGC løfter 20-30 dB);
-ingen har offentligt streamet ch1 til OpenAI; dansk STT på AGC-løs lyd er felt-ubevist.
+Fysisk stuetest er stadig gate: +12 dB kan være for lavt i enkelte rum, men løsningen
+måles først mod samme dokumenterede baseline, ikke mod gemte felt-eksperimenter.
 
 **Den afgørende test (dag 2, ~30 min efter flash, pucken bliver i stuen — OTA):**
 1 m / 3-4 m / høj-stemme-klip-check / wake-regression ×5, målt med 0.87's mic-RMS-log +
@@ -76,10 +76,11 @@ OpenAI speech-events. BEKRÆFTET → duplex-kanal. DELVIST (virker 1 m, dør 4 m
 
 ### (b) VAD: server_vad "conservative" — med to doc-korrektioner af 0.91
 
-`server_vad { threshold: 0.7, prefix_padding_ms: 300, silence_duration_ms: 700,
+`server_vad { threshold: 0.45, prefix_padding_ms: 800, silence_duration_ms: 700,
 create_response: true, interrupt_response: true }` + `noise_reduction: far_field`.
-Model: **gpt-realtime-2.1-mini** ($10/$0.30/$20 pr. 1M audio-tokens); ved barge-problemer
-A/B-test gpt-realtime-2.1 (dokumenteret bedre interruption, samme pris som -2).
+Model: **gpt-realtime-2.1-mini** ($10/$0.30/$20 pr. 1M audio-tokens). Skift af model
+er ikke en ASR-redning og må først ske efter en log viser, at input-transskriptionen
+er korrekt på baseline.
 
 - **Korrektion 1 — `idle_timeout_ms`**: Verifikator-dom: feltet FINDES, men **kun under
   server_vad** (semantic_vad-feltlisten har det ikke → derfor 0.77-afvisningen; begge
@@ -164,7 +165,8 @@ kan ikke flyttes frem.
    ch0-forsøg endte i feedback-hyl). → objektiv RMS-test FØR matricen; OTA-revert; halv-duplex
    er fuldgyldig leverance.
 2. **Rest-ekko forurener STT/turn-taking** (ekko committes som brugertale; falsk end-phrase).
-   → §5-fix 3, threshold 0.7 + far_field, matricens ekko-kolonne; fejler C: skjoldet består.
+   → §5-fix 3, threshold 0.45 + 800 ms prefix + far_field, matricens ekko-kolonne;
+   fejler C: skjoldet består.
 3. **Reflash bryder wake** (0.67-præcedens). → kun 2 mic-linjer pr. flash (jernreglen: én
    ændring pr. flash), esphome-config-gate, wake-regression ×5 i dag 2-protokollen.
 4. **Truncate lyver** (wall-clock-approx + announce-buffer → modellen "husker" uhørt tekst).

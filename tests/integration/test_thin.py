@@ -855,16 +855,15 @@ async def test_stopping_a_direct_reply_always_brings_the_shield_down():
 
 
 async def test_full_duplex_is_refused_on_the_raw_mic_channel(caplog):
-    """Duplex needs echo cancellation, and only XMOS channel 0 has it. On channel 1 (raw,
-    our default) an open mic hears the speaker and the model answers itself — the 0.83
-    loop. full_duplex used to be a bare bool that disabled the shield regardless; that is
-    how 0.92-0.95 shipped a self-interrupting puck."""
+    """Duplex is parked on the AGC-less ASR baseline until a separate physical gate
+    proves interruption behavior. full_duplex used to be a bare bool that disabled the
+    shield regardless; that is how 0.92-0.95 shipped a self-interrupting puck."""
     import logging
 
     gemini = LiveFake()
     attention = FakeAttention()
     voicepe = FakeVoicePELink(room=ROOM)
-    voicepe.mic_channel = 1  # raw — no AEC
+    voicepe.mic_channel = 1  # AGC-less ASR baseline
     with caplog.at_level(logging.ERROR, logger="podvoice.thin"):
         session = ThinSession(
             room=ROOM,
@@ -881,7 +880,7 @@ async def test_full_duplex_is_refused_on_the_raw_mic_channel(caplog):
     assert any("full_duplex REFUSED" in r.getMessage() for r in caplog.records)
 
     voicepe0 = FakeVoicePELink(room=ROOM)
-    voicepe0.mic_channel = 0  # the echo-cancelled channel
+    voicepe0.mic_channel = 0  # enhanced diagnostic channel
     session0 = ThinSession(
         room=ROOM,
         attention=attention,

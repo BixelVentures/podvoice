@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.12.17 — ASR-input tilbage til dokumenteret Voice PE-baseline
+
+- PodVoice re-assert’er nu den dokumenterede inputkæde på hver Voice PE-connect:
+  XMOS channel 1 uden AGC, mic gain 4 og OpenAI `far_field` som eneste
+  noise-reduction-pass.
+  En tidligere default på `mic_gain=16` kunne overstyre firmwarebaselinen og give
+  “bytes flyder, men dansk bliver fonetisk vrøvl”.
+- OpenAI input-transskription logges nu som `turn: input transcript '...'`, så næste
+  fysisk test kan afgøre om fejlen er ASR/input eller tool/prompt uden gæt.
+- Panelets Advanced → Mic quality viser den dokumenterede baseline, men stop-under-svar
+  er bevidst parkeret som separat hardware-interrupt-opgave.
+
 ## 1.12.16 — stuetest viser næste handling
 
 - `/api/acceptance` returnerer nu en kort `next_action`, så panelet siger hvad der
@@ -180,7 +192,7 @@
   tydeligere; LED slukkes fortsat ved den fulde teardown.
 - Den eksisterende Gemini-søgeagent via Home Assistant forbliver eneste søgevej. En
   konkurrerende OpenAI-søgefunktion blev afvist under review, fordi den kunne skygge
-  HA-værktøjet og endnu ikke havde vundet en live A/B-test.
+  HA-værktøjet og manglede en entydig routingregel.
 - FLAC-streaming afslutter korte svar korrekt og lukker chunked HTTP-responsen; den
   tidligere testhang var en reel sluttilstandsfejl.
 - Panelet viser rå IP-adresser som et gult problem ved rumfeltet og forklarer `.local`
@@ -457,7 +469,7 @@ ruff + mypy rene; hele suiten grøn.
 **Fase 1 — selv-afbrydelsen:**
 - Gemini-provideren, provider-vælgeren, google-genai og alle gemini_*-indstillinger er SLETTET. `openai_realtime.py` er hele provider-modulet (GPT-Live-1 = ny modelstreng + handlers dér).
 - Default-model **gpt-realtime-2.1-mini** (udgivet 2026-07-06, distilleret og billig); 2.1 er opt-in; `force_mini` klemmer alle sessioner.
-- **Afbrydelsesstil-presets** i Settings (live, ingen redeploy): *conservative* (server_vad threshold 0.7 / silence 700 ms — rest-ekko kan ikke læses som barge-in; serveren lukker selv døde samtaler via idle_timeout_ms) / *responsive* / *custom*.
+- **Afbrydelsesstil-presets** i Settings (live, ingen redeploy): *conservative* (server_vad threshold 0.45 / prefix 800 ms / silence 700 ms — blød dansk tale må ikke klippes; ekko-skjoldet bærer selvafbrydelsesbeskyttelsen) / *responsive* / *custom*.
 - `full_duplex: true` virker nu i thin-motoren (ekko-skjold fra; AEC + preset bærer afvisningen) — promoveres KUN hvis 1.4-matricen består (docs/HANDOVER-v2.md).
 - **Prisstyring:** hver response måles → `/data/podvoice-usage.json` + `sensor.podvoice_cost_today`/`_month` i HA; `idle_timeout_s` (25 s) og `max_session_min` (15) er indstillinger.
 
@@ -1100,8 +1112,8 @@ Root cause of "home_call ✓ but the assistant still says it can't": a tool-RESU
 
 ## 0.8.0
 
-- **Voice picker in Talk**: choose the TTS voice right next to provider/model, switch live to
-  A/B them, and it's **saved** (per provider). Find your favourite Danish-sounding voice by ear.
+- **Voice picker in Talk**: choose the TTS voice right next to provider/model, switch live by ear,
+  and it's **saved** (per provider). Find your favourite Danish-sounding voice by ear.
 - Provider/model/voice choices all persist to settings (the saved model stays selected on reload).
 
 ## 0.7.1

@@ -65,7 +65,7 @@ flaget låses** til matrix-C-gaten.
    sende ét ugyldigt felt og høre fejlen.
 2. **Preset-validering FØR default låses** (10 min, stuen — flyttet fra uge 3 til
    uge 1, modprøve A4): 30 s dansk tale-clip på HomePod ved svar-volumen + blød
-   tale/4 m-varianten. Afviser threshold 0.7 blød/fjern familietale (G8), justeres
+   tale/4 m-varianten. Afviser for høj threshold hvis blød/fjern familietale klippes (G8), justeres
    presettet FØR det bliver default — ikke to uger efter.
 3. **HomePod-announce-latens** (10 min, formalitet): media_player.play_media ×10,
    kill-tærskel >1,5 s — lukker HomePod-mund-debatten med et tal for altid.

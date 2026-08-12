@@ -20,8 +20,9 @@ Systemets faste form er:
   HomePod-vej, ducking, account-agnostic stop/release og genopretning. Web er stadig korrekt,
   når spørgsmålet handler om ekstern viden om en sang, kunstner, album, koncert eller betydning.
 - Aktuel viden går gennem hjemmets eksisterende Gemini-søgeagent, eksponeret via
-  Home Assistant/MCP. En OpenAI-baseret reserve må kun tilføjes, hvis en målt A/B-test
-  viser en gevinst i kvalitet, svartid eller fejladfærd uden at skabe to tvetydige veje.
+  Home Assistant/MCP. En OpenAI-baseret reserve må kun tilføjes som en dokumenteret
+  fallback med én tydelig routing-regel, hvis den løser et konkret hul uden at skabe
+  to tvetydige veje.
 
 ## Definition of done
 
@@ -129,3 +130,11 @@ Gate B specifikt testes. Gem panelhistorik og add-on-log for hvert run.
 
 Hvis ét punkt fejler, rettes den ene observerede fejl før næste runde. En grøn firmware-
 kontrakt eller en grøn unit-test må aldrig erstatte denne fysiske protokol.
+
+## Parkeret opfølgning — stop mens assistenten taler
+
+Half-duplex beskytter ASR mod ekko ved at lukke mic-forward mod OpenAI, mens Voice PE
+afspiller assistentens svar. Derfor kan almindelig tale-til-OpenAI ikke være den
+pålidelige stopvej midt i et svar. Stop-under-svar skal senere behandles separat som
+hardware/wake-word interrupt (`wake_stop`/re-wake/button) med egen fysisk test, ikke som
+en del af ASR-redningen.

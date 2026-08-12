@@ -95,7 +95,7 @@ CONFIG_SCHEMA = cv.Schema(
         # drives start/stop + keepalive).
         cv.Optional(CONF_AUTOSTART, default=False): cv.boolean,
         # Which of the two tapped XMOS channels we forward by DEFAULT at boot.
-        # 1 = raw (evidence: HA core feeds raw audio to STT engines that prefer it;
+        # 1 = AGC-less (evidence: HA core feeds non-auto-gained audio to STT engines that prefer it;
         # OpenAI Realtime does its own noise reduction). Runtime-switchable.
         cv.Optional("default_channel", default=1): cv.int_range(min=0, max=1),
     }

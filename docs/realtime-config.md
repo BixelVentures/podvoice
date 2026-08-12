@@ -32,7 +32,7 @@ Result: **clean** — the module was written against GA and re-verified now.
 |---|---|---|
 | `gpt-realtime-2.1-mini` | **default** | distilled reasoning model, released 2026-07-06; priced like the old gpt-realtime-mini |
 | `gpt-realtime-2.1` | opt-in | same date; better alphanumerics, silence/noise handling, **more reliable interruption behavior** — relevant to Phase 1 |
-| `gpt-realtime-2` | legacy | previous default; kept selectable for A/B |
+| `gpt-realtime-2` | legacy | previous default; kept selectable for rollback only |
 
 Both 2.1 models: 128k context, 32k max output, ≥25% p95 latency cut via caching.
 Dated snapshot ids were NOT verifiable — use the aliases.
@@ -56,7 +56,7 @@ PodVoice presets (Settings → "Interruption style", applied live per session):
 
 | preset | wire config | rationale |
 |---|---|---|
-| `conservative` (default) | `server_vad` threshold **0.7**, prefix 300 ms, silence **700 ms**, `idle_timeout_ms` = `idle_timeout_s`×1000 | residual echo past the XMOS AEC is far quieter than close speech — a high energy bar stops it firing `speech_started` during replies (the self-interruption bug) |
+| `conservative` (default) | `server_vad` threshold **0.45**, prefix **800 ms**, silence **700 ms**, no `idle_timeout_ms` | catches soft/short Danish without clipping first syllables, while the half-duplex echo shield prevents the assistant from interrupting itself |
 | `responsive` | `semantic_vad`, eagerness `auto` | easiest to talk over; for quiet rooms / after 1.4 proves echo is a non-issue |
 | `custom` | raw knobs `openai_turn/threshold/prefix_ms/silence_ms/eagerness` | the 1.4 matrix sweeps |
 

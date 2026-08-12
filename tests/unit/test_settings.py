@@ -12,6 +12,8 @@ def test_defaults_and_roundtrip(tmp_path):
     p = tmp_path / "podvoice.json"
     d = S.load_settings(p)
     assert d["engine"] == "classic" and d["rooms"] == [] and d["duck_level"] == 0
+    assert d["mic_channel"] == 1 and d["mic_gain"] == 4
+    assert d["openai_noise"] == "far_field"
 
     saved = S.save_settings({"engine": "thin", "duck_level": 7, "bogus": "x"}, p)
     assert saved["engine"] == "thin" and saved["duck_level"] == 7
@@ -61,7 +63,8 @@ def test_stale_tuning_reset_on_version_bump(tmp_path):
     d = S.load_settings(p)
     assert d["watchdog_ms"] == S.DEFAULTS["watchdog_ms"]  # reset
     assert d["lounge_window_s"] == S.DEFAULTS["lounge_window_s"]  # reset
-    assert d["openai_noise"] == "far_field"  # reset
+    assert d["openai_noise"] == "far_field"  # documented input baseline
+    assert d["mic_gain"] == 4  # reset to firmware-documented AGC-less-channel gain
     assert d["openai_model"] == "gpt-realtime-2.1-mini"  # migrated to the new default
     assert d["engine"] == "thin"  # kept
     assert d["rooms"] == [{"voicepe_host": "1.2.3.4", "room": "r0"}]  # kept
