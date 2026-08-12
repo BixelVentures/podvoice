@@ -73,7 +73,7 @@ needs gain ≈ 4 (micro_wake_word uses exactly that).
 
 | Matrix row | Change needed | Effort |
 |---|---|---|
-| Documented PodVoice baseline: AGC-less XMOS channel 1 + default/tuned turn detection | current firmware exposes both channels; add-on re-applies `mic_channel=1`, `mic_gain=4`, `openai_noise=far_field` on every connect | none after 1.12.17 |
+| Documented PodVoice baseline: AGC-less XMOS channel 1 + default/tuned turn detection | current firmware exposes both channels; add-on re-applies `mic_channel=1`, `mic_gain=4`, `openai_noise=off` on every connect | none after 1.12.18 |
 | XMOS-processed fallback: channel 0 (AEC+NS+AGC) | Settings/API service sets `mic_channel=0`; useful only as a diagnostic if the room disproves the baseline | no flash |
 | Truly raw (pre-AEC) — diagnostic only | additionally `voice_kit: channel_1_stage: NONE` in the overlay → reflash | 10 min + flash |
 | Processed + software AEC in the add-on | do NOT build preemptively (task rule) | — |
@@ -81,13 +81,16 @@ needs gain ≈ 4 (micro_wake_word uses exactly that).
 Remember: **an AGC-less channel is quieter** — if OpenAI stops detecting speech on ch1,
 fix the documented gain first. Do not silently return to high gain or double-processing:
 the add-on log must show `mic tuning applied (channel=1 gain=4)` and
-`openai_noise=far_field` before a physical ASR result counts.
+`openai_noise=off` before a physical ASR result counts.
 
 ## 5. Consequences for the rest of the overhaul
 
-- The XMOS AEC is an asset and it applies to both PodVoice input channels. The shipped
-  ASR baseline is channel 1 (AEC/NS without AGC) + gain 4 + OpenAI `far_field`, so
-  the model sees one controlled noise-reduction pass instead of AGC-pumped room audio.
+- The XMOS AEC is an asset and applies to both PodVoice input channels. The shipped
+  ASR baseline is channel 1 (AEC/IC/NS without AGC) + gain 4. OpenAI noise reduction
+  is off on this already-filtered source, avoiding a second noise-suppression pass.
+- Talk is deliberately different: browser AEC stays on, browser NS/AGC are requested
+  off, and OpenAI `far_field` is the single noise pass. It targets 24 kHz directly;
+  actual browser track/context settings are logged.
 - The echo shield in the thin engine (mic gated while the device announces) remains
   the shipped default; `full_duplex: true` disables it and leans on AEC + the
   conservative preset — promoted only if the 1.4 matrix passes.

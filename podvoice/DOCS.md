@@ -19,7 +19,7 @@ You need three things working first:
    listen continuously. You will set an encryption key (Noise PSK) when you flash it;
    keep that key, you will paste it into PodVoice below.
 3. **An OpenAI API key** (platform.openai.com, billing enabled). This powers the
-   spoken conversation (`gpt-realtime-2.1-mini` by default — the cheap one).
+   spoken conversation (`gpt-realtime-2.1` by default; mini is an explicit cost mode).
 4. **Home Assistant's MCP server** — add the "Model Context Protocol Server"
    integration once, and expose the devices, scripts and agents the assistant may
    touch under **Settings → Voice assistants**. That list IS the assistant's permissions.
@@ -45,7 +45,7 @@ a **Save & restart** button). The HA **Configuration** tab is intentionally just
 
 | Setting | What it does |
 |---|---|
-| Model | `gpt-realtime-2.1-mini` (default, cheap) or `gpt-realtime-2.1` (smarter, ~3× audio cost). |
+| Model | `gpt-realtime-2.1` (quality default) or `gpt-realtime-2.1-mini` (explicit cost mode). |
 | Interruption style | **Conservative** (default — the speaker's own voice can never cut a reply off), Responsive, or Custom (raw knobs under Advanced). |
 | Close after silence / Max conversation | Cost control: how long a conversation may idle (default 25 s) and run (default 15 min). |
 | Always use the mini model | Cost guard — clamps every session (rooms + Talk tab) to the mini model. |

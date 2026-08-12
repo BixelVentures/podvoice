@@ -90,7 +90,10 @@ def console_factory(cfg: Config, tools=None):
     decls = tools.declarations() if tools is not None else None
 
     def _make(
-        model: str | None = None, voice: str | None = None, input_rate: int | None = None
+        model: str | None = None,
+        voice: str | None = None,
+        input_rate: int | None = None,
+        noise: str | None = None,
     ) -> ConsoleSession:
         if cfg.simulate or not cfg.openai_api_key:
             return SimConsole()
@@ -103,6 +106,7 @@ def console_factory(cfg: Config, tools=None):
             voice=voice,
             tool_declarations=decls,
             input_rate=input_rate or _C.INPUT_RATE,
+            noise=noise,
         )
 
     return _make

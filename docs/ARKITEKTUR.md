@@ -8,7 +8,8 @@
 
 ## 1. Setuppets sande form
 
-- **Øre = pucken** med vores custom firmware (podvoice_audio-tap, ch0/AGC som i dag).
+- **Øre = pucken** med vores custom firmware (podvoice_audio-tap, ch1 med
+  XMOS AEC/IC/NS, gain 4 og uden AGC).
   Stock-firmware kan ikke levere mic-audio til vores motor, og tappet er felthærdet.
 - **Mund = PUCKEN. HomePod'erne er musik + ducking — aldrig assistentens mund.**
   Trippelt begrundet: (a) *fysik* — HomePod-lyd har ingen AEC-reference på puckens mic
@@ -16,7 +17,8 @@
   server-prefetch, 2-5 s startlatens, sekunders stop-latens, strukturelt inkompatibel
   med streaming-svar; (c) *kode* — HomePod-mund bryder `_on_media_state`-sandheden,
   som ekko-skjold, playout-ur og LED hviler på. Elimineret på robusthed alene.
-- **Hjerne = OpenAI Realtime (gpt-realtime-2.1-mini), alene.** Gemini Live er
+- **Hjerne = OpenAI Realtime (`gpt-realtime-2.1`), alene.** Kvalitet er standard;
+  mini er kun et eksplicit cost-mode. Gemini Live er
   felt-taber i 2026 (10-min WS, stop-latens 2,2 s, dansk udokumenteret) — genbesøg om
   6 md. **Hybrid-kaskaden (STT+LLM+TTS) er DROPPET** (modprøve-dom A1): den deler
   leverandør, netvej og proces med Realtime og diversificerer derfor INTET fejldomæne;

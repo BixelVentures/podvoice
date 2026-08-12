@@ -49,15 +49,25 @@ _LOG = logging.getLogger("podvoice.openai")
 
 _URL = "wss://api.openai.com/v1/realtime"
 OPENAI_RATE = 24000  # OpenAI audio/pcm is 24 kHz for both directions (VERIFY: 16k unsupported)
-DEFAULT_MODEL = "gpt-realtime-2.1-mini"  # distilled 2.1 — home control at family-budget cost
-FULL_MODEL = "gpt-realtime-2.1"  # opt-in when mini proves too weak (Settings/Talk picker)
+FULL_MODEL = "gpt-realtime-2.1"
+MINI_MODEL = "gpt-realtime-2.1-mini"
+# Product goal = best voice understanding first. OpenAI describes 2.1 as its highest-
+# reasoning Realtime model and mini as the distilled speed/cost variant. Mini remains
+# an explicit cost guard, but must not silently define the quality baseline.
+DEFAULT_MODEL = FULL_MODEL
 DEFAULT_VOICE = "marin"  # VERIFY: a current realtime voice name
+TRANSCRIPTION_MODEL = "gpt-live-transcribe"
+TRANSCRIPTION_PROMPT_DA = (
+    "Dansk tale til en hjemmeassistent. Bevar navne, sangtitler, kunstnere, "
+    "sportsklubber og akronymer ordret, blandt andet AGF, FCK, Brøndby, Nabu, "
+    "Home Assistant, PodVoice, PodConnect og Spotify."
+)
 PRECONNECT_AUDIO_MAX_S = 3.0  # wake tail + first words while session.update is still pending
 
 # The panel's model/voice selector set (all voice-capable; small fixed list).
 STATIC_MODELS = [
-    {"id": DEFAULT_MODEL, "label": "GPT Realtime 2.1 mini (standard)", "live": True},
-    {"id": FULL_MODEL, "label": "GPT Realtime 2.1", "live": True},
+    {"id": FULL_MODEL, "label": "GPT Realtime 2.1 (quality standard)", "live": True},
+    {"id": MINI_MODEL, "label": "GPT Realtime 2.1 mini (cost mode)", "live": True},
     {"id": "gpt-realtime-2", "label": "GPT Realtime 2", "live": True},
 ]
 STATIC_VOICES = ["marin", "cedar", "alloy", "echo", "shimmer"]
@@ -108,10 +118,9 @@ class OpenAIRealtimeSession:
     prefix_ms: int = 300  # custom, server_vad only
     silence_ms: int = 500  # custom, server_vad only
     eagerness: str = "auto"  # custom, semantic_vad: auto | low | medium | high
-    # Documented Voice PE input path: AGC-less XMOS channel 1 at firmware gain 4, then
-    # ONE far-field noise-reduction pass in OpenAI. The old field failure was
-    # double-processing (enhanced ch0 + provider NR) or over-gaining AGC-less audio.
-    noise: str = "far_field"  # near_field | far_field | off
+    # Source-specific. Voice PE channel 1 already contains XMOS AEC+IC+NS, so its
+    # default is off; Talk disables browser NS/AGC and uses OpenAI far_field instead.
+    noise: str = "off"  # near_field | far_field | off
     # RETIRED knob: kept for settings compatibility, NEVER sent to the server
     # (idle_timeout_ms is a re-prompt trigger, not a closer — see _server_vad).
     idle_timeout_s: int = 25
@@ -193,10 +202,15 @@ class OpenAIRealtimeSession:
     def _session_update(self) -> dict:
         audio_input: dict = {
             "format": {"type": "audio/pcm", "rate": OPENAI_RATE},
-            # gpt-4o-mini-transcribe (verified in the GA enum 2026-07) transcribes Danish
-            # far better than whisper-1. The transcript is not just display: the engine's
-            # end-phrase fallback ("det var det") reads it, so quality matters.
-            "transcription": {"model": "gpt-4o-mini-transcribe", "language": self.language},
+            # Official OpenAI guidance now says to start realtime transcription with
+            # gpt-live-transcribe. It uses `languages`, never singular `language`, and
+            # accepts a prompt for names/acronyms. This asynchronous transcript is
+            # diagnostic guidance; the Realtime model itself consumes audio directly.
+            "transcription": {
+                "model": TRANSCRIPTION_MODEL,
+                "languages": [self.language],
+                "prompt": TRANSCRIPTION_PROMPT_DA,
+            },
             "turn_detection": self._turn_detection(),
         }
         if self.noise and self.noise != "off":
@@ -474,7 +488,16 @@ class OpenAIRealtimeSession:
                 yield TurnComplete()
             elif t == "session.updated":
                 self._configured = True
-                _LOG.info("session.updated ACCEPTED (preset=%s)", self.preset)
+                _LOG.info(
+                    "session.updated ACCEPTED model=%s transcription=%s language=%s "
+                    "preset=%s noise=%s input_rate=%s",
+                    self.model,
+                    TRANSCRIPTION_MODEL,
+                    self.language,
+                    self.preset,
+                    self.noise,
+                    self.input_rate,
+                )
                 await self._flush_preconnect_audio()
             elif t == "error":
                 err = ev.get("error") or {}
@@ -549,6 +572,7 @@ def make_session(
     tool_declarations: list[dict] | None = None,
     room_context: str = "",
     input_rate: int = C.INPUT_RATE,
+    noise: str | None = None,
 ) -> OpenAIRealtimeSession:
     """Build the one voice brain from a Config (the old multi-provider factory).
 
@@ -558,7 +582,7 @@ def make_session(
     """
     chosen = model or cfg.openai_model
     if getattr(cfg, "force_mini", False):
-        chosen = DEFAULT_MODEL  # cost guard: every session runs the mini model
+        chosen = MINI_MODEL  # explicit cost guard: every session runs the mini model
     return OpenAIRealtimeSession(
         api_key=cfg.openai_api_key,
         model=chosen,
@@ -573,6 +597,6 @@ def make_session(
         prefix_ms=cfg.openai_prefix_ms,
         silence_ms=cfg.openai_silence_ms,
         eagerness=cfg.openai_eagerness,
-        noise=cfg.openai_noise,
+        noise=cfg.openai_noise if noise is None else noise,
         idle_timeout_s=getattr(cfg, "idle_timeout_s", 25),
     )

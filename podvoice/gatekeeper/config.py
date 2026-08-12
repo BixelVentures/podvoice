@@ -38,7 +38,7 @@ class Config:
     ha_mcp_token: str = ""
     system_prompt: str = ""  # who the assistant is + capabilities (empty -> built-in default)
     openai_api_key: str = ""
-    openai_model: str = "gpt-realtime-2.1-mini"
+    openai_model: str = "gpt-realtime-2.1"
     openai_voice: str = "marin"
     force_mini: bool = False  # cost guard: every session (rooms + Talk) runs the mini model
     turn_preset: str = "conservative"  # conservative | responsive | custom (raw knobs below)
@@ -47,7 +47,7 @@ class Config:
     openai_prefix_ms: int = 300
     openai_silence_ms: int = 500
     openai_eagerness: str = "auto"
-    openai_noise: str = "far_field"
+    openai_noise: str = "off"
     mic_channel: int = 1  # device mic tap, re-asserted on every connect
     mic_gain: int = 4  # device mic gain, re-asserted on every connect
     wake_word: str = "okay_nabu"  # device wake model, re-asserted on every connect
@@ -133,7 +133,7 @@ def from_options(opts: dict) -> Config:
         ha_mcp_token=str(opts.get("ha_mcp_token", "") or ""),
         system_prompt=opts.get("system_prompt", ""),
         openai_api_key=opts.get("openai_api_key", ""),
-        openai_model=opts.get("openai_model", "gpt-realtime-2.1-mini"),
+        openai_model=opts.get("openai_model", "gpt-realtime-2.1"),
         openai_voice=opts.get("openai_voice", "") or "marin",
         force_mini=bool(opts.get("force_mini", False)),
         turn_preset=str(opts.get("turn_preset", "conservative") or "conservative"),
@@ -142,7 +142,7 @@ def from_options(opts: dict) -> Config:
         openai_prefix_ms=_int(opts, "openai_prefix_ms", 300),
         openai_silence_ms=_int(opts, "openai_silence_ms", 500),
         openai_eagerness=str(opts.get("openai_eagerness", "auto") or "auto"),
-        openai_noise=str(opts.get("openai_noise", "far_field") or "far_field"),
+        openai_noise=str(opts.get("openai_noise", "off") or "off"),
         # Cost control: both floored so a stray saved 0 can't strobe sessions open/shut.
         mic_channel=1 if _int(opts, "mic_channel", 1) else 0,
         mic_gain=min(max(_int(opts, "mic_gain", 4), 1), 64),

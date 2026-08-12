@@ -258,13 +258,13 @@ podvoice_audio:
                            # other channel is a 5-second service call, never a
                            # 25-minute rebuild. ch0 = enhanced (AEC+NS+AGC),
                            # ch1 = AGC-less (what HA core feeds STT engines that prefer
-                           # no auto-gain; OpenAI Realtime does its own noise
-                           # reduction, so the extra AGC pass hurt it).
+                           # no auto-gain; PodVoice keeps this already-NS-processed
+                           # source free of a second provider noise filter).
     gain_factor: 4         # +12 dB start value, also runtime-settable below.
   default_channel: 1       # AGC-less audio by default (evidence in podvoice_audio.h):
                            # HA core feeds non-auto-gained audio to STT engines that ask for it,
-                           # and OpenAI Realtime does its own noise reduction — ch0's
-                           # AGC was a second pass that pumped room reverb and made
+                           # and PodVoice does not need ch0's extra AGC pass, which
+                           # pumped room reverb and made
                            # far-field Danish unintelligible (field 2026-08-06).
                            # Switch live with podvoice_set_mic_channel if the room says otherwise.
   ring_ms: 400             # fixed PSRAM jitter buffer (~12.8 KB @ 16 kHz/16-bit/mono)

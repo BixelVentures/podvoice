@@ -173,15 +173,15 @@ class TalkHub:
         self, room: str, name: str, result: dict | None = None, args: dict | None = None
     ) -> None:
         result = result or {}
+        # The browser reads `ev.result`. The old flat shape made EVERY call render ✕
+        # and hid the real MCP error even when the call succeeded.
         self._post(
             {
                 "type": "tool",
                 "room": room,
                 "name": name,
                 "args": args or {},
-                "ok": bool(result.get("ok")),
-                "empty": bool(result.get("empty")),
-                "error_kind": result.get("error_kind"),
+                "result": result,
             }
         )
 
@@ -234,6 +234,16 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                     link.fire_wake()
                 elif kind == "media":
                     link.media_state(bool(data.get("announcing")))
+                elif kind == "mic_config":
+                    log.info(
+                        "talk: browser mic context_rate=%s track_rate=%s "
+                        "echo_cancel=%s noise_suppression=%s auto_gain=%s",
+                        data.get("context_rate"),
+                        data.get("track_rate"),
+                        data.get("echo_cancellation"),
+                        data.get("noise_suppression"),
+                        data.get("auto_gain_control"),
+                    )
                 elif kind == "stop":
                     with contextlib.suppress(Exception):
                         await session.stop(reason="panel")

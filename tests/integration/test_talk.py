@@ -126,7 +126,11 @@ async def test_model_closure_and_idle_close_reach_the_browser():
 
 
 async def test_tool_calls_are_visible_in_the_tab():
-    """A tool call surfaces as an activity line over the wire (proof of tools)."""
+    """A tool call carries the REAL result shape the browser renders.
+
+    The old flat event made every tool render as a red cross because index.html reads
+    ``ev.result``. That hid both successful searches and the actual MCP error.
+    """
     gemini = LiveFake()
     session, link, wire, _attention = _build(gemini)
     await session.start()
@@ -135,6 +139,8 @@ async def test_tool_calls_are_visible_in_the_tab():
         await _wait_until(lambda: session.sm.state is State.LISTENING)
         gemini.emit(ToolCall("c1", "get_time", {}))
         await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)
+        await _wait_until(lambda: len(wire.of("tool")) == 1)
+        assert wire.of("tool")[0]["result"] == {"ok": True, "tool": "get_time"}
         await _wait_until(lambda: any("get_time" in m.get("text", "") for m in wire.of("activity")))
     finally:
         await session.aclose()

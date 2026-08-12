@@ -90,7 +90,7 @@ class PodVoiceAudio : public Component {
   // Which XMOS channel we tap and how much digital gain we apply are the two
   // knobs that decide whether speech-to-text gets usable audio (ch0 = AGC+NS
   // "enhanced", ch1 = AGC-less — HA core itself switches STT to ch1 for engines that
-  // prefer no auto-gain, and OpenAI Realtime does its own noise reduction). Making
+  // prefer no auto-gain, while PodVoice avoids a second provider noise pass). Making
   // them reflashable-only turned a 30-second experiment into a 25-minute build,
   // so they are services now: change, listen, change back.
   // channel: 0 = XMOS "enhanced" (AEC+NS+AGC), 1 = AGC-less (what HA core feeds STT
@@ -115,8 +115,8 @@ class PodVoiceAudio : public Component {
   //  * HA core (assist_satellite.py) switches STT to channel 1 whenever the engine
   //    reports prefers_auto_gain_enabled=False AND prefers_noise_reduction_enabled=
   //    False — i.e. modern STT wants AGC-less audio, not the pre-processed channel.
-  //  * OpenAI Realtime runs its OWN far_field noise reduction, so channel 0's
-  //    AGC+NS is a second, uncontrolled pass; its AGC pumps room reverb between
+  //  * Channel 1 already contains XMOS NS, so PodVoice runs no extra provider noise
+  //    filter on the puck; channel 0's AGC pumps room reverb between
   //    words, which is exactly what wrecked far-field Danish transcription.
   //  * Field evidence 2026-08-06: puck transcripts on ch0 were gibberish
   //    ("Kaptejlen Brændekig") while the same model via a clean Mac mic (no AGC)

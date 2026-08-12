@@ -4,7 +4,7 @@ A standalone voice-AI gatekeeper for a **PodConnect** home, packaged as a **Home
 
 A custom-firmware [HA Voice PE](https://www.home-assistant.io/voice-pe/) streams mic audio to
 PodVoice, which runs a realtime [OpenAI Realtime](https://platform.openai.com/docs/guides/realtime)
-conversation (`gpt-realtime-2.1-mini` by default) and **ducks the room's music** through PodConnect's
+conversation (`gpt-realtime-2.1` by default; mini is an explicit cost mode) and **ducks the room's music** through PodConnect's
 Attention API while you talk — then restores it when you're done. Dialogue comes out of the Voice PE
 speaker; music keeps playing (quietly) on the HomePod underneath. Home control goes through **Home
 Assistant's own MCP server on the LAN** — nothing about the house is internet-reachable, and HA's
@@ -25,7 +25,7 @@ hardware. But unlike a `custom_components` plugin, it runs in its **own containe
 socket hiccup or VAD confusion can't drag Home Assistant (or your music) down with it. Same
 deployment model as PodConnect.
 
-## Status (1.12.17 ASR input candidate)
+## Status (1.12.18 evidence-grounded ASR candidate)
 **OpenAI-only, single pipeline.** The Gemini provider, the provider switch, and the hand-rolled HA
 REST tool bridge are deleted. What ships now:
 - one thin provider module (`openai_realtime.py`) — GPT-Live-1 readiness = a model string + event

@@ -77,10 +77,9 @@ OpenAI speech-events. BEKRÆFTET → duplex-kanal. DELVIST (virker 1 m, dør 4 m
 ### (b) VAD: server_vad "conservative" — med to doc-korrektioner af 0.91
 
 `server_vad { threshold: 0.45, prefix_padding_ms: 800, silence_duration_ms: 700,
-create_response: true, interrupt_response: true }` + `noise_reduction: far_field`.
-Model: **gpt-realtime-2.1-mini** ($10/$0.30/$20 pr. 1M audio-tokens). Skift af model
-er ikke en ASR-redning og må først ske efter en log viser, at input-transskriptionen
-er korrekt på baseline.
+create_response: true, interrupt_response: true }`. Voice PE channel 1 har allerede
+XMOS NS, så provider `noise_reduction` er off; Talk bruger én `far_field`-pass efter
+at browser-NS/AGC er slået fra. Model: **gpt-realtime-2.1**; mini er cost-mode.
 
 - **Korrektion 1 — `idle_timeout_ms`**: Verifikator-dom: feltet FINDES, men **kun under
   server_vad** (semantic_vad-feltlisten har det ikke → derfor 0.77-afvisningen; begge

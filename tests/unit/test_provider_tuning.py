@@ -122,6 +122,15 @@ def test_openai_session_semantic_with_noise():
     assert inp["noise_reduction"] == {"type": "far_field"}
 
 
+def test_realtime_transcript_uses_documented_live_danish_configuration():
+    inp = OpenAIRealtimeSession(api_key="k")._session_update()["session"]["audio"]["input"]
+    transcription = inp["transcription"]
+    assert transcription["model"] == "gpt-live-transcribe"
+    assert transcription["languages"] == ["da"]
+    assert "language" not in transcription  # live model rejects singular + plural together
+    assert "AGF" in transcription["prompt"] and "Spotify" in transcription["prompt"]
+
+
 def test_openai_session_server_vad_threshold():
     s = OpenAIRealtimeSession(
         api_key="k", preset="custom", turn="server_vad", threshold=0.45, silence_ms=600
@@ -145,10 +154,10 @@ def test_no_special_web_search_tooling():
     assert "tools" not in s._session_update()["session"]
 
 
-def test_default_input_noise_matches_documented_voicepe_baseline():
+def test_default_input_noise_avoids_double_filtering_voicepe_xmos_ns():
     s = OpenAIRealtimeSession(api_key="k")
     inp = s._session_update()["session"]["audio"]["input"]
-    assert inp["noise_reduction"] == {"type": "far_field"}
+    assert "noise_reduction" not in inp
 
 
 def test_settings_roundtrip_new_keys(tmp_path):

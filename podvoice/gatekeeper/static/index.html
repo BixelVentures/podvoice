@@ -339,7 +339,7 @@
   <div class="pane" id="pane-settings">
     <div class="section">
       <div class="exsub" style="margin-top:4px">Everyday</div>
-      <p class="sub" style="margin:2px 0 8px">These are the settings you normally touch. PodVoice now re-applies the documented Voice PE input baseline on every connect: AGC-less mic channel 1, gain 4, OpenAI far-field noise reduction.</p>
+      <p class="sub" style="margin:2px 0 8px">These are the settings you normally touch. PodVoice re-applies the Voice PE baseline on every connect: channel 1 with XMOS AEC/IC/NS but no AGC, gain 4, and no second provider noise filter.</p>
       <div class="setgrid">
         <label for="s_wake_word">Wake word</label>
         <select id="s_wake_word">
@@ -389,8 +389,8 @@
           </select>
           <label for="s_openai_model">Model</label>
           <select id="s_openai_model">
-            <option value="gpt-realtime-2.1-mini">GPT Realtime 2.1 mini (standard &mdash; billigst)</option>
-            <option value="gpt-realtime-2.1">GPT Realtime 2.1 (dyrere, klogere)</option>
+            <option value="gpt-realtime-2.1">GPT Realtime 2.1 (quality standard)</option>
+            <option value="gpt-realtime-2.1-mini">GPT Realtime 2.1 mini (cost mode)</option>
           </select>
           <label for="s_openai_voice">Voice</label>
           <input id="s_openai_voice" list="dl_openai_voice" autocomplete="off">
@@ -417,14 +417,14 @@
           </select>
           <label for="s_mic_gain">Raw mic gain</label>
           <input id="s_mic_gain" type="number" min="1" max="64">
-          <label for="s_openai_noise">OpenAI noise reduction</label>
+          <label for="s_openai_noise">Voice PE OpenAI noise reduction</label>
           <select id="s_openai_noise">
             <option value="off">Off</option>
             <option value="far_field">Far field</option>
             <option value="near_field">Near field</option>
           </select>
         </div>
-        <p class="sub" style="margin:2px 0 0">Dokumenteret baseline: <b>AGC-less channel 1</b>, <b>gain 4</b>, <b>OpenAI far field</b>. Loggen viser nu <code>turn: input transcript</code>, så vi kan se præcis hvad Realtime hørte.</p>
+        <p class="sub" style="margin:2px 0 0">Baseline: Voice PE bruger <b>channel 1</b> (XMOS AEC/IC/NS uden AGC), <b>gain 4</b> og derfor ingen ekstra OpenAI-støjfiltrering. Talk bruger browser-ekkoannullering uden browser-NS/AGC og én OpenAI <b>far field</b>-filtrering. <code>turn: input transcript</code> er en separat diagnostisk transcript &mdash; ikke nødvendigvis præcis hvad Realtime-modellen hørte.</p>
 
         <h2 style="margin:14px 0 8px">System prompt <button id="s_resetprompt" class="ghost" style="padding:4px 10px;font-size:.74rem">Reset</button></h2>
         <textarea id="s_system_prompt" class="prompt" rows="8" spellcheck="false"></textarea>
@@ -1023,27 +1023,45 @@ setInterval(poll, 3000);
   function downsample(f32, inRate) {
     if (inRate === 24000) { var o = new Int16Array(f32.length); for (var i = 0; i < f32.length; i++) o[i] = Math.max(-1, Math.min(1, f32[i])) * 32767; return o; }
     var ratio = inRate / 24000, n = Math.floor(f32.length / ratio), out = new Int16Array(n);
-    for (var j = 0; j < n; j++) { var s = Math.max(-1, Math.min(1, f32[Math.floor(j * ratio)])); out[j] = s * 32767; }
+    for (var j = 0; j < n; j++) {
+      var start = j * ratio, stop = Math.min(f32.length, (j + 1) * ratio), sum = 0, weight = 0;
+      for (var k = Math.floor(start); k < Math.ceil(stop); k++) {
+        var w = Math.max(0, Math.min(stop, k + 1) - Math.max(start, k));
+        if (w) { sum += f32[Math.min(k, f32.length - 1)] * w; weight += w; }
+      }
+      var s = Math.max(-1, Math.min(1, weight ? sum / weight : 0)); out[j] = s * 32767;
+    }
     return out;
   }
   async function micStart() {
     try {
-      capStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+      capStream = await navigator.mediaDevices.getUserMedia({ audio: {
+        channelCount: 1,
+        sampleRate: { ideal: 24000 },
+        echoCancellation: true,
+        noiseSuppression: false,
+        autoGainControl: false
+      } });
     } catch (e) { micHint.textContent = "Microphone permission denied."; return; }
     halted = false; ensurePlay();
-    // Capture AT 16 kHz so the BROWSER does the resample (with proper anti-aliasing).
-    // Our old manual nearest-neighbour downsample from 48 kHz aliased badly -> the
-    // model mis-heard words. Fall back to the default rate if 16 kHz is unsupported.
     // Capture at OPENAI'S OWN 24 kHz: then nothing resamples the audio anywhere
     // (the old 48k -> nearest-neighbour 16k -> server-side 24k round trip aliased
     // badly and made Danish barely intelligible — 2026-08-07 field report: the same
-    // mic understood everything in a tool that does no resampling).
+    // mic understood everything in a tool that does no resampling). If the browser
+    // refuses 24 kHz, downsample() now averages each source interval instead of
+    // throwing away every other sample without an anti-alias filter.
     var AC = window.AudioContext || window.webkitAudioContext;
     try { capCtx = new AC({ sampleRate: 24000 }); } catch (e) { capCtx = new AC(); }
     if (capCtx.sampleRate !== 24000) {
       micHint.textContent = "⚠️ Browseren gav " + capCtx.sampleRate + " Hz i stedet for 24000 — lyden nedskaleres og kan blive dårligere.";
     }
     var src = capCtx.createMediaStreamSource(capStream);
+    var track = capStream.getAudioTracks()[0], actual = track && track.getSettings ? track.getSettings() : {};
+    if (wsReady) ws.send(JSON.stringify({
+      type: "mic_config", context_rate: capCtx.sampleRate, track_rate: actual.sampleRate || null,
+      echo_cancellation: actual.echoCancellation, noise_suppression: actual.noiseSuppression,
+      auto_gain_control: actual.autoGainControl
+    }));
     capNode = capCtx.createScriptProcessor(4096, 1, 1);
     capNode.onaudioprocess = function (ev) {
       if (!wsReady) return;

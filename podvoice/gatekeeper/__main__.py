@@ -403,7 +403,9 @@ async def run(cfg: Config) -> None:
             raise RuntimeError("talk session needs the attention client")
         # The browser captures at OpenAI's OWN 24 kHz, so nothing resamples the
         # audio on the way in (the 48k->16k->24k round trip was mangling Danish).
-        brain = console_make(model, voice, input_rate=OPENAI_RATE)
+        # A laptop mic is a documented far-field source. Browser NS/AGC are disabled
+        # below, leaving one controlled OpenAI far_field pass; echo cancellation stays.
+        brain = console_make(model, voice, input_rate=OPENAI_RATE, noise="far_field")
         existing = getattr(brain, "tool_declarations", None) or []
         with contextlib.suppress(Exception):
             brain.tool_declarations = [*existing, END_CONVERSATION_TOOL]

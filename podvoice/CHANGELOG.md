@@ -1,14 +1,34 @@
 # Changelog
 
+## 1.12.18 — én dokumenteret dansk lydkæde for Talk og Voice PE
+
+- **Kvalitet er igen standarden:** `gpt-realtime-2.1` er nu standardhjerne. OpenAI
+  beskriver 2.1 som modellen med højeste reasoning og forbedret alfanumerisk
+  genkendelse/støj-/afbrydelsesadfærd; `2.1-mini` er den destillerede pris- og
+  hastighedsvariant og findes fortsat som det eksplicitte `force_mini`-valg.
+- Den separate panel-/log-transcript bruger nu OpenAI Docs' anbefalede
+  `gpt-live-transcribe`, `languages:["da"]` og dansk kontekst for navne, klubber og
+  akronymer. Transcriptet er diagnostisk vejledning; Realtime-modellen hører lyden
+  direkte og kan have forstået noget andet.
+- **Kildespecifik støjbehandling:** Voice PE channel 1 har allerede XMOS AEC+IC+NS,
+  så dens ekstra OpenAI-filter er som standard slukket. Talk slår browserens NS og
+  AGC fra, beholder ekkoannullering og bruger præcis én OpenAI `far_field`-pass.
+- Talk beder om 24 kHz direkte. Browserfallbacken bruger nu intervalmiddel i stedet
+  for den dokumenteret skadelige nearest-neighbour-decimering, og den faktiske
+  sample rate/NS/AGC/AEC-konfiguration logges ved hvert mic-start.
+- **Talk-værktøjsvisningen var falsk:** serveren sendte et fladt result, mens UI'en
+  læste `ev.result`; derfor blev alle kald vist som ✕ og den virkelige MCP-fejl
+  skjult. Talk viser nu det faktiske `{ok, summary/data/error}`-resultat.
+
 ## 1.12.17 — ASR-input tilbage til dokumenteret Voice PE-baseline
 
 - PodVoice re-assert’er nu den dokumenterede inputkæde på hver Voice PE-connect:
-  XMOS channel 1 uden AGC, mic gain 4 og OpenAI `far_field` som eneste
-  noise-reduction-pass.
+  XMOS channel 1 uden AGC, mic gain 4 og OpenAI `far_field`. Sidstnævnte blev
+  korrigeret i 1.12.18, fordi channel 1 allerede indeholder XMOS noise suppression.
   En tidligere default på `mic_gain=16` kunne overstyre firmwarebaselinen og give
   “bytes flyder, men dansk bliver fonetisk vrøvl”.
-- OpenAI input-transskription logges nu som `turn: input transcript '...'`, så næste
-  fysisk test kan afgøre om fejlen er ASR/input eller tool/prompt uden gæt.
+- OpenAI input-transskription logges nu som `turn: input transcript '...'`. Den er en
+  separat ASR-diagnose, ikke ordret sandhed om Realtime-modellens egen lydforståelse.
 - Panelets Advanced → Mic quality viser den dokumenterede baseline, men stop-under-svar
   er bevidst parkeret som separat hardware-interrupt-opgave.
 

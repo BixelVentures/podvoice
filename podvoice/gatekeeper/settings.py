@@ -38,12 +38,12 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 # under old defaults (watchdog 800ms, lounge 0s, near_field noise…) can't keep overriding
 # retuned defaults forever. Identity settings (keys, rooms, prompts) are kept.
 # v3: the OpenAI-only overhaul — drops saved gemini_*/provider knobs (now unknown keys)
-# and resets openai_model so the gpt-realtime-2.1-mini default actually lands.
+# and resets openai_model so the then-current default actually lands.
 # v6: drops a saved speaker_path again — 1.11.0 shipped "auto", which wedged the puck.
-# v7: ASR documented input baseline — reset saved mic/noise tuning to ch1 without AGC,
-# firmware gain 4 and OpenAI far_field, so stale field experiments cannot keep
-# mangling Danish.
-SETTINGS_VERSION = 7
+# v7: reset saved mic/noise tuning to ch1 without AGC and firmware gain 4.
+# v8: quality-first shared ASR baseline. Reset the saved mini model; Voice PE already
+# has XMOS noise suppression, so do not apply a second provider filter to that source.
+SETTINGS_VERSION = 8
 
 # sha256 of RETIRED default system prompts. A saved prompt matching one of these is
 # just a persisted copy of an old default (the panel saves every field on Save) —
@@ -126,7 +126,7 @@ DEFAULTS: dict = {
     "full_duplex": False,  # half-duplex (continued conversation) is the shipped mode; True is
     # the experimental open-mic duplex opt-in (Phase 1.4 test matrix gates promotion)
     "system_prompt": SYSTEM_PROMPT_DA,  # who the assistant is + what it can do (editable)
-    "openai_model": "gpt-realtime-2.1-mini",
+    "openai_model": "gpt-realtime-2.1",
     "openai_voice": "marin",
     "force_mini": False,  # cost guard: clamp EVERY session (rooms + Talk) to the mini model
     # Turn detection: a preset, or "custom" driven by the raw knobs below.
@@ -138,7 +138,7 @@ DEFAULTS: dict = {
     "openai_prefix_ms": 300,  # custom, server_vad only
     "openai_silence_ms": 500,  # custom, server_vad only
     "openai_eagerness": "auto",  # custom, semantic_vad: auto|low|medium|high
-    "openai_noise": "far_field",  # far_field|near_field|off
+    "openai_noise": "off",  # Voice PE only: XMOS ch1 already has NS; Talk overrides far_field
     # Microphone tuning, re-asserted on EVERY device connect. The firmware's own
     # defaults are only a starting point: a live tweak that lives in RAM is lost the
     # moment the puck reboots, and nobody notices until transcription quietly gets
