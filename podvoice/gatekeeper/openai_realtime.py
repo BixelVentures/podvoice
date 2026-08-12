@@ -157,8 +157,9 @@ class OpenAIRealtimeSession:
             # which is what proves it was never the microphone.
             #   threshold 0.45: catch quiet/short speech from the first syllable
             #   prefix 800 ms : keep enough pre-roll that nothing is clipped
-            #   silence 700 ms: unchanged — Danish turn-taking is the world's slowest
-            return self._server_vad(threshold=0.45, prefix_ms=800, silence_ms=700)
+            #   silence 500 ms: OpenAI's documented baseline; 200 ms faster feedback
+            #                   without raising the speech threshold or clipping onset
+            return self._server_vad(threshold=0.45, prefix_ms=800, silence_ms=500)
         if self.preset == "responsive":
             return {
                 "type": "semantic_vad",

@@ -370,10 +370,10 @@ class ThinSession:
         if self.hub is not None:
             self.hub.incr("sessions")
             self.hub.set_level(self.room, self.duck_level)
-        if hasattr(self.voicepe, "drain_mic"):
-            dropped = self.voicepe.drain_mic()  # never feed last conversation's tail
-            if dropped:
-                _LOG.info("thin: dropped %d stale mic frames at wake", dropped)
+        # Do NOT drain here. same_breath_v1 starts the privacy-gated device stream at
+        # the local wake edge, before its cue; the frames already queued now contain
+        # the user's first words.  The queue is instead cleaned after every teardown,
+        # once forwarding has stopped, so old-tail audio cannot cross conversations.
         # NOTE: no abort_va here — ending the stock VA run is anchored in the link's
         # handle_start (scheduled RUN_END on EVERY delivered wake); a second, immediate
         # RUN_END from here could race the run's own setup and is redundant.
@@ -473,6 +473,10 @@ class ThinSession:
         if hasattr(self.voicepe, "stop_streaming"):
             with contextlib.suppress(Exception):
                 await self.voicepe.stop_streaming()
+        if hasattr(self.voicepe, "drain_mic"):
+            stale = self.voicepe.drain_mic()
+            if stale:
+                _LOG.info("thin: cleared %d mic frames after conversation close", stale)
         with contextlib.suppress(Exception):
             await self.brain.close()
         if release_music:
@@ -1237,7 +1241,7 @@ class ThinSession:
         self.hub.set_service("voicepe", "up" if ok else "degraded")
         missing = list(contract.get("missing_required", [])) + [
             e for e in contract.get("missing_entities", []) if e == "media_player"
-        ]
+        ] + list(contract.get("missing_capabilities", []))
         if not ok and missing:
             self.hub.activity(
                 self.room,

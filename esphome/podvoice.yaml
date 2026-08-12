@@ -213,9 +213,33 @@ event:
         long_press,
         wake_okay_nabu,
         wake_stop,
+        same_breath_v1,
         direct_speaker_v3,
         reply_played,
       ]
+
+# Capture from the LOCAL wake edge, before the stock firmware plays its cue and waits
+# 300 ms.  The upstream automation still owns mute/timer/announcement handling and the
+# audible cue; this appended automation only handles the normal Okay-Nabu path.  It
+# opens PodVoice's privacy-gated stream and emits the wake immediately, so the provider
+# connects while the user naturally continues with "hvad er klokken?".  The later
+# voice_assistant.start callback is intentionally idempotent in the add-on.
+#
+# Package merge semantics append trigger automations here; they do not replace the
+# pinned upstream handler.  `same_breath_v1` is an advertised capability marker so the
+# add-on/panel can distinguish this firmware from the old pause-required generation.
+micro_wake_word:
+  on_wake_word_detected:
+    - if:
+        condition:
+          lambda: |-
+            return wake_word == "Okay Nabu" || wake_word == "okay nabu" ||
+                   wake_word == "okay_nabu";
+        then:
+          - lambda: "id(pv_audio).start_streaming();"
+          - event.trigger:
+              id: podvoice_event
+              event_type: wake_okay_nabu
 
 # --- Phase 1a: the continuous-audio shim (the ONE custom C++ piece) ------------------
 #   Taps the already-free-running mic (micro_wake_word keeps i2s_mics running with

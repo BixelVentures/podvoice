@@ -255,20 +255,21 @@ async def test_blip_does_not_interrupt_playback():
         await session.aclose()
 
 
-async def test_stale_mic_frames_dropped_at_wake():
-    """The mic queue is shared across conversations: last conversation's tail must
-    never become the first audio of a new one (R1 — the preroll-poison class)."""
+async def test_same_breath_frames_are_preserved_at_wake_and_cleared_at_close():
+    """Firmware starts capture at the local wake edge. Frames queued before the Python
+    wake callback are the first words, not stale data; teardown owns stale cleanup."""
     gemini = LiveFake()
     session, _attention, voicepe = _build(gemini)
     await session.start()
     try:
-        voicepe.feed([_frame(11), _frame(22)])  # stale frames from "yesterday"
+        voicepe.feed([_frame(11), _frame(22)])  # "hvad er" arrived with the wake event
         await session.wake()
-        voicepe.feed([_frame(33)])  # the user's actual speech
-        await _wait_until(lambda: len(gemini.sent_audio) >= 1)
+        voicepe.feed([_frame(33)])  # "klokken" follows naturally
+        await _wait_until(lambda: len(gemini.sent_audio) >= 3)
         await asyncio.sleep(0.05)
-        assert gemini.sent_audio[0] == _frame(33)  # stale frames never sent
-        assert len(gemini.sent_audio) == 1
+        assert gemini.sent_audio[:3] == [_frame(11), _frame(22), _frame(33)]
+        await session.stop()
+        assert voicepe.drain_mic() == 0
     finally:
         await session.aclose()
 

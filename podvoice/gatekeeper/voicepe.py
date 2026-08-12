@@ -25,8 +25,10 @@ from . import constants as C
 
 log = logging.getLogger(__name__)
 
-# Max PCM frames to buffer before dropping on backpressure. ~200 * 20 ms = ~4 s.
-_QUEUE_MAXSIZE = 200
+# Max PCM frames while Realtime connects. 400 * 20 ms = ~8 s, matching the provider
+# connect ceiling: a slow TLS handshake must not preserve the start of a natural request
+# only to discard its ending. ~256 KiB/room is a small, bounded privacy-gated buffer.
+_QUEUE_MAXSIZE = 400
 
 # --- Firmware contract ----------------------------------------------------------
 # Everything the add-on ASSUMES the flashed firmware provides, verified on EVERY
@@ -109,6 +111,10 @@ class VoicePELink:
         # "a stale saved setting points at a capability the firmware does not have"
         # (0.70 shipped speaker_path=direct against announce-only firmware -> silence).
         self.supports_direct = False
+        # Firmware capability marker: capture and provider connect start at the LOCAL
+        # wake edge, before the stock cue + 300 ms delay. Without this generation the
+        # user still has to pause after "Okay Nabu", so the panel must not call it ready.
+        self.supports_same_breath = False
         # VoiceAssistant starts in legacy UDP mode after every puck reboot. A native-API
         # subscription alone does not change it; only a VA start whose client answers
         # with port=0 does. Sending direct TTS while still in UDP mode dereferences an
@@ -225,6 +231,12 @@ class VoicePELink:
         )
         # VERIFY: subscribe_states(callback) -> unsubscribe callable.
         self._unsub_states = self._client.subscribe_states(self._on_state)
+        # A dropped native-API link can strand the stock Voice Assistant run in its
+        # local "running" state.  The next wake then executes upstream's STOP branch
+        # instead of START and appears completely dead.  RUN_END is idempotent when no
+        # run exists, so reset that transient state on every real (re)connect before
+        # re-arming the configured wake word.
+        await self.abort_va()
         # Let the orchestrator re-assert stream + LED for the CURRENT state.
         if self.on_reconnect is not None:
             result = self.on_reconnect()
@@ -245,6 +257,8 @@ class VoicePELink:
         self._light_key = None
         self._media_key = None
         self._mute_key = None
+        self.supports_direct = False
+        self.supports_same_breath = False
         self._warned_missing = set()  # a reflash may have added the service — warn fresh
         try:
             # VERIFY: list_entities_services() -> (entities, services) on aioesphomeapi.
@@ -280,6 +294,7 @@ class VoicePELink:
             advertised: set[str] = set()
             for e in events:
                 advertised.update(getattr(e, "event_types", None) or [])
+            self.supports_same_breath = "same_breath_v1" in advertised
             self.supports_direct = (
                 "direct_speaker_v3" in advertised
                 and "podvoice_direct_prepare" in self._user_services
@@ -306,7 +321,12 @@ class VoicePELink:
             missing_entities.append("light")  # LED feedback — degraded UX only
         if self._mute_key is None:
             missing_entities.append("mute")  # hardware-mute detection — degraded only
-        ok = not missing_required and self._media_key is not None
+        missing_capabilities = [] if self.supports_same_breath else ["same_breath_v1"]
+        ok = (
+            not missing_required
+            and self._media_key is not None
+            and not missing_capabilities
+        )
         self.contract = {
             "ok": ok,
             "esphome_version": getattr(info, "esphome_version", None),
@@ -314,6 +334,7 @@ class VoicePELink:
             "missing_required": missing_required,
             "missing_optional": missing_optional,
             "missing_entities": missing_entities,
+            "missing_capabilities": missing_capabilities,
         }
         if ok:
             log.info(
@@ -338,6 +359,13 @@ class VoicePELink:
                     "voicepe %s: FIRMWARE MISMATCH — no media_player entity: "
                     "replies CANNOT play. Reflash esphome/podvoice.yaml.",
                     self.host,
+                )
+            for capability in missing_capabilities:
+                log.warning(
+                    "voicepe %s: FIRMWARE MISMATCH — capability %s is missing; "
+                    "natural wake+question requires a firmware flash",
+                    self.host,
+                    capability,
                 )
         if self.on_contract is not None:
             self._run_cb(self.on_contract, dict(self.contract))

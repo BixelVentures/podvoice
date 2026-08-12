@@ -38,6 +38,9 @@ class _StubClient:
     async def execute_service(self, svc, args):
         self.executed.append(svc.name)
 
+    def send_voice_assistant_event(self, kind, data):
+        self.executed.append(f"event:{kind}")
+
 
 def _link(client: _StubClient) -> VoicePELink:
     link = VoicePELink("pv-test.local", "psk", room="stue")
@@ -48,7 +51,11 @@ def _link(client: _StubClient) -> VoicePELink:
 async def test_contract_ok_with_full_firmware(caplog):
     client = _StubClient(
         ["podvoice_stream_start", "podvoice_stream_stop"],
-        [MediaPlayerInfo("external_media_player", 7), LightInfo("led_ring", 9)],
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            LightInfo("led_ring", 9),
+            EventInfo("podvoice_event", 3, ["same_breath_v1"]),
+        ],
     )
     link = _link(client)
     await link._resolve_entities()
@@ -56,6 +63,7 @@ async def test_contract_ok_with_full_firmware(caplog):
         report = link._verify_contract()
     assert report["ok"] is True
     assert report["missing_required"] == []
+    assert report["missing_capabilities"] == []
     # va_abort/stop_word are known-optional (degraded, not broken) — no WARNING lines.
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
@@ -193,6 +201,26 @@ class EventInfo:
         self.object_id = object_id
         self.key = key
         self.event_types = event_types
+
+
+async def test_old_pause_required_firmware_is_reported_degraded():
+    client = _StubClient(
+        ["podvoice_stream_start", "podvoice_stream_stop"],
+        [MediaPlayerInfo("external_media_player", 7), LightInfo("led_ring", 9)],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+    report = link._verify_contract()
+    assert report["ok"] is False
+    assert report["missing_capabilities"] == ["same_breath_v1"]
+    assert link.supports_same_breath is False
+
+
+async def test_same_breath_capability_is_read_from_firmware():
+    client = _StubClient([], [EventInfo("podvoice_event", 3, ["same_breath_v1"])])
+    link = _link(client)
+    await link._resolve_entities()
+    assert link.supports_same_breath is True
 
 
 async def test_direct_support_is_read_off_the_firmware_not_a_setting():
@@ -333,3 +361,32 @@ async def test_wake_word_is_reasserted_on_every_connect():
     assert client.executed.count("podvoice_set_wake_word") == 1
     await link._on_connect()  # e.g. after a reboot
     assert client.executed.count("podvoice_set_wake_word") == 2
+
+
+async def test_reconnect_resets_stranded_stock_va_before_rearming_wake(monkeypatch):
+    """A link loss mid-run must not make the next local wake take upstream's STOP
+    branch and look dead. Every completed reconnect sends an idempotent RUN_END."""
+    import sys
+    import types
+
+    class _T:
+        VOICE_ASSISTANT_RUN_END = "run_end"
+
+    mod = types.ModuleType("aioesphomeapi.model")
+    mod.VoiceAssistantEventType = _T
+    pkg = types.ModuleType("aioesphomeapi")
+    pkg.model = mod
+    monkeypatch.setitem(sys.modules, "aioesphomeapi", pkg)
+    monkeypatch.setitem(sys.modules, "aioesphomeapi.model", mod)
+
+    client = _ConnectableClient(
+        ["podvoice_stream_start", "podvoice_stream_stop", "podvoice_set_wake_word"],
+        [MediaPlayerInfo("external_media_player", 7), LightInfo("led_ring", 9)],
+    )
+    link = _link(client)
+    link.wake_word = "okay_nabu"
+    await link._on_connect()
+    assert "event:run_end" in client.executed
+    assert client.executed.index("event:run_end") < client.executed.index(
+        "podvoice_set_wake_word"
+    )

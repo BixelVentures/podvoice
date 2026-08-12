@@ -81,6 +81,10 @@ LEGACY_PROMPT_HASHES = frozenset(
         # 1.12.6 default — retired when weather/home/music were made explicitly
         # HA-first instead of merely "relevant tools".
         "65e1d425feebfef3e2b57071608b38aea8e18ebf03715bb24499c0d88ce01fef",
+        # 1.12.20 default — retired when measured room latency showed that spoken
+        # "Det tjekker jeg" serialized the tool behind filler. 1.12.21 starts tools
+        # immediately and uses the thinking LED as non-blocking progress feedback.
+        "d7d4d5276377e8156cbd1eca4ce732b8a6c327fbf0648cc6562ec550e158dfed",
     }
 )
 

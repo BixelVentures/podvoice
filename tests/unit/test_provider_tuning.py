@@ -176,7 +176,7 @@ def test_preset_conservative_is_hard_to_interrupt():
     # utterances (same failure on the puck AND a clean Mac mic — so not the mic).
     assert td["threshold"] == 0.45
     assert td["prefix_padding_ms"] == 800  # enough pre-roll that nothing is cut
-    assert td["silence_duration_ms"] == 700  # Danish patience, unchanged
+    assert td["silence_duration_ms"] == 500  # documented Realtime baseline; faster handoff
     # idle_timeout_ms must NEVER be sent (ARKITEKTUR, modprøve A3): GA docs define
     # it as a RE-PROMPT trigger — the model answers BY ITSELF at timeout (possible
     # tool calls = unsolicited action). The client-side idle fallback is the closer.

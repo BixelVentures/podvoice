@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.12.21 — naturlig wake-sætning og hurtigere værktøjsflow
+
+- Voice PE starter nu den privatlivsgatede mikrofonstrøm ved den lokale
+  “Okay Nabu”-detektion, før den officielle startlyd og 300 ms-pause. Realtime
+  forbinder parallelt med resten af brugerens sætning, og de første lydframes
+  bevares gennem opkoblingen. “Okay Nabu, hvad er klokken?” kan derfor siges som
+  én naturlig ytring uden en indlært pause.
+- En afbrudt ESPHome-forbindelse nulstiller nu altid en eventuelt strandet lokal
+  Voice Assistant-kørsel ved genforbindelse. Det forhindrer næste wake i at ramme
+  upstream-firmwarens STOP-gren og se helt død ud.
+- Realtime stop-på-tale bruger OpenAIs dokumenterede 500 ms-baseline i stedet for
+  700 ms. Den bundne inputkø er udvidet til hele den otte sekunders
+  opkoblingsgrænse, så et langsomt net ikke bevarer spørgsmålets start og taber
+  slutningen.
+- Værktøjer kaldes straks uden “Det tjekker jeg”-fyld. Gul tænker-LED er den
+  umiddelbare status; hurtige svar går direkte til resultatet.
+- En urørt gemt 1.12.20-prompt migreres automatisk, så den gamle “tal først,
+  kald bagefter”-regel ikke overlever opdateringen i `/data`.
+- Firmwaren annoncerer `same_breath_v1`. Ældre pausekrævende firmware vises nu
+  ærligt som degraderet i stedet for grøn og “verificeret”.
+
 ## 1.12.20 — sandfærdigt, tilgængeligt kontrolpanel
 
 - Panelet viser kun OpenAI som verificeret efter en virkelig Realtime-forbindelse;

@@ -54,7 +54,7 @@ _STUETEST_STEPS = [
         "key": "web",
         "title": "ASR-usikkerhed og web",
         "say": "Hvad tid skal AGF spille i aften?",
-        "expect": "Den siger kort 'Det tjekker jeg.', bruger et reelt web-/søgeværktøj og svarer ikke med vejr medmindre du bad om vejr.",
+        "expect": "Tænker-LED vises, et reelt web-/søgeværktøj starter uden oplæst fyld, og svaret handler ikke om vejr medmindre du bad om vejr.",
         "evidence": ["web_tool_call"],
     },
     {
