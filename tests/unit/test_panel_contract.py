@@ -57,6 +57,7 @@ def test_guided_groundtest_keeps_each_followup_uninterrupted_before_verdict():
     assert "Intet skete" in html
     assert "Rør ikke panelet mellem de to sætninger" in html
     assert "Uden nyt wake-ord" in html
+    assert "panelet lukker derefter testsamtalen rent" in html
 
 
 def test_test_tab_can_arm_one_local_physical_audio_trace():

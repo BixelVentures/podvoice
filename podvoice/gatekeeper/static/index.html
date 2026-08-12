@@ -949,7 +949,7 @@ setInterval(function () {
       box.appendChild(ge("div", "sub", "Forrige: " + (prev.outcome === "correct" ? "korrekt" : "fejl") + " · målt svar " + ms(prev.latency_ms)));
     }
     actions.hidden = false;
-    hint.textContent = "Rør ikke panelet mellem de to sætninger. Vælg først én dom, når opfølgningen også er besvaret.";
+    hint.textContent = "Rør ikke panelet mellem de to sætninger. Vælg først én dom, når opfølgningen også er besvaret; panelet lukker derefter testsamtalen rent.";
     start.textContent = "Start testen forfra";
   }
   async function load() {

@@ -1069,8 +1069,8 @@ def _groundtest_payload(hub: StatusHub) -> dict:
                 "number": index + 1,
                 **case,
                 "before": (
-                    'Vent til ringen er slukket. Hvis den stadig lyser, sig "farvel" først. '
-                    "Sig derefter wake og spørgsmålet i én sammenhæng."
+                    "Vent til ringen er slukket; panelet lukkede den forrige "
+                    "testsamtale. Sig derefter wake og spørgsmålet i én sammenhæng."
                     if index
                     else "Stå/sid normalt ved skrivebordet og sig wake og spørgsmålet i én sammenhæng."
                 ),
@@ -1169,6 +1169,35 @@ async def _groundtest_result(request: web.Request) -> web.Response:
         "latencies_ms": latency_values,
         "note": str(body.get("note") or "")[:500],
     }
+
+    # Isolate every measured pair.  The former flow armed the next measurement while
+    # the just-rated conversation could still be in its lounge window; a late goodbye
+    # then polluted the next pair's transcript, states and latency.  Close the room
+    # that produced the evidence *before* record_groundtest advances step_started_at.
+    sessions: dict = request.app[SESSIONS]
+    room = next(
+        (
+            str(item.get("room") or "")
+            for item in reversed(states)
+            if str(item.get("room") or "") in sessions
+        ),
+        next(iter(sessions), "") if len(sessions) == 1 else "",
+    )
+    session = sessions.get(room)
+    stop = getattr(session, "stop", None)
+    if stop is not None:
+        try:
+            await stop(reason="groundtest-verdict")
+        except Exception as exc:
+            _LOG.exception("could not isolate groundtest conversation in %s", room)
+            return web.json_response(
+                {
+                    "ok": False,
+                    "error": f"Kunne ikke lukke testsamtalen rent: {exc}",
+                },
+                status=503,
+            )
+        evidence["closed_room"] = room
     try:
         hub.record_groundtest(index, outcome, evidence)
     except ValueError as exc:

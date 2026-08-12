@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.12.27 — hver fysisk testsamtale isoleres
+
+- Når ejeren har hørt begge svar og bedømmer en samtale, lukker testpanelet den
+  aktive Voice PE-session rent, før næste målevindue starter. Et sent “farvel”,
+  lounge-state eller en lukke-latency kan derfor ikke havne i næste tests evidens.
+- Hvis sessionen ikke kan lukkes, armeres næste test ikke; panelet viser fejlen i
+  stedet for at fortsætte med sammenblandede målinger.
+
 ## 1.12.26 — grundtesten forstyrrer ikke længere opfølgningen
 
 - Den guidede fysiske test viser nu begge sætninger i hver af ti samtaler på

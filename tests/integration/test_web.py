@@ -35,6 +35,10 @@ class _StubSession:
         self.room = room
         self.sm = _StubSM()
         self.playback = _StubPlayback()
+        self.stops: list[str] = []
+
+    async def stop(self, reason: str = "stop") -> None:
+        self.stops.append(reason)
 
 
 class _StubTools:
@@ -182,7 +186,8 @@ async def test_groundtest_guides_ten_uninterrupted_conversations_and_captures_ev
 ):
     hub = StatusHub()
     hist = History(path=tmp_path / "history.jsonl")
-    app = create_app(hub, {}, tools=_StubTools(), history=hist)
+    session = _StubSession("kitchen")
+    app = create_app(hub, {"kitchen": session}, tools=_StubTools(), history=hist)
     async with TestClient(TestServer(app)) as client:
         response = await client.get("/api/groundtest")
         initial = await response.json()
@@ -225,6 +230,8 @@ async def test_groundtest_guides_ten_uninterrupted_conversations_and_captures_ev
     assert result["says"] == ["Okay Nabu, hvad er klokken?", "Og hvilken ugedag er det?"]
     assert result["latency_ms"] == 1456
     assert result["latencies_ms"] == [1234, 1456]
+    assert result["closed_room"] == "kitchen"
+    assert session.stops == ["groundtest-verdict"]
     assert result["tools"][0]["args"] == {}
     assert result["tools"][0]["result"]["data"]["time"] == "15:00"
     assert rated["summary"]["counts"]["correct"] == 1
