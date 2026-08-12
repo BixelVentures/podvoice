@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.12.8 — panelet guider HA-first opsætning
+
+- Tool-capabilities returnerer nu `missing`, `setup_hints` og `sources`, så panelet kan
+  forklare præcis hvilke HA/MCP-evner der mangler: MCP/exposed entities,
+  Gemini-/søgeagent, HA weather og PodConnect/media-værktøjer.
+- Panelets advarsel bruger backendens hints i stedet for en hårdkodet tekst. Det gør
+  Home Assistant til den praktiske opsætningskilde for hjem, vejr og musik — også når
+  capability-logikken ændres.
+
 ## 1.12.7 — Home Assistant er førstevalg for hjemmet
 
 - Standardprompten siger nu eksplicit, at Home Assistant er autoriteten for hjemmets

@@ -111,6 +111,11 @@ def test_no_mcp_at_all_still_serves_local():
     assert caps["web_search"] is False
     assert caps["weather"] is False
     assert caps["music"] is False
+    assert caps["missing"] == ["home", "web_search", "weather", "music"]
+    assert "MCP Server" in caps["setup_hints"]["home"]
+    assert "weather-entity" in caps["setup_hints"]["weather"]
+    assert caps["sources"]["time"] == "podvoice_local"
+    assert caps["sources"]["home"] == "missing"
 
 
 def test_capabilities_show_exposed_search_weather_and_music_tools():
@@ -138,6 +143,10 @@ def test_capabilities_show_exposed_search_weather_and_music_tools():
     assert caps["web_search"] is True
     assert caps["weather"] is True
     assert caps["music"] is True
+    assert caps["missing"] == []
+    assert caps["setup_hints"] == {}
+    assert caps["sources"]["home"] == "ha_mcp"
+    assert caps["sources"]["weather"] == "ha_mcp"
     assert caps["tools"] == [
         "get_time",
         "google_web_sogning",

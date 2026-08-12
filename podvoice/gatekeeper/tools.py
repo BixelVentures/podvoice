@@ -48,6 +48,12 @@ _MUSIC_HINTS = (
     "volume",
     "lydstyrke",
 )
+_STANDARD_CAPABILITY_HINTS = {
+    "home": "Aktivér Home Assistants MCP Server-integration, og eksponér enheder under Settings → Voice assistants → Expose.",
+    "web_search": "Eksponér husets Gemini-/søgeagent som script eller Assist-værktøj i Home Assistant/MCP.",
+    "weather": "Eksponér HA's weather-entity eller et vejr-script til Assist/MCP. Brug hjemmets lokation som standard.",
+    "music": "Eksponér PodConnect-/media-player-værktøjer til Assist/MCP, så musik kan styres via HA i det aktuelle rum.",
+}
 
 # Danish day/month names for the spoken get_time summary (strftime is locale-dependent
 # and the Alpine container has no da_DK locale — hardcoding is the reliable way).
@@ -273,7 +279,7 @@ class ToolRouter:
                     return True
             return False
 
-        return {
+        caps = {
             "tools": names,
             "count": len(names),
             "time": "get_time" in names,
@@ -283,6 +289,20 @@ class ToolRouter:
             "weather": has_any(_WEATHER_HINTS),
             "music": has_any(_MUSIC_HINTS),
         }
+        missing = [
+            key for key in ("home", "web_search", "weather", "music") if not bool(caps.get(key))
+        ]
+        caps["missing"] = missing
+        caps["setup_hints"] = {key: _STANDARD_CAPABILITY_HINTS[key] for key in missing}
+        caps["sources"] = {
+            "time": "podvoice_local",
+            "timers": "podvoice_local",
+            "home": "ha_mcp" if caps["home"] else "missing",
+            "web_search": "ha_mcp" if caps["web_search"] else "missing",
+            "weather": "ha_mcp" if caps["weather"] else "missing",
+            "music": "ha_mcp" if caps["music"] else "missing",
+        }
+        return caps
 
     # ------------------------------------------------------------------ dispatch
     async def dispatch(self, name: str, args: dict) -> dict:

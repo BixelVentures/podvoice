@@ -541,16 +541,16 @@ function renderCapabilities(caps) {
     p.appendChild(document.createTextNode(pair[1]));
     wrap.appendChild(p);
   });
-  var missing = [];
-  if (!caps.web_search) missing.push("websøgning");
-  if (!caps.weather) missing.push("vejr");
-  if (!caps.music) missing.push("musikstyring");
+  var missing = caps.missing || [];
+  var labels = { home: "hjem/HA", web_search: "websøgning", weather: "vejr", music: "musikstyring" };
   if (missing.length) {
     warn.hidden = false;
     warn.appendChild(el("strong", null, "Ikke alle standard-evner er synlige. "));
-    warn.appendChild(document.createTextNode(
-      "Mangler: " + missing.join(" og ") + ". Eksponér Gemini-søgeagenten, vejr-entity/script og PodConnect/medie-værktøjer til Home Assistant Assist/MCP, gem, og genstart PodVoice. Home control-prikken alene beviser ikke at de værktøjer findes."
-    ));
+    warn.appendChild(document.createTextNode("Mangler: " + missing.map(function (k) { return labels[k] || k; }).join(", ") + ". "));
+    (caps.setup_hints ? missing : []).forEach(function (k) {
+      if (caps.setup_hints[k]) warn.appendChild(el("div", "sub", caps.setup_hints[k]));
+    });
+    warn.appendChild(el("div", "sub", "Home Assistant/MCP er sandheden for hjem, vejr og musik. Gem i HA, genstart PodVoice, og tjek pillerne igen."));
   }
 }
 
