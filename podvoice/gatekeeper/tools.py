@@ -52,7 +52,7 @@ _STANDARD_CAPABILITY_HINTS = {
     "home": "Aktivér Home Assistants MCP Server-integration, og eksponér enheder under Settings → Voice assistants → Expose.",
     "web_search": "Eksponér husets Gemini-/søgeagent som script eller Assist-værktøj i Home Assistant/MCP.",
     "weather": "Eksponér HA's weather-entity eller et vejr-script til Assist/MCP. Brug hjemmets lokation som standard.",
-    "music": "Eksponér PodConnect-/media-player-værktøjer til Assist/MCP, så musik kan styres via HA i det aktuelle rum.",
+    "music": "Eksponér PodConnect Control/media_player og podconnect.*-services til Assist/MCP. Brug HA til Spotify-søgning, transport, bibliotek og historik; PodConnect Speakers URL/token er kun til ducking/stop/release.",
 }
 
 # Danish day/month names for the spoken get_time summary (strftime is locale-dependent

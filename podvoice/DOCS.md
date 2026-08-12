@@ -96,9 +96,12 @@ indkøbslisten"*.
 does not add a second competing search provider. The panel shows whether a web/search tool is
 actually visible; if it is missing, current facts should fail honestly instead of being invented.
 
-**Music:** PodConnect URL/token are only for automatic ducking while the family talks. Voice music
-commands like *pause*, *next*, *play something*, and *skru ned* require media/PodConnect tools to be
-exposed through Home Assistant MCP. The panel shows whether a music tool is actually visible.
+**Music:** PodVoice uses the split PodConnect design instead of pretending that one surface can do
+everything. PodConnect Speakers URL/token are for the physical HomePod path: automatic ducking while
+the family talks, safe restore afterwards, and account-agnostic stop/release when needed. Normal
+voice music commands like *pause*, *next*, *play something*, *skru ned*, Spotify search, library and
+listening-history questions should go through PodConnect Control's Home Assistant `media_player` and
+`podconnect.*` services exposed through MCP. The panel shows whether a music tool is actually visible.
 
 ## The sidebar panel
 

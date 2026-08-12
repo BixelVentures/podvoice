@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.12.13 — musik er HA-first, men PodConnect-aware
+
+- Produktmålet og bruger-dokumentationen beskriver nu PodConnects reelle split:
+  Control-integrationens HA `media_player`/`podconnect.*`-services er standardvejen
+  til Spotify-søgning, bibliotek, historik og normal transport, mens Speakers-add-on'et
+  fortsat ejer ducking, restore og account-agnostic stop/release.
+- Defaultprompten instruerer Realtime GPT i samme kontrakt, så den ikke bruger web til
+  Spotify-bibliotek eller hjemmets aktuelle afspilning og kun går uden om HA, når
+  PodConnect Speakers' fysiske stop/release er den rigtige flade.
+- Panelets setup-hint for manglende musikværktøjer peger nu på PodConnect Control/HA
+  for musikkommandoer og PodConnect Speakers URL/token for ducking/stop/release.
+
 ## 1.12.12 — stuetest beviser også turntaking-faser
 
 - Hubben gemmer nu seneste room state transitions med timestamps (`LISTENING`,

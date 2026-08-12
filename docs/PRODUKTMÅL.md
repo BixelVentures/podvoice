@@ -15,7 +15,9 @@ Systemets faste form er:
 - Voice PE er øre, wake-ord, lysring og mund.
 - OpenAI Realtime er samtalemotoren; PodVoice ejer transport, sikkerhed og fejladfærd.
 - Home Assistants MCP-server er eneste vej til hjemmets eksponerede enheder.
-- PodConnect ejer rumrettet musik-dæmpning og genopretning.
+- Musik er HA-first, men ikke HA-only: PodConnect Control i Home Assistant ejer Spotify-søgning,
+  bibliotek, historik og `media_player`-styring, mens PodConnect Speakers ejer den fysiske
+  HomePod-vej, ducking, account-agnostic stop/release og genopretning.
 - Aktuel viden går gennem hjemmets eksisterende Gemini-søgeagent, eksponeret via
   Home Assistant/MCP. En OpenAI-baseret reserve må kun tilføjes, hvis en målt A/B-test
   viser en gevinst i kvalitet, svartid eller fejladfærd uden at skabe to tvetydige veje.
@@ -32,7 +34,7 @@ Alle målinger køres først uden musik og derefter med normal musik/TV i samme 
 | Ekko og afbrydelse | 50 svar: 0 selvafbrydelser. “Stop”/wake midt i svar gør pucken stille p95 ≤300 ms. |
 | Web | 20 aktuelle spørgsmål (nyheder, sport, vejr/pris): 20 reelle søgekald, kilder gemt, 0 opdigtede aktuelle tal; p90 ≤8 s eller tydelig fejl. |
 | Hjem | 30 reversible HA-kommandoer på tværs af lys, klima, scener/lister: 100 % korrekt mål, 0 uønskede handlinger, fejl siges højt. |
-| Musik | 30 play/pause/næste/lydstyrke-kald: korrekt rum hver gang; duck-ACK ≤300 ms; oprindelig musiktilstand gendannes efter samtalen. |
+| Musik | 30 play/pause/næste/lydstyrke/søgning/library-kald: korrekt rum hver gang; Spotify-søgning går via PodConnect Control/HA; duck-ACK ≤300 ms og fysisk stop/release går via PodConnect Speakers; oprindelig musiktilstand gendannes efter samtalen. |
 | Sikkerhed | Oplåsning, alarm fra, køb, besked og sletning kræver eksplicit bekræftelse i 10/10 adversarielle forsøg. |
 | Fejl | OpenAI nede, HA/MCP nede, PodConnect nede, puck genstarter og adresse ændres: alle bliver synlige i panelet og hørbare, ingen endeløs spinner. |
 | Stabilitet | Syv døgn i husets normale brug uden manuel genstart, fastlåst session eller tabt musiktilstand. |
@@ -84,7 +86,8 @@ aldrig i samme release, som dens afløser første gang består en stuetest.
 
 1. Flash Gate B-kandidaten og gem en komplet samtalelog.
 2. Aktivér direct eksplicit for prøven; promover ikke default før beviset.
-3. Kør web-, HA- og musikmatrixen — herunder kildebevis fra Gemini-agenten — og ret én
+3. Kør web-, HA- og musikmatrixen — herunder kildebevis fra Gemini-agenten og PodConnect
+   Control/Speakers-bevis for musik — og ret én
    observeret fejl ad gangen.
 4. Udgiv en release candidate, kør syv-døgns soak, og ryd først derefter fallbackkode.
 
@@ -113,8 +116,11 @@ Gate B specifikt testes. Gem panelhistorik og add-on-log for hvert run.
    - Forvent: korrekt HA-værktøj, korrekt mål, én fast dansk kvittering, ingen handling
      på andre rum.
 6. **Musik**
-   - Start musik i rummet og sig “Pause”, “Næste”, “Skru lidt ned”.
-   - Forvent: korrekt rum hver gang, musik dæmpes under samtalen og gendannes bagefter.
+   - Start musik i rummet og sig “Pause”, “Næste”, “Skru lidt ned”, “Spil noget
+     afslappende her”, og “Hvad har jeg hørt for nylig?”
+   - Forvent: korrekt rum hver gang; PodConnect Control/HA bruges til Spotify-søgning,
+     library/historik og normal transport; PodConnect Speakers bruges til ducking og
+     account-agnostic stop/release; musik dæmpes under samtalen og gendannes bagefter.
 7. **Afbrydelse og lukning**
    - Afbryd et langt svar med “stop” eller wake-ordet.
    - Forvent: pucken bliver stille hurtigt, samtalen går tilbage til at lytte eller
