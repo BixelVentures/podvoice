@@ -18,6 +18,7 @@ import json
 import logging
 import pathlib
 import socket
+import time
 from collections.abc import AsyncIterator, Callable
 from typing import Any
 
@@ -115,6 +116,11 @@ class VoicePELink:
         # wake edge, before the stock cue + 300 ms delay. Without this generation the
         # user still has to pause after "Okay Nabu", so the panel must not call it ready.
         self.supports_same_breath = False
+        # same_breath firmware emits its explicit event at the local wake edge and the
+        # stock VA reports the same physical wake again through handle_start ~300 ms
+        # later.  Remember the first edge so the latter remains an ACK/fallback rather
+        # than opening/re-waking the conversation twice.
+        self._last_local_wake_at = 0.0
         # VoiceAssistant starts in legacy UDP mode after every puck reboot. A native-API
         # subscription alone does not change it; only a VA start whose client answers
         # with port=0 does. Sending direct TTS while still in UDP mode dereferences an
@@ -469,9 +475,20 @@ class VoicePELink:
             log.info("voicepe %s: direct API-audio prepare handshake received", self.host)
             prepare_waiter.set()
         else:
-            log.info("voicepe %s: WAKE received (handle_start)", self.host)
-            if self.on_wake is not None:
-                self.on_wake()
+            duplicate_local_wake = (
+                self.supports_same_breath
+                and self._last_local_wake_at > 0.0
+                and time.monotonic() - self._last_local_wake_at < 2.0
+            )
+            if duplicate_local_wake:
+                log.info(
+                    "voicepe %s: stock WAKE acknowledged (local wake already delivered)",
+                    self.host,
+                )
+            else:
+                log.info("voicepe %s: WAKE received (handle_start fallback)", self.host)
+                if self.on_wake is not None:
+                    self.on_wake()
         # End this stock VA run shortly after it starts, so the device returns to
         # wake-detecting for the NEXT wake. If left open, the upstream micro_wake_word
         # handler STOPS the running VA on the next wake instead of starting a new one —
@@ -573,6 +590,9 @@ class VoicePELink:
         """Route wake/button/media/mute state updates to the orchestrator."""
         key = getattr(state, "key", None)
         tname = type(state).__name__
+        event_type = getattr(state, "event_type", None) or getattr(state, "event", None)
+        if event_type in ("wake_okay_nabu", "wake"):
+            self._last_local_wake_at = time.monotonic()
         # Media-player announce state -> "reply finished playing" ground truth.
         if key == self._media_key and tname == "MediaPlayerEntityState" and self.on_media_state:
             try:

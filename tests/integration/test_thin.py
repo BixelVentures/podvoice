@@ -734,6 +734,25 @@ async def test_closing_is_audible():
         await session.aclose()
 
 
+async def test_groundtest_close_is_silent_and_explicitly_rearms_wake():
+    """A test verdict must isolate the pair without opening one more announcement.
+    Teardown still sends RUN_END so the following physical wake cannot be consumed by
+    a stranded stock-VA run."""
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        before = len(voicepe.announced_urls)
+        await session.stop(reason="groundtest-verdict", play_close_cue=False)
+        assert len(voicepe.announced_urls) == before
+        assert "abort" in voicepe.direct_events
+        assert voicepe.streaming is False
+        assert session.sm.state is State.IDLE
+    finally:
+        await session.aclose()
+
+
 async def test_shield_holds_for_the_whole_reply_without_device_reports():
     """Field 16:42: the device's 'I am playing' report never arrived, the pre-arm
     expired mid-reply, mic frames flowed, and the model heard itself — killing its own

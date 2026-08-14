@@ -1187,7 +1187,10 @@ async def _groundtest_result(request: web.Request) -> web.Response:
     stop = getattr(session, "stop", None)
     if stop is not None:
         try:
-            await stop(reason="groundtest-verdict")
+            # Do not start a fresh media-player announcement just to mark the end of
+            # each measured pair. It can hold the puck's shared announcement pipeline
+            # across the next test wake. The panel already gives the transition cue.
+            await stop(reason="groundtest-verdict", play_close_cue=False)
         except Exception as exc:
             _LOG.exception("could not isolate groundtest conversation in %s", room)
             return web.json_response(

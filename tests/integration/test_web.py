@@ -36,9 +36,11 @@ class _StubSession:
         self.sm = _StubSM()
         self.playback = _StubPlayback()
         self.stops: list[str] = []
+        self.stop_close_cues: list[bool] = []
 
-    async def stop(self, reason: str = "stop") -> None:
+    async def stop(self, reason: str = "stop", *, play_close_cue: bool = True) -> None:
         self.stops.append(reason)
+        self.stop_close_cues.append(play_close_cue)
 
 
 class _StubTools:
@@ -232,6 +234,7 @@ async def test_groundtest_guides_ten_uninterrupted_conversations_and_captures_ev
     assert result["latencies_ms"] == [1234, 1456]
     assert result["closed_room"] == "kitchen"
     assert session.stops == ["groundtest-verdict"]
+    assert session.stop_close_cues == [False]
     assert result["tools"][0]["args"] == {}
     assert result["tools"][0]["result"]["data"]["time"] == "15:00"
     assert rated["summary"]["counts"]["correct"] == 1

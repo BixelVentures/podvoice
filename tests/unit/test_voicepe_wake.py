@@ -4,6 +4,7 @@ NEXT 'Okay Nabu' still fires (the repeated-wake fix)."""
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 from gatekeeper.voicepe import VoicePELink
 
@@ -45,3 +46,32 @@ async def test_every_wake_ends_its_run():
 
     ends = [ev for ev, _ in link._client.events if ev == T.VOICE_ASSISTANT_RUN_END]
     assert len(ends) == 3
+
+
+async def test_same_breath_local_event_and_stock_start_are_one_wake():
+    """The firmware reports one physical wake through two transports. The local edge
+    owns same-breath capture; handle_start only ACKs the duplicate stock-VA edge."""
+    link = VoicePELink("pv-test.local", "psk", room="kitchen")
+    link._client = _StubClient()  # type: ignore[assignment]
+    link.supports_same_breath = True
+    wakes = []
+    events = []
+    link.on_wake = lambda: wakes.append("fallback")
+    link.on_event = lambda room, state: events.append((room, state.event_type))
+
+    link._on_state(SimpleNamespace(event_type="wake_okay_nabu", key=123))
+    assert await link._handle_start() == 0
+
+    assert events == [("kitchen", "wake_okay_nabu")]
+    assert wakes == []
+
+
+async def test_same_breath_handle_start_still_wakes_if_local_event_was_lost():
+    link = VoicePELink("pv-test.local", "psk", room="kitchen")
+    link._client = _StubClient()  # type: ignore[assignment]
+    link.supports_same_breath = True
+    wakes = []
+    link.on_wake = lambda: wakes.append(True)
+
+    assert await link._handle_start() == 0
+    assert wakes == [True]

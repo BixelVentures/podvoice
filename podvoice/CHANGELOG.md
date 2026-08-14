@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.12.28 — samme wake behandles én gang, næste wake rearmes
+
+- `same_breath_v1`-firmwaren rapporterer samme fysiske wake både som det tidlige
+  `wake_okay_nabu`-event og cirka 300 ms senere som stock-VA `handle_start`.
+  Add-onen bruger nu det tidlige event som den ene wake og beholder `handle_start`
+  som fallback, hvis eventet mangler. En samtale åbnes derfor ikke og re-wakes igen
+  på samme “Okay Nabu”.
+- Hver teardown sender en idempotent `RUN_END` til Voice PE, så en strandet stock-VA
+  ikke kan fortolke næste wake som STOP og gøre wakewordet tavst.
+- Grundtesten lukker stadig hver målt samtale, men uden at starte en ny announcement-
+  tone på den delte højttalerpipeline. Panelet er overgangssignalet mellem testparrene;
+  næste wake kan rearmes uden at vente på en medieafspiller-timeout.
+
 ## 1.12.27 — hver fysisk testsamtale isoleres
 
 - Når ejeren har hørt begge svar og bedømmer en samtale, lukker testpanelet den

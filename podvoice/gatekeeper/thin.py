@@ -433,7 +433,7 @@ class ThinSession:
         self._beat = self._spawn(self._heartbeat(), "thin-beat")
         self._keepalive = self._spawn(self._keepalive_mic(), "thin-keepalive")
 
-    async def stop(self, reason: str = "stop") -> None:
+    async def stop(self, reason: str = "stop", *, play_close_cue: bool = True) -> None:
         """Close the conversation NOW (stop word/button/panel/mute/idle)."""
         if not self._active:
             return
@@ -442,7 +442,8 @@ class ThinSession:
         self._trace_event("close_requested", reason=reason)
         _LOG.info("thin: closing conversation (%s) [room=%s]", reason, self.room)
         await self._silence_device()
-        await self._play_close_cue()
+        if play_close_cue:
+            await self._play_close_cue()
         await self._teardown(release_music=True)
         self._hub_state("IDLE", "💤 Samtale slut — musikken er tilbage")
 
@@ -509,6 +510,12 @@ class ThinSession:
         if hasattr(self.voicepe, "stop_streaming"):
             with contextlib.suppress(Exception):
                 await self.voicepe.stop_streaming()
+        # Re-arm the physical wake detector at every close as well as at the initial
+        # handle_start edge.  RUN_END is idempotent, and this closes the field failure
+        # where a delayed/stuck stock VA run consumed the next wake as STOP.
+        if hasattr(self.voicepe, "abort_va"):
+            with contextlib.suppress(Exception):
+                await self.voicepe.abort_va()
         if hasattr(self.voicepe, "drain_mic"):
             stale = self.voicepe.drain_mic()
             if stale:
