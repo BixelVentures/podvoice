@@ -1672,9 +1672,10 @@ micro_wake_word:
     microphone: i2s_mics
     channels: 1
     gain_factor: 4
-  # A physical wake is single-use. PodVoice explicitly starts the detector again only
-  # after the matching Realtime conversation has been fully torn down.
-  stop_after_detection: true
+  # Keep this component running: its microphone lifecycle drives podvoice_audio's
+  # passive tap for the whole conversation. A separate firmware latch below suppresses
+  # duplicate wake events until PodVoice explicitly rearms after teardown.
+  stop_after_detection: false
   models:
     - model: https://github.com/kahrendt/microWakeWord/releases/download/okay_nabu_20241226.3/okay_nabu.json
       id: okay_nabu
@@ -1691,7 +1692,9 @@ micro_wake_word:
     # No voice_assistant.start, no stock HA pipeline, no wake chime or 300 ms delay.
     - if:
         condition:
-          switch.is_off: master_mute_switch
+          and:
+            - switch.is_off: master_mute_switch
+            - lambda: "return !id(podvoice_conversation_active);"
         then:
           - if:
               condition:
@@ -1699,6 +1702,7 @@ micro_wake_word:
               then:
                 - switch.turn_off: timer_ringing
               else:
+                - lambda: "id(podvoice_conversation_active) = true;"
                 - lambda: "id(pv_audio).start_streaming();"
                 - event.trigger:
                     id: podvoice_event

@@ -49,7 +49,13 @@ void PodVoiceAudio::start_streaming() {
   this->user_enabled_ = true;
   this->last_keepalive_ms_ = millis();
 }
-void PodVoiceAudio::stop_streaming() { this->user_enabled_ = false; }
+void PodVoiceAudio::stop_streaming() {
+  this->user_enabled_ = false;
+  // A completed conversation must never leak its tail into the next wake's pre-roll.
+  // From the next mic callback onward the ring starts building a fresh local window.
+  if (this->ring_buffer_ != nullptr)
+    this->ring_buffer_->reset();
+}
 
 void PodVoiceAudio::set_mic_gain(int gain) {
   if (this->mic_source_ == nullptr || gain < 1 || gain > 64)
@@ -168,8 +174,12 @@ void PodVoiceAudio::loop() {
   }
 
   if (!connected) {
-    // No consumer: discard backlog so we don't deliver stale audio on reconnect.
-    if (this->ring_buffer_ != nullptr && this->ring_buffer_->available() > 0) {
+    // No subscribed PodVoice connection: discard continuously. With a subscriber but
+    // the privacy gate closed, KEEP the rolling local ring so a same-breath question
+    // survives wake-model decision latency. stop_streaming() already clears the prior
+    // conversation exactly once, and overwriting writes retain only the newest window.
+    if (client == nullptr && this->ring_buffer_ != nullptr &&
+        this->ring_buffer_->available() > 0) {
       this->ring_buffer_->reset();
     }
     return;

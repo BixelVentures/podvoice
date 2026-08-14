@@ -51,6 +51,7 @@ api:
     # and music ducking are all closed. This makes the return to wakeword explicit.
     - action: podvoice_rearm_wake_word
       then:
+        - lambda: "id(podvoice_conversation_active) = false;"
         - if:
             condition:
               not:
@@ -114,6 +115,15 @@ switch:
 # that network state, so this overlay must not bake a second SSID/password into firmware.
 wifi:
   ap: {}
+
+# Firmware-owned single-wake latch. microWakeWord must keep running because its
+# microphone lifecycle also drives podvoice_audio's passive tap. A detection sets the
+# latch; only PodVoice's post-teardown service clears it.
+globals:
+  - id: podvoice_conversation_active
+    type: bool
+    restore_value: false
+    initial_value: "false"
 
 # --- Phase 2: custom wake-word model (docs/wake-word.md) -----------------------------
 # When the custom-trained microWakeWord model is ready, uncomment to load it. NOTE on

@@ -712,6 +712,25 @@ async def test_ten_clean_wake_session_close_rearm_cycles():
     assert voicepe.rearm_calls == 10
 
 
+async def test_idle_reconnect_recovers_the_firmware_wake_latch():
+    """A network/add-on restart after a crashed turn must not leave an online deaf puck."""
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        voicepe.streaming = True  # simulate the crashed process's stale device gate
+        await session._reassert_device()
+        assert voicepe.streaming is False
+        assert voicepe.rearm_calls == 1
+
+        await session.wake()
+        await session._reassert_device()
+        assert voicepe.streaming is True
+        assert voicepe.rearm_calls == 1  # never rearm during the live conversation
+    finally:
+        await session.aclose()
+
+
 async def test_puck_gets_the_shield_talk_gets_duplex():
     """0.92-0.95 hardcoded full_duplex=True on the PUCK path (flags swapped) — the echo
     shield was off on the device and NO setting could reach it. Lock the wiring down."""

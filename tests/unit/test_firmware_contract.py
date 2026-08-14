@@ -44,13 +44,28 @@ def test_same_breath_channel_keeps_enough_local_preroll():
 def test_each_detection_is_single_use_and_teardown_can_rearm_it():
     base = BASE.read_text()
     overlay = OVERLAY.read_text()
-    assert "stop_after_detection: true" in base
+    assert "stop_after_detection: false" in base
+    assert "return !id(podvoice_conversation_active);" in base
+    assert "id(podvoice_conversation_active) = true;" in base
+    assert "id: podvoice_conversation_active" in overlay
     assert "action: podvoice_rearm_wake_word" in overlay
     rearm = overlay.split("action: podvoice_rearm_wake_word", 1)[1].split(
         "# RUNTIME audio tuning", 1
     )[0]
     assert "micro_wake_word.is_running:" in rearm
     assert "micro_wake_word.start:" in rearm
+    assert "id(podvoice_conversation_active) = false;" in rearm
+
+
+def test_local_preroll_rolls_while_gated_and_clears_at_teardown():
+    source = (ROOT / "esphome" / "components" / "podvoice_audio" / "podvoice_audio.cpp").read_text()
+    stop = source.split("void PodVoiceAudio::stop_streaming()", 1)[1].split(
+        "void PodVoiceAudio::set_mic_gain", 1
+    )[0]
+    gated = source.split("if (!connected)", 1)[1].split("// Drain up to", 1)[0]
+    assert "ring_buffer_->reset()" in stop
+    assert "client == nullptr" in gated
+    assert "!this->user_enabled_" not in gated
 
 
 def test_wake_ack_is_visual_not_a_control_announcement():

@@ -1350,8 +1350,13 @@ class ThinSession:
         if self._active:
             if hasattr(self.voicepe, "start_streaming"):
                 await self.voicepe.start_streaming()
-        elif hasattr(self.voicepe, "stop_streaming"):
-            await self.voicepe.stop_streaming()
+        else:
+            if hasattr(self.voicepe, "stop_streaming"):
+                await self.voicepe.stop_streaming()
+            # A reconnect/restart after a crashed conversation must also clear the
+            # firmware latch; otherwise the puck can be online yet permanently deaf.
+            if not self._closing and hasattr(self.voicepe, "rearm_wake_word"):
+                await self.voicepe.rearm_wake_word()
         self._set_led(self.sm.state)
 
     # ------------------------------------------------------------- helpers

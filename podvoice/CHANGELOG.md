@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.13.2 — mikrofonen forbliver levende efter wake
+
+- Den første 1.13.1-runtime viste wake og derefter elleve sekunders total stilhed.
+  `stop_after_detection: true` stoppede microWakeWord-komponenten, som også ejer den
+  mikrofonlivscyklus den passive PodVoice-tap er afhængig af. Komponenten kører nu
+  fortsat, mens en firmware-lås sikrer præcis ét wake-event indtil teardown rearmer.
+- Pre-roll-ringbufferen blev tidligere nulstillet på hvert idle-loop, så dens angivne
+  1.500 ms aldrig kunne eksistere før wake. Med en tilsluttet PodVoice-klient ruller
+  bufferen nu lokalt bag privacy-gaten. `stop_streaming()` nulstiller den én gang ved
+  teardown, så ingen lyd fra en gammel samtale kan krydse ind i den næste.
+- Et add-on-reconnect i idle lukker altid mic-forward og rearmer firmware-låsen. Dermed
+  kan et netværksbrud midt i en samtale ikke efterlade en online men døv puck.
+
 ## 1.13.1 — samme åndedrag, værktøjssvar og næste wake
 
 - Voice PE beholder nu 1,5 sekunders lyd lokalt før wake-signalet, så spørgsmålet i
