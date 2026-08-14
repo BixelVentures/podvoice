@@ -15,6 +15,7 @@ from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.hub import StatusHub
 from gatekeeper.playback import Playback
 from gatekeeper.reply import ReplyBus
+from gatekeeper.talk import BrowserLink
 from gatekeeper.thin import ThinSession
 from gatekeeper.voice import (
     AudioChunk,
@@ -83,10 +84,7 @@ async def test_fresh_tools_are_present_when_realtime_connects():
     await session.start()
     try:
         await session.wake()
-        assert [d["name"] for d in brain.seen_at_connect] == [
-            "fresh_ha_tool",
-            "end_conversation",
-        ]
+        assert [d["name"] for d in brain.seen_at_connect] == ["fresh_ha_tool"]
     finally:
         await session.aclose()
 
@@ -322,18 +320,17 @@ async def test_client_idle_fallback_closes(monkeypatch):
         await session.aclose()
 
 
-async def test_model_ends_conversation_via_tool():
-    """The thin-native closure: the MODEL calls end_conversation (it understood
-    "farvel"/"stop"/anything) -> short goodbye finishes -> conversation closes."""
+async def test_model_cannot_guess_transport_closure_from_a_tool_call():
+    """Unknown/noisy speech must never let the model close the transport."""
     gemini = LiveFake()
     session, attention, _voicepe = _build(gemini)
     await session.start()
     try:
         await session.wake()
-        gemini.emit(ToolCall("c9", "end_conversation", {}))
-        await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)  # tool ack'd
-        await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=3.0)
-        await _wait_until(lambda: len(attention.release_calls) >= 1)
+        gemini.emit(ToolCall("c9", "attempted_transport_close", {}))
+        await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)
+        assert session.sm.state is not State.IDLE
+        assert attention.release_calls == []
     finally:
         await session.aclose()
 
@@ -535,18 +532,21 @@ async def test_reply_led_and_audio_mark_the_real_turn_boundary():
         await session.aclose()
 
 
-async def test_end_conversation_result_requests_no_extra_reply():
-    """The goodbye is spoken in the SAME response as end_conversation — the tool
-    result must not request another response (the double-'Farvel.' field bug)."""
+async def test_ambiguous_transcripts_never_close_the_transport():
+    """These real field mistranscriptions previously triggered false Farvel/close."""
     gemini = LiveFake()
     session, _attention, _voicepe = _build(gemini)
     await session.start()
     try:
         await session.wake()
-        gemini.emit(ToolCall("c9", "end_conversation", {}))
-        await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)
-        assert gemini.tool_result_creates == [False]
-        await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=3.0)
+        gemini.emit(
+            InputTranscript("Klar"),
+            InputTranscript("Kig FCK seneste kamp."),
+            InputTranscript("Tak"),
+        )
+        await asyncio.sleep(0.1)
+        assert session.sm.state is not State.IDLE
+        assert session._active is True
     finally:
         await session.aclose()
 
@@ -574,8 +574,8 @@ async def test_mic_level_logged_and_silence_flagged(caplog):
 
 async def test_end_phrase_fallback_closes(monkeypatch):
     """Ported lifecycle behavior (3.3): a WHOLE utterance that is a closure phrase
-    ends the conversation even when the model never calls end_conversation. Embedded
-    politeness ('sluk lyset, tak') must NOT close."""
+    ends the conversation after the provider's spoken goodbye. Embedded politeness
+    ('sluk lyset, tak') must NOT close."""
     from gatekeeper.voice import InputTranscript
 
     gemini = LiveFake()
@@ -586,7 +586,8 @@ async def test_end_phrase_fallback_closes(monkeypatch):
         gemini.emit(InputTranscript("Sluk lyset, tak"))  # embedded politeness — stays open
         await asyncio.sleep(0.1)
         assert session._active is True
-        gemini.emit(InputTranscript("Tak, det var alt!"))  # pure closure — closes
+        gemini.emit(InputTranscript("Tak, det var alt!"))
+        gemini.emit(AudioChunk(_frame(), item_id="bye"), TurnComplete())
         await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=9.0)
         await _wait_until(lambda: len(attention.release_calls) >= 1)
     finally:
@@ -603,6 +604,79 @@ async def test_hard_stop_word_closes_now():
         await session.wake()
         gemini.emit(InputTranscript("Stop."))
         await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=2.0)
+    finally:
+        await session.aclose()
+
+
+async def test_talk_and_voicepe_share_the_same_lifecycle_contract():
+    """Only I/O differs: both adapters run one ThinSession with identical closure."""
+    sent: list[dict] = []
+
+    async def send_json(payload: dict) -> None:
+        sent.append(payload)
+
+    async def send_bytes(_payload: bytes) -> None:
+        return None
+
+    adapters = [FakeVoicePELink(room=ROOM), BrowserLink(send_json, send_bytes, room=ROOM)]
+    for adapter in adapters:
+        brain = LiveFake()
+        attention = FakeAttention()
+        session = ThinSession(
+            room=ROOM,
+            attention=attention,
+            heartbeat=Heartbeat(attention, period_ms=20),
+            brain=brain,
+            voicepe=adapter,
+            playback=Playback(sink=adapter.play_pcm),
+            tools=FakeTools(),
+            reply_bus=ReplyBus(),
+            reply_url=REPLY_URL,
+        )
+        await session.start()
+        try:
+            await session.wake()
+            assert brain.connect_count == 1
+            brain.emit(InputTranscript("Klar"))
+            await asyncio.sleep(0.05)
+            assert session._active is True
+            brain.emit(
+                InputTranscript("Farvel"), AudioChunk(_frame(), item_id="bye"), TurnComplete()
+            )
+            await _wait_until(
+                lambda session=session, brain=brain, attention=attention: (
+                    session.sm.state is State.IDLE
+                    and brain.closed
+                    and len(attention.release_calls) == 1
+                ),
+                max_wait=9.0,
+            )
+        finally:
+            await session.aclose()
+
+
+async def test_ten_clean_wake_session_close_rearm_cycles():
+    """Release gate: 10 cycles, exactly one provider connect per physical wake."""
+    brain = LiveFake()
+    session, attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        for cycle in range(1, 11):
+            await session.wake()
+            assert brain.connect_count == cycle
+            assert session._active is True
+            assert voicepe.streaming is True
+
+            # A duplicate edge while active is idempotent: never a second session.
+            await session.wake()
+            assert brain.connect_count == cycle
+
+            await session.stop(reason="cycle")
+            assert session.sm.state is State.IDLE
+            assert voicepe.streaming is False
+            assert "abort" not in voicepe.direct_events
+
+        assert len(attention.release_calls) == 10
     finally:
         await session.aclose()
 
@@ -661,9 +735,8 @@ async def test_stale_goodbye_never_closes_the_next_conversation():
         await session.aclose()
 
 
-async def test_ring_survives_the_firmware_reset_after_wake():
-    """The firmware clears its ring on the RUN_END we send ~0.2 s after wake. A single
-    paint left a quarter-second dark hole and made a 100 ms wake feel slow."""
+async def test_clean_wake_paints_the_ring_once_without_stock_reset():
+    """No stock RUN_END means no firmware-induced dark hole or repaint workaround."""
     gemini = LiveFake()
     session, _attention, voicepe = _build(gemini)
     await session.start()
@@ -671,9 +744,9 @@ async def test_ring_survives_the_firmware_reset_after_wake():
         await session.wake()
         first = len(voicepe.light_commands)
         assert first >= 1  # lit immediately, before the provider connect
-        await asyncio.sleep(0.7)  # the hold-through window
-        assert len(voicepe.light_commands) >= first + 2  # repainted across the reset
-        assert all(c[0] for c in voicepe.light_commands[-2:])  # and it is ON, not off
+        await asyncio.sleep(0.7)
+        assert len(voicepe.light_commands) == first
+        assert voicepe.light_commands[-1][0] is True
     finally:
         await session.aclose()
 
@@ -717,10 +790,8 @@ async def test_device_side_hush_truncates_the_model():
         await session.aclose()
 
 
-async def test_closing_is_audible():
-    """Closing was the only moment with NO feedback: the ring went dark in silence,
-    so the room could not tell 'it stopped listening' from 'it died'. That is a UX
-    gap and a privacy gap — the mic state must be audible."""
+async def test_transport_close_never_starts_a_control_announcement():
+    """Closing must not inject a tone/announcement into the wake microphone path."""
     gemini = LiveFake()
     session, _attention, voicepe = _build(gemini)
     await session.start()
@@ -728,25 +799,23 @@ async def test_closing_is_audible():
         await session.wake()
         before = len(voicepe.announced_urls)
         await session.stop(reason="test")
-        assert len(voicepe.announced_urls) > before  # a cue was actually played
+        assert len(voicepe.announced_urls) == before
         assert session.sm.state is State.IDLE
     finally:
         await session.aclose()
 
 
-async def test_groundtest_close_is_silent_and_explicitly_rearms_wake():
-    """A test verdict must isolate the pair without opening one more announcement.
-    Teardown still sends RUN_END so the following physical wake cannot be consumed by
-    a stranded stock-VA run."""
+async def test_clean_channel_close_is_silent_and_stops_only_podvoice_mic():
+    """Clean firmware has no stock run to abort; closing gates the PodVoice mic."""
     gemini = LiveFake()
     session, _attention, voicepe = _build(gemini)
     await session.start()
     try:
         await session.wake()
         before = len(voicepe.announced_urls)
-        await session.stop(reason="groundtest-verdict", play_close_cue=False)
+        await session.stop(reason="groundtest-verdict")
         assert len(voicepe.announced_urls) == before
-        assert "abort" in voicepe.direct_events
+        assert "abort" not in voicepe.direct_events
         assert voicepe.streaming is False
         assert session.sm.state is State.IDLE
     finally:

@@ -462,8 +462,7 @@
         <div class="setgrid">
           <label for="s_engine">Samtalemotor</label>
           <select id="s_engine">
-            <option value="classic">Klassisk &mdash; state machine</option>
-            <option value="thin">Thin &mdash; modellen ejer samtalen</option>
+            <option value="thin">PodVoice Realtime &mdash; én sammenhængende samtale</option>
           </select>
           <label for="s_openai_model">Model</label>
           <select id="s_openai_model">
@@ -915,13 +914,13 @@ setInterval(function () {
     box.innerHTML = "";
     if (!run.started_at) {
       box.appendChild(ge("div", "empty", "Ikke startet. Sæt dig som normalt ved skrivebordet; ændr ingen indstillinger under testen."));
-      actions.hidden = true; hint.textContent = "Testen tager cirka ti minutter. Hver samtale har ét spørgsmål og én opfølgning; bedøm først efter begge svar.";
+      actions.hidden = true; hint.textContent = "Testen tager cirka ti minutter. Hver samtale har spørgsmål, opfølgning og Farvel; bedøm først når ringen er slukket.";
       return;
     }
     if (run.completed_at) {
       var head = ge("div", "line " + (sum.passed ? "out" : "in"));
       head.appendChild(ge("div", "who", sum.passed ? "✓ GRUNDTEST GODKENDT" : "✕ GRUNDTEST IKKE GODKENDT"));
-      head.appendChild(document.createTextNode((sum.counts.correct || 0) + " af " + sum.total + " samtaler korrekte · " + (sum.sentences || 20) + " sætninger · simpelt p90 " + ms(sum.simple_p90_ms) + " · opslag p90 " + ms(sum.lookup_p90_ms)));
+      head.appendChild(document.createTextNode((sum.counts.correct || 0) + " af " + sum.total + " samtaler korrekte · 30 fysiske ytringer · p90 " + ms(sum.simple_p90_ms)));
       box.appendChild(head);
       (run.results || []).forEach(function (r) {
         if (r.outcome === "correct") return;
@@ -943,13 +942,15 @@ setInterval(function () {
     line.appendChild(ge("div", "sub", "Forvent: " + testCase.expect));
     var follow = ge("div", "", "2. Uden nyt wake-ord: “" + testCase.followup + "”"); follow.style.cssText = "font-size:1.12rem;font-weight:750;margin:12px 0 4px"; line.appendChild(follow);
     line.appendChild(ge("div", "sub", "Forvent: " + testCase.followup_expect));
+    var close = ge("div", "", "3. Sig: “Farvel.”"); close.style.cssText = "font-size:1.12rem;font-weight:750;margin:12px 0 4px"; line.appendChild(close);
+    line.appendChild(ge("div", "sub", "Forvent: ét kort farvel, ring og mikrofon slukker. Bedøm først derefter."));
     box.appendChild(line);
     if ((run.results || []).length) {
       var prev = run.results[run.results.length - 1];
       box.appendChild(ge("div", "sub", "Forrige: " + (prev.outcome === "correct" ? "korrekt" : "fejl") + " · målt svar " + ms(prev.latency_ms)));
     }
     actions.hidden = false;
-    hint.textContent = "Rør ikke panelet mellem de to sætninger. Vælg først én dom, når opfølgningen også er besvaret; panelet lukker derefter testsamtalen rent.";
+    hint.textContent = "Rør ikke panelet under samtalen. Vælg først én dom efter opfølgningen og det afsluttende “Farvel”; næste trin beviser straks rearm.";
     start.textContent = "Start testen forfra";
   }
   async function load() {

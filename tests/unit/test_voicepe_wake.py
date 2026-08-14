@@ -1,9 +1,9 @@
-"""VoicePELink wake handling: every delivered wake must end the stock VA run so the
-NEXT 'Okay Nabu' still fires (the repeated-wake fix)."""
+"""The clean Voice PE channel has exactly one event-owned wake path."""
 
 from __future__ import annotations
 
 import asyncio
+import logging
 from types import SimpleNamespace
 
 from gatekeeper.voicepe import VoicePELink
@@ -17,61 +17,29 @@ class _StubClient:
         self.events.append((event_type, data))
 
 
-async def test_handle_start_fires_wake_and_ends_stock_run():
+async def test_local_podvoice_event_is_the_only_wake():
     link = VoicePELink("pv-test.local", "psk", room="kitchen")
-    link._client = _StubClient()  # type: ignore[assignment]
-    woke = []
-    link.on_wake = lambda: woke.append(True)
-
-    port = await link._handle_start()
-    assert port == 0  # acks so the device doesn't flash its error LED
-    assert woke == [True]  # wake reached the orchestrator
-
-    # The RUN_END is scheduled (small delay) so it can't race the run's own setup.
-    await asyncio.sleep(0.35)
-    from aioesphomeapi.model import VoiceAssistantEventType as T
-
-    assert any(ev == T.VOICE_ASSISTANT_RUN_END for ev, _ in link._client.events)
-
-
-async def test_every_wake_ends_its_run():
-    """Repeated wakes: each one must end its own run (not just the first)."""
-    link = VoicePELink("pv-test.local", "psk", room="kitchen")
-    link._client = _StubClient()  # type: ignore[assignment]
-    link.on_wake = lambda: None
-    for _ in range(3):
-        await link._handle_start()
-    await asyncio.sleep(0.35)
-    from aioesphomeapi.model import VoiceAssistantEventType as T
-
-    ends = [ev for ev, _ in link._client.events if ev == T.VOICE_ASSISTANT_RUN_END]
-    assert len(ends) == 3
-
-
-async def test_same_breath_local_event_and_stock_start_are_one_wake():
-    """The firmware reports one physical wake through two transports. The local edge
-    owns same-breath capture; handle_start only ACKs the duplicate stock-VA edge."""
-    link = VoicePELink("pv-test.local", "psk", room="kitchen")
-    link._client = _StubClient()  # type: ignore[assignment]
-    link.supports_same_breath = True
-    wakes = []
     events = []
-    link.on_wake = lambda: wakes.append("fallback")
+    fallbacks = []
     link.on_event = lambda room, state: events.append((room, state.event_type))
+    link.on_wake = lambda: fallbacks.append(True)
 
     link._on_state(SimpleNamespace(event_type="wake_okay_nabu", key=123))
-    assert await link._handle_start() == 0
 
     assert events == [("kitchen", "wake_okay_nabu")]
-    assert wakes == []
+    assert fallbacks == []
 
 
-async def test_same_breath_handle_start_still_wakes_if_local_event_was_lost():
+async def test_stock_assist_callback_is_rejected_not_duplicated(caplog):
     link = VoicePELink("pv-test.local", "psk", room="kitchen")
     link._client = _StubClient()  # type: ignore[assignment]
-    link.supports_same_breath = True
     wakes = []
     link.on_wake = lambda: wakes.append(True)
 
-    assert await link._handle_start() == 0
-    assert wakes == [True]
+    with caplog.at_level(logging.ERROR, logger="gatekeeper.voicepe"):
+        assert await link._handle_start() == 0
+    await asyncio.sleep(0)
+
+    assert wakes == []
+    assert link._client.events == []
+    assert "CONTRACT VIOLATION" in caplog.text

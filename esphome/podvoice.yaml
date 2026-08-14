@@ -1,17 +1,11 @@
 # =============================================================================
-# podvoice.yaml — PodVoice Voice PE firmware (THIN OVERLAY)
+# podvoice.yaml — PodVoice Voice PE firmware (SINGLE PODVOICE CHANNEL)
 # =============================================================================
 #
-# This is the MAINTAINABLE replacement for the old copy-pasted voice-pe.yaml sketch.
-# Per the engineering review (4-expert synthesis): inherit the official firmware as a
-# pinned remote `packages:` include and express PodVoice's changes as small overrides,
-# so board/pin/audio-graph drift is absorbed automatically on the next ref bump.
-#
-# WHAT THIS FILE DOES NOT DO YET:
-#   The continuous-audio mechanism (Spike S1) is the `podvoice_audio` external_component
-#   — added in Phase 1a, ONLY after run_s1/run_s2/AEC pass on real hardware. It is
-#   commented out below. This overlay alone flashes a stock-equivalent device plus the
-#   PSK + wake->event redirect, which is enough to run the Connection check.
+# This firmware deliberately vendors the pinned Voice PE base. ESPHome concatenates
+# trigger lists from packages, so a thin remote overlay cannot replace upstream's
+# voice_assistant.start wake automation; it can only add a second wake path. Vendoring
+# makes the two intentional lifecycle edits reviewable and removes that ambiguity.
 #
 # GATE before flashing (do this once): `esphome config podvoice.yaml` must render clean.
 #   The rendered-config DIFF vs upstream is your early warning if an upstream id was
@@ -21,21 +15,14 @@
 substitutions:
   name: podvoice-pe
   friendly_name: PodVoice PE
-  # Pin the upstream firmware ref here; bump deliberately (see the update ritual in DOCS).
-  ha_voice_ref: "26.6.0" # pin to the upstream release matching your ESPHome (2026.6.x)
+  # The hardware base is vendored from upstream 26.6.0 with an auditable two-block
+  # delta: wake word and center button emit PodVoice events and never start HA Assist.
 
-# Inherit the ENTIRE official firmware (board, PSRAM, i2s pins, mic, speaker+mixer+
+# Inherit the vendored official firmware (board, PSRAM, i2s pins, mic, speaker+mixer+
 # resampler, AIC3204 DAC, LEDs, rotary, button, mute, micro_wake_word, voice_kit/XMOS,
-# sdkconfig, on_boot). We never copy these — they ride the ref.
+# sdkconfig, on_boot). Only the two lifecycle blocks documented in the base differ.
 packages:
-  ha_voice:
-    url: https://github.com/esphome/home-assistant-voice-pe
-    files: [home-assistant-voice.yaml]
-    ref: ${ha_voice_ref}
-    # NOT `never`: refresh:never serves a STALE cached base even when ha_voice_ref
-    # changes (this caused the 26.4.0 esphome-const clash on a 26.6.x host). 1d picks
-    # up a ref bump within a day; do "Clean Build Files" once after changing the ref.
-    refresh: 0s
+  ha_voice: !include voice-pe-podvoice-base.yaml
 
 esphome:
   name: ${name}
@@ -59,14 +46,6 @@ api:
     - action: podvoice_stream_stop
       then:
         - lambda: "id(pv_audio).stop_streaming();"
-    # Prime ESPHome's Voice Assistant for native-API audio before a direct reply.
-    # VoiceAssistant defaults to legacy UDP mode after every reboot. Merely subscribing
-    # with API_AUDIO does not change that mode; a start/request/port=0 handshake does.
-    # Without this explicit preparation, a direct speaker test before the first wake
-    # dereferences the unopened UDP socket and reboots the puck (hardware-proven).
-    - action: podvoice_direct_prepare
-      then:
-        - voice_assistant.start:
     # RUNTIME audio tuning — no reflash. PodVoice's panel calls these.
     - action: podvoice_set_mic_channel
       variables:
@@ -107,74 +86,10 @@ api:
             mycroft ? id(hey_mycroft).enable() : id(hey_mycroft).disable();
             ESP_LOGI("podvoice", "wake word set to %s", name.c_str());
 
-# B1 step 2a — the ISOLATED VA-output swap (and NOTHING else; the 0.67 firmware bundled
-# this with a mww automation + a stream-info lambda and broke wake — this flash isolates
-# which change was the culprit). Package maps merge key-by-key: `!remove` deletes the
-# upstream `media_player:` key (cv.Exclusive with `speaker:`), and the VA's output
-# becomes its own resampler + mixer source. Effects:
-#   - wake path UNCHANGED (mww -> voice_assistant.start -> handle_start -> add-on),
-#   - the announce/FLAC reply path UNCHANGED (the external_media_player ENTITY remains;
-#     only VA-internal announce requests go away, which we never used),
-#   - the direct PCM path becomes POSSIBLE (client-driven TTS events + audio frames),
-#     but the add-on keeps it disabled until this flash is wake-validated.
-#
-# Both nodes below MUST be private to Voice Assistant. A private resampler pointed at
-# the old announcement_mixing_input is not enough: ResamplerSpeaker::has_buffered_data()
-# delegates to its output speaker, and upstream deliberately gives that source
-# `timeout: never`. In 1.11.0 the external media player therefore kept VA's shared
-# resampler running forever after RESPONSE_FINISHED. This finite-timeout source stops
-# itself only after its own ring buffer and pending DAC frames are empty; the private
-# resampler then stops, so VA can emit on_tts_stream_end / reply_played.
-speaker:
-  - id: !extend mixing_speaker
-    source_speakers:
-      - id: voice_assistant_mixing_input
-        # ESPHome's mixer-source default. It starts counting only once both its
-        # buffer and pending DAC frames are empty, so it terminates VA ownership
-        # without making a normal short network gap restart the audio graph.
-        timeout: 500ms
-        buffer_duration: 100ms
-  - platform: resampler
-    id: voice_assistant_resampling_speaker
-    output_speaker: voice_assistant_mixing_input
-    sample_rate: 48000
-    bits_per_sample: 16
-    buffer_duration: 100ms
-    filters: 16
-    taps: 16
-
-voice_assistant:
-  media_player: !remove
-  speaker: voice_assistant_resampling_speaker
-  # B1 step 2b — THE DIRECT PCM PATH. Two triggers, both verified against the pinned
-  # upstream C++ (2026.6.x, src/esphome/components/voice_assistant/voice_assistant.cpp).
-  #
-  # 1) RATE PIN. The VA never sets the speaker's stream info itself — it only calls
-  #    speaker_->start() and speaker_->play(). Pin the private resampler explicitly so a
-  #    future graph change cannot leave an old stream format latched: our PCM is 24 kHz,
-  #    while its output is fixed at the mixer's 48 kHz. TTS_START's handler fires this
-  #    trigger and THEN
-  #    calls speaker_->start(), which is exactly the order speaker.h documents
-  #    ("should be called after calling set_audio_stream_info"). So pin it here, per reply.
-  #
-  #    0.67 ALSO had this lambda and still chipmunked — because the add-on sent TTS_START
-  #    with an EMPTY data map, and the handler bails out before the trigger:
-  #      if (text.empty()) { ESP_LOGW("No text in TTS_START event"); return; }
-  #    i.e. the lambda never ran AND speaker_->start() was never called. The add-on now
-  #    always sends a non-empty text (voicepe.begin_direct_reply) — that is the real fix.
-  on_tts_start:
-    - lambda: |-
-        id(voice_assistant_resampling_speaker).set_audio_stream_info(
-            esphome::audio::AudioStreamInfo(16, 1, 24000));
-  # 2) BYTE-EXACT PLAYBACK ACK. State::RESPONSE_FINISHED only advances once
-  #    speaker_buffer_size_ == 0 AND !has_buffered_data() AND !is_running() — i.e. the
-  #    last byte has physically left the DAC — and then fires this trigger. Surfacing it
-  #    as an event gives the add-on GROUND TRUTH for "the reply is audible until now",
-  #    replacing the 1.8.0 byte-duration ESTIMATE that the echo shield had to guess with.
-  on_tts_stream_end:
-    - event.trigger:
-        id: podvoice_event
-        event_type: reply_played
+# PodVoice's first reliable channel uses the upstream external_media_player only for
+# assistant RESPONSE audio. The stock voice_assistant component remains dormant as the
+# native-API audio subscription endpoint; no VA run is ever started. The former direct
+# PCM experiment required a synthetic stock run and is intentionally absent here.
 
 # Snappy default: the cyan ring is the wake/listening acknowledgement.  The stock
 # chime adds a speaker event at the most timing-sensitive point and upstream waits
@@ -208,11 +123,8 @@ event:
     id: podvoice_event
     name: "PodVoice event"
     device_class: button
-    # direct_speaker_v3 is a capability marker (not emitted). V2 fixed the shared
-    # speaker graph, but still crashed if direct audio was tested before the first wake
-    # had switched ESPHome from legacy UDP to API audio. V3 also publishes the explicit
-    # podvoice_direct_prepare handshake above. reply_played is emitted only after the
-    # private path has physically drained.
+    # podvoice_channel_v1 is a capability marker (not emitted). It proves this firmware
+    # owns wake and microphone gating without starting a stock HA Assist run.
     event_types:
       [
         single_press,
@@ -221,33 +133,13 @@ event:
         long_press,
         wake_okay_nabu,
         wake_stop,
+        podvoice_channel_v1,
         same_breath_v1,
-        direct_speaker_v3,
-        reply_played,
       ]
 
-# Capture from the LOCAL wake edge, before the stock firmware plays its cue and waits
-# 300 ms.  The upstream automation still owns mute/timer/announcement handling and the
-# audible cue; this appended automation only handles the normal Okay-Nabu path.  It
-# opens PodVoice's privacy-gated stream and emits the wake immediately, so the provider
-# connects while the user naturally continues with "hvad er klokken?".  The later
-# voice_assistant.start callback is intentionally idempotent in the add-on.
-#
-# Package merge semantics append trigger automations here; they do not replace the
-# pinned upstream handler.  `same_breath_v1` is an advertised capability marker so the
-# add-on/panel can distinguish this firmware from the old pause-required generation.
-micro_wake_word:
-  on_wake_word_detected:
-    - if:
-        condition:
-          lambda: |-
-            return wake_word == "Okay Nabu" || wake_word == "okay nabu" ||
-                   wake_word == "okay_nabu";
-        then:
-          - lambda: "id(pv_audio).start_streaming();"
-          - event.trigger:
-              id: podvoice_event
-              event_type: wake_okay_nabu
+# The vendored base owns micro_wake_word.on_wake_word_detected. It emits exactly one
+# wake_okay_nabu event and opens pv_audio; package-list concatenation is deliberately
+# avoided because it was the source of the parallel stock-Assist run.
 
 # --- Phase 1a: the continuous-audio shim (the ONE custom C++ piece) ------------------
 #   Taps the already-free-running mic (micro_wake_word keeps i2s_mics running with

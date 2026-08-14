@@ -29,7 +29,7 @@ _LOG = logging.getLogger("podvoice.web")
 
 _STATIC = Path(__file__).parent / "static"
 DEFAULT_PORT = 8098
-_LOCAL_TOOL_NAMES = {"get_time", "set_timer", "list_timers", "cancel_timer", "end_conversation"}
+_LOCAL_TOOL_NAMES = {"get_time", "set_timer", "list_timers", "cancel_timer"}
 _WEB_TOOL_HINTS = ("search", "søg", "web", "google", "nyheder", "news", "sport")
 _WEATHER_TOOL_HINTS = ("vejr", "weather", "forecast", "udsigt", "temperatur", "temperature")
 _MUSIC_TOOL_HINTS = (
@@ -89,11 +89,9 @@ _STUETEST_STEPS = [
     },
 ]
 
-# One fixed baseline, not an A/B experiment. Ten two-turn conversations exercise the
-# whole product at the owner's normal desk position: same-breath wake, Danish ASR,
-# context, local answers, current web facts, HA, PodConnect, timers and clean closure.
-# A human rates the physical outcome because software cannot know that nothing was
-# heard, the wrong lamp changed, or a factually fluent answer was irrelevant.
+# One isolated lifecycle baseline, not a feature test. The separate stuetest covers
+# web/HA/music. Here ten predictable two-turn conversations test only same-breath wake,
+# Danish ASR, shared context, explicit Farvel, teardown and immediate rearm.
 _GROUNDTEST_STEPS: list[dict[str, Any]] = [
     {
         "say": "Okay Nabu, hvad er klokken?",
@@ -114,91 +112,91 @@ _GROUNDTEST_STEPS: list[dict[str, Any]] = [
     },
     {"say": "Og læg seks til.", "expect": "Halvfems med konteksten bevaret.", "kind": "simple"},
     {
-        "say": "Okay Nabu, hvordan gik FCK's seneste kamp?",
-        "expect": "Websøgning uden fyld; svaret handler om FCK og den seneste kamp.",
-        "kind": "lookup",
-        "new": True,
-    },
-    {
-        "say": "Og hvor blev den spillet?",
-        "expect": "Korrekt opfølgning på samme FCK-kamp.",
-        "kind": "lookup",
-    },
-    {
-        "say": "Okay Nabu, hvornår spiller AGF næste gang?",
-        "expect": "Websøgning og en relevant dato/modstander, eller en ærlig kildefejl.",
-        "kind": "lookup",
-        "new": True,
-    },
-    {
-        "say": "Og er det hjemme eller ude?",
-        "expect": "Korrekt opfølgning uden nyt wake-ord.",
-        "kind": "lookup",
-    },
-    {
-        "say": "Okay Nabu, hvordan bliver vejret her i eftermiddag?",
-        "expect": "Lokalt vejr via HA først; kort temperatur/nedbør.",
-        "kind": "lookup",
-        "new": True,
-    },
-    {
-        "say": "Og regner det i morgen?",
-        "expect": "Relevant opfølgning på lokalt vejr.",
-        "kind": "lookup",
-    },
-    {
-        "say": "Okay Nabu, tænd lyset i stuen.",
-        "expect": "Kun det tilsigtede stue-lys tændes; kort kvittering bagefter.",
+        "say": "Okay Nabu, sig navnet Nabu.",
+        "expect": "Nabu, straks og kort.",
         "kind": "simple",
         "new": True,
     },
     {
-        "say": "Sluk det igen.",
-        "expect": "Det samme lys slukkes uden nyt wake-ord.",
+        "say": "Og stav det.",
+        "expect": "N-A-B-U uden nyt wake-ord.",
         "kind": "simple",
     },
     {
-        "say": "Okay Nabu, spil noget afslappende her.",
-        "expect": "Musik starter i dette rum via HA/PodConnect.",
-        "kind": "lookup",
-        "new": True,
-    },
-    {
-        "say": "Skru lidt ned.",
-        "expect": "Kun dette rums musik skrues få trin ned.",
-        "kind": "simple",
-    },
-    {
-        "say": "Okay Nabu, hvad var det sidste nummer, jeg hørte på Spotify?",
-        "expect": "PodConnect-historik; korrekt sang og kunstner.",
-        "kind": "lookup",
-        "new": True,
-    },
-    {
-        "say": "Hvem er kunstneren?",
-        "expect": "Konteksten bevares; web er tilladt ved behov.",
-        "kind": "lookup",
-    },
-    {
-        "say": "Okay Nabu, sæt en timer på et minut.",
-        "expect": "Timeren oprettes korrekt og kort.",
+        "say": "Okay Nabu, hvad er fem plus fem?",
+        "expect": "Ti, straks og kort.",
         "kind": "simple",
         "new": True,
     },
     {
-        "say": "Hvor lang tid er der tilbage?",
-        "expect": "Den aktive timer aflæses uden nyt wake-ord.",
+        "say": "Gang svaret med tre.",
+        "expect": "Tredive med konteksten bevaret.",
         "kind": "simple",
     },
     {
-        "say": "Okay Nabu, hvad er den vigtigste danske nyhed lige nu?",
-        "expect": "Aktuel websøgning med relevant, kildebaseret svar og intet opdigtet.",
-        "kind": "lookup",
+        "say": "Okay Nabu, sig farven blå.",
+        "expect": "Blå, straks og kort.",
+        "kind": "simple",
         "new": True,
     },
     {
-        "say": "Farvel.",
-        "expect": "Kort farvel, ringen slukker, og næste wake virker.",
+        "say": "Hvilken farve sagde du?",
+        "expect": "Blå uden nyt wake-ord.",
+        "kind": "simple",
+    },
+    {
+        "say": "Okay Nabu, hvad er det modsatte af varm?",
+        "expect": "Kold eller koldt, kort.",
+        "kind": "simple",
+        "new": True,
+    },
+    {
+        "say": "Og af mørk?",
+        "expect": "Lys eller lyst uden nyt wake-ord.",
+        "kind": "simple",
+    },
+    {
+        "say": "Okay Nabu, nævn ét dansk dyr.",
+        "expect": "Ét kort dyrenavn.",
+        "kind": "simple",
+        "new": True,
+    },
+    {
+        "say": "Gentag dyrets navn.",
+        "expect": "Samme dyrenavn uden nyt wake-ord.",
+        "kind": "simple",
+    },
+    {
+        "say": "Okay Nabu, hvad er hundrede minus femogtyve?",
+        "expect": "Femoghalvfjerds, kort.",
+        "kind": "simple",
+        "new": True,
+    },
+    {
+        "say": "Og læg fem til.",
+        "expect": "Firs med konteksten bevaret.",
+        "kind": "simple",
+    },
+    {
+        "say": "Okay Nabu, sig kort godmorgen.",
+        "expect": "Godmorgen, kort.",
+        "kind": "simple",
+        "new": True,
+    },
+    {
+        "say": "Sig nu godaften.",
+        "expect": "Godaften uden nyt wake-ord.",
+        "kind": "simple",
+    },
+    {
+        "say": "Okay Nabu, hvad er datoen i dag?",
+        "expect": "Korrekt dato, kort.",
+        "kind": "simple",
+        "new": True,
+    },
+    {
+        "say": "Og hvilket år er det?",
+        "expect": "Korrekt år uden nyt wake-ord.",
         "kind": "simple",
     },
 ]
@@ -1042,7 +1040,7 @@ def _groundtest_payload(hub: StatusHub) -> dict:
     summary: dict[str, Any] = {
         "rated": len(results),
         "total": len(_GROUNDTEST_CASES),
-        "sentences": len(_GROUNDTEST_STEPS),
+        "sentences": len(_GROUNDTEST_CASES) * 3,
         "counts": counts,
         "simple_p50_ms": _percentile(simple, 0.50),
         "simple_p90_ms": _percentile(simple, 0.90),
@@ -1058,8 +1056,6 @@ def _groundtest_payload(hub: StatusHub) -> dict:
         and counts["blocked"] == 0
         and summary["simple_p90_ms"] is not None
         and summary["simple_p90_ms"] <= 2500
-        and summary["lookup_p90_ms"] is not None
-        and summary["lookup_p90_ms"] <= 8000
     )
     cases = []
     for index, case in enumerate(_GROUNDTEST_CASES):
@@ -1069,15 +1065,15 @@ def _groundtest_payload(hub: StatusHub) -> dict:
                 "number": index + 1,
                 **case,
                 "before": (
-                    "Vent til ringen er slukket; panelet lukkede den forrige "
-                    "testsamtale. Sig derefter wake og spørgsmålet i én sammenhæng."
+                    "Den forrige samtale skal være lukket af Farvel. Sig straks næste "
+                    "wake og spørgsmålet i én sammenhæng."
                     if index
                     else "Stå/sid normalt ved skrivebordet og sig wake og spørgsmålet i én sammenhæng."
                 ),
             }
         )
     return {
-        "title": "Grundtest — 10 samtaler / 20 faste danske sætninger",
+        "title": "Lifecycle-test — 10 samtaler / 30 fysiske ytringer",
         "cases": cases,
         # Kept for API consumers and documentation that enumerate all utterances.
         "steps": _GROUNDTEST_STEPS,
@@ -1141,13 +1137,14 @@ async def _groundtest_result(request: web.Request) -> web.Response:
     case = _GROUNDTEST_CASES[index] if 0 <= index < len(_GROUNDTEST_CASES) else {}
     inputs = [str(turn.get("text") or "") for turn in turns if turn.get("dir") == "in"]
     outputs = [str(turn.get("text") or "") for turn in turns if turn.get("dir") == "out"]
-    if outcome == "correct" and (len(inputs) < 2 or len(outputs) < 2):
+    saw_idle = any(item.get("state") == "IDLE" for item in states)
+    if outcome == "correct" and (len(inputs) < 3 or len(outputs) < 3 or not saw_idle):
         return web.json_response(
             {
                 "ok": False,
                 "error": (
-                    "Vent med at godkende, til både spørgsmålet og opfølgningen "
-                    "har et hørbart svar."
+                    "Vent med at godkende, til spørgsmålet og opfølgningen er besvaret, "
+                    "du har sagt farvel, og ringen er gået tilbage til idle."
                 ),
             },
             status=409,
@@ -1156,7 +1153,7 @@ async def _groundtest_result(request: web.Request) -> web.Response:
     evidence = {
         "say": case.get("say"),
         "followup": case.get("followup"),
-        "says": [case.get("say"), case.get("followup")],
+        "says": [case.get("say"), case.get("followup"), "Farvel."],
         "kind": case.get("kind"),
         "started_at": since,
         "inputs": inputs,
@@ -1190,7 +1187,7 @@ async def _groundtest_result(request: web.Request) -> web.Response:
             # Do not start a fresh media-player announcement just to mark the end of
             # each measured pair. It can hold the puck's shared announcement pipeline
             # across the next test wake. The panel already gives the transition cue.
-            await stop(reason="groundtest-verdict", play_close_cue=False)
+            await stop(reason="groundtest-verdict")
         except Exception as exc:
             _LOG.exception("could not isolate groundtest conversation in %s", room)
             return web.json_response(

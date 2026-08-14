@@ -30,7 +30,6 @@ class FakeBrainSession:
         self.scripted: list[VoiceEvent] = list(events or [])
         self.sent_audio: list[bytes] = []
         self.sent_tool_results: list[list] = []
-        self.tool_result_creates: list[bool] = []
         self.stream_ended: int = 0
         self.connected: bool = False
         self.closed: bool = False
@@ -62,9 +61,8 @@ class FakeBrainSession:
     async def audio_stream_end(self) -> None:
         self.stream_ended += 1
 
-    async def send_tool_results(self, results: list, *, create: bool = True) -> None:
+    async def send_tool_results(self, results: list) -> None:
         self.sent_tool_results.append(results)
-        self.tool_result_creates.append(create)
 
     async def events(self) -> AsyncIterator[VoiceEvent]:
         for ev in self.scripted:

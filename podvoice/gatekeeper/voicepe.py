@@ -87,9 +87,8 @@ class VoicePELink:
         # device stream + LED for the CURRENT state (subscriptions/flags don't survive a
         # reconnect, and the device must never be left streaming or stuck dark).
         self.on_reconnect: Callable[[], Any] | None = None
-        # Wake signal: voice_assistant.start (fired by the device's wake word) arrives as
-        # the VA-run-start callback. We use it as "wake" since !extend (to redirect the
-        # wake handler) is unusable on ESPHome 2026.6.x. on_wake() -> orchestrator.
+        # Legacy-only wake fallback from a stock VA run. podvoice_channel_v1 firmware
+        # wakes exclusively through the local podvoice_event and must never call this.
         self.on_wake: Callable[[], Any] | None = None
         # Media-player announcement state (True while ANNOUNCING) — the ground truth for
         # "the reply finished PLAYING" (replaces the byte-estimate when available).
@@ -102,7 +101,7 @@ class VoicePELink:
         self._light_key: int | None = None  # the LED-ring light entity key (None = no LED)
         self._media_key: int | None = None  # the media_player key (AI-reply announce path)
         self._mute_key: int | None = None  # the mute switch/sensor key (None = not published)
-        # B1-2b DIRECT PATH capability, read off the firmware itself rather than a saved
+        # Retired direct-path capability, retained only to diagnose old firmware.
         # setting. The device advertises event_types on its podvoice_event entity; the
         # Fixed firmware adds the capability marker "direct_speaker_v3". It also emits
         # "reply_played" from VA's RESPONSE_FINISHED. V2 fixed the shared speaker graph
@@ -116,6 +115,9 @@ class VoicePELink:
         # wake edge, before the stock cue + 300 ms delay. Without this generation the
         # user still has to pause after "Okay Nabu", so the panel must not call it ready.
         self.supports_same_breath = False
+        # Clean firmware contract: one local event opens PodVoice and no stock HA
+        # Assist run is started. The VA component is only the native-API audio endpoint.
+        self.supports_podvoice_channel = False
         # same_breath firmware emits its explicit event at the local wake edge and the
         # stock VA reports the same physical wake again through handle_start ~300 ms
         # later.  Remember the first edge so the latter remains an ACK/fallback rather
@@ -237,12 +239,6 @@ class VoicePELink:
         )
         # VERIFY: subscribe_states(callback) -> unsubscribe callable.
         self._unsub_states = self._client.subscribe_states(self._on_state)
-        # A dropped native-API link can strand the stock Voice Assistant run in its
-        # local "running" state.  The next wake then executes upstream's STOP branch
-        # instead of START and appears completely dead.  RUN_END is idempotent when no
-        # run exists, so reset that transient state on every real (re)connect before
-        # re-arming the configured wake word.
-        await self.abort_va()
         # Let the orchestrator re-assert stream + LED for the CURRENT state.
         if self.on_reconnect is not None:
             result = self.on_reconnect()
@@ -265,6 +261,7 @@ class VoicePELink:
         self._mute_key = None
         self.supports_direct = False
         self.supports_same_breath = False
+        self.supports_podvoice_channel = False
         self._warned_missing = set()  # a reflash may have added the service — warn fresh
         try:
             # VERIFY: list_entities_services() -> (entities, services) on aioesphomeapi.
@@ -301,6 +298,7 @@ class VoicePELink:
             for e in events:
                 advertised.update(getattr(e, "event_types", None) or [])
             self.supports_same_breath = "same_breath_v1" in advertised
+            self.supports_podvoice_channel = "podvoice_channel_v1" in advertised
             self.supports_direct = (
                 "direct_speaker_v3" in advertised
                 and "podvoice_direct_prepare" in self._user_services
@@ -327,7 +325,11 @@ class VoicePELink:
             missing_entities.append("light")  # LED feedback — degraded UX only
         if self._mute_key is None:
             missing_entities.append("mute")  # hardware-mute detection — degraded only
-        missing_capabilities = [] if self.supports_same_breath else ["same_breath_v1"]
+        missing_capabilities = []
+        if not self.supports_podvoice_channel:
+            missing_capabilities.append("podvoice_channel_v1")
+        if not self.supports_same_breath:
+            missing_capabilities.append("same_breath_v1")
         ok = not missing_required and self._media_key is not None and not missing_capabilities
         self.contract = {
             "ok": ok,
@@ -461,59 +463,15 @@ class VoicePELink:
             self._run_cb(self.on_link, False)
 
     async def _handle_start(self, *args: Any, **kwargs: Any) -> int | None:
-        # aioesphomeapi calls handle_start(conversation_id, flags, audio_settings,
-        # wake_word_phrase) and AWAITS the result (create_eager_task), then sends
-        # VoiceAssistantResponse(port=<return>). A None return makes it send
-        # error=True instead -> the device flashes its RED error LED and plays an
-        # error tone. So we ack with 0 (the API-audio path uses no UDP port), fire
-        # the wake, and let abort_va() kill the stock turn; podvoice_audio is the
-        # real stream. MUST be async: aioesphomeapi wraps the call in a Task.
-        # The device fired voice_assistant.start (wake word) -> treat as WAKE.
-        prepare_waiter = self._direct_prepare_waiter
-        self._api_audio_ready = True
-        if prepare_waiter is not None:
-            log.info("voicepe %s: direct API-audio prepare handshake received", self.host)
-            prepare_waiter.set()
-        else:
-            duplicate_local_wake = (
-                self.supports_same_breath
-                and self._last_local_wake_at > 0.0
-                and time.monotonic() - self._last_local_wake_at < 2.0
-            )
-            if duplicate_local_wake:
-                log.info(
-                    "voicepe %s: stock WAKE acknowledged (local wake already delivered)",
-                    self.host,
-                )
-            else:
-                log.info("voicepe %s: WAKE received (handle_start fallback)", self.host)
-                if self.on_wake is not None:
-                    self.on_wake()
-        # End this stock VA run shortly after it starts, so the device returns to
-        # wake-detecting for the NEXT wake. If left open, the upstream micro_wake_word
-        # handler STOPS the running VA on the next wake instead of starting a new one —
-        # the "2nd Okay Nabu does nothing" bug. Our mic is podvoice_audio (independent of
-        # the VA run), so ending the run costs no audio. Scheduled (small delay) so it
-        # never races the run's own setup, and guaranteed on EVERY delivered wake.
-        self._schedule_end_va_run()
+        # This callback exists for the native API subscription and legacy diagnosis.
+        # Clean firmware never starts stock Assist. If it somehow does, acknowledge it
+        # defensively but do NOT turn it into a second PodVoice wake.
+        log.error(
+            "voicepe %s: CONTRACT VIOLATION — stock HA Assist started; "
+            "PodVoice will not open a duplicate session",
+            self.host,
+        )
         return 0
-
-    def _schedule_end_va_run(self) -> None:
-        async def _end() -> None:
-            await asyncio.sleep(0.2)
-            if self._client is None:
-                return
-            try:
-                from aioesphomeapi.model import VoiceAssistantEventType as T
-
-                self._client.send_voice_assistant_event(T.VOICE_ASSISTANT_RUN_END, {})
-                log.info("voicepe %s: ended stock VA run so the next wake fires", self.host)
-            except Exception as e:  # best-effort — never break the conversation start
-                log.debug("voicepe %s: VA RUN_END failed: %s", self.host, e)
-
-        task = asyncio.ensure_future(_end())
-        self._pending.add(task)
-        task.add_done_callback(self._pending.discard)
 
     async def abort_va(self) -> None:
         """End the stock voice_assistant run the wake word started.

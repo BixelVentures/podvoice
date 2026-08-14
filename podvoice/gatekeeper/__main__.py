@@ -146,12 +146,8 @@ def _build_session(
     # turn-taking/barge-in, the server idle timeout ends it. The provider session gets
     # the idle signal enabled; ThinSession replaces the whole state machine.
     if cfg.engine == "thin":
-        from .thin import END_CONVERSATION_TOOL, ThinSession
+        from .thin import ThinSession
 
-        # The thin-native closure: the MODEL ends the conversation (no word lists).
-        # (Protocol-typed as VoiceSession; the OpenAI dataclass carries the attr.)
-        existing = getattr(brain, "tool_declarations", None) or []
-        brain.tool_declarations = [*existing, END_CONVERSATION_TOOL]
         reply_url = (
             f"http://{_host_ip_for(room.voicepe_host)}:{DEFAULT_PORT}/reply/{room.room}.flac"
         )
@@ -432,7 +428,7 @@ async def run(cfg: Config) -> None:
         button fires the same wake() as 'Okay Nabu'; the reply plays from the same
         reply-bus stream the puck fetches — every engine rule proven in the tab."""
         from .talk import TALK_ROOM, BrowserLink, TalkHub
-        from .thin import END_CONVERSATION_TOOL, ThinSession
+        from .thin import ThinSession
 
         if attention is None:  # no PodConnect client (bare simulate) — no ducking to run
             raise RuntimeError("talk session needs the attention client")
@@ -441,9 +437,6 @@ async def run(cfg: Config) -> None:
         # A laptop mic is a documented far-field source. Browser NS/AGC are disabled
         # below, leaving one controlled OpenAI far_field pass; echo cancellation stays.
         brain = console_make(model, voice, input_rate=OPENAI_RATE, noise="far_field")
-        existing = getattr(brain, "tool_declarations", None) or []
-        with contextlib.suppress(Exception):
-            brain.tool_declarations = [*existing, END_CONVERSATION_TOOL]
         link = BrowserLink(send_json, send_bytes)
         # RELATIVE url: the browser resolves it against the panel page, so it works
         # through HA Ingress (direct :8098 stays closed); the token still gates it.

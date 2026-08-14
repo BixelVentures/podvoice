@@ -54,7 +54,7 @@ async def test_contract_ok_with_full_firmware(caplog):
         [
             MediaPlayerInfo("external_media_player", 7),
             LightInfo("led_ring", 9),
-            EventInfo("podvoice_event", 3, ["same_breath_v1"]),
+            EventInfo("podvoice_event", 3, ["podvoice_channel_v1", "same_breath_v1"]),
         ],
     )
     link = _link(client)
@@ -212,7 +212,7 @@ async def test_old_pause_required_firmware_is_reported_degraded():
     await link._resolve_entities()
     report = link._verify_contract()
     assert report["ok"] is False
-    assert report["missing_capabilities"] == ["same_breath_v1"]
+    assert report["missing_capabilities"] == ["podvoice_channel_v1", "same_breath_v1"]
     assert link.supports_same_breath is False
 
 
@@ -221,6 +221,13 @@ async def test_same_breath_capability_is_read_from_firmware():
     link = _link(client)
     await link._resolve_entities()
     assert link.supports_same_breath is True
+
+
+async def test_clean_podvoice_channel_capability_is_read_from_firmware():
+    client = _StubClient([], [EventInfo("podvoice_event", 3, ["podvoice_channel_v1"])])
+    link = _link(client)
+    await link._resolve_entities()
+    assert link.supports_podvoice_channel is True
 
 
 async def test_direct_support_is_read_off_the_firmware_not_a_setting():
@@ -317,28 +324,6 @@ async def test_tts_start_must_carry_non_empty_text(monkeypatch):
     assert by_kind["tts_end"].get("url"), "TTS_END without url -> never reaches STREAMING_RESPONSE"
 
 
-async def test_direct_prepare_primes_api_audio_without_creating_a_user_wake(monkeypatch):
-    """After reboot ESPHome defaults to UDP. A direct reply before a port=0 handshake
-    crashed in VoiceAssistant::loop(), so V3 must prepare it and suppress the synthetic
-    start from the user-facing wake callback."""
-    import asyncio
-
-    client = _StubClient(["podvoice_direct_prepare"], [])
-    link = _link(client)
-    await link._resolve_entities()
-    wakes: list[bool] = []
-    link.on_wake = lambda: wakes.append(True)
-    monkeypatch.setattr(link, "_schedule_end_va_run", lambda: None)
-
-    prepare = asyncio.create_task(link._prepare_direct_api_audio())
-    await asyncio.sleep(0)
-    assert client.executed == ["podvoice_direct_prepare"]
-    assert await link._handle_start() == 0
-    assert await prepare is True
-    assert link._api_audio_ready is True
-    assert wakes == []
-
-
 async def test_direct_readiness_is_lost_on_disconnect(monkeypatch):
     client = _StubClient([], [])
     link = _link(client)
@@ -361,30 +346,3 @@ async def test_wake_word_is_reasserted_on_every_connect():
     assert client.executed.count("podvoice_set_wake_word") == 1
     await link._on_connect()  # e.g. after a reboot
     assert client.executed.count("podvoice_set_wake_word") == 2
-
-
-async def test_reconnect_resets_stranded_stock_va_before_rearming_wake(monkeypatch):
-    """A link loss mid-run must not make the next local wake take upstream's STOP
-    branch and look dead. Every completed reconnect sends an idempotent RUN_END."""
-    import sys
-    import types
-
-    class _T:
-        VOICE_ASSISTANT_RUN_END = "run_end"
-
-    mod = types.ModuleType("aioesphomeapi.model")
-    mod.VoiceAssistantEventType = _T
-    pkg = types.ModuleType("aioesphomeapi")
-    pkg.model = mod
-    monkeypatch.setitem(sys.modules, "aioesphomeapi", pkg)
-    monkeypatch.setitem(sys.modules, "aioesphomeapi.model", mod)
-
-    client = _ConnectableClient(
-        ["podvoice_stream_start", "podvoice_stream_stop", "podvoice_set_wake_word"],
-        [MediaPlayerInfo("external_media_player", 7), LightInfo("led_ring", 9)],
-    )
-    link = _link(client)
-    link.wake_word = "okay_nabu"
-    await link._on_connect()
-    assert "event:run_end" in client.executed
-    assert client.executed.index("event:run_end") < client.executed.index("podvoice_set_wake_word")

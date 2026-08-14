@@ -54,7 +54,7 @@ class Config:
     idle_timeout_s: int = 8  # close the conversation after this much user silence
     max_session_min: int = 15  # hard ceiling on one conversation (provider caps at 60)
     simulate: bool = False
-    engine: str = "classic"  # "classic" | "thin" (Track B — the model owns the conversation)
+    engine: str = "thin"  # canonical PodVoice lifecycle; classic is legacy only
     reply_streaming: bool = False  # stream the reply FLAC while it generates (experimental)
     speaker_path: str = "announce"  # announce (proven) | auto | direct — see 1.11.1
     panel_lan_open: bool = False  # True = allow direct LAN access to the panel (unauth'd)
@@ -157,7 +157,9 @@ def from_options(opts: dict) -> Config:
         idle_timeout_s=max(_int(opts, "idle_timeout_s", 8), 3),
         max_session_min=min(max(_int(opts, "max_session_min", 15), 1), 55),
         simulate=bool(opts.get("simulate", False)),
-        engine=("thin" if opts.get("engine") == "thin" else "classic"),
+        # One production engine. Keeping a saved legacy value must never resurrect the
+        # parallel classic lifecycle after an upgrade.
+        engine="thin",
         # Thin engine ALWAYS streams the reply: waiting for full generation before the
         # first byte was 1-4s of pure self-inflicted latency per reply. The smoothed
         # streaming path (prebuffer + silence-fill) is the delivery for thin; classic
@@ -165,14 +167,9 @@ def from_options(opts: dict) -> Config:
         reply_streaming=(
             True if opts.get("engine") == "thin" else bool(opts.get("reply_streaming", False))
         ),
-        # "auto" = use the direct PCM path IFF the connected firmware advertises it
-        # (voicepe reads the event types the device publishes and looks for the fixed
-        # graph marker "direct_speaker_v3" plus its API-audio prepare action). Older/broken firmware therefore keeps
-        # using announce, and
-        # no saved value can point at a capability the hardware does not have — which is
-        # exactly how 0.70 produced total silence. Explicit "announce"/"direct" remain
-        # available as an override for debugging.
-        speaker_path=str(opts.get("speaker_path", "announce") or "announce"),
+        # One production output path. The retired direct experiment required a stock
+        # Voice Assistant handshake and therefore cannot be revived by stale settings.
+        speaker_path="announce",
         panel_lan_open=bool(opts.get("panel_lan_open", False)),
         # 0.68: full-duplex (open-mic voice barge-in) is now an EXPERIMENTAL opt-in. The
         # XMOS AEC keeps the assistant's own voice out of mic channel 0; the provider's

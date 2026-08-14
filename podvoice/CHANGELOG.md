@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.13.0 — én wake, én PodVoice-kanal, én Realtime-session
+
+- Den pinnede Voice PE-base er vendored med upstream commit og SHA, fordi ESPHome
+  sammenfletter anonyme triggerlister. Wakeword og centerklik starter nu aldrig stock
+  HA Assist; firmwaren renderer én wake-trigger og nul `voice_assistant.start`.
+- `podvoice_channel_v1` åbner mikrofonen lokalt og udsender præcis ét PodVoice-event.
+  Add-onen opretter én Realtime-session, holder alle opfølgninger i den og lukker både
+  socket og mic-forward ved farvel, stop, timeout eller fejl.
+- Modellens `end_conversation`-tool er fjernet. Transporten lukker kun på eksakte hele
+  slutfraser, så felttransskriptionerne “Klar” og “Kig FCK seneste kamp” ikke længere
+  kan udløse falsk “Farvel” eller tavshed.
+- Talk og Voice PE kører samme `ThinSession`-lifecycle; kun browserens versus puckens
+  lydadapter er forskellig. En regressionstest kører samme forløb gennem begge.
+- Classic og direct kan ikke genaktiveres af gamle settings. Produktion er thin,
+  half-duplex og den dokumenterede announcement-svarvej.
+- Automatisk gate beviser 10 wake→session→luk→rearm-cyklusser uden ekstra provider-
+  connect, stock RUN_END eller kontrol-announcement.
+
 ## 1.12.28 — samme wake behandles én gang, næste wake rearmes
 
 - `same_breath_v1`-firmwaren rapporterer samme fysiske wake både som det tidlige

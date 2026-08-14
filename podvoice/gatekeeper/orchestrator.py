@@ -148,7 +148,7 @@ class RoomSession:
         # Re-assert the device stream + LED for the current state on every reconnect.
         if hasattr(voicepe, "on_reconnect"):
             voicepe.on_reconnect = self._reassert_device
-        # Wake word (via voice_assistant.start -> handle_start) -> WAKE_WORD event.
+        # Legacy firmware wake fallback. Clean firmware uses podvoice_event directly.
         if hasattr(voicepe, "on_wake"):
             voicepe.on_wake = self._on_wake
         # Firmware-contract report (every reconnect) -> panel service dot + activity.

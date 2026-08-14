@@ -25,7 +25,7 @@ hardware. But unlike a `custom_components` plugin, it runs in its **own containe
 socket hiccup or VAD confusion can't drag Home Assistant (or your music) down with it. Same
 deployment model as PodConnect.
 
-## Status (1.12.28 evidence-grounded half-duplex candidate)
+## Status (single-channel half-duplex candidate)
 **OpenAI-only, single pipeline.** The Gemini provider, the provider switch, and the hand-rolled HA
 REST tool bridge are deleted. What ships now:
 - one thin provider module (`openai_realtime.py`) — GPT-Live-1 readiness = a model string + event
@@ -40,10 +40,11 @@ REST tool bridge are deleted. What ships now:
   timers that ring on the device) and the exposed Gemini search agent;
 - a panel capability check that shows whether Realtime can actually see web/search and music tools,
   not just whether HA's MCP server is reachable;
-- end-phrase fallback (Danish + English) on top of the model-owned `end_conversation` closure.
+- transport-owned closure on exact whole utterances; the model cannot guess that a noisy
+  transcript means “farvel” and close the socket.
 
-The direct speaker fix is compiled but deliberately not called delivered until a complete physical
-conversation passes. The measurable product and release gates live in
+The firmware has exactly one wake owner and never starts a stock Home Assistant Assist run.
+The measurable product and release gates live in
 **[docs/PRODUKTMÅL.md](docs/PRODUKTMÅL.md)**.
 
 ## Sidebar panel & simulation mode
@@ -70,13 +71,14 @@ hardware or API keys.
 
 ## The conversation loop (at a glance)
 ```
-IDLE ──wake word / button──▶ ACTIVE (one open conversation: listening and speaking
-  ▲                          interleave freely; music ducked; mic streams ONLY now)
-  └── "stop"/"det var det"/end_conversation/idle timeout ──▶ music restored, mic off
+IDLE ──wake word / button──▶ ACTIVE (one Realtime session; follow-ups stay here)
+  ▲                          music ducked; mic streams ONLY now)
+  └── exact "stop"/"farvel"/timeout/error ──▶ socket closed, mic off, wake rearmed
 ```
 
 ## Components
-- `esphome/podvoice.yaml` — the Voice PE firmware overlay (thin `packages:` include of the official firmware + PodVoice's few overrides, incl. the `podvoice_audio` mic transport).
+- `esphome/podvoice.yaml` — the Voice PE firmware overlay plus an auditable vendored
+  upstream base. Wake opens only PodVoice's mic channel; stock HA Assist is never started.
 - `gatekeeper/` — the Python asyncio service (engines, OpenAI Realtime client, MCP tool router, Attention client + heartbeat, usage meter, panel).
 - `podvoice/` — the HA add-on packaging (`config.yaml`, `Dockerfile`, `run.sh`).
 - `config.example.yaml` — OpenAI API key, PodConnect base URL + token, Voice-PE → room map.

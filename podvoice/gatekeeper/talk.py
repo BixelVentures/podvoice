@@ -1,7 +1,7 @@
 """Talk tab = the REAL engine (0.90): the browser is a *device*, not a side-channel.
 
 The old console was a raw browser<->model bridge that bypassed every rule the puck
-lives by (no wake gate, no idle close, no echo shield, no end_conversation) — so the
+lives by (no wake gate, no idle close, no echo shield, different transport closure) — so the
 tab could never PROVE the product. Now the mic button fires the same ``wake()`` as
 "Okay Nabu", and the browser plays the same reply-bus FLAC stream the puck fetches:
 tools, goodbye, idle fallback, conversation cap, echo shield — all identical by
@@ -53,6 +53,10 @@ class BrowserLink:
         self._send_bytes = send_bytes  # async callable(bytes)
         self._audio_q: asyncio.Queue[bytes] = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
         self._streaming = False  # forward-gate: mirrors podvoice_stream_start/stop
+        # Same lifecycle generation as the physical adapter. Only the audio I/O differs.
+        self.supports_podvoice_channel = True
+        self.supports_same_breath = True
+        self.supports_direct = False
         # Callbacks the engine wires (same names as VoicePELink).
         self.on_wake: Any = None
         self.on_media_state: Any = None

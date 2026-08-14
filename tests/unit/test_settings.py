@@ -11,7 +11,7 @@ from gatekeeper.config import load_config
 def test_defaults_and_roundtrip(tmp_path):
     p = tmp_path / "podvoice.json"
     d = S.load_settings(p)
-    assert d["engine"] == "classic" and d["rooms"] == [] and d["duck_level"] == 0
+    assert d["engine"] == "thin" and d["rooms"] == [] and d["duck_level"] == 0
     assert d["mic_channel"] == 1 and d["mic_gain"] == 16
     assert d["openai_noise"] == "off"
 
@@ -25,7 +25,22 @@ def test_defaults_and_roundtrip(tmp_path):
 def test_corrupt_file_falls_back(tmp_path):
     p = tmp_path / "podvoice.json"
     p.write_text("{ not json")
-    assert S.load_settings(p)["engine"] == "classic"
+    assert S.load_settings(p)["engine"] == "thin"
+
+
+def test_legacy_lifecycle_settings_cannot_be_resurrected(tmp_path):
+    p = tmp_path / "podvoice.json"
+    p.write_text(
+        json.dumps(
+            {"settings_version": S.SETTINGS_VERSION, "engine": "classic", "speaker_path": "direct"}
+        )
+    )
+    loaded = S.load_settings(p)
+    assert loaded["engine"] == "thin"
+    assert loaded["speaker_path"] == "announce"
+    saved = S.save_settings({"engine": "classic", "speaker_path": "auto"}, p)
+    assert saved["engine"] == "thin"
+    assert saved["speaker_path"] == "announce"
 
 
 def test_load_config_merges_settings_with_keys(tmp_path, monkeypatch):
@@ -164,5 +179,6 @@ def test_speaker_path_defaults_to_the_proven_announce_path():
     assert from_options({}).speaker_path == "announce"
     assert from_options(dict(DEFAULTS)).speaker_path == "announce"
     assert "speaker_path" in TUNING_KEYS  # a saved "auto" is dropped on upgrade
-    # ...but an explicit override still works, so the fix can be tested on hardware.
-    assert from_options({"speaker_path": "auto"}).speaker_path == "auto"
+    # A stale/explicit override cannot resurrect the stock-VA-dependent experiment.
+    assert from_options({"speaker_path": "auto"}).speaker_path == "announce"
+    assert from_options({"speaker_path": "direct"}).speaker_path == "announce"

@@ -49,15 +49,6 @@ from .voice import (
 
 _LOG = logging.getLogger("podvoice.thin")
 
-# The thin-native closure: instead of client-side word lists, the MODEL gets a tool it
-# calls when the user is clearly done ("stop", "farvel", "det var det", any phrasing).
-END_CONVERSATION_TOOL = {
-    "name": "end_conversation",
-    "description": "Call this when the user clearly wants to END the conversation - "
-    "says stop, farvel, tak for hjælpen, det var det, or similar. Say a SHORT goodbye "
-    "FIRST (one word or two), then call this.",
-    "parameters": {"type": "object", "properties": {}},
-}
 # Hard ceiling on one conversation (the provider caps sessions at 60 min; close cleanly
 # well before so the family never hits a mid-sentence provider cut). Configurable per
 # session via max_session_s (Settings: max_session_min) — this is only the default.
@@ -77,9 +68,9 @@ BARGE_DEBOUNCE_S = 0.6
 # preset (server_vad) the SERVER also closes idle conversations via idle_timeout_ms;
 # this fallback is the belt for semantic_vad and for a server that never says so.
 IDLE_FALLBACK_S = 25.0
-# End-phrase fallback (ported behavior — ha-realtime-assist-style, DA + EN): if the
-# user's WHOLE utterance is a goodbye/closure phrase, close even when the model forgets
-# to call end_conversation. Hard words stop NOW; polite phrases close after the reply.
+# The transport owns closure. Only an exact WHOLE utterance may end a session; the
+# model is never allowed to infer transport closure from noisy or partial speech.
+# Hard words stop now; polite phrases close after the spoken goodbye completes.
 END_NOW_WORDS = frozenset({"stop", "stille", "vent"})
 END_PHRASES = frozenset(
     {
@@ -92,10 +83,6 @@ END_PHRASES = frozenset(
         "tak det var alt",
         "tak for hjælpen",
         "ellers tak",
-        "nej tak",
-        "tak",
-        "mange tak",
-        "tusind tak",
         # English
         "goodbye",
         "bye",
@@ -104,9 +91,6 @@ END_PHRASES = frozenset(
         "that is all",
         "thanks that's all",
         "thank you that's all",
-        "no thanks",
-        "thanks",
-        "thank you",
     }
 )
 
@@ -389,11 +373,6 @@ class ThinSession:
         self._last_activity = self._conv_started
         self.sm.state = State.LISTENING
         self._set_led(State.LISTENING)  # instantly — before the WS connect
-        # The firmware clears its ring on the RUN_END we send ~0.2 s after wake, so a
-        # SINGLE paint leaves a quarter-second dark hole and the ring looks slow to
-        # start (field 2026-08-07). Repaint across that window so the light is on from
-        # the first instant and never blinks out.
-        self._spawn(self._hold_led_through_run_end(), "thin-led-hold")
         self._hub_state("LISTENING", "👋 Vågnede — samtalen er åben")
         # Duck for the WHOLE conversation (no per-turn pumping — one calm level).
         self.heartbeat.start(self.room, self.duck_level, C.TTL_LISTENING_MS)
@@ -404,16 +383,13 @@ class ThinSession:
         # the local wake edge, before its cue; the frames already queued now contain
         # the user's first words.  The queue is instead cleaned after every teardown,
         # once forwarding has stopped, so old-tail audio cannot cross conversations.
-        # NOTE: no abort_va here — ending the stock VA run is anchored in the link's
-        # handle_start (scheduled RUN_END on EVERY delivered wake); a second, immediate
-        # RUN_END from here could race the run's own setup and is redundant.
         if hasattr(self.voicepe, "start_streaming"):
             await self.voicepe.start_streaming()
         # Tool declarations are part of session.update, which connect() sends. Setting
         # them afterwards made HA/PodConnect changes arrive one conversation late.
         if self.tools is not None and hasattr(self.brain, "tool_declarations"):
             decls = self.tools.declarations()
-            self.brain.tool_declarations = [*decls, END_CONVERSATION_TOOL]
+            self.brain.tool_declarations = list(decls)
         try:
             await asyncio.wait_for(self.brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
         except Exception as e:
@@ -433,7 +409,7 @@ class ThinSession:
         self._beat = self._spawn(self._heartbeat(), "thin-beat")
         self._keepalive = self._spawn(self._keepalive_mic(), "thin-keepalive")
 
-    async def stop(self, reason: str = "stop", *, play_close_cue: bool = True) -> None:
+    async def stop(self, reason: str = "stop") -> None:
         """Close the conversation NOW (stop word/button/panel/mute/idle)."""
         if not self._active:
             return
@@ -442,8 +418,6 @@ class ThinSession:
         self._trace_event("close_requested", reason=reason)
         _LOG.info("thin: closing conversation (%s) [room=%s]", reason, self.room)
         await self._silence_device()
-        if play_close_cue:
-            await self._play_close_cue()
         await self._teardown(release_music=True)
         self._hub_state("IDLE", "💤 Samtale slut — musikken er tilbage")
 
@@ -510,12 +484,6 @@ class ThinSession:
         if hasattr(self.voicepe, "stop_streaming"):
             with contextlib.suppress(Exception):
                 await self.voicepe.stop_streaming()
-        # Re-arm the physical wake detector at every close as well as at the initial
-        # handle_start edge.  RUN_END is idempotent, and this closes the field failure
-        # where a delayed/stuck stock VA run consumed the next wake as STOP.
-        if hasattr(self.voicepe, "abort_va"):
-            with contextlib.suppress(Exception):
-                await self.voicepe.abort_va()
         if hasattr(self.voicepe, "drain_mic"):
             stale = self.voicepe.drain_mic()
             if stale:
@@ -699,33 +667,25 @@ class ThinSession:
                         self._schedule_followup_edge()
                     else:
                         self._enter_followup()
+                if self._ending_conversation and self._active:
+                    self._arm_goodbye("thin-endphrase-complete")
         elif isinstance(ev, Idle):
             self._trace_event("provider_idle")
             await self.stop(reason="idle")
         elif isinstance(ev, ToolCall):
             self._trace_event("tool_call", name=ev.name, call_id=ev.id)
-            if ev.name != "end_conversation" and not self._direct:
+            if not self._direct:
                 await self._discard_tool_preamble()
                 # History represents what the room heard. The preamble was truncated
                 # at zero and must not survive as a fake spoken assistant turn.
                 self._buf_out.clear()
             else:
-                # Direct replies have already reached the DAC; end_conversation's
-                # goodbye is also intentionally audible. Preserve those transcripts.
+                # Direct replies have already reached the DAC. Preserve transcripts.
                 self._flush_transcript("out")
-            if ev.name == "end_conversation":
-                self._ending_conversation = True
-            if ev.name != "end_conversation":
-                # A real tool means MORE speech follows in this burst; end_conversation
-                # means the goodbye already playing is the LAST speech (no follow-up).
-                self._turn_had_tool = True
+            self._turn_had_tool = True
             if self.hub is not None:
                 self.hub.incr("tool_calls")
-            if ev.name != "end_conversation":
-                # Only tools whose RESULT makes the model speak again may hold the reply
-                # stream open. end_conversation produces no follow-up speech — counting
-                # it left the goodbye hanging with a ducked, silent room.
-                self._speech_tools.add(ev.id)
+            self._speech_tools.add(ev.id)
             task = asyncio.create_task(self._run_tool(ev), name=f"thin-tool-{ev.id}")
             self._tool_tasks[ev.id] = task
 
@@ -762,10 +722,12 @@ class ThinSession:
                 self.hub.transcript_delta(self.room, "out", ev.text)
 
     async def _maybe_end_phrase(self, text: str) -> None:
-        """Client-side closure fallback: the model owns goodbyes (end_conversation),
-        but when it forgets, a WHOLE utterance that is a closure phrase still ends the
-        conversation. Hard words silence the device NOW; polite phrases let the model's
-        goodbye finish first. Embedded politeness ('sluk lyset, tak') never matches."""
+        """Transport-owned closure on an unambiguous WHOLE utterance.
+
+        Realtime still understands and answers the user, but it cannot close the socket
+        by guessing a tool. Hard words close now; polite phrases let its goodbye finish.
+        Embedded politeness ('sluk lyset, tak') never matches.
+        """
         if self._device_playing:
             return  # residual echo of the model's own 'farvel' must never close the chat
         if not self._active:
@@ -779,7 +741,6 @@ class ThinSession:
         elif phrase in END_PHRASES:
             _LOG.info("thin: end phrase %r — closing after the goodbye", phrase)
             self._ending_conversation = True
-            self._arm_goodbye("thin-endphrase")
 
     def _flush_transcript(self, direction: str) -> None:
         buf = self._buf_in if direction == "in" else self._buf_out
@@ -1071,19 +1032,6 @@ class ThinSession:
             await self.voicepe.play_url(self.reply_url)
 
     async def _run_tool(self, tc: ToolCall) -> None:
-        if tc.name == "end_conversation":
-            # The model says the user is done. Let the goodbye finish playing, then close.
-            if self.hub is not None:
-                self.hub.tool_call(self.room, tc.name, {"ok": True}, tc.args)
-            async with self._tool_lock:
-                with contextlib.suppress(Exception):
-                    await self.brain.send_tool_results(
-                        [{"id": tc.id, "name": tc.name, "response": {"ok": True}}],
-                        create=False,  # the goodbye was already spoken — requesting
-                        # another response here produced the double "Farvel." bug
-                    )
-            self._arm_goodbye("thin-goodbye")
-            return
         if self.tools is None:
             result: dict = {"ok": False, "error": "no tools configured"}
         else:
@@ -1454,17 +1402,6 @@ class ThinSession:
         with contextlib.suppress(Exception):
             await self._play_oneshot(await self.speech.say(C.FALLBACK_HOME_UNREACHABLE))
 
-    async def _play_close_cue(self) -> None:
-        """The audible full stop: a short soft fall when the conversation ends.
-
-        Without it the ring just goes dark and the family cannot tell "it closed"
-        from "it died" — and cannot hear that the mic is shut again."""
-        from . import audio as audio_mod
-
-        with contextlib.suppress(Exception):
-            await self._play_oneshot(audio_mod.close_tone(C.OUTPUT_RATE))
-            await asyncio.sleep(0.45)  # let it actually reach the speaker before teardown
-
     async def _speak_error(self, kind: str) -> None:
         """The error, out loud, in the assistant's own voice (tone as last resort)."""
         from . import audio as audio_mod
@@ -1475,18 +1412,6 @@ class ThinSession:
                 pcm = await self.speech.say(C.ERROR_PHRASES.get(kind, C.FALLBACK_CONNECTION))
         with contextlib.suppress(Exception):
             await self._play_oneshot(pcm or audio_mod.error_tone(C.OUTPUT_RATE))
-
-    async def _hold_led_through_run_end(self) -> None:
-        """Keep the ring lit across the firmware's RUN_END reset (see wake()).
-
-        Three cheap repaints over ~0.6 s: one just before the reset lands, one just
-        after, one as insurance. Cheaper than a dark ring that makes a 100 ms wake
-        feel like a slow one."""
-        for gap in (0.15, 0.13, 0.27):  # ~0.15 s, ~0.28 s, ~0.55 s after wake
-            await asyncio.sleep(gap)
-            if not self._active:
-                return
-            self._set_led(self.sm.state)
 
     def _set_led(self, state: State, *, error: bool = False) -> None:
         if not hasattr(self.voicepe, "set_light"):

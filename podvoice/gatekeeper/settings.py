@@ -157,17 +157,11 @@ DEFAULTS: dict = {
     "mic_gain": 16,  # physically measured desk baseline; re-asserted on every connect
     "idle_timeout_s": 8,  # close the conversation after this much user silence (owner-tunable 3+)
     "max_session_min": 15,  # hard ceiling on one conversation (cost control)
-    "engine": "classic",  # "classic" (the proven state-machine engine) | "thin" (Track B:
+    "engine": "thin",  # canonical one-session PodVoice lifecycle
     # the model owns the conversation — turn-taking, barge-in, idle — via server VAD)
     "reply_streaming": False,  # stream the reply FLAC as it's generated (kills the pre-reply
     # silence) — experimental until verified on the device; buffered is the safe default
-    # 1.11.1: FORCED BACK to the announce path. On real hardware the 2b direct path
-    # left the device wedged: VA reaches RESPONSE_FINISHED but never fires
-    # on_tts_stream_end, because it waits for the speaker to report finished and that
-    # speaker is SHARED with external_media_player, which keeps it running. Symptoms:
-    # no reply_played (the watchdog carried it), voice_assistant_phase stuck at 5, so
-    # the ring span "replying" forever and the next question got no answer.
-    # "auto"/"direct" still work as an explicit override for testing the fix.
+    # One response path. The retired direct experiment depended on a stock-VA run.
     "speaker_path": "announce",
     "panel_lan_open": False,  # False = panel/API only via HA Ingress (the sidebar). True
     # re-opens direct LAN access to :8098 (unauthenticated — you're on your own)
@@ -237,6 +231,10 @@ def load_settings(path: pathlib.Path | None = None) -> dict:
             data.update({k: v for k, v in saved.items() if k in DEFAULTS})
     except Exception as e:  # corrupt file must not stop the add-on
         _LOG.warning("could not read %s: %s — using defaults", src, e)
+    # Architecture invariants, not user preferences. Old settings cannot resurrect a
+    # second engine or the stock-VA-dependent direct speaker experiment.
+    data["engine"] = "thin"
+    data["speaker_path"] = "announce"
     return data
 
 
@@ -302,6 +300,8 @@ def save_settings(values: dict, path: pathlib.Path | None = None) -> dict:
         if k in SECRET_SETTINGS and v == SECRET_MASK:
             continue  # round-tripped mask — keep the stored secret
         data[k] = _coerce(k, v, DEFAULTS[k])
+    data["engine"] = "thin"
+    data["speaker_path"] = "announce"
     src.parent.mkdir(parents=True, exist_ok=True)
     src.write_text(json.dumps(data, indent=2))
     _LOG.info("settings saved to %s", src)

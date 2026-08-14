@@ -55,9 +55,10 @@ def test_guided_groundtest_keeps_each_followup_uninterrupted_before_verdict():
     assert "Forkert hørt" in html
     assert "Forkert svar" in html
     assert "Intet skete" in html
-    assert "Rør ikke panelet mellem de to sætninger" in html
+    assert "Rør ikke panelet under samtalen" in html
+    assert "3. Sig: “Farvel.”" in html
     assert "Uden nyt wake-ord" in html
-    assert "panelet lukker derefter testsamtalen rent" in html
+    assert "næste trin beviser straks rearm" in html
 
 
 def test_test_tab_can_arm_one_local_physical_audio_trace():

@@ -28,6 +28,7 @@ class FakeVoicePELink:
         # False by default, so every pre-existing test keeps exercising the announce path.
         self.supports_direct = False
         self.supports_same_breath = True
+        self.supports_podvoice_channel = True
         self.started = False
         self.streaming = False
         self.closed = False

@@ -1,44 +1,50 @@
-"""Static locks for the firmware graph that Python-side device mocks cannot see."""
+"""Static locks for the single PodVoice lifecycle in the Voice PE firmware."""
 
 from pathlib import Path
 
-FIRMWARE = Path(__file__).parents[2] / "esphome" / "podvoice.yaml"
+ROOT = Path(__file__).parents[2]
+OVERLAY = ROOT / "esphome" / "podvoice.yaml"
+BASE = ROOT / "esphome" / "voice-pe-podvoice-base.yaml"
 
 
-def test_direct_voice_reply_owns_its_resampler_and_mixer_source():
-    """Regression for 1.11.0's endless RESPONSE_FINISHED state.
-
-    The external media player must not own either node whose lifecycle Voice Assistant
-    waits on. A dedicated resampler alone is insufficient because ResamplerSpeaker
-    delegates has_buffered_data() to its output; that output must therefore also be a
-    dedicated, finite-timeout mixer source.
-    """
-    yaml = FIRMWARE.read_text()
-
-    assert "speaker: voice_assistant_resampling_speaker" in yaml
-    assert "id: voice_assistant_resampling_speaker" in yaml
-    assert "output_speaker: voice_assistant_mixing_input" in yaml
-    assert "id: voice_assistant_mixing_input" in yaml
-    assert "timeout: 500ms" in yaml
-    assert "id(voice_assistant_resampling_speaker).set_audio_stream_info(" in yaml
-    assert "direct_speaker_v3" in yaml
-    assert "podvoice_direct_prepare" in yaml
+def test_vendored_base_has_auditable_provenance():
+    yaml = BASE.read_text()
+    assert "772f2b9c8a881899a6f7b44d997aa6093c7e8aa7" in yaml
+    assert "b68a8e8df8dc5471bf23706503c04c736182d93aa7a0c78724331146b2dc2c68" in yaml
 
 
-def test_announce_player_speaker_is_not_reused_by_voice_assistant():
-    yaml = FIRMWARE.read_text()
-    voice_assistant = yaml.split("\nvoice_assistant:\n", 1)[1].split("\n# Upstream ships wifi", 1)[
-        0
-    ]
+def test_firmware_has_one_wake_owner_and_zero_stock_assist_starts():
+    base = BASE.read_text()
+    overlay = OVERLAY.read_text()
+    combined = base + "\n" + overlay
 
-    assert "speaker: announcement_resampling_speaker" not in voice_assistant
-    assert "id(announcement_resampling_speaker).set_audio_stream_info(" not in voice_assistant
+    assert combined.count("on_wake_word_detected:") == 1
+    assert "voice_assistant.start:" not in combined
+    assert base.count("event_type: wake_okay_nabu") == 1
+    assert "id(pv_audio).start_streaming();" in base
+    assert not any(line.startswith("micro_wake_word:") for line in overlay.splitlines())
 
 
-def test_same_breath_capture_precedes_stock_wake_delay():
-    yaml = FIRMWARE.read_text()
-    assert "same_breath_v1" in yaml
-    assert "id(pv_audio).start_streaming();" in yaml
-    assert "event_type: wake_okay_nabu" in yaml
-    assert "id: !extend wake_sound" in yaml
-    assert "restore_mode: ALWAYS_OFF" in yaml
+def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
+    overlay = OVERLAY.read_text()
+    assert "podvoice_channel_v1" in overlay
+    assert "same_breath_v1" in overlay
+    assert "podvoice_direct_prepare" not in overlay
+    assert "direct_speaker_v3" not in overlay
+
+
+def test_wake_ack_is_visual_not_a_control_announcement():
+    overlay = OVERLAY.read_text()
+    base = BASE.read_text()
+    assert "id: !extend wake_sound" in overlay
+    assert "restore_mode: ALWAYS_OFF" in overlay
+    wake = base.split("on_wake_word_detected:", 1)[1].split("\nselect:", 1)[0]
+    assert "play_sound" not in wake
+    assert "delay:" not in wake
+
+
+def test_center_button_never_starts_stock_assist():
+    base = BASE.read_text()
+    click = base.split("on_multi_click:", 1)[1].split("\n    - timing:", 1)[0]
+    assert "- voice_assistant.start:" not in click
+    assert "event_type: single_press" in click

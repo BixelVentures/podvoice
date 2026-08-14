@@ -36,11 +36,9 @@ class _StubSession:
         self.sm = _StubSM()
         self.playback = _StubPlayback()
         self.stops: list[str] = []
-        self.stop_close_cues: list[bool] = []
 
-    async def stop(self, reason: str = "stop", *, play_close_cue: bool = True) -> None:
+    async def stop(self, reason: str = "stop") -> None:
         self.stops.append(reason)
-        self.stop_close_cues.append(play_close_cue)
 
 
 class _StubTools:
@@ -210,7 +208,10 @@ async def test_groundtest_guides_ten_uninterrupted_conversations_and_captures_ev
         hist.append("kitchen", "out", "Klokken er tre.", ts=now + 0.1)
         hist.append("kitchen", "in", "Og hvilken ugedag er det?", ts=now + 0.2)
         hist.append("kitchen", "out", "Det er onsdag.", ts=now + 0.3)
+        hist.append("kitchen", "in", "Farvel.", ts=now + 0.4)
+        hist.append("kitchen", "out", "Farvel.", ts=now + 0.5)
         hub.set_state("kitchen", "LISTENING")
+        hub.set_state("kitchen", "IDLE")
         hub.tool_call(
             "kitchen",
             "get_time",
@@ -227,14 +228,17 @@ async def test_groundtest_guides_ten_uninterrupted_conversations_and_captures_ev
     assert response.status == 200
     assert rated["run"]["current_index"] == 1
     result = rated["run"]["results"][0]
-    assert result["inputs"] == ["Hvad er klokken?", "Og hvilken ugedag er det?"]
-    assert result["outputs"] == ["Klokken er tre.", "Det er onsdag."]
-    assert result["says"] == ["Okay Nabu, hvad er klokken?", "Og hvilken ugedag er det?"]
+    assert result["inputs"] == ["Hvad er klokken?", "Og hvilken ugedag er det?", "Farvel."]
+    assert result["outputs"] == ["Klokken er tre.", "Det er onsdag.", "Farvel."]
+    assert result["says"] == [
+        "Okay Nabu, hvad er klokken?",
+        "Og hvilken ugedag er det?",
+        "Farvel.",
+    ]
     assert result["latency_ms"] == 1456
     assert result["latencies_ms"] == [1234, 1456]
     assert result["closed_room"] == "kitchen"
     assert session.stops == ["groundtest-verdict"]
-    assert session.stop_close_cues == [False]
     assert result["tools"][0]["args"] == {}
     assert result["tools"][0]["result"]["data"]["time"] == "15:00"
     assert rated["summary"]["counts"]["correct"] == 1
@@ -266,7 +270,7 @@ async def test_groundtest_cannot_mark_a_half_finished_pair_correct(tmp_path):
         body = await response.json()
 
     assert response.status == 409
-    assert "både spørgsmålet og opfølgningen" in body["error"]
+    assert "du har sagt farvel" in body["error"]
 
 
 async def test_audio_trace_can_be_armed_only_for_a_real_room(tmp_path):
