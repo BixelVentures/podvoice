@@ -23,6 +23,7 @@ from gatekeeper.voice import (
     InputTranscript,
     Interrupted,
     ToolCall,
+    ToolRoundComplete,
     TurnComplete,
 )
 
@@ -486,6 +487,32 @@ async def test_tool_preamble_is_never_published_to_the_buffered_announce():
         await session.aclose()
 
 
+async def test_deferred_tool_result_answer_is_published_on_its_real_turn_boundary():
+    """Physical 1.13.0 regression: a fast local tool can finish while its function-call
+    response is still active.  OpenAI then suppresses that response's TurnComplete and
+    emits ToolRoundComplete before the spoken result.  The result PCM must be announced
+    exactly once; it must not remain trapped in the held buffer as the field test did."""
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(ToolCall("c-fast", "get_time", {}))
+        await _wait_until(lambda: len(gemini.sent_tool_results) == 1)
+
+        # Deferred provider ordering: no intermediate TurnComplete is exposed.
+        gemini.emit(ToolRoundComplete())
+        answer = _frame(amplitude=333)
+        gemini.emit(AudioChunk(answer, item_id="weekday-answer"), TurnComplete())
+
+        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
+        streamed = await session.reply_bus.collect(ROOM, max_wait_s=0.5)
+        assert streamed.startswith(answer)
+        assert session._held_announce_pcm == []
+    finally:
+        await session.aclose()
+
+
 async def test_reply_led_and_audio_mark_the_real_turn_boundary():
     """Green lasts until the device is silent; only then does the ring dim.
 
@@ -677,8 +704,12 @@ async def test_ten_clean_wake_session_close_rearm_cycles():
             assert "abort" not in voicepe.direct_events
 
         assert len(attention.release_calls) == 10
+        assert voicepe.rearm_calls == 10
     finally:
         await session.aclose()
+
+    # Shutting the add-on down must not rearm a puck without an owning connection.
+    assert voicepe.rearm_calls == 10
 
 
 async def test_puck_gets_the_shield_talk_gets_duplex():

@@ -1672,7 +1672,9 @@ micro_wake_word:
     microphone: i2s_mics
     channels: 1
     gain_factor: 4
-  stop_after_detection: false
+  # A physical wake is single-use. PodVoice explicitly starts the detector again only
+  # after the matching Realtime conversation has been fully torn down.
+  stop_after_detection: true
   models:
     - model: https://github.com/kahrendt/microWakeWord/releases/download/okay_nabu_20241226.3/okay_nabu.json
       id: okay_nabu

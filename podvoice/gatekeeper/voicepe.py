@@ -39,6 +39,7 @@ _QUEUE_MAXSIZE = 400
 REQUIRED_SERVICES: dict[str, str] = {
     "podvoice_stream_start": "mic-forward: the assistant is DEAF without it",
     "podvoice_stream_stop": "mic-forward close: the mic can never gate off",
+    "podvoice_rearm_wake_word": "conversation close: the next wake can never fire",
 }
 OPTIONAL_SERVICES: dict[str, str] = {
     "podvoice_va_abort": "stock-run abort (covered by the RUN_END fallback)",
@@ -118,6 +119,7 @@ class VoicePELink:
         # Clean firmware contract: one local event opens PodVoice and no stock HA
         # Assist run is started. The VA component is only the native-API audio endpoint.
         self.supports_podvoice_channel = False
+        self.supports_deterministic_rearm = False
         # same_breath firmware emits its explicit event at the local wake edge and the
         # stock VA reports the same physical wake again through handle_start ~300 ms
         # later.  Remember the first edge so the latter remains an ACK/fallback rather
@@ -299,6 +301,7 @@ class VoicePELink:
                 advertised.update(getattr(e, "event_types", None) or [])
             self.supports_same_breath = "same_breath_v1" in advertised
             self.supports_podvoice_channel = "podvoice_channel_v1" in advertised
+            self.supports_deterministic_rearm = "deterministic_rearm_v1" in advertised
             self.supports_direct = (
                 "direct_speaker_v3" in advertised
                 and "podvoice_direct_prepare" in self._user_services
@@ -330,6 +333,8 @@ class VoicePELink:
             missing_capabilities.append("podvoice_channel_v1")
         if not self.supports_same_breath:
             missing_capabilities.append("same_breath_v1")
+        if not self.supports_deterministic_rearm:
+            missing_capabilities.append("deterministic_rearm_v1")
         ok = not missing_required and self._media_key is not None and not missing_capabilities
         self.contract = {
             "ok": ok,
@@ -435,6 +440,10 @@ class VoicePELink:
     async def stop_streaming(self) -> None:
         """Close the device mic-forward (session end / grace expiry)."""
         await self._call_service("podvoice_stream_stop")
+
+    async def rearm_wake_word(self) -> None:
+        """Return the puck to local wake detection after a complete teardown."""
+        await self._call_service("podvoice_rearm_wake_word")
 
     async def set_light(self, on: bool, rgb: tuple[float, float, float], brightness: float) -> None:
         """Drive the LED ring. Best-effort; no-op if the device has no resolvable light."""

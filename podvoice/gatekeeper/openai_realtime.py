@@ -39,6 +39,7 @@ from .voice import (
     Interrupted,
     OutputTranscript,
     ToolCall,
+    ToolRoundComplete,
     TurnComplete,
     Usage,
     UserSpeechStopped,
@@ -498,6 +499,13 @@ class OpenAIRealtimeSession:
                         status,
                     )
                     await self._ws.send_json({"type": "response.create"})
+                    # Do not emit TurnComplete: the room has not received its answer
+                    # yet.  Still publish an explicit provider-neutral edge so Thin
+                    # clears the tool-decision state.  Without this marker the final
+                    # answer's TurnComplete was mistaken for another tool decision and
+                    # its fully generated PCM stayed forever in the held announce
+                    # buffer (physical 1.13.0 follow-up failure, 2026-08-14 12:00).
+                    yield ToolRoundComplete()
                     continue
                 _LOG.info("turn: response.done id=%s status=%s -> TurnComplete", rid, status)
                 yield TurnComplete()

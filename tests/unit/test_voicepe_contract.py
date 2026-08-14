@@ -14,6 +14,18 @@ class _Svc:
         self.name = name
 
 
+FULL_SERVICES = [
+    "podvoice_stream_start",
+    "podvoice_stream_stop",
+    "podvoice_rearm_wake_word",
+]
+FULL_CAPABILITIES = [
+    "podvoice_channel_v1",
+    "same_breath_v1",
+    "deterministic_rearm_v1",
+]
+
+
 class MediaPlayerInfo:  # _resolve_entities matches on the CLASS NAME
     def __init__(self, object_id: str, key: int) -> None:
         self.object_id = object_id
@@ -50,11 +62,11 @@ def _link(client: _StubClient) -> VoicePELink:
 
 async def test_contract_ok_with_full_firmware(caplog):
     client = _StubClient(
-        ["podvoice_stream_start", "podvoice_stream_stop"],
+        FULL_SERVICES,
         [
             MediaPlayerInfo("external_media_player", 7),
             LightInfo("led_ring", 9),
-            EventInfo("podvoice_event", 3, ["podvoice_channel_v1", "same_breath_v1"]),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
     link = _link(client)
@@ -77,7 +89,10 @@ async def test_contract_mismatch_is_loud_and_reported(caplog):
     with caplog.at_level(logging.WARNING, logger="gatekeeper.voicepe"):
         report = link._verify_contract()
     assert report["ok"] is False
-    assert report["missing_required"] == ["podvoice_stream_start"]
+    assert report["missing_required"] == [
+        "podvoice_rearm_wake_word",
+        "podvoice_stream_start",
+    ]
     assert "media_player" in report["missing_entities"]
     warnings = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
     assert any("FIRMWARE MISMATCH" in w and "podvoice_stream_start" in w for w in warnings)
@@ -212,7 +227,11 @@ async def test_old_pause_required_firmware_is_reported_degraded():
     await link._resolve_entities()
     report = link._verify_contract()
     assert report["ok"] is False
-    assert report["missing_capabilities"] == ["podvoice_channel_v1", "same_breath_v1"]
+    assert report["missing_capabilities"] == [
+        "podvoice_channel_v1",
+        "same_breath_v1",
+        "deterministic_rearm_v1",
+    ]
     assert link.supports_same_breath is False
 
 
@@ -228,6 +247,21 @@ async def test_clean_podvoice_channel_capability_is_read_from_firmware():
     link = _link(client)
     await link._resolve_entities()
     assert link.supports_podvoice_channel is True
+
+
+async def test_deterministic_rearm_capability_is_read_from_firmware():
+    client = _StubClient([], [EventInfo("podvoice_event", 3, ["deterministic_rearm_v1"])])
+    link = _link(client)
+    await link._resolve_entities()
+    assert link.supports_deterministic_rearm is True
+
+
+async def test_rearm_calls_the_dedicated_firmware_service():
+    client = _StubClient(FULL_SERVICES, [])
+    link = _link(client)
+    await link._resolve_entities()
+    await link.rearm_wake_word()
+    assert client.executed == ["podvoice_rearm_wake_word"]
 
 
 async def test_direct_support_is_read_off_the_firmware_not_a_setting():

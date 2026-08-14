@@ -31,6 +31,7 @@ class FakeVoicePELink:
         self.supports_podvoice_channel = True
         self.started = False
         self.streaming = False
+        self.rearm_calls = 0
         self.closed = False
 
     def feed(self, frames: list[bytes]) -> None:
@@ -48,6 +49,10 @@ class FakeVoicePELink:
     async def stop_streaming(self) -> None:
         await asyncio.sleep(0)  # ensures cancellation is DELIVERED here in tests
         self.streaming = False
+
+    async def rearm_wake_word(self) -> None:
+        await asyncio.sleep(0)
+        self.rearm_calls += 1
 
     def drain_mic(self) -> int:
         n = 0

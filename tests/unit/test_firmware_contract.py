@@ -29,8 +29,28 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     overlay = OVERLAY.read_text()
     assert "podvoice_channel_v1" in overlay
     assert "same_breath_v1" in overlay
+    assert "deterministic_rearm_v1" in overlay
     assert "podvoice_direct_prepare" not in overlay
     assert "direct_speaker_v3" not in overlay
+
+
+def test_same_breath_channel_keeps_enough_local_preroll():
+    """Wake-model decision latency must not eat the question spoken after Okay Nabu."""
+    overlay = OVERLAY.read_text()
+    line = next(line for line in overlay.splitlines() if line.strip().startswith("ring_ms:"))
+    assert int(line.split(":", 1)[1].strip()) >= 1200
+
+
+def test_each_detection_is_single_use_and_teardown_can_rearm_it():
+    base = BASE.read_text()
+    overlay = OVERLAY.read_text()
+    assert "stop_after_detection: true" in base
+    assert "action: podvoice_rearm_wake_word" in overlay
+    rearm = overlay.split("action: podvoice_rearm_wake_word", 1)[1].split(
+        "# RUNTIME audio tuning", 1
+    )[0]
+    assert "micro_wake_word.is_running:" in rearm
+    assert "micro_wake_word.start:" in rearm
 
 
 def test_wake_ack_is_visual_not_a_control_announcement():

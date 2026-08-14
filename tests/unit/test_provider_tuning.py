@@ -8,7 +8,7 @@ import aiohttp
 
 from gatekeeper.openai_realtime import OpenAIRealtimeSession
 from gatekeeper.settings import load_settings, save_settings
-from gatekeeper.voice import Interrupted, TurnComplete
+from gatekeeper.voice import Interrupted, ToolRoundComplete, TurnComplete
 
 
 class _Msg:
@@ -71,6 +71,7 @@ async def test_openai_fires_deferred_create_without_ending_turn():
     s._pending_create = True
     evs = await _drain(s)
     assert sum(isinstance(e, TurnComplete) for e in evs) == 1  # only the real end-of-turn
+    assert sum(isinstance(e, ToolRoundComplete) for e in evs) == 1
     assert {"type": "response.create"} in s._ws.sent and s._pending_create is False
 
 

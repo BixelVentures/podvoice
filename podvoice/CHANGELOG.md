@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.13.1 — samme åndedrag, værktøjssvar og næste wake
+
+- Voice PE beholder nu 1,5 sekunders lyd lokalt før wake-signalet, så spørgsmålet i
+  “Okay Nabu, hvad er klokken?” ikke bliver skåret ned til det sidste ord, mens
+  wake-modellen træffer sin beslutning. Lyden forlader fortsat ikke enheden før wake.
+- Et eksplicit `ToolRoundComplete`-event adskiller værktøjsbeslutningen fra det
+  efterfølgende svar. Opfølgninger som “Og hvilken ugedag er det?” bliver derfor
+  afspillet i stedet for at blive holdt skjult som en mellemregning.
+- Wake-modellen stopper efter præcis én detektion. Når Realtime-session, mic-forward,
+  svarlyd og musik-ducking er lukket, kalder add-onen den nye firmwarehandling
+  `podvoice_rearm_wake_word`. Næste “Okay Nabu” afhænger dermed ikke af implicit
+  firmwaretilstand.
+- Firmwarekontrakten kræver `deterministic_rearm_v1`, og regressionstesten beviser ti
+  wake→dialog→luk→rearm-cyklusser samt at add-on-shutdown ikke efterlader en ejerløs
+  aktiv wake-motor.
+
 ## 1.13.0 — én wake, én PodVoice-kanal, én Realtime-session
 
 - Den pinnede Voice PE-base er vendored med upstream commit og SHA, fordi ESPHome

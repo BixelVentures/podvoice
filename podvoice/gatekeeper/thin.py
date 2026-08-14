@@ -42,6 +42,7 @@ from .voice import (
     Interrupted,
     OutputTranscript,
     ToolCall,
+    ToolRoundComplete,
     TurnComplete,
     Usage,
     UserSpeechStopped,
@@ -503,6 +504,17 @@ class ThinSession:
             except Exception:
                 pass
         self._set_led(State.IDLE)
+        # The firmware stops its wake engine after one detection. Rearm only after the
+        # provider session, mic stream, reply path, and attention hold are all closed.
+        # During add-on shutdown (_closing) leave the puck stopped; the next native API
+        # connection starts it through the firmware's normal client-connected hook.
+        if not self._closing and hasattr(self.voicepe, "rearm_wake_word"):
+            try:
+                await self.voicepe.rearm_wake_word()
+                self._trace_event("wake_rearmed")
+                _LOG.info("thin: wake word rearmed [room=%s]", self.room)
+            except Exception as exc:
+                _LOG.warning("thin: wake-word rearm failed [room=%s]: %s", self.room, exc)
         if self.audio_trace is not None:
             try:
                 self.audio_trace.finish(self._trace_reason)
@@ -629,6 +641,13 @@ class ThinSession:
         elif isinstance(ev, Interrupted):
             self._trace_event("speech_started_or_interrupted")
             self._start_barge_debounce()
+        elif isinstance(ev, ToolRoundComplete):
+            # OpenAI had to wait for the function-call response.done before it
+            # could request the spoken result.  This edge separates those two
+            # responses.  Keep the announce stream private/open, but make the next
+            # TurnComplete publish the actual result answer.
+            self._turn_had_tool = False
+            _LOG.info("thin: tool decision complete — result answer is now pending")
         elif isinstance(ev, TurnComplete):
             self._trace_event("response_done", had_tool=self._turn_had_tool)
             if self._turn_had_tool or self._speech_tools:

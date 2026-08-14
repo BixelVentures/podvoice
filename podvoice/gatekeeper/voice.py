@@ -55,6 +55,18 @@ class TurnComplete:
 
 
 @dataclass
+class ToolRoundComplete:
+    """The provider finished a function-call response and queued the result answer.
+
+    This is deliberately *not* a user-visible turn boundary.  Some Realtime races
+    finish the tool task before the function-call response's ``response.done``;
+    providers then defer ``response.create`` until that edge.  The engine needs this
+    marker to forget the tool-decision response without publishing/closing the held
+    announce stream.  The following ``TurnComplete`` belongs to the spoken answer.
+    """
+
+
+@dataclass
 class Interrupted:
     """Server-side barge-in signal — flush queued/in-flight playback."""
 
@@ -102,6 +114,7 @@ VoiceEvent = Union[  # noqa: UP007
     InputTranscript,
     OutputTranscript,
     TurnComplete,
+    ToolRoundComplete,
     Interrupted,
     UserSpeechStopped,
     Idle,
