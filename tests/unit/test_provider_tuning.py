@@ -110,9 +110,7 @@ async def test_openai_mixed_tool_results_create_one_followup_when_slow_result_fi
     s._active_response = True
     s._outstanding_tool_calls.update({"end", "home"})
 
-    await s.send_tool_results(
-        [{"id": "end", "name": "end_conversation", "response": {"ok": True}}]
-    )
+    await s.send_tool_results([{"id": "end", "name": "end_conversation", "response": {"ok": True}}])
     assert s._pending_create is True
     assert s._outstanding_tool_calls == {"home"}
 
@@ -121,9 +119,7 @@ async def test_openai_mixed_tool_results_create_one_followup_when_slow_result_fi
     assert not any(isinstance(e, TurnComplete) for e in evs)
     assert all(m["type"] != "response.create" for m in s._ws.sent)
 
-    await s.send_tool_results(
-        [{"id": "home", "name": "home_call", "response": {"ok": True}}]
-    )
+    await s.send_tool_results([{"id": "home", "name": "home_call", "response": {"ok": True}}])
     assert s._pending_create is False
     assert sum(m["type"] == "response.create" for m in s._ws.sent) == 1
 
@@ -139,12 +135,8 @@ async def test_openai_mixed_tool_results_create_one_followup_in_reverse_completi
     s._active_response = True
     s._outstanding_tool_calls.update({"end", "home"})
 
-    await s.send_tool_results(
-        [{"id": "home", "name": "home_call", "response": {"ok": True}}]
-    )
-    await s.send_tool_results(
-        [{"id": "end", "name": "end_conversation", "response": {"ok": True}}]
-    )
+    await s.send_tool_results([{"id": "home", "name": "home_call", "response": {"ok": True}}])
+    await s.send_tool_results([{"id": "end", "name": "end_conversation", "response": {"ok": True}}])
     assert s._pending_create is True
     assert not s._outstanding_tool_calls
 

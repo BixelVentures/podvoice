@@ -749,7 +749,9 @@ class ThinSession:
                 turn.response_done = False
                 self._ending_conversation = True
                 self._trace_event("semantic_end_requested", call_id=ev.id, turn=turn.serial)
-                _LOG.info("thin: provider requested semantic conversation end [turn=%d]", turn.serial)
+                _LOG.info(
+                    "thin: provider requested semantic conversation end [turn=%d]", turn.serial
+                )
             if not self._direct:
                 await self._discard_tool_preamble()
                 # History represents what the room heard. The preamble was truncated
