@@ -171,6 +171,10 @@ switch:
 # that network state, so this overlay must not bake a second SSID/password into firmware.
 wifi:
   ap: {}
+  # Voice PE is mains-powered and carries latency-sensitive PCM over the native API.
+  # ESPHome documents that ESP32's default LIGHT saving reduces Wi-Fi reliability;
+  # keeping the radio awake removes avoidable packet jitter without a battery tradeoff.
+  power_save_mode: none
 
 # Firmware-owned single-wake latch. microWakeWord must keep running because its
 # microphone lifecycle also drives podvoice_audio's passive tap. A detection sets the

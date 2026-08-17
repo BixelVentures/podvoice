@@ -127,6 +127,12 @@ def test_wake_ack_is_visual_not_a_control_announcement():
     assert "delay:" not in wake
 
 
+def test_mains_powered_voice_link_disables_wifi_power_saving():
+    overlay = OVERLAY.read_text()
+    wifi = overlay.split("wifi:", 1)[1].split("globals:", 1)[0]
+    assert "power_save_mode: none" in wifi
+
+
 def test_center_button_never_starts_stock_assist():
     base = BASE.read_text()
     click = base.split("on_multi_click:", 1)[1].split("\n    - timing:", 1)[0]

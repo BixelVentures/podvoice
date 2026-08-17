@@ -16,6 +16,9 @@
 - Voice PE-køen og Realtime beholder nu op til tolv sekunders privacy-gated lyd under
   DNS/TLS/session-opstart. Ved ekstrem backpressure beholdes slutningen af spørgsmålet
   frem for gammel wake/pre-roll, så værktøjsintentionen ikke klippes væk.
+- Wi-Fi power save er slået fra på den strømforsynede Voice PE. ESPHome dokumenterer,
+  at standardtilstanden `LIGHT` reducerer forbindelsespålideligheden; PodVoice vælger
+  stabil native-API-lyd og lavere lokal jitter frem for irrelevant strømbesparelse.
 - GPT Realtime 2.1 kører eksplicit med `reasoning.effort: low`, OpenAI's anbefalede
   startpunkt for responsive production voice agents med værktøjsvalg.
 - Den eksterne `voice_kit`-komponent er fastlåst til samme Voice PE 26.6.0-commit som
