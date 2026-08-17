@@ -69,6 +69,26 @@ def test_test_tab_can_arm_one_local_physical_audio_trace():
     assert 'fetch("api/audio-trace"' in html
 
 
+def test_test_tab_shows_automatic_audio_free_lifecycle_timeline():
+    html = PANEL.read_text()
+    assert "Seneste samtaletidslinje" in html
+    assert 'id="lifecycle_timeline"' in html
+    assert "renderLifecycle(data.timeline_activity || [])" in html
+    assert "Wake → Realtime klar:" in html
+    assert "Tur: tekst " in html
+    assert "Lukning → wake klar:" in html
+    for event in (
+        "wake_received",
+        "provider_connected",
+        "speech_stopped",
+        "tool_result",
+        "playback_started",
+        "close_requested",
+        "wake_rearmed",
+    ):
+        assert event in html
+
+
 def test_documented_mic_baseline_is_visible_in_panel():
     html = PANEL.read_text()
 

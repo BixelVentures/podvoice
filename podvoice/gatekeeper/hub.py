@@ -94,6 +94,10 @@ class StatusHub:
         # room card, but it cannot prove p50/p90 or correlate one physical test
         # sentence with the reply the family actually heard.
         self._latency_activity: deque[dict] = deque(maxlen=200)
+        # Lightweight, always-on lifecycle evidence.  Audio remains explicit opt-in,
+        # but every conversation keeps enough timestamps to explain wake, VAD,
+        # provider/tool work, physical playback, close and wake rearm after the fact.
+        self._timeline_activity: deque[dict] = deque(maxlen=600)
         # A non-destructive "start fresh stuetest now" marker. It lets acceptance
         # evidence ignore old persisted history and old in-memory counters without
         # deleting either.
@@ -142,6 +146,7 @@ class StatusHub:
             "tool_activity": list(self._tool_activity),
             "state_activity": list(self._state_activity),
             "latency_activity": list(self._latency_activity),
+            "timeline_activity": list(self._timeline_activity),
             "stuetest_started_at": self._stuetest_started_at,
             "stuetest_metric_baseline": dict(self._stuetest_metric_baseline),
             "groundtest": {
@@ -155,6 +160,17 @@ class StatusHub:
         item = {"ts": time.time(), "room": room, "text": text}
         self._activity.append(item)
         self._broadcast({"type": "activity", **item})
+
+    def timeline(self, room: str, event: str, **details) -> None:
+        """Record one bounded lifecycle edge without permanently recording audio."""
+        clean = {
+            str(key): value
+            for key, value in details.items()
+            if isinstance(value, (str, int, float, bool)) or value is None
+        }
+        item = {"ts": time.time(), "room": room, "event": str(event), **clean}
+        self._timeline_activity.append(item)
+        self._broadcast({"type": "timeline", **item})
 
     def tool_call(
         self, room: str, name: str, result: dict | None = None, args: dict | None = None

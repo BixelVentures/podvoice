@@ -60,6 +60,8 @@ Realtime i feltet kaldte det på “Klar” og “Kig FCK seneste kamp” og der
 - Et eksakt helt “stop”, “stille” eller “vent” lukker straks.
 - Et eksakt helt “farvel” eller en godkendt høflig slutfrase lader det korte farvel
   spille færdigt og lukker derefter.
+- En dokumenteret ASR-forveksling må kun blive en slutfrase, når den står alene og
+  Realtime uafhængigt svarer med et rent farvel. Aliaset alene må aldrig lukke.
 - Ord inde i et spørgsmål, deltransskriptioner og modelgæt lukker aldrig.
 - Timeout og fejl lukker deterministisk og frigiver mikrofon, Realtime og ducking.
 

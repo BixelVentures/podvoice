@@ -94,6 +94,12 @@ END_PHRASES = frozenset(
         "thank you that's all",
     }
 )
+# Field-proven Realtime transcription confusions for a *standalone* Danish goodbye.
+# Never close on the alias alone: it becomes a candidate and must be confirmed by the
+# assistant producing a pure goodbye response.  This preserves the false-close guard
+# for real field inputs such as "Klar" and "Kig FCK seneste kamp".
+END_PHRASE_ASR_ALIASES = frozenset({"kom ind"})
+ASSISTANT_GOODBYES = frozenset({"farvel", "farvel ha en god dag", "farvel hav en god dag"})
 
 
 def normalized_utterance(text: str) -> str:
@@ -261,6 +267,7 @@ class ThinSession:
         self._followup_task: asyncio.Task | None = None  # delayed turn-ready LED fallback
         self._turn_cue_appended = False  # this reply ends with the audible hand-over cue
         self._ending_conversation = False  # suppress "your turn" during a goodbye
+        self._endphrase_candidate = False  # ASR alias; requires model-goodbye confirmation
         self._last_activity = 0.0  # monotonic — feeds the client-side idle fallback
         self._trace_reason = "teardown"
 
@@ -349,6 +356,8 @@ class ThinSession:
             getattr(self.voicepe, "mic_gain", "?"),
             getattr(self.brain, "noise", "?"),
         )
+        self._conv_started = time.monotonic()
+        self._epoch = self._conv_started  # identity for tasks armed by THIS conversation
         if self.audio_trace is not None:
             self.audio_trace.begin(
                 self.room,
@@ -363,14 +372,13 @@ class ThinSession:
                     "same_breath": getattr(self.voicepe, "supports_same_breath", None),
                 },
             )
-            self._trace_event("wake_received")
+        self._trace_event("wake_received")
         self._trace_reason = "teardown"
         self._active = True
         self._ending_conversation = False
+        self._endphrase_candidate = False
         self._turn_cue_appended = False
         self._last_user_utterance = ""
-        self._conv_started = time.monotonic()
-        self._epoch = self._conv_started  # identity for tasks armed by THIS conversation
         self._last_activity = self._conv_started
         self.sm.state = State.LISTENING
         self._set_led(State.LISTENING)  # instantly — before the WS connect
@@ -450,6 +458,7 @@ class ThinSession:
         self._held_announce_item = None
         self._turn_cue_appended = False
         self._ending_conversation = False
+        self._endphrase_candidate = False
         self._last_user_utterance = ""
         self._reply_audible_until = 0.0
         self._direct = False  # the next reply re-decides its path from scratch
@@ -659,6 +668,21 @@ class ThinSession:
                 _LOG.info("thin: tool decision complete — waiting for the result answer")
             else:
                 had_reply = self._speaking
+                # A standalone "farvel" was twice transcribed as "Kom ind." in the
+                # same physical field run.  The transport only accepts that alias when
+                # Realtime independently answers with a pure goodbye.  Decide before
+                # appending the turn cue, otherwise the room is falsely invited to keep
+                # talking and the firmware wake latch cannot rearm.
+                if self._endphrase_candidate:
+                    assistant_phrase = normalized_utterance("".join(self._buf_out))
+                    if assistant_phrase in ASSISTANT_GOODBYES:
+                        _LOG.info(
+                            "thin: ASR end-phrase candidate confirmed by assistant %r",
+                            assistant_phrase,
+                        )
+                        self._ending_conversation = True
+                        self._trace_event("endphrase_confirmed", source="asr-alias+assistant")
+                    self._endphrase_candidate = False
                 if had_reply and self._active and not self._ending_conversation:
                     cue = audio_mod.turn_tone(C.OUTPUT_RATE)
                     if self._direct and self._direct_q is not None:
@@ -760,6 +784,9 @@ class ThinSession:
         elif phrase in END_PHRASES:
             _LOG.info("thin: end phrase %r — closing after the goodbye", phrase)
             self._ending_conversation = True
+        elif phrase in END_PHRASE_ASR_ALIASES:
+            _LOG.info("thin: possible ASR end phrase %r — awaiting assistant confirmation", phrase)
+            self._endphrase_candidate = True
 
     def _flush_transcript(self, direction: str) -> None:
         buf = self._buf_in if direction == "in" else self._buf_out
@@ -1051,10 +1078,18 @@ class ThinSession:
             await self.voicepe.play_url(self.reply_url)
 
     async def _run_tool(self, tc: ToolCall) -> None:
+        tool_started = time.monotonic()
         if self.tools is None:
             result: dict = {"ok": False, "error": "no tools configured"}
         else:
             result = await self.tools.dispatch(tc.name, tc.args)
+        self._trace_event(
+            "tool_result",
+            name=tc.name,
+            ok=bool(result.get("ok")),
+            empty=bool(result.get("empty")),
+            duration_ms=round((time.monotonic() - tool_started) * 1000),
+        )
         if self.hub is not None:
             if not result.get("ok"):
                 self.hub.incr("tool_error")
@@ -1243,6 +1278,19 @@ class ThinSession:
             self.audio_trace.audio("provider", pcm, rate)
 
     def _trace_event(self, event_name: str, **details) -> None:
+        if self.hub is not None and hasattr(self.hub, "timeline"):
+            at_ms = (
+                round((time.monotonic() - self._conv_started) * 1000)
+                if self._conv_started
+                else None
+            )
+            self.hub.timeline(
+                self.room,
+                event_name,
+                session=f"{self._epoch:.6f}" if self._epoch else None,
+                at_ms=at_ms,
+                **details,
+            )
         if self.audio_trace is not None:
             self.audio_trace.event(event_name, **details)
 
@@ -1441,6 +1489,14 @@ class ThinSession:
         if not hasattr(self.voicepe, "set_light"):
             return
         cmd = led_command_for(state, muted=self._muted, error=error)
+        self._trace_event(
+            "led_command",
+            state=state.name,
+            on=cmd.on,
+            brightness=cmd.brightness,
+            rgb=",".join(str(value) for value in cmd.rgb),
+            error=error,
+        )
         self._spawn(self.voicepe.set_light(cmd.on, cmd.rgb, cmd.brightness), "thin-led")
 
     def _hub_state(self, name: str, activity: str | None, *, turn_cue: bool = False) -> None:

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.13.3 — målt livscyklus og robust felt-farvel
+
+- Feltprøven viste en specifik dansk ASR-fejl: to selvstændige “Farvel” blev begge
+  transskriberet som “Kom ind.”. Aliaset lukker aldrig alene; det bliver kun accepteret,
+  når Realtime uafhængigt svarer med et rent farvel. Dermed lukker og rearmer den
+  observerede samtale uden at genindføre de falske luk på “Klar” og FCK-spørgsmål.
+- Testfanen viser nu automatisk en let samtaletidslinje for hver session: wake,
+  Realtime-forbindelse, tale/VAD, transskription, værktøjstid, modellyd, fysisk
+  afspilning, lyskommando, lukning og wake-rearm. Mikrofon- og højttalerlyd optages
+  fortsat kun efter et udtrykkeligt klik på “Optag næste samtale”.
+- Hjem/vejr via HA MCP er noteret som næste driftsrunde: en død `tools/list`-session
+  skal genoprettes automatisk med begrænset backoff uden at tage tid, web eller musik
+  med ned.
+
 ## 1.13.2 — mikrofonen forbliver levende efter wake
 
 - Den første 1.13.1-runtime viste wake og derefter elleve sekunders total stilhed.

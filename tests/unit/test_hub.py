@@ -89,6 +89,19 @@ async def test_latency_records_timestamp():
     assert room["last_latency_ts"] is None
 
 
+async def test_timeline_records_bounded_lifecycle_edge_and_broadcasts():
+    hub = StatusHub()
+    q = await hub.subscribe()
+    hub.timeline("kitchen", "playback_started", session="42", at_ms=1234, ignored={"x": 1})
+    ev = await asyncio.wait_for(q.get(), timeout=1)
+    assert ev["type"] == "timeline"
+    assert ev["event"] == "playback_started"
+    assert ev["session"] == "42"
+    assert ev["at_ms"] == 1234
+    assert "ignored" not in ev
+    assert hub.snapshot()["timeline_activity"][-1]["event"] == "playback_started"
+
+
 async def test_groundtest_records_sequential_physical_verdicts():
     hub = StatusHub()
     started = hub.start_groundtest(2)

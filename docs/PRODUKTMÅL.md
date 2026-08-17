@@ -77,3 +77,12 @@ PodVoice må kun kaldes bedre på de målepunkter, hvor de fysiske tal faktisk e
 Taleafbrydelse midt i assistentens svar er ikke en del af den første half-duplex-release.
 Den kræver en separat fysisk gate for wake/stop-model eller dokumenteret full-duplex;
 den må ikke genindføres ved at åbne mikrofonen ukontrolleret under højttalerafspilning.
+
+## Næste runde
+
+- **Automatisk HA/MCP-recovery:** Et fejlet eller timeoutet `tools/list` må aldrig kræve
+  manuel genindlæsning eller add-on-genstart. PodVoice skal oprette MCP-sessionen på ny
+  med hurtig backoff (ca. 1, 2, 5, 10 og 30 sekunder, derefter højst ét forsøg pr. minut),
+  fortsætte tid/web/musik/samtale imens og atomisk genaktivere hjem og vejr, når HA svarer.
+  Panelet skal vise “forbinder igen”, seneste konkrete fejl og automatisk skifte til
+  verificeret uden at afbryde en aktiv Realtime-samtale.

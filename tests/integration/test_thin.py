@@ -22,6 +22,7 @@ from gatekeeper.voice import (
     Idle,
     InputTranscript,
     Interrupted,
+    OutputTranscript,
     ToolCall,
     ToolRoundComplete,
     TurnComplete,
@@ -574,6 +575,52 @@ async def test_ambiguous_transcripts_never_close_the_transport():
         await asyncio.sleep(0.1)
         assert session.sm.state is not State.IDLE
         assert session._active is True
+    finally:
+        await session.aclose()
+
+
+async def test_field_asr_goodbye_alias_requires_assistant_goodbye_then_closes():
+    """'Farvel' -> 'Kom ind.' closes only after Realtime independently says goodbye."""
+    gemini = LiveFake()
+    hub = StatusHub()
+    session, attention, voicepe = _build(gemini, hub=hub)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(InputTranscript("Kom ind."))
+        await asyncio.sleep(0.05)
+        assert session._active is True
+        assert session._ending_conversation is False
+
+        gemini.emit(AudioChunk(_frame(), item_id="goodbye"))
+        gemini.emit(OutputTranscript("Farvel."), TurnComplete())
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)
+        session._on_media_state(False)
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        await _wait_until(lambda: len(attention.release_calls) >= 1)
+        assert any(
+            item["event"] == "endphrase_confirmed" for item in hub.snapshot()["timeline_activity"]
+        )
+    finally:
+        await session.aclose()
+
+
+async def test_literal_asr_alias_without_goodbye_does_not_close():
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(
+            InputTranscript("Kom ind."),
+            AudioChunk(_frame(), item_id="ordinary"),
+            OutputTranscript("Hvad vil du have hjælp til?"),
+            TurnComplete(),
+        )
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        assert session._active is True
+        assert session._ending_conversation is False
     finally:
         await session.aclose()
 

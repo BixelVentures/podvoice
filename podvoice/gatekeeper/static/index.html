@@ -357,6 +357,11 @@
       <div id="trace_status" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
     </div>
     <div class="section">
+      <h2>Seneste samtaletidslinje</h2>
+      <p class="sub" style="margin:2px 0 10px">Gemmes automatisk uden lyd: wake, lytning, tænkning, værktøj, fysisk afspilning, lukning, lys og genaktivering.</p>
+      <div id="lifecycle_timeline" class="tx" style="min-height:0"></div>
+    </div>
+    <div class="section">
       <h2>Grundtest</h2>
       <p class="sub" style="margin:2px 0 10px">Én fast test af den fysiske Voice PE. Panelet gemmer, hvad Nabu hørte og gjorde; du afgør, om det faktisk var korrekt i rummet.</p>
       <button id="g_start">Start 10 samtaler</button>
@@ -735,6 +740,66 @@ function renderMetrics(m) {
   });
 }
 
+var TIMELINE_LABEL = {
+  wake_received: "Wake modtaget",
+  provider_connected: "Realtime-session klar",
+  speech_started_or_interrupted: "Tale registreret",
+  speech_stopped: "Du stoppede med at tale",
+  input_transcript: "Transskription klar",
+  tool_call: "Værktøj startet",
+  tool_result: "Værktøj færdigt",
+  response_audio_started: "Modellen begyndte svaret",
+  response_done: "Modellen var færdig",
+  playback_started: "Svar hørbart i rummet",
+  playback_finished: "Svarlyd færdig",
+  endphrase_confirmed: "Farvel bekræftet",
+  close_requested: "Lukning startet",
+  wake_rearmed: "Wakeword klar igen",
+  led_command: "Lyskommando"
+};
+function renderLifecycle(list) {
+  var box = document.getElementById("lifecycle_timeline"); if (!box) return;
+  var withSession = (list || []).filter(function (x) { return x.session; });
+  var latest = withSession.length ? withSession[withSession.length - 1].session : null;
+  var events = latest ? withSession.filter(function (x) { return x.session === latest; }) : [];
+  var signature = JSON.stringify(events);
+  if (box.dataset.signature === signature) return;
+  box.dataset.signature = signature; box.innerHTML = "";
+  if (!events.length) { box.appendChild(el("div", "empty", "Ingen automatisk tidslinje endnu — den næste samtale bliver målt.")); return; }
+  var wake = events.find(function (x) { return x.event === "wake_received"; });
+  var ready = events.find(function (x) { return x.event === "provider_connected"; });
+  if (wake && ready) {
+    box.appendChild(el("div", "line out", "Wake → Realtime klar: " + (ready.at_ms - wake.at_ms) + " ms"));
+  }
+  events.forEach(function (start, index) {
+    if (start.event !== "speech_stopped") return;
+    var end = events.slice(index + 1).findIndex(function (x) { return x.event === "speech_stopped"; });
+    var turn = events.slice(index + 1, end < 0 ? events.length : index + 1 + end);
+    function delta(name) {
+      var found = turn.find(function (x) { return x.event === name; });
+      return found ? (found.at_ms - start.at_ms) + " ms" : "—";
+    }
+    box.appendChild(el("div", "line out", "Tur: tekst " + delta("input_transcript") + " · modellyd " + delta("response_audio_started") + " · hørbar " + delta("playback_started")));
+  });
+  var close = events.find(function (x) { return x.event === "close_requested"; });
+  var rearm = events.find(function (x) { return x.event === "wake_rearmed"; });
+  if (close && rearm) {
+    box.appendChild(el("div", "line out", "Lukning → wake klar: " + (rearm.at_ms - close.at_ms) + " ms"));
+  }
+  events.forEach(function (item) {
+    var line = el("div", "line out");
+    var label = TIMELINE_LABEL[item.event] || item.event;
+    var detail = "";
+    if (item.text) detail = " · “" + item.text + "”";
+    else if (item.name) detail = " · " + item.name;
+    else if (item.state) detail = " · " + item.state;
+    if (item.duration_ms != null) detail += " · " + item.duration_ms + " ms";
+    line.appendChild(el("div", "who", "+" + Math.max(0, item.at_ms || 0) + " ms"));
+    line.appendChild(document.createTextNode(label + detail));
+    box.appendChild(line);
+  });
+}
+
 function applyStatus(data) {
   if (!data) return;
   lastObservedMs = Date.now();
@@ -747,6 +812,7 @@ function applyStatus(data) {
   renderRooms();
   renderMetrics(data.metrics || {});
   renderActivity(data.activity || []);
+  renderLifecycle(data.timeline_activity || []);
 }
 
 function fmtClock(ts) {
@@ -788,6 +854,13 @@ function applyEvent(ev) {
     renderMetrics(m);
   } else if (ev.type === "activity") {
     addActivity(ev);
+  } else if (ev.type === "timeline") {
+    if (lastStatus) {
+      lastStatus.timeline_activity = lastStatus.timeline_activity || [];
+      lastStatus.timeline_activity.push(ev);
+      if (lastStatus.timeline_activity.length > 600) lastStatus.timeline_activity.shift();
+      renderLifecycle(lastStatus.timeline_activity);
+    }
   }
 }
 
