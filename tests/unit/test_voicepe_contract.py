@@ -5,6 +5,7 @@ The 0.82 lesson: a missing service silently no-op'ed and hid the repeated-wake b
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 
 from gatekeeper.voicepe import VoicePELink
 
@@ -18,11 +19,14 @@ FULL_SERVICES = [
     "podvoice_stream_start",
     "podvoice_stream_stop",
     "podvoice_rearm_wake_word",
+    "podvoice_reply_expect",
+    "podvoice_reply_cancel",
 ]
 FULL_CAPABILITIES = [
     "podvoice_channel_v1",
     "same_breath_v1",
     "deterministic_rearm_v1",
+    "podvoice_playback_events_v1",
 ]
 
 
@@ -49,6 +53,9 @@ class _StubClient:
 
     async def execute_service(self, svc, args):
         self.executed.append(svc.name)
+
+    def media_player_command(self, **kwargs):
+        self.executed.append(f"media:{kwargs.get('key')}")
 
     def send_voice_assistant_event(self, kind, data):
         self.executed.append(f"event:{kind}")
@@ -91,6 +98,8 @@ async def test_contract_mismatch_is_loud_and_reported(caplog):
     assert report["ok"] is False
     assert report["missing_required"] == [
         "podvoice_rearm_wake_word",
+        "podvoice_reply_cancel",
+        "podvoice_reply_expect",
         "podvoice_stream_start",
     ]
     assert "media_player" in report["missing_entities"]
@@ -231,6 +240,7 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "podvoice_channel_v1",
         "same_breath_v1",
         "deterministic_rearm_v1",
+        "podvoice_playback_events_v1",
     ]
     assert link.supports_same_breath is False
 
@@ -256,12 +266,68 @@ async def test_deterministic_rearm_capability_is_read_from_firmware():
     assert link.supports_deterministic_rearm is True
 
 
+async def test_playback_event_capability_and_edges_are_read_from_firmware():
+    client = _StubClient(
+        [],
+        [
+            EventInfo("podvoice_event", 3, ["podvoice_playback_events_v1"]),
+            MediaPlayerInfo("external_media_player", 7),
+        ],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+    assert link.supports_playback_events is True
+
+    edges: list[bool] = []
+    link.on_media_state = edges.append
+    link._on_state(SimpleNamespace(event_type="podvoice_playback_started", key=3))
+    link._on_state(SimpleNamespace(event_type="podvoice_playback_started", key=3))
+    link._on_state(SimpleNamespace(event_type="podvoice_playback_finished", key=3))
+    link._on_state(SimpleNamespace(event_type="podvoice_playback_finished", key=3))
+    assert edges == [True, False]
+
+    # A different event entity and contradictory legacy media state cannot mutate the
+    # explicit firmware-owned lifecycle.
+    link._on_state(SimpleNamespace(event_type="podvoice_playback_started", key=999))
+    assert edges == [True, False]
+
+    class MediaPlayerEntityState:
+        key = 7
+        state = 4
+
+    link._on_state(MediaPlayerEntityState())
+    assert edges == [True, False]  # explicit-capability firmware ignores legacy state
+
+    link._on_state(SimpleNamespace(event_type="podvoice_playback_started", key=3))
+    assert link._announcing is True
+    link._on_state(SimpleNamespace(event_type="podvoice_playback_fault", key=3))
+    assert link._announcing is False
+    link._on_state(SimpleNamespace(event_type="podvoice_playback_started", key=3))
+    assert edges[-1] is True  # a fault cannot poison the next correlated start
+    await link._on_disconnect(expected_disconnect=True)
+    assert link._announcing is False
+
+
 async def test_rearm_calls_the_dedicated_firmware_service():
     client = _StubClient(FULL_SERVICES, [])
     link = _link(client)
     await link._resolve_entities()
     await link.rearm_wake_word()
     assert client.executed == ["podvoice_rearm_wake_word"]
+
+
+async def test_reply_is_armed_before_the_media_command():
+    client = _StubClient(
+        FULL_SERVICES,
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+        ],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+    await link.play_url("http://podvoice.local/reply/r0.flac")
+    assert client.executed == ["podvoice_reply_expect", "media:7"]
 
 
 async def test_direct_support_is_read_off_the_firmware_not_a_setting():

@@ -6,6 +6,7 @@ import array
 import asyncio
 from types import SimpleNamespace
 
+import pytest
 from fakes.fake_attention import FakeAttention
 from fakes.fake_brain import FakeBrainSession
 from fakes.fake_voicepe import FakeVoicePELink
@@ -606,6 +607,138 @@ async def test_field_asr_goodbye_alias_requires_assistant_goodbye_then_closes():
         await session.aclose()
 
 
+@pytest.mark.parametrize("late_input", [False, True])
+@pytest.mark.parametrize("user_text", ["Tube", "Kom ind.", "Farvel."])
+async def test_goodbye_reconciliation_is_independent_of_transcript_order(
+    late_input: bool, user_text: str
+):
+    """Field reality: final ASR can land on either side of response.done.
+
+    A noisy whole-word alias requires the same turn's anchored assistant goodbye;
+    exact Farvel closes in either ordering too.
+    """
+    gemini = LiveFake()
+    session, attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        reply = (AudioChunk(_frame(), item_id="goodbye"), OutputTranscript("Selv tak. Farvel."))
+        if late_input:
+            gemini.emit(*reply, TurnComplete(), InputTranscript(user_text))
+        else:
+            gemini.emit(InputTranscript(user_text), *reply, TurnComplete())
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+
+        # A delayed ANNOUNCING edge must keep the old session alive; the bounded
+        # fallback may not mistake the pre-playback gap for a finished goodbye.
+        await asyncio.sleep(0.7)
+        assert session._active is True
+        session._on_media_state(True)
+        await asyncio.sleep(0.05)
+        assert session._active is True
+        session._on_media_state(False)
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_stale_alias_cannot_confirm_against_the_next_turn_goodbye():
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(InputTranscript("Tube"))  # unconfirmed candidate in turn 1
+        await asyncio.sleep(0.05)
+
+        # A real new speech edge supersedes turn 1. Even a strange goodbye response
+        # to turn 2 cannot reach back and confirm the stale alias.
+        gemini.emit(Interrupted(), InputTranscript("Ja"))
+        gemini.emit(
+            AudioChunk(_frame(), item_id="unrelated"),
+            OutputTranscript("Farvel."),
+            TurnComplete(),
+        )
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)
+        session._on_media_state(False)
+        await asyncio.sleep(0.1)
+        assert session._active is True
+        assert session._ending_conversation is False
+    finally:
+        await session.aclose()
+
+
+async def test_concurrent_close_requests_have_exactly_one_owner():
+    class CountingBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.close_count = 0
+
+        async def close(self) -> None:
+            self.close_count += 1
+            await super().close()
+
+    gemini = CountingBrain()
+    session, attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        await asyncio.gather(
+            session.stop("idle"),
+            session.stop("button"),
+            session.stop("model-close"),
+        )
+        assert gemini.close_count == 1
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_failure_and_button_close_share_exactly_one_owner():
+    class CountingBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.close_count = 0
+
+        async def close(self) -> None:
+            self.close_count += 1
+            await super().close()
+
+    gemini = CountingBrain()
+    session, attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        await asyncio.gather(session._fail("connection"), session.stop("button"))
+        assert gemini.close_count == 1
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_playback_fault_closes_cleanly_instead_of_poisoning_the_next_turn():
+    gemini = LiveFake()
+    session, attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        session._on_media_state(True)
+        session._on_device_event(
+            session.room, SimpleNamespace(event_type="podvoice_playback_fault")
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert session._device_playing is False
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
 async def test_literal_asr_alias_without_goodbye_does_not_close():
     gemini = LiveFake()
     session, _attention, voicepe = _build(gemini)
@@ -621,6 +754,27 @@ async def test_literal_asr_alias_without_goodbye_does_not_close():
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
         assert session._active is True
         assert session._ending_conversation is False
+    finally:
+        await session.aclose()
+
+
+async def test_alias_does_not_close_on_an_answer_that_only_mentions_goodbye():
+    gemini = LiveFake()
+    session, _attention, voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(
+            InputTranscript("Tube"),
+            AudioChunk(_frame(), item_id="definition"),
+            OutputTranscript("Det danske ord farvel er en afskedshilsen."),
+            TurnComplete(),
+        )
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)
+        session._on_media_state(False)
+        await asyncio.sleep(0.1)
+        assert session._active is True
     finally:
         await session.aclose()
 

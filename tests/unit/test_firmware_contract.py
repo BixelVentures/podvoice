@@ -30,6 +30,19 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "podvoice_channel_v1" in overlay
     assert "same_breath_v1" in overlay
     assert "deterministic_rearm_v1" in overlay
+    assert "podvoice_playback_events_v1" in overlay
+    assert "action: podvoice_reply_expect" in overlay
+    assert "action: podvoice_reply_cancel" in overlay
+    assert "event_type: podvoice_playback_started" in overlay
+    assert "event_type: podvoice_playback_finished" in overlay
+    assert "event_type: podvoice_playback_fault" in overlay
+    assert "announcement_resampling_speaker).has_buffered_data()" in overlay
+    assert "decibel_reduction: 0" in overlay  # !extend must preserve upstream music restore
+    stream_stop = overlay.split("action: podvoice_stream_stop", 1)[1].split(
+        "action: podvoice_rearm_wake_word", 1
+    )[0]
+    assert "script.stop: podvoice_finish_reply" in stream_stop
+    assert "id(podvoice_reply_phase) = 0" in stream_stop
     assert "podvoice_direct_prepare" not in overlay
     assert "direct_speaker_v3" not in overlay
 

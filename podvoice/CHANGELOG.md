@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.13.4 — tur-sikker lukning og fysisk svarslut
+
+- “Farvel” kan nu ankomme både før og efter Realtime melder svaret færdigt. Lukningen
+  samler evidensen på den samme brugertur og kan kun bekræftes én gang; et sent eller
+  støjramt slutord kan ikke længere lukke en efterfølgende samtale. Feltvarianten
+  “Tube” kræver et selvstændigt farvel fra modellen på samme tur og lukker aldrig alene.
+- Alle samtidige lukkeveje går gennem én atomisk transaktion. Timeout, knap, stop og
+  model-farvel kan derfor ikke dobbeltlukke Realtime, frigive musik eller rearmere
+  wakewordet flere gange.
+- Voice PE-firmwaren armerer kun playback-telemetri for PodVoices eget næste svar.
+  Timere og andre HA-announcements kan ikke flytte samtalens LED eller ekko-gate.
+  Start udsendes først efter observeret ANNOUNCING; slut først når den dedikerede
+  announcement-resampler er tom og stoppet. Stop/teardown nulstiller en ubrugt arm,
+  og manglende drain lukker rent som en synlig fejl i stedet for at forgifte næste tur.
+- Firmwarekontrakten kræver `podvoice_playback_events_v1` og handlingen
+  `podvoice_reply_expect`. Denne version kræver derfor både add-on-opdatering og flash
+  af `esphome/podvoice.yaml`, før fysisk playback, Farvel og wake-rearm kan godkendes.
+- Nye regressioner dækker begge eventrækkefølger, forsinket playback-start, mistet
+  playback-slut, ASR-kandidater på tværs af ture og tre samtidige lukkeårsager.
+
 ## 1.13.3 — målt livscyklus og robust felt-farvel
 
 - Feltprøven viste en specifik dansk ASR-fejl: to selvstændige “Farvel” blev begge

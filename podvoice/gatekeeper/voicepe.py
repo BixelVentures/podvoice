@@ -40,6 +40,8 @@ REQUIRED_SERVICES: dict[str, str] = {
     "podvoice_stream_start": "mic-forward: the assistant is DEAF without it",
     "podvoice_stream_stop": "mic-forward close: the mic can never gate off",
     "podvoice_rearm_wake_word": "conversation close: the next wake can never fire",
+    "podvoice_reply_expect": "bind physical playback edges to the pending PodVoice reply",
+    "podvoice_reply_cancel": "clear a reply arm before another announcement can inherit it",
 }
 OPTIONAL_SERVICES: dict[str, str] = {
     "podvoice_va_abort": "stock-run abort (covered by the RUN_END fallback)",
@@ -102,6 +104,7 @@ class VoicePELink:
         self._light_key: int | None = None  # the LED-ring light entity key (None = no LED)
         self._media_key: int | None = None  # the media_player key (AI-reply announce path)
         self._mute_key: int | None = None  # the mute switch/sensor key (None = not published)
+        self._event_key: int | None = None  # PodVoice lifecycle event entity
         # Retired direct-path capability, retained only to diagnose old firmware.
         # setting. The device advertises event_types on its podvoice_event entity; the
         # Fixed firmware adds the capability marker "direct_speaker_v3". It also emits
@@ -120,6 +123,7 @@ class VoicePELink:
         # Assist run is started. The VA component is only the native-API audio endpoint.
         self.supports_podvoice_channel = False
         self.supports_deterministic_rearm = False
+        self.supports_playback_events = False
         # same_breath firmware emits its explicit event at the local wake edge and the
         # stock VA reports the same physical wake again through handle_start ~300 ms
         # later.  Remember the first edge so the latter remains an ACK/fallback rather
@@ -261,9 +265,13 @@ class VoicePELink:
         self._light_key = None
         self._media_key = None
         self._mute_key = None
+        self._event_key = None
         self.supports_direct = False
         self.supports_same_breath = False
         self.supports_podvoice_channel = False
+        self.supports_deterministic_rearm = False
+        self.supports_playback_events = False
+        self._announcing = False
         self._warned_missing = set()  # a reflash may have added the service — warn fresh
         try:
             # VERIFY: list_entities_services() -> (entities, services) on aioesphomeapi.
@@ -296,12 +304,17 @@ class VoicePELink:
             self._mute_key = getattr(mutes[0], "key", None) if mutes else None
             # Does this firmware have the 2b direct path? Ask the DEVICE, not a setting.
             events = [e for e in (entities or []) if type(e).__name__ == "EventInfo"]
+            podvoice_event = next(
+                (e for e in events if getattr(e, "object_id", "") == "podvoice_event"), None
+            )
+            self._event_key = getattr(podvoice_event, "key", None)
             advertised: set[str] = set()
             for e in events:
                 advertised.update(getattr(e, "event_types", None) or [])
             self.supports_same_breath = "same_breath_v1" in advertised
             self.supports_podvoice_channel = "podvoice_channel_v1" in advertised
             self.supports_deterministic_rearm = "deterministic_rearm_v1" in advertised
+            self.supports_playback_events = "podvoice_playback_events_v1" in advertised
             self.supports_direct = (
                 "direct_speaker_v3" in advertised
                 and "podvoice_direct_prepare" in self._user_services
@@ -335,6 +348,8 @@ class VoicePELink:
             missing_capabilities.append("same_breath_v1")
         if not self.supports_deterministic_rearm:
             missing_capabilities.append("deterministic_rearm_v1")
+        if not self.supports_playback_events:
+            missing_capabilities.append("podvoice_playback_events_v1")
         ok = not missing_required and self._media_key is not None and not missing_capabilities
         self.contract = {
             "ok": ok,
@@ -408,7 +423,7 @@ class VoicePELink:
         await self._call_service("podvoice_set_wake_word", {"name": str(self.wake_word)})
         log.info("voicepe %s: wake word applied (%s)", self.host, self.wake_word)
 
-    async def _call_service(self, name: str, args: dict | None = None) -> None:
+    async def _call_service(self, name: str, args: dict | None = None) -> bool:
         """Invoke a podvoice_* user-defined service. Best-effort (swallow on
         disconnect) and idempotent — the device just flips a bool. A service the
         firmware doesn't publish is SKIPPED with a loud once-per-connect warning
@@ -423,15 +438,17 @@ class VoicePELink:
                     name,
                     {**REQUIRED_SERVICES, **OPTIONAL_SERVICES}.get(name, "unknown service"),
                 )
-            return
+            return False
         if self._client is None:
-            return
+            return False
         try:
             # execute_service is a coroutine on aioesphomeapi — MUST be awaited, or the
             # device service (stream start/stop, va_abort) is never actually invoked.
             await self._client.execute_service(svc, args or {})
+            return True
         except Exception as e:  # disconnect / busy — device safety timer covers stop
             log.debug("voicepe %s service %s failed: %s", self.host, name, e)
+            return False
 
     async def start_streaming(self) -> None:
         """Open the device mic-forward (wake) AND keepalive the dead-man timer."""
@@ -464,6 +481,7 @@ class VoicePELink:
         self, expected_disconnect: bool = False
     ) -> None:  # VERIFY: cb signature
         self._api_audio_ready = False
+        self._announcing = False
         if self._direct_prepare_waiter is not None:
             self._direct_prepare_waiter.set()
             self._direct_prepare_waiter = None
@@ -560,8 +578,27 @@ class VoicePELink:
         event_type = getattr(state, "event_type", None) or getattr(state, "event", None)
         if event_type in ("wake_okay_nabu", "wake"):
             self._last_local_wake_at = time.monotonic()
+        # Firmware-owned playback edges are authoritative.  Native API media-player
+        # state did not reach the add-on in the physical 2026-08-17 trace even though
+        # the announcement was audible, so the overlay emits these at the source.
+        explicit_playback = key == self._event_key and self.supports_playback_events
+        if explicit_playback and event_type == "podvoice_playback_started" and not self._announcing:
+            self._announcing = True
+            if self.on_media_state:
+                self._run_cb(self.on_media_state, True)
+        elif explicit_playback and event_type == "podvoice_playback_finished" and self._announcing:
+            self._announcing = False
+            if self.on_media_state:
+                self._run_cb(self.on_media_state, False)
+        elif explicit_playback and event_type == "podvoice_playback_fault":
+            self._announcing = False
         # Media-player announce state -> "reply finished playing" ground truth.
-        if key == self._media_key and tname == "MediaPlayerEntityState" and self.on_media_state:
+        if (
+            not self.supports_playback_events
+            and key == self._media_key
+            and tname == "MediaPlayerEntityState"
+            and self.on_media_state
+        ):
             try:
                 from aioesphomeapi.model import MediaPlayerState  # lazy, like the client
 
@@ -618,6 +655,13 @@ class VoicePELink:
             url.split("?")[0],  # never log the ?t= reply token
         )
         try:
+            armed = await self._call_service("podvoice_reply_expect")
+            if self.supports_playback_events and not armed:
+                log.error(
+                    "voicepe %s: reply playback telemetry could not be armed; "
+                    "start/finish evidence will be missing",
+                    self.host,
+                )
             # media_player_command is SYNCHRONOUS in aioesphomeapi (returns None, just
             # queues send_message) — it must NOT be awaited. Awaiting the None it returns
             # raised "NoneType can't be used in 'await' expression" every reply (the
@@ -743,6 +787,8 @@ class VoicePELink:
         media_player STOP command aimed at the announcement pipeline (announcement=True,
         verified against aioesphomeapi 45.3.1). Best-effort: a failure must never block
         the state machine's teardown."""
+        await self._call_service("podvoice_reply_cancel")
+        self._announcing = False
         if self._media_key is None or self._client is None:
             return
         try:

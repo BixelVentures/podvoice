@@ -45,12 +45,16 @@ api:
         - lambda: "id(pv_audio).start_streaming();"
     - action: podvoice_stream_stop
       then:
+        - script.stop: podvoice_finish_reply
+        - lambda: "id(podvoice_reply_phase) = 0;"
         - lambda: "id(pv_audio).stop_streaming();"
     # One wake opens one conversation. The wake engine deliberately stops after that
     # detection and PodVoice rearms it only after Realtime, mic forwarding, playback,
     # and music ducking are all closed. This makes the return to wakeword explicit.
     - action: podvoice_rearm_wake_word
       then:
+        - script.stop: podvoice_finish_reply
+        - lambda: "id(podvoice_reply_phase) = 0;"
         - lambda: "id(podvoice_conversation_active) = false;"
         - if:
             condition:
@@ -58,6 +62,16 @@ api:
                 micro_wake_word.is_running:
             then:
               - micro_wake_word.start:
+    # Arm playback telemetry for exactly the next PodVoice reply. Other announcements
+    # (timer, HA, test tone) use the same media player and must never close a Realtime
+    # conversation or move its LED/echo gate.
+    - action: podvoice_reply_expect
+      then:
+        - lambda: "id(podvoice_reply_phase) = 1;"
+    - action: podvoice_reply_cancel
+      then:
+        - script.stop: podvoice_finish_reply
+        - lambda: "id(podvoice_reply_phase) = 0;"
     # RUNTIME audio tuning — no reflash. PodVoice's panel calls these.
     - action: podvoice_set_mic_channel
       variables:
@@ -124,6 +138,84 @@ globals:
     type: bool
     restore_value: false
     initial_value: "false"
+  # 0=none, 1=PodVoice reply armed, 2=ANNOUNCING observed, 3=draining the dedicated
+  # announcement resampler. Requiring phase 2 prevents an early state callback from
+  # fabricating a finish before playback actually began.
+  - id: podvoice_reply_phase
+    type: uint8_t
+    restore_value: false
+    initial_value: "0"
+
+# Publish the physical announcement lifecycle explicitly.  Relying on native-API
+# MediaPlayerEntityState proved insufficient in the room: audio played, but no
+# ANNOUNCING edge reached the add-on.  ESPHome's own on_announcement/on_state triggers
+# run at the source and therefore remain authoritative even when music resumes.
+media_player:
+  - id: !extend external_media_player
+    on_state:
+      - if:
+          condition:
+            and:
+              - lambda: "return id(podvoice_reply_phase) == 1;"
+              - media_player.is_announcing: external_media_player
+          then:
+            - lambda: "id(podvoice_reply_phase) = 2;"
+            - event.trigger:
+                id: podvoice_event
+                event_type: podvoice_playback_started
+      - if:
+          condition:
+            and:
+              - lambda: "return id(podvoice_reply_phase) == 2;"
+              - not:
+                  media_player.is_announcing: external_media_player
+          then:
+            - lambda: "id(podvoice_reply_phase) = 3;"
+            - script.execute: podvoice_finish_reply
+      # !extend replaces the base trigger list on this ESPHome version. Preserve the
+      # upstream music-unduck callback explicitly; rendered-config validation locks
+      # this beside both PodVoice telemetry callbacks.
+      - if:
+          condition:
+            and:
+              - switch.is_off: timer_ringing
+              - not:
+                  voice_assistant.is_running:
+              - not:
+                  media_player.is_announcing: external_media_player
+          then:
+            - mixer_speaker.apply_ducking:
+                id: media_mixing_input
+                decibel_reduction: 0
+                duration: 1.0s
+
+script:
+  - id: podvoice_finish_reply
+    mode: restart
+    then:
+      # Media-player IDLE means the source is done; the dedicated announcement
+      # resampler may still hold the final samples.  Do not call it physically
+      # finished until that private speaker is drained and stopped.
+      - wait_until:
+          condition:
+            lambda: |-
+              return !id(announcement_resampling_speaker).has_buffered_data()
+                     && !id(announcement_resampling_speaker).is_running();
+          timeout: 3s
+      - if:
+          condition:
+            lambda: |-
+              return !id(announcement_resampling_speaker).has_buffered_data()
+                     && !id(announcement_resampling_speaker).is_running();
+          then:
+            - event.trigger:
+                id: podvoice_event
+                event_type: podvoice_playback_finished
+          else:
+            - event.trigger:
+                id: podvoice_event
+                event_type: podvoice_playback_fault
+      - lambda: "id(podvoice_reply_phase) = 0;"
 
 # --- Phase 2: custom wake-word model (docs/wake-word.md) -----------------------------
 # When the custom-trained microWakeWord model is ready, uncomment to load it. NOTE on
@@ -157,6 +249,10 @@ event:
         podvoice_channel_v1,
         same_breath_v1,
         deterministic_rearm_v1,
+        podvoice_playback_events_v1,
+        podvoice_playback_started,
+        podvoice_playback_finished,
+        podvoice_playback_fault,
       ]
 
 # The vendored base owns micro_wake_word.on_wake_word_detected. It emits exactly one

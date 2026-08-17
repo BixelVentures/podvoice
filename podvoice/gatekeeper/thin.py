@@ -28,6 +28,7 @@ import asyncio
 import contextlib
 import logging
 import time
+from dataclasses import dataclass, field
 
 from . import audio as audio_mod
 from . import constants as C
@@ -98,14 +99,50 @@ END_PHRASES = frozenset(
 # Never close on the alias alone: it becomes a candidate and must be confirmed by the
 # assistant producing a pure goodbye response.  This preserves the false-close guard
 # for real field inputs such as "Klar" and "Kig FCK seneste kamp".
-END_PHRASE_ASR_ALIASES = frozenset({"kom ind"})
-ASSISTANT_GOODBYES = frozenset({"farvel", "farvel ha en god dag", "farvel hav en god dag"})
+END_PHRASE_ASR_ALIASES = frozenset({"kom ind", "tube"})
 
 
 def normalized_utterance(text: str) -> str:
     """Lowercase, strip punctuation/whitespace — so 'Tak, det var alt!' matches."""
     keep = [c for c in text.lower().strip() if c.isalnum() or c.isspace() or c == "'"]
     return " ".join("".join(keep).split())
+
+
+def assistant_said_goodbye(text: str) -> bool:
+    """Accept a *whole* short goodbye, never a substring mentioning goodbye.
+
+    Realtime field output varies politely (``Farvel`` / ``Selv tak. Farvel`` /
+    ``Farvel, hav en god dag``).  Keeping this as an anchored grammar is the second
+    independent signal for a noisy ASR alias; an ordinary answer containing the word
+    "farvel" cannot close the transport.
+    """
+    phrase = normalized_utterance(text)
+    for prefix in ("selv tak ", "okay "):
+        if phrase.startswith(prefix):
+            phrase = phrase[len(prefix) :]
+            break
+    for suffix in (" hav en god dag", " ha en god dag", " hav en god aften"):
+        if phrase.endswith(suffix):
+            phrase = phrase[: -len(suffix)]
+            break
+    return phrase in {"farvel", "goodbye", "bye", "hej hej"}
+
+
+@dataclass
+class _ClosureTurn:
+    """Closure evidence for exactly one user turn and its model response.
+
+    Provider input transcription is asynchronous and can land before *or after*
+    response.done.  Evidence therefore accumulates and is reconciled after every
+    event; it is never consumed merely because one event happened to arrive first.
+    """
+
+    serial: int
+    input_kind: str = "none"  # none | exact | alias
+    assistant: list[str] = field(default_factory=list)
+    response_done: bool = False
+    superseded: bool = False
+    confirmed: bool = False
 
 
 # Echo shield: while the device is playing OUR reply, mic frames are NOT forwarded to
@@ -240,6 +277,7 @@ class ThinSession:
         self._speech_tools: set[str] = set()  # tool calls whose result makes it SPEAK again
         self._heard_signal = False  # has this conversation carried real audio yet?
         self._goodbye: asyncio.Task | None = None  # armed close-after-goodbye (one per conv)
+        self._close_task: asyncio.Task | None = None  # exactly one close transaction per epoch
         self._epoch = 0.0  # conversation identity (monotonic start) for armed tasks
         self._teardown_lock = asyncio.Lock()  # wake must never race a teardown in flight
         self._muted = False
@@ -252,6 +290,8 @@ class ThinSession:
         self._tool_lock = asyncio.Lock()
         self._tool_tasks: dict[str, asyncio.Task] = {}
         self._playback_t0: float | None = None  # monotonic when the device started playing
+        self._playback_started = asyncio.Event()
+        self._playback_finished = asyncio.Event()
         self._last_item: str | None = None
         self._conv_started = 0.0
         self._speech_stop_t: float | None = None  # end-of-user-speech -> audible metric
@@ -267,7 +307,8 @@ class ThinSession:
         self._followup_task: asyncio.Task | None = None  # delayed turn-ready LED fallback
         self._turn_cue_appended = False  # this reply ends with the audible hand-over cue
         self._ending_conversation = False  # suppress "your turn" during a goodbye
-        self._endphrase_candidate = False  # ASR alias; requires model-goodbye confirmation
+        self._closure_serial = 0
+        self._closure_turn: _ClosureTurn | None = None
         self._last_activity = 0.0  # monotonic — feeds the client-side idle fallback
         self._trace_reason = "teardown"
 
@@ -376,7 +417,11 @@ class ThinSession:
         self._trace_reason = "teardown"
         self._active = True
         self._ending_conversation = False
-        self._endphrase_candidate = False
+        self._close_task = None
+        self._playback_started.clear()
+        self._playback_finished.clear()
+        self._closure_serial = 0
+        self._closure_turn = None
         self._turn_cue_appended = False
         self._last_user_utterance = ""
         self._last_activity = self._conv_started
@@ -419,28 +464,53 @@ class ThinSession:
         self._keepalive = self._spawn(self._keepalive_mic(), "thin-keepalive")
 
     async def stop(self, reason: str = "stop") -> None:
-        """Close the conversation NOW (stop word/button/panel/mute/idle)."""
+        """Request one atomic close and wait without letting caller cancellation abort it."""
+        task = self._request_close(reason)
+        if task is not None:
+            await asyncio.shield(task)
+
+    def _request_close(self, reason: str, *, error_kind: str | None = None) -> asyncio.Task | None:
+        """Compare-and-set the sole close transaction for this conversation epoch."""
+        if self._close_task is not None and not self._close_task.done():
+            return self._close_task
         if not self._active:
+            return None
+        epoch = self._epoch
+        self._close_task = self._spawn(
+            self._close_transaction(epoch=epoch, reason=reason, error_kind=error_kind),
+            f"thin-close-{reason}",
+        )
+        return self._close_task
+
+    async def _close_transaction(
+        self, *, epoch: float, reason: str, error_kind: str | None = None
+    ) -> None:
+        if not self._active or epoch != self._epoch:
             return
         self._ending_conversation = True
         self._trace_reason = reason
         self._trace_event("close_requested", reason=reason)
         _LOG.info("thin: closing conversation (%s) [room=%s]", reason, self.room)
         await self._silence_device()
+        if error_kind is not None:
+            self._trace_event("failure", kind=error_kind)
+            if self.hub is not None:
+                self.hub.activity(self.room, "⚠️ Fejl — lukker samtalen")
+            await self._speak_error(error_kind)
         await self._teardown(release_music=True)
-        self._hub_state("IDLE", "💤 Samtale slut — musikken er tilbage")
+        if error_kind is not None:
+            self._set_led(State.IDLE, error=True)
+            self._hub_state("IDLE", None)
+        else:
+            self._hub_state("IDLE", "💤 Samtale slut — musikken er tilbage")
 
     async def _fail(self, kind: str) -> None:
-        """Audible error -> clean IDLE. One sound, one activity line, no dead ends."""
-        self._trace_reason = f"error:{kind}"
-        self._trace_event("failure", kind=kind)
-        if self.hub is not None:
-            self.hub.activity(self.room, "⚠️ Fejl — lukker samtalen")
-        await self._silence_device()
-        await self._speak_error(kind)
-        await self._teardown(release_music=True)
-        self._set_led(State.IDLE, error=True)
-        self._hub_state("IDLE", None)
+        """Audible error joins the same exactly-once close transaction as every stop."""
+        reason = f"error:{kind}"
+        self._trace_reason = reason
+        task = self._request_close(reason, error_kind=kind)
+        if task is not None:
+            await asyncio.shield(task)
 
     async def _teardown(self, *, release_music: bool) -> None:
         async with self._teardown_lock:
@@ -458,7 +528,7 @@ class ThinSession:
         self._held_announce_item = None
         self._turn_cue_appended = False
         self._ending_conversation = False
-        self._endphrase_candidate = False
+        self._closure_turn = None
         self._last_user_utterance = ""
         self._reply_audible_until = 0.0
         self._direct = False  # the next reply re-decides its path from scratch
@@ -668,21 +738,9 @@ class ThinSession:
                 _LOG.info("thin: tool decision complete — waiting for the result answer")
             else:
                 had_reply = self._speaking
-                # A standalone "farvel" was twice transcribed as "Kom ind." in the
-                # same physical field run.  The transport only accepts that alias when
-                # Realtime independently answers with a pure goodbye.  Decide before
-                # appending the turn cue, otherwise the room is falsely invited to keep
-                # talking and the firmware wake latch cannot rearm.
-                if self._endphrase_candidate:
-                    assistant_phrase = normalized_utterance("".join(self._buf_out))
-                    if assistant_phrase in ASSISTANT_GOODBYES:
-                        _LOG.info(
-                            "thin: ASR end-phrase candidate confirmed by assistant %r",
-                            assistant_phrase,
-                        )
-                        self._ending_conversation = True
-                        self._trace_event("endphrase_confirmed", source="asr-alias+assistant")
-                    self._endphrase_candidate = False
+                turn = self._ensure_closure_turn()
+                turn.response_done = True
+                self._reconcile_closure(turn)
                 if had_reply and self._active and not self._ending_conversation:
                     cue = audio_mod.turn_tone(C.OUTPUT_RATE)
                     if self._direct and self._direct_q is not None:
@@ -710,8 +768,6 @@ class ThinSession:
                         self._schedule_followup_edge()
                     else:
                         self._enter_followup()
-                if self._ending_conversation and self._active:
-                    self._arm_goodbye("thin-endphrase-complete")
         elif isinstance(ev, Idle):
             self._trace_event("provider_idle")
             await self.stop(reason="idle")
@@ -738,6 +794,8 @@ class ThinSession:
 
             task.add_done_callback(_untrack)
         elif isinstance(ev, UserSpeechStopped):
+            if self._closure_turn is None or self._closure_turn.response_done:
+                self._begin_closure_turn()
             self._trace_event("speech_stopped")
             self._speech_stop_t = time.monotonic()  # the clock the family actually feels
             if self._active and not self._speaking and not self._device_playing:
@@ -761,8 +819,50 @@ class ThinSession:
                 self.usage.add(model, ev, room=self.room)
         elif isinstance(ev, OutputTranscript):
             self._buf_out.append(ev.text)
+            turn = self._ensure_closure_turn()
+            turn.assistant.append(ev.text)
+            self._reconcile_closure(turn)
             if self.hub is not None:
                 self.hub.transcript_delta(self.room, "out", ev.text)
+
+    def _begin_closure_turn(self) -> _ClosureTurn:
+        previous = self._closure_turn
+        if previous is not None and not previous.confirmed:
+            previous.superseded = True
+        self._closure_serial += 1
+        self._playback_started.clear()
+        self._playback_finished.clear()
+        self._closure_turn = _ClosureTurn(self._closure_serial)
+        return self._closure_turn
+
+    def _ensure_closure_turn(self) -> _ClosureTurn:
+        return self._closure_turn or self._begin_closure_turn()
+
+    def _reconcile_closure(self, turn: _ClosureTurn) -> None:
+        """Combine same-turn evidence independent of provider event ordering."""
+        if turn is not self._closure_turn or turn.superseded or turn.confirmed:
+            return
+        exact = turn.input_kind == "exact"
+        alias_confirmed = (
+            turn.input_kind == "alias"
+            and turn.response_done
+            and assistant_said_goodbye("".join(turn.assistant))
+        )
+        if not exact and not alias_confirmed:
+            return
+        # Exact text is terminal as soon as its final input transcript arrives.  A
+        # noisy alias is terminal only after the complete same-turn model response
+        # independently confirms it with an anchored standalone goodbye.
+        if exact or turn.response_done:
+            self._ending_conversation = True
+        if not turn.response_done:
+            return
+        turn.confirmed = True
+        source = "exact-input" if exact else "asr-alias+assistant"
+        _LOG.info("thin: end phrase confirmed (%s) [turn=%d]", source, turn.serial)
+        self._trace_event("endphrase_confirmed", source=source, turn=turn.serial)
+        if self._active:
+            self._arm_goodbye("thin-endphrase-reconciled")
 
     async def _maybe_end_phrase(self, text: str) -> None:
         """Transport-owned closure on an unambiguous WHOLE utterance.
@@ -771,22 +871,32 @@ class ThinSession:
         by guessing a tool. Hard words close now; polite phrases let its goodbye finish.
         Embedded politeness ('sluk lyset, tak') never matches.
         """
-        if self._device_playing:
-            return  # residual echo of the model's own 'farvel' must never close the chat
         if not self._active:
             return
         phrase = normalized_utterance(text)
         if not phrase:
             return
+        if self._device_playing and phrase not in END_PHRASES:
+            return  # ordinary residual reply echo must never become a user turn
         if phrase in END_NOW_WORDS:
             _LOG.info("thin: hard stop word %r — closing now", phrase)
             await self.stop(reason="stop-word")
         elif phrase in END_PHRASES:
             _LOG.info("thin: end phrase %r — closing after the goodbye", phrase)
-            self._ending_conversation = True
+            turn = self._ensure_closure_turn()
+            # During a physical reply, even exact "Farvel" could be residual speaker
+            # echo. Preserve the user's attempt but require the same two-signal
+            # confirmation as a field ASR alias. Outside playback, exact remains
+            # terminal immediately.
+            turn.input_kind = "alias" if self._device_playing else "exact"
+            if not self._device_playing:
+                self._ending_conversation = True
+            self._reconcile_closure(turn)
         elif phrase in END_PHRASE_ASR_ALIASES:
             _LOG.info("thin: possible ASR end phrase %r — awaiting assistant confirmation", phrase)
-            self._endphrase_candidate = True
+            turn = self._ensure_closure_turn()
+            turn.input_kind = "alias"
+            self._reconcile_closure(turn)
 
     def _flush_transcript(self, direction: str) -> None:
         buf = self._buf_in if direction == "in" else self._buf_out
@@ -1017,6 +1127,7 @@ class ThinSession:
             # turn start, not an interruption. This guard is ALSO the spurious-idle
             # safety for the provider's now-unconditional Interrupted (ARKITEKTUR §5).
             if self._active:
+                self._begin_closure_turn()
                 self._cancel_followup_edge()
                 self._turn_cue_appended = False
                 self.sm.state = State.LISTENING
@@ -1114,21 +1225,39 @@ class ThinSession:
         self._goodbye = self._spawn(self._close_after_goodbye(epoch=self._epoch), name)
 
     async def _close_after_goodbye(self, max_wait_s: float = 6.0, epoch: float = 0.0) -> None:
-        """Close once the goodbye stops playing (or after a short ceiling)."""
+        """Playback-finish is primary; this is only a bounded missing-edge fallback."""
         deadline = time.monotonic() + max_wait_s
-        await asyncio.sleep(0.5)
-        while time.monotonic() < deadline and (  # noqa: ASYNC110 — polling the playback
-            self._speaking or self._device_playing  # flags is the simple, correct thing
-        ):
-            await asyncio.sleep(0.2)
-        await asyncio.sleep(0.8)  # let the last word land
+        # Buffered announce can begin noticeably after response.done. Never infer
+        # "already silent" from the gap before its ANNOUNCING edge (the old 500 ms
+        # race closed the socket before a delayed goodbye began playing).
+        await asyncio.sleep(ANNOUNCE_PREARM_S)
         if epoch and epoch != self._epoch:
-            # A NEW conversation started while this goodbye was armed (the family
-            # re-woke during the farewell — documented hush behaviour). Closing now
-            # would kill their fresh question mid-sentence.
             _LOG.info("thin: stale goodbye ignored — a new conversation is live")
             return
-        await self.stop(reason="model-close")
+        if not self._active:
+            return
+        explicit_edges = bool(getattr(self.voicepe, "supports_playback_events", False))
+        if explicit_edges:
+            # The firmware contract promises a correlated start+drained-finish pair.
+            # A slow HTTP fetch is not silence: wait for its real start rather than
+            # truncating the goodbye at the old 1.5 s heuristic.
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(
+                    self._playback_started.wait(), timeout=max(0.0, deadline - time.monotonic())
+                )
+            if not self._active:
+                return
+        if self._device_playing:
+            # `_on_media_state(False)` owns the normal edge. Retain a hard ceiling for
+            # firmware that reports ANNOUNCING but loses its matching finished state.
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(
+                    self._playback_finished.wait(), timeout=max(0.0, deadline - time.monotonic())
+                )
+        if epoch == self._epoch and self._active:
+            if explicit_edges:
+                self._trace_event("playback_fault", reason="missing-start-or-finish")
+            self._request_close("model-close")
 
     # ------------------------------------------------------------- device signals
     def _on_wake_cb(self) -> None:
@@ -1141,6 +1270,12 @@ class ThinSession:
             self._speaking,
         )
         if self._active:
+            if self._ending_conversation:
+                # A confirmed Farvel is a terminal transport transition. Keeping this
+                # wake inside the old socket recreates the observed "Okay Nabu" as an
+                # ordinary follow-up. Teardown/rearm must finish first.
+                _LOG.info("thin: wake ignored while confirmed goodbye is closing")
+                return
             if self._goodbye is not None and not self._goodbye.done():
                 self._goodbye.cancel()  # they kept talking — do not close on the old goodbye
                 self._goodbye = None
@@ -1172,12 +1307,23 @@ class ThinSession:
             # path uses, so LED, playout clock, reverb tail and metrics stay identical.
             if self._device_playing:
                 self._on_media_state(False)
+        elif etype == "podvoice_playback_fault":
+            _LOG.error("thin: firmware could not prove the announcement speaker drained")
+            self._trace_event("playback_fault", reason="announcement-drain-timeout")
+            self._device_playing = False
+            self._playback_finished.set()
+            self._reply_audible_until = 0.0
+            self._playback_t0 = None
+            if self._active:
+                self._spawn(self.stop(reason="playback-fault"), "thin-playback-fault")
 
     def _on_media_state(self, announcing: bool) -> None:
         """ANNOUNCING edge = playback ground truth: playout clock, the GREEN ring
         (simultaneous with actual sound), and the real speech-stop->audible metric."""
         if announcing:
             self._trace_event("playback_started")
+            self._playback_started.set()
+            self._playback_finished.clear()
             self._device_playing = True  # echo shield UP: the room hears the assistant
             self._playback_t0 = time.monotonic()
             if self._active:
@@ -1209,6 +1355,7 @@ class ThinSession:
                 and self.playout.buffered_bytes > unheard_threshold
             )
             self._device_playing = False
+            self._playback_finished.set()
             # The device REPORTING "done" is better evidence than our byte estimate —
             # trust it and release the window. The estimate only carries the shield
             # when that report never arrives (field 16:42).
@@ -1233,6 +1380,10 @@ class ThinSession:
             self._spawn(self._end_echo_gate(tail_s), "thin-gate-end")
             self._sync_playout()
             self._playback_t0 = None
+            turn = self._closure_turn
+            if self._active and self._ending_conversation and turn is not None and turn.confirmed:
+                self._request_close("model-close")
+                return
             if self._active and not self._speaking and not self._ending_conversation:
                 self._enter_followup()
 
