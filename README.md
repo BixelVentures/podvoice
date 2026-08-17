@@ -40,8 +40,8 @@ REST tool bridge are deleted. What ships now:
   timers that ring on the device) and the exposed Gemini search agent;
 - a panel capability check that shows whether Realtime can actually see web/search and music tools,
   not just whether HA's MCP server is reachable;
-- transport-owned closure on exact whole utterances; the model cannot guess that a noisy
-  transcript means “farvel” and close the socket.
+- Realtime-ejet semantisk afslutningsintention; modellen foreslår afslutning på den
+  aktuelle tur, mens PodVoice først lukker transporten efter det fysiske slutsvar.
 
 The firmware has exactly one wake owner and never starts a stock Home Assistant Assist run.
 The measurable product and release gates live in
@@ -73,7 +73,7 @@ hardware or API keys.
 ```
 IDLE ──wake word / button──▶ ACTIVE (one Realtime session; follow-ups stay here)
   ▲                          music ducked; mic streams ONLY now)
-  └── exact "stop"/"farvel"/timeout/error ──▶ socket closed, mic off, wake rearmed
+  └── Realtime end-intent / timeout / error ──▶ socket closed, mic off, wake rearmed
 ```
 
 ## Components

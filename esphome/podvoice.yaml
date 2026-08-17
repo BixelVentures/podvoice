@@ -248,6 +248,7 @@ event:
         wake_stop,
         podvoice_channel_v1,
         same_breath_v1,
+        wake_audio_boundary_v1,
         deterministic_rearm_v1,
         podvoice_playback_events_v1,
         podvoice_playback_started,
@@ -310,10 +311,8 @@ podvoice_audio:
                            # pumped room reverb and made
                            # far-field Danish unintelligible (field 2026-08-06).
                            # Switch live with podvoice_set_mic_channel if the room says otherwise.
-  # Local-only pre-roll, continuously overwritten in PSRAM.  400 ms preserved only
-  # the last word ("Klokken") when the owner spoke naturally in the same breath as
-  # the wake phrase: wake-model decision latency had already consumed the beginning
-  # of "hvad er klokken?".  1500 ms (~48 KB) covers that measured edge while the
-  # privacy invariant is unchanged: no byte leaves the puck before wake enables the
-  # drain, and stop/timeout still gates it off.
+  # Local rolling capacity for decoupling the audio task from the API task. At the
+  # physical wake edge begin_conversation() resets it, so "Okay Nabu" and pre-wake
+  # room sound never reach Realtime. Audio produced after that edge is retained by
+  # the add-on's separate preconnect buffer while the provider socket opens.
   ring_ms: 1500

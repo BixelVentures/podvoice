@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.13.6 — ren lydgrænse ved wake
+
+- Voice PE nulstiller nu sin lokale rullende lydbuffer præcis ved den fysiske
+  wake-detektion. Selve “Okay Nabu”, rumlyd og eventuel musik fra før wake bliver
+  derfor aldrig sendt ind som den første Realtime-brugertur.
+- Al lyd efter wake sendes straks. Add-onens separate tre-sekunders preconnect-buffer
+  bevarer spørgsmålet, mens Realtime-sessionen åbner; den gamle 1,5 sekunders
+  pre-wake-kompensation er dermed ikke længere en del af samtalelyden.
+- API-start/keepalive forbliver idempotent og må aldrig nulstille aktiv tale. En ny
+  firmwaremarkør, `wake_audio_boundary_v1`, gør den fysiske kontrakt synlig og forhindrer
+  add-onen i at kalde ældre wake-forurenet firmware klar.
+- Feltbeviset bag rettelsen: første same-breath-input blev “Can I track shoppen?” og
+  udløste fejlagtigt musikværktøjet, mens den efterfølgende tur i samme session blev
+  transskriberet korrekt. Gain, dansk Realtime-konfiguration og generel mikrofonkvalitet
+  kan derfor ikke forklare netop denne kantfejl.
+
 ## 1.13.5 — Realtime ejer samtalens betydning
 
 - GPT Realtime afgør nu semantisk, om brugeren tydeligt vil afslutte samtalen, og

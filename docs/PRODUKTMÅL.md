@@ -20,6 +20,8 @@ på sin egen højttaler eller blive dødt efter få samtaler.
 
 - Renderet firmware: 1 wake-trigger, 0 stock `voice_assistant.start`.
 - Ét lokalt wake-event åbner én mic-kanal og én Realtime-session.
+- Den fysiske wake-grænse kasserer al pre-wake-lyd lokalt. Realtime må aldrig modtage
+  selve wakefrasen; al lyd efter detektionen bevares under provider-opkoblingen.
 - Dobbelt wake mens sessionen allerede er åben opretter ikke en ny session.
 - Realtime har ét provider-neutralt `end_conversation`-signal til en tydelig semantisk
   afslutningshensigt. Signalet må ikke selv lukke transporten eller gå gennem HA/MCP.
@@ -49,6 +51,8 @@ Krav: 10/10, ingen ekstra sessioner, ingen stock RUN_END og ingen kontrol-announ
 Flash kandidaten og kør 10 ubrudte samtaler på skrivebordet:
 
 - Sig wake og spørgsmål i samme naturlige åndedrag; ingen kunstig pause.
+- Lydbevisets første input skal være spørgsmålet, ikke “Okay Nabu”, et fragment af
+  wakefrasen eller pre-wake-rumlyd.
 - Hvert wake giver én tydelig visuel lyttefeedback og ét svar.
 - Stil mindst én opfølgning uden nyt wake i hver samtale.
 - Luk fem samtaler med forskellige naturlige hensigter, fx “farvel”, “tak, det var alt”,

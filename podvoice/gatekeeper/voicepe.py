@@ -119,6 +119,7 @@ class VoicePELink:
         # wake edge, before the stock cue + 300 ms delay. Without this generation the
         # user still has to pause after "Okay Nabu", so the panel must not call it ready.
         self.supports_same_breath = False
+        self.supports_wake_audio_boundary = False
         # Clean firmware contract: one local event opens PodVoice and no stock HA
         # Assist run is started. The VA component is only the native-API audio endpoint.
         self.supports_podvoice_channel = False
@@ -268,6 +269,7 @@ class VoicePELink:
         self._event_key = None
         self.supports_direct = False
         self.supports_same_breath = False
+        self.supports_wake_audio_boundary = False
         self.supports_podvoice_channel = False
         self.supports_deterministic_rearm = False
         self.supports_playback_events = False
@@ -312,6 +314,7 @@ class VoicePELink:
             for e in events:
                 advertised.update(getattr(e, "event_types", None) or [])
             self.supports_same_breath = "same_breath_v1" in advertised
+            self.supports_wake_audio_boundary = "wake_audio_boundary_v1" in advertised
             self.supports_podvoice_channel = "podvoice_channel_v1" in advertised
             self.supports_deterministic_rearm = "deterministic_rearm_v1" in advertised
             self.supports_playback_events = "podvoice_playback_events_v1" in advertised
@@ -346,6 +349,8 @@ class VoicePELink:
             missing_capabilities.append("podvoice_channel_v1")
         if not self.supports_same_breath:
             missing_capabilities.append("same_breath_v1")
+        if not self.supports_wake_audio_boundary:
+            missing_capabilities.append("wake_audio_boundary_v1")
         if not self.supports_deterministic_rearm:
             missing_capabilities.append("deterministic_rearm_v1")
         if not self.supports_playback_events:

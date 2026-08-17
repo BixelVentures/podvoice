@@ -25,6 +25,7 @@ FULL_SERVICES = [
 FULL_CAPABILITIES = [
     "podvoice_channel_v1",
     "same_breath_v1",
+    "wake_audio_boundary_v1",
     "deterministic_rearm_v1",
     "podvoice_playback_events_v1",
 ]
@@ -239,6 +240,7 @@ async def test_old_pause_required_firmware_is_reported_degraded():
     assert report["missing_capabilities"] == [
         "podvoice_channel_v1",
         "same_breath_v1",
+        "wake_audio_boundary_v1",
         "deterministic_rearm_v1",
         "podvoice_playback_events_v1",
     ]
@@ -250,6 +252,13 @@ async def test_same_breath_capability_is_read_from_firmware():
     link = _link(client)
     await link._resolve_entities()
     assert link.supports_same_breath is True
+
+
+async def test_clean_wake_audio_boundary_capability_is_read_from_firmware():
+    client = _StubClient([], [EventInfo("podvoice_event", 3, ["wake_audio_boundary_v1"])])
+    link = _link(client)
+    await link._resolve_entities()
+    assert link.supports_wake_audio_boundary is True
 
 
 async def test_clean_podvoice_channel_capability_is_read_from_firmware():

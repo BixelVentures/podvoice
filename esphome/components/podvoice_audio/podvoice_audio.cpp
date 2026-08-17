@@ -45,7 +45,23 @@ static const uint32_t STAT_LOG_INTERVAL_MS = 10000;
 static const uint32_t SAFETY_MS = 25000;
 
 // --- WAKE-GATED control (also the dead-man keepalive) ---
+void PodVoiceAudio::begin_conversation() {
+  // The rolling ring exists only so the passive tap never blocks the audio task.
+  // It is NOT conversation audio: before this exact edge it contains the wake word,
+  // room noise and possibly media. Replaying it makes Realtime interpret "Okay Nabu"
+  // as part of the user's request. Discard it once, locally, at the wake boundary.
+  // Every sample arriving after this reset is forwarded immediately; the add-on's
+  // preconnect buffer retains those samples while the Realtime socket connects.
+  if (this->ring_buffer_ != nullptr)
+    this->ring_buffer_->reset();
+  this->user_enabled_ = true;
+  this->last_keepalive_ms_ = millis();
+  ESP_LOGI(TAG, "Conversation audio boundary opened — discarded pre-wake audio");
+}
+
 void PodVoiceAudio::start_streaming() {
+  // Idempotent enable/keepalive. Never reset here: the add-on calls this again while
+  // the session is live, and doing so would cut words out of an active utterance.
   this->user_enabled_ = true;
   this->last_keepalive_ms_ = millis();
 }
@@ -175,9 +191,8 @@ void PodVoiceAudio::loop() {
 
   if (!connected) {
     // No subscribed PodVoice connection: discard continuously. With a subscriber but
-    // the privacy gate closed, KEEP the rolling local ring so a same-breath question
-    // survives wake-model decision latency. stop_streaming() already clears the prior
-    // conversation exactly once, and overwriting writes retain only the newest window.
+    // the privacy gate closed, the ring may roll locally, but begin_conversation()
+    // atomically discards it at wake. No pre-wake byte is ever conversation input.
     if (client == nullptr && this->ring_buffer_ != nullptr &&
         this->ring_buffer_->available() > 0) {
       this->ring_buffer_->reset();

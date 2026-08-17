@@ -21,7 +21,7 @@ def test_firmware_has_one_wake_owner_and_zero_stock_assist_starts():
     assert combined.count("on_wake_word_detected:") == 1
     assert "voice_assistant.start:" not in combined
     assert base.count("event_type: wake_okay_nabu") == 1
-    assert "id(pv_audio).start_streaming();" in base
+    assert base.count("id(pv_audio).begin_conversation();") == 1
     assert not any(line.startswith("micro_wake_word:") for line in overlay.splitlines())
 
 
@@ -29,6 +29,7 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     overlay = OVERLAY.read_text()
     assert "podvoice_channel_v1" in overlay
     assert "same_breath_v1" in overlay
+    assert "wake_audio_boundary_v1" in overlay
     assert "deterministic_rearm_v1" in overlay
     assert "podvoice_playback_events_v1" in overlay
     assert "action: podvoice_reply_expect" in overlay
@@ -47,11 +48,20 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "direct_speaker_v3" not in overlay
 
 
-def test_same_breath_channel_keeps_enough_local_preroll():
-    """Wake-model decision latency must not eat the question spoken after Okay Nabu."""
-    overlay = OVERLAY.read_text()
-    line = next(line for line in overlay.splitlines() if line.strip().startswith("ring_ms:"))
-    assert int(line.split(":", 1)[1].strip()) >= 1200
+def test_wake_boundary_discards_wake_audio_but_keepalive_never_trims_live_speech():
+    """Only the physical wake may reset audio; API keepalives must be lossless."""
+    base = BASE.read_text()
+    source = (ROOT / "esphome" / "components" / "podvoice_audio" / "podvoice_audio.cpp").read_text()
+    begin = source.split("void PodVoiceAudio::begin_conversation()", 1)[1].split(
+        "void PodVoiceAudio::start_streaming()", 1
+    )[0]
+    keepalive = source.split("void PodVoiceAudio::start_streaming()", 1)[1].split(
+        "void PodVoiceAudio::stop_streaming()", 1
+    )[0]
+
+    assert base.count("id(pv_audio).begin_conversation();") == 1
+    assert "ring_buffer_->reset()" in begin
+    assert "ring_buffer_->reset()" not in keepalive
 
 
 def test_each_detection_is_single_use_and_teardown_can_rearm_it():

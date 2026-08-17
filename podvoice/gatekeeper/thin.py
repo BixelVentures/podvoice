@@ -368,6 +368,9 @@ class ThinSession:
                     "openai_noise": getattr(self.brain, "noise", None),
                     "speaker_path": self.speaker_path,
                     "same_breath": getattr(self.voicepe, "supports_same_breath", None),
+                    "wake_audio_boundary": getattr(
+                        self.voicepe, "supports_wake_audio_boundary", None
+                    ),
                 },
             )
         self._trace_event("wake_received")
