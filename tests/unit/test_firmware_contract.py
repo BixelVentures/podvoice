@@ -99,9 +99,7 @@ def test_each_detection_is_single_use_and_healthy_rearm_preserves_detector_conti
     connected = voice_assistant.split("on_client_connected:", 1)[1].split(
         "on_client_disconnected:", 1
     )[0]
-    disconnected = voice_assistant.split("on_client_disconnected:", 1)[1].split(
-        "on_error:", 1
-    )[0]
+    disconnected = voice_assistant.split("on_client_disconnected:", 1)[1].split("on_error:", 1)[0]
     assert connected.index("id(podvoice_detector_continuity_proven) = false;") < connected.index(
         "micro_wake_word.start:"
     )

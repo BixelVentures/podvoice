@@ -1508,11 +1508,7 @@ class ThinSession:
         ok = bool(contract.get("ok", True))
         readiness = getattr(self.voicepe, "wake_readiness", "unknown")
         status = (
-            "down"
-            if readiness == "fault"
-            else "up"
-            if ok and readiness == "proven"
-            else "degraded"
+            "down" if readiness == "fault" else "up" if ok and readiness == "proven" else "degraded"
         )
         self.hub.set_service("voicepe", status)
         missing = (
@@ -1560,9 +1556,7 @@ class ThinSession:
             self._trace_event("wake_rearmed")
             _LOG.info("thin: wake continuity proven [room=%s]", self.room)
             if self.hub is not None:
-                self.hub.set_service(
-                    "voicepe", "up" if self._voicepe_contract_ok() else "degraded"
-                )
+                self.hub.set_service("voicepe", "up" if self._voicepe_contract_ok() else "degraded")
         else:
             self._trace_event("wake_rearm_recovered")
             _LOG.warning(
