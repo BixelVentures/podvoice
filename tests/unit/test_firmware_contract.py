@@ -11,6 +11,9 @@ def test_vendored_base_has_auditable_provenance():
     yaml = BASE.read_text()
     assert "772f2b9c8a881899a6f7b44d997aa6093c7e8aa7" in yaml
     assert "b68a8e8df8dc5471bf23706503c04c736182d93aa7a0c78724331146b2dc2c68" in yaml
+    assert "ref: dev" not in yaml
+    # The compiled voice_kit source is pinned. Audio assets still follow upstream's
+    # official URL until they can be vendored as binary release artifacts.
 
 
 def test_firmware_has_one_wake_owner_and_zero_stock_assist_starts():
@@ -32,6 +35,7 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "wake_audio_boundary_v1" in overlay
     assert "deterministic_rearm_v1" in overlay
     assert "physical_rearm_ack_v1" in overlay
+    assert "continuous_rearm_v1" in overlay
     assert "event_type: podvoice_wake_rearmed" in overlay
     assert "podvoice_playback_events_v1" in overlay
     assert "action: podvoice_reply_expect" in overlay
@@ -68,7 +72,7 @@ def test_wake_boundary_keeps_only_short_bridge_and_keepalive_never_trims_live_sp
     assert "ring_buffer_->reset()" not in keepalive
 
 
-def test_each_detection_is_single_use_and_teardown_can_rearm_it():
+def test_each_detection_is_single_use_and_healthy_rearm_preserves_detector_continuity():
     base = BASE.read_text()
     overlay = OVERLAY.read_text()
     assert "stop_after_detection: false" in base
@@ -79,11 +83,29 @@ def test_each_detection_is_single_use_and_teardown_can_rearm_it():
     rearm = overlay.split("action: podvoice_rearm_wake_word", 1)[1].split(
         "# RUNTIME audio tuning", 1
     )[0]
+    healthy = rearm.split("else:", 1)[0]
+    assert "podvoice_detector_continuity_proven" in healthy
+    assert "micro_wake_word.stop:" not in healthy
+    assert "micro_wake_word.start:" not in healthy
     assert "micro_wake_word.stop:" in rearm
     assert "micro_wake_word.start:" in rearm
     assert "wait_until:" in rearm
     assert "event_type: podvoice_wake_rearmed" in rearm
+    assert "event_type: podvoice_wake_rearm_recovered" in rearm
+    assert "event_type: podvoice_wake_rearm_fault" in rearm
     assert "id(podvoice_conversation_active) = false;" in rearm
+    assert base.count("id(podvoice_detector_continuity_proven) = true;") == 1
+    voice_assistant = base.split("voice_assistant:\n", 1)[1]
+    connected = voice_assistant.split("on_client_connected:", 1)[1].split(
+        "on_client_disconnected:", 1
+    )[0]
+    disconnected = voice_assistant.split("on_client_disconnected:", 1)[1].split(
+        "on_error:", 1
+    )[0]
+    assert connected.index("id(podvoice_detector_continuity_proven) = false;") < connected.index(
+        "micro_wake_word.start:"
+    )
+    assert "id(podvoice_detector_continuity_proven) = false;" in disconnected
 
 
 def test_local_preroll_rolls_while_gated_and_clears_at_teardown():

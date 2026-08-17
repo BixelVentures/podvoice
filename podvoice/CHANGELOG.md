@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.13.8 — kontinuerlig wake-sandhed og hurtigere Realtime-start
+
+- En fysisk wake-detektion er nu den eneste kilde til firmwarebeviset for en sund
+  wake-motor. Efter normal samtalelukning genbruges den allerede kørende detektor og
+  kun samtalelåsen åbnes; den raske inference-task bliver ikke længere tvangsgenstartet.
+- Stop/start er isoleret som recovery. Recovery åbner igen for wake, men rapporteres
+  særskilt som ikke-fysisk-verificeret, fordi ESPHome 2026.6.2's offentlige
+  `is_running()` ikke kan skelne `STARTING` fra `DETECTING_WAKE_WORD`. Panelet/add-onen
+  må derfor ikke vise et grønt readiness-bevis, som firmwaren ikke faktisk har. Kold
+  recovery er gul og operationel; fault/timeout er rød med serialiseret automatisk
+  retry. Første virkelige wake efter recovery løfter status til grøn.
+- Et gammelt kontinuitetsbevis nulstilles ved enhver reconnect-ejet detektorstart, så
+  `STARTING` aldrig kan arve grønt bevis fra en tidligere detector-instans.
+- Voice PE-køen og Realtime beholder nu op til tolv sekunders privacy-gated lyd under
+  DNS/TLS/session-opstart. Ved ekstrem backpressure beholdes slutningen af spørgsmålet
+  frem for gammel wake/pre-roll, så værktøjsintentionen ikke klippes væk.
+- GPT Realtime 2.1 kører eksplicit med `reasoning.effort: low`, OpenAI's anbefalede
+  startpunkt for responsive production voice agents med værktøjsvalg.
+- Den eksterne `voice_kit`-komponent er fastlåst til samme Voice PE 26.6.0-commit som
+  den vendorede hardwarebase; et nyt build kan ikke længere trække vilkårlig `dev`-kode.
+
 ## 1.13.7 — fysisk rearm og intakt første ord
 
 - Wake-motoren tvangsgenstartes nu efter hver afsluttet samtale. Add-on'en viser først

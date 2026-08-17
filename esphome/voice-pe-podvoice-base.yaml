@@ -1656,7 +1656,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/esphome/home-assistant-voice-pe
-      ref: dev
+      ref: 772f2b9c8a881899a6f7b44d997aa6093c7e8aa7
     components:
       - voice_kit
     refresh: 0s
@@ -1690,6 +1690,9 @@ micro_wake_word:
   on_wake_word_detected:
     # One physical detection creates exactly one PodVoice channel-open signal.
     # No voice_assistant.start, no stock HA pipeline, no wake chime or 300 ms delay.
+    # This callback can only fire from DETECTING_WAKE_WORD. Because stop-after-
+    # detection is disabled, its proof remains valid until recovery stops the task.
+    - lambda: "id(podvoice_detector_continuity_proven) = true;"
     - if:
         condition:
           and:
@@ -1758,10 +1761,14 @@ voice_assistant:
   volume_multiplier: 1
   on_client_connected:
     - lambda: id(init_in_progress) = false;
+    # A connect-owned start is not continuous with the detector instance that may
+    # have produced an earlier wake. It must earn fresh proof on a real detection.
+    - lambda: id(podvoice_detector_continuity_proven) = false;
     - micro_wake_word.start:
     - lambda: id(voice_assistant_phase) = ${voice_assist_idle_phase_id};
     - script.execute: control_leds
   on_client_disconnected:
+    - lambda: id(podvoice_detector_continuity_proven) = false;
     - voice_assistant.stop:
     - lambda: id(voice_assistant_phase) = ${voice_assist_not_ready_phase_id};
     - script.execute: control_leds

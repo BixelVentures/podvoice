@@ -210,6 +210,21 @@ def test_openai_session_semantic_with_noise():
     assert inp["noise_reduction"] == {"type": "far_field"}
 
 
+def test_realtime_21_uses_low_reasoning_for_voice_latency():
+    session = OpenAIRealtimeSession(api_key="k")._session_update()["session"]
+    assert session["reasoning"] == {"effort": "low"}
+
+
+def test_preconnect_buffer_preserves_a_twelve_second_same_breath_utterance():
+    s = OpenAIRealtimeSession(api_key="k", input_rate=16000)
+    one_second = b"x" * (16000 * 2)
+    for _ in range(12):
+        s._buffer_preconnect_audio(one_second)
+    assert s._preconnect_audio_bytes == 12 * 16000 * 2
+    s._buffer_preconnect_audio(one_second)
+    assert s._preconnect_audio_bytes == 12 * 16000 * 2
+
+
 def test_realtime_transcript_uses_documented_live_danish_configuration():
     inp = OpenAIRealtimeSession(api_key="k")._session_update()["session"]["audio"]["input"]
     transcription = inp["transcription"]

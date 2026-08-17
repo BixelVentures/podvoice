@@ -63,7 +63,9 @@ TRANSCRIPTION_PROMPT_DA = (
     "sportsklubber og akronymer ordret, blandt andet AGF, FCK, Brøndby, Nabu, "
     "Home Assistant, PodVoice, PodConnect og Spotify."
 )
-PRECONNECT_AUDIO_MAX_S = 3.0  # wake tail + first words while session.update is still pending
+# Preserve a complete privacy-gated utterance even when DNS/TLS/session.update is slow.
+# Twelve seconds of 16 kHz mono PCM is only ~384 KiB and is cleared on every close.
+PRECONNECT_AUDIO_MAX_S = 12.0
 
 # The panel's model/voice selector set (all voice-capable; small fixed list).
 STATIC_MODELS = [
@@ -231,6 +233,9 @@ class OpenAIRealtimeSession:
         session: dict = {
             "type": "realtime",  # speech-to-speech (vs "transcription")
             "output_modalities": ["audio"],
+            # OpenAI recommends low as the production voice-agent starting point:
+            # responsive, while retaining basic reasoning and tool selection.
+            "reasoning": {"effort": "low"},
             "instructions": (self.instructions or SYSTEM_PROMPT_DA)
             + (f"\n\nRUM\n{self.room_context}" if self.room_context else ""),
             "audio": {

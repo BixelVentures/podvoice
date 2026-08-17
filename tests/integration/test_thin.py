@@ -939,6 +939,86 @@ async def test_idle_reconnect_recovers_the_firmware_wake_latch():
         await session.aclose()
 
 
+async def test_recovered_rearm_is_usable_but_amber_until_a_physical_wake():
+    class RecoveryVoicePE(FakeVoicePELink):
+        def __init__(self) -> None:
+            super().__init__(room=ROOM)
+            self.wake_readiness = "unknown"
+            self.contract = {"ok": True}
+
+        async def rearm_wake_word(self) -> str:
+            self.rearm_calls += 1
+            return "recovered"
+
+    hub = StatusHub()
+    voicepe = RecoveryVoicePE()
+    brain = LiveFake()
+    session = ThinSession(
+        room=ROOM,
+        attention=FakeAttention(),
+        heartbeat=Heartbeat(FakeAttention(), period_ms=20),
+        brain=brain,
+        voicepe=voicepe,
+        playback=Playback(sink=voicepe.play_pcm),
+        tools=FakeTools(),
+        hub=hub,
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+    )
+    await session.start()
+    try:
+        await session._reassert_device()
+        assert voicepe.wake_readiness == "recovered"
+        assert hub.snapshot()["services"]["voicepe"] == "degraded"
+
+        session._on_wake_cb()
+        assert voicepe.wake_readiness == "proven"
+        assert hub.snapshot()["services"]["voicepe"] == "up"
+        await _wait_until(lambda: session._active)
+    finally:
+        await session.aclose()
+
+
+async def test_fault_retries_until_recovered_without_a_reboot():
+    class RetryVoicePE(FakeVoicePELink):
+        def __init__(self) -> None:
+            super().__init__(room=ROOM)
+            self.wake_readiness = "unknown"
+            self.contract = {"ok": True}
+            self.outcomes = [RuntimeError("motor fault"), "recovered"]
+
+        async def rearm_wake_word(self) -> str:
+            self.rearm_calls += 1
+            outcome = self.outcomes.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+    hub = StatusHub()
+    voicepe = RetryVoicePE()
+    session = ThinSession(
+        room=ROOM,
+        attention=FakeAttention(),
+        heartbeat=Heartbeat(FakeAttention(), period_ms=20),
+        brain=LiveFake(),
+        voicepe=voicepe,
+        playback=Playback(sink=voicepe.play_pcm),
+        tools=FakeTools(),
+        hub=hub,
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+    )
+    await session.start()
+    try:
+        await session._reassert_device()
+        assert hub.snapshot()["services"]["voicepe"] == "down"
+        await _wait_until(lambda: voicepe.rearm_calls == 2, max_wait=1.5)
+        assert voicepe.wake_readiness == "recovered"
+        assert hub.snapshot()["services"]["voicepe"] == "degraded"
+    finally:
+        await session.aclose()
+
+
 async def test_puck_gets_the_shield_talk_gets_duplex():
     """0.92-0.95 hardcoded full_duplex=True on the PUCK path (flags swapped) — the echo
     shield was off on the device and NO setting could reach it. Lock the wiring down."""

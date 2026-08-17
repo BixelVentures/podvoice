@@ -26,10 +26,11 @@ from . import constants as C
 
 log = logging.getLogger(__name__)
 
-# Max PCM frames while Realtime connects. 400 * 20 ms = ~8 s, matching the provider
-# connect ceiling: a slow TLS handshake must not preserve the start of a natural request
-# only to discard its ending. ~256 KiB/room is a small, bounded privacy-gated buffer.
-_QUEUE_MAXSIZE = 400
+# Max PCM frames while Realtime connects. 600 * 20 ms = ~12 s: the provider has an
+# 8 s hard connect ceiling, but the queue also needs margin for scheduling and the
+# session.updated hand-off. The provider uses the same 12 s bound, so neither stage
+# preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
+_QUEUE_MAXSIZE = 600
 
 # --- Firmware contract ----------------------------------------------------------
 # Everything the add-on ASSUMES the flashed firmware provides, verified on EVERY
@@ -125,8 +126,12 @@ class VoicePELink:
         self.supports_podvoice_channel = False
         self.supports_deterministic_rearm = False
         self.supports_physical_rearm_ack = False
+        self.supports_continuous_rearm = False
         self.supports_playback_events = False
+        self.wake_readiness = "unknown"
+        self._rearm_lock = asyncio.Lock()
         self._rearm_waiter: asyncio.Event | None = None
+        self._rearm_outcome: str | None = None
         # same_breath firmware emits its explicit event at the local wake edge and the
         # stock VA reports the same physical wake again through handle_start ~300 ms
         # later.  Remember the first edge so the latter remains an ACK/fallback rather
@@ -275,6 +280,7 @@ class VoicePELink:
         self.supports_podvoice_channel = False
         self.supports_deterministic_rearm = False
         self.supports_physical_rearm_ack = False
+        self.supports_continuous_rearm = False
         self.supports_playback_events = False
         self._announcing = False
         self._warned_missing = set()  # a reflash may have added the service — warn fresh
@@ -321,6 +327,7 @@ class VoicePELink:
             self.supports_podvoice_channel = "podvoice_channel_v1" in advertised
             self.supports_deterministic_rearm = "deterministic_rearm_v1" in advertised
             self.supports_physical_rearm_ack = "physical_rearm_ack_v1" in advertised
+            self.supports_continuous_rearm = "continuous_rearm_v1" in advertised
             self.supports_playback_events = "podvoice_playback_events_v1" in advertised
             self.supports_direct = (
                 "direct_speaker_v3" in advertised
@@ -359,6 +366,8 @@ class VoicePELink:
             missing_capabilities.append("deterministic_rearm_v1")
         if not self.supports_physical_rearm_ack:
             missing_capabilities.append("physical_rearm_ack_v1")
+        if not self.supports_continuous_rearm:
+            missing_capabilities.append("continuous_rearm_v1")
         if not self.supports_playback_events:
             missing_capabilities.append("podvoice_playback_events_v1")
         ok = not missing_required and self._media_key is not None and not missing_capabilities
@@ -469,20 +478,47 @@ class VoicePELink:
         """Close the device mic-forward (session end / grace expiry)."""
         await self._call_service("podvoice_stream_stop")
 
-    async def rearm_wake_word(self) -> None:
-        """Return to wake detection and wait for the firmware-owned readiness ACK."""
+    async def rearm_wake_word(self) -> str:
+        """Open the next wake gate and return the firmware-owned readiness level.
+
+        ``recovered`` means the detector was explicitly restarted and the latch is
+        operational, but continuity cannot be called proven until a real wake arrives.
+        It is therefore a usable amber state, not a connection failure.
+        """
         if not self.supports_physical_rearm_ack:
             raise RuntimeError("firmware mangler physical_rearm_ack_v1")
-        waiter = asyncio.Event()
-        self._rearm_waiter = waiter
-        try:
-            ok = await self._call_service("podvoice_rearm_wake_word")
-            if not ok:
-                raise RuntimeError("podvoice_rearm_wake_word blev ikke udført")
-            await asyncio.wait_for(waiter.wait(), timeout=3.0)
-        finally:
-            if self._rearm_waiter is waiter:
-                self._rearm_waiter = None
+        if not self.supports_continuous_rearm:
+            raise RuntimeError("firmware mangler continuous_rearm_v1")
+        async with self._rearm_lock:
+            waiter = asyncio.Event()
+            self._rearm_waiter = waiter
+            self._rearm_outcome = None
+            try:
+                ok = await self._call_service("podvoice_rearm_wake_word")
+                if not ok:
+                    self.wake_readiness = "fault"
+                    raise RuntimeError("podvoice_rearm_wake_word blev ikke udført")
+                await asyncio.wait_for(waiter.wait(), timeout=3.0)
+                outcome = self._rearm_outcome
+                if outcome == "proven":
+                    self.wake_readiness = "proven"
+                    return "proven"
+                if outcome == "recovered":
+                    self.wake_readiness = "recovered"
+                    return "recovered"
+                self.wake_readiness = "fault"
+                raise RuntimeError(
+                    "Voice PE-forbindelsen forsvandt under wake-rearm"
+                    if outcome == "disconnected"
+                    else "wake-motorens recovery fejlede"
+                )
+            except TimeoutError:
+                self.wake_readiness = "fault"
+                raise RuntimeError("wake-motoren kvitterede ikke for rearm") from None
+            finally:
+                if self._rearm_waiter is waiter:
+                    self._rearm_waiter = None
+                self._rearm_outcome = None
 
     async def set_light(self, on: bool, rgb: tuple[float, float, float], brightness: float) -> None:
         """Drive the LED ring. Best-effort; no-op if the device has no resolvable light."""
@@ -507,6 +543,10 @@ class VoicePELink:
         if self._direct_prepare_waiter is not None:
             self._direct_prepare_waiter.set()
             self._direct_prepare_waiter = None
+        if self._rearm_waiter is not None:
+            self._rearm_outcome = "disconnected"
+            self._rearm_waiter.set()
+        self.wake_readiness = "fault"
         log.warning("voicepe %s disconnected (expected=%s)", self.host, expected_disconnect)
         if self.on_link is not None:
             self._run_cb(self.on_link, False)
@@ -556,7 +596,7 @@ class VoicePELink:
         # an `end` flag. A VoiceAssistantAudio{end=true} is intercepted by
         # aioesphomeapi and routed to handle_stop, never here. podvoice_audio
         # forwards a single channel, so data2 is always None — we ignore it.
-        """Push one raw 16 kHz PCM frame into the queue; drop on backpressure."""
+        """Push one raw 16 kHz PCM frame; retain the newest speech on backpressure."""
         # Live S1 health: count frames + bytes so the panel can confirm the device is
         # streaming WITHOUT a competing diag subscription (we own the single VA slot).
         if self.frames_in == 0:
@@ -567,8 +607,13 @@ class VoicePELink:
         try:
             self._audio_q.put_nowait(data)
         except asyncio.QueueFull:
-            # Drop the frame rather than block the API receive path.
-            pass
+            # Never block the native-API receive path. If the 12 s ceiling is ever
+            # reached, discard the oldest 20 ms (normally wake/pre-roll) instead of
+            # the end of the request, which carries the intent and tool arguments.
+            with contextlib.suppress(asyncio.QueueEmpty):
+                self._audio_q.get_nowait()
+            with contextlib.suppress(asyncio.QueueFull):
+                self._audio_q.put_nowait(data)
 
     def drain_mic(self) -> int:
         """Drop any queued mic frames. Called at conversation START: the queue is
@@ -616,6 +661,15 @@ class VoicePELink:
             self._announcing = False
         if key == self._event_key and event_type == "podvoice_wake_rearmed":
             if self._rearm_waiter is not None:
+                self._rearm_outcome = "proven"
+                self._rearm_waiter.set()
+        elif key == self._event_key and event_type == "podvoice_wake_rearm_recovered":
+            if self._rearm_waiter is not None:
+                self._rearm_outcome = "recovered"
+                self._rearm_waiter.set()
+        elif key == self._event_key and event_type == "podvoice_wake_rearm_fault":
+            if self._rearm_waiter is not None:
+                self._rearm_outcome = "fault"
                 self._rearm_waiter.set()
         # Media-player announce state -> "reply finished playing" ground truth.
         if (

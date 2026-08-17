@@ -236,6 +236,8 @@ class ThinSession:
         self._close_task: asyncio.Task | None = None  # exactly one close transaction per epoch
         self._epoch = 0.0  # conversation identity (monotonic start) for armed tasks
         self._teardown_lock = asyncio.Lock()  # wake must never race a teardown in flight
+        self._rearm_retry_task: asyncio.Task | None = None
+        self._rearm_retry_attempt = 0
         self._muted = False
         self._closing = False
         self._reader: asyncio.Task | None = None
@@ -301,6 +303,9 @@ class ThinSession:
 
     async def aclose(self) -> None:
         self._closing = True
+        if self._rearm_retry_task is not None:
+            self._rearm_retry_task.cancel()
+            self._rearm_retry_task = None
         self._trace_reason = "shutdown"
         await self._teardown(release_music=True)
         with contextlib.suppress(Exception):
@@ -548,17 +553,17 @@ class ThinSession:
             except Exception:
                 pass
         self._set_led(State.IDLE)
-        # The firmware stops its wake engine after one detection. Rearm only after the
-        # provider session, mic stream, reply path, and attention hold are all closed.
+        # Firmware keeps its detector task alive and single-uses a conversation latch.
+        # Reopen that latch only after provider, mic, reply path and attention are all
+        # closed; firmware performs a stop/start cycle only as an explicit recovery.
         # During add-on shutdown (_closing) leave the puck stopped; the next native API
         # connection starts it through the firmware's normal client-connected hook.
         if not self._closing and hasattr(self.voicepe, "rearm_wake_word"):
             try:
-                await self.voicepe.rearm_wake_word()
-                self._trace_event("wake_rearmed")
-                _LOG.info("thin: wake word rearmed [room=%s]", self.room)
+                await self._rearm_device()
             except Exception as exc:
                 _LOG.warning("thin: wake-word rearm failed [room=%s]: %s", self.room, exc)
+                self._schedule_rearm_retry()
         if self.audio_trace is not None:
             try:
                 self.audio_trace.finish(self._trace_reason)
@@ -1212,6 +1217,16 @@ class ThinSession:
 
     # ------------------------------------------------------------- device signals
     def _on_wake_cb(self) -> None:
+        # A genuine detector callback is the strongest available runtime proof. A
+        # cold-boot recovery remains amber only until this first physical wake.
+        if hasattr(self.voicepe, "wake_readiness"):
+            self.voicepe.wake_readiness = "proven"
+        self._rearm_retry_attempt = 0
+        if self._rearm_retry_task is not None:
+            self._rearm_retry_task.cancel()
+            self._rearm_retry_task = None
+        if self.hub is not None and self._voicepe_contract_ok():
+            self.hub.set_service("voicepe", "up")
         _LOG.info(
             "thin: wake signal [room=%s] (active=%s muted=%s closing=%s speaking=%s)",
             self.room,
@@ -1441,7 +1456,14 @@ class ThinSession:
         if self.hub is None:
             return
         self.hub.set_connected(self.room, up)
-        self.hub.set_service("voicepe", "up" if up else "down")
+        readiness = getattr(self.voicepe, "wake_readiness", "unknown")
+        if not up or readiness == "fault":
+            service_state = "down"
+        elif readiness == "recovered":
+            service_state = "degraded"
+        else:
+            service_state = "up" if self._voicepe_contract_ok() else "degraded"
+        self.hub.set_service("voicepe", service_state)
         if not up:
             self._spawn_link_warning()
 
@@ -1484,7 +1506,15 @@ class ThinSession:
         if self.hub is None:
             return
         ok = bool(contract.get("ok", True))
-        self.hub.set_service("voicepe", "up" if ok else "degraded")
+        readiness = getattr(self.voicepe, "wake_readiness", "unknown")
+        status = (
+            "down"
+            if readiness == "fault"
+            else "up"
+            if ok and readiness == "proven"
+            else "degraded"
+        )
+        self.hub.set_service("voicepe", status)
         missing = (
             list(contract.get("missing_required", []))
             + [e for e in contract.get("missing_entities", []) if e == "media_player"]
@@ -1506,8 +1536,89 @@ class ThinSession:
             # A reconnect/restart after a crashed conversation must also clear the
             # firmware latch; otherwise the puck can be online yet permanently deaf.
             if not self._closing and hasattr(self.voicepe, "rearm_wake_word"):
-                await self.voicepe.rearm_wake_word()
+                try:
+                    await self._rearm_device()
+                except Exception as exc:
+                    _LOG.warning("thin: reconnect rearm failed [room=%s]: %s", self.room, exc)
+                    self._schedule_rearm_retry()
         self._set_led(self.sm.state)
+
+    def _voicepe_contract_ok(self) -> bool:
+        contract = getattr(self.voicepe, "contract", None)
+        return not isinstance(contract, dict) or bool(contract.get("ok", True))
+
+    async def _rearm_device(self) -> str:
+        """Reopen the firmware latch without confusing recovery with proof."""
+        outcome = await self.voicepe.rearm_wake_word()
+        # Test doubles and legacy implementations predate the explicit outcome and
+        # represent a successful proven rearm when they return None.
+        readiness = outcome if outcome in ("proven", "recovered") else "proven"
+        if hasattr(self.voicepe, "wake_readiness"):
+            self.voicepe.wake_readiness = readiness
+        self._rearm_retry_attempt = 0
+        if readiness == "proven":
+            self._trace_event("wake_rearmed")
+            _LOG.info("thin: wake continuity proven [room=%s]", self.room)
+            if self.hub is not None:
+                self.hub.set_service(
+                    "voicepe", "up" if self._voicepe_contract_ok() else "degraded"
+                )
+        else:
+            self._trace_event("wake_rearm_recovered")
+            _LOG.warning(
+                "thin: wake detector recovered; awaiting first physical proof [room=%s]",
+                self.room,
+            )
+            if self.hub is not None:
+                self.hub.set_service("voicepe", "degraded")
+                self.hub.activity(
+                    self.room,
+                    "🟡 Wake-motor genstartet — klar, men bekræftes ved næste 'Okay Nabu'",
+                )
+        return readiness
+
+    def _schedule_rearm_retry(self) -> None:
+        """Keep a failed detector recoverable without requiring another reboot."""
+        if self._closing or (
+            self._rearm_retry_task is not None and not self._rearm_retry_task.done()
+        ):
+            return
+        if hasattr(self.voicepe, "wake_readiness"):
+            self.voicepe.wake_readiness = "fault"
+        if self.hub is not None:
+            self.hub.set_service("voicepe", "down")
+
+        async def _retry() -> None:
+            delays = (1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
+            while not self._closing:
+                delay = delays[min(self._rearm_retry_attempt, len(delays) - 1)]
+                self._rearm_retry_attempt += 1
+                await asyncio.sleep(delay)
+                try:
+                    await self._rearm_device()
+                    return
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    _LOG.warning(
+                        "thin: wake rearm retry %d failed [room=%s]: %s",
+                        self._rearm_retry_attempt,
+                        self.room,
+                        exc,
+                    )
+                    if hasattr(self.voicepe, "wake_readiness"):
+                        self.voicepe.wake_readiness = "fault"
+                    if self.hub is not None:
+                        self.hub.set_service("voicepe", "down")
+
+        task = self._spawn(_retry(), "thin-rearm-retry")
+        self._rearm_retry_task = task
+
+        def _clear(done: asyncio.Task) -> None:
+            if self._rearm_retry_task is done:
+                self._rearm_retry_task = None
+
+        task.add_done_callback(_clear)
 
     # ------------------------------------------------------------- helpers
     def _sync_playout(self) -> None:

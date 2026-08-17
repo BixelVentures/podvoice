@@ -48,31 +48,62 @@ api:
         - script.stop: podvoice_finish_reply
         - lambda: "id(podvoice_reply_phase) = 0;"
         - lambda: "id(pv_audio).stop_streaming();"
-    # One wake opens one conversation. The wake engine deliberately stops after that
-    # detection and PodVoice rearms it only after Realtime, mic forwarding, playback,
-    # and music ducking are all closed. This makes the return to wakeword explicit.
+    # One wake opens one conversation. microWakeWord deliberately remains live because
+    # it owns the passive microphone tap. A real wake detection proves the detector was
+    # in DETECTING_WAKE_WORD; as long as nobody stopped it, rearm is therefore the small
+    # and safe operation of reopening the single-use conversation latch. Stop/start is
+    # recovery only — cycling a healthy inference task after every turn created the
+    # very dead-wake race this action is meant to prevent.
     - action: podvoice_rearm_wake_word
       then:
         - script.stop: podvoice_finish_reply
         - lambda: "id(podvoice_reply_phase) = 0;"
-        # is_running() is also true while microWakeWord is STARTING/STOPPING, so it
-        # cannot prove that the detector is ready. Force a complete state cycle.
-        - micro_wake_word.stop:
-        - wait_until:
-            condition:
-              not:
-                micro_wake_word.is_running:
-            timeout: 2s
-        - micro_wake_word.start:
-        - delay: 300ms
         - if:
             condition:
-              micro_wake_word.is_running:
+              and:
+                - lambda: "return id(podvoice_detector_continuity_proven);"
+                - micro_wake_word.is_running:
             then:
               - lambda: "id(podvoice_conversation_active) = false;"
               - event.trigger:
                   id: podvoice_event
                   event_type: podvoice_wake_rearmed
+            else:
+              # Recovery only. ESPHome's public is_running() cannot distinguish
+              # STARTING from DETECTING, so never label this branch physically proven.
+              - lambda: "id(podvoice_detector_continuity_proven) = false;"
+              - micro_wake_word.stop:
+              - wait_until:
+                  condition:
+                    not:
+                      micro_wake_word.is_running:
+                  timeout: 2s
+              - if:
+                  condition:
+                    not:
+                      micro_wake_word.is_running:
+                  then:
+                    - micro_wake_word.start:
+                    - wait_until:
+                        condition:
+                          micro_wake_word.is_running:
+                        timeout: 2s
+                    - if:
+                        condition:
+                          micro_wake_word.is_running:
+                        then:
+                          - lambda: "id(podvoice_conversation_active) = false;"
+                          - event.trigger:
+                              id: podvoice_event
+                              event_type: podvoice_wake_rearm_recovered
+                        else:
+                          - event.trigger:
+                              id: podvoice_event
+                              event_type: podvoice_wake_rearm_fault
+                  else:
+                    - event.trigger:
+                        id: podvoice_event
+                        event_type: podvoice_wake_rearm_fault
     # Arm playback telemetry for exactly the next PodVoice reply. Other announcements
     # (timer, HA, test tone) use the same media player and must never close a Realtime
     # conversation or move its LED/echo gate.
@@ -146,6 +177,12 @@ wifi:
 # latch; only PodVoice's post-teardown service clears it.
 globals:
   - id: podvoice_conversation_active
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  # Set true only by the real detector callback. It remains valid until recovery
+  # explicitly stops microWakeWord; an API call can never fabricate this proof.
+  - id: podvoice_detector_continuity_proven
     type: bool
     restore_value: false
     initial_value: "false"
@@ -262,7 +299,10 @@ event:
         wake_audio_boundary_v1,
         deterministic_rearm_v1,
         physical_rearm_ack_v1,
+        continuous_rearm_v1,
         podvoice_wake_rearmed,
+        podvoice_wake_rearm_recovered,
+        podvoice_wake_rearm_fault,
         podvoice_playback_events_v1,
         podvoice_playback_started,
         podvoice_playback_finished,

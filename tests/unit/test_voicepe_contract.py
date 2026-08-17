@@ -8,6 +8,8 @@ import asyncio
 import logging
 from types import SimpleNamespace
 
+import pytest
+
 from gatekeeper.voicepe import VoicePELink
 
 
@@ -29,6 +31,7 @@ FULL_CAPABILITIES = [
     "wake_audio_boundary_v1",
     "deterministic_rearm_v1",
     "physical_rearm_ack_v1",
+    "continuous_rearm_v1",
     "podvoice_playback_events_v1",
 ]
 
@@ -245,6 +248,7 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "wake_audio_boundary_v1",
         "deterministic_rearm_v1",
         "physical_rearm_ack_v1",
+        "continuous_rearm_v1",
         "podvoice_playback_events_v1",
     ]
     assert link.supports_same_breath is False
@@ -279,10 +283,13 @@ async def test_deterministic_rearm_capability_is_read_from_firmware():
 
 
 async def test_physical_rearm_ack_capability_is_read_from_firmware():
-    client = _StubClient([], [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1"])])
+    client = _StubClient(
+        [], [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1", "continuous_rearm_v1"])]
+    )
     link = _link(client)
     await link._resolve_entities()
     assert link.supports_physical_rearm_ack is True
+    assert link.supports_continuous_rearm is True
 
 
 async def test_playback_event_capability_and_edges_are_read_from_firmware():
@@ -328,7 +335,10 @@ async def test_playback_event_capability_and_edges_are_read_from_firmware():
 
 
 async def test_rearm_calls_the_dedicated_firmware_service():
-    client = _StubClient(FULL_SERVICES, [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1"])])
+    client = _StubClient(
+        FULL_SERVICES,
+        [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1", "continuous_rearm_v1"])],
+    )
     link = _link(client)
     await link._resolve_entities()
     task = asyncio.create_task(link.rearm_wake_word())
@@ -336,6 +346,82 @@ async def test_rearm_calls_the_dedicated_firmware_service():
     link._on_state(SimpleNamespace(event_type="podvoice_wake_rearmed", key=3))
     await task
     assert client.executed == ["podvoice_rearm_wake_word"]
+
+
+async def test_rearm_recovery_is_degraded_not_physical_proof():
+    client = _StubClient(
+        FULL_SERVICES,
+        [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1", "continuous_rearm_v1"])],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+    task = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    link._on_state(SimpleNamespace(event_type="podvoice_wake_rearm_recovered", key=3))
+    assert await task == "recovered"
+    assert link.wake_readiness == "recovered"
+
+
+async def test_rearm_fault_fails_immediately():
+    client = _StubClient(
+        FULL_SERVICES,
+        [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1", "continuous_rearm_v1"])],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+    task = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    link._on_state(SimpleNamespace(event_type="podvoice_wake_rearm_fault", key=3))
+    with pytest.raises(RuntimeError, match="recovery fejlede"):
+        await task
+    assert link.wake_readiness == "fault"
+
+
+async def test_rearm_is_single_flight_and_ack_cannot_cross_calls():
+    client = _StubClient(
+        FULL_SERVICES,
+        [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1", "continuous_rearm_v1"])],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+    first = asyncio.create_task(link.rearm_wake_word())
+    second = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    assert client.executed == ["podvoice_rearm_wake_word"]
+    link._on_state(SimpleNamespace(event_type="podvoice_wake_rearmed", key=3))
+    assert await first == "proven"
+    await asyncio.sleep(0)
+    assert client.executed == ["podvoice_rearm_wake_word", "podvoice_rearm_wake_word"]
+    link._on_state(SimpleNamespace(event_type="podvoice_wake_rearm_recovered", key=3))
+    assert await second == "recovered"
+
+
+async def test_disconnect_settles_pending_rearm_and_late_ack_is_ignored():
+    client = _StubClient(
+        FULL_SERVICES,
+        [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1", "continuous_rearm_v1"])],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+    task = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    await link._on_disconnect(expected_disconnect=True)
+    with pytest.raises(RuntimeError, match="forsvandt"):
+        await task
+    link._on_state(SimpleNamespace(event_type="podvoice_wake_rearmed", key=3))
+    assert link.wake_readiness == "fault"
+
+
+async def test_mic_queue_keeps_the_end_of_a_long_request_on_backpressure():
+    link = VoicePELink("pv-test.local", "psk", room="stue")
+    for number in range(601):
+        await link._handle_audio(number.to_bytes(2, "little"))
+    assert link._audio_q.qsize() == 600
+    assert await link._audio_q.get() == (1).to_bytes(2, "little")
+    newest = b""
+    while not link._audio_q.empty():
+        newest = link._audio_q.get_nowait()
+    assert newest == (600).to_bytes(2, "little")
 
 
 async def test_reply_is_armed_before_the_media_command():
