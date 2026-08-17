@@ -890,9 +890,25 @@ async def test_talk_and_voicepe_share_the_same_lifecycle_contract():
             await session.aclose()
 
 
-async def test_ten_clean_wake_session_close_rearm_cycles():
-    """Release gate: 10 cycles, exactly one provider connect per physical wake."""
-    brain = LiveFake()
+async def test_ten_complete_wake_followup_semantic_close_rearm_cycles():
+    """Release gate: ten complete half-duplex conversations.
+
+    Every cycle proves the product contract rather than merely calling ``stop()``:
+    one physical wake opens one provider session, a duplicate wake is idempotent,
+    two user turns share that session, Realtime proposes semantic closure, physical
+    playback completion owns teardown, and the puck is rearmed exactly once.
+    """
+
+    class CountingBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.close_count = 0
+
+        async def close(self) -> None:
+            self.close_count += 1
+            await super().close()
+
+    brain = CountingBrain()
     session, attention, voicepe = _build(brain)
     await session.start()
     try:
@@ -906,13 +922,71 @@ async def test_ten_clean_wake_session_close_rearm_cycles():
             await session.wake()
             assert brain.connect_count == cycle
 
-            await session.stop(reason="cycle")
-            assert session.sm.state is State.IDLE
+            # First question and answer complete physically.  The conversation must
+            # remain open for a natural follow-up without another wake/provider connect.
+            expected_announces = len(voicepe.announced_urls) + 1
+            brain.emit(
+                InputTranscript("Hvad er klokken?"),
+                AudioChunk(_frame(), item_id=f"answer-{cycle}-1"),
+                OutputTranscript("Klokken er ti."),
+                TurnComplete(),
+            )
+            await _wait_until(
+                lambda expected=expected_announces: len(voicepe.announced_urls) == expected
+            )
+            session._on_media_state(True)
+            session._on_media_state(False)
+            assert session._active is True
+            assert brain.connect_count == cycle
+
+            # The follow-up is another turn in exactly the same Realtime session.
+            expected_announces += 1
+            brain.emit(
+                InputTranscript("Og hvilken ugedag er det?"),
+                AudioChunk(_frame(), item_id=f"answer-{cycle}-2"),
+                OutputTranscript("Det er mandag."),
+                TurnComplete(),
+            )
+            await _wait_until(
+                lambda expected=expected_announces: len(voicepe.announced_urls) == expected
+            )
+            session._on_media_state(True)
+            session._on_media_state(False)
+            assert session._active is True
+            assert brain.connect_count == cycle
+
+            # Closure authority is Realtime's semantic signal, never a local word
+            # matcher.  Teardown waits for the spoken farewell's physical finish.
+            call_id = f"end-{cycle}"
+            brain.emit(
+                InputTranscript("Det var alt for nu."),
+                ToolCall(call_id, "end_conversation", {}),
+            )
+            await _wait_until(lambda expected=cycle: len(brain.sent_tool_results) == expected)
+            expected_announces += 1
+            brain.emit(
+                ToolRoundComplete(),
+                AudioChunk(_frame(), item_id=f"goodbye-{cycle}"),
+                OutputTranscript("Farvel."),
+                TurnComplete(),
+            )
+            await _wait_until(
+                lambda expected=expected_announces: len(voicepe.announced_urls) == expected
+            )
+            assert session._active is True
+            session._on_media_state(True)
+            assert session._active is True
+            session._on_media_state(False)
+            await _wait_until(lambda: session.sm.state is State.IDLE)
+
             assert voicepe.streaming is False
             assert "abort" not in voicepe.direct_events
+            assert brain.close_count == cycle
+            assert len(attention.release_calls) == cycle
+            assert voicepe.rearm_calls == cycle
 
-        assert len(attention.release_calls) == 10
-        assert voicepe.rearm_calls == 10
+        assert brain.connect_count == 10
+        assert brain.close_count == 10
     finally:
         await session.aclose()
 

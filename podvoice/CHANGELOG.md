@@ -23,6 +23,10 @@
   startpunkt for responsive production voice agents med værktøjsvalg.
 - Den eksterne `voice_kit`-komponent er fastlåst til samme Voice PE 26.6.0-commit som
   den vendorede hardwarebase; et nyt build kan ikke længere trække vilkårlig `dev`-kode.
+- Release-gaten kører nu ti komplette samtaler i stedet for ti kunstige `stop()`-kald:
+  én wake/én Realtime-session, fysisk afsluttet første svar, naturlig opfølgning i samme
+  session, modelsemantisk `end_conversation`, fysisk afsluttet farvel, præcis én teardown
+  og præcis én wake-rearm i hver cyklus.
 
 ## 1.13.7 — fysisk rearm og intakt første ord
 
