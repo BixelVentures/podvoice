@@ -87,7 +87,10 @@ async def test_fresh_tools_are_present_when_realtime_connects():
     await session.start()
     try:
         await session.wake()
-        assert [d["name"] for d in brain.seen_at_connect] == ["fresh_ha_tool"]
+        assert [d["name"] for d in brain.seen_at_connect] == [
+            "fresh_ha_tool",
+            "end_conversation",
+        ]
     finally:
         await session.aclose()
 
@@ -580,53 +583,34 @@ async def test_ambiguous_transcripts_never_close_the_transport():
         await session.aclose()
 
 
-async def test_field_asr_goodbye_alias_requires_assistant_goodbye_then_closes():
-    """'Farvel' -> 'Kom ind.' closes only after Realtime independently says goodbye."""
-    gemini = LiveFake()
-    hub = StatusHub()
-    session, attention, voicepe = _build(gemini, hub=hub)
-    await session.start()
-    try:
-        await session.wake()
-        gemini.emit(InputTranscript("Kom ind."))
-        await asyncio.sleep(0.05)
-        assert session._active is True
-        assert session._ending_conversation is False
-
-        gemini.emit(AudioChunk(_frame(), item_id="goodbye"))
-        gemini.emit(OutputTranscript("Farvel."), TurnComplete())
-        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
-        session._on_media_state(True)
-        session._on_media_state(False)
-        await _wait_until(lambda: session.sm.state is State.IDLE)
-        await _wait_until(lambda: len(attention.release_calls) >= 1)
-        assert any(
-            item["event"] == "endphrase_confirmed" for item in hub.snapshot()["timeline_activity"]
-        )
-    finally:
-        await session.aclose()
-
-
-@pytest.mark.parametrize("late_input", [False, True])
-@pytest.mark.parametrize("user_text", ["Tube", "Kom ind.", "Farvel."])
-async def test_goodbye_reconciliation_is_independent_of_transcript_order(
-    late_input: bool, user_text: str
-):
-    """Field reality: final ASR can land on either side of response.done.
-
-    A noisy whole-word alias requires the same turn's anchored assistant goodbye;
-    exact Farvel closes in either ordering too.
-    """
+@pytest.mark.parametrize(
+    "user_text",
+    [
+        "Farvel.",
+        "Tak for hjælpen, vi tales ved.",
+        "Det var det hele for nu.",
+        "Jeg smutter, hav en god dag.",
+        "Tube",
+    ],
+)
+async def test_provider_semantic_end_closes_varied_danish_meanings(user_text: str):
+    """PodVoice never parses the words; the provider-neutral semantic signal decides."""
     gemini = LiveFake()
     session, attention, voicepe = _build(gemini)
     await session.start()
     try:
         await session.wake()
-        reply = (AudioChunk(_frame(), item_id="goodbye"), OutputTranscript("Selv tak. Farvel."))
-        if late_input:
-            gemini.emit(*reply, TurnComplete(), InputTranscript(user_text))
-        else:
-            gemini.emit(InputTranscript(user_text), *reply, TurnComplete())
+        end_decl = next(d for d in gemini.tool_declarations if d["name"] == "end_conversation")
+        assert end_decl["parameters"]["additionalProperties"] is False
+        gemini.emit(InputTranscript(user_text), ToolCall("end-1", "end_conversation", {}))
+        await _wait_until(lambda: len(gemini.sent_tool_results) == 1)
+        assert session._active is True
+        gemini.emit(
+            ToolRoundComplete(),
+            AudioChunk(_frame(), item_id="goodbye"),
+            OutputTranscript("Farvel."),
+            TurnComplete(),
+        )
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
 
         # A delayed ANNOUNCING edge must keep the old session alive; the bounded
@@ -644,21 +628,74 @@ async def test_goodbye_reconciliation_is_independent_of_transcript_order(
         await session.aclose()
 
 
-async def test_stale_alias_cannot_confirm_against_the_next_turn_goodbye():
+@pytest.mark.parametrize("end_first", [False, True])
+async def test_semantic_end_composes_with_an_ordinary_tool_in_either_order(end_first: bool):
+    class RecordingTools(FakeTools):
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        async def dispatch(self, name: str, args: dict) -> dict:
+            self.calls.append(name)
+            return {"ok": True, "summary": "Tændt."}
+
+    gemini = LiveFake()
+    session, attention, voicepe = _build(gemini)
+    tools = RecordingTools()
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        ordinary = ToolCall("light-1", "light_turn_on", {})
+        semantic = ToolCall("end-1", "end_conversation", {})
+        gemini.emit(*(semantic, ordinary) if end_first else (ordinary, semantic))
+        await _wait_until(lambda: len(gemini.sent_tool_results) == 2)
+        assert tools.calls == ["light_turn_on"]  # lifecycle signal never reaches HA
+
+        gemini.emit(
+            ToolRoundComplete(),
+            AudioChunk(_frame(), item_id="mixed-goodbye"),
+            OutputTranscript("Farvel."),
+            TurnComplete(),
+        )
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)
+        session._on_media_state(False)
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert len(attention.release_calls) == 1
+    finally:
+        await session.aclose()
+
+
+async def test_duplicate_semantic_end_call_id_is_acknowledged_only_once():
+    gemini = LiveFake()
+    session, _attention, _voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        duplicate = ToolCall("same-call", "end_conversation", {})
+        gemini.emit(duplicate, duplicate)
+        await _wait_until(lambda: len(gemini.sent_tool_results) == 1)
+        await asyncio.sleep(0.05)
+        assert len(gemini.sent_tool_results) == 1
+        assert session._active is True
+    finally:
+        await session.aclose()
+
+
+async def test_stale_semantic_end_cannot_confirm_against_the_next_turn():
     gemini = LiveFake()
     session, _attention, voicepe = _build(gemini)
     await session.start()
     try:
         await session.wake()
-        gemini.emit(InputTranscript("Tube"))  # unconfirmed candidate in turn 1
-        await asyncio.sleep(0.05)
+        gemini.emit(InputTranscript("Jeg smutter."), ToolCall("old", "end_conversation", {}))
+        await _wait_until(lambda: len(gemini.sent_tool_results) == 1)
 
-        # A real new speech edge supersedes turn 1. Even a strange goodbye response
-        # to turn 2 cannot reach back and confirm the stale alias.
-        gemini.emit(Interrupted(), InputTranscript("Ja"))
+        # Fresh speech supersedes the signal before its farewell response completes.
+        gemini.emit(Interrupted(), InputTranscript("Vent, hvad er klokken?"))
         gemini.emit(
             AudioChunk(_frame(), item_id="unrelated"),
-            OutputTranscript("Farvel."),
+            OutputTranscript("Klokken er ti."),
             TurnComplete(),
         )
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
@@ -739,42 +776,25 @@ async def test_playback_fault_closes_cleanly_instead_of_poisoning_the_next_turn(
         await session.aclose()
 
 
-async def test_literal_asr_alias_without_goodbye_does_not_close():
+@pytest.mark.parametrize(
+    "heard",
+    ["Farvel.", "Tube", "Kom ind", "Klar", "Tak", "Stop betyder stands på engelsk"],
+)
+async def test_transcript_text_is_never_closure_authority_without_semantic_signal(heard: str):
     gemini = LiveFake()
     session, _attention, voicepe = _build(gemini)
     await session.start()
     try:
         await session.wake()
         gemini.emit(
-            InputTranscript("Kom ind."),
+            InputTranscript(heard),
             AudioChunk(_frame(), item_id="ordinary"),
-            OutputTranscript("Hvad vil du have hjælp til?"),
+            OutputTranscript("Sig det lige igen?"),
             TurnComplete(),
         )
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
         assert session._active is True
         assert session._ending_conversation is False
-    finally:
-        await session.aclose()
-
-
-async def test_alias_does_not_close_on_an_answer_that_only_mentions_goodbye():
-    gemini = LiveFake()
-    session, _attention, voicepe = _build(gemini)
-    await session.start()
-    try:
-        await session.wake()
-        gemini.emit(
-            InputTranscript("Tube"),
-            AudioChunk(_frame(), item_id="definition"),
-            OutputTranscript("Det danske ord farvel er en afskedshilsen."),
-            TurnComplete(),
-        )
-        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
-        session._on_media_state(True)
-        session._on_media_state(False)
-        await asyncio.sleep(0.1)
-        assert session._active is True
     finally:
         await session.aclose()
 
@@ -800,38 +820,20 @@ async def test_mic_level_logged_and_silence_flagged(caplog):
         await session.aclose()
 
 
-async def test_end_phrase_fallback_closes(monkeypatch):
-    """Ported lifecycle behavior (3.3): a WHOLE utterance that is a closure phrase
-    ends the conversation after the provider's spoken goodbye. Embedded politeness
-    ('sluk lyset, tak') must NOT close."""
-    from gatekeeper.voice import InputTranscript
-
-    gemini = LiveFake()
-    session, attention, _voicepe = _build(gemini)
-    await session.start()
-    try:
-        await session.wake()
-        gemini.emit(InputTranscript("Sluk lyset, tak"))  # embedded politeness — stays open
-        await asyncio.sleep(0.1)
-        assert session._active is True
-        gemini.emit(InputTranscript("Tak, det var alt!"))
-        gemini.emit(AudioChunk(_frame(), item_id="bye"), TurnComplete())
-        await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=9.0)
-        await _wait_until(lambda: len(attention.release_calls) >= 1)
-    finally:
-        await session.aclose()
-
-
-async def test_hard_stop_word_closes_now():
-    from gatekeeper.voice import InputTranscript
-
+async def test_embedded_politeness_never_closes_without_provider_semantic_signal():
     gemini = LiveFake()
     session, _attention, _voicepe = _build(gemini)
     await session.start()
     try:
         await session.wake()
-        gemini.emit(InputTranscript("Stop."))
-        await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=2.0)
+        gemini.emit(
+            InputTranscript("Sluk lyset, tak"),
+            AudioChunk(_frame(), item_id="done"),
+            OutputTranscript("Slukket."),
+            TurnComplete(),
+        )
+        await asyncio.sleep(0.1)
+        assert session._active is True
     finally:
         await session.aclose()
 
@@ -868,8 +870,13 @@ async def test_talk_and_voicepe_share_the_same_lifecycle_contract():
             brain.emit(InputTranscript("Klar"))
             await asyncio.sleep(0.05)
             assert session._active is True
+            brain.emit(InputTranscript("Farvel"), ToolCall("end", "end_conversation", {}))
+            await _wait_until(lambda brain=brain: len(brain.sent_tool_results) == 1)
             brain.emit(
-                InputTranscript("Farvel"), AudioChunk(_frame(), item_id="bye"), TurnComplete()
+                ToolRoundComplete(),
+                AudioChunk(_frame(), item_id="bye"),
+                OutputTranscript("Farvel."),
+                TurnComplete(),
             )
             await _wait_until(
                 lambda session=session, brain=brain, attention=attention: (

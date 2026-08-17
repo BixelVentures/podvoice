@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.13.5 — Realtime ejer samtalens betydning
+
+- GPT Realtime afgør nu semantisk, om brugeren tydeligt vil afslutte samtalen, og
+  udsender et internt `end_conversation`-signal. PodVoice matcher ikke længere
+  “farvel”, faste fraser eller ASR-aliaser for at gætte brugerens hensigt.
+- Signalet er bundet til den aktuelle brugertur, går aldrig gennem HA/MCP og lukker
+  ikke direkte. Først det efterfølgende korte afslutningssvar og Voice PE's fysiske
+  playback-finish må udløse den atomiske teardown og wake-rearm.
+- Uklart input, et almindeligt “tak”, omtalte slutord og gamle værktøjssvar kan ikke
+  lukke en ny tur. Ny tale ophæver en uafsluttet modelbeslutning.
+- Blandede ønsker som “sluk lyset, og så er jeg færdig” samler alle værktøjsresultater
+  før præcis ét slutsvar. Langsomme HA-kald kan derfor ikke skabe dobbelt svar eller
+  dobbelt lukning.
+- 1.13.4's lokale frase-/aliasfortolkning er erstattet og må ikke bruges som den
+  godkendte kandidat. Firmwaredelen med fysisk playback-telemetri bevares og kræver
+  stadig flash sammen med denne add-on-version.
+
 ## 1.13.4 — tur-sikker lukning og fysisk svarslut
 
 - “Farvel” kan nu ankomme både før og efter Realtime melder svaret færdigt. Lukningen

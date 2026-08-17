@@ -7,8 +7,10 @@
 
 Et familiemedlem siger “Okay Nabu” og fortsætter naturligt med spørgsmålet. Voice PE
 åbner én PodVoice-kanal og PodVoice åbner én Realtime-session. Opfølgninger fortsætter
-i samme session. “Farvel” eller timeout lukker både socket og mikrofon, hvorefter næste
-wake virker straks.
+i samme session. GPT Realtime fortolker semantisk brugerens hensigt — inklusive om
+samtalen er slut — og vælger værktøjer ud fra prompt og kontekst. PodVoice udfører kun
+den deterministiske lifecycle: fysisk svarslut, én socket-/mikrofonlukning, musik-release
+og wake-rearm. Timeout og tekniske fejl kan stadig lukke uden en modelbeslutning.
 
 Systemet skal give korte korrekte danske svar, bruge HA/MCP, PodConnect, musik, vejr,
 web og timere korrekt og fejle hørligt. Det må aldrig lukke på almindelig tale, svare
@@ -19,8 +21,11 @@ på sin egen højttaler eller blive dødt efter få samtaler.
 - Renderet firmware: 1 wake-trigger, 0 stock `voice_assistant.start`.
 - Ét lokalt wake-event åbner én mic-kanal og én Realtime-session.
 - Dobbelt wake mens sessionen allerede er åben opretter ikke en ny session.
-- `end_conversation` findes ikke i modellens værktøjer.
-- “Klar” og “Kig FCK seneste kamp” kan ikke lukke transporten.
+- Realtime har ét provider-neutralt `end_conversation`-signal til en tydelig semantisk
+  afslutningshensigt. Signalet må ikke selv lukke transporten eller gå gennem HA/MCP.
+- Der findes ingen frase-, keyword- eller ASR-aliasliste, som afgør samtalehensigten.
+- “Klar”, “Kig FCK seneste kamp”, uklart input og almindelig høflighed kan ikke lukke,
+  medmindre Realtime på den samme tur eksplicit beslutter, at brugeren afslutter.
 - Talk og Voice PE bruger samme `ThinSession`; kun I/O-adapteren er forskellig.
 - Classic/direct kan ikke aktiveres via gamle eller nye settings.
 
@@ -32,7 +37,8 @@ Kør mindst 10 cyklusser:
 2. præcis én provider-connect;
 3. mic-forward aktiv;
 4. opfølgning i samme session;
-5. eksakt farvel/stop eller timeout;
+5. Realtime udsender semantisk afslutningsintention på varierede naturlige formuleringer,
+   eller transportens timeout/fejl udløses;
 6. provider lukket, mic-forward slukket, ducking frigivet og state idle;
 7. næste wake accepteres.
 
@@ -45,7 +51,10 @@ Flash kandidaten og kør 10 ubrudte samtaler på skrivebordet:
 - Sig wake og spørgsmål i samme naturlige åndedrag; ingen kunstig pause.
 - Hvert wake giver én tydelig visuel lyttefeedback og ét svar.
 - Stil mindst én opfølgning uden nyt wake i hver samtale.
-- Luk med “farvel” i fem og lad timeout lukke fem.
+- Luk fem samtaler med forskellige naturlige hensigter, fx “farvel”, “tak, det var alt”,
+  “vi snakkes” og en kontekstuel afslutning; lad timeout lukke fem.
+- Medtag uklare/korrumperede korte ytringer og almindeligt “tak” midt i en opgave; de
+  skal blive i samme session eller udløse et opklarende spørgsmål, aldrig frase-routing.
 - Bekræft at næste wake virker hver gang.
 - Gem lydspor og tidslinje for fejl; bedøm ikke kun transskripttekst.
 

@@ -98,6 +98,101 @@ async def test_openai_sends_create_immediately_when_idle():
     assert s._ws.sent[-1] == {"type": "response.create"} and s._pending_create is False
 
 
+async def test_openai_mixed_tool_results_create_one_followup_when_slow_result_finishes_late():
+    """An action plus semantic end intent must yield one spoken follow-up.
+
+    The fast result lands while the function-call response is active, response.done
+    arrives, and the slow HA result lands afterwards.  The late result satisfies the
+    deferred create; it must not leave another create armed behind it.
+    """
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._active_response = True
+    s._outstanding_tool_calls.update({"end", "home"})
+
+    await s.send_tool_results(
+        [{"id": "end", "name": "end_conversation", "response": {"ok": True}}]
+    )
+    assert s._pending_create is True
+    assert s._outstanding_tool_calls == {"home"}
+
+    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
+    evs = await _drain(s)
+    assert not any(isinstance(e, TurnComplete) for e in evs)
+    assert all(m["type"] != "response.create" for m in s._ws.sent)
+
+    await s.send_tool_results(
+        [{"id": "home", "name": "home_call", "response": {"ok": True}}]
+    )
+    assert s._pending_create is False
+    assert sum(m["type"] == "response.create" for m in s._ws.sent) == 1
+
+    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
+    evs = await _drain(s)
+    assert sum(isinstance(e, TurnComplete) for e in evs) == 1
+    assert sum(m["type"] == "response.create" for m in s._ws.sent) == 1
+
+
+async def test_openai_mixed_tool_results_create_one_followup_in_reverse_completion_order():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._active_response = True
+    s._outstanding_tool_calls.update({"end", "home"})
+
+    await s.send_tool_results(
+        [{"id": "home", "name": "home_call", "response": {"ok": True}}]
+    )
+    await s.send_tool_results(
+        [{"id": "end", "name": "end_conversation", "response": {"ok": True}}]
+    )
+    assert s._pending_create is True
+    assert not s._outstanding_tool_calls
+
+    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
+    evs = await _drain(s)
+    assert sum(isinstance(e, ToolRoundComplete) for e in evs) == 1
+    assert sum(m["type"] == "response.create" for m in s._ws.sent) == 1
+
+
+async def test_openai_waits_for_all_mixed_tool_results_before_one_response_create():
+    """A fast lifecycle result and slow HA result must produce one combined answer."""
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    # Simulate the function-call response already being done with two calls outstanding.
+    s._active_response = False
+    s._pending_create = True
+    s._outstanding_tool_calls = {"end-1", "light-1"}
+
+    await s.send_tool_results(
+        [{"id": "end-1", "name": "end_conversation", "response": {"ok": True}}]
+    )
+    assert s._pending_create is True
+    assert all(m["type"] != "response.create" for m in s._ws.sent)
+
+    await s.send_tool_results(
+        [{"id": "light-1", "name": "light_turn_on", "response": {"ok": True}}]
+    )
+    assert sum(m["type"] == "response.create" for m in s._ws.sent) == 1
+    assert s._pending_create is False
+
+
+async def test_openai_drops_late_tool_result_after_fresh_speech_cancelled_the_turn():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS(  # type: ignore[assignment]
+        [_Msg(json.dumps({"type": "input_audio_buffer.speech_started"}))]
+    )
+    s._active_response = True
+    s._pending_create = True
+    s._outstanding_tool_calls = {"end-old"}
+    async for _event in s._iter_events():
+        pass
+
+    await s.send_tool_results(
+        [{"id": "end-old", "name": "end_conversation", "response": {"ok": True}}]
+    )
+    assert all(m["type"] != "response.create" for m in s._ws.sent)
+
+
 async def test_openai_buffers_wake_audio_until_session_update_is_accepted():
     # Field bug: the puck starts streaming immediately after wake, while OpenAI may
     # still need ~1-2s before session.updated. Those first words must be replayed,

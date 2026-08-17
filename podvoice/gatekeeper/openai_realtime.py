@@ -139,6 +139,8 @@ class OpenAIRealtimeSession:
     # mid-response, so we submit the output now but DEFER response.create until response.done.
     _active_response: bool = field(default=False, init=False, repr=False)
     _pending_create: bool = field(default=False, init=False, repr=False)
+    _outstanding_tool_calls: set[str] = field(default_factory=set, init=False, repr=False)
+    _cancelled_tool_calls: set[str] = field(default_factory=set, init=False, repr=False)
     _deliberate_close: bool = field(default=False, init=False, repr=False)
     # True once the server ACCEPTED our session.update (hard-fail guard, 0.77 class).
     _configured: bool = field(default=False, init=False, repr=False)
@@ -260,6 +262,8 @@ class OpenAIRealtimeSession:
         # Fresh socket -> fresh state machine (a prior session may have died mid-response).
         self._active_response = False
         self._pending_create = False
+        self._outstanding_tool_calls.clear()
+        self._cancelled_tool_calls.clear()
         self._speech_stop_emitted = False
         self._resampler = (
             None
@@ -344,7 +348,13 @@ class OpenAIRealtimeSession:
     async def send_tool_results(self, results: list) -> None:
         if self._ws is None:
             return
+        submitted = 0
         for r in results:
+            call_id = str(r.get("id") or "")
+            if call_id in self._cancelled_tool_calls:
+                self._cancelled_tool_calls.discard(call_id)
+                _LOG.info("turn: dropping late result for cancelled tool call %s", call_id)
+                continue
             resp = r.get("response")
             output = resp if isinstance(resp, str) else json.dumps(resp)
             await self._ws.send_json(
@@ -357,15 +367,23 @@ class OpenAIRealtimeSession:
                     },
                 }
             )
+            self._outstanding_tool_calls.discard(call_id)
+            submitted += 1
+        if submitted == 0:
+            return
         # Asking for a response while one is still active errors out (and the model never
         # speaks). If the function-call response hasn't finished yet, defer until response.done.
-        if self._active_response:
+        if self._active_response or self._outstanding_tool_calls:
             self._pending_create = True
             _LOG.info(
-                "turn: tool results submitted while active -> DEFER create (%d result(s))",
+                "turn: tool results submitted with response active=%s outstanding=%d "
+                "-> DEFER create (%d result(s))",
+                self._active_response,
+                len(self._outstanding_tool_calls),
                 len(results),
             )
         else:
+            self._pending_create = False
             _LOG.info(
                 "turn: tool results submitted while idle -> create NOW (%d result(s))", len(results)
             )
@@ -383,6 +401,8 @@ class OpenAIRealtimeSession:
             # the next socket, or tool calls would defer forever / fire a spurious create.
             self._active_response = False
             self._pending_create = False
+            self._outstanding_tool_calls.clear()
+            self._cancelled_tool_calls.clear()
         # aiohttp's WS iterator ENDS SILENTLY when the socket closes — no exception. A
         # normal-looking return here therefore meant the room sat in LISTENING, music
         # ducked, with a dead brain and no error until the idle timeout (0.66 audit H3).
@@ -439,6 +459,12 @@ class OpenAIRealtimeSession:
                     _LOG.info("turn: input transcript %r", text)
                 yield InputTranscript(text)
             elif t == "response.function_call_arguments.done":
+                call_id = str(ev.get("call_id") or "")
+                if call_id:
+                    self._outstanding_tool_calls.add(call_id)
+                    # This response cannot be a user-visible turn boundary even when
+                    # every tool is slow and no result has arrived by response.done.
+                    self._pending_create = True
                 try:
                     args = json.loads(ev.get("arguments") or "{}")
                 except (json.JSONDecodeError, ValueError):
@@ -460,6 +486,8 @@ class OpenAIRealtimeSession:
                     _LOG.info("turn: barge-in (speech_started) over active response")
                     self._active_response = False
                     self._pending_create = False
+                self._cancelled_tool_calls.update(self._outstanding_tool_calls)
+                self._outstanding_tool_calls.clear()
                 self._speech_stop_emitted = False
                 yield Interrupted()
             elif t == "input_audio_buffer.speech_stopped":
@@ -488,7 +516,11 @@ class OpenAIRealtimeSession:
                 if usage is not None:
                     yield usage
                 rid, status = _rid(ev), _rstatus(ev)
-                if self._pending_create and self._ws is not None:
+                if (
+                    self._pending_create
+                    and not self._outstanding_tool_calls
+                    and self._ws is not None
+                ):
                     # This response.done only closed the function-call response. Fire the
                     # deferred follow-up that speaks the result, and DON'T end the turn here
                     # (the follow-up response's own response.done is the real end-of-turn).
@@ -506,6 +538,14 @@ class OpenAIRealtimeSession:
                     # its fully generated PCM stayed forever in the held announce
                     # buffer (physical 1.13.0 follow-up failure, 2026-08-14 12:00).
                     yield ToolRoundComplete()
+                    continue
+                if self._pending_create and self._outstanding_tool_calls:
+                    _LOG.info(
+                        "turn: response.done id=%s status=%s -> waiting for %d tool result(s)",
+                        rid,
+                        status,
+                        len(self._outstanding_tool_calls),
+                    )
                     continue
                 _LOG.info("turn: response.done id=%s status=%s -> TurnComplete", rid, status)
                 yield TurnComplete()

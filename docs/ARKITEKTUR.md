@@ -1,7 +1,7 @@
 # ARKITEKTUR — én PodVoice-samtale
 
 > Kanonisk beslutning fra 2026-08-14. Hvis kode eller ældre dokumentation beskriver
-> en parallel stock-HA Voice Assistant, en modelstyret lukke-tool eller en direkte
+> en parallel stock-HA Voice Assistant, frasebaseret hensigts-routing eller en direkte
 > højttalervej, er den beskrivelse historisk og må ikke styre produktionen.
 
 ## Den eneste produktionsvej
@@ -11,7 +11,8 @@ Voice PE hører “Okay Nabu”
   → firmware åbner podvoice_audio og udsender ét wake-event
   → PodVoice åbner præcis én OpenAI Realtime-session
   → al tale, værktøjer, svar og opfølgninger bliver i samme session
-  → “farvel”, “stop”, timeout eller fejl lukker session og mikrofon
+  → Realtime fortolker en tydelig afslutningshensigt og signalerer den til PodVoice
+  → fysisk svarslut, timeout eller fejl lukker session og mikrofon præcis én gang
   → Voice PE er straks tilbage i wakeword
 ```
 
@@ -26,7 +27,7 @@ De deler:
 
 - Realtime-session, model, prompt og værktøjer;
 - turn detection, half-duplex-ekkoport og follow-up-kontekst;
-- transport-ejet lukning, timeout, fejlteardown og historik;
+- Realtime-ejet hensigtsfortolkning samt transport-ejet udførelse, timeout og fejlteardown;
 - tilstandene lytter, tænker, taler og idle.
 
 Kun adapteren er forskellig:
@@ -49,21 +50,25 @@ wakeword, højttaler, LED eller akustik. De kræver fysisk test.
 - PodConnect Speakers ejer fysisk HomePod-afspilning og attention/ducking.
 - Hjemmets søgeagent ejer aktuel webviden.
 
-Ingen af disse værktøjer må åbne eller lukke Realtime-sessionen.
+Ingen HA-, web-, musik- eller hjemmeværktøjer må åbne eller lukke Realtime-sessionen.
+Realtime har kun et internt, provider-neutralt afslutningssignal; PodVoice ejer fortsat
+selve lukningen og kan derfor garantere én teardown og én wake-rearm.
 
 ## Lukning
 
-Lukning er transportlogik, ikke et modelværktøj. `end_conversation` er fjernet, fordi
-Realtime i feltet kaldte det på “Klar” og “Kig FCK seneste kamp” og dermed svarede
-“Farvel” eller tavshed på almindelige spørgsmål.
+Lukning har to adskilte ejere:
 
-- Et eksakt helt “stop”, “stille” eller “vent” lukker straks.
-- Et eksakt helt “farvel” eller en godkendt høflig slutfrase lader det korte farvel
-  spille færdigt og lukker derefter.
-- En dokumenteret ASR-forveksling må kun blive en slutfrase, når den står alene og
-  Realtime uafhængigt svarer med et rent farvel. Aliaset alene må aldrig lukke.
-- Ord inde i et spørgsmål, deltransskriptioner og modelgæt lukker aldrig.
-- Timeout og fejl lukker deterministisk og frigiver mikrofon, Realtime og ducking.
+- **GPT Realtime ejer betydningen.** Når brugerens aktuelle tur tydeligt betyder, at
+  samtalen er slut, udsender modellen det interne `end_conversation`-signal. Det gælder
+  naturlige formuleringer på tværs af ordvalg og sprog; PodVoice matcher ingen fraser,
+  keywords eller dokumenterede ASR-fejl.
+- **PodVoice ejer mekanikken.** Signalet bindes til den konkrete tur, det korte
+  afslutningssvar afspilles, og først fysisk playback-finish må udløse én atomisk
+  teardown af Realtime, mikrofon, ducking og wake-lås.
+- Uklart input skal få Realtime til at spørge kort igen. Et løst “tak”, ord inde i en
+  opgave, deltransskriptioner og et signal fra en gammel tur må aldrig lukke.
+- Et eksplicit hardware-stop, timeout og tekniske fejl er transport-sikkerhed og kan
+  lukke deterministisk uden semantisk modelbeslutning.
 
 ## Half-duplex først
 

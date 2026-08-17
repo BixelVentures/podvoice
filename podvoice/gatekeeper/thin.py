@@ -28,7 +28,7 @@ import asyncio
 import contextlib
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from . import audio as audio_mod
 from . import constants as C
@@ -70,62 +70,19 @@ BARGE_DEBOUNCE_S = 0.6
 # preset (server_vad) the SERVER also closes idle conversations via idle_timeout_ms;
 # this fallback is the belt for semantic_vad and for a server that never says so.
 IDLE_FALLBACK_S = 25.0
-# The transport owns closure. Only an exact WHOLE utterance may end a session; the
-# model is never allowed to infer transport closure from noisy or partial speech.
-# Hard words stop now; polite phrases close after the spoken goodbye completes.
-END_NOW_WORDS = frozenset({"stop", "stille", "vent"})
-END_PHRASES = frozenset(
-    {
-        # Danish
-        "farvel",
-        "det var det",
-        "det var alt",
-        "det var det hele",
-        "tak det var det",
-        "tak det var alt",
-        "tak for hjælpen",
-        "ellers tak",
-        # English
-        "goodbye",
-        "bye",
-        "that's all",
-        "that was all",
-        "that is all",
-        "thanks that's all",
-        "thank you that's all",
-    }
-)
-# Field-proven Realtime transcription confusions for a *standalone* Danish goodbye.
-# Never close on the alias alone: it becomes a candidate and must be confirmed by the
-# assistant producing a pure goodbye response.  This preserves the false-close guard
-# for real field inputs such as "Klar" and "Kig FCK seneste kamp".
-END_PHRASE_ASR_ALIASES = frozenset({"kom ind", "tube"})
-
-
-def normalized_utterance(text: str) -> str:
-    """Lowercase, strip punctuation/whitespace — so 'Tak, det var alt!' matches."""
-    keep = [c for c in text.lower().strip() if c.isalnum() or c.isspace() or c == "'"]
-    return " ".join("".join(keep).split())
-
-
-def assistant_said_goodbye(text: str) -> bool:
-    """Accept a *whole* short goodbye, never a substring mentioning goodbye.
-
-    Realtime field output varies politely (``Farvel`` / ``Selv tak. Farvel`` /
-    ``Farvel, hav en god dag``).  Keeping this as an anchored grammar is the second
-    independent signal for a noisy ASR alias; an ordinary answer containing the word
-    "farvel" cannot close the transport.
-    """
-    phrase = normalized_utterance(text)
-    for prefix in ("selv tak ", "okay "):
-        if phrase.startswith(prefix):
-            phrase = phrase[len(prefix) :]
-            break
-    for suffix in (" hav en god dag", " ha en god dag", " hav en god aften"):
-        if phrase.endswith(suffix):
-            phrase = phrase[: -len(suffix)]
-            break
-    return phrase in {"farvel", "goodbye", "bye", "hej hej"}
+END_CONVERSATION_TOOL = "end_conversation"
+END_CONVERSATION_DECLARATION = {
+    "name": END_CONVERSATION_TOOL,
+    "description": (
+        "Signal that the user semantically and unambiguously wants to end the current "
+        "voice conversation. Use it for any clear farewell or wrap-up meaning, regardless "
+        "of exact wording or imperfect transcription. Never use it for unclear/noisy input, "
+        "ordinary questions, embedded politeness, or merely hearing words such as stop or "
+        "farvel in another context. If uncertain, ask the user to repeat instead. After the "
+        "tool result, say only one short Danish farewell."
+    ),
+    "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+}
 
 
 @dataclass
@@ -138,8 +95,7 @@ class _ClosureTurn:
     """
 
     serial: int
-    input_kind: str = "none"  # none | exact | alias
-    assistant: list[str] = field(default_factory=list)
+    semantic_end: bool = False
     response_done: bool = False
     superseded: bool = False
     confirmed: bool = False
@@ -289,6 +245,7 @@ class ThinSession:
         self._tasks: list[asyncio.Task] = []
         self._tool_lock = asyncio.Lock()
         self._tool_tasks: dict[str, asyncio.Task] = {}
+        self._semantic_end_call_ids: set[str] = set()
         self._playback_t0: float | None = None  # monotonic when the device started playing
         self._playback_started = asyncio.Event()
         self._playback_finished = asyncio.Event()
@@ -422,6 +379,7 @@ class ThinSession:
         self._playback_finished.clear()
         self._closure_serial = 0
         self._closure_turn = None
+        self._semantic_end_call_ids.clear()
         self._turn_cue_appended = False
         self._last_user_utterance = ""
         self._last_activity = self._conv_started
@@ -441,9 +399,12 @@ class ThinSession:
             await self.voicepe.start_streaming()
         # Tool declarations are part of session.update, which connect() sends. Setting
         # them afterwards made HA/PodConnect changes arrive one conversation late.
-        if self.tools is not None and hasattr(self.brain, "tool_declarations"):
-            decls = self.tools.declarations()
-            self.brain.tool_declarations = list(decls)
+        decls = list(self.tools.declarations()) if self.tools is not None else []
+        # Lifecycle semantics are available for every provider/session, but this
+        # reserved signal is handled by ThinSession and never dispatched to HA.
+        decls = [d for d in decls if d.get("name") != END_CONVERSATION_TOOL]
+        decls.append(END_CONVERSATION_DECLARATION)
+        self.brain.tool_declarations = decls
         try:
             await asyncio.wait_for(self.brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
         except Exception as e:
@@ -559,6 +520,7 @@ class ThinSession:
         for t in self._tool_tasks.values():
             t.cancel()
         self._tool_tasks.clear()
+        self._semantic_end_call_ids.clear()
         if self.reply_bus is not None:
             self.reply_bus.end(self.room)
         if hasattr(self.voicepe, "stop_streaming"):
@@ -773,6 +735,21 @@ class ThinSession:
             await self.stop(reason="idle")
         elif isinstance(ev, ToolCall):
             self._trace_event("tool_call", name=ev.name, call_id=ev.id)
+            if ev.name == END_CONVERSATION_TOOL:
+                if ev.id in self._semantic_end_call_ids:
+                    _LOG.info("thin: duplicate semantic end call ignored [call_id=%s]", ev.id)
+                    self._trace_event("semantic_end_duplicate", call_id=ev.id)
+                    return
+                self._semantic_end_call_ids.add(ev.id)
+                turn = self._ensure_closure_turn()
+                turn.semantic_end = True
+                # The function-call response is not the audible farewell. Its tool
+                # result creates one final response; only that following TurnComplete
+                # may authorize playback-finish -> teardown.
+                turn.response_done = False
+                self._ending_conversation = True
+                self._trace_event("semantic_end_requested", call_id=ev.id, turn=turn.serial)
+                _LOG.info("thin: provider requested semantic conversation end [turn=%d]", turn.serial)
             if not self._direct:
                 await self._discard_tool_preamble()
                 # History represents what the room heard. The preamble was truncated
@@ -791,6 +768,11 @@ class ThinSession:
             def _untrack(_t: asyncio.Task, _id: str = ev.id) -> None:
                 self._speech_tools.discard(_id)
                 self._tool_tasks.pop(_id, None)
+                if not self._speech_tools:
+                    # All function outputs for this response have reached the provider.
+                    # This also covers the adversarial ordering where response.done
+                    # arrived before a slow mixed normal-tool + semantic-end result.
+                    self._turn_had_tool = False
 
             task.add_done_callback(_untrack)
         elif isinstance(ev, UserSpeechStopped):
@@ -812,16 +794,12 @@ class ThinSession:
             if self.hub is not None:
                 self.hub.transcript_delta(self.room, "in", ev.text)
             self._flush_transcript("in")  # OpenAI sends ONE completed utterance
-            await self._maybe_end_phrase(ev.text)
         elif isinstance(ev, Usage):
             if self.usage is not None:
                 model = getattr(self.brain, "model", "?") or "?"
                 self.usage.add(model, ev, room=self.room)
         elif isinstance(ev, OutputTranscript):
             self._buf_out.append(ev.text)
-            turn = self._ensure_closure_turn()
-            turn.assistant.append(ev.text)
-            self._reconcile_closure(turn)
             if self.hub is not None:
                 self.hub.transcript_delta(self.room, "out", ev.text)
 
@@ -829,6 +807,14 @@ class ThinSession:
         previous = self._closure_turn
         if previous is not None and not previous.confirmed:
             previous.superseded = True
+            if previous.semantic_end:
+                # The user kept talking before the semantic end completed. Never let
+                # the old response's delayed TurnComplete close this fresh turn.
+                self._ending_conversation = False
+                if self._goodbye is not None and not self._goodbye.done():
+                    self._goodbye.cancel()
+                    self._goodbye = None
+                self._turn_had_tool = False
         self._closure_serial += 1
         self._playback_started.clear()
         self._playback_finished.clear()
@@ -842,61 +828,15 @@ class ThinSession:
         """Combine same-turn evidence independent of provider event ordering."""
         if turn is not self._closure_turn or turn.superseded or turn.confirmed:
             return
-        exact = turn.input_kind == "exact"
-        alias_confirmed = (
-            turn.input_kind == "alias"
-            and turn.response_done
-            and assistant_said_goodbye("".join(turn.assistant))
-        )
-        if not exact and not alias_confirmed:
+        if not turn.semantic_end:
             return
-        # Exact text is terminal as soon as its final input transcript arrives.  A
-        # noisy alias is terminal only after the complete same-turn model response
-        # independently confirms it with an anchored standalone goodbye.
-        if exact or turn.response_done:
-            self._ending_conversation = True
         if not turn.response_done:
             return
         turn.confirmed = True
-        source = "exact-input" if exact else "asr-alias+assistant"
-        _LOG.info("thin: end phrase confirmed (%s) [turn=%d]", source, turn.serial)
-        self._trace_event("endphrase_confirmed", source=source, turn=turn.serial)
+        _LOG.info("thin: semantic conversation end confirmed [turn=%d]", turn.serial)
+        self._trace_event("endphrase_confirmed", source="provider-semantic", turn=turn.serial)
         if self._active:
-            self._arm_goodbye("thin-endphrase-reconciled")
-
-    async def _maybe_end_phrase(self, text: str) -> None:
-        """Transport-owned closure on an unambiguous WHOLE utterance.
-
-        Realtime still understands and answers the user, but it cannot close the socket
-        by guessing a tool. Hard words close now; polite phrases let its goodbye finish.
-        Embedded politeness ('sluk lyset, tak') never matches.
-        """
-        if not self._active:
-            return
-        phrase = normalized_utterance(text)
-        if not phrase:
-            return
-        if self._device_playing and phrase not in END_PHRASES:
-            return  # ordinary residual reply echo must never become a user turn
-        if phrase in END_NOW_WORDS:
-            _LOG.info("thin: hard stop word %r — closing now", phrase)
-            await self.stop(reason="stop-word")
-        elif phrase in END_PHRASES:
-            _LOG.info("thin: end phrase %r — closing after the goodbye", phrase)
-            turn = self._ensure_closure_turn()
-            # During a physical reply, even exact "Farvel" could be residual speaker
-            # echo. Preserve the user's attempt but require the same two-signal
-            # confirmation as a field ASR alias. Outside playback, exact remains
-            # terminal immediately.
-            turn.input_kind = "alias" if self._device_playing else "exact"
-            if not self._device_playing:
-                self._ending_conversation = True
-            self._reconcile_closure(turn)
-        elif phrase in END_PHRASE_ASR_ALIASES:
-            _LOG.info("thin: possible ASR end phrase %r — awaiting assistant confirmation", phrase)
-            turn = self._ensure_closure_turn()
-            turn.input_kind = "alias"
-            self._reconcile_closure(turn)
+            self._arm_goodbye("thin-semantic-end-reconciled")
 
     def _flush_transcript(self, direction: str) -> None:
         buf = self._buf_in if direction == "in" else self._buf_out
@@ -1190,8 +1130,14 @@ class ThinSession:
 
     async def _run_tool(self, tc: ToolCall) -> None:
         tool_started = time.monotonic()
-        if self.tools is None:
-            result: dict = {"ok": False, "error": "no tools configured"}
+        result: dict
+        if tc.name == END_CONVERSATION_TOOL:
+            result = {
+                "ok": True,
+                "summary": "Afslut samtalen nu. Sig kun ét kort dansk farvel.",
+            }
+        elif self.tools is None:
+            result = {"ok": False, "error": "no tools configured"}
         else:
             result = await self.tools.dispatch(tc.name, tc.args)
         self._trace_event(
