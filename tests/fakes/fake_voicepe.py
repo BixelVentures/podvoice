@@ -29,6 +29,7 @@ class FakeVoicePELink:
         self.supports_direct = False
         self.supports_same_breath = True
         self.supports_wake_audio_boundary = True
+        self.supports_physical_rearm_ack = True
         self.supports_podvoice_channel = True
         self.started = False
         self.streaming = False

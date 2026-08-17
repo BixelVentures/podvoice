@@ -79,8 +79,9 @@ class PodVoiceAudio : public Component {
   // The device boots with forwarding OFF (privacy default). PodVoice turns it ON
   // on wake (IDLE->LISTENING) and OFF on every return to IDLE (closure / grace
   // expiry / error), via the podvoice_stream_start/stop native-API services.
-  // begin_conversation() is the one physical wake boundary. It discards audio from
-  // before wake detection (including "Okay Nabu") before enabling forwarding.
+  // begin_conversation() is the one physical wake boundary. It retains only a short
+  // inference-latency bridge so same-breath speech is not clipped, while discarding
+  // the older audio containing the wake phrase.
   // start_streaming() doubles as the dead-man KEEPALIVE: PodVoice re-asserts it
   // periodically while a session is active; if those stop arriving for SAFETY_MS
   // (PodVoice crashed / half-open socket) loop() force-stops so the mic can NEVER

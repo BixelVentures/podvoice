@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.13.7 — fysisk rearm og intakt første ord
+
+- Wake-motoren tvangsgenstartes nu efter hver afsluttet samtale. Add-on'en viser først
+  `wake_rearmed`, når firmwaren selv har kvitteret efter stop/start-cyklussen; et
+  gennemført API-kald tæller ikke længere som fysisk bevis.
+- Wake-grænsen bevarer en dokumenteret, begrænset 320 ms akustisk bro. Det undgår at
+  klippe starten af `Hvad ...` ved naturlig same-breath tale uden at genindføre den
+  tidligere 1,5 s pre-roll med hele `Okay Nabu`.
+
 ## 1.13.6 — ren lydgrænse ved wake
 
 - Voice PE nulstiller nu sin lokale rullende lydbuffer præcis ved den fysiske

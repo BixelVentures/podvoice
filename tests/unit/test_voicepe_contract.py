@@ -4,6 +4,7 @@ The 0.82 lesson: a missing service silently no-op'ed and hid the repeated-wake b
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from types import SimpleNamespace
 
@@ -27,6 +28,7 @@ FULL_CAPABILITIES = [
     "same_breath_v1",
     "wake_audio_boundary_v1",
     "deterministic_rearm_v1",
+    "physical_rearm_ack_v1",
     "podvoice_playback_events_v1",
 ]
 
@@ -242,6 +244,7 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "same_breath_v1",
         "wake_audio_boundary_v1",
         "deterministic_rearm_v1",
+        "physical_rearm_ack_v1",
         "podvoice_playback_events_v1",
     ]
     assert link.supports_same_breath is False
@@ -273,6 +276,13 @@ async def test_deterministic_rearm_capability_is_read_from_firmware():
     link = _link(client)
     await link._resolve_entities()
     assert link.supports_deterministic_rearm is True
+
+
+async def test_physical_rearm_ack_capability_is_read_from_firmware():
+    client = _StubClient([], [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1"])])
+    link = _link(client)
+    await link._resolve_entities()
+    assert link.supports_physical_rearm_ack is True
 
 
 async def test_playback_event_capability_and_edges_are_read_from_firmware():
@@ -318,10 +328,13 @@ async def test_playback_event_capability_and_edges_are_read_from_firmware():
 
 
 async def test_rearm_calls_the_dedicated_firmware_service():
-    client = _StubClient(FULL_SERVICES, [])
+    client = _StubClient(FULL_SERVICES, [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1"])])
     link = _link(client)
     await link._resolve_entities()
-    await link.rearm_wake_word()
+    task = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    link._on_state(SimpleNamespace(event_type="podvoice_wake_rearmed", key=3))
+    await task
     assert client.executed == ["podvoice_rearm_wake_word"]
 
 

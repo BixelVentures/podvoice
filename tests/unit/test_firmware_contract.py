@@ -31,6 +31,8 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "same_breath_v1" in overlay
     assert "wake_audio_boundary_v1" in overlay
     assert "deterministic_rearm_v1" in overlay
+    assert "physical_rearm_ack_v1" in overlay
+    assert "event_type: podvoice_wake_rearmed" in overlay
     assert "podvoice_playback_events_v1" in overlay
     assert "action: podvoice_reply_expect" in overlay
     assert "action: podvoice_reply_cancel" in overlay
@@ -48,8 +50,8 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "direct_speaker_v3" not in overlay
 
 
-def test_wake_boundary_discards_wake_audio_but_keepalive_never_trims_live_speech():
-    """Only the physical wake may reset audio; API keepalives must be lossless."""
+def test_wake_boundary_keeps_only_short_bridge_and_keepalive_never_trims_live_speech():
+    """Only physical wake may trim audio; it preserves same-breath word onset."""
     base = BASE.read_text()
     source = (ROOT / "esphome" / "components" / "podvoice_audio" / "podvoice_audio.cpp").read_text()
     begin = source.split("void PodVoiceAudio::begin_conversation()", 1)[1].split(
@@ -60,7 +62,9 @@ def test_wake_boundary_discards_wake_audio_but_keepalive_never_trims_live_speech
     )[0]
 
     assert base.count("id(pv_audio).begin_conversation();") == 1
-    assert "ring_buffer_->reset()" in begin
+    assert "WAKE_BRIDGE_MS" in begin
+    assert "ring_buffer_->read" in begin
+    assert "ring_buffer_->reset()" not in begin
     assert "ring_buffer_->reset()" not in keepalive
 
 
@@ -75,8 +79,10 @@ def test_each_detection_is_single_use_and_teardown_can_rearm_it():
     rearm = overlay.split("action: podvoice_rearm_wake_word", 1)[1].split(
         "# RUNTIME audio tuning", 1
     )[0]
-    assert "micro_wake_word.is_running:" in rearm
+    assert "micro_wake_word.stop:" in rearm
     assert "micro_wake_word.start:" in rearm
+    assert "wait_until:" in rearm
+    assert "event_type: podvoice_wake_rearmed" in rearm
     assert "id(podvoice_conversation_active) = false;" in rearm
 
 

@@ -44,19 +44,36 @@ static const uint32_t STAT_LOG_INTERVAL_MS = 10000;
 // jitter so it never cuts a live conversation/grace short. // VERIFY on hardware.
 static const uint32_t SAFETY_MS = 25000;
 
+// Preserve only the short inference-latency bridge between the wake model's
+// acoustic decision and its callback. Field evidence: 0 ms clipped "Hvad", while
+// the former 1500 ms replayed the complete wake phrase.
+static const uint32_t WAKE_BRIDGE_MS = 320;
+
 // --- WAKE-GATED control (also the dead-man keepalive) ---
 void PodVoiceAudio::begin_conversation() {
   // The rolling ring exists only so the passive tap never blocks the audio task.
   // It is NOT conversation audio: before this exact edge it contains the wake word,
-  // room noise and possibly media. Replaying it makes Realtime interpret "Okay Nabu"
-  // as part of the user's request. Discard it once, locally, at the wake boundary.
-  // Every sample arriving after this reset is forwarded immediately; the add-on's
-  // preconnect buffer retains those samples while the Realtime socket connects.
-  if (this->ring_buffer_ != nullptr)
-    this->ring_buffer_->reset();
+  // room noise and possibly media. Replaying all of it makes Realtime interpret
+  // "Okay Nabu" as the request, while discarding all of it clips same-breath speech.
+  // Keep only the newest 320 ms and discard the older prefix non-blockingly.
+  size_t retained = 0;
+  if (this->ring_buffer_ != nullptr) {
+    const size_t keep_bytes = static_cast<size_t>(WAKE_BRIDGE_MS) * this->sample_rate_ * sizeof(int16_t) / 1000;
+    const size_t available = this->ring_buffer_->available();
+    size_t discard = available > keep_bytes ? available - keep_bytes : 0;
+    while (discard > 0) {
+      const size_t chunk = discard < this->drain_buffer_.size() ? discard : this->drain_buffer_.size();
+      const size_t got = this->ring_buffer_->read(this->drain_buffer_.data(), chunk, 0);
+      if (got == 0)
+        break;
+      discard -= got;
+    }
+    retained = this->ring_buffer_->available();
+  }
   this->user_enabled_ = true;
   this->last_keepalive_ms_ = millis();
-  ESP_LOGI(TAG, "Conversation audio boundary opened — discarded pre-wake audio");
+  ESP_LOGI(TAG, "Conversation audio boundary opened — retained %u bytes (%u ms max)",
+           (unsigned) retained, (unsigned) WAKE_BRIDGE_MS);
 }
 
 void PodVoiceAudio::start_streaming() {

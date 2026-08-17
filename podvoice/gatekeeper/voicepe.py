@@ -124,7 +124,9 @@ class VoicePELink:
         # Assist run is started. The VA component is only the native-API audio endpoint.
         self.supports_podvoice_channel = False
         self.supports_deterministic_rearm = False
+        self.supports_physical_rearm_ack = False
         self.supports_playback_events = False
+        self._rearm_waiter: asyncio.Event | None = None
         # same_breath firmware emits its explicit event at the local wake edge and the
         # stock VA reports the same physical wake again through handle_start ~300 ms
         # later.  Remember the first edge so the latter remains an ACK/fallback rather
@@ -272,6 +274,7 @@ class VoicePELink:
         self.supports_wake_audio_boundary = False
         self.supports_podvoice_channel = False
         self.supports_deterministic_rearm = False
+        self.supports_physical_rearm_ack = False
         self.supports_playback_events = False
         self._announcing = False
         self._warned_missing = set()  # a reflash may have added the service — warn fresh
@@ -317,6 +320,7 @@ class VoicePELink:
             self.supports_wake_audio_boundary = "wake_audio_boundary_v1" in advertised
             self.supports_podvoice_channel = "podvoice_channel_v1" in advertised
             self.supports_deterministic_rearm = "deterministic_rearm_v1" in advertised
+            self.supports_physical_rearm_ack = "physical_rearm_ack_v1" in advertised
             self.supports_playback_events = "podvoice_playback_events_v1" in advertised
             self.supports_direct = (
                 "direct_speaker_v3" in advertised
@@ -353,6 +357,8 @@ class VoicePELink:
             missing_capabilities.append("wake_audio_boundary_v1")
         if not self.supports_deterministic_rearm:
             missing_capabilities.append("deterministic_rearm_v1")
+        if not self.supports_physical_rearm_ack:
+            missing_capabilities.append("physical_rearm_ack_v1")
         if not self.supports_playback_events:
             missing_capabilities.append("podvoice_playback_events_v1")
         ok = not missing_required and self._media_key is not None and not missing_capabilities
@@ -464,8 +470,19 @@ class VoicePELink:
         await self._call_service("podvoice_stream_stop")
 
     async def rearm_wake_word(self) -> None:
-        """Return the puck to local wake detection after a complete teardown."""
-        await self._call_service("podvoice_rearm_wake_word")
+        """Return to wake detection and wait for the firmware-owned readiness ACK."""
+        if not self.supports_physical_rearm_ack:
+            raise RuntimeError("firmware mangler physical_rearm_ack_v1")
+        waiter = asyncio.Event()
+        self._rearm_waiter = waiter
+        try:
+            ok = await self._call_service("podvoice_rearm_wake_word")
+            if not ok:
+                raise RuntimeError("podvoice_rearm_wake_word blev ikke udført")
+            await asyncio.wait_for(waiter.wait(), timeout=3.0)
+        finally:
+            if self._rearm_waiter is waiter:
+                self._rearm_waiter = None
 
     async def set_light(self, on: bool, rgb: tuple[float, float, float], brightness: float) -> None:
         """Drive the LED ring. Best-effort; no-op if the device has no resolvable light."""
@@ -597,6 +614,9 @@ class VoicePELink:
                 self._run_cb(self.on_media_state, False)
         elif explicit_playback and event_type == "podvoice_playback_fault":
             self._announcing = False
+        if key == self._event_key and event_type == "podvoice_wake_rearmed":
+            if self._rearm_waiter is not None:
+                self._rearm_waiter.set()
         # Media-player announce state -> "reply finished playing" ground truth.
         if (
             not self.supports_playback_events

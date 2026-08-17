@@ -55,13 +55,24 @@ api:
       then:
         - script.stop: podvoice_finish_reply
         - lambda: "id(podvoice_reply_phase) = 0;"
-        - lambda: "id(podvoice_conversation_active) = false;"
-        - if:
+        # is_running() is also true while microWakeWord is STARTING/STOPPING, so it
+        # cannot prove that the detector is ready. Force a complete state cycle.
+        - micro_wake_word.stop:
+        - wait_until:
             condition:
               not:
                 micro_wake_word.is_running:
+            timeout: 2s
+        - micro_wake_word.start:
+        - delay: 300ms
+        - if:
+            condition:
+              micro_wake_word.is_running:
             then:
-              - micro_wake_word.start:
+              - lambda: "id(podvoice_conversation_active) = false;"
+              - event.trigger:
+                  id: podvoice_event
+                  event_type: podvoice_wake_rearmed
     # Arm playback telemetry for exactly the next PodVoice reply. Other announcements
     # (timer, HA, test tone) use the same media player and must never close a Realtime
     # conversation or move its LED/echo gate.
@@ -250,6 +261,8 @@ event:
         same_breath_v1,
         wake_audio_boundary_v1,
         deterministic_rearm_v1,
+        physical_rearm_ack_v1,
+        podvoice_wake_rearmed,
         podvoice_playback_events_v1,
         podvoice_playback_started,
         podvoice_playback_finished,
