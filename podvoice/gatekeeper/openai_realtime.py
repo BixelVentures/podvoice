@@ -42,6 +42,7 @@ from .voice import (
     ToolRoundComplete,
     TurnComplete,
     Usage,
+    UserSpeechStarted,
     UserSpeechStopped,
     VoiceEvent,
 )
@@ -121,6 +122,10 @@ class OpenAIRealtimeSession:
     prefix_ms: int = 300  # custom, server_vad only
     silence_ms: int = 500  # custom, server_vad only
     eagerness: str = "auto"  # custom, semantic_vad: auto | low | medium | high
+    # Half-duplex Voice PE keeps this false: a server-side speech edge must never
+    # cancel an answer whose physical playback has not even begun. Talk/browser AEC
+    # explicitly enables it as the separate full-duplex proving surface.
+    interrupt_response: bool = True
     # Source-specific. Voice PE channel 1 already contains XMOS AEC+IC+NS, so its
     # default is off; Talk disables browser NS/AGC and uses OpenAI far_field instead.
     noise: str = "off"  # near_field | far_field | off
@@ -179,7 +184,7 @@ class OpenAIRealtimeSession:
                 "type": "semantic_vad",
                 "eagerness": "auto",
                 "create_response": True,
-                "interrupt_response": True,
+                "interrupt_response": self.interrupt_response,
             }
         # custom — raw knobs
         if self.turn == "none":
@@ -189,7 +194,7 @@ class OpenAIRealtimeSession:
                 "type": "semantic_vad",
                 "eagerness": self.eagerness or "auto",
                 "create_response": True,
-                "interrupt_response": True,
+                "interrupt_response": self.interrupt_response,
             }
         return self._server_vad(
             threshold=float(self.threshold),
@@ -204,7 +209,7 @@ class OpenAIRealtimeSession:
             "prefix_padding_ms": prefix_ms,
             "silence_duration_ms": silence_ms,
             "create_response": True,
-            "interrupt_response": True,
+            "interrupt_response": self.interrupt_response,
         }
         # idle_timeout_ms is DELIBERATELY NOT SENT (ARKITEKTUR.md, modprøve A3):
         # the GA docs define it as a RE-PROMPT trigger — on timeout the server commits
@@ -289,6 +294,14 @@ class OpenAIRealtimeSession:
             self._buffer_preconnect_audio(pcm16k)
             return
         await self._send_audio_now(pcm16k)
+
+    async def clear_input_audio(self) -> None:
+        """Reset a half-open provider VAD buffer at a half-duplex answer boundary."""
+        self._preconnect_audio.clear()
+        self._preconnect_audio_bytes = 0
+        self._speech_stop_emitted = False
+        if self._ws is not None:
+            await self._ws.send_json({"type": "input_audio_buffer.clear"})
 
     def _buffer_preconnect_audio(self, pcm: bytes) -> None:
         if not pcm:
@@ -482,19 +495,22 @@ class OpenAIRealtimeSession:
                 )
                 yield ToolCall(ev.get("call_id", ""), ev.get("name", ""), args)
             elif t == "input_audio_buffer.speech_started":
-                # UNCONDITIONAL (ARKITEKTUR §5.1): generation finishes faster than
-                # real time, so _active_response drops BEFORE most of the reply has
-                # audibly PLAYED — gating here made tail/duplex barge-in unreachable.
-                # Spurious-idle safety lives in the ENGINE's debounce guard instead
-                # (it only silences when something is actually speaking/playing).
-                if self._active_response:
+                # Full-duplex Talk treats every speech edge as an interruption even
+                # after generation has outrun physical playback.  Half-duplex Voice PE
+                # must never cancel here: Thin clears the crossed VAD buffer and keeps
+                # the response authoritative until the physical playback gate closes.
+                if self.interrupt_response and self._active_response:
                     _LOG.info("turn: barge-in (speech_started) over active response")
                     self._active_response = False
                     self._pending_create = False
-                self._cancelled_tool_calls.update(self._outstanding_tool_calls)
-                self._outstanding_tool_calls.clear()
+                if self.interrupt_response:
+                    self._cancelled_tool_calls.update(self._outstanding_tool_calls)
+                    self._outstanding_tool_calls.clear()
                 self._speech_stop_emitted = False
-                yield Interrupted()
+                if self.interrupt_response:
+                    yield Interrupted()
+                else:
+                    yield UserSpeechStarted()
             elif t == "input_audio_buffer.speech_stopped":
                 # The user finished their turn — arm the TTFR watchdog from HERE (the
                 # model should now reply within WATCHDOG_MS). Arming at wake/gate-open
@@ -641,6 +657,7 @@ def make_session(
     room_context: str = "",
     input_rate: int = C.INPUT_RATE,
     noise: str | None = None,
+    interrupt_response: bool = True,
 ) -> OpenAIRealtimeSession:
     """Build the one voice brain from a Config (the old multi-provider factory).
 
@@ -666,5 +683,6 @@ def make_session(
         silence_ms=cfg.openai_silence_ms,
         eagerness=cfg.openai_eagerness,
         noise=cfg.openai_noise if noise is None else noise,
+        interrupt_response=interrupt_response,
         idle_timeout_s=getattr(cfg, "idle_timeout_s", 25),
     )

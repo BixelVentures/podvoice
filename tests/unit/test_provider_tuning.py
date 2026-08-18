@@ -8,7 +8,7 @@ import aiohttp
 
 from gatekeeper.openai_realtime import OpenAIRealtimeSession
 from gatekeeper.settings import load_settings, save_settings
-from gatekeeper.voice import Interrupted, ToolRoundComplete, TurnComplete
+from gatekeeper.voice import Interrupted, ToolRoundComplete, TurnComplete, UserSpeechStarted
 
 
 class _Msg:
@@ -87,6 +87,38 @@ async def test_openai_barge_in_drops_deferred_create():
     assert any(isinstance(e, Interrupted) for e in evs)
     assert s._pending_create is False and s._active_response is False
     assert all(m["type"] != "response.create" for m in s._ws.sent)  # no resurrection
+
+
+async def test_half_duplex_speech_edge_never_cancels_the_active_response():
+    """Field 2026-08-18: a speech edge 139 ms before physical playback cancelled
+    the clock answer, then the local mic gate withheld silence and wedged VAD forever."""
+    s = OpenAIRealtimeSession(api_key="k", interrupt_response=False)
+    s._ws = _FakeWS(  # type: ignore[assignment]
+        [_Msg(json.dumps({"type": "input_audio_buffer.speech_started"}))]
+    )
+    s._active_response = True
+    s._pending_create = True
+    s._outstanding_tool_calls.add("clock")
+    events = s.events()
+    event = await anext(events)
+    assert isinstance(event, UserSpeechStarted)
+    assert s._active_response is True
+    assert s._pending_create is True
+    assert s._outstanding_tool_calls == {"clock"}
+    await events.aclose()
+
+
+async def test_clear_input_audio_resets_provider_vad_buffer():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._preconnect_audio.extend([b"one", b"two"])
+    s._preconnect_audio_bytes = 6
+    s._speech_stop_emitted = True
+    await s.clear_input_audio()
+    assert list(s._preconnect_audio) == []
+    assert s._preconnect_audio_bytes == 0
+    assert s._speech_stop_emitted is False
+    assert s._ws.sent == [{"type": "input_audio_buffer.clear"}]
 
 
 async def test_openai_sends_create_immediately_when_idle():
@@ -391,27 +423,29 @@ async def test_error_after_accept_is_not_fatal():
     assert s._configured is True
 
 
-def test_interrupted_is_unconditional_on_speech_started():
-    """ARKITEKTUR §5.1: generation outruns playback, so _active_response drops before
-    the audio has audibly finished — Interrupted must fire regardless."""
-    s = OpenAIRealtimeSession(api_key="k")
+async def test_full_duplex_interrupts_even_after_generation_has_finished():
+    """Talk remains full duplex after generation outruns physical playback."""
+    s = OpenAIRealtimeSession(api_key="k", interrupt_response=True)
     s._active_response = False  # response already done, audio still playing on device
-    # the handler yields Interrupted even with _active_response False — covered via
-    # the source: assert the gating line is gone
-    import inspect
-
-    src = inspect.getsource(type(s))
-    idx = src.index("input_audio_buffer.speech_started")
-    block = src[idx : idx + 900]
-    assert "yield Interrupted()" in block
-    assert block.index("yield Interrupted()") > block.index("if self._active_response:")
-    # the yield sits OUTSIDE the if-block (dedented) — verified by the engine tests too
+    s._ws = _FakeWS(  # type: ignore[assignment]
+        [_Msg(json.dumps({"type": "input_audio_buffer.speech_started"}))]
+    )
+    events = await _drain(s)
+    assert any(isinstance(event, Interrupted) for event in events)
 
 
 def test_preset_responsive_is_semantic():
     s = OpenAIRealtimeSession(api_key="k", preset="responsive")
     td = s._session_update()["session"]["audio"]["input"]["turn_detection"]
     assert td["type"] == "semantic_vad" and td["interrupt_response"] is True
+
+
+def test_half_duplex_disables_server_side_response_interruption_for_every_vad_preset():
+    for preset in ("responsive", "conservative"):
+        td = OpenAIRealtimeSession(
+            api_key="k", preset=preset, interrupt_response=False
+        )._turn_detection()
+        assert td is not None and td["interrupt_response"] is False
 
 
 def test_usage_event_from_response_done():

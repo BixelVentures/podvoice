@@ -46,6 +46,7 @@ from .voice import (
     ToolRoundComplete,
     TurnComplete,
     Usage,
+    UserSpeechStarted,
     UserSpeechStopped,
 )
 
@@ -589,7 +590,8 @@ class ThinSession:
                 if self.audio_trace is not None:
                     self.audio_trace.audio("device", frame, C.INPUT_RATE)
                 if not self.full_duplex and (
-                    self._device_playing
+                    self._speaking
+                    or self._device_playing
                     or time.monotonic() < self._gate_until
                     or time.monotonic() < self._reply_audible_until
                 ):
@@ -690,6 +692,23 @@ class ThinSession:
         elif isinstance(ev, Interrupted):
             self._trace_event("speech_started_or_interrupted")
             self._start_barge_debounce()
+        elif isinstance(ev, UserSpeechStarted):
+            # The provider deliberately did NOT cancel its response. In the shipped
+            # half-duplex contract, only an edge that crosses an active answer gate is
+            # discarded. Ordinary first/follow-up speech must remain untouched.
+            crossed_answer_gate = not self.full_duplex and (
+                self._speaking
+                or self._device_playing
+                or time.monotonic() < self._gate_until
+                or time.monotonic() < self._reply_audible_until
+            )
+            self._trace_event(
+                "half_duplex_input_discarded" if crossed_answer_gate else "speech_started"
+            )
+            if crossed_answer_gate and hasattr(self.brain, "clear_input_audio"):
+                # Dropping subsequent mic frames with the provider VAD still open
+                # would leave it stuck forever in speech_started.
+                self._spawn(self.brain.clear_input_audio(), "thin-clear-half-duplex-input")
         elif isinstance(ev, ToolRoundComplete):
             # OpenAI had to wait for the function-call response.done before it
             # could request the spoken result.  This edge separates those two

@@ -72,6 +72,15 @@ class Interrupted:
 
 
 @dataclass
+class UserSpeechStarted:
+    """Provider VAD saw speech, but did not cancel the active response.
+
+    Half-duplex transports use this edge to discard/reset accidental input at the
+    answer boundary without pretending that server-side barge-in occurred.
+    """
+
+
+@dataclass
 class UserSpeechStopped:
     """The user finished their turn (server VAD end-of-speech / buffer committed).
 
@@ -116,6 +125,7 @@ VoiceEvent = Union[  # noqa: UP007
     TurnComplete,
     ToolRoundComplete,
     Interrupted,
+    UserSpeechStarted,
     UserSpeechStopped,
     Idle,
     Usage,
@@ -129,6 +139,8 @@ class VoiceSession(Protocol):
     async def connect(self) -> None: ...
 
     async def send_audio(self, pcm16k: bytes) -> None: ...
+
+    async def clear_input_audio(self) -> None: ...
 
     async def send_text(self, text: str) -> None: ...
 

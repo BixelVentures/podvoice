@@ -1,5 +1,9 @@
 # PodVoice
 
+Den autoritative tværgående samtalekontrakt findes i
+[docs/INVARIANTER.md](docs/INVARIANTER.md). Både menneskelige og agentiske ændringer i
+Realtime, VAD, lyd, firmware eller livscyklus skal følge den før komponentoptimering.
+
 A standalone voice-AI gatekeeper for a **PodConnect** home, packaged as a **Home Assistant Add-on**.
 
 A custom-firmware [HA Voice PE](https://www.home-assistant.io/voice-pe/) streams mic audio to

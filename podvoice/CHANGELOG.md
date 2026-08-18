@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.13.9 — én sammenhængende half-duplex-kontrakt
+
+- Voice PE og OpenAI Realtime følger nu samme half-duplex-kontrakt. Realtime får
+  `interrupt_response: false`, når puckens mikrofon lokalt er lukket under svarlyd;
+  den tidligere blanding af lokal mic-gate og server-side automatisk afbrydelse kunne
+  afkorte svaret og efterlade VAD permanent i lytte-tilstand.
+- Mikrofonframes holdes nu tilbage allerede fra modelsvarets start, ikke først når
+  højttaleren melder fysisk playback. En VAD-start, der krydser denne grænse, rydder
+  Realtime-inputbufferen uden at annullere svaret. Talk-browseren bevarer eksplicit
+  full-duplex og browserens ekkofjernelse.
+- Regressionen gengiver feltsporet fra 18. august: speech-start 139 ms før fysisk
+  playback, et afkortet svar på 330 ms og en session, der ellers blev hængende i
+  LYTTER. Den samlede test kræver nu, at svaret overlever, inputbufferen ryddes, og en
+  efterfølgende tur kan gennemføres.
+- `docs/INVARIANTER.md` er den autoritative tværgående kontrakt. `AGENTS.md` og
+  `CLAUDE.md` kræver, at den læses før ændringer i lyd, VAD, Realtime, firmware eller
+  samtalelivscyklus. Grøn CI er fortsat ikke fysisk godkendelse.
+
 ## 1.13.8 — kontinuerlig wake-sandhed og hurtigere Realtime-start
 
 - En fysisk wake-detektion er nu den eneste kilde til firmwarebeviset for en sund

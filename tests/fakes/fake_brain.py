@@ -36,6 +36,7 @@ class FakeBrainSession:
         self.connect_count: int = 0
         self.reconnect_count: int = 0
         self.truncations: list[tuple[str, int]] = []
+        self.input_clear_count: int = 0
         self.idle_timeout_ms: int = 0  # set by __main__ wiring in thin mode
 
     # --- scripting helpers -------------------------------------------------
@@ -57,6 +58,9 @@ class FakeBrainSession:
 
     async def send_audio(self, pcm16k: bytes) -> None:
         self.sent_audio.append(pcm16k)
+
+    async def clear_input_audio(self) -> None:
+        self.input_clear_count += 1
 
     async def audio_stream_end(self) -> None:
         self.stream_ended += 1

@@ -137,13 +137,21 @@ def _build_session(
         if speaker
         else ""
     )
-    brain = make_session(cfg, tool_declarations=declarations or None, room_context=room_ctx)
+    brain = make_session(
+        cfg,
+        tool_declarations=declarations or None,
+        room_context=room_ctx,
+        # Voice PE ships half-duplex. Realtime may detect VAD edges, but it must not
+        # cancel an answer while PodVoice is closing the physical mic gate. The Talk
+        # surface below opts into true interruption separately.
+        interrupt_response=cfg.full_duplex,
+    )
     voicepe = VoicePELink(room.voicepe_host, psk, room=room.room)
     voicepe.mic_channel = cfg.mic_channel
     voicepe.mic_gain = cfg.mic_gain
     voicepe.wake_word = cfg.wake_word
-    # Track B (engine: thin): the model owns the conversation — server VAD handles
-    # turn-taking/barge-in, the server idle timeout ends it. The provider session gets
+    # Track B (engine: thin): the model owns turn understanding. Server VAD handles
+    # turn boundaries; only full-duplex Talk turns speech into barge-in. The provider gets
     # the idle signal enabled; ThinSession replaces the whole state machine.
     if cfg.engine == "thin":
         from .thin import ThinSession
@@ -436,7 +444,13 @@ async def run(cfg: Config) -> None:
         # audio on the way in (the 48k->16k->24k round trip was mangling Danish).
         # A laptop mic is a documented far-field source. Browser NS/AGC are disabled
         # below, leaving one controlled OpenAI far_field pass; echo cancellation stays.
-        brain = console_make(model, voice, input_rate=OPENAI_RATE, noise="far_field")
+        brain = console_make(
+            model,
+            voice,
+            input_rate=OPENAI_RATE,
+            noise="far_field",
+            interrupt_response=True,
+        )
         link = BrowserLink(send_json, send_bytes)
         # RELATIVE url: the browser resolves it against the panel page, so it works
         # through HA Ingress (direct :8098 stays closed); the token still gates it.

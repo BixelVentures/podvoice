@@ -27,6 +27,7 @@ from gatekeeper.voice import (
     ToolCall,
     ToolRoundComplete,
     TurnComplete,
+    UserSpeechStarted,
 )
 
 ROOM = "kitchen"
@@ -285,6 +286,50 @@ async def test_blip_does_not_interrupt_playback():
         # ...but SUSTAINED speech (no speech_stopped) does interrupt:
         gemini.emit(Interrupted())
         await _wait_until(lambda: voicepe.stop_playback_calls >= 1)
+    finally:
+        await session.aclose()
+
+
+async def test_half_duplex_answer_boundary_discards_vad_edge_without_wedging():
+    """A late provider VAD edge cannot cancel/truncate a half-duplex answer or leave
+    the next user turn stuck in speech_started after the local mic gate closes."""
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        sent_before_reply = len(brain.sent_audio)
+        brain.emit(AudioChunk(_frame(), item_id="answer"), UserSpeechStarted())
+        await _wait_until(lambda: brain.input_clear_count == 1)
+        assert session._speaking is True
+        assert voicepe.stop_playback_calls == 0
+
+        # Half-duplex gates the mic for the entire model response, not only after the
+        # device's sometimes-late ANNOUNCING edge.
+        voicepe.feed([_frame(123)])
+        await asyncio.sleep(0.05)
+        assert len(brain.sent_audio) == sent_before_reply
+
+        brain.emit(OutputTranscript("Klokken er ti."), TurnComplete())
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)
+        session._on_media_state(False)
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+        assert session._active is True
+    finally:
+        await session.aclose()
+
+
+async def test_half_duplex_keeps_ordinary_user_speech_after_the_answer_gate():
+    """The VAD reset is boundary-specific; it must not erase the start of a real turn."""
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(UserSpeechStarted())
+        await asyncio.sleep(0.05)
+        assert brain.input_clear_count == 0
     finally:
         await session.aclose()
 
@@ -1103,8 +1148,10 @@ async def test_puck_gets_the_shield_talk_gets_duplex():
     src = inspect.getsource(main_mod)
     build = src[src.index("def _build_session") : src.index("def _make_talk")]
     assert "full_duplex=cfg.full_duplex" in build  # puck follows settings (default OFF)
+    assert "interrupt_response=cfg.full_duplex" in build
     talk = src[src.index("def _make_talk") :]
     assert "full_duplex=True" in talk  # Talk tab = proving ground (browser AEC)
+    assert "interrupt_response=True" in talk
 
 
 async def test_long_reply_is_not_cut_by_the_idle_close():

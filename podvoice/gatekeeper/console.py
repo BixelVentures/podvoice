@@ -65,6 +65,9 @@ class SimConsole:
     async def send_audio(self, pcm16k: bytes) -> None:
         pass  # mic ignored in demo mode
 
+    async def clear_input_audio(self) -> None:
+        pass
+
     async def send_tool_results(self, results: list) -> None:
         pass  # demo has no tool calls
 
@@ -94,6 +97,7 @@ def console_factory(cfg: Config, tools=None):
         voice: str | None = None,
         input_rate: int | None = None,
         noise: str | None = None,
+        interrupt_response: bool = True,
     ) -> ConsoleSession:
         if cfg.simulate or not cfg.openai_api_key:
             return SimConsole()
@@ -107,6 +111,7 @@ def console_factory(cfg: Config, tools=None):
             tool_declarations=decls,
             input_rate=input_rate or _C.INPUT_RATE,
             noise=noise,
+            interrupt_response=interrupt_response,
         )
 
     return _make
