@@ -791,9 +791,7 @@ async def test_failed_realtime_goodbye_has_the_same_contract_in_talk():
         )
         await _wait_until(lambda: len(brain.sent_tool_results) == 1)
         brain.emit(ToolRoundComplete(), TurnComplete(status="failed"))
-        await _wait_until(
-            lambda: any(message.get("type") == "play" for message in sent)
-        )
+        await _wait_until(lambda: any(message.get("type") == "play" for message in sent))
         assert speech.calls == [C.FALLBACK_GOODBYE]
         assert session._active is True
 
