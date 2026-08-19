@@ -339,8 +339,15 @@ class ToolRouter:
             {
                 "name": "get_time",
                 "description": "The current local time and date (clock, weekday, date). "
-                "Call this whenever the user asks what time it is, today's date or weekday.",
-                "parameters": {"type": "object", "properties": {}},
+                "Use only when the latest user turn directly asks for the time, date, "
+                "or weekday. Never repeat this tool merely because the previous turn "
+                "used it. If the latest turn instead wraps up the conversation, use the "
+                "conversation-ending tool rather than get_time.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": False,
+                },
             }
         ]
         if self._timers is not None:

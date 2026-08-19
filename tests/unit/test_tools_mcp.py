@@ -118,6 +118,17 @@ def test_no_mcp_at_all_still_serves_local():
     assert caps["sources"]["home"] == "missing"
 
 
+def test_clock_declaration_is_scoped_to_the_latest_user_turn():
+    """A wrap-up after a weekday lookup must not inherit the old clock tool."""
+    router = ToolRouter(None)
+    declaration = next(item for item in router.declarations() if item["name"] == "get_time")
+    description = declaration["description"].lower()
+    assert "latest user turn" in description
+    assert "previous turn" in description
+    assert "wraps up" in description
+    assert declaration["parameters"]["additionalProperties"] is False
+
+
 def test_clock_tool_produces_natural_danish_instead_of_reading_digits():
     assert _spoken_clock(17, 0) == "Klokken er fem."
     assert _spoken_clock(17, 15) == "Klokken er kvart over fem."

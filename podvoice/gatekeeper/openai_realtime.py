@@ -68,6 +68,12 @@ TRANSCRIPTION_PROMPT_DA = (
 # Preserve a complete privacy-gated utterance even when DNS/TLS/session.update is slow.
 # Twelve seconds of 16 kHz mono PCM is only ~384 KiB and is cleared on every close.
 PRECONNECT_AUDIO_MAX_S = 12.0
+# Realtime defaults max_output_tokens to "inf" (4096 on the session API). The
+# server reserves output capacity when each response is created, so a short
+# tool/farewell round could request ~5.5k TPM despite producing one spoken word.
+# PodVoice's contract is at most two short spoken sentences; 1024 leaves ample
+# room for low-effort reasoning + tool JSON while cutting the reservation by 75%.
+MAX_OUTPUT_TOKENS = 1024
 
 # The panel's model/voice selector set (all voice-capable; small fixed list).
 STATIC_MODELS = [
@@ -260,6 +266,7 @@ class OpenAIRealtimeSession:
         session: dict = {
             "type": "realtime",  # speech-to-speech (vs "transcription")
             "output_modalities": ["audio"],
+            "max_output_tokens": MAX_OUTPUT_TOKENS,
             # OpenAI recommends low as the production voice-agent starting point:
             # responsive, while retaining basic reasoning and tool selection.
             "reasoning": {"effort": "low"},

@@ -83,11 +83,31 @@ for baggrundstale og binder tavse værktøjsrunder til præcis session, tur og k
 er kun softwarebevis; kandidaten overtager først den officielle baseline efter den
 samme friske golden chain og den efterfølgende ubrudte 10/10-gate.
 
+Den fysiske V2-prøve `20260819T145100-102` bekræftede
+`prompt_source=default`, `prompt_version=2`. Klokkeslæt og opfølgende ugedag var
+korrekte i samme Realtime-session. Første klare “Tak, det var alt for nu” blev dog
+fejlroutet til det forrige `get_time`-værktøj og gentog “Det er onsdag”. Ved andet
+forsøg valgte modellen korrekt `end_conversation`, men OpenAI Tier-1 ramte 40.000 TPM,
+da næste respons forsøgte at reservere 5.521 tokens. Den cachede “Farvel”-fallback blev
+fysisk afspillet, close gennemførte én gang, og wake blev rearmet efter cirka 99 ms.
+Trace viste bagefter en falsk `missing-start-or-finish`, selv om både playback-start og
+-finish allerede var bevist. Prøven er derfor **ikke** en bestået golden chain, men den
+beviser, at V2 var aktiv, at inputtet var forståeligt, og at fallback/lifecycle kom hjem.
+
+v1.13.14 er den næste add-on-kandidat. Den afgrænser `get_time` til den seneste
+brugerturs faktiske tids-/datohensigt, styrker den semantiske wrap-up-routing uden
+frasematching, sætter Realtime `max_output_tokens=1024`, fjerner watchdoggens falske
+playback-fault efter et bevist start/slut-par og gør rød fejl-LED midlertidig. Efter
+fejllyd, teardown og fysisk rearm går ringen tilbage til mørk IDLE. Kandidaten ændrer
+ikke firmware, gain, VAD, pre-roll, mikrofonport eller half-duplex-ejerskab.
+
 ## Adgangskrav før næste udvikling
 
-1. Sammenlign device- og provider-lyden for `20260819T123836-240` og lokalisér, om
-   ytringerne mangler på pucken, i PodVoice-forwarding eller kun i Realtime-forståelsen.
-2. Gentag den korte golden chain på en kandidat med den konkrete fejl dækket. Et korrekt
+1. Opdatér add-on til v1.13.14 og gentag den korte golden chain. Den første klare
+   afslutning skal vælge `end_conversation`; et bevist playback-start/slut-par må ikke
+   efterfølges af `playback_fault`; fejl skal slutte med mørk IDLE og fungerende wake.
+2. Kontrollér at den nye trace fortsat viser `prompt_source=default`,
+   `prompt_version=2`, og at Realtime accepterer `max_output_tokens=1024`. Et korrekt
    svar tæller ikke som bestået, hvis kendt testinput bliver tomt eller semantisk forvansket.
 3. Kør 10 ubrudte fysiske lifecycle-cyklusser på samme kandidat. Ingen gain-, VAD-,
    prompt- eller UX-tuning midt i serien.

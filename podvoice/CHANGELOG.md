@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.13.14 — korrekt afslutningsrouting og afgrænset TPM
+
+- `get_time` er nu semantisk afgrænset til den seneste brugertur. Et tidligere
+  klokke-/ugedagsopslag må ikke få Realtime til at gentage tidsværktøjet, når den nye
+  tur i stedet tydeligt afslutter samtalen. `end_conversation` forbliver modellens
+  eneste afslutningsautoritet; der er ikke tilføjet fraser eller lokal tekstmatching.
+- Realtime-sessionen sætter `max_output_tokens` til 1.024. PodVoices svar er højst to
+  korte sætninger, så loftet bevarer god plads til lav reasoning og værktøjskald, men
+  reducerer OpenAI-serverens outputreservation med 75 procent fra API-standardens
+  4.096 tokens per respons. Modellen er fortsat GPT-Realtime-2.1.
+- Et fysisk `playback_started` + `playback_finished` kan ikke længere efterfølges af
+  PodVoices syntetiske `missing-start-or-finish`-fejl, mens den atomiske close-task
+  stadig venter på sin næste event-loop-tur.
+- Rød LED vises kun, mens en teknisk fejl afspilles. Efter den afgrænsede fejllyd,
+  teardown og wake-rearm går pucken sandt tilbage til mørk IDLE i stedet for at se
+  permanent fastlåst ud.
+- Regressionerne gengiver felttrace `20260819T145100-102`: forkert genbrugt tidsværktøj,
+  TPM-fejl under semantisk farvel, fysisk fallback, falsk playback-fault og rearm.
+- Dette er en ren add-on-opdatering. Firmware skal ikke flashes; fysisk golden chain
+  og derefter 10/10 er fortsat release-gaten.
+
 ## 1.13.13 — dansk Prompt V2 og tavs baggrundstur
 
 - Realtime får en ny dansk systemprompt med én entydig beslutningsrækkefølge for

@@ -455,6 +455,13 @@ def test_realtime_21_uses_low_reasoning_for_voice_latency():
     assert session["reasoning"] == {"effort": "low"}
 
 
+def test_realtime_caps_output_reservation_for_short_voice_answers():
+    """Tier-1 has 40k TPM. Never reserve the model's 4096-token default for a
+    voice contract whose normal result is one or two short Danish sentences."""
+    session = OpenAIRealtimeSession(api_key="k")._session_update()["session"]
+    assert session["max_output_tokens"] == 1024
+
+
 def test_preconnect_buffer_preserves_a_twelve_second_same_breath_utterance():
     s = OpenAIRealtimeSession(api_key="k", input_rate=16000)
     one_second = b"x" * (16000 * 2)

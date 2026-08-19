@@ -441,6 +441,8 @@ async def test_error_close_waits_for_physical_error_speech_finish():
         await session.wake()
         closing = asyncio.create_task(session._fail("connection"))
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        error_red = (True, (1.0, 0.0, 0.0), 1.0)
+        await _wait_until(lambda: error_red in voicepe.light_commands)
         assert session._active is True
         assert closing.done() is False
 
@@ -452,6 +454,9 @@ async def test_error_close_waits_for_physical_error_speech_finish():
         await closing
         assert session.sm.state is State.IDLE
         assert len(attention.release_calls) == 1
+        # Red belongs to the audible error phase, not the rearmed idle state.
+        await _wait_until(lambda: voicepe.light_commands[-1][0] is False)
+        assert voicepe.rearm_calls == 1
     finally:
         await session.aclose()
 
@@ -923,6 +928,15 @@ async def test_failed_realtime_goodbye_uses_cached_voice_and_waits_for_physical_
     goodbye_pcm = _frame(amplitude=1700, n_samples=7200)
     speech = CachedSpeech(goodbye_pcm)
     session, attention, voicepe = _build(gemini, speech=speech)
+    voicepe.supports_playback_events = True
+    trace_events: list[str] = []
+    original_trace_event = session._trace_event
+
+    def record_trace(event: str, **payload) -> None:
+        trace_events.append(event)
+        original_trace_event(event, **payload)
+
+    session._trace_event = record_trace  # type: ignore[method-assign]
     await session.start()
     try:
         await session.wake()
@@ -950,6 +964,39 @@ async def test_failed_realtime_goodbye_uses_cached_voice_and_waits_for_physical_
         assert len(attention.release_calls) == 1
         assert voicepe.rearm_calls == 1
         assert session._trace_reason == "model-close"
+        # Physical trace 20260819T145100-102 contained both proven playback
+        # edges and then a synthetic missing-edge fault one millisecond later.
+        assert "playback_fault" not in trace_events
+    finally:
+        await session.aclose()
+
+
+async def test_goodbye_watchdog_never_faults_a_proven_physical_finish(monkeypatch):
+    """The close transaction is scheduled from playback_finished. The watchdog may
+    resume before that task runs, but a proven start+finish pair is never a fault."""
+    import gatekeeper.thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "ANNOUNCE_PREARM_S", 0.0)
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    voicepe.supports_playback_events = True
+    trace_events: list[str] = []
+    original_trace_event = session._trace_event
+
+    def record_trace(event: str, **payload) -> None:
+        trace_events.append(event)
+        original_trace_event(event, **payload)
+
+    session._trace_event = record_trace  # type: ignore[method-assign]
+    await session.start()
+    try:
+        await session.wake()
+        session._ending_conversation = True
+        session._playback_started.set()
+        session._playback_finished.set()
+        await session._close_after_goodbye(max_wait_s=0.05, epoch=session._epoch)
+        assert "playback_fault" not in trace_events
+        assert session._active is True
     finally:
         await session.aclose()
 

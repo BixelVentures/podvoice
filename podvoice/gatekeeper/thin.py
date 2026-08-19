@@ -72,6 +72,8 @@ END_CONVERSATION_DECLARATION = {
     "description": (
         "Signal that the user's clear, audible meaning is to end the current voice "
         "conversation. Decide from meaning and conversation context, never from a keyword. "
+        "A clear polite wrap-up after a completed request is end intent; the previous "
+        "turn's topic or tool must not override the latest user's meaning. "
         "Never use it for unclear, noisy or fragmentary input, ordinary questions, embedded "
         "politeness, background speech, a media stop, or merely mentioning a farewell. If "
         "the user is addressing the assistant but end intent is uncertain, ask for a repeat. "
@@ -503,10 +505,14 @@ class ThinSession:
             self._trace_event("failure", kind=error_kind)
             if self.hub is not None:
                 self.hub.activity(self.room, "⚠️ Fejl — lukker samtalen")
+            # Red is a bounded, truthful error indication while the error is spoken.
+            # Once teardown/rearm completes, IDLE must be dark; a persistent red ring
+            # made a healthy rearmed puck look permanently wedged in the room.
+            self._set_led(State.IDLE, error=True)
             await self._speak_error(error_kind)
         await self._teardown(release_music=True)
         if error_kind is not None:
-            self._set_led(State.IDLE, error=True)
+            self._set_led(State.IDLE)
             self._hub_state("IDLE", None)
         else:
             self._hub_state("IDLE", "💤 Samtale slut — musikken er tilbage")
@@ -1456,6 +1462,12 @@ class ThinSession:
                 await asyncio.wait_for(
                     self._playback_finished.wait(), timeout=max(0.0, deadline - time.monotonic())
                 )
+        if explicit_edges and self._playback_started.is_set() and self._playback_finished.is_set():
+            # The physical finish handler already owns model-close. It schedules the
+            # close transaction asynchronously, so this watchdog can wake one event-
+            # loop tick earlier while `_active` is still true. That is success, not a
+            # missing-edge fault (field trace 20260819T145100-102).
+            return
         if epoch == self._epoch and self._active:
             if explicit_edges:
                 self._trace_event("playback_fault", reason="missing-start-or-finish")
