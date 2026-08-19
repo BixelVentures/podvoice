@@ -51,7 +51,16 @@ class OutputTranscript:
 
 @dataclass
 class TurnComplete:
-    """Model yielded the turn (AI_SPEAKING -> LOUNGE on this + playback drain)."""
+    """Provider ended a response.
+
+    Only ``completed`` proves that the response itself finished successfully.
+    ``failed``/``cancelled`` must stay visible to the transport; treating either as
+    a completed audible turn can publish no audio and falsely confirm lifecycle
+    transitions such as a semantic conversation end.
+    """
+
+    status: str = "completed"
+    error: str | None = None
 
 
 @dataclass

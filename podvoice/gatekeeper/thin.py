@@ -104,6 +104,7 @@ class _ClosureTurn:
     response_done: bool = False
     superseded: bool = False
     confirmed: bool = False
+    fallback_started: bool = False
 
 
 # Echo shield: while the device is playing OUR reply, mic frames are NOT forwarded to
@@ -721,7 +722,40 @@ class ThinSession:
             self._turn_had_tool = False
             _LOG.info("thin: tool decision complete — result answer is now pending")
         elif isinstance(ev, TurnComplete):
-            self._trace_event("response_done", had_tool=self._turn_had_tool)
+            self._trace_event(
+                "response_done",
+                had_tool=self._turn_had_tool,
+                status=ev.status,
+                error=ev.error,
+            )
+            if ev.status != "completed":
+                turn = self._ensure_closure_turn()
+                _LOG.warning(
+                    "thin: provider response ended status=%s error=%s [turn=%d]",
+                    ev.status,
+                    ev.error or "-",
+                    turn.serial,
+                )
+                if turn.semantic_end and not turn.superseded:
+                    # Realtime already made the semantic decision. A failed final
+                    # response is a transport failure, not permission to reinterpret
+                    # the user's words or pretend an inaudible farewell completed.
+                    if not turn.fallback_started:
+                        turn.fallback_started = True
+                        self._spawn(
+                            self._fallback_semantic_goodbye(turn, ev.status, self._epoch),
+                            "thin-semantic-goodbye-fallback",
+                        )
+                    return
+                if ev.status == "cancelled":
+                    # A real interruption cancelled this response. It is not an error
+                    # and must never close a still-active conversation.
+                    self._discard_failed_response()
+                    if self._active:
+                        self._enter_followup()
+                    return
+                await self._fail("connection")
+                return
             if self._turn_had_tool or self._speech_tools:
                 # This response called a tool: the model will speak AGAIN after the
                 # result. Keep the reply stream OPEN so filler + answer play as ONE
@@ -881,6 +915,67 @@ class ThinSession:
         self._trace_event("endphrase_confirmed", source="provider-semantic", turn=turn.serial)
         if self._active:
             self._arm_goodbye("thin-semantic-end-reconciled")
+
+    def _discard_failed_response(self) -> None:
+        """Forget provider output that never became a completed audible response."""
+        self._held_announce_pcm.clear()
+        self._held_announce_item = None
+        self._buf_out.clear()
+        self._speaking = False
+        self._turn_had_tool = False
+        self._reply_audible_until = 0.0
+        self._turn_cue_appended = False
+        self.playout.reset()
+
+    async def _fallback_semantic_goodbye(
+        self, turn: _ClosureTurn, provider_status: str, epoch: float
+    ) -> None:
+        """Speak a cached farewell after Realtime accepted end intent but audio failed.
+
+        The provider still owns the *meaning*: this path is reachable only after its
+        reserved semantic ``end_conversation`` signal. PodVoice owns the mechanical
+        guarantee that the acknowledged close is heard and physically drained before
+        the one close transaction rearms the wake word.
+        """
+        self._discard_failed_response()
+        self._trace_event(
+            "semantic_end_reply_failed",
+            status=provider_status,
+            turn=turn.serial,
+        )
+        pcm: bytes | None = None
+        if self.speech is not None:
+            with contextlib.suppress(Exception):
+                pcm = await self.speech.say(C.FALLBACK_GOODBYE)
+        if (
+            not self._active
+            or epoch != self._epoch
+            or turn is not self._closure_turn
+            or turn.superseded
+        ):
+            return
+        if not pcm:
+            _LOG.error("thin: cached semantic goodbye unavailable — closing safely")
+            self._trace_event("semantic_end_fallback_unavailable", turn=turn.serial)
+            self._request_close("model-close-fallback-missing")
+            return
+
+        _LOG.warning(
+            "thin: using cached semantic goodbye after provider status=%s [turn=%d]",
+            provider_status,
+            turn.serial,
+        )
+        self._trace_event("semantic_end_fallback", source="cached-voice", turn=turn.serial)
+        self._on_reply_audio(AudioChunk(pcm, item_id="local-semantic-goodbye"))
+        self._buf_out.append(C.FALLBACK_GOODBYE)
+        turn.response_done = True
+        self._reconcile_closure(turn)
+        if self._direct:
+            self._end_direct_stream()
+        elif self.reply_bus is not None:
+            self._publish_held_announce()
+        self._flush_transcript("out")
+        self._speaking = False
 
     def _flush_transcript(self, direction: str, *, ts: float | None = None) -> None:
         buf = self._buf_in if direction == "in" else self._buf_out

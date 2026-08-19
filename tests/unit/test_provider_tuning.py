@@ -75,6 +75,32 @@ async def test_openai_fires_deferred_create_without_ending_turn():
     assert {"type": "response.create"} in s._ws.sent and s._pending_create is False
 
 
+async def test_openai_propagates_failed_response_status_and_error():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS(  # type: ignore[assignment]
+        [
+            _Msg(
+                json.dumps(
+                    {
+                        "type": "response.done",
+                        "response": {
+                            "id": "resp_failed",
+                            "status": "failed",
+                            "status_details": {
+                                "error": {"code": "server_error", "message": "No audio"}
+                            },
+                        },
+                    }
+                )
+            )
+        ]
+    )
+    events = await _drain(s)
+    turn = next(event for event in events if isinstance(event, TurnComplete))
+    assert turn.status == "failed"
+    assert turn.error == "No audio"
+
+
 async def test_openai_barge_in_drops_deferred_create():
     # Interrupting a deferred tool turn must NOT resurrect the answer the user cancelled.
     s = OpenAIRealtimeSession(api_key="k")

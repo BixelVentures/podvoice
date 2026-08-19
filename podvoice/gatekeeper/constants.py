@@ -117,6 +117,7 @@ FALLBACK_CONNECTION = "Der er problemer med forbindelsen lige nu."
 FALLBACK_TIMEOUT = "Det tog for lang tid. Prøv lige igen."
 FALLBACK_HOME_UNREACHABLE = "Jeg kan ikke nå hjemmets enheder lige nu."
 FALLBACK_ACCOUNT = "Der er et problem med kontoen til taletjenesten."
+FALLBACK_GOODBYE = "Farvel."
 TIMER_DONE = "Din timer er færdig!"
 
 # reason -> the Danish line spoken on an ERROR/WATCHDOG teardown.

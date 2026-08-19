@@ -11,6 +11,7 @@ from fakes.fake_attention import FakeAttention
 from fakes.fake_brain import FakeBrainSession
 from fakes.fake_voicepe import FakeVoicePELink
 
+from gatekeeper import constants as C
 from gatekeeper.events import Event, EventType, State
 from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.history import History
@@ -69,6 +70,16 @@ class FakeTools:
         return []
 
 
+class CachedSpeech:
+    def __init__(self, pcm: bytes) -> None:
+        self.pcm = pcm
+        self.calls: list[str] = []
+
+    async def say(self, text: str) -> bytes:
+        self.calls.append(text)
+        return self.pcm
+
+
 async def test_fresh_tools_are_present_when_realtime_connects():
     class FreshTools(FakeTools):
         def declarations(self) -> list[dict]:
@@ -98,7 +109,14 @@ async def test_fresh_tools_are_present_when_realtime_connects():
         await session.aclose()
 
 
-def _build(gemini, *, speaker_path: str = "auto", supports_direct: bool = False, hub=None):
+def _build(
+    gemini,
+    *,
+    speaker_path: str = "auto",
+    supports_direct: bool = False,
+    hub=None,
+    speech=None,
+):
     attention = FakeAttention()
     voicepe = FakeVoicePELink(room=ROOM)
     voicepe.supports_direct = supports_direct
@@ -111,6 +129,7 @@ def _build(gemini, *, speaker_path: str = "auto", supports_direct: bool = False,
         playback=Playback(sink=voicepe.play_pcm),
         tools=FakeTools(),
         hub=hub,
+        speech=speech,
         reply_bus=ReplyBus(),
         reply_url=REPLY_URL,
         speaker_path=speaker_path,
@@ -692,6 +711,96 @@ async def test_provider_semantic_end_closes_varied_danish_meanings(user_text: st
         await _wait_until(lambda: session.sm.state is State.IDLE)
         assert len(attention.release_calls) == 1
         assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_failed_realtime_goodbye_uses_cached_voice_and_waits_for_physical_finish():
+    """Field 2026-08-19: semantic end succeeded, final response failed with 0 audio.
+
+    The model still owns the end decision. The transport must make that accepted
+    decision audible from the cache, then close only after the puck reports drain.
+    """
+    gemini = LiveFake()
+    goodbye_pcm = _frame(amplitude=1700, n_samples=7200)
+    speech = CachedSpeech(goodbye_pcm)
+    session, attention, voicepe = _build(gemini, speech=speech)
+    await session.start()
+    try:
+        await session.wake()
+        gemini.emit(
+            InputTranscript("Tak, det var alt."),
+            ToolCall("end-field", "end_conversation", {}),
+        )
+        await _wait_until(lambda: len(gemini.sent_tool_results) == 1)
+        gemini.emit(
+            ToolRoundComplete(),
+            TurnComplete(status="failed", error="server_error"),
+        )
+
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        assert speech.calls == [C.FALLBACK_GOODBYE]
+        assert session._active is True
+        assert session._closure_turn is not None
+        assert session._closure_turn.confirmed is True
+
+        session._on_media_state(True)
+        await asyncio.sleep(0.05)
+        assert session._active is True
+        session._on_media_state(False)
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+        assert session._trace_reason == "model-close"
+    finally:
+        await session.aclose()
+
+
+async def test_failed_realtime_goodbye_has_the_same_contract_in_talk():
+    sent: list[dict] = []
+
+    async def send_json(payload: dict) -> None:
+        sent.append(payload)
+
+    async def send_bytes(_payload: bytes) -> None:
+        return None
+
+    brain = LiveFake()
+    attention = FakeAttention()
+    link = BrowserLink(send_json, send_bytes, room=ROOM)
+    speech = CachedSpeech(_frame(amplitude=1700, n_samples=7200))
+    session = ThinSession(
+        room=ROOM,
+        attention=attention,
+        heartbeat=Heartbeat(attention, period_ms=20),
+        brain=brain,
+        voicepe=link,
+        playback=Playback(sink=link.play_pcm),
+        tools=FakeTools(),
+        speech=speech,
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+        full_duplex=True,
+    )
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            InputTranscript("Tak, det var alt."),
+            ToolCall("end-talk", "end_conversation", {}),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        brain.emit(ToolRoundComplete(), TurnComplete(status="failed"))
+        await _wait_until(
+            lambda: any(message.get("type") == "play" for message in sent)
+        )
+        assert speech.calls == [C.FALLBACK_GOODBYE]
+        assert session._active is True
+
+        link.media_state(True)
+        link.media_state(False)
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert len(attention.release_calls) == 1
     finally:
         await session.aclose()
 

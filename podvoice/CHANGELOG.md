@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.13.11 — semantisk afslutning bliver altid hørbar
+
+- En eksplicit `response.done.status=failed` bæres nu gennem den provider-neutrale
+  kontrakt. En fejlet Realtime-respons med nul lydtokens kan derfor aldrig længere
+  tælle som et færdigt eller fysisk afspillet svar.
+- Når Realtime allerede har valgt det reserverede semantiske `end_conversation`, men
+  den efterfølgende farvel-lyd fejler, afspiller PodVoice et forvarmet “Farvel.” i den
+  samme assistentstemme. GPT ejer fortsat betydningen; fallbacken ejer kun den sikre
+  transport af en beslutning, modellen allerede har truffet.
+- Teardown venter også på fallbackens faktiske `playback_finished`, hvorefter provider,
+  mikrofon, musikdæmpning og wake-latch lukkes/genåbnes præcis én gang. Voice PE og
+  Talk kører samme regression fra feltforløbet 19. august.
+
 ## 1.13.10 — rearm kræver levende mikrofonlyd
 
 - Firmwarekvitteringen `wake_rearmed` kræver nu både ubrudt detektorkontinuitet,

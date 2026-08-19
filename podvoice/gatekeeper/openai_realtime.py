@@ -93,6 +93,22 @@ def _rstatus(ev: dict) -> str:
     return "?"
 
 
+def _rerror(ev: dict) -> str | None:
+    """Best-effort human-readable error attached to a failed response."""
+    response = ev.get("response")
+    if not isinstance(response, dict):
+        return None
+    details = response.get("status_details")
+    if not isinstance(details, dict):
+        return None
+    error = details.get("error")
+    if isinstance(error, dict):
+        message = error.get("message") or error.get("code") or error.get("type")
+        return str(message) if message else None
+    reason = details.get("reason")
+    return str(reason) if reason else None
+
+
 @dataclass
 class OpenAIRealtimeSession:
     """One OpenAI Realtime WebSocket. Satisfies voice.VoiceSession."""
@@ -569,7 +585,13 @@ class OpenAIRealtimeSession:
                     )
                     continue
                 _LOG.info("turn: response.done id=%s status=%s -> TurnComplete", rid, status)
-                yield TurnComplete()
+                # Old fakes/providers omit response.status. Preserve compatibility by
+                # treating an absent value as completed, while carrying every explicit
+                # failed/cancelled state through the provider-neutral contract.
+                yield TurnComplete(
+                    status=status if status != "?" else "completed",
+                    error=_rerror(ev),
+                )
             elif t == "session.updated":
                 self._configured = True
                 _LOG.info(

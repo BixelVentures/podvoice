@@ -526,6 +526,7 @@ async def run(cfg: Config) -> None:
                     _C.TIMER_DONE,
                     _C.FALLBACK_HOME_UNREACHABLE,
                     _C.FALLBACK_ACCOUNT,
+                    _C.FALLBACK_GOODBYE,
                 ]
             ),
             name="speech-prewarm",
