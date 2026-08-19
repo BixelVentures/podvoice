@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import array
 import asyncio
+import json
+from types import SimpleNamespace
 
+from aiohttp import WSMsgType
 from fakes.fake_attention import FakeAttention
 from test_thin import FakeTools, LiveFake, _wait_until
 
@@ -15,7 +18,7 @@ from gatekeeper.events import State
 from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.playback import Playback
 from gatekeeper.reply import ReplyBus
-from gatekeeper.talk import TALK_ROOM, BrowserLink, TalkHub
+from gatekeeper.talk import TALK_ROOM, BrowserLink, TalkHub, run_talk
 from gatekeeper.thin import ThinSession
 from gatekeeper.voice import (
     AudioChunk,
@@ -27,6 +30,61 @@ from gatekeeper.voice import (
 )
 
 REPLY_URL = f"reply/{TALK_ROOM}.flac?t=tok"
+
+
+async def test_first_typed_message_waits_for_provider_ready_instead_of_sleeping():
+    events: list[str] = []
+
+    class Brain:
+        async def send_text(self, text: str) -> None:
+            assert session._active is True
+            events.append(f"text:{text}")
+
+    class Session:
+        _active = False
+        brain = Brain()
+
+        async def start(self) -> None:
+            events.append("start")
+
+        async def wake(self) -> None:
+            events.append("wake-start")
+            await asyncio.sleep(0.01)
+            self._active = True
+            events.append("provider-ready")
+
+        async def aclose(self) -> None:
+            events.append("close")
+
+    class Wire:
+        def __init__(self) -> None:
+            self.messages = [
+                SimpleNamespace(
+                    type=WSMsgType.TEXT,
+                    data=json.dumps({"type": "text", "text": "Hvad er tolv gange syv?"}),
+                )
+            ]
+
+        async def send_json(self, _payload: dict) -> None:
+            return None
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self.messages:
+                raise StopAsyncIteration
+            return self.messages.pop(0)
+
+    session = Session()
+    await run_talk(Wire(), session, None)  # type: ignore[arg-type]
+    assert events == [
+        "start",
+        "wake-start",
+        "provider-ready",
+        "text:Hvad er tolv gange syv?",
+        "close",
+    ]
 
 
 def _frame(amplitude: int = 2000, n_samples: int = 320) -> bytes:

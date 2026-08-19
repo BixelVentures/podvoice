@@ -116,8 +116,8 @@ async def test_fresh_tools_are_present_when_realtime_connects():
         await session.aclose()
 
 
-async def test_continue_conversation_publishes_same_response_answer_without_second_round():
-    """Direct answers remain one Realtime response despite required lifecycle choice."""
+async def test_continue_conversation_discards_decision_preamble_and_publishes_final_answer():
+    """The lifecycle decision and audible answer are two mechanically distinct responses."""
 
     class NoExternalDispatch(FakeTools):
         async def dispatch(self, name: str, args: dict) -> dict:
@@ -134,8 +134,8 @@ async def test_continue_conversation_publishes_same_response_answer_without_seco
 
         brain.emit(
             UserSpeechStopped(),
-            AudioChunk(_frame(), item_id="direct-answer"),
-            OutputTranscript("Fireogfirs."),
+            AudioChunk(_frame(), item_id="forbidden-preamble"),
+            OutputTranscript("Lad mig regne på det."),
             ToolCall("continue-1", "continue_conversation", {}),
         )
         await _wait_until(lambda: len(brain.sent_tool_results) == 1)
@@ -144,65 +144,42 @@ async def test_continue_conversation_publishes_same_response_answer_without_seco
             "ok": True,
             "data": {"decision": "continue_conversation"},
         }
-        assert sent["suppress_response"] is True
+        assert "suppress_response" not in sent
         assert voicepe.announced_urls == []
-        assert session._held_announce_pcm  # answer stayed retractable until decision completion
+        assert session._held_announce_pcm == []  # decision preamble was retracted
 
-        brain.emit(SilentToolComplete(call_ids=("continue-1",)))
+        brain.emit(
+            ToolRoundComplete(),
+            AudioChunk(_frame(), item_id="direct-answer"),
+            OutputTranscript("Fireogfirs."),
+            TurnComplete(),
+        )
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
         assert session._active is True
         assert session._closure_turn is not None
         assert session._closure_turn.response_done is True
-        assert session._continue_turns == {}
     finally:
         await session.aclose()
 
 
-async def test_continue_conversation_without_promised_audio_fails_closed():
+async def test_continue_decision_response_never_publishes_without_final_answer_response():
     brain = LiveFake()
-    session, attention, _voicepe = _build(brain)
+    session, _attention, voicepe = _build(brain)
     await session.start()
     try:
         await session.wake()
         brain.emit(
             UserSpeechStopped(),
-            ToolCall("continue-empty", "continue_conversation", {}),
+            AudioChunk(_frame(), item_id="forbidden-preamble"),
+            ToolCall("continue-1", "continue_conversation", {}),
+            ToolRoundComplete(),
         )
         await _wait_until(lambda: len(brain.sent_tool_results) == 1)
-        brain.emit(SilentToolComplete(call_ids=("continue-empty",)))
-        await _wait_until(lambda: session._active is False, max_wait=3.0)
-        assert session.sm.state is State.IDLE
-        assert len(attention.release_calls) == 1
-    finally:
-        await session.aclose()
-
-
-async def test_delayed_continue_completion_cannot_complete_a_fresh_user_turn():
-    brain = LiveFake()
-    session, _attention, _voicepe = _build(brain)
-    await session.start()
-    try:
-        await session.wake()
-        brain.emit(
-            UserSpeechStopped(),
-            AudioChunk(_frame(), item_id="old-answer"),
-            ToolCall("continue-old", "continue_conversation", {}),
-        )
-        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
-        assert session._closure_turn is not None
-        old_serial = session._closure_turn.serial
-
-        brain.emit(UserSpeechStarted(), UserSpeechStopped())
-        await _wait_until(
-            lambda: (
-                session._closure_turn is not None and session._closure_turn.serial == old_serial + 1
-            )
-        )
-        fresh_turn = session._closure_turn
-        brain.emit(SilentToolComplete(call_ids=("continue-old",)))
         await asyncio.sleep(0.05)
-        assert session._closure_turn is fresh_turn
-        assert fresh_turn is not None and fresh_turn.response_done is False
+        assert voicepe.announced_urls == []
+        assert session._held_announce_pcm == []
+        assert session._closure_turn is not None
+        assert session._closure_turn.response_done is False
     finally:
         await session.aclose()
 
@@ -229,7 +206,6 @@ async def test_semantic_end_dominates_continue_in_the_same_provider_round():
             TurnComplete(),
         )
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
-        assert session._continue_turns == {}
         session._on_media_state(True)
         session._on_media_state(False)
         await _wait_until(lambda: session.sm.state is State.IDLE)
@@ -1470,7 +1446,14 @@ async def test_ten_complete_wake_followup_semantic_close_rearm_cycles():
             # remain open for a natural follow-up without another wake/provider connect.
             expected_announces = len(voicepe.announced_urls) + 1
             brain.emit(
+                UserSpeechStopped(),
                 InputTranscript("Hvad er klokken?"),
+                AudioChunk(_frame(), item_id=f"discarded-{cycle}-1"),
+                ToolCall(f"continue-{cycle}-1", "continue_conversation", {}),
+            )
+            await _wait_until(lambda expected=(cycle - 1) * 3 + 1: len(brain.sent_tool_results) == expected)
+            brain.emit(
+                ToolRoundComplete(),
                 AudioChunk(_frame(), item_id=f"answer-{cycle}-1"),
                 OutputTranscript("Klokken er ti."),
                 TurnComplete(),
@@ -1486,7 +1469,14 @@ async def test_ten_complete_wake_followup_semantic_close_rearm_cycles():
             # The follow-up is another turn in exactly the same Realtime session.
             expected_announces += 1
             brain.emit(
+                UserSpeechStopped(),
                 InputTranscript("Og hvilken ugedag er det?"),
+                AudioChunk(_frame(), item_id=f"discarded-{cycle}-2"),
+                ToolCall(f"continue-{cycle}-2", "continue_conversation", {}),
+            )
+            await _wait_until(lambda expected=(cycle - 1) * 3 + 2: len(brain.sent_tool_results) == expected)
+            brain.emit(
+                ToolRoundComplete(),
                 AudioChunk(_frame(), item_id=f"answer-{cycle}-2"),
                 OutputTranscript("Det er mandag."),
                 TurnComplete(),
@@ -1503,10 +1493,11 @@ async def test_ten_complete_wake_followup_semantic_close_rearm_cycles():
             # matcher.  Teardown waits for the spoken farewell's physical finish.
             call_id = f"end-{cycle}"
             brain.emit(
+                UserSpeechStopped(),
                 InputTranscript("Det var alt for nu."),
                 ToolCall(call_id, "end_conversation", {}),
             )
-            await _wait_until(lambda expected=cycle: len(brain.sent_tool_results) == expected)
+            await _wait_until(lambda expected=cycle * 3: len(brain.sent_tool_results) == expected)
             expected_announces += 1
             brain.emit(
                 ToolRoundComplete(),

@@ -108,26 +108,38 @@ uden at kalde `end_conversation`. Playback sluttede normalt; samtalen lukkede f�
 idle-fallback cirka 7,3 sekunder senere. Det var derfor en semantisk beslutningsfejl,
 ikke en mikrofon-, gain-, playback- eller wake-fejl.
 
-**v1.13.15 er den aktuelle add-on-kandidat.** Hver klar brugertur kræver én eksplicit
+v1.13.15 krævede én eksplicit
 Realtime-beslutning: domæneværktøj for handling/opslag, `continue_conversation` for
 direkte svar eller opklaring, `end_conversation` for afslutning eller `wait_for_user`
-for ikke-henvendt tale. Direkte svar og fortsættelsesbeslutningen ligger i samme
-Realtime-respons; der tilføjes ingen ekstra modelrunde. Semantikken ejes fortsat af GPT,
-mens PodVoice alene gør beslutningen obligatorisk og observerbar. Promptversionen er 3.
-Firmware og hele den allerede fungerende fysiske kæde er uændret.
+for ikke-henvendt tale. En maskinel live Talk-prøve stoppede kandidaten før fysisk test:
+første tekst kunne forsvinde, når provider-opkoblingen tog længere end en fast 300 ms
+ventetid, og Realtime kunne vælge `continue_conversation`, sige “Lad mig lige regne det
+kort igennem” og aldrig levere svaret 84. Kandidaten er derfor ikke testklar.
+
+**v1.13.16 er den aktuelle add-on-kandidat.** Talk venter nu på den virkelige
+provider-ready-grænse før første tekst sendes. `continue_conversation` er ændret til en
+mekanisk to-respons-kontrakt: beslutningsresponsens lyd kasseres, det interne resultat
+registreres, og præcis én efterfølgende respons med `tool_choice=none` skal levere hele
+svaret. Dermed kan svaret hverken erstattes af en mellemreplik eller starte en ny
+lifecycle-loop. Promptversionen er 4. Firmware, gain, VAD, pre-roll, mic-gate, playback
+og wake-rearm er uændrede.
 
 ## Adgangskrav før næste udvikling
 
-1. Opdatér add-on til v1.13.15 og gentag den korte golden chain. Den første klare
+1. Før fysisk test skal v1.13.16 bestå automatiske regressionssuiter og en rigtig live
+   Talk-kæde fra idle: direkte matematik → opfølgning → tidsværktøj → opfølgning →
+   semantisk afslutning. Første tekst må ikke tabes, og hver direkte tur skal give både
+   `continue_conversation` og et efterfølgende fuldt svar.
+2. Opdatér derefter add-on til v1.13.16 og gentag den korte golden chain. Den første klare
    afslutning skal vælge `end_conversation`; de to almindelige ture skal hver have et
    eksplicit domæne- eller `continue_conversation`-valg. Et bevist playback-start/slut-
    par må ikke efterfølges af `playback_fault`; afslutningen skal ende med mørk IDLE og
    fungerende wake.
-2. Kontrollér at den nye trace fortsat viser `prompt_source=default`,
-   `prompt_version=3`, og at Realtime accepterer `max_output_tokens=1024` og
+3. Kontrollér at den nye trace fortsat viser `prompt_source=default`,
+   `prompt_version=4`, og at Realtime accepterer `max_output_tokens=1024` og
    sessionens krævede værktøjsvalg. Et korrekt
    svar tæller ikke som bestået, hvis kendt testinput bliver tomt eller semantisk forvansket.
-3. Kør 10 ubrudte fysiske lifecycle-cyklusser på samme kandidat. Ingen gain-, VAD-,
+4. Kør 10 ubrudte fysiske lifecycle-cyklusser på samme kandidat. Ingen gain-, VAD-,
    prompt- eller UX-tuning midt i serien.
 
 ## Bindende roadmap efter adgangskravet

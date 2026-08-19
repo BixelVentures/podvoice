@@ -46,9 +46,11 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
    `end_conversation` for semantisk afslutning eller `wait_for_user` for ikke-henvendt
    tale. De tre lifecycle-signaler er interne og må aldrig dispatches til HA/MCP.
    Lokal tekstmatching af “farvel”-varianter er ikke afslutningsautoritet.
-4. `continue_conversation` skal levere sit korte svar i samme provider-respons. Signalet
-   må ikke skabe en ekstra modelsvarsrunde, og svaret må først publiceres, når den
-   providerbeviste beslutning er registreret. Manglende svar er en providerfejl.
+4. `continue_conversation`-beslutningsresponsen må aldrig publiceres som svar. PodVoice
+   registrerer det interne resultat og kræver derefter præcis én værktøjsfri
+   provider-respons med hele det korte svar. Den ekstra responsgrænse er bindende:
+   modellen må ikke nøjes med en indledning i beslutningsresponsen, og det endelige svar
+   kan ikke starte en ny lifecycle- eller værktøjsrunde.
 5. Hvis Realtime har foreslået semantisk afslutning, men den efterfølgende lydrespons
    eksplicit fejler, må transporten afspille et cachet farvel. Fallbacken må aldrig
    udløses af brugertransskription alene og må først lukke efter fysisk playback-finish.

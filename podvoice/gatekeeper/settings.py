@@ -95,6 +95,9 @@ LEGACY_PROMPT_HASHES = frozenset(
         # overlapping ambiguity, tool-routing and result rules. A panel save persists
         # the default verbatim, so its hash must be migrated or it shadows V2 forever.
         "914647bba21528f2a124900a76e72341d04ed20482641e899d270440f5562857",
+        # 1.13.15 Prompt V3 — retired when its same-response continue contract was
+        # disproved by the live Talk preflight. A saved default must pick up V4.
+        "da41f449566176f11b9b3cc492deaa0ab04f4d9c0ff16254781782af81faa644",
     }
 )
 

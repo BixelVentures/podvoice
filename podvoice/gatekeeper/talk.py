@@ -275,8 +275,9 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                 elif kind == "text" and data.get("text"):
                     # Typed input rides the SAME conversation (wake first if idle).
                     if not getattr(session, "_active", False):
-                        link.fire_wake()
-                        await asyncio.sleep(0.3)  # let the wake open the provider
+                        # Wait for the actual provider-ready boundary. The previous
+                        # guessed sleep lost the first text when connect took >300 ms.
+                        await session.wake()
                     with contextlib.suppress(Exception):
                         await session.brain.send_text(str(data["text"]))
             elif msg.type == WSMsgType.ERROR:

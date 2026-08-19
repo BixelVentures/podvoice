@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.13.16 — providerklar Talk og garanteret endeligt svar
+
+- En live 1.13.15-prøve fangede to fejl før fysisk test: Talk kunne sende første tekst
+  efter en fast 300 ms ventetid, selv om Realtime endnu ikke var klar, og dermed tabe
+  beskeden. Talk afventer nu den faktiske `session.updated`-/provider-ready-grænse.
+- Realtime valgte korrekt `continue_conversation` på “Hvad er tolv gange syv?”, men
+  sagde kun “Lad mig lige regne det kort igennem” og leverede aldrig 84. Antagelsen om
+  beslutning og komplet svar i samme respons er derfor fjernet.
+- `continue_conversation` registreres nu som et almindeligt internt værktøjsresultat.
+  Beslutningsresponsens preamble kasseres, hvorefter providerlaget opretter præcis én
+  endelig respons med `tool_choice=none`. Den respons kan kun levere svaret og kan ikke
+  starte endnu en lifecycle-loop.
+- Promptversion 4 beskriver samme to-respons-kontrakt. Firmware og den fysiske
+  half-duplex-kæde er uændret. Kandidaten kræver fortsat live Talk-preflight, fysisk
+  golden chain og derefter 10/10 fysiske cyklusser.
+
 ## 1.13.15 — eksplicit Realtime-beslutning på hver brugertur
 
 - Feltprøven `20260819T153836-401` beviste en ren lyd- og playback-kæde, men GPT

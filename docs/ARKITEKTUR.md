@@ -56,10 +56,12 @@ eller afslut. De tvinger en eksplicit beslutning på hver klar brugertur, men Po
 fortolker stadig aldrig brugerens ord. PodVoice ejer selve transportlukningen og kan
 derfor garantere én teardown og én wake-rearm.
 
-Et direkte svar bruger `continue_conversation` og taler hele svaret i samme
-Realtime-respons. Det er ikke en ekstra klassifikationsrunde: svaret holdes kun privat,
-indtil providerens eksplicitte fortsættelsesbeslutning er registreret. Handlinger og
-opslag bruger deres reelle domæneværktøj, ikke fortsættelsessignalet.
+Et direkte svar bruger `continue_conversation`. Beslutningsresponsens eventuelle lyd
+holdes privat og kasseres. Når providerens eksplicitte fortsættelsesbeslutning er
+registreret, oprettes præcis én værktøjsfri svarrespons, som taler hele det korte svar.
+Denne mekaniske grænse blev nødvendig, fordi en live 1.13.15-prøve viste, at Realtime
+kunne sige en mellemreplik i beslutningsresponsen og aldrig levere selve svaret.
+Handlinger og opslag bruger deres reelle domæneværktøj, ikke fortsættelsessignalet.
 
 ## Lukning
 

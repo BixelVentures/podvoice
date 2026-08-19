@@ -431,7 +431,7 @@ class OpenAIRealtimeSession:
                 self._silent_tool_call_ids.add(call_id)
             else:
                 self._tool_result_response_required = True
-                if r.get("name") == "end_conversation":
+                if r.get("name") in ("end_conversation", "continue_conversation"):
                     self._force_no_tools_followup = True
             submitted += 1
         if submitted == 0:
