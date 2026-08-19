@@ -91,6 +91,10 @@ LEGACY_PROMPT_HASHES = frozenset(
         # "Det tjekker jeg" serialized the tool behind filler. 1.12.21 starts tools
         # immediately and uses the thinking LED as non-blocking progress feedback.
         "d7d4d5276377e8156cbd1eca4ce732b8a6c327fbf0648cc6562ec550e158dfed",
+        # 1.13.12 default — retired for Prompt V2. The old 1,749-word prompt had
+        # overlapping ambiguity, tool-routing and result rules. A panel save persists
+        # the default verbatim, so its hash must be migrated or it shadows V2 forever.
+        "914647bba21528f2a124900a76e72341d04ed20482641e899d270440f5562857",
     }
 )
 

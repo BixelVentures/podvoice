@@ -38,6 +38,7 @@ from .voice import (
     InputTranscript,
     Interrupted,
     OutputTranscript,
+    SilentToolComplete,
     ToolCall,
     ToolRoundComplete,
     TurnComplete,
@@ -162,6 +163,11 @@ class OpenAIRealtimeSession:
     # mid-response, so we submit the output now but DEFER response.create until response.done.
     _active_response: bool = field(default=False, init=False, repr=False)
     _pending_create: bool = field(default=False, init=False, repr=False)
+    # At least one tool in the current function-call response needs a spoken result.
+    # A pure wait_for_user round records its function output but intentionally creates
+    # no assistant response, eliminating cross-turn silence state in ThinSession.
+    _tool_result_response_required: bool = field(default=False, init=False, repr=False)
+    _silent_tool_call_ids: set[str] = field(default_factory=set, init=False, repr=False)
     _outstanding_tool_calls: set[str] = field(default_factory=set, init=False, repr=False)
     _cancelled_tool_calls: set[str] = field(default_factory=set, init=False, repr=False)
     _deliberate_close: bool = field(default=False, init=False, repr=False)
@@ -288,6 +294,8 @@ class OpenAIRealtimeSession:
         # Fresh socket -> fresh state machine (a prior session may have died mid-response).
         self._active_response = False
         self._pending_create = False
+        self._tool_result_response_required = False
+        self._silent_tool_call_ids.clear()
         self._outstanding_tool_calls.clear()
         self._cancelled_tool_calls.clear()
         self._speech_stop_emitted = False
@@ -379,9 +387,9 @@ class OpenAIRealtimeSession:
         )
         await self._ws.send_json({"type": "response.create"})
 
-    async def send_tool_results(self, results: list) -> None:
+    async def send_tool_results(self, results: list) -> bool:
         if self._ws is None:
-            return
+            return False
         submitted = 0
         for r in results:
             call_id = str(r.get("id") or "")
@@ -402,9 +410,13 @@ class OpenAIRealtimeSession:
                 }
             )
             self._outstanding_tool_calls.discard(call_id)
+            if bool(r.get("suppress_response")):
+                self._silent_tool_call_ids.add(call_id)
+            else:
+                self._tool_result_response_required = True
             submitted += 1
         if submitted == 0:
-            return
+            return False
         # Asking for a response while one is still active errors out (and the model never
         # speaks). If the function-call response hasn't finished yet, defer until response.done.
         if self._active_response or self._outstanding_tool_calls:
@@ -416,12 +428,22 @@ class OpenAIRealtimeSession:
                 len(self._outstanding_tool_calls),
                 len(results),
             )
+            return False
         else:
             self._pending_create = False
-            _LOG.info(
-                "turn: tool results submitted while idle -> create NOW (%d result(s))", len(results)
-            )
-            await self._ws.send_json({"type": "response.create"})
+            if self._tool_result_response_required:
+                _LOG.info(
+                    "turn: tool results submitted while idle -> create NOW (%d result(s))",
+                    len(results),
+                )
+                self._tool_result_response_required = False
+                self._silent_tool_call_ids.clear()
+                await self._ws.send_json({"type": "response.create"})
+                return False
+            else:
+                _LOG.info("turn: silent tool result recorded -> no response.create")
+                self._silent_tool_call_ids.clear()
+                return True
 
     async def events(self) -> AsyncIterator[VoiceEvent]:
         if self._ws is None:
@@ -435,6 +457,8 @@ class OpenAIRealtimeSession:
             # the next socket, or tool calls would defer forever / fire a spurious create.
             self._active_response = False
             self._pending_create = False
+            self._tool_result_response_required = False
+            self._silent_tool_call_ids.clear()
             self._outstanding_tool_calls.clear()
             self._cancelled_tool_calls.clear()
         # aiohttp's WS iterator ENDS SILENTLY when the socket closes — no exception. A
@@ -519,6 +543,8 @@ class OpenAIRealtimeSession:
                     _LOG.info("turn: barge-in (speech_started) over active response")
                     self._active_response = False
                     self._pending_create = False
+                    self._tool_result_response_required = False
+                    self._silent_tool_call_ids.clear()
                 if self.interrupt_response:
                     self._cancelled_tool_calls.update(self._outstanding_tool_calls)
                     self._outstanding_tool_calls.clear()
@@ -553,6 +579,17 @@ class OpenAIRealtimeSession:
                 if usage is not None:
                     yield usage
                 rid, status = _rid(ev), _rstatus(ev)
+                if status not in ("?", "completed"):
+                    # A failed/cancelled function-call response is not permission to
+                    # manufacture either a spoken result or a silent success. Cancel
+                    # its late tool outputs and expose the provider failure to Thin.
+                    self._pending_create = False
+                    self._tool_result_response_required = False
+                    self._cancelled_tool_calls.update(self._outstanding_tool_calls)
+                    self._outstanding_tool_calls.clear()
+                    self._silent_tool_call_ids.clear()
+                    yield TurnComplete(status=status, error=_rerror(ev))
+                    continue
                 if (
                     self._pending_create
                     and not self._outstanding_tool_calls
@@ -562,6 +599,18 @@ class OpenAIRealtimeSession:
                     # deferred follow-up that speaks the result, and DON'T end the turn here
                     # (the follow-up response's own response.done is the real end-of-turn).
                     self._pending_create = False
+                    if not self._tool_result_response_required:
+                        _LOG.info(
+                            "turn: response.done id=%s status=%s -> silent tool round complete",
+                            rid,
+                            status,
+                        )
+                        call_ids = tuple(sorted(self._silent_tool_call_ids))
+                        self._silent_tool_call_ids.clear()
+                        yield SilentToolComplete(call_ids=call_ids)
+                        continue
+                    self._tool_result_response_required = False
+                    self._silent_tool_call_ids.clear()
                     _LOG.info(
                         "turn: response.done id=%s status=%s -> firing DEFERRED create (turn stays open)",
                         rid,

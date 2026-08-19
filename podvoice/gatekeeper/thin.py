@@ -13,6 +13,7 @@ from __future__ import annotations
 import array
 import asyncio
 import contextlib
+import hashlib
 import logging
 import time
 from dataclasses import dataclass
@@ -23,12 +24,14 @@ from .events import Event, EventType, State
 from .led import led_command_for
 from .playout import PlayoutClock
 from .podconnect import AttentionDown, UnknownRoom, Unsupervised
+from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 from .voice import (
     AudioChunk,
     Idle,
     InputTranscript,
     Interrupted,
     OutputTranscript,
+    SilentToolComplete,
     ToolCall,
     ToolRoundComplete,
     TurnComplete,
@@ -63,15 +66,28 @@ BARGE_DEBOUNCE_S = 0.6
 # this fallback is the belt for semantic_vad and for a server that never says so.
 IDLE_FALLBACK_S = 25.0
 END_CONVERSATION_TOOL = "end_conversation"
+WAIT_FOR_USER_TOOL = "wait_for_user"
 END_CONVERSATION_DECLARATION = {
     "name": END_CONVERSATION_TOOL,
     "description": (
-        "Signal that the user semantically and unambiguously wants to end the current "
-        "voice conversation. Use it for any clear farewell or wrap-up meaning, regardless "
-        "of exact wording or imperfect transcription. Never use it for unclear/noisy input, "
-        "ordinary questions, embedded politeness, or merely hearing words such as stop or "
-        "farvel in another context. If uncertain, ask the user to repeat instead. After the "
-        "tool result, say only one short Danish farewell."
+        "Signal that the user's clear, audible meaning is to end the current voice "
+        "conversation. Decide from meaning and conversation context, never from a keyword. "
+        "Never use it for unclear, noisy or fragmentary input, ordinary questions, embedded "
+        "politeness, background speech, a media stop, or merely mentioning a farewell. If "
+        "the user is addressing the assistant but end intent is uncertain, ask for a repeat. "
+        "After the tool result, follow the system prompt's short Danish farewell rule."
+    ),
+    "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+}
+WAIT_FOR_USER_DECLARATION = {
+    "name": WAIT_FOR_USER_TOOL,
+    "description": (
+        "Use only when detected speech is clearly background, directed at someone else, "
+        "or not clearly addressed to the assistant. This is a silent no-op: after the "
+        "tool result, produce no audio or text and wait for the next user turn. Never use "
+        "it when the user is clearly addressing the assistant but the words are unclear; "
+        "ask the user to repeat instead. This tool is exclusive for its turn and must "
+        "never be called together with another tool."
     ),
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
@@ -248,6 +264,7 @@ class ThinSession:
         self._tool_lock = asyncio.Lock()
         self._tool_tasks: dict[str, asyncio.Task] = {}
         self._semantic_end_call_ids: set[str] = set()
+        self._wait_turns: dict[str, tuple[float, _ClosureTurn]] = {}
         self._playback_t0: float | None = None  # monotonic when the device started playing
         self._playback_started = asyncio.Event()
         self._playback_finished = asyncio.Event()
@@ -365,6 +382,8 @@ class ThinSession:
         self._stop_sent_t = None
         self._stop_sent_epoch = None
         if self.audio_trace is not None:
+            effective_prompt = (getattr(self.brain, "instructions", "") or SYSTEM_PROMPT_DA).strip()
+            prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA
             self.audio_trace.begin(
                 self.room,
                 {
@@ -376,6 +395,9 @@ class ThinSession:
                     "openai_noise": getattr(self.brain, "noise", None),
                     "speaker_path": self.speaker_path,
                     "same_breath": getattr(self.voicepe, "supports_same_breath", None),
+                    "prompt_source": "default" if prompt_is_default else "custom",
+                    "prompt_version": PROMPT_VERSION if prompt_is_default else None,
+                    "prompt_sha256": hashlib.sha256(effective_prompt.encode()).hexdigest(),
                     "wake_audio_boundary": getattr(
                         self.voicepe, "supports_wake_audio_boundary", None
                     ),
@@ -391,6 +413,7 @@ class ThinSession:
         self._closure_serial = 0
         self._closure_turn = None
         self._semantic_end_call_ids.clear()
+        self._wait_turns.clear()
         self._turn_cue_appended = False
         self._last_user_utterance = ""
         self._last_activity = self._conv_started
@@ -424,8 +447,9 @@ class ThinSession:
         decls = list(self.tools.declarations()) if self.tools is not None else []
         # Lifecycle semantics are available for every provider/session, but this
         # reserved signal is handled by ThinSession and never dispatched to HA.
-        decls = [d for d in decls if d.get("name") != END_CONVERSATION_TOOL]
-        decls.append(END_CONVERSATION_DECLARATION)
+        reserved = {END_CONVERSATION_TOOL, WAIT_FOR_USER_TOOL}
+        decls = [d for d in decls if d.get("name") not in reserved]
+        decls.extend((END_CONVERSATION_DECLARATION, WAIT_FOR_USER_DECLARATION))
         self.brain.tool_declarations = decls
         try:
             await asyncio.wait_for(self.brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
@@ -543,6 +567,7 @@ class ThinSession:
             t.cancel()
         self._tool_tasks.clear()
         self._semantic_end_call_ids.clear()
+        self._wait_turns.clear()
         if self.reply_bus is not None:
             self.reply_bus.end(self.room)
         if hasattr(self.voicepe, "stop_streaming"):
@@ -726,6 +751,13 @@ class ThinSession:
             self._trace_event("speech_started_or_interrupted")
             self._start_barge_debounce()
         elif isinstance(ev, UserSpeechStarted):
+            current = self._closure_turn
+            if current is not None and any(
+                turn is current for _epoch, turn in self._wait_turns.values()
+            ):
+                # A genuine new utterance supersedes a still-pending silent/background
+                # decision. Its delayed completion remains bound to the old turn.
+                self._begin_closure_turn()
             # The provider deliberately did NOT cancel its response. In the shipped
             # half-duplex contract, only an edge that crosses an active answer gate is
             # discarded. Ordinary first/follow-up speech must remain untouched.
@@ -748,7 +780,11 @@ class ThinSession:
             # responses.  Keep the announce stream private/open, but make the next
             # TurnComplete publish the actual result answer.
             self._turn_had_tool = False
+            self._wait_turns.clear()  # mixed normal/end tool dominates any wait call
             _LOG.info("thin: tool decision complete — result answer is now pending")
+        elif isinstance(ev, SilentToolComplete):
+            for call_id in ev.call_ids:
+                self._complete_silent_wait_turn(call_id)
         elif isinstance(ev, TurnComplete):
             self._trace_event(
                 "response_done",
@@ -757,6 +793,7 @@ class ThinSession:
                 error=ev.error,
             )
             if ev.status != "completed":
+                self._wait_turns.clear()
                 turn = self._ensure_closure_turn()
                 _LOG.warning(
                     "thin: provider response ended status=%s error=%s [turn=%d]",
@@ -828,6 +865,9 @@ class ThinSession:
             await self.stop(reason="idle")
         elif isinstance(ev, ToolCall):
             self._trace_event("tool_call", name=ev.name, call_id=ev.id)
+            if ev.name == WAIT_FOR_USER_TOOL:
+                self._trace_event("wait_for_user_requested", call_id=ev.id)
+                self._wait_turns[ev.id] = (self._epoch, self._ensure_closure_turn())
             if ev.name == END_CONVERSATION_TOOL:
                 if ev.id in self._semantic_end_call_ids:
                     _LOG.info("thin: duplicate semantic end call ignored [call_id=%s]", ev.id)
@@ -1307,7 +1347,12 @@ class ThinSession:
         if tc.name == END_CONVERSATION_TOOL:
             result = {
                 "ok": True,
-                "summary": "Afslut samtalen nu. Sig kun ét kort dansk farvel.",
+                "data": {"decision": END_CONVERSATION_TOOL},
+            }
+        elif tc.name == WAIT_FOR_USER_TOOL:
+            result = {
+                "ok": True,
+                "data": {"decision": WAIT_FOR_USER_TOOL},
             }
         elif self.tools is None:
             result = {"ok": False, "error": "no tools configured"}
@@ -1332,10 +1377,48 @@ class ThinSession:
                 self.room, f"🔧 {tc.name} {'✓' if result.get('ok') else '✕'}"
             )  # tool calls visible in the feed (room card AND the Talk tab)
         async with self._tool_lock:
-            with contextlib.suppress(Exception):
-                await self.brain.send_tool_results(
-                    [{"id": tc.id, "name": tc.name, "response": result}]
-                )
+            try:
+                tool_result: dict[str, object] = {
+                    "id": tc.id,
+                    "name": tc.name,
+                    "response": result,
+                }
+                if tc.name == WAIT_FOR_USER_TOOL:
+                    # A background/no-addressee decision has no assistant response.
+                    # OpenAI records the function output but deliberately does not
+                    # issue response.create, so silence cannot leak across turns.
+                    tool_result["suppress_response"] = True
+                silent_complete = await self.brain.send_tool_results([tool_result])
+            except Exception as exc:
+                _LOG.warning("thin: submitting %s result failed: %s", tc.name, exc)
+                self._trace_event("tool_result_submit_failed", name=tc.name)
+                if self._active:
+                    self._request_close("error:connection", error_kind="connection")
+                return
+        if tc.name == WAIT_FOR_USER_TOOL and silent_complete is True:
+            self._complete_silent_wait_turn(tc.id)
+
+    def _complete_silent_wait_turn(self, call_id: str) -> None:
+        """Finish a provider-proven pure wait round without speech or closure."""
+        bound = self._wait_turns.pop(call_id, None)
+        if bound is None:
+            return
+        epoch, turn = bound
+        if (
+            not self._active
+            or self._ending_conversation
+            or epoch != self._epoch
+            or turn is not self._closure_turn
+            or turn.superseded
+        ):
+            self._trace_event("wait_for_user_stale", call_id=call_id)
+            return
+        if self._direct:
+            self._end_direct_stream()
+        self._discard_failed_response()
+        turn.response_done = True
+        self._trace_event("wait_for_user_complete", turn=turn.serial)
+        self._enter_followup()
 
     def _arm_goodbye(self, name: str) -> None:
         """Arm the close-after-goodbye for THIS conversation only (one at a time)."""

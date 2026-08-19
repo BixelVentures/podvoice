@@ -8,7 +8,13 @@ import aiohttp
 
 from gatekeeper.openai_realtime import OpenAIRealtimeSession
 from gatekeeper.settings import load_settings, save_settings
-from gatekeeper.voice import Interrupted, ToolRoundComplete, TurnComplete, UserSpeechStarted
+from gatekeeper.voice import (
+    Interrupted,
+    SilentToolComplete,
+    ToolRoundComplete,
+    TurnComplete,
+    UserSpeechStarted,
+)
 
 
 class _Msg:
@@ -69,7 +75,8 @@ async def test_openai_fires_deferred_create_without_ending_turn():
     )
     s._active_response = True
     s._pending_create = True
-    evs = await _drain(s)
+    s._tool_result_response_required = True
+    evs = [event async for event in s._iter_events()]
     assert sum(isinstance(e, TurnComplete) for e in evs) == 1  # only the real end-of-turn
     assert sum(isinstance(e, ToolRoundComplete) for e in evs) == 1
     assert {"type": "response.create"} in s._ws.sent and s._pending_create is False
@@ -154,6 +161,181 @@ async def test_openai_sends_create_immediately_when_idle():
     s._active_response = False
     await s.send_tool_results([{"id": "c1", "name": "x", "response": {"ok": True}}])
     assert s._ws.sent[-1] == {"type": "response.create"} and s._pending_create is False
+
+
+async def test_openai_silent_tool_result_never_creates_a_response_when_idle():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._active_response = False
+    await s.send_tool_results(
+        [
+            {
+                "id": "wait-1",
+                "name": "wait_for_user",
+                "response": {"ok": True},
+                "suppress_response": True,
+            }
+        ]
+    )
+    assert all(message["type"] != "response.create" for message in s._ws.sent)
+    assert s._pending_create is False
+
+
+async def test_openai_silent_tool_result_completes_after_response_done_arrived_first():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._active_response = False
+    s._pending_create = True
+    s._outstanding_tool_calls.add("wait-1")
+    completed = await s.send_tool_results(
+        [
+            {
+                "id": "wait-1",
+                "name": "wait_for_user",
+                "response": {"ok": True},
+                "suppress_response": True,
+            }
+        ]
+    )
+    assert completed is True
+    assert s._pending_create is False
+    assert all(message["type"] != "response.create" for message in s._ws.sent)
+
+
+async def test_openai_silent_tool_result_never_creates_after_function_response_done():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._active_response = True
+    s._outstanding_tool_calls.add("wait-1")
+    await s.send_tool_results(
+        [
+            {
+                "id": "wait-1",
+                "name": "wait_for_user",
+                "response": {"ok": True},
+                "suppress_response": True,
+            }
+        ]
+    )
+    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
+    evs = await _drain(s)
+    assert sum(isinstance(event, SilentToolComplete) for event in evs) == 1
+    assert all(message["type"] != "response.create" for message in s._ws.sent)
+
+
+async def test_openai_failed_silent_tool_round_is_not_treated_as_silent_success():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._active_response = True
+    s._outstanding_tool_calls.add("wait-1")
+    await s.send_tool_results(
+        [
+            {
+                "id": "wait-1",
+                "name": "wait_for_user",
+                "response": {"ok": True},
+                "suppress_response": True,
+            }
+        ]
+    )
+    s._ws._incoming = [
+        _Msg(
+            json.dumps(
+                {
+                    "type": "response.done",
+                    "response": {"status": "failed", "status_details": {"error": {"message": "x"}}},
+                }
+            )
+        )
+    ]
+    evs = await _drain(s)
+    assert len(evs) == 1
+    assert isinstance(evs[0], TurnComplete)
+    assert evs[0].status == "failed"
+    assert all(message["type"] != "response.create" for message in s._ws.sent)
+
+
+async def test_openai_normal_tool_dominates_silent_wait_in_a_mixed_round():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._active_response = True
+    s._outstanding_tool_calls.update({"wait-1", "end-1"})
+    await s.send_tool_results(
+        [
+            {
+                "id": "wait-1",
+                "name": "wait_for_user",
+                "response": {"ok": True},
+                "suppress_response": True,
+            }
+        ]
+    )
+    await s.send_tool_results(
+        [{"id": "end-1", "name": "end_conversation", "response": {"ok": True}}]
+    )
+    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
+    evs = await _drain(s)
+    assert sum(isinstance(event, ToolRoundComplete) for event in evs) == 1
+    assert sum(message["type"] == "response.create" for message in s._ws.sent) == 1
+
+
+async def test_openai_normal_tool_dominates_silent_wait_in_reverse_result_order():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._active_response = True
+    s._outstanding_tool_calls.update({"wait-1", "end-1"})
+    await s.send_tool_results(
+        [{"id": "end-1", "name": "end_conversation", "response": {"ok": True}}]
+    )
+    await s.send_tool_results(
+        [
+            {
+                "id": "wait-1",
+                "name": "wait_for_user",
+                "response": {"ok": True},
+                "suppress_response": True,
+            }
+        ]
+    )
+    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
+    evs = await _drain(s)
+    assert sum(isinstance(event, ToolRoundComplete) for event in evs) == 1
+    assert sum(message["type"] == "response.create" for message in s._ws.sent) == 1
+
+
+async def test_openai_failed_wait_round_cancels_late_result_without_silent_success():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS(  # type: ignore[assignment]
+        [
+            _Msg(
+                json.dumps(
+                    {
+                        "type": "response.done",
+                        "response": {"status": "failed"},
+                    }
+                )
+            )
+        ]
+    )
+    s._active_response = True
+    s._pending_create = True
+    s._outstanding_tool_calls.add("wait-late")
+    evs = [event async for event in s._iter_events()]
+    assert len(evs) == 1 and isinstance(evs[0], TurnComplete)
+    assert evs[0].status == "failed"
+
+    completed = await s.send_tool_results(
+        [
+            {
+                "id": "wait-late",
+                "name": "wait_for_user",
+                "response": {"ok": True},
+                "suppress_response": True,
+            }
+        ]
+    )
+    assert completed is False
+    assert all(message["type"] != "response.create" for message in s._ws.sent)
 
 
 async def test_openai_mixed_tool_results_create_one_followup_when_slow_result_finishes_late():

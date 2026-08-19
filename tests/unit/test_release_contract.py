@@ -37,3 +37,44 @@ def test_architecture_keeps_semantic_end_signal_in_production() -> None:
 
     assert "Modellens `end_conversation`-tool" not in architecture
     assert "provider-neutrale `end_conversation`-signal" in architecture
+
+
+def test_next_steps_lock_the_five_development_priorities() -> None:
+    status = (ROOT / "docs" / "STATUS.md").read_text()
+    goals = (ROOT / "docs" / "PRODUKTMÅL.md").read_text()
+    agents = (ROOT / "AGENTS.md").read_text()
+
+    for document in (status, goals, agents):
+        assert "Udviklingsprioritet 1" in document
+        assert "Udviklingsprioritet 2" in document
+        assert document.index("Udviklingsprioritet 1") < document.index("Udviklingsprioritet 2")
+
+    for priority in range(1, 6):
+        assert f"Udviklingsprioritet {priority}" in goals
+        assert f"Udviklingsprioritet {priority}" in agents
+
+    assert goals.index("Udviklingsprioritet 2") < goals.index("Udviklingsprioritet 3")
+    assert goals.index("Udviklingsprioritet 3") < goals.index("Udviklingsprioritet 4")
+    assert goals.index("Udviklingsprioritet 4") < goals.index("Udviklingsprioritet 5")
+    assert "speech_stopped → playback_started" in goals
+    assert "p50 ≤ 1,2 s" in goals
+    assert "request_ack_cue_v1" in goals
+    assert "automatisk HA/MCP-recovery" in goals
+    assert "fysisk funktionsmatrix" in goals
+    assert "samlet UI-gennemgang" in goals
+    assert "320, 390 og 430 px" in goals
+    assert "må ikke udvikles i samme kandidat" in status
+
+
+def test_physical_gate_cannot_approve_a_lucky_answer() -> None:
+    status = (ROOT / "docs" / "STATUS.md").read_text()
+    invariants = (ROOT / "docs" / "INVARIANTER.md").read_text()
+    agents = (ROOT / "AGENTS.md").read_text()
+
+    assert "Et heldigt tool-kald" in agents
+    assert "bevis for stabil hørelse" in agents
+    assert "modellen kan ellers have ramt rigtigt ved et tilfælde" in invariants
+    assert "20260819T123836-240" in status
+    assert "ustabil fysisk inputforståelse" in status
+    assert "Et korrekt" in status
+    assert "svar tæller ikke som bestået" in status

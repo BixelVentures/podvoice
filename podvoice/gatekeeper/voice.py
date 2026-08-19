@@ -79,6 +79,18 @@ class ToolRoundComplete:
 
 
 @dataclass
+class SilentToolComplete:
+    """A pure silent no-op tool round completed without an assistant response.
+
+    The provider emits this only after it knows the whole function-call response
+    contained no normal/action/end tool requiring a spoken result. It is a real
+    turn boundary, but never an audible reply or a conversation close.
+    """
+
+    call_ids: tuple[str, ...] = ()
+
+
+@dataclass
 class Interrupted:
     """Server-side barge-in signal — flush queued/in-flight playback."""
 
@@ -136,6 +148,7 @@ VoiceEvent = Union[  # noqa: UP007
     OutputTranscript,
     TurnComplete,
     ToolRoundComplete,
+    SilentToolComplete,
     Interrupted,
     UserSpeechStarted,
     UserSpeechStopped,
@@ -156,7 +169,9 @@ class VoiceSession(Protocol):
 
     async def send_text(self, text: str) -> None: ...
 
-    async def send_tool_results(self, results: list) -> None: ...
+    async def send_tool_results(self, results: list) -> bool | None:
+        """Submit outputs; True means a pure silent round completed immediately."""
+        ...
 
     def events(self) -> AsyncIterator[VoiceEvent]: ...
 

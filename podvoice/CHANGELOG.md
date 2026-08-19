@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.13.13 — dansk Prompt V2 og tavs baggrundstur
+
+- Realtime får en ny dansk systemprompt med én entydig beslutningsrækkefølge for
+  lydforståelse, opfølgninger, værktøjsrouting, resultatsandhed, sikkerhed og semantisk
+  afslutning. En gemt 1.13.12-standardprompt migreres automatisk, mens en ægte
+  brugerdefineret prompt bevares.
+- Det reserverede `wait_for_user`-signal lader Realtime klassificere baggrundstale og
+  tale, der ikke er rettet mod Nabu, uden et oplæst svar. Det er provider-neutralt,
+  kan ikke sendes videre til Home Assistant og kan ikke lukke samtalen.
+- En tavs tur bindes til dens præcise kald, sessionsepoch og brugertur. Forsinkede eller
+  blandede værktøjsresultater kan derfor ikke gøre næste rigtige tur tavs, lukke den
+  eller genoplive en fejlet provider-respons.
+- `end_conversation` forbliver Realtime-modellens eneste semantiske afslutningssignal.
+  Thin ejer fortsat kun fysisk playback, præcis én teardown og præcis én wake-rearm.
+- Hver lydtrace registrerer aktiv promptkilde, promptversion og SHA-256, så en fysisk
+  prøve kan bevise, hvilken prompt der faktisk kørte.
+- Dette er en add-on-kandidat uden firmwareændringer. Den er først fysisk godkendt,
+  når en frisk golden chain og derefter 10 ubrudte Voice PE-cyklusser består.
+
 ## 1.13.12 — én officiel baseline og hårdere fysisk sandhed
 
 - `docs/STATUS.md`, `AGENTS.md`, produktmål og arkitektur skelner nu præcist mellem

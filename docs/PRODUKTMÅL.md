@@ -65,12 +65,96 @@ Flash kandidaten og kør 10 ubrudte samtaler på skrivebordet:
 Godkendelse kræver 10/10 lifecycle. Taleindhold kan derefter tunes separat; en død wake
 eller falsk lukning er en arkitekturfejl og stopper testen.
 
-## Release-gate 4 — funktionsmatrix
+## Udviklingsprioritet 1 — oplevet fysisk svartid
+
+Hastighedsarbejdet starter først efter golden chain og 10/10 fysisk lifecycle på samme
+kandidat. Den autoritative brugeroplevede måling er:
+
+```text
+speech_stopped → playback_started
+```
+
+Begge kanter skal komme fra den fysiske Voice PE-kædes observerede firmware-events;
+modeltelemetry eller et beregnet lydestimat må ikke erstatte dem.
+
+`response_audio_started` er kun modeltelemetry. Et kort lydsignal, generisk “et
+øjeblik” eller en værktøjspreamble er ikke et meningsfuldt svar og må ikke stoppe
+latency-uret.
+
+Mål mindst 20 enkle ture uden værktøj og 20 værktøjsture i samme rum og kandidat. For
+hver tur skal tidslinjen kunne vise:
+
+1. taleslut → færdig inputtransskription;
+2. transskription → første modellyd eller værktøjsvalg;
+3. værktøjsstart → værktøjsresultat, når relevant;
+4. værktøjsresultat → endelig modellyd, når relevant;
+5. endelig modellyd → fysisk playback-start.
+
+Optimer kun det største dokumenterede delstræk ad gangen. Hver ændring skal sammenlignes
+med den låste baseline og bestå golden chain plus 10/10 igen. Gain, VAD, prompt,
+resampling, buffering og modelindstillinger må ikke ændres samlet, fordi resultatet så
+ikke kan tilskrives eller rulles sikkert tilbage.
+
+| Turtype | Bindende mål | Stretchmål |
+|---|---:|---:|
+| Enkel tur uden værktøj | p50 ≤ 1,2 s, p90 ≤ 1,8 s | p50 ≤ 1,0 s, p90 ≤ 1,5 s |
+| Hurtigt lokalt værktøj | p50 ≤ 1,5 s, p90 ≤ 2,5 s | p50 så tæt på 1,0 s som muligt |
+| Eksternt web/HA-opslag | PodVoice-overhead vises særskilt fra værktøjstid | lavest muligt uden falsk feedback |
+
+Ingen latencyforbedring godkendes, hvis den reducerer ordgenkendelse eller giver ekstra
+VAD-ture, afklippede opfølgninger, selvsvar, manglende playback-events, dobbelt teardown
+eller død wake. Først når målene er fysisk målt, bliver baseline låst til næste feature.
+
+## Udviklingsprioritet 2 — diskret modtaget-signal
+
+Efter den låste latency-baseline må PodVoice få ét kort signal, når Realtime har
+observeret `UserSpeechStopped`. Formålet er kun at bekræfte “din tur er modtaget” på
+ture, der stadig kræver behandling; det må aldrig få en langsom kæde til at fremstå som
+et hurtigt svar.
+
+Firmware-spiken skal bevise en tredje selvstændig mixerindgang ved siden af announcement
+og musik. Signalet skal være indbygget PCM på ca. 70–100 ms, lavere end tale og kunne
+afbrydes straks. Det er **no-go**, hvis det kræver `external_media_player`, `play_sound`,
+announcement-resampleren eller udsender reply playback-events.
+
+Implementeringen sker i to adskilte trin:
+
+1. Flash en sovende `request_ack_cue_v1`-capability med handlingerne
+   `podvoice_request_ack` og `podvoice_request_ack_cancel`; funktionen er deaktiveret,
+   mens golden chain og 10/10 beviser nul regression.
+2. Lad `ThinSession` udstede signalet højst én gang per tur som fire-and-forget. Første
+   assistant-audio, stop, fejl, timeout, disconnect eller teardown annullerer det.
+   Stale sessioner ignoreres. Talk må være en no-op.
+
+Observationsevents `request_ack_issued`, `request_ack_started`,
+`request_ack_finished` og `request_ack_cancelled` er kun telemetry og må aldrig styre
+sessionen. Panelet får én indstilling: “Lyd når Nabu har hørt dig”; ingen tone- eller
+volumenknapper i første version.
+
+Godkendelse kræver ny golden chain, 10/10 lifecycle, 20 enkle ture og 20 værktøjsture.
+Tool-start må ikke forsinkes, fysisk meningsfuld TTFR må højst forværres 50 ms, signalet
+må ikke nå OpenAI eller skabe en ekstra `speech_started`, og reply playback,
+opfølgninger, musik duck/restore, semantisk “Farvel” og næste wake skal være uændrede.
+Ved én regression slås funktionen fra uden ændring af den låste latency-baseline.
+
+## Udviklingsprioritet 3 — automatisk HA/MCP-recovery
+
+Et fejlet eller timeoutet `tools/list` må aldrig kræve manuel genindlæsning eller
+add-on-genstart. PodVoice skal oprette MCP-sessionen på ny med hurtig backoff (ca. 1,
+2, 5, 10 og 30 sekunder, derefter højst ét forsøg pr. minut), fortsætte tid, web, musik
+og samtale imens og atomisk genaktivere hjem og vejr, når HA svarer.
+
+Panelet skal vise “forbinder igen”, seneste konkrete fejl og automatisk skifte til
+verificeret uden at afbryde en aktiv Realtime-samtale. Tests skal dække opstartsfejl,
+tabt forbindelse midt i idle og midt i en samtale, gentagne fejl, frisk tool-discovery
+efter recovery og nul dobbelte MCP-sessioner.
+
+## Udviklingsprioritet 4 / release-gate 4 — fysisk funktionsmatrix
 
 | Område | Fysisk krav |
 |---|---|
 | Dansk | 50 ytringer, mindst 95 % korrekt intention, 0 engelske svar |
-| Svartid | første meningsfulde lyd p50 ≤1,5 s, p90 ≤2,5 s |
+| Svartid | enkle ture: første meningsfulde fysiske lyd p50 ≤1,2 s, p90 ≤1,8 s |
 | Web/sport | 20 aktuelle spørgsmål, reelt opslag og kilder, 0 opdigtede aktuelle tal |
 | Vejr | bruger hjemmets placering og korrekt live-værktøj |
 | Hjem | 30 reversible HA-kommandoer, korrekt mål 30/30 |
@@ -78,6 +162,37 @@ eller falsk lukning er en arkitekturfejl og stopper testen.
 | Opfølgning | 20 kontekstafhængige opfølgninger uden nyt wake, mindst 19 korrekte |
 | Ekko | 50 svar, 0 selvsvar/selvafbrydelser |
 | Fejl | OpenAI, MCP, PodConnect og Voice PE-fejl vises og afsluttes rent |
+
+## Udviklingsprioritet 5 — samlet UI-gennemgang
+
+UI-gennemgangen starter først, når funktionsmatrixens reelle muligheder og fejltilstande
+er kendt. Den må forbedre præsentation og interaktion, men må ikke introducere en ny
+samtalemotor, skjult fallback eller ændre den godkendte lifecycle.
+
+Godkendelse kræver:
+
+- Første viewport svarer tydeligt på “kan Nabu bruges?”, “hvad fejler?” og “hvad skal
+  jeg gøre?” uden at blande forbindelse, konfiguration og fysisk verification sammen.
+- Realtime, Voice PE/wake-readiness, HA/MCP, PodConnect og hver kapabilitet viser sand
+  tilstand, konkret årsag, kilde og seneste verification. Fundet må ikke ligne bevist.
+- Hjem, Tal, Test, Historik og Indstillinger har én klar primær opgave hver. Test- og
+  latencyvisning bruger de fysiske events og må aldrig kalde modellyd “hørbar”.
+- Talk håndterer HTTPS, HA-app/iframe-begrænsning, mic-tilladelse, manglende enhed,
+  offline socket og autoplay med konkrete danske handlinger. Alle MediaStream-spor
+  frigives ved stop, idle, disconnect og sideskift.
+- Indstillinger viser gemt versus effektiv værdi, restartkrav, valideringsfejl og
+  usaved changes. Delvise rum eller modstridende modelvalg må ikke tabes lydløst.
+- Alt brugerrettet UI er konsekvent dansk. Alle kontrolmål er mindst 44×44 px, tastatur-
+  fokus er synligt, dynamiske statusser annonceres uden gentagelsesstorm, og kontrast
+  består WCAG AA.
+- Ingen vandret scroll eller afklip ved 320, 390 og 430 px mobilbredde, ved 200 % zoom,
+  med åbent mobiltastatur eller safe-area. Desktop kontrolleres ved 768 og 1440 px.
+- Browsertests dækker ready/degraded/offline, stale status, settings save/fejl,
+  Talk-mic success/deny/cleanup og de vigtigste mobile layouts. Manuel HA-app/Safari-
+  smoke og VoiceOver-gennemgang har nul kritiske eller alvorlige fejl.
+
+UI-gaten er bestået, når alle ovenstående krav er dokumenteret; en subjektiv score eller
+et flot screenshot kan ikke alene godkende den.
 
 ## Release-gate 5 — stabilitet og benchmark
 
@@ -90,12 +205,3 @@ PodVoice må kun kaldes bedre på de målepunkter, hvor de fysiske tal faktisk e
 Taleafbrydelse midt i assistentens svar er ikke en del af den første half-duplex-release.
 Den kræver en separat fysisk gate for wake/stop-model eller dokumenteret full-duplex;
 den må ikke genindføres ved at åbne mikrofonen ukontrolleret under højttalerafspilning.
-
-## Næste runde
-
-- **Automatisk HA/MCP-recovery:** Et fejlet eller timeoutet `tools/list` må aldrig kræve
-  manuel genindlæsning eller add-on-genstart. PodVoice skal oprette MCP-sessionen på ny
-  med hurtig backoff (ca. 1, 2, 5, 10 og 30 sekunder, derefter højst ét forsøg pr. minut),
-  fortsætte tid/web/musik/samtale imens og atomisk genaktivere hjem og vejr, når HA svarer.
-  Panelet skal vise “forbinder igen”, seneste konkrete fejl og automatisk skifte til
-  verificeret uden at afbryde en aktiv Realtime-samtale.

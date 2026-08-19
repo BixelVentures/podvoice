@@ -26,6 +26,7 @@ from gatekeeper.voice import (
     InputTranscript,
     Interrupted,
     OutputTranscript,
+    SilentToolComplete,
     ToolCall,
     ToolRoundComplete,
     TurnComplete,
@@ -108,7 +109,137 @@ async def test_fresh_tools_are_present_when_realtime_connects():
         assert [d["name"] for d in brain.seen_at_connect] == [
             "fresh_ha_tool",
             "end_conversation",
+            "wait_for_user",
         ]
+    finally:
+        await session.aclose()
+
+
+async def test_wait_for_user_is_a_silent_internal_noop():
+    class NoExternalDispatch(FakeTools):
+        async def dispatch(self, name: str, args: dict) -> dict:
+            raise AssertionError(f"reserved tool leaked to external dispatch: {name}")
+
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    session.tools = NoExternalDispatch()
+    await session.start()
+    try:
+        await session.wake()
+        wait_decl = next(d for d in brain.tool_declarations if d["name"] == "wait_for_user")
+        assert wait_decl["parameters"]["additionalProperties"] is False
+
+        # Even if Realtime started a preamble before choosing the no-op, the shipped
+        # buffered path retracts it before anything is published to the room.
+        brain.emit(
+            UserSpeechStopped(),
+            AudioChunk(_frame(), item_id="discarded-wait-preamble"),
+            OutputTranscript("Okay."),
+            ToolCall("wait-1", "wait_for_user", {}),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        sent = brain.sent_tool_results[0][0]
+        result = sent["response"]
+        assert result == {"ok": True, "data": {"decision": "wait_for_user"}}
+        assert sent["suppress_response"] is True
+
+        brain.emit(SilentToolComplete(call_ids=("wait-1",)))
+        await asyncio.sleep(0.05)
+        assert session._active is True
+        assert session._speaking is False
+        assert session._buf_out == []
+        assert voicepe.announced_urls == []
+        assert session._closure_turn is not None
+        assert session._closure_turn.response_done is True
+        first_serial = session._closure_turn.serial
+
+        brain.emit(UserSpeechStopped())
+        await _wait_until(
+            lambda: (
+                session._closure_turn is not None
+                and session._closure_turn.serial == first_serial + 1
+            )
+        )
+    finally:
+        await session.aclose()
+
+
+async def test_wait_for_user_result_submission_failure_closes_cleanly():
+    class BrokenResultBrain(LiveFake):
+        async def send_tool_results(self, results: list) -> None:
+            raise ConnectionError("socket closed")
+
+    brain = BrokenResultBrain()
+    session, attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(ToolCall("wait-broken", "wait_for_user", {}))
+        await _wait_until(lambda: session._active is False, max_wait=3.0)
+        assert session.sm.state is State.IDLE
+        assert len(attention.release_calls) == 1
+    finally:
+        await session.aclose()
+
+
+async def test_delayed_silent_edge_cannot_complete_a_newer_user_turn():
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(UserSpeechStopped(), ToolCall("wait-old", "wait_for_user", {}))
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        old_turn = session._closure_turn
+        assert old_turn is not None
+
+        brain.emit(UserSpeechStarted(), UserSpeechStopped())
+        await _wait_until(
+            lambda: session._closure_turn is not None and session._closure_turn is not old_turn
+        )
+        fresh_turn = session._closure_turn
+        assert fresh_turn is not None and fresh_turn.response_done is False
+
+        brain.emit(SilentToolComplete(call_ids=("wait-old",)))
+        await asyncio.sleep(0.05)
+        assert session._closure_turn is fresh_turn
+        assert fresh_turn.response_done is False
+    finally:
+        await session.aclose()
+
+
+async def test_late_silent_result_return_cannot_complete_a_newer_user_turn():
+    class DelayedSilentBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.result_started = asyncio.Event()
+            self.release_result = asyncio.Event()
+
+        async def send_tool_results(self, results: list) -> bool:
+            self.sent_tool_results.append(results)
+            self.result_started.set()
+            await self.release_result.wait()
+            return True
+
+    brain = DelayedSilentBrain()
+    session, _attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(UserSpeechStopped(), ToolCall("wait-late", "wait_for_user", {}))
+        await _wait_until(lambda: brain.result_started.is_set())
+        old_turn = session._closure_turn
+        assert old_turn is not None
+
+        brain.emit(UserSpeechStarted(), UserSpeechStopped())
+        await _wait_until(
+            lambda: session._closure_turn is not None and session._closure_turn is not old_turn
+        )
+        fresh_turn = session._closure_turn
+        brain.release_result.set()
+        await asyncio.sleep(0.05)
+        assert session._closure_turn is fresh_turn
+        assert fresh_turn is not None and fresh_turn.response_done is False
     finally:
         await session.aclose()
 

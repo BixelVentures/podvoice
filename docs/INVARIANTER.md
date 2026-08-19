@@ -70,6 +70,10 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
 - En fysisk Voice PE-trace skal vise forståelig første ytring, korrekt opfølgning,
   `playback_started`, `playback_finished`, `close_requested`, `wake_rearmed` og en ny
   provider-session ved næste wake.
+- En korrekt handling eller et korrekt svar kan ikke alene godkende inputkæden. Hvis den
+  diagnostiske transskription er tom eller semantisk uforenelig med den kendte testytring,
+  skal device- og provider-lyden sammenlignes. Prøven er fejl/ukendt, indtil det er bevist,
+  at hele ytringen nåede Realtime; modellen kan ellers have ramt rigtigt ved et tilfælde.
 - “Grøn CI” er nødvendigt, men aldrig fysisk bevis. Manglende eller `—` telemetry er
   ikke et bestået resultat.
 

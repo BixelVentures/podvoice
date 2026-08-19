@@ -52,7 +52,41 @@ Før ændringer i arkitektur, Realtime, VAD, lyd, firmware eller lifecycle:
 5. Kald aldrig en kandidat testklar eller færdig alene på komponenttests, Talk eller CI.
 6. Opdatér `docs/STATUS.md` ved ny fysisk evidens. Overskriv aldrig en bevist baseline
    med en ny kandidat, før den nye kandidat selv har bestået den relevante fysiske gate.
+7. Godkend aldrig en golden chain alene fordi svaret tilfældigvis var korrekt. Den kendte
+   testytring og det observerede input skal være semantisk konsistente. Et tomt eller
+   tydeligt afvigende input kræver gennemlytning af både device- og provider-sporet og
+   tæller som fejl/ukendt, indtil lydkæden er forklaret. Et heldigt tool-kald er ikke
+   bevis for stabil hørelse.
 
 Gain, VAD, bip, prompt og timeouts må kun ændres på baggrund af en trace eller en på
 forhånd defineret måling. Tænke-lyd, duplex og barge-in er selvstændige gatede features;
 de må ikke kobles ind i den virkende half-duplex-kæde som en uobserveret bivirkning.
+
+## Bindende udviklingsprioritet
+
+Når den aktive kandidat har bestået golden chain og 10/10 fysisk lifecycle, er næste
+arbejde i denne rækkefølge:
+
+1. **Udviklingsprioritet 1 — oplevet fysisk svartid.** Mål
+   `speech_stopped → playback_started`, del kæden op og
+   optimer den største dokumenterede flaskehals én ad gangen. Første lyd skal være
+   meningsfuld tale; et earcon eller en generisk værktøjspreamble tæller ikke som svar.
+   Målet er p50 ≤ 1,2 s for enkle ture og et stretchmål så tæt på 1,0 s som muligt uden
+   at bryde forståelse, værktøjer, playback-sandhed eller lifecycle.
+2. **Udviklingsprioritet 2 — diskret modtaget-signal.** Først efter latency-gaten må et
+   ca. 80 ms firmwarelokalt signal ved `UserSpeechStopped` udvikles som en isoleret
+   mixer-sidekanal. Det må ikke bruge announcement-vejen, forsinke Realtime eller eje
+   nogen samtaletilstand.
+3. **Udviklingsprioritet 3 — automatisk HA/MCP-recovery.** Hjem og vejr skal selv komme
+   tilbage efter tabt HA/MCP-forbindelse uden manuel reload, add-on-genstart eller tab
+   af en aktiv Realtime-samtale.
+4. **Udviklingsprioritet 4 — fysisk funktionsmatrix.** Dansk, hjem, vejr, web, musik,
+   timere og opfølgninger skal bestå de målbare antal i `docs/PRODUKTMÅL.md`.
+5. **Udviklingsprioritet 5 — samlet UI-gennemgang.** Panelet skal vise sand readiness,
+   fejl og næste handling, fungere på mobil/HA-app/desktop og bestå de definerede
+   accessibility-, Talk-, settings- og browsergates.
+
+Ingen agent må bruge feedbacksignalet til at maskere langsomhed eller udvikle prioritet
+1 og 2 i samme kandidat. En UI-ændring må ikke ændre samtalens lifecycle som en skjult
+bivirkning. De fulde gates står i `docs/PRODUKTMÅL.md`, og den aktuelle rækkefølge står
+i `docs/STATUS.md`.
