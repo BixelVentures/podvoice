@@ -96,6 +96,10 @@ class _ClosureTurn:
     """
 
     serial: int
+    # Wall-clock evidence from the physical/provider VAD boundary.  The completed
+    # input transcription may arrive after the model has already answered, so its
+    # persistence timestamp must come from here rather than event-arrival order.
+    user_finished_at: float | None = None
     semantic_end: bool = False
     response_done: bool = False
     superseded: bool = False
@@ -807,6 +811,9 @@ class ThinSession:
         elif isinstance(ev, UserSpeechStopped):
             if self._closure_turn is None or self._closure_turn.response_done:
                 self._begin_closure_turn()
+            turn = self._ensure_closure_turn()
+            if turn.user_finished_at is None:
+                turn.user_finished_at = time.time()
             self._trace_event("speech_stopped")
             self._speech_stop_t = time.monotonic()  # the clock the family actually feels
             if self._active and not self._speaking and not self._device_playing:
@@ -822,7 +829,15 @@ class ThinSession:
             self._last_user_utterance = ev.text.strip()
             if self.hub is not None:
                 self.hub.transcript_delta(self.room, "in", ev.text)
-            self._flush_transcript("in")  # OpenAI sends ONE completed utterance
+            # Realtime can make the semantic tool decision and even finish its
+            # farewell before this separate diagnostic transcript arrives.  Persist
+            # the user turn at the earlier speech-stop boundary so History shows the
+            # causal conversation order rather than websocket delivery order.
+            transcript_turn = self._closure_turn
+            self._flush_transcript(
+                "in",
+                ts=(transcript_turn.user_finished_at if transcript_turn is not None else None),
+            )  # OpenAI sends ONE completed utterance
         elif isinstance(ev, Usage):
             if self.usage is not None:
                 model = getattr(self.brain, "model", "?") or "?"
@@ -867,12 +882,12 @@ class ThinSession:
         if self._active:
             self._arm_goodbye("thin-semantic-end-reconciled")
 
-    def _flush_transcript(self, direction: str) -> None:
+    def _flush_transcript(self, direction: str, *, ts: float | None = None) -> None:
         buf = self._buf_in if direction == "in" else self._buf_out
         if buf:
             self._trace_event("transcript_complete", direction=direction, text="".join(buf)[:1000])
         if buf and self.hub is not None:
-            self.hub.transcript(self.room, direction, "".join(buf))
+            self.hub.transcript(self.room, direction, "".join(buf), ts=ts)
         buf.clear()
 
     def _use_direct(self) -> bool:

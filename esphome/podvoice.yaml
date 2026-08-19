@@ -64,46 +64,32 @@ api:
                 - lambda: "return id(podvoice_detector_continuity_proven);"
                 - micro_wake_word.is_running:
             then:
-              - lambda: "id(podvoice_conversation_active) = false;"
-              - event.trigger:
-                  id: podvoice_event
-                  event_type: podvoice_wake_rearmed
-            else:
-              # Recovery only. ESPHome's public is_running() cannot distinguish
-              # STARTING from DETECTING, so never label this branch physically proven.
-              - lambda: "id(podvoice_detector_continuity_proven) = false;"
-              - micro_wake_word.stop:
+              # `is_running()` is true in STARTING, DETECTING and STOPPING. Require
+              # fresh physical mic callbacks as proof that the continuous detector's
+              # source is genuinely alive before opening the next conversation latch.
+              - lambda: "id(podvoice_rearm_frame_marker) = id(pv_audio).frames_written();"
               - wait_until:
                   condition:
-                    not:
-                      micro_wake_word.is_running:
-                  timeout: 2s
+                    lambda: |-
+                      return static_cast<uint32_t>(id(pv_audio).frames_written()
+                               - id(podvoice_rearm_frame_marker)) >= 4;
+                  timeout: 700ms
               - if:
                   condition:
-                    not:
-                      micro_wake_word.is_running:
+                    and:
+                      - micro_wake_word.is_running:
+                      - lambda: |-
+                          return static_cast<uint32_t>(id(pv_audio).frames_written()
+                                   - id(podvoice_rearm_frame_marker)) >= 4;
                   then:
-                    - micro_wake_word.start:
-                    - wait_until:
-                        condition:
-                          micro_wake_word.is_running:
-                        timeout: 2s
-                    - if:
-                        condition:
-                          micro_wake_word.is_running:
-                        then:
-                          - lambda: "id(podvoice_conversation_active) = false;"
-                          - event.trigger:
-                              id: podvoice_event
-                              event_type: podvoice_wake_rearm_recovered
-                        else:
-                          - event.trigger:
-                              id: podvoice_event
-                              event_type: podvoice_wake_rearm_fault
-                  else:
+                    - lambda: "id(podvoice_conversation_active) = false;"
                     - event.trigger:
                         id: podvoice_event
-                        event_type: podvoice_wake_rearm_fault
+                        event_type: podvoice_wake_rearmed
+                  else:
+                    - script.execute: podvoice_recover_wake_word
+            else:
+              - script.execute: podvoice_recover_wake_word
     # Arm playback telemetry for exactly the next PodVoice reply. Other announcements
     # (timer, HA, test tone) use the same media player and must never close a Realtime
     # conversation or move its LED/echo gate.
@@ -197,6 +183,10 @@ globals:
     type: uint8_t
     restore_value: false
     initial_value: "0"
+  - id: podvoice_rearm_frame_marker
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
 
 # Publish the physical announcement lifecycle explicitly.  Relying on native-API
 # MediaPlayerEntityState proved insufficient in the room: audio played, but no
@@ -242,6 +232,54 @@ media_player:
                 duration: 1.0s
 
 script:
+  - id: podvoice_recover_wake_word
+    mode: restart
+    then:
+      # Recovery earns an operational (amber) ACK only after a complete stop/start
+      # and fresh physical microphone callbacks. A STARTING state can no longer be
+      # mistaken for a live detector.
+      - lambda: "id(podvoice_detector_continuity_proven) = false;"
+      - micro_wake_word.stop:
+      - wait_until:
+          condition:
+            not:
+              micro_wake_word.is_running:
+          timeout: 2s
+      - if:
+          condition:
+            not:
+              micro_wake_word.is_running:
+          then:
+            - lambda: "id(podvoice_rearm_frame_marker) = id(pv_audio).frames_written();"
+            - micro_wake_word.start:
+            - wait_until:
+                condition:
+                  and:
+                    - micro_wake_word.is_running:
+                    - lambda: |-
+                        return static_cast<uint32_t>(id(pv_audio).frames_written()
+                                 - id(podvoice_rearm_frame_marker)) >= 4;
+                timeout: 3s
+            - if:
+                condition:
+                  and:
+                    - micro_wake_word.is_running:
+                    - lambda: |-
+                        return static_cast<uint32_t>(id(pv_audio).frames_written()
+                                 - id(podvoice_rearm_frame_marker)) >= 4;
+                then:
+                  - lambda: "id(podvoice_conversation_active) = false;"
+                  - event.trigger:
+                      id: podvoice_event
+                      event_type: podvoice_wake_rearm_recovered
+                else:
+                  - event.trigger:
+                      id: podvoice_event
+                      event_type: podvoice_wake_rearm_fault
+          else:
+            - event.trigger:
+                id: podvoice_event
+                event_type: podvoice_wake_rearm_fault
   - id: podvoice_finish_reply
     mode: restart
     then:
@@ -304,6 +342,7 @@ event:
         deterministic_rearm_v1,
         physical_rearm_ack_v1,
         continuous_rearm_v1,
+        physical_rearm_audio_progress_v1,
         podvoice_wake_rearmed,
         podvoice_wake_rearm_recovered,
         podvoice_wake_rearm_fault,

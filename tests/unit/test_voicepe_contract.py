@@ -32,7 +32,13 @@ FULL_CAPABILITIES = [
     "deterministic_rearm_v1",
     "physical_rearm_ack_v1",
     "continuous_rearm_v1",
+    "physical_rearm_audio_progress_v1",
     "podvoice_playback_events_v1",
+]
+REARM_CAPABILITIES = [
+    "physical_rearm_ack_v1",
+    "continuous_rearm_v1",
+    "physical_rearm_audio_progress_v1",
 ]
 
 
@@ -249,6 +255,7 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "deterministic_rearm_v1",
         "physical_rearm_ack_v1",
         "continuous_rearm_v1",
+        "physical_rearm_audio_progress_v1",
         "podvoice_playback_events_v1",
     ]
     assert link.supports_same_breath is False
@@ -283,13 +290,12 @@ async def test_deterministic_rearm_capability_is_read_from_firmware():
 
 
 async def test_physical_rearm_ack_capability_is_read_from_firmware():
-    client = _StubClient(
-        [], [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1", "continuous_rearm_v1"])]
-    )
+    client = _StubClient([], [EventInfo("podvoice_event", 3, REARM_CAPABILITIES)])
     link = _link(client)
     await link._resolve_entities()
     assert link.supports_physical_rearm_ack is True
     assert link.supports_continuous_rearm is True
+    assert link.supports_rearm_audio_progress is True
 
 
 async def test_playback_event_capability_and_edges_are_read_from_firmware():
@@ -337,7 +343,7 @@ async def test_playback_event_capability_and_edges_are_read_from_firmware():
 async def test_rearm_calls_the_dedicated_firmware_service():
     client = _StubClient(
         FULL_SERVICES,
-        [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1", "continuous_rearm_v1"])],
+        [EventInfo("podvoice_event", 3, REARM_CAPABILITIES)],
     )
     link = _link(client)
     await link._resolve_entities()
@@ -351,7 +357,7 @@ async def test_rearm_calls_the_dedicated_firmware_service():
 async def test_rearm_recovery_is_degraded_not_physical_proof():
     client = _StubClient(
         FULL_SERVICES,
-        [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1", "continuous_rearm_v1"])],
+        [EventInfo("podvoice_event", 3, REARM_CAPABILITIES)],
     )
     link = _link(client)
     await link._resolve_entities()
@@ -365,7 +371,7 @@ async def test_rearm_recovery_is_degraded_not_physical_proof():
 async def test_rearm_fault_fails_immediately():
     client = _StubClient(
         FULL_SERVICES,
-        [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1", "continuous_rearm_v1"])],
+        [EventInfo("podvoice_event", 3, REARM_CAPABILITIES)],
     )
     link = _link(client)
     await link._resolve_entities()
@@ -380,7 +386,7 @@ async def test_rearm_fault_fails_immediately():
 async def test_rearm_is_single_flight_and_ack_cannot_cross_calls():
     client = _StubClient(
         FULL_SERVICES,
-        [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1", "continuous_rearm_v1"])],
+        [EventInfo("podvoice_event", 3, REARM_CAPABILITIES)],
     )
     link = _link(client)
     await link._resolve_entities()
@@ -399,7 +405,7 @@ async def test_rearm_is_single_flight_and_ack_cannot_cross_calls():
 async def test_disconnect_settles_pending_rearm_and_late_ack_is_ignored():
     client = _StubClient(
         FULL_SERVICES,
-        [EventInfo("podvoice_event", 3, ["physical_rearm_ack_v1", "continuous_rearm_v1"])],
+        [EventInfo("podvoice_event", 3, REARM_CAPABILITIES)],
     )
     link = _link(client)
     await link._resolve_entities()

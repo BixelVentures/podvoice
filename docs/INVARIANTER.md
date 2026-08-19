@@ -45,8 +45,14 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
    Lokal tekstmatching af “farvel”-varianter er ikke afslutningsautoritet.
 4. Semantisk afslutning, fysisk stop, timeout og fejl samles i én atomisk close-owner.
    Provider, mic, playback, ducking og attention frigives præcis én gang.
-5. Rearm sker først efter fuld teardown. Kun firmwarekvittering tæller som rearm; en
-   virkelig efterfølgende wake er det stærkeste kontinuitetsbevis.
+5. Rearm sker først efter fuld teardown. Firmwarekvitteringen må kun åbne næste latch,
+   når ubrudt detektorkontinuitet **og frisk fysisk mikrofonfremdrift** er bevist efter
+   rearm. `micro_wake_word.is_running()` alene er forbudt som readiness-bevis, fordi
+   ESPHome også returnerer sand i `STARTING` og `STOPPING`. En virkelig efterfølgende
+   wake er fortsat det stærkeste kontinuitetsbevis.
+6. Provider-eventrækkefølge er ikke nødvendigvis den fysiske samtalerækkefølge. En
+   færdig inputtransskription kan komme efter svaret; historik skal derfor tidsstemples
+   ved brugerens `speech_stopped`-grænse og må aldrig vise svar før årsag.
 
 ## Beviskrav før “testklar” eller “færdig”
 
@@ -72,4 +78,3 @@ Ved ændringer i VAD, mic-gating, audio buffering, tool-rounds, playback eller t
 2. Tilføj en regressionstest fra den konkrete fysiske eventrækkefølge.
 3. Kontrollér den modsatte overflade: Voice PE half-duplex versus Talk full-duplex.
 4. Afvis enhver konfiguration, hvor to lag begge tror, de ejer interruption/lukning.
-

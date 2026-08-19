@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.13.10 — rearm kræver levende mikrofonlyd
+
+- Firmwarekvitteringen `wake_rearmed` kræver nu både ubrudt detektorkontinuitet,
+  kørende microWakeWord og nye fysiske mikrofoncallbacks efter rearm. ESPHomes brede
+  `is_running()`-signal kan derfor ikke længere åbne næste samtalelås alene, mens
+  wake-motoren reelt står i `STARTING` eller `STOPPING`.
+- Hvis det raske kontinuitetsbevis ikke består, gennemfører firmwaren én afgrænset
+  stop/start-recovery og kræver igen frisk mikrofonfremdrift. Kun derefter åbnes
+  samtalelåsen som gul `recovered`; timeout/fault lader den forblive lukket og udløser
+  add-onens synlige, begrænsede retry-forløb.
+- Det fysiske frame-counter-signal er atomisk på tværs af ESP32's audio- og API-tasks.
+  Firmwarekontrakten kræver den nye markør `physical_rearm_audio_progress_v1`, så en
+  ny add-on aldrig kalder gammel, svagere firmware klar.
+- Samtalehistorikken tidsstempler nu brugerens tur ved den faktiske
+  `speech_stopped`-grænse og sorterer på dette tidspunkt. En sent leveret Realtime-
+  transskription kan derfor ikke længere få Nabús svar eller “Farvel” til at stå før
+  den brugerbesked, der udløste det.
+
 ## 1.13.9 — én sammenhængende half-duplex-kontrakt
 
 - Voice PE og OpenAI Realtime følger nu samme half-duplex-kontrakt. Realtime får

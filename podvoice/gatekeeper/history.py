@@ -101,6 +101,11 @@ class History:
                 continue  # skip a corrupt line rather than fail the whole read
             if isinstance(rec, dict) and rec.get("text"):
                 out.append(rec)
+        # JSONL append order is provider delivery order, not necessarily conversation
+        # order.  Realtime may deliver the completed user transcription after the
+        # corresponding assistant response.  Stable timestamp sorting restores the
+        # physical turn order while preserving file order for equal/legacy times.
+        out.sort(key=lambda rec: float(rec.get("ts") or 0.0))
         return out
 
     def conversations(self, limit: int = 50, room: str | None = None) -> list[dict]:

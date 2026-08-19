@@ -47,6 +47,7 @@
 #include "esphome/components/microphone/microphone_source.h"
 #include "esphome/components/ring_buffer/ring_buffer.h"
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -105,6 +106,12 @@ class PodVoiceAudio : public Component {
   void set_default_channel(int channel) { this->channel_ = (channel == 1) ? 1 : 0; }
   int mic_channel() const { return this->channel_; }
   int mic_gain() const { return this->gain_; }
+  // Firmware rearm proof: this counter only advances when the physical microphone
+  // source delivers another callback. `micro_wake_word.is_running` also returns true
+  // in STARTING/STOPPING, so it is not sufficient evidence on its own.
+  uint32_t frames_written() const {
+    return this->frames_written_.load(std::memory_order_relaxed);
+  }
   void keepalive();  // refresh the dead-man timer without changing enabled state
   bool is_streaming() const { return this->user_enabled_; }
 
@@ -157,7 +164,10 @@ class PodVoiceAudio : public Component {
   bool was_connected_{false};  // tracks subscribe/unsubscribe edges for logging
 
   // Diagnostics (surfaced in dump_config / logged periodically).
-  uint32_t frames_written_{0};     // callbacks that wrote into the ring buffer
+  // Written on ESPHome's audio task and read by the main/API task during rearm.
+  // Atomic relaxed ordering is sufficient for this monotonic liveness counter and
+  // avoids a cross-core C++ data race in the readiness proof.
+  std::atomic<uint32_t> frames_written_{0};
   uint32_t overwrite_events_{0};   // callbacks where the ring was too full and
                                    // write() discarded OLDEST bytes to fit (the
                                    // new frame is kept; old audio is lost)

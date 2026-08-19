@@ -36,6 +36,7 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "deterministic_rearm_v1" in overlay
     assert "physical_rearm_ack_v1" in overlay
     assert "continuous_rearm_v1" in overlay
+    assert "physical_rearm_audio_progress_v1" in overlay
     assert "event_type: podvoice_wake_rearmed" in overlay
     assert "podvoice_playback_events_v1" in overlay
     assert "action: podvoice_reply_expect" in overlay
@@ -80,20 +81,26 @@ def test_each_detection_is_single_use_and_healthy_rearm_preserves_detector_conti
     assert "id(podvoice_conversation_active) = true;" in base
     assert "id: podvoice_conversation_active" in overlay
     assert "action: podvoice_rearm_wake_word" in overlay
-    rearm = overlay.split("action: podvoice_rearm_wake_word", 1)[1].split(
+    rearm_action = overlay.split("action: podvoice_rearm_wake_word", 1)[1].split(
         "# RUNTIME audio tuning", 1
     )[0]
-    healthy = rearm.split("else:", 1)[0]
+    recovery = overlay.split("id: podvoice_recover_wake_word", 1)[1].split(
+        "id: podvoice_finish_reply", 1
+    )[0]
+    healthy = rearm_action.split("else:", 1)[0]
     assert "podvoice_detector_continuity_proven" in healthy
+    assert "frames_written()" in rearm_action
+    assert "podvoice_rearm_frame_marker" in rearm_action
     assert "micro_wake_word.stop:" not in healthy
     assert "micro_wake_word.start:" not in healthy
-    assert "micro_wake_word.stop:" in rearm
-    assert "micro_wake_word.start:" in rearm
-    assert "wait_until:" in rearm
-    assert "event_type: podvoice_wake_rearmed" in rearm
-    assert "event_type: podvoice_wake_rearm_recovered" in rearm
-    assert "event_type: podvoice_wake_rearm_fault" in rearm
-    assert "id(podvoice_conversation_active) = false;" in rearm
+    assert "micro_wake_word.stop:" in recovery
+    assert "micro_wake_word.start:" in recovery
+    assert "frames_written()" in recovery
+    assert "wait_until:" in recovery
+    assert "event_type: podvoice_wake_rearmed" in rearm_action
+    assert "event_type: podvoice_wake_rearm_recovered" in recovery
+    assert "event_type: podvoice_wake_rearm_fault" in recovery
+    assert "id(podvoice_conversation_active) = false;" in rearm_action + recovery
     assert base.count("id(podvoice_detector_continuity_proven) = true;") == 1
     voice_assistant = base.split("voice_assistant:\n", 1)[1]
     connected = voice_assistant.split("on_client_connected:", 1)[1].split(

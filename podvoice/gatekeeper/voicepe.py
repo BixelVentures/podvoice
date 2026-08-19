@@ -127,6 +127,7 @@ class VoicePELink:
         self.supports_deterministic_rearm = False
         self.supports_physical_rearm_ack = False
         self.supports_continuous_rearm = False
+        self.supports_rearm_audio_progress = False
         self.supports_playback_events = False
         self.wake_readiness = "unknown"
         self._rearm_lock = asyncio.Lock()
@@ -281,6 +282,7 @@ class VoicePELink:
         self.supports_deterministic_rearm = False
         self.supports_physical_rearm_ack = False
         self.supports_continuous_rearm = False
+        self.supports_rearm_audio_progress = False
         self.supports_playback_events = False
         self._announcing = False
         self._warned_missing = set()  # a reflash may have added the service — warn fresh
@@ -328,6 +330,7 @@ class VoicePELink:
             self.supports_deterministic_rearm = "deterministic_rearm_v1" in advertised
             self.supports_physical_rearm_ack = "physical_rearm_ack_v1" in advertised
             self.supports_continuous_rearm = "continuous_rearm_v1" in advertised
+            self.supports_rearm_audio_progress = "physical_rearm_audio_progress_v1" in advertised
             self.supports_playback_events = "podvoice_playback_events_v1" in advertised
             self.supports_direct = (
                 "direct_speaker_v3" in advertised
@@ -368,6 +371,8 @@ class VoicePELink:
             missing_capabilities.append("physical_rearm_ack_v1")
         if not self.supports_continuous_rearm:
             missing_capabilities.append("continuous_rearm_v1")
+        if not self.supports_rearm_audio_progress:
+            missing_capabilities.append("physical_rearm_audio_progress_v1")
         if not self.supports_playback_events:
             missing_capabilities.append("podvoice_playback_events_v1")
         ok = not missing_required and self._media_key is not None and not missing_capabilities
@@ -489,6 +494,8 @@ class VoicePELink:
             raise RuntimeError("firmware mangler physical_rearm_ack_v1")
         if not self.supports_continuous_rearm:
             raise RuntimeError("firmware mangler continuous_rearm_v1")
+        if not self.supports_rearm_audio_progress:
+            raise RuntimeError("firmware mangler physical_rearm_audio_progress_v1")
         async with self._rearm_lock:
             waiter = asyncio.Event()
             self._rearm_waiter = waiter

@@ -20,6 +20,20 @@ def test_append_and_single_conversation(tmp_path):
     assert convs[0]["started"] == 100.0 and convs[0]["ended"] == 101.0
 
 
+def test_late_user_transcript_is_returned_before_earlier_appended_reply(tmp_path):
+    """Realtime delivery order must not invert the causal conversation in the UI."""
+    h = _h(tmp_path)
+    h.append("r0", "out", "Farvel.", ts=102.0)
+    h.append("r0", "in", "Tak, det var alt for nu.", ts=100.0)
+
+    turns = h.conversations(room="r0")[0]["turns"]
+
+    assert [(turn["dir"], turn["text"]) for turn in turns] == [
+        ("in", "Tak, det var alt for nu."),
+        ("out", "Farvel."),
+    ]
+
+
 def test_gap_splits_conversations_newest_first(tmp_path):
     h = _h(tmp_path, gap_s=300.0)
     h.append("talk", "in", "first", ts=100.0)

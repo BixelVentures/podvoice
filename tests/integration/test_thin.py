@@ -13,6 +13,7 @@ from fakes.fake_voicepe import FakeVoicePELink
 
 from gatekeeper.events import Event, EventType, State
 from gatekeeper.heartbeat import Heartbeat
+from gatekeeper.history import History
 from gatekeeper.hub import StatusHub
 from gatekeeper.playback import Playback
 from gatekeeper.reply import ReplyBus
@@ -28,6 +29,7 @@ from gatekeeper.voice import (
     ToolRoundComplete,
     TurnComplete,
     UserSpeechStarted,
+    UserSpeechStopped,
 )
 
 ROOM = "kitchen"
@@ -151,6 +153,27 @@ async def test_full_conversation_wake_reply_idle_close():
         assert attention.engage_calls  # and it WAS ducked during the conversation
     finally:
         await session.aclose()
+
+
+async def test_late_input_transcript_is_timestamped_before_the_reply(tmp_path):
+    """Field ordering: semantic/reply completion can precede input transcription.
+
+    History must still display the user's physical turn before Nabu's answer.
+    """
+    history = History(tmp_path / "history.jsonl")
+    hub = StatusHub(history=history)
+    session, _attention, _voicepe = _build(LiveFake(), hub=hub)
+
+    await session._on_event(UserSpeechStopped())
+    await session._on_event(OutputTranscript("Farvel."))
+    await session._on_event(TurnComplete())
+    await session._on_event(InputTranscript("Tak, det var alt for nu."))
+
+    turns = history.conversations(room=ROOM)[0]["turns"]
+    assert [(turn["dir"], turn["text"]) for turn in turns] == [
+        ("in", "Tak, det var alt for nu."),
+        ("out", "Farvel."),
+    ]
 
 
 async def test_barge_in_truncates_at_heard_position():

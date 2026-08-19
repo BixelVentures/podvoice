@@ -158,7 +158,7 @@ void PodVoiceAudio::setup() {
     if (this->ring_buffer_->free() < n_bytes)
       this->overwrite_events_++;
     this->ring_buffer_->write((const void *) src, n_bytes);
-    this->frames_written_++;
+    this->frames_written_.fetch_add(1, std::memory_order_relaxed);
   });
 
   // NOTE: we deliberately do NOT call mic_source_->start(). In passive mode the
@@ -228,7 +228,7 @@ void PodVoiceAudio::loop() {
   if (now - this->last_stat_log_ms_ >= STAT_LOG_INTERVAL_MS) {
     this->last_stat_log_ms_ = now;
     ESP_LOGD(TAG, "stats: written=%u overwrites=%u sent=%u bytes backlog=%u",
-             (unsigned) this->frames_written_, (unsigned) this->overwrite_events_,
+             (unsigned) this->frames_written(), (unsigned) this->overwrite_events_,
              (unsigned) this->bytes_sent_,
              (unsigned) (this->ring_buffer_ != nullptr ? this->ring_buffer_->available() : 0));
   }

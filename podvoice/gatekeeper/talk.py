@@ -28,6 +28,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -197,11 +198,21 @@ class TalkHub:
         # whole utterances; only show those authoritative display turns here.
         pass
 
-    def transcript(self, room: str, direction: str, text: str) -> None:
+    def transcript(
+        self,
+        room: str,
+        direction: str,
+        text: str,
+        *,
+        ts: float | None = None,
+    ) -> None:
         if text:
+            observed_at = time.time() if ts is None else ts
+            # Keep the established browser wire shape; the timestamp is persistence
+            # metadata used by the History tab, not another Talk rendering protocol.
             self._post({"type": "transcript", "dir": direction, "text": text})
         if self._history is not None and text:
-            self._history.append(room, direction, text)
+            self._history.append(room, direction, text, ts=observed_at)
 
     def set_latency(self, room: str, ms: float | None) -> None:
         if ms is not None:
