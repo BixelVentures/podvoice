@@ -1451,7 +1451,9 @@ async def test_ten_complete_wake_followup_semantic_close_rearm_cycles():
                 AudioChunk(_frame(), item_id=f"discarded-{cycle}-1"),
                 ToolCall(f"continue-{cycle}-1", "continue_conversation", {}),
             )
-            await _wait_until(lambda expected=(cycle - 1) * 3 + 1: len(brain.sent_tool_results) == expected)
+            await _wait_until(
+                lambda expected=(cycle - 1) * 3 + 1: len(brain.sent_tool_results) == expected
+            )
             brain.emit(
                 ToolRoundComplete(),
                 AudioChunk(_frame(), item_id=f"answer-{cycle}-1"),
@@ -1474,7 +1476,9 @@ async def test_ten_complete_wake_followup_semantic_close_rearm_cycles():
                 AudioChunk(_frame(), item_id=f"discarded-{cycle}-2"),
                 ToolCall(f"continue-{cycle}-2", "continue_conversation", {}),
             )
-            await _wait_until(lambda expected=(cycle - 1) * 3 + 2: len(brain.sent_tool_results) == expected)
+            await _wait_until(
+                lambda expected=(cycle - 1) * 3 + 2: len(brain.sent_tool_results) == expected
+            )
             brain.emit(
                 ToolRoundComplete(),
                 AudioChunk(_frame(), item_id=f"answer-{cycle}-2"),

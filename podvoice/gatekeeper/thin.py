@@ -783,8 +783,7 @@ class ThinSession:
         elif isinstance(ev, UserSpeechStarted):
             current = self._closure_turn
             if current is not None and any(
-                turn is current
-                for _epoch, turn in self._wait_turns.values()
+                turn is current for _epoch, turn in self._wait_turns.values()
             ):
                 # A genuine new utterance supersedes any still-pending lifecycle
                 # decision. Its delayed completion remains bound to the old turn.
