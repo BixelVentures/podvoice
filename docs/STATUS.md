@@ -94,20 +94,38 @@ Trace viste bagefter en falsk `missing-start-or-finish`, selv om både playback-
 -finish allerede var bevist. Prøven er derfor **ikke** en bestået golden chain, men den
 beviser, at V2 var aktiv, at inputtet var forståeligt, og at fallback/lifecycle kom hjem.
 
-v1.13.14 er den næste add-on-kandidat. Den afgrænser `get_time` til den seneste
+v1.13.14 afgrænsede `get_time` til den seneste
 brugerturs faktiske tids-/datohensigt, styrker den semantiske wrap-up-routing uden
 frasematching, sætter Realtime `max_output_tokens=1024`, fjerner watchdoggens falske
 playback-fault efter et bevist start/slut-par og gør rød fejl-LED midlertidig. Efter
 fejllyd, teardown og fysisk rearm går ringen tilbage til mørk IDLE. Kandidaten ændrer
 ikke firmware, gain, VAD, pre-roll, mikrofonport eller half-duplex-ejerskab.
 
+Den fysiske v1.13.14-prøve `20260819T153836-401` havde ren lyd, korrekt klokkeslæt og
+korrekt opfølgende ugedag i samme Realtime-session. Den klare afslutning “Tak, det var
+alt for nu” blev også transskriberet korrekt, men GPT sagde “Selv tak, det var så lidt!”
+uden at kalde `end_conversation`. Playback sluttede normalt; samtalen lukkede først på
+idle-fallback cirka 7,3 sekunder senere. Det var derfor en semantisk beslutningsfejl,
+ikke en mikrofon-, gain-, playback- eller wake-fejl.
+
+**v1.13.15 er den aktuelle add-on-kandidat.** Hver klar brugertur kræver én eksplicit
+Realtime-beslutning: domæneværktøj for handling/opslag, `continue_conversation` for
+direkte svar eller opklaring, `end_conversation` for afslutning eller `wait_for_user`
+for ikke-henvendt tale. Direkte svar og fortsættelsesbeslutningen ligger i samme
+Realtime-respons; der tilføjes ingen ekstra modelrunde. Semantikken ejes fortsat af GPT,
+mens PodVoice alene gør beslutningen obligatorisk og observerbar. Promptversionen er 3.
+Firmware og hele den allerede fungerende fysiske kæde er uændret.
+
 ## Adgangskrav før næste udvikling
 
-1. Opdatér add-on til v1.13.14 og gentag den korte golden chain. Den første klare
-   afslutning skal vælge `end_conversation`; et bevist playback-start/slut-par må ikke
-   efterfølges af `playback_fault`; fejl skal slutte med mørk IDLE og fungerende wake.
+1. Opdatér add-on til v1.13.15 og gentag den korte golden chain. Den første klare
+   afslutning skal vælge `end_conversation`; de to almindelige ture skal hver have et
+   eksplicit domæne- eller `continue_conversation`-valg. Et bevist playback-start/slut-
+   par må ikke efterfølges af `playback_fault`; afslutningen skal ende med mørk IDLE og
+   fungerende wake.
 2. Kontrollér at den nye trace fortsat viser `prompt_source=default`,
-   `prompt_version=2`, og at Realtime accepterer `max_output_tokens=1024`. Et korrekt
+   `prompt_version=3`, og at Realtime accepterer `max_output_tokens=1024` og
+   sessionens krævede værktøjsvalg. Et korrekt
    svar tæller ikke som bestået, hvis kendt testinput bliver tomt eller semantisk forvansket.
 3. Kør 10 ubrudte fysiske lifecycle-cyklusser på samme kandidat. Ingen gain-, VAD-,
    prompt- eller UX-tuning midt i serien.

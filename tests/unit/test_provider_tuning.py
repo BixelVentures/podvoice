@@ -79,7 +79,10 @@ async def test_openai_fires_deferred_create_without_ending_turn():
     evs = [event async for event in s._iter_events()]
     assert sum(isinstance(e, TurnComplete) for e in evs) == 1  # only the real end-of-turn
     assert sum(isinstance(e, ToolRoundComplete) for e in evs) == 1
-    assert {"type": "response.create"} in s._ws.sent and s._pending_create is False
+    assert {
+        "type": "response.create",
+        "response": {"tool_choice": "auto"},
+    } in s._ws.sent and s._pending_create is False
 
 
 async def test_openai_propagates_failed_response_status_and_error():
@@ -160,7 +163,21 @@ async def test_openai_sends_create_immediately_when_idle():
     s._ws = _FakeWS()  # type: ignore[assignment]
     s._active_response = False
     await s.send_tool_results([{"id": "c1", "name": "x", "response": {"ok": True}}])
-    assert s._ws.sent[-1] == {"type": "response.create"} and s._pending_create is False
+    assert s._ws.sent[-1] == {
+        "type": "response.create",
+        "response": {"tool_choice": "auto"},
+    }
+    assert s._pending_create is False
+
+
+async def test_semantic_end_result_forces_one_tool_free_farewell_response():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    await s.send_tool_results([{"id": "end", "name": "end_conversation", "response": {"ok": True}}])
+    assert s._ws.sent[-1] == {
+        "type": "response.create",
+        "response": {"tool_choice": "none"},
+    }
 
 
 async def test_openai_silent_tool_result_never_creates_a_response_when_idle():
@@ -355,13 +372,19 @@ async def test_openai_mixed_tool_results_create_one_followup_when_slow_result_fi
     assert s._outstanding_tool_calls == {"home"}
 
     s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
-    evs = await _drain(s)
+    # Keep the provider session alive while the intentionally slow HA result lands.
+    # `events()` finalizes state when a fake socket exhausts; the real socket does not.
+    evs = [event async for event in s._iter_events()]
     assert not any(isinstance(e, TurnComplete) for e in evs)
     assert all(m["type"] != "response.create" for m in s._ws.sent)
 
     await s.send_tool_results([{"id": "home", "name": "home_call", "response": {"ok": True}}])
     assert s._pending_create is False
     assert sum(m["type"] == "response.create" for m in s._ws.sent) == 1
+    assert s._ws.sent[-1] == {
+        "type": "response.create",
+        "response": {"tool_choice": "none"},
+    }
 
     s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
     evs = await _drain(s)
@@ -384,6 +407,10 @@ async def test_openai_mixed_tool_results_create_one_followup_in_reverse_completi
     evs = await _drain(s)
     assert sum(isinstance(e, ToolRoundComplete) for e in evs) == 1
     assert sum(m["type"] == "response.create" for m in s._ws.sent) == 1
+    assert s._ws.sent[-1] == {
+        "type": "response.create",
+        "response": {"tool_choice": "none"},
+    }
 
 
 async def test_openai_waits_for_all_mixed_tool_results_before_one_response_create():
@@ -453,6 +480,16 @@ def test_openai_session_semantic_with_noise():
 def test_realtime_21_uses_low_reasoning_for_voice_latency():
     session = OpenAIRealtimeSession(api_key="k")._session_update()["session"]
     assert session["reasoning"] == {"effort": "low"}
+
+
+def test_every_fresh_user_turn_requires_an_explicit_tool_decision():
+    """A clear close may never degrade into an untracked spoken pleasantry.
+
+    Direct answers use continue_conversation, semantic close uses end_conversation,
+    background uses wait_for_user, and action turns use the actual action tool.
+    """
+    session = OpenAIRealtimeSession(api_key="k")._session_update()["session"]
+    assert session["tool_choice"] == "required"
 
 
 def test_realtime_caps_output_reservation_for_short_voice_answers():

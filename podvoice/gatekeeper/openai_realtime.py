@@ -173,6 +173,9 @@ class OpenAIRealtimeSession:
     # A pure wait_for_user round records its function output but intentionally creates
     # no assistant response, eliminating cross-turn silence state in ThinSession.
     _tool_result_response_required: bool = field(default=False, init=False, repr=False)
+    # A semantic-end result must produce exactly one final spoken farewell and no
+    # further tool calls. Normal tool results stay auto to preserve multi-step work.
+    _force_no_tools_followup: bool = field(default=False, init=False, repr=False)
     _silent_tool_call_ids: set[str] = field(default_factory=set, init=False, repr=False)
     _outstanding_tool_calls: set[str] = field(default_factory=set, init=False, repr=False)
     _cancelled_tool_calls: set[str] = field(default_factory=set, init=False, repr=False)
@@ -270,6 +273,12 @@ class OpenAIRealtimeSession:
             # OpenAI recommends low as the production voice-agent starting point:
             # responsive, while retaining basic reasoning and tool selection.
             "reasoning": {"effort": "low"},
+            # Every fresh user turn must produce an explicit tool decision. Direct
+            # answers use Thin's continue_conversation no-op in the same audio response;
+            # semantic close uses end_conversation; real actions use their own tool.
+            # Tool-result follow-ups override this to auto so multi-step work remains
+            # possible and the final spoken result is not forced into a tool loop.
+            "tool_choice": "required",
             "instructions": (self.instructions or SYSTEM_PROMPT_DA)
             + (f"\n\nRUM\n{self.room_context}" if self.room_context else ""),
             "audio": {
@@ -302,6 +311,7 @@ class OpenAIRealtimeSession:
         self._active_response = False
         self._pending_create = False
         self._tool_result_response_required = False
+        self._force_no_tools_followup = False
         self._silent_tool_call_ids.clear()
         self._outstanding_tool_calls.clear()
         self._cancelled_tool_calls.clear()
@@ -421,6 +431,8 @@ class OpenAIRealtimeSession:
                 self._silent_tool_call_ids.add(call_id)
             else:
                 self._tool_result_response_required = True
+                if r.get("name") == "end_conversation":
+                    self._force_no_tools_followup = True
             submitted += 1
         if submitted == 0:
             return False
@@ -445,7 +457,7 @@ class OpenAIRealtimeSession:
                 )
                 self._tool_result_response_required = False
                 self._silent_tool_call_ids.clear()
-                await self._ws.send_json({"type": "response.create"})
+                await self._create_tool_result_response()
                 return False
             else:
                 _LOG.info("turn: silent tool result recorded -> no response.create")
@@ -465,6 +477,7 @@ class OpenAIRealtimeSession:
             self._active_response = False
             self._pending_create = False
             self._tool_result_response_required = False
+            self._force_no_tools_followup = False
             self._silent_tool_call_ids.clear()
             self._outstanding_tool_calls.clear()
             self._cancelled_tool_calls.clear()
@@ -551,6 +564,7 @@ class OpenAIRealtimeSession:
                     self._active_response = False
                     self._pending_create = False
                     self._tool_result_response_required = False
+                    self._force_no_tools_followup = False
                     self._silent_tool_call_ids.clear()
                 if self.interrupt_response:
                     self._cancelled_tool_calls.update(self._outstanding_tool_calls)
@@ -592,6 +606,7 @@ class OpenAIRealtimeSession:
                     # its late tool outputs and expose the provider failure to Thin.
                     self._pending_create = False
                     self._tool_result_response_required = False
+                    self._force_no_tools_followup = False
                     self._cancelled_tool_calls.update(self._outstanding_tool_calls)
                     self._outstanding_tool_calls.clear()
                     self._silent_tool_call_ids.clear()
@@ -623,7 +638,7 @@ class OpenAIRealtimeSession:
                         rid,
                         status,
                     )
-                    await self._ws.send_json({"type": "response.create"})
+                    await self._create_tool_result_response()
                     # Do not emit TurnComplete: the room has not received its answer
                     # yet.  Still publish an explicit provider-neutral edge so Thin
                     # clears the tool-decision state.  Without this marker the final
@@ -648,6 +663,7 @@ class OpenAIRealtimeSession:
                     status=status if status != "?" else "completed",
                     error=_rerror(ev),
                 )
+
             elif t == "session.updated":
                 self._configured = True
                 _LOG.info(
@@ -670,6 +686,16 @@ class OpenAIRealtimeSession:
                     _LOG.error("session.update REJECTED — failing loudly: %s", err)
                     raise RuntimeError(f"session.update rejected: {err.get('message', err)}")
                 _LOG.warning("openai realtime error: %s", err)
+
+    async def _create_tool_result_response(self) -> None:
+        """Create one result response with the correct lifecycle tool policy."""
+        if self._ws is None:
+            return
+        tool_choice = "none" if self._force_no_tools_followup else "auto"
+        self._force_no_tools_followup = False
+        await self._ws.send_json(
+            {"type": "response.create", "response": {"tool_choice": tool_choice}}
+        )
 
     @staticmethod
     def _usage_of(ev: dict) -> Usage | None:

@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.13.15 — eksplicit Realtime-beslutning på hver brugertur
+
+- Feltprøven `20260819T153836-401` beviste en ren lyd- og playback-kæde, men GPT
+  svarede “Selv tak, det var så lidt!” på den klare afslutning uden at kalde
+  `end_conversation`. Samtalen lukkede derfor først på idle-timeout. Denne kandidat
+  gør den manglende semantiske beslutning umulig at skjule som almindelig svartekst.
+- Hver ny brugertur kræver nu et eksplicit Realtime-værktøjsvalg: et reelt værktøj
+  for handling/opslag, `end_conversation` for afslutning, `wait_for_user` for
+  ikke-henvendt tale eller det nye interne `continue_conversation` for et direkte
+  svar/opklarende spørgsmål. Der er fortsat ingen lokal frase- eller ASR-routing.
+- `continue_conversation` siger hele det korte svar i den samme Realtime-respons.
+  PodVoice holder lyden privat, indtil den providerbeviste fortsættelsesbeslutning er
+  registreret, og publicerer derefter svaret. Der oprettes ingen ekstra modelsvarsrunde.
+- Almindelige værktøjsresultater får fortsat `tool_choice=auto`, så flertrinsarbejde
+  virker. Efter et semantisk end-signal får den afsluttende svarrunde derimod
+  `tool_choice=none`, så den siger ét farvel uden at starte en ny lifecycle-loop.
+- Promptversion 3 beskriver præcis samme firedelte kontrakt. Fortsættelses-, vente- og
+  slutsignaler er interne, tur- og sessionsbundne og kan aldrig sendes til HA/MCP.
+- Dette er en ren add-on-opdatering. Firmware, gain, VAD, pre-roll, mic-gate,
+  playback og wake-rearm er uændrede. Kandidaten er først godkendt efter en ny fysisk
+  golden chain og derefter 10 ubrudte Voice PE-cyklusser.
+
 ## 1.13.14 — korrekt afslutningsrouting og afgrænset TPM
 
 - `get_time` er nu semantisk afgrænset til den seneste brugertur. Et tidligere

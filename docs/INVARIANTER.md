@@ -41,19 +41,25 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
 1. Ét fysisk “Okay Nabu” giver én wake-event, åbner privacy-gated mic og præcis én
    Realtime-session.
 2. Første ytring og alle naturlige opfølgninger kører i samme session uden nyt wakeword.
-3. Realtime foreslår semantisk afslutning med det reserverede `end_conversation`-tool.
+3. Hver klar brugertur skal give én eksplicit modelbeslutning: et domæneværktøj for
+   handling/opslag, `continue_conversation` for et direkte svar eller en opklaring,
+   `end_conversation` for semantisk afslutning eller `wait_for_user` for ikke-henvendt
+   tale. De tre lifecycle-signaler er interne og må aldrig dispatches til HA/MCP.
    Lokal tekstmatching af “farvel”-varianter er ikke afslutningsautoritet.
-4. Hvis Realtime har foreslået semantisk afslutning, men den efterfølgende lydrespons
+4. `continue_conversation` skal levere sit korte svar i samme provider-respons. Signalet
+   må ikke skabe en ekstra modelsvarsrunde, og svaret må først publiceres, når den
+   providerbeviste beslutning er registreret. Manglende svar er en providerfejl.
+5. Hvis Realtime har foreslået semantisk afslutning, men den efterfølgende lydrespons
    eksplicit fejler, må transporten afspille et cachet farvel. Fallbacken må aldrig
    udløses af brugertransskription alene og må først lukke efter fysisk playback-finish.
-5. Semantisk afslutning, fysisk stop, timeout og fejl samles i én atomisk close-owner.
+6. Semantisk afslutning, fysisk stop, timeout og fejl samles i én atomisk close-owner.
    Provider, mic, playback, ducking og attention frigives præcis én gang.
-6. Rearm sker først efter fuld teardown. Firmwarekvitteringen må kun åbne næste latch,
+7. Rearm sker først efter fuld teardown. Firmwarekvitteringen må kun åbne næste latch,
    når ubrudt detektorkontinuitet **og frisk fysisk mikrofonfremdrift** er bevist efter
    rearm. `micro_wake_word.is_running()` alene er forbudt som readiness-bevis, fordi
    ESPHome også returnerer sand i `STARTING` og `STOPPING`. En virkelig efterfølgende
    wake er fortsat det stærkeste kontinuitetsbevis.
-7. Provider-eventrækkefølge er ikke nødvendigvis den fysiske samtalerækkefølge. En
+8. Provider-eventrækkefølge er ikke nødvendigvis den fysiske samtalerækkefølge. En
    færdig inputtransskription kan komme efter svaret; historik skal derfor tidsstemples
    ved brugerens `speech_stopped`-grænse og må aldrig vise svar før årsag.
 

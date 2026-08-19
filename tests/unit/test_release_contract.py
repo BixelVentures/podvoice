@@ -36,7 +36,10 @@ def test_architecture_keeps_semantic_end_signal_in_production() -> None:
     architecture = (ROOT / "docs" / "ARKITEKTUR.md").read_text()
 
     assert "Modellens `end_conversation`-tool" not in architecture
-    assert "provider-neutrale `end_conversation`-signal" in architecture
+    assert "provider-neutrale lifecycle-signaler" in architecture
+    assert "`continue_conversation`" in architecture
+    assert "`end_conversation`" in architecture
+    assert "de går aldrig gennem HA/MCP" in architecture
 
 
 def test_next_steps_lock_the_five_development_priorities() -> None:

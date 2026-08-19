@@ -109,8 +109,132 @@ async def test_fresh_tools_are_present_when_realtime_connects():
         assert [d["name"] for d in brain.seen_at_connect] == [
             "fresh_ha_tool",
             "end_conversation",
+            "continue_conversation",
             "wait_for_user",
         ]
+    finally:
+        await session.aclose()
+
+
+async def test_continue_conversation_publishes_same_response_answer_without_second_round():
+    """Direct answers remain one Realtime response despite required lifecycle choice."""
+
+    class NoExternalDispatch(FakeTools):
+        async def dispatch(self, name: str, args: dict) -> dict:
+            raise AssertionError(f"reserved tool leaked to external dispatch: {name}")
+
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    session.tools = NoExternalDispatch()
+    await session.start()
+    try:
+        await session.wake()
+        decl = next(d for d in brain.tool_declarations if d["name"] == "continue_conversation")
+        assert decl["parameters"]["additionalProperties"] is False
+
+        brain.emit(
+            UserSpeechStopped(),
+            AudioChunk(_frame(), item_id="direct-answer"),
+            OutputTranscript("Fireogfirs."),
+            ToolCall("continue-1", "continue_conversation", {}),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        sent = brain.sent_tool_results[0][0]
+        assert sent["response"] == {
+            "ok": True,
+            "data": {"decision": "continue_conversation"},
+        }
+        assert sent["suppress_response"] is True
+        assert voicepe.announced_urls == []
+        assert session._held_announce_pcm  # answer stayed retractable until decision completion
+
+        brain.emit(SilentToolComplete(call_ids=("continue-1",)))
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        assert session._active is True
+        assert session._closure_turn is not None
+        assert session._closure_turn.response_done is True
+        assert session._continue_turns == {}
+    finally:
+        await session.aclose()
+
+
+async def test_continue_conversation_without_promised_audio_fails_closed():
+    brain = LiveFake()
+    session, attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            ToolCall("continue-empty", "continue_conversation", {}),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        brain.emit(SilentToolComplete(call_ids=("continue-empty",)))
+        await _wait_until(lambda: session._active is False, max_wait=3.0)
+        assert session.sm.state is State.IDLE
+        assert len(attention.release_calls) == 1
+    finally:
+        await session.aclose()
+
+
+async def test_delayed_continue_completion_cannot_complete_a_fresh_user_turn():
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            AudioChunk(_frame(), item_id="old-answer"),
+            ToolCall("continue-old", "continue_conversation", {}),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert session._closure_turn is not None
+        old_serial = session._closure_turn.serial
+
+        brain.emit(UserSpeechStarted(), UserSpeechStopped())
+        await _wait_until(
+            lambda: (
+                session._closure_turn is not None and session._closure_turn.serial == old_serial + 1
+            )
+        )
+        fresh_turn = session._closure_turn
+        brain.emit(SilentToolComplete(call_ids=("continue-old",)))
+        await asyncio.sleep(0.05)
+        assert session._closure_turn is fresh_turn
+        assert fresh_turn is not None and fresh_turn.response_done is False
+    finally:
+        await session.aclose()
+
+
+async def test_semantic_end_dominates_continue_in_the_same_provider_round():
+    brain = LiveFake()
+    session, attention, voicepe = _build(brain)
+    voicepe.supports_playback_events = True
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            AudioChunk(_frame(), item_id="discarded-continue"),
+            OutputTranscript("Selv tak."),
+            ToolCall("continue-mixed", "continue_conversation", {}),
+            ToolCall("end-mixed", "end_conversation", {}),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 2)
+        brain.emit(
+            ToolRoundComplete(),
+            AudioChunk(_frame(), item_id="final-goodbye"),
+            OutputTranscript("Farvel."),
+            TurnComplete(),
+        )
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        assert session._continue_turns == {}
+        session._on_media_state(True)
+        session._on_media_state(False)
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
     finally:
         await session.aclose()
 

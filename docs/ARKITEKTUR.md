@@ -51,8 +51,15 @@ wakeword, højttaler, LED eller akustik. De kræver fysisk test.
 - Hjemmets søgeagent ejer aktuel webviden.
 
 Ingen HA-, web-, musik- eller hjemmeværktøjer må åbne eller lukke Realtime-sessionen.
-Realtime har kun et internt, provider-neutralt afslutningssignal; PodVoice ejer fortsat
-selve lukningen og kan derfor garantere én teardown og én wake-rearm.
+Realtime bruger tre interne, provider-neutrale lifecycle-signaler: fortsæt, vent tavst
+eller afslut. De tvinger en eksplicit beslutning på hver klar brugertur, men PodVoice
+fortolker stadig aldrig brugerens ord. PodVoice ejer selve transportlukningen og kan
+derfor garantere én teardown og én wake-rearm.
+
+Et direkte svar bruger `continue_conversation` og taler hele svaret i samme
+Realtime-respons. Det er ikke en ekstra klassifikationsrunde: svaret holdes kun privat,
+indtil providerens eksplicitte fortsættelsesbeslutning er registreret. Handlinger og
+opslag bruger deres reelle domæneværktøj, ikke fortsættelsessignalet.
 
 ## Lukning
 
@@ -102,6 +109,6 @@ Godkendt firmware skal statisk og i renderet konfiguration have:
 
 Koden kan midlertidigt indeholde isolerede historiske hjælpefunktioner og regressioner,
 men add-on-builder, settings og runtime må ikke kunne aktivere disse veje. Modellens
-reserverede, provider-neutrale `end_conversation`-signal ovenfor er derimod den gældende
-semantiske produktionskontrakt; det går aldrig gennem HA/MCP og lukker ikke transporten
-direkte.
+reserverede, provider-neutrale lifecycle-signaler ovenfor er derimod den gældende
+semantiske produktionskontrakt; de går aldrig gennem HA/MCP, og kun den efterfølgende
+transportmekanik kan fysisk lukke samtalen.
