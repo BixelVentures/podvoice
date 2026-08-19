@@ -3,7 +3,8 @@
 The OpenAI Realtime backend (openai_realtime.py) emits these typed events and
 satisfies ``VoiceSession``; the orchestrator, thin engine, console and panel
 consume ONLY this interface. When GPT-Live-1's API opens, its provider
-implements the same contract and nothing upstream changes.
+implements the same contract and nothing upstream changes. Physical and lifecycle
+ownership remains defined by ``docs/INVARIANTER.md``.
 """
 
 from __future__ import annotations
@@ -18,9 +19,8 @@ class AudioChunk:
     """Raw 24 kHz / 16-bit / mono PCM emitted by the model.
 
     ``item_id`` identifies the assistant conversation item the audio belongs to
-    (OpenAI Realtime) — Track B's playout clock + ``conversation.item.truncate``
-    need it to report the heard position on barge-in. None on providers/paths
-    that don't carry item identity (Gemini, sim)."""
+    (OpenAI Realtime). It is used for playout accounting and truncation on the Talk
+    full-duplex surface; Voice PE remains half-duplex."""
 
     pcm: bytes
     item_id: str | None = None
@@ -37,7 +37,10 @@ class ToolCall:
 
 @dataclass
 class InputTranscript:
-    """Incremental transcript of the *user's* speech — drives barge-in keywords."""
+    """Completed/partial diagnostic transcript of the user's speech.
+
+    It is never a local phrase or semantic-close authority.
+    """
 
     text: str
 

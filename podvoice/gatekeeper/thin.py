@@ -1,24 +1,11 @@
-"""Track B — the THIN engine: the model owns the conversation (PLAN-BEAT-GEMINI.md).
+"""The sole production conversation engine for Voice PE and the Talk surface.
 
-One ``ThinSession`` per room. Our responsibilities shrink to exactly four things:
-wake gate (privacy — the mic streams ONLY between wake and conversation end),
-raw audio transport, the HA tool bridge, and ducking + LED. Everything the old
-engine decided client-side — turn-taking, barge-in, "is the user done", polite
-closure, follow-up windows — is delegated to the provider's server VAD
-(GPT-Realtime-2: ``semantic_vad`` with ``interrupt_response`` + ``idle_timeout_ms``).
-
-The state space collapses to three: IDLE (asleep, mic off) · ACTIVE (one open
-conversation: listening and speaking interleave freely) · error (transient,
-audible, always lands back in IDLE). No decision table — live signals drive
-the few effects directly.
-
-Playback truth, and how the room's ears are kept in sync with the model's memory:
-on B1-2b firmware the reply goes out as raw PCM over the native API and the device
-reports ``reply_played`` the instant the last byte leaves the DAC — byte-exact, no
-estimating. Older firmware keeps the proven announce path, where the heard position is
-approximated from the media player's ANNOUNCING edge plus wall time. Either way the
-position is reported on barge-in via ``conversation.item.truncate``. Which path runs is
-decided by the DEVICE (voicepe.supports_direct), never by a saved setting.
+One physical wake opens one ``ThinSession`` epoch and one OpenAI Realtime session.
+Realtime owns language, turn meaning, tool choice and semantic end intent. This module
+owns the deterministic half-duplex transport: mic gate, announcement playback, music
+attention, atomic teardown and wake rearm. Voice PE production output is the firmware-
+correlated FLAC announcement path; Talk uses the same lifecycle through its browser I/O
+adapter. See ``docs/INVARIANTER.md`` for the binding cross-component contract.
 """
 
 from __future__ import annotations
@@ -60,6 +47,10 @@ MAX_CONVERSATION_S = 15 * 60
 # ANNOUNCING state would hold the conversation (and the music duck) open forever — the
 # idle close is our only closer, so it must never be blocked indefinitely.
 MAX_REPLY_PLAY_S = 180.0
+# Fixed error speech must be heard before teardown, but a broken media pipeline must
+# never wedge the close transaction indefinitely.
+FIXED_PLAYBACK_START_TIMEOUT_S = 2.0
+FIXED_PLAYBACK_FINISH_GRACE_S = 3.0
 # Pipeline heartbeat cadence (replaces the old per-turn watchdogs): if the provider
 # reader has died while a conversation is open, say so and go home.
 HEARTBEAT_S = 5.0
@@ -227,6 +218,7 @@ class ThinSession:
         self._gate_dropped = 0  # mic frames shielded during the current reply
         self._turn_had_tool = False  # response called a tool -> the reply stream stays open
         self._stop_sent_t: float | None = None  # stop-latency marker (ARKITEKTUR G1)
+        self._stop_sent_epoch: float | None = None
         # Until when the reply we generated is still AUDIBLE (byte-derived). The shield
         # trusts this even if the device never reports that it is playing.
         self._reply_audible_until = 0.0
@@ -241,9 +233,11 @@ class ThinSession:
         self._goodbye: asyncio.Task | None = None  # armed close-after-goodbye (one per conv)
         self._close_task: asyncio.Task | None = None  # exactly one close transaction per epoch
         self._epoch = 0.0  # conversation identity (monotonic start) for armed tasks
+        self._history_session = ""  # explicit wake/session boundary in persisted history
         self._teardown_lock = asyncio.Lock()  # wake must never race a teardown in flight
         self._rearm_retry_task: asyncio.Task | None = None
         self._rearm_retry_attempt = 0
+        self._device_stream_fault = False
         self._muted = False
         self._closing = False
         self._reader: asyncio.Task | None = None
@@ -367,6 +361,9 @@ class ThinSession:
         )
         self._conv_started = time.monotonic()
         self._epoch = self._conv_started  # identity for tasks armed by THIS conversation
+        self._history_session = f"{self.room}:{time.time_ns()}"
+        self._stop_sent_t = None
+        self._stop_sent_epoch = None
         if self.audio_trace is not None:
             self.audio_trace.begin(
                 self.room,
@@ -410,7 +407,18 @@ class ThinSession:
         # the user's first words.  The queue is instead cleaned after every teardown,
         # once forwarding has stopped, so old-tail audio cannot cross conversations.
         if hasattr(self.voicepe, "start_streaming"):
-            await self.voicepe.start_streaming()
+            stream_started = await self.voicepe.start_streaming()
+            if stream_started is False:
+                self._device_stream_fault = True
+                _LOG.error("thin: Voice PE refused mic-forward start [room=%s]", self.room)
+                self._trace_event("mic_stream_start_failed")
+                if self.hub is not None:
+                    self.hub.set_service("voicepe", "down")
+                await self._fail("device")
+                return
+            self._device_stream_fault = False
+            if self.hub is not None:
+                self.hub.set_service("voicepe", "up" if self._voicepe_contract_ok() else "degraded")
         # Tool declarations are part of session.update, which connect() sends. Setting
         # them afterwards made HA/PodConnect changes arrive one conversation late.
         decls = list(self.tools.declarations()) if self.tools is not None else []
@@ -538,8 +546,16 @@ class ThinSession:
         if self.reply_bus is not None:
             self.reply_bus.end(self.room)
         if hasattr(self.voicepe, "stop_streaming"):
-            with contextlib.suppress(Exception):
-                await self.voicepe.stop_streaming()
+            try:
+                stream_stopped = await self.voicepe.stop_streaming()
+                if stream_stopped is False:
+                    self._device_stream_fault = True
+                    _LOG.error("thin: Voice PE refused mic-forward stop [room=%s]", self.room)
+                    self._trace_event("mic_stream_stop_failed")
+                    if self.hub is not None:
+                        self.hub.set_service("voicepe", "down")
+            except Exception as exc:
+                _LOG.warning("thin: mic-forward stop failed [room=%s]: %s", self.room, exc)
         if hasattr(self.voicepe, "drain_mic"):
             stale = self.voicepe.drain_mic()
             if stale:
@@ -576,6 +592,8 @@ class ThinSession:
             except Exception as exc:
                 # Diagnostics may never wedge the real assistant teardown.
                 _LOG.warning("thin: could not save audio trace: %s", exc)
+        self._stop_sent_t = None
+        self._stop_sent_epoch = None
 
     # ------------------------------------------------------------- audio pumps
     async def _pump_mic(self) -> None:
@@ -652,8 +670,18 @@ class ThinSession:
         while self._active:
             await asyncio.sleep(C.STREAM_KEEPALIVE_S)
             if self._active and hasattr(self.voicepe, "start_streaming"):
-                with contextlib.suppress(Exception):
-                    await self.voicepe.start_streaming()
+                try:
+                    stream_started = await self.voicepe.start_streaming()
+                except Exception as exc:
+                    _LOG.warning("thin: mic-forward keepalive failed: %s", exc)
+                    stream_started = False
+                if stream_started is False and self._active:
+                    self._device_stream_fault = True
+                    self._trace_event("mic_stream_keepalive_failed")
+                    if self.hub is not None:
+                        self.hub.set_service("voicepe", "down")
+                    await self._fail("device")
+                    return
 
     async def _heartbeat(self) -> None:
         """Pipeline heartbeat: while a conversation is open, the reader must be alive
@@ -946,7 +974,7 @@ class ThinSession:
         pcm: bytes | None = None
         if self.speech is not None:
             with contextlib.suppress(Exception):
-                pcm = await self.speech.say(C.FALLBACK_GOODBYE)
+                pcm = self.speech.cached(C.FALLBACK_GOODBYE)
         if (
             not self._active
             or epoch != self._epoch
@@ -982,7 +1010,13 @@ class ThinSession:
         if buf:
             self._trace_event("transcript_complete", direction=direction, text="".join(buf)[:1000])
         if buf and self.hub is not None:
-            self.hub.transcript(self.room, direction, "".join(buf), ts=ts)
+            self.hub.transcript(
+                self.room,
+                direction,
+                "".join(buf),
+                ts=ts,
+                session=self._history_session or None,
+            )
         buf.clear()
 
     def _use_direct(self) -> bool:
@@ -1464,12 +1498,13 @@ class ThinSession:
                 # or it will believe the family heard the whole answer.
                 _LOG.info("thin: reply hushed on the device — truncating at heard position")
                 self._spawn(self._truncate_at_heard(), "thin-hush-truncate")
-            if self._stop_sent_t is not None:
+            if self._stop_sent_t is not None and self._stop_sent_epoch == self._epoch:
                 _LOG.info(
                     "stop-latency: %d ms (silence command -> device silent)",
                     int((time.monotonic() - self._stop_sent_t) * 1000),
                 )
-                self._stop_sent_t = None
+            self._stop_sent_t = None
+            self._stop_sent_epoch = None
             tail_s = TURN_CUE_TAIL_S if self._turn_cue_appended else ECHO_GATE_TAIL_S
             self._gate_until = time.monotonic() + tail_s
             self._spawn(self._end_echo_gate(tail_s), "thin-gate-end")
@@ -1637,7 +1672,11 @@ class ThinSession:
         ok = bool(contract.get("ok", True))
         readiness = getattr(self.voicepe, "wake_readiness", "unknown")
         status = (
-            "down" if readiness == "fault" else "up" if ok and readiness == "proven" else "degraded"
+            "down"
+            if readiness == "fault" or self._device_stream_fault
+            else "up"
+            if ok and readiness == "proven"
+            else "degraded"
         )
         self.hub.set_service("voicepe", status)
         missing = (
@@ -1654,10 +1693,17 @@ class ThinSession:
     async def _reassert_device(self) -> None:
         if self._active:
             if hasattr(self.voicepe, "start_streaming"):
-                await self.voicepe.start_streaming()
+                if await self.voicepe.start_streaming() is False:
+                    self._device_stream_fault = True
+                    raise RuntimeError("Voice PE kunne ikke åbne mic-forward")
+                self._device_stream_fault = False
         else:
             if hasattr(self.voicepe, "stop_streaming"):
-                await self.voicepe.stop_streaming()
+                if await self.voicepe.stop_streaming() is False:
+                    self._device_stream_fault = True
+                    if self.hub is not None:
+                        self.hub.set_service("voicepe", "down")
+                    raise RuntimeError("Voice PE kunne ikke lukke mic-forward")
             # A reconnect/restart after a crashed conversation must also clear the
             # firmware latch; otherwise the puck can be online yet permanently deaf.
             if not self._closing and hasattr(self.voicepe, "rearm_wake_word"):
@@ -1685,7 +1731,14 @@ class ThinSession:
             self._trace_event("wake_rearmed")
             _LOG.info("thin: wake continuity proven [room=%s]", self.room)
             if self.hub is not None:
-                self.hub.set_service("voicepe", "up" if self._voicepe_contract_ok() else "degraded")
+                status = (
+                    "down"
+                    if self._device_stream_fault
+                    else "up"
+                    if self._voicepe_contract_ok()
+                    else "degraded"
+                )
+                self.hub.set_service("voicepe", status)
         else:
             self._trace_event("wake_rearm_recovered")
             _LOG.warning(
@@ -1763,7 +1816,15 @@ class ThinSession:
         self.playout.set_played(played)
 
     async def _silence_device(self) -> None:
-        self._stop_sent_t = time.monotonic()  # G1: measure stop -> actually silent
+        # A stop-latency measurement only belongs to audible output in THIS epoch.
+        # Marking every teardown let the next conversation's playback-finish close an
+        # old marker and produced impossible 12-22 second "stop latency" values.
+        if self._device_playing or self._reply_audible_until > time.monotonic():
+            self._stop_sent_t = time.monotonic()
+            self._stop_sent_epoch = self._epoch
+        else:
+            self._stop_sent_t = None
+            self._stop_sent_epoch = None
         self._reply_audible_until = 0.0  # nothing of ours is audible after a stop
         # Direct path: "stop" means stop SENDING (request_stop() is a no-op for the
         # speaker path — its whole STREAMING_RESPONSE branch is #ifdef USE_MEDIA_PLAYER
@@ -1778,7 +1839,7 @@ class ThinSession:
                 await self.voicepe.stop_playback()
         self.playback.flush()
 
-    async def _play_oneshot(self, pcm: bytes) -> None:
+    async def _play_oneshot(self, pcm: bytes, *, wait_for_physical_finish: bool = False) -> bool:
         """Play one short fixed clip (close cue, error line, spoken warning) on whichever
         audio path is live.
 
@@ -1787,21 +1848,45 @@ class ThinSession:
         and the ones that were forgotten simply went silent with no error anywhere."""
         if self._use_direct():
             if not await self.voicepe.begin_direct_reply():
-                return
+                return False
             bytes_per_s = float(C.OUTPUT_RATE * C.SAMPLE_WIDTH)
             for i in range(0, len(pcm), DIRECT_CHUNK):
                 piece = pcm[i : i + DIRECT_CHUNK]
                 self.voicepe.send_direct_pcm(piece)
                 await asyncio.sleep(len(piece) / bytes_per_s)  # realtime pace: never floods
             await self.voicepe.end_direct_reply()
-            return
+            return True
         if self.reply_bus is None or not self.reply_url:
-            return
+            return False
+        if wait_for_physical_finish:
+            self._playback_started.clear()
+            self._playback_finished.clear()
         self.reply_bus.clear(self.room)
         self.reply_bus.start(self.room)
         self.reply_bus.push(self.room, pcm)
         self.reply_bus.end(self.room)
         await self.voicepe.play_url(self.reply_url)
+        if not wait_for_physical_finish:
+            return True
+        try:
+            await asyncio.wait_for(
+                self._playback_started.wait(), timeout=FIXED_PLAYBACK_START_TIMEOUT_S
+            )
+        except TimeoutError:
+            _LOG.error("thin: fixed speech never reported physical playback start")
+            self._trace_event("fixed_playback_start_missing")
+            return False
+        duration_s = len(pcm) / float(C.OUTPUT_RATE * C.SAMPLE_WIDTH)
+        try:
+            await asyncio.wait_for(
+                self._playback_finished.wait(),
+                timeout=max(FIXED_PLAYBACK_FINISH_GRACE_S, duration_s + 1.0),
+            )
+            return True
+        except TimeoutError:
+            _LOG.error("thin: fixed speech never reported physical playback finish")
+            self._trace_event("fixed_playback_finish_missing")
+            return False
 
     async def _speak_home_unreachable(self) -> None:
         """One spoken heads-up when the MCP probe says home control is down."""
@@ -1811,15 +1896,22 @@ class ThinSession:
             await self._play_oneshot(await self.speech.say(C.FALLBACK_HOME_UNREACHABLE))
 
     async def _speak_error(self, kind: str) -> None:
-        """The error, out loud, in the assistant's own voice (tone as last resort)."""
+        """Play the error before teardown; wait for firmware truth when supported."""
         from . import audio as audio_mod
 
         pcm = None
         if self.speech is not None:
             with contextlib.suppress(Exception):
                 pcm = await self.speech.say(C.ERROR_PHRASES.get(kind, C.FALLBACK_CONNECTION))
-        with contextlib.suppress(Exception):
-            await self._play_oneshot(pcm or audio_mod.error_tone(C.OUTPUT_RATE))
+        try:
+            await self._play_oneshot(
+                pcm or audio_mod.error_tone(C.OUTPUT_RATE),
+                wait_for_physical_finish=bool(
+                    getattr(self.voicepe, "supports_playback_events", False)
+                ),
+            )
+        except Exception as exc:
+            _LOG.warning("thin: error speech failed [room=%s]: %s", self.room, exc)
 
     def _set_led(self, state: State, *, error: bool = False) -> None:
         if not hasattr(self.voicepe, "set_light"):

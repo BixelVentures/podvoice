@@ -1,4 +1,8 @@
-"""Per-room orchestrator — wires every component to the state machine (PLAN.md §7).
+"""LEGACY regression harness; not imported by the production add-on builder.
+
+This pre-1.13 ``RoomSession`` is retained only while its historical regressions are
+useful. Current production ownership lives in ``ThinSession`` and
+``docs/INVARIANTER.md``. Do not add new product behavior here.
 
 A ``RoomSession`` owns one Voice PE, one realtime brain session, the attention
 heartbeat, the gatekeeper, playback, and the state machine. It implements the

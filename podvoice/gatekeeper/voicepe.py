@@ -1,4 +1,7 @@
-"""Live link to a custom-firmware Voice PE over the ESPHome native API (PLAN.md §6 PART A).
+"""Live link to the custom Voice PE firmware over the ESPHome native API.
+
+The binding physical contract lives in ``docs/INVARIANTER.md`` and
+``docs/ARKITEKTUR.md``.
 
 This is the only module that speaks ``aioesphomeapi``. It owns the device
 connection (with reconnect), pulls raw 16 kHz PCM up into a bounded queue,
@@ -475,13 +478,13 @@ class VoicePELink:
             log.debug("voicepe %s service %s failed: %s", self.host, name, e)
             return False
 
-    async def start_streaming(self) -> None:
+    async def start_streaming(self) -> bool:
         """Open the device mic-forward (wake) AND keepalive the dead-man timer."""
-        await self._call_service("podvoice_stream_start")
+        return await self._call_service("podvoice_stream_start")
 
-    async def stop_streaming(self) -> None:
+    async def stop_streaming(self) -> bool:
         """Close the device mic-forward (session end / grace expiry)."""
-        await self._call_service("podvoice_stream_stop")
+        return await self._call_service("podvoice_stream_stop")
 
     async def rearm_wake_word(self) -> str:
         """Open the next wake gate and return the firmware-owned readiness level.

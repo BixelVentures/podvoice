@@ -10,7 +10,7 @@ boundaries that matter for diagnosis:
   tool-preamble suppression and including the turn cue.
 
 The capture stops with the conversation (or at the hard duration ceiling), writes
-two WAV files plus an event manifest under /data, and keeps only a few recent runs.
+up to three WAV files plus an event manifest under /data, and keeps only a few recent runs.
 """
 
 from __future__ import annotations
@@ -253,6 +253,7 @@ class AudioTraceRecorder:
                     manifest,
                     self.path / f"{trace_id}-device.wav",
                     self.path / f"{trace_id}-provider.wav",
+                    self.path / f"{trace_id}-speaker.wav",
                 ):
                     if target.is_file():
                         target.unlink()

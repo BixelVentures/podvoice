@@ -1,9 +1,9 @@
 """Persisted conversation history — Talk console + Voice PE rooms.
 
-Each spoken/typed turn is one JSONL line ``{ts, room, dir, text}`` appended to
-``/data/history.jsonl`` (survives add-on restarts). ``conversations()`` groups
-consecutive same-room turns — split when the room changes or after a > ``gap_s``
-idle gap — into conversation objects, newest first, for the panel's History tab.
+Each spoken/typed turn is one JSONL line ``{ts, room, session, dir, text}`` appended
+to ``/data/history.jsonl`` (survives add-on restarts). ``conversations()`` uses the
+explicit wake/session boundary when present. Legacy records without ``session`` are
+still split by room or a > ``gap_s`` idle gap.
 
 ``dir`` is ``"in"`` (the person) or ``"out"`` (the assistant). The Talk console
 logs under the pseudo-room ``"talk"``; Voice PE rooms log under their room id.
@@ -52,7 +52,15 @@ class History:
         self._since_trim = 0
 
     # ------------------------------------------------------------------ write
-    def append(self, room: str, direction: str, text: str, *, ts: float | None = None) -> None:
+    def append(
+        self,
+        room: str,
+        direction: str,
+        text: str,
+        *,
+        ts: float | None = None,
+        session: str | None = None,
+    ) -> None:
         """Append one turn. No-op for empty text. Sync + fast (small line write)."""
         if not text:
             return
@@ -62,6 +70,8 @@ class History:
             "dir": direction,
             "text": text,
         }
+        if session:
+            rec["session"] = session
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             with self._path.open("a", encoding="utf-8") as f:
@@ -118,8 +128,21 @@ class History:
         for r in recs:
             ts = float(r.get("ts") or 0.0)
             rm = r.get("room")
-            if cur is None or rm != cur["room"] or ts - cur["ended"] > self._gap:
-                cur = {"room": rm, "started": ts, "ended": ts, "turns": []}
+            session = r.get("session")
+            explicit_boundary = bool(cur is not None and session and session != cur.get("session"))
+            if (
+                cur is None
+                or rm != cur["room"]
+                or explicit_boundary
+                or (not session and ts - cur["ended"] > self._gap)
+            ):
+                cur = {
+                    "room": rm,
+                    "session": session,
+                    "started": ts,
+                    "ended": ts,
+                    "turns": [],
+                }
                 convs.append(cur)
             cur["ended"] = ts
             cur["turns"].append({"ts": ts, "dir": r.get("dir"), "text": r.get("text")})

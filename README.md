@@ -1,8 +1,9 @@
 # PodVoice
 
-Den autoritative tværgående samtalekontrakt findes i
-[docs/INVARIANTER.md](docs/INVARIANTER.md). Både menneskelige og agentiske ændringer i
-Realtime, VAD, lyd, firmware eller livscyklus skal følge den før komponentoptimering.
+Start med [docs/STATUS.md](docs/STATUS.md): v1.13.11 er officielt den første fysisk
+virkende half-duplex-baseline, mens 10/10-gaten og produktmålet stadig er åbne. Den
+bindende samtalekontrakt findes i [docs/INVARIANTER.md](docs/INVARIANTER.md), og alle
+menneskelige og agentiske ændringer følger læserækkefølgen i [AGENTS.md](AGENTS.md).
 
 A standalone voice-AI gatekeeper for a **PodConnect** home, packaged as a **Home Assistant Add-on**.
 
@@ -29,7 +30,7 @@ hardware. But unlike a `custom_components` plugin, it runs in its **own containe
 socket hiccup or VAD confusion can't drag Home Assistant (or your music) down with it. Same
 deployment model as PodConnect.
 
-## Status (single-channel half-duplex candidate)
+## Status (første virkende half-duplex-baseline)
 **OpenAI-only, single pipeline.** The Gemini provider, the provider switch, and the hand-rolled HA
 REST tool bridge are deleted. What ships now:
 - one thin provider module (`openai_realtime.py`) — GPT-Live-1 readiness = a model string + event
@@ -59,8 +60,9 @@ controls, plus a `/health` endpoint and live metrics. The **Talk tab** runs the 
 the browser as a device: the mic button is the wake word and every rule (tools, idle close, echo
 shield, goodbye) is the same code path the puck runs.
 
-**Try it with no hardware or keys:** set the add-on option `simulate: true` (or run `python -m gatekeeper`
-with it). A built-in scenario driver (`sim.py`) animates the full wake → duck → speak → lounge → release
+**Try it with no hardware or keys:** enable simulation under the panel's advanced settings
+(or run `python -m gatekeeper` with a simulated config). A built-in scenario driver (`sim.py`)
+animates the full wake → duck → speak → lounge → release
 flow per room so you can watch the panel work before the Voice PE / OpenAI key arrive.
 
 ## Develop & test

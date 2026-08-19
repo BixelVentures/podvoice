@@ -1,4 +1,7 @@
-"""The async state machine (PLAN.md §7, §7.1).
+"""LEGACY state machine for the quarantined pre-1.13 orchestrator tests.
+
+The production add-on uses ``ThinSession``; see ``docs/INVARIANTER.md``. Do not add
+new product lifecycle decisions here.
 
 One explicit state machine drives everything. Events arrive on a single queue;
 a PURE decision function (``_decide``) maps ``(state, event)`` to a next state

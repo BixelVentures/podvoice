@@ -79,6 +79,10 @@ class CachedSpeech:
         self.calls.append(text)
         return self.pcm
 
+    def cached(self, text: str) -> bytes:
+        self.calls.append(text)
+        return self.pcm
+
 
 async def test_fresh_tools_are_present_when_realtime_connects():
     class FreshTools(FakeTools):
@@ -276,6 +280,51 @@ async def test_provider_death_is_audible_and_lands_idle():
         await session.aclose()
 
 
+async def test_failed_mic_start_is_visible_and_never_connects_realtime():
+    gemini = LiveFake()
+    hub = StatusHub()
+    session, attention, voicepe = _build(gemini, hub=hub)
+
+    async def refuse_start() -> bool:
+        return False
+
+    voicepe.start_streaming = refuse_start  # type: ignore[method-assign]
+    await session.start()
+    try:
+        await session.wake()
+        assert gemini.connect_count == 0
+        assert session.sm.state is State.IDLE
+        assert hub.snapshot()["services"]["voicepe"] == "down"
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_error_close_waits_for_physical_error_speech_finish():
+    gemini = LiveFake()
+    session, attention, voicepe = _build(gemini)
+    voicepe.supports_playback_events = True
+    await session.start()
+    try:
+        await session.wake()
+        closing = asyncio.create_task(session._fail("connection"))
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        assert session._active is True
+        assert closing.done() is False
+
+        session._on_media_state(True)
+        await asyncio.sleep(0.01)
+        assert closing.done() is False
+        session._on_media_state(False)
+
+        await closing
+        assert session.sm.state is State.IDLE
+        assert len(attention.release_calls) == 1
+    finally:
+        await session.aclose()
+
+
 async def test_stop_control_closes_now():
     """Panel/stop-word/button all land in sm.post(CLOSURE) -> conversation closes."""
     gemini = LiveFake()
@@ -290,6 +339,24 @@ async def test_stop_control_closes_now():
         await _wait_until(lambda: session.sm.state is State.IDLE)
         assert voicepe.stop_playback_calls >= 1  # speaker silenced on stop
         await _wait_until(lambda: len(attention.release_calls) >= 1)
+    finally:
+        await session.aclose()
+
+
+async def test_stop_latency_marker_only_arms_for_current_audible_epoch():
+    gemini = LiveFake()
+    session, _attention, _voicepe = _build(gemini)
+    await session.start()
+    try:
+        await session.wake()
+        await session._silence_device()
+        assert session._stop_sent_t is None
+        assert session._stop_sent_epoch is None
+
+        session._device_playing = True
+        await session._silence_device()
+        assert session._stop_sent_t is not None
+        assert session._stop_sent_epoch == session._epoch
     finally:
         await session.aclose()
 
@@ -1282,6 +1349,19 @@ async def test_puck_gets_the_shield_talk_gets_duplex():
     talk = src[src.index("def _make_talk") :]
     assert "full_duplex=True" in talk  # Talk tab = proving ground (browser AEC)
     assert "interrupt_response=True" in talk
+
+
+def test_production_builder_has_no_classic_fallback():
+    import inspect
+
+    from gatekeeper import __main__ as main_mod
+
+    src = inspect.getsource(main_mod)
+    build = src[src.index("def _build_session") : src.index("def _make_talk")]
+    assert "return ThinSession(" in build
+    assert "RoomSession" not in build
+    assert "Gatekeeper(" not in build
+    assert "TurnWatchdog" not in build
 
 
 async def test_long_reply_is_not_cut_by_the_idle_close():

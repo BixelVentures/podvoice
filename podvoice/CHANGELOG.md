@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.13.12 — én officiel baseline og hårdere fysisk sandhed
+
+- `docs/STATUS.md`, `AGENTS.md`, produktmål og arkitektur skelner nu præcist mellem
+  v1.13.11 som første fysisk virkende half-duplex-version, den endnu åbne 10/10-gate
+  og det fulde produktmål. Historiske planer og Classic/direct-kode kan ikke længere
+  læses eller bygges som en parallel produktionsretning.
+- Add-on-builderen konstruerer ubetinget `ThinSession`; den døde Classic-fallback og
+  dens imports er fjernet fra produktionsentrypointet.
+- Mislykket Voice PE mic-start/-stop/keepalive er ikke længere et ignoreret boolsk
+  resultat. Fejlen bliver synlig, lukker rent og kan ikke efterlade en grøn men døv
+  samtale.
+- En talt teknisk fejl venter på firmwarebevist playback-start/-slut før teardown,
+  med en afgrænset timeout. Semantisk farvel-fallback er strengt cache-only og kan
+  aldrig indføre et skjult 15-sekunders TTS-netværkskald i lukningen.
+- Stop-latens er bundet til den aktive session og kun armeret ved faktisk lyd. Historik
+  gemmer eksplicit session-id, og trace-oprydning fjerner nu også gamle speaker-WAV'er.
+
 ## 1.13.11 — semantisk afslutning bliver altid hørbar
 
 - En eksplicit `response.done.status=failed` bæres nu gennem den provider-neutrale

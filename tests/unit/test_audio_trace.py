@@ -1,4 +1,5 @@
 import json
+import os
 import wave
 
 from gatekeeper.audio_trace import AudioTraceRecorder
@@ -73,3 +74,23 @@ def test_event_detail_may_be_named_name(tmp_path):
     assert tool_event["event"] == "tool_call"
     assert tool_event["name"] == "podconnect_recently_played"
     assert tool_event["call_id"] == "call-1"
+
+
+def test_cleanup_removes_all_wavs_including_speaker(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path, keep=1)
+    for name in ("old.json", "old-device.wav", "old-provider.wav", "old-speaker.wav"):
+        (tmp_path / name).write_bytes(b"{}" if name.endswith(".json") else b"wav")
+    for name in ("new.json", "new-device.wav", "new-provider.wav", "new-speaker.wav"):
+        target = tmp_path / name
+        target.write_bytes(b"{}" if name.endswith(".json") else b"wav")
+        target.touch()
+    # Make the retained manifest unambiguously newer.
+    (tmp_path / "old.json").touch()
+    (tmp_path / "new.json").touch()
+    os.utime(tmp_path / "old.json", (1, 1))
+    os.utime(tmp_path / "new.json", (2, 2))
+
+    recorder._cleanup()
+
+    assert not (tmp_path / "old-speaker.wav").exists()
+    assert (tmp_path / "new-speaker.wav").exists()

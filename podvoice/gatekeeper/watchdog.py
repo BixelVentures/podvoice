@@ -1,4 +1,7 @@
-"""Round-trip latency watchdog + barge-in detection (PLAN.md §8.1 / §8.2).
+"""LEGACY watchdog/barge-in helpers retained for historical regression tests.
+
+Voice PE production is half-duplex and its current lifecycle is owned by
+``ThinSession`` under ``docs/INVARIANTER.md``.
 
 Two resilience primitives, both designed around an *injectable monotonic clock*
 so the tests can drive them with a ``FakeClock`` instead of real sleeps:

@@ -1,4 +1,4 @@
-"""Canonical operational constants — the single source of truth (PLAN.md §3).
+"""Canonical operational constants for the production ThinSession path.
 
 Everything else must agree with these. They are surfaced as add-on options
 (see config.py / config.yaml) but these values are the defaults.

@@ -50,13 +50,24 @@ class Speech:
     def available(self) -> bool:
         return bool(self._key)
 
+    def cached(self, text: str) -> bytes | None:
+        """Return an already synthesized clip without doing network I/O.
+
+        Mechanical lifecycle fallbacks use this accessor after a provider failure:
+        teardown must never wait up to the speech API's 15 second network timeout.
+        """
+        if not text:
+            return None
+        return self._cache.get(f"{self._voice}:{text}")
+
     async def say(self, text: str) -> bytes | None:
         """Cached 24 kHz mono PCM for ``text`` in the assistant's voice, or ``None``."""
         if not text or not self._key:
             return None
         cache_key = f"{self._voice}:{text}"
-        if cache_key in self._cache:
-            return self._cache[cache_key]
+        cached = self.cached(text)
+        if cached is not None:
+            return cached
         try:
             pcm = await self._synth(text)
         except Exception as e:  # network / auth / rate — degrade to the tone, never raise

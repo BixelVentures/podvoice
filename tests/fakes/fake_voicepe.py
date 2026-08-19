@@ -44,13 +44,15 @@ class FakeVoicePELink:
     async def start(self) -> None:
         self.started = True
 
-    async def start_streaming(self) -> None:
+    async def start_streaming(self) -> bool:
         await asyncio.sleep(0)  # a real suspension point, like the real network call
         self.streaming = True
+        return True
 
-    async def stop_streaming(self) -> None:
+    async def stop_streaming(self) -> bool:
         await asyncio.sleep(0)  # ensures cancellation is DELIVERED here in tests
         self.streaming = False
+        return True
 
     async def rearm_wake_word(self) -> None:
         await asyncio.sleep(0)

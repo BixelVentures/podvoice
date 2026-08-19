@@ -68,6 +68,17 @@ async def test_prewarm_populates_cache():
     assert len(client.calls) == 2
 
 
+async def test_cache_only_lookup_never_calls_the_network():
+    client = _FakeClient(b"CACHED")
+    sp = Speech("k", client=client)
+
+    assert sp.cached("Farvel.") is None
+    assert client.calls == []
+    await sp.say("Farvel.")
+    assert sp.cached("Farvel.") == b"CACHED"
+    assert len(client.calls) == 1
+
+
 @pytest.mark.parametrize("bad", ["", None])
 async def test_empty_text_is_none(bad):
     sp = Speech("k", client=_FakeClient())

@@ -362,6 +362,7 @@ class StatusHub:
         text: str,
         *,
         ts: float | None = None,
+        session: str | None = None,
     ) -> None:
         """A complete turn (one utterance): broadcast AND persist to history. This is
         what the History tab shows — one clean turn, not per-token fragments."""
@@ -374,10 +375,11 @@ class StatusHub:
                     "dir": direction,
                     "text": text,
                     "ts": observed_at,
+                    "session": session,
                 }
             )
             if self._history is not None:  # persist so the History tab survives restarts
-                self._history.append(room, direction, text, ts=observed_at)
+                self._history.append(room, direction, text, ts=observed_at, session=session)
 
     def incr(self, metric: str, n: int = 1) -> None:
         if metric in self._metrics:

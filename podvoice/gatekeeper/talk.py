@@ -104,17 +104,19 @@ class BrowserLink:
                 n += 1
         return n
 
-    async def start_streaming(self) -> None:
+    async def start_streaming(self) -> bool:
         if self._streaming:
-            return  # keepalive re-assert — nothing to tell the browser
+            return True  # keepalive re-assert — nothing to tell the browser
         self._streaming = True
         await self._safe_json({"type": "mic", "on": True})
+        return True
 
-    async def stop_streaming(self) -> None:
+    async def stop_streaming(self) -> bool:
         if not self._streaming:
-            return
+            return True
         self._streaming = False
         await self._safe_json({"type": "mic", "on": False})
+        return True
 
     # ---------------------------------------------------------------- speaker path
     async def play_url(self, url: str) -> None:
@@ -205,6 +207,7 @@ class TalkHub:
         text: str,
         *,
         ts: float | None = None,
+        session: str | None = None,
     ) -> None:
         if text:
             observed_at = time.time() if ts is None else ts
@@ -212,7 +215,7 @@ class TalkHub:
             # metadata used by the History tab, not another Talk rendering protocol.
             self._post({"type": "transcript", "dir": direction, "text": text})
         if self._history is not None and text:
-            self._history.append(room, direction, text, ts=observed_at)
+            self._history.append(room, direction, text, ts=observed_at, session=session)
 
     def set_latency(self, room: str, ms: float | None) -> None:
         if ms is not None:

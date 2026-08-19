@@ -8,6 +8,8 @@
 > ch1+gain4-testen, matrix-kravene — bevares ordret som OPSKRIFTEN for uge-4+-etapen.
 > OBS: §4b's idle_timeout_ms-afsnit er skærpet af modprøven: feltet droppes HELT
 > (genprompt-semantik = G7-race), ikke kun "sendes ikke i v1".
+> Filen er parkeret research og må ikke ændre den shippede half-duplex-kæde, før
+> `PRODUKTMÅL.md`'s separate duplex-gate er oprettet og fysisk bestået.
 
 
 

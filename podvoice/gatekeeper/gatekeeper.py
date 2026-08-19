@@ -1,4 +1,6 @@
-"""The 0-byte gate (PLAN.md §7.4).
+"""LEGACY audio-gate helper retained for pre-1.13 regression tests.
+
+Production privacy and half-duplex gating live in firmware plus ``ThinSession``.
 
 For every mic frame the device emits, the gatekeeper either forwards it to
 the realtime brain (gate open) or, during LOUNGE_WINDOW / IDLE, withholds it. The default

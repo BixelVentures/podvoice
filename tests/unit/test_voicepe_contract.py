@@ -444,6 +444,19 @@ async def test_reply_is_armed_before_the_media_command():
     assert client.executed == ["podvoice_reply_expect", "media:7"]
 
 
+async def test_stream_service_results_are_not_discarded():
+    client = _StubClient(FULL_SERVICES, [])
+    link = _link(client)
+    await link._resolve_entities()
+
+    assert await link.start_streaming() is True
+    assert await link.stop_streaming() is True
+    assert client.executed == ["podvoice_stream_start", "podvoice_stream_stop"]
+
+    link._user_services.pop("podvoice_stream_start")
+    assert await link.start_streaming() is False
+
+
 async def test_direct_support_is_read_off_the_firmware_not_a_setting():
     """Capability detection requires the safe private-speaker v3 graph.
 

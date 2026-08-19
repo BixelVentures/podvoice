@@ -1,5 +1,8 @@
 # Reliability Overhaul v2 — HANDOVER til Mads (0.91.0)
 
+> **HISTORISK HANDOVER.** Den beskrevne branch, status og tjekliste er ikke længere
+> gældende. Brug `../AGENTS.md` og `STATUS.md`; denne fil må ikke styre produktion.
+
 Alt kode-arbejde i fase 0–3 er implementeret, testet (320 tests, ruff+mypy rene)
 og ligger på branchen `claude/podvoice-reliability-v2-6g8yjz`. Det, der er
 tilbage, er præcis det, der IKKE kan valideres i simulation: ekko, wake-ord og

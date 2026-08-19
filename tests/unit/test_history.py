@@ -45,6 +45,23 @@ def test_gap_splits_conversations_newest_first(tmp_path):
     assert convs[1]["turns"][0]["text"] == "first"
 
 
+def test_explicit_session_boundary_splits_immediate_rewake(tmp_path):
+    h = _h(tmp_path, gap_s=300.0)
+    h.append("r0", "in", "Tak, det var alt.", ts=100.0, session="r0:a")
+    h.append("r0", "out", "Farvel.", ts=100.5, session="r0:a")
+    h.append("r0", "in", "Hvad er datoen?", ts=102.0, session="r0:b")
+    h.append("r0", "out", "Det er onsdag.", ts=102.5, session="r0:b")
+
+    convs = h.conversations(room="r0")
+
+    assert len(convs) == 2
+    assert convs[0]["session"] == "r0:b"
+    assert [turn["text"] for turn in convs[0]["turns"]] == [
+        "Hvad er datoen?",
+        "Det er onsdag.",
+    ]
+
+
 def test_room_change_splits(tmp_path):
     h = _h(tmp_path)
     h.append("talk", "in", "a", ts=1.0)

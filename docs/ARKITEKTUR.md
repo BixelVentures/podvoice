@@ -96,9 +96,12 @@ Godkendt firmware skal statisk og i renderet konfiguration have:
 
 - Classic-engine som alternativ samtalemotor.
 - Stock HA Assist som wake- eller sessionsejer.
-- Modellens `end_conversation`-tool.
+- Lokale slutfrase-, keyword- eller ASR-aliasregler som afslutningsautoritet.
 - Direct PCM, som krævede en syntetisk stock-VA-håndtrykssekvens.
 - Et kontrol-bip eller en ekstra announcement ved samtaleluk.
 
-Koden kan midlertidigt indeholde isolerede historiske hjælpefunktioner, men settings og
-runtime må ikke kunne aktivere disse veje.
+Koden kan midlertidigt indeholde isolerede historiske hjælpefunktioner og regressioner,
+men add-on-builder, settings og runtime må ikke kunne aktivere disse veje. Modellens
+reserverede, provider-neutrale `end_conversation`-signal ovenfor er derimod den gældende
+semantiske produktionskontrakt; det går aldrig gennem HA/MCP og lukker ikke transporten
+direkte.

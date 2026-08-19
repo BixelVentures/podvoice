@@ -1,9 +1,8 @@
-"""Add-on entrypoint: build one RoomSession per configured Voice PE and run.
+"""Add-on entrypoint: build one canonical ThinSession per Voice PE and run.
 
-Reads /data/options.json + SUPERVISOR_TOKEN (config.py), wires the real
-components (AttentionClient, OpenAIRealtimeSession, VoicePELink, Heartbeat,
-Gatekeeper, Playback, ToolRouter+MCP) per room, and runs until SIGTERM — at
-which point it releases attention so the music is restored before exit.
+Reads settings + Supervisor credentials and wires OpenAI Realtime, VoicePELink,
+HA/MCP tools, PodConnect attention and the reply bus. There is no runtime engine
+switch: production always follows ``docs/INVARIANTER.md``.
 """
 
 from __future__ import annotations
@@ -22,13 +21,11 @@ from . import constants as C
 from .config import Config, RoomMap, load_config
 from .console import console_factory, list_models
 from .diag import check_status, resolve_target, run_s1, run_s2
-from .gatekeeper import Gatekeeper
 from .heartbeat import Heartbeat
 from .history import History
 from .hub import StatusHub
 from .mcp_client import HomeAssistantMCP
 from .openai_realtime import OPENAI_RATE, make_session
-from .orchestrator import RoomSession
 from .playback import Playback
 from .podconnect import AttentionClient
 from .reply import ReplyBus
@@ -40,7 +37,6 @@ from .timers import TimerManager
 from .tools import ToolRouter
 from .usage import UsageMeter
 from .voicepe import VoicePELink
-from .watchdog import BargeIn, TurnWatchdog
 from .web import DEFAULT_PORT, create_app, start_web
 
 _LOG = logging.getLogger("podvoice")
@@ -150,42 +146,8 @@ def _build_session(
     voicepe.mic_channel = cfg.mic_channel
     voicepe.mic_gain = cfg.mic_gain
     voicepe.wake_word = cfg.wake_word
-    # Track B (engine: thin): the model owns turn understanding. Server VAD handles
-    # turn boundaries; only full-duplex Talk turns speech into barge-in. The provider gets
-    # the idle signal enabled; ThinSession replaces the whole state machine.
-    if cfg.engine == "thin":
-        from .thin import ThinSession
+    from .thin import ThinSession
 
-        reply_url = (
-            f"http://{_host_ip_for(room.voicepe_host)}:{DEFAULT_PORT}/reply/{room.room}.flac"
-        )
-        if reply_token:
-            reply_url += f"?t={reply_token}"
-        return ThinSession(
-            room=room.room,
-            attention=attention,
-            heartbeat=Heartbeat(attention, period_ms=cfg.heartbeat_ms),
-            brain=brain,
-            voicepe=voicepe,
-            playback=Playback(sink=voicepe.play_pcm),
-            tools=tools,
-            hub=hub,
-            speech=speech,
-            reply_bus=reply_bus,
-            reply_url=reply_url,
-            duck_level=cfg.duck_level,
-            usage=usage,
-            speaker_path=cfg.speaker_path,  # "auto" -> direct iff the FIRMWARE says so
-            full_duplex=cfg.full_duplex,  # PUCK: shield ON unless the owner deliberately
-            # enables duplex after the matrix-C gate. (0.92-0.95 hardcoded True HERE by
-            # mistake — the shield was off on the device and no setting could reach it.)
-            idle_timeout_s=cfg.idle_timeout_s,
-            max_session_s=cfg.max_session_min * 60,
-            audio_trace=audio_trace,
-        )
-    gatekeeper = Gatekeeper(send_to_brain=brain.send_audio, send_silence=False)
-    playback = Playback(sink=voicepe.play_pcm)
-    heartbeat = Heartbeat(attention, period_ms=cfg.heartbeat_ms)
     # The device-reachable URL it fetches to play the AI reply (announce path). .flac because
     # the on-device micro_decoder rejects WAV at file-type detection but decodes FLAC (the
     # extension is one of the two signals it sniffs, alongside the audio/flac Content-Type).
@@ -195,33 +157,25 @@ def _build_session(
     if reply_token:
         reply_url += f"?t={reply_token}"
 
-    async def _on_abort(reason: str, elapsed: float) -> None:  # watchdog poll loop handles posting
-        _LOG.warning("watchdog abort (%s, %.0fms)", reason, elapsed * 1000)
-
-    watchdog = TurnWatchdog(_on_abort, ttfr_ms=cfg.watchdog_ms)
-    return RoomSession(
+    return ThinSession(
         room=room.room,
         attention=attention,
-        heartbeat=heartbeat,
-        gatekeeper=gatekeeper,
+        heartbeat=Heartbeat(attention, period_ms=cfg.heartbeat_ms),
         brain=brain,
         voicepe=voicepe,
-        playback=playback,
+        playback=Playback(sink=voicepe.play_pcm),
         tools=tools,
-        watchdog=watchdog,
-        bargein=BargeIn(),
         hub=hub,
+        speech=speech,
         reply_bus=reply_bus,
         reply_url=reply_url,
-        reply_streaming=cfg.reply_streaming,
-        speech=speech,
+        duck_level=cfg.duck_level,
+        usage=usage,
         speaker_path=cfg.speaker_path,
         full_duplex=cfg.full_duplex,
-        lounge_window_s=cfg.lounge_window_s,
-        duck_level=cfg.duck_level,
-        lounge_level=cfg.lounge_level,
-        vad_threshold=cfg.vad_threshold,
-        usage=usage,
+        idle_timeout_s=cfg.idle_timeout_s,
+        max_session_s=cfg.max_session_min * 60,
+        audio_trace=audio_trace,
     )
 
 
