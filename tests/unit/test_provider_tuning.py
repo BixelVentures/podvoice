@@ -63,6 +63,24 @@ async def test_typed_input_waits_for_matching_item_created_before_response():
     ]
 
 
+async def test_typed_input_accepts_current_ga_item_added_ack():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._configured = True
+    s._configured_event.set()
+    task = asyncio.create_task(s.send_text("Hvad er klokken?", item_id="pv_ga_ack"))
+    await asyncio.sleep(0)
+    create = s._ws.sent[0]
+    assert create["type"] == "conversation.item.create"
+    assert len(create["event_id"]) == 32
+    s._ws._incoming.append(  # type: ignore[attr-defined]
+        _Msg(json.dumps({"type": "conversation.item.added", "item": {"id": "pv_ga_ack"}}))
+    )
+    await _drain(s)
+    await task
+    assert s._ws.sent[-1] == {"type": "response.create"}
+
+
 async def test_typed_input_normalizes_overlong_or_unsafe_item_id_before_send():
     s = OpenAIRealtimeSession(api_key="k")
     s._ws = _FakeWS()  # type: ignore[assignment]
@@ -107,6 +125,95 @@ async def test_typed_item_rejection_fails_immediately_without_response_create():
     with pytest.raises(ConnectionError, match="rejected typed conversation item"):
         await task
     assert [message["type"] for message in s._ws.sent] == ["conversation.item.create"]
+
+
+async def test_correlated_provider_error_rejects_only_its_typed_item():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._configured = True
+    s._configured_event.set()
+    task = asyncio.create_task(s.send_text("Hej", item_id="pv_correlated"))
+    await asyncio.sleep(0)
+    event_id = s._ws.sent[0]["event_id"]
+    s._ws._incoming.append(  # type: ignore[attr-defined]
+        _Msg(
+            json.dumps(
+                {
+                    "type": "error",
+                    "error": {
+                        "event_id": event_id,
+                        "code": "invalid_request_error",
+                        "message": "create rejected",
+                    },
+                }
+            )
+        )
+    )
+    await _drain(s)
+    with pytest.raises(ConnectionError, match="rejected typed conversation item"):
+        await task
+    assert [message["type"] for message in s._ws.sent] == ["conversation.item.create"]
+
+
+async def test_unrelated_provider_error_does_not_reject_pending_typed_item():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._configured = True
+    s._configured_event.set()
+    task = asyncio.create_task(s.send_text("Hej", item_id="pv_pending"))
+    await asyncio.sleep(0)
+    s._ws._incoming.extend(  # type: ignore[attr-defined]
+        [
+            _Msg(
+                json.dumps(
+                    {
+                        "type": "error",
+                        "error": {
+                            "event_id": "evt_unrelated",
+                            "code": "server_error",
+                            "message": "unrelated recoverable error",
+                        },
+                    }
+                )
+            ),
+            _Msg(json.dumps({"type": "conversation.item.added", "item": {"id": "pv_pending"}})),
+        ]
+    )
+    await _drain(s)
+    await task
+    assert s._ws.sent[-1] == {"type": "response.create"}
+
+
+async def test_uncorrelated_error_without_event_id_does_not_reject_typed_item():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._configured = True
+    s._configured_event.set()
+    task = asyncio.create_task(s.send_text("Hej", item_id="pv_pending_no_event"))
+    await asyncio.sleep(0)
+    s._ws._incoming.extend(  # type: ignore[attr-defined]
+        [
+            _Msg(
+                json.dumps(
+                    {
+                        "type": "error",
+                        "error": {"code": "server_error", "message": "temporary issue"},
+                    }
+                )
+            ),
+            _Msg(
+                json.dumps(
+                    {
+                        "type": "conversation.item.added",
+                        "item": {"id": "pv_pending_no_event"},
+                    }
+                )
+            ),
+        ]
+    )
+    await _drain(s)
+    await task
+    assert s._ws.sent[-1] == {"type": "response.create"}
 
 
 async def test_stale_item_created_does_not_acknowledge_another_text():

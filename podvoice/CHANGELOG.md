@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.13.19 — GA-korrekt Realtime-kvittering
+
+- Den installerede 1.13.18-preflight beviste, at OpenAI accepterede sessionen og det
+  32-tegns item-id uden en providerfejl, men PodVoice ventede på den ældre
+  `conversation.item.created`-event. Den aktuelle GA-protokol kvitterer klientoprettede
+  items med `conversation.item.added`. Providerlaget accepterer nu den aktuelle event
+  og bevarer kompatibilitet med den ældre event under protokolmigration.
+- Hvert tekst-item har nu også et korreleret klient-`event_id`. En samtidig, men
+  uvedkommende recoverable Realtime-fejl kan derfor ikke længere afvise den ventende
+  Talk-tur; kun en fejl knyttet til præcis create-eventen gør det.
+- Der er tilføjet regressioner for begge ACK-navne, streng item-korrelation og
+  uvedkommende providerfejl. Prompt V4, firmware, gain, VAD, pre-roll og den fysiske
+  half-duplex-kæde er fortsat uændrede.
+
 ## 1.13.18 — providergyldige Talk-id'er og reproducerbar preflight
 
 - Den første installerede 1.13.17-preflight afslørede, at det korrelerede Realtime-
@@ -21,7 +35,7 @@
 
 - Skrevet Talk-input går nu altid gennem `ThinSession`. Browseren får først en accepteret
   tur, når Realtime har accepteret sessionen, oprettet præcis det korrelerede bruger-item
-  og kvitteret med `conversation.item.created`; først derefter oprettes modelsvaret.
+  og kvitteret med providerens item-event; først derefter oprettes modelsvaret.
 - Talk-protokol v2 adskiller WebSocket, engine-readiness, samtaletilstand og inputaccept.
   Alle events har ordnet sekvens samt connection-, session-, turn- og playback-id, og
   gamle sockets eller playback-kanter kan ikke ændre den aktuelle samtale.

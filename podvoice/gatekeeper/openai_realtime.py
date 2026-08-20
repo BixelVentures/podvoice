@@ -202,6 +202,10 @@ class OpenAIRealtimeSession:
     _item_created_waiters: dict[str, asyncio.Future] = field(
         default_factory=dict, init=False, repr=False
     )
+    # Correlate provider errors to the exact typed create request.  Realtime error
+    # events carry the originating client event_id; an unrelated recoverable error
+    # must never reject a valid typed turn merely because its item ACK is pending.
+    _item_create_event_ids: dict[str, str] = field(default_factory=dict, init=False, repr=False)
     # Mic audio can arrive before Realtime has accepted session.update. Dropping it makes
     # "Okay Nabu hvad er klokken" become only "...klokken" unless the user pauses after
     # the wake word. Keep a short raw-input buffer and replay it once the server is ready.
@@ -424,12 +428,15 @@ class OpenAIRealtimeSession:
         if self._ws is None or bool(getattr(self._ws, "closed", False)):
             raise ConnectionError("OpenAI realtime socket closed before text submission")
         iid = _safe_client_item_id(item_id)
+        create_event_id = f"evt_{hashlib.sha256(iid.encode()).hexdigest()[:28]}"
         loop = asyncio.get_running_loop()
         accepted = loop.create_future()
         self._item_created_waiters[iid] = accepted
+        self._item_create_event_ids[create_event_id] = iid
         try:
             await self._ws.send_json(
                 {
+                    "event_id": create_event_id,
                     "type": "conversation.item.create",
                     "item": {
                         "id": iid,
@@ -444,6 +451,7 @@ class OpenAIRealtimeSession:
             raise ConnectionError("OpenAI did not acknowledge the typed conversation item") from exc
         finally:
             self._item_created_waiters.pop(iid, None)
+            self._item_create_event_ids.pop(create_event_id, None)
         if self._ws is None or bool(getattr(self._ws, "closed", False)):
             raise ConnectionError("OpenAI realtime socket closed before response creation")
         await self._ws.send_json({"type": "response.create"})
@@ -583,14 +591,18 @@ class OpenAIRealtimeSession:
                 if text:
                     _LOG.info("turn: input transcript %r", text)
                 yield InputTranscript(text)
-            elif t == "conversation.item.created":
+            elif t in {"conversation.item.added", "conversation.item.created"}:
+                # GA Realtime emits conversation.item.added.  Older/beta-compatible
+                # deployments emitted conversation.item.created for the same client
+                # create acknowledgement.  Accept both during protocol migration;
+                # correlation remains strict on the client-supplied item id.
                 item = ev.get("item") or {}
                 item_id = str(item.get("id") or ev.get("item_id") or "")
                 waiter = self._item_created_waiters.get(item_id)
                 if waiter is not None and not waiter.done():
                     waiter.set_result(None)
                 elif item_id:
-                    _LOG.debug("ignoring uncorrelated conversation.item.created id=%s", item_id)
+                    _LOG.debug("ignoring uncorrelated %s id=%s", t, item_id)
             elif t == "response.function_call_arguments.done":
                 call_id = str(ev.get("call_id") or "")
                 if call_id:
@@ -743,14 +755,26 @@ class OpenAIRealtimeSession:
                     # die loudly so the engine fails audibly and the log names the field.
                     _LOG.error("session.update REJECTED — failing loudly: %s", err)
                     raise RuntimeError(f"session.update rejected: {err.get('message', err)}")
-                if self._item_created_waiters:
-                    # A typed turn is not accepted until conversation.item.created.
+                error_event_id = str(err.get("event_id") or "")
+                pending_item_id = self._item_create_event_ids.get(error_event_id)
+                message = str(err.get("message") or err)
+                item_specific = str(err.get("param") or "").startswith("item") or any(
+                    marker in message for marker in ("item.id", "conversation.item.create")
+                )
+                if pending_item_id or (
+                    not error_event_id and item_specific and len(self._item_created_waiters) == 1
+                ):
+                    # A typed turn is not accepted until its provider item event.
                     # Surface an item rejection immediately instead of hiding the
                     # provider's precise error behind a later generic ACK timeout.
-                    message = str(err.get("message") or err)
                     failure = ConnectionError(f"OpenAI rejected typed conversation item: {message}")
                     _LOG.warning("openai rejected pending typed item: %s", err)
-                    self._fail_item_waiters(failure)
+                    if pending_item_id:
+                        waiter = self._item_created_waiters.get(pending_item_id)
+                        if waiter is not None and not waiter.done():
+                            waiter.set_exception(failure)
+                    else:
+                        self._fail_item_waiters(failure)
                     continue
                 _LOG.warning("openai realtime error: %s", err)
 
@@ -826,6 +850,7 @@ class OpenAIRealtimeSession:
             if not waiter.done():
                 waiter.set_exception(exc)
         self._item_created_waiters.clear()
+        self._item_create_event_ids.clear()
 
 
 def make_session(

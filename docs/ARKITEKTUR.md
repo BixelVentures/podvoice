@@ -44,7 +44,8 @@ Alle brugerinputs ejes først af `ThinSession`. Talk må aldrig kalde Realtime d
 eller vise et input som afleveret ved en rå WebSocket-forbindelse. En skrevet tur får et
 kommando-id; `ThinSession` opretter session-/tur-id, afviser busy/closing/offline og
 sender et klientgenereret item-id. Realtime skal kvittere det præcise item med
-`conversation.item.created`, før `response.create` sendes og browseren må committe
+`conversation.item.added` (med kompatibilitet for den ældre
+`conversation.item.created`), før `response.create` sendes og browseren må committe
 brugerboblen. Talk-events sendes i én ordnet kø og bærer connection-, session-, turn-
 og playback-id, så en sen event fra en gammel socket eller afspilning er virkningsløs.
 

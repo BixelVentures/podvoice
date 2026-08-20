@@ -149,21 +149,36 @@ PodVoice dannede `pv_` plus 32 hashtegn — 35 tegn i alt mod providerens maksim
 Der blev ikke oprettet noget modelsvar. Fejlen er dermed transportmekanisk og har intet
 med dansk, prompt, TPM, gain eller Voice PE at gøre. **v1.13.17 er ikke testberettiget.**
 
-**v1.13.18 er den aktuelle softwarekandidat.** Alle egne og normaliserede Realtime-
+v1.13.18 rettede item-længden og blev installeret den 20. august. Realtime accepterede
+`session.updated`, og der kom ingen item-afvisning, men preflighten stoppede med
+“OpenAI did not acknowledge the typed conversation item”. Den efterfølgende
+protokolaudit fandt årsagen: providerlaget ventede kun på den ældre
+`conversation.item.created`, mens den aktuelle GA-protokol sender
+`conversation.item.added` for et klientoprettet item. Der blev fortsat ikke oprettet et
+modelsvar. **v1.13.18 er derfor ikke testberettiget.**
+
+**v1.13.19 er den aktuelle softwarekandidat.** Alle egne og normaliserede Realtime-
 item-id'er er nu præcis højst 32 tegn, og en eksplicit itemafvisning fejler øjeblikkeligt
-uden `response.create`. Samme audit fandt og lukkede tre nærliggende sandhedshuller:
+uden `response.create`. Providerlaget accepterer både den aktuelle
+`conversation.item.added` og den ældre kompatibilitetsevent. Hvert create-kald har et
+korreleret `event_id`, så en uvedkommende recoverable providerfejl ikke kan afvise den
+ventende tur. Den tidligere audit fandt og lukkede desuden tre nærliggende sandhedshuller:
 preflighten bruger nu faktisk gemt prompt, effektive model og stemme; rapporten bærer
 promptkilde/version/hash og tool-schema-hash; og Talk afviser ubundet tekst- eller
 command-id-længde før wake/provider. Eval-oraklets tid- og sportskrav er desuden gjort
 strengere, så en tvetydig delstreng eller forkert kampretning ikke kan give falsk grøn.
 
-Den 20. august består kandidaten lokalt med **471 tests**, Ruff, formatteringskontrol,
-mypy for 39 kildefiler, parsing af alle 10 panel-scriptblokke og reelle lokale
+Den 20. august består kandidaten lokalt med **475 tests**, inklusive reelle lokale
+HTTP/WebSocket-tests, plus Ruff, formatteringskontrol og mypy for 39 kildefiler. Prompt
+V4, firmware, gain, VAD, pre-roll og fysisk half-duplex er uændrede. v1.13.19 er endnu
+ikke live-preflightet eller fysisk testklar; næste gate er CI/add-on-build, installation
+og grøn preflight med den rapporterede aktive promptidentitet. Først derefter må én
+fysisk golden chain køres.
+
+Den fulde gate omfatter Ruff, formatteringskontrol, mypy for 39 kildefiler, parsing af
+alle 10 panel-scriptblokke og reelle lokale
 HTTP/WebSocket-tests. Testmiljøet blev bevidst lagt i `/private/tmp` efter den kendte
-Documents/iCloud-låsning af projektets gamle venv. Prompt V4, firmware, gain, VAD,
-pre-roll og fysisk half-duplex er uændrede. v1.13.18 er endnu ikke live-preflightet eller
-fysisk testklar; næste gate er CI/add-on-build, installation og grøn preflight med den
-rapporterede aktive promptidentitet. Først derefter må én fysisk golden chain køres.
+Documents/iCloud-låsning af projektets gamle venv.
 
 ## Adgangskrav før næste udvikling
 
