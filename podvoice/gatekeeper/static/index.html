@@ -1393,9 +1393,9 @@ setInterval(function () {
     a.preload = "none";
     a.onplaying = function () { if (replyAudio !== a) return; playRetryBtn.hidden = true; sendJson({ type: "media", announcing: true, playback_id: playbackId }); };
     a.onended = function () { if (replyAudio !== a) return; sendJson({ type: "media", announcing: false, playback_id: playbackId }); currentPlaybackId = null; };
-    a.onerror = function () { if (replyAudio !== a) return; sendJson({ type: "media", announcing: false, playback_id: playbackId }); currentPlaybackId = null; };
+    a.onerror = function () { if (replyAudio !== a) return; sendJson({ type: "media", state: "fault", playback_id: playbackId }); currentPlaybackId = null; };
     a.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "r=" + Date.now(); // never a cached reply
-    a.play().catch(function () { micHint.textContent = "Browseren blokerede automatisk lyd."; playRetryBtn.hidden = false; });
+    a.play().catch(function () { sendJson({ type: "media", state: "blocked", playback_id: playbackId }); micHint.textContent = "Browseren blokerede automatisk lyd."; playRetryBtn.hidden = false; });
   }
   playRetryBtn.onclick = function () {
     if (!replyAudio) return;
@@ -1406,7 +1406,7 @@ setInterval(function () {
     var playbackId = currentPlaybackId;
     var old = replyAudio; replyAudio = null; currentPlaybackId = null;
     try { old.pause(); old.removeAttribute("src"); old.load(); } catch (e) {}
-    if (report) sendJson({ type: "media", announcing: false, playback_id: playbackId });
+    if (report) sendJson({ type: "media", state: "fault", playback_id: playbackId });
   }
   function sendJson(o) { if (wsReady && ws) { try { ws.send(JSON.stringify(o)); } catch (e) {} } }
   function sendWake() { ensurePlay(); sendJson({ type: "wake" }); }

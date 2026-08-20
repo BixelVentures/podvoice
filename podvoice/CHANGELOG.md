@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.13.24 — fysisk playback ejer sin egen tur
+
+- Fjerner den faste 500 ms overgang fra færdig modelgenerering til ny lyttetilstand.
+  `response.done` betyder ikke, at højttaleren er færdig; kun det korrelerede fysiske
+  playback-finish efterfulgt af ekkohalen må åbne næste tur.
+- Hvert svar får én playback-lease bundet til samtale, tur, output-item og playback-id.
+  Et gammelt, dubleret, manglende eller omvendt playback-event kan ikke åbne mikrofonen,
+  afkorte et nyt svar eller lukke en ny tur.
+- Manglende playback-start genprøver præcis samme svar og samme lease én gang og lukker
+  derefter rent med en synlig fejl. Kæden fejler aldrig åbent til falsk lytning.
+- Talk kræver nu præcis playback-id og rækkefølgen startet → færdig. Browserfejl og
+  autoplay-blokering kan ikke længere udgive sig for normal fysisk afslutning.
+- Fysiske trace-events bærer nu session-, tur- og playback-id, og trace-oraklet afviser
+  playback, der krydser ejergrænsen. Prompt, model, gain, VAD og firmware er uændrede.
+
 ## 1.13.23 — én naturlig Realtime-respons per direkte tur
 
 - Fjerner det interne `continue_conversation`-værktøj og den obligatoriske ekstra

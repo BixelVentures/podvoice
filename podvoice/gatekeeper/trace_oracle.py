@@ -244,7 +244,7 @@ class TraceOracle:
         if any(not text for text in input_texts):
             issues.append(TraceIssue("input_transcript_empty", "An input transcript is empty"))
 
-        self._playback_pairs(names, issues)
+        self._playback_pairs(events, names, issues)
         self._closure(events, names, issues)
 
         if self.adapter == "voicepe":
@@ -281,7 +281,82 @@ class TraceOracle:
             )
 
     @staticmethod
-    def _playback_pairs(names: list[str], issues: list[TraceIssue]) -> None:
+    def _playback_pairs(
+        events: list[Mapping[str, Any]], names: list[str], issues: list[TraceIssue]
+    ) -> None:
+        playback_events = [
+            (index, event, names[index])
+            for index, event in enumerate(events)
+            if names[index] in ("playback_started", "playback_finished")
+        ]
+        identified = any(event.get("playback_id") for _, event, _ in playback_events)
+        if identified:
+            active: dict[str, tuple[int, str | None, str | None]] = {}
+            pairs = 0
+            for index, event, name in playback_events:
+                playback_id = str(event.get("playback_id") or "")
+                if not playback_id:
+                    issues.append(
+                        TraceIssue(
+                            "playback_id_missing",
+                            "An identified trace contains a playback edge without an id",
+                            event_index=index,
+                        )
+                    )
+                    continue
+                session_id = str(event.get("session_id") or "") or None
+                turn_id = str(event.get("turn_id") or "") or None
+                if name == "playback_started":
+                    if playback_id in active:
+                        issues.append(
+                            TraceIssue(
+                                "playback_double_start",
+                                f"Playback {playback_id} started twice",
+                                event_index=index,
+                            )
+                        )
+                    active[playback_id] = (index, session_id, turn_id)
+                    continue
+                started = active.pop(playback_id, None)
+                if started is None:
+                    issues.append(
+                        TraceIssue(
+                            "playback_finish_without_start",
+                            f"Playback {playback_id} finished without its matching start",
+                            event_index=index,
+                        )
+                    )
+                    continue
+                _, start_session, start_turn = started
+                if (start_session, start_turn) != (session_id, turn_id):
+                    issues.append(
+                        TraceIssue(
+                            "playback_owner_mismatch",
+                            f"Playback {playback_id} crossed session/turn ownership",
+                            event_index=index,
+                        )
+                    )
+                    continue
+                pairs += 1
+            for playback_id, (index, _session, _turn) in active.items():
+                issues.append(
+                    TraceIssue(
+                        "playback_finish_missing",
+                        f"Playback {playback_id} never finished",
+                        event_index=index,
+                    )
+                )
+            if names.count("response_audio_started") and not pairs:
+                issues.append(
+                    TraceIssue(
+                        "physical_playback_missing",
+                        "Model audio exists but no owned physical playback pair was observed",
+                    )
+                )
+            return
+
+        # Historical traces predate playback identity. Keep their weaker adjacency
+        # analysis for diagnosis, but they cannot prove cross-turn ownership.
         playing = False
         pairs = 0
         for index, name in enumerate(names):

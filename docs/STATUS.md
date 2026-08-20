@@ -243,7 +243,7 @@ transskription “Læg sekste.” ankom, og sagde “Farvel, vi tales ved.” ud
 afslutningshensigt. Fysisk playback, én teardown og wake-rearm på 98 ms virkede, men
 semantikken fejlede. **v1.13.22 er derfor fysisk afvist og ikke testklar.**
 
-**v1.13.23 er den aktive installerede softwarekandidat.** Den fjerner den obligatoriske
+**v1.13.23 er den senest installerede, men nu maskinelt afviste kandidat.** Den fjerner den obligatoriske
 fortsættelsesbeslutning og den tvungne to-respons-vej. Realtime bruger automatisk
 værktøjsvalg: direkte spørgsmål besvares i én respons, domæneværktøjer bruges kun ved
 behov, og `end_conversation` forbliver den eneste modelsemantiske lukningsautoritet.
@@ -263,9 +263,25 @@ $0,091 og 107 sekunders automatisk TPM-pause. Første modellyd lå på 861–1.1
 direkte og lokale ture; web lå på 2.802 ms. Dette er browser/provider-evidens, ikke
 fysisk Voice PE-playback.
 
-Kandidaten er dermed **maskinelt adgangsgodkendt til én frisk fysisk golden chain**.
-Den er ikke lifecycle release-godkendt, før samme installerede kandidat først består
-golden chain og derefter 10/10 ubrudte fysiske cyklusser.
+En efterfølgende rigtig Talk/Thin-kæde fandt en deterministisk playback-race og stoppede
+fysisk test. Providerens svar var færdiggenereret kl. 14:00:37.126, browserens playback
+startede først 859 ms senere, men den gamle faste 500 ms-regel havde allerede åbnet næste
+tur. Da det gamle svar sluttede under den nye `get_time`-tur, blev slut-eventet anvendt
+på globale felter og afkortede det nye svar. Det er en lifecycle-/playbackfejl, ikke en
+prompt-, model-, gain-, VAD- eller danskfejl. **1.13.23 er derfor ikke testklar.**
+
+**v1.13.24 er den lokale softwarekandidat.** Den erstatter tidsreglen med én playback-
+lease per svar, bundet til session, tur, output-item og playback-id. Ny brugerlyd og
+skrevet input forbliver gated gennem ventet start, fysisk afspilning og ekkohale. Kun
+matching start→finish kan åbne opfølgningen; stale, dublerede, omvendte og manglende
+events kan ikke ændre en nyere tur. Manglende start genprøver samme lease én gang og
+lukker derefter rent. Talk håndhæver samme id/rækkefølge, og fysiske traces bærer nu
+session-/tur-/playback-id, så oraklet kan afvise krydset ejerskab.
+
+Lokalt er **489 tests** grønne, inklusive reelle HTTP/WebSocket-tests uden sandboxens
+portblokering. Ruff og formatteringskontrol er grønne. Kandidaten er endnu ikke pushed,
+bygget i CI, installeret eller live-/fysisk testet; den må derfor ikke kaldes testklar
+endnu. Prompt V5, `gpt-realtime-2.1`, firmware, gain, VAD og pre-roll er uændrede.
 
 Den fulde gate omfatter Ruff, formatteringskontrol, mypy for 39 kildefiler, parsing af
 alle 10 panel-scriptblokke og reelle lokale

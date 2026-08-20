@@ -49,6 +49,14 @@ sender et klientgenereret item-id. Realtime skal kvittere det præcise item med
 brugerboblen. Talk-events sendes i én ordnet kø og bærer connection-, session-, turn-
 og playback-id, så en sen event fra en gammel socket eller afspilning er virkningsløs.
 
+Hvert publiceret svar får én playback-lease i `ThinSession`, bundet til den konkrete
+samtale, tur, output-item og playback-generation. Providerens `response.done` afslutter
+kun genereringen. Tilstanden forbliver optaget gennem ventet afspilningsstart, fysisk
+playback og ekkohale; først den samme leases `playback_finished` åbner næste tur. Voice
+PE serialiserer det ene inflight-svar gennem firmwarefasen, mens Talk også bærer det
+eksplicitte playback-id. Et event fra et tidligere svar kan derfor ikke ændre den
+aktuelle tur.
+
 ## Ejerskab
 
 - Voice PE ejer wakeword, mikrofonport, LED og assistentens stemme.

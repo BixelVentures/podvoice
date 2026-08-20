@@ -171,12 +171,13 @@ async def test_reply_plays_the_same_bus_stream_and_shield_holds():
         gemini.emit(AudioChunk(_frame(n_samples=2400), item_id="i1"), TurnComplete())
         await _wait_until(lambda: len(wire.of("play")) == 1)
         assert wire.of("play")[0]["url"] == REPLY_URL  # the puck's stream, verbatim
+        playback_id = wire.of("play")[0]["playback_id"]
 
-        link.media_state(True)  # browser: audio element started playing
+        link.media_state(True, playback_id)  # browser: audio element started playing
         link.feed(_frame(3000))  # the reply's own echo hits the browser mic
         await asyncio.sleep(0.1)
         sent_during_reply = len(gemini.sent_audio)
-        link.media_state(False)  # playback ended
+        link.media_state(False, playback_id)  # playback ended
         await asyncio.sleep(0.5)  # reverb tail + drain
         link.feed(_frame(60))  # now the user speaks
         await _wait_until(lambda: len(gemini.sent_audio) == sent_during_reply + 1)
@@ -252,7 +253,7 @@ async def test_stale_playback_finish_cannot_finish_the_current_reply():
     wire = _Wire()
     link = BrowserLink(wire.send_json, wire.send_bytes)
     states: list[bool] = []
-    link.on_media_state = states.append
+    link.on_media_state = lambda state, _playback_id: states.append(state)
 
     await link.play_url("reply/one.flac")
     first = wire.of("play")[-1]["playback_id"]
@@ -264,6 +265,25 @@ async def test_stale_playback_finish_cannot_finish_the_current_reply():
 
     assert first != second
     assert states == [True, False]
+
+
+async def test_playback_edges_require_exact_id_and_order():
+    wire = _Wire()
+    link = BrowserLink(wire.send_json, wire.send_bytes)
+    states: list[tuple[bool, str]] = []
+    link.on_media_state = lambda state, playback_id: states.append((state, playback_id))
+
+    await link.play_url("reply/one.flac", playback_id="owned-1")
+    link.media_state(False, "owned-1")  # finish before start
+    link.media_state(True, None)  # legacy/missing identity
+    link.media_state(True, "wrong")
+    link.media_state(True, "owned-1")
+    link.media_state(True, "owned-1")  # duplicate start
+    link.media_state(False, "wrong")
+    link.media_state(False, "owned-1")
+    link.media_state(False, "owned-1")  # duplicate finish after owner cleared
+
+    assert states == [(True, "owned-1"), (False, "owned-1")]
 
 
 async def test_ordered_connection_adds_monotonic_correlation_envelope():

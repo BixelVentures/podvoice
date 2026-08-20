@@ -58,6 +58,7 @@ MAX_REPLY_PLAY_S = 180.0
 # never wedge the close transaction indefinitely.
 FIXED_PLAYBACK_START_TIMEOUT_S = 2.0
 FIXED_PLAYBACK_FINISH_GRACE_S = 3.0
+ANNOUNCE_START_TIMEOUT_S = 2.5
 # Pipeline heartbeat cadence (replaces the old per-turn watchdogs): if the provider
 # reader has died while a conversation is open, say so and go home.
 HEARTBEAT_S = 5.0
@@ -120,6 +121,25 @@ class _ClosureTurn:
     fallback_started: bool = False
 
 
+@dataclass
+class _PlaybackLease:
+    """One physical reply, owned by exactly one conversation turn.
+
+    Provider generation and room playback are different clocks. The lease prevents
+    a delayed edge from reply A from opening, truncating, or closing reply B.
+    """
+
+    generation: int
+    playback_id: str
+    epoch: float
+    turn: _ClosureTurn | None
+    item_id: str | None
+    kind: str = "reply"
+    phase: str = "requested"
+    started_at: float | None = None
+    watchdog: asyncio.Task | None = None
+
+
 # Echo shield: while the device is playing OUR reply, mic frames are NOT forwarded to
 # the model. The 0.83 field test showed residual speaker audio getting transcribed as
 # the user and making the model answer itself in a loop — while the real user went
@@ -127,7 +147,6 @@ class _ClosureTurn:
 # safety rail until a separate interruption/duplex gate proves otherwise.
 ECHO_GATE_TAIL_S = 0.35  # keep the shield up briefly after playback ends (room reverb)
 TURN_CUE_TAIL_S = 0.08  # the quiet cue needs less reverb shielding than spoken audio
-FOLLOWUP_EDGE_GRACE_S = 0.5  # let ANNOUNCING arrive before painting the follow-up ring
 ANNOUNCE_PREARM_S = (
     1.5  # cover announce -> ANNOUNCING-edge fully: field log 11:20 showed sound+state
 )
@@ -274,6 +293,8 @@ class ThinSession:
         self._playback_t0: float | None = None  # monotonic when the device started playing
         self._playback_started = asyncio.Event()
         self._playback_finished = asyncio.Event()
+        self._playback_generation = 0
+        self._playback_lease: _PlaybackLease | None = None
         self._last_item: str | None = None
         self._conv_started = 0.0
         self._speech_stop_t: float | None = None  # end-of-user-speech -> audible metric
@@ -288,6 +309,7 @@ class ThinSession:
         self._barge_task: asyncio.Task | None = None  # pending blip-debounced barge-in
         self._followup_task: asyncio.Task | None = None  # delayed turn-ready LED fallback
         self._turn_cue_appended = False  # this reply ends with the audible hand-over cue
+        self._discarding_half_duplex_input = False
         self._ending_conversation = False  # suppress "your turn" during a goodbye
         self._closure_serial = 0
         self._closure_turn: _ClosureTurn | None = None
@@ -312,6 +334,8 @@ class ThinSession:
             voicepe.on_event = self._on_device_event
         if hasattr(voicepe, "on_media_state"):
             voicepe.on_media_state = self._on_media_state
+        if hasattr(voicepe, "on_playback_fault"):
+            voicepe.on_playback_fault = self._on_playback_fault
         if hasattr(voicepe, "on_mute"):
             voicepe.on_mute = self._on_mute
         if hasattr(voicepe, "on_reconnect"):
@@ -421,11 +445,13 @@ class ThinSession:
         self._close_task = None
         self._playback_started.clear()
         self._playback_finished.clear()
+        self._invalidate_playback_lease("new-conversation")
         self._closure_serial = 0
         self._closure_turn = None
         self._semantic_end_call_ids.clear()
         self._wait_turns.clear()
         self._turn_cue_appended = False
+        self._discarding_half_duplex_input = False
         self._last_user_utterance = ""
         self._last_activity = self._conv_started
         self.sm.state = State.LISTENING
@@ -663,6 +689,8 @@ class ThinSession:
         _LOG.info("thin: closing conversation (%s) [room=%s]", reason, self.room)
         await self._silence_device()
         if error_kind is not None:
+            self._invalidate_playback_lease("error-speech")
+            self._device_playing = False
             self._trace_event("failure", kind=error_kind)
             if self.hub is not None:
                 self.hub.activity(self.room, "⚠️ Fejl — lukker samtalen")
@@ -691,6 +719,7 @@ class ThinSession:
             await self._teardown_locked(release_music=release_music)
 
     async def _teardown_locked(self, *, release_music: bool) -> None:
+        self._invalidate_playback_lease("teardown")
         self._active = False
         self._speaking = False
         self._device_playing = False
@@ -701,6 +730,7 @@ class ThinSession:
         self._held_announce_pcm.clear()
         self._held_announce_item = None
         self._turn_cue_appended = False
+        self._discarding_half_duplex_input = False
         self._ending_conversation = False
         self._closure_turn = None
         self._last_user_utterance = ""
@@ -807,6 +837,7 @@ class ThinSession:
                 if not self.full_duplex and (
                     self._speaking
                     or self._device_playing
+                    or self._playback_blocks_input()
                     or time.monotonic() < self._gate_until
                     or time.monotonic() < self._reply_audible_until
                 ):
@@ -931,12 +962,14 @@ class ThinSession:
             crossed_answer_gate = not self.full_duplex and (
                 self._speaking
                 or self._device_playing
+                or self._playback_blocks_input()
                 or time.monotonic() < self._gate_until
                 or time.monotonic() < self._reply_audible_until
             )
             self._trace_event(
                 "half_duplex_input_discarded" if crossed_answer_gate else "speech_started"
             )
+            self._discarding_half_duplex_input = crossed_answer_gate
             if crossed_answer_gate and hasattr(self.brain, "clear_input_audio"):
                 # Dropping subsequent mic frames with the provider VAD still open
                 # would leave it stuck forever in speech_started.
@@ -1021,10 +1054,17 @@ class ThinSession:
                         # Keep green until the device reports the last byte played.
                         self.sm.state = State.AI_SPEAKING
                     elif had_reply:
-                        # ANNOUNCING can land just after TurnComplete. A short grace
-                        # avoids the old cyan flash over the first spoken words; if the
-                        # device never reports playback, this still fails open cleanly.
-                        self._schedule_followup_edge()
+                        # A generated answer is not a finished answer.  The FLAC fetch
+                        # and ANNOUNCING edge can arrive well after response.done (the
+                        # 2026-08-20 Talk trace measured 859 ms).  Opening the next turn
+                        # on the old fixed 500 ms grace let a new tool turn begin while
+                        # the previous answer was still playing; that old playback's
+                        # finish edge then truncated the new answer.  Stay busy until
+                        # the correlated physical playback-finish handler calls
+                        # _enter_followup().  If playback never starts, the bounded idle
+                        # fallback closes safely instead of pretending the room heard it.
+                        self.sm.state = State.AI_SPEAKING
+                        self._hub_state("AI_SPEAKING", "🔊 Afventer afspilning")
                     else:
                         self._enter_followup()
         elif isinstance(ev, Idle):
@@ -1078,6 +1118,11 @@ class ThinSession:
 
             task.add_done_callback(_untrack)
         elif isinstance(ev, UserSpeechStopped):
+            if self._discarding_half_duplex_input:
+                self._discarding_half_duplex_input = False
+                self._trace_event("half_duplex_input_cleared")
+                self._cancel_barge_debounce()
+                return
             if self._closure_turn is None or self._closure_turn.response_done:
                 self._begin_closure_turn()
             turn = self._ensure_closure_turn()
@@ -1132,8 +1177,6 @@ class ThinSession:
                     self._goodbye = None
                 self._turn_had_tool = False
         self._closure_serial += 1
-        self._playback_started.clear()
-        self._playback_finished.clear()
         self._closure_turn = _ClosureTurn(self._closure_serial)
         return self._closure_turn
 
@@ -1269,6 +1312,9 @@ class ThinSession:
             # simultaneous with the ears, not with the network.
             self._hub_state("AI_SPEAKING", "💬 Svarer")
             if direct:
+                if self._arm_playback_lease(item_id=ev.item_id, kind="direct") is None:
+                    self._request_close("playback-overlap", error_kind="device")
+                    return
                 self._direct_sent = 0
                 self._direct_q = asyncio.Queue()
                 self._direct_task = self._spawn(self._direct_send_loop(), "thin-direct")
@@ -1316,6 +1362,11 @@ class ThinSession:
         """Atomically expose only the final, complete response to the HTTP/FLAC path."""
         if self.reply_bus is None or not self._held_announce_pcm:
             return
+        item_id = self._held_announce_item or self._last_item
+        lease = self._arm_playback_lease(item_id=item_id, kind="reply")
+        if lease is None:
+            self._request_close("playback-overlap", error_kind="device")
+            return
         self.reply_bus.clear(self.room)
         self.reply_bus.start(self.room)
         for pcm in self._held_announce_pcm:
@@ -1325,7 +1376,7 @@ class ThinSession:
         self._held_announce_pcm.clear()
         self._held_announce_item = None
         self.reply_bus.end(self.room)
-        self._spawn(self._announce_with_retry(), "thin-announce")
+        lease.watchdog = self._spawn(self._announce_with_retry(lease), "thin-announce")
 
     async def _direct_send_loop(self) -> None:
         """Pump the reply to the device as paced raw PCM, then wait for its own
@@ -1396,7 +1447,16 @@ class ThinSession:
             chunk = q.get_nowait()
             if chunk is not None:
                 self.reply_bus.push(self.room, chunk)
-        self._spawn(self._announce_with_retry(), "thin-announce")
+        self.reply_bus.end(self.room)
+        lease = self._playback_lease
+        if lease is None:
+            lease = self._arm_playback_lease(item_id=self._last_item, kind="reply")
+        elif lease.phase == "requested":
+            lease.kind = "reply"
+        if lease is None:
+            self._request_close("playback-overlap", error_kind="device")
+            return
+        lease.watchdog = self._spawn(self._announce_with_retry(lease), "thin-announce")
 
     async def _await_reply_played(self, expected_end: float) -> None:
         """Wait for the device's byte-exact reply_played. If it never lands, release the
@@ -1445,7 +1505,7 @@ class ThinSession:
         and the reply keeps playing — the announce buffer already holds it, so a
         server-side generation cancel costs nothing audible. Sustained speech is a
         real barge-in."""
-        if not (self._speaking or self._device_playing):
+        if not (self._speaking or self._device_playing or self._playback_blocks_input()):
             # Nothing is audibly playing: this speech_started is the user's NORMAL
             # turn start, not an interruption. This guard is ALSO the spurious-idle
             # safety for the provider's now-unconditional Interrupted (ARKITEKTUR §5).
@@ -1494,22 +1554,99 @@ class ThinSession:
             self._set_led(State.LISTENING)
             self._hub_state("LISTENING", "✋ Afbrudt — lytter")
 
-    async def _announce_with_retry(self, retry_after_s: float = 2.5) -> None:
+    async def _announce_with_retry(
+        self, lease: _PlaybackLease, retry_after_s: float | None = None
+    ) -> None:
+        """Start one owned reply; retry the same lease, never fail open."""
+        retry_after_s = ANNOUNCE_START_TIMEOUT_S if retry_after_s is None else retry_after_s
         # Pre-arm the echo shield: sound can start before the ANNOUNCING state lands.
         self._gate_until = max(self._gate_until, time.monotonic() + ANNOUNCE_PREARM_S)
         can_track = hasattr(self.reply_bus, "fetch_count")
         before = self.reply_bus.fetch_count(self.room) if can_track else 0
-        await self.voicepe.play_url(self.reply_url)
-        if not can_track:
-            return
-        await asyncio.sleep(retry_after_s)
-        if not self._active or not self._speaking:
-            return  # conversation ended meanwhile — re-announcing would serve 0 bytes
-        if self._speaking and self.reply_bus.fetch_count(self.room) == before:
-            _LOG.warning("thin: device never fetched the reply — re-announcing")
-            if self.hub is not None:
-                self.hub.activity(self.room, "🔇 Enheden hentede ikke svaret — prøver igen")
+        for attempt in range(2):
+            if not self._lease_is_current(lease) or lease.phase != "requested":
+                return
+            await self._play_reply_url(lease)
+            try:
+                await asyncio.wait_for(self._playback_started.wait(), timeout=retry_after_s)
+                return
+            except TimeoutError:
+                if not self._lease_is_current(lease) or lease.phase != "requested":
+                    return
+                fetched = not can_track or self.reply_bus.fetch_count(self.room) > before
+                _LOG.warning(
+                    "thin: reply did not report playback start (attempt=%d fetched=%s id=%s)",
+                    attempt + 1,
+                    fetched,
+                    lease.playback_id,
+                )
+                if attempt == 0:
+                    if self.hub is not None:
+                        self.hub.activity(self.room, "🔇 Svaret startede ikke — prøver igen")
+                    continue
+        if self._lease_is_current(lease) and lease.phase == "requested":
+            lease.phase = "fault"
+            self._trace_event(
+                "playback_fault", playback_id=lease.playback_id, reason="missing-start"
+            )
+            self._request_close("playback-fault", error_kind="device")
+
+    async def _play_reply_url(self, lease: _PlaybackLease) -> None:
+        if getattr(self.voicepe, "supports_playback_ids", False):
+            await self.voicepe.play_url(self.reply_url, playback_id=lease.playback_id)
+        else:
             await self.voicepe.play_url(self.reply_url)
+
+    def _arm_playback_lease(
+        self, *, item_id: str | None, kind: str, turn: _ClosureTurn | None = None
+    ) -> _PlaybackLease | None:
+        current = self._playback_lease
+        if current is not None and current.phase in ("requested", "started"):
+            self._trace_event(
+                "playback_overlap",
+                active_playback_id=current.playback_id,
+                active_phase=current.phase,
+            )
+            return None
+        self._playback_generation += 1
+        lease = _PlaybackLease(
+            generation=self._playback_generation,
+            playback_id=f"pv-play-{self._playback_generation}",
+            epoch=self._epoch,
+            turn=turn if turn is not None else self._closure_turn,
+            item_id=item_id,
+            kind=kind,
+        )
+        self._playback_lease = lease
+        self._playback_started.clear()
+        self._playback_finished.clear()
+        self._trace_event(
+            "playback_requested",
+            playback_id=lease.playback_id,
+            item_id=item_id,
+            kind=kind,
+        )
+        return lease
+
+    def _lease_is_current(self, lease: _PlaybackLease) -> bool:
+        return (
+            self._playback_lease is lease
+            and lease.epoch == self._epoch
+            and lease.phase not in ("finished", "fault")
+        )
+
+    def _playback_blocks_input(self) -> bool:
+        lease = self._playback_lease
+        return lease is not None and lease.phase in ("requested", "started", "finished")
+
+    def _invalidate_playback_lease(self, reason: str) -> None:
+        lease, self._playback_lease = self._playback_lease, None
+        if lease is None:
+            return
+        if lease.watchdog is not None and lease.watchdog is not asyncio.current_task():
+            lease.watchdog.cancel()
+        if lease.phase not in ("finished", "fault"):
+            self._trace_event("playback_cancelled", playback_id=lease.playback_id, reason=reason)
 
     async def _run_tool(self, tc: ToolCall) -> None:
         tool_started = time.monotonic()
@@ -1697,20 +1834,63 @@ class ThinSession:
             if self._device_playing:
                 self._on_media_state(False)
         elif etype == "podvoice_playback_fault":
-            _LOG.error("thin: firmware could not prove the announcement speaker drained")
-            self._trace_event("playback_fault", reason="announcement-drain-timeout")
-            self._device_playing = False
-            self._playback_finished.set()
-            self._reply_audible_until = 0.0
-            self._playback_t0 = None
-            if self._active:
-                self._spawn(self.stop(reason="playback-fault"), "thin-playback-fault")
+            self._on_playback_fault(reason="announcement-drain-timeout")
 
-    def _on_media_state(self, announcing: bool) -> None:
+    def _on_playback_fault(
+        self, playback_id: str | None = None, *, reason: str = "adapter-fault"
+    ) -> None:
+        lease = self._playback_lease
+        if lease is None:
+            self._trace_event("playback_fault", playback_id=playback_id, reason=reason)
+            if self._active:
+                self._request_close("playback-fault", error_kind="device")
+            return
+        if playback_id is not None and playback_id != lease.playback_id:
+            self._trace_event(
+                "stale_playback_event",
+                edge="fault",
+                playback_id=playback_id,
+                expected=lease.playback_id if lease else None,
+            )
+            return
+        lease.phase = "fault"
+        self._trace_event("playback_fault", playback_id=lease.playback_id, reason=reason)
+        self._device_playing = False
+        self._playback_finished.set()
+        self._reply_audible_until = 0.0
+        self._playback_t0 = None
+        if self._active:
+            self._request_close("playback-fault", error_kind="device")
+
+    def _on_media_state(self, announcing: bool, playback_id: str | None = None) -> None:
         """ANNOUNCING edge = playback ground truth: playout clock, the GREEN ring
         (simultaneous with actual sound), and the real speech-stop->audible metric."""
+        lease = self._playback_lease
+        if (
+            lease is None
+            or lease.epoch != self._epoch
+            or (playback_id is not None and playback_id != lease.playback_id)
+        ):
+            self._trace_event(
+                "stale_playback_event",
+                edge="started" if announcing else "finished",
+                playback_id=playback_id,
+                expected=lease.playback_id if lease else None,
+            )
+            return
         if announcing:
-            self._trace_event("playback_started")
+            if lease.phase != "requested":
+                self._trace_event(
+                    "stale_playback_event",
+                    edge="started",
+                    playback_id=lease.playback_id,
+                    expected_phase="requested",
+                    actual_phase=lease.phase,
+                )
+                return
+            lease.phase = "started"
+            lease.started_at = time.monotonic()
+            self._trace_event("playback_started", playback_id=lease.playback_id)
             self._playback_started.set()
             self._playback_finished.clear()
             self._device_playing = True  # echo shield UP: the room hears the assistant
@@ -1729,7 +1909,22 @@ class ThinSession:
                     if self.hub is not None:
                         self.hub.set_latency(self.room, ttfr_ms)
         else:
-            self._trace_event("playback_finished", turn_cue=self._turn_cue_appended)
+            if lease.phase != "started":
+                self._trace_event(
+                    "stale_playback_event",
+                    edge="finished",
+                    playback_id=lease.playback_id,
+                    expected_phase="started",
+                    actual_phase=lease.phase,
+                )
+                return
+            lease.phase = "finished"
+            self._trace_event(
+                "playback_finished",
+                playback_id=lease.playback_id,
+                item_id=lease.item_id,
+                turn_cue=self._turn_cue_appended,
+            )
             was_speaking = self._speaking
             # On buffered announce, generation has already completed before physical
             # playback starts, so `_speaking` is normally false.  Compare the elapsed
@@ -1757,7 +1952,7 @@ class ThinSession:
                 # with the mic still gated. Tell the model exactly how much was HEARD,
                 # or it will believe the family heard the whole answer.
                 _LOG.info("thin: reply hushed on the device — truncating at heard position")
-                self._spawn(self._truncate_at_heard(), "thin-hush-truncate")
+                self._spawn(self._truncate_at_heard(item_id=lease.item_id), "thin-hush-truncate")
             if self._stop_sent_t is not None and self._stop_sent_epoch == self._epoch:
                 _LOG.info(
                     "stop-latency: %d ms (silence command -> device silent)",
@@ -1767,20 +1962,19 @@ class ThinSession:
             self._stop_sent_epoch = None
             tail_s = TURN_CUE_TAIL_S if self._turn_cue_appended else ECHO_GATE_TAIL_S
             self._gate_until = time.monotonic() + tail_s
-            self._spawn(self._end_echo_gate(tail_s), "thin-gate-end")
+            self._spawn(self._end_echo_gate(tail_s, lease=lease), "thin-gate-end")
             self._sync_playout()
             self._playback_t0 = None
             turn = self._closure_turn
             if self._active and self._ending_conversation and turn is not None and turn.confirmed:
+                self._playback_lease = None
                 self._request_close("model-close")
                 return
-            if self._active and not self._speaking and not self._ending_conversation:
-                self._enter_followup()
 
-    async def _truncate_at_heard(self) -> None:
+    async def _truncate_at_heard(self, *, item_id: str | None = None) -> None:
         """Tell the provider what the room ACTUALLY heard after a device-side hush."""
         self._sync_playout()
-        item = self.playout.current_item() or self._last_item
+        item = item_id or self.playout.current_item() or self._last_item
         if item and hasattr(self.brain, "truncate"):
             with contextlib.suppress(Exception):
                 await self.brain.truncate(item, self.playout.heard_ms(item))
@@ -1793,7 +1987,9 @@ class ThinSession:
         if self.hub is not None:
             self.hub.incr("barge_ins")
 
-    async def _end_echo_gate(self, tail_s: float = ECHO_GATE_TAIL_S) -> None:
+    async def _end_echo_gate(
+        self, tail_s: float = ECHO_GATE_TAIL_S, *, lease: _PlaybackLease | None = None
+    ) -> None:
         """After the reverb tail: drop what the mic queued during the reply and report
         how much the shield absorbed — the assistant literally cannot hear itself."""
         await asyncio.sleep(tail_s)
@@ -1813,12 +2009,29 @@ class ThinSession:
                 stale,
             )
         self._gate_dropped = 0
+        if lease is not None:
+            if self._playback_lease is not lease or lease.epoch != self._epoch:
+                return
+            if lease.phase != "finished":
+                return
+            self._playback_lease = None
+            if (
+                lease.kind in ("reply", "oneshot")
+                and self._active
+                and not self._speaking
+                and not self._ending_conversation
+            ):
+                self._enter_followup()
 
     def _trace_provider_audio(self, pcm: bytes, rate: int) -> None:
         if self.audio_trace is not None:
             self.audio_trace.audio("provider", pcm, rate)
 
     def _trace_event(self, event_name: str, **details) -> None:
+        identifiers = {
+            "session_id": self._history_session or None,
+            "turn_id": self._external_turn_id(),
+        }
         if self.hub is not None and hasattr(self.hub, "timeline"):
             at_ms = (
                 round((time.monotonic() - self._conv_started) * 1000)
@@ -1829,17 +2042,27 @@ class ThinSession:
                 self.room,
                 event_name,
                 session=f"{self._epoch:.6f}" if self._epoch else None,
-                session_id=self._history_session or None,
-                turn_id=self._external_turn_id(),
+                **identifiers,
                 at_ms=at_ms,
                 **details,
             )
         if self.audio_trace is not None:
-            self.audio_trace.event(event_name, **details)
+            self.audio_trace.event(event_name, **identifiers, **details)
 
     def _enter_followup(self) -> None:
         """The room is quiet again: dim ring, open mic, one clear next-turn state."""
-        if not self._active or self._speaking or self._device_playing or self._ending_conversation:
+        lease = self._playback_lease
+        # A finished lease remains busy through the echo tail. It is cleared by
+        # _end_echo_gate; exposing LOUNGE earlier would accept speech that the mic gate
+        # still has to discard.
+        playback_busy = lease is not None and lease.phase != "fault"
+        if (
+            not self._active
+            or self._speaking
+            or self._device_playing
+            or playback_busy
+            or self._ending_conversation
+        ):
             return
         self._cancel_followup_edge()
         self.sm.state = State.LOUNGE_WINDOW
@@ -1847,16 +2070,6 @@ class ThinSession:
         activity = "🔉 Bip — din tur" if self._turn_cue_appended else "🎙️ Din tur"
         self._hub_state("LOUNGE_WINDOW", activity, turn_cue=self._turn_cue_appended)
         self._last_activity = time.monotonic()
-
-    def _schedule_followup_edge(self) -> None:
-        self._cancel_followup_edge()
-
-        async def _after_grace() -> None:
-            await asyncio.sleep(FOLLOWUP_EDGE_GRACE_S)
-            self._followup_task = None
-            self._enter_followup()
-
-        self._followup_task = self._spawn(_after_grace(), "thin-followup-edge")
 
     def _cancel_followup_edge(self) -> None:
         task, self._followup_task = self._followup_task, None
@@ -2120,15 +2333,19 @@ class ThinSession:
             return True
         if self.reply_bus is None or not self.reply_url:
             return False
-        if wait_for_physical_finish:
-            self._playback_started.clear()
-            self._playback_finished.clear()
+        lease = self._arm_playback_lease(item_id=None, kind="oneshot", turn=None)
+        if lease is None:
+            return False
         self.reply_bus.clear(self.room)
         self.reply_bus.start(self.room)
         self.reply_bus.push(self.room, pcm)
         self.reply_bus.end(self.room)
-        await self.voicepe.play_url(self.reply_url)
+        await self._play_reply_url(lease)
         if not wait_for_physical_finish:
+            duration_s = len(pcm) / float(C.OUTPUT_RATE * C.SAMPLE_WIDTH)
+            lease.watchdog = self._spawn(
+                self._watch_oneshot_playback(lease, duration_s), "thin-oneshot-watchdog"
+            )
             return True
         try:
             await asyncio.wait_for(
@@ -2136,7 +2353,8 @@ class ThinSession:
             )
         except TimeoutError:
             _LOG.error("thin: fixed speech never reported physical playback start")
-            self._trace_event("fixed_playback_start_missing")
+            self._trace_event("fixed_playback_start_missing", playback_id=lease.playback_id)
+            self._invalidate_playback_lease("fixed-start-timeout")
             return False
         duration_s = len(pcm) / float(C.OUTPUT_RATE * C.SAMPLE_WIDTH)
         try:
@@ -2147,8 +2365,31 @@ class ThinSession:
             return True
         except TimeoutError:
             _LOG.error("thin: fixed speech never reported physical playback finish")
-            self._trace_event("fixed_playback_finish_missing")
+            self._trace_event("fixed_playback_finish_missing", playback_id=lease.playback_id)
+            self._invalidate_playback_lease("fixed-finish-timeout")
             return False
+
+    async def _watch_oneshot_playback(self, lease: _PlaybackLease, duration_s: float) -> None:
+        """A non-critical local warning may not leave the conversation permanently busy."""
+        try:
+            await asyncio.wait_for(
+                self._playback_started.wait(), timeout=FIXED_PLAYBACK_START_TIMEOUT_S
+            )
+        except TimeoutError:
+            if self._playback_lease is lease and lease.phase == "requested":
+                lease.phase = "fault"
+                self._trace_event("fixed_playback_start_missing", playback_id=lease.playback_id)
+                self._playback_lease = None
+                self._enter_followup()
+            return
+        try:
+            await asyncio.wait_for(
+                self._playback_finished.wait(),
+                timeout=max(FIXED_PLAYBACK_FINISH_GRACE_S, duration_s + 1.0),
+            )
+        except TimeoutError:
+            if self._playback_lease is lease and lease.phase == "started":
+                self._on_playback_fault(lease.playback_id, reason="oneshot-missing-finish")
 
     async def _speak_home_unreachable(self) -> None:
         """One spoken heads-up when the MCP probe says home control is down."""

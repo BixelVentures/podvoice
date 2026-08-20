@@ -73,6 +73,11 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
     forskellige sandheder. UI må ikke udlede "klar" af en åben socket. Hver session,
     tur, providerrespons, værktøjskald og playback skal kunne korreleres; events fra en
     gammel forbindelse eller gammel playback må ikke ændre den aktuelle tilstand.
+11. `response.done` er kun providerens generationsslut, aldrig bevis for et stille rum.
+    Et publiceret svar ejer én tur-bundet playback-lease fra request gennem fysisk start,
+    fysisk finish og ekkohale. Først den samme leases finish må åbne opfølgningen eller
+    lukke efter modelsemantisk farvel. Manglende start fejler lukket; stale, dublerede,
+    omvendte eller fremmede playback-events er virkningsløse.
 
 ## Beviskrav før “testklar” eller “færdig”
 

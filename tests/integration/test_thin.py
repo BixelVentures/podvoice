@@ -169,6 +169,106 @@ async def test_direct_followup_reuses_context_without_a_second_provider_session(
         await session.aclose()
 
 
+async def test_delayed_playback_start_cannot_open_or_cross_the_next_typed_turn():
+    """Regression for the physical Talk ordering observed on 2026-08-20.
+
+    The provider finished generation 859 ms before the browser reported playback.
+    The old 500 ms grace painted LOUNGE and accepted the next text while the previous
+    reply was still playing.  Its later playback-finish edge then truncated the new
+    tool result.  Only physical playback-finish may reopen the turn.
+    """
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        first = await session.submit_text("Hvad er tolv gange syv?", "cmd-first")
+        assert first["status"] == "accepted"
+        brain.emit(
+            AudioChunk(_frame(), item_id="first-answer"),
+            OutputTranscript("Fireogfirs."),
+            TurnComplete(),
+        )
+        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
+
+        # Provider completion alone can never open the next turn. No wall-clock sleep
+        # is needed: readiness is event-driven, not a guessed grace period.
+        assert session.sm.state is State.AI_SPEAKING
+        premature = await session.submit_text("Og læg seks til.", "cmd-too-early")
+        assert premature["status"] == "rejected"
+        assert premature["code"] == "busy"
+        assert brain.sent_text == ["Hvad er tolv gange syv?"]
+
+        session._on_media_state(True)
+        assert session.sm.state is State.AI_SPEAKING
+        session._on_media_state(False)
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+
+        followup = await session.submit_text("Og læg seks til.", "cmd-followup")
+        assert followup["status"] == "accepted"
+        assert brain.sent_text == ["Hvad er tolv gange syv?", "Og læg seks til."]
+        assert brain.connect_count == 1
+        assert brain.truncations == []
+    finally:
+        await session.aclose()
+
+
+async def test_old_playback_finish_cannot_mutate_a_new_reply_lease():
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(AudioChunk(_frame(), item_id="answer-a"), TurnComplete())
+        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
+        lease_a = session._playback_lease
+        assert lease_a is not None
+        session._on_media_state(True, lease_a.playback_id)
+        session._on_media_state(False, lease_a.playback_id)
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+
+        brain.emit(UserSpeechStopped())
+        brain.emit(AudioChunk(_frame(), item_id="answer-b"), TurnComplete())
+        await _wait_until(lambda: len(voicepe.announced_urls) == 2)
+        lease_b = session._playback_lease
+        assert lease_b is not None and lease_b is not lease_a
+        assert lease_b.phase == "requested"
+
+        # The delayed duplicate from A is the exact field race that truncated B.
+        session._on_media_state(False, lease_a.playback_id)
+        assert session._playback_lease is lease_b
+        assert lease_b.phase == "requested"
+        assert session.sm.state is State.AI_SPEAKING
+        assert brain.truncations == []
+
+        session._on_media_state(True, lease_b.playback_id)
+        session._on_media_state(False, lease_b.playback_id)
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+        assert brain.truncations == []
+    finally:
+        await session.aclose()
+
+
+async def test_missing_playback_start_retries_same_lease_then_closes(monkeypatch):
+    import gatekeeper.thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "ANNOUNCE_START_TIMEOUT_S", 0.02)
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(AudioChunk(_frame(), item_id="answer"), TurnComplete())
+        await _wait_until(lambda: len(voicepe.announced_urls) == 2)
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        # The first two are the same owned reply. A later third URL may be the
+        # separately owned audible error line from the clean-close path.
+        assert voicepe.announced_urls[:2] == [REPLY_URL, REPLY_URL]
+        assert brain.connect_count == 1
+        assert brain.closed is True
+    finally:
+        await session.aclose()
+
+
 async def test_wait_for_user_is_a_silent_internal_noop():
     class NoExternalDispatch(FakeTools):
         async def dispatch(self, name: str, args: dict) -> dict:
@@ -410,6 +510,8 @@ async def test_full_conversation_wake_reply_idle_close():
         )
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)  # reply announced
         assert session.sm.state is State.AI_SPEAKING
+        session._on_media_state(True)
+        session._on_media_state(False)
         await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)  # dim follow-up
 
         gemini.emit(Idle())  # the SERVER ends the conversation — no client timers
@@ -886,6 +988,8 @@ async def test_tool_preamble_is_never_published_to_the_buffered_announce():
 
         gemini.emit(AudioChunk(answer, item_id="answer"), TurnComplete())
         await _wait_until(lambda: len(voicepe.announced_urls) == 1)
+        session._on_media_state(True)
+        session._on_media_state(False)
         await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
         streamed = await session.reply_bus.collect(ROOM, max_wait_s=0.5)
         assert filler not in streamed
@@ -1152,8 +1256,11 @@ async def test_failed_realtime_goodbye_has_the_same_contract_in_talk():
         assert speech.calls == [C.FALLBACK_GOODBYE]
         assert session._active is True
 
-        link.media_state(True)
-        link.media_state(False)
+        playback_id = next(
+            message["playback_id"] for message in sent if message.get("type") == "play"
+        )
+        link.media_state(True, playback_id)
+        link.media_state(False, playback_id)
         await _wait_until(lambda: session.sm.state is State.IDLE)
         assert len(attention.release_calls) == 1
     finally:

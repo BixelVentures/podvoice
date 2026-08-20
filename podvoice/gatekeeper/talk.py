@@ -140,9 +140,11 @@ class BrowserLink:
         self.supports_podvoice_channel = True
         self.supports_same_breath = True
         self.supports_direct = False
+        self.supports_playback_ids = True
         # Callbacks the engine wires (same names as VoicePELink).
         self.on_wake: Any = None
         self.on_media_state: Any = None
+        self.on_playback_fault: Any = None
         self.on_event: Any = None
         self.on_mute: Any = None
         self.on_reconnect: Any = None
@@ -152,6 +154,7 @@ class BrowserLink:
         self.last_audio_ts = 0.0
         self._playback_serial = 0
         self._playback_id: str | None = None
+        self._playback_phase = "idle"
 
     # ---------------------------------------------------------------- lifecycle
     async def start(self) -> None:  # the socket IS the connection
@@ -203,10 +206,13 @@ class BrowserLink:
         return True
 
     # ---------------------------------------------------------------- speaker path
-    async def play_url(self, url: str) -> None:
+    async def play_url(self, url: str, *, playback_id: str | None = None) -> None:
         """The browser fetches the SAME reply-bus stream the puck would announce."""
-        self._playback_serial += 1
-        self._playback_id = f"play-{self._playback_serial}"
+        if playback_id is None:
+            self._playback_serial += 1
+            playback_id = f"play-{self._playback_serial}"
+        self._playback_id = playback_id
+        self._playback_phase = "issued"
         await self._safe_json({"type": "play", "url": url, "playback_id": self._playback_id})
 
     async def stop_playback(self) -> None:
@@ -229,15 +235,38 @@ class BrowserLink:
     def media_state(self, announcing: bool, playback_id: str | None = None) -> None:
         """The reply <audio> element started/finished — the engine's playback truth
         (drives the echo shield and 'reply finished playing' exactly like the puck)."""
-        if playback_id is not None and playback_id != self._playback_id:
+        if not playback_id or playback_id != self._playback_id:
             log.info(
                 "talk: ignored stale playback edge %s (current=%s)", playback_id, self._playback_id
             )
             return
+        expected = "issued" if announcing else "started"
+        if self._playback_phase != expected:
+            log.info(
+                "talk: ignored out-of-order playback edge %s (phase=%s id=%s)",
+                "started" if announcing else "finished",
+                self._playback_phase,
+                playback_id,
+            )
+            return
+        self._playback_phase = "started" if announcing else "finished"
         if self.on_media_state is not None:
-            self.on_media_state(bool(announcing))
+            self.on_media_state(bool(announcing), playback_id)
         if not announcing:
             self._playback_id = None
+            self._playback_phase = "idle"
+
+    def playback_fault(self, playback_id: str | None, reason: str) -> None:
+        if not playback_id or playback_id != self._playback_id:
+            log.info("talk: ignored stale playback fault %s", playback_id)
+            return
+        if reason == "blocked":
+            log.info("talk: browser autoplay blocked for %s; keeping reply pending", playback_id)
+            return
+        self._playback_phase = "fault"
+        if self.on_playback_fault is not None:
+            self.on_playback_fault(playback_id, reason=reason)
+        self._playback_id = None
 
     async def _safe_json(self, payload: dict) -> None:
         with contextlib.suppress(Exception):  # a closed socket must never break the engine
@@ -437,10 +466,12 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                 if kind in ("wake", "stop", "text"):
                     commands.put_nowait(data)
                 elif kind == "media":
-                    link.media_state(
-                        bool(data.get("announcing")),
-                        str(data.get("playback_id")) if data.get("playback_id") else None,
-                    )
+                    playback_id = str(data.get("playback_id")) if data.get("playback_id") else None
+                    state = str(data.get("state") or "")
+                    if state in ("fault", "blocked"):
+                        link.playback_fault(playback_id, state)
+                    else:
+                        link.media_state(bool(data.get("announcing")), playback_id)
                 elif kind == "ping":
                     await ws.send_json({"type": "pong", "ping_id": data.get("ping_id")})
                 elif kind == "mic_config":

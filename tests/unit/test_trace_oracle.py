@@ -144,3 +144,39 @@ def test_oracle_does_not_claim_to_judge_semantic_transcript_quality():
     ).score(trace)
     assert report.passed
     assert "user_text" in normalise_contract(trace, adapter="voicepe")
+
+
+def test_identified_playback_cannot_finish_on_a_different_turn():
+    trace = _fixture("voicepe_golden.json")
+    playback = [
+        event
+        for event in trace["events"]
+        if event["event"] in ("playback_started", "playback_finished")
+    ]
+    for event in playback:
+        event["playback_id"] = "pv-play-owned"
+        event["session_id"] = "session-a"
+        event["turn_id"] = "turn-a"
+    playback[-1]["turn_id"] = "turn-b"
+
+    report = TraceOracle(adapter="voicepe", require_semantic_close=True).score(trace)
+    assert "playback_owner_mismatch" in _codes(report)
+
+
+def test_identified_old_finish_cannot_balance_a_new_playback():
+    trace = _fixture("voicepe_golden.json")
+    playback = [
+        event
+        for event in trace["events"]
+        if event["event"] in ("playback_started", "playback_finished")
+    ]
+    for event in playback:
+        event["session_id"] = "session-a"
+        event["turn_id"] = "turn-a"
+    playback[0]["playback_id"] = "reply-a"
+    playback[1]["playback_id"] = "reply-b"
+
+    report = TraceOracle(adapter="voicepe", require_semantic_close=True).score(trace)
+    codes = _codes(report)
+    assert "playback_finish_without_start" in codes
+    assert "playback_finish_missing" in codes
