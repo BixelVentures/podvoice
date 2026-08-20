@@ -297,6 +297,18 @@ derfor først klar til den korte fysiske golden chain; den er ikke lifecycle-
 releasegodkendt, før samme bits derefter består 10/10 ubrudte fysiske cyklusser. Prompt
 V5, `gpt-realtime-2.1`, firmware, gain, VAD og pre-roll er uændrede.
 
+Den friske fysiske golden chain den 20. august 2026 er **afvist**. Trace
+`20260820T165000-859` beviste den nye playback-mekanik: én wake og én Realtime-session,
+tre turbundne playback-leases, korrekte start/slut-par, fysisk farvel, én teardown og
+wake-rearm efter 99 ms. Opfølgningen nåede provider-kæden komplet og blev diagnostisk
+transskriberet ordret som “Og hvilken ugedag er det?”. Realtime kaldte `get_time`, som
+returnerede `weekday: torsdag`, men svarede forkert “Det er uge 34.” Golden chain fejler
+derfor på semantisk resultatgrunding, selv om lifecycle består. Første turs diagnostiske
+tekst var desuden “Backschrauben”, mens native Realtime valgte korrekt tidsværktøj og
+svarede med klokkeslættet; denne tur er høre-mæssigt ukendt, indtil device- og
+providerlyden er gennemlyttet. En efterfølgende frisk wake gav korrekt dato og lukkede
+igen; det ændrer ikke den afviste gate. **Start ikke 10/10 på v1.13.24.**
+
 Den fulde gate omfatter Ruff, formatteringskontrol, mypy for 39 kildefiler, parsing af
 alle 10 panel-scriptblokke og reelle lokale
 HTTP/WebSocket-tests. Testmiljøet blev bevidst lagt i `/private/tmp` efter den kendte
