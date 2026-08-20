@@ -63,6 +63,52 @@ async def test_typed_input_waits_for_matching_item_created_before_response():
     ]
 
 
+async def test_typed_input_normalizes_overlong_or_unsafe_item_id_before_send():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._configured = True
+    s._configured_event.set()
+    task = asyncio.create_task(s.send_text("Hej", item_id="browser/id:" + "x" * 80))
+    await asyncio.sleep(0)
+    sent_id = s._ws.sent[0]["item"]["id"]
+    assert sent_id.startswith("pv_")
+    assert len(sent_id) == 32
+    assert sent_id.replace("_", "").isalnum()
+    s._ws._incoming.append(  # type: ignore[attr-defined]
+        _Msg(json.dumps({"type": "conversation.item.created", "item": {"id": sent_id}}))
+    )
+    await _drain(s)
+    await task
+    assert s._ws.sent[-1] == {"type": "response.create"}
+
+
+async def test_typed_item_rejection_fails_immediately_without_response_create():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._configured = True
+    s._configured_event.set()
+    task = asyncio.create_task(s.send_text("Hej", item_id="pv_rejected"))
+    await asyncio.sleep(0)
+    s._ws._incoming.append(  # type: ignore[attr-defined]
+        _Msg(
+            json.dumps(
+                {
+                    "type": "error",
+                    "error": {
+                        "code": "invalid_request_error",
+                        "message": "Invalid item.id",
+                        "param": "item.id",
+                    },
+                }
+            )
+        )
+    )
+    await _drain(s)
+    with pytest.raises(ConnectionError, match="rejected typed conversation item"):
+        await task
+    assert [message["type"] for message in s._ws.sent] == ["conversation.item.create"]
+
+
 async def test_stale_item_created_does_not_acknowledge_another_text():
     s = OpenAIRealtimeSession(api_key="k")
     s._ws = _FakeWS()  # type: ignore[assignment]

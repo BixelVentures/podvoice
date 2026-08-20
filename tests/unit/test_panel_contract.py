@@ -159,6 +159,8 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     assert 'id="eval_live"' in html
     assert 'id="eval_result"' in html
     assert 'fetch("api/eval/live"' in html
+    assert "data.prompt_source" in html
+    assert "brugerdefineret prompt" in html
     assert "kan ikke styre hjemmet, musik eller timere" in html
 
 

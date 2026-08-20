@@ -23,8 +23,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
+import re
 import uuid
 from collections import deque
 from collections.abc import AsyncIterator, Callable
@@ -51,6 +53,18 @@ from .voice import (
 )
 
 _LOG = logging.getLogger("podvoice.openai")
+
+_CLIENT_ITEM_ID_MAX_LENGTH = 32
+_CLIENT_ITEM_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _safe_client_item_id(item_id: str | None) -> str:
+    """Return a deterministic id accepted by the Realtime item API."""
+    raw = str(item_id or uuid.uuid4().hex)
+    if 0 < len(raw) <= _CLIENT_ITEM_ID_MAX_LENGTH and _CLIENT_ITEM_ID_RE.fullmatch(raw):
+        return raw
+    return f"pv_{hashlib.sha256(raw.encode()).hexdigest()[:29]}"
+
 
 _URL = "wss://api.openai.com/v1/realtime"
 OPENAI_RATE = 24000  # OpenAI audio/pcm is 24 kHz for both directions (VERIFY: 16k unsupported)
@@ -409,7 +423,7 @@ class OpenAIRealtimeSession:
                 raise ConnectionError("OpenAI realtime session was not ready for text") from exc
         if self._ws is None or bool(getattr(self._ws, "closed", False)):
             raise ConnectionError("OpenAI realtime socket closed before text submission")
-        iid = item_id or f"pv_{uuid.uuid4().hex}"
+        iid = _safe_client_item_id(item_id)
         loop = asyncio.get_running_loop()
         accepted = loop.create_future()
         self._item_created_waiters[iid] = accepted
@@ -729,6 +743,15 @@ class OpenAIRealtimeSession:
                     # die loudly so the engine fails audibly and the log names the field.
                     _LOG.error("session.update REJECTED — failing loudly: %s", err)
                     raise RuntimeError(f"session.update rejected: {err.get('message', err)}")
+                if self._item_created_waiters:
+                    # A typed turn is not accepted until conversation.item.created.
+                    # Surface an item rejection immediately instead of hiding the
+                    # provider's precise error behind a later generic ACK timeout.
+                    message = str(err.get("message") or err)
+                    failure = ConnectionError(f"OpenAI rejected typed conversation item: {message}")
+                    _LOG.warning("openai rejected pending typed item: %s", err)
+                    self._fail_item_waiters(failure)
+                    continue
                 _LOG.warning("openai realtime error: %s", err)
 
     async def _create_tool_result_response(self) -> None:

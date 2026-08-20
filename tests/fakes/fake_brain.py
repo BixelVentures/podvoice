@@ -30,6 +30,7 @@ class FakeBrainSession:
         self.scripted: list[VoiceEvent] = list(events or [])
         self.sent_audio: list[bytes] = []
         self.sent_text: list[str] = []
+        self.sent_text_item_ids: list[str | None] = []
         self.sent_tool_results: list[list] = []
         self.stream_ended: int = 0
         self.connected: bool = False
@@ -64,6 +65,7 @@ class FakeBrainSession:
         if not self.connected:
             raise ConnectionError("fake provider is not connected")
         self.sent_text.append(text)
+        self.sent_text_item_ids.append(item_id)
 
     async def clear_input_audio(self) -> None:
         self.input_clear_count += 1

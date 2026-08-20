@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import hashlib
 import json
 import os
 import pathlib
@@ -28,7 +29,13 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, ClassVar, Protocol
 
 from .config import load_config
-from .openai_realtime import DEFAULT_MODEL, MAX_OUTPUT_TOKENS, OpenAIRealtimeSession
+from .openai_realtime import (
+    DEFAULT_MODEL,
+    DEFAULT_VOICE,
+    MAX_OUTPUT_TOKENS,
+    OpenAIRealtimeSession,
+)
+from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 from .thin import (
     CONTINUE_CONVERSATION_DECLARATION,
     END_CONVERSATION_DECLARATION,
@@ -417,9 +424,18 @@ class _ReadyRealtimeSession(OpenAIRealtimeSession):
 class LiveRealtimeDriver:
     """Real provider adapter; no Thin/HA dependencies and no side effects."""
 
-    def __init__(self, api_key: str, *, model: str = DEFAULT_MODEL) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        *,
+        model: str = DEFAULT_MODEL,
+        voice: str = DEFAULT_VOICE,
+        instructions: str = SYSTEM_PROMPT_DA,
+    ) -> None:
         self.api_key = api_key
         self.model = model
+        self.voice = voice
+        self.instructions = instructions
         self.tools = SafeEvalTools()
         self.session: _ReadyRealtimeSession | None = None
         self.events: asyncio.Queue[Any] = asyncio.Queue()
@@ -432,6 +448,8 @@ class LiveRealtimeDriver:
         self.session = _ReadyRealtimeSession(
             api_key=self.api_key,
             model=self.model,
+            voice=self.voice,
+            instructions=self.instructions,
             input_rate=24_000,
             preset="responsive",
             interrupt_response=True,
@@ -551,6 +569,8 @@ class LiveEvalService:
         api_key: str,
         scenario_ids: set[str] | None = None,
         model: str = DEFAULT_MODEL,
+        voice: str = DEFAULT_VOICE,
+        instructions: str = SYSTEM_PROMPT_DA,
     ) -> dict[str, Any]:
         if self._lock.locked():
             return {"ok": False, "status": "busy", "error": "En live-evaluering kører allerede."}
@@ -568,10 +588,30 @@ class LiveEvalService:
                     "status": "invalid",
                     "error": "Ingen kendte eval-scenarier blev valgt.",
                 }
+            effective_prompt = (instructions or SYSTEM_PROMPT_DA).strip()
+            prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA.strip()
+            prompt_metadata = {
+                "prompt_source": "default" if prompt_is_default else "custom",
+                "prompt_version": PROMPT_VERSION if prompt_is_default else None,
+                "prompt_sha256": hashlib.sha256(effective_prompt.encode()).hexdigest(),
+                "tool_schema_sha256": hashlib.sha256(
+                    json.dumps(
+                        SafeEvalTools().declarations(),
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                ).hexdigest(),
+            }
             results: list[ScenarioResult] = []
             try:
                 for scenario in selected:
-                    driver = LiveRealtimeDriver(api_key, model=model)
+                    driver = LiveRealtimeDriver(
+                        api_key,
+                        model=model,
+                        voice=voice,
+                        instructions=effective_prompt,
+                    )
                     results.append(
                         await run_scenario(driver, scenario, run_id=run_id, budget=budget)
                     )
@@ -582,6 +622,7 @@ class LiveEvalService:
                     "status": "failed",
                     "run_id": run_id,
                     "model": model,
+                    **prompt_metadata,
                     "error": message or type(exc).__name__,
                     "results": [asdict(result) for result in results],
                     "budget": asdict(budget),
@@ -591,6 +632,7 @@ class LiveEvalService:
                 "status": "complete",
                 "run_id": run_id,
                 "model": model,
+                **prompt_metadata,
                 "results": [asdict(result) for result in results],
                 "budget": asdict(budget),
             }

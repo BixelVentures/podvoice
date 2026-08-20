@@ -394,10 +394,22 @@ async def test_typed_turn_is_engine_owned_idempotent_and_busy_is_explicit():
         assert first["session_id"] and first["turn_id"].startswith(first["session_id"])
         assert duplicate == first
         assert brain.sent_text == ["Hvad er tolv gange syv?"]
+        assert brain.sent_text_item_ids and len(brain.sent_text_item_ids[0] or "") == 32
         assert session.sm.state is State.THINKING
         assert busy["status"] == "rejected" and busy["code"] == "busy"
     finally:
         await session.aclose()
+
+
+async def test_typed_turn_rejects_unbounded_text_and_command_ids_before_wake():
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    too_long = await session.submit_text("x" * 2001, "cmd")
+    bad_id = await session.submit_text("hej", "x" * 129)
+    assert too_long["status"] == "rejected" and too_long["code"] == "too_long"
+    assert bad_id["status"] == "rejected" and bad_id["code"] == "invalid_command_id"
+    assert brain.connect_count == 0
+    assert brain.sent_text == []
 
 
 async def test_typed_turn_provider_failure_has_no_phantom_transcript():

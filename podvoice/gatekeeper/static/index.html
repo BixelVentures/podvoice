@@ -1146,7 +1146,8 @@ setInterval(function () {
     }
     var head = ee("div", "line " + (data.ok ? "out" : "in"));
     head.appendChild(ee("div", "who", data.ok ? "✓ MASKINEL PREFLIGHT BESTÅET" : "✕ MASKINEL PREFLIGHT IKKE BESTÅET"));
-    head.appendChild(document.createTextNode((data.results || []).length + " scenarier · " + (data.model || "ukendt model")));
+    var promptLabel = data.prompt_source === "default" ? "prompt v" + (data.prompt_version || "?") : "brugerdefineret prompt";
+    head.appendChild(document.createTextNode((data.results || []).length + " scenarier · " + (data.model || "ukendt model") + " · " + promptLabel));
     box.appendChild(head);
     (data.results || []).forEach(function (scenario) {
       var line = ee("div", "line " + (scenario.passed ? "out" : "in"));

@@ -31,7 +31,7 @@
           "text": "Hvad er klokken?",
           "expect": {
             "decision": "get_time",
-            "answer_any": ["fjorten", "14", "klokken er to"],
+            "answer_any": ["fjorten", "14"],
             "remain_open": true
           }
         },
@@ -76,7 +76,7 @@
           "text": "Hvordan gik FCK i deres seneste kamp?",
           "expect": {
             "decision": "google_web_sogning",
-            "answer_all": ["FCK", "to", "nul"],
+            "answer_all": ["FCK", "vandt", "to", "nul"],
             "forbid": ["continue_conversation", "get_time"],
             "remain_open": true
           }

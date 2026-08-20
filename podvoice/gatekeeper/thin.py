@@ -41,6 +41,9 @@ from .voice import (
     UserSpeechStopped,
 )
 
+MAX_TYPED_TEXT_CHARS = 2000
+MAX_TALK_COMMAND_ID_CHARS = 128
+
 _LOG = logging.getLogger("podvoice.thin")
 
 # Hard ceiling on one conversation (the provider caps sessions at 60 min; close cleanly
@@ -520,11 +523,23 @@ class ThinSession:
         cid = str(command_id).strip()
         if not cleaned:
             return {"status": "rejected", "code": "empty", "message": "Skriv en besked."}
+        if len(cleaned) > MAX_TYPED_TEXT_CHARS:
+            return {
+                "status": "rejected",
+                "code": "too_long",
+                "message": "Beskeden er for lang; forkort den og prøv igen.",
+            }
         if not cid:
             return {
                 "status": "rejected",
                 "code": "missing_command_id",
                 "message": "Beskeden mangler et id; prøv igen.",
+            }
+        if len(cid) > MAX_TALK_COMMAND_ID_CHARS:
+            return {
+                "status": "rejected",
+                "code": "invalid_command_id",
+                "message": "Besked-id'et er ugyldigt; genindlæs Talk og prøv igen.",
             }
         cached = self._text_receipts.get(cid)
         if cached is not None:
@@ -570,7 +585,9 @@ class ThinSession:
             self._trace_event("text_submitted", command_id=cid)
             self._trace_event("speech_stopped", source="text")
             try:
-                provider_item_id = f"pv_{hashlib.sha256(cid.encode()).hexdigest()[:32]}"
+                # Realtime client item ids are capped at 32 characters. Keep the
+                # namespace while deriving a stable id from the opaque command id.
+                provider_item_id = f"pv_{hashlib.sha256(cid.encode()).hexdigest()[:29]}"
                 await self.brain.send_text(cleaned, item_id=provider_item_id)
             except Exception as exc:
                 _LOG.warning("thin: typed input submission failed [room=%s]: %s", self.room, exc)

@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.13.18 — providergyldige Talk-id'er og reproducerbar preflight
+
+- Den første installerede 1.13.17-preflight afslørede, at det korrelerede Realtime-
+  item-id var 35 tegn, mens OpenAI højst accepterer 32. Både `ThinSession` og
+  providergrænsen producerer og håndhæver nu et deterministisk 32-tegns-id; lange eller
+  ugyldige eksterne id'er normaliseres defensivt.
+- En eksplicit providerafvisning af et ventende tekst-item fejler nu straks med den
+  rigtige årsag og kan aldrig skjules som en senere generisk ACK-timeout eller starte
+  `response.create`.
+- Preflighten bruger nu den faktisk aktive gemte prompt, effektive model og stemme.
+  Rapporten indeholder promptkilde, promptversion samt prompt- og tool-schema-hash, så
+  et bestået run kan knyttes til præcis den konfiguration, der blev prøvet.
+- Oraklet er strammet: tidsfixturen kan ikke bestå på den tvetydige delstreng
+  “klokken er to”, og sportsresultatet skal udtrykkeligt bevare, at FCK vandt.
+- Talk afviser tekst over 2.000 tegn og command-id'er over 128 tegn før samtalen åbnes.
+  Firmware, prompt V4, gain, VAD, pre-roll og den fysiske half-duplex-kæde er uændrede.
+
 ## 1.13.17 — autoritative Talk-ture og maskinel release-preflight
 
 - Skrevet Talk-input går nu altid gennem `ThinSession`. Browseren får først en accepteret

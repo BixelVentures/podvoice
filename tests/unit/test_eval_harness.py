@@ -6,10 +6,13 @@ import wave
 
 import pytest
 
+import gatekeeper.eval_harness as eval_harness
 from gatekeeper.eval_harness import (
     EvalBudget,
     Finding,
+    LiveEvalService,
     SafeEvalTools,
+    ScenarioResult,
     TurnExpectation,
     TurnObservation,
     grade_turn,
@@ -163,3 +166,26 @@ async def test_runner_timeout_is_a_failure_not_a_retry():
         "provider-error",
         "response-status",
     }
+
+
+async def test_live_service_reports_the_exact_effective_prompt_identity(monkeypatch):
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        assert driver.instructions == "min aktive prompt"
+        assert driver.model == "gpt-realtime-test"
+        assert driver.voice == "marin"
+        return ScenarioResult(scenario.id, True, "session", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    report = await LiveEvalService().run(
+        api_key="secret",
+        scenario_ids={"web-routing"},
+        model="gpt-realtime-test",
+        voice="marin",
+        instructions="min aktive prompt",
+    )
+    assert report["ok"] is True
+    assert report["prompt_source"] == "custom"
+    assert report["prompt_version"] is None
+    assert len(report["prompt_sha256"]) == 64
+    assert len(report["tool_schema_sha256"]) == 64
+    assert "min aktive prompt" not in str(report)

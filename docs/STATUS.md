@@ -142,21 +142,28 @@ korrelerede session-/tur-/playback-id'er og sand forbindelsesstatus. Prompt V4,
 firmware, gain, VAD og lydkæde fryses under denne mekaniske rettelse. v1.13.11 forbliver
 den officielle fysiske baseline.
 
-**v1.13.17 er den aktuelle add-on-kandidat.** Den lukker de dokumenterede sandhedshuller
-fra 1.13.16 uden at ændre prompt eller fysisk lyd. Skrevet Talk-input går nu gennem
-`ThinSession`, og browseren må først vise turen efter providerens kvittering af præcis
-det klientgenererede conversation-item. Talk-protokol v2 adskiller socket, engine-ready,
-samtaletilstand og inputaccept; alle udgående events er ordnede og korreleret med
-connection/session/turn/playback, og et ping/pong-lease opdager en sovende gammel socket.
+v1.13.17 blev bygget grønt i CI, installeret og kørt mod den rigtige Realtime-provider
+den 20. august. Preflighten stoppede korrekt før fysisk test: `session.updated` blev
+accepteret, men OpenAI afviste det første tekst-item med `string_above_max_length`, fordi
+PodVoice dannede `pv_` plus 32 hashtegn — 35 tegn i alt mod providerens maksimum på 32.
+Der blev ikke oprettet noget modelsvar. Fejlen er dermed transportmekanisk og har intet
+med dansk, prompt, TPM, gain eller Voice PE at gøre. **v1.13.17 er ikke testberettiget.**
 
-Den 20. august består kandidatens samlede lokale gate med **467 tests**, Ruff,
-formatteringskontrol, mypy for 39 kildefiler, parsing af alle 10 panel-scriptblokke og
-reelle lokale HTTP/WebSocket-tests. Den nye sikre Realtime-eval, trace-oracle og
-acoustic-HIL-primitive er maskinelt testet; der er endnu ikke kørt en rigtig provider-
-preflight fra den installerede add-on, og Docker-build kunne ikke køres lokalt, fordi
-Docker-daemon ikke er installeret/kørende. Derfor er 1.13.17 **softwaretestet, men endnu
-ikke frigivet eller fysisk testklar**. Næste gate er CI/add-on-build, installation og
-grøn live-preflight i Test-fanen. Først derefter må én fysisk golden chain køres.
+**v1.13.18 er den aktuelle softwarekandidat.** Alle egne og normaliserede Realtime-
+item-id'er er nu præcis højst 32 tegn, og en eksplicit itemafvisning fejler øjeblikkeligt
+uden `response.create`. Samme audit fandt og lukkede tre nærliggende sandhedshuller:
+preflighten bruger nu faktisk gemt prompt, effektive model og stemme; rapporten bærer
+promptkilde/version/hash og tool-schema-hash; og Talk afviser ubundet tekst- eller
+command-id-længde før wake/provider. Eval-oraklets tid- og sportskrav er desuden gjort
+strengere, så en tvetydig delstreng eller forkert kampretning ikke kan give falsk grøn.
+
+Den 20. august består kandidaten lokalt med **471 tests**, Ruff, formatteringskontrol,
+mypy for 39 kildefiler, parsing af alle 10 panel-scriptblokke og reelle lokale
+HTTP/WebSocket-tests. Testmiljøet blev bevidst lagt i `/private/tmp` efter den kendte
+Documents/iCloud-låsning af projektets gamle venv. Prompt V4, firmware, gain, VAD,
+pre-roll og fysisk half-duplex er uændrede. v1.13.18 er endnu ikke live-preflightet eller
+fysisk testklar; næste gate er CI/add-on-build, installation og grøn preflight med den
+rapporterede aktive promptidentitet. Først derefter må én fysisk golden chain køres.
 
 ## Adgangskrav før næste udvikling
 

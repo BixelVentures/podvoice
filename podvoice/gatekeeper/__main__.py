@@ -439,10 +439,14 @@ async def run(cfg: Config) -> None:
         live_eval_service = LiveEvalService()
 
         async def live_eval(*, scenario_ids=None):
+            from .openai_realtime import MINI_MODEL
+
             return await live_eval_service.run(
                 api_key=cfg.openai_api_key,
                 scenario_ids=scenario_ids,
-                model=cfg.openai_model,
+                model=MINI_MODEL if cfg.force_mini else cfg.openai_model,
+                voice=cfg.openai_voice,
+                instructions=cfg.system_prompt,
             )
 
     app = create_app(
