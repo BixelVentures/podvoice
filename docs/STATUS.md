@@ -220,8 +220,23 @@ resultat stadig fejler. Panelet viser desuden den præcise finding under hver r�
 Produktionsprompt, model, tool-kontrakt, Voice PE-firmware og lifecycle er byte-/logisk
 uændrede. Lokalt er **486 tests**, Ruff, formatteringskontrol, mypy for 39 kildefiler
 og alle 10 panel-scripts grønne; de reelle HTTP/WebSocket-tests er kørt uden
-sandboxens portblokering. Kandidaten kræver stadig grøn CI/add-on-build, installation
-og en bevaret grøn livepreflight, før fysisk golden chain må startes.
+sandboxens portblokering. CI-kørsel `32360366628` bestod både testjob og ARM
+add-on-build, og 1.13.22 er installeret og kører i Home Assistant.
+
+Den installerede preflight `eval-1787222997-bf8511` bestod **4/4 scenarier og 7/7
+ture** på `gpt-realtime-2.1` med den indbyggede Prompt V4. Den beviste matematik og
+opfølgning, tid/ugedag, almindelig høflighed uden falsk lukning, modelsemantisk
+afslutning og korrekt web-routing/svar. Rapporten brugte 52.255 tokens, estimeret
+$0,078 og 162 sekunders automatisk TPM-pause. Den efterfølgende rigtige Talk/Thin-test
+bestod 84 → opfølgning → 90 i samme session, semantisk Farvel/lukning og et nyt
+klokkesvar i en frisk session. En indledende prøve med faste browserpauser nåede at
+ramme idle-fallback og åbnede derfor en ny session; den tæller ikke som produktfejl og
+dokumenterer, at automatiske Talk-tests skal vente på serverevents frem for faste
+sekunder.
+
+Kandidaten er dermed **maskinelt adgangsgodkendt til én fysisk golden chain**. Den er
+ikke lifecycle-release-godkendt, før den fysiske kæde og derefter 10/10 ubrudte
+Voice PE-cyklusser består på samme kandidat.
 
 Den fulde gate omfatter Ruff, formatteringskontrol, mypy for 39 kildefiler, parsing af
 alle 10 panel-scriptblokke og reelle lokale
