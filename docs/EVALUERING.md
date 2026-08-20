@@ -16,7 +16,7 @@ Kernescenarierne dækker:
 - korrekt valg af tid og web;
 - almindelig høflighed uden falsk lukning;
 - Realtime-semantisk afslutning;
-- fuldt svar efter `continue_conversation`;
+- direkte svar i én respons uden et kunstigt lifecycle-værktøj;
 - eksplicitte providerfejl, timeout og lifecycle-resultater.
 
 Mekanik bedømmes eksakt. En forkert beslutning genkøres ikke væk. Gentagelser

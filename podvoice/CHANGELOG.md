@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.13.23 — én naturlig Realtime-respons per direkte tur
+
+- Fjerner det interne `continue_conversation`-værktøj og den obligatoriske ekstra
+  modelrespons, som den fysiske 1.13.22-trace viste kunne forvanske et korrekt hørt
+  “Hvad er tolv gange syv?” til svaret “7 gange 7 er 49.”
+- Realtime bruger nu `tool_choice=auto`: direkte svar og opklaringer leveres i samme
+  respons; kun nødvendige domæneværktøjer, `wait_for_user` og den modelsemantiske
+  `end_conversation`-beslutning forbliver.
+- Prompt V5 og live-evalueringen kræver direkte svar uden lifecycle-værktøj. En gemt,
+  urørt Prompt V4 migreres automatisk; reelle brugerdefinerede prompter bevares.
+- Firmware, gain, VAD, pre-roll, mic-gate, FLAC-playback, teardown og wake-rearm er
+  uændrede.
+
 ## 1.13.22 — semantisk korrekt web-orakel
 
 - Den fulde, bevarede 1.13.21-livepreflight beviste Prompt V4 og bestod matematik,

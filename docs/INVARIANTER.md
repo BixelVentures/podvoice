@@ -41,16 +41,16 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
 1. Ét fysisk “Okay Nabu” giver én wake-event, åbner privacy-gated mic og præcis én
    Realtime-session.
 2. Første ytring og alle naturlige opfølgninger kører i samme session uden nyt wakeword.
-3. Hver klar brugertur skal give én eksplicit modelbeslutning: et domæneværktøj for
-   handling/opslag, `continue_conversation` for et direkte svar eller en opklaring,
-   `end_conversation` for semantisk afslutning eller `wait_for_user` for ikke-henvendt
-   tale. De tre lifecycle-signaler er interne og må aldrig dispatches til HA/MCP.
-   Lokal tekstmatching af “farvel”-varianter er ikke afslutningsautoritet.
-4. `continue_conversation`-beslutningsresponsen må aldrig publiceres som svar. PodVoice
-   registrerer det interne resultat og kræver derefter præcis én værktøjsfri
-   provider-respons med hele det korte svar. Den ekstra responsgrænse er bindende:
-   modellen må ikke nøjes med en indledning i beslutningsresponsen, og det endelige svar
-   kan ikke starte en ny lifecycle- eller værktøjsrunde.
+3. En almindelig klar brugertur besvares direkte i én Realtime-respons. Kun en handling
+   eller et opslag bruger det nødvendige domæneværktøj; `end_conversation` bruges kun
+   til semantisk afslutning, og `wait_for_user` kun til ikke-henvendt tale. De to
+   lifecycle-signaler er interne og må aldrig dispatches til HA/MCP. Lokal tekstmatching
+   af “farvel”-varianter er ikke afslutningsautoritet.
+4. Realtime konfigureres med automatisk værktøjsvalg. Der findes intet obligatorisk
+   fortsættelsesværktøj eller en tvungen ekstra modelrespons for direkte svar. Et
+   domæneværktøjs resultat kan udløse den nødvendige resultatsrespons; et godkendt
+   `end_conversation` kan udløse præcis ét kort farvel. Ingen af delene åbner en ny
+   Realtime-session eller mister den eksisterende samtalekontekst.
 5. Hvis Realtime har foreslået semantisk afslutning, men den efterfølgende lydrespons
    eksplicit fejler, må transporten afspille et cachet farvel. Fallbacken må aldrig
    udløses af brugertransskription alene og må først lukke efter fysisk playback-finish.

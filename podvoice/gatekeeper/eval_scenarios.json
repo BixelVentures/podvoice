@@ -8,7 +8,7 @@
         {
           "text": "Hvad er tolv gange syv?",
           "expect": {
-            "decision": "continue_conversation",
+            "direct_answer": true,
             "answer_any": ["84", "fireogfirs"],
             "remain_open": true
           }
@@ -16,7 +16,7 @@
         {
           "text": "Og læg seks til.",
           "expect": {
-            "decision": "continue_conversation",
+            "direct_answer": true,
             "answer_any": ["90", "halvfems"],
             "remain_open": true
           }
@@ -38,7 +38,8 @@
         {
           "text": "Og hvilken ugedag er det?",
           "expect": {
-            "allowed_decisions": ["get_time", "continue_conversation"],
+            "allowed_decisions": ["get_time"],
+            "allow_direct": true,
             "answer_any": ["mandag"],
             "remain_open": true
           }
@@ -52,7 +53,7 @@
         {
           "text": "Tak. Hvad er to plus to?",
           "expect": {
-            "decision": "continue_conversation",
+            "direct_answer": true,
             "forbid": ["end_conversation"],
             "answer_any": ["4", "fire"],
             "remain_open": true
@@ -80,7 +81,7 @@
               "(?:fck|fc københavn).*vandt.*(?:2 0|to nul)",
               "(?:2 0|to nul).*til (?:fck|fc københavn)"
             ],
-            "forbid": ["continue_conversation", "get_time"],
+            "forbid": ["get_time"],
             "remain_open": true
           }
         }

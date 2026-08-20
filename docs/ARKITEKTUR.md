@@ -60,17 +60,17 @@ og playback-id, så en sen event fra en gammel socket eller afspilning er virkni
 - Hjemmets søgeagent ejer aktuel webviden.
 
 Ingen HA-, web-, musik- eller hjemmeværktøjer må åbne eller lukke Realtime-sessionen.
-Realtime bruger tre interne, provider-neutrale lifecycle-signaler: fortsæt, vent tavst
-eller afslut. De tvinger en eksplicit beslutning på hver klar brugertur, men PodVoice
-fortolker stadig aldrig brugerens ord. PodVoice ejer selve transportlukningen og kan
-derfor garantere én teardown og én wake-rearm.
+Realtime svarer direkte i én respons, når intet værktøj er nødvendigt, og bruger kun et
+reelt domæneværktøj til en handling eller et opslag. De eneste interne,
+provider-neutrale lifecycle-signaler er `wait_for_user` for ikke-henvendt tale og
+`end_conversation` for en klar semantisk afslutning. PodVoice fortolker aldrig brugerens
+ord og ejer kun transportlukningen, så én teardown og én wake-rearm kan garanteres.
 
-Et direkte svar bruger `continue_conversation`. Beslutningsresponsens eventuelle lyd
-holdes privat og kasseres. Når providerens eksplicitte fortsættelsesbeslutning er
-registreret, oprettes præcis én værktøjsfri svarrespons, som taler hele det korte svar.
-Denne mekaniske grænse blev nødvendig, fordi en live 1.13.15-prøve viste, at Realtime
-kunne sige en mellemreplik i beslutningsresponsen og aldrig levere selve svaret.
-Handlinger og opslag bruger deres reelle domæneværktøj, ikke fortsættelsessignalet.
+Der findes intet obligatorisk fortsættelsessignal og ingen tvungen to-respons-vej for et
+direkte svar. Den konstruktion blev afvist efter den fysiske 1.13.22-trace, hvor et
+korrekt observeret “Hvad er tolv gange syv?” først blev sendt gennem et kunstigt
+fortsættelseskald og derefter blev besvaret som “7 gange 7 er 49”. Automatiske
+værktøjsvalg bevarer Realtime-modellens naturlige én-respons-vej og samme åbne kontekst.
 
 ## Lukning
 
@@ -131,6 +131,6 @@ De reducerer den manuelle testflade; fysisk golden chain og 10/10 forbliver sids
 
 Koden kan midlertidigt indeholde isolerede historiske hjælpefunktioner og regressioner,
 men add-on-builder, settings og runtime må ikke kunne aktivere disse veje. Modellens
-reserverede, provider-neutrale lifecycle-signaler ovenfor er derimod den gældende
+reserverede `wait_for_user`- og `end_conversation`-signaler ovenfor er den gældende
 semantiske produktionskontrakt; de går aldrig gennem HA/MCP, og kun den efterfølgende
 transportmekanik kan fysisk lukke samtalen.

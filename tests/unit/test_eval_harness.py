@@ -34,7 +34,8 @@ def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
     }
     assert any(len(s.turns) > 1 for s in scenarios)
     decisions = {turn.expect.decision for scenario in scenarios for turn in scenario.turns}
-    assert {"continue_conversation", "end_conversation", "get_time"} <= decisions
+    assert {"end_conversation", "get_time"} <= decisions
+    assert any(turn.expect.direct_answer for scenario in scenarios for turn in scenario.turns)
 
 
 def test_web_oracle_accepts_spoken_words_or_digits_but_still_requires_winner():
@@ -76,12 +77,12 @@ def test_scenario_loader_rejects_an_invalid_answer_pattern(tmp_path: pathlib.Pat
 
 def test_oracle_requires_exact_decision_answer_and_lifecycle():
     expected = TurnExpectation(
-        decision="continue_conversation", answer_any=("84", "fireogfirs"), remain_open=True
+        direct_answer=True, answer_any=("84", "fireogfirs"), remain_open=True
     )
     good = TurnObservation(
         turn_id="t",
         session_id="s",
-        decisions=["continue_conversation"],
+        decisions=[],
         answer="Svaret er fireogfirs.",
     )
     assert grade_turn(expected, good) == []
@@ -102,7 +103,10 @@ def test_oracle_requires_exact_decision_answer_and_lifecycle():
 
 async def test_safe_eval_router_never_dispatches_unknown_tools():
     tools = SafeEvalTools()
-    assert {"continue_conversation", "end_conversation", "wait_for_user"} <= {
+    assert {"end_conversation", "wait_for_user"} <= {
+        declaration["name"] for declaration in tools.declarations()
+    }
+    assert "continue_conversation" not in {
         declaration["name"] for declaration in tools.declarations()
     }
     assert (await tools.dispatch("get_time", {}))["ok"] is True
@@ -166,7 +170,7 @@ async def test_runner_uses_one_session_and_event_driven_driver_results():
             return TurnObservation(
                 turn_id=turn_id,
                 session_id=self.session_id,
-                decisions=["continue_conversation"],
+                decisions=[],
                 answer="Fireogfirs." if self.calls == 1 else "Halvfems.",
             )
 

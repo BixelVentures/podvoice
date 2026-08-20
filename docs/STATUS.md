@@ -1,6 +1,6 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-08-19.
+Senest opdateret: 2026-08-20.
 
 ## Officiel milepæl
 
@@ -214,7 +214,7 @@ semantisk afslutning bestod. Web valgte korrekt `google_web_sogning` og svarede 
 vandt 2-0”, men oraklet krævede de bogstavelige talord “to” og “nul”. Rapportens eneste
 røde tur var derfor en dokumenteret falsk negativ, ikke en produktfejl.
 
-**v1.13.22 er den aktuelle softwarekandidat.** Web-oraklet accepterer nu den korrekte
+**v1.13.22 var den senest installerede softwarekandidat.** Web-oraklet accepterer den korrekte
 FCK-sejr med cifre eller danske talord, men bevarer vinderretningen, så et omvendt
 resultat stadig fejler. Panelet viser desuden den præcise finding under hver rød tur.
 Produktionsprompt, model, tool-kontrakt, Voice PE-firmware og lifecycle er byte-/logisk
@@ -234,9 +234,23 @@ ramme idle-fallback og åbnede derfor en ny session; den tæller ikke som produk
 dokumenterer, at automatiske Talk-tests skal vente på serverevents frem for faste
 sekunder.
 
-Kandidaten er dermed **maskinelt adgangsgodkendt til én fysisk golden chain**. Den er
-ikke lifecycle-release-godkendt, før den fysiske kæde og derefter 10/10 ubrudte
-Voice PE-cyklusser består på samme kandidat.
+Kandidaten blev dermed **maskinelt adgangsgodkendt til én fysisk golden chain**, men den
+fysiske prøve `20260820T131337-909` afviste den. Voice PE observerede korrekt “Hvad er
+tolv gange syv?”, hvorefter Realtime først kaldte det obligatoriske
+`continue_conversation` og den tvungne anden respons svarede “7 gange 7 er 49.” På
+opfølgningen kaldte Realtime `end_conversation`, før den asynkrone diagnostiske
+transskription “Læg sekste.” ankom, og sagde “Farvel, vi tales ved.” uden en reel
+afslutningshensigt. Fysisk playback, én teardown og wake-rearm på 98 ms virkede, men
+semantikken fejlede. **v1.13.22 er derfor fysisk afvist og ikke testklar.**
+
+**v1.13.23 er den aktive lokale softwarekandidat.** Den fjerner den obligatoriske
+fortsættelsesbeslutning og den tvungne to-respons-vej. Realtime bruger automatisk
+værktøjsvalg: direkte spørgsmål besvares i én respons, domæneværktøjer bruges kun ved
+behov, og `end_conversation` forbliver den eneste modelsemantiske lukningsautoritet.
+Firmware, gain, VAD, pre-roll, half-duplex, playback og rearm ændres ikke i denne
+kandidat. Lokalt er 483 tests, Ruff, formatteringskontrol og mypy for 39 kildefiler
+grønne. Add-on-build, installeret live-preflight og fysisk gate mangler fortsat; den er
+derfor endnu ikke testklar.
 
 Den fulde gate omfatter Ruff, formatteringskontrol, mypy for 39 kildefiler, parsing af
 alle 10 panel-scriptblokke og reelle lokale
@@ -249,15 +263,15 @@ Documents/iCloud-låsning af projektets gamle venv.
    live Talk-kæde gennem en serverkvitteret `ThinSession`-tur: direkte matematik →
    opfølgning → tidsværktøj → opfølgning → semantisk afslutning. Første tekst må ikke
    tabes, UI må ikke vise en uaccepteret tur som afleveret, og hver direkte tur skal give
-   både `continue_conversation` og et efterfølgende fuldt svar.
+   ét fuldt svar uden lifecycle-værktøj eller ekstra modelrespons.
 2. Opdatér derefter add-on til den beståede kandidat og gentag den korte golden chain. Den første klare
-   afslutning skal vælge `end_conversation`; de to almindelige ture skal hver have et
-   eksplicit domæne- eller `continue_conversation`-valg. Et bevist playback-start/slut-
+   afslutning skal vælge `end_conversation`; de almindelige ture skal svare direkte,
+   mens opslag kun må bruge deres relevante domæneværktøj. Et bevist playback-start/slut-
    par må ikke efterfølges af `playback_fault`; afslutningen skal ende med mørk IDLE og
    fungerende wake.
 3. Kontrollér at den nye trace fortsat viser `prompt_source=default`,
-   `prompt_version=4`, og at Realtime accepterer `max_output_tokens=1024` og
-   sessionens krævede værktøjsvalg. Et korrekt
+   `prompt_version=5`, og at Realtime accepterer `max_output_tokens=1024` og
+   sessionens automatiske værktøjsvalg. Et korrekt
    svar tæller ikke som bestået, hvis kendt testinput bliver tomt eller semantisk forvansket.
 4. Kør 10 ubrudte fysiske lifecycle-cyklusser på samme kandidat. Ingen gain-, VAD-,
    prompt- eller UX-tuning midt i serien.

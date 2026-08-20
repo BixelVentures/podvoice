@@ -70,7 +70,6 @@ BARGE_DEBOUNCE_S = 0.6
 # this fallback is the belt for semantic_vad and for a server that never says so.
 IDLE_FALLBACK_S = 25.0
 END_CONVERSATION_TOOL = "end_conversation"
-CONTINUE_CONVERSATION_TOOL = "continue_conversation"
 WAIT_FOR_USER_TOOL = "wait_for_user"
 END_CONVERSATION_DECLARATION = {
     "name": END_CONVERSATION_TOOL,
@@ -83,19 +82,6 @@ END_CONVERSATION_DECLARATION = {
         "politeness, background speech, a media stop, or merely mentioning a farewell. If "
         "the user is addressing the assistant but end intent is uncertain, ask for a repeat. "
         "After the tool result, follow the system prompt's short Danish farewell rule."
-    ),
-    "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
-}
-CONTINUE_CONVERSATION_DECLARATION = {
-    "name": CONTINUE_CONVERSATION_TOOL,
-    "description": (
-        "Signal that the user's latest clear meaning is to continue the current voice "
-        "conversation. Use this lifecycle signal for direct answers and clarifications "
-        "that need no other tool. In this tool-decision response, produce no spoken "
-        "preamble or partial answer. After the tool result, give the complete short "
-        "answer. Never use it when the user clearly wants to end the "
-        "conversation, when speech is background/not addressed, or as a substitute for "
-        "a Home Assistant, web, music, timer or other required action tool."
     ),
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
@@ -474,14 +460,12 @@ class ThinSession:
         # reserved signal is handled by ThinSession and never dispatched to HA.
         reserved = {
             END_CONVERSATION_TOOL,
-            CONTINUE_CONVERSATION_TOOL,
             WAIT_FOR_USER_TOOL,
         }
         decls = [d for d in decls if d.get("name") not in reserved]
         decls.extend(
             (
                 END_CONVERSATION_DECLARATION,
-                CONTINUE_CONVERSATION_DECLARATION,
                 WAIT_FOR_USER_DECLARATION,
             )
         )
@@ -1051,8 +1035,6 @@ class ThinSession:
             if ev.name == WAIT_FOR_USER_TOOL:
                 self._trace_event("wait_for_user_requested", call_id=ev.id)
                 self._wait_turns[ev.id] = (self._epoch, self._ensure_closure_turn())
-            if ev.name == CONTINUE_CONVERSATION_TOOL:
-                self._trace_event("continue_conversation_requested", call_id=ev.id)
             if ev.name == END_CONVERSATION_TOOL:
                 if ev.id in self._semantic_end_call_ids:
                     _LOG.info("thin: duplicate semantic end call ignored [call_id=%s]", ev.id)
@@ -1536,11 +1518,6 @@ class ThinSession:
             result = {
                 "ok": True,
                 "data": {"decision": END_CONVERSATION_TOOL},
-            }
-        elif tc.name == CONTINUE_CONVERSATION_TOOL:
-            result = {
-                "ok": True,
-                "data": {"decision": CONTINUE_CONVERSATION_TOOL},
             }
         elif tc.name == WAIT_FOR_USER_TOOL:
             result = {

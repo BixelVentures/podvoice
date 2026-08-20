@@ -25,6 +25,9 @@ på sin egen højttaler eller blive dødt efter få samtaler.
 - Dobbelt wake mens sessionen allerede er åben opretter ikke en ny session.
 - Realtime har ét provider-neutralt `end_conversation`-signal til en tydelig semantisk
   afslutningshensigt. Signalet må ikke selv lukke transporten eller gå gennem HA/MCP.
+- Realtime bruger automatisk værktøjsvalg: et almindeligt spørgsmål besvares direkte i
+  én respons, og kun en handling eller et opslag bruger et nødvendigt værktøj. Et
+  obligatorisk fortsættelsesværktøj eller en tvungen ekstra svarrespons er forbudt.
 - Der findes ingen frase-, keyword- eller ASR-aliasliste, som afgør samtalehensigten.
 - “Klar”, “Kig FCK seneste kamp”, uklart input og almindelig høflighed kan ikke lukke,
   medmindre Realtime på den samme tur eksplicit beslutter, at brugeren afslutter.

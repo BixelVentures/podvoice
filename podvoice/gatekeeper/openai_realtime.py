@@ -297,12 +297,10 @@ class OpenAIRealtimeSession:
             # OpenAI recommends low as the production voice-agent starting point:
             # responsive, while retaining basic reasoning and tool selection.
             "reasoning": {"effort": "low"},
-            # Every fresh user turn must produce an explicit tool decision. Direct
-            # answers use Thin's continue_conversation no-op in the same audio response;
-            # semantic close uses end_conversation; real actions use their own tool.
-            # Tool-result follow-ups override this to auto so multi-step work remains
-            # possible and the final spoken result is not forced into a tool loop.
-            "tool_choice": "required",
+            # Realtime answers ordinary turns directly in one response and calls a tool
+            # only when the user's intent actually needs one. Semantic close remains the
+            # reserved end_conversation tool; transport never infers it from transcript.
+            "tool_choice": "auto",
             "instructions": (self.instructions or SYSTEM_PROMPT_DA)
             + (f"\n\nRUM\n{self.room_context}" if self.room_context else ""),
             "audio": {
@@ -483,7 +481,7 @@ class OpenAIRealtimeSession:
                 self._silent_tool_call_ids.add(call_id)
             else:
                 self._tool_result_response_required = True
-                if r.get("name") in ("end_conversation", "continue_conversation"):
+                if r.get("name") == "end_conversation":
                     self._force_no_tools_followup = True
             submitted += 1
         if submitted == 0:

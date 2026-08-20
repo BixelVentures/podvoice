@@ -391,38 +391,6 @@ async def test_semantic_end_result_forces_one_tool_free_farewell_response():
     }
 
 
-async def test_continue_result_forces_one_tool_free_answer_response():
-    """A required lifecycle decision must not force another lifecycle loop."""
-    s = OpenAIRealtimeSession(api_key="k")
-    s._ws = _FakeWS()  # type: ignore[assignment]
-    await s.send_tool_results(
-        [{"id": "continue", "name": "continue_conversation", "response": {"ok": True}}]
-    )
-    assert s._ws.sent[-1] == {
-        "type": "response.create",
-        "response": {"tool_choice": "none"},
-    }
-
-
-async def test_active_continue_round_creates_exactly_one_tool_free_final_response():
-    """The field failure was a preamble without 84; prove the final response boundary."""
-    s = OpenAIRealtimeSession(api_key="k")
-    s._ws = _FakeWS()  # type: ignore[assignment]
-    s._active_response = True
-    s._outstanding_tool_calls.add("continue")
-
-    await s.send_tool_results(
-        [{"id": "continue", "name": "continue_conversation", "response": {"ok": True}}]
-    )
-    assert all(message["type"] != "response.create" for message in s._ws.sent)
-
-    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
-    events = await _drain(s)
-    assert sum(isinstance(event, ToolRoundComplete) for event in events) == 1
-    creates = [message for message in s._ws.sent if message["type"] == "response.create"]
-    assert creates == [{"type": "response.create", "response": {"tool_choice": "none"}}]
-
-
 async def test_openai_silent_tool_result_never_creates_a_response_when_idle():
     s = OpenAIRealtimeSession(api_key="k")
     s._ws = _FakeWS()  # type: ignore[assignment]
@@ -725,14 +693,9 @@ def test_realtime_21_uses_low_reasoning_for_voice_latency():
     assert session["reasoning"] == {"effort": "low"}
 
 
-def test_every_fresh_user_turn_requires_an_explicit_tool_decision():
-    """A clear close may never degrade into an untracked spoken pleasantry.
-
-    Direct answers use continue_conversation, semantic close uses end_conversation,
-    background uses wait_for_user, and action turns use the actual action tool.
-    """
+def test_fresh_user_turn_allows_direct_answer_or_a_needed_tool():
     session = OpenAIRealtimeSession(api_key="k")._session_update()["session"]
-    assert session["tool_choice"] == "required"
+    assert session["tool_choice"] == "auto"
 
 
 def test_realtime_caps_output_reservation_for_short_voice_answers():

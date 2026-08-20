@@ -38,7 +38,6 @@ from .openai_realtime import (
 )
 from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 from .thin import (
-    CONTINUE_CONVERSATION_DECLARATION,
     END_CONVERSATION_DECLARATION,
     WAIT_FOR_USER_DECLARATION,
 )
@@ -53,13 +52,15 @@ from .voice import (
 )
 
 SCENARIOS_PATH = pathlib.Path(__file__).with_name("eval_scenarios.json")
-LIFECYCLE_TOOLS = {"continue_conversation", "end_conversation", "wait_for_user"}
+LIFECYCLE_TOOLS = {"end_conversation", "wait_for_user"}
 
 
 @dataclass(frozen=True)
 class TurnExpectation:
     decision: str | None = None
     allowed_decisions: tuple[str, ...] = ()
+    direct_answer: bool = False
+    allow_direct: bool = False
     forbid: tuple[str, ...] = ()
     answer_any: tuple[str, ...] = ()
     answer_all: tuple[str, ...] = ()
@@ -155,6 +156,8 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                     expect=TurnExpectation(
                         decision=expected.get("decision"),
                         allowed_decisions=tuple(expected.get("allowed_decisions") or ()),
+                        direct_answer=bool(expected.get("direct_answer", False)),
+                        allow_direct=bool(expected.get("allow_direct", False)),
                         forbid=tuple(expected.get("forbid") or ()),
                         answer_any=tuple(expected.get("answer_any") or ()),
                         answer_all=tuple(expected.get("answer_all") or ()),
@@ -188,7 +191,15 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
         )
     decisions = observed.decisions
     allowed = set(expect.allowed_decisions)
-    if expect.decision:
+    if expect.direct_answer:
+        if decisions:
+            findings.append(
+                Finding(
+                    "wrong-decision",
+                    f"Forventede ét direkte svar uden værktøj, fik {decisions}.",
+                )
+            )
+    elif expect.decision:
         if decisions != [expect.decision]:
             findings.append(
                 Finding(
@@ -196,7 +207,9 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
                     f"Forventede præcis {expect.decision}, fik {decisions or 'ingen beslutning'}.",
                 )
             )
-    elif allowed and (len(decisions) != 1 or decisions[0] not in allowed):
+    elif allowed and not (
+        (expect.allow_direct and not decisions) or (len(decisions) == 1 and decisions[0] in allowed)
+    ):
         findings.append(
             Finding("wrong-decision", f"Forventede én af {sorted(allowed)}, fik {decisions}.")
         )
@@ -343,7 +356,6 @@ class SafeEvalTools:
                     "additionalProperties": False,
                 },
             },
-            dict(CONTINUE_CONVERSATION_DECLARATION),
             dict(END_CONVERSATION_DECLARATION),
             dict(WAIT_FOR_USER_DECLARATION),
         ]
@@ -514,10 +526,7 @@ class LiveRealtimeDriver:
             if isinstance(event, ToolCall):
                 observed.decisions.append(event.name)
                 observed.tool_args.setdefault(event.name, []).append(event.args)
-                if event.name == "continue_conversation":
-                    response = {"ok": True, "data": {"decision": event.name}}
-                    suppress = False
-                elif event.name == "end_conversation":
+                if event.name == "end_conversation":
                     response = {"ok": True, "data": {"decision": event.name}}
                     suppress = False
                     observed.remain_open = False

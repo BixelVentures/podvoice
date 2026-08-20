@@ -3,9 +3,9 @@
 from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
-def test_v4_is_prioritized_and_model_owned():
+def test_v5_is_prioritized_and_model_owned():
     prompt = SYSTEM_PROMPT_DA.lower()
-    assert PROMPT_VERSION == 4
+    assert PROMPT_VERSION == 5
     assert "# prioritet" in prompt
     assert "# lyd og forståelse" in prompt
     assert "# semantisk afslutning" in prompt
@@ -46,9 +46,8 @@ def test_sensitive_actions_and_semantic_close_are_explicit():
     assert "ved en ren afslutning" in prompt
 
 
-def test_every_clear_turn_has_an_explicit_semantic_lifecycle_decision():
+def test_direct_answers_need_no_lifecycle_tool_round():
     prompt = SYSTEM_PROMPT_DA.lower()
-    assert "hver klar brugertur skal have en eksplicit livscyklusbeslutning" in prompt
-    assert "kald straks continue_conversation uden en talt indledning" in prompt
-    assert "når signalets resultat er modtaget, giv hele det korte svar" in prompt
-    assert "brug det aldrig sammen med end_conversation eller wait_for_user" in prompt
+    assert "giv et direkte svar i samme respons" in prompt
+    assert "kald intet værktøj, når intet værktøj er nødvendigt" in prompt
+    assert "continue_conversation" not in prompt
