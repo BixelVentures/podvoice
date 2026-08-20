@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import aiohttp
+import pytest
 
+from gatekeeper import constants as C
 from gatekeeper.openai_realtime import OpenAIRealtimeSession
 from gatekeeper.settings import load_settings, save_settings
 from gatekeeper.voice import (
@@ -38,6 +41,61 @@ class _FakeWS:
     async def _gen(self):  # type: ignore[no-untyped-def]
         for m in self._incoming:
             yield m
+
+
+async def test_typed_input_waits_for_matching_item_created_before_response():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._configured = True
+    s._configured_event.set()
+    task = asyncio.create_task(s.send_text("Hvad er klokken?", item_id="pv_match"))
+    await asyncio.sleep(0)
+    assert [message["type"] for message in s._ws.sent] == ["conversation.item.create"]
+    assert s._ws.sent[0]["item"]["id"] == "pv_match"
+    s._ws._incoming.append(  # type: ignore[attr-defined]
+        _Msg(json.dumps({"type": "conversation.item.created", "item": {"id": "pv_match"}}))
+    )
+    await _drain(s)
+    await task
+    assert [message["type"] for message in s._ws.sent] == [
+        "conversation.item.create",
+        "response.create",
+    ]
+
+
+async def test_stale_item_created_does_not_acknowledge_another_text():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._configured = True
+    s._configured_event.set()
+    task = asyncio.create_task(s.send_text("Hej", item_id="pv_current"))
+    await asyncio.sleep(0)
+    s._ws._incoming.extend(  # type: ignore[attr-defined]
+        [
+            _Msg(json.dumps({"type": "conversation.item.created", "item": {"id": "pv_stale"}})),
+            _Msg(json.dumps({"type": "conversation.item.created", "item": {"id": "pv_current"}})),
+        ]
+    )
+    await _drain(s)
+    await task
+    assert s._ws.sent[-1] == {"type": "response.create"}
+
+
+async def test_missing_item_created_ack_fails_without_response_create(monkeypatch):
+    monkeypatch.setattr(C, "CONNECT_TIMEOUT_S", 0.01)
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS()  # type: ignore[assignment]
+    s._configured = True
+    s._configured_event.set()
+    with pytest.raises(ConnectionError, match="did not acknowledge"):
+        await s.send_text("Hej", item_id="pv_never")
+    assert [message["type"] for message in s._ws.sent] == ["conversation.item.create"]
+
+
+async def test_typed_input_without_socket_fails_loudly():
+    s = OpenAIRealtimeSession(api_key="k")
+    with pytest.raises(ConnectionError):
+        await s.send_text("må ikke forsvinde")
 
 
 async def _drain(session) -> list:
@@ -704,7 +762,9 @@ async def test_error_after_accept_is_not_fatal():
     with contextlib.suppress(ConnectionError):  # fake socket ends -> normal drop-raise
         async for _ in s.events():
             pass  # the error event itself must NOT raise (only untuned state is fatal)
-    assert s._configured is True
+    # The post-accept error itself did not abort iteration. Once the fake socket then
+    # ended, readiness must be revoked so a typed turn cannot be sent into a dead link.
+    assert s._configured is False
 
 
 async def test_full_duplex_interrupts_even_after_generation_has_finished():

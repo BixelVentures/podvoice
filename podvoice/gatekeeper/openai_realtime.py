@@ -21,9 +21,11 @@ Items that could drift are marked # VERIFY.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
+import uuid
 from collections import deque
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
@@ -182,6 +184,10 @@ class OpenAIRealtimeSession:
     _deliberate_close: bool = field(default=False, init=False, repr=False)
     # True once the server ACCEPTED our session.update (hard-fail guard, 0.77 class).
     _configured: bool = field(default=False, init=False, repr=False)
+    _configured_event: asyncio.Event = field(default_factory=asyncio.Event, init=False, repr=False)
+    _item_created_waiters: dict[str, asyncio.Future] = field(
+        default_factory=dict, init=False, repr=False
+    )
     # Mic audio can arrive before Realtime has accepted session.update. Dropping it makes
     # "Okay Nabu hvad er klokken" become only "...klokken" unless the user pauses after
     # the wake word. Keep a short raw-input buffer and replay it once the server is ready.
@@ -307,6 +313,7 @@ class OpenAIRealtimeSession:
 
     async def connect(self) -> None:
         self._configured = False  # fresh socket -> fresh accept required
+        self._configured_event.clear()
         # Fresh socket -> fresh state machine (a prior session may have died mid-response).
         self._active_response = False
         self._pending_create = False
@@ -389,19 +396,42 @@ class OpenAIRealtimeSession:
         b64 = base64.b64encode(pcm).decode("ascii")
         await self._ws.send_json({"type": "input_audio_buffer.append", "audio": b64})
 
-    async def send_text(self, text: str) -> None:
+    async def send_text(self, text: str, *, item_id: str | None = None) -> None:
         if self._ws is None:
-            return
-        await self._ws.send_json(
-            {
-                "type": "conversation.item.create",
-                "item": {
-                    "type": "message",
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": text}],
-                },
-            }
-        )
+            raise ConnectionError("OpenAI realtime socket is not connected")
+        # connect() has opened the socket, but session.updated is the provider's actual
+        # acceptance boundary.  Typed Talk input has no pre-connect audio buffer, so a
+        # silent early return/send would lose the entire user turn.
+        if not self._configured:
+            try:
+                await asyncio.wait_for(self._configured_event.wait(), timeout=C.CONNECT_TIMEOUT_S)
+            except TimeoutError as exc:
+                raise ConnectionError("OpenAI realtime session was not ready for text") from exc
+        if self._ws is None or bool(getattr(self._ws, "closed", False)):
+            raise ConnectionError("OpenAI realtime socket closed before text submission")
+        iid = item_id or f"pv_{uuid.uuid4().hex}"
+        loop = asyncio.get_running_loop()
+        accepted = loop.create_future()
+        self._item_created_waiters[iid] = accepted
+        try:
+            await self._ws.send_json(
+                {
+                    "type": "conversation.item.create",
+                    "item": {
+                        "id": iid,
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": text}],
+                    },
+                }
+            )
+            await asyncio.wait_for(accepted, timeout=C.CONNECT_TIMEOUT_S)
+        except TimeoutError as exc:
+            raise ConnectionError("OpenAI did not acknowledge the typed conversation item") from exc
+        finally:
+            self._item_created_waiters.pop(iid, None)
+        if self._ws is None or bool(getattr(self._ws, "closed", False)):
+            raise ConnectionError("OpenAI realtime socket closed before response creation")
         await self._ws.send_json({"type": "response.create"})
 
     async def send_tool_results(self, results: list) -> bool:
@@ -474,6 +504,9 @@ class OpenAIRealtimeSession:
         finally:
             # On any exit (incl. a socket drop mid-response) don't carry stale state into
             # the next socket, or tool calls would defer forever / fire a spurious create.
+            self._configured = False
+            self._configured_event.clear()
+            self._fail_item_waiters(ConnectionError("OpenAI realtime stream ended"))
             self._active_response = False
             self._pending_create = False
             self._tool_result_response_required = False
@@ -536,6 +569,14 @@ class OpenAIRealtimeSession:
                 if text:
                     _LOG.info("turn: input transcript %r", text)
                 yield InputTranscript(text)
+            elif t == "conversation.item.created":
+                item = ev.get("item") or {}
+                item_id = str(item.get("id") or ev.get("item_id") or "")
+                waiter = self._item_created_waiters.get(item_id)
+                if waiter is not None and not waiter.done():
+                    waiter.set_result(None)
+                elif item_id:
+                    _LOG.debug("ignoring uncorrelated conversation.item.created id=%s", item_id)
             elif t == "response.function_call_arguments.done":
                 call_id = str(ev.get("call_id") or "")
                 if call_id:
@@ -677,6 +718,9 @@ class OpenAIRealtimeSession:
                     self.input_rate,
                 )
                 await self._flush_preconnect_audio()
+                # Text may now follow without overtaking same-breath audio that arrived
+                # while the session update was in flight.
+                self._configured_event.set()
             elif t == "error":
                 err = ev.get("error") or {}
                 if not self._configured:
@@ -742,6 +786,9 @@ class OpenAIRealtimeSession:
 
     async def close(self) -> None:
         self._deliberate_close = True
+        self._configured = False
+        self._configured_event.clear()
+        self._fail_item_waiters(ConnectionError("OpenAI realtime session closed"))
         self._preconnect_audio.clear()
         self._preconnect_audio_bytes = 0
         if self._ws is not None:
@@ -750,6 +797,12 @@ class OpenAIRealtimeSession:
         if self._http is not None:
             await self._http.close()
             self._http = None
+
+    def _fail_item_waiters(self, exc: Exception) -> None:
+        for waiter in self._item_created_waiters.values():
+            if not waiter.done():
+                waiter.set_exception(exc)
+        self._item_created_waiters.clear()
 
 
 def make_session(

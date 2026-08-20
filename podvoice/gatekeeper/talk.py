@@ -1,11 +1,7 @@
 """Talk tab = the REAL engine (0.90): the browser is a *device*, not a side-channel.
 
-The old console was a raw browser<->model bridge that bypassed every rule the puck
-lives by (no wake gate, no idle close, no echo shield, different transport closure) — so the
-tab could never PROVE the product. Now the mic button fires the same ``wake()`` as
-"Okay Nabu", and the browser plays the same reply-bus FLAC stream the puck fetches:
-tools, goodbye, idle fallback, conversation cap, echo shield — all identical by
-construction, because it IS the same ThinSession.
+Talk exercises the same ``ThinSession`` logic as Voice PE, but remains browser evidence:
+it cannot prove the puck's physical wake, microphone, loudspeaker or audible latency.
 
 Wire protocol (WebSocket):
   browser -> server:  {"type":"wake"}                  mic button == "Okay Nabu"
@@ -29,6 +25,7 @@ import contextlib
 import json
 import logging
 import time
+import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -37,7 +34,92 @@ from aiohttp import WSMsgType
 log = logging.getLogger("podvoice.talk")
 
 TALK_ROOM = "talk"
+PROTOCOL_VERSION = 2
 _QUEUE_MAXSIZE = 200  # ~4 s of 20 ms frames, same backpressure policy as the puck link
+
+
+class TalkConnection:
+    """One ordered, versioned server->browser channel.
+
+    aiohttp preserves WebSocket frame order, but the old TalkHub created an independent
+    task for every message before frames reached aiohttp.  This single writer makes the
+    engine's causal order the browser's order and attaches correlation metadata once.
+    """
+
+    def __init__(self, ws) -> None:
+        self.ws = ws
+        self.connection_id = uuid.uuid4().hex
+        self._seq = 0
+        self._session = None
+        self._q: asyncio.Queue[tuple[str, object, asyncio.Future | None] | None] = asyncio.Queue()
+        self._writer_task: asyncio.Task | None = None
+
+    def attach(self, session) -> None:
+        self._session = session
+
+    def start(self) -> None:
+        if self._writer_task is None:
+            self._writer_task = asyncio.create_task(self._writer(), name="talk-ws-writer")
+
+    def _envelope(self, payload: dict) -> dict:
+        self._seq += 1
+        session_id = getattr(self._session, "_history_session", "") or None
+        turn_id = None
+        if self._session is not None and hasattr(self._session, "_external_turn_id"):
+            turn_id = self._session._external_turn_id()
+        return {
+            **payload,
+            "v": PROTOCOL_VERSION,
+            "seq": self._seq,
+            "connection_id": self.connection_id,
+            "session_id": payload.get("session_id", session_id),
+            "turn_id": payload.get("turn_id", turn_id),
+            "adapter": "talk",
+            "evidence": "browser",
+        }
+
+    async def send_json(self, payload: dict) -> None:
+        loop = asyncio.get_running_loop()
+        done = loop.create_future()
+        await self._q.put(("json", self._envelope(payload), done))
+        await done
+
+    def post_json(self, payload: dict) -> None:
+        self._q.put_nowait(("json", self._envelope(payload), None))
+
+    async def send_bytes(self, payload: bytes) -> None:
+        loop = asyncio.get_running_loop()
+        done = loop.create_future()
+        await self._q.put(("bytes", payload, done))
+        await done
+
+    async def _writer(self) -> None:
+        while True:
+            item = await self._q.get()
+            if item is None:
+                return
+            kind, payload, done = item
+            try:
+                if kind == "json":
+                    await self.ws.send_json(payload)
+                else:
+                    await self.ws.send_bytes(payload)
+                if done is not None and not done.done():
+                    done.set_result(None)
+            except Exception as exc:
+                if done is not None and not done.done():
+                    done.set_exception(exc)
+
+    async def aclose(self) -> None:
+        if self._writer_task is None:
+            return
+        await self._q.put(None)
+        with contextlib.suppress(Exception):
+            await self._writer_task
+        self._writer_task = None
+
+    def __aiter__(self):
+        return self.ws.__aiter__()
 
 
 class BrowserLink:
@@ -68,6 +150,8 @@ class BrowserLink:
         self.frames_in = 0
         self.bytes_in = 0
         self.last_audio_ts = 0.0
+        self._playback_serial = 0
+        self._playback_id: str | None = None
 
     # ---------------------------------------------------------------- lifecycle
     async def start(self) -> None:  # the socket IS the connection
@@ -121,10 +205,12 @@ class BrowserLink:
     # ---------------------------------------------------------------- speaker path
     async def play_url(self, url: str) -> None:
         """The browser fetches the SAME reply-bus stream the puck would announce."""
-        await self._safe_json({"type": "play", "url": url})
+        self._playback_serial += 1
+        self._playback_id = f"play-{self._playback_serial}"
+        await self._safe_json({"type": "play", "url": url, "playback_id": self._playback_id})
 
     async def stop_playback(self) -> None:
-        await self._safe_json({"type": "stop_playback"})
+        await self._safe_json({"type": "stop_playback", "playback_id": self._playback_id})
 
     async def play_pcm(self, chunk: bytes) -> None:
         """Raw 24 kHz PCM (error clips via Playback) — the old binary channel."""
@@ -140,11 +226,18 @@ class BrowserLink:
         if self.on_wake is not None:
             self.on_wake()
 
-    def media_state(self, announcing: bool) -> None:
+    def media_state(self, announcing: bool, playback_id: str | None = None) -> None:
         """The reply <audio> element started/finished — the engine's playback truth
         (drives the echo shield and 'reply finished playing' exactly like the puck)."""
+        if playback_id is not None and playback_id != self._playback_id:
+            log.info(
+                "talk: ignored stale playback edge %s (current=%s)", playback_id, self._playback_id
+            )
+            return
         if self.on_media_state is not None:
             self.on_media_state(bool(announcing))
+        if not announcing:
+            self._playback_id = None
 
     async def _safe_json(self, payload: dict) -> None:
         with contextlib.suppress(Exception):  # a closed socket must never break the engine
@@ -157,10 +250,15 @@ class TalkHub:
 
     def __init__(self, send_json, history=None) -> None:
         self._send = send_json  # async callable(dict)
+        owner = getattr(send_json, "__self__", None)
+        self._post_ordered = getattr(owner, "post_json", None)
         self._history = history
         self._pending: set[asyncio.Task] = set()
 
     def _post(self, payload: dict) -> None:
+        if self._post_ordered is not None:
+            self._post_ordered(payload)
+            return
         task = asyncio.ensure_future(self._send_quiet(payload))
         self._pending.add(task)
         task.add_done_callback(self._pending.discard)
@@ -217,9 +315,30 @@ class TalkHub:
         if self._history is not None and text:
             self._history.append(room, direction, text, ts=observed_at, session=session)
 
+    def submitted_text(
+        self,
+        room: str,
+        text: str,
+        *,
+        ts: float | None = None,
+        session: str | None = None,
+    ) -> None:
+        """Persist accepted typed input; command_result owns its one visible bubble."""
+        if self._history is not None and text:
+            self._history.append(
+                room,
+                "in",
+                text,
+                ts=time.time() if ts is None else ts,
+                session=session,
+            )
+
     def set_latency(self, room: str, ms: float | None) -> None:
         if ms is not None:
             self._post({"type": "latency", "ms": round(ms)})
+
+    def timeline(self, room: str, event: str, **details) -> None:
+        self._post({"type": "timeline", "event": event, **details})
 
     # Panel-global concerns that don't apply to a browser session: quiet no-ops.
     def register_room(self, room: str) -> None:
@@ -243,8 +362,68 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
 
     The engine owns everything; this loop only moves browser events in. On socket
     close the session is torn down exactly like a room shutdown (music released)."""
-    await ws.send_json({"type": "hello", "engine": "thin", "rate": 24000})
     await session.start()
+    await ws.send_json(
+        {
+            "type": "hello",
+            "engine": "thin",
+            "protocol": PROTOCOL_VERSION,
+            "rate": 24000,
+            "conversation": "idle",
+        }
+    )
+    commands: asyncio.Queue[dict | None] = asyncio.Queue()
+
+    async def command_worker() -> None:
+        while True:
+            data = await commands.get()
+            if data is None:
+                return
+            kind = data.get("type")
+            command_id = str(data.get("command_id") or uuid.uuid4().hex)
+            try:
+                if kind == "wake":
+                    await session.wake()
+                    active = bool(getattr(session, "_active", False))
+                    await ws.send_json(
+                        {
+                            "type": "command_result",
+                            "command_id": command_id,
+                            "status": "accepted" if active else "rejected",
+                            "code": "accepted" if active else "unavailable",
+                        }
+                    )
+                elif kind == "stop":
+                    await session.stop(reason="panel")
+                    await ws.send_json(
+                        {
+                            "type": "command_result",
+                            "command_id": command_id,
+                            "status": "accepted",
+                            "code": "accepted",
+                        }
+                    )
+                elif kind == "text":
+                    receipt = await session.submit_text(str(data.get("text") or ""), command_id)
+                    await ws.send_json(
+                        {"type": "command_result", "command_id": command_id, **receipt}
+                    )
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                log.warning("talk command %s failed without killing the socket: %s", kind, exc)
+                with contextlib.suppress(Exception):
+                    await ws.send_json(
+                        {
+                            "type": "command_result",
+                            "command_id": command_id,
+                            "status": "rejected",
+                            "code": "internal_error",
+                            "message": "Kommandoen fejlede; prøv igen.",
+                        }
+                    )
+
+    worker = asyncio.create_task(command_worker(), name="talk-command-worker")
     try:
         async for msg in ws:
             if msg.type == WSMsgType.BINARY:
@@ -255,10 +434,15 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                 except (json.JSONDecodeError, ValueError):
                     continue
                 kind = data.get("type")
-                if kind == "wake":
-                    link.fire_wake()
+                if kind in ("wake", "stop", "text"):
+                    commands.put_nowait(data)
                 elif kind == "media":
-                    link.media_state(bool(data.get("announcing")))
+                    link.media_state(
+                        bool(data.get("announcing")),
+                        str(data.get("playback_id")) if data.get("playback_id") else None,
+                    )
+                elif kind == "ping":
+                    await ws.send_json({"type": "pong", "ping_id": data.get("ping_id")})
                 elif kind == "mic_config":
                     log.info(
                         "talk: browser mic context_rate=%s track_rate=%s "
@@ -269,19 +453,12 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                         data.get("noise_suppression"),
                         data.get("auto_gain_control"),
                     )
-                elif kind == "stop":
-                    with contextlib.suppress(Exception):
-                        await session.stop(reason="panel")
-                elif kind == "text" and data.get("text"):
-                    # Typed input rides the SAME conversation (wake first if idle).
-                    if not getattr(session, "_active", False):
-                        # Wait for the actual provider-ready boundary. The previous
-                        # guessed sleep lost the first text when connect took >300 ms.
-                        await session.wake()
-                    with contextlib.suppress(Exception):
-                        await session.brain.send_text(str(data["text"]))
             elif msg.type == WSMsgType.ERROR:
                 break
     finally:
+        commands.put_nowait(None)
+        worker.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await worker
         with contextlib.suppress(Exception):
             await session.aclose()

@@ -16,6 +16,7 @@ import contextlib
 import hashlib
 import logging
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 
 from . import audio as audio_mod
@@ -303,6 +304,11 @@ class ThinSession:
         self._closure_turn: _ClosureTurn | None = None
         self._last_activity = 0.0  # monotonic — feeds the client-side idle fallback
         self._trace_reason = "teardown"
+        # Typed Talk turns enter through the engine, never straight into the provider.
+        # This lock and bounded receipt cache make one command an exactly-once turn even
+        # when a browser double-clicks or reconnects while an acknowledgement is late.
+        self._text_input_lock = asyncio.Lock()
+        self._text_receipts: OrderedDict[str, dict] = OrderedDict()
 
         # Capture the exact post-resample bytes that the provider receives. The hook
         # remains installed but is a no-op unless the owner explicitly arms one trace.
@@ -501,6 +507,136 @@ class ThinSession:
         task = self._request_close(reason)
         if task is not None:
             await asyncio.shield(task)
+
+    async def submit_text(self, text: str, command_id: str) -> dict:
+        """Submit one typed Talk turn through the same lifecycle as microphone input.
+
+        The return value is a transport receipt, not a semantic result.  It proves only
+        that this engine accepted the turn and handed it to the configured provider.
+        Busy/closing turns are rejected explicitly so the browser can retain the draft
+        instead of displaying a user message the model never received.
+        """
+        cleaned = str(text).strip()
+        cid = str(command_id).strip()
+        if not cleaned:
+            return {"status": "rejected", "code": "empty", "message": "Skriv en besked."}
+        if not cid:
+            return {
+                "status": "rejected",
+                "code": "missing_command_id",
+                "message": "Beskeden mangler et id; prøv igen.",
+            }
+        cached = self._text_receipts.get(cid)
+        if cached is not None:
+            return dict(cached)
+
+        async with self._text_input_lock:
+            cached = self._text_receipts.get(cid)
+            if cached is not None:
+                return dict(cached)
+            if self._closing:
+                return self._remember_text_receipt(
+                    cid, "rejected", "offline", "Talk er ved at lukke."
+                )
+            if not self._active:
+                await self.wake()
+            if not self._active:
+                return self._remember_text_receipt(
+                    cid, "rejected", "unavailable", "Nabu kunne ikke åbne samtalen."
+                )
+            if self._ending_conversation or (
+                self._close_task is not None and not self._close_task.done()
+            ):
+                return self._remember_text_receipt(
+                    cid, "rejected", "closing", "Samtalen afsluttes; prøv igen om et øjeblik."
+                )
+            if self.sm.state not in (State.LISTENING, State.LOUNGE_WINDOW):
+                return self._remember_text_receipt(
+                    cid,
+                    "rejected",
+                    "busy",
+                    "Nabu behandler stadig den forrige besked.",
+                )
+
+            turn = self._begin_closure_turn()
+            turn.user_finished_at = time.time()
+            self._last_user_utterance = cleaned
+            self._last_activity = time.monotonic()
+            self._speech_stop_t = self._last_activity
+            self.sm.state = State.THINKING
+            self._set_led(State.THINKING)
+            self._hub_state("THINKING", None)
+            turn_id = self._external_turn_id(turn)
+            self._trace_event("text_submitted", command_id=cid)
+            self._trace_event("speech_stopped", source="text")
+            try:
+                provider_item_id = f"pv_{hashlib.sha256(cid.encode()).hexdigest()[:32]}"
+                await self.brain.send_text(cleaned, item_id=provider_item_id)
+            except Exception as exc:
+                _LOG.warning("thin: typed input submission failed [room=%s]: %s", self.room, exc)
+                self._trace_event("text_submit_failed", command_id=cid)
+                if self._active:
+                    await self.stop(reason="text-submit-failed")
+                return self._remember_text_receipt(
+                    cid, "rejected", "provider_unavailable", "Forbindelsen til Nabu fejlede."
+                )
+
+            self._trace_event("transcript_complete", direction="in", text=cleaned[:1000])
+            if self.hub is not None:
+                if hasattr(self.hub, "submitted_text"):
+                    # Talk commits its visible bubble from command_result.  Persist the
+                    # same accepted turn without emitting a duplicate transcript frame.
+                    self.hub.submitted_text(
+                        self.room,
+                        cleaned,
+                        ts=turn.user_finished_at,
+                        session=self._history_session or None,
+                    )
+                else:
+                    self.hub.transcript(
+                        self.room,
+                        "in",
+                        cleaned,
+                        ts=turn.user_finished_at,
+                        session=self._history_session or None,
+                    )
+            return self._remember_text_receipt(
+                cid,
+                "accepted",
+                "accepted",
+                "Beskeden er modtaget.",
+                session_id=self._history_session,
+                turn_id=turn_id,
+            )
+
+    def _remember_text_receipt(
+        self,
+        command_id: str,
+        status: str,
+        code: str,
+        message: str,
+        *,
+        session_id: str | None = None,
+        turn_id: str | None = None,
+    ) -> dict:
+        receipt = {
+            "status": status,
+            "code": code,
+            "message": message,
+            "session_id": session_id,
+            "turn_id": turn_id,
+        }
+        self._text_receipts[command_id] = receipt
+        self._text_receipts.move_to_end(command_id)
+        while len(self._text_receipts) > 128:
+            self._text_receipts.popitem(last=False)
+        return dict(receipt)
+
+    def _external_turn_id(self, turn: _ClosureTurn | None = None) -> str | None:
+        current = turn or self._closure_turn
+        if current is None or not self._history_session:
+            return None
+        return f"{self._history_session}:{current.serial}"
 
     def _request_close(self, reason: str, *, error_kind: str | None = None) -> asyncio.Task | None:
         """Compare-and-set the sole close transaction for this conversation epoch."""
@@ -1699,6 +1835,8 @@ class ThinSession:
                 self.room,
                 event_name,
                 session=f"{self._epoch:.6f}" if self._epoch else None,
+                session_id=self._history_session or None,
+                turn_id=self._external_turn_id(),
                 at_ms=at_ms,
                 **details,
             )

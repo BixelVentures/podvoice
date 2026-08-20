@@ -84,6 +84,47 @@ async def test_status_and_health():
         assert health["capabilities"]["tools"] == body["capabilities"]["tools"]
 
 
+async def test_live_eval_endpoint_is_bounded_and_never_handles_a_key():
+    calls: list[set[str] | None] = []
+
+    async def live_eval(*, scenario_ids=None):
+        calls.append(scenario_ids)
+        return {
+            "ok": True,
+            "status": "complete",
+            "run_id": "eval-test",
+            "results": [],
+        }
+
+    app = create_app(StatusHub(), {}, live_eval=live_eval)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post(
+            "/api/eval/live", json={"scenario_ids": ["arithmetic-followup"]}
+        )
+        assert response.status == 200
+        body = await response.json()
+        assert body["run_id"] == "eval-test"
+        assert calls == [{"arithmetic-followup"}]
+        assert "key" not in json.dumps(body).lower()
+
+        invalid = await client.post("/api/eval/live", json={"scenario_ids": [1]})
+        assert invalid.status == 400
+        assert calls == [{"arithmetic-followup"}]
+
+
+async def test_live_eval_endpoint_reports_unavailable_and_busy():
+    async with TestClient(TestServer(create_app(StatusHub(), {}))) as client:
+        unavailable = await client.post("/api/eval/live", json={})
+        assert unavailable.status == 501
+
+    async def busy(*, scenario_ids=None):
+        return {"ok": False, "status": "busy", "error": "already running"}
+
+    async with TestClient(TestServer(create_app(StatusHub(), {}, live_eval=busy))) as client:
+        response = await client.post("/api/eval/live", json={})
+        assert response.status == 409
+
+
 async def test_acceptance_report_is_conservative(tmp_path):
     hub = StatusHub()
     hub.set_service("openai", "up")

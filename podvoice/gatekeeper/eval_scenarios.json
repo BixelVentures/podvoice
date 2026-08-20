@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "arithmetic-followup",
+      "description": "Direct Danish answer and a contextual follow-up in one session.",
+      "turns": [
+        {
+          "text": "Hvad er tolv gange syv?",
+          "expect": {
+            "decision": "continue_conversation",
+            "answer_any": ["84", "fireogfirs"],
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Og læg seks til.",
+          "expect": {
+            "decision": "continue_conversation",
+            "answer_any": ["90", "halvfems"],
+            "remain_open": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "time-followup",
+      "description": "A current fact uses the safe clock tool and context survives.",
+      "turns": [
+        {
+          "text": "Hvad er klokken?",
+          "expect": {
+            "decision": "get_time",
+            "answer_any": ["fjorten", "14", "klokken er to"],
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Og hvilken ugedag er det?",
+          "expect": {
+            "allowed_decisions": ["get_time", "continue_conversation"],
+            "answer_any": ["mandag"],
+            "remain_open": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "semantic-close",
+      "description": "Politeness stays open; an explicit wrap-up closes exactly once.",
+      "turns": [
+        {
+          "text": "Tak. Hvad er to plus to?",
+          "expect": {
+            "decision": "continue_conversation",
+            "forbid": ["end_conversation"],
+            "answer_any": ["4", "fire"],
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Tak, det var alt for nu.",
+          "expect": {
+            "decision": "end_conversation",
+            "answer_any": ["farvel", "vi ses", "hej hej"],
+            "remain_open": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "web-routing",
+      "description": "A current sports result routes to web and uses only its fixture.",
+      "turns": [
+        {
+          "text": "Hvordan gik FCK i deres seneste kamp?",
+          "expect": {
+            "decision": "google_web_sogning",
+            "answer_all": ["FCK", "to", "nul"],
+            "forbid": ["continue_conversation", "get_time"],
+            "remain_open": true
+          }
+        }
+      ]
+    }
+  ]
+}

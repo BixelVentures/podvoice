@@ -40,6 +40,14 @@ Kun adapteren er forskellig:
 Talk er derfor en softwareprøve af motoren, men kan ikke bevise Voice PE-mikrofon,
 wakeword, højttaler, LED eller akustik. De kræver fysisk test.
 
+Alle brugerinputs ejes først af `ThinSession`. Talk må aldrig kalde Realtime direkte
+eller vise et input som afleveret ved en rå WebSocket-forbindelse. En skrevet tur får et
+kommando-id; `ThinSession` opretter session-/tur-id, afviser busy/closing/offline og
+sender et klientgenereret item-id. Realtime skal kvittere det præcise item med
+`conversation.item.created`, før `response.create` sendes og browseren må committe
+brugerboblen. Talk-events sendes i én ordnet kø og bærer connection-, session-, turn-
+og playback-id, så en sen event fra en gammel socket eller afspilning er virkningsløs.
+
 ## Ejerskab
 
 - Voice PE ejer wakeword, mikrofonport, LED og assistentens stemme.
@@ -100,6 +108,17 @@ Godkendt firmware skal statisk og i renderet konfiguration have:
 - præcis ét `wake_okay_nabu`-event;
 - `podvoice_channel_v1` og `same_breath_v1`;
 - mikrofonstart ved den lokale wakekant, uden wake-chime eller 300 ms forsinkelse.
+
+## Maskinelle bevislag
+
+Den sikre Realtime-eval bruger samme produktionsprompt og model, men kun faste lokale
+værktøjsresultater uden HA/MCP/PodConnect-klienter. Den måler semantiske beslutninger,
+opfølgning og protokol uden sideeffekter. Trace-oraclet bedømmer mekanisk eventrækkefølge,
+playback-par, lukning og rearm; acoustic HIL må kun afspille begrænsede, samtykkede
+PCM-fixtures gennem en ekstern højttaler og observere produktions-events.
+
+Ingen af disse lag kan erklære puckens wake, mikrofon, LED, DAC eller rumakustik bevist.
+De reducerer den manuelle testflade; fysisk golden chain og 10/10 forbliver sidste gate.
 
 ## Ikke længere produktionsarkitektur
 

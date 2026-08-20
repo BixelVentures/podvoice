@@ -116,21 +116,56 @@ første tekst kunne forsvinde, når provider-opkoblingen tog længere end en fas
 ventetid, og Realtime kunne vælge `continue_conversation`, sige “Lad mig lige regne det
 kort igennem” og aldrig levere svaret 84. Kandidaten er derfor ikke testklar.
 
-**v1.13.16 er den aktuelle add-on-kandidat.** Talk venter nu på den virkelige
-provider-ready-grænse før første tekst sendes. `continue_conversation` er ændret til en
+v1.13.16 lod Talk vente på den virkelige provider-ready-grænse før første tekst blev
+sendt. `continue_conversation` blev ændret til en
 mekanisk to-respons-kontrakt: beslutningsresponsens lyd kasseres, det interne resultat
 registreres, og præcis én efterfølgende respons med `tool_choice=none` skal levere hele
 svaret. Dermed kan svaret hverken erstattes af en mellemreplik eller starte en ny
 lifecycle-loop. Promptversionen er 4. Firmware, gain, VAD, pre-roll, mic-gate, playback
 og wake-rearm er uændrede.
 
+Den maskinelle live-preflight den 20. august stoppede v1.13.16 før fysisk test. Efter en
+frisk Talk-forbindelse gav direkte matematik et fuldt svar efter
+`continue_conversation`, tids-/ugedagsværktøjet virkede, semantisk afslutning kaldte
+`end_conversation` én gang, og en ny samtale kunne åbnes efter lukning. En naturlig
+matematisk opfølgning brugte dog kun den sikkert etablerede kontekst i én af to gyldige
+gentagelser. Desuden viste en gammel Talk-socket fortsat "online", selv om den første
+tekst aldrig nåede `ThinSession`, og browseren kunne vise/rydde tekst under afslutning,
+før serveren havde accepteret turen. Talk kalder i denne kandidat stadig
+`brain.send_text()` direkte og undertrykker sendefejl; den skrevne vej ejer derfor ikke
+en autoritativ `ThinSession`-tur og kan ikke bruges som releasebevis.
+
+v1.13.16 har dermed bevist, at den nye to-respons-mekanik kan levere et komplet svar,
+men **live-preflighten er ikke bestået, og fysisk golden chain må ikke startes på denne
+kandidat**. Den næste kandidat skal først indføre fælles tur-ejerskab, serverkvittering,
+korrelerede session-/tur-/playback-id'er og sand forbindelsesstatus. Prompt V4,
+firmware, gain, VAD og lydkæde fryses under denne mekaniske rettelse. v1.13.11 forbliver
+den officielle fysiske baseline.
+
+**v1.13.17 er den aktuelle add-on-kandidat.** Den lukker de dokumenterede sandhedshuller
+fra 1.13.16 uden at ændre prompt eller fysisk lyd. Skrevet Talk-input går nu gennem
+`ThinSession`, og browseren må først vise turen efter providerens kvittering af præcis
+det klientgenererede conversation-item. Talk-protokol v2 adskiller socket, engine-ready,
+samtaletilstand og inputaccept; alle udgående events er ordnede og korreleret med
+connection/session/turn/playback, og et ping/pong-lease opdager en sovende gammel socket.
+
+Den 20. august består kandidatens samlede lokale gate med **467 tests**, Ruff,
+formatteringskontrol, mypy for 39 kildefiler, parsing af alle 10 panel-scriptblokke og
+reelle lokale HTTP/WebSocket-tests. Den nye sikre Realtime-eval, trace-oracle og
+acoustic-HIL-primitive er maskinelt testet; der er endnu ikke kørt en rigtig provider-
+preflight fra den installerede add-on, og Docker-build kunne ikke køres lokalt, fordi
+Docker-daemon ikke er installeret/kørende. Derfor er 1.13.17 **softwaretestet, men endnu
+ikke frigivet eller fysisk testklar**. Næste gate er CI/add-on-build, installation og
+grøn live-preflight i Test-fanen. Først derefter må én fysisk golden chain køres.
+
 ## Adgangskrav før næste udvikling
 
-1. Før fysisk test skal v1.13.16 bestå automatiske regressionssuiter og en rigtig live
-   Talk-kæde fra idle: direkte matematik → opfølgning → tidsværktøj → opfølgning →
-   semantisk afslutning. Første tekst må ikke tabes, og hver direkte tur skal give både
-   `continue_conversation` og et efterfølgende fuldt svar.
-2. Opdatér derefter add-on til v1.13.16 og gentag den korte golden chain. Den første klare
+1. Før fysisk test skal næste kandidat bestå automatiske regressionssuiter og en rigtig
+   live Talk-kæde gennem en serverkvitteret `ThinSession`-tur: direkte matematik →
+   opfølgning → tidsværktøj → opfølgning → semantisk afslutning. Første tekst må ikke
+   tabes, UI må ikke vise en uaccepteret tur som afleveret, og hver direkte tur skal give
+   både `continue_conversation` og et efterfølgende fuldt svar.
+2. Opdatér derefter add-on til den beståede kandidat og gentag den korte golden chain. Den første klare
    afslutning skal vælge `end_conversation`; de to almindelige ture skal hver have et
    eksplicit domæne- eller `continue_conversation`-valg. Et bevist playback-start/slut-
    par må ikke efterfølges af `playback_fault`; afslutningen skal ende med mørk IDLE og

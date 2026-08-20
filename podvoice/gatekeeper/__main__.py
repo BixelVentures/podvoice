@@ -432,6 +432,19 @@ async def run(cfg: Config) -> None:
         )
         return session, link
 
+    live_eval = None
+    if cfg.openai_api_key:
+        from .eval_harness import LiveEvalService
+
+        live_eval_service = LiveEvalService()
+
+        async def live_eval(*, scenario_ids=None):
+            return await live_eval_service.run(
+                api_key=cfg.openai_api_key,
+                scenario_ids=scenario_ids,
+                model=cfg.openai_model,
+            )
+
     app = create_app(
         hub,
         sessions,
@@ -449,6 +462,7 @@ async def run(cfg: Config) -> None:
         pc_rooms=(attention.rooms if attention is not None else None),
         history=history,
         audio_trace=audio_trace,
+        live_eval=live_eval,
         reply_bus=reply_bus,
         reply_token=reply_token,
         # Lock the panel to ingress/loopback when running under HA (Supervisor token

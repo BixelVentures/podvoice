@@ -297,6 +297,7 @@ PC_ROOMS: web.AppKey = web.AppKey("pc_rooms")
 HISTORY: web.AppKey = web.AppKey("history")
 REPLY: web.AppKey = web.AppKey("reply")
 AUDIO_TRACE: web.AppKey = web.AppKey("audio_trace")
+LIVE_EVAL: web.AppKey = web.AppKey("live_eval")
 
 
 def create_app(
@@ -313,6 +314,7 @@ def create_app(
     pc_rooms=None,
     history=None,
     audio_trace=None,
+    live_eval=None,
     reply_bus=None,
     reply_token: str | None = None,
     locked: bool = False,
@@ -340,6 +342,7 @@ def create_app(
     app[PC_ROOMS] = pc_rooms
     app[HISTORY] = history
     app[AUDIO_TRACE] = audio_trace
+    app[LIVE_EVAL] = live_eval
     app[REPLY] = reply_bus
     app.add_routes(
         [
@@ -355,6 +358,7 @@ def create_app(
             web.post("/api/audio-trace/arm", _audio_trace_arm),
             web.post("/api/audio-trace/cancel", _audio_trace_cancel),
             web.get("/api/audio-trace/{trace_id}/{stage}", _audio_trace_artifact),
+            web.post("/api/eval/live", _live_eval),
             web.get("/api/events", _events),
             web.post("/api/control", _control),
             web.get("/api/console", _console_ws),
@@ -374,6 +378,47 @@ def create_app(
         ]
     )
     return app
+
+
+async def _live_eval(request: web.Request) -> web.Response:
+    """Run the bounded no-side-effect Realtime suite behind the ingress guard."""
+    run = request.app[LIVE_EVAL]
+    if run is None:
+        return web.json_response(
+            {"ok": False, "status": "unavailable", "error": "Live-eval er ikke konfigureret."},
+            status=501,
+        )
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return web.json_response(
+            {"ok": False, "status": "invalid", "error": "Ugyldig JSON."}, status=400
+        )
+    if not isinstance(body, dict):
+        return web.json_response(
+            {"ok": False, "status": "invalid", "error": "Body skal være et objekt."},
+            status=400,
+        )
+    raw_ids = body.get("scenario_ids")
+    scenario_ids: set[str] | None = None
+    if raw_ids is not None:
+        if (
+            not isinstance(raw_ids, list)
+            or len(raw_ids) > 10
+            or any(not isinstance(item, str) or not item or len(item) > 100 for item in raw_ids)
+        ):
+            return web.json_response(
+                {
+                    "ok": False,
+                    "status": "invalid",
+                    "error": "scenario_ids skal være højst ti korte tekst-id'er.",
+                },
+                status=400,
+            )
+        scenario_ids = set(raw_ids)
+    report = await run(scenario_ids=scenario_ids)
+    status = {"busy": 409, "invalid": 400, "failed": 502}.get(report.get("status"), 200)
+    return web.json_response(report, status=status)
 
 
 async def _run_diag(request: web.Request, name: str) -> web.Response:
@@ -648,9 +693,7 @@ async def _models(request: web.Request) -> web.Response:
 
 
 async def _talk_ws(request: web.Request) -> web.WebSocketResponse:
-    """Talk tab on the REAL engine: the browser is a device, the mic button is the
-    wake word, and every rule (tools, idle close, echo shield, goodbye) is the same
-    ThinSession the puck runs — the tab PROVES the product instead of bypassing it."""
+    """Talk tab on the real engine; browser evidence, never physical puck proof."""
     ws = web.WebSocketResponse(heartbeat=20)
     await ws.prepare(request)
     make = request.app[TALK]
@@ -660,16 +703,29 @@ async def _talk_ws(request: web.Request) -> web.WebSocketResponse:
         )
         await ws.close()
         return ws
-    from .talk import run_talk
+    from .talk import TalkConnection, run_talk
+
+    connection = TalkConnection(ws)
+    connection.start()
 
     q = request.query
     try:
-        session, link = make(ws.send_json, ws.send_bytes, q.get("model"), q.get("voice"))
+        session, link = make(
+            connection.send_json,
+            connection.send_bytes,
+            q.get("model"),
+            q.get("voice"),
+        )
+        connection.attach(session)
     except Exception as e:  # e.g. no attention client in bare simulate mode
-        await ws.send_json({"type": "error", "error": str(e)})
+        await connection.send_json({"type": "error", "error": str(e)})
+        await connection.aclose()
         await ws.close()
         return ws
-    await run_talk(ws, session, link)
+    try:
+        await run_talk(connection, session, link)
+    finally:
+        await connection.aclose()
     return ws
 
 

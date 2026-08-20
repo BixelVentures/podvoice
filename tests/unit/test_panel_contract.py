@@ -139,6 +139,29 @@ def test_talk_wakes_only_after_successful_capture_and_releases_tracks():
     assert 'id="cplay"' in html
 
 
+def test_talk_v2_commits_only_acknowledged_text_and_detects_stale_sockets():
+    html = PANEL.read_text()
+
+    assert 'ev.type === "hello" && ev.protocol === 2' in html
+    assert 'ev.type === "command_result"' in html
+    assert "pendingText[commandId] = { text: t }" in html
+    assert "if (sendBtn.disabled) return;" in html
+    assert 'logLine("in", "you", pending.text)' in html
+    assert 'logLine("in", "you", t)' not in html
+    assert "Date.now() - lastPong > 15000" in html
+    assert "generation !== socketGeneration" in html
+    assert "playback_id: playbackId" in html
+
+
+def test_test_tab_exposes_bounded_live_realtime_preflight():
+    html = PANEL.read_text()
+
+    assert 'id="eval_live"' in html
+    assert 'id="eval_result"' in html
+    assert 'fetch("api/eval/live"' in html
+    assert "kan ikke styre hjemmet, musik eller timere" in html
+
+
 def test_panel_does_not_claim_unverified_stop_and_labels_capability_truth():
     html = PANEL.read_text()
 

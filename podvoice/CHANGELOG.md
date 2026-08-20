@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.13.17 — autoritative Talk-ture og maskinel release-preflight
+
+- Skrevet Talk-input går nu altid gennem `ThinSession`. Browseren får først en accepteret
+  tur, når Realtime har accepteret sessionen, oprettet præcis det korrelerede bruger-item
+  og kvitteret med `conversation.item.created`; først derefter oprettes modelsvaret.
+- Talk-protokol v2 adskiller WebSocket, engine-readiness, samtaletilstand og inputaccept.
+  Alle events har ordnet sekvens samt connection-, session-, turn- og playback-id, og
+  gamle sockets eller playback-kanter kan ikke ændre den aktuelle samtale.
+- Talk viser ikke længere brugerens tekst optimistisk. Afviste eller tabte beskeder
+  bliver stående i feltet med en konkret fejl, og browseren kalder ikke en rå åben socket
+  “online”. Et ping/pong-lease opdager desuden sovende mobil-/HA-webviews.
+- En sikker Realtime-preflight kører produktionsmodel og prompt mod faste testværktøjer
+  uden adgang til HA, MCP, PodConnect eller hjemmets tilstand. Testfanen viser direkte
+  svar, opfølgning, tid, web-routing, semantisk lukning samt afgrænset token/prisforbrug.
+- En streng trace-oracle og et lokalt acoustic-HIL-grundlag kan maskinelt afvise manglende
+  provider, playback, lukning, rearm, omvendte events og ugyldige lydfixtures. Talk kan
+  sammenlignes med Voice PE's fælles lifecycle, men tæller fortsat aldrig som fysisk bevis.
+- Firmware, prompt V4, gain, VAD, pre-roll og den fysiske half-duplex-kæde er uændrede.
+  Kandidaten skal bestå live-preflight før en ny fysisk golden chain og 10/10-serie.
+
 ## 1.13.16 — providerklar Talk og garanteret endeligt svar
 
 - En live 1.13.15-prøve fangede to fejl før fysisk test: Talk kunne sende første tekst

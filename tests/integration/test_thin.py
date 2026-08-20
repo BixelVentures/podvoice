@@ -381,6 +381,52 @@ async def _wait_until(pred, max_wait: float = 1.5) -> None:
     raise AssertionError("condition not met within timeout")
 
 
+async def test_typed_turn_is_engine_owned_idempotent_and_busy_is_explicit():
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        first = await session.submit_text("Hvad er tolv gange syv?", "cmd-1")
+        duplicate = await session.submit_text("må ikke sendes igen", "cmd-1")
+        busy = await session.submit_text("Og læg seks til", "cmd-2")
+
+        assert first["status"] == "accepted"
+        assert first["session_id"] and first["turn_id"].startswith(first["session_id"])
+        assert duplicate == first
+        assert brain.sent_text == ["Hvad er tolv gange syv?"]
+        assert session.sm.state is State.THINKING
+        assert busy["status"] == "rejected" and busy["code"] == "busy"
+    finally:
+        await session.aclose()
+
+
+async def test_typed_turn_provider_failure_has_no_phantom_transcript():
+    class FailingTextBrain(LiveFake):
+        async def send_text(self, text: str, *, item_id: str | None = None) -> None:
+            raise ConnectionError("socket died")
+
+    class RecordingHub(StatusHub):
+        def __init__(self) -> None:
+            super().__init__()
+            self.transcripts: list[tuple[str, str]] = []
+
+        def transcript(self, room: str, direction: str, text: str, **_kwargs) -> None:
+            self.transcripts.append((direction, text))
+
+    hub = RecordingHub()
+    brain = FailingTextBrain()
+    session, _attention, _voicepe = _build(brain, hub=hub)
+    await session.start()
+    try:
+        result = await session.submit_text("Bliver ikke sendt", "cmd-fail")
+        assert result["status"] == "rejected"
+        assert result["code"] == "provider_unavailable"
+        assert session.sm.state is State.IDLE
+        assert hub.transcripts == []
+    finally:
+        await session.aclose()
+
+
 async def test_full_conversation_wake_reply_idle_close():
     """Wake -> mic streams to the model -> reply announced -> server Idle closes:
     ducked at open, released at close — no client-side turn/idle machinery."""

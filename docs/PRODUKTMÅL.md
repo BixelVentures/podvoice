@@ -29,7 +29,27 @@ på sin egen højttaler eller blive dødt efter få samtaler.
 - “Klar”, “Kig FCK seneste kamp”, uklart input og almindelig høflighed kan ikke lukke,
   medmindre Realtime på den samme tur eksplicit beslutter, at brugeren afslutter.
 - Talk og Voice PE bruger samme `ThinSession`; kun I/O-adapteren er forskellig.
+- Ingen adapter må kalde provideren direkte eller vise en tur som accepteret. Hver Talk-
+  tur skal have serverkvitteret command-, session-, turn- og provider-item-id, før den
+  vises som afleveret; stale socket-/playback-events er virkningsløse.
 - Classic/direct kan ikke aktiveres via gamle eller nye settings.
+
+### Maskinel adgangsgate før fysisk test
+
+På præcis kandidatens bits skal følgende være grønt, før brugeren bedes tale igen:
+
+- hele unit-/integrationstesten, typecheck, formattering og add-on-build;
+- fælles `ThinSession`-regressioner for duplicate/busy/offline/closing, provider-tab,
+  tool-ordering, semantisk close, én teardown og én rearm;
+- rigtig Talk-WebSocket med hello/lease/input-ACK, ordnede events og korreleret playback;
+- sikker live Realtime-preflight for direkte svar, opfølgning, tid, web og varieret
+  semantisk lukning uden HA/MCP/PodConnect-sideeffekter;
+- trace-replay, der afviser manglende/dobbelte/omvendte wake-, provider-, playback-,
+  close-, capture- og rearm-events.
+
+Live-preflight bruger et hårdt turn-, token-, pris- og timeoutloft. Et korrekt tekstsvar
+uden korrekt beslutning, session eller lifecycle er en fejl. Maskingaten kan stoppe en
+kandidat, men aldrig erstatte den efterfølgende fysiske Voice PE-gate.
 
 ## Release-gate 2 — automatisk lifecycle
 

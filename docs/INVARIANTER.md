@@ -64,6 +64,15 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
 8. Provider-eventrækkefølge er ikke nødvendigvis den fysiske samtalerækkefølge. En
    færdig inputtransskription kan komme efter svaret; historik skal derfor tidsstemples
    ved brugerens `speech_stopped`-grænse og må aldrig vise svar før årsag.
+9. Alle brugerinput skal ejes af `ThinSession`, før de sendes til provider. Tale opretter
+   turen ved den autoritative taleslutgrænse; skrevet Talk-input skal gå gennem en
+   tilsvarende offentlig turindgang. En adapter må aldrig kalde providerens `send_text`
+   direkte, undertrykke sendefejl eller vise input som accepteret uden en korreleret
+   serverkvittering.
+10. WebSocket-forbindelse, provider-readiness, samtalestatus og inputaccept er fire
+    forskellige sandheder. UI må ikke udlede "klar" af en åben socket. Hver session,
+    tur, providerrespons, værktøjskald og playback skal kunne korreleres; events fra en
+    gammel forbindelse eller gammel playback må ikke ændre den aktuelle tilstand.
 
 ## Beviskrav før “testklar” eller “færdig”
 

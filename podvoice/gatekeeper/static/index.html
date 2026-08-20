@@ -362,6 +362,12 @@
       <div id="lifecycle_timeline" class="tx" style="min-height:0"></div>
     </div>
     <div class="section">
+      <h2>Maskinel Realtime-preflight</h2>
+      <p class="sub" style="margin:2px 0 10px">Kører den rigtige model og produktionsprompt med faste, sikre testdata. Den kan ikke styre hjemmet, musik eller timere og erstatter ikke den fysiske test.</p>
+      <button id="eval_live">Kør sikker preflight</button>
+      <div id="eval_result" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
+    </div>
+    <div class="section">
       <h2>Grundtest</h2>
       <p class="sub" style="margin:2px 0 10px">Én fast test af den fysiske Voice PE. Panelet gemmer, hvad Nabu hørte og gjorde; du afgør, om det faktisk var korrekt i rummet.</p>
       <button id="g_start">Start 10 samtaler</button>
@@ -1124,6 +1130,48 @@ setInterval(function () {
 
 <script>
 "use strict";
+// ---- Bounded live Realtime preflight; fixed tools, no HA/MCP side effects ----
+(function () {
+  var button = document.getElementById("eval_live");
+  var box = document.getElementById("eval_result");
+  if (!button || !box) return;
+  function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  function render(data) {
+    box.innerHTML = "";
+    if (!data || data.status !== "complete") {
+      var failed = ee("div", "line in");
+      failed.appendChild(ee("div", "who", "✕ Preflight fejlede"));
+      failed.appendChild(document.createTextNode((data && data.error) || "Ingen gyldig rapport."));
+      box.appendChild(failed); return;
+    }
+    var head = ee("div", "line " + (data.ok ? "out" : "in"));
+    head.appendChild(ee("div", "who", data.ok ? "✓ MASKINEL PREFLIGHT BESTÅET" : "✕ MASKINEL PREFLIGHT IKKE BESTÅET"));
+    head.appendChild(document.createTextNode((data.results || []).length + " scenarier · " + (data.model || "ukendt model")));
+    box.appendChild(head);
+    (data.results || []).forEach(function (scenario) {
+      var line = ee("div", "line " + (scenario.passed ? "out" : "in"));
+      line.appendChild(ee("div", "who", (scenario.passed ? "✓ " : "✕ ") + scenario.scenario_id));
+      (scenario.turns || []).forEach(function (turn) {
+        var answer = turn.observation && turn.observation.answer ? " · “" + turn.observation.answer + "”" : "";
+        line.appendChild(ee("div", "sub", (turn.passed ? "✓ " : "✕ ") + turn.text + answer));
+      });
+      box.appendChild(line);
+    });
+    if (data.budget) box.appendChild(ee("div", "sub", "Forbrug: " + (data.budget.actual_tokens || 0) + " tokens · estimeret $" + Number(data.budget.cost_usd || 0).toFixed(3)));
+  }
+  button.onclick = async function () {
+    button.disabled = true; box.innerHTML = ""; box.appendChild(ee("div", "empty", "Kører fire sikre scenarier mod Realtime…"));
+    try {
+      var response = await fetch("api/eval/live", {method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+      var data = await response.json(); render(data);
+    } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre preflighten."}); }
+    finally { button.disabled = false; }
+  };
+})();
+</script>
+
+<script>
+"use strict";
 // ---- In-panel talk console ----
 (function () {
   var clog = document.getElementById("clog");
@@ -1138,7 +1186,9 @@ setInterval(function () {
 
   var modelSel = document.getElementById("cmodel");
   var voiceSel = document.getElementById("cvoice");
-  var ws = null, wsReady = false, currentModel = null, currentVoice = null, manualClose = false;
+  var ws = null, wsReady = false, currentModel = null, currentVoice = null;
+  var socketGeneration = 0, reconnectTimer = null, leaseTimer = null, lastPong = 0;
+  var pendingText = Object.create(null);
   function providerName() { return "assistenten"; }
   var playCtx = null, outRate = 24000, nextStart = 0, halted = false;
   var capCtx = null, capStream = null, capNode = null, micOn = false;
@@ -1276,8 +1326,7 @@ setInterval(function () {
   // of truth lives in the Settings tab. This kills the footgun where a casual Talk-tab
   // click silently changed the default the Voice PE rooms use after the next restart.
   function reconnect() {
-    manualClose = true;
-    if (ws) { try { ws.close(); } catch (e) {} }
+    if (ws) { ws._intentional = true; try { ws.close(); } catch (e) {} }
     connect();
   }
   modelSel.onchange = function () { currentModel = modelSel.value; reconnect(); };
@@ -1287,18 +1336,14 @@ setInterval(function () {
   // through an <audio> element (which browser echo-cancellation actually covers,
   // unlike raw WebAudio). Its play/ended edges are reported back as the engine's
   // playback ground truth — driving the echo shield exactly like puck media state.
-  var replyAudio = null;
-  function replyEl() {
-    if (replyAudio) return replyAudio;
-    replyAudio = new Audio();
-    replyAudio.preload = "none";
-    replyAudio.onplaying = function () { playRetryBtn.hidden = true; sendJson({ type: "media", announcing: true }); };
-    replyAudio.onended = function () { sendJson({ type: "media", announcing: false }); };
-    replyAudio.onerror = function () { sendJson({ type: "media", announcing: false }); };
-    return replyAudio;
-  }
-  function playReply(url) {
-    var a = replyEl();
+  var replyAudio = null, currentPlaybackId = null;
+  function playReply(url, playbackId) {
+    stopReply(false);
+    var a = new Audio(); replyAudio = a; currentPlaybackId = playbackId || null;
+    a.preload = "none";
+    a.onplaying = function () { if (replyAudio !== a) return; playRetryBtn.hidden = true; sendJson({ type: "media", announcing: true, playback_id: playbackId }); };
+    a.onended = function () { if (replyAudio !== a) return; sendJson({ type: "media", announcing: false, playback_id: playbackId }); currentPlaybackId = null; };
+    a.onerror = function () { if (replyAudio !== a) return; sendJson({ type: "media", announcing: false, playback_id: playbackId }); currentPlaybackId = null; };
     a.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "r=" + Date.now(); // never a cached reply
     a.play().catch(function () { micHint.textContent = "Browseren blokerede automatisk lyd."; playRetryBtn.hidden = false; });
   }
@@ -1308,8 +1353,10 @@ setInterval(function () {
   };
   function stopReply(report) {
     if (!replyAudio) return;
-    try { replyAudio.pause(); replyAudio.removeAttribute("src"); replyAudio.load(); } catch (e) {}
-    if (report) sendJson({ type: "media", announcing: false });
+    var playbackId = currentPlaybackId;
+    var old = replyAudio; replyAudio = null; currentPlaybackId = null;
+    try { old.pause(); old.removeAttribute("src"); old.load(); } catch (e) {}
+    if (report) sendJson({ type: "media", announcing: false, playback_id: playbackId });
   }
   function sendJson(o) { if (wsReady && ws) { try { ws.send(JSON.stringify(o)); } catch (e) {} } }
   function sendWake() { ensurePlay(); sendJson({ type: "wake" }); }
@@ -1320,27 +1367,58 @@ setInterval(function () {
   var STATE_DA = { IDLE: ["klar", "pill-degraded"], LISTENING: ["lytter…", "pill-up"], THINKING: ["tænker", "pill-degraded"], AI_SPEAKING: ["taler", "pill-up"], LOUNGE_WINDOW: ["klar", "pill-degraded"] };
 
   function connect() {
+    var generation = ++socketGeneration;
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    if (leaseTimer) { clearInterval(leaseTimer); leaseTimer = null; }
+    wsReady = false; micBtn.disabled = true; sendBtn.disabled = true;
     var url;
     try { url = new URL("api/talk", window.location.href); } catch (e) { return; }
     if (currentModel) url.searchParams.set("model", currentModel);
     if (currentVoice) url.searchParams.set("voice", currentVoice);
     url.protocol = (url.protocol === "https:") ? "wss:" : "ws:";
     setState("forbinder…", "pill-degraded");
-    try { ws = new WebSocket(url.href); } catch (e) { setState("offline", "pill-down"); return; }
-    ws.binaryType = "arraybuffer";
-    ws.onopen = function () { wsReady = true; micBtn.disabled = false; setState("online", "pill-up"); };
-    ws.onclose = function () {
+    var sock;
+    try { sock = new WebSocket(url.href); ws = sock; } catch (e) { setState("offline", "pill-down"); return; }
+    sock.binaryType = "arraybuffer";
+    sock.onopen = function () { if (generation !== socketGeneration) return; setState("forbinder…", "pill-degraded"); };
+    sock.onclose = function () {
+      if (generation !== socketGeneration) return;
       wsReady = false; micBtn.disabled = true; micStop(); setState("offline", "pill-down");
-      if (manualClose) { manualClose = false; return; }   // model switch handles its own reconnect
-      setTimeout(connect, 2500);
+      sendBtn.disabled = true;
+      if (leaseTimer) { clearInterval(leaseTimer); leaseTimer = null; }
+      if (sock._intentional) return;
+      reconnectTimer = setTimeout(function () { if (generation === socketGeneration) connect(); }, 2500);
     };
-    ws.onerror = function () { micBtn.disabled = true; micStop(); setState("offline", "pill-down"); };
-    ws.onmessage = function (m) {
+    sock.onerror = function () { if (generation !== socketGeneration) return; micBtn.disabled = true; micStop(); setState("offline", "pill-down"); };
+    sock.onmessage = function (m) {
+      if (generation !== socketGeneration || sock !== ws) return;
       if (typeof m.data !== "string") { if (!halted) playPcm(m.data); return; }
       var ev; try { ev = JSON.parse(m.data); } catch (e) { return; }
-      if (ev.type === "hello" && ev.rate) outRate = ev.rate;
+      if (ev.type === "hello" && ev.protocol === 2 && ev.rate) {
+        outRate = ev.rate; wsReady = true; lastPong = Date.now();
+        micBtn.disabled = false; sendBtn.disabled = false; setState("online", "pill-up");
+        leaseTimer = setInterval(function () {
+          if (generation !== socketGeneration || sock !== ws) return;
+          if (Date.now() - lastPong > 15000) { wsReady = false; setState("offline", "pill-down"); try { sock.close(); } catch (_) {} return; }
+          try { sock.send(JSON.stringify({ type: "ping", ping_id: Date.now() })); } catch (_) {}
+        }, 5000);
+      }
+      else if (ev.type === "pong") { lastPong = Date.now(); }
+      else if (ev.type === "command_result") {
+        var pending = pendingText[ev.command_id];
+        if (pending) {
+          delete pendingText[ev.command_id]; sendBtn.disabled = !wsReady;
+          if (ev.status === "accepted") {
+            endTurn(); logLine("in", "you", pending.text);
+            if (input.value.trim() === pending.text) input.value = "";
+          } else {
+            input.value = pending.text;
+            logLine("out", "system", ev.message || "Beskeden blev ikke sendt. Prøv igen.");
+          }
+        }
+      }
       else if (ev.type === "transcript") streamT(ev.dir === "in" ? "in" : "out", ev.text);
-      else if (ev.type === "play") { halted = false; playReply(ev.url); }
+      else if (ev.type === "play") { halted = false; playReply(ev.url, ev.playback_id); }
       else if (ev.type === "stop_playback") { stopReply(true); endTurn(); }
       else if (ev.type === "mic") {
         if (!ev.on) micStop();
@@ -1365,13 +1443,14 @@ setInterval(function () {
   }
 
   function sendText() {
+    if (sendBtn.disabled) return;
     var t = (input.value || "").trim(); if (!t) return;
     if (!wsReady) { logLine("out", "system", "Ikke forbundet endnu."); return; }
     halted = false; ensurePlay();
-    endTurn();              // close any prior turn so this Q + its reply are fresh bubbles
-    logLine("in", "you", t);
-    ws.send(JSON.stringify({ type: "text", text: t }));
-    input.value = "";
+    var commandId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + "-" + Math.random());
+    pendingText[commandId] = { text: t };
+    sendBtn.disabled = true;
+    ws.send(JSON.stringify({ type: "text", command_id: commandId, text: t }));
   }
   sendBtn.onclick = sendText;
   input.addEventListener("keydown", function (e) { if (e.key === "Enter") sendText(); });
@@ -1476,6 +1555,18 @@ setInterval(function () {
 
   window.addEventListener("pagehide", micStop);
   window.addEventListener("beforeunload", micStop);
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState !== "visible" || !ws) return;
+    // Mobile browsers throttle background timers. Never trust the old green state on
+    // return; demand a fresh application-level pong before accepting another command.
+    if (Date.now() - lastPong > 15000) {
+      wsReady = false; micBtn.disabled = true; sendBtn.disabled = true;
+      setState("forbinder…", "pill-degraded");
+      try { ws.close(); } catch (_) {}
+    } else {
+      try { ws.send(JSON.stringify({ type: "ping", ping_id: Date.now() })); } catch (_) {}
+    }
+  });
 
   emptyLog();
   loadModels().then(connect);

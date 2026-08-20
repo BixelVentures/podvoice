@@ -1,0 +1,25 @@
+{
+  "id": "fixture-missing-rearm",
+  "room": "r0",
+  "reason": "model-close",
+  "stages": {
+    "device": {"rate": 16000, "samples": 32000},
+    "provider": {"rate": 24000, "samples": 36000},
+    "speaker": {"rate": 24000, "samples": 12000}
+  },
+  "events": [
+    {"at_ms": 0, "event": "capture_started"},
+    {"at_ms": 1, "event": "wake_received"},
+    {"at_ms": 700, "event": "provider_connected"},
+    {"at_ms": 1000, "event": "speech_started_or_interrupted"},
+    {"at_ms": 1500, "event": "speech_stopped"},
+    {"at_ms": 1700, "event": "transcript_complete", "direction": "in", "text": "Farvel."},
+    {"at_ms": 1800, "event": "tool_call", "name": "end_conversation", "call_id": "end-1"},
+    {"at_ms": 2000, "event": "response_audio_started"},
+    {"at_ms": 2100, "event": "transcript_complete", "direction": "out", "text": "Farvel."},
+    {"at_ms": 2200, "event": "playback_started"},
+    {"at_ms": 2500, "event": "playback_finished"},
+    {"at_ms": 2510, "event": "close_requested", "reason": "model-close"},
+    {"at_ms": 2700, "event": "capture_finished", "reason": "model-close"}
+  ]
+}

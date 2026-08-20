@@ -18,7 +18,7 @@ from gatekeeper.events import State
 from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.playback import Playback
 from gatekeeper.reply import ReplyBus
-from gatekeeper.talk import TALK_ROOM, BrowserLink, TalkHub, run_talk
+from gatekeeper.talk import TALK_ROOM, BrowserLink, TalkConnection, TalkHub, run_talk
 from gatekeeper.thin import ThinSession
 from gatekeeper.voice import (
     AudioChunk,
@@ -36,7 +36,7 @@ async def test_first_typed_message_waits_for_provider_ready_instead_of_sleeping(
     events: list[str] = []
 
     class Brain:
-        async def send_text(self, text: str) -> None:
+        async def send_text(self, text: str, *, item_id: str | None = None) -> None:
             assert session._active is True
             events.append(f"text:{text}")
 
@@ -52,6 +52,16 @@ async def test_first_typed_message_waits_for_provider_ready_instead_of_sleeping(
             await asyncio.sleep(0.01)
             self._active = True
             events.append("provider-ready")
+
+        async def submit_text(self, text: str, command_id: str) -> dict:
+            if not self._active:
+                await self.wake()
+            await self.brain.send_text(text, item_id=f"test-{command_id}")
+            return {
+                "status": "accepted",
+                "code": "accepted",
+                "command_id": command_id,
+            }
 
         async def aclose(self) -> None:
             events.append("close")
@@ -73,6 +83,7 @@ async def test_first_typed_message_waits_for_provider_ready_instead_of_sleeping(
 
         async def __anext__(self):
             if not self.messages:
+                await asyncio.sleep(0.03)
                 raise StopAsyncIteration
             return self.messages.pop(0)
 
@@ -235,3 +246,120 @@ async def test_async_input_transcript_hides_unheard_tool_preamble():
         ]
     finally:
         await session.aclose()
+
+
+async def test_stale_playback_finish_cannot_finish_the_current_reply():
+    wire = _Wire()
+    link = BrowserLink(wire.send_json, wire.send_bytes)
+    states: list[bool] = []
+    link.on_media_state = states.append
+
+    await link.play_url("reply/one.flac")
+    first = wire.of("play")[-1]["playback_id"]
+    await link.play_url("reply/two.flac")
+    second = wire.of("play")[-1]["playback_id"]
+    link.media_state(False, first)
+    link.media_state(True, second)
+    link.media_state(False, second)
+
+    assert first != second
+    assert states == [True, False]
+
+
+async def test_ordered_connection_adds_monotonic_correlation_envelope():
+    class Socket:
+        def __init__(self) -> None:
+            self.json: list[dict] = []
+
+        async def send_json(self, payload: dict) -> None:
+            self.json.append(payload)
+
+        async def send_bytes(self, _payload: bytes) -> None:
+            return None
+
+    socket = Socket()
+    connection = TalkConnection(socket)
+    connection.start()
+    connection.post_json({"type": "state", "state": "LISTENING"})
+    connection.post_json({"type": "state", "state": "THINKING"})
+    await asyncio.sleep(0)
+    await connection.aclose()
+
+    assert [event["seq"] for event in socket.json] == [1, 2]
+    assert all(event["v"] == 2 for event in socket.json)
+    assert all(event["adapter"] == "talk" for event in socket.json)
+    assert all(event["evidence"] == "browser" for event in socket.json)
+
+
+async def test_talk_hub_posts_each_ordered_event_exactly_once():
+    class Socket:
+        def __init__(self) -> None:
+            self.json: list[dict] = []
+
+        async def send_json(self, payload: dict) -> None:
+            self.json.append(payload)
+
+        async def send_bytes(self, _payload: bytes) -> None:
+            return None
+
+    socket = Socket()
+    connection = TalkConnection(socket)
+    connection.start()
+    hub = TalkHub(connection.send_json)
+
+    hub.set_state(TALK_ROOM, "LISTENING")
+    await _wait_until(lambda: len(socket.json) == 1)
+    await asyncio.sleep(0)
+    await connection.aclose()
+
+    assert [event["type"] for event in socket.json] == ["state"]
+
+
+async def test_one_failed_command_is_rejected_without_killing_the_worker():
+    class Session:
+        _active = True
+
+        async def start(self) -> None:
+            return None
+
+        async def submit_text(self, text: str, command_id: str) -> dict:
+            if command_id == "bad":
+                raise RuntimeError("boom")
+            return {"status": "accepted", "code": "accepted"}
+
+        async def aclose(self) -> None:
+            return None
+
+    class Wire:
+        def __init__(self) -> None:
+            self.sent: list[dict] = []
+            self.messages = [
+                SimpleNamespace(
+                    type=WSMsgType.TEXT,
+                    data=json.dumps({"type": "text", "command_id": "bad", "text": "a"}),
+                ),
+                SimpleNamespace(
+                    type=WSMsgType.TEXT,
+                    data=json.dumps({"type": "text", "command_id": "good", "text": "b"}),
+                ),
+            ]
+
+        async def send_json(self, payload: dict) -> None:
+            self.sent.append(payload)
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self.messages:
+                await asyncio.sleep(0.03)
+                raise StopAsyncIteration
+            return self.messages.pop(0)
+
+    wire = Wire()
+    await run_talk(wire, Session(), None)  # type: ignore[arg-type]
+    results = [event for event in wire.sent if event.get("type") == "command_result"]
+    assert [(event["command_id"], event["status"]) for event in results] == [
+        ("bad", "rejected"),
+        ("good", "accepted"),
+    ]

@@ -29,6 +29,7 @@ class FakeBrainSession:
     def __init__(self, events: list[VoiceEvent] | None = None) -> None:
         self.scripted: list[VoiceEvent] = list(events or [])
         self.sent_audio: list[bytes] = []
+        self.sent_text: list[str] = []
         self.sent_tool_results: list[list] = []
         self.stream_ended: int = 0
         self.connected: bool = False
@@ -58,6 +59,11 @@ class FakeBrainSession:
 
     async def send_audio(self, pcm16k: bytes) -> None:
         self.sent_audio.append(pcm16k)
+
+    async def send_text(self, text: str, *, item_id: str | None = None) -> None:
+        if not self.connected:
+            raise ConnectionError("fake provider is not connected")
+        self.sent_text.append(text)
 
     async def clear_input_audio(self) -> None:
         self.input_clear_count += 1
