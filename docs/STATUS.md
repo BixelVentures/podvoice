@@ -270,7 +270,7 @@ tur. Da det gamle svar sluttede under den nye `get_time`-tur, blev slut-eventet 
 på globale felter og afkortede det nye svar. Det er en lifecycle-/playbackfejl, ikke en
 prompt-, model-, gain-, VAD- eller danskfejl. **1.13.23 er derfor ikke testklar.**
 
-**v1.13.24 er den lokale softwarekandidat.** Den erstatter tidsreglen med én playback-
+**v1.13.24 er den installerede, maskinelt beståede kandidat.** Den erstatter tidsreglen med én playback-
 lease per svar, bundet til session, tur, output-item og playback-id. Ny brugerlyd og
 skrevet input forbliver gated gennem ventet start, fysisk afspilning og ekkohale. Kun
 matching start→finish kan åbne opfølgningen; stale, dublerede, omvendte og manglende
@@ -279,9 +279,23 @@ lukker derefter rent. Talk håndhæver samme id/rækkefølge, og fysiske traces 
 session-/tur-/playback-id, så oraklet kan afvise krydset ejerskab.
 
 Lokalt er **489 tests** grønne, inklusive reelle HTTP/WebSocket-tests uden sandboxens
-portblokering. Ruff og formatteringskontrol er grønne. Kandidaten er endnu ikke pushed,
-bygget i CI, installeret eller live-/fysisk testet; den må derfor ikke kaldes testklar
-endnu. Prompt V5, `gpt-realtime-2.1`, firmware, gain, VAD og pre-roll er uændrede.
+portblokering. Ruff, formatteringskontrol og mypy er grønne. Commit `12c2eed` er pushed
+til `main`, og CI-kørsel `32370186433` bestod både testjob og ARM add-on-build.
+v1.13.24 blev derefter installeret i Home Assistant den 20. august 2026.
+
+Den installerede Talk/Thin-preflight bestod en serverkvitteret sammenhængende kæde:
+15 + 27 gav 42; opfølgningen “gang resultatet med to” gav 84 i samme Realtime-session;
+`get_time` gav korrekt dato, og ugedagsopfølgningen genbrugte konteksten og svarede
+torsdag. `end_conversation` blev kaldt præcis én gang, farvel blev afspillet og sessionen
+lukket; en efterfølgende regnetur åbnede en frisk session og svarede korrekt. Talk viste
+først klar efter de korrelerede browser-playback-events. En indledende ugyldig prøve,
+hvor testdriveren ventede cirka 20 sekunder på grund af versalfølsom tekstmatching og
+dermed ramte den normale idle-timeout, er kasseret og tæller ikke som produktfejl.
+
+Dette er stærk browser/runtime-evidens, men ikke fysisk Voice PE-bevis. Kandidaten er
+derfor først klar til den korte fysiske golden chain; den er ikke lifecycle-
+releasegodkendt, før samme bits derefter består 10/10 ubrudte fysiske cyklusser. Prompt
+V5, `gpt-realtime-2.1`, firmware, gain, VAD og pre-roll er uændrede.
 
 Den fulde gate omfatter Ruff, formatteringskontrol, mypy for 39 kildefiler, parsing af
 alle 10 panel-scriptblokke og reelle lokale
