@@ -243,14 +243,29 @@ transskription “Læg sekste.” ankom, og sagde “Farvel, vi tales ved.” ud
 afslutningshensigt. Fysisk playback, én teardown og wake-rearm på 98 ms virkede, men
 semantikken fejlede. **v1.13.22 er derfor fysisk afvist og ikke testklar.**
 
-**v1.13.23 er den aktive lokale softwarekandidat.** Den fjerner den obligatoriske
+**v1.13.23 er den aktive installerede softwarekandidat.** Den fjerner den obligatoriske
 fortsættelsesbeslutning og den tvungne to-respons-vej. Realtime bruger automatisk
 værktøjsvalg: direkte spørgsmål besvares i én respons, domæneværktøjer bruges kun ved
 behov, og `end_conversation` forbliver den eneste modelsemantiske lukningsautoritet.
 Firmware, gain, VAD, pre-roll, half-duplex, playback og rearm ændres ikke i denne
 kandidat. Lokalt er 483 tests, Ruff, formatteringskontrol og mypy for 39 kildefiler
-grønne. Add-on-build, installeret live-preflight og fysisk gate mangler fortsat; den er
-derfor endnu ikke testklar.
+grønne. Commit `f64e526` er pushed til `main`; CI-kørsel `32364539944` bestod både
+testjob og ARM add-on-build, og 1.13.23 er installeret og kører i Home Assistant.
+
+Den installerede live-preflight `eval-1787226288-e7a8d8` bestod **4/4 scenarier og
+7/7 ture** på `gpt-realtime-2.1` med `prompt_source=default`, Prompt V5 og prompt-hash
+`a94586b7…`. De direkte regneture svarede 84 og derefter 90 i samme session med tomme
+værktøjsbeslutninger og uden ekstra modelrespons. Tidsopslaget brugte `get_time`, mens
+ugedagsopfølgningen genbrugte resultatet direkte i samme session. Almindeligt “Tak”
+holdt samtalen åben; den klare afslutning kaldte præcis `end_conversation` og lukkede.
+FCK-spørgsmålet brugte `google_web_sogning`. Rapporten brugte 35.104 tokens, estimeret
+$0,091 og 107 sekunders automatisk TPM-pause. Første modellyd lå på 861–1.112 ms for de
+direkte og lokale ture; web lå på 2.802 ms. Dette er browser/provider-evidens, ikke
+fysisk Voice PE-playback.
+
+Kandidaten er dermed **maskinelt adgangsgodkendt til én frisk fysisk golden chain**.
+Den er ikke lifecycle release-godkendt, før samme installerede kandidat først består
+golden chain og derefter 10/10 ubrudte fysiske cyklusser.
 
 Den fulde gate omfatter Ruff, formatteringskontrol, mypy for 39 kildefiler, parsing af
 alle 10 panel-scriptblokke og reelle lokale
