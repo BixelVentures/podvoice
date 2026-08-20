@@ -1158,10 +1158,14 @@ setInterval(function () {
       });
       box.appendChild(line);
     });
-    if (data.budget) box.appendChild(ee("div", "sub", "Forbrug: " + (data.budget.actual_tokens || 0) + " tokens · estimeret $" + Number(data.budget.cost_usd || 0).toFixed(3)));
+    if (data.budget) {
+      var wait = Number(data.budget.rate_limit_wait_s || 0);
+      var pacing = wait > 0 ? " · rate-limit-pause " + Math.round(wait) + " s" : "";
+      box.appendChild(ee("div", "sub", "Forbrug: " + (data.budget.actual_tokens || 0) + " tokens · estimeret $" + Number(data.budget.cost_usd || 0).toFixed(3) + pacing));
+    }
   }
   button.onclick = async function () {
-    button.disabled = true; box.innerHTML = ""; box.appendChild(ee("div", "empty", "Kører fire sikre scenarier mod Realtime…"));
+    button.disabled = true; box.innerHTML = ""; box.appendChild(ee("div", "empty", "Kører fire sikre scenarier mod Realtime. Tier-1-pacing kan tage op til tre minutter…"));
     try {
       var response = await fetch("api/eval/live", {method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
       var data = await response.json(); render(data);

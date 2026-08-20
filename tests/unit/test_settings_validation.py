@@ -85,5 +85,8 @@ def test_current_prompt_is_not_legacy_but_1126_default_is():
     assert "da41f449566176f11b9b3cc492deaa0ab04f4d9c0ff16254781782af81faa644" in (
         settings_mod.LEGACY_PROMPT_HASHES
     )
+    assert "f34e99761e98b86f7aa740ba201a6fd80188ac5e7a127abb30a509aeea6f9017" in (
+        settings_mod.LEGACY_PROMPT_HASHES
+    )
     current_hash = hashlib.sha256(SYSTEM_PROMPT_DA.strip().encode()).hexdigest()
     assert current_hash not in settings_mod.LEGACY_PROMPT_HASHES

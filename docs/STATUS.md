@@ -157,7 +157,15 @@ protokolaudit fandt årsagen: providerlaget ventede kun på den ældre
 `conversation.item.added` for et klientoprettet item. Der blev fortsat ikke oprettet et
 modelsvar. **v1.13.18 er derfor ikke testberettiget.**
 
-**v1.13.19 er den aktuelle softwarekandidat.** Alle egne og normaliserede Realtime-
+v1.13.19 blev installeret og live-preflightet den 20. august. GA-kvitteringen virkede:
+matematikken gav 84 og opfølgningen 90; tid og opfølgende ugedag var også korrekte.
+Rapportens promptidentitet afslørede dog, at den aktive prompt var en nøjagtig kopi af
+den gamle Prompt V2, ikke den indbyggede V4. De to gennemførte scenarier brugte 28.700
+tokens, hvorefter semantic-close og web-routing blev startet uden pause tæt på kontoens
+40.000 TPM-vindue og timede ud uden en gyldig semantisk dom. De to fejl må derfor ikke
+klassificeres som produktfejl eller bestået evidens. **v1.13.19 er ikke testberettiget.**
+
+**v1.13.20 er den aktuelle softwarekandidat.** Alle egne og normaliserede Realtime-
 item-id'er er nu præcis højst 32 tegn, og en eksplicit itemafvisning fejler øjeblikkeligt
 uden `response.create`. Providerlaget accepterer både den aktuelle
 `conversation.item.added` og den ældre kompatibilitetsevent. Hvert create-kald har et
@@ -168,9 +176,15 @@ promptkilde/version/hash og tool-schema-hash; og Talk afviser ubundet tekst- ell
 command-id-længde før wake/provider. Eval-oraklets tid- og sportskrav er desuden gjort
 strengere, så en tvetydig delstreng eller forkert kampretning ikke kan give falsk grøn.
 
-Den 20. august består kandidaten lokalt med **475 tests**, inklusive reelle lokale
+Den præcise gamle V2-hash migreres nu til V4 ligesom andre gemte standardprompter;
+egentlige brugerændringer bevares. Preflighten holder et konservativt 30.000-token
+rullende vindue, reserverer 10.000 TPM til almindelig brug og viser sin automatiske
+rate-limit-pause. Total-run-budgettet er 80.000 tokens og $0,25, så fire friske scenarier
+kan fordeles over flere minutter uden at blive fejldiagnosticeret som semantikfejl.
+
+Den 20. august består kandidaten lokalt med **476 tests**, inklusive reelle lokale
 HTTP/WebSocket-tests, plus Ruff, formatteringskontrol og mypy for 39 kildefiler. Prompt
-V4, firmware, gain, VAD, pre-roll og fysisk half-duplex er uændrede. v1.13.19 er endnu
+V4, firmware, gain, VAD, pre-roll og fysisk half-duplex er uændrede. v1.13.20 er endnu
 ikke live-preflightet eller fysisk testklar; næste gate er CI/add-on-build, installation
 og grøn preflight med den rapporterede aktive promptidentitet. Først derefter må én
 fysisk golden chain køres.

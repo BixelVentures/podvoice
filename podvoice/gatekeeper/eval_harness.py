@@ -219,12 +219,16 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
 class EvalBudget:
     max_turns: int = 20
     max_reserved_tokens: int = 30_000
-    max_actual_tokens: int = 30_000
-    max_cost_usd: float = 2.0
+    # Total-run bounds are deliberately distinct from the rolling TPM throttle.
+    # Four fresh sessions repeat the prompt/tool schema and legitimately exceed 30k
+    # total tokens even when split safely across multiple one-minute windows.
+    max_actual_tokens: int = 80_000
+    max_cost_usd: float = 0.25
     turns: int = 0
     reserved_tokens: int = 0
     actual_tokens: int = 0
     cost_usd: float = 0.0
+    rate_limit_wait_s: float = 0.0
 
     def reserve(self, responses: int = 2) -> None:
         requested = responses * MAX_OUTPUT_TOKENS
@@ -560,8 +564,21 @@ class LiveRealtimeDriver:
 class LiveEvalService:
     """Serialized callable for an authenticated ingress handler inside the add-on."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        sleep=asyncio.sleep,
+        monotonic=time.monotonic,
+        tpm_soft_limit: int = 30_000,
+        next_scenario_reserve: int = 15_000,
+    ) -> None:
         self._lock = asyncio.Lock()
+        self._sleep = sleep
+        self._monotonic = monotonic
+        # Tier-1 is 40k TPM. Keep 10k headroom for token-accounting lag and any
+        # concurrent real household turn; this evaluator must never starve Nabu.
+        self._tpm_soft_limit = tpm_soft_limit
+        self._next_scenario_reserve = next_scenario_reserve
 
     async def run(
         self,
@@ -604,17 +621,32 @@ class LiveEvalService:
                 ).hexdigest(),
             }
             results: list[ScenarioResult] = []
+            token_window_started = self._monotonic()
+            token_window_used = 0
             try:
                 for scenario in selected:
+                    elapsed = self._monotonic() - token_window_started
+                    if elapsed >= 60.0:
+                        token_window_started = self._monotonic()
+                        token_window_used = 0
+                    elif token_window_used + self._next_scenario_reserve > self._tpm_soft_limit:
+                        wait_s = max(0.0, 60.5 - elapsed)
+                        if wait_s:
+                            await self._sleep(wait_s)
+                            budget.rate_limit_wait_s += wait_s
+                        token_window_started = self._monotonic()
+                        token_window_used = 0
                     driver = LiveRealtimeDriver(
                         api_key,
                         model=model,
                         voice=voice,
                         instructions=effective_prompt,
                     )
+                    before_tokens = budget.actual_tokens
                     results.append(
                         await run_scenario(driver, scenario, run_id=run_id, budget=budget)
                     )
+                    token_window_used += budget.actual_tokens - before_tokens
             except Exception as exc:
                 message = str(exc).replace(api_key, "[REDACTED]")[:500]
                 return {

@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.13.20 — korrekt aktiv prompt og Tier-1-sikker preflight
+
+- Den installerede 1.13.19-preflight beviste GA-item-kvitteringen: direkte matematik
+  og opfølgning samt tid og ugedag bestod. Den afslørede samtidig, at `/data` stadig
+  indeholdt en byte-identisk kopi af den gamle Prompt V2. Dens dokumenterede hash
+  migreres nu som en gammel standard til Prompt V4; enhver faktisk egen prompt bevares.
+- Fire friske eval-sessioner gentog prompt og værktøjsskema så hurtigt, at de første to
+  allerede brugte 28.700 tokens og pressede de næste mod OpenAI Tier-1's 40.000 TPM.
+  Preflighten har nu et konservativt 30.000-token rullende vindue med automatisk pause,
+  10.000 tokens fri til en rigtig samtale og synlig ventetid i rapporten.
+- Total-run-budgettet er skilt fra TPM-vinduet: højst 80.000 faktiske tokens og $0,25.
+  Testen kan derfor gennemføre alle fire isolerede sessioner uden at forveksle
+  rate-limit med en semantisk fejl eller sulte den almindelige assistent.
+- Prompt V4's indhold, firmware, gain, VAD, pre-roll og fysisk half-duplex er uændrede.
+
 ## 1.13.19 — GA-korrekt Realtime-kvittering
 
 - Den installerede 1.13.18-preflight beviste, at OpenAI accepterede sessionen og det

@@ -189,3 +189,41 @@ async def test_live_service_reports_the_exact_effective_prompt_identity(monkeypa
     assert len(report["prompt_sha256"]) == 64
     assert len(report["tool_schema_sha256"]) == 64
     assert "min aktive prompt" not in str(report)
+
+
+async def test_live_service_paces_fresh_sessions_below_tier_one_tpm(monkeypatch):
+    clock = [0.0]
+    waits: list[float] = []
+
+    async def fake_sleep(delay: float) -> None:
+        waits.append(delay)
+        clock[0] += delay
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        budget.record(
+            {
+                "input_text_tokens": 16_000,
+                "input_audio_tokens": 0,
+                "output_text_tokens": 0,
+                "output_audio_tokens": 0,
+            }
+        )
+        return ScenarioResult(scenario.id, True, "session", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    service = LiveEvalService(
+        sleep=fake_sleep,
+        monotonic=lambda: clock[0],
+        tpm_soft_limit=30_000,
+        next_scenario_reserve=15_000,
+    )
+    report = await service.run(
+        api_key="secret",
+        scenario_ids={"arithmetic-followup", "time-followup", "semantic-close"},
+    )
+    assert report["ok"] is True
+    # 16k + the conservative 15k next-scenario reserve exceeds the 30k soft
+    # window, so every following fresh session waits for a new minute.
+    assert waits == [60.5, 60.5]
+    assert report["budget"]["rate_limit_wait_s"] == 121.0
+    assert report["budget"]["actual_tokens"] == 48_000

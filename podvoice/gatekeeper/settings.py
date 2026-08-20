@@ -98,6 +98,11 @@ LEGACY_PROMPT_HASHES = frozenset(
         # 1.13.15 Prompt V3 — retired when its same-response continue contract was
         # disproved by the live Talk preflight. A saved default must pick up V4.
         "da41f449566176f11b9b3cc492deaa0ab04f4d9c0ff16254781782af81faa644",
+        # 1.13.13/1.13.14 Prompt V2 — this exact old default survived in the owner's
+        # /data because it was saved from the panel. V4 is V2 plus the mandatory
+        # per-turn continue/end/wait decision contract; an exact V2 copy is not a
+        # user customization and must not shadow that lifecycle fix forever.
+        "f34e99761e98b86f7aa740ba201a6fd80188ac5e7a127abb30a509aeea6f9017",
     }
 )
 
