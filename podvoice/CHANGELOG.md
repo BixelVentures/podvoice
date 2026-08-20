@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.13.22 — semantisk korrekt web-orakel
+
+- Den fulde, bevarede 1.13.21-livepreflight beviste Prompt V4 og bestod matematik,
+  opfølgninger, tid/ugedag og semantisk afslutning. Web valgte også det korrekte
+  `google_web_sogning` og svarede korrekt “FCK vandt 2-0”, men oraklet krævede
+  bogstaveligt ordene “to” og “nul” og gav derfor en falsk rød rapport.
+- Web-oraklet bedømmer nu den samme betydning med enten cifre eller talord og bevarer
+  samtidig retningen: “Silkeborg vandt 2-0 over FCK” kan ikke bestå som en FCK-sejr.
+- Panelet viser nu den konkrete finding under en fejlet tur, så et korrekt svar ikke
+  længere kan stå rødt uden forklaring.
+- Produktionsprompt, model, værktøjsrouting, firmware og fysisk lifecycle er uændrede.
+- 486 tests, Ruff, formatteringskontrol, mypy og panel-script-parsing er grønne.
+
 ## 1.13.21 — genoptagelig preflight med sand jobstatus
 
 - Den installerede 1.13.20-preflight blev korrekt startet, men det fler-minutters

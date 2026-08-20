@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import pathlib
+import re
 import wave
 
 import pytest
@@ -34,6 +35,43 @@ def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
     assert any(len(s.turns) > 1 for s in scenarios)
     decisions = {turn.expect.decision for scenario in scenarios for turn in scenario.turns}
     assert {"continue_conversation", "end_conversation", "get_time"} <= decisions
+
+
+def test_web_oracle_accepts_spoken_words_or_digits_but_still_requires_winner():
+    scenario = next(s for s in load_scenarios() if s.id == "web-routing")
+    expected = scenario.turns[0].expect
+    for answer in (
+        "FCK vandt 2-0.",
+        "FCK vandt kampen med to nul.",
+        "Kampen endte 2-0 til FC København.",
+    ):
+        observed = TurnObservation(
+            turn_id="turn",
+            session_id="session",
+            decisions=["google_web_sogning"],
+            answer=answer,
+        )
+        assert grade_turn(expected, observed) == []
+    wrong_winner = TurnObservation(
+        turn_id="turn",
+        session_id="session",
+        decisions=["google_web_sogning"],
+        answer="Silkeborg vandt 2-0 over FCK.",
+    )
+    assert {finding.code for finding in grade_turn(expected, wrong_winner)} == {
+        "answer-pattern-mismatch"
+    }
+
+
+def test_scenario_loader_rejects_an_invalid_answer_pattern(tmp_path: pathlib.Path):
+    path = tmp_path / "invalid.json"
+    path.write_text(
+        '{"schema_version":1,"scenarios":[{"id":"broken","turns":['
+        '{"text":"test","expect":{"answer_patterns":["("]}}]}]}',
+        encoding="utf-8",
+    )
+    with pytest.raises(re.error):
+        load_scenarios(path)
 
 
 def test_oracle_requires_exact_decision_answer_and_lifecycle():

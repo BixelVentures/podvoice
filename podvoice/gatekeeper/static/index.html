@@ -1161,6 +1161,9 @@ setInterval(function () {
       (scenario.turns || []).forEach(function (turn) {
         var answer = turn.observation && turn.observation.answer ? " · “" + turn.observation.answer + "”" : "";
         line.appendChild(ee("div", "sub", (turn.passed ? "✓ " : "✕ ") + turn.text + answer));
+        if (!turn.passed) (turn.findings || []).forEach(function (finding) {
+          line.appendChild(ee("div", "sub", "Årsag: " + (finding.message || finding.code || "ukendt fejl")));
+        });
       });
       box.appendChild(line);
     });

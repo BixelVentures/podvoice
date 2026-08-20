@@ -162,6 +162,7 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     assert 'fetch("api/eval/live?run_id="' in html
     assert 'data.status === "running" || data.status === "busy"' in html
     assert "poll(data.run_id, generation)" in html
+    assert '"Årsag: " + (finding.message' in html
     assert "data.prompt_source" in html
     assert "brugerdefineret prompt" in html
     assert "kan ikke styre hjemmet, musik eller timere" in html

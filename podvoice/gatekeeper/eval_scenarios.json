@@ -76,7 +76,10 @@
           "text": "Hvordan gik FCK i deres seneste kamp?",
           "expect": {
             "decision": "google_web_sogning",
-            "answer_all": ["FCK", "vandt", "to", "nul"],
+            "answer_patterns": [
+              "(?:fck|fc københavn).*vandt.*(?:2 0|to nul)",
+              "(?:2 0|to nul).*til (?:fck|fc københavn)"
+            ],
             "forbid": ["continue_conversation", "get_time"],
             "remain_open": true
           }

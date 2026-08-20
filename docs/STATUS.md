@@ -193,7 +193,7 @@ evaluering blev holdt inde i ét Ingress-HTTP-kald; et efterfølgende request s�
 stadig aktive serverkørsel og panelet erstattede den med “kører allerede”. Det er en
 jobtransportfejl, ikke bevis for bestået eller fejlet semantik.
 
-**v1.13.21 er den aktuelle softwarekandidat.** Preflighten ejes nu af add-on-processen
+v1.13.21 var den foregående softwarekandidat. Preflighten ejes nu af add-on-processen
 som et baggrundsjob med fast id og bevaret resultat. Panelet starter én gang og poller;
 reload, midlertidigt nettab eller et genforsøg kan ikke annullere jobbet eller starte en
 parallel kørsel. Provider-connect har et otte-sekunders loft, hele jobbet et
@@ -205,6 +205,23 @@ installation og en fuld bevaret live-rapport med `prompt_source=default` og
 `prompt_version=4`. Lokalt er **484 tests**, alle 10 panel-scripts, Ruff,
 formatteringskontrol og mypy for 39 kildefiler grønne; de reelle lokale
 HTTP/WebSocket-tests blev kørt uden sandboxens portblokering.
+
+Den installerede 1.13.21-preflight `eval-1787221960-a23d2f` overlevede en reel
+panelreload og bevarede hele slutrapporten. Den brugte `gpt-realtime-2.1`, den
+indbyggede Prompt V4 med hash `84ff3a0c…`, syv provider-kvitterede ture og 52.165
+tokens med 163 sekunders automatisk TPM-pause. Matematik/opfølgning, tid/ugedag og
+semantisk afslutning bestod. Web valgte korrekt `google_web_sogning` og svarede “FCK
+vandt 2-0”, men oraklet krævede de bogstavelige talord “to” og “nul”. Rapportens eneste
+røde tur var derfor en dokumenteret falsk negativ, ikke en produktfejl.
+
+**v1.13.22 er den aktuelle softwarekandidat.** Web-oraklet accepterer nu den korrekte
+FCK-sejr med cifre eller danske talord, men bevarer vinderretningen, så et omvendt
+resultat stadig fejler. Panelet viser desuden den præcise finding under hver rød tur.
+Produktionsprompt, model, tool-kontrakt, Voice PE-firmware og lifecycle er byte-/logisk
+uændrede. Lokalt er **486 tests**, Ruff, formatteringskontrol, mypy for 39 kildefiler
+og alle 10 panel-scripts grønne; de reelle HTTP/WebSocket-tests er kørt uden
+sandboxens portblokering. Kandidaten kræver stadig grøn CI/add-on-build, installation
+og en bevaret grøn livepreflight, før fysisk golden chain må startes.
 
 Den fulde gate omfatter Ruff, formatteringskontrol, mypy for 39 kildefiler, parsing af
 alle 10 panel-scriptblokke og reelle lokale

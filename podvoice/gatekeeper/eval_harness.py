@@ -63,6 +63,7 @@ class TurnExpectation:
     forbid: tuple[str, ...] = ()
     answer_any: tuple[str, ...] = ()
     answer_all: tuple[str, ...] = ()
+    answer_patterns: tuple[str, ...] = ()
     remain_open: bool = True
 
 
@@ -145,6 +146,9 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
             if not text:
                 raise ValueError(f"{scenario_id}: empty turn")
             expected = row.get("expect") or {}
+            answer_patterns = tuple(expected.get("answer_patterns") or ())
+            for pattern in answer_patterns:
+                re.compile(pattern)
             turns.append(
                 EvalTurn(
                     text=text,
@@ -154,6 +158,7 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                         forbid=tuple(expected.get("forbid") or ()),
                         answer_any=tuple(expected.get("answer_any") or ()),
                         answer_all=tuple(expected.get("answer_all") or ()),
+                        answer_patterns=answer_patterns,
                         remain_open=bool(expected.get("remain_open", True)),
                     ),
                 )
@@ -206,6 +211,15 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
     missing = [x for x in expect.answer_all if _normalise(x) not in answer]
     if missing:
         findings.append(Finding("answer-missing-all", f"Svaret manglede {missing}."))
+    if expect.answer_patterns and not any(
+        re.search(pattern, answer) for pattern in expect.answer_patterns
+    ):
+        findings.append(
+            Finding(
+                "answer-pattern-mismatch",
+                "Svaret havde ikke den forventede betydningsrækkefølge.",
+            )
+        )
     if observed.remain_open is not expect.remain_open:
         findings.append(
             Finding(
