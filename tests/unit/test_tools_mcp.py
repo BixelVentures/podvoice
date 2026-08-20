@@ -98,8 +98,10 @@ async def test_mcp_down_degrades_to_local_tools():
         await router.start()  # must not raise
         names = [d["name"] for d in router.declarations()]
         assert names == ["get_time"]  # local only (no timers wired in this test)
-        r = await router.dispatch("get_time", {})
+        r = await router.dispatch("get_time", {"fields": ["time"]})
     assert r["ok"] is True and "Klokken er" in r["summary"]
+    assert r["data"]["requested_fields"] == ["time"]
+    assert set(r["data"]) == {"requested_fields", "time"}
 
 
 def test_no_mcp_at_all_still_serves_local():
@@ -126,7 +128,43 @@ def test_clock_declaration_is_scoped_to_the_latest_user_turn():
     assert "latest user turn" in description
     assert "previous turn" in description
     assert "wraps up" in description
+    assert "weekday" in description and "week_number" in description
+    assert "never confuse" in description
     assert declaration["parameters"]["additionalProperties"] is False
+    assert declaration["parameters"]["required"] == ["fields"]
+    fields = declaration["parameters"]["properties"]["fields"]
+    assert fields["minItems"] == 1 and fields["uniqueItems"] is True
+    assert fields["items"]["enum"] == ["time", "date", "weekday", "week_number"]
+
+
+async def test_clock_tool_returns_only_the_model_selected_temporal_fields():
+    router = ToolRouter(None)
+
+    weekday = await router.dispatch("get_time", {"fields": ["weekday"]})
+    assert weekday["ok"] is True
+    assert weekday["data"]["requested_fields"] == ["weekday"]
+    assert set(weekday["data"]) == {"requested_fields", "weekday"}
+    assert weekday["summary"] == f"I dag er det {weekday['data']['weekday']}."
+    assert "uge " not in weekday["summary"].casefold()
+
+    week_number = await router.dispatch("get_time", {"fields": ["week_number"]})
+    assert week_number["ok"] is True
+    assert set(week_number["data"]) == {"requested_fields", "week_number"}
+    assert week_number["summary"] == f"Det er uge {week_number['data']['week_number']}."
+
+    combined = await router.dispatch("get_time", {"fields": ["date", "weekday"]})
+    assert combined["ok"] is True
+    assert combined["data"]["requested_fields"] == ["date", "weekday"]
+    assert set(combined["data"]) == {"requested_fields", "date", "weekday"}
+    assert "Datoen er" in combined["summary"] and "I dag er det" in combined["summary"]
+
+
+async def test_clock_tool_rejects_missing_unknown_or_duplicate_fields():
+    router = ToolRouter(None)
+    for args in ({}, {"fields": []}, {"fields": ["timezone"]}, {"fields": ["date", "date"]}):
+        result = await router.dispatch("get_time", args)
+        assert result["ok"] is False
+        assert result["error_kind"] == "bad_args"
 
 
 def test_clock_tool_produces_natural_danish_instead_of_reading_digits():

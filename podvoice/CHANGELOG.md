@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.13.25 — Realtime vælger det præcise tidsfelt
+
+- Realtime ejer fortsat hele forståelsen og vælger nu ét eller flere eksplicitte
+  tidsfelter: klokkeslæt, dato, ugedag eller ISO-ugenummer. Der er ingen lokal
+  frasegenkendelse eller deterministisk hensigtsrouting.
+- `get_time` returnerer kun de modelvalgte felter og et fokuseret dansk svargrundlag.
+  Et ugedagsspørgsmål får derfor ikke længere en konkurrerende klokkeslæts-summary,
+  dato eller et ugenummer, som modellen kan forveksle med svaret.
+- Den sikre live-eval kontrollerer både værktøjsnavn og modelvalgte argumenter og
+  skelner eksplicit mellem ugedag og ugenummer. Prompt, Realtime-model, lyd, firmware,
+  VAD, gain, half-duplex, playback, teardown og rearm er uændrede.
+
 ## 1.13.24 — fysisk playback ejer sin egen tur
 
 - Fjerner den faste 500 ms overgang fra færdig modelgenerering til ny lyttetilstand.

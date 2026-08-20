@@ -309,6 +309,16 @@ svarede med klokkeslættet; denne tur er høre-mæssigt ukendt, indtil device- o
 providerlyden er gennemlyttet. En efterfølgende frisk wake gav korrekt dato og lukkede
 igen; det ændrer ikke den afviste gate. **Start ikke 10/10 på v1.13.24.**
 
+**v1.13.25 er den lokale korrektionskandidat.** Realtime ejer fortsat betydning og
+værktøjsvalg, men `get_time` kræver nu, at modellen vælger ét eller flere præcise
+tidsfelter: `time`, `date`, `weekday` eller `week_number`. Værktøjet returnerer kun de
+valgte felter med et fokuseret dansk svargrundlag. Der er ingen lokal ordliste,
+frasegenkendelse eller deterministisk hensigtsrouting. Eval-oraklet kontrollerer både
+værktøjsnavnet og modellens feltargument og afviser nu eksplicit `week_number` som svar
+på en forventet `weekday`. Lyd, Prompt V5, `gpt-realtime-2.1`, firmware, gain, VAD,
+half-duplex, playback, teardown og rearm er uændrede. Kandidaten må først kaldes fysisk
+testklar efter fuld CI, installeret live-preflight og den sædvanlige Talk/Thin-kæde.
+
 Den fulde gate omfatter Ruff, formatteringskontrol, mypy for 39 kildefiler, parsing af
 alle 10 panel-scriptblokke og reelle lokale
 HTTP/WebSocket-tests. Testmiljøet blev bevidst lagt i `/private/tmp` efter den kendte

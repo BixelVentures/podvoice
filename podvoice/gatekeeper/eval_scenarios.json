@@ -31,6 +31,7 @@
           "text": "Hvad er klokken?",
           "expect": {
             "decision": "get_time",
+            "tool_args": {"get_time": {"fields": ["time"]}},
             "answer_any": ["fjorten", "14"],
             "remain_open": true
           }
@@ -38,9 +39,18 @@
         {
           "text": "Og hvilken ugedag er det?",
           "expect": {
-            "allowed_decisions": ["get_time"],
-            "allow_direct": true,
+            "decision": "get_time",
+            "tool_args": {"get_time": {"fields": ["weekday"]}},
             "answer_any": ["mandag"],
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Og hvilket ugenummer er det?",
+          "expect": {
+            "decision": "get_time",
+            "tool_args": {"get_time": {"fields": ["week_number"]}},
+            "answer_any": ["34", "fireogtredive"],
             "remain_open": true
           }
         }

@@ -65,6 +65,7 @@ class TurnExpectation:
     answer_any: tuple[str, ...] = ()
     answer_all: tuple[str, ...] = ()
     answer_patterns: tuple[str, ...] = ()
+    tool_args: dict[str, dict[str, Any]] = field(default_factory=dict)
     remain_open: bool = True
 
 
@@ -162,6 +163,10 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                         answer_any=tuple(expected.get("answer_any") or ()),
                         answer_all=tuple(expected.get("answer_all") or ()),
                         answer_patterns=answer_patterns,
+                        tool_args={
+                            str(name): dict(args)
+                            for name, args in (expected.get("tool_args") or {}).items()
+                        },
                         remain_open=bool(expected.get("remain_open", True)),
                     ),
                 )
@@ -216,6 +221,15 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
     forbidden = sorted(set(decisions).intersection(expect.forbid))
     if forbidden:
         findings.append(Finding("forbidden-decision", f"Forbudte kald: {forbidden}."))
+    for name, expected_args in expect.tool_args.items():
+        actual_args = observed.tool_args.get(name, [])
+        if expected_args not in actual_args:
+            findings.append(
+                Finding(
+                    "wrong-tool-args",
+                    f"Forventede {name} med {expected_args}, fik {actual_args or 'ingen kald'}.",
+                )
+            )
     answer = _normalise(observed.answer)
     if expect.answer_any and not any(_normalise(x) in answer for x in expect.answer_any):
         findings.append(
@@ -309,11 +323,6 @@ class SafeEvalTools:
     """Production-shaped declarations with fixed results and no external clients."""
 
     _RESULTS: ClassVar[dict[str, dict[str, Any]]] = {
-        "get_time": {
-            "ok": True,
-            "summary": "Klokken er fjorten. Det er mandag den syttende august 2026.",
-            "data": {"iso": "2026-08-17T14:00:00+02:00", "weekday": "mandag"},
-        },
         "google_web_sogning": {
             "ok": True,
             "summary": "FCK vandt to nul i den seneste kamp.",
@@ -329,12 +338,28 @@ class SafeEvalTools:
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     def declarations(self) -> list[dict[str, Any]]:
-        empty = {"type": "object", "properties": {}, "additionalProperties": False}
         return [
             {
                 "name": "get_time",
-                "description": "Current local time, date and weekday. Use only for time/date.",
-                "parameters": empty,
+                "description": "Read precisely requested current local time fields. "
+                "weekday is the day name; week_number is the numbered ISO week. "
+                "Never confuse them.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "fields": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": ["time", "date", "weekday", "week_number"],
+                            },
+                            "minItems": 1,
+                            "uniqueItems": True,
+                        }
+                    },
+                    "required": ["fields"],
+                    "additionalProperties": False,
+                },
             },
             {
                 "name": "google_web_sogning",
@@ -362,6 +387,33 @@ class SafeEvalTools:
 
     async def dispatch(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         self.calls.append((name, dict(args)))
+        if name == "get_time":
+            values: dict[str, tuple[str, Any]] = {
+                "time": ("Klokken er fjorten.", "14:00"),
+                "date": ("Datoen er den 17. august 2026.", "2026-08-17"),
+                "weekday": ("I dag er det mandag.", "mandag"),
+                "week_number": ("Det er uge 34.", 34),
+            }
+            fields = args.get("fields")
+            if (
+                not isinstance(fields, list)
+                or not fields
+                or any(field not in values for field in fields)
+                or len(set(fields)) != len(fields)
+            ):
+                return {
+                    "ok": False,
+                    "error_kind": "bad_args",
+                    "error": "invalid eval time fields",
+                }
+            return {
+                "ok": True,
+                "summary": " ".join(values[field][0] for field in fields),
+                "data": {
+                    "requested_fields": fields,
+                    **{field: values[field][1] for field in fields},
+                },
+            }
         result = self._RESULTS.get(name)
         if result is None:
             return {

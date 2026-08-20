@@ -101,6 +101,34 @@ def test_oracle_requires_exact_decision_answer_and_lifecycle():
     }
 
 
+def test_oracle_requires_the_model_selected_temporal_field():
+    expected = TurnExpectation(
+        decision="get_time",
+        tool_args={"get_time": {"fields": ["weekday"]}},
+        answer_any=("mandag",),
+    )
+    good = TurnObservation(
+        turn_id="t",
+        session_id="s",
+        decisions=["get_time"],
+        tool_args={"get_time": [{"fields": ["weekday"]}]},
+        answer="I dag er det mandag.",
+    )
+    assert grade_turn(expected, good) == []
+
+    wrong_field = TurnObservation(
+        turn_id="t",
+        session_id="s",
+        decisions=["get_time"],
+        tool_args={"get_time": [{"fields": ["week_number"]}]},
+        answer="Det er uge 34.",
+    )
+    assert {finding.code for finding in grade_turn(expected, wrong_field)} == {
+        "wrong-tool-args",
+        "answer-missing-any",
+    }
+
+
 async def test_safe_eval_router_never_dispatches_unknown_tools():
     tools = SafeEvalTools()
     assert {"end_conversation", "wait_for_user"} <= {
@@ -109,7 +137,13 @@ async def test_safe_eval_router_never_dispatches_unknown_tools():
     assert "continue_conversation" not in {
         declaration["name"] for declaration in tools.declarations()
     }
-    assert (await tools.dispatch("get_time", {}))["ok"] is True
+    weekday = await tools.dispatch("get_time", {"fields": ["weekday"]})
+    assert weekday == {
+        "ok": True,
+        "summary": "I dag er det mandag.",
+        "data": {"requested_fields": ["weekday"], "weekday": "mandag"},
+    }
+    assert (await tools.dispatch("get_time", {}))["error_kind"] == "bad_args"
     refused = await tools.dispatch("unlock_front_door", {"entity": "lock.front"})
     assert refused == {
         "ok": False,

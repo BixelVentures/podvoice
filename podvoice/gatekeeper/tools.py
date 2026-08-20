@@ -77,6 +77,7 @@ _PODCONNECT_DATA_TOOLS = {
 # Danish day/month names for the spoken get_time summary (strftime is locale-dependent
 # and the Alpine container has no da_DK locale — hardcoding is the reliable way).
 _WEEKDAYS_DA = ("mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag")
+_TIME_FIELDS = ("time", "date", "weekday", "week_number")
 _MONTHS_DA = (
     "januar",
     "februar",
@@ -338,14 +339,26 @@ class ToolRouter:
         decls: list[dict] = [
             {
                 "name": "get_time",
-                "description": "The current local time and date (clock, weekday, date). "
-                "Use only when the latest user turn directly asks for the time, date, "
-                "or weekday. Never repeat this tool merely because the previous turn "
-                "used it. If the latest turn instead wraps up the conversation, use the "
-                "conversation-ending tool rather than get_time.",
+                "description": "Read precisely requested current local time fields. You "
+                "interpret the latest user turn and choose one or more fields: time is "
+                "the clock, date is the calendar date, weekday is the day name "
+                "(mandag-søndag), and week_number is the numbered ISO week. Never "
+                "confuse weekday with week_number. Request only fields the latest turn "
+                "asks for; do not inherit a field merely because the previous turn used "
+                "it. If the latest turn wraps up the conversation, use the conversation-"
+                "ending tool instead.",
                 "parameters": {
                     "type": "object",
-                    "properties": {},
+                    "properties": {
+                        "fields": {
+                            "type": "array",
+                            "items": {"type": "string", "enum": list(_TIME_FIELDS)},
+                            "minItems": 1,
+                            "uniqueItems": True,
+                            "description": "Only the temporal fields requested now.",
+                        }
+                    },
+                    "required": ["fields"],
                     "additionalProperties": False,
                 },
             }
@@ -464,7 +477,7 @@ class ToolRouter:
     async def _dispatch(self, name: str, args: dict) -> dict:
         try:
             if name == "get_time":  # local, always available — the clock never fails
-                return await self._get_time()
+                return await self._get_time(args)
             if self._timers is not None and name in ("set_timer", "list_timers", "cancel_timer"):
                 if name == "set_timer":
                     # minutes+seconds as SEPARATE fields: a voice model doing its own
@@ -556,20 +569,45 @@ class ToolRouter:
         self._tz = datetime.datetime.now().astimezone().tzinfo or datetime.UTC
         return self._tz
 
-    async def _get_time(self) -> dict:
-        """Local wall-clock time + date, with a ready-to-speak Danish summary."""
+    async def _get_time(self, args: dict) -> dict:
+        """Return only model-selected local time fields with a focused Danish summary.
+
+        Realtime still owns interpretation: it chooses ``fields`` from the declared
+        schema.  The tool only prevents unrelated temporal data from competing in the
+        result, which is what made a physically clear ``ugedag`` answer become an ISO
+        week number in the 1.13.24 field trace.
+        """
+        fields = args.get("fields")
+        if (
+            not isinstance(fields, list)
+            or not fields
+            or any(not isinstance(field, str) or field not in _TIME_FIELDS for field in fields)
+            or len(set(fields)) != len(fields)
+        ):
+            return {
+                "ok": False,
+                "error_kind": "bad_args",
+                "error": "fields must contain one or more unique values from "
+                "time, date, weekday, week_number",
+            }
         now = datetime.datetime.now(await self._get_timezone())
-        spoken = _spoken_clock(now.hour, now.minute)
+        weekday = _WEEKDAYS_DA[now.weekday()]
+        values: dict[str, str | int] = {
+            "time": f"{now:%H:%M}",
+            "date": f"{now:%Y-%m-%d}",
+            "weekday": weekday,
+            "week_number": now.isocalendar().week,
+        }
+        summaries = {
+            "time": _spoken_clock(now.hour, now.minute),
+            "date": f"Datoen er den {now.day}. {_MONTHS_DA[now.month - 1]} {now.year}.",
+            "weekday": f"I dag er det {weekday}.",
+            "week_number": f"Det er uge {now.isocalendar().week}.",
+        }
         return {
             "ok": True,
-            "summary": spoken,
-            "data": {
-                "spoken_time": spoken,
-                "time": f"{now:%H:%M}",
-                "date": f"{now:%Y-%m-%d}",
-                "weekday": _WEEKDAYS_DA[now.weekday()],
-                "iso": now.isoformat(timespec="seconds"),
-            },
+            "summary": " ".join(summaries[field] for field in fields),
+            "data": {"requested_fields": fields, **{field: values[field] for field in fields}},
         }
 
     def _log_tool(self, name: str, result: dict, args: dict | None = None) -> None:

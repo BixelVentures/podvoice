@@ -2,7 +2,7 @@
 # Production behavior follows docs/INVARIANTER.md; tunable defaults live in
 # gatekeeper/settings.py and operational constants in gatekeeper/constants.py.
 name: PodVoice
-version: "1.13.24"
+version: "1.13.25"
 slug: podvoice
 description: OpenAI Realtime voice assistant bridge for custom-firmware Voice PE
 arch:
