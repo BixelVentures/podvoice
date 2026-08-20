@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.13.21 — genoptagelig preflight med sand jobstatus
+
+- Den installerede 1.13.20-preflight blev korrekt startet, men det fler-minutters
+  arbejde levede inde i ét langt Ingress-HTTP-kald. Et afbrudt eller genprøvet kald
+  kunne derfor annullere arbejdet eller overskrive den aktive kørsel med den misvisende
+  besked “kører allerede”. En sådan besked er ikke et semantisk evalresultat.
+- Add-on-processen ejer nu evalueringen som ét baggrundsjob med et fast `run_id`.
+  Startkaldet returnerer straks, panelet poller status, og reload, midlertidigt nettab
+  eller et dobbeltklik genoptager samme job. Det færdige resultat bevares i processen.
+- Eval-providerens opkobling har nu samme otte-sekunders loft som produktionsmotoren,
+  hele jobbet har et femminutters loft, og et opkoblingssvigt rydder altid sin session.
+  Add-on-stop annullerer jobbet eksplicit og lukker det rent.
+- Evalgrænsen er sænket fra 30.000 til 25.000 TPM. Dermed forbliver cirka 15.000 af
+  Tier-1-vinduets 40.000 tokens ledige til én målt almindelig PodVoice-session.
+- Prompt V4, firmware, gain, VAD, pre-roll og fysisk half-duplex er uændrede.
+
 ## 1.13.20 — korrekt aktiv prompt og Tier-1-sikker preflight
 
 - Den installerede 1.13.19-preflight beviste GA-item-kvitteringen: direkte matematik

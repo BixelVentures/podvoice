@@ -165,7 +165,7 @@ tokens, hvorefter semantic-close og web-routing blev startet uden pause tæt på
 40.000 TPM-vindue og timede ud uden en gyldig semantisk dom. De to fejl må derfor ikke
 klassificeres som produktfejl eller bestået evidens. **v1.13.19 er ikke testberettiget.**
 
-**v1.13.20 er den aktuelle softwarekandidat.** Alle egne og normaliserede Realtime-
+v1.13.20 var den foregående softwarekandidat. Alle egne og normaliserede Realtime-
 item-id'er er nu præcis højst 32 tegn, og en eksplicit itemafvisning fejler øjeblikkeligt
 uden `response.create`. Providerlaget accepterer både den aktuelle
 `conversation.item.added` og den ældre kompatibilitetsevent. Hvert create-kald har et
@@ -184,10 +184,27 @@ kan fordeles over flere minutter uden at blive fejldiagnosticeret som semantikfe
 
 Den 20. august består kandidaten lokalt med **476 tests**, inklusive reelle lokale
 HTTP/WebSocket-tests, plus Ruff, formatteringskontrol og mypy for 39 kildefiler. Prompt
-V4, firmware, gain, VAD, pre-roll og fysisk half-duplex er uændrede. v1.13.20 er endnu
-ikke live-preflightet eller fysisk testklar; næste gate er CI/add-on-build, installation
-og grøn preflight med den rapporterede aktive promptidentitet. Først derefter må én
-fysisk golden chain køres.
+V4, firmware, gain, VAD, pre-roll og fysisk half-duplex er uændrede. v1.13.20 nåede
+live-preflight, men leverede ikke en bevaret slutrapport og blev derfor aldrig fysisk
+testklar.
+
+1.13.20's installerede preflight gav ikke en gyldig slutrapport. Den fler-minutters
+evaluering blev holdt inde i ét Ingress-HTTP-kald; et efterfølgende request så den
+stadig aktive serverkørsel og panelet erstattede den med “kører allerede”. Det er en
+jobtransportfejl, ikke bevis for bestået eller fejlet semantik.
+
+**v1.13.21 er den aktuelle softwarekandidat.** Preflighten ejes nu af add-on-processen
+som et baggrundsjob med fast id og bevaret resultat. Panelet starter én gang og poller;
+reload, midlertidigt nettab eller et genforsøg kan ikke annullere jobbet eller starte en
+parallel kørsel. Provider-connect har et otte-sekunders loft, hele jobbet et
+femminutters loft, og alle åbne evalressourcer lukkes også ved tidlig opkoblingsfejl og
+add-on-stop. TPM-softgrænsen er 25.000, så 15.000 tokens holdes fri til én målt normal
+PodVoice-session. Kandidaten ændrer ikke prompt V4, firmware, gain, VAD, pre-roll,
+mic-gate, playback eller wake-rearm. Den er først fysisk testberettiget efter grøn CI,
+installation og en fuld bevaret live-rapport med `prompt_source=default` og
+`prompt_version=4`. Lokalt er **484 tests**, alle 10 panel-scripts, Ruff,
+formatteringskontrol og mypy for 39 kildefiler grønne; de reelle lokale
+HTTP/WebSocket-tests blev kørt uden sandboxens portblokering.
 
 Den fulde gate omfatter Ruff, formatteringskontrol, mypy for 39 kildefiler, parsing af
 alle 10 panel-scriptblokke og reelle lokale

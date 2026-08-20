@@ -359,6 +359,7 @@ def create_app(
             web.post("/api/audio-trace/cancel", _audio_trace_cancel),
             web.get("/api/audio-trace/{trace_id}/{stage}", _audio_trace_artifact),
             web.post("/api/eval/live", _live_eval),
+            web.get("/api/eval/live", _live_eval_status),
             web.get("/api/events", _events),
             web.post("/api/control", _control),
             web.get("/api/console", _console_ws),
@@ -381,7 +382,7 @@ def create_app(
 
 
 async def _live_eval(request: web.Request) -> web.Response:
-    """Run the bounded no-side-effect Realtime suite behind the ingress guard."""
+    """Start the bounded suite; the add-on owns it beyond this HTTP request."""
     run = request.app[LIVE_EVAL]
     if run is None:
         return web.json_response(
@@ -416,8 +417,28 @@ async def _live_eval(request: web.Request) -> web.Response:
                 status=400,
             )
         scenario_ids = set(raw_ids)
-    report = await run(scenario_ids=scenario_ids)
-    status = {"busy": 409, "invalid": 400, "failed": 502}.get(report.get("status"), 200)
+    report = await run(action="start", scenario_ids=scenario_ids)
+    status = {"running": 202, "busy": 409, "invalid": 400, "failed": 502}.get(
+        report.get("status"), 200
+    )
+    return web.json_response(report, status=status)
+
+
+async def _live_eval_status(request: web.Request) -> web.Response:
+    """Return an active or retained report without starting another provider run."""
+    run = request.app[LIVE_EVAL]
+    if run is None:
+        return web.json_response(
+            {"ok": False, "status": "unavailable", "error": "Live-eval er ikke konfigureret."},
+            status=501,
+        )
+    run_id = request.query.get("run_id") or None
+    if run_id is not None and (len(run_id) > 80 or not run_id.startswith("eval-")):
+        return web.json_response(
+            {"ok": False, "status": "invalid", "error": "Ugyldigt run_id."}, status=400
+        )
+    report = await run(action="status", run_id=run_id)
+    status = {"not_found": 404, "invalid": 400, "failed": 200}.get(report.get("status"), 200)
     return web.json_response(report, status=status)
 
 

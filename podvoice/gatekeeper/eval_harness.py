@@ -28,6 +28,7 @@ import wave
 from dataclasses import asdict, dataclass, field
 from typing import Any, ClassVar, Protocol
 
+from . import constants as C
 from .config import load_config
 from .openai_realtime import (
     DEFAULT_MODEL,
@@ -381,9 +382,10 @@ async def run_scenario(
     budget: EvalBudget,
     turn_timeout_s: float = 20.0,
 ) -> ScenarioResult:
-    session_id = await driver.open(run_id=run_id, scenario_id=scenario.id)
+    session_id = ""
     results: list[TurnResult] = []
     try:
+        session_id = await driver.open(run_id=run_id, scenario_id=scenario.id)
         for index, turn in enumerate(scenario.turns, start=1):
             budget.reserve()
             turn_id = f"{scenario.id}-{index}-{uuid.uuid4().hex[:8]}"
@@ -463,9 +465,11 @@ class LiveRealtimeDriver:
         )
         # Base dataclass does not invoke a subclass post-init unless declared there.
         self.session.ready = asyncio.Event()
-        await self.session.connect()
-        self.reader = asyncio.create_task(self._read_events(), name="podvoice-live-eval-reader")
-        async with asyncio.timeout(10):
+        # ThinSession places the same hard ceiling around production connects.  The
+        # standalone evaluator must not inherit aiohttp's multi-minute default.
+        async with asyncio.timeout(C.CONNECT_TIMEOUT_S):
+            await self.session.connect()
+            self.reader = asyncio.create_task(self._read_events(), name="podvoice-live-eval-reader")
             await self.session.ready.wait()
         self.is_open = True
         return self.session_id
@@ -562,23 +566,139 @@ class LiveRealtimeDriver:
 
 
 class LiveEvalService:
-    """Serialized callable for an authenticated ingress handler inside the add-on."""
+    """Serialized, resumable live-eval job owned by the add-on process.
+
+    ``run`` remains the synchronous CLI/test seam.  The panel uses ``start`` and
+    ``status`` so an HA Ingress timeout, reload or retry cannot cancel the provider
+    run or overwrite its result with a misleading busy error.
+    """
 
     def __init__(
         self,
         *,
         sleep=asyncio.sleep,
         monotonic=time.monotonic,
-        tpm_soft_limit: int = 30_000,
+        tpm_soft_limit: int = 25_000,
         next_scenario_reserve: int = 15_000,
+        max_run_s: float = 300.0,
     ) -> None:
         self._lock = asyncio.Lock()
         self._sleep = sleep
         self._monotonic = monotonic
-        # Tier-1 is 40k TPM. Keep 10k headroom for token-accounting lag and any
-        # concurrent real household turn; this evaluator must never starve Nabu.
+        # Tier-1 is 40k TPM. A measured fresh PodVoice session is roughly 14-15k,
+        # so keep a full 15k headroom for one real household conversation.
         self._tpm_soft_limit = tpm_soft_limit
         self._next_scenario_reserve = next_scenario_reserve
+        self._max_run_s = max_run_s
+        self._job: asyncio.Task[None] | None = None
+        self._active_run_id: str | None = None
+        self._started_at: float | None = None
+        self._last_report: dict[str, Any] | None = None
+
+    @staticmethod
+    def _new_run_id() -> str:
+        return f"eval-{int(time.time())}-{uuid.uuid4().hex[:6]}"
+
+    def start(
+        self,
+        *,
+        api_key: str,
+        scenario_ids: set[str] | None = None,
+        model: str = DEFAULT_MODEL,
+        voice: str = DEFAULT_VOICE,
+        instructions: str = SYSTEM_PROMPT_DA,
+    ) -> dict[str, Any]:
+        if self._job is not None and not self._job.done():
+            return {
+                "ok": False,
+                "status": "busy",
+                "run_id": self._active_run_id,
+                "started_at": self._started_at,
+                "error": "En live-evaluering kører allerede.",
+            }
+        known = {scenario.id for scenario in load_scenarios()}
+        unknown = (scenario_ids or set()).difference(known)
+        if scenario_ids is not None and (not scenario_ids or unknown):
+            return {
+                "ok": False,
+                "status": "invalid",
+                "error": "Et eller flere eval-scenarier er ukendte.",
+            }
+        run_id = self._new_run_id()
+        self._active_run_id = run_id
+        self._started_at = time.time()
+        self._job = asyncio.create_task(
+            self._run_background(
+                run_id=run_id,
+                api_key=api_key,
+                scenario_ids=scenario_ids,
+                model=model,
+                voice=voice,
+                instructions=instructions,
+            ),
+            name=f"podvoice-live-eval-{run_id}",
+        )
+        return {
+            "ok": True,
+            "status": "running",
+            "run_id": run_id,
+            "started_at": self._started_at,
+        }
+
+    async def _run_background(self, **kwargs: Any) -> None:
+        run_id = str(kwargs["run_id"])
+        try:
+            self._last_report = await self.run(**kwargs)
+        except asyncio.CancelledError:
+            self._last_report = {
+                "ok": False,
+                "status": "cancelled",
+                "run_id": run_id,
+                "error": "Live-evalueringen blev afbrudt, da add-on stoppede.",
+            }
+            raise
+        except Exception as exc:  # defensive job boundary; run normally reports failures
+            message = str(exc)
+            secret = str(kwargs.get("api_key") or "")
+            if secret:
+                message = message.replace(secret, "[REDACTED]")
+            self._last_report = {
+                "ok": False,
+                "status": "failed",
+                "run_id": run_id,
+                "error": message[:500] or type(exc).__name__,
+            }
+        finally:
+            if self._active_run_id == run_id:
+                self._active_run_id = None
+                self._started_at = None
+
+    def status(self, run_id: str | None = None) -> dict[str, Any]:
+        if self._job is not None and not self._job.done():
+            if run_id is None or run_id == self._active_run_id:
+                return {
+                    "ok": True,
+                    "status": "running",
+                    "run_id": self._active_run_id,
+                    "started_at": self._started_at,
+                }
+        if self._last_report is not None and (
+            run_id is None or run_id == self._last_report.get("run_id")
+        ):
+            return dict(self._last_report)
+        return {
+            "ok": False,
+            "status": "not_found" if run_id else "idle",
+            "run_id": run_id,
+            "error": "Evalueringen findes ikke." if run_id else None,
+        }
+
+    async def aclose(self) -> None:
+        if self._job is None or self._job.done():
+            return
+        self._job.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await self._job
 
     async def run(
         self,
@@ -588,11 +708,17 @@ class LiveEvalService:
         model: str = DEFAULT_MODEL,
         voice: str = DEFAULT_VOICE,
         instructions: str = SYSTEM_PROMPT_DA,
+        run_id: str | None = None,
     ) -> dict[str, Any]:
         if self._lock.locked():
-            return {"ok": False, "status": "busy", "error": "En live-evaluering kører allerede."}
+            return {
+                "ok": False,
+                "status": "busy",
+                "run_id": self._active_run_id,
+                "error": "En live-evaluering kører allerede.",
+            }
         async with self._lock:
-            run_id = f"eval-{int(time.time())}-{uuid.uuid4().hex[:6]}"
+            run_id = run_id or self._new_run_id()
             budget = EvalBudget()
             selected = [
                 scenario
@@ -624,31 +750,35 @@ class LiveEvalService:
             token_window_started = self._monotonic()
             token_window_used = 0
             try:
-                for scenario in selected:
-                    elapsed = self._monotonic() - token_window_started
-                    if elapsed >= 60.0:
-                        token_window_started = self._monotonic()
-                        token_window_used = 0
-                    elif token_window_used + self._next_scenario_reserve > self._tpm_soft_limit:
-                        wait_s = max(0.0, 60.5 - elapsed)
-                        if wait_s:
-                            await self._sleep(wait_s)
-                            budget.rate_limit_wait_s += wait_s
-                        token_window_started = self._monotonic()
-                        token_window_used = 0
-                    driver = LiveRealtimeDriver(
-                        api_key,
-                        model=model,
-                        voice=voice,
-                        instructions=effective_prompt,
-                    )
-                    before_tokens = budget.actual_tokens
-                    results.append(
-                        await run_scenario(driver, scenario, run_id=run_id, budget=budget)
-                    )
-                    token_window_used += budget.actual_tokens - before_tokens
+                async with asyncio.timeout(self._max_run_s):
+                    for scenario in selected:
+                        elapsed = self._monotonic() - token_window_started
+                        if elapsed >= 60.0:
+                            token_window_started = self._monotonic()
+                            token_window_used = 0
+                        elif token_window_used + self._next_scenario_reserve > self._tpm_soft_limit:
+                            wait_s = max(0.0, 60.5 - elapsed)
+                            if wait_s:
+                                await self._sleep(wait_s)
+                                budget.rate_limit_wait_s += wait_s
+                            token_window_started = self._monotonic()
+                            token_window_used = 0
+                        driver = LiveRealtimeDriver(
+                            api_key,
+                            model=model,
+                            voice=voice,
+                            instructions=effective_prompt,
+                        )
+                        before_tokens = budget.actual_tokens
+                        results.append(
+                            await run_scenario(driver, scenario, run_id=run_id, budget=budget)
+                        )
+                        token_window_used += budget.actual_tokens - before_tokens
             except Exception as exc:
-                message = str(exc).replace(api_key, "[REDACTED]")[:500]
+                message = str(exc)
+                if api_key:
+                    message = message.replace(api_key, "[REDACTED]")
+                message = message[:500]
                 return {
                     "ok": False,
                     "status": "failed",

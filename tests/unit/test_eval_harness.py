@@ -168,6 +168,44 @@ async def test_runner_timeout_is_a_failure_not_a_retry():
     }
 
 
+async def test_runner_closes_driver_when_open_fails():
+    class BrokenDriver:
+        def __init__(self) -> None:
+            self.closed = False
+
+        async def open(self, *, run_id: str, scenario_id: str) -> str:
+            raise ConnectionError("connect failed")
+
+        async def submit_text(self, *, turn_id: str, text: str) -> TurnObservation:
+            raise AssertionError("unreachable")
+
+        async def close(self) -> None:
+            self.closed = True
+
+    driver = BrokenDriver()
+    with pytest.raises(ConnectionError, match="connect failed"):
+        await run_scenario(driver, load_scenarios()[0], run_id="run", budget=EvalBudget())
+    assert driver.closed is True
+
+
+async def test_live_driver_connect_timeout_still_closes_partial_session(monkeypatch):
+    closed = asyncio.Event()
+
+    async def hung_connect(self) -> None:
+        await asyncio.Event().wait()
+
+    async def observed_close(self) -> None:
+        closed.set()
+
+    monkeypatch.setattr(eval_harness.C, "CONNECT_TIMEOUT_S", 0.01)
+    monkeypatch.setattr(eval_harness._ReadyRealtimeSession, "connect", hung_connect)
+    monkeypatch.setattr(eval_harness._ReadyRealtimeSession, "close", observed_close)
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    with pytest.raises(TimeoutError):
+        await run_scenario(driver, load_scenarios()[0], run_id="run", budget=EvalBudget())
+    assert closed.is_set()
+
+
 async def test_live_service_reports_the_exact_effective_prompt_identity(monkeypatch):
     async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
         assert driver.instructions == "min aktive prompt"
@@ -227,3 +265,91 @@ async def test_live_service_paces_fresh_sessions_below_tier_one_tpm(monkeypatch)
     assert waits == [60.5, 60.5]
     assert report["budget"]["rate_limit_wait_s"] == 121.0
     assert report["budget"]["actual_tokens"] == 48_000
+
+
+async def test_live_service_default_keeps_one_measured_session_of_tpm_headroom(monkeypatch):
+    clock = [0.0]
+    waits: list[float] = []
+
+    async def fake_sleep(delay: float) -> None:
+        waits.append(delay)
+        clock[0] += delay
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        budget.record({"input_text_tokens": 14_500})
+        return ScenarioResult(scenario.id, True, "session", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    service = LiveEvalService(sleep=fake_sleep, monotonic=lambda: clock[0])
+    report = await service.run(
+        api_key="secret", scenario_ids={"arithmetic-followup", "time-followup"}
+    )
+    assert report["ok"] is True
+    # 25k eval ceiling leaves 15k of the 40k Tier-1 window for a measured
+    # ordinary PodVoice session, so two fresh eval sessions cannot share a minute.
+    assert waits == [60.5]
+
+
+async def test_live_service_background_job_survives_requests_and_retains_result(monkeypatch):
+    release = asyncio.Event()
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        await release.wait()
+        return ScenarioResult(scenario.id, True, "session", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    service = LiveEvalService()
+    started = service.start(api_key="secret", scenario_ids={"web-routing"})
+    assert started["status"] == "running"
+    run_id = started["run_id"]
+    assert service.status(run_id)["status"] == "running"
+
+    duplicate = service.start(api_key="secret", scenario_ids={"web-routing"})
+    assert duplicate["status"] == "busy"
+    assert duplicate["run_id"] == run_id
+
+    release.set()
+    assert service._job is not None
+    await service._job
+    retained = service.status(run_id)
+    assert retained["status"] == "complete"
+    assert retained["ok"] is True
+    assert service.status("eval-unknown")["status"] == "not_found"
+
+
+async def test_live_service_cancel_is_explicit_and_does_not_leave_busy(monkeypatch):
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    service = LiveEvalService()
+    started = service.start(api_key="secret", scenario_ids={"web-routing"})
+    await asyncio.sleep(0)
+    await service.aclose()
+    report = service.status(started["run_id"])
+    assert report["status"] == "cancelled"
+    assert service.status()["status"] == "cancelled"
+
+
+def test_live_service_rejects_mixed_known_and_unknown_scenarios():
+    service = LiveEvalService()
+    report = service.start(api_key="secret", scenario_ids={"web-routing", "not-a-real-scenario"})
+    assert report["status"] == "invalid"
+    assert service.status()["status"] == "idle"
+
+
+async def test_live_service_whole_job_timeout_is_retained_as_failure(monkeypatch):
+    async def hung_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+    monkeypatch.setattr(eval_harness, "run_scenario", hung_run)
+    service = LiveEvalService(max_run_s=0.01)
+    started = service.start(api_key="secret", scenario_ids={"web-routing"})
+    assert service._job is not None
+    await service._job
+    report = service.status(started["run_id"])
+    assert report["status"] == "failed"
+    assert report["run_id"] == started["run_id"]
+    assert report["results"] == []

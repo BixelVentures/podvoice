@@ -85,31 +85,33 @@ async def test_status_and_health():
 
 
 async def test_live_eval_endpoint_is_bounded_and_never_handles_a_key():
-    calls: list[set[str] | None] = []
+    calls: list[tuple[str, object]] = []
 
-    async def live_eval(*, scenario_ids=None):
-        calls.append(scenario_ids)
-        return {
-            "ok": True,
-            "status": "complete",
-            "run_id": "eval-test",
-            "results": [],
-        }
+    async def live_eval(*, action="start", scenario_ids=None, run_id=None):
+        calls.append((action, scenario_ids if action == "start" else run_id))
+        if action == "start":
+            return {"ok": True, "status": "running", "run_id": "eval-test"}
+        return {"ok": True, "status": "complete", "run_id": run_id, "results": []}
 
     app = create_app(StatusHub(), {}, live_eval=live_eval)
     async with TestClient(TestServer(app)) as client:
         response = await client.post(
             "/api/eval/live", json={"scenario_ids": ["arithmetic-followup"]}
         )
-        assert response.status == 200
+        assert response.status == 202
         body = await response.json()
         assert body["run_id"] == "eval-test"
-        assert calls == [{"arithmetic-followup"}]
+        assert calls == [("start", {"arithmetic-followup"})]
         assert "key" not in json.dumps(body).lower()
+
+        status_response = await client.get("/api/eval/live?run_id=eval-test")
+        assert status_response.status == 200
+        assert (await status_response.json())["status"] == "complete"
+        assert calls[-1] == ("status", "eval-test")
 
         invalid = await client.post("/api/eval/live", json={"scenario_ids": [1]})
         assert invalid.status == 400
-        assert calls == [{"arithmetic-followup"}]
+        assert len(calls) == 2
 
 
 async def test_live_eval_endpoint_reports_unavailable_and_busy():
@@ -117,12 +119,29 @@ async def test_live_eval_endpoint_reports_unavailable_and_busy():
         unavailable = await client.post("/api/eval/live", json={})
         assert unavailable.status == 501
 
-    async def busy(*, scenario_ids=None):
-        return {"ok": False, "status": "busy", "error": "already running"}
+    async def busy(*, action="start", scenario_ids=None, run_id=None):
+        return {
+            "ok": False,
+            "status": "busy",
+            "run_id": "eval-active",
+            "error": "already running",
+        }
 
     async with TestClient(TestServer(create_app(StatusHub(), {}, live_eval=busy))) as client:
         response = await client.post("/api/eval/live", json={})
         assert response.status == 409
+        assert (await response.json())["run_id"] == "eval-active"
+
+
+async def test_live_eval_status_rejects_unknown_or_malformed_run_ids():
+    async def live_eval(*, action="start", scenario_ids=None, run_id=None):
+        return {"ok": False, "status": "not_found", "run_id": run_id}
+
+    async with TestClient(TestServer(create_app(StatusHub(), {}, live_eval=live_eval))) as client:
+        malformed = await client.get("/api/eval/live?run_id=wrong")
+        assert malformed.status == 400
+        missing = await client.get("/api/eval/live?run_id=eval-missing")
+        assert missing.status == 404
 
 
 async def test_acceptance_report_is_conservative(tmp_path):

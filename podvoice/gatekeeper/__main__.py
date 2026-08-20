@@ -433,15 +433,20 @@ async def run(cfg: Config) -> None:
         return session, link
 
     live_eval = None
+    live_eval_service = None
     if cfg.openai_api_key:
         from .eval_harness import LiveEvalService
 
         live_eval_service = LiveEvalService()
 
-        async def live_eval(*, scenario_ids=None):
+        async def live_eval(*, action="start", scenario_ids=None, run_id=None):
             from .openai_realtime import MINI_MODEL
 
-            return await live_eval_service.run(
+            if action == "status":
+                return live_eval_service.status(run_id)
+            if action != "start":
+                return {"ok": False, "status": "invalid", "error": "Ukendt eval-handling."}
+            return live_eval_service.start(
                 api_key=cfg.openai_api_key,
                 scenario_ids=scenario_ids,
                 model=MINI_MODEL if cfg.force_mini else cfg.openai_model,
@@ -519,6 +524,8 @@ async def run(cfg: Config) -> None:
                     await task
         if timers is not None:
             await timers.aclose()
+        if live_eval_service is not None:
+            await live_eval_service.aclose()
         for s in sessions.values():
             await s.aclose()
         await runner.cleanup()

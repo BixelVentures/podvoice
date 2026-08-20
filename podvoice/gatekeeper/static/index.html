@@ -1134,8 +1134,14 @@ setInterval(function () {
 (function () {
   var button = document.getElementById("eval_live");
   var box = document.getElementById("eval_result");
+  var pollGeneration = 0;
   if (!button || !box) return;
   function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  function renderRunning(data) {
+    box.innerHTML = "";
+    var suffix = data && data.run_id ? " · " + data.run_id : "";
+    box.appendChild(ee("div", "empty", "Kører fire sikre scenarier mod Realtime" + suffix + ". Tier-1-pacing kan tage op til fem minutter…"));
+  }
   function render(data) {
     box.innerHTML = "";
     if (!data || data.status !== "complete") {
@@ -1164,14 +1170,50 @@ setInterval(function () {
       box.appendChild(ee("div", "sub", "Forbrug: " + (data.budget.actual_tokens || 0) + " tokens · estimeret $" + Number(data.budget.cost_usd || 0).toFixed(3) + pacing));
     }
   }
+  function delay(ms) { return new Promise(function (resolve) { window.setTimeout(resolve, ms); }); }
+  async function poll(runId, generation) {
+    for (var attempt = 0; attempt < 160 && generation === pollGeneration; attempt += 1) {
+      try {
+        var response = await fetch("api/eval/live?run_id=" + encodeURIComponent(runId), {cache:"no-store"});
+        var data = await response.json();
+        if (generation !== pollGeneration) return;
+        if (data.status === "running") {
+          renderRunning(data);
+          await delay(2000);
+          continue;
+        }
+        render(data); return;
+      } catch (error) {
+        if (attempt >= 159) { render({status:"failed",error:"Forbindelsen til preflight-status forsvandt."}); return; }
+        await delay(2000);
+      }
+    }
+    if (generation === pollGeneration) render({status:"failed",error:"Preflighten overskred sit femminutters loft."});
+  }
   button.onclick = async function () {
-    button.disabled = true; box.innerHTML = ""; box.appendChild(ee("div", "empty", "Kører fire sikre scenarier mod Realtime. Tier-1-pacing kan tage op til tre minutter…"));
+    var generation = ++pollGeneration;
+    button.disabled = true; renderRunning(null);
     try {
       var response = await fetch("api/eval/live", {method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
-      var data = await response.json(); render(data);
+      var data = await response.json();
+      if ((data.status === "running" || data.status === "busy") && data.run_id) {
+        renderRunning(data); await poll(data.run_id, generation);
+      } else { render(data); }
     } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre preflighten."}); }
-    finally { button.disabled = false; }
+    finally { if (generation === pollGeneration) button.disabled = false; }
   };
+  (async function resume() {
+    try {
+      var response = await fetch("api/eval/live", {cache:"no-store"});
+      var data = await response.json();
+      if (data.status === "running" && data.run_id) {
+        var generation = ++pollGeneration;
+        button.disabled = true; renderRunning(data);
+        await poll(data.run_id, generation);
+        if (generation === pollGeneration) button.disabled = false;
+      } else if (data.status === "complete" || data.status === "failed") { render(data); }
+    } catch (error) { /* A status lookup must never disable the rest of the panel. */ }
+  })();
 })();
 </script>
 
