@@ -11,11 +11,18 @@ En grøn deltest må aldrig tilsidesætte en invariant her.
 | Fysisk wake-detektion og conversation-latch | Voice PE-firmware |
 | Én wake → én kanal/session, mic-gate, playback, teardown og rearm | `ThinSession` |
 | Sprogforståelse, turforståelse, semantisk afslutningsintention og værktøjsvalg | OpenAI Realtime |
+| Endelig autorisation af højrisiko-/sideeffektende handlinger | server-side execution policy; aldrig prompten alene |
 | Hjem, musik, web, vejr og timere | værktøjer kaldt af Realtime; aldrig livscyklus |
 | Start/slut på fysisk svarlyd | firmware-events fra PodVoice-announcement-kæden |
 
 Stock Home Assistant Assist må ikke starte eller eje en PodVoice-samtale. Et værktøj må
 aldrig åbne, lukke eller genstarte tale-/wake-kanalen.
+
+Realtime må forstå, foreslå og føre den naturlige bekræftelsesdialog, men et modelkald
+er ikke i sig selv tilladelse til en højrisikohandling. Oplåsning, alarm fra, adgang,
+køb, ekstern kommunikation, væsentlig sletning og andre klassificerede sideeffekter
+kræver en server-ejet, kortlivet godkendelse bundet til session, handling, mål og
+argumenter. Et afvigende eller gammelt kald skal afvises fail-closed.
 
 ## Shippet Voice PE er half-duplex
 
@@ -78,6 +85,12 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
     fysisk finish og ekkohale. Først den samme leases finish må åbne opfølgningen eller
     lukke efter modelsemantisk farvel. Manglende start fejler lukket; stale, dublerede,
     omvendte eller fremmede playback-events er virkningsløse.
+12. Et provider-værktøjskald er kun en kandidat, indtil den samme korrelerede
+    providerrespons afsluttes med den officielle status `completed`. Kandidater fra
+    `cancelled`, `incomplete`, `failed` eller ukendt status må udføre nul sideeffekter
+    og må ikke eje semantisk close. Argumenter skal parse og validere fail-closed før
+    dispatch; en senere cleanup kan aldrig legitimere en handling, der blev startet for
+    tidligt.
 
 ## Beviskrav før “testklar” eller “færdig”
 

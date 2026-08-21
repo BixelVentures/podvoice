@@ -118,8 +118,10 @@ Ingen runtimekode, prompt, lyd, VAD eller firmware blev ændret under auditten.
 
 ### Bindende næste gate
 
-Ingen ny fysisk funktionsmatrix eller lifecycle-release godkendes, før P0-punkterne er
-lukket og testet med rå provider-eventrækkefølger. Først implementeres completed-bundet
+Ingen ny fysisk golden chain, 10/10-serie, funktionsmatrix eller lifecycle-release må
+køres eller godkendes, før P0-punkterne er lukket og testet med rå
+provider-eventrækkefølger. Sideeffektende hjemmeværktøjer må indtil da kun optræde som
+sikre fixtures; read-only diagnostik er tilladt. Først implementeres completed-bundet
 tool-staging og server-ejet approval. Derefter ensartede event-ID/ACK-fejlgrænser,
 provider-sand readiness og rate-limitbudget. Audio-replay/proveniens rettes separat.
 Prompt, gain, VAD, firmware og playback må fortsat ikke ændres for at maskere disse
