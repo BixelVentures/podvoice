@@ -470,6 +470,9 @@ Documents/iCloud-låsning af projektets gamle venv.
    og visuelt på mobil,
    HA-app og desktop: readiness-sandhed, fejlhandlinger, Talk, indstillinger, test,
    historik, dansk sprog, accessibility og browseradfærd skal bestå deres UI-gate.
+   Felt-TODO 21. august: Tryk på Voice PE-knappen gav ingen synlig handling, status
+   eller fejlfeedback. Kontrollen skal spores fra klik til backend-resultat og altid
+   vise udfald; observationen må ikke fortolkes som en wake-/Realtime-fejl.
 
 Derefter følger 7-døgns stabilitet og den målte Gemini/Alexa-sammenligning.
 
