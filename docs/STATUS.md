@@ -5,13 +5,12 @@ Senest opdateret: 2026-08-21.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv softwarekandidat:** v1.13.28 (branch
-`codex/v1.13.27-provider-safety`; eksakt commit og image afventer). **Aktuel gate:**
-lokal maskinel kontrakt bestået, men kandidaten er endnu ikke release- eller fysisk
-godkendt. Uafhængig adversarial score er **93/100 med nul kendte P0/P1**. Grøn CI og
-ARM64-image på de eksakte bits forventes at løfte maskinbeviset til 95/100; en sikker
-live cold-probe og Prompt V6-eval på samme artifact er den sidste maskinelle gate til
-97/100. Fysisk Voice PE-bevis er fortsat en separat gate.
+**Aktiv softwarekandidat:** v1.13.28 (`2c09042`, branch
+`codex/v1.13.27-provider-safety`). **Aktuel gate:** maskinel kontrakt, CI og ARM64-image
+er bestået, men kandidaten er endnu ikke live- eller fysisk godkendt. Uafhængig
+adversarial score er **95/100 med nul kendte P0/P1**. En sikker live cold-probe og
+Prompt V6-eval på samme artifact er den sidste maskinelle gate til 97/100. Fysisk Voice
+PE-bevis er fortsat en separat gate.
 
 - **Observeret fejl:** Trace `20260821T103257-225` havde diagnostisk “Hvad er
   klokken?”, men Realtime kaldte intet værktøj og gav et irrelevant fysisk svar.
@@ -36,9 +35,8 @@ live cold-probe og Prompt V6-eval på samme artifact er den sidste maskinelle ga
   providerbudget beskytter tool-resultat/farvel mod TPM-udtømning. Prompt V6 ændrer kun
   den minimale approval-protokol. Audio, gain, VAD, firmware og playback er uændrede.
 - **Maskinel evidens:** 634/634 tests, Ruff, format, mypy og diff-check er grønne efter
-  cold-start- og response-korrektionsbølgen. Det tidligere GitHub CI-run
-  `32476734925` beviser kun v1.13.27; v1.13.28 mangler endnu sin egen CI og komplette
-  `linux/arm64` add-on-containerbuild.
+  cold-start- og response-korrektionsbølgen. GitHub CI-run `32482026582` bestod på
+  commit `2c09042`, inklusive den komplette `linux/arm64` add-on-containerbuild.
 - **Uafhængig review:** NO-GO for replay som beslutningsbevis. De nuværende
   `provider_sample_offset` afspejler tidspunktet, hvor eventet behandles, ikke OpenAIs
   autoritative `audio_start_ms`/`audio_end_ms`; den kendte v1.13.25-trace mangler
@@ -47,9 +45,8 @@ live cold-probe og Prompt V6-eval på samme artifact er den sidste maskinelle ga
 - **Afvigelse fra planen:** Panelet kan vise et bestået audio-replay, selv når
   `schema_match` er ukendt. Resultatet må derfor ikke bruges til at godkende årsag,
   prompt, lydkæde eller fysisk golden chain.
-- **Næste gate:** Byg og verificér v1.13.28 i CI/ARM64, installér præcis det artifact,
-  og kør derefter den sikre cold-probe og Prompt V6-live-eval. Først derefter køres én
-  frisk golden chain samt 10/10
+- **Næste gate:** Installér præcis v1.13.28-artifactet og kør den sikre cold-probe og
+  Prompt V6-live-eval. Først derefter køres én frisk golden chain samt 10/10
   ubrudte fysiske cyklusser. Det gamle replay forbliver diagnostisk og kan ikke godkende
   lydårsagen.
 - **Rollback/grænse:** v1.13.11 forbliver fysisk baseline. v1.13.28 overtager ingen
@@ -199,8 +196,8 @@ generationslease forbruges fortsat. Proben rapporterer actual usage/pris separat
 semantiske evalture og ellers sit konservative 2k/$0,128-makspris-loft. Målrettede
 providerbudget-, rå Realtime- og evalrace-tests er **83/83 grønne**; den samlede
 Python-suite er **634/634 grøn**, og Ruff, formattering, mypy samt diff-check er grønne.
-Build, uafhængig slutreview og live feltbevis står åbne; v1.13.27 er feltfejlet, og
-v1.13.28 er endnu ikke installeret.
+Uafhængig slutreview er 95/100 uden kendte P0/P1; live feltbevis står åbent. v1.13.27
+er feltfejlet, og v1.13.28 er endnu ikke installeret.
 
 #### Samlet maskinelt resultat for v1.13.27-kandidaten
 
