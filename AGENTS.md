@@ -40,6 +40,60 @@ legacy eller bevare en historisk regression; den må ikke introducere ny produkt
 - **Produktmålet nået:** funktions-, latens-, stabilitets- og benchmark-gates i
   `docs/PRODUKTMÅL.md` er bestået. Må aldrig udledes af én vellykket samtale.
 
+## Lead review og beslutningsejerskab
+
+Ethvert ikke-trivielt ændringssæt har præcis én **Lead Voice/Reliability Engineer** som
+teknisk beslutningsejer. Lead samler forslag fra mennesker og agenter til én retning,
+kontrollerer den mod de fire autoritative dokumenter og kan stoppe arbejdet. Flere
+agenter er reviewere, ikke parallelle arkitekturmyndigheder; flertalsafstemning eller en
+grøn deltest kan ikke tilsidesætte leadens krav om sammenhængende bevis.
+
+Før kodeændringer i runtime, lifecycle, Realtime, værktøjskontrakt, lyd, prompt,
+firmware eller release skal lead oprette en kort aktiv beslutningspost i
+`docs/STATUS.md` med:
+
+- observeret fejl og stærkeste direkte evidens;
+- hele berørte kæde fra fysisk input til næste wake samt nærliggende races/fejlveje;
+- berørte invarianter, én falsificerbar årsagshypotese og eksplicitte ikke-mål;
+- planlagte regressioner, sammensatte gates og rollback-grænse.
+
+Efter ændringen opdaterer lead samme post med faktisk ændring, resultater, afvigelser,
+resterende usikkerhed og kandidatens præcise fysiske gate-status. En plan eller
+forventning må aldrig stå som et resultat. `docs/STATUS.md` er den vedvarende log for den
+aktive beslutning; opret ikke en ny konkurrerende agent-, plan- eller statusfil.
+Lead vedligeholder `AGENTS.md`, når en hændelse afslører et varigt hul i selve
+arbejdskontrakten. Kandidatstatus og enkelthypoteser hører kun hjemme i
+`docs/STATUS.md`, så agentindgangen forbliver kort og stabil.
+
+De samme risikofyldte ændringer kræver en **uafhængig adversarial review** fra en anden
+agent eller person før merge/release. Revieweren skal forsøge at modbevise årsagen og
+kontrollere mindst: ejerskab, eventrækkefølge, stale/duplicate/out-of-order-events,
+timeout/fejl/teardown/rearm, den modsatte I/O-adapter og om testen faktisk rammer de
+shippede bits. Implementøren må ikke godkende sit eget review. Rene stave-/docsændringer
+og isolerede tests uden produktionsadfærd kræver ikke særskilt reviewer eller
+beslutningspost.
+
+### Bevisrangorden og stop-the-line
+
+Ved modstrid gælder stærkeste direkte bevis for den samme kandidat og samme påstand:
+
+1. fysisk Voice PE-trace med device-/provider-/speakerlyd og korrelerede firmwareevents;
+2. sammensat test af den shippede add-on/firmware og rigtig provider/protokol;
+3. rigtig Talk/Thin-integration og sikker live Realtime-eval;
+4. deterministiske integration-, unit-, kontrakt- og statiske tests;
+5. transcript, UI, loguddrag, hypotese eller plausibel forklaring uden den fulde kæde.
+
+Et lavere lag kan finde fejl og stoppe en kandidat, men kan aldrig bortforklare en fejl
+fra et højere lag eller bevise fysisk funktion. Et tilfældigt korrekt svar beviser ikke
+input, værktøjsvalg eller lifecycle.
+
+Lead skal stoppe ændring/release og markere kandidaten **ikke testklar**, når evidens
+modsiger hypotesen, en invariant ikke kan bevises, en nærliggende race er uafklaret,
+reviewet har en uløst alvorlig finding, eller test/kode/config ikke er samme bits som
+kandidaten. Der må ikke patches videre på næste symptom, før den samlede eventkæde og
+årsagsgrænse er opdateret. Kun `docs/PRODUKTMÅL.md` kan definere hvilke gates der åbner
+igen.
+
 ## Obligatorisk ændringskontrol
 
 Før ændringer i arkitektur, Realtime, VAD, lyd, firmware eller lifecycle:
@@ -57,6 +111,12 @@ Før ændringer i arkitektur, Realtime, VAD, lyd, firmware eller lifecycle:
    tydeligt afvigende input kræver gennemlytning af både device- og provider-sporet og
    tæller som fejl/ukendt, indtil lydkæden er forklaret. Et heldigt tool-kald er ikke
    bevis for stabil hørelse.
+
+Før implementering skal lead desuden gennemgå hele den kausale kæde og mindst ét trin på
+hver side af den mistænkte fejl. En lokal rettelse er ugyldig, hvis den blot flytter
+ejerskab, timing eller fejl til mic-gate, provider, tool-round, playback, teardown eller
+rearm. Efter implementering gentages gennemgangen mod det faktiske diff og reviewerens
+adversarial findings.
 
 Gain, VAD, bip, prompt og timeouts må kun ændres på baggrund af en trace eller en på
 forhånd defineret måling. Tænke-lyd, duplex og barge-in er selvstændige gatede features;

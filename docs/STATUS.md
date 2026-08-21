@@ -2,6 +2,48 @@
 
 Senest opdateret: 2026-08-21.
 
+## Aktiv lead-beslutning
+
+**Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
+**Aktiv kandidat:** v1.13.26 (`73c4efa`). **Aktuel gate:** stop-the-line på
+provider-PCM-replay; kandidaten er ikke åbnet for en ny fysisk golden chain.
+
+- **Observeret fejl:** Trace `20260821T103257-225` havde diagnostisk “Hvad er
+  klokken?”, men Realtime kaldte intet værktøj og gav et irrelevant fysisk svar.
+- **Stærkeste evidens:** Korreleret Voice PE-trace med device-/provider-/speakerlyd,
+  playback-finish, teardown og rearm. Den diagnostiske tekst beviser ikke, hvad den
+  native audiomodel forstod.
+- **Hel kæde under audit:** Fysisk wake → mic-latch/device-PCM → provider-PCM →
+  accepteret Realtime-session/prompt/værktøjsskema → modelbeslutning → FLAC-playback →
+  ekkogate → idle/semantisk close → teardown/rearm → næste wake.
+- **Falsificerbar hypotese:** Et fremtidigt replay med OpenAIs egne VAD-grænser, samme
+  dokumenterede værktøjsskema og et delt TPM-budget kan afgøre, om fejlen følger lyden
+  konsekvent eller varierer i modellen. Den nuværende replay kan kun give diagnostik.
+- **Nærliggende fejlveje:** Forkert lydudsnit, ændret værktøjsskema, eval-sideeffekt,
+  schema-overload, TPM/rate-limit, stale trace, forkert rumkontekst og forveksling af
+  providerbevis med fysisk puckbevis.
+- **Frosne ikke-mål:** Prompt V5, model, gain 16, VAD, noise, firmware,
+  announcement-playback, semantisk afslutning, timeout, teardown og rearm ændres ikke.
+- **Faktisk ændring:** Sand OpenAI/Voice PE-readiness, strukturel half-duplex-clamp og
+  en isoleret replay med fuldt produktionsskema, faste lokale værktøjsresultater,
+  samplegrænser og schema-hash.
+- **Maskinel evidens:** 509/509 tests, Ruff, format, mypy, 10 panel-scripts og GitHub
+  ARM64-build er grønne. Prompt-, firmware-, gain- og VAD-diff er tom.
+- **Uafhængig review:** NO-GO for replay som beslutningsbevis. De nuværende
+  `provider_sample_offset` afspejler tidspunktet, hvor eventet behandles, ikke OpenAIs
+  autoritative `audio_start_ms`/`audio_end_ms`; den kendte v1.13.25-trace mangler
+  værktøjsskema-hash; og evalens TPM-pacing er ikke koordineret med aktive fysiske
+  sessioner. Installation alene er GO som reversibel diagnostik uden firmwareændring.
+- **Afvigelse fra planen:** Panelet kan vise et bestået audio-replay, selv når
+  `schema_match` er ukendt. Resultatet må derfor ikke bruges til at godkende årsag,
+  prompt, lydkæde eller fysisk golden chain.
+- **Næste korrektion:** Brug providerens egne VAD-felter i nye traces, mærk gamle traces
+  uden fuld provenance som diagnostiske, og isolér replay fra produktionens TPM-budget.
+  Der kræves nye race-, provenance- og samtidighedstests samt adversarial re-review.
+- **Rollback/grænse:** v1.13.11 forbliver fysisk baseline. v1.13.26 må installeres til
+  replay, men overtager ingen fysisk gate, før replay, frisk golden chain og 10/10
+  ubrudte cyklusser er bestået.
+
 ## Aktuel feltstatus 21. august
 
 Den installerede v1.13.25 registrerede efter en manuel Voice PE-genstart en rigtig
@@ -59,7 +101,8 @@ en sikker lokal værktøjsrouter uden HA-, MCP- eller PodConnect-sideeffekter. N
 gemmer samplegrænser og værktøjsskema-hash; den eksisterende
 `20260821T103257-225`-trace kan kun bruge den eksplicit markerede legacy-estimering for
 første tur. Kandidaten er maskinelt grøn med 509 tests, Ruff, formatkontrol, mypy og
-panel-script-parsing. Add-on-containerbuild afventer fortsat en kørende Docker-motor.
+panel-script-parsing. GitHub CI's ARM64 add-on-containerbuild er grøn; kun en ekstra
+lokal Docker-containerbuild blev ikke kørt, fordi den lokale Docker-motor var stoppet.
 
 ## Officiel milepæl
 
