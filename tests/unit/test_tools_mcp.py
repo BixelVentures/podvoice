@@ -7,6 +7,7 @@ import json
 import httpx
 import respx
 
+from gatekeeper.execution_policy import ExecutionContext
 from gatekeeper.mcp_client import HomeAssistantMCP, McpError, _sse_payload
 from gatekeeper.tools import ToolRouter, _mcp_result_to_contract, _spoken_clock
 
@@ -72,9 +73,22 @@ async def test_mcp_tools_become_declarations():
 @respx.mock
 async def test_dispatch_routes_to_mcp_and_folds_contract():
     respx.post(MCP_URL).mock(side_effect=_rpc_response)
+    respx.get("http://supervisor/core/api/states").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "entity_id": "light.attic",
+                    "state": "off",
+                    "attributes": {"friendly_name": "Loftlampen"},
+                }
+            ],
+        )
+    )
     async with httpx.AsyncClient() as client:
         router = await _router(client)
-        ok = await router.dispatch("HassTurnOn", {"name": "loftlampen"})
+        router._token = "tok"
+        ok = await router.dispatch("HassTurnOn", {"name": "loftlampen", "domain": "light"})
         err = await router.dispatch("GetLiveContext", {})
     assert ok == {"ok": True, "summary": "Turned on the light"}
     assert err["ok"] is False and err["error_kind"] == "tool_error" and "boom" in err["error"]
@@ -307,7 +321,15 @@ async def test_podconnect_control_data_services_are_real_conditional_tools():
         await router.start()
         names = [d["name"] for d in router.declarations()]
         assert "podconnect_recently_played" in names
-        result = await router.dispatch("podconnect_recently_played", {})
+        proposal = ExecutionContext("session", "turn-1")
+        denied = await router.dispatch("podconnect_recently_played", {}, execution_context=proposal)
+        assert denied["error_kind"] == "needs_confirmation"
+        assert not call.called
+        confirmation = ExecutionContext("session", "turn-2")
+        router.begin_execution_turn(confirmation)
+        result = await router.approve_action(
+            denied["approval"]["challenge_id"], confirmation_context=confirmation
+        )
     assert call.called
     assert result == {
         "ok": True,

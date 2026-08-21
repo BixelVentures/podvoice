@@ -142,3 +142,26 @@ men add-on-builder, settings og runtime må ikke kunne aktivere disse veje. Mode
 reserverede `wait_for_user`- og `end_conversation`-signaler ovenfor er den gældende
 semantiske produktionskontrakt; de går aldrig gennem HA/MCP, og kun den efterfølgende
 transportmekanik kan fysisk lukke samtalen.
+
+## Værktøjscommit og serverautorisation
+
+Et Realtime-funktionskald er først et forslag. PodVoice stager alle kald under den
+konkrete providerrespons og frigiver ingen af dem, før samme `response.done` er
+`completed`, hele batchen er valideret, og den eksakte tool-round-commit er modtaget.
+Cancelled, incomplete, failed, malformed, duplicate eller stale kald kan derfor ikke
+nå HA, PodConnect eller lifecycle. Tool-output item-kvitteres, før der oprettes én
+samlet resultatsrespons.
+
+Realtime ejer stadig betydningen og den naturlige dialog. Serverens execution policy
+ejer derimod tilladelsen. Et følsomt forslag gemmes som en kortlivet challenge med
+kanoniske argumenter og mål; kun en completed approval-beslutning på den umiddelbart
+næste tur i samme session kan udføre præcis den gemte handling én gang. HA-mutationer
+autoriseres mod frisk state og dispatches til det samme eksakte entity-id. Det er ikke
+lokal intent-routing: serveren fortolker ingen brugerfraser, men håndhæver grænsen på
+den modelvalgte, strukturerede handling.
+
+Alle Realtime-sessioner deler et budget per nøgleidentitet og model. Produktion har
+prioritet; eval må kun starte med separat reservation og fysisk headroom. En completed
+tool-batch frigives ikke, hvis den samme generation mangler autoritativ usage eller
+reserveret kapacitet til at levere resultatet/farvel. Dermed kan en hjemmehandling ikke
+blive udført og derefter efterlade brugeren uden den causale tilbagemelding.

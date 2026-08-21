@@ -22,12 +22,16 @@ import asyncio
 import datetime
 import json
 import logging
+import math
 import time
 import zoneinfo
+from dataclasses import dataclass
+from typing import Any
 
 import httpx
 
 from . import constants as C
+from .execution_policy import ExecutionContext, ExecutionPolicy, Risk
 from .mcp_client import HomeAssistantMCP, McpError
 
 log = logging.getLogger("podvoice.tools")
@@ -134,6 +138,66 @@ _NUMBERS_DA = {
 }
 
 
+@dataclass(frozen=True, slots=True)
+class _CanonicalEntity:
+    """One exact HA state used by both authorization and intent dispatch."""
+
+    entity_id: str
+    domain: str
+    state: str
+    attributes: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedExecution:
+    args: dict[str, Any]
+    trusted_risk: Risk | None
+    error: dict[str, Any] | None = None
+    batch_args: tuple[dict[str, Any], ...] = ()
+
+
+_TARGETED_HA_INTENTS = {
+    "HassTurnOn",
+    "HassTurnOff",
+    "HassClimateSetTemperature",
+    "HassLightSet",
+    "HassMediaSearchAndPlay",
+    "HassMediaPause",
+    "HassMediaUnpause",
+    "HassMediaNext",
+    "HassMediaPrevious",
+    "HassSetVolume",
+}
+_EXACT_LOW_RISK_DOMAINS = {
+    "HassLightSet": "light",
+    "HassMediaSearchAndPlay": "media_player",
+    "HassMediaPause": "media_player",
+    "HassMediaUnpause": "media_player",
+    "HassMediaNext": "media_player",
+    "HassMediaPrevious": "media_player",
+    "HassSetVolume": "media_player",
+}
+_TARGET_SELECTOR_KEYS = {
+    "entity_id",
+    "entity",
+    "name",
+    "target",
+    "area",
+    "area_id",
+    "floor",
+    "floor_id",
+    "preferred_area_id",
+    "preferred_floor_id",
+    "device",
+    "device_id",
+    "device_class",
+    "domain",
+}
+_ORDINARY_OPEN_COVER_CLASSES = {"awning", "blind", "curtain", "shade", "shutter"}
+_ACCESS_OPEN_COVER_CLASSES = {"door", "garage", "gate", "window"}
+_TEMPERATURE_KEYS = ("temperature", "target_temperature", "target_temp", "temp")
+
+
 def _number_da(value: int) -> str:
     if value in _NUMBERS_DA:
         return _NUMBERS_DA[value]
@@ -207,18 +271,23 @@ class ToolRouter:
         client: httpx.AsyncClient | None = None,
         timers=None,  # TimerManager — local kitchen timers
         hub=None,  # StatusHub — the panel's "home control" service dot
+        execution_policy: ExecutionPolicy | None = None,
     ) -> None:
         self._mcp = mcp
         self._token = supervisor_token
         self._client = client
         self._timers = timers
         self._hub = hub
+        self.execution_policy = execution_policy or ExecutionPolicy()
         self._mcp_tools: list[dict] = []  # cached MCP declarations (OpenAI shape)
         self._mcp_names: set[str] = set()
         self._podconnect_services: set[str] = set()
         self._fetched_at = 0.0
         self._fetch_lock = asyncio.Lock()
         self._tz: datetime.tzinfo | None = None
+        self._entity_index: dict[str, tuple[_CanonicalEntity, ...]] = {}
+        self._entity_index_at = 0.0
+        self._entity_lock = asyncio.Lock()
 
     # ------------------------------------------------------------------ startup
     healthy: bool = True  # last REAL-probe outcome; wake speaks up when False
@@ -461,18 +530,496 @@ class ToolRouter:
         return caps
 
     # ------------------------------------------------------------------ dispatch
-    async def dispatch(self, name: str, args: dict) -> dict:
+    async def dispatch(
+        self,
+        name: str,
+        args: dict,
+        *,
+        execution_context: ExecutionContext | None = None,
+        approval_token: str | None = None,
+    ) -> dict:
+        declaration = next((item for item in self.declarations() if item.get("name") == name), {})
+        dispatch_args: dict[str, Any] = dict(args)
+        # Undeclared names cannot reach MCP and retain the existing clean bad-args
+        # result.  Authorization protects only executable declarations.
+        if declaration:
+            prepared = await self._prepare_execution(name, dispatch_args)
+            if prepared.error is not None:
+                self._log_tool(name, prepared.error, dispatch_args)
+                return prepared.error
+            dispatch_args = prepared.args
+            authorization_calls = prepared.batch_args or (dispatch_args,)
+            for call_args in authorization_calls:
+                denied = self.execution_policy.authorize(
+                    name,
+                    call_args,
+                    description=str(declaration.get("description", "")),
+                    context=execution_context,
+                    approval_token=approval_token,
+                    trusted_risk=prepared.trusted_risk,
+                )
+                if denied is not None:
+                    self._log_tool(name, denied, call_args)
+                    return denied
+            if prepared.batch_args:
+                return await self._dispatch_canonical_batch(name, prepared.batch_args)
         # Hard time-bound so a slow/wedged HA can never hang the conversational turn.
         try:
-            result = await asyncio.wait_for(self._dispatch(name, args), timeout=C.TOOL_TIMEOUT_S)
+            result = await asyncio.wait_for(
+                self._dispatch(name, dispatch_args), timeout=C.TOOL_TIMEOUT_S
+            )
         except TimeoutError:
             result = {
                 "ok": False,
                 "error_kind": "timeout",
                 "error": "the service took too long to respond",
             }
-        self._log_tool(name, result, args)
+        self._log_tool(name, result, dispatch_args)
         return result
+
+    async def _dispatch_canonical_batch(
+        self, name: str, calls: tuple[dict[str, Any], ...]
+    ) -> dict[str, Any]:
+        """Execute a bounded room request as individually pinned HA intent calls."""
+        results: list[dict[str, Any]] = []
+        active_args: dict[str, Any] | None = None
+        try:
+            # One user tool-call gets one deadline. Never multiply the conversational
+            # timeout by the number of lights in a room.
+            async with asyncio.timeout(C.TOOL_TIMEOUT_S):
+                for call_args in calls:
+                    active_args = call_args
+                    result = await self._dispatch(name, call_args)
+                    self._log_tool(name, result, call_args)
+                    results.append({"target": call_args["name"], "result": result})
+                    active_args = None
+        except TimeoutError:
+            result = {
+                "ok": False,
+                "error_kind": "timeout",
+                "error": "the room action exceeded the single tool deadline",
+            }
+            target = active_args["name"] if active_args else "remaining_targets"
+            self._log_tool(name, result, active_args or {})
+            results.append({"target": target, "result": result})
+        failed = [item for item in results if not item["result"].get("ok")]
+        if failed:
+            return {
+                "ok": False,
+                "error_kind": "partial_failure",
+                "error": "one or more exact Home Assistant targets failed",
+                "data": {"results": results},
+            }
+        return {
+            "ok": True,
+            "summary": f"Handlingen blev udført på {len(results)} enheder.",
+            "data": {"results": results},
+        }
+
+    async def approve_action(
+        self,
+        challenge_id: str,
+        *,
+        confirmation_context: ExecutionContext,
+    ) -> dict:
+        """Execute the server-held proposal released by a trusted later-turn signal.
+
+        This method is intentionally not declared to the model. ThinSession may map a
+        completed reserved approval signal to it; ordinary MCP calls cannot invoke it.
+        """
+        approved = self.execution_policy.confirm(
+            challenge_id,
+            confirmation_context=confirmation_context,
+        )
+        if approved is None:
+            return {
+                "ok": False,
+                "error_kind": "approval_denied",
+                "error": "the approval is stale, mismatched, or not from a later turn",
+            }
+        return await self.dispatch(
+            approved.action,
+            approved.args,
+            execution_context=approved.context,
+            approval_token=approved.token,
+        )
+
+    def begin_execution_turn(self, context: ExecutionContext) -> None:
+        """Advance the one-turn approval window at Thin's trusted turn edge."""
+        self.execution_policy.begin_turn(context)
+
+    async def _prepare_execution(self, name: str, args: dict[str, Any]) -> _PreparedExecution:
+        """Pin a target before policy and send those exact same arguments to HA.
+
+        The model's ``domain``, friendly name, area and declaration description are
+        routing hints, never authorization evidence.  For HA intents whose effect is
+        target-dependent we require one state from HA's own ``/states`` response,
+        replace every broad selector with that entity id, and classify only the
+        canonical domain/state metadata.
+        """
+        if name not in _TARGETED_HA_INTENTS:
+            return _PreparedExecution(dict(args), None)
+        area = args.get("area") or args.get("area_id")
+        if area not in (None, ""):
+            return await self._prepare_area_execution(name, args, area)
+        target = self._target_hint(args)
+        if target is None:
+            return self._target_error("missing_exact_target")
+        entity = await self._resolve_entity(target)
+        if entity is None:
+            return self._target_error("unresolved_or_ambiguous_target")
+
+        canonical_args = {
+            key: value for key, value in args.items() if key not in _TARGET_SELECTOR_KEYS
+        }
+        # Home Assistant's intent matcher explicitly accepts an entity id in the
+        # ``name`` slot.  This prevents a later friendly-name rename or duplicate from
+        # redirecting the already-authorized call.
+        canonical_args["name"] = entity.entity_id
+
+        if name == "HassClimateSetTemperature":
+            entity = await self._refresh_exact_entity(entity)
+            if entity is None:
+                return self._target_error("fresh_climate_state_unavailable")
+            return self._prepare_climate(canonical_args, args, entity)
+        if name in {"HassTurnOn", "HassTurnOff"} and set(canonical_args) != {"name"}:
+            return self._target_error("unexpected_on_off_arguments")
+        if expected_domain := _EXACT_LOW_RISK_DOMAINS.get(name):
+            if entity.domain != expected_domain:
+                return self._target_error("wrong_target_domain")
+            return _PreparedExecution(canonical_args, Risk.LOW_RISK)
+        return _PreparedExecution(canonical_args, self._on_off_risk(name, entity))
+
+    async def _prepare_area_execution(
+        self, name: str, args: dict[str, Any], area: Any
+    ) -> _PreparedExecution:
+        """Resolve room requests without ever broadening an optional named target."""
+        if not isinstance(area, str):
+            return self._target_error("broad_target_not_supported")
+        if any(
+            args.get(key) not in (None, "", [])
+            for key in ("floor", "floor_id", "device", "device_id")
+        ):
+            return self._target_error("conflicting_broad_target")
+        selectors = [args.get(key) for key in ("entity_id", "entity", "name", "target")]
+        named = [value.strip() for value in selectors if isinstance(value, str) and value.strip()]
+        if len(named) > 1 or any(
+            isinstance(value, (list, dict)) for value in selectors if value is not None
+        ):
+            return self._target_error("ambiguous_named_area_target")
+
+        # Domain is a routing constraint here, not a grant. Every returned entity is
+        # independently checked against /states and authorized by its actual domain.
+        domain_value = args.get("domain")
+        if isinstance(domain_value, str):
+            domains = {domain_value.strip().casefold()} if domain_value.strip() else set()
+        elif isinstance(domain_value, list):
+            domains = {
+                str(value).strip().casefold() for value in domain_value if str(value).strip()
+            }
+        else:
+            domains = set()
+
+        if name in {"HassTurnOn", "HassTurnOff"}:
+            if len(domains) != 1 or not domains <= {"light", "media_player"}:
+                return self._target_error("area_requires_one_low_risk_domain")
+            expected_domain = next(iter(domains))
+        elif name == "HassClimateSetTemperature":
+            expected_domain = "climate"
+            if domains and domains != {expected_domain}:
+                return self._target_error("wrong_area_domain")
+        elif mapped_domain := _EXACT_LOW_RISK_DOMAINS.get(name):
+            expected_domain = mapped_domain
+            if domains and domains != {expected_domain}:
+                return self._target_error("wrong_area_domain")
+        else:
+            return self._target_error("broad_target_not_supported")
+
+        entities = await self._resolve_area_entities(area)
+        exact = tuple(entity for entity in entities if entity.domain == expected_domain)
+        if named:
+            target_key = named[0].casefold()
+            exact = tuple(
+                entity
+                for entity in exact
+                if entity.entity_id.casefold() == target_key
+                or str(entity.attributes.get("friendly_name") or "").strip().casefold()
+                == target_key
+            )
+            if len(exact) != 1:
+                return self._target_error("ambiguous_named_area_target")
+        if not exact:
+            return self._target_error("area_has_no_resolved_targets")
+        if len(exact) > 16:
+            return self._target_error("area_target_count_exceeds_limit")
+        base = {key: value for key, value in args.items() if key not in _TARGET_SELECTOR_KEYS}
+        if name in {"HassTurnOn", "HassTurnOff"} and base:
+            return self._target_error("unexpected_on_off_arguments")
+        calls = tuple({**base, "name": entity.entity_id} for entity in exact)
+        if name == "HassClimateSetTemperature":
+            if len(exact) != 1:
+                return self._target_error("ambiguous_area_climate_target")
+            fresh = await self._refresh_exact_entity(exact[0])
+            if fresh is None:
+                return self._target_error("fresh_climate_state_unavailable")
+            return self._prepare_climate(calls[0], args, fresh)
+        if expected_domain == "media_player" and len(exact) != 1:
+            return self._target_error("ambiguous_area_media_target")
+        if len(calls) == 1:
+            return _PreparedExecution(calls[0], Risk.LOW_RISK)
+        return _PreparedExecution(calls[0], Risk.LOW_RISK, batch_args=calls)
+
+    @staticmethod
+    def _target_hint(args: dict[str, Any]) -> str | None:
+        # Areas/floors and lists can select multiple entities.  They cannot be pinned
+        # from /states alone and therefore fail closed instead of creating a broad
+        # approval challenge.
+        broad = ("area", "area_id", "floor", "floor_id", "device", "device_id")
+        if any(args.get(key) not in (None, "", []) for key in broad):
+            return None
+        domain = args.get("domain")
+        if isinstance(domain, list):
+            normalized_domains = {
+                str(value).strip().casefold() for value in domain if str(value).strip()
+            }
+            if len(normalized_domains) != 1:
+                return None
+        elif domain is not None and not isinstance(domain, str):
+            return None
+        candidates = [args.get(key) for key in ("entity_id", "entity", "name", "target")]
+        present = [
+            value.strip() for value in candidates if isinstance(value, str) and value.strip()
+        ]
+        if len(present) != 1:
+            return None
+        if any(isinstance(value, (list, dict)) for value in candidates if value is not None):
+            return None
+        return present[0]
+
+    @staticmethod
+    def _target_error(reason: str) -> _PreparedExecution:
+        return _PreparedExecution(
+            {},
+            None,
+            {
+                "ok": False,
+                "error_kind": "unresolved_target",
+                "reason": reason,
+                "error": "the Home Assistant target could not be pinned to one exact entity",
+            },
+        )
+
+    @staticmethod
+    def _on_off_risk(name: str, entity: _CanonicalEntity) -> Risk | None:
+        domain = entity.domain
+        turning_on = name == "HassTurnOn"
+        if domain in {"light", "media_player"}:
+            return Risk.LOW_RISK
+        if domain == "lock":
+            # HA core maps TurnOn -> lock and TurnOff -> unlock.
+            return Risk.LOW_RISK if turning_on else None
+        if domain == "cover":
+            # HA core maps TurnOn -> open and TurnOff -> close.  Opening is
+            # frictionless only for an explicitly ordinary, non-access cover class.
+            if not turning_on:
+                return Risk.LOW_RISK
+            device_class = str(entity.attributes.get("device_class") or "").casefold()
+            if device_class in _ORDINARY_OPEN_COVER_CLASSES:
+                return Risk.LOW_RISK
+            if device_class in _ACCESS_OPEN_COVER_CLASSES:
+                return None
+            return None
+        if domain == "valve":
+            # HA core maps TurnOn -> open and TurnOff -> close.  Opening an unknown
+            # valve is not generally reversible/safe; closing is conservative.
+            return None if turning_on else Risk.LOW_RISK
+        # Alarm panels are not part of HA core's HassTurnOn/Off handler.  Without an
+        # exact declared arm/disarm tool contract, neither direction is granted here.
+        return None
+
+    def _prepare_climate(
+        self,
+        canonical_args: dict[str, Any],
+        original_args: dict[str, Any],
+        entity: _CanonicalEntity,
+    ) -> _PreparedExecution:
+        if entity.domain != "climate":
+            return self._target_error("wrong_target_domain")
+        supplied = [key for key in _TEMPERATURE_KEYS if key in original_args]
+        if len(supplied) != 1:
+            return self._target_error("missing_or_ambiguous_temperature")
+        raw_requested = original_args[supplied[0]]
+        if isinstance(raw_requested, bool) or not isinstance(raw_requested, (int, float)):
+            return self._target_error("invalid_temperature")
+
+        entity_unit = self._temperature_unit(
+            entity.attributes.get("temperature_unit")
+            or entity.attributes.get("unit_of_measurement")
+        )
+        requested_unit = self._temperature_unit(
+            original_args.get("temperature_unit") or original_args.get("unit") or entity_unit
+        )
+        if entity_unit is None or requested_unit is None:
+            return self._target_error("unknown_temperature_unit")
+        requested_c = self._to_celsius(float(raw_requested), requested_unit)
+        if requested_c is None:
+            return self._target_error("invalid_temperature")
+
+        # Only the existing target setpoint grounds a setpoint delta. Ambient
+        # current_temperature cannot prove whether this is a +/-3 C change.
+        current_raw = entity.attributes.get("temperature")
+        if isinstance(current_raw, bool) or not isinstance(current_raw, (int, float)):
+            return self._target_error("missing_current_temperature")
+        current_c = self._to_celsius(float(current_raw), entity_unit)
+        if current_c is None:
+            return self._target_error("invalid_current_temperature")
+
+        for key in (*_TEMPERATURE_KEYS, "temperature_unit", "unit"):
+            canonical_args.pop(key, None)
+        if set(canonical_args) != {"name"}:
+            return self._target_error("unexpected_climate_arguments")
+        canonical_args["temperature"] = self._from_celsius(requested_c, entity_unit)
+        low_risk = 17.0 <= requested_c <= 24.0 and abs(requested_c - current_c) <= 3.0 + 1e-9
+        return _PreparedExecution(canonical_args, Risk.LOW_RISK if low_risk else None)
+
+    @staticmethod
+    def _temperature_unit(value: Any) -> str | None:
+        unit = str(value or "").strip().casefold()
+        if unit in {"c", "°c", "celsius"}:
+            return "c"
+        if unit in {"f", "°f", "fahrenheit"}:
+            return "f"
+        return None
+
+    @staticmethod
+    def _to_celsius(value: float, unit: str) -> float | None:
+        if not math.isfinite(value):
+            return None
+        return value if unit == "c" else (value - 32.0) * 5.0 / 9.0
+
+    @staticmethod
+    def _from_celsius(value: float, unit: str) -> float:
+        converted = value if unit == "c" else value * 9.0 / 5.0 + 32.0
+        return round(converted, 6)
+
+    async def _resolve_entity(self, target_name: str) -> _CanonicalEntity | None:
+        """Resolve exactly one entity from a fresh authoritative state snapshot."""
+        if not self._token or self._client is None:
+            return None
+        async with self._entity_lock:
+            try:
+                response = await self._client.get(
+                    f"{C.SUPERVISOR_CORE_API}/states",
+                    headers={"Authorization": f"Bearer {self._token}"},
+                )
+                response.raise_for_status()
+                payload = response.json()
+                index = self._build_entity_index(payload)
+            except Exception as exc:
+                log.warning("HA entity resolution failed closed: %s", exc)
+                return None
+            self._entity_index = index
+            self._entity_index_at = time.monotonic()
+        matches = self._entity_index.get(target_name.strip().casefold(), ())
+        return matches[0] if len(matches) == 1 else None
+
+    async def _refresh_exact_entity(self, expected: _CanonicalEntity) -> _CanonicalEntity | None:
+        """Fetch mutable state immediately before a frictionless climate grant."""
+        if not self._token or self._client is None:
+            return None
+        try:
+            response = await self._client.get(
+                f"{C.SUPERVISOR_CORE_API}/states/{expected.entity_id}",
+                headers={"Authorization": f"Bearer {self._token}"},
+            )
+            response.raise_for_status()
+            index = self._build_entity_index([response.json()])
+            matches = index.get(expected.entity_id.casefold(), ())
+        except Exception as exc:
+            log.warning("fresh HA entity resolution failed closed: %s", exc)
+            return None
+        if len(matches) != 1 or matches[0].domain != expected.domain:
+            return None
+        return matches[0]
+
+    async def _resolve_area_entities(self, area: str) -> tuple[_CanonicalEntity, ...]:
+        """Resolve an HA area to a bounded, exact state snapshot.
+
+        ``area_entities`` is Home Assistant's documented registry-aware lookup.  Its
+        output is treated only as candidate entity ids; each id must also exist in the
+        separately validated /states snapshot before it can be authorized.
+        """
+        if not self._token or self._client is None or not area.strip():
+            return ()
+        # Populate/validate the state index first. A harmless impossible id avoids
+        # granting anything while still exercising the same freshness boundary.
+        await self._resolve_entity("podvoice.__area_preflight__")
+        if not self._entity_index:
+            return ()
+        template = "{{ area_entities(" + json.dumps(area, ensure_ascii=False) + ") | tojson }}"
+        try:
+            response = await self._client.post(
+                f"{C.SUPERVISOR_CORE_API}/template",
+                headers={"Authorization": f"Bearer {self._token}"},
+                json={"template": template},
+            )
+            response.raise_for_status()
+            rendered = response.json()
+            if isinstance(rendered, str):
+                rendered = json.loads(rendered)
+            if (
+                not isinstance(rendered, list)
+                or len(rendered) > 256
+                or any(not isinstance(value, str) for value in rendered)
+            ):
+                raise ValueError("HA area template returned invalid targets")
+        except Exception as exc:
+            log.warning("HA area resolution failed closed: %s", exc)
+            return ()
+        resolved: list[_CanonicalEntity] = []
+        seen: set[str] = set()
+        for entity_id in rendered:
+            key = entity_id.strip().casefold()
+            matches = self._entity_index.get(key, ())
+            if len(matches) != 1 or key in seen:
+                continue
+            seen.add(key)
+            resolved.append(matches[0])
+        return tuple(resolved)
+
+    @staticmethod
+    def _build_entity_index(payload: Any) -> dict[str, tuple[_CanonicalEntity, ...]]:
+        if not isinstance(payload, list):
+            raise ValueError("HA /states response is not a list")
+        mapping: dict[str, list[_CanonicalEntity]] = {}
+        seen_ids: set[str] = set()
+        for raw in payload:
+            if not isinstance(raw, dict):
+                raise ValueError("HA /states contains a non-object")
+            entity_id = raw.get("entity_id")
+            attributes = raw.get("attributes")
+            if (
+                not isinstance(entity_id, str)
+                or entity_id.count(".") != 1
+                or not all(entity_id.split(".", 1))
+                or not isinstance(attributes, dict)
+                or entity_id.casefold() in seen_ids
+            ):
+                raise ValueError("HA /states contains a malformed or duplicate entity")
+            seen_ids.add(entity_id.casefold())
+            entity = _CanonicalEntity(
+                entity_id=entity_id,
+                domain=entity_id.split(".", 1)[0].casefold(),
+                state=str(raw.get("state") or ""),
+                attributes=dict(attributes),
+            )
+            friendly = attributes.get("friendly_name")
+            names = [entity_id]
+            if isinstance(friendly, str) and friendly.strip():
+                names.append(friendly)
+            for value in names:
+                mapping.setdefault(value.strip().casefold(), []).append(entity)
+        return {key: tuple(value) for key, value in mapping.items()}
 
     async def _dispatch(self, name: str, args: dict) -> dict:
         try:

@@ -102,6 +102,10 @@ LEGACY_PROMPT_HASHES = frozenset(
         # forcing every direct answer through continue_conversation and a second
         # response could distort a correctly heard question and falsely end follow-up.
         "84ff3a0cb9234681ecefacc868248b9f326687b6249fbee3e5ee4baf0227a74e",
+        # 1.13.26 Prompt V5 — retired only to add the server-owned approve_action
+        # protocol. An untouched panel-saved V5 must not shadow the tested V6
+        # declaration/prompt contract, while genuinely custom prompts still survive.
+        "a94586b75ef6e91affe0e6c8ba29e000ebf2d5ac0741a101d6f4ab3fb0b3ff34",
         # 1.13.13/1.13.14 Prompt V2 — this exact old default survived in the owner's
         # /data because it was saved from the panel. V4 is V2 plus the mandatory
         # per-turn continue/end/wait decision contract; an exact V2 copy is not a

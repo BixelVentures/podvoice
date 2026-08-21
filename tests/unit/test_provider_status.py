@@ -12,6 +12,10 @@ def test_provider_billing_and_rate_limits_are_not_connection_errors():
         _provider_failure_reason("429 rate_limit_exceeded")
         == "OpenAI er midlertidigt ratebegrænset"
     )
+    assert (
+        _provider_failure_reason("rate_limit_capacity · provider token capacity insufficient")
+        == "OpenAI er midlertidigt ratebegrænset"
+    )
 
 
 def test_provider_auth_timeout_and_network_have_distinct_statuses():

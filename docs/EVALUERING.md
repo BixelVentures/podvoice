@@ -18,16 +18,39 @@ Kernescenarierne dækker:
 - Realtime-semantisk afslutning;
 - direkte svar i én respons uden et kunstigt lifecycle-værktøj;
 - eksplicitte providerfejl, timeout og lifecycle-resultater.
+- Prompt V6's serverholdte godkendelsesforløb: et følsomt forslag giver
+  `needs_confirmation` og nul fixture-effekter, kun det eksakte challenge-id på den
+  umiddelbart næste tur kan frigive handlingen én gang, og replay/ændring/udløb afvises;
+- en følsom handling sammen med afslutningshensigt forbliver åben, mens en
+  lavrisikohandling skal afsluttes før et efterfølgende `end_conversation`-kald.
 
 Mekanik bedømmes eksakt. En forkert beslutning genkøres ikke væk. Gentagelser
 bruges senere til at måle modellens variation, ikke til at vælge et heldigt svar.
+Et komplet værktøjsbatch stages uden effekt og frigives først på en ikke-tom,
+eksakt matchende `ToolRoundComplete.response_id`. Manglende, stale eller forkert marker
+fejler turen med nul fixture-effekter; et efterfølgende `TurnComplete` kan ikke
+bagudrettet autorisere batchen.
 
 ## Sikker live-kørsel
 
 Live-eval er opt-in og bruger `SafeEvalTools`. Routeren indeholder ingen HA-, MCP-
 eller PodConnect-klient og returnerer kun faste testresultater. Et ukendt værktøj
 nægtes. Når add-onen kalder evalueringen, eksponeres den fulde aktuelle liste af
-produktionsdeklarationer for Realtime, men dispatch forbliver den sikre lokale router.
+produktionsdeklarationer for Realtime plus ét eksplicit mærket, eval-lokalt følsomt
+fixture-værktøj. Dispatch forbliver den sikre lokale router. Fixturet genbruger
+produktionens `ExecutionPolicy`: det første kald returnerer præcis samme
+`needs_confirmation`-wireformat med `approval.challenge_id`, og godkendelse går gennem
+samme sessions-, tur-, argument-, udløbs- og one-shot-barriere før en tæller ændres.
+Der oprettes aldrig en rigtig HA-, MCP- eller PodConnect-klient.
+
+Rapporten skelner mellem `tool_schema_sha256` for det faktisk eksponerede evalskema,
+`production_tool_schema_sha256` uden det ekstra følsomme fixture og
+`reserved_tool_schema_sha256`. De tre reserverede deklarationer — `end_conversation`,
+`wait_for_user` og `approve_action` — importeres direkte fra produktionen og erstattes i
+samme rækkefølge; evalueringen har ingen kopieret skemavariant. Audio-replay bruger
+fortsat profilen `production-replay` uden eval-fixture, så trace-schemahashen kan
+sammenlignes direkte med produktionssporet.
+
 Dermed kan den rigtige produktionsprompt, Realtime-model og værktøjskonkurrence testes
 uden at tænde lys, starte musik eller ændre hjemmet.
 
@@ -45,6 +68,29 @@ Lokalt fra repoets rod kræves `PYTHONPATH=podvoice`. Nøglen læses fra
 `OPENAI_API_KEY` eller add-onens beskyttede `/data/options.json`; den indgår aldrig
 i rapporten. `LiveEvalService` serialiserer kørsler og er den tilsigtede indgang
 for et autentificeret ingress-endpoint.
+
+Live-eval og de rigtige Voice PE-/Talk-sessioner deler én procesbred
+provider-budgetkoordinator per envejs-hashet nøgleidentitet og model. Den rå nøgle
+gemmes eller vises aldrig i ledgeren. En produktionssession tager straks en konservativ
+15.000-token lease, som dækker første svar og en mulig værktøjs-/farvelopfølgning; den
+venter aldrig bag en eval. Hver eval-/replay-prøve må kun starte, når providerens
+`rate_limits.updated` har givet et autoritativt tokenbudget, ingen produktion er aktiv,
+og både prøvens 15.000 tokens og 15.000 tokens fysisk produktionsheadroom kan bevares.
+Kun én eval-prøve kan have reservationen ad gangen. Hvis en fysisk eller Talk-session
+kommer til under en prøve, åbnes den fra den reserverede produktionsplads, mens næste
+eval-prøve afvises. `response.done`-usage debiterer både input-/outputtekst og -lyd;
+providerens næste rate-limit-event afstemmer remaining/reset med et monotont ur.
+Reconnect, fejl og teardown frigiver kun deres egen generation én gang. Eval genkører
+aldrig en afsluttet tur automatisk for at skjule rate-limit eller modelvariation. Som
+en bevidst konservativ P2-begrænsning accepteres kun én samtidig produktionssamtale i
+add-on-processen: et parallelt Talk-/andet-rum-forsøg afvises straks og køes ikke. Det
+ændrer ikke den aktive ene Voice PE-samtale, men ægte samtidige rum kræver en senere,
+separat kapacitetsgate.
+
+Kommandoen foretager en rigtig, men afgrænset provider-evaluering og må kun køres
+eksplicit. Unit-/CI-kørsler foretager ingen live API-kald. Et grønt fixture-scenarie er
+derfor maskinel kontraktevidens; det må ikke rapporteres som en gennemført live-eval,
+før kommandoens rapport faktisk har status `complete`.
 
 Hver kørsel har hårde lofter for antal ture, reserverede outputtokens, faktiske
 tokens og estimeret pris. Faktiske tokenfelter gemmes særskilt, så prisestimater

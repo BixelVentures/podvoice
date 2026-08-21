@@ -91,6 +91,20 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
     og må ikke eje semantisk close. Argumenter skal parse og validere fail-closed før
     dispatch; en senere cleanup kan aldrig legitimere en handling, der blev startet for
     tidligt.
+13. En completed værktøjsrespons autoriserer altid hele sin batch som én enhed. Alle
+    kandidater registreres før første dispatch, og ingen sideeffekt starter før en
+    eksakt, response-id-bundet tool-round-commit. Manglende, stale eller ukorreleret
+    commit er virkningsløs. Sideeffekter udføres i batchrækkefølge; tool-output skal
+    kvitteres af provideren, før én samlet resultatsrespons må oprettes.
+14. Følsomme handlinger er en totrinskontrakt: Realtime foreslår semantisk, men serveren
+    holder den eksakte normaliserede handling. Kun en completed, intern approval på den
+    umiddelbart næste brugertur i samme session kan frigive den én gang. Ethvert andet
+    input, ændret mål/argument, udløb, teardown eller replay annullerer tilladelsen.
+15. Providerbudgettet er en causal sikkerhedsgrænse, ikke kun telemetry. Før en
+    sideeffektende tool-batch frigives, skal den samme socket-generation have
+    autoritativ, ikke-negativ usage og reserveret kapacitet til tool-resultat eller
+    farvel. Ellers udføres nul sideeffekter. Eval må aldrig forbruge produktionens
+    reserverede headroom eller få en fysisk session til at vente.
 
 ## Beviskrav før “testklar” eller “færdig”
 

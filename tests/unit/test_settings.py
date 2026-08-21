@@ -184,6 +184,15 @@ def test_a_genuinely_custom_prompt_survives(tmp_path):
     assert load_settings(p)["system_prompt"] == mine
 
 
+def test_prompt_v5_default_is_registered_for_v6_migration():
+    """An untouched panel-saved V5 must not silently shadow approval Prompt V6."""
+    from gatekeeper.settings import LEGACY_PROMPT_HASHES
+
+    assert "a94586b75ef6e91affe0e6c8ba29e000ebf2d5ac0741a101d6f4ab3fb0b3ff34" in (
+        LEGACY_PROMPT_HASHES
+    )
+
+
 def test_speaker_path_defaults_to_the_proven_announce_path():
     """1.11.1: the direct path wedges the device on real hardware.
 

@@ -43,6 +43,26 @@ class _FakeWS:
             yield m
 
 
+@pytest.fixture(autouse=True)
+def _ack_tool_outputs_in_legacy_unit_cases(monkeypatch):
+    """Keep historical state-machine cases focused on their original edge.
+
+    Exact provider ACK/error permutations live in test_provider_ack_readiness.py.
+    Typed-item tests in this module still use the real waiter path.
+    """
+    original = OpenAIRealtimeSession._await_item_create
+
+    async def acknowledge(self, pending, label):  # type: ignore[no-untyped-def]
+        if pending.item_type == "function_call_output":
+            if not pending.future.done():
+                pending.future.set_result(None)
+            self._forget_item_create(pending)
+            return
+        await original(self, pending, label)
+
+    monkeypatch.setattr(OpenAIRealtimeSession, "_await_item_create", acknowledge)
+
+
 async def test_typed_input_waits_for_matching_item_created_before_response():
     s = OpenAIRealtimeSession(api_key="k")
     s._ws = _FakeWS()  # type: ignore[assignment]
@@ -53,7 +73,11 @@ async def test_typed_input_waits_for_matching_item_created_before_response():
     assert [message["type"] for message in s._ws.sent] == ["conversation.item.create"]
     assert s._ws.sent[0]["item"]["id"] == "pv_match"
     s._ws._incoming.append(  # type: ignore[attr-defined]
-        _Msg(json.dumps({"type": "conversation.item.created", "item": {"id": "pv_match"}}))
+        _Msg(
+            json.dumps(
+                {"type": "conversation.item.created", "item": {"id": "pv_match", "type": "message"}}
+            )
+        )
     )
     await _drain(s)
     await task
@@ -74,11 +98,15 @@ async def test_typed_input_accepts_current_ga_item_added_ack():
     assert create["type"] == "conversation.item.create"
     assert len(create["event_id"]) == 32
     s._ws._incoming.append(  # type: ignore[attr-defined]
-        _Msg(json.dumps({"type": "conversation.item.added", "item": {"id": "pv_ga_ack"}}))
+        _Msg(
+            json.dumps(
+                {"type": "conversation.item.added", "item": {"id": "pv_ga_ack", "type": "message"}}
+            )
+        )
     )
     await _drain(s)
     await task
-    assert s._ws.sent[-1] == {"type": "response.create"}
+    assert s._ws.sent[-1]["type"] == "response.create"
 
 
 async def test_typed_input_normalizes_overlong_or_unsafe_item_id_before_send():
@@ -93,11 +121,15 @@ async def test_typed_input_normalizes_overlong_or_unsafe_item_id_before_send():
     assert len(sent_id) == 32
     assert sent_id.replace("_", "").isalnum()
     s._ws._incoming.append(  # type: ignore[attr-defined]
-        _Msg(json.dumps({"type": "conversation.item.created", "item": {"id": sent_id}}))
+        _Msg(
+            json.dumps(
+                {"type": "conversation.item.created", "item": {"id": sent_id, "type": "message"}}
+            )
+        )
     )
     await _drain(s)
     await task
-    assert s._ws.sent[-1] == {"type": "response.create"}
+    assert s._ws.sent[-1]["type"] == "response.create"
 
 
 async def test_typed_item_rejection_fails_immediately_without_response_create():
@@ -107,12 +139,14 @@ async def test_typed_item_rejection_fails_immediately_without_response_create():
     s._configured_event.set()
     task = asyncio.create_task(s.send_text("Hej", item_id="pv_rejected"))
     await asyncio.sleep(0)
+    event_id = s._ws.sent[0]["event_id"]
     s._ws._incoming.append(  # type: ignore[attr-defined]
         _Msg(
             json.dumps(
                 {
                     "type": "error",
                     "error": {
+                        "event_id": event_id,
                         "code": "invalid_request_error",
                         "message": "Invalid item.id",
                         "param": "item.id",
@@ -176,12 +210,19 @@ async def test_unrelated_provider_error_does_not_reject_pending_typed_item():
                     }
                 )
             ),
-            _Msg(json.dumps({"type": "conversation.item.added", "item": {"id": "pv_pending"}})),
+            _Msg(
+                json.dumps(
+                    {
+                        "type": "conversation.item.added",
+                        "item": {"id": "pv_pending", "type": "message"},
+                    }
+                )
+            ),
         ]
     )
     await _drain(s)
     await task
-    assert s._ws.sent[-1] == {"type": "response.create"}
+    assert s._ws.sent[-1]["type"] == "response.create"
 
 
 async def test_uncorrelated_error_without_event_id_does_not_reject_typed_item():
@@ -205,7 +246,7 @@ async def test_uncorrelated_error_without_event_id_does_not_reject_typed_item():
                 json.dumps(
                     {
                         "type": "conversation.item.added",
-                        "item": {"id": "pv_pending_no_event"},
+                        "item": {"id": "pv_pending_no_event", "type": "message"},
                     }
                 )
             ),
@@ -213,7 +254,7 @@ async def test_uncorrelated_error_without_event_id_does_not_reject_typed_item():
     )
     await _drain(s)
     await task
-    assert s._ws.sent[-1] == {"type": "response.create"}
+    assert s._ws.sent[-1]["type"] == "response.create"
 
 
 async def test_stale_item_created_does_not_acknowledge_another_text():
@@ -226,12 +267,19 @@ async def test_stale_item_created_does_not_acknowledge_another_text():
     s._ws._incoming.extend(  # type: ignore[attr-defined]
         [
             _Msg(json.dumps({"type": "conversation.item.created", "item": {"id": "pv_stale"}})),
-            _Msg(json.dumps({"type": "conversation.item.created", "item": {"id": "pv_current"}})),
+            _Msg(
+                json.dumps(
+                    {
+                        "type": "conversation.item.created",
+                        "item": {"id": "pv_current", "type": "message"},
+                    }
+                )
+            ),
         ]
     )
     await _drain(s)
     await task
-    assert s._ws.sent[-1] == {"type": "response.create"}
+    assert s._ws.sent[-1]["type"] == "response.create"
 
 
 async def test_missing_item_created_ack_fails_without_response_create(monkeypatch):
@@ -307,7 +355,18 @@ async def test_openai_fires_deferred_create_without_ending_turn():
     # response.done (the spoken answer) is the real end-of-turn.
     s = OpenAIRealtimeSession(api_key="k")
     s._ws = _FakeWS(  # type: ignore[assignment]
-        [_Msg(json.dumps({"type": "response.done"})), _Msg(json.dumps({"type": "response.done"}))]
+        [
+            _Msg(
+                json.dumps(
+                    {"type": "response.done", "response": {"id": "tools", "status": "completed"}}
+                )
+            ),
+            _Msg(
+                json.dumps(
+                    {"type": "response.done", "response": {"id": "answer", "status": "completed"}}
+                )
+            ),
+        ]
     )
     s._active_response = True
     s._pending_create = True
@@ -315,10 +374,8 @@ async def test_openai_fires_deferred_create_without_ending_turn():
     evs = [event async for event in s._iter_events()]
     assert sum(isinstance(e, TurnComplete) for e in evs) == 1  # only the real end-of-turn
     assert sum(isinstance(e, ToolRoundComplete) for e in evs) == 1
-    assert {
-        "type": "response.create",
-        "response": {"tool_choice": "auto"},
-    } in s._ws.sent and s._pending_create is False
+    created = next(message for message in s._ws.sent if message["type"] == "response.create")
+    assert created["response"]["tool_choice"] == "auto" and s._pending_create is False
 
 
 async def test_openai_propagates_failed_response_status_and_error():
@@ -390,7 +447,9 @@ async def test_clear_input_audio_resets_provider_vad_buffer():
     assert list(s._preconnect_audio) == []
     assert s._preconnect_audio_bytes == 0
     assert s._speech_stop_emitted is False
-    assert s._ws.sent == [{"type": "input_audio_buffer.clear"}]
+    assert s._ws.sent[0]["type"] == "input_audio_buffer.clear"
+    assert s._ws.sent[0]["event_id"].startswith("evt_clear_")
+    s._cancel_ack_watchdogs()
 
 
 async def test_openai_sends_create_immediately_when_idle():
@@ -399,10 +458,9 @@ async def test_openai_sends_create_immediately_when_idle():
     s._ws = _FakeWS()  # type: ignore[assignment]
     s._active_response = False
     await s.send_tool_results([{"id": "c1", "name": "x", "response": {"ok": True}}])
-    assert s._ws.sent[-1] == {
-        "type": "response.create",
-        "response": {"tool_choice": "auto"},
-    }
+    assert s._ws.sent[-1]["type"] == "response.create"
+    assert s._ws.sent[-1]["response"]["tool_choice"] == "auto"
+    s._cancel_ack_watchdogs()
     assert s._pending_create is False
 
 
@@ -410,10 +468,9 @@ async def test_semantic_end_result_forces_one_tool_free_farewell_response():
     s = OpenAIRealtimeSession(api_key="k")
     s._ws = _FakeWS()  # type: ignore[assignment]
     await s.send_tool_results([{"id": "end", "name": "end_conversation", "response": {"ok": True}}])
-    assert s._ws.sent[-1] == {
-        "type": "response.create",
-        "response": {"tool_choice": "none"},
-    }
+    assert s._ws.sent[-1]["type"] == "response.create"
+    assert s._ws.sent[-1]["response"]["tool_choice"] == "none"
+    s._cancel_ack_watchdogs()
 
 
 async def test_openai_silent_tool_result_never_creates_a_response_when_idle():
@@ -470,7 +527,11 @@ async def test_openai_silent_tool_result_never_creates_after_function_response_d
             }
         ]
     )
-    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
+    s._ws._incoming = [
+        _Msg(
+            json.dumps({"type": "response.done", "response": {"id": "wait", "status": "completed"}})
+        )
+    ]
     evs = await _drain(s)
     assert sum(isinstance(event, SilentToolComplete) for event in evs) == 1
     assert all(message["type"] != "response.create" for message in s._ws.sent)
@@ -526,7 +587,13 @@ async def test_openai_normal_tool_dominates_silent_wait_in_a_mixed_round():
     await s.send_tool_results(
         [{"id": "end-1", "name": "end_conversation", "response": {"ok": True}}]
     )
-    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
+    s._ws._incoming = [
+        _Msg(
+            json.dumps(
+                {"type": "response.done", "response": {"id": "mixed", "status": "completed"}}
+            )
+        )
+    ]
     evs = await _drain(s)
     assert sum(isinstance(event, ToolRoundComplete) for event in evs) == 1
     assert sum(message["type"] == "response.create" for message in s._ws.sent) == 1
@@ -550,29 +617,55 @@ async def test_openai_normal_tool_dominates_silent_wait_in_reverse_result_order(
             }
         ]
     )
-    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
+    s._ws._incoming = [
+        _Msg(
+            json.dumps(
+                {"type": "response.done", "response": {"id": "mixed", "status": "completed"}}
+            )
+        )
+    ]
     evs = await _drain(s)
     assert sum(isinstance(event, ToolRoundComplete) for event in evs) == 1
     assert sum(message["type"] == "response.create" for message in s._ws.sent) == 1
 
 
 async def test_openai_failed_wait_round_cancels_late_result_without_silent_success():
-    s = OpenAIRealtimeSession(api_key="k")
+    s = OpenAIRealtimeSession(
+        api_key="k",
+        tool_declarations=[
+            {
+                "name": "wait_for_user",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": False,
+                },
+            }
+        ],
+    )
     s._ws = _FakeWS(  # type: ignore[assignment]
         [
             _Msg(
                 json.dumps(
                     {
                         "type": "response.done",
-                        "response": {"status": "failed"},
+                        "response": {"id": "resp_failed_wait", "status": "failed"},
                     }
                 )
             )
         ]
     )
     s._active_response = True
-    s._pending_create = True
-    s._outstanding_tool_calls.add("wait-late")
+    s._stage_tool_call(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "resp_failed_wait",
+            "call_id": "wait-late",
+            "name": "wait_for_user",
+            "arguments": "{}",
+        },
+        "resp_failed_wait",
+    )
     evs = [event async for event in s._iter_events()]
     assert len(evs) == 1 and isinstance(evs[0], TurnComplete)
     assert evs[0].status == "failed"
@@ -607,7 +700,13 @@ async def test_openai_mixed_tool_results_create_one_followup_when_slow_result_fi
     assert s._pending_create is True
     assert s._outstanding_tool_calls == {"home"}
 
-    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
+    s._ws._incoming = [
+        _Msg(
+            json.dumps(
+                {"type": "response.done", "response": {"id": "mixed", "status": "completed"}}
+            )
+        )
+    ]
     # Keep the provider session alive while the intentionally slow HA result lands.
     # `events()` finalizes state when a fake socket exhausts; the real socket does not.
     evs = [event async for event in s._iter_events()]
@@ -617,12 +716,17 @@ async def test_openai_mixed_tool_results_create_one_followup_when_slow_result_fi
     await s.send_tool_results([{"id": "home", "name": "home_call", "response": {"ok": True}}])
     assert s._pending_create is False
     assert sum(m["type"] == "response.create" for m in s._ws.sent) == 1
-    assert s._ws.sent[-1] == {
-        "type": "response.create",
-        "response": {"tool_choice": "none"},
-    }
+    assert s._ws.sent[-1]["type"] == "response.create"
+    assert s._ws.sent[-1]["response"]["tool_choice"] == "none"
+    s._cancel_ack_watchdogs()
 
-    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
+    s._ws._incoming = [
+        _Msg(
+            json.dumps(
+                {"type": "response.done", "response": {"id": "answer", "status": "completed"}}
+            )
+        )
+    ]
     evs = await _drain(s)
     assert sum(isinstance(e, TurnComplete) for e in evs) == 1
     assert sum(m["type"] == "response.create" for m in s._ws.sent) == 1
@@ -639,14 +743,19 @@ async def test_openai_mixed_tool_results_create_one_followup_in_reverse_completi
     assert s._pending_create is True
     assert not s._outstanding_tool_calls
 
-    s._ws._incoming = [_Msg(json.dumps({"type": "response.done"}))]
+    s._ws._incoming = [
+        _Msg(
+            json.dumps(
+                {"type": "response.done", "response": {"id": "mixed", "status": "completed"}}
+            )
+        )
+    ]
     evs = await _drain(s)
     assert sum(isinstance(e, ToolRoundComplete) for e in evs) == 1
     assert sum(m["type"] == "response.create" for m in s._ws.sent) == 1
-    assert s._ws.sent[-1] == {
-        "type": "response.create",
-        "response": {"tool_choice": "none"},
-    }
+    assert s._ws.sent[-1]["type"] == "response.create"
+    assert s._ws.sent[-1]["response"]["tool_choice"] == "none"
+    s._cancel_ack_watchdogs()
 
 
 async def test_openai_waits_for_all_mixed_tool_results_before_one_response_create():

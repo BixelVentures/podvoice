@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.13.27 — completed værktøjer, serverautorisation og causal feedback
+
+- Realtime-funktionskald er nu kun kandidater, indtil deres egen providerrespons er
+  afsluttet som `completed`. Hele batchen valideres og committes atomisk; cancelled,
+  incomplete, failed, malformed, duplicate, stale og ukorrelerede kald udfører nul
+  sideeffekter.
+- Tool-output, `response.create`, input-clear og truncate har generationbundne
+  event-id'er, præcise ACKs, fejlkorrelation og watchdogs. Provider-readiness publiceres
+  først efter accepteret `session.updated`, og same-breath-bufferen tømmes i rækkefølge.
+- En ny server-ejet execution policy beskytter følsomme handlinger. Den eksakte
+  kanoniske handling kan kun godkendes én gang på den umiddelbart næste tur i samme
+  session; ændrede argumenter, replay, udløb og teardown fejler lukket.
+- HA-mutationer autoriseres mod frisk state og dispatches til samme eksakte entity-id.
+  Område/navn-intersektion, klima, private læsninger, lock/cover/valve-inverser og
+  argument-smuggling er dækket af regressions.
+- Voice PE, Talk og den sikre eval bruger samme completed-batch- og approval-kontrakt.
+  Eval bruger fortsat kun faste lokale fixtures og kan ikke udføre HA-, MCP- eller
+  PodConnect-sideeffekter.
+- Ét fælles providerbudget giver produktion prioritet over eval. En tool-batch frigives
+  kun med autoritativ usage og reserveret kapacitet til resultat eller farvel, så en
+  handling ikke kan udføres uden causal tilbagemelding.
+- Prompt V6 ændrer kun approval-protokollen. Model, audio, gain, VAD, firmware,
+  announcement-playback, teardown og wake-rearm er uændrede. Opdateringen kræver ingen
+  firmwareflash.
+- Maskinel kandidatgate: 622/622 tests samt Ruff, formattering, mypy og diff-check.
+  Fysisk baseline forbliver v1.13.11; v1.13.27 kræver stadig live eval, add-on-image,
+  frisk golden chain og 10/10 før releasegodkendelse.
+
 ## 1.13.26 — levende readiness og præcise OpenAI-fejl
 
 - Test-fanen kan nu genafspille den præcise 24 kHz-lyd, som blev sendt til OpenAI i

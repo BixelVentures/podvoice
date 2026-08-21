@@ -30,6 +30,7 @@ from typing import Any, ClassVar, Protocol
 
 from . import constants as C
 from .config import load_config
+from .execution_policy import ExecutionContext, ExecutionPolicy, Risk
 from .openai_realtime import (
     DEFAULT_MODEL,
     DEFAULT_VOICE,
@@ -37,7 +38,9 @@ from .openai_realtime import (
     OpenAIRealtimeSession,
 )
 from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
+from .provider_budget import PROVIDER_BUDGET, BudgetLease, ProviderBudgetCoordinator
 from .thin import (
+    APPROVE_ACTION_DECLARATION,
     END_CONVERSATION_DECLARATION,
     WAIT_FOR_USER_DECLARATION,
 )
@@ -53,12 +56,31 @@ from .voice import (
 )
 
 SCENARIOS_PATH = pathlib.Path(__file__).with_name("eval_scenarios.json")
-LIFECYCLE_TOOLS = {"end_conversation", "wait_for_user"}
+RESERVED_TOOLS = {"end_conversation", "wait_for_user", "approve_action"}
+RESERVED_DECLARATIONS = (
+    END_CONVERSATION_DECLARATION,
+    WAIT_FOR_USER_DECLARATION,
+    APPROVE_ACTION_DECLARATION,
+)
+SAFE_EVAL_HIGH_RISK_TOOL = "EvalUnlockDoor"
+
+
+def _schema_sha256(declarations: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            declarations,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
 
 
 @dataclass(frozen=True)
 class TurnExpectation:
     decision: str | None = None
+    decisions: tuple[str, ...] = ()
+    decision_batches: tuple[tuple[str, ...], ...] = ()
     allowed_decisions: tuple[str, ...] = ()
     direct_answer: bool = False
     allow_direct: bool = False
@@ -67,6 +89,8 @@ class TurnExpectation:
     answer_all: tuple[str, ...] = ()
     answer_patterns: tuple[str, ...] = ()
     tool_args: dict[str, dict[str, Any]] = field(default_factory=dict)
+    tool_outcomes: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    fixture_side_effects: int | None = None
     remain_open: bool = True
 
 
@@ -103,7 +127,10 @@ class TurnObservation:
     session_id: str
     accepted: bool = True
     decisions: list[str] = field(default_factory=list)
+    decision_batches: list[list[str]] = field(default_factory=list)
     tool_args: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    tool_results: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    fixture_side_effects: int = 0
     answer: str = ""
     response_status: str = "completed"
     error: str | None = None
@@ -172,6 +199,10 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                     text=text,
                     expect=TurnExpectation(
                         decision=expected.get("decision"),
+                        decisions=tuple(expected.get("decisions") or ()),
+                        decision_batches=tuple(
+                            tuple(batch) for batch in (expected.get("decision_batches") or ())
+                        ),
                         allowed_decisions=tuple(expected.get("allowed_decisions") or ()),
                         direct_answer=bool(expected.get("direct_answer", False)),
                         allow_direct=bool(expected.get("allow_direct", False)),
@@ -183,6 +214,11 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                             str(name): dict(args)
                             for name, args in (expected.get("tool_args") or {}).items()
                         },
+                        tool_outcomes={
+                            str(name): tuple(outcomes)
+                            for name, outcomes in (expected.get("tool_outcomes") or {}).items()
+                        },
+                        fixture_side_effects=expected.get("fixture_side_effects"),
                         remain_open=bool(expected.get("remain_open", True)),
                     ),
                 )
@@ -232,6 +268,14 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
                     f"Forventede ét direkte svar uden værktøj, fik {decisions}.",
                 )
             )
+    elif expect.decisions:
+        if decisions != list(expect.decisions):
+            findings.append(
+                Finding(
+                    "wrong-decision-order",
+                    f"Forventede beslutningerne {list(expect.decisions)}, fik {decisions}.",
+                )
+            )
     elif expect.decision:
         if decisions != [expect.decision]:
             findings.append(
@@ -249,6 +293,16 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
     forbidden = sorted(set(decisions).intersection(expect.forbid))
     if forbidden:
         findings.append(Finding("forbidden-decision", f"Forbudte kald: {forbidden}."))
+    if expect.decision_batches and observed.decision_batches != [
+        list(batch) for batch in expect.decision_batches
+    ]:
+        findings.append(
+            Finding(
+                "wrong-decision-batches",
+                f"Forventede batchrækkefølgen {list(expect.decision_batches)}, "
+                f"fik {observed.decision_batches}.",
+            )
+        )
     for name, expected_args in expect.tool_args.items():
         actual_args = observed.tool_args.get(name, [])
         if expected_args not in actual_args:
@@ -258,6 +312,29 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
                     f"Forventede {name} med {expected_args}, fik {actual_args or 'ingen kald'}.",
                 )
             )
+    for name, expected_outcomes in expect.tool_outcomes.items():
+        actual_outcomes = tuple(
+            _tool_result_outcome(result) for result in observed.tool_results.get(name, [])
+        )
+        if actual_outcomes != expected_outcomes:
+            findings.append(
+                Finding(
+                    "wrong-tool-outcome",
+                    f"Forventede {name}-udfald {list(expected_outcomes)}, "
+                    f"fik {list(actual_outcomes)}.",
+                )
+            )
+    if (
+        expect.fixture_side_effects is not None
+        and observed.fixture_side_effects != expect.fixture_side_effects
+    ):
+        findings.append(
+            Finding(
+                "wrong-fixture-side-effects",
+                f"Forventede {expect.fixture_side_effects} sikre fixture-effekter, "
+                f"fik {observed.fixture_side_effects}.",
+            )
+        )
     answer = _normalise(observed.answer)
     if expect.answer_any and not any(_normalise(x) in answer for x in expect.answer_any):
         findings.append(
@@ -283,6 +360,17 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
             )
         )
     return findings
+
+
+def _tool_result_outcome(result: dict[str, Any]) -> str:
+    """Reduce a safe fixture result to a stable semantic/mechanical outcome."""
+    error_kind = result.get("error_kind")
+    if isinstance(error_kind, str) and error_kind:
+        return error_kind
+    data = result.get("data")
+    if isinstance(data, dict) and data.get("decision") == "approved_action":
+        return "approved_action"
+    return "ok" if result.get("ok") is True else "failed"
 
 
 @dataclass
@@ -348,7 +436,14 @@ class EvalBudget:
 
 
 class SafeEvalTools:
-    """Production-shaped declarations with fixed results and no external clients."""
+    """Production-shaped declarations and policy with no external clients.
+
+    The evaluator deliberately implements the same *mechanical* confirmation boundary
+    as production instead of returning success for every declared tool.  A sensitive
+    proposal creates an opaque, server-held challenge and has zero fixture effects.
+    Only the exact immediately following eval turn may consume that challenge once.
+    Nothing in this class imports or constructs HA, MCP or PodConnect clients.
+    """
 
     _RESULTS: ClassVar[dict[str, dict[str, Any]]] = {
         "google_web_sogning": {
@@ -362,20 +457,48 @@ class SafeEvalTools:
         "HassTurnOn": {"ok": True, "summary": "Tændt."},
     }
 
-    def __init__(self, declarations: list[dict[str, Any]] | None = None) -> None:
+    def __init__(
+        self,
+        declarations: list[dict[str, Any]] | None = None,
+        *,
+        include_sensitive_fixture: bool = False,
+    ) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.fixture_side_effects = 0
+        self._turn_serial = 0
+        self._active_turn_id: str | None = None
+        self._session_id = f"safe-eval-{uuid.uuid4().hex}"
+        self._policy = ExecutionPolicy(
+            trusted_tools={
+                "get_time": Risk.READ_ONLY,
+                "google_web_sogning": Risk.READ_ONLY,
+                "HassTurnOn": Risk.LOW_RISK,
+            }
+        )
         if declarations is None:
             self._declarations = self._safe_declarations()
+            if not include_sensitive_fixture:
+                self._declarations = [
+                    item
+                    for item in self._declarations
+                    if item.get("name") != SAFE_EVAL_HIGH_RISK_TOOL
+                ]
         else:
-            reserved = {"end_conversation", "wait_for_user"}
             self._declarations = [
                 json.loads(json.dumps(item))
                 for item in declarations
-                if item.get("name") not in reserved
+                if item.get("name") not in RESERVED_TOOLS
             ]
-            self._declarations.extend(
-                [dict(END_CONVERSATION_DECLARATION), dict(WAIT_FOR_USER_DECLARATION)]
-            )
+            if include_sensitive_fixture and not any(
+                item.get("name") == SAFE_EVAL_HIGH_RISK_TOOL for item in self._declarations
+            ):
+                fixture = next(
+                    item
+                    for item in self._safe_declarations()
+                    if item["name"] == SAFE_EVAL_HIGH_RISK_TOOL
+                )
+                self._declarations.append(fixture)
+            self._declarations.extend(dict(item) for item in RESERVED_DECLARATIONS)
 
     @staticmethod
     def _safe_declarations() -> list[dict[str, Any]]:
@@ -422,15 +545,100 @@ class SafeEvalTools:
                     "additionalProperties": False,
                 },
             },
+            {
+                "name": SAFE_EVAL_HIGH_RISK_TOOL,
+                "description": (
+                    "Unlock the named door lock. This is a sensitive access action and "
+                    "must receive server-held confirmation before execution. Eval only."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}},
+                    "required": ["name"],
+                    "additionalProperties": False,
+                },
+            },
             dict(END_CONVERSATION_DECLARATION),
             dict(WAIT_FOR_USER_DECLARATION),
+            dict(APPROVE_ACTION_DECLARATION),
         ]
 
     def declarations(self) -> list[dict[str, Any]]:
         return json.loads(json.dumps(self._declarations))
 
+    def begin_turn(self, turn_id: str) -> None:
+        if self._active_turn_id is not None:
+            raise RuntimeError("safe eval turn already active")
+        self._turn_serial += 1
+        self._active_turn_id = turn_id
+        self._policy.begin_turn(ExecutionContext(self._session_id, turn_id))
+
+    def finish_turn(self) -> None:
+        self._active_turn_id = None
+
+    def _challenge(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+        if self._active_turn_id is None:
+            return {
+                "ok": False,
+                "error_kind": "approval_denied",
+                "error": "sensitive eval proposal outside an active turn",
+            }
+        denied = self._policy.authorize(
+            name,
+            args,
+            description="Unlock a named door lock.",
+            context=ExecutionContext(self._session_id, self._active_turn_id),
+        )
+        if denied is None:  # The exact eval tool must always be classified sensitive.
+            raise RuntimeError("safe eval sensitive tool was not challenged")
+        return denied
+
+    def _approve(self, args: dict[str, Any]) -> dict[str, Any]:
+        challenge_id = args.get("challenge_id")
+        if (
+            self._active_turn_id is None
+            or set(args) != {"challenge_id"}
+            or not isinstance(challenge_id, str)
+        ):
+            return {
+                "ok": False,
+                "error_kind": "approval_denied",
+                "error": "eval challenge is changed, expired, replayed, or out of turn",
+            }
+        context = ExecutionContext(self._session_id, self._active_turn_id)
+        approved = self._policy.confirm(challenge_id, confirmation_context=context)
+        if approved is None:
+            return {
+                "ok": False,
+                "error_kind": "approval_denied",
+                "error": "eval challenge is changed, expired, replayed, or out of turn",
+            }
+        denied = self._policy.authorize(
+            approved.action,
+            approved.args,
+            description="Unlock a named door lock.",
+            context=approved.context,
+            approval_token=approved.token,
+        )
+        if denied is not None:
+            return denied
+        self.fixture_side_effects += 1
+        return {
+            "ok": True,
+            "summary": "Den bekræftede testhandling blev udført i fixturet.",
+            "data": {
+                "decision": "approved_action",
+                "tool": approved.action,
+                "args": json.loads(json.dumps(approved.args)),
+            },
+        }
+
     async def dispatch(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         self.calls.append((name, dict(args)))
+        if name == SAFE_EVAL_HIGH_RISK_TOOL:
+            return self._challenge(name, args)
+        if name == "approve_action":
+            return self._approve(args)
         if name == "get_time":
             values: dict[str, tuple[str, Any]] = {
                 "time": ("Klokken er fjorten.", "14:00"),
@@ -465,6 +673,8 @@ class SafeEvalTools:
                 "error_kind": "eval_tool_refused",
                 "error": "Eval-harnessen nægter alle ikke-fixturerede værktøjer.",
             }
+        if name == "HassTurnOn":
+            self.fixture_side_effects += 1
         return json.loads(json.dumps(result))
 
 
@@ -562,14 +772,20 @@ class LiveRealtimeDriver:
         tool_declarations: list[dict[str, Any]] | None = None,
         room_context: str = "Evalrum. Alle værktøjsresultater er faste testdata.",
         interrupt_response: bool = True,
+        include_sensitive_fixture: bool = False,
+        budget_lease: BudgetLease | None = None,
     ) -> None:
         self.api_key = api_key
         self.model = model
         self.voice = voice
         self.instructions = instructions
-        self.tools = SafeEvalTools(tool_declarations)
+        self.tools = SafeEvalTools(
+            tool_declarations,
+            include_sensitive_fixture=include_sensitive_fixture,
+        )
         self.room_context = room_context
         self.interrupt_response = interrupt_response
+        self.budget_lease = budget_lease
         self.session: _ReadyRealtimeSession | None = None
         self.events: asyncio.Queue[Any] = asyncio.Queue()
         self.reader: asyncio.Task[None] | None = None
@@ -581,6 +797,8 @@ class LiveRealtimeDriver:
         self.session = _ReadyRealtimeSession(
             api_key=self.api_key,
             model=self.model,
+            budget_role="eval",
+            budget_lease=self.budget_lease,
             voice=self.voice,
             instructions=self.instructions,
             input_rate=24_000,
@@ -613,8 +831,12 @@ class LiveRealtimeDriver:
         if not self.is_open or self.session is None:
             raise RuntimeError("live eval session is not open")
         started = time.monotonic()
-        await self.session.send_text(text)
-        return await self._collect_turn(turn_id=turn_id, started=started)
+        self.tools.begin_turn(turn_id)
+        try:
+            await self.session.send_text(text)
+            return await self._collect_turn(turn_id=turn_id, started=started)
+        finally:
+            self.tools.finish_turn()
 
     async def submit_audio(self, *, turn_id: str, pcm: bytes, rate: int) -> TurnObservation:
         """Replay exact provider PCM at real-time pace into a fresh Realtime session."""
@@ -623,8 +845,79 @@ class LiveRealtimeDriver:
         if rate != 24_000 or not pcm:
             raise ValueError("audio replay requires non-empty 24 kHz provider PCM")
         started = time.monotonic()
-        await pace_pcm(pcm, rate, self.session.send_audio)
-        return await self._collect_turn(turn_id=turn_id, started=started)
+        self.tools.begin_turn(turn_id)
+        try:
+            await pace_pcm(pcm, rate, self.session.send_audio)
+            return await self._collect_turn(turn_id=turn_id, started=started)
+        finally:
+            self.tools.finish_turn()
+
+    async def _dispatch_tool_batch(
+        self,
+        calls: list[ToolCall],
+        observed: TurnObservation,
+    ) -> None:
+        """Execute one completed provider batch with the safe production ordering rules."""
+        session = self.session
+        if session is None:
+            raise RuntimeError("live eval session is not open")
+        calls = sorted(calls, key=lambda call: call.batch_index)
+        observed.decision_batches.append([call.name for call in calls])
+        for call in calls:
+            observed.decisions.append(call.name)
+            observed.tool_args.setdefault(call.name, []).append(call.args)
+
+        # approve_action represents the whole confirmation turn. A sibling call makes
+        # the boundary ambiguous, so no member of the batch may have a fixture effect.
+        approval_mixed = len(calls) != 1 and any(call.name == "approve_action" for call in calls)
+        responses: list[dict[str, Any]] = []
+        if approval_mixed:
+            for call in calls:
+                result = {
+                    "ok": False,
+                    "error_kind": "approval_denied",
+                    "error": "approve_action must be the only tool in its completed response",
+                }
+                observed.tool_results.setdefault(call.name, []).append(result)
+                responses.append({"id": call.id, "name": call.name, "response": result})
+        else:
+            non_lifecycle: list[tuple[ToolCall, dict[str, Any]]] = []
+            for call in calls:
+                if call.name not in {"end_conversation", "wait_for_user"}:
+                    result = await self.tools.dispatch(call.name, call.args)
+                    non_lifecycle.append((call, result))
+            needs_confirmation = any(
+                result.get("error_kind") == "needs_confirmation" for _call, result in non_lifecycle
+            )
+            by_call_id = {call.id: result for call, result in non_lifecycle}
+            for call in calls:
+                suppress = False
+                if call.name == "end_conversation":
+                    if needs_confirmation:
+                        result = {
+                            "ok": False,
+                            "error_kind": "close_blocked_pending_confirmation",
+                            "error": "pending sensitive action keeps the eval session open",
+                        }
+                    else:
+                        result = {"ok": True, "data": {"decision": call.name}}
+                        observed.remain_open = False
+                elif call.name == "wait_for_user":
+                    result = {"ok": True, "data": {"decision": call.name}}
+                    suppress = True
+                else:
+                    result = by_call_id[call.id]
+                observed.tool_results.setdefault(call.name, []).append(result)
+                responses.append(
+                    {
+                        "id": call.id,
+                        "name": call.name,
+                        "response": result,
+                        "suppress_response": suppress,
+                    }
+                )
+        await session.send_tool_results(responses)
+        observed.fixture_side_effects = self.tools.fixture_side_effects
 
     async def _collect_turn(self, *, turn_id: str, started: float) -> TurnObservation:
         session = self.session
@@ -634,6 +927,7 @@ class LiveRealtimeDriver:
         output: list[str] = []
         usage = Usage()
         tool_round_seen = False
+        pending_batches: dict[str, dict[int, ToolCall]] = {}
         while True:
             event = await self.events.get()
             if isinstance(event, Exception):
@@ -641,31 +935,43 @@ class LiveRealtimeDriver:
                 observed.response_status = "failed"
                 break
             if isinstance(event, ToolCall):
-                observed.decisions.append(event.name)
-                observed.tool_args.setdefault(event.name, []).append(event.args)
-                if event.name == "end_conversation":
-                    response = {"ok": True, "data": {"decision": event.name}}
-                    suppress = False
-                    observed.remain_open = False
-                elif event.name == "wait_for_user":
-                    response = {"ok": True, "data": {"decision": event.name}}
-                    suppress = True
-                else:
-                    response = await self.tools.dispatch(event.name, event.args)
-                    suppress = False
-                await session.send_tool_results(
-                    [
-                        {
-                            "id": event.id,
-                            "name": event.name,
-                            "response": response,
-                            "suppress_response": suppress,
-                        }
-                    ]
-                )
+                batch_id = str(event.batch_id or "")
+                if (
+                    not batch_id
+                    or not event.response_id
+                    or batch_id != event.response_id
+                    or event.batch_size < 1
+                    or event.batch_index < 0
+                    or event.batch_index >= event.batch_size
+                ):
+                    observed.error = "invalid or uncorrelated completed tool batch"
+                    observed.response_status = "failed"
+                    break
+                batch = pending_batches.setdefault(batch_id, {})
+                if event.batch_index in batch or (
+                    batch and next(iter(batch.values())).batch_size != event.batch_size
+                ):
+                    observed.error = "duplicate or inconsistent completed tool batch"
+                    observed.response_status = "failed"
+                    break
+                batch[event.batch_index] = event
                 # Anything spoken before the decision is a private preamble.
                 output.clear()
             elif isinstance(event, ToolRoundComplete):
+                response_id = str(event.response_id or "")
+                committed_batch = pending_batches.get(response_id)
+                if (
+                    not response_id
+                    or committed_batch is None
+                    or not committed_batch
+                    or len(committed_batch) != next(iter(committed_batch.values())).batch_size
+                    or any(call.response_id != response_id for call in committed_batch.values())
+                ):
+                    observed.error = "missing, stale, or mismatched tool commit edge"
+                    observed.response_status = "failed"
+                    break
+                await self._dispatch_tool_batch(list(committed_batch.values()), observed)
+                pending_batches.pop(response_id, None)
                 tool_round_seen = True
                 output.clear()
             elif isinstance(event, OutputTranscript):
@@ -682,12 +988,21 @@ class LiveRealtimeDriver:
                     **{key: getattr(usage, key) + getattr(event, key) for key in asdict(usage)}
                 )
             elif isinstance(event, SilentToolComplete):
+                if pending_batches:
+                    observed.error = "tool batch completed without its exact commit edge"
+                    observed.response_status = "failed"
+                    break
                 break
             elif isinstance(event, TurnComplete):
+                if pending_batches:
+                    observed.error = "tool response ended before its exact commit edge"
+                    observed.response_status = "failed"
+                    break
                 observed.response_status = event.status
                 observed.error = event.error
                 break
         observed.answer = "".join(output).strip()
+        observed.fixture_side_effects = self.tools.fixture_side_effects
         observed.elapsed_ms = round((time.monotonic() - started) * 1000)
         observed.usage = asdict(usage)
         return observed
@@ -722,7 +1037,9 @@ class LiveEvalService:
         monotonic=time.monotonic,
         tpm_soft_limit: int = 25_000,
         next_scenario_reserve: int = 15_000,
+        production_headroom: int = 15_000,
         max_run_s: float = 300.0,
+        provider_budget: ProviderBudgetCoordinator = PROVIDER_BUDGET,
     ) -> None:
         self._lock = asyncio.Lock()
         self._sleep = sleep
@@ -731,6 +1048,8 @@ class LiveEvalService:
         # so keep a full 15k headroom for one real household conversation.
         self._tpm_soft_limit = tpm_soft_limit
         self._next_scenario_reserve = next_scenario_reserve
+        self._production_headroom = production_headroom
+        self._provider_budget = provider_budget
         self._max_run_s = max_run_s
         self._job: asyncio.Task[None] | None = None
         self._active_run_id: str | None = None
@@ -917,14 +1236,10 @@ class LiveEvalService:
                 "prompt_source": "default" if prompt_is_default else "custom",
                 "prompt_version": PROMPT_VERSION if prompt_is_default else None,
                 "prompt_sha256": hashlib.sha256(effective_prompt.encode()).hexdigest(),
-                "tool_schema_sha256": hashlib.sha256(
-                    json.dumps(
-                        effective_declarations,
-                        ensure_ascii=False,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                    ).encode()
-                ).hexdigest(),
+                "tool_schema_sha256": _schema_sha256(effective_declarations),
+                "production_tool_schema_sha256": _schema_sha256(effective_declarations),
+                "reserved_tool_schema_sha256": _schema_sha256(RESERVED_DECLARATIONS),
+                "tool_schema_profile": "production-replay",
             }
             schema_match = (
                 None
@@ -971,18 +1286,26 @@ class LiveEvalService:
             async def one(index: int, *, audio: bool) -> TurnResult:
                 nonlocal token_window_used
                 await pace_new_session()
-                budget.reserve()
-                driver = LiveRealtimeDriver(
+                provider_lease = self._provider_budget.reserve_eval(
                     api_key,
-                    model=model,
-                    voice=voice,
-                    instructions=effective_prompt,
-                    tool_declarations=tool_declarations,
-                    room_context=fixture.room_context,
-                    interrupt_response=False,
+                    model,
+                    tokens=self._next_scenario_reserve,
+                    production_headroom=self._production_headroom,
                 )
                 before_tokens = budget.actual_tokens
+                driver: LiveRealtimeDriver | None = None
                 try:
+                    budget.reserve()
+                    driver = LiveRealtimeDriver(
+                        api_key,
+                        model=model,
+                        voice=voice,
+                        instructions=effective_prompt,
+                        tool_declarations=tool_declarations,
+                        room_context=fixture.room_context,
+                        interrupt_response=False,
+                        budget_lease=provider_lease,
+                    )
                     await driver.open(run_id=run_id, scenario_id=scenario.id)
                     turn_id = f"{scenario.id}-{'audio' if audio else 'control'}-{index}"
                     async with asyncio.timeout(25.0):
@@ -994,7 +1317,9 @@ class LiveEvalService:
                             else await driver.submit_text(turn_id=turn_id, text=expected_turn.text)
                         )
                 finally:
-                    await driver.close()
+                    if driver is not None:
+                        await driver.close()
+                    self._provider_budget.release(provider_lease)
                 budget.record(observed.usage)
                 token_window_used += budget.actual_tokens - before_tokens
                 findings = grade_turn(expected_turn.expect, observed)
@@ -1123,18 +1448,19 @@ class LiveEvalService:
                 }
             effective_prompt = (instructions or SYSTEM_PROMPT_DA).strip()
             prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA.strip()
+            production_declarations = SafeEvalTools(tool_declarations).declarations()
+            eval_declarations = SafeEvalTools(
+                tool_declarations,
+                include_sensitive_fixture=True,
+            ).declarations()
             prompt_metadata = {
                 "prompt_source": "default" if prompt_is_default else "custom",
                 "prompt_version": PROMPT_VERSION if prompt_is_default else None,
                 "prompt_sha256": hashlib.sha256(effective_prompt.encode()).hexdigest(),
-                "tool_schema_sha256": hashlib.sha256(
-                    json.dumps(
-                        SafeEvalTools(tool_declarations).declarations(),
-                        ensure_ascii=False,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                    ).encode()
-                ).hexdigest(),
+                "tool_schema_sha256": _schema_sha256(eval_declarations),
+                "production_tool_schema_sha256": _schema_sha256(production_declarations),
+                "reserved_tool_schema_sha256": _schema_sha256(RESERVED_DECLARATIONS),
+                "tool_schema_profile": "production-plus-safe-sensitive-fixture",
             }
             results: list[ScenarioResult] = []
             token_window_started = self._monotonic()
@@ -1153,17 +1479,28 @@ class LiveEvalService:
                                 budget.rate_limit_wait_s += wait_s
                             token_window_started = self._monotonic()
                             token_window_used = 0
-                        driver = LiveRealtimeDriver(
-                            api_key,
-                            model=model,
-                            voice=voice,
-                            instructions=effective_prompt,
-                            tool_declarations=tool_declarations,
-                        )
                         before_tokens = budget.actual_tokens
-                        results.append(
-                            await run_scenario(driver, scenario, run_id=run_id, budget=budget)
+                        provider_lease = self._provider_budget.reserve_eval(
+                            api_key,
+                            model,
+                            tokens=self._next_scenario_reserve,
+                            production_headroom=self._production_headroom,
                         )
+                        try:
+                            driver = LiveRealtimeDriver(
+                                api_key,
+                                model=model,
+                                voice=voice,
+                                instructions=effective_prompt,
+                                tool_declarations=tool_declarations,
+                                include_sensitive_fixture=True,
+                                budget_lease=provider_lease,
+                            )
+                            results.append(
+                                await run_scenario(driver, scenario, run_id=run_id, budget=budget)
+                            )
+                        finally:
+                            self._provider_budget.release(provider_lease)
                         token_window_used += budget.actual_tokens - before_tokens
             except Exception as exc:
                 message = str(exc)

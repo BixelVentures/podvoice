@@ -14,6 +14,7 @@ import array
 import asyncio
 import contextlib
 import hashlib
+import inspect
 import json
 import logging
 import time
@@ -23,6 +24,7 @@ from dataclasses import dataclass
 from . import audio as audio_mod
 from . import constants as C
 from .events import Event, EventType, State
+from .execution_policy import ExecutionContext
 from .led import led_command_for
 from .playout import PlayoutClock
 from .podconnect import AttentionDown, UnknownRoom, Unsupervised
@@ -92,6 +94,7 @@ BARGE_DEBOUNCE_S = 0.6
 IDLE_FALLBACK_S = 25.0
 END_CONVERSATION_TOOL = "end_conversation"
 WAIT_FOR_USER_TOOL = "wait_for_user"
+APPROVE_ACTION_TOOL = "approve_action"
 END_CONVERSATION_DECLARATION = {
     "name": END_CONVERSATION_TOOL,
     "description": (
@@ -118,6 +121,27 @@ WAIT_FOR_USER_DECLARATION = {
     ),
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
+APPROVE_ACTION_DECLARATION = {
+    "name": APPROVE_ACTION_TOOL,
+    "description": (
+        "Approve exactly one server-held sensitive action after the user clearly confirms "
+        "that pending action on a later turn. Use only the challenge_id returned by the "
+        "earlier needs_confirmation result. Interpret the user's meaning from the live "
+        "conversation; never invent, alter, reuse, or guess a challenge id. Do not call this "
+        "on the proposal turn, for ambiguity, or when the user changes or rejects the action."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "challenge_id": {
+                "type": "string",
+                "description": "Exact opaque challenge_id from the pending action result.",
+            }
+        },
+        "required": ["challenge_id"],
+        "additionalProperties": False,
+    },
+}
 
 
 @dataclass
@@ -139,6 +163,21 @@ class _ClosureTurn:
     superseded: bool = False
     confirmed: bool = False
     fallback_started: bool = False
+
+
+@dataclass
+class _ToolBatch:
+    """One completed provider response and all of its sibling tool candidates."""
+
+    batch_id: str
+    size: int
+    turn: _ClosureTurn
+    calls: dict[int, ToolCall]
+    results: dict[int, dict]
+    round_complete: bool = False
+    started: bool = False
+    task_started: bool = False
+    submitting: bool = False
 
 
 @dataclass
@@ -308,6 +347,7 @@ class ThinSession:
         self._tasks: list[asyncio.Task] = []
         self._tool_lock = asyncio.Lock()
         self._tool_tasks: dict[str, asyncio.Task] = {}
+        self._tool_batches: dict[str, _ToolBatch] = {}
         self._semantic_end_call_ids: set[str] = set()
         self._wait_turns: dict[str, tuple[float, _ClosureTurn]] = {}
         self._playback_t0: float | None = None  # monotonic when the device started playing
@@ -470,6 +510,7 @@ class ThinSession:
         self._closure_turn = None
         self._semantic_end_call_ids.clear()
         self._wait_turns.clear()
+        self._tool_batches.clear()
         self._turn_cue_appended = False
         self._discarding_half_duplex_input = False
         self._last_user_utterance = ""
@@ -522,12 +563,14 @@ class ThinSession:
         reserved = {
             END_CONVERSATION_TOOL,
             WAIT_FOR_USER_TOOL,
+            APPROVE_ACTION_TOOL,
         }
         decls = [d for d in decls if d.get("name") not in reserved]
         decls.extend(
             (
                 END_CONVERSATION_DECLARATION,
                 WAIT_FOR_USER_DECLARATION,
+                APPROVE_ACTION_DECLARATION,
             )
         )
         self.brain.tool_declarations = decls
@@ -780,6 +823,7 @@ class ThinSession:
             await self._teardown_locked(release_music=release_music)
 
     async def _teardown_locked(self, *, release_music: bool) -> None:
+        history_session = self._history_session
         self._invalidate_playback_lease("teardown")
         self._active = False
         self._speaking = False
@@ -824,8 +868,15 @@ class ThinSession:
         for t in self._tool_tasks.values():
             t.cancel()
         self._tool_tasks.clear()
+        self._tool_batches.clear()
         self._semantic_end_call_ids.clear()
         self._wait_turns.clear()
+        if history_session and self.tools is not None:
+            policy = getattr(self.tools, "execution_policy", None)
+            if policy is not None and hasattr(policy, "clear_session"):
+                # Authorization state is conversation-private. Teardown invalidates
+                # every pending challenge/token before a later wake can reuse it.
+                policy.clear_session(history_session)
         if self.reply_bus is not None:
             self.reply_bus.end(self.room)
         if hasattr(self.voicepe, "stop_streaming"):
@@ -1065,8 +1116,31 @@ class ThinSession:
             # could request the spoken result.  This edge separates those two
             # responses.  Keep the announce stream private/open, but make the next
             # TurnComplete publish the actual result answer.
+            pending_batches = [
+                batch
+                for batch in self._tool_batches.values()
+                if not batch.round_complete
+                and ev.response_id is not None
+                and batch.batch_id == ev.response_id
+            ]
+            if self._tool_batches and not pending_batches:
+                self._trace_event(
+                    "tool_round_complete_stale",
+                    response_id=ev.response_id,
+                )
+                return
+            for batch in pending_batches:
+                batch.round_complete = True
+                self._maybe_start_batch_task(batch)
+                await self._submit_tool_batch_if_ready(batch)
             self._turn_had_tool = False
-            self._wait_turns.clear()  # mixed normal/end tool dominates any wait call
+            if any(
+                call.name != WAIT_FOR_USER_TOOL
+                for batch in pending_batches
+                for call in batch.calls.values()
+            ):
+                # A normal/end sibling dominates a model-violating mixed wait call.
+                self._wait_turns.clear()
             _LOG.info("thin: tool decision complete — result answer is now pending")
         elif isinstance(ev, SilentToolComplete):
             for call_id in ev.call_ids:
@@ -1102,7 +1176,16 @@ class ThinSession:
                     # A real interruption cancelled this response. It is not an error
                     # and must never close a still-active conversation.
                     self._discard_failed_response()
-                    if self._active:
+                    if self._speech_tools or self._tool_batches:
+                        # A terminal event for another provider response may arrive
+                        # while a previously completed batch still owns side effects
+                        # and its result response. Do not open input across that causal
+                        # boundary or discard the batch.
+                        self._trace_event(
+                            "cancelled_response_deferred",
+                            outstanding_tools=len(self._speech_tools),
+                        )
+                    elif self._active:
                         self._enter_followup()
                     return
                 if self.hub is not None:
@@ -1164,27 +1247,23 @@ class ThinSession:
             self._trace_event("provider_idle")
             await self.stop(reason="idle")
         elif isinstance(ev, ToolCall):
-            self._trace_event("tool_call", name=ev.name, call_id=ev.id)
-            if ev.name == WAIT_FOR_USER_TOOL:
-                self._trace_event("wait_for_user_requested", call_id=ev.id)
-                self._wait_turns[ev.id] = (self._epoch, self._ensure_closure_turn())
-            if ev.name == END_CONVERSATION_TOOL:
-                if ev.id in self._semantic_end_call_ids:
-                    _LOG.info("thin: duplicate semantic end call ignored [call_id=%s]", ev.id)
-                    self._trace_event("semantic_end_duplicate", call_id=ev.id)
-                    return
-                self._semantic_end_call_ids.add(ev.id)
-                turn = self._ensure_closure_turn()
-                turn.semantic_end = True
-                # The function-call response is not the audible farewell. Its tool
-                # result creates one final response; only that following TurnComplete
-                # may authorize playback-finish -> teardown.
-                turn.response_done = False
-                self._ending_conversation = True
-                self._trace_event("semantic_end_requested", call_id=ev.id, turn=turn.serial)
-                _LOG.info(
-                    "thin: provider requested semantic conversation end [turn=%d]", turn.serial
-                )
+            self._trace_event(
+                "tool_call",
+                name=ev.name,
+                call_id=ev.id,
+                response_id=ev.response_id,
+                batch_id=ev.batch_id,
+                batch_index=ev.batch_index,
+                batch_size=ev.batch_size,
+            )
+            if ev.batch_id is not None:
+                await self._accept_batched_tool_call(ev)
+                return
+            # Backwards-compatible one-call providers/fakes have no batch metadata.
+            # They retain the historical immediate-result path, while production
+            # providers use the completed-response batch contract above.
+            if not self._prepare_legacy_tool_call(ev):
+                return
             if not self._direct:
                 await self._discard_tool_preamble()
                 # History represents what the room heard. The preamble was truncated
@@ -1197,19 +1276,7 @@ class ThinSession:
             if self.hub is not None:
                 self.hub.incr("tool_calls")
             self._speech_tools.add(ev.id)
-            task = asyncio.create_task(self._run_tool(ev), name=f"thin-tool-{ev.id}")
-            self._tool_tasks[ev.id] = task
-
-            def _untrack(_t: asyncio.Task, _id: str = ev.id) -> None:
-                self._speech_tools.discard(_id)
-                self._tool_tasks.pop(_id, None)
-                if not self._speech_tools:
-                    # All function outputs for this response have reached the provider.
-                    # This also covers the adversarial ordering where response.done
-                    # arrived before a slow mixed normal-tool + semantic-end result.
-                    self._turn_had_tool = False
-
-            task.add_done_callback(_untrack)
+            self._start_tool_task(ev, self._run_tool(ev))
         elif isinstance(ev, UserSpeechStopped):
             if self._discarding_half_duplex_input:
                 self._discarding_half_duplex_input = False
@@ -1271,6 +1338,12 @@ class ThinSession:
                 self._turn_had_tool = False
         self._closure_serial += 1
         self._closure_turn = _ClosureTurn(self._closure_serial)
+        if (
+            self.tools is not None
+            and self._history_session
+            and hasattr(self.tools, "begin_execution_turn")
+        ):
+            self.tools.begin_execution_turn(self._execution_context(self._closure_turn))
         return self._closure_turn
 
     def _ensure_closure_turn(self) -> _ClosureTurn:
@@ -1741,7 +1814,158 @@ class ThinSession:
         if lease.phase not in ("finished", "fault"):
             self._trace_event("playback_cancelled", playback_id=lease.playback_id, reason=reason)
 
-    async def _run_tool(self, tc: ToolCall) -> None:
+    def _prepare_legacy_tool_call(self, tc: ToolCall) -> bool:
+        """Bind an unbatched provider call to the current closure turn."""
+        turn = self._ensure_closure_turn()
+        if tc.name == WAIT_FOR_USER_TOOL:
+            self._trace_event("wait_for_user_requested", call_id=tc.id)
+            self._wait_turns[tc.id] = (self._epoch, turn)
+        if tc.name == END_CONVERSATION_TOOL:
+            if tc.id in self._semantic_end_call_ids:
+                _LOG.info("thin: duplicate semantic end call ignored [call_id=%s]", tc.id)
+                self._trace_event("semantic_end_duplicate", call_id=tc.id)
+                return False
+            self._apply_semantic_end(tc, turn)
+        return True
+
+    async def _accept_batched_tool_call(self, tc: ToolCall) -> None:
+        """Register the complete sibling set before starting any side effect."""
+        batch_id = str(tc.batch_id or "")
+        if (
+            not batch_id
+            or tc.batch_size < 1
+            or tc.batch_index < 0
+            or tc.batch_index >= tc.batch_size
+        ):
+            self._trace_event("tool_batch_invalid", batch_id=batch_id, call_id=tc.id)
+            self._request_close("error:connection", error_kind="connection")
+            return
+        turn = self._ensure_closure_turn()
+        batch = self._tool_batches.get(batch_id)
+        if batch is None:
+            batch = _ToolBatch(batch_id, tc.batch_size, turn, {}, {})
+            self._tool_batches[batch_id] = batch
+        if batch.size != tc.batch_size or batch.turn is not turn or batch.started:
+            self._trace_event("tool_batch_mismatch", batch_id=batch_id, call_id=tc.id)
+            self._request_close("error:connection", error_kind="connection")
+            return
+        prior = batch.calls.get(tc.batch_index)
+        if prior is not None or any(call.id == tc.id for call in batch.calls.values()):
+            self._trace_event("tool_batch_duplicate", batch_id=batch_id, call_id=tc.id)
+            self._request_close("error:connection", error_kind="connection")
+            return
+        batch.calls[tc.batch_index] = tc
+        if len(batch.calls) != batch.size:
+            return
+
+        # Every sibling is known before the first dispatch. This is the Thin-side
+        # companion to the provider's atomic completed-response registration.
+        batch.started = True
+        if not self._direct:
+            await self._discard_tool_preamble()
+            self._buf_out.clear()
+        else:
+            self._flush_transcript("out")
+        self._turn_had_tool = True
+        if (
+            any(call.name == APPROVE_ACTION_TOOL for call in batch.calls.values())
+            and batch.size != 1
+        ):
+            # Approval represents the whole later user turn. Mixing it with another
+            # model-selected operation makes the confirmation boundary ambiguous, so
+            # the entire batch fails before any sibling can have a side effect.
+            batch.results = {
+                index: {
+                    "ok": False,
+                    "error_kind": "approval_denied",
+                    "error": "approve_action must be the only tool in its completed response",
+                }
+                for index in batch.calls
+            }
+            self._trace_event("approval_batch_rejected", batch_id=batch.batch_id)
+            await self._submit_tool_batch_if_ready(batch)
+            return
+        for call in batch.calls.values():
+            if call.name == WAIT_FOR_USER_TOOL:
+                self._trace_event("wait_for_user_requested", call_id=call.id)
+                self._wait_turns[call.id] = (self._epoch, turn)
+            if self.hub is not None:
+                self.hub.incr("tool_calls")
+            self._speech_tools.add(call.id)
+        self._maybe_start_batch_task(batch)
+
+    def _maybe_start_batch_task(self, batch: _ToolBatch) -> None:
+        """Execute only after both the full call set and its commit edge exist."""
+        if (
+            not batch.started
+            or not batch.round_complete
+            or batch.task_started
+            or len(batch.calls) != batch.size
+            or len(batch.results) == batch.size
+            or self._tool_batches.get(batch.batch_id) is not batch
+        ):
+            return
+        batch.task_started = True
+        self._start_batch_task(batch)
+
+    def _start_batch_task(self, batch: _ToolBatch) -> None:
+        """Execute siblings in provider order; mutations must never reorder."""
+        task = asyncio.create_task(self._run_tool_batch(batch), name=f"thin-batch-{batch.batch_id}")
+        call_ids = tuple(call.id for call in batch.calls.values())
+        for call_id in call_ids:
+            self._tool_tasks[call_id] = task
+
+        def _untrack_batch(_task: asyncio.Task) -> None:
+            for call_id in call_ids:
+                self._speech_tools.discard(call_id)
+                if self._tool_tasks.get(call_id) is _task:
+                    self._tool_tasks.pop(call_id, None)
+            if not self._speech_tools:
+                self._turn_had_tool = False
+
+        task.add_done_callback(_untrack_batch)
+
+    def _start_tool_task(
+        self,
+        tc: ToolCall,
+        coroutine,
+        *,
+        already_tracked: bool = False,
+    ) -> None:
+        if not already_tracked:
+            self._speech_tools.add(tc.id)
+        task = asyncio.create_task(coroutine, name=f"thin-tool-{tc.id}")
+        self._tool_tasks[tc.id] = task
+
+        def _untrack(_task: asyncio.Task, _id: str = tc.id) -> None:
+            self._speech_tools.discard(_id)
+            self._tool_tasks.pop(_id, None)
+            if not self._speech_tools:
+                self._turn_had_tool = False
+
+        task.add_done_callback(_untrack)
+
+    def _execution_context(self, turn: _ClosureTurn) -> ExecutionContext:
+        return ExecutionContext(self._history_session, str(turn.serial))
+
+    @staticmethod
+    def _accepts_keyword(callable_object, keyword: str) -> bool:
+        """Keep old test/provider-neutral bridges working without swallowing TypeError."""
+        with contextlib.suppress(TypeError, ValueError):
+            parameters = inspect.signature(callable_object).parameters.values()
+            return any(
+                parameter.kind is inspect.Parameter.VAR_KEYWORD or parameter.name == keyword
+                for parameter in parameters
+            )
+        return False
+
+    async def _execute_tool(
+        self,
+        tc: ToolCall,
+        turn: _ClosureTurn,
+        *,
+        approval_completed_gated: bool = False,
+    ) -> dict:
         tool_started = time.monotonic()
         result: dict
         if tc.name == END_CONVERSATION_TOOL:
@@ -1754,10 +1978,38 @@ class ThinSession:
                 "ok": True,
                 "data": {"decision": WAIT_FOR_USER_TOOL},
             }
+        elif tc.name == APPROVE_ACTION_TOOL:
+            challenge_id = tc.args.get("challenge_id")
+            if (
+                not isinstance(challenge_id, str)
+                or not challenge_id.strip()
+                or set(tc.args) != {"challenge_id"}
+                or self.tools is None
+                or not hasattr(self.tools, "approve_action")
+                or not approval_completed_gated
+            ):
+                result = {
+                    "ok": False,
+                    "error_kind": "approval_denied",
+                    "error": "approval challenge is missing, malformed, or unavailable",
+                }
+            else:
+                result = await self.tools.approve_action(
+                    challenge_id.strip(),
+                    confirmation_context=self._execution_context(turn),
+                )
         elif self.tools is None:
             result = {"ok": False, "error": "no tools configured"}
         else:
-            result = await self.tools.dispatch(tc.name, tc.args)
+            dispatch = self.tools.dispatch
+            if self._accepts_keyword(dispatch, "execution_context"):
+                result = await dispatch(
+                    tc.name,
+                    tc.args,
+                    execution_context=self._execution_context(turn),
+                )
+            else:
+                result = await dispatch(tc.name, tc.args)
         self._trace_event(
             "tool_result",
             name=tc.name,
@@ -1776,6 +2028,11 @@ class ThinSession:
             self.hub.activity(
                 self.room, f"🔧 {tc.name} {'✓' if result.get('ok') else '✕'}"
             )  # tool calls visible in the feed (room card AND the Talk tab)
+        return result
+
+    async def _run_tool(self, tc: ToolCall) -> None:
+        """Compatibility path for providers that emit one unbatched call."""
+        result = await self._execute_tool(tc, self._ensure_closure_turn())
         async with self._tool_lock:
             try:
                 tool_result: dict[str, object] = {
@@ -1798,6 +2055,83 @@ class ThinSession:
         if silent_complete is True:
             if tc.name == WAIT_FOR_USER_TOOL:
                 self._complete_silent_wait_turn(tc.id)
+
+    async def _run_tool_batch(self, batch: _ToolBatch) -> None:
+        for index in range(batch.size):
+            tc = batch.calls[index]
+            result = await self._execute_tool(tc, batch.turn, approval_completed_gated=True)
+            if self._tool_batches.get(batch.batch_id) is not batch or not self._active:
+                self._trace_event("tool_result_stale", name=tc.name, call_id=tc.id)
+                return
+            batch.results[index] = result
+        await self._submit_tool_batch_if_ready(batch)
+
+    async def _submit_tool_batch_if_ready(self, batch: _ToolBatch) -> None:
+        if (
+            batch.submitting
+            or not batch.started
+            or not batch.round_complete
+            or len(batch.calls) != batch.size
+            or len(batch.results) != batch.size
+            or self._tool_batches.get(batch.batch_id) is not batch
+        ):
+            return
+        batch.submitting = True
+        self._tool_batches.pop(batch.batch_id, None)
+        ordered = [(batch.calls[index], batch.results[index]) for index in range(batch.size)]
+        needs_confirmation = any(
+            result.get("error_kind") == "needs_confirmation" for _call, result in ordered
+        )
+        end_calls = [call for call, _result in ordered if call.name == END_CONVERSATION_TOOL]
+        if needs_confirmation and end_calls:
+            # The model may propose a sensitive action and close in either sibling
+            # order. The server cannot accept a farewell while the exact action still
+            # awaits a later-turn decision.
+            for call, result in ordered:
+                if call.name == END_CONVERSATION_TOOL:
+                    result.clear()
+                    result.update(
+                        {
+                            "ok": False,
+                            "error_kind": "end_deferred_for_confirmation",
+                            "error": "conversation remains open while an action awaits confirmation",
+                        }
+                    )
+            batch.turn.semantic_end = False
+            self._ending_conversation = False
+            self._trace_event("semantic_end_deferred", turn=batch.turn.serial)
+        else:
+            for call in end_calls:
+                if call.id not in self._semantic_end_call_ids:
+                    self._apply_semantic_end(call, batch.turn)
+
+        tool_results: list[dict[str, object]] = []
+        for call, result in ordered:
+            item: dict[str, object] = {"id": call.id, "name": call.name, "response": result}
+            if call.name == WAIT_FOR_USER_TOOL and len(ordered) == 1:
+                item["suppress_response"] = True
+            tool_results.append(item)
+        async with self._tool_lock:
+            try:
+                silent_complete = await self.brain.send_tool_results(tool_results)
+            except Exception as exc:
+                _LOG.warning("thin: submitting tool batch %s failed: %s", batch.batch_id, exc)
+                self._trace_event("tool_result_submit_failed", batch_id=batch.batch_id)
+                if self._active:
+                    self._request_close("error:connection", error_kind="connection")
+                return
+        if silent_complete is True:
+            for call, _result in ordered:
+                if call.name == WAIT_FOR_USER_TOOL:
+                    self._complete_silent_wait_turn(call.id)
+
+    def _apply_semantic_end(self, tc: ToolCall, turn: _ClosureTurn) -> None:
+        self._semantic_end_call_ids.add(tc.id)
+        turn.semantic_end = True
+        turn.response_done = False
+        self._ending_conversation = True
+        self._trace_event("semantic_end_requested", call_id=tc.id, turn=turn.serial)
+        _LOG.info("thin: provider requested semantic conversation end [turn=%d]", turn.serial)
 
     def _complete_silent_wait_turn(self, call_id: str) -> None:
         """Finish a provider-proven pure wait round without speech or closure."""

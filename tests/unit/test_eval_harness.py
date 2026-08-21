@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import pathlib
 import re
 import wave
@@ -9,6 +11,7 @@ import pytest
 
 import gatekeeper.eval_harness as eval_harness
 from gatekeeper.eval_harness import (
+    SAFE_EVAL_HIGH_RISK_TOOL,
     AudioReplayFixture,
     EvalBudget,
     Finding,
@@ -24,6 +27,24 @@ from gatekeeper.eval_harness import (
     read_pcm_fixture,
     run_scenario,
 )
+from gatekeeper.openai_realtime import DEFAULT_MODEL
+from gatekeeper.provider_budget import ProviderBudgetCoordinator
+from gatekeeper.thin import (
+    APPROVE_ACTION_DECLARATION,
+    END_CONVERSATION_DECLARATION,
+    WAIT_FOR_USER_DECLARATION,
+)
+
+
+def _known_provider_budget() -> ProviderBudgetCoordinator:
+    ledger = ProviderBudgetCoordinator()
+    for model in (DEFAULT_MODEL, "gpt-realtime-test"):
+        ledger.update_rate_limits(
+            "secret",
+            model,
+            [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
+        )
+    return ledger
 
 
 def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
@@ -33,6 +54,9 @@ def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
         "time-followup",
         "semantic-close",
         "web-routing",
+        "sensitive-confirmation",
+        "sensitive-action-with-close",
+        "low-risk-action-then-close",
     }
     assert any(len(s.turns) > 1 for s in scenarios)
     decisions = {turn.expect.decision for scenario in scenarios for turn in scenario.turns}
@@ -141,7 +165,7 @@ def test_oracle_requires_the_model_selected_temporal_field():
 
 async def test_safe_eval_router_never_dispatches_unknown_tools():
     tools = SafeEvalTools()
-    assert {"end_conversation", "wait_for_user"} <= {
+    assert {"end_conversation", "wait_for_user", "approve_action"} <= {
         declaration["name"] for declaration in tools.declarations()
     }
     assert "continue_conversation" not in {
@@ -171,12 +195,313 @@ def test_safe_eval_can_expose_exact_production_schema_without_dispatching_it():
             "parameters": {"type": "object", "properties": {}},
         },
         {"name": "end_conversation", "description": "must be replaced"},
+        {"name": "wait_for_user", "description": "must be replaced"},
+        {"name": "approve_action", "description": "must be replaced"},
     ]
     tools = SafeEvalTools(production)
     declarations = tools.declarations()
     assert declarations[0]["name"] == "HassDangerousWrite"
     assert [item["name"] for item in declarations].count("end_conversation") == 1
-    assert declarations[-2]["parameters"]["additionalProperties"] is False
+    assert declarations[-3:] == [
+        END_CONVERSATION_DECLARATION,
+        WAIT_FOR_USER_DECLARATION,
+        APPROVE_ACTION_DECLARATION,
+    ]
+    production_canonical = [
+        production[0],
+        END_CONVERSATION_DECLARATION,
+        WAIT_FOR_USER_DECLARATION,
+        APPROVE_ACTION_DECLARATION,
+    ]
+    digest = lambda value: hashlib.sha256(  # noqa: E731 - compact contract assertion
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    assert digest(declarations) == digest(production_canonical)
+
+
+def test_sensitive_fixture_exists_only_in_explicit_semantic_eval_profile():
+    default_names = {item["name"] for item in SafeEvalTools().declarations()}
+    semantic_names = {
+        item["name"] for item in SafeEvalTools(include_sensitive_fixture=True).declarations()
+    }
+    assert SAFE_EVAL_HIGH_RISK_TOOL not in default_names
+    assert SAFE_EVAL_HIGH_RISK_TOOL in semantic_names
+
+
+async def test_safe_eval_sensitive_challenge_is_next_turn_one_shot_and_has_no_real_client():
+    tools = SafeEvalTools(include_sensitive_fixture=True)
+    assert not any(hasattr(tools, name) for name in ("ha", "mcp", "podconnect"))
+
+    tools.begin_turn("proposal")
+    proposal = await tools.dispatch(SAFE_EVAL_HIGH_RISK_TOOL, {"name": "hoveddøren"})
+    tools.finish_turn()
+    assert proposal["error_kind"] == "needs_confirmation"
+    assert "challenge_id" not in proposal
+    challenge_id = proposal["approval"]["challenge_id"]
+    assert tools.fixture_side_effects == 0
+
+    tools.begin_turn("approval")
+    approved = await tools.dispatch("approve_action", {"challenge_id": challenge_id})
+    replay = await tools.dispatch("approve_action", {"challenge_id": challenge_id})
+    tools.finish_turn()
+    assert approved["data"]["decision"] == "approved_action"
+    assert replay["error_kind"] == "approval_denied"
+    assert tools.fixture_side_effects == 1
+
+
+async def test_safe_eval_changed_and_expired_challenges_fail_closed():
+    tools = SafeEvalTools(include_sensitive_fixture=True)
+    tools.begin_turn("proposal")
+    proposal = await tools.dispatch(SAFE_EVAL_HIGH_RISK_TOOL, {"name": "hoveddøren"})
+    tools.finish_turn()
+    challenge_id = proposal["approval"]["challenge_id"]
+
+    tools.begin_turn("changed")
+    changed = await tools.dispatch("approve_action", {"challenge_id": challenge_id + "-changed"})
+    tools.finish_turn()
+    assert changed["error_kind"] == "approval_denied"
+    assert tools.fixture_side_effects == 0
+
+    tools.begin_turn("late")
+    expired = await tools.dispatch("approve_action", {"challenge_id": challenge_id})
+    tools.finish_turn()
+    assert expired["error_kind"] == "approval_denied"
+    assert tools.fixture_side_effects == 0
+
+
+async def test_safe_eval_allows_at_most_one_distinct_approval_in_one_turn():
+    tools = SafeEvalTools(include_sensitive_fixture=True)
+    tools.begin_turn("proposal")
+    first = await tools.dispatch(SAFE_EVAL_HIGH_RISK_TOOL, {"name": "hoveddøren"})
+    second = await tools.dispatch(SAFE_EVAL_HIGH_RISK_TOOL, {"name": "bagdøren"})
+    tools.finish_turn()
+
+    tools.begin_turn("approval")
+    approved = await tools.dispatch(
+        "approve_action", {"challenge_id": first["approval"]["challenge_id"]}
+    )
+    denied = await tools.dispatch(
+        "approve_action", {"challenge_id": second["approval"]["challenge_id"]}
+    )
+    tools.finish_turn()
+    assert approved["data"]["decision"] == "approved_action"
+    assert denied["error_kind"] == "approval_denied"
+    assert tools.fixture_side_effects == 1
+
+
+def test_semantic_security_scenarios_assert_decisions_outcomes_and_lifecycle_not_prose():
+    scenarios = {scenario.id: scenario for scenario in load_scenarios()}
+    proposal, approval = scenarios["sensitive-confirmation"].turns
+    assert proposal.expect.tool_outcomes == {SAFE_EVAL_HIGH_RISK_TOOL: ("needs_confirmation",)}
+    assert proposal.expect.fixture_side_effects == 0
+    assert proposal.expect.answer_any == () and proposal.expect.answer_patterns == ()
+    assert approval.expect.decision == "approve_action"
+    assert approval.expect.tool_outcomes == {"approve_action": ("approved_action",)}
+    assert approval.expect.remain_open is True
+
+    sensitive_close = scenarios["sensitive-action-with-close"].turns[0].expect
+    assert "end_conversation" in sensitive_close.forbid
+    assert sensitive_close.remain_open is True
+
+    safe_close = scenarios["low-risk-action-then-close"].turns[0].expect
+    assert safe_close.decisions == ("HassTurnOn", "end_conversation")
+    assert safe_close.decision_batches == (("HassTurnOn",), ("end_conversation",))
+    assert safe_close.remain_open is False
+
+
+async def test_safe_live_batch_blocks_close_when_sensitive_action_needs_confirmation():
+    sent: list[list[dict]] = []
+
+    class FakeSession:
+        async def send_tool_results(self, results):
+            sent.append(results)
+
+    driver = eval_harness.LiveRealtimeDriver("secret", include_sensitive_fixture=True)
+    driver.session = FakeSession()  # type: ignore[assignment]
+    driver.tools.begin_turn("proposal")
+    observed = TurnObservation(turn_id="proposal", session_id="session")
+    await driver._dispatch_tool_batch(
+        [
+            eval_harness.ToolCall(
+                "risk",
+                SAFE_EVAL_HIGH_RISK_TOOL,
+                {"name": "hoveddøren"},
+                batch_id="batch",
+                batch_index=0,
+                batch_size=2,
+            ),
+            eval_harness.ToolCall(
+                "close",
+                "end_conversation",
+                {},
+                batch_id="batch",
+                batch_index=1,
+                batch_size=2,
+            ),
+        ],
+        observed,
+    )
+    driver.tools.finish_turn()
+    assert observed.remain_open is True
+    assert observed.fixture_side_effects == 0
+    assert observed.tool_results[SAFE_EVAL_HIGH_RISK_TOOL][0]["error_kind"] == (
+        "needs_confirmation"
+    )
+    assert observed.tool_results["end_conversation"][0]["error_kind"] == (
+        "close_blocked_pending_confirmation"
+    )
+    assert len(sent) == 1 and len(sent[0]) == 2
+
+
+async def test_safe_live_driver_consumes_nested_production_challenge_on_next_turn_once():
+    sent: list[list[dict]] = []
+
+    class FakeSession:
+        async def send_tool_results(self, results):
+            sent.append(results)
+
+    driver = eval_harness.LiveRealtimeDriver("secret", include_sensitive_fixture=True)
+    driver.session = FakeSession()  # type: ignore[assignment]
+
+    driver.tools.begin_turn("proposal")
+    proposal_observed = TurnObservation(turn_id="proposal", session_id="session")
+    await driver._dispatch_tool_batch(
+        [
+            eval_harness.ToolCall(
+                "risk",
+                SAFE_EVAL_HIGH_RISK_TOOL,
+                {"name": "hoveddøren"},
+                batch_id="proposal-batch",
+            )
+        ],
+        proposal_observed,
+    )
+    driver.tools.finish_turn()
+    proposal_result = sent[0][0]["response"]
+    challenge_id = proposal_result["approval"]["challenge_id"]
+    assert "challenge_id" not in proposal_result
+    assert proposal_observed.fixture_side_effects == 0
+
+    driver.tools.begin_turn("confirmation")
+    approval_observed = TurnObservation(turn_id="confirmation", session_id="session")
+    await driver._dispatch_tool_batch(
+        [
+            eval_harness.ToolCall(
+                "approve",
+                "approve_action",
+                {"challenge_id": challenge_id},
+                batch_id="approval-batch",
+            )
+        ],
+        approval_observed,
+    )
+    await driver._dispatch_tool_batch(
+        [
+            eval_harness.ToolCall(
+                "replay",
+                "approve_action",
+                {"challenge_id": challenge_id},
+                batch_id="replay-batch",
+            )
+        ],
+        approval_observed,
+    )
+    driver.tools.finish_turn()
+    assert approval_observed.tool_results["approve_action"][0]["data"]["decision"] == (
+        "approved_action"
+    )
+    assert approval_observed.tool_results["approve_action"][1]["error_kind"] == ("approval_denied")
+    assert approval_observed.fixture_side_effects == 1
+
+
+@pytest.mark.parametrize("marker_id", [None, "wrong-response"])
+async def test_live_collect_requires_exact_nonempty_tool_commit_edge_before_fixture_effect(
+    marker_id,
+):
+    sent: list[list[dict]] = []
+
+    class FakeSession:
+        async def send_tool_results(self, results):
+            sent.append(results)
+
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session = FakeSession()  # type: ignore[assignment]
+    driver.events.put_nowait(
+        eval_harness.ToolCall(
+            "low",
+            "HassTurnOn",
+            {"name": "stuen"},
+            response_id="response-one",
+            batch_id="response-one",
+        )
+    )
+    if marker_id is not None:
+        driver.events.put_nowait(eval_harness.ToolRoundComplete(response_id=marker_id))
+    else:
+        driver.events.put_nowait(
+            eval_harness.TurnComplete(status="completed", response_id="response-one")
+        )
+    observed = await driver._collect_turn(turn_id="turn", started=0.0)
+    assert observed.response_status == "failed"
+    assert observed.fixture_side_effects == 0
+    assert sent == []
+
+
+async def test_live_collect_dispatches_fixture_only_after_matching_tool_commit_edge():
+    sent: list[list[dict]] = []
+
+    class FakeSession:
+        async def send_tool_results(self, results):
+            sent.append(results)
+
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session = FakeSession()  # type: ignore[assignment]
+    driver.events.put_nowait(
+        eval_harness.ToolCall(
+            "low",
+            "HassTurnOn",
+            {"name": "stuen"},
+            response_id="response-one",
+            batch_id="response-one",
+        )
+    )
+    driver.events.put_nowait(eval_harness.ToolRoundComplete(response_id="response-one"))
+    driver.events.put_nowait(
+        eval_harness.TurnComplete(status="completed", response_id="answer-one")
+    )
+    observed = await driver._collect_turn(turn_id="turn", started=0.0)
+    assert observed.response_status == "completed"
+    assert observed.fixture_side_effects == 1
+    assert observed.decision_batches == [["HassTurnOn"]]
+    assert len(sent) == 1
+
+
+async def test_live_collect_pure_wait_requires_marker_then_completes_silently():
+    sent: list[list[dict]] = []
+
+    class FakeSession:
+        async def send_tool_results(self, results):
+            sent.append(results)
+
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session = FakeSession()  # type: ignore[assignment]
+    driver.events.put_nowait(
+        eval_harness.ToolCall(
+            "wait",
+            "wait_for_user",
+            {},
+            response_id="wait-response",
+            batch_id="wait-response",
+        )
+    )
+    driver.events.put_nowait(eval_harness.ToolRoundComplete(response_id="wait-response"))
+    driver.events.put_nowait(eval_harness.SilentToolComplete(call_ids=("wait",)))
+    observed = await driver._collect_turn(turn_id="turn", started=0.0)
+    assert observed.response_status == "completed"
+    assert observed.remain_open is True
+    assert observed.decisions == ["wait_for_user"]
+    assert observed.fixture_side_effects == 0
+    assert sent[0][0]["suppress_response"] is True
 
 
 def test_budget_hard_stops_before_an_unbounded_live_run():
@@ -313,10 +638,11 @@ async def test_live_service_reports_the_exact_effective_prompt_identity(monkeypa
         assert driver.instructions == "min aktive prompt"
         assert driver.model == "gpt-realtime-test"
         assert driver.voice == "marin"
+        assert SAFE_EVAL_HIGH_RISK_TOOL in {item["name"] for item in driver.tools.declarations()}
         return ScenarioResult(scenario.id, True, "session", [])
 
     monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
-    report = await LiveEvalService().run(
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run(
         api_key="secret",
         scenario_ids={"web-routing"},
         model="gpt-realtime-test",
@@ -328,6 +654,10 @@ async def test_live_service_reports_the_exact_effective_prompt_identity(monkeypa
     assert report["prompt_version"] is None
     assert len(report["prompt_sha256"]) == 64
     assert len(report["tool_schema_sha256"]) == 64
+    assert len(report["production_tool_schema_sha256"]) == 64
+    assert len(report["reserved_tool_schema_sha256"]) == 64
+    assert report["tool_schema_profile"] == "production-plus-safe-sensitive-fixture"
+    assert report["tool_schema_sha256"] != report["production_tool_schema_sha256"]
     assert "min aktive prompt" not in str(report)
 
 
@@ -356,6 +686,7 @@ async def test_live_service_paces_fresh_sessions_below_tier_one_tpm(monkeypatch)
         monotonic=lambda: clock[0],
         tpm_soft_limit=30_000,
         next_scenario_reserve=15_000,
+        provider_budget=_known_provider_budget(),
     )
     report = await service.run(
         api_key="secret",
@@ -382,7 +713,11 @@ async def test_live_service_default_keeps_one_measured_session_of_tpm_headroom(m
         return ScenarioResult(scenario.id, True, "session", [])
 
     monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
-    service = LiveEvalService(sleep=fake_sleep, monotonic=lambda: clock[0])
+    service = LiveEvalService(
+        sleep=fake_sleep,
+        monotonic=lambda: clock[0],
+        provider_budget=_known_provider_budget(),
+    )
     report = await service.run(
         api_key="secret", scenario_ids={"arithmetic-followup", "time-followup"}
     )
@@ -390,6 +725,48 @@ async def test_live_service_default_keeps_one_measured_session_of_tpm_headroom(m
     # 25k eval ceiling leaves 15k of the 40k Tier-1 window for a measured
     # ordinary PodVoice session, so two fresh eval sessions cannot share a minute.
     assert waits == [60.5]
+
+
+async def test_live_eval_fails_closed_while_a_production_session_is_active(monkeypatch):
+    ledger = _known_provider_budget()
+    production = ledger.production_started("secret", DEFAULT_MODEL)
+    called = False
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        nonlocal called
+        called = True
+        return ScenarioResult(scenario.id, True, "session", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    report = await LiveEvalService(provider_budget=ledger).run(
+        api_key="secret", scenario_ids={"web-routing"}
+    )
+    assert report["ok"] is False
+    assert "production voice session" in report["error"]
+    assert called is False
+    assert ledger.release(production) is True
+
+
+async def test_physical_session_arriving_during_eval_stops_the_next_trial(monkeypatch):
+    ledger = _known_provider_budget()
+    calls = 0
+    production = None
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        nonlocal calls, production
+        calls += 1
+        production = ledger.production_started("secret", DEFAULT_MODEL)
+        return ScenarioResult(scenario.id, True, "session", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    report = await LiveEvalService(provider_budget=ledger).run(
+        api_key="secret", scenario_ids={"arithmetic-followup", "time-followup"}
+    )
+    assert report["ok"] is False
+    assert calls == 1
+    assert "production voice session" in report["error"]
+    assert production is not None
+    assert ledger.release(production) is True
 
 
 async def test_live_service_background_job_survives_requests_and_retains_result(monkeypatch):
@@ -400,7 +777,7 @@ async def test_live_service_background_job_survives_requests_and_retains_result(
         return ScenarioResult(scenario.id, True, "session", [])
 
     monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
-    service = LiveEvalService()
+    service = LiveEvalService(provider_budget=_known_provider_budget())
     started = service.start(api_key="secret", scenario_ids={"web-routing"})
     assert started["status"] == "running"
     run_id = started["run_id"]
@@ -425,7 +802,7 @@ async def test_live_service_cancel_is_explicit_and_does_not_leave_busy(monkeypat
         raise AssertionError("unreachable")
 
     monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
-    service = LiveEvalService()
+    service = LiveEvalService(provider_budget=_known_provider_budget())
     started = service.start(api_key="secret", scenario_ids={"web-routing"})
     await asyncio.sleep(0)
     await service.aclose()
@@ -435,7 +812,7 @@ async def test_live_service_cancel_is_explicit_and_does_not_leave_busy(monkeypat
 
 
 def test_live_service_rejects_mixed_known_and_unknown_scenarios():
-    service = LiveEvalService()
+    service = LiveEvalService(provider_budget=_known_provider_budget())
     report = service.start(api_key="secret", scenario_ids={"web-routing", "not-a-real-scenario"})
     assert report["status"] == "invalid"
     assert service.status()["status"] == "idle"
@@ -447,7 +824,7 @@ async def test_live_service_whole_job_timeout_is_retained_as_failure(monkeypatch
         raise AssertionError("unreachable")
 
     monkeypatch.setattr(eval_harness, "run_scenario", hung_run)
-    service = LiveEvalService(max_run_s=0.01)
+    service = LiveEvalService(max_run_s=0.01, provider_budget=_known_provider_budget())
     started = service.start(api_key="secret", scenario_ids={"web-routing"})
     assert service._job is not None
     await service._job
@@ -511,7 +888,7 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
     )
     scenario = next(item for item in load_scenarios() if item.id == "time-followup")
     declarations = SafeEvalTools().declarations()
-    report = await LiveEvalService().run_replay(
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
         api_key="secret",
         fixture=fixture,
         scenario=scenario,
@@ -522,6 +899,8 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
 
     assert report["ok"] is True
     assert report["classification"] == "audio-replay-consistent"
+    assert report["tool_schema_profile"] == "production-replay"
+    assert report["tool_schema_sha256"] == report["production_tool_schema_sha256"]
     assert len(opened) == 4  # one text control + three independent audio sessions
     assert audio_seen == [pcm, pcm, pcm]
     assert report["trace"]["sha256"] == fixture.sha256
@@ -540,7 +919,7 @@ def test_audio_replay_start_fails_closed_on_tampered_pcm():
         exact_sample_offsets=True,
     )
     scenario = next(item for item in load_scenarios() if item.id == "time-followup")
-    report = LiveEvalService().start_replay(
+    report = LiveEvalService(provider_budget=_known_provider_budget()).start_replay(
         api_key="secret", fixture=fixture, scenario=scenario, turn_index=0
     )
     assert report["status"] == "invalid"
@@ -567,7 +946,7 @@ async def test_audio_replay_refuses_a_proven_different_source_tool_schema(monkey
         source_tool_schema_sha256="0" * 64,
     )
     scenario = next(item for item in load_scenarios() if item.id == "time-followup")
-    report = await LiveEvalService().run_replay(
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
         api_key="secret",
         fixture=fixture,
         scenario=scenario,

@@ -13,6 +13,7 @@ from fakes.fake_voicepe import FakeVoicePELink
 
 from gatekeeper import constants as C
 from gatekeeper.events import Event, EventType, State
+from gatekeeper.execution_policy import ExecutionContext, ExecutionPolicy
 from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.history import History
 from gatekeeper.hub import StatusHub
@@ -110,6 +111,7 @@ async def test_fresh_tools_are_present_when_realtime_connects():
             "fresh_ha_tool",
             "end_conversation",
             "wait_for_user",
+            "approve_action",
         ]
     finally:
         await session.aclose()
@@ -1116,7 +1118,7 @@ async def test_provider_semantic_end_closes_varied_danish_meanings(user_text: st
         await _wait_until(lambda: len(gemini.sent_tool_results) == 1)
         assert session._active is True
         gemini.emit(
-            ToolRoundComplete(),
+            ToolRoundComplete(response_id="batch-risk-end"),
             AudioChunk(_frame(), item_id="goodbye"),
             OutputTranscript("Farvel."),
             TurnComplete(),
@@ -1166,7 +1168,7 @@ async def test_failed_realtime_goodbye_uses_cached_voice_and_waits_for_physical_
         )
         await _wait_until(lambda: len(gemini.sent_tool_results) == 1)
         gemini.emit(
-            ToolRoundComplete(),
+            ToolRoundComplete(response_id="batch-safe"),
             TurnComplete(status="failed", error="server_error"),
         )
 
@@ -1295,7 +1297,7 @@ async def test_semantic_end_composes_with_an_ordinary_tool_in_either_order(end_f
         assert tools.calls == ["light_turn_on"]  # lifecycle signal never reaches HA
 
         gemini.emit(
-            ToolRoundComplete(),
+            ToolRoundComplete(response_id="two-sensitive"),
             AudioChunk(_frame(), item_id="mixed-goodbye"),
             OutputTranscript("Farvel."),
             TurnComplete(),
@@ -2104,3 +2106,595 @@ async def test_full_duplex_is_refused_on_the_raw_mic_channel(caplog):
         full_duplex=True,
     )
     assert session0.full_duplex is True  # allowed where the hardware supports it
+
+
+class ApprovalTools(FakeTools):
+    """Thin integration fixture with the real server-owned challenge policy."""
+
+    def __init__(self) -> None:
+        self.execution_policy = ExecutionPolicy()
+        self.effects: list[tuple[str, dict]] = []
+        self.contexts: list[ExecutionContext] = []
+
+    def declarations(self) -> list[dict]:
+        return [
+            {"name": "safe_action", "description": "safe", "parameters": {"type": "object"}},
+            {"name": "HassUnlock", "description": "unlock", "parameters": {"type": "object"}},
+        ]
+
+    def begin_execution_turn(self, context: ExecutionContext) -> None:
+        self.execution_policy.begin_turn(context)
+
+    async def dispatch(
+        self,
+        name: str,
+        args: dict,
+        *,
+        execution_context: ExecutionContext | None = None,
+    ) -> dict:
+        assert execution_context is not None and execution_context.valid
+        self.contexts.append(execution_context)
+        if name == "HassUnlock":
+            denied = self.execution_policy.authorize(name, args, context=execution_context)
+            if denied is not None:
+                return denied
+        self.effects.append((name, args))
+        return {"ok": True, "data": {"executed": name}}
+
+    async def approve_action(
+        self,
+        challenge_id: str,
+        *,
+        confirmation_context: ExecutionContext,
+    ) -> dict:
+        approved = self.execution_policy.confirm(
+            challenge_id,
+            confirmation_context=confirmation_context,
+        )
+        if approved is None:
+            return {"ok": False, "error_kind": "approval_denied"}
+        self.contexts.append(confirmation_context)
+        self.effects.append((approved.action, approved.args))
+        return {"ok": True, "data": {"executed": approved.action}}
+
+
+def _batched_call(
+    call_id: str,
+    name: str,
+    args: dict,
+    *,
+    batch_id: str,
+    index: int,
+    size: int,
+) -> ToolCall:
+    return ToolCall(
+        call_id,
+        name,
+        args,
+        response_id=batch_id,
+        batch_id=batch_id,
+        batch_index=index,
+        batch_size=size,
+    )
+
+
+async def test_completed_batch_executes_only_after_matching_tool_round_commit_edge():
+    brain = LiveFake()
+    tools = ApprovalTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "safe-before-commit",
+                "safe_action",
+                {"value": 1},
+                batch_id="committed-batch",
+                index=0,
+                size=1,
+            ),
+        )
+        # Receiving the complete sibling set is not authorization.  If the stream
+        # drops before the provider-neutral commit marker, no side effect may start.
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert tools.effects == []
+        assert brain.sent_tool_results == []
+
+        # A legacy/unidentified marker cannot authorize production batched effects.
+        brain.emit(ToolRoundComplete())
+        await asyncio.sleep(0)
+        assert tools.effects == []
+
+        # An unrelated/stale marker cannot authorize this batch either.
+        brain.emit(ToolRoundComplete(response_id="another-response"))
+        await asyncio.sleep(0)
+        assert tools.effects == []
+
+        brain.emit(ToolRoundComplete(response_id="committed-batch"))
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert tools.effects == [("safe_action", {"value": 1})]
+    finally:
+        await session.aclose()
+
+
+async def test_batch_without_tool_round_commit_has_zero_effect_on_teardown():
+    brain = LiveFake()
+    tools = ApprovalTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "risk-without-commit",
+                "HassUnlock",
+                {"entity_id": "lock.front"},
+                batch_id="uncommitted-risk",
+                index=0,
+                size=1,
+            ),
+        )
+        await asyncio.sleep(0)
+        await session.stop(reason="provider-stream-lost")
+        assert tools.effects == []
+        assert brain.sent_tool_results == []
+    finally:
+        await session.aclose()
+
+
+async def test_pure_wait_batch_uses_exact_commit_edge_and_completes_silently():
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "wait-batched",
+                "wait_for_user",
+                {},
+                batch_id="wait-response",
+                index=0,
+                size=1,
+            ),
+        )
+        await asyncio.sleep(0)
+        assert brain.sent_tool_results == []
+
+        brain.emit(ToolRoundComplete(response_id="wait-response"))
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert brain.sent_tool_results[0][0]["suppress_response"] is True
+        assert voicepe.announced_urls == []
+
+        brain.emit(SilentToolComplete(call_ids=("wait-batched",)))
+        await _wait_until(
+            lambda: (
+                session._closure_turn is not None and session._closure_turn.response_done is True
+            )
+        )
+        assert session._active is True
+        assert voicepe.announced_urls == []
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.parametrize("end_first", [False, True])
+async def test_completed_high_risk_plus_end_batch_stays_open_in_either_order(end_first: bool):
+    brain = LiveFake()
+    tools = ApprovalTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(UserSpeechStopped())
+        high = ("risk", "HassUnlock", {"entity_id": "lock.front"})
+        end = ("end", "end_conversation", {})
+        ordered = (end, high) if end_first else (high, end)
+        brain.emit(
+            *(
+                _batched_call(cid, name, args, batch_id="batch-risk-end", index=index, size=2)
+                for index, (cid, name, args) in enumerate(ordered)
+            ),
+            ToolRoundComplete(response_id="batch-risk-end"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+
+        result_batch = brain.sent_tool_results[0]
+        assert tools.effects == []
+        assert len(result_batch) == 2
+        assert any(item["response"].get("needs_confirmation") for item in result_batch)
+        assert (
+            next(item for item in result_batch if item["name"] == "end_conversation")["response"][
+                "error_kind"
+            ]
+            == "end_deferred_for_confirmation"
+        )
+        assert session._active is True
+        assert session._ending_conversation is False
+        assert session._closure_turn is not None and session._closure_turn.semantic_end is False
+    finally:
+        await session.aclose()
+
+
+async def test_low_risk_plus_end_executes_then_arms_semantic_close_after_atomic_results():
+    class SlowSafeTools(ApprovalTools):
+        def __init__(self) -> None:
+            super().__init__()
+            self.started = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def dispatch(self, name: str, args: dict, *, execution_context=None) -> dict:
+            self.started.set()
+            await self.release.wait()
+            return await super().dispatch(name, args, execution_context=execution_context)
+
+    brain = LiveFake()
+    tools = SlowSafeTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "safe", "safe_action", {"value": 1}, batch_id="batch-safe", index=0, size=2
+            ),
+            _batched_call("end", "end_conversation", {}, batch_id="batch-safe", index=1, size=2),
+            ToolRoundComplete(response_id="batch-safe"),
+        )
+        await _wait_until(lambda: tools.started.is_set())
+        assert brain.sent_tool_results == []
+        assert session._ending_conversation is False
+        assert session._closure_turn is not None and session._closure_turn.semantic_end is False
+
+        tools.release.set()
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert tools.effects == [("safe_action", {"value": 1})]
+        assert [item["name"] for item in brain.sent_tool_results[0]] == [
+            "safe_action",
+            "end_conversation",
+        ]
+        assert session._ending_conversation is True
+        assert session._closure_turn is not None and session._closure_turn.semantic_end is True
+    finally:
+        await session.aclose()
+
+
+async def test_multiple_sensitive_siblings_create_distinct_proposals_with_zero_effects():
+    brain = LiveFake()
+    tools = ApprovalTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "front",
+                "HassUnlock",
+                {"entity_id": "lock.front"},
+                batch_id="two-sensitive",
+                index=0,
+                size=2,
+            ),
+            _batched_call(
+                "back",
+                "HassUnlock",
+                {"entity_id": "lock.back"},
+                batch_id="two-sensitive",
+                index=1,
+                size=2,
+            ),
+            ToolRoundComplete(response_id="two-sensitive"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        results = brain.sent_tool_results[0]
+        challenges = [item["response"]["approval"]["challenge_id"] for item in results]
+        assert len(set(challenges)) == 2
+        assert all(item["response"]["error_kind"] == "needs_confirmation" for item in results)
+        assert tools.effects == []
+    finally:
+        await session.aclose()
+
+
+async def test_later_completed_approval_executes_exact_proposal_once_and_teardown_clears_it():
+    brain = LiveFake()
+    tools = ApprovalTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "risk",
+                "HassUnlock",
+                {"entity_id": "lock.front"},
+                batch_id="proposal",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="proposal"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        challenge_id = brain.sent_tool_results[0][0]["response"]["approval"]["challenge_id"]
+        await _wait_until(lambda: not session._speech_tools)
+        brain.emit(TurnComplete())
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "approve",
+                "approve_action",
+                {"challenge_id": challenge_id},
+                batch_id="approval",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="approval"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 2)
+        assert tools.effects == [("HassUnlock", {"entity_id": "lock.front"})]
+        assert brain.sent_tool_results[1][0]["response"]["ok"] is True
+
+        # One-shot replay cannot execute the action again.
+        await _wait_until(lambda: not session._speech_tools)
+        brain.emit(TurnComplete(), UserSpeechStopped())
+        brain.emit(
+            _batched_call(
+                "replay",
+                "approve_action",
+                {"challenge_id": challenge_id},
+                batch_id="replay",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="replay"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 3)
+        assert brain.sent_tool_results[2][0]["response"]["error_kind"] == "approval_denied"
+        assert len(tools.effects) == 1
+    finally:
+        await session.aclose()
+
+
+async def test_intervening_turn_expires_challenge_and_new_session_cannot_replay_it():
+    brain = LiveFake()
+    tools = ApprovalTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "risk",
+                "HassUnlock",
+                {"entity_id": "lock.front"},
+                batch_id="proposal-expire",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="proposal-expire"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        challenge_id = brain.sent_tool_results[0][0]["response"]["approval"]["challenge_id"]
+        await _wait_until(lambda: not session._speech_tools)
+        brain.emit(TurnComplete(), UserSpeechStopped(), TurnComplete(), UserSpeechStopped())
+        brain.emit(
+            _batched_call(
+                "late-approve",
+                "approve_action",
+                {"challenge_id": challenge_id},
+                batch_id="late-approval",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="late-approval"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 2)
+        assert brain.sent_tool_results[1][0]["response"]["error_kind"] == "approval_denied"
+        assert tools.effects == []
+
+        old_session_id = session._history_session
+        await session.stop(reason="test-close")
+        assert (
+            tools.execution_policy.confirm(
+                challenge_id,
+                confirmation_context=ExecutionContext(old_session_id, "99"),
+            )
+            is None
+        )
+    finally:
+        await session.aclose()
+
+
+async def test_unbatched_approval_signal_is_denied_without_side_effect():
+    brain = LiveFake()
+    tools = ApprovalTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        turn = session._begin_closure_turn()
+        denied = tools.execution_policy.authorize(
+            "HassUnlock",
+            {"entity_id": "lock.front"},
+            context=session._execution_context(turn),
+        )
+        assert denied is not None
+        challenge_id = denied["approval"]["challenge_id"]
+        session._begin_closure_turn()
+        brain.emit(ToolCall("legacy-approval", "approve_action", {"challenge_id": challenge_id}))
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert brain.sent_tool_results[0][0]["response"]["error_kind"] == "approval_denied"
+        assert tools.effects == []
+    finally:
+        await session.aclose()
+
+
+async def test_two_approval_rounds_on_one_user_turn_release_at_most_one_action():
+    brain = LiveFake()
+    tools = ApprovalTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        proposal_turn = session._begin_closure_turn()
+        proposal_context = session._execution_context(proposal_turn)
+        first = tools.execution_policy.authorize(
+            "HassUnlock", {"entity_id": "lock.front"}, context=proposal_context
+        )
+        second = tools.execution_policy.authorize(
+            "HassUnlock", {"entity_id": "lock.back"}, context=proposal_context
+        )
+        assert first is not None and second is not None
+        session._begin_closure_turn()
+
+        for index, challenge in enumerate((first, second), start=1):
+            brain.emit(
+                _batched_call(
+                    f"approval-{index}",
+                    "approve_action",
+                    {"challenge_id": challenge["approval"]["challenge_id"]},
+                    batch_id=f"approval-round-{index}",
+                    index=0,
+                    size=1,
+                ),
+                ToolRoundComplete(response_id=f"approval-round-{index}"),
+            )
+            await _wait_until(lambda index=index: len(brain.sent_tool_results) == index)
+            await _wait_until(lambda: not session._speech_tools)
+
+        assert tools.effects == [("HassUnlock", {"entity_id": "lock.front"})]
+        assert brain.sent_tool_results[1][0]["response"]["error_kind"] == "approval_denied"
+    finally:
+        await session.aclose()
+
+
+async def test_typed_talk_turn_and_voice_turn_share_trusted_execution_context():
+    brain = LiveFake()
+    tools = ApprovalTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        receipt = await session.submit_text("Tænd sikkert", "talk-safe")
+        brain.emit(
+            _batched_call(
+                "talk-call",
+                "safe_action",
+                {},
+                batch_id="talk-batch",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="talk-batch"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert tools.contexts[0].session_id == receipt["session_id"]
+        assert tools.contexts[0].turn_id == "1"
+    finally:
+        await session.aclose()
+
+
+async def test_unrelated_cancelled_response_does_not_open_followup_over_slow_batch():
+    class SlowTools(ApprovalTools):
+        def __init__(self) -> None:
+            super().__init__()
+            self.started = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def dispatch(self, name: str, args: dict, *, execution_context=None) -> dict:
+            assert execution_context is not None
+            self.started.set()
+            await self.release.wait()
+            return await super().dispatch(name, args, execution_context=execution_context)
+
+    brain = LiveFake()
+    tools = SlowTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call("slow", "safe_action", {}, batch_id="slow-batch", index=0, size=1),
+            ToolRoundComplete(response_id="slow-batch"),
+        )
+        await _wait_until(lambda: tools.started.is_set())
+        brain.emit(TurnComplete(status="cancelled"))
+        await asyncio.sleep(0.02)
+        assert session.sm.state is State.THINKING
+        assert "slow-batch" in session._tool_batches
+        assert brain.sent_tool_results == []
+
+        tools.release.set()
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert tools.effects == [("safe_action", {})]
+    finally:
+        await session.aclose()
+
+
+async def test_completed_batch_side_effects_execute_in_provider_index_order():
+    class OrderedTools(ApprovalTools):
+        def __init__(self) -> None:
+            super().__init__()
+            self.started: list[int] = []
+            self.release_first = asyncio.Event()
+
+        async def dispatch(self, name: str, args: dict, *, execution_context=None) -> dict:
+            marker = int(args["marker"])
+            self.started.append(marker)
+            if marker == 1:
+                await self.release_first.wait()
+            return await super().dispatch(name, args, execution_context=execution_context)
+
+    brain = LiveFake()
+    tools = OrderedTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "first", "safe_action", {"marker": 1}, batch_id="ordered", index=0, size=2
+            ),
+            _batched_call(
+                "second", "safe_action", {"marker": 2}, batch_id="ordered", index=1, size=2
+            ),
+            ToolRoundComplete(response_id="ordered"),
+        )
+        await _wait_until(lambda: tools.started == [1])
+        await asyncio.sleep(0.02)
+        assert tools.started == [1]
+        assert brain.sent_tool_results == []
+
+        tools.release_first.set()
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert tools.started == [1, 2]
+        assert tools.effects == [
+            ("safe_action", {"marker": 1}),
+            ("safe_action", {"marker": 2}),
+        ]
+        assert [item["id"] for item in brain.sent_tool_results[0]] == ["first", "second"]
+    finally:
+        await session.aclose()

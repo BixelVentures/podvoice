@@ -28,11 +28,20 @@ class AudioChunk:
 
 @dataclass
 class ToolCall:
-    """A function call the model wants dispatched (to the tool router)."""
+    """A completed-response function call ready for the tool router.
+
+    Batch metadata lets an engine treat sibling calls atomically without inferring
+    intent from names. Providers that cannot expose a batch retain the backwards-
+    compatible one-call defaults.
+    """
 
     id: str
     name: str
     args: dict
+    response_id: str | None = None
+    batch_id: str | None = None
+    batch_index: int = 0
+    batch_size: int = 1
 
 
 @dataclass
@@ -64,6 +73,7 @@ class TurnComplete:
 
     status: str = "completed"
     error: str | None = None
+    response_id: str | None = None
 
 
 @dataclass
@@ -76,6 +86,8 @@ class ToolRoundComplete:
     marker to forget the tool-decision response without publishing/closing the held
     announce stream.  The following ``TurnComplete`` belongs to the spoken answer.
     """
+
+    response_id: str | None = None
 
 
 @dataclass

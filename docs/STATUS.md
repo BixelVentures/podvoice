@@ -5,8 +5,10 @@ Senest opdateret: 2026-08-21.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv kandidat:** v1.13.26 (`73c4efa`). **Aktuel gate:** stop-the-line på
-provider-PCM-replay; kandidaten er ikke åbnet for en ny fysisk golden chain.
+**Aktiv softwarekandidat:** v1.13.27 (endnu ikke committed/pushed). **Aktuel gate:**
+maskinel kontrakt bestået, men kandidaten er endnu ikke release- eller fysisk
+godkendt. Uafhængig adversarial score er **93/100 med nul kendte P0/P1**; de resterende
+point kræver live Realtime-eval, add-on-image og fysisk Voice PE-bevis på de samme bits.
 
 - **Observeret fejl:** Trace `20260821T103257-225` havde diagnostisk “Hvad er
   klokken?”, men Realtime kaldte intet værktøj og gav et irrelevant fysisk svar.
@@ -22,13 +24,17 @@ provider-PCM-replay; kandidaten er ikke åbnet for en ny fysisk golden chain.
 - **Nærliggende fejlveje:** Forkert lydudsnit, ændret værktøjsskema, eval-sideeffekt,
   schema-overload, TPM/rate-limit, stale trace, forkert rumkontekst og forveksling af
   providerbevis med fysisk puckbevis.
-- **Frosne ikke-mål:** Prompt V5, model, gain 16, VAD, noise, firmware,
+- **Frosne ikke-mål:** Promptens almindelige V5-adfærd, model, gain 16, VAD, noise, firmware,
   announcement-playback, semantisk afslutning, timeout, teardown og rearm ændres ikke.
-- **Faktisk ændring:** Sand OpenAI/Voice PE-readiness, strukturel half-duplex-clamp og
-  en isoleret replay med fuldt produktionsskema, faste lokale værktøjsresultater,
-  samplegrænser og schema-hash.
-- **Maskinel evidens:** 509/509 tests, Ruff, format, mypy, 10 panel-scripts og GitHub
-  ARM64-build er grønne. Prompt-, firmware-, gain- og VAD-diff er tom.
+- **Faktisk ændring i v1.13.27-kandidaten:** Providerens tool-kandidater frigives kun
+  efter en korreleret, completed respons; schemas og ACKs valideres fail-closed;
+  følsomme handlinger kræver en server-ejet, næste-tur-bundet engangsgodkendelse;
+  HA-mål opløses frisk og dispatches som det samme kanoniske mål; og ét fælles
+  providerbudget beskytter tool-resultat/farvel mod TPM-udtømning. Prompt V6 ændrer kun
+  den minimale approval-protokol. Audio, gain, VAD, firmware og playback er uændrede.
+- **Maskinel evidens:** 622/622 tests, Ruff, format, mypy og diff-check er grønne efter
+  seneste budgetfix. CPython 3.12/musllinux-aarch64 kan resolve alle pinned runtimehjul,
+  inklusive `jsonschema`; en komplet add-on-containerbuild mangler stadig.
 - **Uafhængig review:** NO-GO for replay som beslutningsbevis. De nuværende
   `provider_sample_offset` afspejler tidspunktet, hvor eventet behandles, ikke OpenAIs
   autoritative `audio_start_ms`/`audio_end_ms`; den kendte v1.13.25-trace mangler
@@ -37,12 +43,12 @@ provider-PCM-replay; kandidaten er ikke åbnet for en ny fysisk golden chain.
 - **Afvigelse fra planen:** Panelet kan vise et bestået audio-replay, selv når
   `schema_match` er ukendt. Resultatet må derfor ikke bruges til at godkende årsag,
   prompt, lydkæde eller fysisk golden chain.
-- **Næste korrektion:** Brug providerens egne VAD-felter i nye traces, mærk gamle traces
-  uden fuld provenance som diagnostiske, og isolér replay fra produktionens TPM-budget.
-  Der kræves nye race-, provenance- og samtidighedstests samt adversarial re-review.
-- **Rollback/grænse:** v1.13.11 forbliver fysisk baseline. v1.13.26 må installeres til
-  replay, men overtager ingen fysisk gate, før replay, frisk golden chain og 10/10
-  ubrudte cyklusser er bestået.
+- **Næste gate:** Commit/push de eksakte kandidatbits, lad ARM64 add-on-image bygge,
+  kør den sikre Prompt V6-live-eval, og først derefter én frisk golden chain samt 10/10
+  ubrudte fysiske cyklusser. Det gamle replay forbliver diagnostisk og kan ikke godkende
+  lydårsagen.
+- **Rollback/grænse:** v1.13.11 forbliver fysisk baseline. v1.13.27 overtager ingen
+  fysisk gate, før live-eval, image-build, frisk golden chain og 10/10 er bestået.
 
 ## Officiel OpenAI-kontraktaudit 21. august
 
@@ -52,7 +58,128 @@ VAD, transcription, rate limits, costs og GPT-Realtime-2.1. Tre uafhængige revi
 samlet af lead. **Auditten udvider stop-the-line fra replay til runtime-værktøjssikkerhed.**
 Ingen runtimekode, prompt, lyd, VAD eller firmware blev ændret under auditten.
 
-### Releaseblokkere
+### Aktiv udviklingsbeslutning — providerfinalitet og serverautorisation
+
+**Beslutning taget før releasegodkendelse; nedenstående er krav og hypoteser, ikke
+opnåede resultater.** Kandidaten forbliver stop-the-line og må ikke installeres som
+normal runtime eller åbnes for fysisk golden chain, før resultatafsnittet senere kan
+dokumentere alle gates som bestået.
+
+- **Observeret/auditeret fejl:** `response.function_call_arguments.done` kunne starte
+  HA-/lifecycle-sideeffekter før owning `response.done`; følsomme handlinger havde kun
+  promptbeskyttelse; tool-output og flere causale client-events manglede korreleret ACK.
+- **Falsificerbar implementeringshypotese:** Hvis værktøjskandidater stages per
+  providerrespons og kun frigives atomisk efter eksplicit `status=completed`, og hvis
+  alle sideeffekter passerer en server-ejet, sessions-/tur-/argumentbundet policy, kan
+  cancelled, malformed, stale og uautoriserede kald give præcis nul sideeffekter uden at
+  ændre Realtime-ejet sprogforståelse eller den fysiske half-duplex-kæde.
+- **Berørte invarianter:** Livscyklus 3, 4, 6, 9, 10 og 12 samt ejerskabet “Realtime
+  vælger; serveren autoriserer; Thin ejer samtalen”. Særligt skal en batch med en
+  godkendelseskrævende handling og `end_conversation` forblive åben; en low-risk handling
+  plus semantisk afslutning må først lukke efter samlet resultat og fysisk farvel.
+- **Valgt retning:** Provider-neutrale tool-events får response-/batchidentitet.
+  Kandidater valideres og registreres samlet før første dispatch. Højrisiko afgiver en
+  serverholdt challenge; en senere, completed-gated intern approval-beslutning må kun
+  frigive den eksakte gemte handling én gang i samme session. Ingen lokal fraseliste
+  eller diagnostisk ASR-tekst må godkende eller afvise brugerens mening.
+- **Schema-/capability-sandhed:** Et dynamisk værktøj må ikke annonceres, hvis dets
+  schema ikke kan valideres af runtime. Enten bruges fuld standardsvalidering, eller
+  deklarationen filtreres før `session.update`, og capability markeres degraded med
+  årsag. Mid-turn “annonceret men umulig” er ikke acceptabelt.
+- **ACK-/readiness-sandhed:** Kun accepteret `session.updated` må betyde provider-klar.
+  Tool-output skal være item-kvitteret før `response.create`; fejl på create, truncate
+  og clear skal korreleres til deres operation og fejle lukket.
+- **Frosne ikke-mål:** Promptens almindelige samtale-, routing-, sprog- og lydpolitik,
+  model, audio, gain, VAD, firmware, playback-lease, timeout, teardown og wake-rearm må
+  ikke tunes i kandidaten. Den eneste tilladte promptændring er den minimale protokol
+  for det nye reserverede `approve_action`: Realtime må efter en klar semantisk
+  bekræftelse på den umiddelbart næste tur sende det eksakte serverudstedte challenge-id,
+  men må aldrig gentage eller ændre den oprindelige handling. Ændringen versionsmærkes
+  særskilt og kræver prompt-contract- samt semantisk eval; den må ikke bruges til at
+  tune de kendte input-/svarfejl. Den seneste irrelevante tidsrespons og det gamle
+  replaybevis er fortsat uløste og må ikke erklæres repareret af
+  værktøjssikkerhedsarbejdet.
+- **Maskinel gate:** Rå providerpermutationer skal dække completed/cancelled/failed/
+  incomplete/manglende status, late/duplicate/cross-response call-id, malformed schema,
+  multi-call atomik og ACK-fejl. Thin/Talk/Voice PE-kontrakten skal dække approval på en
+  senere tur, expiry/replay/sessionteardown, følsom handling plus close, tool-round-
+  ordering og næste wake. Alle eksisterende tests, typecheck, lint, build og uafhængig
+  adversarial review skal være grønne med mindst 97/100 og nul P0/P1.
+- **Rollback:** Ændringen er add-on-only og må ikke kræve firmwareflash. Enhver failed
+  gate kasserer kandidaten samlet; v1.13.11 forbliver fysisk baseline. Der pushes ingen
+  release/version og udføres ingen fysisk test, før ovenstående er dokumenteret som
+  faktiske resultater i et separat afsnit.
+
+#### Faktisk delresultat — fælles providerbudget
+
+Det historiske auditfund nedenfor om ignoreret `rate_limits.updated` var korrekt for den
+installerede baseline. Den aktive, endnu ikke releasegodkendte kandidat har nu én
+procesbred koordinator per envejs-hashet API-nøgleidentitet og model:
+
+- Voice PE og Talk tager ved provider-connect straks en 15.000-token
+  produktionslease gennem hele socket-generationen. Den venter aldrig bag eval og
+  bevarer kapacitet til første svar plus en mulig tool-/farvelopfølgning. Kendt
+  utilstrækkelig kapacitet fejler før socket og sideeffekt; ukendt budget tillader højst
+  én produktionssession og ingen eval.
+- Hver preflight-/replay-prøve reserverer 15.000 tokens plus 15.000 tokens uberørt
+  produktionsheadroom. Kun én eval-prøve kan være aktiv per nøgle/model. En fysisk eller
+  Talk-session kan starte under den aktive prøve; næste prøve afvises, indtil
+  produktionen er lukket.
+- Providerens token-`limit`, `remaining` og `reset_seconds` afstemmes på et monotont ur.
+  Completed `response.done` debiterer tekst-/lydinput og -output på den eksakte
+  generation/evallease én gang. Et staged produktionsværktøj frigives kun, når usage er
+  eksplicit, typet og ikke-negativ, og samme lease fortsat ejer mindst 6.000 tokens til
+  tool-resultat/farvel; ellers udsendes nul `ToolCall`/`ToolRoundComplete` og dermed nul
+  sideeffekt. Duplicate terminalevents, stale generationer, reconnect, fejl og teardown
+  kan ikke frigive den aktuelle lease eller debitere samme respons igen. Ingen afsluttet
+  tur autogenkøres.
+- Nye samtidigheds-/permutationstests dækker eval→produktion, to evals, ukendt og
+  utilstrækkeligt budget, providerreset, forbrug, duplicate terminalevent og idempotent
+  release. Hele den aktuelle suite bestod 622/622 uden sandboxens loopback-begrænsning;
+  Ruff og mypy bestod for de berørte provider-/evalfiler.
+
+Som en bevidst konservativ P2-begrænsning er produktionskapaciteten serialiseret: et
+samtidigt Talk-/andet-rum-forsøg afvises straks i stedet for at blive køet. Den aktive
+ene samtale ændres ikke; parallelle rum kræver en senere selvstændig kapacitetsgate.
+
+Dette er maskinel kontraktevidens, ikke live provider-, fysisk lyd- eller
+releasegodkendelse. Prompt, model, audio, gain, VAD, firmware og playback er uændrede;
+v1.13.11 forbliver fysisk baseline, og kandidatens samlede adversarial review/build og
+fysiske gates er fortsat åbne.
+
+#### Samlet maskinelt resultat for v1.13.27-kandidaten
+
+- Providerens `function_call_arguments.done` er kun staging. Først en korreleret
+  `response.done(status=completed)` registrerer hele batchen atomisk, og en eksakt
+  `ToolRoundComplete(response_id=...)` må frigive den. Cancelled, failed, incomplete,
+  ukendt status, malformed JSON/schema, duplicate/late call-id og manglende commit giver
+  nul dispatch og nul semantisk close.
+- `session.updated` er readiness-grænsen. Preconnect-lyd tømmes i rækkefølge, og tool-
+  output, `response.create`, clear og truncate har generationbundne event-id'er, ACKs,
+  fejlkorrelation og watchdogs.
+- `ExecutionPolicy` validerer og autoriserer uafhængigt af prompten. Følsomme handlinger
+  bliver serverholdte challenges og kan kun udføres én gang efter en klar beslutning på
+  den umiddelbart næste tur i samme session. Ændrede argumenter, session, tur, udløb,
+  replay eller et andet input fejler lukket. En højrisikohandling plus afslutning holder
+  samtalen åben; en godkendt lavrisikohandling udføres før farvel.
+- HA-mutationer bruger frisk, autoritativ målresolution. Det mål, der autoriseres, er
+  det samme eksakte entity-id, der dispatches. Områder, navne, klima, private læsninger,
+  inverse lock/cover/valve-handlinger og argument-smuggling har særskilte regressions.
+- Eval bruger de samme reserverede deklarationer, resultatformater, approval-policy og
+  commitgrænser som produktion, men faste sideeffektfrie fixtures. Rapporten skelner
+  effektivt evalschema, produktionsschema og reserved-kontrakten.
+- Uafhængig adversarial review: **93/100**, fordelt 25/25 providerfinalitet, 29/30
+  autorisation/HA, 19/20 ACK/readiness/budget, 15/15 lifecycle/adapters og 5/10
+  releaseevidens. Der er nul kendte P0/P1; manglende point er live/image/fysisk bevis.
+- Endelig lokal maskinel gate på de aktuelle bits: **622/622 tests**, Ruff, formattering,
+  mypy og diff-check grønne. Det er nødvendigt softwarebevis, ikke releasegodkendelse.
+
+### Historiske releaseblokkere — maskinelt lukket i v1.13.27-kandidaten
+
+Punkterne nedenfor beskriver de fejl, auditten fandt i v1.13.26. De er bevaret som
+årsags- og regressionshistorik, men er **ikke** aktuelle P0/P1-fund i den nye kandidat.
+Completed-gaten, serverautorisationen, korrelerede ACKs, streng status/schema-validering
+og det fælles providerbudget er nu dækket af rå eventpermutationer og den samlede suite.
 
 1. **P0 — et annulleret eller ufuldstændigt modelsvar kan nå at udføre et værktøj.**
    PodVoice sender i dag `response.function_call_arguments.done` direkte videre til
@@ -116,16 +243,14 @@ Ingen runtimekode, prompt, lyd, VAD eller firmware blev ændret under auditten.
 - Den normale tool-resultatsekvens — `function_call_output` med samme `call_id`,
   derefter én `response.create` — følger API'et; den mangler blot ACK/error-sikkerhed.
 
-### Bindende næste gate
+### Oprindelig gate efter auditten — gennemført maskinelt
 
-Ingen ny fysisk golden chain, 10/10-serie, funktionsmatrix eller lifecycle-release må
-køres eller godkendes, før P0-punkterne er lukket og testet med rå
-provider-eventrækkefølger. Sideeffektende hjemmeværktøjer må indtil da kun optræde som
-sikre fixtures; read-only diagnostik er tilladt. Først implementeres completed-bundet
-tool-staging og server-ejet approval. Derefter ensartede event-ID/ACK-fejlgrænser,
-provider-sand readiness og rate-limitbudget. Audio-replay/proveniens rettes separat.
-Prompt, gain, VAD, firmware og playback må fortsat ikke ændres for at maskere disse
-providerkontraktfejl.
+Completed-bundet tool-staging, server-ejet approval, event-ID/ACK-fejlgrænser,
+provider-sand readiness og et fælles rate-limitbudget er nu implementeret og maskinelt
+testet. Den næste bindende gate er derfor ikke mere kode på disse hypoteser, men
+reproducerbar releaseevidens: add-on-image, live Prompt V6-eval og fysisk Voice PE.
+Audio-replay/proveniens er fortsat et separat uløst diagnosespor. Promptens almindelige
+adfærd, gain, VAD, firmware og playback må fortsat ikke ændres for at maskere det.
 
 ## Aktuel feltstatus 21. august
 

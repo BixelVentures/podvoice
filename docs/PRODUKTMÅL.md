@@ -36,6 +36,14 @@ på sin egen højttaler eller blive dødt efter få samtaler.
   tur skal have serverkvitteret command-, session-, turn- og provider-item-id, før den
   vises som afleveret; stale socket-/playback-events er virkningsløse.
 - Classic/direct kan ikke aktiveres via gamle eller nye settings.
+- Funktionskandidater må kun dispatches efter completed, response-id-bundet batchcommit;
+  cancelled, incomplete, malformed, duplicate og stale provider-events skal give nul
+  sideeffekter.
+- Følsomme handlinger kræver en server-ejet, eksakt, næste-tur-bundet engangsgodkendelse.
+  Promptbekræftelse alene er aldrig autorisation, og teardown/replay annullerer alt
+  ventende.
+- Sideeffekter kræver autoritativ provider-usage og reserveret kapacitet til den
+  efterfølgende kvittering eller afslutning. Eval må ikke reducere fysisk headroom.
 
 ### Maskinel adgangsgate før fysisk test
 
@@ -49,6 +57,8 @@ På præcis kandidatens bits skal følgende være grønt, før brugeren bedes ta
   semantisk lukning uden HA/MCP/PodConnect-sideeffekter;
 - trace-replay, der afviser manglende/dobbelte/omvendte wake-, provider-, playback-,
   close-, capture- og rearm-events.
+- rå providerpermutationer for completed/cancelled/failed/incomplete, schema/ACK-fejl,
+  multi-call atomik, approval replay/expiry og rate-limit før sideeffekt.
 
 Live-preflight bruger et hårdt turn-, token-, pris- og timeoutloft. Et korrekt tekstsvar
 uden korrekt beslutning, session eller lifecycle er en fejl. Maskingaten kan stoppe en
