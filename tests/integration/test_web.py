@@ -144,6 +144,86 @@ async def test_live_eval_status_rejects_unknown_or_malformed_run_ids():
         assert missing.status == 404
 
 
+async def test_audio_replay_endpoint_uses_only_local_trace_and_known_eval_text():
+    calls: list[dict] = []
+
+    class Recorder:
+        def snapshot(self):
+            return {"latest": {"id": "trace-one", "room": "r0"}}
+
+        def replay_turn(self, trace_id, *, turn_index=0):
+            assert trace_id == "trace-one"
+            return {
+                "trace_id": trace_id,
+                "room": "r0",
+                "turn_index": turn_index,
+                "rate": 24000,
+                "pcm": b"\x01\x00" * 24000,
+                "duration_ms": 1000,
+                "sha256": "a" * 64,
+                "diagnostic_transcript": "Hvad er klokken?",
+                "exact_sample_offsets": True,
+                "source_tool_schema_sha256": "c" * 64,
+            }
+
+    async def live_eval(**kwargs):
+        calls.append(kwargs)
+        return {
+            "ok": True,
+            "status": "running",
+            "kind": "audio-replay",
+            "run_id": "eval-replay",
+        }
+
+    brain = type("Brain", (), {"room_context": "Det præcise fysiske rum"})()
+    session = type("Session", (), {"brain": brain})()
+    app = create_app(
+        StatusHub(),
+        {"r0": session},
+        live_eval=live_eval,
+        audio_trace=Recorder(),
+    )
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post("/api/eval/replay", json={"repeats": 3})
+        assert response.status == 202
+        body = await response.json()
+        assert body["kind"] == "audio-replay"
+        assert calls[0]["action"] == "replay"
+        assert calls[0]["scenario"].id == "time-followup"
+        assert calls[0]["turn_index"] == 0
+        assert calls[0]["repeats"] == 3
+        assert calls[0]["fixture"].room_context == "Det præcise fysiske rum"
+        assert calls[0]["fixture"].source_tool_schema_sha256 == "c" * 64
+
+
+async def test_audio_replay_endpoint_rejects_unknown_transcript_without_provider_call():
+    class Recorder:
+        def snapshot(self):
+            return {"latest": {"id": "trace-unknown", "room": "r0"}}
+
+        def replay_turn(self, trace_id, *, turn_index=0):
+            return {
+                "trace_id": trace_id,
+                "room": "r0",
+                "turn_index": turn_index,
+                "rate": 24000,
+                "pcm": b"\x00\x00" * 24000,
+                "duration_ms": 1000,
+                "sha256": "b" * 64,
+                "diagnostic_transcript": "En ukendt testytring",
+                "exact_sample_offsets": True,
+            }
+
+    async def live_eval(**kwargs):
+        raise AssertionError("unknown traces must not reach the provider")
+
+    app = create_app(StatusHub(), {}, live_eval=live_eval, audio_trace=Recorder())
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post("/api/eval/replay", json={})
+        assert response.status == 409
+        assert "kendt sikker eval-ytring" in (await response.json())["error"]
+
+
 async def test_acceptance_report_is_conservative(tmp_path):
     hub = StatusHub()
     hub.set_service("openai", "up")

@@ -171,11 +171,10 @@ def from_options(opts: dict) -> Config:
         # Voice Assistant handshake and therefore cannot be revived by stale settings.
         speaker_path="announce",
         panel_lan_open=bool(opts.get("panel_lan_open", False)),
-        # 0.68: full-duplex (open-mic voice barge-in) is now an EXPERIMENTAL opt-in. The
-        # XMOS AEC keeps the assistant's own voice out of mic channel 0; the provider's
-        # server VAD detects real speech during a reply and interrupts (Interrupted ->
-        # playback flush + instant device stop via the 0.67 direct path). Default off.
-        full_duplex=bool(opts.get("full_duplex", False)),
+        # The physical Voice PE release is unconditionally half-duplex. Browser Talk
+        # opts into duplex in its separate adapter; no stale/raw option may lower the
+        # puck's echo shield or enable provider-side interruption.
+        full_duplex=False,
         # Floor the follow-up window: a stale saved 0 (or any sub-floor value) collapses
         # LOUNGE_WINDOW to IDLE within a tick (observed: lounge->idle in 8ms), killing the
         # grace window, snapping the music back instantly, and closing the WS every turn.

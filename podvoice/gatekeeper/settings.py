@@ -248,9 +248,12 @@ def load_settings(path: pathlib.Path | None = None) -> dict:
     except Exception as e:  # corrupt file must not stop the add-on
         _LOG.warning("could not read %s: %s — using defaults", src, e)
     # Architecture invariants, not user preferences. Old settings cannot resurrect a
-    # second engine or the stock-VA-dependent direct speaker experiment.
+    # second engine, the stock-VA-dependent direct speaker experiment, or the parked
+    # full-duplex puck path. Talk opts into browser duplex in its own adapter wiring;
+    # this persisted value is exclusively the physical Voice PE configuration.
     data["engine"] = "thin"
     data["speaker_path"] = "announce"
+    data["full_duplex"] = False
     return data
 
 
@@ -318,6 +321,7 @@ def save_settings(values: dict, path: pathlib.Path | None = None) -> dict:
         data[k] = _coerce(k, v, DEFAULTS[k])
     data["engine"] = "thin"
     data["speaker_path"] = "announce"
+    data["full_duplex"] = False
     src.parent.mkdir(parents=True, exist_ok=True)
     src.write_text(json.dumps(data, indent=2))
     _LOG.info("settings saved to %s", src)

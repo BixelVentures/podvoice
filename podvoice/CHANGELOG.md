@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.13.26 — levende readiness og præcise OpenAI-fejl
+
+- Test-fanen kan nu genafspille den præcise 24 kHz-lyd, som blev sendt til OpenAI i
+  seneste armerede samtale. Én tekstkontrol og tre friske audio-sessioner bruger den
+  aktive prompt, model, rumkontekst og hele produktionslisten af værktøjsdeklarationer,
+  mens alle værktøjsresultater er faste og ingen HA-, MCP- eller PodConnect-handling kan
+  udføres. Resultatet skelner kontraktfejl, stabil lydforståelse, lydspecifik fejl og
+  modelvariation.
+- Nye lydbeviser gemmer sample-præcise grænser for device-, provider- og svarsporet samt
+  hash af det eksakte værktøjsskema. Replay kan derfor ikke kalde et andet udsnit eller
+  et andet værktøjssæt for samme bevis. Ældre spor kan kun replayes sikkert på første
+  tur før fysisk playback og markeres eksplicit som estimeret udsnit.
+- Panelet viser nu `wake-klar`, `forbundet - wake afprøves` og `offline` som tre
+  forskellige Voice PE-sandheder. En rå native forbindelse er ikke længere det samme
+  som bevist wake-readiness.
+- OpenAI-status skelner mellem standby, senest accepterede Realtime-session, manglende
+  saldo/kredit, midlertidig ratebegrænsning, afvist API-nøgle, timeout og netværksfejl.
+- Serviceårsag og kilde sendes live over panelets eventstrøm, også når farven ikke
+  ændrer sig. Den periodiske nøglekontrol må ikke længere overskrive en konkret
+  runtimefejl med det upræcise “API-nøgle fundet”.
+- TalkHub implementerer samme service-statuskontrakt som det globale StatusHub. En
+  OpenAI-readinessopdatering med årsag og kilde kan derfor ikke længere afbryde en
+  Talk-samtale ved wake.
+- Fysisk Voice PE er strukturelt half-duplex ved settings-, config- og buildergrænsen.
+  En gammel eller rå `full_duplex=true`-værdi kan ikke sænke puckens ekkogate; kun den
+  særskilte Talk-adapter bruger browser-duplex.
+- Produktionsprompt, modelvalg, værktøjsrouting, firmware, gain, VAD,
+  playbackrækkefølge, teardown og wake-rearm er uændrede.
+
 ## 1.13.25 — Realtime vælger det præcise tidsfelt
 
 - Realtime ejer fortsat hele forståelsen og vælger nu ét eller flere eksplicitte

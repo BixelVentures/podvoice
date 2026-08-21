@@ -26,8 +26,10 @@ bruges senere til at måle modellens variation, ikke til at vælge et heldigt sv
 
 Live-eval er opt-in og bruger `SafeEvalTools`. Routeren indeholder ingen HA-, MCP-
 eller PodConnect-klient og returnerer kun faste testresultater. Et ukendt værktøj
-nægtes. Dermed kan den rigtige produktionsprompt og Realtime-model testes uden at
-tænde lys, starte musik eller ændre hjemmet.
+nægtes. Når add-onen kalder evalueringen, eksponeres den fulde aktuelle liste af
+produktionsdeklarationer for Realtime, men dispatch forbliver den sikre lokale router.
+Dermed kan den rigtige produktionsprompt, Realtime-model og værktøjskonkurrence testes
+uden at tænde lys, starte musik eller ændre hjemmet.
 
 I add-on-panelets Test-fane køres samme afgrænsede suite med **Kør sikker preflight**.
 Det ingressbeskyttede endpoint er `POST /api/eval/live`; requesten kan kun vælge kendte
@@ -47,6 +49,35 @@ for et autentificeret ingress-endpoint.
 Hver kørsel har hårde lofter for antal ture, reserverede outputtokens, faktiske
 tokens og estimeret pris. Faktiske tokenfelter gemmes særskilt, så prisestimater
 kan opdateres uden at ændre det oprindelige bevis.
+
+## Genafspilning af fysisk provider-lyd
+
+**Genafspil seneste OpenAI-lyd 3×** tager kun lyd fra PodVoices lokale, armerede
+audio-trace. Den kan ikke modtage en brugerleveret lydfil eller en fri forventning via
+API'et. Den diagnostiske transskription skal matche en kendt eval-ytring præcist, før
+kørslen accepteres.
+
+Replay udfører fire friske sessioner under samme model, aktive prompt, rumkontekst og
+fulde deklarationsliste:
+
+1. én tekstkontrol med den kendte ytring;
+2. tre realtime-paced afspilninger af præcis provider-PCM'en.
+
+Hver session er separat, så et heldigt tidligere svar eller gammel kontekst ikke kan
+farve næste resultat. Der er hårde token-, pris-, tids- og TPM-lofter. Rapporten gemmer
+PCM-hash, udsnitsmetode, diagnostisk transskription, prompt-hash og værktøjsskema-hash.
+Et nyt trace har sample-præcise eventgrænser. Et ældre trace må kun bruge wall-clock-
+fallback på første tur før første playback og markeres som ikke sample-præcist.
+
+Klassifikationerne betyder:
+
+- `prompt-or-tool-contract-failure`: tekstkontrollen fejlede også;
+- `audio-replay-consistent`: alle tre lydkørsler valgte den forventede betydning;
+- `audio-specific-failure`: tekstkontrollen bestod, men ingen lydkørsel gjorde;
+- `audio-model-nondeterminism`: samme PCM gav forskellige resultater.
+
+Replay er providerdiagnostik. Den beviser ikke puckens wake, AEC, DAC, LED, playback-
+finish eller rearm og ændrer aldrig produktionskædens tilstand.
 
 ## PCM-fixtures
 

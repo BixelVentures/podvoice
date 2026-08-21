@@ -32,6 +32,18 @@ from gatekeeper.voice import (
 REPLY_URL = f"reply/{TALK_ROOM}.flac?t=tok"
 
 
+def test_talk_hub_accepts_the_full_statushub_service_contract():
+    """Provider readiness/error truth is shared code, never a Talk-only crash edge."""
+    wire = _Wire()
+    hub = TalkHub(wire.send_json)
+    hub.set_service(
+        "openai",
+        "up",
+        reason="Realtime-session accepteret",
+        source="aktiv Realtime-session",
+    )
+
+
 async def test_first_typed_message_waits_for_provider_ready_instead_of_sleeping():
     events: list[str] = []
 

@@ -1,6 +1,65 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-08-20.
+Senest opdateret: 2026-08-21.
+
+## Aktuel feltstatus 21. august
+
+Den installerede v1.13.25 registrerede efter en manuel Voice PE-genstart en rigtig
+fysisk wake kl. 09.57.53. Realtime-socketen nåede `provider_connected` efter 1.341 ms,
+men lukkede 116 ms senere som den generiske `error:connection`. Den faste fejllyd blev
+fysisk afspillet, teardown gennemførte én gang, og firmware kvitterede `wake_rearmed`
+83 ms efter playback-finish. Pucken og wake-motoren var dermed operationelle igen;
+prøven fejlede i providerleddet og tæller ikke som golden chain.
+
+Brugeren identificerede samtidig en sandsynlig manglende OpenAI-saldo. v1.13.25
+bevarede ikke den præcise providerfejlkode i status og kunne derfor ikke skelne
+`insufficient_quota` fra 429, ugyldig nøgle eller netværksbrud. Årsagen må ikke kaldes
+endeligt bevist ud fra den generiske trace alene.
+
+Efter saldoen var genoprettet gennemførte v1.13.25 en ny fysisk tur. Wake, én
+Realtime-session, fysisk playback, ekkogate, idle-close og wake-rearm fungerede;
+rearm kom 95 ms efter close-request. Inputtet blev imidlertid observeret som
+“Åh, bagklappen”, og Realtime forsøgte derfor korrekt ud fra sin opfattelse at sætte
+køkkenhøjttaleren på pause. Brugeren havde muligvis holdt en pause efter wakefrasen.
+Turen beviser provider- og lifecycle-recovery, men ikke korrekt same-breath-input og
+tæller hverken som golden chain eller som grundlag for gain-/VAD-tuning. Næste fysiske
+prøve skal have armeret device- og providerlyd og én naturlig ytring uden kunstig pause.
+
+Den aftalte, pausefri prøve kl. 10.32 blev optaget som trace
+`20260821T103257-225` og **fejlede også golden chain**. Den diagnostiske
+transskription var denne gang ordret “Hvad er klokken?”, men Realtime kaldte intet
+værktøj og svarede irrelevant, at den ikke kunne række eller flytte ting i den
+fysiske verden. `session.updated` var accepteret med `gpt-realtime-2.1`, dansk
+transskription, Prompt V5 og responsive VAD. Den mekaniske kæde bestod: playback
+startede 2.750 ms efter speech-stop, playback-finish frigav ekkogaten, idle-close
+gennemførte, og wakeword blev rearmet efter 91 ms. Device- og provider-sporet havde
+samme peak på 29,06 %, nul clipping og et ordret diagnostisk input; det er ikke i sig
+selv et lyttebevis for den native audiomodel.
+
+Umiddelbart efter bestod den isolerede, sikre Realtime-preflight alle fire scenarier
+med samme model og Prompt V5, herunder `Hvad er klokken?` →
+`get_time(fields=["time"])`, tidsopfølgninger, web-routing og semantisk afslutning.
+Det placerer fejlen i den fysiske audio-native beslutning eller den konkrete lyd, som
+Realtime modtog — ikke i en generelt manglende `get_time`-deklaration. Preflighten
+brugte dog den daværende reducerede sikre eval-liste og udelukker derfor ikke overload
+eller konkurrence i hele produktionsskemaet. Prompt, gain, VAD og lifecycle må ikke
+ændres ud fra denne ene tur.
+
+v1.13.26 er den afgrænsede statuskandidat. Den bevarer providerens seneste fejlkode,
+klassificerer saldo/kredit, rate-limit, nøgle, timeout og forbindelse separat og sender
+ændret årsag live til panelet, selv når servicefarven er uændret. Voice PE viser separat
+offline, forbundet/afprøves og fysisk wake-klar. Kandidaten lukker desuden en gammel
+konfigurationsrest: fysisk Voice PE er nu ubetinget half-duplex ved både settings-,
+config- og buildergrænsen; kun Talk-adapteren kan vælge browser-duplex. Den ændrer ingen
+prompt, model, værktøjsrouting, gain, VAD, firmware eller playbacksekvens og kræver ingen
+firmwareflash. Kandidaten tilføjer en isoleret diagnose: seneste provider-WAV kan
+genafspilles tre gange i friske Realtime-sessioner sammen med en tekstkontrol. Alle fire
+kørsler eksponerer den aktive prompt, rumkontekst og hele produktionsskemaet, men bruger
+en sikker lokal værktøjsrouter uden HA-, MCP- eller PodConnect-sideeffekter. Nye traces
+gemmer samplegrænser og værktøjsskema-hash; den eksisterende
+`20260821T103257-225`-trace kan kun bruge den eksplicit markerede legacy-estimering for
+første tur. Kandidaten er maskinelt grøn med 509 tests, Ruff, formatkontrol, mypy og
+panel-script-parsing. Add-on-containerbuild afventer fortsat en kørende Docker-motor.
 
 ## Officiel milepæl
 
@@ -59,7 +118,7 @@ Voice PE er half-duplex. Talk bruger samme `ThinSession`, men browserens full-du
 er kun software-/providerdiagnostik og ikke fysisk puckbevis. Classic, stock HA Assist og
 direct PCM er ikke produktionsveje.
 
-## Aktiv kandidat
+## Kandidat- og evidenshistorik
 
 v1.13.12 er truth-hardening oven på den beviste v1.13.11-baseline. Den gør mislykket
 mic-start/-stop synlig, venter på fysisk fejllyd, binder stopmålinger og historik til
@@ -309,15 +368,15 @@ svarede med klokkeslættet; denne tur er høre-mæssigt ukendt, indtil device- o
 providerlyden er gennemlyttet. En efterfølgende frisk wake gav korrekt dato og lukkede
 igen; det ændrer ikke den afviste gate. **Start ikke 10/10 på v1.13.24.**
 
-**v1.13.25 er den lokale korrektionskandidat.** Realtime ejer fortsat betydning og
+**v1.13.25 var korrektionskandidaten og er nu installeret.** Realtime ejer fortsat betydning og
 værktøjsvalg, men `get_time` kræver nu, at modellen vælger ét eller flere præcise
 tidsfelter: `time`, `date`, `weekday` eller `week_number`. Værktøjet returnerer kun de
 valgte felter med et fokuseret dansk svargrundlag. Der er ingen lokal ordliste,
 frasegenkendelse eller deterministisk hensigtsrouting. Eval-oraklet kontrollerer både
 værktøjsnavnet og modellens feltargument og afviser nu eksplicit `week_number` som svar
 på en forventet `weekday`. Lyd, Prompt V5, `gpt-realtime-2.1`, firmware, gain, VAD,
-half-duplex, playback, teardown og rearm er uændrede. Kandidaten må først kaldes fysisk
-testklar efter fuld CI, installeret live-preflight og den sædvanlige Talk/Thin-kæde.
+half-duplex, playback, teardown og rearm er uændrede. Dens aktuelle fysiske evidens og
+afgrænsningen til v1.13.26 står øverst i dette dokument.
 
 Den fulde gate omfatter Ruff, formatteringskontrol, mypy for 39 kildefiler, parsing af
 alle 10 panel-scriptblokke og reelle lokale

@@ -640,6 +640,10 @@ async def test_failed_mic_start_is_visible_and_never_connects_realtime():
         assert gemini.connect_count == 0
         assert session.sm.state is State.IDLE
         assert hub.snapshot()["services"]["voicepe"] == "down"
+        assert (
+            hub.snapshot()["service_details"]["voicepe"]["reason"]
+            == "Voice PE-mikrofonkanalen fejlede; wakeword blev rearmet"
+        )
         assert len(attention.release_calls) == 1
         assert voicepe.rearm_calls == 1
     finally:
@@ -1695,6 +1699,19 @@ async def test_recovered_rearm_is_usable_but_amber_until_a_physical_wake():
         await session.aclose()
 
 
+async def test_native_link_without_physical_wake_proof_stays_degraded():
+    hub = StatusHub()
+    session, _attention, voicepe = _build(LiveFake(), hub=hub)
+    voicepe.wake_readiness = "unknown"
+    voicepe.contract = {"ok": True}
+
+    session._on_link(True)
+
+    detail = hub.snapshot()["service_details"]["voicepe"]
+    assert hub.snapshot()["services"]["voicepe"] == "degraded"
+    assert detail["reason"] == "Voice PE er forbundet; wake-motoren afprøves"
+
+
 async def test_fault_retries_until_recovered_without_a_reboot():
     class RetryVoicePE(FakeVoicePELink):
         def __init__(self) -> None:
@@ -1744,8 +1761,10 @@ async def test_puck_gets_the_shield_talk_gets_duplex():
 
     src = inspect.getsource(main_mod)
     build = src[src.index("def _build_session") : src.index("def _make_talk")]
-    assert "full_duplex=cfg.full_duplex" in build  # puck follows settings (default OFF)
-    assert "interrupt_response=cfg.full_duplex" in build
+    assert "full_duplex=False" in build  # physical puck is structurally half-duplex
+    assert "interrupt_response=False" in build
+    assert "full_duplex=cfg.full_duplex" not in build
+    assert "interrupt_response=cfg.full_duplex" not in build
     talk = src[src.index("def _make_talk") :]
     assert "full_duplex=True" in talk  # Talk tab = proving ground (browser AEC)
     assert "interrupt_response=True" in talk

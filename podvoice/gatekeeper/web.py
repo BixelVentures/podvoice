@@ -360,6 +360,7 @@ def create_app(
             web.get("/api/audio-trace/{trace_id}/{stage}", _audio_trace_artifact),
             web.post("/api/eval/live", _live_eval),
             web.get("/api/eval/live", _live_eval_status),
+            web.post("/api/eval/replay", _audio_replay_eval),
             web.get("/api/events", _events),
             web.post("/api/control", _control),
             web.get("/api/console", _console_ws),
@@ -439,6 +440,90 @@ async def _live_eval_status(request: web.Request) -> web.Response:
         )
     report = await run(action="status", run_id=run_id)
     status = {"not_found": 404, "invalid": 400, "failed": 200}.get(report.get("status"), 200)
+    return web.json_response(report, status=status)
+
+
+async def _audio_replay_eval(request: web.Request) -> web.Response:
+    """Replay one known captured provider turn through safe, fixed eval tools."""
+    run = request.app[LIVE_EVAL]
+    recorder = request.app[AUDIO_TRACE]
+    if run is None or recorder is None:
+        return web.json_response(
+            {"ok": False, "status": "unavailable", "error": "Audio-replay er ikke tilgængelig."},
+            status=501,
+        )
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        body = {}
+    if not isinstance(body, dict):
+        return web.json_response(
+            {"ok": False, "status": "invalid", "error": "Body skal være et objekt."},
+            status=400,
+        )
+    repeats = body.get("repeats", 3)
+    trace_id = body.get("trace_id")
+    turn_index = body.get("turn_index", 0)
+    if (
+        not isinstance(repeats, int)
+        or not 1 <= repeats <= 5
+        or (trace_id is not None and not isinstance(trace_id, str))
+        or not isinstance(turn_index, int)
+        or turn_index < 0
+    ):
+        return web.json_response(
+            {"ok": False, "status": "invalid", "error": "Ugyldige replay-parametre."},
+            status=400,
+        )
+    latest = (recorder.snapshot().get("latest") or {}).get("id")
+    selected_trace = trace_id or latest
+    if not selected_trace:
+        return web.json_response(
+            {"ok": False, "status": "invalid", "error": "Der findes intet lydbevis."},
+            status=409,
+        )
+    try:
+        raw = recorder.replay_turn(selected_trace, turn_index=turn_index)
+        from .eval_harness import AudioReplayFixture, match_scenario_turn
+
+        matched = match_scenario_turn(raw["diagnostic_transcript"])
+        if matched is None:
+            return web.json_response(
+                {
+                    "ok": False,
+                    "status": "invalid",
+                    "error": "Den diagnostiske tekst matcher ikke en kendt sikker eval-ytring.",
+                },
+                status=409,
+            )
+        scenario, expected_index = matched
+        room = str(raw.get("room") or "")
+        session = request.app[SESSIONS].get(room)
+        room_context = str(getattr(getattr(session, "brain", None), "room_context", "") or "")
+        fixture = AudioReplayFixture(
+            trace_id=raw["trace_id"],
+            turn_index=raw["turn_index"],
+            pcm=raw["pcm"],
+            rate=raw["rate"],
+            duration_ms=raw["duration_ms"],
+            sha256=raw["sha256"],
+            diagnostic_transcript=raw["diagnostic_transcript"],
+            exact_sample_offsets=raw["exact_sample_offsets"],
+            room_context=room_context,
+            source_tool_schema_sha256=raw.get("source_tool_schema_sha256"),
+        )
+        report = await run(
+            action="replay",
+            fixture=fixture,
+            scenario=scenario,
+            turn_index=expected_index,
+            repeats=repeats,
+        )
+    except ValueError as exc:
+        return web.json_response({"ok": False, "status": "invalid", "error": str(exc)}, status=409)
+    status = {"running": 202, "busy": 409, "invalid": 400, "failed": 502}.get(
+        report.get("status"), 200
+    )
     return web.json_response(report, status=status)
 
 

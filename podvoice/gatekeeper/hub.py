@@ -332,7 +332,7 @@ class StatusHub:
         # connection. Keep one truth everywhere.
         if name == "brain":
             name = "openai"
-        self._service_details[name] = {
+        detail = {
             "status": status,
             "observed_at": time.time(),
             "reason": reason
@@ -343,9 +343,23 @@ class StatusHub:
             }.get(status, status),
             "source": source,
         }
-        if self._services.get(name) != status:
-            self._services[name] = status
-            self._broadcast({"type": "service", "name": name, "status": status})
+        previous = self._service_details.get(name, {})
+        changed = (
+            self._services.get(name) != status
+            or previous.get("reason") != detail["reason"]
+            or previous.get("source") != source
+        )
+        self._service_details[name] = detail
+        self._services[name] = status
+        if changed:
+            self._broadcast(
+                {
+                    "type": "service",
+                    "name": name,
+                    "status": status,
+                    "detail": dict(detail),
+                }
+            )
 
     def transcript_delta(self, room: str, direction: str, text: str) -> None:
         """A live partial token for the panel's streaming display — broadcast ONLY,

@@ -15,6 +15,7 @@ up to three WAV files plus an event manifest under /data, and keeps only a few r
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -157,6 +158,12 @@ class AudioTraceRecorder:
             for key, value in details.items()
             if isinstance(value, (str, int, float, bool)) or value is None
         }
+        # Bind future lifecycle evidence to the exact sample boundary in every
+        # recorded stream.  Wall-clock offsets are not sufficient after half-duplex
+        # playback because provider audio is deliberately gated and therefore no
+        # longer has the same duration as the physical capture.
+        for stage, bucket in self._stages.items():
+            clean.setdefault(f"{stage}_sample_offset", bucket.samples)
         self._events.append(
             {
                 "at_ms": round((time.monotonic() - self._started_mono) * 1000),
@@ -233,6 +240,120 @@ class AudioTraceRecorder:
         suffix = ".json" if stage == "manifest" else f"-{stage}.wav"
         target = self.path / f"{trace_id}{suffix}"
         return target if target.is_file() else None
+
+    def replay_turn(
+        self,
+        trace_id: str,
+        *,
+        turn_index: int = 0,
+        pre_ms: int = 600,
+        post_ms: int = 800,
+    ) -> dict[str, Any]:
+        """Return one bounded provider-PCM turn for a no-side-effect eval.
+
+        New traces use exact provider sample offsets.  Old traces may only replay
+        the first user turn and only when no physical playback preceded it; in that
+        one case provider PCM still has the same origin as the capture timeline.
+        """
+        if not _SAFE_ID.fullmatch(trace_id) or turn_index < 0:
+            raise ValueError("Ugyldigt lydbevis eller turnummer")
+        manifest_path = self.artifact(trace_id, "manifest")
+        provider_path = self.artifact(trace_id, "provider")
+        if manifest_path is None or provider_path is None:
+            raise ValueError("Lydbeviset mangler providerlyd")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        events = list(manifest.get("events") or [])
+        starts = [event for event in events if event.get("event") == "speech_started"]
+        if turn_index >= len(starts):
+            raise ValueError("Lydbeviset indeholder ikke den valgte brugertur")
+        start_event = starts[turn_index]
+        stop_event = next(
+            (
+                event
+                for event in events
+                if event.get("event") == "speech_stopped"
+                and int(event.get("at_ms") or 0) >= int(start_event.get("at_ms") or 0)
+            ),
+            None,
+        )
+        if stop_event is None:
+            raise ValueError("Brugerturen mangler speech_stopped")
+        with wave.open(str(provider_path), "rb") as source:
+            if source.getnchannels() != 1 or source.getsampwidth() != 2:
+                raise ValueError("Providerlyden er ikke mono PCM16")
+            rate = source.getframerate()
+            if rate != 24_000:
+                raise ValueError("Providerlyden er ikke 24 kHz")
+            samples = source.getnframes()
+            pcm = source.readframes(samples)
+
+        start_offset = start_event.get("provider_sample_offset")
+        stop_offset = stop_event.get("provider_sample_offset")
+        exact_offsets = isinstance(start_offset, int) and isinstance(stop_offset, int)
+        if exact_offsets:
+            speech_start = int(start_offset)
+            speech_stop = int(stop_offset)
+        else:
+            prior_playback = any(
+                event.get("event") in {"playback_requested", "playback_started"}
+                and int(event.get("at_ms") or 0) < int(stop_event.get("at_ms") or 0)
+                for event in events
+            )
+            if turn_index != 0 or prior_playback:
+                raise ValueError("Ældre lydbevis mangler præcise sample-offsets for denne tur")
+            speech_start = round(int(start_event.get("at_ms") or 0) * rate / 1000)
+            speech_stop = round(int(stop_event.get("at_ms") or 0) * rate / 1000)
+
+        begin = max(0, speech_start - round(pre_ms * rate / 1000))
+        end = min(samples, speech_stop + round(post_ms * rate / 1000))
+        if speech_stop <= speech_start or end <= begin:
+            raise ValueError("Lydbevisets talegrænser er ugyldige")
+        duration_ms = round((end - begin) * 1000 / rate)
+        if duration_ms < 250 or duration_ms > 8_000:
+            raise ValueError("Den valgte brugertur er uden for replay-grænsen")
+        segment = pcm[begin * 2 : end * 2]
+        next_start_ms = (
+            int(starts[turn_index + 1].get("at_ms") or 0)
+            if turn_index + 1 < len(starts)
+            else 2**63 - 1
+        )
+        diagnostic = next(
+            (
+                str(event.get("text") or "").strip()
+                for event in events
+                if event.get("event") == "input_transcript"
+                and int(stop_event.get("at_ms") or 0)
+                <= int(event.get("at_ms") or 0)
+                < next_start_ms
+                and str(event.get("text") or "").strip()
+            ),
+            "",
+        )
+        source_contract = next(
+            (
+                event
+                for event in events
+                if event.get("event") == "provider_contract"
+                and isinstance(event.get("tool_schema_sha256"), str)
+            ),
+            None,
+        )
+        return {
+            "trace_id": trace_id,
+            "room": str(manifest.get("room") or ""),
+            "turn_index": turn_index,
+            "rate": rate,
+            "pcm": segment,
+            "duration_ms": duration_ms,
+            "sha256": hashlib.sha256(segment).hexdigest(),
+            "diagnostic_transcript": diagnostic,
+            "exact_sample_offsets": exact_offsets,
+            "source_tool_schema_sha256": (
+                str(source_contract["tool_schema_sha256"]) if source_contract else None
+            ),
+            "begin_sample": begin,
+            "end_sample": end,
+        }
 
     def _load_latest(self) -> dict[str, Any] | None:
         try:

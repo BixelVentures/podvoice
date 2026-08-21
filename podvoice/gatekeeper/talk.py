@@ -376,7 +376,17 @@ class TalkHub:
     def set_connected(self, room: str, ok: bool) -> None:
         pass
 
-    def set_service(self, name: str, status: str) -> None:
+    def set_service(
+        self,
+        name: str,
+        status: str,
+        *,
+        reason: str | None = None,
+        source: str | None = None,
+    ) -> None:
+        # StatusHub accepts runtime evidence metadata. Talk has no global service
+        # dashboard of its own, but it must implement the same call contract so a
+        # provider status update can never abort the shared ThinSession lifecycle.
         pass
 
     def set_level(self, room: str, level: int) -> None:

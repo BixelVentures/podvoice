@@ -28,6 +28,19 @@ def test_panel_header_shows_running_version_from_status():
     html = PANEL.read_text()
 
     assert 'if (data && data.version) bits.push("v" + data.version);' in html
+    assert 'connected ? "status live" : "status forbinder…"' in html
+
+
+def test_service_status_is_live_and_names_runtime_truths():
+    html = PANEL.read_text()
+
+    assert "JSON.stringify([services || {}, details || {}])" in html
+    assert "lastStatus.service_details[ev.name] = ev.detail" in html
+    assert '"wake-klar"' in html
+    assert '"forbundet - wake afprøves"' in html
+    assert '"standby - ikke prøvet"' in html
+    assert '"klar ved seneste samtale"' in html
+    assert '"ratebegrænset"' in html
 
 
 def test_living_room_test_script_is_visible_in_panel():
@@ -157,15 +170,19 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     html = PANEL.read_text()
 
     assert 'id="eval_live"' in html
+    assert 'id="eval_replay"' in html
     assert 'id="eval_result"' in html
     assert 'fetch("api/eval/live"' in html
     assert 'fetch("api/eval/live?run_id="' in html
+    assert 'fetch("api/eval/replay"' in html
     assert 'data.status === "running" || data.status === "busy"' in html
     assert "poll(data.run_id, generation)" in html
     assert '"Årsag: " + (finding.message' in html
     assert "data.prompt_source" in html
     assert "brugerdefineret prompt" in html
     assert "kan ikke styre hjemmet, musik eller timere" in html
+    assert "audio-model-nondeterminism" in html
+    assert "tool-schema-mismatch" in html
 
 
 def test_panel_does_not_claim_unverified_stop_and_labels_capability_truth():

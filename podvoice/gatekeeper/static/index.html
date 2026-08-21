@@ -365,6 +365,7 @@
       <h2>Maskinel Realtime-preflight</h2>
       <p class="sub" style="margin:2px 0 10px">Kører den rigtige model og produktionsprompt med faste, sikre testdata. Den kan ikke styre hjemmet, musik eller timere og erstatter ikke den fysiske test.</p>
       <button id="eval_live">Kør sikker preflight</button>
+      <button id="eval_replay" class="ghost">Genafspil seneste OpenAI-lyd 3×</button>
       <div id="eval_result" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
     </div>
     <div class="section">
@@ -624,14 +625,14 @@ function renderSub(data) {
   var bits = ["Dansk taleassistent"];
   if (data && data.version) bits.push("v" + data.version);
   if (data && data.simulate) bits.push("simulation");
-  bits.push(connected ? "forbundet" : "forbinder…");
+  bits.push(connected ? "status live" : "status forbinder…");
   sub.textContent = bits.join(" · ");
   sub.style.color = connected ? "" : "var(--amber)";
 }
 
 function renderServices(services, details) {
   var wrap = document.getElementById("svc");
-  var signature = JSON.stringify(services || {});
+  var signature = JSON.stringify([services || {}, details || {}]);
   if (wrap.dataset.signature === signature) return;
   wrap.dataset.signature = signature; wrap.innerHTML = "";
   var announcements = [];
@@ -642,7 +643,18 @@ function renderServices(services, details) {
     // Do not invent one client TTL for services with very different cadences.
     var cls = st === "up" ? "pill-up" : st === "degraded" ? "pill-degraded" : "pill-down";
     var p = el("span", "pill " + cls);
-    var label = st === "up" ? "verificeret" : st === "degraded" ? "ikke verificeret" : "utilgængelig";
+    var reason = String(detail.reason || "").toLowerCase();
+    var label;
+    if (name === "voicepe") {
+      label = st === "up" ? "wake-klar" : st === "degraded" ? "forbundet - wake afprøves" : "offline";
+    } else if (name === "openai") {
+      label = st === "up" ? "klar ved seneste samtale" :
+        reason.indexOf("saldo") >= 0 || reason.indexOf("kredit") >= 0 ? "mangler kredit" :
+        reason.indexOf("ratebegrænset") >= 0 ? "ratebegrænset" :
+        st === "degraded" ? "standby - ikke prøvet" : "fejl";
+    } else {
+      label = st === "up" ? "verificeret" : st === "degraded" ? "ikke verificeret" : "utilgængelig";
+    }
     p.appendChild(document.createTextNode(SVC_LABEL[name] + ": " + label));
     p.title = [detail.reason, detail.source].filter(Boolean).join(" · ");
     wrap.appendChild(p);
@@ -853,7 +865,13 @@ function applyEvent(ev) {
     rm.state = ev.state; if (ev.level != null) rm.level = ev.level; rm.ducked = !!ev.ducked;
     renderRooms();
   } else if (ev.type === "service") {
-    if (lastStatus) { lastStatus.services = lastStatus.services || {}; lastStatus.services[ev.name] = ev.status; renderServices(lastStatus.services, lastStatus.service_details || {}); }
+    if (lastStatus) {
+      lastStatus.services = lastStatus.services || {};
+      lastStatus.service_details = lastStatus.service_details || {};
+      lastStatus.services[ev.name] = ev.status;
+      if (ev.detail) lastStatus.service_details[ev.name] = ev.detail;
+      renderServices(lastStatus.services, lastStatus.service_details);
+    }
   } else if (ev.type === "metrics") {
     var m = {}; Object.keys(METRIC_LABEL).forEach(function (k) { if (ev[k] != null) m[k] = ev[k]; });
     if (lastStatus) lastStatus.metrics = m;
@@ -1133,14 +1151,16 @@ setInterval(function () {
 // ---- Bounded live Realtime preflight; fixed tools, no HA/MCP side effects ----
 (function () {
   var button = document.getElementById("eval_live");
+  var replayButton = document.getElementById("eval_replay");
   var box = document.getElementById("eval_result");
   var pollGeneration = 0;
-  if (!button || !box) return;
+  if (!button || !replayButton || !box) return;
   function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function renderRunning(data) {
     box.innerHTML = "";
     var suffix = data && data.run_id ? " · " + data.run_id : "";
-    box.appendChild(ee("div", "empty", "Kører fire sikre scenarier mod Realtime" + suffix + ". Tier-1-pacing kan tage op til fem minutter…"));
+    var label = data && data.kind === "audio-replay" ? "Genafspiller den samme providerlyd mod Realtime" : "Kører sikker Realtime-test";
+    box.appendChild(ee("div", "empty", label + suffix + ". Tier-1-pacing kan tage op til fem minutter…"));
   }
   function render(data) {
     box.innerHTML = "";
@@ -1149,6 +1169,36 @@ setInterval(function () {
       failed.appendChild(ee("div", "who", "✕ Preflight fejlede"));
       failed.appendChild(document.createTextNode((data && data.error) || "Ingen gyldig rapport."));
       box.appendChild(failed); return;
+    }
+    if (data.kind === "audio-replay") {
+      var replayHead = ee("div", "line " + (data.ok ? "out" : "in"));
+      var labels = {
+        "audio-replay-consistent":"Samme lyd blev forstået konsekvent",
+        "audio-specific-failure":"Samme lyd fejlede konsekvent",
+        "audio-model-nondeterminism":"Samme lyd gav skiftende beslutninger",
+        "prompt-or-tool-contract-failure":"Tekstkontrollen fejlede også",
+        "tool-schema-mismatch":"Værktøjslisten er ændret siden optagelsen"
+      };
+      replayHead.appendChild(ee("div", "who", data.ok ? "✓ AUDIO-REPLAY BESTÅET" : "✕ AUDIO-REPLAY IKKE BESTÅET"));
+      replayHead.appendChild(document.createTextNode((labels[data.classification] || data.classification || "Ukendt resultat") + " · " + ((data.trace && data.trace.id) || "ukendt trace")));
+      if (data.trace && data.trace.schema_match === null) replayHead.appendChild(ee("div", "sub", "Ældre trace: oprindeligt værktøjsskema kan ikke bevises."));
+      if (data.trace && data.trace.schema_match === false) replayHead.appendChild(ee("div", "sub", "Replay blev stoppet før OpenAI-kald; optagelsen og kandidaten har forskellige værktøjsskemaer."));
+      box.appendChild(replayHead);
+      var rows = [];
+      if (data.control) rows.push({label:"Tekstkontrol", result:data.control});
+      (data.trials || []).forEach(function (trial, index) { rows.push({label:"Lyd " + (index + 1), result:trial}); });
+      rows.forEach(function (row) {
+        var result = row.result || {}, observation = result.observation || {};
+        var decisions = (observation.decisions || []).join(", ") || "direkte svar";
+        var line = ee("div", "line " + (result.passed ? "out" : "in"));
+        line.appendChild(ee("div", "who", (result.passed ? "✓ " : "✕ ") + row.label + " · " + decisions));
+        if (observation.diagnostic_transcript) line.appendChild(ee("div", "sub", "Diagnostisk tekst: “" + observation.diagnostic_transcript + "”"));
+        if (observation.answer) line.appendChild(ee("div", "sub", "Svar: “" + observation.answer + "”"));
+        (result.findings || []).forEach(function (finding) { line.appendChild(ee("div", "sub", "Årsag: " + (finding.message || finding.code))); });
+        box.appendChild(line);
+      });
+      if (data.budget) box.appendChild(ee("div", "sub", "Forbrug: " + (data.budget.actual_tokens || 0) + " tokens · estimeret $" + Number(data.budget.cost_usd || 0).toFixed(3)));
+      return;
     }
     var head = ee("div", "line " + (data.ok ? "out" : "in"));
     head.appendChild(ee("div", "who", data.ok ? "✓ MASKINEL PREFLIGHT BESTÅET" : "✕ MASKINEL PREFLIGHT IKKE BESTÅET"));
@@ -1195,7 +1245,7 @@ setInterval(function () {
   }
   button.onclick = async function () {
     var generation = ++pollGeneration;
-    button.disabled = true; renderRunning(null);
+    button.disabled = true; replayButton.disabled = true; renderRunning(null);
     try {
       var response = await fetch("api/eval/live", {method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
       var data = await response.json();
@@ -1203,7 +1253,19 @@ setInterval(function () {
         renderRunning(data); await poll(data.run_id, generation);
       } else { render(data); }
     } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre preflighten."}); }
-    finally { if (generation === pollGeneration) button.disabled = false; }
+    finally { if (generation === pollGeneration) { button.disabled = false; replayButton.disabled = false; } }
+  };
+  replayButton.onclick = async function () {
+    var generation = ++pollGeneration;
+    button.disabled = true; replayButton.disabled = true;
+    box.innerHTML = ""; box.appendChild(ee("div", "empty", "Genafspiller præcis den seneste providerlyd tre gange med sikre værktøjer…"));
+    try {
+      var response = await fetch("api/eval/replay", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({repeats:3})});
+      var data = await response.json();
+      if ((data.status === "running" || data.status === "busy") && data.run_id) await poll(data.run_id, generation);
+      else render(data);
+    } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre audio-replay."}); }
+    finally { if (generation === pollGeneration) { button.disabled = false; replayButton.disabled = false; } }
   };
   (async function resume() {
     try {
@@ -1211,9 +1273,9 @@ setInterval(function () {
       var data = await response.json();
       if (data.status === "running" && data.run_id) {
         var generation = ++pollGeneration;
-        button.disabled = true; renderRunning(data);
+        button.disabled = true; replayButton.disabled = true; renderRunning(data);
         await poll(data.run_id, generation);
-        if (generation === pollGeneration) button.disabled = false;
+        if (generation === pollGeneration) { button.disabled = false; replayButton.disabled = false; }
       } else if (data.status === "complete" || data.status === "failed") { render(data); }
     } catch (error) { /* A status lookup must never disable the rest of the panel. */ }
   })();

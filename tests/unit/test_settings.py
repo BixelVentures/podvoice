@@ -32,15 +32,22 @@ def test_legacy_lifecycle_settings_cannot_be_resurrected(tmp_path):
     p = tmp_path / "podvoice.json"
     p.write_text(
         json.dumps(
-            {"settings_version": S.SETTINGS_VERSION, "engine": "classic", "speaker_path": "direct"}
+            {
+                "settings_version": S.SETTINGS_VERSION,
+                "engine": "classic",
+                "speaker_path": "direct",
+                "full_duplex": True,
+            }
         )
     )
     loaded = S.load_settings(p)
     assert loaded["engine"] == "thin"
     assert loaded["speaker_path"] == "announce"
-    saved = S.save_settings({"engine": "classic", "speaker_path": "auto"}, p)
+    assert loaded["full_duplex"] is False
+    saved = S.save_settings({"engine": "classic", "speaker_path": "auto", "full_duplex": True}, p)
     assert saved["engine"] == "thin"
     assert saved["speaker_path"] == "announce"
+    assert saved["full_duplex"] is False
 
 
 def test_load_config_merges_settings_with_keys(tmp_path, monkeypatch):
@@ -129,6 +136,20 @@ def test_v4_drops_a_stale_full_duplex_flag(tmp_path):
     s = load_settings(p)
     assert s["full_duplex"] is False  # reset by the upgrade
     assert s["openai_turn"] == DEFAULTS["openai_turn"]
+
+
+def test_current_and_raw_config_cannot_enable_voicepe_full_duplex(tmp_path):
+    """Half-duplex is a production invariant, not a persisted preference.
+
+    Talk enables browser duplex in its adapter wiring. A current-version settings file
+    or a raw options dict must never lower the physical puck's echo shield.
+    """
+    from gatekeeper.config import from_options
+
+    p = tmp_path / "s.json"
+    p.write_text(json.dumps({"settings_version": S.SETTINGS_VERSION, "full_duplex": True}))
+    assert S.load_settings(p)["full_duplex"] is False
+    assert from_options({"full_duplex": True, "mic_channel": 0}).full_duplex is False
 
 
 def test_saved_prompt_naming_dead_tools_is_dropped(tmp_path):

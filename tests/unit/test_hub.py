@@ -34,7 +34,10 @@ async def test_subscribe_receives_broadcasts():
     assert hub.snapshot()["state_activity"][-1]["turn_cue"] is True
     hub.set_service("openai", "up")
     ev2 = await asyncio.wait_for(q.get(), timeout=1)
-    assert ev2 == {"type": "service", "name": "openai", "status": "up"}
+    assert ev2["type"] == "service"
+    assert ev2["name"] == "openai"
+    assert ev2["status"] == "up"
+    assert ev2["detail"]["reason"] == "Seneste kontrol lykkedes"
     hub.unsubscribe(q)
 
 
@@ -134,12 +137,30 @@ async def test_service_only_broadcasts_on_change():
     assert q.empty()
 
 
+async def test_service_broadcasts_a_new_live_reason_even_when_colour_is_unchanged():
+    hub = StatusHub()
+    q = await hub.subscribe()
+    hub.set_service(
+        "openai",
+        "down",
+        reason="Realtime-forbindelsen blev afbrudt",
+        source="aktiv session",
+    )
+    event = await asyncio.wait_for(q.get(), timeout=1)
+    assert event["status"] == "down"
+    assert event["detail"]["reason"] == "Realtime-forbindelsen blev afbrudt"
+    assert event["detail"]["source"] == "aktiv session"
+    assert q.empty()
+
+
 async def test_legacy_brain_service_is_canonical_openai_truth():
     hub = StatusHub()
     q = await hub.subscribe()
     hub.set_service("brain", "up")
     event = await asyncio.wait_for(q.get(), timeout=1)
-    assert event == {"type": "service", "name": "openai", "status": "up"}
+    assert event["type"] == "service"
+    assert event["name"] == "openai"
+    assert event["status"] == "up"
     assert "brain" not in hub.snapshot()["services"]
     assert hub.snapshot()["services"]["openai"] == "up"
     detail = hub.snapshot()["service_details"]["openai"]

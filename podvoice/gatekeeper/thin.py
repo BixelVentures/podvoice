@@ -14,6 +14,7 @@ import array
 import asyncio
 import contextlib
 import hashlib
+import json
 import logging
 import time
 from collections import OrderedDict
@@ -45,6 +46,25 @@ MAX_TYPED_TEXT_CHARS = 2000
 MAX_TALK_COMMAND_ID_CHARS = 128
 
 _LOG = logging.getLogger("podvoice.thin")
+
+
+def _provider_failure_reason(error: object) -> str:
+    """Translate provider failures into stable, actionable Danish status text."""
+    if isinstance(error, TimeoutError):
+        return "OpenAI svarede ikke inden timeout"
+    raw = str(error or "").lower()
+    if any(key in raw for key in ("insufficient_quota", "billing_hard_limit", "billing")):
+        return "OpenAI-kontoen mangler saldo eller kredit"
+    if any(key in raw for key in ("rate_limit", "rate limit", "too many requests", "429")):
+        return "OpenAI er midlertidigt ratebegrænset"
+    if any(key in raw for key in ("invalid_api_key", "incorrect api key", "unauthorized", "401")):
+        return "OpenAI API-nøglen blev afvist"
+    if any(key in raw for key in ("timeout", "timed out")):
+        return "OpenAI svarede ikke inden timeout"
+    if "session.update rejected" in raw:
+        return "OpenAI afviste sessionsopsætningen"
+    return "Realtime-forbindelsen blev afbrudt"
+
 
 # Hard ceiling on one conversation (the provider caps sessions at 60 min; close cleanly
 # well before so the family never hits a mid-sentence provider cut). Configurable per
@@ -473,12 +493,27 @@ class ThinSession:
                 _LOG.error("thin: Voice PE refused mic-forward start [room=%s]", self.room)
                 self._trace_event("mic_stream_start_failed")
                 if self.hub is not None:
-                    self.hub.set_service("voicepe", "down")
+                    self.hub.set_service(
+                        "voicepe",
+                        "down",
+                        reason="Voice PE kunne ikke åbne mikrofonkanalen",
+                        source="firmware-runtime",
+                    )
                 await self._fail("device")
                 return
             self._device_stream_fault = False
             if self.hub is not None:
-                self.hub.set_service("voicepe", "up" if self._voicepe_contract_ok() else "degraded")
+                ready = getattr(self.voicepe, "wake_readiness", "unknown") == "proven"
+                self.hub.set_service(
+                    "voicepe",
+                    "up" if self._voicepe_contract_ok() and ready else "degraded",
+                    reason=(
+                        "Voice PE er forbundet og wake-klar"
+                        if ready
+                        else "Voice PE er forbundet; wake-motoren afprøves"
+                    ),
+                    source="firmware-runtime",
+                )
         # Tool declarations are part of session.update, which connect() sends. Setting
         # them afterwards made HA/PodConnect changes arrive one conversation late.
         decls = list(self.tools.declarations()) if self.tools is not None else []
@@ -496,13 +531,39 @@ class ThinSession:
             )
         )
         self.brain.tool_declarations = decls
+        self._trace_event(
+            "provider_contract",
+            tool_count=len(decls),
+            tool_schema_sha256=hashlib.sha256(
+                json.dumps(
+                    decls,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest(),
+        )
         try:
             await asyncio.wait_for(self.brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
         except Exception as e:
             _LOG.warning("thin: provider connect failed: %s", e)
+            if self.hub is not None:
+                self.hub.set_service(
+                    "openai",
+                    "down",
+                    reason=_provider_failure_reason(e),
+                    source="aktiv Realtime-session",
+                )
             await self._fail("connection")
             return
         self._trace_event("provider_connected")
+        if self.hub is not None:
+            self.hub.set_service(
+                "openai",
+                "up",
+                reason="Realtime-session accepteret",
+                source="aktiv Realtime-session",
+            )
         if self.reply_bus is not None:
             self.reply_bus.clear(self.room)
         if self.tools is not None and getattr(self.tools, "healthy", True) is False:
@@ -775,9 +836,22 @@ class ThinSession:
                     _LOG.error("thin: Voice PE refused mic-forward stop [room=%s]", self.room)
                     self._trace_event("mic_stream_stop_failed")
                     if self.hub is not None:
-                        self.hub.set_service("voicepe", "down")
+                        self.hub.set_service(
+                            "voicepe",
+                            "down",
+                            reason="Voice PE kunne ikke lukke mikrofonkanalen",
+                            source="firmware-runtime",
+                        )
             except Exception as exc:
                 _LOG.warning("thin: mic-forward stop failed [room=%s]: %s", self.room, exc)
+                self._device_stream_fault = True
+                if self.hub is not None:
+                    self.hub.set_service(
+                        "voicepe",
+                        "down",
+                        reason="Voice PE mistede mikrofonkanalen under teardown",
+                        source="firmware-runtime",
+                    )
         if hasattr(self.voicepe, "drain_mic"):
             stale = self.voicepe.drain_mic()
             if stale:
@@ -882,6 +956,13 @@ class ThinSession:
         except Exception as e:
             _LOG.warning("thin: provider reader died (%s)", e)
             if self._active:
+                if self.hub is not None:
+                    self.hub.set_service(
+                        "openai",
+                        "down",
+                        reason=_provider_failure_reason(e),
+                        source="aktiv Realtime-session",
+                    )
                 await self._fail("connection")
 
     async def _keepalive_mic(self) -> None:
@@ -902,7 +983,12 @@ class ThinSession:
                     self._device_stream_fault = True
                     self._trace_event("mic_stream_keepalive_failed")
                     if self.hub is not None:
-                        self.hub.set_service("voicepe", "down")
+                        self.hub.set_service(
+                            "voicepe",
+                            "down",
+                            reason="Voice PE mistede mikrofonkanalen under samtalen",
+                            source="firmware-runtime",
+                        )
                     await self._fail("device")
                     return
 
@@ -1019,6 +1105,13 @@ class ThinSession:
                     if self._active:
                         self._enter_followup()
                     return
+                if self.hub is not None:
+                    self.hub.set_service(
+                        "openai",
+                        "down",
+                        reason=_provider_failure_reason(ev.error or ev.status),
+                        source="aktiv Realtime-session",
+                    )
                 await self._fail("connection")
                 return
             if self._turn_had_tool or self._speech_tools:
@@ -1786,7 +1879,12 @@ class ThinSession:
             self._rearm_retry_task.cancel()
             self._rearm_retry_task = None
         if self.hub is not None and self._voicepe_contract_ok():
-            self.hub.set_service("voicepe", "up")
+            self.hub.set_service(
+                "voicepe",
+                "up",
+                reason="Wakeword blev fysisk registreret",
+                source="firmware-runtime",
+            )
         _LOG.info(
             "thin: wake signal [room=%s] (active=%s muted=%s closing=%s speaking=%s)",
             self.room,
@@ -2096,13 +2194,24 @@ class ThinSession:
             return
         self.hub.set_connected(self.room, up)
         readiness = getattr(self.voicepe, "wake_readiness", "unknown")
-        if not up or readiness == "fault":
+        if not up or readiness == "fault" or self._device_stream_fault:
             service_state = "down"
-        elif readiness == "recovered":
+        elif readiness != "proven":
             service_state = "degraded"
         else:
             service_state = "up" if self._voicepe_contract_ok() else "degraded"
-        self.hub.set_service("voicepe", service_state)
+        reason = (
+            "Voice PE er offline"
+            if not up
+            else "Voice PE-mikrofonkanalen er fejlramt"
+            if self._device_stream_fault
+            else "Wake-motoren kunne ikke gøres klar"
+            if readiness == "fault"
+            else "Voice PE er forbundet; wake-motoren afprøves"
+            if readiness != "proven"
+            else "Voice PE er forbundet og wake-klar"
+        )
+        self.hub.set_service("voicepe", service_state, reason=reason, source="native forbindelse")
         if not up:
             self._spawn_link_warning()
 
@@ -2153,12 +2262,21 @@ class ThinSession:
             if ok and readiness == "proven"
             else "degraded"
         )
-        self.hub.set_service("voicepe", status)
         missing = (
             list(contract.get("missing_required", []))
             + [e for e in contract.get("missing_entities", []) if e == "media_player"]
             + list(contract.get("missing_capabilities", []))
         )
+        reason = (
+            "Firmwarekontrakten mangler: " + ", ".join(missing)
+            if not ok and missing
+            else "Voice PE er forbundet og wake-klar"
+            if status == "up"
+            else "Voice PE er forbundet; wake-motoren afprøves"
+            if status == "degraded"
+            else "Voice PE er ikke wake-klar"
+        )
+        self.hub.set_service("voicepe", status, reason=reason, source="firmwarekontrakt/runtime")
         if not ok and missing:
             self.hub.activity(
                 self.room,
@@ -2170,6 +2288,13 @@ class ThinSession:
             if hasattr(self.voicepe, "start_streaming"):
                 if await self.voicepe.start_streaming() is False:
                     self._device_stream_fault = True
+                    if self.hub is not None:
+                        self.hub.set_service(
+                            "voicepe",
+                            "down",
+                            reason="Voice PE kunne ikke genåbne mikrofonkanalen efter reconnect",
+                            source="firmware-runtime",
+                        )
                     raise RuntimeError("Voice PE kunne ikke åbne mic-forward")
                 self._device_stream_fault = False
         else:
@@ -2177,7 +2302,12 @@ class ThinSession:
                 if await self.voicepe.stop_streaming() is False:
                     self._device_stream_fault = True
                     if self.hub is not None:
-                        self.hub.set_service("voicepe", "down")
+                        self.hub.set_service(
+                            "voicepe",
+                            "down",
+                            reason="Voice PE kunne ikke lukke mikrofonkanalen ved reconnect",
+                            source="firmware-runtime",
+                        )
                     raise RuntimeError("Voice PE kunne ikke lukke mic-forward")
             # A reconnect/restart after a crashed conversation must also clear the
             # firmware latch; otherwise the puck can be online yet permanently deaf.
@@ -2213,7 +2343,16 @@ class ThinSession:
                     if self._voicepe_contract_ok()
                     else "degraded"
                 )
-                self.hub.set_service("voicepe", status)
+                self.hub.set_service(
+                    "voicepe",
+                    status,
+                    reason=(
+                        "Voice PE-mikrofonkanalen fejlede; wakeword blev rearmet"
+                        if self._device_stream_fault
+                        else "Wakeword er fysisk kvitteret og rearmet"
+                    ),
+                    source="firmware-runtime",
+                )
         else:
             self._trace_event("wake_rearm_recovered")
             _LOG.warning(
@@ -2221,7 +2360,12 @@ class ThinSession:
                 self.room,
             )
             if self.hub is not None:
-                self.hub.set_service("voicepe", "degraded")
+                self.hub.set_service(
+                    "voicepe",
+                    "degraded",
+                    reason="Voice PE er forbundet; wake-motoren afprøves",
+                    source="firmware-runtime",
+                )
                 self.hub.activity(
                     self.room,
                     "🟡 Wake-motor genstartet — klar, men bekræftes ved næste 'Okay Nabu'",
@@ -2237,7 +2381,12 @@ class ThinSession:
         if hasattr(self.voicepe, "wake_readiness"):
             self.voicepe.wake_readiness = "fault"
         if self.hub is not None:
-            self.hub.set_service("voicepe", "down")
+            self.hub.set_service(
+                "voicepe",
+                "down",
+                reason="Wake-motoren kunne ikke genstartes; prøver automatisk igen",
+                source="firmware-runtime",
+            )
 
         async def _retry() -> None:
             delays = (1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
@@ -2260,7 +2409,12 @@ class ThinSession:
                     if hasattr(self.voicepe, "wake_readiness"):
                         self.voicepe.wake_readiness = "fault"
                     if self.hub is not None:
-                        self.hub.set_service("voicepe", "down")
+                        self.hub.set_service(
+                            "voicepe",
+                            "down",
+                            reason="Wake-motoren kunne ikke genstartes; prøver igen",
+                            source="firmware-runtime",
+                        )
 
         task = self._spawn(_retry(), "thin-rearm-retry")
         self._rearm_retry_task = task

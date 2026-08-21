@@ -165,6 +165,9 @@ class OpenAIRealtimeSession:
     # cancel an answer whose physical playback has not even begun. Talk/browser AEC
     # explicitly enables it as the separate full-duplex proving surface.
     interrupt_response: bool = True
+    # Most recent provider error, retained until the next fresh socket.  This is
+    # observability only: Thin still owns the exact same close/rearm mechanics.
+    last_error: str | None = field(default=None, init=False)
     # Source-specific. Voice PE channel 1 already contains XMOS AEC+IC+NS, so its
     # default is off; Talk disables browser NS/AGC and uses OpenAI far_field instead.
     noise: str = "off"  # near_field | far_field | off
@@ -328,6 +331,7 @@ class OpenAIRealtimeSession:
         return {"type": "session.update", "session": session}
 
     async def connect(self) -> None:
+        self.last_error = None
         self._configured = False  # fresh socket -> fresh accept required
         self._configured_event.clear()
         # Fresh socket -> fresh state machine (a prior session may have died mid-response).
@@ -539,7 +543,8 @@ class OpenAIRealtimeSession:
         # ducked, with a dead brain and no error until the idle timeout (0.66 audit H3).
         # Raise so the orchestrator's reader posts ERROR -> audible clip + clean IDLE.
         if not self._deliberate_close:
-            raise ConnectionError("OpenAI realtime socket closed unexpectedly")
+            suffix = f": {self.last_error}" if self.last_error else ""
+            raise ConnectionError(f"OpenAI realtime socket closed unexpectedly{suffix}")
 
     async def _iter_events(self) -> AsyncIterator[VoiceEvent]:
         assert self._ws is not None
@@ -747,6 +752,11 @@ class OpenAIRealtimeSession:
                 self._configured_event.set()
             elif t == "error":
                 err = ev.get("error") or {}
+                self.last_error = " · ".join(
+                    str(value)
+                    for value in (err.get("code"), err.get("type"), err.get("message"))
+                    if value
+                ) or str(err)
                 if not self._configured:
                     # The 0.77 class: ONE bad field rejects the WHOLE session.update —
                     # prompt, tools and VAD silently never apply. Never run untuned:

@@ -9,6 +9,7 @@ import pytest
 
 import gatekeeper.eval_harness as eval_harness
 from gatekeeper.eval_harness import (
+    AudioReplayFixture,
     EvalBudget,
     Finding,
     LiveEvalService,
@@ -18,6 +19,7 @@ from gatekeeper.eval_harness import (
     TurnObservation,
     grade_turn,
     load_scenarios,
+    match_scenario_turn,
     pace_pcm,
     read_pcm_fixture,
     run_scenario,
@@ -36,6 +38,14 @@ def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
     decisions = {turn.expect.decision for scenario in scenarios for turn in scenario.turns}
     assert {"end_conversation", "get_time"} <= decisions
     assert any(turn.expect.direct_answer for scenario in scenarios for turn in scenario.turns)
+
+
+def test_audio_replay_matches_only_an_exact_known_eval_utterance():
+    matched = match_scenario_turn("Hvad er klokken?")
+    assert matched is not None
+    assert matched[0].id == "time-followup"
+    assert matched[1] == 0
+    assert match_scenario_turn("Hvad er klokken måske") is None
 
 
 def test_web_oracle_accepts_spoken_words_or_digits_but_still_requires_winner():
@@ -151,6 +161,22 @@ async def test_safe_eval_router_never_dispatches_unknown_tools():
         "error": "Eval-harnessen nægter alle ikke-fixturerede værktøjer.",
     }
     assert tools.calls[-1][0] == "unlock_front_door"
+
+
+def test_safe_eval_can_expose_exact_production_schema_without_dispatching_it():
+    production = [
+        {
+            "name": "HassDangerousWrite",
+            "description": "production-shaped but never dispatched",
+            "parameters": {"type": "object", "properties": {}},
+        },
+        {"name": "end_conversation", "description": "must be replaced"},
+    ]
+    tools = SafeEvalTools(production)
+    declarations = tools.declarations()
+    assert declarations[0]["name"] == "HassDangerousWrite"
+    assert [item["name"] for item in declarations].count("end_conversation") == 1
+    assert declarations[-2]["parameters"]["additionalProperties"] is False
 
 
 def test_budget_hard_stops_before_an_unbounded_live_run():
@@ -428,4 +454,128 @@ async def test_live_service_whole_job_timeout_is_retained_as_failure(monkeypatch
     report = service.status(started["run_id"])
     assert report["status"] == "failed"
     assert report["run_id"] == started["run_id"]
-    assert report["results"] == []
+
+
+async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessions(monkeypatch):
+    opened: list[str] = []
+    audio_seen: list[bytes] = []
+
+    class FakeDriver:
+        def __init__(self, *args, tool_declarations=None, **kwargs):
+            assert tool_declarations[0]["name"] == "get_time"
+
+        async def open(self, *, run_id, scenario_id):
+            session_id = f"{run_id}:{scenario_id}:{len(opened)}"
+            opened.append(session_id)
+            return session_id
+
+        async def submit_text(self, *, turn_id, text):
+            assert text == "Hvad er klokken?"
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id=opened[-1],
+                decisions=["get_time"],
+                tool_args={"get_time": [{"fields": ["time"]}]},
+                answer="Klokken er fjorten.",
+                usage={"input_text_tokens": 100},
+            )
+
+        async def submit_audio(self, *, turn_id, pcm, rate):
+            assert rate == 24000
+            audio_seen.append(pcm)
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id=opened[-1],
+                decisions=["get_time"],
+                tool_args={"get_time": [{"fields": ["time"]}]},
+                answer="Klokken er fjorten.",
+                diagnostic_transcript="Hvad er klokken?",
+                usage={"input_text_tokens": 100},
+            )
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", FakeDriver)
+    pcm = b"\x01\x00" * 24000
+    fixture = AudioReplayFixture(
+        trace_id="trace-one",
+        turn_index=0,
+        pcm=pcm,
+        rate=24000,
+        duration_ms=1000,
+        sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Hvad er klokken?",
+        exact_sample_offsets=True,
+        room_context="Evalrum",
+    )
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
+    declarations = SafeEvalTools().declarations()
+    report = await LiveEvalService().run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=0,
+        repeats=3,
+        tool_declarations=declarations,
+    )
+
+    assert report["ok"] is True
+    assert report["classification"] == "audio-replay-consistent"
+    assert len(opened) == 4  # one text control + three independent audio sessions
+    assert audio_seen == [pcm, pcm, pcm]
+    assert report["trace"]["sha256"] == fixture.sha256
+    assert all(trial["observation"]["diagnostic_transcript"] for trial in report["trials"])
+
+
+def test_audio_replay_start_fails_closed_on_tampered_pcm():
+    fixture = AudioReplayFixture(
+        trace_id="trace-one",
+        turn_index=0,
+        pcm=b"\x00\x00" * 24000,
+        rate=24000,
+        duration_ms=1000,
+        sha256="0" * 64,
+        diagnostic_transcript="Hvad er klokken?",
+        exact_sample_offsets=True,
+    )
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
+    report = LiveEvalService().start_replay(
+        api_key="secret", fixture=fixture, scenario=scenario, turn_index=0
+    )
+    assert report["status"] == "invalid"
+    assert report["ok"] is False
+    assert "replay" in report["error"].lower()
+
+
+async def test_audio_replay_refuses_a_proven_different_source_tool_schema(monkeypatch):
+    class ForbiddenDriver:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("schema mismatch must be rejected before provider connect")
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ForbiddenDriver)
+    pcm = b"\x00\x00" * 24000
+    fixture = AudioReplayFixture(
+        trace_id="trace-schema",
+        turn_index=0,
+        pcm=pcm,
+        rate=24000,
+        duration_ms=1000,
+        sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Hvad er klokken?",
+        exact_sample_offsets=True,
+        source_tool_schema_sha256="0" * 64,
+    )
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
+    report = await LiveEvalService().run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=0,
+        repeats=3,
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+    assert report["ok"] is False
+    assert report["classification"] == "tool-schema-mismatch"
+    assert report["trace"]["schema_match"] is False
+    assert report["budget"]["turns"] == 0

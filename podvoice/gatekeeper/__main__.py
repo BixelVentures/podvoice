@@ -140,7 +140,7 @@ def _build_session(
         # Voice PE ships half-duplex. Realtime may detect VAD edges, but it must not
         # cancel an answer while PodVoice is closing the physical mic gate. The Talk
         # surface below opts into true interruption separately.
-        interrupt_response=cfg.full_duplex,
+        interrupt_response=False,
     )
     voicepe = VoicePELink(room.voicepe_host, psk, room=room.room)
     voicepe.mic_channel = cfg.mic_channel
@@ -172,7 +172,7 @@ def _build_session(
         duck_level=cfg.duck_level,
         usage=usage,
         speaker_path=cfg.speaker_path,
-        full_duplex=cfg.full_duplex,
+        full_duplex=False,
         idle_timeout_s=cfg.idle_timeout_s,
         max_session_s=cfg.max_session_min * 60,
         audio_trace=audio_trace,
@@ -214,12 +214,16 @@ async def _health_probe(cfg: Config, hub: StatusHub, attention: AttentionClient)
                 source="aktiv probe",
             )
 
-        current = hub.snapshot()["services"].get("openai")
+        snapshot = hub.snapshot()
+        current = snapshot["services"].get("openai")
+        current_detail = snapshot["service_details"].get("openai", {})
         if not cfg.openai_api_key:
             hub.set_service(
                 "openai", "down", reason="OpenAI API-nøgle mangler", source="konfiguration"
             )
-        elif current != "up":
+        elif current_detail.get("source") == "konfiguration" or (
+            current == "down" and current_detail.get("observed_at") is None
+        ):
             hub.set_service(
                 "openai",
                 "degraded",
@@ -439,11 +443,33 @@ async def run(cfg: Config) -> None:
 
         live_eval_service = LiveEvalService()
 
-        async def live_eval(*, action="start", scenario_ids=None, run_id=None):
+        async def live_eval(
+            *,
+            action="start",
+            scenario_ids=None,
+            run_id=None,
+            fixture=None,
+            scenario=None,
+            turn_index=0,
+            repeats=3,
+        ):
             from .openai_realtime import MINI_MODEL
 
             if action == "status":
                 return live_eval_service.status(run_id)
+            declarations = tools.declarations() if tools is not None else []
+            if action == "replay":
+                return live_eval_service.start_replay(
+                    api_key=cfg.openai_api_key,
+                    fixture=fixture,
+                    scenario=scenario,
+                    turn_index=turn_index,
+                    repeats=repeats,
+                    model=MINI_MODEL if cfg.force_mini else cfg.openai_model,
+                    voice=cfg.openai_voice,
+                    instructions=cfg.system_prompt,
+                    tool_declarations=declarations,
+                )
             if action != "start":
                 return {"ok": False, "status": "invalid", "error": "Ukendt eval-handling."}
             return live_eval_service.start(
@@ -452,6 +478,7 @@ async def run(cfg: Config) -> None:
                 model=MINI_MODEL if cfg.force_mini else cfg.openai_model,
                 voice=cfg.openai_voice,
                 instructions=cfg.system_prompt,
+                tool_declarations=declarations,
             )
 
     app = create_app(

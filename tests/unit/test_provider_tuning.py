@@ -245,6 +245,31 @@ async def test_missing_item_created_ack_fails_without_response_create(monkeypatc
     assert [message["type"] for message in s._ws.sent] == ["conversation.item.create"]
 
 
+async def test_provider_error_is_retained_for_live_status_after_socket_close():
+    s = OpenAIRealtimeSession(api_key="k")
+    s._ws = _FakeWS(
+        [
+            _Msg(
+                json.dumps(
+                    {
+                        "type": "error",
+                        "error": {
+                            "code": "insufficient_quota",
+                            "type": "insufficient_quota",
+                            "message": "You exceeded your current quota",
+                        },
+                    }
+                )
+            )
+        ]
+    )  # type: ignore[assignment]
+    s._configured = True
+
+    await _drain(s)
+    assert s.last_error is not None
+    assert "exceeded your current quota" in s.last_error
+
+
 async def test_typed_input_without_socket_fails_loudly():
     s = OpenAIRealtimeSession(api_key="k")
     with pytest.raises(ConnectionError):

@@ -76,6 +76,72 @@ def test_event_detail_may_be_named_name(tmp_path):
     assert tool_event["call_id"] == "call-1"
 
 
+def test_trace_events_capture_exact_provider_sample_offsets_and_replay_a_turn(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    assert recorder.begin("r0") is True
+    recorder.event("provider_contract", tool_schema_sha256="a" * 64, tool_count=7)
+    silence = b"\x00\x00" * 2400
+    speech = (1200).to_bytes(2, "little", signed=True) * 2400
+    recorder.audio("provider", silence, 24000)
+    recorder.event("speech_started")
+    recorder.audio("provider", speech, 24000)
+    recorder.event("speech_stopped")
+    recorder.event("input_transcript", text="Hvad er klokken?")
+    recorder.audio("provider", silence, 24000)
+    manifest = recorder.finish("idle")
+
+    assert manifest is not None
+    speech_events = [event for event in manifest["events"] if event["event"].startswith("speech_")]
+    assert speech_events[0]["provider_sample_offset"] == 2400
+    assert speech_events[1]["provider_sample_offset"] == 4800
+    fixture = recorder.replay_turn(manifest["id"], pre_ms=100, post_ms=100)
+    assert fixture["exact_sample_offsets"] is True
+    assert fixture["diagnostic_transcript"] == "Hvad er klokken?"
+    assert fixture["source_tool_schema_sha256"] == "a" * 64
+    assert fixture["duration_ms"] == 300
+    assert fixture["begin_sample"] == 0
+    assert fixture["end_sample"] == 7200
+    assert len(fixture["sha256"]) == 64
+
+
+def test_old_trace_fallback_only_allows_first_turn_before_playback(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    trace_id = "old-trace"
+    provider = tmp_path / f"{trace_id}-provider.wav"
+    with wave.open(str(provider), "wb") as target:
+        target.setnchannels(1)
+        target.setsampwidth(2)
+        target.setframerate(24000)
+        target.writeframes(b"\x00\x00" * 96000)
+    (tmp_path / f"{trace_id}.json").write_text(
+        json.dumps(
+            {
+                "events": [
+                    {"at_ms": 1000, "event": "speech_started"},
+                    {"at_ms": 2000, "event": "speech_stopped"},
+                    {"at_ms": 2100, "event": "input_transcript", "text": "Hvad er klokken?"},
+                ]
+            }
+        )
+    )
+
+    fixture = recorder.replay_turn(trace_id)
+    assert fixture["exact_sample_offsets"] is False
+    assert fixture["source_tool_schema_sha256"] is None
+    assert fixture["duration_ms"] == 2400
+
+    raw = json.loads((tmp_path / f"{trace_id}.json").read_text())
+    raw["events"].insert(1, {"at_ms": 1500, "event": "playback_started"})
+    (tmp_path / f"{trace_id}.json").write_text(json.dumps(raw))
+    try:
+        recorder.replay_turn(trace_id)
+    except ValueError as exc:
+        assert "sample-offsets" in str(exc)
+    else:
+        raise AssertionError("legacy replay after playback must fail closed")
+
+
 def test_cleanup_removes_all_wavs_including_speaker(tmp_path):
     recorder = AudioTraceRecorder(tmp_path, keep=1)
     for name in ("old.json", "old-device.wav", "old-provider.wav", "old-speaker.wav"):

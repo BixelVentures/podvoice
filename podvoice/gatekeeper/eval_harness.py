@@ -43,6 +43,7 @@ from .thin import (
 )
 from .voice import (
     AudioChunk,
+    InputTranscript,
     OutputTranscript,
     SilentToolComplete,
     ToolCall,
@@ -82,6 +83,20 @@ class EvalScenario:
     turns: tuple[EvalTurn, ...]
 
 
+@dataclass(frozen=True)
+class AudioReplayFixture:
+    trace_id: str
+    turn_index: int
+    pcm: bytes
+    rate: int
+    duration_ms: int
+    sha256: str
+    diagnostic_transcript: str
+    exact_sample_offsets: bool
+    room_context: str = ""
+    source_tool_schema_sha256: str | None = None
+
+
 @dataclass
 class TurnObservation:
     turn_id: str
@@ -95,6 +110,7 @@ class TurnObservation:
     remain_open: bool = True
     elapsed_ms: int | None = None
     first_audio_ms: int | None = None
+    diagnostic_transcript: str = ""
     usage: dict[str, int] = field(default_factory=dict)
 
 
@@ -177,6 +193,18 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
             EvalScenario(scenario_id, str(entry.get("description") or ""), tuple(turns))
         )
     return tuple(scenarios)
+
+
+def match_scenario_turn(text: str) -> tuple[EvalScenario, int] | None:
+    """Match only an exact known eval utterance; never infer production intent."""
+    needle = _normalise(text)
+    matches = [
+        (scenario, index)
+        for scenario in load_scenarios()
+        for index, turn in enumerate(scenario.turns)
+        if _normalise(turn.text) == needle
+    ]
+    return matches[0] if len(matches) == 1 else None
 
 
 def _normalise(value: str) -> str:
@@ -334,10 +362,23 @@ class SafeEvalTools:
         "HassTurnOn": {"ok": True, "summary": "Tændt."},
     }
 
-    def __init__(self) -> None:
+    def __init__(self, declarations: list[dict[str, Any]] | None = None) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        if declarations is None:
+            self._declarations = self._safe_declarations()
+        else:
+            reserved = {"end_conversation", "wait_for_user"}
+            self._declarations = [
+                json.loads(json.dumps(item))
+                for item in declarations
+                if item.get("name") not in reserved
+            ]
+            self._declarations.extend(
+                [dict(END_CONVERSATION_DECLARATION), dict(WAIT_FOR_USER_DECLARATION)]
+            )
 
-    def declarations(self) -> list[dict[str, Any]]:
+    @staticmethod
+    def _safe_declarations() -> list[dict[str, Any]]:
         return [
             {
                 "name": "get_time",
@@ -384,6 +425,9 @@ class SafeEvalTools:
             dict(END_CONVERSATION_DECLARATION),
             dict(WAIT_FOR_USER_DECLARATION),
         ]
+
+    def declarations(self) -> list[dict[str, Any]]:
+        return json.loads(json.dumps(self._declarations))
 
     async def dispatch(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         self.calls.append((name, dict(args)))
@@ -515,12 +559,17 @@ class LiveRealtimeDriver:
         model: str = DEFAULT_MODEL,
         voice: str = DEFAULT_VOICE,
         instructions: str = SYSTEM_PROMPT_DA,
+        tool_declarations: list[dict[str, Any]] | None = None,
+        room_context: str = "Evalrum. Alle værktøjsresultater er faste testdata.",
+        interrupt_response: bool = True,
     ) -> None:
         self.api_key = api_key
         self.model = model
         self.voice = voice
         self.instructions = instructions
-        self.tools = SafeEvalTools()
+        self.tools = SafeEvalTools(tool_declarations)
+        self.room_context = room_context
+        self.interrupt_response = interrupt_response
         self.session: _ReadyRealtimeSession | None = None
         self.events: asyncio.Queue[Any] = asyncio.Queue()
         self.reader: asyncio.Task[None] | None = None
@@ -536,9 +585,9 @@ class LiveRealtimeDriver:
             instructions=self.instructions,
             input_rate=24_000,
             preset="responsive",
-            interrupt_response=True,
+            interrupt_response=self.interrupt_response,
             noise="off",
-            room_context="Evalrum. Alle værktøjsresultater er faste testdata.",
+            room_context=self.room_context,
             tool_declarations=self.tools.declarations(),
         )
         # Base dataclass does not invoke a subclass post-init unless declared there.
@@ -564,11 +613,27 @@ class LiveRealtimeDriver:
         if not self.is_open or self.session is None:
             raise RuntimeError("live eval session is not open")
         started = time.monotonic()
+        await self.session.send_text(text)
+        return await self._collect_turn(turn_id=turn_id, started=started)
+
+    async def submit_audio(self, *, turn_id: str, pcm: bytes, rate: int) -> TurnObservation:
+        """Replay exact provider PCM at real-time pace into a fresh Realtime session."""
+        if not self.is_open or self.session is None:
+            raise RuntimeError("live eval session is not open")
+        if rate != 24_000 or not pcm:
+            raise ValueError("audio replay requires non-empty 24 kHz provider PCM")
+        started = time.monotonic()
+        await pace_pcm(pcm, rate, self.session.send_audio)
+        return await self._collect_turn(turn_id=turn_id, started=started)
+
+    async def _collect_turn(self, *, turn_id: str, started: float) -> TurnObservation:
+        session = self.session
+        if session is None:
+            raise RuntimeError("live eval session is not open")
         observed = TurnObservation(turn_id=turn_id, session_id=self.session_id)
         output: list[str] = []
         usage = Usage()
         tool_round_seen = False
-        await self.session.send_text(text)
         while True:
             event = await self.events.get()
             if isinstance(event, Exception):
@@ -588,7 +653,7 @@ class LiveRealtimeDriver:
                 else:
                     response = await self.tools.dispatch(event.name, event.args)
                     suppress = False
-                await self.session.send_tool_results(
+                await session.send_tool_results(
                     [
                         {
                             "id": event.id,
@@ -607,6 +672,8 @@ class LiveRealtimeDriver:
                 # The provider emits deltas. Only the result response is authoritative.
                 if tool_round_seen or not observed.decisions:
                     output.append(event.text)
+            elif isinstance(event, InputTranscript):
+                observed.diagnostic_transcript = event.text
             elif isinstance(event, AudioChunk) and observed.first_audio_ms is None:
                 if tool_round_seen or not observed.decisions:
                     observed.first_audio_ms = round((time.monotonic() - started) * 1000)
@@ -667,6 +734,7 @@ class LiveEvalService:
         self._max_run_s = max_run_s
         self._job: asyncio.Task[None] | None = None
         self._active_run_id: str | None = None
+        self._active_kind: str | None = None
         self._started_at: float | None = None
         self._last_report: dict[str, Any] | None = None
 
@@ -682,6 +750,7 @@ class LiveEvalService:
         model: str = DEFAULT_MODEL,
         voice: str = DEFAULT_VOICE,
         instructions: str = SYSTEM_PROMPT_DA,
+        tool_declarations: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         if self._job is not None and not self._job.done():
             return {
@@ -701,6 +770,7 @@ class LiveEvalService:
             }
         run_id = self._new_run_id()
         self._active_run_id = run_id
+        self._active_kind = "preflight"
         self._started_at = time.time()
         self._job = asyncio.create_task(
             self._run_background(
@@ -710,6 +780,7 @@ class LiveEvalService:
                 model=model,
                 voice=voice,
                 instructions=instructions,
+                tool_declarations=tool_declarations,
             ),
             name=f"podvoice-live-eval-{run_id}",
         )
@@ -720,10 +791,75 @@ class LiveEvalService:
             "started_at": self._started_at,
         }
 
+    def start_replay(
+        self,
+        *,
+        api_key: str,
+        fixture: AudioReplayFixture,
+        scenario: EvalScenario,
+        turn_index: int,
+        repeats: int = 3,
+        model: str = DEFAULT_MODEL,
+        voice: str = DEFAULT_VOICE,
+        instructions: str = SYSTEM_PROMPT_DA,
+        tool_declarations: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Start an exact provider-audio replay with no production tool dispatch."""
+        if self._job is not None and not self._job.done():
+            return {
+                "ok": False,
+                "status": "busy",
+                "run_id": self._active_run_id,
+                "started_at": self._started_at,
+                "error": "En live-evaluering kører allerede.",
+            }
+        if (
+            repeats < 1
+            or repeats > 5
+            or fixture.rate != 24_000
+            or not fixture.pcm
+            or len(fixture.pcm) > fixture.rate * 2 * 8
+            or hashlib.sha256(fixture.pcm).hexdigest() != fixture.sha256
+            or turn_index < 0
+            or turn_index >= len(scenario.turns)
+        ):
+            return {"ok": False, "status": "invalid", "error": "Ugyldigt replay-bevis."}
+        run_id = self._new_run_id()
+        self._active_run_id = run_id
+        self._active_kind = "audio-replay"
+        self._started_at = time.time()
+        self._job = asyncio.create_task(
+            self._run_background(
+                operation="replay",
+                run_id=run_id,
+                api_key=api_key,
+                fixture=fixture,
+                scenario=scenario,
+                turn_index=turn_index,
+                repeats=repeats,
+                model=model,
+                voice=voice,
+                instructions=instructions,
+                tool_declarations=tool_declarations,
+            ),
+            name=f"podvoice-audio-replay-{run_id}",
+        )
+        return {
+            "ok": True,
+            "status": "running",
+            "kind": "audio-replay",
+            "run_id": run_id,
+            "started_at": self._started_at,
+        }
+
     async def _run_background(self, **kwargs: Any) -> None:
         run_id = str(kwargs["run_id"])
+        operation = str(kwargs.pop("operation", "scenarios"))
         try:
-            self._last_report = await self.run(**kwargs)
+            if operation == "replay":
+                self._last_report = await self.run_replay(**kwargs)
+            else:
+                self._last_report = await self.run(**kwargs)
         except asyncio.CancelledError:
             self._last_report = {
                 "ok": False,
@@ -746,7 +882,184 @@ class LiveEvalService:
         finally:
             if self._active_run_id == run_id:
                 self._active_run_id = None
+                self._active_kind = None
                 self._started_at = None
+
+    async def run_replay(
+        self,
+        *,
+        api_key: str,
+        fixture: AudioReplayFixture,
+        scenario: EvalScenario,
+        turn_index: int,
+        repeats: int,
+        model: str = DEFAULT_MODEL,
+        voice: str = DEFAULT_VOICE,
+        instructions: str = SYSTEM_PROMPT_DA,
+        tool_declarations: list[dict[str, Any]] | None = None,
+        run_id: str | None = None,
+    ) -> dict[str, Any]:
+        if self._lock.locked():
+            return {
+                "ok": False,
+                "status": "busy",
+                "run_id": self._active_run_id,
+                "error": "En live-evaluering kører allerede.",
+            }
+        async with self._lock:
+            run_id = run_id or self._new_run_id()
+            expected_turn = scenario.turns[turn_index]
+            budget = EvalBudget(max_actual_tokens=100_000, max_cost_usd=0.30)
+            effective_prompt = (instructions or SYSTEM_PROMPT_DA).strip()
+            prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA.strip()
+            effective_declarations = SafeEvalTools(tool_declarations).declarations()
+            prompt_metadata = {
+                "prompt_source": "default" if prompt_is_default else "custom",
+                "prompt_version": PROMPT_VERSION if prompt_is_default else None,
+                "prompt_sha256": hashlib.sha256(effective_prompt.encode()).hexdigest(),
+                "tool_schema_sha256": hashlib.sha256(
+                    json.dumps(
+                        effective_declarations,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ).encode()
+                ).hexdigest(),
+            }
+            schema_match = (
+                None
+                if fixture.source_tool_schema_sha256 is None
+                else fixture.source_tool_schema_sha256 == prompt_metadata["tool_schema_sha256"]
+            )
+            if schema_match is False:
+                return {
+                    "ok": False,
+                    "status": "complete",
+                    "kind": "audio-replay",
+                    "run_id": run_id,
+                    "model": model,
+                    **prompt_metadata,
+                    "classification": "tool-schema-mismatch",
+                    "control": None,
+                    "trials": [],
+                    "trace": {
+                        "id": fixture.trace_id,
+                        "turn_index": fixture.turn_index,
+                        "sha256": fixture.sha256,
+                        "source_tool_schema_sha256": fixture.source_tool_schema_sha256,
+                        "schema_match": False,
+                    },
+                    "budget": asdict(budget),
+                }
+            token_window_started = self._monotonic()
+            token_window_used = 0
+
+            async def pace_new_session() -> None:
+                nonlocal token_window_started, token_window_used
+                elapsed = self._monotonic() - token_window_started
+                if elapsed >= 60.0:
+                    token_window_started = self._monotonic()
+                    token_window_used = 0
+                elif token_window_used + self._next_scenario_reserve > self._tpm_soft_limit:
+                    wait_s = max(0.0, 60.5 - elapsed)
+                    if wait_s:
+                        await self._sleep(wait_s)
+                        budget.rate_limit_wait_s += wait_s
+                    token_window_started = self._monotonic()
+                    token_window_used = 0
+
+            async def one(index: int, *, audio: bool) -> TurnResult:
+                nonlocal token_window_used
+                await pace_new_session()
+                budget.reserve()
+                driver = LiveRealtimeDriver(
+                    api_key,
+                    model=model,
+                    voice=voice,
+                    instructions=effective_prompt,
+                    tool_declarations=tool_declarations,
+                    room_context=fixture.room_context,
+                    interrupt_response=False,
+                )
+                before_tokens = budget.actual_tokens
+                try:
+                    await driver.open(run_id=run_id, scenario_id=scenario.id)
+                    turn_id = f"{scenario.id}-{'audio' if audio else 'control'}-{index}"
+                    async with asyncio.timeout(25.0):
+                        observed = (
+                            await driver.submit_audio(
+                                turn_id=turn_id, pcm=fixture.pcm, rate=fixture.rate
+                            )
+                            if audio
+                            else await driver.submit_text(turn_id=turn_id, text=expected_turn.text)
+                        )
+                finally:
+                    await driver.close()
+                budget.record(observed.usage)
+                token_window_used += budget.actual_tokens - before_tokens
+                findings = grade_turn(expected_turn.expect, observed)
+                return TurnResult(
+                    observed.turn_id,
+                    expected_turn.text,
+                    not findings,
+                    observed,
+                    findings,
+                )
+
+            control: TurnResult | None = None
+            trials: list[TurnResult] = []
+            try:
+                async with asyncio.timeout(self._max_run_s):
+                    control = await one(0, audio=False)
+                    for index in range(1, repeats + 1):
+                        trials.append(await one(index, audio=True))
+            except Exception as exc:
+                message = str(exc).replace(api_key, "[REDACTED]")[:500]
+                return {
+                    "ok": False,
+                    "status": "failed",
+                    "kind": "audio-replay",
+                    "run_id": run_id,
+                    "model": model,
+                    **prompt_metadata,
+                    "error": message or type(exc).__name__,
+                    "control": asdict(control) if control else None,
+                    "trials": [asdict(result) for result in trials],
+                    "budget": asdict(budget),
+                }
+            passed = sum(result.passed for result in trials)
+            classification = (
+                "prompt-or-tool-contract-failure"
+                if control is not None and not control.passed
+                else "audio-replay-consistent"
+                if passed == repeats
+                else "audio-specific-failure"
+                if passed == 0
+                else "audio-model-nondeterminism"
+            )
+            return {
+                "ok": bool(control and control.passed and passed == repeats),
+                "status": "complete",
+                "kind": "audio-replay",
+                "run_id": run_id,
+                "model": model,
+                **prompt_metadata,
+                "trace": {
+                    "id": fixture.trace_id,
+                    "turn_index": fixture.turn_index,
+                    "duration_ms": fixture.duration_ms,
+                    "sha256": fixture.sha256,
+                    "diagnostic_transcript": fixture.diagnostic_transcript,
+                    "exact_sample_offsets": fixture.exact_sample_offsets,
+                    "source_tool_schema_sha256": fixture.source_tool_schema_sha256,
+                    "schema_match": schema_match,
+                },
+                "expected": {"scenario_id": scenario.id, "text": expected_turn.text},
+                "classification": classification,
+                "control": asdict(control) if control else None,
+                "trials": [asdict(result) for result in trials],
+                "budget": asdict(budget),
+            }
 
     def status(self, run_id: str | None = None) -> dict[str, Any]:
         if self._job is not None and not self._job.done():
@@ -755,6 +1068,7 @@ class LiveEvalService:
                     "ok": True,
                     "status": "running",
                     "run_id": self._active_run_id,
+                    "kind": self._active_kind,
                     "started_at": self._started_at,
                 }
         if self._last_report is not None and (
@@ -783,6 +1097,7 @@ class LiveEvalService:
         model: str = DEFAULT_MODEL,
         voice: str = DEFAULT_VOICE,
         instructions: str = SYSTEM_PROMPT_DA,
+        tool_declarations: list[dict[str, Any]] | None = None,
         run_id: str | None = None,
     ) -> dict[str, Any]:
         if self._lock.locked():
@@ -814,7 +1129,7 @@ class LiveEvalService:
                 "prompt_sha256": hashlib.sha256(effective_prompt.encode()).hexdigest(),
                 "tool_schema_sha256": hashlib.sha256(
                     json.dumps(
-                        SafeEvalTools().declarations(),
+                        SafeEvalTools(tool_declarations).declarations(),
                         ensure_ascii=False,
                         sort_keys=True,
                         separators=(",", ":"),
@@ -843,6 +1158,7 @@ class LiveEvalService:
                             model=model,
                             voice=voice,
                             instructions=effective_prompt,
+                            tool_declarations=tool_declarations,
                         )
                         before_tokens = budget.actual_tokens
                         results.append(
