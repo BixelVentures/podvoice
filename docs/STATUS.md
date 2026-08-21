@@ -5,10 +5,12 @@ Senest opdateret: 2026-08-21.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv softwarekandidat:** v1.13.27 (endnu ikke committed/pushed). **Aktuel gate:**
+**Aktiv softwarekandidat:** v1.13.27 (`47100d7`, branch
+`codex/v1.13.27-provider-safety`). **Aktuel gate:**
 maskinel kontrakt bestået, men kandidaten er endnu ikke release- eller fysisk
-godkendt. Uafhængig adversarial score er **93/100 med nul kendte P0/P1**; de resterende
-point kræver live Realtime-eval, add-on-image og fysisk Voice PE-bevis på de samme bits.
+godkendt. Efter grøn CI og ARM64-image er uafhængig adversarial score **95/100 med nul
+kendte P0/P1**. En sikker live Prompt V6-eval på de samme produktionsdeklarationer er
+den sidste maskinelle gate til 97/100; fysisk Voice PE-bevis er fortsat en separat gate.
 
 - **Observeret fejl:** Trace `20260821T103257-225` havde diagnostisk “Hvad er
   klokken?”, men Realtime kaldte intet værktøj og gav et irrelevant fysisk svar.
@@ -33,8 +35,8 @@ point kræver live Realtime-eval, add-on-image og fysisk Voice PE-bevis på de s
   providerbudget beskytter tool-resultat/farvel mod TPM-udtømning. Prompt V6 ændrer kun
   den minimale approval-protokol. Audio, gain, VAD, firmware og playback er uændrede.
 - **Maskinel evidens:** 622/622 tests, Ruff, format, mypy og diff-check er grønne efter
-  seneste budgetfix. CPython 3.12/musllinux-aarch64 kan resolve alle pinned runtimehjul,
-  inklusive `jsonschema`; en komplet add-on-containerbuild mangler stadig.
+  seneste budgetfix. GitHub CI-run `32476734925` bestod på de eksakte commitbits,
+  inklusive den komplette `linux/arm64` add-on-containerbuild med pinned `jsonschema`.
 - **Uafhængig review:** NO-GO for replay som beslutningsbevis. De nuværende
   `provider_sample_offset` afspejler tidspunktet, hvor eventet behandles, ikke OpenAIs
   autoritative `audio_start_ms`/`audio_end_ms`; den kendte v1.13.25-trace mangler
@@ -43,8 +45,8 @@ point kræver live Realtime-eval, add-on-image og fysisk Voice PE-bevis på de s
 - **Afvigelse fra planen:** Panelet kan vise et bestået audio-replay, selv når
   `schema_match` er ukendt. Resultatet må derfor ikke bruges til at godkende årsag,
   prompt, lydkæde eller fysisk golden chain.
-- **Næste gate:** Commit/push de eksakte kandidatbits, lad ARM64 add-on-image bygge,
-  kør den sikre Prompt V6-live-eval, og først derefter én frisk golden chain samt 10/10
+- **Næste gate:** Kør den sikre Prompt V6-live-eval på de installerede kandidatbits, og
+  først derefter én frisk golden chain samt 10/10
   ubrudte fysiske cyklusser. Det gamle replay forbliver diagnostisk og kan ikke godkende
   lydårsagen.
 - **Rollback/grænse:** v1.13.11 forbliver fysisk baseline. v1.13.27 overtager ingen
@@ -168,11 +170,13 @@ fysiske gates er fortsat åbne.
 - Eval bruger de samme reserverede deklarationer, resultatformater, approval-policy og
   commitgrænser som produktion, men faste sideeffektfrie fixtures. Rapporten skelner
   effektivt evalschema, produktionsschema og reserved-kontrakten.
-- Uafhængig adversarial review: **93/100**, fordelt 25/25 providerfinalitet, 29/30
-  autorisation/HA, 19/20 ACK/readiness/budget, 15/15 lifecycle/adapters og 5/10
-  releaseevidens. Der er nul kendte P0/P1; manglende point er live/image/fysisk bevis.
-- Endelig lokal maskinel gate på de aktuelle bits: **622/622 tests**, Ruff, formattering,
-  mypy og diff-check grønne. Det er nødvendigt softwarebevis, ikke releasegodkendelse.
+- Uafhængig adversarial review efter grøn ARM64-CI: **95/100**, fordelt 25/25
+  providerfinalitet, 29/30 autorisation/HA, 19/20 ACK/readiness/budget, 15/15
+  lifecycle/adapters og 7/10 releaseevidens. Der er nul kendte P0/P1; live Prompt V6-
+  eval på de eksakte produktionsdeklarationer er sidste maskinelle gate til 97/100.
+- Endelig maskinel gate på commit `47100d7`: **622/622 tests**, Ruff, formattering,
+  mypy og diff-check grønne lokalt og i CI; GitHub byggede desuden add-on-image til
+  `linux/arm64`. Det er nødvendigt softwarebevis, ikke live/fysisk releasegodkendelse.
 
 ### Historiske releaseblokkere — maskinelt lukket i v1.13.27-kandidaten
 
