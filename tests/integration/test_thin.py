@@ -1134,6 +1134,10 @@ async def test_provider_semantic_end_closes_varied_danish_meanings(user_text: st
         assert session._active is True
         session._on_media_state(False)
         await _wait_until(lambda: session.sm.state is State.IDLE)
+        # IDLE is published before the asynchronous physical rearm handshake has
+        # necessarily returned. Wait for the actual contract edge rather than
+        # sampling the task scheduler in the same tick.
+        await _wait_until(lambda: voicepe.rearm_calls == 1)
         assert len(attention.release_calls) == 1
         assert voicepe.rearm_calls == 1
     finally:

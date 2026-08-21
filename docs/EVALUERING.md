@@ -96,6 +96,21 @@ Hver kørsel har hårde lofter for antal ture, reserverede outputtokens, faktisk
 tokens og estimeret pris. Faktiske tokenfelter gemmes særskilt, så prisestimater
 kan opdateres uden at ændre det oprindelige bevis.
 
+På en frisk add-on-proces findes providerens authoritative tokenbudget først, når en
+Response er begyndt. Hver eksplicit live-eval udfører derfor højst én separat
+budgetprobe, når autoriteten mangler: en ny,
+værktøjsfri Realtime-session sender en kasseret out-of-band tekstresponse med højst 8
+outputtokens. Både `rate_limits.updated` og completed `response.done` skal observeres,
+probesessionen lukkes, og først derefter må en ny rigtig evalsession reserveres. Proben
+holder fortsat fuldt 15.000-token headroom til en fysisk samtale. Manglende eller
+malformed rate-event, timeout/providerfejl eller en fysisk session før den rigtige
+evalreservation stopper evalueringen; de gør aldrig budgettet implicit grønt. Der er
+ingen automatisk retry i samme run. Et senere eksplicit run må prøve igen efter en
+transient fejl, mens samtidige prober fortsat afvises. Rapportens
+`provider_budget_probe` viser særskilt faktisk usage/pris, når provider leverer den, og
+ellers den mekaniske reservation og konservative maksimumspris; proben tæller ikke som
+en semantisk evaltur.
+
 ## Genafspilning af fysisk provider-lyd
 
 **Genafspil seneste OpenAI-lyd 3×** tager kun lyd fra PodVoices lokale, armerede

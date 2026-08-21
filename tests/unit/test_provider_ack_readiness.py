@@ -15,7 +15,7 @@ from gatekeeper.openai_realtime import (
     OpenAIRealtimeSession,
     ProviderConfigurationError,
 )
-from gatekeeper.provider_budget import ProviderBudgetCoordinator, ProviderBudgetUnavailable
+from gatekeeper.provider_budget import BudgetLease, ProviderBudgetCoordinator
 from gatekeeper.voice import ToolCall, ToolRoundComplete, TurnComplete
 
 
@@ -130,7 +130,7 @@ async def test_production_budget_lease_spans_connect_to_close(monkeypatch):
     assert ledger.snapshot("secret", session.model)["production_sessions"] == 0
 
 
-async def test_authoritative_capacity_drop_fails_before_session_readiness(monkeypatch):
+async def test_response_start_rate_reservation_does_not_kill_session_readiness(monkeypatch):
     ws = _QueueWS()
     http = _HTTP(ws)
     ledger = ProviderBudgetCoordinator()
@@ -148,13 +148,16 @@ async def test_authoritative_capacity_drop_fails_before_session_readiness(monkey
             ],
         }
     )
-    with pytest.raises(ProviderBudgetUnavailable, match="capacity is insufficient"):
-        await connecting
-    assert session._configured is False
-    assert ledger.snapshot("secret", session.model)["production_sessions"] == 0
+    await ws.emit({"type": "session.updated", "session": {"type": "realtime"}})
+    await connecting
+    assert session.last_error is None
+    assert ledger.snapshot("secret", session.model)["production_sessions"] == 1
+    await session.close()
 
 
-async def test_completed_response_usage_is_debited_once_even_if_terminal_repeats(monkeypatch):
+async def test_prior_authoritative_budget_cannot_cover_response_missing_its_rate_event(
+    monkeypatch,
+):
     ledger = ProviderBudgetCoordinator()
     ledger.update_rate_limits(
         "secret",
@@ -622,7 +625,186 @@ async def test_rate_limits_updated_are_retained_for_shared_budget_observation():
             ],
         }
     )
+    await ws.emit(
+        {
+            "type": "response.created",
+            "response": {"id": "probe-response", "status": "in_progress"},
+        }
+    )
     await ws.close()
     async for _event in session._iter_events(ws):
         pass
     assert session._rate_limits["tokens"]["remaining"] == 39000
+
+
+async def test_budget_probe_response_create_is_bounded_text_only_and_out_of_band():
+    session = OpenAIRealtimeSession(
+        api_key="k", budget_lease=BudgetLease("bucket", "probe", "probe")
+    )
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    request_id = await session.send_rate_limit_probe()
+    frame = ws.sent[-1]
+    assert frame["type"] == "response.create"
+    assert frame["event_id"].startswith("evt_response_")
+    assert frame["response"]["conversation"] == "none"
+    assert frame["response"]["output_modalities"] == ["text"]
+    assert frame["response"]["max_output_tokens"] == 8
+    assert frame["response"]["tool_choice"] == "none"
+    assert frame["response"]["tools"] == []
+    assert frame["response"]["metadata"] == {
+        "podvoice_purpose": "rate_limit_probe",
+        "podvoice_request_id": request_id,
+    }
+    session._cancel_ack_watchdogs()
+
+
+async def test_budget_probe_terminal_usage_consumes_only_its_exact_local_lease():
+    ledger = ProviderBudgetCoordinator()
+    lease = ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+    )
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "rate_limits": [
+                {
+                    "name": "tokens",
+                    "limit": 40_000,
+                    "remaining": 39_992,
+                    "reset_seconds": 60,
+                }
+            ],
+        }
+    )
+    # Official ordering can put the rate snapshot immediately before response.created.
+    await ws.emit(
+        {
+            "type": "response.created",
+            "response": {"id": "probe-response", "status": "in_progress"},
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "probe-response",
+                "status": "completed",
+                "usage": {
+                    "input_token_details": {"text_tokens": 4, "audio_tokens": 0},
+                    "output_token_details": {"text_tokens": 2, "audio_tokens": 0},
+                },
+            },
+        }
+    )
+    await ws.close()
+
+    events = [event async for event in session._iter_events(ws)]
+    snapshot = ledger.snapshot("secret", "model")
+    assert any(isinstance(event, TurnComplete) for event in events)
+    assert snapshot["authoritative"] is True
+    assert snapshot["remaining"] == 39_992
+    assert snapshot["reserved_tokens"] == 1_994
+    assert ledger.release(lease) is True
+
+
+async def test_response_rate_event_after_created_prevents_completed_usage_double_debit():
+    ledger = ProviderBudgetCoordinator()
+    lease = ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+    )
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "response.created",
+            "response": {"id": "probe-response", "status": "in_progress"},
+        }
+    )
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "rate_limits": [
+                {
+                    "name": "tokens",
+                    "limit": 40_000,
+                    "remaining": 39_992,
+                    "reset_seconds": 60,
+                }
+            ],
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "probe-response",
+                "status": "completed",
+                "usage": {
+                    "input_token_details": {"text_tokens": 4, "audio_tokens": 0},
+                    "output_token_details": {"text_tokens": 2, "audio_tokens": 0},
+                },
+            },
+        }
+    )
+    await ws.close()
+
+    assert [event async for event in session._iter_events(ws)]
+    snapshot = ledger.snapshot("secret", "model")
+    assert snapshot["remaining"] == 39_992
+    assert snapshot["reserved_tokens"] == 1_994
+    assert ledger.release(lease) is True
+
+
+async def test_malformed_current_rate_event_cannot_cover_completed_response_usage():
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
+    )
+    lease = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+    )
+    ws = _QueueWS()
+    await ws.emit({"type": "response.created", "response": {"id": "r-malformed"}})
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "rate_limits": [
+                {"name": "tokens", "limit": "bad", "remaining": None, "reset_seconds": 60}
+            ],
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-malformed",
+                "status": "completed",
+                "usage": {
+                    "input_token_details": {"text_tokens": 900, "audio_tokens": 0},
+                    "output_token_details": {"text_tokens": 100, "audio_tokens": 0},
+                },
+            },
+        }
+    )
+    await ws.close()
+
+    assert [event async for event in session._iter_events(ws)]
+    snapshot = ledger.snapshot("secret", "model")
+    assert snapshot["remaining"] == 39_000
+    assert snapshot["reserved_tokens"] == 14_000
+    assert ledger.release(lease) is True

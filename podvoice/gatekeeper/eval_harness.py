@@ -63,6 +63,7 @@ RESERVED_DECLARATIONS = (
     APPROVE_ACTION_DECLARATION,
 )
 SAFE_EVAL_HIGH_RISK_TOOL = "EvalUnlockDoor"
+PROVIDER_BUDGET_PROBE_TOKENS = 2_000
 
 
 def _schema_sha256(declarations: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> str:
@@ -774,6 +775,7 @@ class LiveRealtimeDriver:
         interrupt_response: bool = True,
         include_sensitive_fixture: bool = False,
         budget_lease: BudgetLease | None = None,
+        provider_budget: ProviderBudgetCoordinator | None = None,
     ) -> None:
         self.api_key = api_key
         self.model = model
@@ -786,6 +788,7 @@ class LiveRealtimeDriver:
         self.room_context = room_context
         self.interrupt_response = interrupt_response
         self.budget_lease = budget_lease
+        self.provider_budget = provider_budget or PROVIDER_BUDGET
         self.session: _ReadyRealtimeSession | None = None
         self.events: asyncio.Queue[Any] = asyncio.Queue()
         self.reader: asyncio.Task[None] | None = None
@@ -807,6 +810,7 @@ class LiveRealtimeDriver:
             noise="off",
             room_context=self.room_context,
             tool_declarations=self.tools.declarations(),
+            provider_budget=self.provider_budget,
         )
         # Base dataclass does not invoke a subclass post-init unless declared there.
         self.session.ready = asyncio.Event()
@@ -1057,6 +1061,130 @@ class LiveEvalService:
         self._started_at: float | None = None
         self._last_report: dict[str, Any] | None = None
 
+    async def _ensure_authoritative_provider_budget(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        voice: str,
+    ) -> dict[str, Any]:
+        """Cold-start the provider ledger through one discarded diagnostic response.
+
+        OpenAI only emits ``rate_limits.updated`` when a Response begins.  The real
+        eval trial therefore cannot require that event before it creates its first
+        Response.  This separate socket creates one tiny, text-only, tool-free,
+        out-of-band response, observes the provider event, then closes.  Actual eval
+        admission happens afterwards in a new session and still requires authoritative
+        remaining plus full physical production headroom.
+        """
+        if self._provider_budget.is_authoritative(api_key, model):
+            return {
+                "performed": False,
+                "actual_tokens": 0,
+                "cost_usd": 0.0,
+                "reservation_tokens": 0,
+                "max_cost_usd": 0.0,
+            }
+        lease = self._provider_budget.reserve_probe(
+            api_key,
+            model,
+            tokens=PROVIDER_BUDGET_PROBE_TOKENS,
+            production_headroom=self._production_headroom,
+        )
+        session: _ReadyRealtimeSession | None = None
+        reader: asyncio.Task[None] | None = None
+        response_done = asyncio.Event()
+        observed_usage: Usage | None = None
+        try:
+            session = _ReadyRealtimeSession(
+                api_key=api_key,
+                model=model,
+                budget_role="eval",
+                budget_lease=lease,
+                provider_budget=self._provider_budget,
+                voice=voice,
+                instructions="Diagnostic session. Do not use tools.",
+                input_rate=24_000,
+                preset="custom",
+                turn="none",
+                interrupt_response=False,
+                noise="off",
+                tool_declarations=[],
+            )
+            session.ready = asyncio.Event()
+            async with asyncio.timeout(C.CONNECT_TIMEOUT_S):
+                await session.connect()
+
+            async def drain() -> None:
+                nonlocal observed_usage
+                assert session is not None
+                async for event in session.events():
+                    if isinstance(event, Usage):
+                        observed_usage = event
+                    elif isinstance(event, TurnComplete):
+                        if event.status != "completed":
+                            raise ConnectionError(
+                                "rate_limit_capacity · provider budget probe response "
+                                f"did not complete ({event.status})"
+                            )
+                        response_done.set()
+
+            reader = asyncio.create_task(drain(), name="podvoice-provider-budget-probe")
+            await session.send_rate_limit_probe()
+            async with asyncio.timeout(C.CONNECT_TIMEOUT_S):
+                while not (
+                    self._provider_budget.is_authoritative(api_key, model)
+                    and response_done.is_set()
+                ):
+                    if reader.done():
+                        await reader
+                        raise ConnectionError(
+                            "rate_limit_capacity · provider budget probe ended before "
+                            "authoritative rate_limits.updated and response.done"
+                        )
+                    await asyncio.sleep(0.01)
+            actual_tokens = (
+                observed_usage.input_text_tokens
+                + observed_usage.input_audio_tokens
+                + observed_usage.output_text_tokens
+                + observed_usage.output_audio_tokens
+                if observed_usage is not None
+                else None
+            )
+            actual_cost = (
+                observed_usage.input_text_tokens * (4.0 / 1_000_000)
+                + observed_usage.input_audio_tokens * (32.0 / 1_000_000)
+                + observed_usage.output_text_tokens * (24.0 / 1_000_000)
+                + observed_usage.output_audio_tokens * (64.0 / 1_000_000)
+                if observed_usage is not None
+                else None
+            )
+            return {
+                "performed": True,
+                "actual_tokens": actual_tokens,
+                "cost_usd": actual_cost,
+                "reservation_tokens": PROVIDER_BUDGET_PROBE_TOKENS,
+                # Conservative mechanical ceiling if provider omits terminal usage.
+                "max_cost_usd": PROVIDER_BUDGET_PROBE_TOKENS * (64.0 / 1_000_000),
+            }
+        except TimeoutError as exc:
+            raise ConnectionError(
+                "rate_limit_capacity · provider budget probe received no authoritative "
+                "rate_limits.updated"
+            ) from exc
+        finally:
+            try:
+                if session is not None:
+                    await session.close()
+            finally:
+                try:
+                    if reader is not None:
+                        reader.cancel()
+                        with contextlib.suppress(asyncio.CancelledError, Exception):
+                            await reader
+                finally:
+                    self._provider_budget.release(lease)
+
     @staticmethod
     def _new_run_id() -> str:
         return f"eval-{int(time.time())}-{uuid.uuid4().hex[:6]}"
@@ -1229,6 +1357,13 @@ class LiveEvalService:
             run_id = run_id or self._new_run_id()
             expected_turn = scenario.turns[turn_index]
             budget = EvalBudget(max_actual_tokens=100_000, max_cost_usd=0.30)
+            provider_budget_probe: dict[str, Any] = {
+                "performed": False,
+                "actual_tokens": 0,
+                "cost_usd": 0.0,
+                "reservation_tokens": 0,
+                "max_cost_usd": 0.0,
+            }
             effective_prompt = (instructions or SYSTEM_PROMPT_DA).strip()
             prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA.strip()
             effective_declarations = SafeEvalTools(tool_declarations).declarations()
@@ -1305,6 +1440,7 @@ class LiveEvalService:
                         room_context=fixture.room_context,
                         interrupt_response=False,
                         budget_lease=provider_lease,
+                        provider_budget=self._provider_budget,
                     )
                     await driver.open(run_id=run_id, scenario_id=scenario.id)
                     turn_id = f"{scenario.id}-{'audio' if audio else 'control'}-{index}"
@@ -1335,6 +1471,19 @@ class LiveEvalService:
             trials: list[TurnResult] = []
             try:
                 async with asyncio.timeout(self._max_run_s):
+                    if not self._provider_budget.is_authoritative(api_key, model):
+                        provider_budget_probe = {
+                            "performed": True,
+                            "actual_tokens": None,
+                            "cost_usd": None,
+                            "reservation_tokens": PROVIDER_BUDGET_PROBE_TOKENS,
+                            "max_cost_usd": PROVIDER_BUDGET_PROBE_TOKENS * (64.0 / 1_000_000),
+                        }
+                    provider_budget_probe = await self._ensure_authoritative_provider_budget(
+                        api_key=api_key,
+                        model=model,
+                        voice=voice,
+                    )
                     control = await one(0, audio=False)
                     for index in range(1, repeats + 1):
                         trials.append(await one(index, audio=True))
@@ -1350,6 +1499,7 @@ class LiveEvalService:
                     "error": message or type(exc).__name__,
                     "control": asdict(control) if control else None,
                     "trials": [asdict(result) for result in trials],
+                    "provider_budget_probe": provider_budget_probe,
                     "budget": asdict(budget),
                 }
             passed = sum(result.passed for result in trials)
@@ -1383,6 +1533,7 @@ class LiveEvalService:
                 "classification": classification,
                 "control": asdict(control) if control else None,
                 "trials": [asdict(result) for result in trials],
+                "provider_budget_probe": provider_budget_probe,
                 "budget": asdict(budget),
             }
 
@@ -1463,10 +1614,30 @@ class LiveEvalService:
                 "tool_schema_profile": "production-plus-safe-sensitive-fixture",
             }
             results: list[ScenarioResult] = []
+            provider_budget_probe: dict[str, Any] = {
+                "performed": False,
+                "actual_tokens": 0,
+                "cost_usd": 0.0,
+                "reservation_tokens": 0,
+                "max_cost_usd": 0.0,
+            }
             token_window_started = self._monotonic()
             token_window_used = 0
             try:
                 async with asyncio.timeout(self._max_run_s):
+                    if not self._provider_budget.is_authoritative(api_key, model):
+                        provider_budget_probe = {
+                            "performed": True,
+                            "actual_tokens": None,
+                            "cost_usd": None,
+                            "reservation_tokens": PROVIDER_BUDGET_PROBE_TOKENS,
+                            "max_cost_usd": PROVIDER_BUDGET_PROBE_TOKENS * (64.0 / 1_000_000),
+                        }
+                    provider_budget_probe = await self._ensure_authoritative_provider_budget(
+                        api_key=api_key,
+                        model=model,
+                        voice=voice,
+                    )
                     for scenario in selected:
                         elapsed = self._monotonic() - token_window_started
                         if elapsed >= 60.0:
@@ -1495,6 +1666,7 @@ class LiveEvalService:
                                 tool_declarations=tool_declarations,
                                 include_sensitive_fixture=True,
                                 budget_lease=provider_lease,
+                                provider_budget=self._provider_budget,
                             )
                             results.append(
                                 await run_scenario(driver, scenario, run_id=run_id, budget=budget)
@@ -1515,6 +1687,7 @@ class LiveEvalService:
                     **prompt_metadata,
                     "error": message or type(exc).__name__,
                     "results": [asdict(result) for result in results],
+                    "provider_budget_probe": provider_budget_probe,
                     "budget": asdict(budget),
                 }
             return {
@@ -1524,6 +1697,7 @@ class LiveEvalService:
                 "model": model,
                 **prompt_metadata,
                 "results": [asdict(result) for result in results],
+                "provider_budget_probe": provider_budget_probe,
                 "budget": asdict(budget),
             }
 

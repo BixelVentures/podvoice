@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.13.28 — autoritativ cold-start af live-evalbudget
+
+- En frisk add-on kan nu etablere OpenAIs autoritative tokenbudget uden den cirkulære
+  fejl, hvor eval krævede `rate_limits.updated`, før den første Response kunne oprettes.
+- Cold-start bruger én separat ephemeral Realtime-session og én kasseret out-of-band
+  tekstresponse med højst 8 outputtokens, ingen værktøjer og ingen adgang til HA, MCP,
+  PodConnect, lyd eller playback. Både `rate_limits.updated` og completed
+  `response.done` kræves, før en ny rigtig evalsession må starte.
+- Den fysiske produktionsvej beholder 15.000 tokens headroom og venter aldrig bag en
+  probe eller eval. En fysisk session under proben stopper den efterfølgende eval.
+- Rate-reservationen bindes til den eksakte Response. Providerens allerede reserverede
+  remaining dobbeltdebiteres ikke, mens en senere Response uden sit eget rate-event
+  debiteres konservativt. Tool-sideeffekter er fortsat gated før dispatch.
+- Timeout, malformed/manglende rate-event og providerfejl fejler lukket, men en senere
+  eksplicit brugerstart må prøve igen. Der findes ingen automatisk retry-løkke.
+- Probe-forbrug vises særskilt som faktisk usage/pris eller et konservativt loft på
+  2.000 tokens / 0,128 USD og tæller aldrig som en semantisk evalbeståelse.
+- Maskinel kandidatgate: 634/634 tests samt Ruff, formattering, mypy og diff-check.
+  Prompt V6, model, audio, gain, VAD, firmware, playback, teardown og rearm er uændrede.
+  CI/ARM64, rigtig cold-probe/live-eval og de fysiske gates står fortsat åbne.
+
 ## 1.13.27 — completed værktøjer, serverautorisation og causal feedback
 
 - Realtime-funktionskald er nu kun kandidater, indtil deres egen providerrespons er

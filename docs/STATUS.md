@@ -5,12 +5,13 @@ Senest opdateret: 2026-08-21.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv softwarekandidat:** v1.13.27 (`47100d7`, branch
-`codex/v1.13.27-provider-safety`). **Aktuel gate:**
-maskinel kontrakt bestået, men kandidaten er endnu ikke release- eller fysisk
-godkendt. Efter grøn CI og ARM64-image er uafhængig adversarial score **95/100 med nul
-kendte P0/P1**. En sikker live Prompt V6-eval på de samme produktionsdeklarationer er
-den sidste maskinelle gate til 97/100; fysisk Voice PE-bevis er fortsat en separat gate.
+**Aktiv softwarekandidat:** v1.13.28 (branch
+`codex/v1.13.27-provider-safety`; eksakt commit og image afventer). **Aktuel gate:**
+lokal maskinel kontrakt bestået, men kandidaten er endnu ikke release- eller fysisk
+godkendt. Uafhængig adversarial score er **93/100 med nul kendte P0/P1**. Grøn CI og
+ARM64-image på de eksakte bits forventes at løfte maskinbeviset til 95/100; en sikker
+live cold-probe og Prompt V6-eval på samme artifact er den sidste maskinelle gate til
+97/100. Fysisk Voice PE-bevis er fortsat en separat gate.
 
 - **Observeret fejl:** Trace `20260821T103257-225` havde diagnostisk “Hvad er
   klokken?”, men Realtime kaldte intet værktøj og gav et irrelevant fysisk svar.
@@ -26,7 +27,7 @@ den sidste maskinelle gate til 97/100; fysisk Voice PE-bevis er fortsat en separ
 - **Nærliggende fejlveje:** Forkert lydudsnit, ændret værktøjsskema, eval-sideeffekt,
   schema-overload, TPM/rate-limit, stale trace, forkert rumkontekst og forveksling af
   providerbevis med fysisk puckbevis.
-- **Frosne ikke-mål:** Promptens almindelige V5-adfærd, model, gain 16, VAD, noise, firmware,
+- **Frosne ikke-mål:** Promptens almindelige V6-adfærd, model, gain 16, VAD, noise, firmware,
   announcement-playback, semantisk afslutning, timeout, teardown og rearm ændres ikke.
 - **Faktisk ændring i v1.13.27-kandidaten:** Providerens tool-kandidater frigives kun
   efter en korreleret, completed respons; schemas og ACKs valideres fail-closed;
@@ -34,9 +35,10 @@ den sidste maskinelle gate til 97/100; fysisk Voice PE-bevis er fortsat en separ
   HA-mål opløses frisk og dispatches som det samme kanoniske mål; og ét fælles
   providerbudget beskytter tool-resultat/farvel mod TPM-udtømning. Prompt V6 ændrer kun
   den minimale approval-protokol. Audio, gain, VAD, firmware og playback er uændrede.
-- **Maskinel evidens:** 622/622 tests, Ruff, format, mypy og diff-check er grønne efter
-  seneste budgetfix. GitHub CI-run `32476734925` bestod på de eksakte commitbits,
-  inklusive den komplette `linux/arm64` add-on-containerbuild med pinned `jsonschema`.
+- **Maskinel evidens:** 634/634 tests, Ruff, format, mypy og diff-check er grønne efter
+  cold-start- og response-korrektionsbølgen. Det tidligere GitHub CI-run
+  `32476734925` beviser kun v1.13.27; v1.13.28 mangler endnu sin egen CI og komplette
+  `linux/arm64` add-on-containerbuild.
 - **Uafhængig review:** NO-GO for replay som beslutningsbevis. De nuværende
   `provider_sample_offset` afspejler tidspunktet, hvor eventet behandles, ikke OpenAIs
   autoritative `audio_start_ms`/`audio_end_ms`; den kendte v1.13.25-trace mangler
@@ -45,11 +47,12 @@ den sidste maskinelle gate til 97/100; fysisk Voice PE-bevis er fortsat en separ
 - **Afvigelse fra planen:** Panelet kan vise et bestået audio-replay, selv når
   `schema_match` er ukendt. Resultatet må derfor ikke bruges til at godkende årsag,
   prompt, lydkæde eller fysisk golden chain.
-- **Næste gate:** Kør den sikre Prompt V6-live-eval på de installerede kandidatbits, og
-  først derefter én frisk golden chain samt 10/10
+- **Næste gate:** Byg og verificér v1.13.28 i CI/ARM64, installér præcis det artifact,
+  og kør derefter den sikre cold-probe og Prompt V6-live-eval. Først derefter køres én
+  frisk golden chain samt 10/10
   ubrudte fysiske cyklusser. Det gamle replay forbliver diagnostisk og kan ikke godkende
   lydårsagen.
-- **Rollback/grænse:** v1.13.11 forbliver fysisk baseline. v1.13.27 overtager ingen
+- **Rollback/grænse:** v1.13.11 forbliver fysisk baseline. v1.13.28 overtager ingen
   fysisk gate, før live-eval, image-build, frisk golden chain og 10/10 er bestået.
 
 ## Officiel OpenAI-kontraktaudit 21. august
@@ -148,6 +151,56 @@ Dette er maskinel kontraktevidens, ikke live provider-, fysisk lyd- eller
 releasegodkendelse. Prompt, model, audio, gain, VAD, firmware og playback er uændrede;
 v1.13.11 forbliver fysisk baseline, og kandidatens samlede adversarial review/build og
 fysiske gates er fortsat åbne.
+
+#### Aktiv korrektion — cold-start af providerbudget
+
+**Dette er feltfejl og plan før rettelse, ikke et opnået resultat.** Den installerede
+v1.13.27 afviste den sikre preflight med
+`rate_limit_capacity · live eval requires an authoritative provider token budget` på
+en frisk add-on-proces, selv om ingen fysisk samtale var aktiv.
+
+- **Direkte evidens og kæde:** Panelets preflight → `LiveEvalService` → første
+  evalreservation → afvisning før Realtime-connect. Ingen Response blev oprettet, ingen
+  `rate_limits.updated` kunne derfor ankomme, og evalen kunne aldrig etablere den
+  autoritet, den krævede. Fysisk Voice PE, playback, teardown og rearm blev ikke berørt.
+- **Officiel kontrakt og falsificerbar årsag:** OpenAI dokumenterer, at
+  `rate_limits.updated` først udsendes ved begyndelsen af en Response og allerede
+  afspejler dens outputreservation. Kravet om autoritativt remaining **før den første
+  Response** er derfor cirkulært. Hypotesen er, at én separat, minimal og kasseret
+  diagnostic Response kan etablere autoriteten, hvorefter den første rigtige evalprøve
+  åbnes i en ny session under den normale fulde reservation. Hvis providerens event
+  udebliver, må ingen rigtig evalprøve starte eller bestå.
+- **Berørte invarianter/naborisici:** Eval må ikke reducere fysisk headroom; produktion
+  må aldrig vente bag eval; kun én eval/produktion må eje de nuværende leases;
+  manglende, stale eller malformed rate-event skal fejle lukket; bootstrap må ikke
+  kunne gentages mellem prøver eller blive stående efter timeout/teardown.
+- **Planlagte regressioner:** cold-start probe → autoritativ event og completed
+  Response → ny rigtig evalsession; manglende/malformed event eller providerfejl → hele
+  run fejler; fysisk wake under proben får sin 15k reservation og stopper efterfølgende
+  eval; to prober serialiseres; lavt autoritativt remaining stopper næste prøve; lease
+  frigives én gang ved timeout/fejl.
+- **Frosne ikke-mål og rollback:** Prompt, model, audio, gain, VAD, firmware, playback,
+  tool-policy og lifecycle ændres ikke. Rettelsen er add-on-only. Hvis fysisk headroom
+  eller fail-closed-grænsen ikke kan bevises maskinelt, beholdes feltfejlen som NO-GO
+  frem for at genindføre ubegrænset evalpacing.
+
+**Faktisk ændring og maskinelt resultat:** Cold-start bruger nu én dedikeret ephemeral
+Realtime-session og en out-of-band `response.create` med `conversation: none`, tekst-only,
+ingen tools, `tool_choice: none` og højst 8 outputtokens. Output kasseres; både en gyldig
+`rate_limits.updated` og en completed `response.done` kræves før socket og 2k-probelease
+lukkes. Først derefter tager en **ny** Realtime-session den normale autoritative
+evalreservation. Manglende/malformed rate-event, timeout og providerfejl fejler lukket;
+en fysisk produktionssession kan stadig tage sit fulde 15k-headroom under proben og
+blokerer derefter den rigtige eval. En transient fejl kan genprøves af et senere
+eksplicit run, men aldrig automatisk eller samtidigt. Kun en rate-snapshot bundet til
+den eksakte Response forhindrer lokal debit; bucket-autoritet fra en tidligere Response
+kan ikke dække en senere manglende/malformed event. Den eksakte lokale
+generationslease forbruges fortsat. Proben rapporterer actual usage/pris separat fra de
+semantiske evalture og ellers sit konservative 2k/$0,128-makspris-loft. Målrettede
+providerbudget-, rå Realtime- og evalrace-tests er **83/83 grønne**; den samlede
+Python-suite er **634/634 grøn**, og Ruff, formattering, mypy samt diff-check er grønne.
+Build, uafhængig slutreview og live feltbevis står åbne; v1.13.27 er feltfejlet, og
+v1.13.28 er endnu ikke installeret.
 
 #### Samlet maskinelt resultat for v1.13.27-kandidaten
 

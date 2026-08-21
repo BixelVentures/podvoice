@@ -40,7 +40,12 @@ from referencing.exceptions import Unresolvable
 from . import constants as C
 from .audio import StreamResampler, resample_pcm16
 from .prompt import SYSTEM_PROMPT_DA
-from .provider_budget import PROVIDER_BUDGET, BudgetLease, ProviderBudgetUnavailable
+from .provider_budget import (
+    PROVIDER_BUDGET,
+    BudgetLease,
+    ProviderBudgetCoordinator,
+    ProviderBudgetUnavailable,
+)
 from .voice import (
     AudioChunk,
     InputTranscript,
@@ -200,6 +205,9 @@ class OpenAIRealtimeSession:
     # explicitly and marks its sockets "eval" so they never impersonate production.
     budget_role: str = "unmanaged"  # unmanaged | production | eval
     budget_lease: BudgetLease | None = field(default=None, repr=False)
+    provider_budget: ProviderBudgetCoordinator = field(
+        default_factory=lambda: PROVIDER_BUDGET, repr=False, kw_only=True
+    )
     voice: str = DEFAULT_VOICE
     instructions: str = ""  # empty -> built-in SYSTEM_PROMPT_DA
     # WHERE this session physically is. Without it the model cannot target the room's
@@ -488,7 +496,7 @@ class OpenAIRealtimeSession:
         # process-wide capacity before registering the new generation; a delayed old
         # reader/finally then sees an idempotent no-op and cannot release the new lease.
         for lease in tuple(self._budget_production_leases.values()):
-            PROVIDER_BUDGET.release(lease)
+            self.provider_budget.release(lease)
         self._budget_production_leases.clear()
         self._connection_generation += 1
         generation = self._connection_generation
@@ -533,8 +541,8 @@ class OpenAIRealtimeSession:
             # This call cannot wait or fail because an eval is active. The eval ledger
             # deliberately keeps separate production headroom and blocks its next trial.
             try:
-                self._budget_production_leases[generation] = PROVIDER_BUDGET.production_started(
-                    self.api_key, self.model
+                self._budget_production_leases[generation] = (
+                    self.provider_budget.production_started(self.api_key, self.model)
                 )
             except ProviderBudgetUnavailable as exc:
                 self.last_error = str(exc)
@@ -605,7 +613,7 @@ class OpenAIRealtimeSession:
             await http.close()
             if self._http is http:
                 self._http = None
-            PROVIDER_BUDGET.release(self._budget_production_leases.pop(generation, None))
+            self.provider_budget.release(self._budget_production_leases.pop(generation, None))
             raise
 
     async def send_audio(self, pcm16k: bytes) -> None:
@@ -642,19 +650,13 @@ class OpenAIRealtimeSession:
             if value
         ) or str(error)
 
-    def _record_rate_limits(self, event: dict) -> None:
+    def _record_rate_limits(self, event: dict) -> bool:
         limits = event.get("rate_limits") or []
         for limit in limits:
             if not isinstance(limit, dict) or not limit.get("name"):
                 continue
             self._rate_limits[str(limit["name"])] = dict(limit)
-        PROVIDER_BUDGET.update_rate_limits(self.api_key, self.model, list(limits))
-        if any(
-            not PROVIDER_BUDGET.is_funded(lease)
-            for lease in self._budget_production_leases.values()
-        ):
-            self.last_error = "rate_limit_capacity · provider token capacity is insufficient"
-            raise ProviderBudgetUnavailable(self.last_error)
+        return self.provider_budget.update_rate_limits(self.api_key, self.model, list(limits))
 
     def _arm_ack_watchdog(self, event_id: str, label: str) -> None:
         generation = self._connection_generation
@@ -811,6 +813,29 @@ class OpenAIRealtimeSession:
         self._arm_ack_watchdog(event_id, "response.create")
         return request_id
 
+    async def send_rate_limit_probe(self) -> str:
+        """Create the one bounded out-of-band response used for cold budget discovery."""
+        if self.budget_lease is None or self.budget_lease.role != "probe":
+            raise RuntimeError("rate-limit probe requires an exact probe lease")
+        return await self._send_response_create(
+            {
+                "conversation": "none",
+                "output_modalities": ["text"],
+                "max_output_tokens": 8,
+                "tool_choice": "none",
+                "tools": [],
+                "instructions": "Return exactly OK.",
+                "input": [
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": "Reply OK."}],
+                    }
+                ],
+                "metadata": {"podvoice_purpose": "rate_limit_probe"},
+            }
+        )
+
     async def send_text(self, text: str, *, item_id: str | None = None) -> None:
         if self._ws is None:
             raise ConnectionError("OpenAI realtime socket is not connected")
@@ -962,7 +987,7 @@ class OpenAIRealtimeSession:
             async for ev in self._iter_events(ws, generation=generation):
                 yield ev
         finally:
-            PROVIDER_BUDGET.release(self._budget_production_leases.pop(generation, None))
+            self.provider_budget.release(self._budget_production_leases.pop(generation, None))
             if generation == self._connection_generation and ws is self._ws:
                 # On any exit (incl. a socket drop mid-response) don't carry stale state
                 # into the next socket, or tools could fire a spurious response.create.
@@ -1122,6 +1147,8 @@ class OpenAIRealtimeSession:
         # response currently being created, and the id we last logged as "speaking".
         cur_rid: str | None = None
         spoke_rid: str | None = None
+        pending_response_rate_observation = False
+        response_rate_observations: set[str] = set()
         async for msg in ws:
             if generation is not None and generation != self._connection_generation:
                 return
@@ -1135,6 +1162,10 @@ class OpenAIRealtimeSession:
             if t == "response.created":
                 self._active_response = True
                 cur_rid = _rid(ev)
+                if pending_response_rate_observation:
+                    if cur_rid != "?":
+                        response_rate_observations.add(cur_rid)
+                    pending_response_rate_observation = False
                 response = ev.get("response") or {}
                 metadata = response.get("metadata") if isinstance(response, dict) else None
                 request_id = (
@@ -1286,6 +1317,10 @@ class OpenAIRealtimeSession:
             elif t == "response.done":
                 self._active_response = False
                 rid, status = _rid(ev), _rstatus(ev)
+                provider_reservation_observed = rid in response_rate_observations
+                response_rate_observations.discard(rid)
+                pending_response_rate_observation = False
+                cur_rid = None
                 if not self._remember_terminal_response(rid, status):
                     continue
                 staged_calls = self._staged_tool_calls.pop(rid, {})
@@ -1302,7 +1337,7 @@ class OpenAIRealtimeSession:
                 usage = self._usage_of(ev) if production_tool_usage_valid else None
                 usage_lease = production_lease or self.budget_lease
                 if usage is not None:
-                    PROVIDER_BUDGET.account_usage(
+                    self.provider_budget.account_usage(
                         self.api_key,
                         self.model,
                         usage.input_text_tokens
@@ -1310,6 +1345,7 @@ class OpenAIRealtimeSession:
                         + usage.output_text_tokens
                         + usage.output_audio_tokens,
                         lease=usage_lease,
+                        provider_reservation_observed=provider_reservation_observed,
                     )
                     yield usage
                 staged_failure = self._invalid_tool_responses.pop(rid, None)
@@ -1348,7 +1384,7 @@ class OpenAIRealtimeSession:
                 if (
                     staged_calls
                     and production_lease is not None
-                    and not PROVIDER_BUDGET.has_capacity(
+                    and not self.provider_budget.has_capacity(
                         production_lease, TOOL_FOLLOWUP_TOKEN_RESERVE
                     )
                 ):
@@ -1448,7 +1484,11 @@ class OpenAIRealtimeSession:
             elif t == "session.updated":
                 await self._accept_session_update()
             elif t == "rate_limits.updated":
-                self._record_rate_limits(ev)
+                if self._record_rate_limits(ev):
+                    if self._active_response and cur_rid not in (None, "?"):
+                        response_rate_observations.add(cur_rid)
+                    else:
+                        pending_response_rate_observation = True
             elif t == "error":
                 err = ev.get("error") or {}
                 self.last_error = self._error_text(err)
@@ -1617,7 +1657,7 @@ class OpenAIRealtimeSession:
         self._tool_round_edge_pending = False
         self._tool_call_response_ids.clear()
         for lease in tuple(self._budget_production_leases.values()):
-            PROVIDER_BUDGET.release(lease)
+            self.provider_budget.release(lease)
         self._budget_production_leases.clear()
         if self._ws is not None:
             await self._ws.close()

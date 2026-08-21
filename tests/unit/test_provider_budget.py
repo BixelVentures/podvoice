@@ -87,7 +87,7 @@ def test_stale_teardown_releases_exactly_once():
     assert ledger.snapshot("secret", "model")["production_sessions"] == 0
 
 
-def test_completed_usage_and_reservations_cannot_overcommit():
+def test_authoritative_usage_does_not_double_debit_provider_remaining():
     ledger = coordinator()
     ledger.update_rate_limits(
         "secret",
@@ -95,11 +95,12 @@ def test_completed_usage_and_reservations_cannot_overcommit():
         [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
     )
     lease = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
-    ledger.account_usage("secret", "model", 12_000)
+    ledger.account_usage("secret", "model", 12_000, lease=lease, provider_reservation_observed=True)
+    snapshot = ledger.snapshot("secret", "model")
+    assert snapshot["remaining"] == 40_000
+    assert snapshot["reserved_tokens"] == 3_000
     assert ledger.release(lease) is True
-    # 28k remains: a new 15k eval plus 15k production reserve would exceed it.
-    with pytest.raises(ProviderBudgetUnavailable):
-        ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    assert ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
 
 
 def test_authoritative_drop_cannot_leave_an_underfunded_production_lease_looking_safe():
@@ -139,9 +140,11 @@ def test_completed_usage_consumes_the_exact_generation_lease_without_double_coun
     ledger = coordinator()
     seed(ledger, remaining=16_000)
     production = ledger.production_started("secret", "model")
-    ledger.account_usage("secret", "model", 2_000, lease=production)
+    ledger.account_usage(
+        "secret", "model", 2_000, lease=production, provider_reservation_observed=True
+    )
     snapshot = ledger.snapshot("secret", "model")
-    assert snapshot["remaining"] == 14_000
+    assert snapshot["remaining"] == 16_000
     assert snapshot["reserved_tokens"] == 13_000
     assert ledger.is_funded(production) is True
     assert ledger.has_capacity(production, 6_000) is True
@@ -159,9 +162,11 @@ def test_eval_usage_consumes_its_reservation_so_production_headroom_stays_real()
     ledger = coordinator()
     seed(ledger)
     evaluation = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
-    ledger.account_usage("secret", "model", 14_000, lease=evaluation)
+    ledger.account_usage(
+        "secret", "model", 14_000, lease=evaluation, provider_reservation_observed=True
+    )
     snapshot = ledger.snapshot("secret", "model")
-    assert snapshot["remaining"] == 26_000
+    assert snapshot["remaining"] == 40_000
     assert snapshot["reserved_tokens"] == 1_000
     # Physical production never waits behind the eval that consumed its own lease.
     production = ledger.production_started("secret", "model")
@@ -169,3 +174,32 @@ def test_eval_usage_consumes_its_reservation_so_production_headroom_stays_real()
     assert ledger.release(evaluation) is True
     with pytest.raises(ProviderBudgetUnavailable, match="production voice session"):
         ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
+
+
+def test_cold_probe_preserves_production_headroom_and_explicit_retry_is_allowed():
+    ledger = coordinator()
+    probe = ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
+    production = ledger.production_started("secret", "model", tokens=15_000)
+    assert production
+    assert ledger.release(probe) is True
+    assert ledger.release(production) is True
+    retry = ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
+    assert ledger.release(retry) is True
+
+
+def test_probe_blocks_eval_and_releases_exactly_once():
+    ledger = coordinator()
+    probe = ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
+    with pytest.raises(ProviderBudgetUnavailable, match="authoritative"):
+        ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
+    assert ledger.release(probe) is True
+    assert ledger.release(probe) is False
+    assert ledger.snapshot("secret", "model")["budget_probes"] == 0
+
+
+def test_concurrent_second_probe_is_denied_without_waiting():
+    ledger = coordinator()
+    probe = ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
+    with pytest.raises(ProviderBudgetUnavailable, match="another live eval"):
+        ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
+    assert ledger.release(probe) is True
