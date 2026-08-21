@@ -44,6 +44,87 @@ provider-PCM-replay; kandidaten er ikke åbnet for en ny fysisk golden chain.
   replay, men overtager ingen fysisk gate, før replay, frisk golden chain og 10/10
   ubrudte cyklusser er bestået.
 
+## Officiel OpenAI-kontraktaudit 21. august
+
+En ny read-only audit har sammenholdt den aktive Realtime-implementation med OpenAIs
+aktuelle officielle dokumentation for conversations, server-/client-events, tools,
+VAD, transcription, rate limits, costs og GPT-Realtime-2.1. Tre uafhængige reviews er
+samlet af lead. **Auditten udvider stop-the-line fra replay til runtime-værktøjssikkerhed.**
+Ingen runtimekode, prompt, lyd, VAD eller firmware blev ændret under auditten.
+
+### Releaseblokkere
+
+1. **P0 — et annulleret eller ufuldstændigt modelsvar kan nå at udføre et værktøj.**
+   PodVoice sender i dag `response.function_call_arguments.done` direkte videre til
+   `ThinSession` og værktøjsrouteren. OpenAI dokumenterer, at eventet også udsendes,
+   når en respons afbrydes, bliver ufuldstændig eller annulleres; det autoritative
+   slutpunkt er den altid udsendte `response.done`, hvis `status` skal være
+   `completed`. Den senere oprydning kan ikke fortryde en allerede udført HA-handling
+   eller semantisk afslutning. Kald skal derfor stages per `response_id` og må først
+   frigives efter en completed `response.done`; alle andre statusser kasserer dem.
+2. **P0 — følsomme handlinger har kun promptbeskyttelse.** Prompten kræver bekræftelse
+   før blandt andet oplåsning, alarm fra, beskeder og køb, men routeren kan udføre et
+   deklareret HA-/MCP-kald uden et server-ejet approval-token. OpenAI beskriver netop
+   function tools som stedet, hvor applikationen ejer forretningslogik,
+   adgangskontrol og approval checks. Der kræves en deterministisk, sessions- og
+   argumentbundet godkendelsesbarriere i applikationen; prompten må kun eje den
+   naturlige dialog, aldrig selve tilladelsen.
+3. **P1 — causalt vigtige WebSocket-operationer mangler kvittering og korrelation.**
+   Typed Talk-input venter allerede korrekt på sit præcise item-ACK. Tool-output,
+   `response.create`, `conversation.item.truncate`, input-clear og flere øvrige
+   operationer har derimod intet klient-`event_id`, og tool-output anses for leveret,
+   før `conversation.item.created` bekræfter det. En providerafvisning bliver dermed
+   ofte kun en loglinje og senere timeout. Samme ACK/error-kontrakt skal gælde alle
+   operationer, der kan ændre tur, værktøjsresultat eller samtalekontekst.
+
+### Dokumenterede P1/P2-fund
+
+- Ugyldig JSON i funktionsargumenter bliver til `{}` og dispatches. Protokol- eller
+  schemafejl skal fejle lukket med nul sideeffekter.
+- OpenAI-readiness publiceres ved socket-connect, før `session.updated` har bevist den
+  effektive konfiguration. UI og traces skal skelne socket, `session.created` og
+  accepteret `session.updated`.
+- Providerens `rate_limits.updated` ignoreres. Eval bruger et lokalt Tier-1-budget,
+  som ikke koordineres med fysiske sessioner eller øvrig projekttrafik.
+- `response.done` uden officiel status behandles som completed af hensyn til gamle
+  fakes. Produktion skal fejle lukket på manglende/ukendt status; fakes skal følge den
+  officielle kontrakt.
+- Diagnostiske inputtranscripts mister `item_id`; OpenAI garanterer ikke completion-
+  rækkefølge på tværs af ture. Det kan forvride historik og bevis, men transcriptet
+  ejer fortsat hverken værktøjsvalg eller semantisk afslutning.
+- Replay bruger lokal event-modtagelsestid som lydgrænse og kasserer OpenAIs
+  autoritative `audio_start_ms`/`audio_end_ms`. Derfor er eksisterende replay kun
+  diagnostik, ikke årsags- eller releasebevis.
+- Den viste pris mangler den separat fakturerede live-transskription. Langvarige
+  sessioner har desuden ingen eksplicit målt context-/truncation-politik.
+- Timer- og dynamiske MCP-schemas valideres ikke tilstrækkeligt server-side. Modellen
+  understøtter function calling, men ikke Structured Outputs; schemas er derfor ikke
+  en erstatning for runtimevalidering.
+
+### Det, der er korrekt og skal bevares
+
+- Backend-WebSocket, 24 kHz mono PCM16, `output_modalities=["audio"]`,
+  `gpt-realtime-2.1`, lav reasoning, automatisk tool choice og sessionslængden under
+  OpenAIs 60-minuttersgrænse er gyldige valg.
+- `session.updated` bruges allerede til at frigive buffered audio og typed input;
+  fejlen er readiness-påstanden omkring det, ikke selve bufferingen.
+- Voice PE's `interrupt_response=false` er en bevidst og korrekt half-duplex-kontrakt.
+  Talk stopper lokal afspilning og bruger truncate ved barge-in som foreskrevet for
+  WebSocket-klientstyret playback.
+- Inputtransskriptionen er korrekt behandlet som asynkron diagnostik og ikke som det,
+  den native audiomodel nødvendigvis hørte.
+- Den normale tool-resultatsekvens — `function_call_output` med samme `call_id`,
+  derefter én `response.create` — følger API'et; den mangler blot ACK/error-sikkerhed.
+
+### Bindende næste gate
+
+Ingen ny fysisk funktionsmatrix eller lifecycle-release godkendes, før P0-punkterne er
+lukket og testet med rå provider-eventrækkefølger. Først implementeres completed-bundet
+tool-staging og server-ejet approval. Derefter ensartede event-ID/ACK-fejlgrænser,
+provider-sand readiness og rate-limitbudget. Audio-replay/proveniens rettes separat.
+Prompt, gain, VAD, firmware og playback må fortsat ikke ændres for at maskere disse
+providerkontraktfejl.
+
 ## Aktuel feltstatus 21. august
 
 Den installerede v1.13.25 registrerede efter en manuel Voice PE-genstart en rigtig
