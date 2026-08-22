@@ -1,13 +1,14 @@
 # Changelog
 
-## 1.13.29 — sand live-preflight og selvhelende HA/MCP
+## 1.13.30 — sand live-preflight uden throwaway-probe
 
 - Live-preflight kører som en eksplicit, gensidigt eksklusiv systemdiagnose. Voice PE
   og Talk kan ikke åbne en konkurrerende Realtime-session, og panelet viser tydeligt,
   at Nabu testes. Låsen frigives ved success, fejl, timeout og stop.
-- Cold-proben kræver sin egen aktuelle `rate_limits.updated` og en completed response.
-  Den lille tekstresponse har et bounded 64-tokenloft og viser providerens præcise
-  finalitetsårsag ved fejl; gammel rate-authority kan ikke godkende et nyt forsøg.
+- Den separate cold-probe og dens ekstra fakturerede throwaway Response er fjernet.
+  Første sideeffektfrie semantiske response er preflight under den nøglebrede
+  diagnostiklås. `rate_limits.updated` er valgfri pacingtelemetri; ved fravær bruges et
+  nyt konservativt lokalt vindue, og gammel rate-authority kan ikke pace et nyt run.
 - Hele Prompt V6-profilen har et synligt tidsloft, højst tre responsekanter per tur og
   et prospektivt loft på 5 USD. Separat faktureret live-transskription medregnes for
   lyd-replay; manglende provider-usage fejler lukket.
@@ -23,9 +24,9 @@
   volumen eller privat historik er ikke det samme som at kunne søge og starte musik.
 - Prompt V6, model, gain, VAD, firmware, fysisk playback og den almindelige
   samtalelifecycle er uændrede. Ingen firmwareflash er nødvendig.
-- Lokal kandidatgate: 275 provider/eval-fokustests og 300 HA/Thin/Realtime-fokustests
-  samt Ruff, formattering og scoped mypy er grønne. CI/ARM64-image, live Prompt V6-
-  preflight og de fysiske golden/10x-gates står fortsat åbne.
+- Lokal kandidatgate: 141 provider/eval/panel-fokustests og hele repoets 742 tests samt
+  Ruff, formattering og scoped mypy er grønne. CI/ARM64-image, live Prompt V6-preflight
+  og de fysiske golden/10x-gates står fortsat åbne.
 
 ## 1.13.28 — autoritativ cold-start af live-evalbudget
 

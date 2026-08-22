@@ -110,6 +110,14 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
     normale fejl-teardown og rearm gennemføres én gang. UI må ikke vise fysisk klar,
     og diagnostiklåsen skal frigives ved enhver terminal sti. Parallel eval og
     produktion kræver en separat providerpulje; lokalt simuleret headroom er ikke bevis.
+    Første sideeffektfrie semantiske response er providerpreflight; der må ikke oprettes
+    en separat throwaway Response, probelease eller probesession. `rate_limits.updated`
+    er kun valgfri pacingtelemetri: fravær eller malformed data vælger et nyt
+    konservativt lokalt vindue og må aldrig genbruge gammel providerautoritet. Typet
+    usage på alle semantiske responsekanter, tre-kanters turnloft, hard deadline
+    og det prospektive prisloft er de bindende evalgrænser. En provider-429/capacity
+    stopper hele diagnostikken særskilt og terminalt uden automatisk retry, næste
+    scenarie eller sideeffekt.
 
 ## Beviskrav før “testklar” eller “færdig”
 

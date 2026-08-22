@@ -28,19 +28,42 @@ def seed(ledger: ProviderBudgetCoordinator, *, remaining: int = 40_000) -> None:
     )
 
 
+def diagnostic_owner(ledger: ProviderBudgetCoordinator):
+    owner = getattr(ledger, "_test_diagnostic_owner", None)
+    if owner is None:
+        owner = ledger.diagnostic_started("secret")
+        ledger._test_diagnostic_owner = owner
+    return owner
+
+
+def admit_eval(
+    ledger: ProviderBudgetCoordinator, *, tokens: int, production_headroom: int, model="model"
+):
+    return ledger.reserve_eval(
+        "secret",
+        model,
+        tokens=tokens,
+        production_headroom=production_headroom,
+        diagnostic_lease=diagnostic_owner(ledger),
+    )
+
+
 def test_eval_and_production_are_exactly_mutually_exclusive():
     ledger = coordinator()
     seed(ledger)
-    first_eval = ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
+    first_eval = admit_eval(ledger, tokens=10_000, production_headroom=15_000)
     with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
         ledger.production_started("secret", "model")
     assert ledger.snapshot("secret", "model")["production_sessions"] == 0
     assert ledger.release(first_eval) is True
+    owner = ledger._test_diagnostic_owner
+    assert ledger.release(owner) is True
+    del ledger._test_diagnostic_owner
     production = ledger.production_started("secret", "model")
     with pytest.raises(ProviderBudgetUnavailable, match="production voice session"):
-        ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
+        admit_eval(ledger, tokens=10_000, production_headroom=15_000)
     assert ledger.release(production) is True
-    assert ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
+    assert admit_eval(ledger, tokens=10_000, production_headroom=15_000)
 
 
 def test_diagnostic_owner_is_key_wide_across_talk_model_selector_and_releases_once():
@@ -70,21 +93,38 @@ def test_any_cross_model_production_session_blocks_diagnostic_owner():
 def test_two_eval_trials_are_serialized_process_wide():
     ledger = coordinator()
     seed(ledger)
-    lease = ledger.reserve_eval("secret", "model", tokens=8_000, production_headroom=15_000)
+    lease = admit_eval(ledger, tokens=8_000, production_headroom=15_000)
     with pytest.raises(ProviderBudgetUnavailable, match="another live eval"):
-        ledger.reserve_eval("secret", "model", tokens=8_000, production_headroom=15_000)
+        admit_eval(ledger, tokens=8_000, production_headroom=15_000)
     assert ledger.release(lease) is True
 
 
 def test_authoritative_remaining_must_fit_eval_and_production_headroom():
     ledger = coordinator()
+    owner = diagnostic_owner(ledger)
+    assert (
+        ledger.eval_retry_after(
+            "secret",
+            "model",
+            tokens=10_000,
+            production_headroom=15_000,
+            diagnostic_lease=owner,
+        )
+        == 0.0
+    )
     ledger.update_rate_limits(
         "secret",
         "model",
         [{"name": "tokens", "limit": 40_000, "remaining": 24_999, "reset_seconds": 30}],
     )
     with pytest.raises(ProviderBudgetUnavailable, match="headroom is insufficient"):
-        ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
+        ledger.reserve_eval(
+            "secret",
+            "model",
+            tokens=10_000,
+            production_headroom=15_000,
+            diagnostic_lease=owner,
+        )
 
 
 def test_monotonic_provider_reset_reopens_budget_without_wall_clock():
@@ -100,7 +140,7 @@ def test_monotonic_provider_reset_reopens_budget_without_wall_clock():
     snapshot = ledger.snapshot("secret", "model")
     assert snapshot["remaining"] == 40_000
     assert snapshot["authoritative"] is True
-    assert ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
+    assert admit_eval(ledger, tokens=10_000, production_headroom=15_000)
 
 
 def test_stale_teardown_releases_exactly_once():
@@ -118,13 +158,13 @@ def test_authoritative_usage_does_not_double_debit_provider_remaining():
         "model",
         [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
     )
-    lease = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    lease = admit_eval(ledger, tokens=15_000, production_headroom=15_000)
     ledger.account_usage("secret", "model", 12_000, lease=lease, provider_reservation_observed=True)
     snapshot = ledger.snapshot("secret", "model")
     assert snapshot["remaining"] == 40_000
     assert snapshot["reserved_tokens"] == 3_000
     assert ledger.release(lease) is True
-    assert ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    assert admit_eval(ledger, tokens=15_000, production_headroom=15_000)
 
 
 def test_authoritative_drop_cannot_leave_an_underfunded_production_lease_looking_safe():
@@ -155,8 +195,8 @@ def test_unknown_budget_allows_one_production_session_but_never_eval():
     production = ledger.production_started("secret", "model")
     with pytest.raises(ProviderBudgetUnavailable, match="another production"):
         ledger.production_started("secret", "model")
-    with pytest.raises(ProviderBudgetUnavailable, match="authoritative"):
-        ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
+    with pytest.raises(ProviderBudgetUnavailable, match="production voice session"):
+        admit_eval(ledger, tokens=10_000, production_headroom=15_000)
     assert ledger.release(production) is True
 
 
@@ -228,7 +268,7 @@ def test_provider_reset_replenishes_response_allowance_without_reopening_ownersh
 def test_eval_response_renewal_keeps_diagnostic_exclusivity():
     ledger = coordinator()
     seed(ledger)
-    evaluation = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    evaluation = admit_eval(ledger, tokens=15_000, production_headroom=15_000)
     ledger.update_rate_limits(
         "secret",
         "model",
@@ -249,7 +289,7 @@ def test_eval_response_renewal_keeps_diagnostic_exclusivity():
 def test_physical_wake_fails_fast_while_eval_response_is_active():
     ledger = coordinator()
     seed(ledger)
-    evaluation = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    evaluation = admit_eval(ledger, tokens=15_000, production_headroom=15_000)
     ledger.update_rate_limits(
         "secret",
         "model",
@@ -269,7 +309,7 @@ def test_physical_wake_fails_fast_while_eval_response_is_active():
 def test_diagnostic_lock_not_provider_arithmetic_owns_physical_admission(remaining):
     ledger = coordinator()
     seed(ledger)
-    evaluation = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    evaluation = admit_eval(ledger, tokens=15_000, production_headroom=15_000)
     ledger.update_rate_limits(
         "secret",
         "model",
@@ -285,7 +325,7 @@ def test_eval_multi_turn_allowance_renews_on_exact_authoritative_reset():
     clock = Clock()
     ledger = coordinator(clock)
     seed(ledger)
-    evaluation = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    evaluation = admit_eval(ledger, tokens=15_000, production_headroom=15_000)
 
     for _turn in range(2):
         ledger.update_rate_limits(
@@ -309,7 +349,7 @@ def test_physical_session_fails_fast_during_eval_response_reset_wait():
     clock = Clock()
     ledger = coordinator(clock)
     seed(ledger)
-    evaluation = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    evaluation = admit_eval(ledger, tokens=15_000, production_headroom=15_000)
     ledger.update_rate_limits(
         "secret",
         "model",
@@ -331,7 +371,7 @@ def test_physical_session_fails_fast_during_eval_response_reset_wait():
 def test_eval_usage_consumes_its_reservation_so_production_headroom_stays_real():
     ledger = coordinator()
     seed(ledger)
-    evaluation = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    evaluation = admit_eval(ledger, tokens=15_000, production_headroom=15_000)
     ledger.account_usage(
         "secret", "model", 14_000, lease=evaluation, provider_reservation_observed=True
     )
@@ -343,29 +383,20 @@ def test_eval_usage_consumes_its_reservation_so_production_headroom_stays_real()
     assert ledger.release(evaluation) is True
 
 
-def test_cold_probe_is_mutually_exclusive_and_explicit_retry_is_allowed():
+def test_eval_requires_exact_diagnostic_owner_even_with_authoritative_rate_state():
     ledger = coordinator()
-    probe = ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
-    with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
-        ledger.production_started("secret", "model", tokens=15_000)
-    assert ledger.release(probe) is True
-    retry = ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
-    assert ledger.release(retry) is True
+    seed(ledger)
+    with pytest.raises(ProviderBudgetUnavailable, match="exact diagnostic owner"):
+        ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=0)
 
 
-def test_probe_blocks_eval_and_releases_exactly_once():
+def test_key_global_owner_serializes_eval_children_across_models():
     ledger = coordinator()
-    probe = ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
-    with pytest.raises(ProviderBudgetUnavailable, match="authoritative"):
-        ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
-    assert ledger.release(probe) is True
-    assert ledger.release(probe) is False
-    assert ledger.snapshot("secret", "model")["budget_probes"] == 0
-
-
-def test_concurrent_second_probe_is_denied_without_waiting():
-    ledger = coordinator()
-    probe = ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
+    owner = diagnostic_owner(ledger)
+    first = admit_eval(ledger, model="model-a", tokens=10_000, production_headroom=0)
     with pytest.raises(ProviderBudgetUnavailable, match="another live eval"):
-        ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
-    assert ledger.release(probe) is True
+        admit_eval(ledger, model="model-b", tokens=10_000, production_headroom=0)
+    assert ledger.release(first) is True
+    second = admit_eval(ledger, model="model-b", tokens=10_000, production_headroom=0)
+    assert ledger.release(second) is True
+    assert ledger.release(owner) is True

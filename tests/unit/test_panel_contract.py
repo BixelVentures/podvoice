@@ -184,7 +184,8 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     assert "audio-model-nondeterminism" in html
     assert "tool-schema-mismatch" in html
     assert "Nabu og Talk låses" in html
-    assert "$5" in html and "$0,128" in html
+    assert "$5" in html and "$0,128" not in html
+    assert "første sikre scenariesvar er providerpreflight" in html
     assert 'window.addEventListener("podvoice-diagnostic"' in html
     assert 'setState("systemtest", "pill-degraded")' in html
     assert "data.diagnostic_active" in html

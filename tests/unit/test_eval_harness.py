@@ -15,7 +15,6 @@ from gatekeeper.eval_harness import (
     SAFE_EVAL_HIGH_RISK_TOOL,
     AudioReplayFixture,
     EvalBudget,
-    Finding,
     LiveEvalService,
     SafeEvalTools,
     ScenarioResult,
@@ -193,7 +192,6 @@ async def test_invalid_tool_admission_is_structured_and_precedes_budget_or_socke
         def __init__(self, **kwargs):
             raise AssertionError("admission failure must precede every provider socket")
 
-    monkeypatch.setattr(ledger, "reserve_probe", forbidden_budget)
     monkeypatch.setattr(ledger, "reserve_eval", forbidden_budget)
     monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", ForbiddenSocket)
 
@@ -208,7 +206,6 @@ async def test_invalid_tool_admission_is_structured_and_precedes_budget_or_socke
     assert report["classification"] == "eval-admission-blocked"
     assert report["blocked"]["stage"] == "tool_admission"
     assert report["results"] == []
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
     assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_trials"] == 0
 
 
@@ -231,7 +228,6 @@ async def test_oversized_custom_prompt_blocks_live_eval_before_diagnostic_or_soc
     assert report["classification"] == "eval-admission-blocked"
     assert report["blocked"]["stage"] == "prompt_admission"
     assert ledger.diagnostic_is_active("secret") is False
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
 
 
 def test_audio_replay_matches_only_an_exact_known_eval_utterance():
@@ -882,16 +878,73 @@ async def test_runner_timeout_is_a_failure_not_a_retry():
         async def close(self) -> None:
             return None
 
-    result = await run_scenario(
-        HungDriver(), scenario, run_id="run", budget=EvalBudget(), turn_timeout_s=0.01
+    with pytest.raises(RuntimeError, match=r"provider_or_transport_failure.*timeout"):
+        await run_scenario(
+            HungDriver(), scenario, run_id="run", budget=EvalBudget(), turn_timeout_s=0.01
+        )
+
+
+async def test_runner_aborts_semantic_429_before_followup_without_text_false_positive():
+    scenario = load_scenarios()[0]
+
+    class CapacityDriver:
+        def __init__(self):
+            self.calls = 0
+            self.closed = False
+
+        async def open(self, *, run_id: str, scenario_id: str) -> str:
+            return "capacity-session"
+
+        async def submit_text(self, *, turn_id: str, text: str) -> TurnObservation:
+            self.calls += 1
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id="capacity-session",
+                accepted=False,
+                response_status="failed",
+                error=(
+                    "OpenAI rejected response.create: rate_limit_exceeded · tokens · "
+                    "TPM capacity exhausted"
+                ),
+            )
+
+        async def close(self) -> None:
+            self.closed = True
+
+    driver = CapacityDriver()
+    with pytest.raises(RuntimeError, match="diagnostic_capacity"):
+        await run_scenario(driver, scenario, run_id="run", budget=EvalBudget())
+    assert driver.calls == 1
+    assert driver.closed is True
+    assert (
+        eval_harness._is_provider_capacity_rejection("Modellen sagde: rate limit er et teknisk ord")
+        is False
     )
-    assert result.passed is False
-    assert isinstance(result.turns[0].findings[0], Finding)
-    assert {f.code for f in result.turns[0].findings} >= {
-        "not-accepted",
-        "provider-error",
-        "response-status",
-    }
+
+
+async def test_live_service_semantic_429_stops_all_later_scenarios(monkeypatch):
+    calls: list[str] = []
+
+    async def scripted_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        calls.append(scenario.id)
+        if len(calls) == 2:
+            raise RuntimeError(
+                "diagnostic_capacity · OpenAI rejected response.create: "
+                "rate_limit_exceeded · tokens"
+            )
+        return ScenarioResult(scenario.id, True, "completed-before-capacity", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", scripted_run)
+    report = await LiveEvalService(provider_budget=ProviderBudgetCoordinator()).run(
+        api_key="secret",
+        scenario_ids={"arithmetic-followup", "time-followup", "web-routing"},
+        tool_declarations=_production_snapshot(),
+    )
+
+    assert report["ok"] is False
+    assert report["classification"] == "diagnostic-capacity"
+    assert len(calls) == 2
+    assert len(report["results"]) == 1
 
 
 async def test_runner_timeout_never_submits_a_followup_into_the_hung_response():
@@ -914,15 +967,34 @@ async def test_runner_timeout_never_submits_a_followup_into_the_hung_response():
             self.closed = True
 
     driver = FirstTurnHangs()
-    result = await run_scenario(
-        driver, scenario, run_id="run", budget=EvalBudget(), turn_timeout_s=0.01
-    )
-
-    assert result.passed is False
-    assert len(result.turns) == 1
-    assert result.turns[0].observation.remain_open is False
+    with pytest.raises(RuntimeError, match=r"provider_or_transport_failure.*timeout"):
+        await run_scenario(driver, scenario, run_id="run", budget=EvalBudget(), turn_timeout_s=0.01)
     assert driver.calls == 1
     assert driver.closed is True
+
+
+async def test_live_service_transport_failure_stops_all_later_scenarios(monkeypatch):
+    calls: list[str] = []
+
+    async def scripted_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        calls.append(scenario.id)
+        if len(calls) == 2:
+            raise RuntimeError(
+                "provider_or_transport_failure · status=timeout · turn timeout after 20s"
+            )
+        return ScenarioResult(scenario.id, True, "completed-before-timeout", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", scripted_run)
+    report = await LiveEvalService(provider_budget=ProviderBudgetCoordinator()).run(
+        api_key="secret",
+        scenario_ids={"arithmetic-followup", "time-followup", "web-routing"},
+        tool_declarations=_production_snapshot(),
+    )
+
+    assert report["ok"] is False
+    assert report["classification"] == "provider-or-eval-failure"
+    assert len(calls) == 2
+    assert len(report["results"]) == 1
 
 
 async def test_runner_closes_driver_when_open_fails():
@@ -977,7 +1049,10 @@ async def test_live_driver_three_turn_allowance_paces_outside_semantic_timeout()
         "model",
         [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
     )
-    lease = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    diagnostic = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=diagnostic
+    )
     driver = eval_harness.LiveRealtimeDriver(
         "secret",
         model="model",
@@ -994,7 +1069,7 @@ async def test_live_driver_three_turn_allowance_paces_outside_semantic_timeout()
         ledger.update_rate_limits(
             "secret",
             "model",
-            [{"name": "tokens", "limit": 40_000, "remaining": 26_000, "reset_seconds": 60}],
+            [{"name": "tokens", "limit": 40_000, "remaining": 14_000, "reset_seconds": 60}],
         )
         ledger.account_usage(
             "secret", "model", 14_000, lease=lease, provider_reservation_observed=True
@@ -1004,6 +1079,7 @@ async def test_live_driver_three_turn_allowance_paces_outside_semantic_timeout()
     assert waits == [pytest.approx(60.05), pytest.approx(60.05)]
     assert ledger.snapshot("secret", "model")["eval_trials"] == 1
     assert ledger.release(lease) is True
+    assert ledger.release(diagnostic) is True
 
 
 async def test_live_driver_intra_session_wait_rejects_physical_diagnostic_conflict():
@@ -1014,11 +1090,14 @@ async def test_live_driver_intra_session_wait_rejects_physical_diagnostic_confli
         "model",
         [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
     )
-    lease = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    diagnostic = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=diagnostic
+    )
     ledger.update_rate_limits(
         "secret",
         "model",
-        [{"name": "tokens", "limit": 40_000, "remaining": 26_000, "reset_seconds": 60}],
+        [{"name": "tokens", "limit": 40_000, "remaining": 14_000, "reset_seconds": 60}],
     )
     ledger.account_usage("secret", "model", 14_000, lease=lease, provider_reservation_observed=True)
 
@@ -1047,6 +1126,7 @@ async def test_live_driver_intra_session_wait_rejects_physical_diagnostic_confli
     assert snapshot["production_sessions"] == 0
     assert snapshot["eval_trials"] == 1
     assert ledger.release(lease) is True
+    assert ledger.release(diagnostic) is True
 
 
 async def test_live_service_reports_the_exact_effective_prompt_identity(monkeypatch):
@@ -1156,7 +1236,7 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
     required = (
         (turns - 1) * eval_harness.LIVE_EVAL_RESET_GAP_S
         + turns * eval_harness.LIVE_EVAL_TURN_TIMEOUT_S
-        + (sessions + 1) * eval_harness.C.CONNECT_TIMEOUT_S
+        + sessions * eval_harness.C.CONNECT_TIMEOUT_S
         + 30.0
     )
     service = LiveEvalService(provider_budget=_known_provider_budget())
@@ -1264,538 +1344,6 @@ async def test_live_eval_fails_closed_while_a_production_session_is_active(monke
     assert ledger.release(production) is True
 
 
-async def test_cold_live_eval_uses_discarded_probe_then_new_authoritative_trial(monkeypatch):
-    ledger = ProviderBudgetCoordinator()
-    payloads = []
-    sessions = []
-
-    class FakeProbeSession:
-        def __init__(self, **kwargs):
-            self.provider_budget = kwargs["provider_budget"]
-            self.api_key = kwargs["api_key"]
-            self.model = kwargs["model"]
-            self.started = asyncio.Event()
-            self.closed = False
-            sessions.append(self)
-
-        async def connect(self):
-            return None
-
-        async def send_rate_limit_probe(self):
-            payloads.append("probe")
-            self.started.set()
-            return "probe"
-
-        async def events(self):
-            await self.started.wait()
-            self.provider_budget.update_rate_limits(
-                self.api_key,
-                self.model,
-                [
-                    {
-                        "name": "tokens",
-                        "limit": 40_000,
-                        "remaining": 39_992,
-                        "reset_seconds": 60,
-                    }
-                ],
-            )
-            yield eval_harness.Usage(input_text_tokens=4, output_text_tokens=2)
-            yield eval_harness.TurnComplete(
-                status="completed",
-                response_id="probe-response",
-                provider_rate_observed=True,
-            )
-            await asyncio.Event().wait()
-
-        async def close(self):
-            self.closed = True
-
-    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
-        assert ledger.snapshot("secret", DEFAULT_MODEL)["authoritative"] is True
-        assert ledger.diagnostic_is_active("secret") is True
-        assert driver.budget_lease.role == "eval"
-        return ScenarioResult(scenario.id, True, "new-eval-session", [])
-
-    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", FakeProbeSession)
-    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
-    report = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
-    )
-    assert ledger.diagnostic_is_active("secret") is False
-
-    assert report["ok"] is True
-    assert report["provider_budget_probe"] == {
-        "performed": True,
-        "actual_tokens": 6,
-        "cost_usd": 0.000064,
-        "reservation_tokens": 2_000,
-        "max_cost_usd": 0.128,
-    }
-    assert len(sessions) == 1
-    assert sessions[0].closed is True
-    assert payloads == ["probe"]
-    snapshot = ledger.snapshot("secret", DEFAULT_MODEL)
-    assert snapshot["budget_probes"] == 0
-    assert snapshot["eval_trials"] == 0
-
-
-@pytest.mark.parametrize(
-    ("status", "reason"),
-    [
-        ("incomplete", "max_output_tokens"),
-        ("incomplete", "content_filter"),
-        ("failed", "provider_error"),
-        ("cancelled", "client_cancelled"),
-    ],
-)
-async def test_noncompleted_cold_probe_fails_with_exact_reason_and_runs_no_eval(
-    monkeypatch, caplog, status, reason
-):
-    ledger = ProviderBudgetCoordinator()
-    semantic_eval_started = False
-
-    class IncompleteProbeSession:
-        def __init__(self, **kwargs):
-            self.started = asyncio.Event()
-
-        async def connect(self):
-            return None
-
-        async def send_rate_limit_probe(self):
-            self.started.set()
-            return "probe"
-
-        async def events(self):
-            await self.started.wait()
-            ledger.update_rate_limits(
-                "secret",
-                DEFAULT_MODEL,
-                [
-                    {
-                        "name": "tokens",
-                        "limit": 40_000,
-                        "remaining": 39_992,
-                        "reset_seconds": 60,
-                    }
-                ],
-            )
-            yield eval_harness.Usage(input_text_tokens=4, output_text_tokens=8)
-            yield eval_harness.TurnComplete(
-                status=status,
-                error=reason,
-                response_id="probe-response",
-            )
-
-        async def close(self):
-            return None
-
-    async def must_not_run(*args, **kwargs):
-        nonlocal semantic_eval_started
-        semantic_eval_started = True
-        raise AssertionError("an incomplete probe must not start a semantic eval")
-
-    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", IncompleteProbeSession)
-    monkeypatch.setattr(eval_harness, "run_scenario", must_not_run)
-    report = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
-    )
-
-    assert report["ok"] is False
-    assert report["provider_budget_probe"] == {
-        "performed": True,
-        "actual_tokens": None,
-        "cost_usd": None,
-        "reservation_tokens": 2_000,
-        "max_cost_usd": 0.128,
-    }
-    assert f"({status}) · {reason}" in report["error"]
-    assert "response_id=probe-response" in report["error"]
-    assert "usage_tokens=12" in report["error"]
-    assert semantic_eval_started is False
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_trials"] == 0
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_probe_required"] is True
-    assert reason in caplog.text
-
-
-async def test_incomplete_probe_diagnostics_are_bounded_and_never_expose_api_key(
-    monkeypatch, caplog
-):
-    ledger = ProviderBudgetCoordinator()
-    api_key = "secret-provider-key"
-
-    class UnsafeProviderFieldsProbeSession:
-        def __init__(self, **kwargs):
-            self.started = asyncio.Event()
-
-        async def connect(self):
-            return None
-
-        async def send_rate_limit_probe(self):
-            self.started.set()
-            return "probe"
-
-        async def events(self):
-            await self.started.wait()
-            yield eval_harness.TurnComplete(
-                status="incomplete",
-                error=f"max_output_tokens token={api_key}" + ("x" * 500),
-                response_id=f"probe-{api_key}",
-            )
-
-        async def close(self):
-            return None
-
-    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", UnsafeProviderFieldsProbeSession)
-    report = await LiveEvalService(provider_budget=ledger).run(
-        api_key=api_key, scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
-    )
-
-    assert report["ok"] is False
-    assert api_key not in report["error"]
-    assert api_key not in caplog.text
-    assert "[REDACTED]" in report["error"]
-    assert len(report["error"]) <= 500
-    assert ledger.snapshot(api_key, DEFAULT_MODEL)["budget_probes"] == 0
-
-
-async def test_explicit_run_after_incomplete_probe_can_probe_again_and_succeed(monkeypatch):
-    ledger = ProviderBudgetCoordinator()
-    attempts = 0
-
-    class ProbeSession:
-        def __init__(self, **kwargs):
-            self.started = asyncio.Event()
-
-        async def connect(self):
-            return None
-
-        async def send_rate_limit_probe(self):
-            self.started.set()
-            return "probe"
-
-        async def events(self):
-            nonlocal attempts
-            await self.started.wait()
-            attempts += 1
-            if attempts == 1:
-                # Official ordering publishes the valid budget snapshot at response
-                # start, before the same response can later finish incomplete.
-                ledger.update_rate_limits(
-                    "secret",
-                    DEFAULT_MODEL,
-                    [
-                        {
-                            "name": "tokens",
-                            "limit": 40_000,
-                            "remaining": 39_992,
-                            "reset_seconds": 60,
-                        }
-                    ],
-                )
-                yield eval_harness.TurnComplete(
-                    status="incomplete",
-                    error="max_output_tokens",
-                    response_id="probe-first",
-                    provider_rate_observed=True,
-                )
-                return
-            yield eval_harness.Usage(input_text_tokens=4, output_text_tokens=2)
-            if attempts == 2:
-                # A completed later response cannot reuse the first generation's
-                # valid rate snapshot.
-                yield eval_harness.TurnComplete(
-                    status="completed",
-                    response_id="probe-second",
-                    provider_rate_observed=False,
-                )
-                return
-            ledger.update_rate_limits(
-                "secret",
-                DEFAULT_MODEL,
-                [
-                    {
-                        "name": "tokens",
-                        "limit": 40_000,
-                        "remaining": 39_900,
-                        "reset_seconds": 60,
-                    }
-                ],
-            )
-            yield eval_harness.TurnComplete(
-                status="completed",
-                response_id="probe-third",
-                provider_rate_observed=True,
-            )
-            await asyncio.Event().wait()
-
-        async def close(self):
-            return None
-
-    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
-        return ScenarioResult(scenario.id, True, "after-explicit-retry", [])
-
-    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", ProbeSession)
-    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
-    service = LiveEvalService(provider_budget=ledger)
-
-    first = await service.run(
-        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
-    )
-    assert first["ok"] is False
-    assert attempts == 1
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["authoritative"] is True
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_probe_required"] is True
-
-    # The attestation lives in the process-wide ledger, not one service instance.
-    second = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
-    )
-    assert second["ok"] is False
-    assert attempts == 2
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_probe_required"] is True
-
-    third = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
-    )
-    assert third["ok"] is True, third.get("error")
-    assert attempts == 3
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_probe_required"] is False
-
-
-async def test_cold_probe_without_rate_event_fails_run_and_releases_lease(monkeypatch):
-    ledger = ProviderBudgetCoordinator()
-
-    class SilentProbeSession:
-        def __init__(self, **kwargs):
-            pass
-
-        async def connect(self):
-            return None
-
-        async def send_rate_limit_probe(self):
-            return "probe"
-
-        async def events(self):
-            await asyncio.Event().wait()
-            yield eval_harness.TurnComplete(
-                status="completed",
-                response_id="probe-response",
-            )
-
-        async def close(self):
-            return None
-
-    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", SilentProbeSession)
-    monkeypatch.setattr(eval_harness.C, "CONNECT_TIMEOUT_S", 0.01)
-    service = LiveEvalService(provider_budget=ledger)
-    report = await service.run(
-        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
-    )
-
-    assert report["ok"] is False
-    assert "no authoritative rate_limits.updated" in report["error"]
-    snapshot = ledger.snapshot("secret", DEFAULT_MODEL)
-    assert snapshot["authoritative"] is False
-    assert snapshot["budget_probes"] == 0
-
-    class SuccessfulRetryProbeSession:
-        def __init__(self, **kwargs):
-            self.started = asyncio.Event()
-
-        async def connect(self):
-            return None
-
-        async def send_rate_limit_probe(self):
-            self.started.set()
-            return "probe-retry"
-
-        async def events(self):
-            await self.started.wait()
-            ledger.update_rate_limits(
-                "secret",
-                DEFAULT_MODEL,
-                [
-                    {
-                        "name": "tokens",
-                        "limit": 40_000,
-                        "remaining": 39_992,
-                        "reset_seconds": 60,
-                    }
-                ],
-            )
-            yield eval_harness.Usage(input_text_tokens=4, output_text_tokens=2)
-            yield eval_harness.TurnComplete(
-                status="completed",
-                response_id="probe-retry-response",
-                provider_rate_observed=True,
-            )
-            await asyncio.Event().wait()
-
-        async def close(self):
-            return None
-
-    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
-        return ScenarioResult(scenario.id, True, "explicit-retry", [])
-
-    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", SuccessfulRetryProbeSession)
-    monkeypatch.setattr(eval_harness.C, "CONNECT_TIMEOUT_S", 0.1)
-    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
-    retry = await service.run(
-        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
-    )
-    assert retry["ok"] is True, retry.get("error")
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["authoritative"] is True
-
-    class MustNotProbeAgain:
-        def __init__(self, **kwargs):
-            raise AssertionError("authoritative subsequent runs must skip the probe")
-
-    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", MustNotProbeAgain)
-    subsequent = await service.run(
-        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
-    )
-    assert subsequent["ok"] is True
-
-
-async def test_cold_probe_malformed_rate_event_cannot_authorize_eval(monkeypatch):
-    ledger = ProviderBudgetCoordinator()
-
-    class MalformedProbeSession:
-        def __init__(self, **kwargs):
-            self.started = asyncio.Event()
-
-        async def connect(self):
-            return None
-
-        async def send_rate_limit_probe(self):
-            self.started.set()
-            return "probe"
-
-        async def events(self):
-            await self.started.wait()
-            ledger.update_rate_limits(
-                "secret",
-                DEFAULT_MODEL,
-                [{"name": "tokens", "limit": "invalid", "remaining": None}],
-            )
-            yield eval_harness.TurnComplete(
-                status="completed",
-                response_id="probe-response",
-                provider_rate_observed=False,
-            )
-
-        async def close(self):
-            return None
-
-    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", MalformedProbeSession)
-    report = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
-    )
-
-    assert report["ok"] is False
-    assert "authoritative rate_limits.updated" in report["error"]
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["authoritative"] is False
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
-
-
-async def test_cold_probe_provider_error_is_distinct_and_releases_lease(monkeypatch):
-    ledger = ProviderBudgetCoordinator()
-
-    class ErrorProbeSession:
-        def __init__(self, **kwargs):
-            self.started = asyncio.Event()
-
-        async def connect(self):
-            return None
-
-        async def send_rate_limit_probe(self):
-            self.started.set()
-            return "probe"
-
-        async def events(self):
-            await self.started.wait()
-            raise ConnectionError(
-                "insufficient_quota · billing_hard_limit_reached · add provider credit"
-            )
-            yield  # pragma: no cover - keeps this an async generator
-
-        async def close(self):
-            return None
-
-    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", ErrorProbeSession)
-    report = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
-    )
-
-    assert report["ok"] is False
-    assert "insufficient_quota" in report["error"]
-    assert "add provider credit" in report["error"]
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
-
-
-async def test_physical_session_during_probe_fails_fast_as_diagnostic_busy(monkeypatch):
-    ledger = ProviderBudgetCoordinator()
-    production = None
-
-    class RacingProbeSession:
-        def __init__(self, **kwargs):
-            self.provider_budget = kwargs["provider_budget"]
-            self.api_key = kwargs["api_key"]
-            self.model = kwargs["model"]
-            self.started = asyncio.Event()
-
-        async def connect(self):
-            return None
-
-        async def send_rate_limit_probe(self):
-            nonlocal production
-            try:
-                production = ledger.production_started("secret", DEFAULT_MODEL)
-            finally:
-                self.started.set()
-            return "probe"
-
-        async def events(self):
-            await self.started.wait()
-            ledger.update_rate_limits(
-                "secret",
-                DEFAULT_MODEL,
-                [
-                    {
-                        "name": "tokens",
-                        "limit": 40_000,
-                        "remaining": 39_992,
-                        "reset_seconds": 60,
-                    }
-                ],
-            )
-            yield eval_harness.TurnComplete(
-                status="completed",
-                response_id="probe-response",
-                provider_rate_observed=True,
-            )
-            await asyncio.Event().wait()
-
-        async def close(self):
-            return None
-
-    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", RacingProbeSession)
-    report = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
-    )
-
-    assert report["ok"] is False
-    assert "diagnostic_busy" in report["error"]
-    assert production is None
-    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
-    production = ledger.production_started("secret", DEFAULT_MODEL)
-    assert ledger.release(production) is True
-
-
 async def test_physical_session_attempt_during_eval_is_rejected_without_stopping_eval(monkeypatch):
     ledger = _known_provider_budget()
     calls = 0
@@ -1841,6 +1389,12 @@ async def test_live_eval_waits_one_authoritative_reset_before_next_admission(mon
     async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
         nonlocal calls
         calls += 1
+        if calls == 1:
+            ledger.update_rate_limits(
+                "secret",
+                DEFAULT_MODEL,
+                [{"name": "tokens", "limit": 40_000, "remaining": 14_999, "reset_seconds": 3}],
+            )
         return ScenarioResult(scenario.id, True, "after-provider-reset", [])
 
     monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
@@ -1848,10 +1402,14 @@ async def test_live_eval_waits_one_authoritative_reset_before_next_admission(mon
         sleep=advance,
         monotonic=lambda: clock[0],
         provider_budget=ledger,
-    ).run(api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot())
+    ).run(
+        api_key="secret",
+        scenario_ids={"web-routing", "arithmetic-followup"},
+        tool_declarations=_production_snapshot(),
+    )
 
     assert report["ok"] is True
-    assert calls == 1
+    assert calls == 2
     assert waits == [pytest.approx(3.05)]
     assert report["budget"]["rate_limit_wait_s"] == pytest.approx(3.05)
     assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_trials"] == 0
@@ -1879,6 +1437,12 @@ async def test_physical_session_starting_during_reset_wait_is_diagnostic_busy(mo
     async def must_not_run(*args, **kwargs):
         nonlocal calls
         calls += 1
+        if calls == 1:
+            ledger.update_rate_limits(
+                "secret",
+                DEFAULT_MODEL,
+                [{"name": "tokens", "limit": 40_000, "remaining": 14_999, "reset_seconds": 3}],
+            )
         return ScenarioResult("web-routing", True, "after-exclusive-wait", [])
 
     monkeypatch.setattr(eval_harness, "run_scenario", must_not_run)
@@ -1886,11 +1450,15 @@ async def test_physical_session_starting_during_reset_wait_is_diagnostic_busy(mo
         sleep=physical_wake,
         monotonic=lambda: clock[0],
         provider_budget=ledger,
-    ).run(api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot())
+    ).run(
+        api_key="secret",
+        scenario_ids={"web-routing", "arithmetic-followup"},
+        tool_declarations=_production_snapshot(),
+    )
 
     assert report["ok"] is True
     assert conflict and "diagnostic_busy" in conflict
-    assert calls == 1
+    assert calls == 2
 
 
 async def test_reset_wait_does_not_replay_a_completed_scenario(monkeypatch):
@@ -1959,18 +1527,28 @@ async def test_whole_run_timeout_bounds_provider_reset_wait(monkeypatch):
     async def must_not_run(*args, **kwargs):
         nonlocal calls
         calls += 1
-        raise AssertionError("whole-run timeout must stop before admission")
+        ledger.update_rate_limits(
+            "secret",
+            DEFAULT_MODEL,
+            [{"name": "tokens", "limit": 40_000, "remaining": 14_999, "reset_seconds": 60}],
+        )
+        return ScenarioResult("first", True, "completed-before-wait", [])
 
     monkeypatch.setattr(eval_harness, "run_scenario", must_not_run)
     report = await LiveEvalService(
         sleep=blocked_sleep,
-        max_run_s=0.01,
+        # The provider wait itself must be rejected against this tiny deadline.
+        max_run_s=0.1,
         provider_budget=ledger,
-    ).run(api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot())
+    ).run(
+        api_key="secret",
+        scenario_ids={"web-routing", "arithmetic-followup"},
+        tool_declarations=_production_snapshot(),
+    )
 
     assert report["ok"] is False
     assert "provider reset wait exceeds the live eval deadline" in report["error"]
-    assert calls == 0
+    assert calls == 1
     assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_trials"] == 0
     assert ledger.diagnostic_is_active("secret") is False
 

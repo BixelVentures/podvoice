@@ -363,7 +363,7 @@
     </div>
     <div class="section">
       <h2>Maskinel Realtime-preflight</h2>
-      <p class="sub" style="margin:2px 0 10px">Kører den rigtige model og produktionsprompt med faste, sikre testdata. Nabu og Talk låses, mens testen kører. Hårdt prisloft: $5 for scenarierne + højst $0,128 for budgetproben. En brugerdefineret prompt over 32 KiB blokeres kun i denne sikre live-test og ændres aldrig i produktion. Testen kan ikke styre hjemmet, musik eller timere og erstatter ikke den fysiske test.</p>
+      <p class="sub" style="margin:2px 0 10px">Kører den rigtige model og produktionsprompt med faste, sikre testdata. Nabu og Talk låses, mens testen kører. Hårdt samlet prisloft: $5. Første sikre scenariesvar er samtidig providerpreflight; der køres ingen ekstra budgetprobe. En brugerdefineret prompt over 32 KiB blokeres kun i denne sikre live-test og ændres aldrig i produktion. Testen kan ikke styre hjemmet, musik eller timere og erstatter ikke den fysiske test.</p>
       <button id="eval_live">Kør sikker preflight</button>
       <button id="eval_replay" class="ghost">Genafspil seneste OpenAI-lyd 3×</button>
       <div id="eval_result" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
@@ -1180,7 +1180,7 @@ setInterval(function () {
     var label = data && data.kind === "audio-replay" ? "Genafspiller den samme providerlyd mod Realtime" : "Kører sikker Realtime-test";
     var deadline = Math.max(1, Number(data && data.deadline_s || 720));
     var minutes = Math.ceil(deadline / 60);
-    box.appendChild(ee("div", "empty", label + suffix + ". Nabu er midlertidigt låst imens. Prisloft: $5 + højst $0,128 for budgetproben. Tier-1-pacing kan tage op til " + minutes + " minutter…"));
+    box.appendChild(ee("div", "empty", label + suffix + ". Nabu er midlertidigt låst imens. Samlet prisloft: $5; første sikre scenariesvar er providerpreflight. Tier-1-pacing kan tage op til " + minutes + " minutter…"));
   }
   function render(data) {
     box.innerHTML = "";

@@ -809,34 +809,6 @@ class OpenAIRealtimeSession:
         self._arm_ack_watchdog(event_id, "response.create")
         return request_id
 
-    async def send_rate_limit_probe(self) -> str:
-        """Create the one bounded out-of-band response used for cold budget discovery."""
-        if self.budget_lease is None or self.budget_lease.role != "probe":
-            raise RuntimeError("rate-limit probe requires an exact probe lease")
-        return await self._send_response_create(
-            {
-                "conversation": "none",
-                "output_modalities": ["text"],
-                # GPT-Realtime-2.1 is a reasoning model.  The eight-token field probe
-                # ended incomplete; OpenAI limits that status to max_output_tokens or
-                # content_filter, and the harmless fixed prompt makes the cap the
-                # falsifiable leading cause.  Sixty-four remains far below the exact
-                # 2k probe lease while giving the diagnostic response room to finish.
-                "max_output_tokens": 64,
-                "tool_choice": "none",
-                "tools": [],
-                "instructions": "Return exactly OK.",
-                "input": [
-                    {
-                        "type": "message",
-                        "role": "user",
-                        "content": [{"type": "input_text", "text": "Reply OK."}],
-                    }
-                ],
-                "metadata": {"podvoice_purpose": "rate_limit_probe"},
-            }
-        )
-
     async def send_text(self, text: str, *, item_id: str | None = None) -> None:
         if self._ws is None:
             raise ConnectionError("OpenAI realtime socket is not connected")
@@ -1627,7 +1599,7 @@ class OpenAIRealtimeSession:
                 if rejected_request_id is not None:
                     self._resolve_ack_watchdog(error_event_id)
                     self._pending_response_creates.discard(rejected_request_id)
-                    response_failure = f"OpenAI rejected response.create: {message}"
+                    response_failure = f"OpenAI rejected response.create: {self.last_error}"
                     _LOG.warning("openai rejected correlated response.create: %s", err)
                     yield TurnComplete(status="failed", error=response_failure)
                     continue

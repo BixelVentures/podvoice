@@ -72,16 +72,22 @@ Den eksplicit startede live-preflight er en gensidigt eksklusiv diagnostiktilsta
 den kan kun starte uden en aktiv produktionssession, og nye Voice PE-/Talk-sessioner
 afvises hurtigt som `diagnostic_busy`, indtil den bounded eval er lukket og låsen
 frigivet. Det er en synlig vedligeholdelsestilstand, ikke en påstand om parallel
-rate-limit-isolation. Hver eval-/replay-prøve må kun starte, når providerens
-`rate_limits.updated` har givet et autoritativt tokenbudget, ingen produktion er aktiv,
-og diagnostiktilstanden fortsat ejer den eksklusive providerlås. Kun én eval-prøve kan
-have reservationen ad gangen. `response.done`-usage debiterer både input-/outputtekst og -lyd;
-providerens næste rate-limit-event afstemmer remaining/reset med et monotont ur.
+rate-limit-isolation. Hver eval-/replay-prøve må kun starte under den eksakte
+nøglebrede diagnostiklås, når ingen produktion er aktiv. Første sideeffektfrie
+semantiske response er preflight; der findes ingen separat providerprobe eller
+throwaway Response.
+`rate_limits.updated` er valgfri pacingtelemetri: en gyldig event kan forbedre
+remaining/reset-pacing, mens en manglende eller malformed event vælger et nyt
+konservativt lokalt 40.000-token/60-sekunders vindue og aldrig genbruger et ældre
+providersnapshot. Kun én eval-prøve kan have reservationen ad gangen.
+`response.done`-usage debiterer både input-/outputtekst og -lyd; en gyldig
+rate-limit-event afstemmer remaining/reset med et monotont ur.
 Reconnect, fejl og teardown frigiver kun deres egen generation én gang. Eval genkører
 aldrig en afsluttet tur automatisk for at skjule rate-limit eller modelvariation. Som
-en bevidst konservativ P2-begrænsning accepteres kun én samtidig produktionssamtale i
-add-on-processen: et parallelt Talk-/andet-rum-forsøg afvises straks og køes ikke. Det
-ændrer ikke den aktive ene Voice PE-samtale, men ægte samtidige rum kræver en senere,
+en bevidst konservativ P2-begrænsning accepteres kun én samtidig produktionssamtale per
+nøgle+model-bucket: et parallelt Talk-/andet-rum-forsøg på samme model afvises straks og
+køes ikke. Modeller har separate buckets, mens diagnostiklåsen fortsat er nøglebred og
+blokerer dem alle. Ægte samtidige rum på samme produktionsmodel kræver en senere,
 separat kapacitetsgate.
 
 Kommandoen foretager en rigtig, men afgrænset provider-evaluering og må kun køres
@@ -96,7 +102,7 @@ kan opdateres uden at ændre det oprindelige bevis.
 Den semantiske profil tillader højst tre providerresponser per brugertur og 36 for hele
 standardprofilen. En tredje værktøjsloopkant stoppes før ny fixtureeffekt eller en
 fjerde Response. Før hver tur reserveres den konservative pris for alle tre kanter;
-samlet faktisk pris stopper ved $5, og budgetproben har sit separate $0,128-loft.
+samlet faktisk pris stopper ved $5; der findes ingen separat probepris.
 Manglende, negativ eller malformed `response.done.usage` klassificeres
 `provider-usage-unknown` og stopper kørslen uden næste providerkant. En custom prompt
 over 32 KiB blokeres før diagnostiklås/socket uden at ændre produktionsprompten.
@@ -116,20 +122,15 @@ Et scenarie bliver kun grønt, når dets eksakte fixtureargumenter og krævede
 værktøjsudfald også er observeret; et tilfældigt korrekt slutsvar kan ikke erstatte en
 afvist fixture eller et forkert værktøjskald.
 
-På en frisk add-on-proces findes providerens authoritative tokenbudget først, når en
-Response er begyndt. Hver eksplicit live-eval udfører derfor højst én separat
-budgetprobe, når autoriteten mangler: en ny,
-værktøjsfri Realtime-session sender en kasseret out-of-band tekstresponse med højst 64
-outputtokens. Både `rate_limits.updated` og completed `response.done` skal observeres,
-probesessionen lukkes, og først derefter må en ny rigtig evalsession reserveres. Proben
-er omfattet af den samme eksklusive diagnostiklås. Manglende eller malformed rate-event,
-timeout/providerfejl eller en aktiv produktionssession før diagnostikken starter,
-stopper evalueringen; de gør aldrig budgettet implicit grønt. Der er
-ingen automatisk retry i samme run. Et senere eksplicit run må prøve igen efter en
-transient fejl, mens samtidige prober fortsat afvises. Rapportens
-`provider_budget_probe` viser særskilt faktisk usage/pris, når provider leverer den, og
-ellers den mekaniske reservation og konservative maksimumspris; proben tæller ikke som
-en semantisk evaltur.
+Første semantiske scenariesession bruger den eksakte produktionsprompt, hele det frosne
+schema og kun lokale safe fixtures. En completed `response.done` med gyldig, typet usage
+er nødvendig før næste providerkant; værktøjer frigives først efter den eksisterende
+resultatkapacitetsgate. `rate_limits.updated` er valgfri pacingtelemetri. Fravær eller
+malformed telemetry bruger current-runs konservative lokale vindue; timeout,
+ikke-completed response, ukendt usage, 429/providerfejl eller aktiv produktion stopper
+hele diagnostikken uden automatisk retry, næste tur eller næste scenarie. Rapporten
+indeholder ingen probepris eller probeattestation, fordi ingen ekstra providerresponse
+oprettes.
 
 ## Genafspilning af fysisk provider-lyd
 

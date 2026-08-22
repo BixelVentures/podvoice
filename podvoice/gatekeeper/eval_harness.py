@@ -70,7 +70,6 @@ RESERVED_DECLARATIONS = (
     APPROVE_ACTION_DECLARATION,
 )
 SAFE_EVAL_HIGH_RISK_TOOL = "EvalUnlockDoor"
-PROVIDER_BUDGET_PROBE_TOKENS = 2_000
 LIVE_EVAL_TURN_TIMEOUT_S = 20.0
 LIVE_EVAL_RESET_GAP_S = 60.5
 LIVE_EVAL_ACTUAL_COST_CAP_USD = 5.00
@@ -86,25 +85,6 @@ MAX_LIVE_EVAL_PROMPT_BYTES = 32 * 1024
 _LOG = logging.getLogger(__name__)
 
 
-def _sanitized_probe_field(value: object, *, api_key: str, fallback: str) -> str:
-    """Return one bounded provider diagnostic field without credential disclosure."""
-    text = " ".join(str(value or fallback).split())
-    if api_key:
-        text = text.replace(api_key, "[REDACTED]")
-    return text[:200]
-
-
-def _probe_usage_tokens(usage: Usage | None) -> int | None:
-    if usage is None:
-        return None
-    return (
-        usage.input_text_tokens
-        + usage.input_audio_tokens
-        + usage.output_text_tokens
-        + usage.output_audio_tokens
-    )
-
-
 def _full_profile_deadline_s() -> float:
     """Conservative hard bound for all scenarios under Tier-1 one-session pacing."""
     scenarios = load_scenarios()
@@ -114,7 +94,7 @@ def _full_profile_deadline_s() -> float:
     # turns share one Realtime session. Bound every inter-turn edge, not just fresh
     # scenario sockets.
     reset_waits = max(0, turns - 1) * LIVE_EVAL_RESET_GAP_S
-    provider_edges = (sessions + 1) * C.CONNECT_TIMEOUT_S  # cold probe plus sessions
+    provider_edges = sessions * C.CONNECT_TIMEOUT_S
     return reset_waits + turns * LIVE_EVAL_TURN_TIMEOUT_S + provider_edges + 30.0
 
 
@@ -953,6 +933,22 @@ async def pace_pcm(
         await sleep(frame_ms / 1000)
 
 
+def _is_provider_capacity_rejection(error: str | None) -> bool:
+    """Recognize only the structured response.create rejection path, never model text."""
+    if not error or not error.startswith("OpenAI rejected response.create:"):
+        return False
+    normalized = error.lower()
+    return any(
+        marker in normalized
+        for marker in (
+            "rate_limit_exceeded",
+            "insufficient_quota",
+            "billing_hard_limit",
+            "tpm capacity",
+        )
+    )
+
+
 async def run_scenario(
     driver: ConversationDriver,
     scenario: EvalScenario,
@@ -992,15 +988,17 @@ async def run_scenario(
                 )
             if observed.error and "provider_usage_unknown" in observed.error:
                 raise RuntimeError(observed.error)
+            if _is_provider_capacity_rejection(observed.error):
+                raise RuntimeError(f"diagnostic_capacity · {observed.error}")
             if (
                 not observed.accepted
                 or observed.error is not None
                 or observed.response_status != "completed"
             ):
-                # A missing terminal edge leaves the same provider response potentially
-                # active.  Never submit the next contextual turn into that socket; close
-                # the scenario once and let the caller release its exact eval lease.
-                observed.remain_open = False
+                detail = observed.error or "provider response did not complete"
+                raise RuntimeError(
+                    f"provider_or_transport_failure · status={observed.response_status} · {detail}"
+                )
             budget.record(observed.usage)
             findings = grade_turn(turn.expect, observed)
             results.append(TurnResult(turn_id, turn.text, not findings, observed, findings))
@@ -1074,8 +1072,8 @@ class LiveRealtimeDriver:
     async def prepare_response_capacity(self) -> None:
         """Renew one eval response allowance, waiting for at most one known reset.
 
-        This runs before the semantic turn timeout.  A physical session arriving
-        during the wait wins at the final atomic capacity check.
+        This runs before the semantic turn timeout while the key-global diagnostic
+        owner keeps Voice PE and Talk in explicit maintenance mode.
         """
         lease = self.budget_lease
         if lease is None or self.provider_budget.ensure_response_capacity(lease):
@@ -1392,20 +1390,22 @@ class LiveEvalService:
         self._started_at: float | None = None
         self._last_report: dict[str, Any] | None = None
 
-    async def _reserve_eval_after_authoritative_reset(
+    async def _reserve_eval_after_capacity_reset(
         self,
         *,
         api_key: str,
         model: str,
         budget: EvalBudget,
         run_deadline: float,
+        diagnostic_lease: BudgetLease,
     ) -> BudgetLease:
-        """Wait at most one provider reset before the atomic production-first gate."""
+        """Wait at most one current-run provider/local reset before eval admission."""
         wait_s = self._provider_budget.eval_retry_after(
             api_key,
             model,
             tokens=self._next_scenario_reserve,
             production_headroom=self._production_headroom,
+            diagnostic_lease=diagnostic_lease,
         )
         if wait_s is not None and wait_s > 0:
             # A small monotonic margin avoids rechecking on the provider's exact reset
@@ -1423,158 +1423,8 @@ class LiveEvalService:
             model,
             tokens=self._next_scenario_reserve,
             production_headroom=self._production_headroom,
+            diagnostic_lease=diagnostic_lease,
         )
-
-    async def _ensure_authoritative_provider_budget(
-        self,
-        *,
-        api_key: str,
-        model: str,
-        voice: str,
-    ) -> dict[str, Any]:
-        """Cold-start the provider ledger through one discarded diagnostic response.
-
-        OpenAI only emits ``rate_limits.updated`` when a Response begins.  The real
-        eval trial therefore cannot require that event before it creates its first
-        Response.  This separate socket creates one tiny, text-only, tool-free,
-        out-of-band response, observes the provider event, then closes.  Actual eval
-        admission happens afterwards in a new session and still requires authoritative
-        remaining. Voice PE and Talk are mechanically unavailable for the whole job.
-        """
-        if self._provider_budget.eval_budget_is_ready(api_key, model):
-            return {
-                "performed": False,
-                "actual_tokens": 0,
-                "cost_usd": 0.0,
-                "reservation_tokens": 0,
-                "max_cost_usd": 0.0,
-            }
-        lease = self._provider_budget.reserve_probe(
-            api_key,
-            model,
-            tokens=PROVIDER_BUDGET_PROBE_TOKENS,
-            production_headroom=self._production_headroom,
-        )
-        session: _ReadyRealtimeSession | None = None
-        reader: asyncio.Task[None] | None = None
-        response_done = asyncio.Event()
-        observed_usage: Usage | None = None
-        exact_probe_rate_observed = False
-        probe_attested = False
-        try:
-            session = _ReadyRealtimeSession(
-                api_key=api_key,
-                model=model,
-                budget_role="eval",
-                budget_lease=lease,
-                provider_budget=self._provider_budget,
-                voice=voice,
-                instructions="Diagnostic session. Do not use tools.",
-                input_rate=24_000,
-                preset="custom",
-                turn="none",
-                interrupt_response=False,
-                noise="off",
-                tool_declarations=[],
-            )
-            session.ready = asyncio.Event()
-            async with asyncio.timeout(C.CONNECT_TIMEOUT_S):
-                await session.connect()
-
-            async def drain() -> None:
-                nonlocal observed_usage, exact_probe_rate_observed
-                assert session is not None
-                async for event in session.events():
-                    if isinstance(event, Usage):
-                        observed_usage = event
-                    elif isinstance(event, TurnComplete):
-                        exact_probe_rate_observed = event.provider_rate_observed
-                        if event.status != "completed":
-                            status = _sanitized_probe_field(
-                                event.status, api_key=api_key, fallback="unknown"
-                            )
-                            reason = _sanitized_probe_field(
-                                event.error, api_key=api_key, fallback="reason unavailable"
-                            )
-                            response_id = _sanitized_probe_field(
-                                event.response_id,
-                                api_key=api_key,
-                                fallback="response unavailable",
-                            )
-                            usage_tokens = _probe_usage_tokens(observed_usage)
-                            _LOG.warning(
-                                "provider budget probe terminal status=%s response_id=%s "
-                                "reason=%s usage_tokens=%s",
-                                status,
-                                response_id,
-                                reason,
-                                usage_tokens,
-                            )
-                            raise ConnectionError(
-                                "rate_limit_capacity · provider budget probe response "
-                                f"did not complete ({status}) · {reason} · "
-                                f"response_id={response_id} · usage_tokens={usage_tokens}"
-                            )
-                        response_done.set()
-
-            reader = asyncio.create_task(drain(), name="podvoice-provider-budget-probe")
-            await session.send_rate_limit_probe()
-            async with asyncio.timeout(C.CONNECT_TIMEOUT_S):
-                while not (exact_probe_rate_observed and response_done.is_set()):
-                    if reader.done():
-                        await reader
-                        raise ConnectionError(
-                            "rate_limit_capacity · provider budget probe ended before "
-                            "authoritative rate_limits.updated and response.done"
-                        )
-                    await asyncio.sleep(0.01)
-            actual_tokens = _probe_usage_tokens(observed_usage)
-            actual_cost = (
-                observed_usage.input_text_tokens * (4.0 / 1_000_000)
-                + observed_usage.input_audio_tokens * (32.0 / 1_000_000)
-                + observed_usage.output_text_tokens * (24.0 / 1_000_000)
-                + observed_usage.output_audio_tokens * (64.0 / 1_000_000)
-                if observed_usage is not None
-                else None
-            )
-            if not self._provider_budget.lease_is_active(lease):
-                raise ConnectionError(
-                    "live eval is disabled because a production voice session "
-                    "started during the provider budget probe"
-                )
-            if not exact_probe_rate_observed or not self._provider_budget.probe_completed(lease):
-                raise ConnectionError(
-                    "rate_limit_capacity · completed provider budget probe lost its "
-                    "exact authoritative lease"
-                )
-            probe_attested = True
-            return {
-                "performed": True,
-                "actual_tokens": actual_tokens,
-                "cost_usd": actual_cost,
-                "reservation_tokens": PROVIDER_BUDGET_PROBE_TOKENS,
-                # Conservative mechanical ceiling if provider omits terminal usage.
-                "max_cost_usd": PROVIDER_BUDGET_PROBE_TOKENS * (64.0 / 1_000_000),
-            }
-        except TimeoutError as exc:
-            raise ConnectionError(
-                "rate_limit_capacity · provider budget probe received no authoritative "
-                "rate_limits.updated"
-            ) from exc
-        finally:
-            try:
-                if not probe_attested:
-                    self._provider_budget.probe_failed(lease)
-                if session is not None:
-                    await session.close()
-            finally:
-                try:
-                    if reader is not None:
-                        reader.cancel()
-                        with contextlib.suppress(asyncio.CancelledError, Exception):
-                            await reader
-                finally:
-                    self._provider_budget.release(lease)
 
     @staticmethod
     def _new_run_id() -> str:
@@ -1831,13 +1681,6 @@ class LiveEvalService:
                     "error": str(exc)[:500],
                     "deadline_s": self._max_run_s,
                 }
-            provider_budget_probe: dict[str, Any] = {
-                "performed": False,
-                "actual_tokens": 0,
-                "cost_usd": 0.0,
-                "reservation_tokens": 0,
-                "max_cost_usd": 0.0,
-            }
             prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA.strip()
             effective_declarations = admission.declarations
             prompt_metadata = {
@@ -1879,6 +1722,7 @@ class LiveEvalService:
             token_window_started = self._monotonic()
             token_window_used = 0
             run_deadline = self._monotonic() + self._max_run_s
+            diagnostic_lease: BudgetLease | None = None
 
             async def pace_new_session() -> None:
                 nonlocal token_window_started, token_window_used
@@ -1896,12 +1740,15 @@ class LiveEvalService:
 
             async def one(index: int, *, audio: bool) -> TurnResult:
                 nonlocal token_window_used
+                if diagnostic_lease is None:
+                    raise RuntimeError("diagnostic owner missing before replay trial")
                 await pace_new_session()
-                provider_lease = await self._reserve_eval_after_authoritative_reset(
+                provider_lease = await self._reserve_eval_after_capacity_reset(
                     api_key=api_key,
                     model=model,
                     budget=budget,
                     run_deadline=run_deadline,
+                    diagnostic_lease=diagnostic_lease,
                 )
                 before_tokens = budget.actual_tokens
                 driver: LiveRealtimeDriver | None = None
@@ -1973,19 +1820,6 @@ class LiveEvalService:
                 }
             try:
                 async with asyncio.timeout(self._max_run_s):
-                    if not self._provider_budget.eval_budget_is_ready(api_key, model):
-                        provider_budget_probe = {
-                            "performed": True,
-                            "actual_tokens": None,
-                            "cost_usd": None,
-                            "reservation_tokens": PROVIDER_BUDGET_PROBE_TOKENS,
-                            "max_cost_usd": PROVIDER_BUDGET_PROBE_TOKENS * (64.0 / 1_000_000),
-                        }
-                    provider_budget_probe = await self._ensure_authoritative_provider_budget(
-                        api_key=api_key,
-                        model=model,
-                        voice=voice,
-                    )
                     control = await one(0, audio=False)
                     for index in range(1, repeats + 1):
                         trials.append(await one(index, audio=True))
@@ -1993,6 +1827,10 @@ class LiveEvalService:
                 message = str(exc).replace(api_key, "[REDACTED]")[:500]
                 budget_exhausted = "budget_exhausted" in message
                 usage_unknown = "provider_usage_unknown" in message
+                diagnostic_capacity = "diagnostic_capacity" in message or any(
+                    marker in message.lower()
+                    for marker in ("rate_limit", "rate limit", "429", "insufficient_quota")
+                )
                 return {
                     "ok": False,
                     "status": "failed",
@@ -2004,6 +1842,8 @@ class LiveEvalService:
                     "classification": (
                         "budget-exhausted"
                         if budget_exhausted
+                        else "diagnostic-capacity"
+                        if diagnostic_capacity
                         else "provider-usage-unknown"
                         if usage_unknown
                         else "provider-or-eval-failure"
@@ -2011,7 +1851,6 @@ class LiveEvalService:
                     "coverage_complete": False,
                     "control": asdict(control) if control else None,
                     "trials": [asdict(result) for result in trials],
-                    "provider_budget_probe": provider_budget_probe,
                     "budget": asdict(budget),
                     "transcription_budget": transcription_budget,
                     "deadline_s": self._max_run_s,
@@ -2049,7 +1888,6 @@ class LiveEvalService:
                 "classification": classification,
                 "control": asdict(control) if control else None,
                 "trials": [asdict(result) for result in trials],
-                "provider_budget_probe": provider_budget_probe,
                 "budget": asdict(budget),
                 "transcription_budget": transcription_budget,
                 "deadline_s": self._max_run_s,
@@ -2174,13 +2012,6 @@ class LiveEvalService:
                 **_capability_metadata(admission, selected),
             }
             results: list[ScenarioResult] = []
-            provider_budget_probe: dict[str, Any] = {
-                "performed": False,
-                "actual_tokens": 0,
-                "cost_usd": 0.0,
-                "reservation_tokens": 0,
-                "max_cost_usd": 0.0,
-            }
             token_window_started = self._monotonic()
             token_window_used = 0
             run_deadline = self._monotonic() + self._max_run_s
@@ -2195,25 +2026,11 @@ class LiveEvalService:
                     **prompt_metadata,
                     "error": str(exc)[:500],
                     "results": [],
-                    "provider_budget_probe": provider_budget_probe,
                     "budget": asdict(budget),
                     "deadline_s": self._max_run_s,
                 }
             try:
                 async with asyncio.timeout(self._max_run_s):
-                    if not self._provider_budget.eval_budget_is_ready(api_key, model):
-                        provider_budget_probe = {
-                            "performed": True,
-                            "actual_tokens": None,
-                            "cost_usd": None,
-                            "reservation_tokens": PROVIDER_BUDGET_PROBE_TOKENS,
-                            "max_cost_usd": PROVIDER_BUDGET_PROBE_TOKENS * (64.0 / 1_000_000),
-                        }
-                    provider_budget_probe = await self._ensure_authoritative_provider_budget(
-                        api_key=api_key,
-                        model=model,
-                        voice=voice,
-                    )
                     for scenario in selected:
                         elapsed = self._monotonic() - token_window_started
                         if elapsed >= 60.0:
@@ -2227,11 +2044,12 @@ class LiveEvalService:
                             token_window_started = self._monotonic()
                             token_window_used = 0
                         before_tokens = budget.actual_tokens
-                        provider_lease = await self._reserve_eval_after_authoritative_reset(
+                        provider_lease = await self._reserve_eval_after_capacity_reset(
                             api_key=api_key,
                             model=model,
                             budget=budget,
                             run_deadline=run_deadline,
+                            diagnostic_lease=diagnostic_lease,
                         )
                         try:
                             driver = LiveRealtimeDriver(
@@ -2266,6 +2084,10 @@ class LiveEvalService:
                 message = message[:500]
                 budget_exhausted = "budget_exhausted" in message
                 usage_unknown = "provider_usage_unknown" in message
+                diagnostic_capacity = "diagnostic_capacity" in message or any(
+                    marker in message.lower()
+                    for marker in ("rate_limit", "rate limit", "429", "insufficient_quota")
+                )
                 return {
                     "ok": False,
                     "status": "failed",
@@ -2276,13 +2098,14 @@ class LiveEvalService:
                     "classification": (
                         "budget-exhausted"
                         if budget_exhausted
+                        else "diagnostic-capacity"
+                        if diagnostic_capacity
                         else "provider-usage-unknown"
                         if usage_unknown
                         else "provider-or-eval-failure"
                     ),
                     "coverage_complete": False,
                     "results": [asdict(result) for result in results],
-                    "provider_budget_probe": provider_budget_probe,
                     "budget": asdict(budget),
                     "deadline_s": self._max_run_s,
                 }
@@ -2295,7 +2118,6 @@ class LiveEvalService:
                 "model": model,
                 **prompt_metadata,
                 "results": [asdict(result) for result in results],
-                "provider_budget_probe": provider_budget_probe,
                 "budget": asdict(budget),
                 "deadline_s": self._max_run_s,
             }

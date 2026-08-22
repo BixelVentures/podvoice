@@ -1,10 +1,10 @@
-"""Process-wide production-first provider token budget.
+"""Process-wide provider ownership and bounded token reservations.
 
-The Realtime API reports the authoritative rolling token budget through
-``rate_limits.updated``.  This module combines that signal with small local
-reservations so diagnostic eval/replay cannot race household sessions in the same
-add-on process.  Credentials are reduced to a one-way fingerprint immediately and
-are never retained, rendered or logged.
+Realtime ``rate_limits.updated`` events improve rolling-window pacing when present;
+they are not a cold-admission requirement. Local reservations and a key-global
+maintenance owner keep diagnostic eval/replay
+from racing household sessions. Credentials are reduced to a one-way fingerprint
+immediately and are never retained, rendered or logged.
 """
 
 from __future__ import annotations
@@ -36,25 +36,28 @@ class _Bucket:
     remaining: int
     reset_at: float
     authoritative: bool = False
-    # A valid rate snapshot from a failed diagnostic response remains useful for
-    # production admission, but it cannot silently satisfy eval's stricter cold-start
-    # contract on a later run.  Only a completed probe clears this exact bucket flag.
-    eval_probe_required: bool = False
     production: dict[str, int] = field(default_factory=dict)
     production_caps: dict[str, int] = field(default_factory=dict)
     eval_reservations: dict[str, int] = field(default_factory=dict)
     eval_caps: dict[str, int] = field(default_factory=dict)
     eval_headroom: dict[str, int] = field(default_factory=dict)
-    probes: dict[str, int] = field(default_factory=dict)
-    probe_caps: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
+class _DiagnosticOwner:
+    lease_id: str
+    # Each model bucket starts this exact maintenance run in a fresh conservative
+    # epoch. Current-run rate telemetry may then refine pacing, never admission.
+    initialized_buckets: set[str] = field(default_factory=set)
 
 
 class ProviderBudgetCoordinator:
     """Thread-safe shared ledger keyed by credential fingerprint and model.
 
-    Production registration never queues.  Eval is deliberately stricter: at most
-    one trial per key/model, no production session may be active, and both the
-    requested reservation and a full production headroom must fit.
+    Production registration never queues. Eval runs only under a key-global,
+    model-independent maintenance owner. Its first semantic response is the preflight.
+    Valid provider rate telemetry improves pacing; otherwise that run uses a fresh,
+    conservative local window.
     """
 
     def __init__(
@@ -74,7 +77,7 @@ class ProviderBudgetCoordinator:
         self._lock = threading.Lock()
         self._buckets: dict[str, _Bucket] = {}
         self._bucket_key_ids: dict[str, str] = {}
-        self._diagnostics: dict[str, str] = {}
+        self._diagnostics: dict[str, _DiagnosticOwner] = {}
 
     @staticmethod
     def _bucket_id(api_key: str, model: str) -> str:
@@ -97,7 +100,7 @@ class ProviderBudgetCoordinator:
                     (
                         key
                         for key, value in self._buckets.items()
-                        if not value.production and not value.eval_reservations and not value.probes
+                        if not value.production and not value.eval_reservations
                     ),
                     None,
                 )
@@ -132,7 +135,7 @@ class ProviderBudgetCoordinator:
                 raise ProviderBudgetUnavailable(
                     "diagnostic_busy · production voice session is active"
                 )
-            self._diagnostics[key_id] = lease_id
+            self._diagnostics[key_id] = _DiagnosticOwner(lease_id)
         return BudgetLease(key_id, lease_id, "diagnostic")
 
     def diagnostic_is_active(self, api_key: str) -> bool:
@@ -141,11 +144,7 @@ class ProviderBudgetCoordinator:
 
     @staticmethod
     def _reserved(bucket: _Bucket) -> int:
-        return (
-            sum(bucket.production.values())
-            + sum(bucket.eval_reservations.values())
-            + sum(bucket.probes.values())
-        )
+        return sum(bucket.production.values()) + sum(bucket.eval_reservations.values())
 
     def _roll_window(self, bucket: _Bucket, now: float) -> None:
         if now >= bucket.reset_at:
@@ -155,7 +154,13 @@ class ProviderBudgetCoordinator:
             # response allowance renews to the originally admitted bound.
             bucket.production = dict(bucket.production_caps)
             bucket.eval_reservations = dict(bucket.eval_caps)
-            bucket.probes = dict(bucket.probe_caps)
+
+    def _diagnostic_child_active(self, key_id: str) -> bool:
+        return any(
+            bucket.eval_reservations
+            for bucket_id, bucket in self._buckets.items()
+            if self._bucket_key_ids.get(bucket_id) == key_id
+        )
 
     def production_started(
         self,
@@ -182,7 +187,7 @@ class ProviderBudgetCoordinator:
                 )
             if bucket.production:
                 raise ProviderBudgetUnavailable("another production voice session is active")
-            if bucket.eval_reservations or bucket.probes:
+            if bucket.eval_reservations:
                 raise ProviderBudgetUnavailable(
                     "diagnostic_busy · live provider diagnostic is active"
                 )
@@ -203,24 +208,44 @@ class ProviderBudgetCoordinator:
         *,
         tokens: int,
         production_headroom: int,
+        diagnostic_lease: BudgetLease | None = None,
     ) -> BudgetLease:
-        """Reserve one worst-case eval trial or fail closed without waiting."""
+        """Reserve one worst-case eval trial or fail closed without waiting.
+
+        A valid provider token snapshot improves pacing but is not a cold-admission
+        safety boundary. Eval always requires the exact key-global diagnostic owner.
+        """
         if tokens <= 0 or production_headroom < 0:
             raise ValueError("invalid eval token reservation")
         now = self._monotonic()
         lease_id = secrets.token_hex(16)
         with self._lock:
             bucket_id, bucket = self._bucket(api_key, model, now)
-            if not bucket.authoritative or bucket.eval_probe_required:
+            key_id = self._key_id(api_key)
+            owner = self._diagnostics.get(key_id)
+            exact_diagnostic = bool(
+                diagnostic_lease is not None
+                and diagnostic_lease.role == "diagnostic"
+                and diagnostic_lease.bucket_id == key_id
+                and owner is not None
+                and owner.lease_id == diagnostic_lease.lease_id
+            )
+            if not exact_diagnostic:
                 raise ProviderBudgetUnavailable(
-                    "rate_limit_capacity · live eval requires a completed authoritative "
-                    "provider budget probe"
+                    "diagnostic_busy · live eval requires its exact diagnostic owner"
                 )
+            assert owner is not None
+            if bucket_id not in owner.initialized_buckets:
+                bucket.limit = self._default_limit
+                bucket.remaining = self._default_limit
+                bucket.reset_at = now + self._window_s
+                bucket.authoritative = False
+                owner.initialized_buckets.add(bucket_id)
             if bucket.production:
                 raise ProviderBudgetUnavailable(
                     "live eval is disabled while a production voice session is active"
                 )
-            if bucket.eval_reservations or bucket.probes:
+            if self._diagnostic_child_active(key_id):
                 raise ProviderBudgetUnavailable("another live eval trial is active")
             available = max(0, bucket.remaining - self._reserved(bucket))
             if available < tokens + production_headroom:
@@ -233,46 +258,6 @@ class ProviderBudgetCoordinator:
             bucket.eval_headroom[lease_id] = int(production_headroom)
         return BudgetLease(bucket_id, lease_id, "eval")
 
-    def reserve_probe(
-        self,
-        api_key: str,
-        model: str,
-        *,
-        tokens: int,
-        production_headroom: int,
-    ) -> BudgetLease:
-        """Admit one tiny cold-start probe while preserving physical headroom."""
-        if tokens <= 0 or production_headroom < 0:
-            raise ValueError("invalid provider probe reservation")
-        now = self._monotonic()
-        lease_id = secrets.token_hex(16)
-        with self._lock:
-            bucket_id, bucket = self._bucket(api_key, model, now)
-            if bucket.authoritative and not bucket.eval_probe_required:
-                raise ProviderBudgetUnavailable("provider budget is already authoritative")
-            if bucket.production:
-                raise ProviderBudgetUnavailable(
-                    "live eval is disabled while a production voice session is active"
-                )
-            if bucket.eval_reservations or bucket.probes:
-                raise ProviderBudgetUnavailable("another live eval trial is active")
-            available = max(0, bucket.remaining - self._reserved(bucket))
-            if available < tokens + production_headroom:
-                raise ProviderBudgetUnavailable(
-                    "rate_limit_capacity · provider token headroom is insufficient "
-                    "for budget probe plus production"
-                )
-            bucket.probes[lease_id] = int(tokens)
-            bucket.probe_caps[lease_id] = int(tokens)
-        return BudgetLease(bucket_id, lease_id, "probe")
-
-    def eval_budget_is_ready(self, api_key: str, model: str) -> bool:
-        """Whether eval has authority that is not tainted by a failed cold probe."""
-        now = self._monotonic()
-        with self._lock:
-            _bucket_id, bucket = self._bucket(api_key, model, now)
-            return bucket.authoritative and not bucket.eval_probe_required
-
     def eval_retry_after(
         self,
         api_key: str,
@@ -280,51 +265,39 @@ class ProviderBudgetCoordinator:
         *,
         tokens: int,
         production_headroom: int,
+        diagnostic_lease: BudgetLease,
     ) -> float | None:
-        """Return one authoritative reset wait, or ``None`` for a non-capacity blocker.
+        """Return one current-run reset wait, or ``None`` for a non-capacity blocker.
 
-        This is advisory only.  ``reserve_eval`` remains the atomic admission edge, so
-        production starting during the wait wins without ever queueing behind eval.
+        This is advisory only. ``reserve_eval`` remains the atomic admission edge, and
+        the same key-global diagnostic owner remains exclusive throughout the wait.
         """
         if tokens <= 0 or production_headroom < 0:
             raise ValueError("invalid eval token reservation")
         now = self._monotonic()
         with self._lock:
-            _bucket_id, bucket = self._bucket(api_key, model, now)
+            bucket_id, bucket = self._bucket(api_key, model, now)
+            key_id = self._key_id(api_key)
+            owner = self._diagnostics.get(key_id)
             if (
-                not bucket.authoritative
-                or bucket.eval_probe_required
-                or bucket.production
-                or bucket.eval_reservations
-                or bucket.probes
+                diagnostic_lease.role != "diagnostic"
+                or diagnostic_lease.bucket_id != key_id
+                or owner is None
+                or owner.lease_id != diagnostic_lease.lease_id
             ):
+                return None
+            if bucket_id not in owner.initialized_buckets:
+                bucket.limit = self._default_limit
+                bucket.remaining = self._default_limit
+                bucket.reset_at = now + self._window_s
+                bucket.authoritative = False
+                owner.initialized_buckets.add(bucket_id)
+            if bucket.production or bucket.eval_reservations:
                 return None
             available = max(0, bucket.remaining - self._reserved(bucket))
             if available >= tokens + production_headroom:
                 return 0.0
             return max(0.0, bucket.reset_at - now)
-
-    def probe_failed(self, lease: BudgetLease) -> bool:
-        """Require an explicit later completed probe without invalidating production data."""
-        if lease.role != "probe":
-            return False
-        with self._lock:
-            bucket = self._buckets.get(lease.bucket_id)
-            if bucket is None or lease.lease_id not in bucket.probes:
-                return False
-            bucket.eval_probe_required = True
-            return True
-
-    def probe_completed(self, lease: BudgetLease) -> bool:
-        """Attest the exact active probe only after rate authority and response completion."""
-        if lease.role != "probe":
-            return False
-        with self._lock:
-            bucket = self._buckets.get(lease.bucket_id)
-            if bucket is None or lease.lease_id not in bucket.probes or not bucket.authoritative:
-                return False
-            bucket.eval_probe_required = False
-            return True
 
     def release(self, lease: BudgetLease | None) -> bool:
         """Release exactly once.  Stale generations become harmless no-ops."""
@@ -332,7 +305,8 @@ class ProviderBudgetCoordinator:
             return False
         with self._lock:
             if lease.role == "diagnostic":
-                if self._diagnostics.get(lease.bucket_id) != lease.lease_id:
+                owner = self._diagnostics.get(lease.bucket_id)
+                if owner is None or owner.lease_id != lease.lease_id:
                     return False
                 self._diagnostics.pop(lease.bucket_id, None)
                 return True
@@ -349,10 +323,6 @@ class ProviderBudgetCoordinator:
                 released = bucket.eval_reservations.pop(lease.lease_id, None) is not None
                 bucket.eval_caps.pop(lease.lease_id, None)
                 bucket.eval_headroom.pop(lease.lease_id, None)
-                return released
-            if lease.role == "probe":
-                released = bucket.probes.pop(lease.lease_id, None) is not None
-                bucket.probe_caps.pop(lease.lease_id, None)
                 return released
             return False
 
@@ -377,7 +347,6 @@ class ProviderBudgetCoordinator:
             table = {
                 "production": bucket.production,
                 "eval": bucket.eval_reservations,
-                "probe": bucket.probes,
             }.get(lease.role)
             return table is not None and lease.lease_id in table
 
@@ -434,12 +403,11 @@ class ProviderBudgetCoordinator:
             return True
 
     def response_retry_after(self, lease: BudgetLease, tokens: int | None = None) -> float | None:
-        """Return the exact active eval lease's next authoritative reset delay.
+        """Return the exact active eval lease's next bounded reset delay.
 
         This is advisory.  The caller must re-run ``ensure_response_capacity`` after
-        sleeping, where a physical session that arrived meanwhile wins atomically.
-        Production is never queued by this method, and an unknown/non-authoritative
-        window is never guessed.
+        sleeping while the same key-global diagnostic owner remains exclusive.
+        An unknown window is paced only from this run's bounded local epoch.
         """
         now = self._monotonic()
         with self._lock:
@@ -447,12 +415,14 @@ class ProviderBudgetCoordinator:
             if bucket is None:
                 return None
             self._roll_window(bucket, now)
-            if (
-                lease.role != "eval"
-                or lease.lease_id not in bucket.eval_reservations
-                or not bucket.authoritative
-                or bucket.production
-            ):
+            if lease.role != "eval" or lease.lease_id not in bucket.eval_reservations:
+                return None
+            key_id = self._bucket_key_ids.get(lease.bucket_id)
+            owner = self._diagnostics.get(key_id or "")
+            conservative_ready = bool(
+                owner is not None and lease.bucket_id in owner.initialized_buckets
+            )
+            if (not bucket.authoritative and not conservative_ready) or bucket.production:
                 return None
             owned = bucket.eval_reservations[lease.lease_id]
             cap = bucket.eval_caps.get(lease.lease_id)
@@ -497,10 +467,6 @@ class ProviderBudgetCoordinator:
                 owned = bucket.eval_reservations.get(lease.lease_id)
                 if owned is not None:
                     bucket.eval_reservations[lease.lease_id] = max(0, owned - int(tokens))
-            elif lease is not None and lease.bucket_id == _bucket_id and lease.role == "probe":
-                owned = bucket.probes.get(lease.lease_id)
-                if owned is not None:
-                    bucket.probes[lease.lease_id] = max(0, owned - int(tokens))
 
     def is_authoritative(self, api_key: str, model: str) -> bool:
         now = self._monotonic()
@@ -550,10 +516,8 @@ class ProviderBudgetCoordinator:
                 "remaining": bucket.remaining,
                 "reset_in_s": max(0.0, bucket.reset_at - now),
                 "authoritative": bucket.authoritative,
-                "eval_probe_required": bucket.eval_probe_required,
                 "production_sessions": len(bucket.production),
                 "eval_trials": len(bucket.eval_reservations),
-                "budget_probes": len(bucket.probes),
                 "reserved_tokens": self._reserved(bucket),
             }
 

@@ -5,13 +5,50 @@ Senest opdateret: 2026-08-22.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv softwarekandidat:** v1.13.29 (arbejdstræ på branch
-`codex/v1.13.27-provider-safety`). **Aktuel gate:** den korrigerede lokale maskinelle
-kontrakt er grøn, men kandidatens eksakte commit, CI/ARM64-image og rigtige cold-probe +
-Prompt V6-live-eval står fortsat åbne. Kandidaten er derfor **NO-GO** for fysisk test.
+**Aktiv softwarekandidat:** v1.13.30 (arbejdstræ på branch
+`codex/v1.13.27-provider-safety`). **Aktuel gate:** den korrigerede maskinelle
+no-probe-kontrakt er lokalt grøn og har ingen åben P0/P1 i uafhængigt review;
+kandidatens eksakte commit, CI/ARM64-image og rigtige Prompt V6-live-eval står fortsat
+åbne. Kandidaten er derfor **NO-GO** for fysisk test.
 En live-rapport på de samme byggede bits og uafhængig review skal genoprette mindst
 97/100, før én frisk fysisk golden chain må begynde. Fysisk Voice PE-bevis og 10/10 er
 fortsat separate gates; v1.13.11 er uændret fysisk baseline.
+
+### Feltstop 22. august — v1.13.29 havde en unødvendig separat providerprobe
+
+**Observeret fejl og aktiv lead-beslutning.** Den installerede v1.13.29 afsluttede
+preflight før semantisk eval, fordi en ekstra throwaway Response ikke modtog den
+forventede `rate_limits.updated`. Feltsekvensen var `session.updated` →
+`response.created` → samme `response.done(completed)` uden en logget gyldig rate-event.
+Det falsificerer rate-telemetri som obligatorisk cold-admission-autoritet.
+
+- **Valgt safety-model:** Den separate providerprobe, probelease, probesocket,
+  proberapport og probepris fjernes helt. Første rigtige, sideeffektfrie semantiske
+  evalrespons er providerpreflight og bruger den eksakte produktionsprompt, hele det
+  frosne schema og kun `SafeEvalTools`. `rate_limits.updated` er valgfri pacingtelemetri.
+- **Mekaniske grænser:** Den nøglebrede, modeluafhængige diagnostiklås, et nyt lokalt
+  40.000-token/60-sekunders vindue per diagnostik/model, completed response med typet
+  usage på hver kant, causal tool-resultatkapacitet, højst tre responsekanter per tur,
+  hard deadline og prospektivt $5-loft. Gammel providertelemetri genbruges ikke.
+- **Hele kæden:** panelstart → diagnostiklås → prompt/schema/fixtureadmission → første
+  semantiske evalsession → første `response.create` → optional rate-event → completed
+  `response.done` med typet usage → fortsat scenario eller terminal diagnostik. Der
+  findes ingen ekstra providerresponse før den faktiske assistenttest.
+- **Fail-closed:** Manglende/malformed usage, timeout, ikke-completed response og
+  provider-429/capacity stopper hele kørslen før næste tur, scenarie eller efterfølgende
+  fixtureeffekt. Eval-fixtures er lokale og kan ikke skabe en rigtig ekstern effekt;
+  der er ingen automatisk retry. Alle leases frigives terminalt.
+- **Ikke-mål:** Prompt, model, lyd, VAD, firmware, playback, Thin-lifecycle, HA/MCP og
+  produktionsværktøjspolitik ændres ikke. Kandidaten er NO-GO, indtil frozen focused,
+  full, lint, mypy, uafhængigt review, CI/ARM64 og rigtig Prompt V6-live-eval er bevist.
+- **Faktisk lokal korrektion og resultat:** Throwaway-API, probelease, probesocket,
+  probepris og proberapport er slettet. Første semantiske response ejer preflighten.
+  Exact diagnostic-owner, tværmodelserialisering, completed+usage uden rate-event,
+  malformed/manglende usage, 429, timeout/non-completed, reset og terminal release er
+  dækket. Provider/eval/panel-fokus er **141/141**, hele repoet **742/742**, Ruff,
+  formattering, scoped mypy og diff-check er grønne. Uafhængigt frozen review fandt
+  ingen åben P0/P1; CI/ARM64 og rigtig Prompt V6-live-eval står fortsat åbne, så
+  kandidaten er stadig NO-GO for fysisk test.
 
 ### Feltstop 22. august — v1.13.28 live-preflight og HA-readiness
 
