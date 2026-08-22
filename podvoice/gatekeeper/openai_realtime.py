@@ -46,6 +46,7 @@ from .provider_budget import (
     ProviderBudgetCoordinator,
     ProviderBudgetUnavailable,
 )
+from .tool_wire import realtime_function_tool
 from .voice import (
     AudioChunk,
     InputTranscript,
@@ -149,9 +150,12 @@ PRECONNECT_AUDIO_MAX_S = 12.0
 # room for low-effort reasoning + tool JSON while cutting the reservation by 75%.
 MAX_OUTPUT_TOKENS = 1024
 # A completed function-call response is not safe to execute unless the same socket
-# generation still owns enough capacity for the result/farewell response. Historical
-# Tier-1 traces reserved about 5.5k tokens for that edge; keep a rounded hard guard.
-TOOL_FOLLOWUP_TOKEN_RESERVE = 6_000
+# generation still owns enough capacity for the entire conversation context repeated
+# into the result/farewell response, its bounded tool output, and the next output.
+TOOL_FOLLOWUP_MINIMUM_RESERVE = 6_000
+MAX_TOOL_RESULT_BYTES = 2_048
+MAX_TOOL_RESULT_TOKENS = MAX_TOOL_RESULT_BYTES  # worst-case one UTF-8 byte per token
+TOOL_FOLLOWUP_PROTOCOL_MARGIN = 512
 
 # The panel's model/voice selector set (all voice-capable; small fixed list).
 STATIC_MODELS = [
@@ -478,15 +482,7 @@ class OpenAIRealtimeSession:
         tools: list[dict] = []
         if self.tool_declarations:
             # Gemini-style {name,description,parameters} -> OpenAI {type:function, ...}.
-            tools += [
-                {
-                    "type": "function",
-                    "name": d.get("name"),
-                    "description": d.get("description"),
-                    "parameters": d.get("parameters"),
-                }
-                for d in self.tool_declarations
-            ]
+            tools += [realtime_function_tool(d) for d in self.tool_declarations]
         if tools:
             session["tools"] = tools
         return {"type": "session.update", "session": session}
@@ -821,7 +817,12 @@ class OpenAIRealtimeSession:
             {
                 "conversation": "none",
                 "output_modalities": ["text"],
-                "max_output_tokens": 8,
+                # GPT-Realtime-2.1 is a reasoning model.  The eight-token field probe
+                # ended incomplete; OpenAI limits that status to max_output_tokens or
+                # content_filter, and the harmless fixed prompt makes the cap the
+                # falsifiable leading cause.  Sixty-four remains far below the exact
+                # 2k probe lease while giving the diagnostic response room to finish.
+                "max_output_tokens": 64,
                 "tool_choice": "none",
                 "tools": [],
                 "instructions": "Return exactly OK.",
@@ -884,7 +885,7 @@ class OpenAIRealtimeSession:
             if not call_id:
                 raise ValueError("tool result omitted call id")
             resp = r.get("response")
-            output = resp if isinstance(resp, str) else json.dumps(resp)
+            output = self._bounded_tool_output(resp)
             item_id = _safe_client_item_id(f"pv_tool_{uuid.uuid4().hex[:24]}")
             pending = self._register_item_create(
                 item_id=item_id,
@@ -1135,6 +1136,43 @@ class OpenAIRealtimeSession:
         self._terminal_responses[response_id] = status
         return True
 
+    @staticmethod
+    def _bounded_tool_output(response: object) -> str:
+        """Bound provider context while preserving truthful mutation acknowledgements."""
+        output = (
+            response
+            if isinstance(response, str)
+            else json.dumps(response, ensure_ascii=False, separators=(",", ":"))
+        )
+        if len(output.encode("utf-8")) <= MAX_TOOL_RESULT_BYTES:
+            return output
+        if isinstance(response, dict):
+            summary = response.get("summary")
+            if response.get("ok") is True:
+                bounded = {
+                    "ok": True,
+                    "summary": (
+                        summary.strip()[:500]
+                        if isinstance(summary, str) and summary.strip()
+                        else "Værktøjet gennemførte forespørgslen, men detaljerne var for store."
+                    ),
+                    "data": {"truncated": True},
+                    "result_truncated": True,
+                }
+            else:
+                bounded = {
+                    "ok": False,
+                    "error_kind": "result_too_large",
+                    "error": "Værktøjsresultatet var for stort til en sikker stemmerespons.",
+                }
+        else:
+            bounded = {
+                "ok": False,
+                "error_kind": "result_too_large",
+                "error": "Værktøjsresultatet var for stort til en sikker stemmerespons.",
+            }
+        return json.dumps(bounded, ensure_ascii=False, separators=(",", ":"))
+
     async def _iter_events(
         self,
         ws: aiohttp.ClientWebSocketResponse | None = None,
@@ -1329,13 +1367,34 @@ class OpenAIRealtimeSession:
                     if generation is not None
                     else None
                 )
-                production_tool_usage_valid = not (
-                    staged_calls
-                    and production_lease is not None
+                tool_budget_lease = production_lease or self.budget_lease
+                eval_usage_valid = not (
+                    self.budget_role == "eval"
                     and not self._production_tool_usage_is_authoritative(ev)
                 )
-                usage = self._usage_of(ev) if production_tool_usage_valid else None
-                usage_lease = production_lease or self.budget_lease
+                production_tool_usage_valid = not (
+                    staged_calls
+                    and tool_budget_lease is not None
+                    and not self._production_tool_usage_is_authoritative(ev)
+                )
+                usage = (
+                    self._usage_of(ev) if production_tool_usage_valid and eval_usage_valid else None
+                )
+                followup_tokens = (
+                    max(
+                        TOOL_FOLLOWUP_MINIMUM_RESERVE,
+                        usage.input_text_tokens
+                        + usage.input_audio_tokens
+                        + usage.output_text_tokens
+                        + usage.output_audio_tokens
+                        + MAX_TOOL_RESULT_TOKENS
+                        + MAX_OUTPUT_TOKENS
+                        + TOOL_FOLLOWUP_PROTOCOL_MARGIN,
+                    )
+                    if usage is not None
+                    else TOOL_FOLLOWUP_MINIMUM_RESERVE
+                )
+                usage_lease = tool_budget_lease
                 if usage is not None:
                     self.provider_budget.account_usage(
                         self.api_key,
@@ -1359,18 +1418,41 @@ class OpenAIRealtimeSession:
                     error = _rerror(ev) or (
                         "response.done omitted explicit completed status" if status == "?" else None
                     )
-                    yield TurnComplete(status=effective_status, error=error, response_id=rid)
+                    yield TurnComplete(
+                        status=effective_status,
+                        error=error,
+                        response_id=rid,
+                        provider_rate_observed=provider_reservation_observed,
+                    )
+                    continue
+                if self.budget_role == "eval" and not eval_usage_valid:
+                    self._cancelled_tool_calls.update(staged_calls)
+                    error = (
+                        "provider_usage_unknown · live eval response usage was missing or invalid"
+                    )
+                    self.last_error = error
+                    yield TurnComplete(
+                        status="failed",
+                        error=error,
+                        response_id=rid,
+                        provider_rate_observed=provider_reservation_observed,
+                    )
                     continue
                 if staged_failure is not None:
                     # A completed response containing a malformed/undeclared tool call
                     # is still unsafe. Surface a failed turn and execute none of the
                     # batch, including otherwise-valid sibling calls.
                     self._cancelled_tool_calls.update(staged_calls)
-                    yield TurnComplete(status="failed", error=staged_failure, response_id=rid)
+                    yield TurnComplete(
+                        status="failed",
+                        error=staged_failure,
+                        response_id=rid,
+                        provider_rate_observed=provider_reservation_observed,
+                    )
                     continue
                 if (
                     staged_calls
-                    and production_lease is not None
+                    and tool_budget_lease is not None
                     and not production_tool_usage_valid
                 ):
                     self._cancelled_tool_calls.update(staged_calls)
@@ -1379,13 +1461,18 @@ class OpenAIRealtimeSession:
                         "for tool response"
                     )
                     self.last_error = error
-                    yield TurnComplete(status="failed", error=error, response_id=rid)
+                    yield TurnComplete(
+                        status="failed",
+                        error=error,
+                        response_id=rid,
+                        provider_rate_observed=provider_reservation_observed,
+                    )
                     continue
                 if (
                     staged_calls
-                    and production_lease is not None
-                    and not self.provider_budget.has_capacity(
-                        production_lease, TOOL_FOLLOWUP_TOKEN_RESERVE
+                    and tool_budget_lease is not None
+                    and not self.provider_budget.ensure_response_capacity(
+                        tool_budget_lease, followup_tokens
                     )
                 ):
                     # Never perform a home/lifecycle action unless its exact generation
@@ -1396,7 +1483,12 @@ class OpenAIRealtimeSession:
                         "tool result response"
                     )
                     self.last_error = error
-                    yield TurnComplete(status="failed", error=error, response_id=rid)
+                    yield TurnComplete(
+                        status="failed",
+                        error=error,
+                        response_id=rid,
+                        provider_rate_observed=provider_reservation_observed,
+                    )
                     continue
                 if staged_calls:
                     # Atomic batch gate: register every id before yielding the first
@@ -1479,7 +1571,12 @@ class OpenAIRealtimeSession:
                     )
                     continue
                 _LOG.info("turn: response.done id=%s status=%s -> TurnComplete", rid, status)
-                yield TurnComplete(status=status, error=_rerror(ev), response_id=rid)
+                yield TurnComplete(
+                    status=status,
+                    error=_rerror(ev),
+                    response_id=rid,
+                    provider_rate_observed=provider_reservation_observed,
+                )
 
             elif t == "session.updated":
                 await self._accept_session_update()

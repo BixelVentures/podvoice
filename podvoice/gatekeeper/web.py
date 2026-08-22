@@ -298,6 +298,7 @@ HISTORY: web.AppKey = web.AppKey("history")
 REPLY: web.AppKey = web.AppKey("reply")
 AUDIO_TRACE: web.AppKey = web.AppKey("audio_trace")
 LIVE_EVAL: web.AppKey = web.AppKey("live_eval")
+DIAGNOSTIC_STATUS: web.AppKey = web.AppKey("diagnostic_status")
 
 
 def create_app(
@@ -315,6 +316,7 @@ def create_app(
     history=None,
     audio_trace=None,
     live_eval=None,
+    diagnostic_status=None,
     reply_bus=None,
     reply_token: str | None = None,
     locked: bool = False,
@@ -343,6 +345,7 @@ def create_app(
     app[HISTORY] = history
     app[AUDIO_TRACE] = audio_trace
     app[LIVE_EVAL] = live_eval
+    app[DIAGNOSTIC_STATUS] = diagnostic_status
     app[REPLY] = reply_bus
     app.add_routes(
         [
@@ -864,6 +867,14 @@ async def _index(request: web.Request) -> web.StreamResponse:
 
 async def _status(request: web.Request) -> web.Response:
     snap = request.app[HUB].snapshot()
+    diagnostic = request.app[DIAGNOSTIC_STATUS]
+    diagnostic_active = bool(diagnostic() if diagnostic is not None else False)
+    snap["diagnostic_active"] = diagnostic_active
+    snap["diagnostic_reason"] = (
+        "Sikker systemtest kører; Voice PE og Talk er midlertidigt låst"
+        if diagnostic_active
+        else None
+    )
     snap["capabilities"] = _capabilities(request)
     snap["capability_details"] = _capability_details(snap)
     return web.json_response(snap)
@@ -911,29 +922,34 @@ def _capability_details(snapshot: dict) -> dict:
     ]
     now = time.time()
     names = [
-        (str(item.get("name") or "").lower(), item.get("ts"))
+        (str(item.get("name") or ""), item.get("ts"))
         for item in successful
         if now - float(item.get("ts") or 0.0) <= _CAPABILITY_VERIFY_TTL_S
     ]
-    needles = {
-        "time": ("time", "clock", "tid", "klok"),
-        "home": ("light", "switch", "cover", "scene", "home", "mcp", "hass", "turnon", "turnoff"),
-        "web_search": ("search", "søg", "sog", "google"),
-        "weather": ("weather", "vejr"),
-        "music": ("podconnect", "spotify", "music", "media_player"),
-        "timers": ("timer",),
-    }
+    role_tools = caps.get("roles") or {}
+    discovery_fetched_at = float((caps.get("discovery") or {}).get("fetched_at") or 0.0)
     details = {}
-    for key, terms in needles.items():
-        matches = [(name, ts) for name, ts in names if any(term in name for term in terms)]
+    for key in ("time", "home", "web_search", "weather", "music", "timers"):
+        exact_names = set(role_tools.get(key) or ())
+        matches = [
+            (name, ts)
+            for name, ts in names
+            if name in exact_names
+            and (key in {"time", "timers"} or float(ts or 0.0) >= discovery_fetched_at)
+        ]
+        available = bool(caps.get(key))
         details[key] = {
-            "available": bool(caps.get(key)),
-            "verified": bool(matches),
+            "available": available,
+            "verified": available and bool(matches),
             "last_verified_at": max((ts for _, ts in matches if ts), default=None),
             "source": "lokal" if key in {"time", "timers"} else "Home Assistant / MCP",
-            "reason": "Vellykket værktøjskald registreret"
-            if matches
-            else "Fundet, men endnu ikke bevist i denne runtime",
+            "reason": (
+                "Vellykket værktøjskald registreret"
+                if available and matches
+                else "Fundet, men endnu ikke bevist i denne runtime"
+                if available
+                else "Ikke tilgængelig i det aktuelle værktøjssnapshot"
+            ),
         }
     return details
 

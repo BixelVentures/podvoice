@@ -19,7 +19,7 @@ from gatekeeper.history import History
 from gatekeeper.hub import StatusHub
 from gatekeeper.playback import Playback
 from gatekeeper.reply import ReplyBus
-from gatekeeper.talk import BrowserLink
+from gatekeeper.talk import BrowserLink, TalkHub
 from gatekeeper.thin import ThinSession
 from gatekeeper.voice import (
     AudioChunk,
@@ -407,6 +407,7 @@ def _build(
     supports_direct: bool = False,
     hub=None,
     speech=None,
+    usage=None,
 ):
     attention = FakeAttention()
     voicepe = FakeVoicePELink(room=ROOM)
@@ -421,6 +422,7 @@ def _build(
         tools=FakeTools(),
         hub=hub,
         speech=speech,
+        usage=usage,
         reply_bus=ReplyBus(),
         reply_url=REPLY_URL,
         speaker_path=speaker_path,
@@ -491,6 +493,96 @@ async def test_typed_turn_provider_failure_has_no_phantom_transcript():
         assert result["code"] == "provider_unavailable"
         assert session.sm.state is State.IDLE
         assert hub.transcripts == []
+    finally:
+        await session.aclose()
+
+
+async def test_diagnostic_busy_connect_failure_tears_down_and_rearms_once():
+    class DiagnosticBusyBrain(LiveFake):
+        async def connect(self) -> None:
+            self.connect_count += 1
+            raise RuntimeError("diagnostic_busy · live provider diagnostic is active")
+
+    hub = StatusHub()
+    hub.set_service("openai", "up", reason="Tidligere session accepteret", source="test")
+    brain = DiagnosticBusyBrain()
+    speech = CachedSpeech(_frame(amplitude=1700, n_samples=7200))
+    session, _attention, voicepe = _build(brain, hub=hub, speech=speech)
+    await session.start()
+    try:
+        await session.wake()
+        await _wait_until(lambda: session._active is False)
+        assert brain.connect_count == 1
+        assert voicepe.streaming is False
+        assert voicepe.rearm_calls == 1
+        assert session.sm.state is State.IDLE
+        status = hub.snapshot()
+        assert status["services"]["openai"] == "up"
+        assert status["service_details"]["openai"]["reason"] == "Tidligere session accepteret"
+        assert speech.calls == [C.FALLBACK_DIAGNOSTIC_BUSY]
+    finally:
+        await session.aclose()
+
+
+async def test_transcription_duration_is_metered_once_per_teardown():
+    class UsageProbe:
+        def __init__(self):
+            self.calls: list[tuple[float, str]] = []
+
+        def add_transcription_seconds(self, seconds: float, *, room: str):
+            self.calls.append((seconds, room))
+
+    usage = UsageProbe()
+    session, _attention, _voicepe = _build(LiveFake(), usage=usage)
+    await session.start()
+    try:
+        await session.wake()
+        session._transcription_audio_seconds = 1.25
+        await session.stop("test")
+        assert usage.calls == [(1.25, ROOM)]
+        await session.stop("duplicate")
+        assert usage.calls == [(1.25, ROOM)]
+    finally:
+        await session.aclose()
+
+
+async def test_diagnostic_busy_talk_connect_rejects_without_provider_turn():
+    sent: list[dict] = []
+
+    async def send_json(payload: dict) -> None:
+        sent.append(payload)
+
+    async def send_bytes(_payload: bytes) -> None:
+        return None
+
+    class DiagnosticBusyBrain(LiveFake):
+        async def connect(self) -> None:
+            self.connect_count += 1
+            raise RuntimeError("diagnostic_busy · live provider diagnostic is active")
+
+    brain = DiagnosticBusyBrain()
+    attention = FakeAttention()
+    link = BrowserLink(send_json, send_bytes, room=ROOM)
+    session = ThinSession(
+        room=ROOM,
+        attention=attention,
+        heartbeat=Heartbeat(attention, period_ms=20),
+        brain=brain,
+        voicepe=link,
+        playback=Playback(sink=link.play_pcm),
+        tools=FakeTools(),
+        hub=TalkHub(send_json),
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+    )
+    await session.start()
+    try:
+        result = await session.submit_text("Hvad er klokken?", "diag-talk")
+        assert result["status"] == "rejected"
+        assert brain.connect_count == 1
+        assert brain.sent_text == []
+        assert session.sm.state is State.IDLE
+        assert any(event.get("state") == "IDLE" for event in sent)
     finally:
         await session.aclose()
 

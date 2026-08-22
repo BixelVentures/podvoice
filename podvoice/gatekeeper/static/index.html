@@ -363,7 +363,7 @@
     </div>
     <div class="section">
       <h2>Maskinel Realtime-preflight</h2>
-      <p class="sub" style="margin:2px 0 10px">Kører den rigtige model og produktionsprompt med faste, sikre testdata. Den kan ikke styre hjemmet, musik eller timere og erstatter ikke den fysiske test.</p>
+      <p class="sub" style="margin:2px 0 10px">Kører den rigtige model og produktionsprompt med faste, sikre testdata. Nabu og Talk låses, mens testen kører. Hårdt prisloft: $5 for scenarierne + højst $0,128 for budgetproben. En brugerdefineret prompt over 32 KiB blokeres kun i denne sikre live-test og ændres aldrig i produktion. Testen kan ikke styre hjemmet, musik eller timere og erstatter ikke den fysiske test.</p>
       <button id="eval_live">Kør sikker preflight</button>
       <button id="eval_replay" class="ghost">Genafspil seneste OpenAI-lyd 3×</button>
       <div id="eval_result" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
@@ -630,9 +630,9 @@ function renderSub(data) {
   sub.style.color = connected ? "" : "var(--amber)";
 }
 
-function renderServices(services, details) {
+function renderServices(services, details, diagnosticActive) {
   var wrap = document.getElementById("svc");
-  var signature = JSON.stringify([services || {}, details || {}]);
+  var signature = JSON.stringify([services || {}, details || {}, !!diagnosticActive]);
   if (wrap.dataset.signature === signature) return;
   wrap.dataset.signature = signature; wrap.innerHTML = "";
   var announcements = [];
@@ -645,6 +645,12 @@ function renderServices(services, details) {
     var p = el("span", "pill " + cls);
     var reason = String(detail.reason || "").toLowerCase();
     var label;
+    if (diagnosticActive && (name === "openai" || name === "voicepe")) {
+      cls = "pill-degraded";
+      p.className = "pill " + cls;
+      label = "systemtest kører - midlertidigt låst";
+      p.title = "Sikker systemtest kører. Prøv igen, når testen er færdig.";
+    } else
     if (name === "voicepe") {
       label = st === "up" ? "wake-klar" : st === "degraded" ? "forbundet - wake afprøves" : "offline";
     } else if (name === "openai") {
@@ -691,12 +697,23 @@ function renderCapabilities(caps, details) {
   var labels = { home: "hjem/HA", web_search: "websøgning", weather: "vejr", music: "musikstyring" };
   if (missing.length) {
     warn.hidden = false;
+    var discovery = caps.discovery || {};
+    if (discovery.retry_state === "retrying") {
+      warn.appendChild(el("strong", null, "Home Assistant forbinder igen. "));
+      warn.appendChild(document.createTextNode("Dynamiske evner er midlertidigt skjult; tid og timere virker fortsat."));
+      var retryBits = [];
+      if (discovery.api_id) retryBits.push("Kilde: " + discovery.api_id);
+      if (discovery.last_error) retryBits.push("Seneste fejl: " + discovery.last_error);
+      if (discovery.next_retry_at) retryBits.push("Næste forsøg: " + new Date(discovery.next_retry_at * 1000).toLocaleTimeString("da-DK"));
+      if (retryBits.length) warn.appendChild(el("div", "sub", retryBits.join(" · ")));
+      return;
+    }
     warn.appendChild(el("strong", null, "Ikke alle standard-evner er synlige. "));
     warn.appendChild(document.createTextNode("Mangler: " + missing.map(function (k) { return labels[k] || k; }).join(", ") + ". "));
     (caps.setup_hints ? missing : []).forEach(function (k) {
       if (caps.setup_hints[k]) warn.appendChild(el("div", "sub", caps.setup_hints[k]));
     });
-    warn.appendChild(el("div", "sub", "Home Assistant/MCP er sandheden for hjem, vejr og musik. Gem i HA, genstart PodVoice, og tjek pillerne igen."));
+    warn.appendChild(el("div", "sub", "Home Assistant/MCP er sandheden for hjem, vejr og musik. Gem i HA; PodVoice opdager ændringen automatisk."));
   }
 }
 
@@ -825,7 +842,8 @@ function applyStatus(data) {
   rooms = {};
   (data.rooms || []).forEach(function (r) { rooms[r.room] = r; });
   renderSub(data);
-  renderServices(data.services || {}, data.service_details || {});
+  renderServices(data.services || {}, data.service_details || {}, data.diagnostic_active);
+  window.dispatchEvent(new CustomEvent("podvoice-diagnostic", {detail:{active:!!data.diagnostic_active}}));
   renderCapabilities(data.capabilities || {}, data.capability_details || {});
   renderRooms();
   renderMetrics(data.metrics || {});
@@ -870,7 +888,7 @@ function applyEvent(ev) {
       lastStatus.service_details = lastStatus.service_details || {};
       lastStatus.services[ev.name] = ev.status;
       if (ev.detail) lastStatus.service_details[ev.name] = ev.detail;
-      renderServices(lastStatus.services, lastStatus.service_details);
+      renderServices(lastStatus.services, lastStatus.service_details, lastStatus.diagnostic_active);
     }
   } else if (ev.type === "metrics") {
     var m = {}; Object.keys(METRIC_LABEL).forEach(function (k) { if (ev[k] != null) m[k] = ev[k]; });
@@ -1160,7 +1178,9 @@ setInterval(function () {
     box.innerHTML = "";
     var suffix = data && data.run_id ? " · " + data.run_id : "";
     var label = data && data.kind === "audio-replay" ? "Genafspiller den samme providerlyd mod Realtime" : "Kører sikker Realtime-test";
-    box.appendChild(ee("div", "empty", label + suffix + ". Tier-1-pacing kan tage op til fem minutter…"));
+    var deadline = Math.max(1, Number(data && data.deadline_s || 720));
+    var minutes = Math.ceil(deadline / 60);
+    box.appendChild(ee("div", "empty", label + suffix + ". Nabu er midlertidigt låst imens. Prisloft: $5 + højst $0,128 for budgetproben. Tier-1-pacing kan tage op til " + minutes + " minutter…"));
   }
   function render(data) {
     box.innerHTML = "";
@@ -1184,6 +1204,7 @@ setInterval(function () {
       if (data.trace && data.trace.schema_match === null) replayHead.appendChild(ee("div", "sub", "Ældre trace: oprindeligt værktøjsskema kan ikke bevises."));
       if (data.trace && data.trace.schema_match === false) replayHead.appendChild(ee("div", "sub", "Replay blev stoppet før OpenAI-kald; optagelsen og kandidaten har forskellige værktøjsskemaer."));
       box.appendChild(replayHead);
+      replayHead.appendChild(ee("div", "sub", "Replay tester kun: " + ((data.semantic_profile_covered || []).join(", ") || "ingen semantisk profil") + ". Andre fundne evner er ikke funktionsbevist."));
       var rows = [];
       if (data.control) rows.push({label:"Tekstkontrol", result:data.control});
       (data.trials || []).forEach(function (trial, index) { rows.push({label:"Lyd " + (index + 1), result:trial}); });
@@ -1205,6 +1226,9 @@ setInterval(function () {
     var promptLabel = data.prompt_source === "default" ? "prompt v" + (data.prompt_version || "?") : "brugerdefineret prompt";
     head.appendChild(document.createTextNode((data.results || []).length + " scenarier · " + (data.model || "ukendt model") + " · " + promptLabel));
     box.appendChild(head);
+    box.appendChild(ee("div", "sub", "Semantisk profil testet: " + ((data.semantic_profile_covered || []).join(", ") || "ingen")));
+    box.appendChild(ee("div", "sub", "Fixturerede evner i denne test: " + ((data.capabilities_admitted || []).join(", ") || "ingen")));
+    if ((data.capabilities_not_exercised || []).length) box.appendChild(ee("div", "sub", "Fundet, men ikke funktionstestet her: " + data.capabilities_not_exercised.join(", ") + ". Tilstedeværelse er ikke funktionsbevis."));
     (data.results || []).forEach(function (scenario) {
       var line = ee("div", "line " + (scenario.passed ? "out" : "in"));
       line.appendChild(ee("div", "who", (scenario.passed ? "✓ " : "✕ ") + scenario.scenario_id));
@@ -1224,8 +1248,9 @@ setInterval(function () {
     }
   }
   function delay(ms) { return new Promise(function (resolve) { window.setTimeout(resolve, ms); }); }
-  async function poll(runId, generation) {
-    for (var attempt = 0; attempt < 160 && generation === pollGeneration; attempt += 1) {
+  async function poll(runId, generation, deadlineSeconds) {
+    var maxAttempts = Math.ceil((Math.max(1, Number(deadlineSeconds || 720)) + 10) / 2);
+    for (var attempt = 0; attempt < maxAttempts && generation === pollGeneration; attempt += 1) {
       try {
         var response = await fetch("api/eval/live?run_id=" + encodeURIComponent(runId), {cache:"no-store"});
         var data = await response.json();
@@ -1237,11 +1262,11 @@ setInterval(function () {
         }
         render(data); return;
       } catch (error) {
-        if (attempt >= 159) { render({status:"failed",error:"Forbindelsen til preflight-status forsvandt."}); return; }
+        if (attempt >= maxAttempts - 1) { render({status:"failed",error:"Forbindelsen til preflight-status forsvandt."}); return; }
         await delay(2000);
       }
     }
-    if (generation === pollGeneration) render({status:"failed",error:"Preflighten overskred sit femminutters loft."});
+    if (generation === pollGeneration) render({status:"failed",error:"Preflighten overskred sit deklarerede tidsloft."});
   }
   button.onclick = async function () {
     var generation = ++pollGeneration;
@@ -1250,7 +1275,7 @@ setInterval(function () {
       var response = await fetch("api/eval/live", {method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
       var data = await response.json();
       if ((data.status === "running" || data.status === "busy") && data.run_id) {
-        renderRunning(data); await poll(data.run_id, generation);
+        renderRunning(data); await poll(data.run_id, generation, data.deadline_s);
       } else { render(data); }
     } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre preflighten."}); }
     finally { if (generation === pollGeneration) { button.disabled = false; replayButton.disabled = false; } }
@@ -1262,7 +1287,7 @@ setInterval(function () {
     try {
       var response = await fetch("api/eval/replay", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({repeats:3})});
       var data = await response.json();
-      if ((data.status === "running" || data.status === "busy") && data.run_id) await poll(data.run_id, generation);
+      if ((data.status === "running" || data.status === "busy") && data.run_id) await poll(data.run_id, generation, data.deadline_s);
       else render(data);
     } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre audio-replay."}); }
     finally { if (generation === pollGeneration) { button.disabled = false; replayButton.disabled = false; } }
@@ -1274,7 +1299,7 @@ setInterval(function () {
       if (data.status === "running" && data.run_id) {
         var generation = ++pollGeneration;
         button.disabled = true; replayButton.disabled = true; renderRunning(data);
-        await poll(data.run_id, generation);
+        await poll(data.run_id, generation, data.deadline_s);
         if (generation === pollGeneration) { button.disabled = false; replayButton.disabled = false; }
       } else if (data.status === "complete" || data.status === "failed") { render(data); }
     } catch (error) { /* A status lookup must never disable the rest of the panel. */ }
@@ -1299,6 +1324,7 @@ setInterval(function () {
   var modelSel = document.getElementById("cmodel");
   var voiceSel = document.getElementById("cvoice");
   var ws = null, wsReady = false, currentModel = null, currentVoice = null;
+  var diagnosticActive = !!(lastStatus && lastStatus.diagnostic_active);
   var socketGeneration = 0, reconnectTimer = null, leaseTimer = null, lastPong = 0;
   var pendingText = Object.create(null);
   function providerName() { return "assistenten"; }
@@ -1311,11 +1337,21 @@ setInterval(function () {
     cstate.textContent = s; cstate.className = "pill " + cls;
     var next = {
       "forbinder…": ["Forbinder", "Vent et øjeblik."], online: ["Klar", "Tryk på mikrofonen for at starte."],
+      systemtest: ["Systemtest kører", "Vent til preflight er færdig."],
       offline: ["Ikke forbundet", "Kontrollér add-on-status og prøv igen."], blokeret: ["Mikrofon blokeret", "Følg vejledningen nedenfor eller brug Voice PE."], klar: ["Klar", "Tryk på mikrofonen for at starte."],
       "lytter…": ["Lytter", "Tal nu."], tænker: ["Tænker", "Vent et øjeblik."], taler: ["Nabu svarer", "Lyt til svaret."]
     }[s];
     if (next && stageTitle && stageNext) { stageTitle.textContent = next[0]; stageNext.textContent = next[1]; }
   }
+  window.addEventListener("podvoice-diagnostic", function (event) {
+    diagnosticActive = !!(event.detail && event.detail.active);
+    if (diagnosticActive) {
+      micStop(); micBtn.disabled = true; sendBtn.disabled = true;
+      setState("systemtest", "pill-degraded");
+    } else if (wsReady) {
+      micBtn.disabled = false; sendBtn.disabled = false; setState("online", "pill-up");
+    }
+  });
 
   function emptyLog() { if (!clog.querySelector(".line")) { clog.innerHTML = ""; clog.appendChild(el("div", "empty", "Tryk på mikrofonen eller skriv nedenfor. Svaret afspilles her.")); } }
   function logLine(dir, who, text) {
@@ -1508,7 +1544,8 @@ setInterval(function () {
       var ev; try { ev = JSON.parse(m.data); } catch (e) { return; }
       if (ev.type === "hello" && ev.protocol === 2 && ev.rate) {
         outRate = ev.rate; wsReady = true; lastPong = Date.now();
-        micBtn.disabled = false; sendBtn.disabled = false; setState("online", "pill-up");
+        micBtn.disabled = diagnosticActive; sendBtn.disabled = diagnosticActive;
+        setState(diagnosticActive ? "systemtest" : "online", diagnosticActive ? "pill-degraded" : "pill-up");
         leaseTimer = setInterval(function () {
           if (generation !== socketGeneration || sock !== ws) return;
           if (Date.now() - lastPong > 15000) { wsReady = false; setState("offline", "pill-down"); try { sock.close(); } catch (_) {} return; }
@@ -1555,7 +1592,7 @@ setInterval(function () {
   }
 
   function sendText() {
-    if (sendBtn.disabled) return;
+    if (sendBtn.disabled || diagnosticActive) return;
     var t = (input.value || "").trim(); if (!t) return;
     if (!wsReady) { logLine("out", "system", "Ikke forbundet endnu."); return; }
     halted = false; ensurePlay();
@@ -1654,6 +1691,7 @@ setInterval(function () {
   }
   if (window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     micBtn.onclick = function () {
+      if (diagnosticActive) { micStop(); setState("systemtest", "pill-degraded"); return; }
       if (!wsReady) { micStop(); setState("offline", "pill-down"); return; }
       if (!micOn) { micStart().then(function (started) { if (started) sendWake(); }); }
       else sendWake();  // re-wake mid-conversation hushes the reply, same as the puck

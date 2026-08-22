@@ -103,8 +103,13 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
 15. Providerbudgettet er en causal sikkerhedsgrænse, ikke kun telemetry. Før en
     sideeffektende tool-batch frigives, skal den samme socket-generation have
     autoritativ, ikke-negativ usage og reserveret kapacitet til tool-resultat eller
-    farvel. Ellers udføres nul sideeffekter. Eval må aldrig forbruge produktionens
-    reserverede headroom eller få en fysisk session til at vente.
+    farvel. Ellers udføres nul sideeffekter. På en delt provider-/rate-limit-pulje er
+    den eksplicit startede live-preflight en bounded, gensidigt eksklusiv
+    diagnostiktilstand: aktiv produktion blokerer eval før socket, og en aktiv eval
+    afviser nye Voice PE-/Talk-sessioner straks som `diagnostic_busy`, hvorefter den
+    normale fejl-teardown og rearm gennemføres én gang. UI må ikke vise fysisk klar,
+    og diagnostiklåsen skal frigives ved enhver terminal sti. Parallel eval og
+    produktion kræver en separat providerpulje; lokalt simuleret headroom er ikke bevis.
 
 ## Beviskrav før “testklar” eller “færdig”
 

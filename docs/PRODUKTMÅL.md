@@ -43,7 +43,12 @@ på sin egen højttaler eller blive dødt efter få samtaler.
   Promptbekræftelse alene er aldrig autorisation, og teardown/replay annullerer alt
   ventende.
 - Sideeffekter kræver autoritativ provider-usage og reserveret kapacitet til den
-  efterfølgende kvittering eller afslutning. Eval må ikke reducere fysisk headroom.
+  efterfølgende kvittering eller afslutning. Den eksplicit startede live-preflight er
+  en gensidigt eksklusiv diagnostiktilstand: den må kun starte uden en aktiv fysisk/
+  Talk-samtale, og nye produktionssessioner afvises hurtigt og rearmes rent, indtil
+  preflightens bounded teardown har frigivet providerlåsen. UI må aldrig kalde Nabu
+  fysisk klar imens. Sand parallel isolation kræver en separat providerprojekt-/
+  rate-limit-pulje; den må ikke simuleres med ubeviseligt lokalt headroom.
 
 ### Maskinel adgangsgate før fysisk test
 
@@ -174,8 +179,12 @@ Ved én regression slås funktionen fra uden ændring af den låste latency-base
 
 Et fejlet eller timeoutet `tools/list` må aldrig kræve manuel genindlæsning eller
 add-on-genstart. PodVoice skal oprette MCP-sessionen på ny med hurtig backoff (ca. 1,
-2, 5, 10 og 30 sekunder, derefter højst ét forsøg pr. minut), fortsætte tid, web, musik
-og samtale imens og atomisk genaktivere hjem og vejr, når HA svarer.
+2, 5, 10 og 30 sekunder, derefter højst ét forsøg pr. minut), fortsætte samtalen, lokal
+tid og lokale timere imens og atomisk genaktivere HA-afhængige evner, når HA svarer.
+Et værktøj fortsætter kun under udfaldet, hvis det har en faktisk uafhængig, rask
+adapter. I den nuværende topologi er `google_web_sogning`, HassMedia og PodConnects
+data-services HA-/Supervisor-afhængige; de skal derfor vises ærligt som midlertidigt
+utilgængelige og må aldrig køres fra et stale deklarationssnapshot.
 
 Panelet skal vise “forbinder igen”, seneste konkrete fejl og automatisk skifte til
 verificeret uden at afbryde en aktiv Realtime-samtale. Tests skal dække opstartsfejl,

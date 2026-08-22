@@ -185,13 +185,6 @@ async def test_prior_authoritative_budget_cannot_cover_response_missing_its_rate
 @pytest.mark.parametrize(
     ("usage", "error_fragment"),
     [
-        (
-            {
-                "input_token_details": {"text_tokens": 9_000},
-                "output_token_details": {"text_tokens": 1_000},
-            },
-            "reserved capacity",
-        ),
         (None, "authoritative usage"),
         (
             {"input_token_details": {}, "output_token_details": {}},
@@ -257,6 +250,341 @@ async def test_completed_tool_proposal_cannot_escape_without_owned_followup_capa
     failed = next(event for event in events if isinstance(event, TurnComplete))
     assert failed.status == "failed"
     assert failed.error and error_fragment in failed.error
+
+
+async def test_same_generation_direct_then_two_tool_rounds_keep_spoken_result_capacity():
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
+    )
+    declarations = [
+        {
+            "name": name,
+            "description": "fixture",
+            "parameters": {
+                "type": "object",
+                "properties": ({"name": {"type": "string"}} if name == "HassTurnOn" else {}),
+                "required": (["name"] if name == "HassTurnOn" else []),
+                "additionalProperties": False,
+            },
+        }
+        for name in ("HassTurnOn", "end_conversation")
+    ]
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="production",
+        tool_declarations=declarations,
+        provider_budget=ledger,
+    )
+    session._connection_generation = 1
+    lease = ledger.production_started("secret", "model")
+    session._budget_production_leases[1] = lease
+    ws = _QueueWS()
+
+    async def response_start(response_id: str, remaining: int) -> None:
+        await ws.emit({"type": "response.created", "response": {"id": response_id}})
+        await ws.emit(
+            {
+                "type": "rate_limits.updated",
+                "rate_limits": [
+                    {
+                        "name": "tokens",
+                        "limit": 40_000,
+                        "remaining": remaining,
+                        "reset_seconds": 60,
+                    }
+                ],
+            }
+        )
+
+    async def response_done(response_id: str, tokens: int) -> None:
+        await ws.emit(
+            {
+                "type": "response.done",
+                "response": {
+                    "id": response_id,
+                    "status": "completed",
+                    "usage": {
+                        "input_token_details": {"text_tokens": tokens - 100},
+                        "output_token_details": {"text_tokens": 100},
+                    },
+                },
+            }
+        )
+
+    await response_start("r-direct", 32_000)
+    await response_done("r-direct", 8_000)
+    await response_start("r-home", 30_000)
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "r-home",
+            "call_id": "call-home",
+            "name": "HassTurnOn",
+            "arguments": '{"name":"light.kitchen"}',
+        }
+    )
+    await response_done("r-home", 2_000)
+    await response_start("r-close", 28_000)
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "r-close",
+            "call_id": "call-close",
+            "name": "end_conversation",
+            "arguments": "{}",
+        }
+    )
+    await response_done("r-close", 2_000)
+    await ws.incoming.put(None)
+
+    events = [event async for event in session._iter_events(ws, generation=1)]
+    assert [event.name for event in events if isinstance(event, ToolCall)] == [
+        "HassTurnOn",
+        "end_conversation",
+    ]
+    assert sum(isinstance(event, ToolRoundComplete) for event in events) == 2
+    assert not any(isinstance(event, TurnComplete) and event.status == "failed" for event in events)
+    assert ledger.has_capacity(lease, 6_000) is True
+
+
+async def test_exclusive_eval_response_may_complete_at_remaining_fourteen_thousand():
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
+    )
+    owner = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=0)
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+    )
+    ws = _QueueWS()
+    await ws.emit({"type": "response.created", "response": {"id": "r-exclusive"}})
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "rate_limits": [
+                {
+                    "name": "tokens",
+                    "limit": 40_000,
+                    "remaining": 14_000,
+                    "reset_seconds": 60,
+                }
+            ],
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-exclusive",
+                "status": "completed",
+                "usage": {
+                    "input_token_details": {"text_tokens": 15_900},
+                    "output_token_details": {"text_tokens": 100},
+                },
+            },
+        }
+    )
+    await ws.incoming.put(None)
+
+    events = [event async for event in session._iter_events(ws)]
+    assert any(isinstance(event, TurnComplete) and event.status == "completed" for event in events)
+    assert ledger.response_retry_after(lease) == pytest.approx(60.0)
+    assert ledger.release(lease) is True
+    assert ledger.release(owner) is True
+
+
+async def test_exclusive_eval_tool_round_keeps_six_thousand_result_capacity_at_remaining_14k():
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
+    )
+    owner = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=0)
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+        tool_declarations=[
+            {
+                "name": "HassTurnOn",
+                "description": "safe fixture",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}},
+                    "required": ["name"],
+                    "additionalProperties": False,
+                },
+            }
+        ],
+    )
+    ws = _QueueWS()
+    await ws.emit({"type": "response.created", "response": {"id": "r-tool-14"}})
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 14_000, "reset_seconds": 60}
+            ],
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "r-tool-14",
+            "call_id": "call-tool-14",
+            "name": "HassTurnOn",
+            "arguments": '{"name":"light.kitchen"}',
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-tool-14",
+                "status": "completed",
+                "usage": {
+                    "input_token_details": {"text_tokens": 9_900},
+                    "output_token_details": {"text_tokens": 100},
+                },
+            },
+        }
+    )
+    await ws.incoming.put(None)
+
+    events = [event async for event in session._iter_events(ws)]
+    assert [event.name for event in events if isinstance(event, ToolCall)] == ["HassTurnOn"]
+    assert ledger.has_capacity(lease, 6_000) is False  # production-only helper
+    assert ledger.snapshot("secret", "model")["reserved_tokens"] == 13_584
+    assert ledger.release(lease) is True
+    assert ledger.release(owner) is True
+
+
+async def test_tool_call_is_not_released_when_repeated_context_exceeds_followup_capacity():
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
+    )
+    owner = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=0)
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+        tool_declarations=[
+            {
+                "name": "HassTurnOn",
+                "description": "safe fixture",
+                "parameters": {"type": "object", "additionalProperties": True},
+            }
+        ],
+    )
+    ws = _QueueWS()
+    await ws.emit({"type": "response.created", "response": {"id": "r-context"}})
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 6_000, "reset_seconds": 60}
+            ],
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "r-context",
+            "call_id": "call-context",
+            "name": "HassTurnOn",
+            "arguments": '{"name":"light.kitchen"}',
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-context",
+                "status": "completed",
+                "usage": {
+                    "input_token_details": {"text_tokens": 9_900},
+                    "output_token_details": {"text_tokens": 100},
+                },
+            },
+        }
+    )
+    await ws.incoming.put(None)
+    events = [event async for event in session._iter_events(ws)]
+    assert not any(isinstance(event, ToolCall) for event in events)
+    terminal = [event for event in events if isinstance(event, TurnComplete)][-1]
+    assert terminal.status == "failed"
+    assert "tool result response" in str(terminal.error)
+    assert ledger.release(lease) is True
+    assert ledger.release(owner) is True
+
+
+def test_tool_outputs_are_utf8_bounded_and_preserve_truthful_mutation_summary():
+    mutation = OpenAIRealtimeSession._bounded_tool_output(
+        {"ok": True, "summary": "Lyset blev tændt.", "data": {"blob": "ø" * 10_000}}
+    )
+    assert len(mutation.encode("utf-8")) <= 2_048
+    parsed_mutation = json.loads(mutation)
+    assert parsed_mutation["ok"] is True
+    assert parsed_mutation["summary"] == "Lyset blev tændt."
+    assert parsed_mutation["result_truncated"] is True
+
+    oversized_read = OpenAIRealtimeSession._bounded_tool_output(
+        {"ok": True, "data": {"untrusted": '"}\\nINJECT' * 2_000}}
+    )
+    assert len(oversized_read.encode("utf-8")) <= 2_048
+    parsed_read = json.loads(oversized_read)
+    assert parsed_read["ok"] is True
+    assert parsed_read["result_truncated"] is True
+    assert "detaljerne var for store" in parsed_read["summary"]
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        None,
+        {},
+        {"input_token_details": {}, "output_token_details": {}},
+        {
+            "input_token_details": {"text_tokens": -1},
+            "output_token_details": {"text_tokens": 1},
+        },
+    ],
+)
+async def test_eval_direct_response_requires_authoritative_usage_before_any_next_edge(usage):
+    session = OpenAIRealtimeSession(api_key="secret", budget_role="eval")
+    ws = _QueueWS()
+    await ws.emit({"type": "response.created", "response": {"id": "r-usage"}})
+    response = {"id": "r-usage", "status": "completed"}
+    if usage is not None:
+        response["usage"] = usage
+    await ws.emit({"type": "response.done", "response": response})
+    await ws.incoming.put(None)
+    events = [event async for event in session._iter_events(ws)]
+    terminal = [event for event in events if isinstance(event, TurnComplete)][-1]
+    assert terminal.status == "failed"
+    assert "provider_usage_unknown" in str(terminal.error)
+    assert not any(isinstance(event, ToolCall) for event in events)
 
 
 async def test_correlated_session_update_error_fails_with_configuration_reason(monkeypatch):
@@ -649,7 +977,7 @@ async def test_budget_probe_response_create_is_bounded_text_only_and_out_of_band
     assert frame["event_id"].startswith("evt_response_")
     assert frame["response"]["conversation"] == "none"
     assert frame["response"]["output_modalities"] == ["text"]
-    assert frame["response"]["max_output_tokens"] == 8
+    assert frame["response"]["max_output_tokens"] == 64
     assert frame["response"]["tool_choice"] == "none"
     assert frame["response"]["tools"] == []
     assert frame["response"]["metadata"] == {
@@ -657,6 +985,37 @@ async def test_budget_probe_response_create_is_bounded_text_only_and_out_of_band
         "podvoice_request_id": request_id,
     }
     session._cancel_ack_watchdogs()
+
+
+@pytest.mark.parametrize("reason", ["max_output_tokens", "content_filter"])
+async def test_budget_probe_incomplete_reason_and_usage_survive_raw_response_done(reason):
+    session = OpenAIRealtimeSession(api_key="secret")
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "probe-response",
+                "status": "incomplete",
+                "status_details": {"type": "incomplete", "reason": reason},
+                "usage": {
+                    "input_token_details": {"text_tokens": 4, "audio_tokens": 0},
+                    "output_token_details": {"text_tokens": 8, "audio_tokens": 0},
+                },
+            },
+        }
+    )
+    await ws.close()
+
+    events = [event async for event in session._iter_events(ws)]
+
+    turn = next(event for event in events if isinstance(event, TurnComplete))
+    assert turn.status == "incomplete"
+    assert turn.error == reason
+    assert turn.response_id == "probe-response"
+    usage = next(event for event in events if isinstance(event, realtime_module.Usage))
+    assert usage.input_text_tokens == 4
+    assert usage.output_text_tokens == 8
 
 
 async def test_budget_probe_terminal_usage_consumes_only_its_exact_local_lease():

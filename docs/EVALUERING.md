@@ -58,27 +58,24 @@ I add-on-panelets Test-fane køres samme afgrænsede suite med **Kør sikker pre
 Det ingressbeskyttede endpoint er `POST /api/eval/live`; requesten kan kun vælge kendte
 scenarie-id'er og kan aldrig levere API-nøgle, model eller værktøjsimplementation.
 
-Inde i add-on-containeren:
-
-```text
-python -m gatekeeper.eval_harness --live
-```
-
-Lokalt fra repoets rod kræves `PYTHONPATH=podvoice`. Nøglen læses fra
-`OPENAI_API_KEY` eller add-onens beskyttede `/data/options.json`; den indgår aldrig
-i rapporten. `LiveEvalService` serialiserer kørsler og er den tilsigtede indgang
-for et autentificeret ingress-endpoint.
+Den selvstændige CLI kan liste de statiske scenarier, men `--live` er pensioneret og
+fejler før budgetlease, provider-socket og værktøjsdispatch. CLI'en kan ikke levere og
+bevise add-onens eksakte frosne produktionsværktøjssnapshot. Live-kørsel må derfor kun
+startes fra Test-fanen gennem det autentificerede ingress-endpoint, hvor
+`LiveEvalService` modtager snapshot og serialiserer kørslen.
 
 Live-eval og de rigtige Voice PE-/Talk-sessioner deler én procesbred
 provider-budgetkoordinator per envejs-hashet nøgleidentitet og model. Den rå nøgle
 gemmes eller vises aldrig i ledgeren. En produktionssession tager straks en konservativ
-15.000-token lease, som dækker første svar og en mulig værktøjs-/farvelopfølgning; den
-venter aldrig bag en eval. Hver eval-/replay-prøve må kun starte, når providerens
+15.000-token lease, som dækker første svar og en mulig værktøjs-/farvelopfølgning.
+Den eksplicit startede live-preflight er en gensidigt eksklusiv diagnostiktilstand:
+den kan kun starte uden en aktiv produktionssession, og nye Voice PE-/Talk-sessioner
+afvises hurtigt som `diagnostic_busy`, indtil den bounded eval er lukket og låsen
+frigivet. Det er en synlig vedligeholdelsestilstand, ikke en påstand om parallel
+rate-limit-isolation. Hver eval-/replay-prøve må kun starte, når providerens
 `rate_limits.updated` har givet et autoritativt tokenbudget, ingen produktion er aktiv,
-og både prøvens 15.000 tokens og 15.000 tokens fysisk produktionsheadroom kan bevares.
-Kun én eval-prøve kan have reservationen ad gangen. Hvis en fysisk eller Talk-session
-kommer til under en prøve, åbnes den fra den reserverede produktionsplads, mens næste
-eval-prøve afvises. `response.done`-usage debiterer både input-/outputtekst og -lyd;
+og diagnostiktilstanden fortsat ejer den eksklusive providerlås. Kun én eval-prøve kan
+have reservationen ad gangen. `response.done`-usage debiterer både input-/outputtekst og -lyd;
 providerens næste rate-limit-event afstemmer remaining/reset med et monotont ur.
 Reconnect, fejl og teardown frigiver kun deres egen generation én gang. Eval genkører
 aldrig en afsluttet tur automatisk for at skjule rate-limit eller modelvariation. Som
@@ -96,15 +93,38 @@ Hver kørsel har hårde lofter for antal ture, reserverede outputtokens, faktisk
 tokens og estimeret pris. Faktiske tokenfelter gemmes særskilt, så prisestimater
 kan opdateres uden at ændre det oprindelige bevis.
 
+Den semantiske profil tillader højst tre providerresponser per brugertur og 36 for hele
+standardprofilen. En tredje værktøjsloopkant stoppes før ny fixtureeffekt eller en
+fjerde Response. Før hver tur reserveres den konservative pris for alle tre kanter;
+samlet faktisk pris stopper ved $5, og budgetproben har sit separate $0,128-loft.
+Manglende, negativ eller malformed `response.done.usage` klassificeres
+`provider-usage-unknown` og stopper kørslen uden næste providerkant. En custom prompt
+over 32 KiB blokeres før diagnostiklås/socket uden at ændre produktionsprompten.
+
+Audio-replay reserverer desuden eksakt PCM-varighed gange antal lydforsøg til OpenAIs
+særskilt fakturerede `gpt-live-transcribe`-pris på $0,017/minut. Tekstkontrollen har
+ingen transskriptionsafgift. Beløbet indgår i samme $5-loft før provider-socket og
+rapporteres særskilt som `transcription_budget`; `budget.cost_usd` er det samlede
+estimat. Produktionsmåleren registrerer konservativt faktisk videresendt mikrofonlyd
+som en separat transskriptionspost, fordi `response.done.usage` kun beskriver
+Realtime-responsen.
+
+Før en completed tool-batch frigives, skal dens eksakte input-/outputusage plus et
+2 KiB UTF-8-bundet toolresultat, 1.024 nye outputtokens og 512 tokens protokolmargin
+kunne rummes. Ellers udsendes nul `ToolCall` og dermed nul fixture-/lifecycleeffekt.
+Et scenarie bliver kun grønt, når dets eksakte fixtureargumenter og krævede
+værktøjsudfald også er observeret; et tilfældigt korrekt slutsvar kan ikke erstatte en
+afvist fixture eller et forkert værktøjskald.
+
 På en frisk add-on-proces findes providerens authoritative tokenbudget først, når en
 Response er begyndt. Hver eksplicit live-eval udfører derfor højst én separat
 budgetprobe, når autoriteten mangler: en ny,
-værktøjsfri Realtime-session sender en kasseret out-of-band tekstresponse med højst 8
+værktøjsfri Realtime-session sender en kasseret out-of-band tekstresponse med højst 64
 outputtokens. Både `rate_limits.updated` og completed `response.done` skal observeres,
 probesessionen lukkes, og først derefter må en ny rigtig evalsession reserveres. Proben
-holder fortsat fuldt 15.000-token headroom til en fysisk samtale. Manglende eller
-malformed rate-event, timeout/providerfejl eller en fysisk session før den rigtige
-evalreservation stopper evalueringen; de gør aldrig budgettet implicit grønt. Der er
+er omfattet af den samme eksklusive diagnostiklås. Manglende eller malformed rate-event,
+timeout/providerfejl eller en aktiv produktionssession før diagnostikken starter,
+stopper evalueringen; de gør aldrig budgettet implicit grønt. Der er
 ingen automatisk retry i samme run. Et senere eksplicit run må prøve igen efter en
 transient fejl, mens samtidige prober fortsat afvises. Rapportens
 `provider_budget_probe` viser særskilt faktisk usage/pris, når provider leverer den, og

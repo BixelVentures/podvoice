@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import asyncio
 import hashlib
 import json
@@ -28,12 +29,35 @@ from gatekeeper.eval_harness import (
     run_scenario,
 )
 from gatekeeper.openai_realtime import DEFAULT_MODEL
-from gatekeeper.provider_budget import ProviderBudgetCoordinator
+from gatekeeper.provider_budget import ProviderBudgetCoordinator, ProviderBudgetUnavailable
 from gatekeeper.thin import (
     APPROVE_ACTION_DECLARATION,
     END_CONVERSATION_DECLARATION,
     WAIT_FOR_USER_DECLARATION,
 )
+
+
+async def test_live_cli_is_retired_before_service_budget_or_provider(monkeypatch, capsys):
+    class ForbiddenService:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("live CLI must not instantiate the eval service")
+
+    monkeypatch.setattr(eval_harness, "LiveEvalService", ForbiddenService)
+
+    result = await eval_harness._main(
+        argparse.Namespace(
+            live=True,
+            scenario=["web-routing"],
+            model=DEFAULT_MODEL,
+            artifact="must-not-exist.json",
+        )
+    )
+
+    report = json.loads(capsys.readouterr().out)
+    assert result == 2
+    assert report["status"] == "blocked"
+    assert report["classification"] == "eval-admission-blocked"
+    assert "add-on-panelets Test-fane" in report["error"]
 
 
 def _known_provider_budget() -> ProviderBudgetCoordinator:
@@ -45,6 +69,10 @@ def _known_provider_budget() -> ProviderBudgetCoordinator:
             [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
         )
     return ledger
+
+
+def _production_snapshot() -> list[dict]:
+    return SafeEvalTools().declarations()
 
 
 def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
@@ -62,6 +90,148 @@ def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
     decisions = {turn.expect.decision for scenario in scenarios for turn in scenario.turns}
     assert {"end_conversation", "get_time"} <= decisions
     assert any(turn.expect.direct_answer for scenario in scenarios for turn in scenario.turns)
+
+
+def test_every_scenario_tool_name_has_one_explicit_canonical_fixture_contract():
+    scenarios = load_scenarios()
+    contracts = eval_harness.load_fixture_contracts()
+    required = {name for scenario in scenarios for name in scenario.exact_tool_names}
+
+    assert required == set(contracts)
+    assert all(contract.risk for contract in contracts.values())
+    assert all(contract.cases for contract in contracts.values())
+    assert all(case.result for contract in contracts.values() for case in contract.cases)
+
+
+def test_tool_admission_filters_injected_production_tools_without_substring_aliases():
+    scenario = next(row for row in load_scenarios() if row.id == "web-routing")
+    declarations = SafeEvalTools().declarations()
+    declarations.extend(
+        [
+            {
+                "name": "get_time_alias",
+                "description": "must never satisfy exact get_time",
+                "parameters": {"type": "object"},
+            },
+            {
+                "name": "InjectedProductionMutation",
+                "description": "must never enter safe eval",
+                "parameters": {"type": "object"},
+            },
+        ]
+    )
+
+    admission = eval_harness._admit_eval_tools([scenario], declarations)
+
+    assert {"get_time", "google_web_sogning", "InjectedProductionMutation"} <= {
+        row["name"] for row in admission.declarations
+    }
+    assert set(admission.contracts) == {"get_time", "google_web_sogning"}
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "missing_snapshot",
+        "duplicate",
+        "alias_only",
+        "remote_ref",
+        "bad_args",
+        "reserved_collision",
+        "eval_fixture_collision",
+    ],
+)
+async def test_invalid_tool_admission_is_structured_and_precedes_budget_or_socket(
+    monkeypatch, failure
+):
+    scenario = next(row for row in load_scenarios() if row.id == "web-routing")
+    declarations: list[dict] | None = SafeEvalTools().declarations()
+    if failure == "missing_snapshot":
+        declarations = None
+    assert declarations is None or isinstance(declarations, list)
+    if declarations is None:
+        get_time = web = {}
+    else:
+        get_time = next(row for row in declarations if row["name"] == "get_time")
+        web = next(row for row in declarations if row["name"] == "google_web_sogning")
+    if failure == "duplicate":
+        assert declarations is not None
+        declarations.append(json.loads(json.dumps(get_time)))
+    elif failure == "alias_only":
+        declarations = [
+            {**json.loads(json.dumps(web)), "name": "google_web_sogning_alias"},
+            get_time,
+        ]
+    elif failure == "remote_ref":
+        web["parameters"] = {"$ref": "https://example.invalid/schema.json"}
+    elif failure == "bad_args":
+        web["parameters"] = {
+            "type": "object",
+            "properties": {"query": {"type": "integer"}},
+            "required": ["query"],
+            "additionalProperties": False,
+        }
+    elif failure == "reserved_collision":
+        reserved = next(row for row in declarations or [] if row["name"] == "end_conversation")
+        reserved["description"] = "mutated reserved schema"
+    elif failure == "eval_fixture_collision":
+        assert declarations is not None
+        declarations.append(
+            next(
+                json.loads(json.dumps(row))
+                for row in SafeEvalTools._safe_declarations()
+                if row["name"] == SAFE_EVAL_HIGH_RISK_TOOL
+            )
+        )
+
+    ledger = ProviderBudgetCoordinator()
+
+    def forbidden_budget(*args, **kwargs):
+        raise AssertionError("admission failure must precede every provider lease")
+
+    class ForbiddenSocket:
+        def __init__(self, **kwargs):
+            raise AssertionError("admission failure must precede every provider socket")
+
+    monkeypatch.setattr(ledger, "reserve_probe", forbidden_budget)
+    monkeypatch.setattr(ledger, "reserve_eval", forbidden_budget)
+    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", ForbiddenSocket)
+
+    report = await LiveEvalService(provider_budget=ledger).run(
+        api_key="secret",
+        scenario_ids={scenario.id},
+        tool_declarations=declarations,
+    )
+
+    assert report["ok"] is False
+    assert report["status"] == "blocked"
+    assert report["classification"] == "eval-admission-blocked"
+    assert report["blocked"]["stage"] == "tool_admission"
+    assert report["results"] == []
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_trials"] == 0
+
+
+async def test_oversized_custom_prompt_blocks_live_eval_before_diagnostic_or_socket(monkeypatch):
+    ledger = ProviderBudgetCoordinator()
+
+    class ForbiddenSocket:
+        def __init__(self, **_kwargs):
+            raise AssertionError("prompt admission must precede every provider socket")
+
+    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", ForbiddenSocket)
+    prompt = "ø" * (eval_harness.MAX_LIVE_EVAL_PROMPT_BYTES // 2 + 1)
+    report = await LiveEvalService(provider_budget=ledger).run(
+        api_key="secret",
+        scenario_ids={"web-routing"},
+        instructions=prompt,
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+    assert report["status"] == "blocked"
+    assert report["classification"] == "eval-admission-blocked"
+    assert report["blocked"]["stage"] == "prompt_admission"
+    assert ledger.diagnostic_is_active("secret") is False
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
 
 
 def test_audio_replay_matches_only_an_exact_known_eval_utterance():
@@ -84,6 +254,12 @@ def test_web_oracle_accepts_spoken_words_or_digits_but_still_requires_winner():
             turn_id="turn",
             session_id="session",
             decisions=["google_web_sogning"],
+            tool_args={"google_web_sogning": [{"query": "FCK seneste kamp"}]},
+            tool_results={
+                "google_web_sogning": [
+                    {"ok": True, "summary": "FCK vandt to nul i den seneste kamp."}
+                ]
+            },
             answer=answer,
         )
         assert grade_turn(expected, observed) == []
@@ -91,6 +267,10 @@ def test_web_oracle_accepts_spoken_words_or_digits_but_still_requires_winner():
         turn_id="turn",
         session_id="session",
         decisions=["google_web_sogning"],
+        tool_args={"google_web_sogning": [{"query": "FCK seneste kamp"}]},
+        tool_results={
+            "google_web_sogning": [{"ok": True, "summary": "FCK vandt to nul i den seneste kamp."}]
+        },
         answer="Silkeborg vandt 2-0 over FCK.",
     )
     assert {finding.code for finding in grade_turn(expected, wrong_winner)} == {
@@ -98,10 +278,36 @@ def test_web_oracle_accepts_spoken_words_or_digits_but_still_requires_winner():
     }
 
 
+def test_web_oracle_rejects_wrong_fixture_args_even_when_answer_is_lucky():
+    scenario = next(s for s in load_scenarios() if s.id == "web-routing")
+    observed = TurnObservation(
+        turn_id="turn",
+        session_id="session",
+        decisions=["google_web_sogning"],
+        tool_args={"google_web_sogning": [{"query": "Silkeborg seneste kamp"}]},
+        tool_results={
+            "google_web_sogning": [
+                {
+                    "ok": False,
+                    "error_kind": "eval_fixture_args_mismatch",
+                    "summary": "Fixtureargumenterne matchede ikke.",
+                }
+            ]
+        },
+        answer="FCK vandt 2-0.",
+    )
+
+    assert {finding.code for finding in grade_turn(scenario.turns[0].expect, observed)} == {
+        "wrong-tool-args",
+        "wrong-tool-outcome",
+    }
+
+
 def test_scenario_loader_rejects_an_invalid_answer_pattern(tmp_path: pathlib.Path):
     path = tmp_path / "invalid.json"
     path.write_text(
-        '{"schema_version":1,"scenarios":[{"id":"broken","turns":['
+        '{"schema_version":2,"fixture_contracts":[],"scenarios":['
+        '{"id":"broken","exact_tool_names":[],"turns":['
         '{"text":"test","expect":{"answer_patterns":["("]}}]}]}',
         encoding="utf-8",
     )
@@ -246,6 +452,25 @@ async def test_safe_eval_sensitive_challenge_is_next_turn_one_shot_and_has_no_re
     tools.finish_turn()
     assert approved["data"]["decision"] == "approved_action"
     assert replay["error_kind"] == "approval_denied"
+    assert tools.fixture_side_effects == 1
+
+
+async def test_safe_eval_dispatch_requires_exact_admitted_name_and_canonical_args():
+    scenario = next(row for row in load_scenarios() if row.id == "low-risk-action-then-close")
+    admission = eval_harness._admit_eval_tools([scenario], _production_snapshot())
+    tools = SafeEvalTools(
+        admission.declarations,
+        admitted_names=set(admission.contracts),
+        fixture_contracts=admission.contracts,
+    )
+
+    wrong_name = await tools.dispatch("HassTurnOnAlias", {"name": "stuen"})
+    wrong_args = await tools.dispatch("HassTurnOn", {"name": "køkkenet"})
+    exact = await tools.dispatch("HassTurnOn", {"name": "stuen"})
+
+    assert wrong_name["error_kind"] == "eval_tool_refused"
+    assert wrong_args["error_kind"] == "eval_fixture_args_mismatch"
+    assert exact["ok"] is True
     assert tools.fixture_side_effects == 1
 
 
@@ -476,6 +701,34 @@ async def test_live_collect_dispatches_fixture_only_after_matching_tool_commit_e
     assert len(sent) == 1
 
 
+async def test_live_collect_stops_third_tool_round_before_fixture_effect_or_fourth_response():
+    sent: list[list[dict]] = []
+
+    class FakeSession:
+        async def send_tool_results(self, results):
+            sent.append(results)
+
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session = FakeSession()  # type: ignore[assignment]
+    for index in range(1, 4):
+        response_id = f"response-{index}"
+        driver.events.put_nowait(
+            eval_harness.ToolCall(
+                f"call-{index}",
+                "HassTurnOn",
+                {"name": "stuen"},
+                response_id=response_id,
+                batch_id=response_id,
+            )
+        )
+        driver.events.put_nowait(eval_harness.ToolRoundComplete(response_id=response_id))
+    observed = await driver._collect_turn(turn_id="turn", started=0.0)
+    assert observed.response_status == "failed"
+    assert observed.error == "eval provider response-edge budget exhausted"
+    assert observed.fixture_side_effects == 2
+    assert len(sent) == 2
+
+
 async def test_live_collect_pure_wait_requires_marker_then_completes_silently():
     sent: list[list[dict]] = []
 
@@ -505,13 +758,59 @@ async def test_live_collect_pure_wait_requires_marker_then_completes_silently():
 
 
 def test_budget_hard_stops_before_an_unbounded_live_run():
-    budget = EvalBudget(max_turns=1, max_reserved_tokens=2048, max_actual_tokens=10)
+    budget = EvalBudget(max_turns=1, max_reserved_tokens=3072, max_actual_tokens=10)
     budget.reserve()
     budget.record({"input_text_tokens": 4, "output_audio_tokens": 4})
     with pytest.raises(RuntimeError, match="turn budget"):
         budget.reserve()
     with pytest.raises(RuntimeError, match="actual-token"):
         budget.record({"input_text_tokens": 3})
+
+
+def test_budget_reserves_worst_case_response_cost_before_provider_edge():
+    budget = EvalBudget(
+        max_turns=10,
+        max_reserved_tokens=20 * eval_harness.MAX_OUTPUT_TOKENS,
+        max_actual_tokens=100_000,
+        max_cost_usd=5.0,
+    )
+    budget.cost_usd = 3.2
+    with pytest.raises(RuntimeError, match="budget_exhausted"):
+        budget.reserve(responses=2)
+    assert budget.turns == 0
+    assert budget.reserved_tokens == 0
+
+
+async def test_budget_exhaustion_refuses_first_turn_before_provider_open():
+    class NeverOpened:
+        opened = 0
+
+        async def open(self, **_kwargs):
+            self.opened += 1
+            raise AssertionError("provider socket must not open")
+
+        async def submit_text(self, **_kwargs):
+            raise AssertionError("provider response must not start")
+
+        async def close(self):
+            return None
+
+    driver = NeverOpened()
+    budget = EvalBudget(
+        max_turns=1,
+        max_reserved_tokens=3 * eval_harness.MAX_OUTPUT_TOKENS,
+        max_actual_tokens=100_000,
+        max_cost_usd=5.0,
+    )
+    budget.cost_usd = 2.01
+    with pytest.raises(RuntimeError, match="budget_exhausted"):
+        await run_scenario(
+            driver,
+            load_scenarios()[0],
+            run_id="budget-stop",
+            budget=budget,
+        )
+    assert driver.opened == 0
 
 
 async def test_captured_pcm_hook_validates_and_paces_device_audio(tmp_path: pathlib.Path):
@@ -595,6 +894,37 @@ async def test_runner_timeout_is_a_failure_not_a_retry():
     }
 
 
+async def test_runner_timeout_never_submits_a_followup_into_the_hung_response():
+    scenario = load_scenarios()[0]  # two-turn contextual arithmetic scenario
+
+    class FirstTurnHangs:
+        def __init__(self):
+            self.calls = 0
+            self.closed = False
+
+        async def open(self, *, run_id: str, scenario_id: str) -> str:
+            return "hung-multiturn"
+
+        async def submit_text(self, *, turn_id: str, text: str) -> TurnObservation:
+            self.calls += 1
+            await asyncio.Event().wait()
+            raise AssertionError("unreachable")
+
+        async def close(self) -> None:
+            self.closed = True
+
+    driver = FirstTurnHangs()
+    result = await run_scenario(
+        driver, scenario, run_id="run", budget=EvalBudget(), turn_timeout_s=0.01
+    )
+
+    assert result.passed is False
+    assert len(result.turns) == 1
+    assert result.turns[0].observation.remain_open is False
+    assert driver.calls == 1
+    assert driver.closed is True
+
+
 async def test_runner_closes_driver_when_open_fails():
     class BrokenDriver:
         def __init__(self) -> None:
@@ -633,23 +963,112 @@ async def test_live_driver_connect_timeout_still_closes_partial_session(monkeypa
     assert closed.is_set()
 
 
+async def test_live_driver_three_turn_allowance_paces_outside_semantic_timeout():
+    clock = [0.0]
+    waits: list[float] = []
+
+    async def fake_sleep(delay: float) -> None:
+        waits.append(delay)
+        clock[0] += delay
+
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
+    )
+    lease = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    driver = eval_harness.LiveRealtimeDriver(
+        "secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+        capacity_sleep=fake_sleep,
+        capacity_monotonic=lambda: clock[0],
+        capacity_deadline=1_000.0,
+    )
+
+    # Turn one is already admitted. Two subsequent near-cap turns each wait for
+    # the exact authoritative window reset while retaining the same eval ownership.
+    for _turn in range(2):
+        ledger.update_rate_limits(
+            "secret",
+            "model",
+            [{"name": "tokens", "limit": 40_000, "remaining": 26_000, "reset_seconds": 60}],
+        )
+        ledger.account_usage(
+            "secret", "model", 14_000, lease=lease, provider_reservation_observed=True
+        )
+        await driver.prepare_response_capacity()
+
+    assert waits == [pytest.approx(60.05), pytest.approx(60.05)]
+    assert ledger.snapshot("secret", "model")["eval_trials"] == 1
+    assert ledger.release(lease) is True
+
+
+async def test_live_driver_intra_session_wait_rejects_physical_diagnostic_conflict():
+    clock = [0.0]
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
+    )
+    lease = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 26_000, "reset_seconds": 60}],
+    )
+    ledger.account_usage("secret", "model", 14_000, lease=lease, provider_reservation_observed=True)
+
+    conflict: list[str] = []
+
+    async def physical_arrives(delay: float) -> None:
+        clock[0] += delay
+        try:
+            ledger.production_started("secret", "model")
+        except ProviderBudgetUnavailable as exc:
+            conflict.append(str(exc))
+
+    driver = eval_harness.LiveRealtimeDriver(
+        "secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+        capacity_sleep=physical_arrives,
+        capacity_monotonic=lambda: clock[0],
+        capacity_deadline=1_000.0,
+    )
+    await driver.prepare_response_capacity()
+
+    snapshot = ledger.snapshot("secret", "model")
+    assert conflict and "diagnostic_busy" in conflict[0]
+    assert snapshot["production_sessions"] == 0
+    assert snapshot["eval_trials"] == 1
+    assert ledger.release(lease) is True
+
+
 async def test_live_service_reports_the_exact_effective_prompt_identity(monkeypatch):
     async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
         assert driver.instructions == "min aktive prompt"
         assert driver.model == "gpt-realtime-test"
         assert driver.voice == "marin"
-        assert SAFE_EVAL_HIGH_RISK_TOOL in {item["name"] for item in driver.tools.declarations()}
+        assert {item["name"] for item in driver.tools.declarations()} == {
+            item["name"] for item in _production_snapshot()
+        }
         return ScenarioResult(scenario.id, True, "session", [])
 
     monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
     report = await LiveEvalService(provider_budget=_known_provider_budget()).run(
         api_key="secret",
         scenario_ids={"web-routing"},
+        tool_declarations=_production_snapshot(),
         model="gpt-realtime-test",
         voice="marin",
         instructions="min aktive prompt",
     )
-    assert report["ok"] is True
+    assert report["ok"] is True, report.get("error")
     assert report["prompt_source"] == "custom"
     assert report["prompt_version"] is None
     assert len(report["prompt_sha256"]) == 64
@@ -657,7 +1076,7 @@ async def test_live_service_reports_the_exact_effective_prompt_identity(monkeypa
     assert len(report["production_tool_schema_sha256"]) == 64
     assert len(report["reserved_tool_schema_sha256"]) == 64
     assert report["tool_schema_profile"] == "production-plus-safe-sensitive-fixture"
-    assert report["tool_schema_sha256"] != report["production_tool_schema_sha256"]
+    assert report["tool_schema_sha256"] == report["production_tool_schema_sha256"]
     assert "min aktive prompt" not in str(report)
 
 
@@ -672,7 +1091,7 @@ async def test_live_service_paces_fresh_sessions_below_tier_one_tpm(monkeypatch)
     async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
         budget.record(
             {
-                "input_text_tokens": 16_000,
+                "input_text_tokens": 14_000,
                 "input_audio_tokens": 0,
                 "output_text_tokens": 0,
                 "output_audio_tokens": 0,
@@ -691,13 +1110,14 @@ async def test_live_service_paces_fresh_sessions_below_tier_one_tpm(monkeypatch)
     report = await service.run(
         api_key="secret",
         scenario_ids={"arithmetic-followup", "time-followup", "semantic-close"},
+        tool_declarations=_production_snapshot(),
     )
     assert report["ok"] is True
-    # 16k + the conservative 15k next-scenario reserve exceeds the 30k soft
-    # window, so every following fresh session waits for a new minute.
-    assert waits == [60.5, 60.5]
-    assert report["budget"]["rate_limit_wait_s"] == 121.0
-    assert report["budget"]["actual_tokens"] == 48_000
+    # One further 14k session fits beside the first; the third is paced into the
+    # next window once used tokens plus the 15k reservation exceed 30k.
+    assert waits == [60.5]
+    assert report["budget"]["rate_limit_wait_s"] == 60.5
+    assert report["budget"]["actual_tokens"] == 42_000
 
 
 async def test_live_service_default_keeps_one_measured_session_of_tpm_headroom(monkeypatch):
@@ -719,12 +1139,109 @@ async def test_live_service_default_keeps_one_measured_session_of_tpm_headroom(m
         provider_budget=_known_provider_budget(),
     )
     report = await service.run(
-        api_key="secret", scenario_ids={"arithmetic-followup", "time-followup"}
+        api_key="secret",
+        scenario_ids={"arithmetic-followup", "time-followup"},
+        tool_declarations=_production_snapshot(),
     )
     assert report["ok"] is True
     # 25k eval ceiling leaves 15k of the 40k Tier-1 window for a measured
     # ordinary PodVoice session, so two fresh eval sessions cannot share a minute.
     assert waits == [60.5]
+
+
+def test_default_deadline_mechanically_covers_full_tier_one_profile():
+    scenarios = load_scenarios()
+    sessions = len(scenarios)
+    turns = sum(len(scenario.turns) for scenario in scenarios)
+    required = (
+        (turns - 1) * eval_harness.LIVE_EVAL_RESET_GAP_S
+        + turns * eval_harness.LIVE_EVAL_TURN_TIMEOUT_S
+        + (sessions + 1) * eval_harness.C.CONNECT_TIMEOUT_S
+        + 30.0
+    )
+    service = LiveEvalService(provider_budget=_known_provider_budget())
+
+    assert sessions == 7
+    assert service._max_run_s == required
+    assert 16 * 60 < service._max_run_s < 17 * 60
+
+
+async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(monkeypatch):
+    clock = [100.0]
+    waits: list[float] = []
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    ledger.update_rate_limits(
+        "secret",
+        DEFAULT_MODEL,
+        [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
+    )
+    calls = 0
+
+    async def advance(seconds: float):
+        waits.append(seconds)
+        clock[0] += seconds
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        nonlocal calls
+        calls += 1
+        budget.record({"input_text_tokens": 11_000})
+        ledger.update_rate_limits(
+            "secret",
+            DEFAULT_MODEL,
+            [
+                {
+                    "name": "tokens",
+                    "limit": 40_000,
+                    "remaining": 29_000,
+                    "reset_seconds": 60,
+                }
+            ],
+        )
+        return ScenarioResult(scenario.id, True, "one-session", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    report = await LiveEvalService(
+        sleep=advance,
+        monotonic=lambda: clock[0],
+        provider_budget=ledger,
+    ).run(
+        api_key="secret",
+        scenario_ids={"arithmetic-followup", "time-followup"},
+        tool_declarations=_production_snapshot(),
+    )
+
+    assert report["ok"] is True
+    assert calls == 2
+    assert waits == [60.5]
+
+
+async def test_full_seven_session_profile_accepts_measured_14_5k_each(monkeypatch):
+    clock = [0.0]
+    calls = 0
+
+    async def advance(seconds: float):
+        clock[0] += seconds
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        nonlocal calls
+        calls += 1
+        budget.record({"input_text_tokens": 14_500})
+        return ScenarioResult(scenario.id, True, f"session-{calls}", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    report = await LiveEvalService(
+        sleep=advance,
+        monotonic=lambda: clock[0],
+        provider_budget=_known_provider_budget(),
+    ).run(api_key="secret", tool_declarations=_production_snapshot())
+
+    assert report["ok"] is True, report.get("error")
+    assert calls == 7
+    assert report["budget"]["actual_tokens"] == 101_500
+    assert report["budget"]["max_actual_tokens"] == 540_000
+    assert report["budget"]["max_cost_usd"] == pytest.approx(5.0)
+    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(36.0)
+    assert report["deadline_s"] > report["budget"]["rate_limit_wait_s"]
 
 
 async def test_live_eval_fails_closed_while_a_production_session_is_active(monkeypatch):
@@ -739,7 +1256,7 @@ async def test_live_eval_fails_closed_while_a_production_session_is_active(monke
 
     monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
     report = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"web-routing"}
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
     )
     assert report["ok"] is False
     assert "production voice session" in report["error"]
@@ -784,7 +1301,11 @@ async def test_cold_live_eval_uses_discarded_probe_then_new_authoritative_trial(
                 ],
             )
             yield eval_harness.Usage(input_text_tokens=4, output_text_tokens=2)
-            yield eval_harness.TurnComplete(status="completed", response_id="probe-response")
+            yield eval_harness.TurnComplete(
+                status="completed",
+                response_id="probe-response",
+                provider_rate_observed=True,
+            )
             await asyncio.Event().wait()
 
         async def close(self):
@@ -792,14 +1313,16 @@ async def test_cold_live_eval_uses_discarded_probe_then_new_authoritative_trial(
 
     async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
         assert ledger.snapshot("secret", DEFAULT_MODEL)["authoritative"] is True
+        assert ledger.diagnostic_is_active("secret") is True
         assert driver.budget_lease.role == "eval"
         return ScenarioResult(scenario.id, True, "new-eval-session", [])
 
     monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", FakeProbeSession)
     monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
     report = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"web-routing"}
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
     )
+    assert ledger.diagnostic_is_active("secret") is False
 
     assert report["ok"] is True
     assert report["provider_budget_probe"] == {
@@ -817,6 +1340,232 @@ async def test_cold_live_eval_uses_discarded_probe_then_new_authoritative_trial(
     assert snapshot["eval_trials"] == 0
 
 
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [
+        ("incomplete", "max_output_tokens"),
+        ("incomplete", "content_filter"),
+        ("failed", "provider_error"),
+        ("cancelled", "client_cancelled"),
+    ],
+)
+async def test_noncompleted_cold_probe_fails_with_exact_reason_and_runs_no_eval(
+    monkeypatch, caplog, status, reason
+):
+    ledger = ProviderBudgetCoordinator()
+    semantic_eval_started = False
+
+    class IncompleteProbeSession:
+        def __init__(self, **kwargs):
+            self.started = asyncio.Event()
+
+        async def connect(self):
+            return None
+
+        async def send_rate_limit_probe(self):
+            self.started.set()
+            return "probe"
+
+        async def events(self):
+            await self.started.wait()
+            ledger.update_rate_limits(
+                "secret",
+                DEFAULT_MODEL,
+                [
+                    {
+                        "name": "tokens",
+                        "limit": 40_000,
+                        "remaining": 39_992,
+                        "reset_seconds": 60,
+                    }
+                ],
+            )
+            yield eval_harness.Usage(input_text_tokens=4, output_text_tokens=8)
+            yield eval_harness.TurnComplete(
+                status=status,
+                error=reason,
+                response_id="probe-response",
+            )
+
+        async def close(self):
+            return None
+
+    async def must_not_run(*args, **kwargs):
+        nonlocal semantic_eval_started
+        semantic_eval_started = True
+        raise AssertionError("an incomplete probe must not start a semantic eval")
+
+    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", IncompleteProbeSession)
+    monkeypatch.setattr(eval_harness, "run_scenario", must_not_run)
+    report = await LiveEvalService(provider_budget=ledger).run(
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
+    )
+
+    assert report["ok"] is False
+    assert report["provider_budget_probe"] == {
+        "performed": True,
+        "actual_tokens": None,
+        "cost_usd": None,
+        "reservation_tokens": 2_000,
+        "max_cost_usd": 0.128,
+    }
+    assert f"({status}) · {reason}" in report["error"]
+    assert "response_id=probe-response" in report["error"]
+    assert "usage_tokens=12" in report["error"]
+    assert semantic_eval_started is False
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_trials"] == 0
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_probe_required"] is True
+    assert reason in caplog.text
+
+
+async def test_incomplete_probe_diagnostics_are_bounded_and_never_expose_api_key(
+    monkeypatch, caplog
+):
+    ledger = ProviderBudgetCoordinator()
+    api_key = "secret-provider-key"
+
+    class UnsafeProviderFieldsProbeSession:
+        def __init__(self, **kwargs):
+            self.started = asyncio.Event()
+
+        async def connect(self):
+            return None
+
+        async def send_rate_limit_probe(self):
+            self.started.set()
+            return "probe"
+
+        async def events(self):
+            await self.started.wait()
+            yield eval_harness.TurnComplete(
+                status="incomplete",
+                error=f"max_output_tokens token={api_key}" + ("x" * 500),
+                response_id=f"probe-{api_key}",
+            )
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", UnsafeProviderFieldsProbeSession)
+    report = await LiveEvalService(provider_budget=ledger).run(
+        api_key=api_key, scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
+    )
+
+    assert report["ok"] is False
+    assert api_key not in report["error"]
+    assert api_key not in caplog.text
+    assert "[REDACTED]" in report["error"]
+    assert len(report["error"]) <= 500
+    assert ledger.snapshot(api_key, DEFAULT_MODEL)["budget_probes"] == 0
+
+
+async def test_explicit_run_after_incomplete_probe_can_probe_again_and_succeed(monkeypatch):
+    ledger = ProviderBudgetCoordinator()
+    attempts = 0
+
+    class ProbeSession:
+        def __init__(self, **kwargs):
+            self.started = asyncio.Event()
+
+        async def connect(self):
+            return None
+
+        async def send_rate_limit_probe(self):
+            self.started.set()
+            return "probe"
+
+        async def events(self):
+            nonlocal attempts
+            await self.started.wait()
+            attempts += 1
+            if attempts == 1:
+                # Official ordering publishes the valid budget snapshot at response
+                # start, before the same response can later finish incomplete.
+                ledger.update_rate_limits(
+                    "secret",
+                    DEFAULT_MODEL,
+                    [
+                        {
+                            "name": "tokens",
+                            "limit": 40_000,
+                            "remaining": 39_992,
+                            "reset_seconds": 60,
+                        }
+                    ],
+                )
+                yield eval_harness.TurnComplete(
+                    status="incomplete",
+                    error="max_output_tokens",
+                    response_id="probe-first",
+                    provider_rate_observed=True,
+                )
+                return
+            yield eval_harness.Usage(input_text_tokens=4, output_text_tokens=2)
+            if attempts == 2:
+                # A completed later response cannot reuse the first generation's
+                # valid rate snapshot.
+                yield eval_harness.TurnComplete(
+                    status="completed",
+                    response_id="probe-second",
+                    provider_rate_observed=False,
+                )
+                return
+            ledger.update_rate_limits(
+                "secret",
+                DEFAULT_MODEL,
+                [
+                    {
+                        "name": "tokens",
+                        "limit": 40_000,
+                        "remaining": 39_900,
+                        "reset_seconds": 60,
+                    }
+                ],
+            )
+            yield eval_harness.TurnComplete(
+                status="completed",
+                response_id="probe-third",
+                provider_rate_observed=True,
+            )
+            await asyncio.Event().wait()
+
+        async def close(self):
+            return None
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        return ScenarioResult(scenario.id, True, "after-explicit-retry", [])
+
+    monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", ProbeSession)
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    service = LiveEvalService(provider_budget=ledger)
+
+    first = await service.run(
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
+    )
+    assert first["ok"] is False
+    assert attempts == 1
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["authoritative"] is True
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_probe_required"] is True
+
+    # The attestation lives in the process-wide ledger, not one service instance.
+    second = await LiveEvalService(provider_budget=ledger).run(
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
+    )
+    assert second["ok"] is False
+    assert attempts == 2
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_probe_required"] is True
+
+    third = await LiveEvalService(provider_budget=ledger).run(
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
+    )
+    assert third["ok"] is True, third.get("error")
+    assert attempts == 3
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_probe_required"] is False
+
+
 async def test_cold_probe_without_rate_event_fails_run_and_releases_lease(monkeypatch):
     ledger = ProviderBudgetCoordinator()
 
@@ -832,7 +1581,10 @@ async def test_cold_probe_without_rate_event_fails_run_and_releases_lease(monkey
 
         async def events(self):
             await asyncio.Event().wait()
-            yield eval_harness.TurnComplete(status="completed", response_id="probe-response")
+            yield eval_harness.TurnComplete(
+                status="completed",
+                response_id="probe-response",
+            )
 
         async def close(self):
             return None
@@ -840,7 +1592,9 @@ async def test_cold_probe_without_rate_event_fails_run_and_releases_lease(monkey
     monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", SilentProbeSession)
     monkeypatch.setattr(eval_harness.C, "CONNECT_TIMEOUT_S", 0.01)
     service = LiveEvalService(provider_budget=ledger)
-    report = await service.run(api_key="secret", scenario_ids={"web-routing"})
+    report = await service.run(
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
+    )
 
     assert report["ok"] is False
     assert "no authoritative rate_limits.updated" in report["error"]
@@ -874,7 +1628,11 @@ async def test_cold_probe_without_rate_event_fails_run_and_releases_lease(monkey
                 ],
             )
             yield eval_harness.Usage(input_text_tokens=4, output_text_tokens=2)
-            yield eval_harness.TurnComplete(status="completed", response_id="probe-retry-response")
+            yield eval_harness.TurnComplete(
+                status="completed",
+                response_id="probe-retry-response",
+                provider_rate_observed=True,
+            )
             await asyncio.Event().wait()
 
         async def close(self):
@@ -886,7 +1644,9 @@ async def test_cold_probe_without_rate_event_fails_run_and_releases_lease(monkey
     monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", SuccessfulRetryProbeSession)
     monkeypatch.setattr(eval_harness.C, "CONNECT_TIMEOUT_S", 0.1)
     monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
-    retry = await service.run(api_key="secret", scenario_ids={"web-routing"})
+    retry = await service.run(
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
+    )
     assert retry["ok"] is True, retry.get("error")
     assert ledger.snapshot("secret", DEFAULT_MODEL)["authoritative"] is True
 
@@ -895,7 +1655,9 @@ async def test_cold_probe_without_rate_event_fails_run_and_releases_lease(monkey
             raise AssertionError("authoritative subsequent runs must skip the probe")
 
     monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", MustNotProbeAgain)
-    subsequent = await service.run(api_key="secret", scenario_ids={"web-routing"})
+    subsequent = await service.run(
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
+    )
     assert subsequent["ok"] is True
 
 
@@ -920,14 +1682,18 @@ async def test_cold_probe_malformed_rate_event_cannot_authorize_eval(monkeypatch
                 DEFAULT_MODEL,
                 [{"name": "tokens", "limit": "invalid", "remaining": None}],
             )
-            yield eval_harness.TurnComplete(status="completed", response_id="probe-response")
+            yield eval_harness.TurnComplete(
+                status="completed",
+                response_id="probe-response",
+                provider_rate_observed=False,
+            )
 
         async def close(self):
             return None
 
     monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", MalformedProbeSession)
     report = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"web-routing"}
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
     )
 
     assert report["ok"] is False
@@ -962,7 +1728,7 @@ async def test_cold_probe_provider_error_is_distinct_and_releases_lease(monkeypa
 
     monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", ErrorProbeSession)
     report = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"web-routing"}
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
     )
 
     assert report["ok"] is False
@@ -971,7 +1737,7 @@ async def test_cold_probe_provider_error_is_distinct_and_releases_lease(monkeypa
     assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
 
 
-async def test_physical_session_during_probe_is_admitted_and_blocks_real_eval(monkeypatch):
+async def test_physical_session_during_probe_fails_fast_as_diagnostic_busy(monkeypatch):
     ledger = ProviderBudgetCoordinator()
     production = None
 
@@ -987,8 +1753,10 @@ async def test_physical_session_during_probe_is_admitted_and_blocks_real_eval(mo
 
         async def send_rate_limit_probe(self):
             nonlocal production
-            production = ledger.production_started("secret", DEFAULT_MODEL)
-            self.started.set()
+            try:
+                production = ledger.production_started("secret", DEFAULT_MODEL)
+            finally:
+                self.started.set()
             return "probe"
 
         async def events(self):
@@ -1005,7 +1773,11 @@ async def test_physical_session_during_probe_is_admitted_and_blocks_real_eval(mo
                     }
                 ],
             )
-            yield eval_harness.TurnComplete(status="completed", response_id="probe-response")
+            yield eval_harness.TurnComplete(
+                status="completed",
+                response_id="probe-response",
+                provider_rate_observed=True,
+            )
             await asyncio.Event().wait()
 
         async def close(self):
@@ -1013,35 +1785,194 @@ async def test_physical_session_during_probe_is_admitted_and_blocks_real_eval(mo
 
     monkeypatch.setattr(eval_harness, "_ReadyRealtimeSession", RacingProbeSession)
     report = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"web-routing"}
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
     )
 
     assert report["ok"] is False
-    assert "production voice session" in report["error"]
-    assert production is not None
+    assert "diagnostic_busy" in report["error"]
+    assert production is None
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["budget_probes"] == 0
+    production = ledger.production_started("secret", DEFAULT_MODEL)
     assert ledger.release(production) is True
 
 
-async def test_physical_session_arriving_during_eval_stops_the_next_trial(monkeypatch):
+async def test_physical_session_attempt_during_eval_is_rejected_without_stopping_eval(monkeypatch):
     ledger = _known_provider_budget()
     calls = 0
-    production = None
+    conflicts: list[str] = []
 
     async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
-        nonlocal calls, production
+        nonlocal calls
         calls += 1
-        production = ledger.production_started("secret", DEFAULT_MODEL)
+        try:
+            ledger.production_started("secret", DEFAULT_MODEL)
+        except ProviderBudgetUnavailable as exc:
+            conflicts.append(str(exc))
         return ScenarioResult(scenario.id, True, "session", [])
 
     monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
     report = await LiveEvalService(provider_budget=ledger).run(
-        api_key="secret", scenario_ids={"arithmetic-followup", "time-followup"}
+        api_key="secret",
+        scenario_ids={"arithmetic-followup", "time-followup"},
+        tool_declarations=_production_snapshot(),
     )
-    assert report["ok"] is False
-    assert calls == 1
-    assert "production voice session" in report["error"]
-    assert production is not None
+    assert report["ok"] is True
+    assert calls == 2
+    assert conflicts and all("diagnostic_busy" in item for item in conflicts)
+    production = ledger.production_started("secret", DEFAULT_MODEL)
     assert ledger.release(production) is True
+
+
+async def test_live_eval_waits_one_authoritative_reset_before_next_admission(monkeypatch):
+    clock = [100.0]
+    waits: list[float] = []
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    ledger.update_rate_limits(
+        "secret",
+        DEFAULT_MODEL,
+        [{"name": "tokens", "limit": 40_000, "remaining": 14_999, "reset_seconds": 3}],
+    )
+    calls = 0
+
+    async def advance(seconds: float):
+        waits.append(seconds)
+        clock[0] += seconds
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        nonlocal calls
+        calls += 1
+        return ScenarioResult(scenario.id, True, "after-provider-reset", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    report = await LiveEvalService(
+        sleep=advance,
+        monotonic=lambda: clock[0],
+        provider_budget=ledger,
+    ).run(api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot())
+
+    assert report["ok"] is True
+    assert calls == 1
+    assert waits == [pytest.approx(3.05)]
+    assert report["budget"]["rate_limit_wait_s"] == pytest.approx(3.05)
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_trials"] == 0
+
+
+async def test_physical_session_starting_during_reset_wait_is_diagnostic_busy(monkeypatch):
+    clock = [100.0]
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    ledger.update_rate_limits(
+        "secret",
+        DEFAULT_MODEL,
+        [{"name": "tokens", "limit": 40_000, "remaining": 14_999, "reset_seconds": 3}],
+    )
+    conflict = None
+    calls = 0
+
+    async def physical_wake(seconds: float):
+        nonlocal conflict
+        clock[0] += seconds
+        try:
+            ledger.production_started("secret", DEFAULT_MODEL)
+        except ProviderBudgetUnavailable as exc:
+            conflict = str(exc)
+
+    async def must_not_run(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return ScenarioResult("web-routing", True, "after-exclusive-wait", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", must_not_run)
+    report = await LiveEvalService(
+        sleep=physical_wake,
+        monotonic=lambda: clock[0],
+        provider_budget=ledger,
+    ).run(api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot())
+
+    assert report["ok"] is True
+    assert conflict and "diagnostic_busy" in conflict
+    assert calls == 1
+
+
+async def test_reset_wait_does_not_replay_a_completed_scenario(monkeypatch):
+    clock = [100.0]
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    ledger.update_rate_limits(
+        "secret",
+        DEFAULT_MODEL,
+        [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 5}],
+    )
+    completed: list[str] = []
+    conflicts: list[str] = []
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        completed.append(scenario.id)
+        ledger.update_rate_limits(
+            "secret",
+            DEFAULT_MODEL,
+            [
+                {
+                    "name": "tokens",
+                    "limit": 40_000,
+                    "remaining": 14_999,
+                    "reset_seconds": 5,
+                }
+            ],
+        )
+        return ScenarioResult(scenario.id, True, "completed-once", [])
+
+    async def physical_wake(seconds: float):
+        clock[0] += seconds
+        try:
+            ledger.production_started("secret", DEFAULT_MODEL)
+        except ProviderBudgetUnavailable as exc:
+            conflicts.append(str(exc))
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    report = await LiveEvalService(
+        sleep=physical_wake,
+        monotonic=lambda: clock[0],
+        provider_budget=ledger,
+    ).run(
+        api_key="secret",
+        scenario_ids={"arithmetic-followup", "time-followup"},
+        tool_declarations=_production_snapshot(),
+    )
+
+    assert report["ok"] is True
+    assert len(completed) == 2
+    assert len(set(completed)) == 2
+    assert conflicts and all("diagnostic_busy" in item for item in conflicts)
+
+
+async def test_whole_run_timeout_bounds_provider_reset_wait(monkeypatch):
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        DEFAULT_MODEL,
+        [{"name": "tokens", "limit": 40_000, "remaining": 14_999, "reset_seconds": 60}],
+    )
+    calls = 0
+
+    async def blocked_sleep(seconds: float):
+        await asyncio.Event().wait()
+
+    async def must_not_run(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        raise AssertionError("whole-run timeout must stop before admission")
+
+    monkeypatch.setattr(eval_harness, "run_scenario", must_not_run)
+    report = await LiveEvalService(
+        sleep=blocked_sleep,
+        max_run_s=0.01,
+        provider_budget=ledger,
+    ).run(api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot())
+
+    assert report["ok"] is False
+    assert "provider reset wait exceeds the live eval deadline" in report["error"]
+    assert calls == 0
+    assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_trials"] == 0
+    assert ledger.diagnostic_is_active("secret") is False
 
 
 async def test_live_service_background_job_survives_requests_and_retains_result(monkeypatch):
@@ -1053,12 +1984,16 @@ async def test_live_service_background_job_survives_requests_and_retains_result(
 
     monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
     service = LiveEvalService(provider_budget=_known_provider_budget())
-    started = service.start(api_key="secret", scenario_ids={"web-routing"})
+    started = service.start(
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
+    )
     assert started["status"] == "running"
     run_id = started["run_id"]
     assert service.status(run_id)["status"] == "running"
 
-    duplicate = service.start(api_key="secret", scenario_ids={"web-routing"})
+    duplicate = service.start(
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
+    )
     assert duplicate["status"] == "busy"
     assert duplicate["run_id"] == run_id
 
@@ -1077,13 +2012,17 @@ async def test_live_service_cancel_is_explicit_and_does_not_leave_busy(monkeypat
         raise AssertionError("unreachable")
 
     monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
-    service = LiveEvalService(provider_budget=_known_provider_budget())
-    started = service.start(api_key="secret", scenario_ids={"web-routing"})
+    ledger = _known_provider_budget()
+    service = LiveEvalService(provider_budget=ledger)
+    started = service.start(
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
+    )
     await asyncio.sleep(0)
     await service.aclose()
     report = service.status(started["run_id"])
     assert report["status"] == "cancelled"
     assert service.status()["status"] == "cancelled"
+    assert ledger.diagnostic_is_active("secret") is False
 
 
 def test_live_service_rejects_mixed_known_and_unknown_scenarios():
@@ -1100,7 +2039,9 @@ async def test_live_service_whole_job_timeout_is_retained_as_failure(monkeypatch
 
     monkeypatch.setattr(eval_harness, "run_scenario", hung_run)
     service = LiveEvalService(max_run_s=0.01, provider_budget=_known_provider_budget())
-    started = service.start(api_key="secret", scenario_ids={"web-routing"})
+    started = service.start(
+        api_key="secret", scenario_ids={"web-routing"}, tool_declarations=_production_snapshot()
+    )
     assert service._job is not None
     await service._job
     report = service.status(started["run_id"])
@@ -1180,6 +2121,46 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
     assert audio_seen == [pcm, pcm, pcm]
     assert report["trace"]["sha256"] == fixture.sha256
     assert all(trial["observation"]["diagnostic_transcript"] for trial in report["trials"])
+    assert report["transcription_budget"] == {
+        "model": "gpt-live-transcribe",
+        "audio_seconds": pytest.approx(3.0),
+        "usd_per_minute": pytest.approx(0.017),
+        "cost_usd": pytest.approx(0.00085),
+    }
+    assert report["budget"]["cost_usd"] >= report["transcription_budget"]["cost_usd"]
+
+
+async def test_audio_replay_transcription_surcharge_can_block_before_provider_socket(monkeypatch):
+    class ForbiddenDriver:
+        def __init__(self, *_args, **_kwargs):
+            raise AssertionError("budget stop must precede provider socket")
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ForbiddenDriver)
+    monkeypatch.setattr(eval_harness, "GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE", 200.0)
+    pcm = b"\x00\x00" * 24_000
+    fixture = AudioReplayFixture(
+        trace_id="trace-cost",
+        turn_index=0,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Hvad er klokken?",
+        exact_sample_offsets=True,
+    )
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
+    ledger = _known_provider_budget()
+    report = await LiveEvalService(provider_budget=ledger).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=0,
+        repeats=3,
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+    assert report["classification"] == "budget-exhausted"
+    assert report["transcription_budget"]["cost_usd"] == pytest.approx(10.0)
+    assert ledger.diagnostic_is_active("secret") is False
 
 
 def test_audio_replay_start_fails_closed_on_tampered_pcm():

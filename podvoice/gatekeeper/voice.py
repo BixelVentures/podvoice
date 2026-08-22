@@ -74,6 +74,9 @@ class TurnComplete:
     status: str = "completed"
     error: str | None = None
     response_id: str | None = None
+    # True only when a valid rate_limits.updated edge was causally attached to this
+    # exact response on this socket generation. Prior bucket authority is insufficient.
+    provider_rate_observed: bool = False
 
 
 @dataclass

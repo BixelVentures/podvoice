@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.13.29 — sand live-preflight og selvhelende HA/MCP
+
+- Live-preflight kører som en eksplicit, gensidigt eksklusiv systemdiagnose. Voice PE
+  og Talk kan ikke åbne en konkurrerende Realtime-session, og panelet viser tydeligt,
+  at Nabu testes. Låsen frigives ved success, fejl, timeout og stop.
+- Cold-proben kræver sin egen aktuelle `rate_limits.updated` og en completed response.
+  Den lille tekstresponse har et bounded 64-tokenloft og viser providerens præcise
+  finalitetsårsag ved fejl; gammel rate-authority kan ikke godkende et nyt forsøg.
+- Hele Prompt V6-profilen har et synligt tidsloft, højst tre responsekanter per tur og
+  et prospektivt loft på 5 USD. Separat faktureret live-transskription medregnes for
+  lyd-replay; manglende provider-usage fejler lukket.
+- Eval validerer de eksakte aktuelle produktionsdeklarationer før providerforbrug og
+  sender det fulde frosne schema. Webtesten kræver både de kanoniske argumenter og et
+  vellykket fixture-resultat, så et heldigt hallucineret svar ikke kan bestå.
+- Tool-resultat/farvel reserveres ud fra den afsluttede responses faktiske kontekst,
+  bounded resultat, maksimalt output og protokolmargin, før en sideeffekt frigives.
+- HA/MCP genforbinder efter Supervisor-opstart med bounded backoff og en ny komplet
+  handshake. Snapshot publiceres atomisk og må højst indeholde 64 værktøjer, 24 KiB per
+  præcis Realtime-wiredeklaration, 96 KiB samlet og schema-dybde 20.
+- Readiness viser faktiske roller: hjemmelæsning er ikke hjemmestyring, og pause,
+  volumen eller privat historik er ikke det samme som at kunne søge og starte musik.
+- Prompt V6, model, gain, VAD, firmware, fysisk playback og den almindelige
+  samtalelifecycle er uændrede. Ingen firmwareflash er nødvendig.
+- Lokal kandidatgate: 275 provider/eval-fokustests og 300 HA/Thin/Realtime-fokustests
+  samt Ruff, formattering og scoped mypy er grønne. CI/ARM64-image, live Prompt V6-
+  preflight og de fysiske golden/10x-gates står fortsat åbne.
+
 ## 1.13.28 — autoritativ cold-start af live-evalbudget
 
 - En frisk add-on kan nu etablere OpenAIs autoritative tokenbudget uden den cirkulære

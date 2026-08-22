@@ -1,16 +1,137 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-08-21.
+Senest opdateret: 2026-08-22.
 
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv softwarekandidat:** v1.13.28 (`2c09042`, branch
-`codex/v1.13.27-provider-safety`). **Aktuel gate:** maskinel kontrakt, CI og ARM64-image
-er bestået, men kandidaten er endnu ikke live- eller fysisk godkendt. Uafhængig
-adversarial score er **95/100 med nul kendte P0/P1**. En sikker live cold-probe og
-Prompt V6-eval på samme artifact er den sidste maskinelle gate til 97/100. Fysisk Voice
-PE-bevis er fortsat en separat gate.
+**Aktiv softwarekandidat:** v1.13.29 (arbejdstræ på branch
+`codex/v1.13.27-provider-safety`). **Aktuel gate:** den korrigerede lokale maskinelle
+kontrakt er grøn, men kandidatens eksakte commit, CI/ARM64-image og rigtige cold-probe +
+Prompt V6-live-eval står fortsat åbne. Kandidaten er derfor **NO-GO** for fysisk test.
+En live-rapport på de samme byggede bits og uafhængig review skal genoprette mindst
+97/100, før én frisk fysisk golden chain må begynde. Fysisk Voice PE-bevis og 10/10 er
+fortsat separate gates; v1.13.11 er uændret fysisk baseline.
+
+### Feltstop 22. august — v1.13.28 live-preflight og HA-readiness
+
+**Dette er observerede resultater og aktiv beslutning før rettelse.** Der må ikke køres
+flere blinde preflight-genforsøg eller fysisk golden chain på v1.13.28.
+
+- Første sikre providerbudget-probe sluttede som
+  `rate_limit_capacity · provider budget probe response did not complete (incomplete)`.
+  OpenAIs officielle kontrakt begrænser `incomplete` til `max_output_tokens` eller
+  `content_filter`. PodVoice parsede den konkrete `status_details.reason`, men
+  eval-harnessen og runtime-loggen kasserede den, så den afsluttede kørsels eksakte årsag
+  kan ikke rekonstrueres. Proben var sideeffektfri og brugte ingen HA-/MCP-værktøjer.
+- Proben var hårdt begrænset til otte outputtokens. Den falsificerbare hovedhypotese er,
+  at GPT-Realtime-2.1 brugte tokenloftet, inklusive eventuelle reasoningtokens. En ny
+  instrumenteret probe med et fortsat lille, eksplicit loft skal vise den autoritative
+  reason; `content_filter` skal fortsat fejle lukket.
+- Et efterfølgende eksplicit run fik en completed probe og åbnede den rigtige eval, men
+  endte senere med `provider token headroom is insufficient for eval plus production`.
+  Loggen viser flere completed evalresponser og derefter en response uden synlig terminal
+  kant. Dette må ikke klassificeres som blot pacing eller saldo, før den præcise
+  response-/budgetkæde er korreleret og watchdogens slutresultat er bevist.
+- Standardprofilen har syv friske scenariesessioner. Med den dokumenterede Tier-1-
+  guard kræver seks mulige resetmellemrum alene mindst cirka 363 sekunder, mens v1.13.28
+  afslutter hele kørslen efter 300 sekunder. Det er en deterministisk deadlinefejl.
+  Alle scenarier bevares; kandidaten skal bruge autoritative resetkanter og et beregnet,
+  synligt hard-limit, der også indeholder turn- og connect-timeouts. Ingen grøn profil
+  opnås ved at springe scenarier over.
+- Budgetleasen på 15.000 tokens er i v1.13.28 både sessionslås og kumulativ beholdning.
+  Hver completed respons trækker fra den gennem hele samme Realtime-socket, og en
+  provider-reset fylder den ikke op. En legitim sekvens som direkte svar → værktøj →
+  værktøj/farvel kan derfor ramme 6.000-token-resultatgaten, selv når providerens nye
+  vindue har rigelig kapacitet. Rettelsen skal adskille eksklusivt sessionsejerskab fra
+  per-response rolling headroom; ingen sideeffekt frigives uden kausalt reserveret
+  kvitterings-/farvelkapacitet.
+- Ved samme add-on-opstart returnerede Home Assistants Supervisor/Core MCP- og
+  service-endpoints HTTP 502. Panelets manglende hjem/web/vejr er derfor et sandt
+  øjebliksbillede af den nye sessions værktøjsliste, men **ikke** bevis for forkert
+  eksponering eller permanent manglende integration. Automatisk MCP-recovery og
+  readiness-sandhed auditeres separat; ingen HA-konfiguration ændres blindt.
+- **Berørte invarianter:** eval må være sideeffektfri og må aldrig overlappe en
+  produktionssession på den delte providerpulje; providerfejl skal være korrelerede og synlige; kun aktuelt opdagede
+  deklarationer må kaldes; HA-recovery må ikke kræve add-on-/Voice PE-genstart.
+- **Frosne ikke-mål:** produktionsprompt V6, model, lyd, gain, VAD, firmware, playback,
+  semantisk afslutning, timeout, teardown og rearm ændres ikke i korrektionen.
+- **Accept før ny live-kørsel:** rå tests for begge incomplete-reasons, præcis
+  response-/usage-korrelation, nul semantiske trials og nul værktøjseffekt ved probe-
+  fejl, bounded eksplicit genkørsel, autoritativ reset-aware pacing samt et matematisk
+  tilstrækkeligt og stadig hårdt samlet tidsloft for hele syv-scenarieprofilen.
+  HA-fejlen kræver en separat recovery-regression fra den observerede 502-rækkefølge.
+- Før cold-proben må de valgte scenariers eksakte produktionsværktøjer og kanoniske
+  fixtureargumenter valideres mod det frosne deklarationssnapshot. Manglende, omdøbt,
+  duplikeret eller schema-inkompatibelt værktøj giver en struktureret capability-block
+  med nul providerforbrug. Der må ikke bruges løse navnehints, syntetiske
+  produktionstools, stille scenario-skip eller rigtige HA-sideeffekter for at gøre
+  preflight grøn.
+
+#### Lead-beslutning — live-preflight er eksklusiv diagnostik
+
+- **Falsificeret designantagelse:** Et lokalt 15.000-token "produktionsheadroom" kan
+  ikke garantere en samtidig fysisk Realtime-session, når providerens egen reservation
+  for en produktionsformet evalrespons allerede har reduceret `remaining` under dette
+  niveau. At afbryde evalen bagefter kan forhindre sideeffekter, men kan ikke tilbageføre
+  providerens allerede brugte input-/outputkapacitet.
+- **Valgt kontrakt:** Den manuelt/eksplicit startede live-preflight ejer én bounded,
+  gensidigt eksklusiv diagnostiklease. Den må kun starte, når ingen Voice PE-/Talk-
+  session er aktiv. Nye produktionssessioner under kørslen afvises straks med præcis
+  `diagnostic_busy`, følger den normale fejl-teardown og rearmes én gang; de køer eller
+  konkurrerer aldrig skjult med evalen. Panelet viser, at Nabu testes og ikke er fysisk
+  klar. Leasen frigives ved success, fejl, timeout, klientafbrydelse og add-on-stop.
+- **Hvorfor:** Med samme OpenAI-projekt/rate-limit-pulje findes ingen lokal mekanisme,
+  der kan bevise øjeblikkelig produktionskapacitet efter en vilkårligt stor provider-
+  reservation. Sand parallel drift kræver en separat evalprojekt-/nøglepulje og er et
+  senere selvstændigt designvalg; den opfindes ikke i denne kandidat.
+- **Berørte invarianter:** én provider-ejer ad gangen; eval er sideeffektfri; fysisk
+  wake må aldrig blive hængende; teardown/rearm er exactly-once; readiness er sand.
+  Prompt, model, audio, gain, VAD, firmware, playback og semantisk close forbliver
+  frosne.
+- **Obligatoriske regressioner:** aktiv produktion → eval nul sockets; aktiv eval →
+  Voice PE og Talk får `diagnostic_busy`, nul provider-connect og én ren rearm/fejl;
+  eval success/fejl/timeout/cancel/add-on-stop frigiver låsen; næste wake virker; ingen
+  HA/MCP/PodConnect-sideeffekt; UI viser aldrig fysisk klar under diagnostik.
+
+#### Aktiv recovery-beslutning — HA/MCP efter Supervisor-start
+
+- **Årsagen er nu feltbekræftet:** Den uændrede installerede v1.13.28 genvandt selv
+  forbindelsen ved det gamle ti-minutters probeinterval. Loggen viser 502-svar kl.
+  10:04:55 og derefter kl. 10:15:03 successfuld initialize (200), notification (202),
+  `tools/list` (200), 19 HA-værktøjer samt et vellykket `GetLiveContext`; panelets
+  runtime havde derefter 26 deklarationer inklusive PodConnect og
+  `google_web_sogning`. Integration og eksponering manglede altså ikke. Fejlen var et
+  transient Supervisor/Core-opstartsvindue, som den gamle 600-sekunders retry gjorde
+  synligt i ti minutter.
+- **Falsificerbar årsag:** Hvis de observerede 502-svar er et kort Supervisor/Core-
+  opstartsvindue, skal hurtige, begrænsede discovery-genforsøg hente samme konfigurerede
+  Assist/MCP-værktøjer uden add-on- eller Voice PE-genstart. Fortsætter 502 efter
+  backoffvinduet, skal panelet vise det aktuelle endpoint, sidste fejl og næste forsøg;
+  det må ikke påstå, at integrationen mangler.
+- **Valgt mekanik:** Discovery ejer ét generationsbundet snapshot. Fejl forsøges igen
+  efter omtrent 1, 2, 5, 10 og 30 sekunder og derefter højst én gang pr. minut. Et
+  succesfuldt komplet `tools/list` erstatter snapshot atomisk for **næste**
+  Realtime-session; en allerede åben session beholder sit accepterede schema. Der
+  oprettes ingen parallel samtalemotor eller HA Assist-samtale.
+- **Degraded sandhed:** Den aktuelle installation hoster web, HassMedia og PodConnect-
+  data bag HA/Supervisor. Under et HA-udfald kan kun samtalen, lokal tid og lokale
+  timere garanteres. Nye sessioner får local-only, indtil recovery lykkes; gamle
+  deklarationer udføres ikke blindt. `PRODUKTMÅL` er præciseret tilsvarende. Uafhængig
+  drift for web/musik kræver senere egne adapters og er ikke en skjult del af denne
+  rettelse.
+- **Naborisici:** samtidige refreshes, stale succes efter nyere fejl/succes,
+  add-on-teardown under backoff, forkert MCP API-id/endpoint, delvis tool-liste,
+  tidligere succes vist grøn mens værktøjet nu er væk, og timertekst fejlklassificeret
+  som musik. Readiness skal vise generation, hentet-tid, endpoint/API-id, seneste fejl
+  og retrytilstand.
+- **Regressioner før resultat:** den eksakte `502, 502, succes`-sekvens; vedvarende 502
+  med bounded tidsplan; stop/teardown uden lækket task; stale/overlappende svar; aktiv
+  session uændret mens næste session får nyt snapshot; nuværende fravær må ikke blive
+  grønt af gammel historik; lokale timere må ikke tælle som musik.
+- **Rollback:** Recoverybølgen er add-on-only og må rulles tilbage samlet. Ved én
+  schema-/sessionmutation eller retry-loop beholdes v1.13.28's konservative degraded-
+  visning frem for at kræve manuel HA-konfigurationsændring eller genstart som produktvej.
 
 - **Observeret fejl:** Trace `20260821T103257-225` havde diagnostisk “Hvad er
   klokken?”, men Realtime kaldte intet værktøj og gav et irrelevant fysisk svar.
@@ -112,11 +233,12 @@ dokumentere alle gates som bestået.
   release/version og udføres ingen fysisk test, før ovenstående er dokumenteret som
   faktiske resultater i et separat afsnit.
 
-#### Faktisk delresultat — fælles providerbudget
+#### Historisk delresultat — fælles providerbudget før eksklusiv diagnostik
 
 Det historiske auditfund nedenfor om ignoreret `rate_limits.updated` var korrekt for den
-installerede baseline. Den aktive, endnu ikke releasegodkendte kandidat har nu én
-procesbred koordinator per envejs-hashet API-nøgleidentitet og model:
+installerede baseline. Punkterne dokumenterer den tidligere headroom-model og dens
+maskinelle delresultat; modellen er nu **falsificeret og erstattet** af den bindende
+eksklusive diagnostikkontrakt ovenfor. De må ikke bruges som aktuel releasepåstand.
 
 - Voice PE og Talk tager ved provider-connect straks en 15.000-token
   produktionslease gennem hele socket-generationen. Den venter aldrig bag eval og
@@ -149,7 +271,7 @@ releasegodkendelse. Prompt, model, audio, gain, VAD, firmware og playback er uæ
 v1.13.11 forbliver fysisk baseline, og kandidatens samlede adversarial review/build og
 fysiske gates er fortsat åbne.
 
-#### Aktiv korrektion — cold-start af providerbudget
+#### Historisk cold-start-korrektion — efterfulgt af eksklusiv diagnostik
 
 **Dette er feltfejl og plan før rettelse, ikke et opnået resultat.** Den installerede
 v1.13.27 afviste den sikre preflight med
@@ -183,21 +305,67 @@ en frisk add-on-proces, selv om ingen fysisk samtale var aktiv.
 
 **Faktisk ændring og maskinelt resultat:** Cold-start bruger nu én dedikeret ephemeral
 Realtime-session og en out-of-band `response.create` med `conversation: none`, tekst-only,
-ingen tools, `tool_choice: none` og højst 8 outputtokens. Output kasseres; både en gyldig
-`rate_limits.updated` og en completed `response.done` kræves før socket og 2k-probelease
+ingen tools, `tool_choice: none` og højst 64 outputtokens. Feltets 8-token-probe sluttede
+`incomplete`; 64 er fortsat bundet af den separate 2k-lease. Output kasseres; både en
+gyldig `rate_limits.updated` og en completed `response.done` kræves før socket og lease
 lukkes. Først derefter tager en **ny** Realtime-session den normale autoritative
-evalreservation. Manglende/malformed rate-event, timeout og providerfejl fejler lukket;
-en fysisk produktionssession kan stadig tage sit fulde 15k-headroom under proben og
-blokerer derefter den rigtige eval. En transient fejl kan genprøves af et senere
-eksplicit run, men aldrig automatisk eller samtidigt. Kun en rate-snapshot bundet til
-den eksakte Response forhindrer lokal debit; bucket-autoritet fra en tidligere Response
-kan ikke dække en senere manglende/malformed event. Den eksakte lokale
-generationslease forbruges fortsat. Proben rapporterer actual usage/pris separat fra de
-semantiske evalture og ellers sit konservative 2k/$0,128-makspris-loft. Målrettede
-providerbudget-, rå Realtime- og evalrace-tests er **83/83 grønne**; den samlede
-Python-suite er **634/634 grøn**, og Ruff, formattering, mypy samt diff-check er grønne.
-Uafhængig slutreview er 95/100 uden kendte P0/P1; live feltbevis står åbent. v1.13.27
-er feltfejlet, og v1.13.28 er endnu ikke installeret.
+evalreservation. Manglende/malformed rate-event, timeout og providerfejl fejler lukket.
+Hele jobbet ejer den nøglebrede, modeluafhængige diagnostiklås fra før proben til sidste
+teardown; Voice PE og Talk får `diagnostic_busy` uden provider-socket, og panelet viser
+Nabu som midlertidigt utilgængelig. En transient fejl kan genprøves af et senere
+eksplicit run, men aldrig automatisk eller samtidigt. En completed probe kan kun
+attestere den rate-event, parseren bandt til samme Response og socketgeneration; en
+tidligere incomplete probes snapshot kan ikke genbruges af en senere completed probe
+uden sin egen rate-event.
+
+Sessionsejerskab og rolling responsekapacitet er adskilt: en autoritativ reset genfylder
+den eksakte aktive lease, tre-turs same-session-forløb paces uden for den semantiske
+turn-timeout. Før en toolsideeffekt frigives, reserveres nu den afsluttede responses
+eksakte gentagne input/outputkontekst plus højst 2 KiB værktøjsresultat, 1.024 nye
+outputtokens og 512 tokens protokol-/specialtokenmargin; utilstrækkelig capacity giver
+nul `ToolCall`. Under den eksklusive
+diagnostik kan en response-start med 14k remaining derfor fortsætte, når den konkrete
+kausale opfølgning faktisk kan rummes; der simuleres ikke samtidig fysisk headroom. Den
+beregnede full-profile-deadline
+omfatter alle 11 mulige inter-turn-resetkanter, ikke kun nye sockets. Proben rapporterer
+actual usage/pris separat fra de semantiske evalture og ellers sit konservative
+2k/$0,128-makspris-loft. Hver semantisk tur har desuden et mekanisk loft på tre
+providerresponser; en tredje tool-loopkant stoppes før ny fixtureeffekt eller en fjerde
+Response. Full-profile har dermed 36 mulige responsekanter, men et prospektivt $5-loft
+stopper før næste tur. En custom prompt over 32 KiB blokerer kun live-eval før
+diagnostiklås/socket; produktionsprompten ændres byte-identisk.
+
+Replayets særskilt fakturerede `gpt-live-transcribe` reserveres nu fra eksakt
+PCM-varighed × lydgentagelser til $0,017/minut før diagnostiklås/socket. Det vises som
+`transcription_budget` og indgår i samme $5-loft; tekstkontrollen koster ingen
+transskription. Produktionsmåleren lægger konservativt faktisk videresendt
+mikrofonvarighed til som en særskilt post, exactly once ved teardown.
+
+Web-routingens oracle kræver nu både den kanoniske
+`google_web_sogning(query="FCK seneste kamp")` og fixtureudfaldet `ok`. Et afvist kald
+med forkerte argumenter kan derfor ikke blive grønt, selv hvis modellen bagefter
+hallucinerer det forventede 2-0-svar.
+
+Den gamle `eval_harness --live`-CLI er pensioneret: den kunne ikke levere det eksakte
+frosne produktionsværktøjssnapshot, som den korrekte admission kræver. Den fejler nu
+struktureret før service, budgetlease og provider-socket; live-preflight kan kun startes
+fra add-on-panelets autentificerede Test-fane.
+
+Den seneste fokuserede gate er **275/275 grøn** for providerbudget, rå Realtime,
+eval/probe, tool-commit, Voice PE-/Talk-diagnostic teardown, UI-kontrakt og settings-
+regressioner. Den separate HA/Thin/Realtime-gate er **300/300 grøn**, og den brede
+lokale suite gav **726 grønne** tests; kun to console-tests blev blokeret af sandboxens
+forbud mod localhost-bind. Ruff, formattering, scoped mypy og diff-check er grønne.
+Uafhængig slutreview finder nul kendte P0/P1 og scorer den lokale kandidat **93/100**.
+Den komplette socket-aktiverede CI-suite, ARM64-image og live-feltbevis står fortsat
+åbent. Den
+installerede v1.13.28 er feltfejlet og må ikke genbruges som bevis for korrektionen.
+
+Headroom-/overtagelsesadfærden i dette historiske delresultat er efterfølgende afvist:
+en allerede startet providerrespons kan have brugt pladsen, før lokal kode kan afbryde
+den. Den aktuelle kandidat skal derfor erstatte den med den dokumenterede eksklusive
+diagnostiklås. De tidligere 135/135- og 681/681-tal godkender ikke denne efterfølgende
+kontraktændring; den fokuserede gate ovenfor er stadig ikke live- eller fysisk bevis.
 
 #### Samlet maskinelt resultat for v1.13.27-kandidaten
 

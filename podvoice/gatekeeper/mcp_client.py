@@ -35,6 +35,10 @@ PROTOCOL_VERSION = "2025-06-18"  # current MCP spec revision (streamable HTTP)
 class McpError(RuntimeError):
     """A JSON-RPC error reply, an unreachable server, or an unusable response."""
 
+    def __init__(self, message: str, *, connection_shaped: bool = False) -> None:
+        super().__init__(message)
+        self.connection_shaped = connection_shaped
+
 
 def _sse_payload(text: str, want_id: int) -> dict:
     """Extract the JSON-RPC response with ``want_id`` from an SSE-framed body."""
@@ -48,7 +52,7 @@ def _sse_payload(text: str, want_id: int) -> dict:
             continue
         if isinstance(msg, dict) and msg.get("id") == want_id:
             return msg
-    raise McpError("no matching JSON-RPC response in SSE stream")
+    raise McpError("no matching JSON-RPC response in SSE stream", connection_shaped=True)
 
 
 class HomeAssistantMCP:
@@ -62,13 +66,21 @@ class HomeAssistantMCP:
         self.initialized = False
         self.server_info: dict = {}
 
-    def _headers(self) -> dict[str, str]:
-        return {
+    def _headers(self, *, protocol_version: bool = False) -> dict[str, str]:
+        headers = {
             "Authorization": f"Bearer {self._token}",
             "Content-Type": "application/json",
             # Streamable HTTP: the server may answer either way; accept both.
             "Accept": "application/json, text/event-stream",
         }
+        if protocol_version:
+            headers["MCP-Protocol-Version"] = PROTOCOL_VERSION
+        return headers
+
+    def reset_connection_state(self) -> None:
+        """Force the next stateless exchange through a fresh MCP handshake."""
+        self.initialized = False
+        self.server_info = {}
 
     async def _rpc(self, method: str, params: dict | None = None) -> dict:
         self._next_id += 1
@@ -76,29 +88,74 @@ class HomeAssistantMCP:
         body: dict[str, Any] = {"jsonrpc": "2.0", "id": rid, "method": method}
         if params is not None:
             body["params"] = params
-        r = await self._client.post(self.url, json=body, headers=self._headers())
+        try:
+            r = await self._client.post(
+                self.url,
+                json=body,
+                headers=self._headers(protocol_version=self.initialized),
+            )
+        except httpx.HTTPError as exc:
+            raise McpError(
+                f"MCP {method}: transport failure: {exc}", connection_shaped=True
+            ) from exc
         if r.status_code >= 400:
-            raise McpError(f"MCP {method}: HTTP {r.status_code}: {r.text.strip()[:200]}")
+            raise McpError(
+                f"MCP {method}: HTTP {r.status_code}: {r.text.strip()[:200]}",
+                connection_shaped=r.status_code in {401, 403, 404, 405, 408, 429}
+                or r.status_code >= 500,
+            )
         ctype = r.headers.get("content-type", "")
         if ctype.startswith("text/event-stream"):
             msg = _sse_payload(r.text, rid)
         else:
-            msg = r.json()
+            try:
+                msg = r.json()
+            except (json.JSONDecodeError, ValueError) as exc:
+                raise McpError(
+                    f"MCP {method}: invalid JSON response", connection_shaped=True
+                ) from exc
         if not isinstance(msg, dict):
-            raise McpError(f"MCP {method}: unexpected response shape")
-        if msg.get("error"):
+            raise McpError(f"MCP {method}: unexpected response shape", connection_shaped=True)
+        if msg.get("jsonrpc") != "2.0" or msg.get("id") != rid:
+            raise McpError(f"MCP {method}: mismatched JSON-RPC envelope", connection_shaped=True)
+        has_result = "result" in msg
+        has_error = "error" in msg
+        if has_result == has_error:
+            raise McpError(
+                f"MCP {method}: response must contain exactly one of result/error",
+                connection_shaped=True,
+            )
+        if has_error:
             err = msg["error"]
+            if (
+                not isinstance(err, dict)
+                or isinstance(err.get("code"), bool)
+                or not isinstance(err.get("code"), int)
+                or not isinstance(err.get("message"), str)
+            ):
+                raise McpError(f"MCP {method}: malformed error object", connection_shaped=True)
             raise McpError(f"MCP {method}: {err.get('message')} (code {err.get('code')})")
         result = msg.get("result")
-        return result if isinstance(result, dict) else {}
+        if not isinstance(result, dict):
+            raise McpError(f"MCP {method}: result is not an object", connection_shaped=True)
+        return result
 
     async def _notify(self, method: str) -> None:
-        """Fire a JSON-RPC notification (no id, no reply expected). Best-effort."""
+        """Send a required lifecycle notification and prove HTTP acceptance."""
         body = {"jsonrpc": "2.0", "method": method}
         try:
-            await self._client.post(self.url, json=body, headers=self._headers())
-        except Exception as e:  # a stateless server doesn't strictly need it
-            _LOG.debug("mcp notify %s failed: %s", method, e)
+            response = await self._client.post(
+                self.url, json=body, headers=self._headers(protocol_version=True)
+            )
+        except httpx.HTTPError as exc:
+            raise McpError(
+                f"MCP {method}: transport failure: {exc}", connection_shaped=True
+            ) from exc
+        if not 200 <= response.status_code < 300:
+            raise McpError(
+                f"MCP {method}: HTTP {response.status_code}: {response.text.strip()[:200]}",
+                connection_shaped=True,
+            )
 
     async def initialize(self) -> dict:
         result = await self._rpc(
@@ -109,8 +166,22 @@ class HomeAssistantMCP:
                 "clientInfo": {"name": "podvoice", "version": __version__},
             },
         )
-        self.server_info = result.get("serverInfo") or {}
+        if result.get("protocolVersion") != PROTOCOL_VERSION:
+            raise McpError("MCP initialize: unsupported protocolVersion", connection_shaped=True)
+        capabilities = result.get("capabilities")
+        if not isinstance(capabilities, dict) or not isinstance(capabilities.get("tools"), dict):
+            raise McpError("MCP initialize: tools capability is missing", connection_shaped=True)
+        server_info = result.get("serverInfo")
+        if (
+            not isinstance(server_info, dict)
+            or not isinstance(server_info.get("name"), str)
+            or not server_info.get("name")
+            or not isinstance(server_info.get("version"), str)
+            or not server_info.get("version")
+        ):
+            raise McpError("MCP initialize: invalid serverInfo", connection_shaped=True)
         await self._notify("notifications/initialized")
+        self.server_info = dict(server_info)
         self.initialized = True
         _LOG.info(
             "mcp: connected to %s (%s %s)",
@@ -126,14 +197,29 @@ class HomeAssistantMCP:
             await self.initialize()
         tools: list[dict] = []
         cursor: str | None = None
-        for _ in range(10):  # paginated (spec); HA sends one page in practice
+        seen_cursors: set[str] = set()
+        for _ in range(10):  # bounded against a broken/malicious pagination stream
             params: dict = {"cursor": cursor} if cursor else {}
             result = await self._rpc("tools/list", params)
-            tools += [t for t in result.get("tools") or [] if isinstance(t, dict)]
-            cursor = result.get("nextCursor")
-            if not cursor:
-                break
-        return tools
+            page = result.get("tools")
+            if not isinstance(page, list) or not all(isinstance(tool, dict) for tool in page):
+                raise McpError(
+                    "MCP tools/list: tools is not a list of objects", connection_shaped=True
+                )
+            tools.extend(page)
+            next_cursor = result.get("nextCursor")
+            if next_cursor is None:
+                return tools
+            if not isinstance(next_cursor, str) or not next_cursor:
+                raise McpError(
+                    "MCP tools/list: nextCursor is not a non-empty string",
+                    connection_shaped=True,
+                )
+            if next_cursor in seen_cursors:
+                raise McpError("MCP tools/list: cursor cycle", connection_shaped=True)
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+        raise McpError("MCP tools/list: pagination exceeded 10 pages", connection_shaped=True)
 
     async def call_tool(self, name: str, arguments: dict) -> dict:
         """Invoke one tool; returns the raw MCP result ({content, isError, ...})."""

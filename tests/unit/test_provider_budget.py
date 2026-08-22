@@ -28,19 +28,43 @@ def seed(ledger: ProviderBudgetCoordinator, *, remaining: int = 40_000) -> None:
     )
 
 
-def test_eval_active_never_delays_production_but_blocks_the_next_eval_trial():
+def test_eval_and_production_are_exactly_mutually_exclusive():
     ledger = coordinator()
     seed(ledger)
     first_eval = ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
-    production = ledger.production_started("secret", "model")
-
-    assert ledger.snapshot("secret", "model")["production_sessions"] == 1
+    with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
+        ledger.production_started("secret", "model")
+    assert ledger.snapshot("secret", "model")["production_sessions"] == 0
     assert ledger.release(first_eval) is True
+    production = ledger.production_started("secret", "model")
     with pytest.raises(ProviderBudgetUnavailable, match="production voice session"):
         ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
-
     assert ledger.release(production) is True
     assert ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
+
+
+def test_diagnostic_owner_is_key_wide_across_talk_model_selector_and_releases_once():
+    ledger = coordinator()
+    owner = ledger.diagnostic_started("secret")
+    assert ledger.diagnostic_is_active("secret") is True
+    for model in ("gpt-realtime-2.1", "gpt-realtime-2.1-mini", "alternate-model"):
+        with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
+            ledger.production_started("secret", model)
+    assert ledger.release(owner) is True
+    assert ledger.release(owner) is False
+    assert ledger.diagnostic_is_active("secret") is False
+    production = ledger.production_started("secret", "alternate-model")
+    assert ledger.release(production) is True
+
+
+def test_any_cross_model_production_session_blocks_diagnostic_owner():
+    ledger = coordinator()
+    production = ledger.production_started("secret", "talk-selected-model")
+    with pytest.raises(ProviderBudgetUnavailable, match="production voice session"):
+        ledger.diagnostic_started("secret")
+    assert ledger.release(production) is True
+    owner = ledger.diagnostic_started("secret")
+    assert ledger.release(owner) is True
 
 
 def test_two_eval_trials_are_serialized_process_wide():
@@ -158,6 +182,152 @@ def test_tool_followup_guard_fails_when_exact_generation_has_spent_its_lease():
     assert ledger.has_capacity(production, 6_000) is False
 
 
+def test_production_tool_result_can_atomically_top_up_without_global_cap_increase():
+    ledger = coordinator()
+    seed(ledger)
+    production = ledger.production_started("secret", "model")
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 32_000, "reset_seconds": 60}],
+    )
+    ledger.account_usage(
+        "secret", "model", 8_000, lease=production, provider_reservation_observed=True
+    )
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 30_000, "reset_seconds": 60}],
+    )
+    ledger.account_usage(
+        "secret", "model", 2_000, lease=production, provider_reservation_observed=True
+    )
+
+    assert ledger.snapshot("secret", "model")["reserved_tokens"] == 5_000
+    assert ledger.ensure_response_capacity(production, 6_000) is True
+    assert ledger.snapshot("secret", "model")["reserved_tokens"] == 6_000
+
+
+def test_provider_reset_replenishes_response_allowance_without_reopening_ownership():
+    clock = Clock()
+    ledger = coordinator(clock)
+    seed(ledger)
+    production = ledger.production_started("secret", "model")
+    ledger.account_usage("secret", "model", 12_000, lease=production)
+    assert ledger.snapshot("secret", "model")["reserved_tokens"] == 3_000
+
+    clock.now += 60.1
+    snapshot = ledger.snapshot("secret", "model")
+
+    assert snapshot["production_sessions"] == 1
+    assert snapshot["reserved_tokens"] == 15_000
+    with pytest.raises(ProviderBudgetUnavailable, match="another production"):
+        ledger.production_started("secret", "model")
+
+
+def test_eval_response_renewal_keeps_diagnostic_exclusivity():
+    ledger = coordinator()
+    seed(ledger)
+    evaluation = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 32_000, "reset_seconds": 60}],
+    )
+    ledger.account_usage(
+        "secret", "model", 8_000, lease=evaluation, provider_reservation_observed=True
+    )
+
+    assert ledger.ensure_response_capacity(evaluation) is True
+    assert ledger.snapshot("secret", "model")["reserved_tokens"] == 15_000
+    with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
+        ledger.production_started("secret", "model")
+    assert ledger.ensure_response_capacity(evaluation) is True
+    assert ledger.release(evaluation) is True
+
+
+def test_physical_wake_fails_fast_while_eval_response_is_active():
+    ledger = coordinator()
+    seed(ledger)
+    evaluation = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 25_000, "reset_seconds": 60}],
+    )
+
+    with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
+        ledger.production_started("secret", "model")
+    snapshot = ledger.snapshot("secret", "model")
+    assert snapshot["production_sessions"] == 0
+    assert snapshot["eval_trials"] == 1
+    assert snapshot["reserved_tokens"] == 15_000
+    assert ledger.release(evaluation) is True
+
+
+@pytest.mark.parametrize("remaining", [14_000, 16_000, 25_000])
+def test_diagnostic_lock_not_provider_arithmetic_owns_physical_admission(remaining):
+    ledger = coordinator()
+    seed(ledger)
+    evaluation = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": remaining, "reset_seconds": 60}],
+    )
+
+    with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
+        ledger.production_started("secret", "model")
+    assert ledger.release(evaluation) is True
+
+
+def test_eval_multi_turn_allowance_renews_on_exact_authoritative_reset():
+    clock = Clock()
+    ledger = coordinator(clock)
+    seed(ledger)
+    evaluation = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+
+    for _turn in range(2):
+        ledger.update_rate_limits(
+            "secret",
+            "model",
+            [{"name": "tokens", "limit": 40_000, "remaining": 26_000, "reset_seconds": 60}],
+        )
+        ledger.account_usage(
+            "secret", "model", 14_000, lease=evaluation, provider_reservation_observed=True
+        )
+        assert ledger.ensure_response_capacity(evaluation) is False
+        assert ledger.response_retry_after(evaluation) == pytest.approx(60.0)
+        clock.now += 60.1
+        assert ledger.ensure_response_capacity(evaluation) is True
+        assert ledger.snapshot("secret", "model")["reserved_tokens"] == 15_000
+
+    assert ledger.release(evaluation) is True
+
+
+def test_physical_session_fails_fast_during_eval_response_reset_wait():
+    clock = Clock()
+    ledger = coordinator(clock)
+    seed(ledger)
+    evaluation = ledger.reserve_eval("secret", "model", tokens=15_000, production_headroom=15_000)
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 26_000, "reset_seconds": 60}],
+    )
+    ledger.account_usage(
+        "secret", "model", 14_000, lease=evaluation, provider_reservation_observed=True
+    )
+    assert ledger.response_retry_after(evaluation) == pytest.approx(60.0)
+
+    with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
+        ledger.production_started("secret", "model")
+    assert ledger.response_retry_after(evaluation) == pytest.approx(60.0)
+    clock.now += 60.1
+    assert ledger.ensure_response_capacity(evaluation) is True
+    assert ledger.release(evaluation) is True
+
+
 def test_eval_usage_consumes_its_reservation_so_production_headroom_stays_real():
     ledger = coordinator()
     seed(ledger)
@@ -168,21 +338,17 @@ def test_eval_usage_consumes_its_reservation_so_production_headroom_stays_real()
     snapshot = ledger.snapshot("secret", "model")
     assert snapshot["remaining"] == 40_000
     assert snapshot["reserved_tokens"] == 1_000
-    # Physical production never waits behind the eval that consumed its own lease.
-    production = ledger.production_started("secret", "model")
-    assert production
+    with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
+        ledger.production_started("secret", "model")
     assert ledger.release(evaluation) is True
-    with pytest.raises(ProviderBudgetUnavailable, match="production voice session"):
-        ledger.reserve_eval("secret", "model", tokens=10_000, production_headroom=15_000)
 
 
-def test_cold_probe_preserves_production_headroom_and_explicit_retry_is_allowed():
+def test_cold_probe_is_mutually_exclusive_and_explicit_retry_is_allowed():
     ledger = coordinator()
     probe = ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
-    production = ledger.production_started("secret", "model", tokens=15_000)
-    assert production
+    with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
+        ledger.production_started("secret", "model", tokens=15_000)
     assert ledger.release(probe) is True
-    assert ledger.release(production) is True
     retry = ledger.reserve_probe("secret", "model", tokens=2_000, production_headroom=15_000)
     assert ledger.release(retry) is True
 

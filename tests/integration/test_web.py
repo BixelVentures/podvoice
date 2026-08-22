@@ -11,7 +11,7 @@ from aiohttp.test_utils import TestClient, TestServer
 from gatekeeper.events import EventType
 from gatekeeper.history import History
 from gatekeeper.hub import StatusHub
-from gatekeeper.web import create_app
+from gatekeeper.web import _capability_details, create_app
 
 
 class _StubSM:
@@ -44,19 +44,70 @@ class _StubSession:
 class _StubTools:
     def capabilities(self) -> dict:
         return {
-            "tools": ["get_time", "google_web_sogning", "podconnect_pause"],
-            "count": 3,
+            "tools": [
+                "get_time",
+                "GetLiveContext",
+                "google_web_sogning",
+                "weather_forecast",
+                "HassMediaPause",
+            ],
+            "count": 5,
             "time": True,
             "timers": False,
             "home": True,
             "web_search": True,
             "weather": True,
             "music": True,
+            "roles": {
+                "time": ["get_time"],
+                "timers": [],
+                "home": ["GetLiveContext", "HassMediaPause"],
+                "web_search": ["google_web_sogning"],
+                "weather": ["weather_forecast"],
+                "music": ["HassMediaPause"],
+            },
+            "discovery": {"fetched_at": time.time()},
         }
 
 
 def _client(hub: StatusHub, sessions: dict) -> TestClient:
     return TestClient(TestServer(create_app(hub, sessions)))
+
+
+def test_capability_verification_requires_available_exact_current_tool_success():
+    now = time.time()
+    base = {
+        "capabilities": {
+            "web_search": True,
+            "roles": {"web_search": ["google_web_sogning"]},
+            "discovery": {"fetched_at": now - 5},
+        },
+        "tool_activity": [
+            {"name": "google_web_sogning", "ok": True, "empty": False, "ts": now - 2},
+            {"name": "google_web_sogning_alias", "ok": True, "empty": False, "ts": now},
+        ],
+    }
+    assert _capability_details(base)["web_search"]["verified"] is True
+    base["capabilities"]["discovery"]["fetched_at"] = now + 1
+    assert _capability_details(base)["web_search"]["verified"] is False
+    base["capabilities"]["web_search"] = False
+    assert _capability_details(base)["web_search"]["verified"] is False
+
+    transport_only = {
+        "capabilities": {
+            "music": False,
+            "roles": {
+                "music": [],
+                "music_playback": [],
+                "music_transport": ["HassMediaPause"],
+            },
+            "discovery": {"fetched_at": now - 5},
+        },
+        "tool_activity": [{"name": "HassMediaPause", "ok": True, "empty": False, "ts": now - 2}],
+    }
+    details = _capability_details(transport_only)
+    assert details["music"]["available"] is False
+    assert details["music"]["verified"] is False
 
 
 async def test_status_and_health():
@@ -75,6 +126,7 @@ async def test_status_and_health():
         assert body["capability_details"]["web_search"]["available"] is True
         assert body["capability_details"]["web_search"]["verified"] is False
         assert body["service_details"]["openai"]["reason"]
+        assert body["diagnostic_active"] is False
 
         h = await client.get("/health")
         assert h.status == 200
@@ -82,6 +134,14 @@ async def test_status_and_health():
         assert health["status"] in ("ok", "degraded")
         assert health["version"] == body["version"]
         assert health["capabilities"]["tools"] == body["capabilities"]["tools"]
+
+
+async def test_status_exposes_same_diagnostic_owner_as_voice_and_talk_readiness():
+    app = create_app(StatusHub(), {}, diagnostic_status=lambda: True)
+    async with TestClient(TestServer(app)) as client:
+        body = await (await client.get("/api/status")).json()
+    assert body["diagnostic_active"] is True
+    assert "midlertidigt låst" in body["diagnostic_reason"]
 
 
 async def test_live_eval_endpoint_is_bounded_and_never_handles_a_key():
@@ -243,7 +303,7 @@ async def test_acceptance_report_is_conservative(tmp_path):
     hub.tool_call("kitchen", "light_turn_on", {"ok": True})
     hub.tool_call("kitchen", "google_web_sogning", {"ok": True}, {"query": "AGF næste kamp"})
     hub.tool_call("kitchen", "weather_forecast", {"ok": True}, {"location": "hjemme"})
-    hub.tool_call("kitchen", "podconnect_pause", {"ok": True})
+    hub.tool_call("kitchen", "HassMediaPause", {"ok": True})
     hist = History(path=tmp_path / "history.jsonl")
     hist.append("kitchen", "in", "Hvad er klokken?", ts=1)
     hist.append("kitchen", "out", "Klokken er otte.", ts=2)
@@ -263,7 +323,7 @@ async def test_acceptance_report_is_conservative(tmp_path):
         "light_turn_on",
         "google_web_sogning",
         "weather_forecast",
-        "podconnect_pause",
+        "HassMediaPause",
     ]
     assert body["latest_voice_conversation"]["room"] == "kitchen"
 

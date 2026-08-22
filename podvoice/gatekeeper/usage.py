@@ -52,6 +52,7 @@ PRICES: dict[str, dict[str, float]] = {
 }
 
 _KEEP_DAYS = 92  # ~3 months of daily rows is plenty for a home dashboard
+GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE = 0.017
 
 
 def estimate_usd(model: str, u: Usage) -> float:
@@ -111,7 +112,7 @@ class UsageMeter:
 
     # ------------------------------------------------------------------ record
     def add(self, model: str, u: Usage, *, room: str = "?") -> float:
-        """Record one response's usage; returns its estimated USD."""
+        """Record Realtime response usage; transcription duration is recorded separately."""
         usd = estimate_usd(model, u)
         day = self._days.setdefault(
             datetime.date.today().isoformat(),
@@ -130,6 +131,33 @@ class UsageMeter:
             model,
             u.input_audio_tokens,
             u.output_audio_tokens,
+            usd,
+            self.today_usd(),
+        )
+        self._schedule_push()
+        return usd
+
+    def add_transcription_seconds(self, seconds: float, *, room: str = "?") -> float:
+        """Conservatively record separately billed live input transcription duration."""
+        seconds = max(0.0, float(seconds))
+        if seconds == 0:
+            return 0.0
+        usd = seconds / 60.0 * GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE
+        day = self._days.setdefault(
+            datetime.date.today().isoformat(),
+            {"usd": 0.0, "audio_in": 0, "audio_out": 0, "text_in": 0, "text_out": 0},
+        )
+        day["usd"] = round(day.get("usd", 0.0) + usd, 6)
+        day["transcription_seconds"] = round(
+            float(day.get("transcription_seconds", 0.0)) + seconds, 3
+        )
+        day["transcription_usd"] = round(float(day.get("transcription_usd", 0.0)) + usd, 6)
+        self._prune()
+        self._save()
+        _LOG.info(
+            "usage [%s gpt-live-transcribe]: +%.3fs (~$%.6f) — today ~$%.2f",
+            room,
+            seconds,
             usd,
             self.today_usd(),
         )

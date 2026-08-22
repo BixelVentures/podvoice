@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from gatekeeper import constants as C
 from gatekeeper.execution_policy import (
@@ -302,24 +302,36 @@ def _ha_router(
         supervisor_token="token",
         client=client,  # type: ignore[arg-type]
     )
-    router._mcp_tools = [
+    declarations = [
         {"name": name, "description": name, "parameters": {"type": "object"}} for name in tools
     ]
-    router._mcp_names = set(tools)
+    router._discovery = replace(
+        router._discovery,
+        mcp_tools=tuple(declarations),
+        mcp_names=frozenset(tools),
+        retry_state="ready",
+        last_error=None,
+    )
     return router
 
 
 async def test_router_blocks_high_risk_before_mcp_and_allows_trusted_token_once() -> None:
     mcp = _RecordingMCP()
     router = ToolRouter(mcp)  # type: ignore[arg-type]
-    router._mcp_tools = [
+    declarations = [
         {
             "name": "HassUnlock",
             "description": "Unlock an exposed lock",
             "parameters": {"type": "object"},
         }
     ]
-    router._mcp_names = {"HassUnlock"}
+    router._discovery = replace(
+        router._discovery,
+        mcp_tools=tuple(declarations),
+        mcp_names=frozenset({"HassUnlock"}),
+        retry_state="ready",
+        last_error=None,
+    )
     args = {"entity_id": "lock.front"}
 
     denied = await router.dispatch("HassUnlock", args)

@@ -342,12 +342,16 @@ async def run(cfg: Config) -> None:
         await tools.start()  # fetch the MCP tool list BEFORE sessions copy declarations
 
         async def _probe_loop() -> None:
-            # MCP dies mid-day (HA restart, token, proxy) — not at boot. Re-PROVE home
-            # control every 10 min so 'lam men lyder rask' can't survive an afternoon.
+            # Healthy discovery is re-proved periodically. A connection-shaped failure
+            # wakes this loop and follows ToolRouter's bounded 1/2/5/10/30/60 recovery
+            # schedule; it never requires an add-on or Voice PE restart.
             while True:
-                await asyncio.sleep(600)
-                with contextlib.suppress(Exception):
-                    await tools.probe()
+                delay = tools.next_probe_delay()
+                try:
+                    await asyncio.wait_for(tools.wait_for_recovery_signal(), timeout=delay)
+                except TimeoutError:
+                    with contextlib.suppress(Exception):
+                        await tools.probe()
 
         probe_task = asyncio.create_task(_probe_loop(), name="mcp-probe")
         if mcp is None:
@@ -499,6 +503,11 @@ async def run(cfg: Config) -> None:
         history=history,
         audio_trace=audio_trace,
         live_eval=live_eval,
+        diagnostic_status=(
+            (lambda: live_eval_service.diagnostic_active(cfg.openai_api_key))
+            if live_eval_service is not None
+            else None
+        ),
         reply_bus=reply_bus,
         reply_token=reply_token,
         # Lock the panel to ingress/loopback when running under HA (Supervisor token

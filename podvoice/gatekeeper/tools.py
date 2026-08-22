@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import hashlib
 import json
 import logging
 import math
@@ -27,37 +28,69 @@ import time
 import zoneinfo
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError
 
 from . import constants as C
 from .execution_policy import ExecutionContext, ExecutionPolicy, Risk
 from .mcp_client import HomeAssistantMCP, McpError
+from .tool_wire import compact_json_size, realtime_function_tool, realtime_tools_wire_size
 
 log = logging.getLogger("podvoice.tools")
 
-_TOOLS_TTL_S = 600.0  # re-fetch the MCP tool list at most this stale
-_RETRY_S = 30.0  # after a failed fetch, don't hammer HA — retry at this pace
-_WEB_HINTS = ("search", "søg", "web", "google", "nyheder", "news", "sport")
-_WEATHER_HINTS = ("vejr", "weather", "forecast", "udsigt", "temperatur", "temperature")
-_MUSIC_HINTS = (
-    "music",
-    "musik",
-    "media",
-    "spotify",
-    "podconnect",
-    "play",
-    "pause",
-    "next",
-    "volume",
-    "lydstyrke",
-)
+_TOOLS_TTL_S = 600.0
+_RECOVERY_BACKOFF_S = (1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
+# Realtime receives these declarations in every new session.  These caps leave bounded
+# room for Prompt V6, conversation audio/text and tool results while comfortably
+# admitting the observed HA 1.26 surface (19 dynamic tools).  A larger integration
+# surface must be deliberately curated/exposed instead of silently consuming context.
+_MAX_MCP_TOOLS = 64
+_MAX_MCP_TOOL_BYTES = 24 * 1024
+_MAX_MCP_TOTAL_BYTES = 96 * 1024
+_MAX_MCP_SCHEMA_DEPTH = 20
 _STANDARD_CAPABILITY_HINTS = {
     "home": "Aktivér Home Assistants MCP Server-integration, og eksponér enheder under Settings → Voice assistants → Expose.",
     "web_search": "Eksponér husets Gemini-/søgeagent som script eller Assist-værktøj i Home Assistant/MCP.",
     "weather": "Eksponér HA's weather-entity eller et vejr-script til Assist/MCP. Brug hjemmets lokation som standard.",
     "music": "Eksponér PodConnect Control/media_player og podconnect.*-services til Assist/MCP. Brug HA til Spotify-søgning, transport, bibliotek og historik; PodConnect Speakers URL/token er kun til ducking/stop/release.",
 }
+
+# Capability claims are product contracts, not fuzzy search results.  Descriptions are
+# model-facing prose and must never turn a coincidental word (for example the timer
+# phrase "expiring next") into an available home capability.
+_TOOL_CAPABILITY_ROLES: dict[str, frozenset[str]] = {
+    "GetLiveContext": frozenset({"home_read"}),
+    "HassGetState": frozenset({"home_read"}),
+    "HassTurnOn": frozenset({"home_control"}),
+    "HassTurnOff": frozenset({"home_control"}),
+    "HassLightSet": frozenset({"home_control"}),
+    "HassClimateGetTemperature": frozenset({"home_read"}),
+    "HassClimateSetTemperature": frozenset({"home_control"}),
+    "HassGetCurrentDate": frozenset({"home_read"}),
+    "HassGetCurrentTime": frozenset({"home_read"}),
+    "HassGetWeather": frozenset({"home_read", "weather"}),
+    "weather_forecast": frozenset({"weather"}),
+    "google_web_sogning": frozenset({"web_search"}),
+    "HassMediaSearchAndPlay": frozenset({"music_search", "music_playback"}),
+    "HassMediaPause": frozenset({"music_transport"}),
+    "HassMediaUnpause": frozenset({"music_transport"}),
+    "HassMediaNext": frozenset({"music_transport"}),
+    "HassMediaPrevious": frozenset({"music_transport"}),
+    "HassSetVolume": frozenset({"music_transport"}),
+    "HassSetVolumeRelative": frozenset({"music_transport"}),
+    "HassMediaPlayerMute": frozenset({"music_transport"}),
+    "HassMediaPlayerUnmute": frozenset({"music_transport"}),
+    "HassVacuumStart": frozenset({"home_control"}),
+    "HassVacuumReturnToBase": frozenset({"home_control"}),
+    "HassVacuumCleanArea": frozenset({"home_control"}),
+    "podconnect_recently_played": frozenset({"music_history"}),
+    "podconnect_top_tracks": frozenset({"music_history"}),
+    "podconnect_liked": frozenset({"music_history"}),
+}
+_RESERVED_PROVIDER_TOOL_NAMES = frozenset({"end_conversation", "wait_for_user", "approve_action"})
 
 _PODCONNECT_DATA_TOOLS = {
     "podconnect_recently_played": (
@@ -154,6 +187,26 @@ class _PreparedExecution:
     trusted_risk: Risk | None
     error: dict[str, Any] | None = None
     batch_args: tuple[dict[str, Any], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _DiscoverySnapshot:
+    """One atomically published view used by declarations and panel readiness."""
+
+    generation: int
+    mcp_tools: tuple[dict[str, Any], ...]
+    mcp_names: frozenset[str]
+    podconnect_services: frozenset[str]
+    fetched_at: float | None
+    endpoint: str | None
+    api_id: str | None
+    server_info: dict[str, Any]
+    schema_sha256: str | None
+    last_error: str | None
+    retry_state: str
+    retry_attempt: int
+    retry_delay_s: float | None
+    next_retry_at: float | None
 
 
 _TARGETED_HA_INTENTS = {
@@ -279,11 +332,25 @@ class ToolRouter:
         self._timers = timers
         self._hub = hub
         self.execution_policy = execution_policy or ExecutionPolicy()
-        self._mcp_tools: list[dict] = []  # cached MCP declarations (OpenAI shape)
-        self._mcp_names: set[str] = set()
-        self._podconnect_services: set[str] = set()
-        self._fetched_at = 0.0
+        self._discovery = _DiscoverySnapshot(
+            generation=0,
+            mcp_tools=(),
+            mcp_names=frozenset(),
+            podconnect_services=frozenset(),
+            fetched_at=None,
+            endpoint=self._safe_endpoint(getattr(mcp, "url", "")),
+            api_id=self._mcp_api_id(mcp),
+            server_info={},
+            schema_sha256=None,
+            last_error=None if mcp is None else "discovery_not_started",
+            retry_state="disabled" if mcp is None else "starting",
+            retry_attempt=0,
+            retry_delay_s=None,
+            next_retry_at=None,
+        )
         self._fetch_lock = asyncio.Lock()
+        self._recovery_wakeup = asyncio.Event()
+        self._mcp_epoch = 0
         self._tz: datetime.tzinfo | None = None
         self._entity_index: dict[str, tuple[_CanonicalEntity, ...]] = {}
         self._entity_index_at = 0.0
@@ -295,9 +362,8 @@ class ToolRouter:
     async def start(self) -> None:
         """Fetch the MCP tool list once at boot. Failure degrades to local-only
         tools with a LOUD log line — a silent no-tool assistant is the old bug."""
-        await self._refresh(force=True)
         await self.probe()
-        if self._mcp is not None and not self._mcp_tools:
+        if self._mcp is not None and not self._discovery.mcp_tools:
             log.warning(
                 "MCP tools unavailable at startup — home control is OFF until %s answers "
                 "(enable the 'Model Context Protocol Server' integration in HA, and check "
@@ -323,74 +389,301 @@ class ToolRouter:
             response.raise_for_status()
             domains = response.json()
             if isinstance(domains, dict):
-                domains = domains.get("services", [])
+                if "services" not in domains:
+                    raise ValueError("HA services response has no services list")
+                domains = domains["services"]
+            if not isinstance(domains, list) or not all(
+                isinstance(domain, dict) for domain in domains
+            ):
+                raise ValueError("HA services response is not a list of objects")
             discovered: set[str] = set()
-            for domain in domains if isinstance(domains, list) else []:
-                if not isinstance(domain, dict) or domain.get("domain") != "podconnect":
+            for domain in domains:
+                if domain.get("domain") != "podconnect":
                     continue
-                services = domain.get("services") or {}
+                if "services" not in domain:
+                    raise ValueError("podconnect services are missing")
+                services = domain["services"]
+                if not isinstance(services, (dict, list)):
+                    raise ValueError("podconnect services are malformed")
                 names = services.keys() if isinstance(services, dict) else services
-                discovered = {str(name) for name in names}
+                if not all(isinstance(name, str) and name for name in names):
+                    raise ValueError("podconnect service name is malformed")
+                discovered = set(names)
                 break
-            self._podconnect_services = discovered
+            snap = self._discovery
+            self._discovery = _DiscoverySnapshot(
+                generation=snap.generation + 1,
+                mcp_tools=snap.mcp_tools,
+                mcp_names=snap.mcp_names,
+                podconnect_services=frozenset(discovered),
+                fetched_at=snap.fetched_at,
+                endpoint=snap.endpoint,
+                api_id=snap.api_id,
+                server_info=snap.server_info,
+                schema_sha256=snap.schema_sha256,
+                last_error=snap.last_error,
+                retry_state=snap.retry_state,
+                retry_attempt=snap.retry_attempt,
+                retry_delay_s=snap.retry_delay_s,
+                next_retry_at=snap.next_retry_at,
+            )
             log.info(
                 "PodConnect Control data services: %s",
-                ", ".join(sorted(self._podconnect_services)) or "none",
+                ", ".join(sorted(discovered)) or "none",
             )
         except Exception as e:
+            snap = self._discovery
+            self._discovery = _DiscoverySnapshot(
+                generation=snap.generation + 1,
+                mcp_tools=snap.mcp_tools,
+                mcp_names=snap.mcp_names,
+                podconnect_services=frozenset(),
+                fetched_at=snap.fetched_at,
+                endpoint=snap.endpoint,
+                api_id=snap.api_id,
+                server_info=snap.server_info,
+                schema_sha256=snap.schema_sha256,
+                last_error=snap.last_error,
+                retry_state=snap.retry_state,
+                retry_attempt=snap.retry_attempt,
+                retry_delay_s=snap.retry_delay_s,
+                next_retry_at=snap.next_retry_at,
+            )
             log.info("PodConnect Control service discovery unavailable: %s", e)
 
     async def _refresh(self, *, force: bool = False) -> None:
         if self._mcp is None:
             return
         async with self._fetch_lock:
-            age = time.monotonic() - self._fetched_at
-            if not force and self._mcp_tools and age < _TOOLS_TTL_S:
+            snap = self._discovery
+            epoch = self._mcp_epoch
+            age = time.time() - snap.fetched_at if snap.fetched_at is not None else math.inf
+            if not force and snap.mcp_tools and age < _TOOLS_TTL_S:
                 return
-            if not force and not self._mcp_tools and age < _RETRY_S:
-                return  # recent failure — don't hammer
             try:
-                tools = await self._mcp.list_tools()
+                tools = self._compile_mcp_tools(await self._mcp.list_tools())
             except Exception as e:
-                self._fetched_at = time.monotonic()
+                failure = (
+                    e
+                    if isinstance(e, McpError)
+                    else McpError(f"MCP declaration admission failed: {e}", connection_shaped=True)
+                )
+                self._record_discovery_failure(failure)
                 if self._hub is not None:
                     self._hub.set_service("mcp", "down")
                 log.warning("MCP tools/list failed: %s", e)
                 return
-            self._mcp_tools = [
-                {
-                    "name": t.get("name", ""),
-                    "description": t.get("description", "") or t.get("name", ""),
-                    "parameters": t.get("inputSchema") or {"type": "object", "properties": {}},
-                }
-                for t in tools
-                if t.get("name")
-            ]
-            self._mcp_names = {t["name"] for t in self._mcp_tools}
-            self._fetched_at = time.monotonic()
+            if self._mcp_epoch != epoch:
+                log.warning("discarding stale MCP tools/list success after a newer failure")
+                return
+            names = frozenset(t["name"] for t in tools)
+            encoded = json.dumps(tools, sort_keys=True, separators=(",", ":")).encode()
+            info = getattr(self._mcp, "server_info", {}) or {}
+            self._discovery = _DiscoverySnapshot(
+                generation=snap.generation + 1,
+                mcp_tools=tuple(tools),
+                mcp_names=names,
+                podconnect_services=self._discovery.podconnect_services,
+                fetched_at=time.time(),
+                endpoint=self._safe_endpoint(getattr(self._mcp, "url", "")),
+                api_id=self._mcp_api_id(self._mcp),
+                server_info=dict(info),
+                schema_sha256=hashlib.sha256(encoded).hexdigest(),
+                last_error=None,
+                retry_state="ready",
+                retry_attempt=0,
+                retry_delay_s=None,
+                next_retry_at=None,
+            )
+            self._recovery_wakeup.clear()
             if self._hub is not None:
-                self._hub.set_service("mcp", "up" if self._mcp_tools else "degraded")
+                self._hub.set_service("mcp", "up" if tools else "degraded")
             log.info(
                 "MCP tools: %d from HA (%s)",
-                len(self._mcp_tools),
-                ", ".join(sorted(self._mcp_names)) or "none",
+                len(tools),
+                ", ".join(sorted(names)) or "none",
             )
+
+    @staticmethod
+    def _compile_mcp_tools(raw_tools: Any) -> list[dict[str, Any]]:
+        """Validate the complete declaration page before it can become current."""
+        if not isinstance(raw_tools, list):
+            raise ValueError("MCP tools/list is not a list")
+        if len(raw_tools) > _MAX_MCP_TOOLS:
+            raise ValueError(f"MCP tools/list exceeds {_MAX_MCP_TOOLS} tools")
+        compiled: list[dict[str, Any]] = []
+        names: set[str] = set()
+        for index, raw in enumerate(raw_tools):
+            if not isinstance(raw, dict):
+                raise ValueError(f"MCP tool[{index}] is not an object")
+            name = raw.get("name")
+            if (
+                not isinstance(name, str)
+                or not name.strip()
+                or name != name.strip()
+                or name in names
+            ):
+                raise ValueError(f"MCP tool[{index}] has a missing or duplicate name")
+            if name in _RESERVED_PROVIDER_TOOL_NAMES:
+                raise ValueError(f"MCP tool {name} collides with a reserved lifecycle tool")
+            if "inputSchema" not in raw:
+                raise ValueError(f"MCP tool {name} has no inputSchema")
+            try:
+                schema = json.loads(json.dumps(raw["inputSchema"]))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"MCP tool {name} inputSchema is not JSON") from exc
+            if not isinstance(schema, dict):
+                raise ValueError(f"MCP tool {name} has no object inputSchema")
+            if ToolRouter._json_depth(schema) > _MAX_MCP_SCHEMA_DEPTH:
+                raise ValueError(f"MCP tool {name} schema exceeds depth {_MAX_MCP_SCHEMA_DEPTH}")
+            description = raw["description"] if "description" in raw else name
+            if not isinstance(description, str):
+                raise ValueError(f"MCP tool {name} has a non-string description")
+            try:
+                Draft202012Validator.check_schema(schema)
+            except SchemaError as exc:
+                raise ValueError(f"MCP tool {name} has invalid schema: {exc.message}") from exc
+            for node in ToolRouter._schema_nodes(schema):
+                for keyword in ("$ref", "$dynamicRef"):
+                    ref = node.get(keyword)
+                    if isinstance(ref, str) and not ref.startswith("#"):
+                        raise ValueError(f"MCP tool {name} uses non-local {keyword}")
+            Draft202012Validator(schema)
+            names.add(name)
+            declaration = {
+                "name": name,
+                "description": description or name,
+                "parameters": schema,
+            }
+            tool_bytes = compact_json_size(realtime_function_tool(declaration))
+            if tool_bytes > _MAX_MCP_TOOL_BYTES:
+                raise ValueError(f"MCP tool {name} exceeds {_MAX_MCP_TOOL_BYTES} bytes")
+            compiled.append(declaration)
+            if realtime_tools_wire_size(compiled) > _MAX_MCP_TOTAL_BYTES:
+                raise ValueError(
+                    f"MCP tools/list exceeds {_MAX_MCP_TOTAL_BYTES} serialized wire bytes"
+                )
+        return compiled
+
+    @classmethod
+    def _schema_nodes(cls, value: object):
+        if isinstance(value, dict):
+            yield value
+            for child in value.values():
+                yield from cls._schema_nodes(child)
+        elif isinstance(value, list):
+            for child in value:
+                yield from cls._schema_nodes(child)
+
+    @classmethod
+    def _json_depth(cls, value: object) -> int:
+        if isinstance(value, dict):
+            return 1 + max((cls._json_depth(child) for child in value.values()), default=0)
+        if isinstance(value, list):
+            return 1 + max((cls._json_depth(child) for child in value), default=0)
+        return 0
+
+    def _record_discovery_failure(self, error: Exception | str) -> None:
+        snap = self._discovery
+        if isinstance(error, McpError) and error.connection_shaped and self._mcp is not None:
+            reset = getattr(self._mcp, "reset_connection_state", None)
+            if callable(reset):
+                reset()
+        self._mcp_epoch += 1
+        attempt = snap.retry_attempt + 1
+        delay = _RECOVERY_BACKOFF_S[min(attempt - 1, len(_RECOVERY_BACKOFF_S) - 1)]
+        self._discovery = _DiscoverySnapshot(
+            generation=snap.generation + 1,
+            # Active sessions already copied their accepted schema. New sessions get
+            # local-only declarations until a complete fresh page is admitted.
+            mcp_tools=(),
+            mcp_names=frozenset(),
+            podconnect_services=frozenset(),
+            fetched_at=time.time(),
+            endpoint=snap.endpoint,
+            api_id=snap.api_id,
+            server_info=snap.server_info,
+            schema_sha256=None,
+            last_error=str(error)[:500],
+            retry_state="retrying",
+            retry_attempt=attempt,
+            retry_delay_s=delay,
+            next_retry_at=time.time() + delay,
+        )
+        self.healthy = False
+        if self._hub is not None:
+            self._hub.set_service("mcp", "down")
+        self._recovery_wakeup.set()
+
+    def next_probe_delay(self) -> float:
+        snap = self._discovery
+        if snap.retry_state == "retrying" and snap.next_retry_at is not None:
+            return max(0.0, snap.next_retry_at - time.time())
+        return _TOOLS_TTL_S
+
+    async def wait_for_recovery_signal(self) -> None:
+        await self._recovery_wakeup.wait()
+        self._recovery_wakeup.clear()
+
+    def discovery_status(self) -> dict[str, Any]:
+        snap = self._discovery
+        return {
+            "generation": snap.generation,
+            "fetched_at": snap.fetched_at,
+            "endpoint": snap.endpoint,
+            "api_id": snap.api_id,
+            "server_info": dict(snap.server_info),
+            "schema_sha256": snap.schema_sha256,
+            "last_error": snap.last_error,
+            "retry_state": snap.retry_state,
+            "retry_attempt": snap.retry_attempt,
+            "retry_delay_s": snap.retry_delay_s,
+            "next_retry_at": snap.next_retry_at,
+        }
+
+    @staticmethod
+    def _mcp_api_id(mcp: Any) -> str | None:
+        endpoint = str(getattr(mcp, "url", "") or "")
+        if not endpoint:
+            return None
+        path = urlsplit(endpoint).path or "/"
+        if endpoint.startswith(C.SUPERVISOR_CORE_API):
+            return "supervisor_core:mcp"
+        return f"configured:{path}"
+
+    @staticmethod
+    def _safe_endpoint(endpoint: Any) -> str | None:
+        raw = str(endpoint or "")
+        if not raw:
+            return None
+        try:
+            parsed = urlsplit(raw)
+            host = parsed.hostname or ""
+            if ":" in host:
+                host = f"[{host}]"
+            netloc = f"{host}:{parsed.port}" if parsed.port is not None else host
+        except ValueError:
+            return "invalid-configured-endpoint"
+        return urlunsplit((parsed.scheme, netloc, parsed.path, "", ""))
 
     async def probe(self) -> bool:
         """PROVE home control by touching a REAL read-only tool. A tool COUNT lies:
         HassTurnOn/GetLiveContext exist as tools even with ZERO exposed entities
         (modprøve A2 — 'lam men lyder rask'). Called at boot and periodically."""
         # HACS can add/reload Control independently of this add-on. Refresh its
-        # services with the normal ten-minute probe; transient HA failures preserve
-        # the last proven service set instead of silently removing music tools.
+        # services on the same probe edge. A failed current read removes those tools
+        # for the next session; an already-open session retains its detached schema.
         await self._refresh_podconnect_services()
         ok = False
-        if self._mcp is not None and "GetLiveContext" not in self._mcp_names:
-            # A boot during an HA restart leaves an EMPTY tool list (tools/list failed
-            # while core was down). Re-fetch here so the 10-min loop SELF-HEALS home
-            # control instead of staying lame until someone restarts the add-on.
+        if self._mcp is not None:
+            # Admission (complete list + schema compilation) happens before the read-only
+            # live-context probe.  A rejected page can never be advertised to Realtime.
             await self._refresh(force=True)
-        if self._mcp is not None and "GetLiveContext" in self._mcp_names:
+        if (
+            self._mcp is not None
+            and self._discovery.retry_state == "ready"
+            and "GetLiveContext" in self._discovery.mcp_names
+        ):
             try:
                 r = await self.dispatch("GetLiveContext", {})
                 ok = bool(r.get("ok")) and bool(r.get("data") or r.get("summary"))
@@ -475,7 +768,7 @@ class ToolRouter:
                 },
             ]
         for tool_name, (service_name, description) in _PODCONNECT_DATA_TOOLS.items():
-            if service_name in self._podconnect_services:
+            if service_name in self._discovery.podconnect_services:
                 decls.append(
                     {
                         "name": tool_name,
@@ -484,7 +777,8 @@ class ToolRouter:
                     }
                 )
         local_names = {d["name"] for d in decls}
-        decls += [t for t in self._mcp_tools if t["name"] not in local_names]
+        snapshot_tools = self._discovery.mcp_tools
+        decls += [json.loads(json.dumps(t)) for t in snapshot_tools if t["name"] not in local_names]
         return decls
 
     def capabilities(self) -> dict:
@@ -497,22 +791,44 @@ class ToolRouter:
         decls = self.declarations()
         names = [str(d.get("name", "")) for d in decls if d.get("name")]
 
-        def has_any(hints: tuple[str, ...]) -> bool:
-            for d in decls:
-                hay = f"{d.get('name', '')} {d.get('description', '')}".lower()
-                if any(h in hay for h in hints):
-                    return True
-            return False
+        current = self._discovery.retry_state in {"ready", "disabled"}
+        declared_roles: set[str] = set()
+        role_tools: dict[str, list[str]] = {
+            "time": ["get_time"] if "get_time" in names else [],
+            "timers": [
+                name for name in ("set_timer", "list_timers", "cancel_timer") if name in names
+            ],
+            "home": [],
+            "web_search": [],
+            "weather": [],
+            "music": [],
+            "home_read": [],
+            "home_control": [],
+            "music_history": [],
+            "music_search": [],
+            "music_playback": [],
+            "music_transport": [],
+        }
+        if current:
+            for name in names:
+                for role in _TOOL_CAPABILITY_ROLES.get(name, ()):
+                    declared_roles.add(role)
+                    role_tools[role].append(name)
+        role_tools["home"] = list(role_tools["home_control"])
+        # The product pill promises that Nabu can actually find/start music.
+        # Transport-only controls (pause, volume, next) remain useful detailed
+        # capabilities, but must not turn the aggregate music promise green.
+        role_tools["music"] = list(role_tools["music_playback"])
 
         caps = {
             "tools": names,
             "count": len(names),
             "time": "get_time" in names,
             "timers": any(n in names for n in ("set_timer", "list_timers", "cancel_timer")),
-            "home": bool(self._mcp_names),
-            "web_search": has_any(_WEB_HINTS),
-            "weather": has_any(_WEATHER_HINTS),
-            "music": has_any(_MUSIC_HINTS),
+            "home": bool(role_tools["home"]),
+            "web_search": "web_search" in declared_roles,
+            "weather": "weather" in declared_roles,
+            "music": bool(role_tools["music"]),
         }
         missing = [
             key for key in ("home", "web_search", "weather", "music") if not bool(caps.get(key))
@@ -527,6 +843,8 @@ class ToolRouter:
             "weather": "ha_mcp" if caps["weather"] else "missing",
             "music": "ha_mcp" if caps["music"] else "missing",
         }
+        caps["discovery"] = self.discovery_status()
+        caps["roles"] = role_tools
         return caps
 
     # ------------------------------------------------------------------ dispatch
@@ -540,8 +858,12 @@ class ToolRouter:
     ) -> dict:
         declaration = next((item for item in self.declarations() if item.get("name") == name), {})
         dispatch_args: dict[str, Any] = dict(args)
-        # Undeclared names cannot reach MCP and retain the existing clean bad-args
-        # result.  Authorization protects only executable declarations.
+        # A stale active session may still know a tool after discovery was invalidated.
+        # Never refresh-and-execute that now-undeclared name below the policy boundary.
+        if not declaration:
+            result = {"ok": False, "error_kind": "bad_args", "error": f"unknown tool {name}"}
+            self._log_tool(name, result, dispatch_args)
+            return result
         if declaration:
             prepared = await self._prepare_execution(name, dispatch_args)
             if prepared.error is not None:
@@ -1042,14 +1364,15 @@ class ToolRouter:
                     "error_kind": "no_mcp",
                     "error": "home control is not connected",
                 }
-            if name not in self._mcp_names:
+            if name not in self._discovery.mcp_names:
                 await self._refresh(force=True)  # a reload may have added the tool
-            if name not in self._mcp_names:
+            if name not in self._discovery.mcp_names:
                 return {"ok": False, "error_kind": "bad_args", "error": f"unknown tool {name}"}
             result = await self._mcp.call_tool(name, args or {})
             return _mcp_result_to_contract(result)
         except McpError as e:
-            self._fetched_at = 0.0  # connection-shaped failure -> re-list on next call
+            if e.connection_shaped:
+                self._record_discovery_failure(e)
             return {
                 "ok": False,
                 "error_kind": "mcp",
@@ -1063,9 +1386,9 @@ class ToolRouter:
     async def _podconnect_data(self, tool_name: str) -> dict:
         """Call one documented PodConnect Control response service through HA."""
         service_name = _PODCONNECT_DATA_TOOLS[tool_name][0]
-        if service_name not in self._podconnect_services:
+        if service_name not in self._discovery.podconnect_services:
             await self._refresh_podconnect_services()
-        if service_name not in self._podconnect_services:
+        if service_name not in self._discovery.podconnect_services:
             return {
                 "ok": False,
                 "error_kind": "unavailable",

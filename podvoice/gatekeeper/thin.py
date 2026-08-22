@@ -55,6 +55,8 @@ def _provider_failure_reason(error: object) -> str:
     if isinstance(error, TimeoutError):
         return "OpenAI svarede ikke inden timeout"
     raw = str(error or "").lower()
+    if "diagnostic_busy" in raw:
+        return "Nabu er midlertidigt låst af en aktiv systemdiagnose"
     if any(key in raw for key in ("insufficient_quota", "billing_hard_limit", "billing")):
         return "OpenAI-kontoen mangler saldo eller kredit"
     if any(key in raw for key in ("rate_limit", "rate limit", "too many requests", "429")):
@@ -312,6 +314,7 @@ class ThinSession:
         self.sm = _Mini(self)
         self.playout = PlayoutClock()
         self._active = False  # one conversation open?
+        self._transcription_audio_seconds = 0.0
         self._speaking = False  # assistant audio currently announced/playing
         self._device_playing = False  # media_player ANNOUNCING — playback ground truth
         self._gate_until = 0.0  # echo-shield tail / pre-arm deadline (monotonic)
@@ -501,6 +504,7 @@ class ThinSession:
         self._trace_event("wake_received")
         self._trace_reason = "teardown"
         self._active = True
+        self._transcription_audio_seconds = 0.0
         self._ending_conversation = False
         self._close_task = None
         self._playback_started.clear()
@@ -590,14 +594,15 @@ class ThinSession:
             await asyncio.wait_for(self.brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
         except Exception as e:
             _LOG.warning("thin: provider connect failed: %s", e)
-            if self.hub is not None:
+            diagnostic_busy = "diagnostic_busy" in str(e).lower()
+            if self.hub is not None and not diagnostic_busy:
                 self.hub.set_service(
                     "openai",
                     "down",
                     reason=_provider_failure_reason(e),
                     source="aktiv Realtime-session",
                 )
-            await self._fail("connection")
+            await self._fail("diagnostic" if diagnostic_busy else "connection")
             return
         self._trace_event("provider_connected")
         if self.hub is not None:
@@ -824,6 +829,15 @@ class ThinSession:
 
     async def _teardown_locked(self, *, release_music: bool) -> None:
         history_session = self._history_session
+        transcription_seconds = self._transcription_audio_seconds
+        self._transcription_audio_seconds = 0.0
+        if (
+            transcription_seconds > 0
+            and self.usage is not None
+            and hasattr(self.usage, "add_transcription_seconds")
+        ):
+            with contextlib.suppress(Exception):
+                self.usage.add_transcription_seconds(transcription_seconds, room=self.room)
         self._invalidate_playback_lease("teardown")
         self._active = False
         self._speaking = False
@@ -974,6 +988,7 @@ class ThinSession:
                     continue
                 try:
                     await self.brain.send_audio(frame)
+                    self._transcription_audio_seconds += len(frame) / (2.0 * C.INPUT_RATE)
                 except Exception as e:
                     _LOG.warning("thin: provider send failed (%s)", e)
                     await self._fail("connection")

@@ -6,9 +6,10 @@ Talk, simulated Voice PE and (eventually) hardware-observed runs.  The included 
 driver exercises the real OpenAI Realtime protocol with production prompt/config but
 dispatches only to :class:`SafeEvalTools`; it can never reach HA, MCP or PodConnect.
 
-Live evaluation is opt-in.  It is suitable for an authenticated add-on endpoint through
-``LiveEvalService.run`` or for ``python -m gatekeeper.eval_harness --live`` inside the
-add-on.  The API key is read from the environment and never appears in artifacts.
+Live evaluation is opt-in and is only exposed through the authenticated add-on endpoint,
+which supplies the exact frozen production tool declarations.  The standalone CLI can
+list scenarios, but deliberately refuses ``--live`` because it cannot prove that
+production-shaped tool snapshot.
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ import asyncio
 import contextlib
 import hashlib
 import json
-import os
+import logging
 import pathlib
 import re
 import time
@@ -29,16 +30,22 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, ClassVar, Protocol
 
 from . import constants as C
-from .config import load_config
 from .execution_policy import ExecutionContext, ExecutionPolicy, Risk
 from .openai_realtime import (
     DEFAULT_MODEL,
     DEFAULT_VOICE,
     MAX_OUTPUT_TOKENS,
+    TOOL_FOLLOWUP_MINIMUM_RESERVE,
     OpenAIRealtimeSession,
+    ProviderConfigurationError,
 )
 from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
-from .provider_budget import PROVIDER_BUDGET, BudgetLease, ProviderBudgetCoordinator
+from .provider_budget import (
+    PROVIDER_BUDGET,
+    BudgetLease,
+    ProviderBudgetCoordinator,
+    ProviderBudgetUnavailable,
+)
 from .thin import (
     APPROVE_ACTION_DECLARATION,
     END_CONVERSATION_DECLARATION,
@@ -64,6 +71,51 @@ RESERVED_DECLARATIONS = (
 )
 SAFE_EVAL_HIGH_RISK_TOOL = "EvalUnlockDoor"
 PROVIDER_BUDGET_PROBE_TOKENS = 2_000
+LIVE_EVAL_TURN_TIMEOUT_S = 20.0
+LIVE_EVAL_RESET_GAP_S = 60.5
+LIVE_EVAL_ACTUAL_COST_CAP_USD = 5.00
+GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE = 0.017
+# Conservative per-edge cost for the production-shaped typed profile and the bounded
+# (max 8 s) single-turn replay: at most 12,288 audio tokens in a 128k context,
+# all remaining input charged as uncached text, plus PodVoice's 1,024-token audio
+# output ceiling. Official GPT-Realtime-2.1 rates make this $0.9216; cached input can
+# only lower it. Round up so the prospective $5 gate remains a hard guard.
+LIVE_EVAL_WORST_RESPONSE_COST_USD = 1.00
+MAX_EVAL_RESPONSE_EDGES_PER_TURN = 3
+MAX_LIVE_EVAL_PROMPT_BYTES = 32 * 1024
+_LOG = logging.getLogger(__name__)
+
+
+def _sanitized_probe_field(value: object, *, api_key: str, fallback: str) -> str:
+    """Return one bounded provider diagnostic field without credential disclosure."""
+    text = " ".join(str(value or fallback).split())
+    if api_key:
+        text = text.replace(api_key, "[REDACTED]")
+    return text[:200]
+
+
+def _probe_usage_tokens(usage: Usage | None) -> int | None:
+    if usage is None:
+        return None
+    return (
+        usage.input_text_tokens
+        + usage.input_audio_tokens
+        + usage.output_text_tokens
+        + usage.output_audio_tokens
+    )
+
+
+def _full_profile_deadline_s() -> float:
+    """Conservative hard bound for all scenarios under Tier-1 one-session pacing."""
+    scenarios = load_scenarios()
+    sessions = len(scenarios)
+    turns = sum(len(scenario.turns) for scenario in scenarios)
+    # A nearly-full turn can require a reset before the next turn even when both
+    # turns share one Realtime session. Bound every inter-turn edge, not just fresh
+    # scenario sockets.
+    reset_waits = max(0, turns - 1) * LIVE_EVAL_RESET_GAP_S
+    provider_edges = (sessions + 1) * C.CONNECT_TIMEOUT_S  # cold probe plus sessions
+    return reset_waits + turns * LIVE_EVAL_TURN_TIMEOUT_S + provider_edges + 30.0
 
 
 def _schema_sha256(declarations: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> str:
@@ -106,6 +158,20 @@ class EvalScenario:
     id: str
     description: str
     turns: tuple[EvalTurn, ...]
+    exact_tool_names: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class EvalFixtureCase:
+    args: dict[str, Any]
+    result: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class EvalFixtureContract:
+    exact_tool_name: str
+    risk: str
+    cases: tuple[EvalFixtureCase, ...]
 
 
 @dataclass(frozen=True)
@@ -175,10 +241,54 @@ class ConversationDriver(Protocol):
     async def close(self) -> None: ...
 
 
-def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, ...]:
+def _load_eval_manifest(path: pathlib.Path = SCENARIOS_PATH) -> dict[str, Any]:
     raw = json.loads(path.read_text(encoding="utf-8"))
-    if raw.get("schema_version") != 1:
+    if raw.get("schema_version") != 2:
         raise ValueError("unsupported eval scenario schema")
+    return raw
+
+
+def load_fixture_contracts(
+    path: pathlib.Path = SCENARIOS_PATH,
+) -> dict[str, EvalFixtureContract]:
+    raw = _load_eval_manifest(path)
+    contracts: dict[str, EvalFixtureContract] = {}
+    for index, row in enumerate(raw.get("fixture_contracts") or []):
+        if not isinstance(row, dict):
+            raise ValueError(f"fixture_contracts[{index}] is not an object")
+        name = row.get("exact_tool_name")
+        risk = row.get("risk")
+        cases = row.get("cases")
+        if (
+            not isinstance(name, str)
+            or not name
+            or name in contracts
+            or not isinstance(risk, str)
+            or not risk
+            or not isinstance(cases, list)
+            or not cases
+        ):
+            raise ValueError(f"invalid or duplicate fixture contract at index {index}")
+        parsed_cases: list[EvalFixtureCase] = []
+        for case_index, case in enumerate(cases):
+            if (
+                not isinstance(case, dict)
+                or not isinstance(case.get("args"), dict)
+                or not isinstance(case.get("result"), dict)
+            ):
+                raise ValueError(f"invalid fixture case {name}[{case_index}]")
+            parsed_cases.append(
+                EvalFixtureCase(
+                    json.loads(json.dumps(case["args"])),
+                    json.loads(json.dumps(case["result"])),
+                )
+            )
+        contracts[name] = EvalFixtureContract(name, risk, tuple(parsed_cases))
+    return contracts
+
+
+def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, ...]:
+    raw = _load_eval_manifest(path)
     seen: set[str] = set()
     scenarios: list[EvalScenario] = []
     for entry in raw.get("scenarios", []):
@@ -226,8 +336,20 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
             )
         if not turns:
             raise ValueError(f"{scenario_id}: no turns")
+        exact_names = entry.get("exact_tool_names")
+        if (
+            not isinstance(exact_names, list)
+            or any(not isinstance(name, str) or not name for name in exact_names)
+            or len(set(exact_names)) != len(exact_names)
+        ):
+            raise ValueError(f"{scenario_id}: invalid exact_tool_names")
         scenarios.append(
-            EvalScenario(scenario_id, str(entry.get("description") or ""), tuple(turns))
+            EvalScenario(
+                scenario_id,
+                str(entry.get("description") or ""),
+                tuple(turns),
+                tuple(exact_names),
+            )
         )
     return tuple(scenarios)
 
@@ -378,23 +500,28 @@ def _tool_result_outcome(result: dict[str, Any]) -> str:
 class EvalBudget:
     max_turns: int = 20
     max_reserved_tokens: int = 30_000
-    # Total-run bounds are deliberately distinct from the rolling TPM throttle.
-    # Four fresh sessions repeat the prompt/tool schema and legitimately exceed 30k
-    # total tokens even when split safely across multiple one-minute windows.
+    # Standalone/unit defaults. LiveEvalService derives stricter explicit bounds from
+    # the selected profile's exact session/turn count before any provider admission.
     max_actual_tokens: int = 80_000
-    max_cost_usd: float = 0.25
+    max_cost_usd: float = LIVE_EVAL_ACTUAL_COST_CAP_USD
+    mechanical_max_cost_usd: float | None = None
+    worst_response_cost_usd: float = LIVE_EVAL_WORST_RESPONSE_COST_USD
     turns: int = 0
     reserved_tokens: int = 0
     actual_tokens: int = 0
     cost_usd: float = 0.0
     rate_limit_wait_s: float = 0.0
 
-    def reserve(self, responses: int = 2) -> None:
+    def reserve(self, responses: int = MAX_EVAL_RESPONSE_EDGES_PER_TURN) -> None:
         requested = responses * MAX_OUTPUT_TOKENS
         if self.turns + 1 > self.max_turns:
             raise RuntimeError("eval turn budget exhausted")
         if self.reserved_tokens + requested > self.max_reserved_tokens:
             raise RuntimeError("eval response-token reservation budget exhausted")
+        if self.cost_usd + responses * self.worst_response_cost_usd > self.max_cost_usd:
+            raise RuntimeError(
+                "budget_exhausted · prospective eval response cost exceeds the hard USD cap"
+            )
         self.turns += 1
         self.reserved_tokens += requested
 
@@ -463,6 +590,8 @@ class SafeEvalTools:
         declarations: list[dict[str, Any]] | None = None,
         *,
         include_sensitive_fixture: bool = False,
+        admitted_names: set[str] | None = None,
+        fixture_contracts: dict[str, EvalFixtureContract] | None = None,
     ) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.fixture_side_effects = 0
@@ -500,6 +629,12 @@ class SafeEvalTools:
                 )
                 self._declarations.append(fixture)
             self._declarations.extend(dict(item) for item in RESERVED_DECLARATIONS)
+        self._admitted_names = (
+            set(admitted_names)
+            if admitted_names is not None
+            else {str(item.get("name")) for item in self._declarations if item.get("name")}
+        )
+        self._fixture_contracts = dict(fixture_contracts or {})
 
     @staticmethod
     def _safe_declarations() -> list[dict[str, Any]]:
@@ -636,6 +771,23 @@ class SafeEvalTools:
 
     async def dispatch(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         self.calls.append((name, dict(args)))
+        if name not in self._admitted_names:
+            return {
+                "ok": False,
+                "error_kind": "eval_tool_refused",
+                "error": "Eval-harnessen nægter alle ikke-fixturerede værktøjer.",
+            }
+        contract = self._fixture_contracts.get(name)
+        if (
+            contract is not None
+            and name != "approve_action"
+            and args not in [case.args for case in contract.cases]
+        ):
+            return {
+                "ok": False,
+                "error_kind": "eval_fixture_args_mismatch",
+                "error": "Værktøjsargumenterne matcher intet kanonisk eval-fixture.",
+            }
         if name == SAFE_EVAL_HIGH_RISK_TOOL:
             return self._challenge(name, args)
         if name == "approve_action":
@@ -679,6 +831,100 @@ class SafeEvalTools:
         return json.loads(json.dumps(result))
 
 
+@dataclass(frozen=True)
+class EvalToolAdmission:
+    declarations: list[dict[str, Any]]
+    contracts: dict[str, EvalFixtureContract]
+
+
+def _capability_metadata(
+    admission: EvalToolAdmission,
+    scenarios: list[EvalScenario] | tuple[EvalScenario, ...],
+) -> dict[str, Any]:
+    snapshot_names = {
+        str(row.get("name"))
+        for row in admission.declarations
+        if isinstance(row, dict) and row.get("name")
+    }
+    admitted = set(admission.contracts)
+    return {
+        "semantic_profile_covered": sorted(scenario.id for scenario in scenarios),
+        "capabilities_admitted": sorted(admitted),
+        "capabilities_not_exercised": sorted(snapshot_names - admitted),
+        "capability_evidence": "presence_only_not_function_proof",
+    }
+
+
+def _admit_eval_tools(
+    scenarios: list[EvalScenario] | tuple[EvalScenario, ...],
+    declarations: list[dict[str, Any]] | None,
+) -> EvalToolAdmission:
+    """Build one exact, schema-valid, side-effect-free capability set before a socket."""
+    if declarations is None:
+        raise ValueError("production tool snapshot is missing")
+    required = {name for scenario in scenarios for name in scenario.exact_tool_names}
+    contracts = load_fixture_contracts()
+    missing_contracts = sorted(required.difference(contracts))
+    if missing_contracts:
+        raise ValueError(f"missing canonical eval fixture contracts: {missing_contracts}")
+
+    if not isinstance(declarations, list):
+        raise ValueError("production tool snapshot is not a list")
+    source = json.loads(json.dumps(declarations))
+    if any(isinstance(row, dict) and row.get("name") == SAFE_EVAL_HIGH_RISK_TOOL for row in source):
+        raise ValueError(f"production snapshot collides with eval-only {SAFE_EVAL_HIGH_RISK_TOOL}")
+    canonical_reserved = {row["name"]: row for row in RESERVED_DECLARATIONS}
+    for name, canonical in canonical_reserved.items():
+        rows = [row for row in source if isinstance(row, dict) and row.get("name") == name]
+        if len(rows) > 1 or (rows and rows[0] != canonical):
+            raise ValueError(f"production snapshot has non-canonical reserved tool {name}")
+        if not rows:
+            source.append(json.loads(json.dumps(canonical)))
+    if SAFE_EVAL_HIGH_RISK_TOOL in required:
+        source.append(
+            next(
+                json.loads(json.dumps(row))
+                for row in SafeEvalTools._safe_declarations()
+                if row["name"] == SAFE_EVAL_HIGH_RISK_TOOL
+            )
+        )
+
+    by_name: dict[str, list[dict[str, Any]]] = {}
+    for declaration in source:
+        candidate_name = declaration.get("name") if isinstance(declaration, dict) else None
+        if isinstance(candidate_name, str) and candidate_name in required:
+            by_name.setdefault(candidate_name, []).append(declaration)
+    missing = sorted(name for name in required if name not in by_name)
+    duplicates = sorted(name for name, rows in by_name.items() if len(rows) != 1)
+    if missing or duplicates:
+        raise ValueError(
+            f"eval tool admission requires unique declarations; missing={missing}, "
+            f"duplicate={duplicates}"
+        )
+    # This is the production adapter's exact Draft 2020-12/local-ref compiler.  It is
+    # intentionally invoked before any budget lease or provider socket is created.
+    validator_session = OpenAIRealtimeSession(api_key="", tool_declarations=source)
+    validator_session._preflight_tool_declarations()
+    for name in sorted(required):
+        contract = contracts[name]
+        validator = validator_session._tool_validators[name]
+        for case in contract.cases:
+            errors = sorted(validator.iter_errors(case.args), key=lambda error: list(error.path))
+            if errors:
+                raise ValueError(f"canonical eval args violate {name} schema: {errors[0].message}")
+    for scenario in scenarios:
+        for turn in scenario.turns:
+            for name, args in turn.expect.tool_args.items():
+                expected_contract = contracts.get(name)
+                if expected_contract is None or args not in [
+                    case.args for case in expected_contract.cases
+                ]:
+                    raise ValueError(
+                        f"{scenario.id}: expected args for {name} lack an exact fixture case"
+                    )
+    return EvalToolAdmission(source, {name: contracts[name] for name in required})
+
+
 def read_pcm_fixture(path: pathlib.Path) -> tuple[bytes, int]:
     """Load a consented captured fixture; reject formats unlike PodVoice's mono PCM16."""
     with wave.open(str(path), "rb") as source:
@@ -713,16 +959,23 @@ async def run_scenario(
     *,
     run_id: str,
     budget: EvalBudget,
-    turn_timeout_s: float = 20.0,
+    turn_timeout_s: float = LIVE_EVAL_TURN_TIMEOUT_S,
 ) -> ScenarioResult:
     session_id = ""
     results: list[TurnResult] = []
     try:
+        # Reserve the first bounded turn before opening a provider socket.  A hard
+        # price/token stop therefore has zero provider traffic and zero fixture effect.
+        budget.reserve(MAX_EVAL_RESPONSE_EDGES_PER_TURN)
         session_id = await driver.open(run_id=run_id, scenario_id=scenario.id)
         for index, turn in enumerate(scenario.turns, start=1):
-            budget.reserve()
+            if index > 1:
+                budget.reserve(MAX_EVAL_RESPONSE_EDGES_PER_TURN)
             turn_id = f"{scenario.id}-{index}-{uuid.uuid4().hex[:8]}"
             try:
+                prepare_capacity = getattr(driver, "prepare_response_capacity", None)
+                if prepare_capacity is not None:
+                    await prepare_capacity()
                 async with asyncio.timeout(turn_timeout_s):
                     observed = await driver.submit_text(turn_id=turn_id, text=turn.text)
             except TimeoutError:
@@ -737,6 +990,17 @@ async def run_scenario(
                 observed.error = (
                     f"session changed from {session_id} to {observed.session_id} inside scenario"
                 )
+            if observed.error and "provider_usage_unknown" in observed.error:
+                raise RuntimeError(observed.error)
+            if (
+                not observed.accepted
+                or observed.error is not None
+                or observed.response_status != "completed"
+            ):
+                # A missing terminal edge leaves the same provider response potentially
+                # active.  Never submit the next contextual turn into that socket; close
+                # the scenario once and let the caller release its exact eval lease.
+                observed.remain_open = False
             budget.record(observed.usage)
             findings = grade_turn(turn.expect, observed)
             results.append(TurnResult(turn_id, turn.text, not findings, observed, findings))
@@ -776,6 +1040,12 @@ class LiveRealtimeDriver:
         include_sensitive_fixture: bool = False,
         budget_lease: BudgetLease | None = None,
         provider_budget: ProviderBudgetCoordinator | None = None,
+        admitted_names: set[str] | None = None,
+        fixture_contracts: dict[str, EvalFixtureContract] | None = None,
+        capacity_sleep=asyncio.sleep,
+        capacity_monotonic=time.monotonic,
+        capacity_deadline: float | None = None,
+        capacity_wait_observer=None,
     ) -> None:
         self.api_key = api_key
         self.model = model
@@ -784,16 +1054,52 @@ class LiveRealtimeDriver:
         self.tools = SafeEvalTools(
             tool_declarations,
             include_sensitive_fixture=include_sensitive_fixture,
+            admitted_names=admitted_names,
+            fixture_contracts=fixture_contracts,
         )
         self.room_context = room_context
         self.interrupt_response = interrupt_response
         self.budget_lease = budget_lease
         self.provider_budget = provider_budget or PROVIDER_BUDGET
+        self._capacity_sleep = capacity_sleep
+        self._capacity_monotonic = capacity_monotonic
+        self._capacity_deadline = capacity_deadline
+        self._capacity_wait_observer = capacity_wait_observer
         self.session: _ReadyRealtimeSession | None = None
         self.events: asyncio.Queue[Any] = asyncio.Queue()
         self.reader: asyncio.Task[None] | None = None
         self.session_id = ""
         self.is_open = False
+
+    async def prepare_response_capacity(self) -> None:
+        """Renew one eval response allowance, waiting for at most one known reset.
+
+        This runs before the semantic turn timeout.  A physical session arriving
+        during the wait wins at the final atomic capacity check.
+        """
+        lease = self.budget_lease
+        if lease is None or self.provider_budget.ensure_response_capacity(lease):
+            return
+        wait_s = self.provider_budget.response_retry_after(lease)
+        if wait_s is None:
+            raise ProviderBudgetUnavailable(
+                "rate_limit_capacity · eval response cannot preserve production headroom"
+            )
+        wait_s += 0.05
+        if self._capacity_deadline is not None:
+            remaining = max(0.0, self._capacity_deadline - self._capacity_monotonic())
+            if wait_s >= remaining:
+                raise ProviderBudgetUnavailable(
+                    "rate_limit_capacity · provider reset wait exceeds the live eval deadline"
+                )
+        if wait_s > 0:
+            await self._capacity_sleep(wait_s)
+            if self._capacity_wait_observer is not None:
+                self._capacity_wait_observer(wait_s)
+        if not self.provider_budget.ensure_response_capacity(lease):
+            raise ProviderBudgetUnavailable(
+                "rate_limit_capacity · eval response cannot preserve production headroom"
+            )
 
     async def open(self, *, run_id: str, scenario_id: str) -> str:
         self.session_id = f"{run_id}:{scenario_id}:{uuid.uuid4().hex[:8]}"
@@ -835,6 +1141,12 @@ class LiveRealtimeDriver:
         if not self.is_open or self.session is None:
             raise RuntimeError("live eval session is not open")
         started = time.monotonic()
+        if self.budget_lease is not None and not self.provider_budget.ensure_response_capacity(
+            self.budget_lease
+        ):
+            raise ProviderBudgetUnavailable(
+                "rate_limit_capacity · eval response cannot preserve production headroom"
+            )
         self.tools.begin_turn(turn_id)
         try:
             await self.session.send_text(text)
@@ -849,6 +1161,12 @@ class LiveRealtimeDriver:
         if rate != 24_000 or not pcm:
             raise ValueError("audio replay requires non-empty 24 kHz provider PCM")
         started = time.monotonic()
+        if self.budget_lease is not None and not self.provider_budget.ensure_response_capacity(
+            self.budget_lease
+        ):
+            raise ProviderBudgetUnavailable(
+                "rate_limit_capacity · eval response cannot preserve production headroom"
+            )
         self.tools.begin_turn(turn_id)
         try:
             await pace_pcm(pcm, rate, self.session.send_audio)
@@ -865,6 +1183,12 @@ class LiveRealtimeDriver:
         session = self.session
         if session is None:
             raise RuntimeError("live eval session is not open")
+        if self.budget_lease is not None and not self.provider_budget.ensure_response_capacity(
+            self.budget_lease, TOOL_FOLLOWUP_MINIMUM_RESERVE
+        ):
+            raise ProviderBudgetUnavailable(
+                "rate_limit_capacity · eval tool result cannot preserve production headroom"
+            )
         calls = sorted(calls, key=lambda call: call.batch_index)
         observed.decision_batches.append([call.name for call in calls])
         for call in calls:
@@ -931,6 +1255,7 @@ class LiveRealtimeDriver:
         output: list[str] = []
         usage = Usage()
         tool_round_seen = False
+        response_edges = 0
         pending_batches: dict[str, dict[int, ToolCall]] = {}
         while True:
             event = await self.events.get()
@@ -962,6 +1287,7 @@ class LiveRealtimeDriver:
                 # Anything spoken before the decision is a private preamble.
                 output.clear()
             elif isinstance(event, ToolRoundComplete):
+                response_edges += 1
                 response_id = str(event.response_id or "")
                 committed_batch = pending_batches.get(response_id)
                 if (
@@ -972,6 +1298,10 @@ class LiveRealtimeDriver:
                     or any(call.response_id != response_id for call in committed_batch.values())
                 ):
                     observed.error = "missing, stale, or mismatched tool commit edge"
+                    observed.response_status = "failed"
+                    break
+                if response_edges >= MAX_EVAL_RESPONSE_EDGES_PER_TURN:
+                    observed.error = "eval provider response-edge budget exhausted"
                     observed.response_status = "failed"
                     break
                 await self._dispatch_tool_batch(list(committed_batch.values()), observed)
@@ -998,6 +1328,7 @@ class LiveRealtimeDriver:
                     break
                 break
             elif isinstance(event, TurnComplete):
+                response_edges += 1
                 if pending_batches:
                     observed.error = "tool response ended before its exact commit edge"
                     observed.response_status = "failed"
@@ -1041,25 +1372,58 @@ class LiveEvalService:
         monotonic=time.monotonic,
         tpm_soft_limit: int = 25_000,
         next_scenario_reserve: int = 15_000,
-        production_headroom: int = 15_000,
-        max_run_s: float = 300.0,
+        production_headroom: int = 0,
+        max_run_s: float | None = None,
         provider_budget: ProviderBudgetCoordinator = PROVIDER_BUDGET,
     ) -> None:
         self._lock = asyncio.Lock()
         self._sleep = sleep
         self._monotonic = monotonic
-        # Tier-1 is 40k TPM. A measured fresh PodVoice session is roughly 14-15k,
-        # so keep a full 15k headroom for one real household conversation.
+        # Tier-1 is 40k TPM. Live preflight owns the key-global diagnostic lock;
+        # this local soft window only paces its own fresh scenario sessions.
         self._tpm_soft_limit = tpm_soft_limit
         self._next_scenario_reserve = next_scenario_reserve
         self._production_headroom = production_headroom
         self._provider_budget = provider_budget
-        self._max_run_s = max_run_s
+        self._max_run_s = float(max_run_s or _full_profile_deadline_s())
         self._job: asyncio.Task[None] | None = None
         self._active_run_id: str | None = None
         self._active_kind: str | None = None
         self._started_at: float | None = None
         self._last_report: dict[str, Any] | None = None
+
+    async def _reserve_eval_after_authoritative_reset(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        budget: EvalBudget,
+        run_deadline: float,
+    ) -> BudgetLease:
+        """Wait at most one provider reset before the atomic production-first gate."""
+        wait_s = self._provider_budget.eval_retry_after(
+            api_key,
+            model,
+            tokens=self._next_scenario_reserve,
+            production_headroom=self._production_headroom,
+        )
+        if wait_s is not None and wait_s > 0:
+            # A small monotonic margin avoids rechecking on the provider's exact reset
+            # boundary.  The enclosing whole-run timeout bounds this wait.
+            wait_s += 0.05
+            remaining_run_s = max(0.0, run_deadline - self._monotonic())
+            if wait_s >= remaining_run_s:
+                raise ConnectionError(
+                    "rate_limit_capacity · provider reset wait exceeds the live eval deadline"
+                )
+            await self._sleep(wait_s)
+            budget.rate_limit_wait_s += wait_s
+        return self._provider_budget.reserve_eval(
+            api_key,
+            model,
+            tokens=self._next_scenario_reserve,
+            production_headroom=self._production_headroom,
+        )
 
     async def _ensure_authoritative_provider_budget(
         self,
@@ -1075,9 +1439,9 @@ class LiveEvalService:
         Response.  This separate socket creates one tiny, text-only, tool-free,
         out-of-band response, observes the provider event, then closes.  Actual eval
         admission happens afterwards in a new session and still requires authoritative
-        remaining plus full physical production headroom.
+        remaining. Voice PE and Talk are mechanically unavailable for the whole job.
         """
-        if self._provider_budget.is_authoritative(api_key, model):
+        if self._provider_budget.eval_budget_is_ready(api_key, model):
             return {
                 "performed": False,
                 "actual_tokens": 0,
@@ -1095,6 +1459,8 @@ class LiveEvalService:
         reader: asyncio.Task[None] | None = None
         response_done = asyncio.Event()
         observed_usage: Usage | None = None
+        exact_probe_rate_observed = False
+        probe_attested = False
         try:
             session = _ReadyRealtimeSession(
                 api_key=api_key,
@@ -1116,26 +1482,45 @@ class LiveEvalService:
                 await session.connect()
 
             async def drain() -> None:
-                nonlocal observed_usage
+                nonlocal observed_usage, exact_probe_rate_observed
                 assert session is not None
                 async for event in session.events():
                     if isinstance(event, Usage):
                         observed_usage = event
                     elif isinstance(event, TurnComplete):
+                        exact_probe_rate_observed = event.provider_rate_observed
                         if event.status != "completed":
+                            status = _sanitized_probe_field(
+                                event.status, api_key=api_key, fallback="unknown"
+                            )
+                            reason = _sanitized_probe_field(
+                                event.error, api_key=api_key, fallback="reason unavailable"
+                            )
+                            response_id = _sanitized_probe_field(
+                                event.response_id,
+                                api_key=api_key,
+                                fallback="response unavailable",
+                            )
+                            usage_tokens = _probe_usage_tokens(observed_usage)
+                            _LOG.warning(
+                                "provider budget probe terminal status=%s response_id=%s "
+                                "reason=%s usage_tokens=%s",
+                                status,
+                                response_id,
+                                reason,
+                                usage_tokens,
+                            )
                             raise ConnectionError(
                                 "rate_limit_capacity · provider budget probe response "
-                                f"did not complete ({event.status})"
+                                f"did not complete ({status}) · {reason} · "
+                                f"response_id={response_id} · usage_tokens={usage_tokens}"
                             )
                         response_done.set()
 
             reader = asyncio.create_task(drain(), name="podvoice-provider-budget-probe")
             await session.send_rate_limit_probe()
             async with asyncio.timeout(C.CONNECT_TIMEOUT_S):
-                while not (
-                    self._provider_budget.is_authoritative(api_key, model)
-                    and response_done.is_set()
-                ):
+                while not (exact_probe_rate_observed and response_done.is_set()):
                     if reader.done():
                         await reader
                         raise ConnectionError(
@@ -1143,14 +1528,7 @@ class LiveEvalService:
                             "authoritative rate_limits.updated and response.done"
                         )
                     await asyncio.sleep(0.01)
-            actual_tokens = (
-                observed_usage.input_text_tokens
-                + observed_usage.input_audio_tokens
-                + observed_usage.output_text_tokens
-                + observed_usage.output_audio_tokens
-                if observed_usage is not None
-                else None
-            )
+            actual_tokens = _probe_usage_tokens(observed_usage)
             actual_cost = (
                 observed_usage.input_text_tokens * (4.0 / 1_000_000)
                 + observed_usage.input_audio_tokens * (32.0 / 1_000_000)
@@ -1159,6 +1537,17 @@ class LiveEvalService:
                 if observed_usage is not None
                 else None
             )
+            if not self._provider_budget.lease_is_active(lease):
+                raise ConnectionError(
+                    "live eval is disabled because a production voice session "
+                    "started during the provider budget probe"
+                )
+            if not exact_probe_rate_observed or not self._provider_budget.probe_completed(lease):
+                raise ConnectionError(
+                    "rate_limit_capacity · completed provider budget probe lost its "
+                    "exact authoritative lease"
+                )
+            probe_attested = True
             return {
                 "performed": True,
                 "actual_tokens": actual_tokens,
@@ -1174,6 +1563,8 @@ class LiveEvalService:
             ) from exc
         finally:
             try:
+                if not probe_attested:
+                    self._provider_budget.probe_failed(lease)
                 if session is not None:
                     await session.close()
             finally:
@@ -1205,6 +1596,7 @@ class LiveEvalService:
                 "status": "busy",
                 "run_id": self._active_run_id,
                 "started_at": self._started_at,
+                "deadline_s": self._max_run_s,
                 "error": "En live-evaluering kører allerede.",
             }
         known = {scenario.id for scenario in load_scenarios()}
@@ -1236,6 +1628,7 @@ class LiveEvalService:
             "status": "running",
             "run_id": run_id,
             "started_at": self._started_at,
+            "deadline_s": self._max_run_s,
         }
 
     def start_replay(
@@ -1258,6 +1651,7 @@ class LiveEvalService:
                 "status": "busy",
                 "run_id": self._active_run_id,
                 "started_at": self._started_at,
+                "deadline_s": self._max_run_s,
                 "error": "En live-evaluering kører allerede.",
             }
         if (
@@ -1297,6 +1691,7 @@ class LiveEvalService:
             "kind": "audio-replay",
             "run_id": run_id,
             "started_at": self._started_at,
+            "deadline_s": self._max_run_s,
         }
 
     async def _run_background(self, **kwargs: Any) -> None:
@@ -1355,8 +1750,87 @@ class LiveEvalService:
             }
         async with self._lock:
             run_id = run_id or self._new_run_id()
+            if (
+                repeats < 1
+                or repeats > 5
+                or fixture.rate != 24_000
+                or not fixture.pcm
+                or len(fixture.pcm) > fixture.rate * 2 * 8
+                or hashlib.sha256(fixture.pcm).hexdigest() != fixture.sha256
+                or turn_index < 0
+                or turn_index >= len(scenario.turns)
+            ):
+                return {
+                    "ok": False,
+                    "status": "invalid",
+                    "kind": "audio-replay",
+                    "run_id": run_id,
+                    "error": "Ugyldigt replay-bevis.",
+                }
             expected_turn = scenario.turns[turn_index]
-            budget = EvalBudget(max_actual_tokens=100_000, max_cost_usd=0.30)
+            effective_prompt = (instructions or SYSTEM_PROMPT_DA).strip()
+            if len(effective_prompt.encode("utf-8")) > MAX_LIVE_EVAL_PROMPT_BYTES:
+                return {
+                    "ok": False,
+                    "status": "blocked",
+                    "kind": "audio-replay",
+                    "run_id": run_id,
+                    "classification": "eval-admission-blocked",
+                    "blocked": {
+                        "stage": "prompt_admission",
+                        "reason": "custom prompt exceeds the safe live-eval 32 KiB limit",
+                    },
+                    "error": "Den valgte prompt er for stor til sikker live-evaluering.",
+                    "deadline_s": self._max_run_s,
+                }
+            replay_edges = MAX_EVAL_RESPONSE_EDGES_PER_TURN * (repeats + 1)
+            transcription_seconds = len(fixture.pcm) / (fixture.rate * 2) * repeats
+            transcription_cost = transcription_seconds / 60.0 * GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE
+            transcription_budget = {
+                "model": "gpt-live-transcribe",
+                "audio_seconds": transcription_seconds,
+                "usd_per_minute": GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE,
+                "cost_usd": transcription_cost,
+            }
+            budget = EvalBudget(
+                max_turns=repeats + 1,
+                max_reserved_tokens=replay_edges * MAX_OUTPUT_TOKENS,
+                max_actual_tokens=replay_edges * self._next_scenario_reserve,
+                max_cost_usd=LIVE_EVAL_ACTUAL_COST_CAP_USD,
+                mechanical_max_cost_usd=(
+                    replay_edges * LIVE_EVAL_WORST_RESPONSE_COST_USD + transcription_cost
+                ),
+                cost_usd=transcription_cost,
+            )
+            if (
+                budget.cost_usd + MAX_EVAL_RESPONSE_EDGES_PER_TURN * budget.worst_response_cost_usd
+                > budget.max_cost_usd
+            ):
+                return {
+                    "ok": False,
+                    "status": "failed",
+                    "kind": "audio-replay",
+                    "run_id": run_id,
+                    "classification": "budget-exhausted",
+                    "coverage_complete": False,
+                    "error": "budget_exhausted · replay transcription plus next response exceeds the hard USD cap",
+                    "transcription_budget": transcription_budget,
+                    "budget": asdict(budget),
+                    "deadline_s": self._max_run_s,
+                }
+            try:
+                admission = _admit_eval_tools([scenario], tool_declarations)
+            except (ValueError, ProviderConfigurationError) as exc:
+                return {
+                    "ok": False,
+                    "status": "blocked",
+                    "kind": "audio-replay",
+                    "run_id": run_id,
+                    "classification": "eval-admission-blocked",
+                    "blocked": {"stage": "tool_admission", "reason": str(exc)[:500]},
+                    "error": str(exc)[:500],
+                    "deadline_s": self._max_run_s,
+                }
             provider_budget_probe: dict[str, Any] = {
                 "performed": False,
                 "actual_tokens": 0,
@@ -1364,9 +1838,8 @@ class LiveEvalService:
                 "reservation_tokens": 0,
                 "max_cost_usd": 0.0,
             }
-            effective_prompt = (instructions or SYSTEM_PROMPT_DA).strip()
             prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA.strip()
-            effective_declarations = SafeEvalTools(tool_declarations).declarations()
+            effective_declarations = admission.declarations
             prompt_metadata = {
                 "prompt_source": "default" if prompt_is_default else "custom",
                 "prompt_version": PROMPT_VERSION if prompt_is_default else None,
@@ -1375,6 +1848,7 @@ class LiveEvalService:
                 "production_tool_schema_sha256": _schema_sha256(effective_declarations),
                 "reserved_tool_schema_sha256": _schema_sha256(RESERVED_DECLARATIONS),
                 "tool_schema_profile": "production-replay",
+                **_capability_metadata(admission, [scenario]),
             }
             schema_match = (
                 None
@@ -1400,9 +1874,11 @@ class LiveEvalService:
                         "schema_match": False,
                     },
                     "budget": asdict(budget),
+                    "transcription_budget": transcription_budget,
                 }
             token_window_started = self._monotonic()
             token_window_used = 0
+            run_deadline = self._monotonic() + self._max_run_s
 
             async def pace_new_session() -> None:
                 nonlocal token_window_started, token_window_used
@@ -1421,29 +1897,40 @@ class LiveEvalService:
             async def one(index: int, *, audio: bool) -> TurnResult:
                 nonlocal token_window_used
                 await pace_new_session()
-                provider_lease = self._provider_budget.reserve_eval(
-                    api_key,
-                    model,
-                    tokens=self._next_scenario_reserve,
-                    production_headroom=self._production_headroom,
+                provider_lease = await self._reserve_eval_after_authoritative_reset(
+                    api_key=api_key,
+                    model=model,
+                    budget=budget,
+                    run_deadline=run_deadline,
                 )
                 before_tokens = budget.actual_tokens
                 driver: LiveRealtimeDriver | None = None
                 try:
-                    budget.reserve()
+                    budget.reserve(MAX_EVAL_RESPONSE_EDGES_PER_TURN)
                     driver = LiveRealtimeDriver(
                         api_key,
                         model=model,
                         voice=voice,
                         instructions=effective_prompt,
-                        tool_declarations=tool_declarations,
+                        tool_declarations=admission.declarations,
+                        admitted_names=set(admission.contracts),
+                        fixture_contracts=admission.contracts,
                         room_context=fixture.room_context,
                         interrupt_response=False,
                         budget_lease=provider_lease,
                         provider_budget=self._provider_budget,
+                        capacity_sleep=self._sleep,
+                        capacity_monotonic=self._monotonic,
+                        capacity_deadline=run_deadline,
+                        capacity_wait_observer=lambda seconds: setattr(
+                            budget, "rate_limit_wait_s", budget.rate_limit_wait_s + seconds
+                        ),
                     )
                     await driver.open(run_id=run_id, scenario_id=scenario.id)
                     turn_id = f"{scenario.id}-{'audio' if audio else 'control'}-{index}"
+                    prepare_capacity = getattr(driver, "prepare_response_capacity", None)
+                    if prepare_capacity is not None:
+                        await prepare_capacity()
                     async with asyncio.timeout(25.0):
                         observed = (
                             await driver.submit_audio(
@@ -1470,8 +1957,23 @@ class LiveEvalService:
             control: TurnResult | None = None
             trials: list[TurnResult] = []
             try:
+                diagnostic_lease = self._provider_budget.diagnostic_started(api_key)
+            except ProviderBudgetUnavailable as exc:
+                return {
+                    "ok": False,
+                    "status": "failed",
+                    "kind": "audio-replay",
+                    "run_id": run_id,
+                    "error": str(exc)[:500],
+                    "control": None,
+                    "trials": [],
+                    "budget": asdict(budget),
+                    "transcription_budget": transcription_budget,
+                    "deadline_s": self._max_run_s,
+                }
+            try:
                 async with asyncio.timeout(self._max_run_s):
-                    if not self._provider_budget.is_authoritative(api_key, model):
+                    if not self._provider_budget.eval_budget_is_ready(api_key, model):
                         provider_budget_probe = {
                             "performed": True,
                             "actual_tokens": None,
@@ -1489,6 +1991,8 @@ class LiveEvalService:
                         trials.append(await one(index, audio=True))
             except Exception as exc:
                 message = str(exc).replace(api_key, "[REDACTED]")[:500]
+                budget_exhausted = "budget_exhausted" in message
+                usage_unknown = "provider_usage_unknown" in message
                 return {
                     "ok": False,
                     "status": "failed",
@@ -1497,11 +2001,23 @@ class LiveEvalService:
                     "model": model,
                     **prompt_metadata,
                     "error": message or type(exc).__name__,
+                    "classification": (
+                        "budget-exhausted"
+                        if budget_exhausted
+                        else "provider-usage-unknown"
+                        if usage_unknown
+                        else "provider-or-eval-failure"
+                    ),
+                    "coverage_complete": False,
                     "control": asdict(control) if control else None,
                     "trials": [asdict(result) for result in trials],
                     "provider_budget_probe": provider_budget_probe,
                     "budget": asdict(budget),
+                    "transcription_budget": transcription_budget,
+                    "deadline_s": self._max_run_s,
                 }
+            finally:
+                self._provider_budget.release(diagnostic_lease)
             passed = sum(result.passed for result in trials)
             classification = (
                 "prompt-or-tool-contract-failure"
@@ -1535,6 +2051,8 @@ class LiveEvalService:
                 "trials": [asdict(result) for result in trials],
                 "provider_budget_probe": provider_budget_probe,
                 "budget": asdict(budget),
+                "transcription_budget": transcription_budget,
+                "deadline_s": self._max_run_s,
             }
 
     def status(self, run_id: str | None = None) -> dict[str, Any]:
@@ -1546,6 +2064,7 @@ class LiveEvalService:
                     "run_id": self._active_run_id,
                     "kind": self._active_kind,
                     "started_at": self._started_at,
+                    "deadline_s": self._max_run_s,
                 }
         if self._last_report is not None and (
             run_id is None or run_id == self._last_report.get("run_id")
@@ -1557,6 +2076,10 @@ class LiveEvalService:
             "run_id": run_id,
             "error": "Evalueringen findes ikke." if run_id else None,
         }
+
+    def diagnostic_active(self, api_key: str) -> bool:
+        """Single readiness truth shared with Voice PE/Talk and the panel."""
+        return self._provider_budget.diagnostic_is_active(api_key)
 
     async def aclose(self) -> None:
         if self._job is None or self._job.done():
@@ -1585,7 +2108,22 @@ class LiveEvalService:
             }
         async with self._lock:
             run_id = run_id or self._new_run_id()
-            budget = EvalBudget()
+            effective_prompt = (instructions or SYSTEM_PROMPT_DA).strip()
+            if len(effective_prompt.encode("utf-8")) > MAX_LIVE_EVAL_PROMPT_BYTES:
+                return {
+                    "ok": False,
+                    "status": "blocked",
+                    "run_id": run_id,
+                    "model": model,
+                    "classification": "eval-admission-blocked",
+                    "blocked": {
+                        "stage": "prompt_admission",
+                        "reason": "custom prompt exceeds the safe live-eval 32 KiB limit",
+                    },
+                    "error": "Den valgte prompt er for stor til sikker live-evaluering.",
+                    "results": [],
+                    "deadline_s": self._max_run_s,
+                }
             selected = [
                 scenario
                 for scenario in load_scenarios()
@@ -1597,13 +2135,34 @@ class LiveEvalService:
                     "status": "invalid",
                     "error": "Ingen kendte eval-scenarier blev valgt.",
                 }
-            effective_prompt = (instructions or SYSTEM_PROMPT_DA).strip()
+            try:
+                admission = _admit_eval_tools(selected, tool_declarations)
+            except (ValueError, ProviderConfigurationError) as exc:
+                return {
+                    "ok": False,
+                    "status": "blocked",
+                    "run_id": run_id,
+                    "model": model,
+                    "classification": "eval-admission-blocked",
+                    "blocked": {"stage": "tool_admission", "reason": str(exc)[:500]},
+                    "error": str(exc)[:500],
+                    "results": [],
+                    "deadline_s": self._max_run_s,
+                }
+            selected_turns = sum(len(scenario.turns) for scenario in selected)
+            response_edges = selected_turns * MAX_EVAL_RESPONSE_EDGES_PER_TURN
+            budget = EvalBudget(
+                max_turns=selected_turns,
+                max_reserved_tokens=response_edges * MAX_OUTPUT_TOKENS,
+                max_actual_tokens=response_edges * self._next_scenario_reserve,
+                # Worst provider-shaped edge ceiling; the $5 prospective guard is
+                # checked before every bounded semantic turn.
+                max_cost_usd=LIVE_EVAL_ACTUAL_COST_CAP_USD,
+                mechanical_max_cost_usd=(response_edges * LIVE_EVAL_WORST_RESPONSE_COST_USD),
+            )
             prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA.strip()
             production_declarations = SafeEvalTools(tool_declarations).declarations()
-            eval_declarations = SafeEvalTools(
-                tool_declarations,
-                include_sensitive_fixture=True,
-            ).declarations()
+            eval_declarations = admission.declarations
             prompt_metadata = {
                 "prompt_source": "default" if prompt_is_default else "custom",
                 "prompt_version": PROMPT_VERSION if prompt_is_default else None,
@@ -1612,6 +2171,7 @@ class LiveEvalService:
                 "production_tool_schema_sha256": _schema_sha256(production_declarations),
                 "reserved_tool_schema_sha256": _schema_sha256(RESERVED_DECLARATIONS),
                 "tool_schema_profile": "production-plus-safe-sensitive-fixture",
+                **_capability_metadata(admission, selected),
             }
             results: list[ScenarioResult] = []
             provider_budget_probe: dict[str, Any] = {
@@ -1623,9 +2183,25 @@ class LiveEvalService:
             }
             token_window_started = self._monotonic()
             token_window_used = 0
+            run_deadline = self._monotonic() + self._max_run_s
+            try:
+                diagnostic_lease = self._provider_budget.diagnostic_started(api_key)
+            except ProviderBudgetUnavailable as exc:
+                return {
+                    "ok": False,
+                    "status": "failed",
+                    "run_id": run_id,
+                    "model": model,
+                    **prompt_metadata,
+                    "error": str(exc)[:500],
+                    "results": [],
+                    "provider_budget_probe": provider_budget_probe,
+                    "budget": asdict(budget),
+                    "deadline_s": self._max_run_s,
+                }
             try:
                 async with asyncio.timeout(self._max_run_s):
-                    if not self._provider_budget.is_authoritative(api_key, model):
+                    if not self._provider_budget.eval_budget_is_ready(api_key, model):
                         provider_budget_probe = {
                             "performed": True,
                             "actual_tokens": None,
@@ -1651,11 +2227,11 @@ class LiveEvalService:
                             token_window_started = self._monotonic()
                             token_window_used = 0
                         before_tokens = budget.actual_tokens
-                        provider_lease = self._provider_budget.reserve_eval(
-                            api_key,
-                            model,
-                            tokens=self._next_scenario_reserve,
-                            production_headroom=self._production_headroom,
+                        provider_lease = await self._reserve_eval_after_authoritative_reset(
+                            api_key=api_key,
+                            model=model,
+                            budget=budget,
+                            run_deadline=run_deadline,
                         )
                         try:
                             driver = LiveRealtimeDriver(
@@ -1663,10 +2239,19 @@ class LiveEvalService:
                                 model=model,
                                 voice=voice,
                                 instructions=effective_prompt,
-                                tool_declarations=tool_declarations,
-                                include_sensitive_fixture=True,
+                                tool_declarations=admission.declarations,
+                                admitted_names=set(admission.contracts),
+                                fixture_contracts=admission.contracts,
                                 budget_lease=provider_lease,
                                 provider_budget=self._provider_budget,
+                                capacity_sleep=self._sleep,
+                                capacity_monotonic=self._monotonic,
+                                capacity_deadline=run_deadline,
+                                capacity_wait_observer=lambda seconds: setattr(
+                                    budget,
+                                    "rate_limit_wait_s",
+                                    budget.rate_limit_wait_s + seconds,
+                                ),
                             )
                             results.append(
                                 await run_scenario(driver, scenario, run_id=run_id, budget=budget)
@@ -1679,6 +2264,8 @@ class LiveEvalService:
                 if api_key:
                     message = message.replace(api_key, "[REDACTED]")
                 message = message[:500]
+                budget_exhausted = "budget_exhausted" in message
+                usage_unknown = "provider_usage_unknown" in message
                 return {
                     "ok": False,
                     "status": "failed",
@@ -1686,10 +2273,21 @@ class LiveEvalService:
                     "model": model,
                     **prompt_metadata,
                     "error": message or type(exc).__name__,
+                    "classification": (
+                        "budget-exhausted"
+                        if budget_exhausted
+                        else "provider-usage-unknown"
+                        if usage_unknown
+                        else "provider-or-eval-failure"
+                    ),
+                    "coverage_complete": False,
                     "results": [asdict(result) for result in results],
                     "provider_budget_probe": provider_budget_probe,
                     "budget": asdict(budget),
+                    "deadline_s": self._max_run_s,
                 }
+            finally:
+                self._provider_budget.release(diagnostic_lease)
             return {
                 "ok": all(result.passed for result in results),
                 "status": "complete",
@@ -1699,6 +2297,7 @@ class LiveEvalService:
                 "results": [asdict(result) for result in results],
                 "provider_budget_probe": provider_budget_probe,
                 "budget": asdict(budget),
+                "deadline_s": self._max_run_s,
             }
 
 
@@ -1706,28 +2305,30 @@ async def _main(args: argparse.Namespace) -> int:
     if not args.live:
         print(json.dumps({"scenarios": [asdict(s) for s in load_scenarios()]}, ensure_ascii=False))
         return 0
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    if not api_key:
-        # In Home Assistant the secret normally lives in /data/options.json rather
-        # than the process environment. load_config never logs or returns it in output.
-        api_key = load_config().openai_api_key
-    if not api_key:
-        raise SystemExit("OpenAI-nøglen mangler; live-eval er kun opt-in")
-    report = await LiveEvalService().run(
-        api_key=api_key,
-        scenario_ids=set(args.scenario) if args.scenario else None,
-        model=args.model,
+    print(
+        json.dumps(
+            {
+                "ok": False,
+                "status": "blocked",
+                "classification": "eval-admission-blocked",
+                "error": (
+                    "Live-eval kan kun startes fra add-on-panelets Test-fane, hvor det "
+                    "frosne produktionsværktøjssnapshot kan valideres før providerforbrug."
+                ),
+            },
+            ensure_ascii=False,
+        )
     )
-    rendered = json.dumps(report, ensure_ascii=False, indent=2)
-    if args.artifact:
-        await asyncio.to_thread(pathlib.Path(args.artifact).write_text, rendered, encoding="utf-8")
-    print(rendered)
-    return 0 if report["ok"] else 1
+    return 2
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="PodVoice no-side-effect Realtime eval")
-    parser.add_argument("--live", action="store_true", help="call the real Realtime provider")
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        help="retired: live eval requires the authenticated add-on panel",
+    )
     parser.add_argument("--scenario", action="append", help="scenario id (repeatable)")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--artifact", help="write a redacted JSON report")

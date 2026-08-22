@@ -34,7 +34,7 @@ def test_panel_header_shows_running_version_from_status():
 def test_service_status_is_live_and_names_runtime_truths():
     html = PANEL.read_text()
 
-    assert "JSON.stringify([services || {}, details || {}])" in html
+    assert "JSON.stringify([services || {}, details || {}, !!diagnosticActive])" in html
     assert "lastStatus.service_details[ev.name] = ev.detail" in html
     assert '"wake-klar"' in html
     assert '"forbundet - wake afprøves"' in html
@@ -158,7 +158,7 @@ def test_talk_v2_commits_only_acknowledged_text_and_detects_stale_sockets():
     assert 'ev.type === "hello" && ev.protocol === 2' in html
     assert 'ev.type === "command_result"' in html
     assert "pendingText[commandId] = { text: t }" in html
-    assert "if (sendBtn.disabled) return;" in html
+    assert "if (sendBtn.disabled || diagnosticActive) return;" in html
     assert 'logLine("in", "you", pending.text)' in html
     assert 'logLine("in", "you", t)' not in html
     assert "Date.now() - lastPong > 15000" in html
@@ -176,13 +176,18 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     assert 'fetch("api/eval/live?run_id="' in html
     assert 'fetch("api/eval/replay"' in html
     assert 'data.status === "running" || data.status === "busy"' in html
-    assert "poll(data.run_id, generation)" in html
+    assert "poll(data.run_id, generation, data.deadline_s)" in html
     assert '"Årsag: " + (finding.message' in html
     assert "data.prompt_source" in html
     assert "brugerdefineret prompt" in html
     assert "kan ikke styre hjemmet, musik eller timere" in html
     assert "audio-model-nondeterminism" in html
     assert "tool-schema-mismatch" in html
+    assert "Nabu og Talk låses" in html
+    assert "$5" in html and "$0,128" in html
+    assert 'window.addEventListener("podvoice-diagnostic"' in html
+    assert 'setState("systemtest", "pill-degraded")' in html
+    assert "data.diagnostic_active" in html
 
 
 def test_panel_does_not_claim_unverified_stop_and_labels_capability_truth():
@@ -193,6 +198,10 @@ def test_panel_does_not_claim_unverified_stop_and_labels_capability_truth():
     assert "endnu ikke fysisk godkendt" in html
     assert 'verified ? "verificeret" : ok ? "fundet" : "mangler"' in html
     assert 'SVC_LABEL[name] + ": " + label' in html
+    assert "Home Assistant forbinder igen" in html
+    assert "discovery.last_error" in html
+    assert "discovery.next_retry_at" in html
+    assert "genstart PodVoice" not in html
 
 
 def test_effective_model_and_custom_turn_controls_are_explicit():
