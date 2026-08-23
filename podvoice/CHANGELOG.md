@@ -1,5 +1,61 @@
 # Changelog
 
+## 1.13.35 — providerens sene kapacitetssnapshot gates før næste response
+
+- Et gyldigt, unikt token-snapshot efter en completed response kan nu forankre den
+  lokale ledger én gang, når samme socket-generation stadig er helt idle. Pending,
+  aktive, dublerede, stale og ikke-completed varianter forbliver inerte.
+- Den hurtige interne tool-resultatvej fejler konservativt til nul disponibel
+  completion-kapacitet, mens readeren ikke kan dræne socketkøen. Den eksisterende
+  bounded pacing og atomiske slutkontrol tillader derefter præcis én response uden
+  retry eller ekstra værktøjseffekt.
+- Feltsekvensen fra v1.13.34 er reproduceret: completed usage 5.812, sent remaining
+  5.204 og næste target 9.396 giver wait/recheck før ét wire-send. Remaining, limit
+  og refill kan kun bevæges konservativt ved den sene forankring.
+- Prompt V6, model, lyd, VAD, firmware, Thin, playback, HA/MCP og den fysiske
+  lifecycle er uændrede. Kandidaten kræver fortsat CI/ARM64, installation og én fuld
+  grøn Prompt V6-preflight før fysisk golden chain.
+
+## 1.13.34 — én sikker schema-korrektion før værktøjsdispatch
+
+- Et enkelt schema-ugyldigt, deklareret og ikke-reserveret Realtime-værktøjskald kan
+  nu få ét sanitiseret fejlresultat på det eksakte call-id. Kaldet bliver aldrig til
+  et `ToolCall`; anden fejl, mixed batch, manglende ACK/kapacitet, 429 eller teardown
+  stopper terminalt uden rigtig værktøjseffekt eller automatisk provider-retry.
+- SafeEval tester nu “tænd lyset i stuen” som det produktionsrealistiske områdekald
+  `area=stuen, domain=[light]`. En syntetisk fuldkæde beviser ugyldigt scalar-kald →
+  korrektion → gyldigt rumlys → semantisk afslutning → farvel med præcis én lokal
+  fixtureeffekt og nul rigtig HA/MCP-effekt.
+- En schema-korrektion får én særskilt fjerde responsekant med prospektiv pris- og
+  deadline-reservation. Normale ture er fortsat begrænset til tre kanter.
+- Prompt V6, model, lyd, gain, VAD, firmware, playback, HA/MCP-policy og fysisk
+  lifecycle er uændrede.
+- Lokal kandidatgate: 255/255 fokustests og hele repoets 802/802 tests samt Ruff,
+  mypy for 42 sourcefiler og diff-check er grønne. CI/ARM64-image, installation og én
+  fuld Prompt V6-live-preflight er fortsat åbne.
+
+## 1.13.33 — revisionsbar Realtime-rateproveniens
+
+- SafeEval gemmer nu et bounded, sanitiseret spor for hver responsekant: monotontid,
+  request-/response-id-korrelation, positional `rate_limits.updated`, atomisk lokal
+  budgettilstand før og efter admission, faktisk ventetid, usage-total og strukturerede
+  429-tal. Ingen prompt, lyd, værktøjsargumenter eller providerfritekst gemmes.
+- Afbrudte scenarier bevarer completed responses, lokale fixture-resultater og den
+  terminale fejl. Rapporten viser trace-total og budget-total særskilt, så en partial
+  response ikke længere kan forsvinde eller ligne et providerregnskabsgab.
+- Feltkørslen på v1.13.32 er korrigeret: 33.720 tokens var arithmetic plus de første
+  fire time-responses; den femte completed response på 5.774 tokens var udeladt fra
+  rapporten. Alle completed responses summerede til 39.494. Den underliggende
+  admission-årsag er ikke gættet eller ændret.
+- Observeren er passiv og bounded til 128 rækker. Production uden observer bruger den
+  oprindelige ikke-allokerende vej, og wire-output er regressionstestet identisk med
+  observer slået til, fra og fejlende.
+- Prompt V6, model, pacingmatematik, $5-loft, retry-politik, Thin, lyd, gain, VAD,
+  firmware, playback, HA/MCP og produktionsværktøjspolitik er uændrede.
+- Lokal kandidatgate: 160/160 fokustests og hele repoets 790/790 tests samt Ruff,
+  mypy for 42 sourcefiler og diff-check er grønne. CI/ARM64-image, installation og én
+  rigtig fuld Prompt V6-live-preflight står fortsat åbne.
+
 ## 1.13.32 — autoritativ Realtime-usage på hver response
 
 - `response.done.usage.total_tokens`, `input_tokens` og `output_tokens` er nu den

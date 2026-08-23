@@ -28,6 +28,50 @@ def seed(ledger: ProviderBudgetCoordinator, *, remaining: int = 40_000) -> None:
     )
 
 
+def test_downward_rate_anchor_cannot_raise_limit_remaining_or_future_refill():
+    clock = Clock()
+    ledger = coordinator(clock)
+    seed(ledger, remaining=5_000)
+
+    accepted, row = ledger.update_rate_limits_observed(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 80_000, "remaining": 20_000, "reset_seconds": 1}],
+        downward_only=True,
+    )
+    assert accepted is True
+    assert row["reason"] == "accepted_downward_anchor"
+    assert row["observed_limit"] == 80_000
+    assert row["limit"] == 40_000
+    assert ledger.snapshot("secret", "model")["remaining"] == 5_000
+
+    clock.now += 1
+    snapshot = ledger.snapshot("secret", "model")
+    assert snapshot["limit"] == 40_000
+    assert snapshot["remaining"] == 5_666
+
+
+def test_downward_rate_anchor_accepts_lower_limit_and_tightens_refill_slope():
+    clock = Clock()
+    ledger = coordinator(clock)
+    seed(ledger, remaining=5_000)
+
+    accepted, row = ledger.update_rate_limits_observed(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 20_000, "remaining": 10_000, "reset_seconds": 1}],
+        downward_only=True,
+    )
+    assert accepted is True
+    assert row["limit"] == 20_000
+    assert ledger.snapshot("secret", "model")["remaining"] == 5_000
+
+    clock.now += 3
+    snapshot = ledger.snapshot("secret", "model")
+    assert snapshot["limit"] == 20_000
+    assert snapshot["remaining"] == 6_000
+
+
 def diagnostic_owner(ledger: ProviderBudgetCoordinator):
     owner = getattr(ledger, "_test_diagnostic_owner", None)
     if owner is None:

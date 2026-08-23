@@ -754,6 +754,687 @@ async def test_rate_after_done_with_next_pending_is_explicitly_ambiguous():
     assert row["pending_request_ids"] == ["new-request"]
 
 
+async def test_v11334_unambiguous_late_completion_rate_anchors_before_next_create(
+    monkeypatch,
+):
+    """Exact field order: done -> 38.21 ms -> rate -> capacity wait -> one create."""
+    clock = [0.0]
+    monkeypatch.setattr(realtime_module.time, "monotonic", lambda: clock[0])
+    trace: list[dict] = []
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    owner = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=owner
+    )
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 21_081, "reset_seconds": 60}],
+    )
+    waits: list[float] = []
+
+    async def admit(target: int | None) -> None:
+        admitted, _before = ledger.ensure_response_capacity_observed(lease, target)
+        assert admitted is False
+        wait_s, _wait = ledger.response_retry_after_observed(lease, target)
+        assert wait_s is not None
+        waits.append(wait_s + 0.05)
+        clock[0] += wait_s + 0.05
+        admitted, _after = ledger.ensure_response_capacity_observed(lease, target)
+        assert admitted is True
+
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+        provider_observer=trace.append,
+        before_response_create=admit,
+    )
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "resp_EG3SG",
+                "status": "completed",
+                "usage": _typed_usage(5_812),
+            },
+        }
+    )
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "event_id": "evt_rate_field_late",
+            "rate_limits": [
+                {
+                    "name": "tokens",
+                    "limit": 40_000,
+                    "remaining": 5_204,
+                    "reset_seconds": 52.193,
+                }
+            ],
+        }
+    )
+    await ws.incoming.put(None)
+    stream = session._iter_events(ws)
+    assert isinstance(await anext(stream), Usage)
+    assert isinstance(await anext(stream), TurnComplete)
+    assert ledger.snapshot("secret", "model")["remaining"] == 15_269
+    clock[0] = 0.03821
+    assert [event async for event in stream] == []
+
+    rate_row = next(row for row in trace if row["kind"] == "rate_limits_updated")
+    assert rate_row["position"] == "late_after_done"
+    assert rate_row["accepted"] is True
+    assert rate_row["previous_done_response_id"] == "resp_EG3SG"
+    assert rate_row["atomic"]["ledger_remaining_before"] == pytest.approx(
+        15_269 + 0.03821 * (40_000 / 60)
+    )
+    assert rate_row["atomic"]["ledger_remaining_after"] == 5_204
+    assert ledger.snapshot("secret", "model")["remaining"] == 5_204
+
+    session._next_response_capacity_tokens = 9_396
+    await session._send_response_create()
+    expected_wait = (9_396 - 5_204) / (40_000 / 60) + 0.05
+    assert waits == [pytest.approx(expected_wait)]
+    assert [row["type"] for row in ws.sent] == ["response.create"]
+    session._cancel_ack_watchdogs()
+    assert ledger.release(lease) is True
+    assert ledger.release(owner) is True
+
+
+async def test_late_completion_snapshot_is_one_shot_event_id_deduped_and_downward_only():
+    trace: list[dict] = []
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 12_000, "reset_seconds": 60}],
+    )
+    session = OpenAIRealtimeSession(
+        api_key="secret", model="model", provider_budget=ledger, provider_observer=trace.append
+    )
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "completed",
+                "status": "completed",
+                "usage": _typed_usage(1_000),
+            },
+        }
+    )
+    for event_id, remaining in (
+        ("evt-late-one", 20_000),  # cannot grant capacity above the local ledger
+        ("evt-late-one", 1),  # exact duplicate id is inert
+        ("evt-late-two", 2),  # distinct second event cannot reuse the consumed seam
+    ):
+        await ws.emit(
+            {
+                "type": "rate_limits.updated",
+                "event_id": event_id,
+                "rate_limits": [
+                    {
+                        "name": "tokens",
+                        "limit": 40_000,
+                        "remaining": remaining,
+                        "reset_seconds": 60,
+                    }
+                ],
+            }
+        )
+    await ws.incoming.put(None)
+    assert [event async for event in session._iter_events(ws)]
+
+    rows = [row for row in trace if row["kind"] == "rate_limits_updated"]
+    assert [row["accepted"] for row in rows] == [True, False, False]
+    assert rows[0]["atomic"]["reason"] == "accepted_downward_anchor"
+    assert (
+        rows[0]["atomic"]["ledger_remaining_after"] <= rows[0]["atomic"]["ledger_remaining_before"]
+    )
+    assert rows[1]["duplicate_event_id"] is True
+    assert ledger.snapshot("secret", "model")["remaining"] > 2
+
+
+@pytest.mark.parametrize("status", ["failed", "cancelled", "incomplete", "unknown"])
+async def test_late_rate_after_noncompleted_terminal_is_inert(status: str):
+    trace: list[dict] = []
+    ledger = ProviderBudgetCoordinator()
+    session = OpenAIRealtimeSession(
+        api_key="secret", model="model", provider_budget=ledger, provider_observer=trace.append
+    )
+    ws = _QueueWS()
+    await ws.emit({"type": "response.done", "response": {"id": "not-completed", "status": status}})
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "event_id": f"evt-{status}",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 1, "reset_seconds": 60}
+            ],
+        }
+    )
+    await ws.incoming.put(None)
+    assert [event async for event in session._iter_events(ws)]
+    row = next(row for row in trace if row["kind"] == "rate_limits_updated")
+    assert row["position"] == "late_after_done"
+    assert row["previous_done_status"] == status
+    assert row["accepted"] is False
+    assert ledger.snapshot("secret", "model")["remaining"] > 1
+
+
+async def test_new_create_attempt_permanently_invalidates_prior_late_snapshot_seam():
+    trace: list[dict] = []
+    ledger = ProviderBudgetCoordinator()
+    session = OpenAIRealtimeSession(
+        api_key="secret", model="model", provider_budget=ledger, provider_observer=trace.append
+    )
+    session._configured = True
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "completed",
+                "status": "completed",
+                "usage": _typed_usage(1_000),
+            },
+        }
+    )
+    stream = session._iter_events(ws)
+    assert isinstance(await anext(stream), Usage)
+    assert isinstance(await anext(stream), TurnComplete)
+    await session._send_response_create()
+    sent = next(row for row in ws.sent if row["type"] == "response.create")
+    await ws.emit(
+        {
+            "type": "error",
+            "error": {
+                "event_id": sent["event_id"],
+                "code": "rate_limit_exceeded",
+                "type": "tokens",
+                "message": "Rate limit reached",
+            },
+        }
+    )
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "event_id": "evt-after-rejected-create",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 1, "reset_seconds": 60}
+            ],
+        }
+    )
+    await ws.incoming.put(None)
+    assert [event async for event in stream]
+
+    row = next(row for row in trace if row["kind"] == "rate_limits_updated")
+    assert row["position"] == "late_after_done"
+    assert row["accepted"] is False
+    assert ledger.snapshot("secret", "model")["remaining"] > 1
+    assert len([row for row in ws.sent if row["type"] == "response.create"]) == 1
+    session._cancel_ack_watchdogs()
+
+
+async def test_failed_wire_send_also_invalidates_prior_late_snapshot_seam():
+    class FailingResponseWS(_QueueWS):
+        async def send_json(self, payload: dict) -> None:
+            if payload.get("type") == "response.create":
+                raise ConnectionError("wire failed")
+            await super().send_json(payload)
+
+    trace: list[dict] = []
+    ledger = ProviderBudgetCoordinator()
+    session = OpenAIRealtimeSession(
+        api_key="secret", model="model", provider_budget=ledger, provider_observer=trace.append
+    )
+    ws = FailingResponseWS()
+    session._ws = ws  # type: ignore[assignment]
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "completed",
+                "status": "completed",
+                "usage": _typed_usage(1_000),
+            },
+        }
+    )
+    stream = session._iter_events(ws)
+    assert isinstance(await anext(stream), Usage)
+    assert isinstance(await anext(stream), TurnComplete)
+    with pytest.raises(ConnectionError, match="wire failed"):
+        await session._send_response_create()
+    assert session._pending_response_creates == set()
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "event_id": "evt-after-wire-failure",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 1, "reset_seconds": 60}
+            ],
+        }
+    )
+    await ws.incoming.put(None)
+    assert [event async for event in stream] == []
+    row = next(row for row in trace if row["kind"] == "rate_limits_updated")
+    assert row["accepted"] is False
+    assert ledger.snapshot("secret", "model")["remaining"] > 1
+
+
+async def test_late_snapshot_during_capacity_wait_is_seen_by_final_recheck_and_one_send():
+    clock = [0.0]
+    trace: list[dict] = []
+    rate_seen = asyncio.Event()
+
+    def observe(row: dict) -> None:
+        trace.append(row)
+        if row["kind"] == "rate_limits_updated":
+            rate_seen.set()
+
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    owner = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=owner
+    )
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 15_000, "reset_seconds": 60}],
+    )
+    wait_started = asyncio.Event()
+    release_wait = asyncio.Event()
+
+    async def admit(target: int | None) -> None:
+        assert ledger.ensure_response_capacity(lease, target) is False
+        wait_started.set()
+        await release_wait.wait()
+        wait_s = ledger.response_retry_after(lease, target)
+        assert wait_s is not None and wait_s > 0
+        clock[0] += wait_s + 0.05
+        assert ledger.ensure_response_capacity(lease, target) is True
+
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+        provider_observer=observe,
+        before_response_create=admit,
+    )
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "completed-before-wait",
+                "status": "completed",
+                "usage": _typed_usage(1_000),
+            },
+        }
+    )
+    stream = session._iter_events(ws)
+    assert isinstance(await anext(stream), Usage)
+    assert isinstance(await anext(stream), TurnComplete)
+
+    async def drain_stream() -> None:
+        async for _event in stream:
+            pass
+
+    drain = asyncio.create_task(drain_stream())
+    session._next_response_capacity_tokens = 15_000
+    sending = asyncio.create_task(session._send_response_create())
+    await wait_started.wait()
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "event_id": "evt-during-capacity-wait",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 2_000, "reset_seconds": 60}
+            ],
+        }
+    )
+    await rate_seen.wait()
+    row = next(row for row in trace if row["kind"] == "rate_limits_updated")
+    assert row["accepted"] is True
+    release_wait.set()
+    await sending
+    assert len([row for row in ws.sent if row["type"] == "response.create"]) == 1
+    await ws.close()
+    await drain
+    await stream.aclose()
+    session._cancel_ack_watchdogs()
+    assert ledger.release(lease) is True
+    assert ledger.release(owner) is True
+
+
+async def test_inline_deferred_tool_result_clamps_before_reader_consumes_queued_late_rate():
+    """The provider reader cannot consume a queued rate row while creating inline."""
+    clock = [0.0]
+    trace: list[dict] = []
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    owner = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=owner
+    )
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 21_081, "reset_seconds": 60}],
+    )
+    waits: list[float] = []
+
+    async def admit(target: int | None) -> None:
+        assert target == 9_396
+        assert ledger.ensure_response_capacity(lease, target) is False
+        wait_s = ledger.response_retry_after(lease, target)
+        assert wait_s is not None and wait_s > 0
+        waits.append(wait_s)
+        clock[0] += wait_s + 0.05
+        assert ledger.ensure_response_capacity(lease, target) is True
+
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+        provider_observer=trace.append,
+        before_response_create=admit,
+    )
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    # A raced tool result has arrived already. response.done therefore creates its
+    # result response inline, before this reader can consume the queued rate event.
+    session._pending_create = True
+    session._tool_result_response_required = True
+    session._next_response_capacity_tokens = 9_396
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "resp-field-tool-decision",
+                "status": "completed",
+                "usage": _typed_usage(5_812),
+            },
+        }
+    )
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "event_id": "evt-field-late-queued-behind-done",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 5_204, "reset_seconds": 52.193}
+            ],
+        }
+    )
+    await ws.incoming.put(None)
+
+    events = [event async for event in session._iter_events(ws)]
+
+    assert waits == [pytest.approx(9_396 / (40_000 / 60))]
+    assert len([row for row in ws.sent if row["type"] == "response.create"]) == 1
+    clamp = next(row for row in trace if row["kind"] == "unobserved_completion_capacity_clamp")
+    assert clamp["atomic"]["remaining_before"] == pytest.approx(15_269)
+    assert clamp["atomic"]["remaining_after"] == 0
+    late = next(row for row in trace if row["kind"] == "rate_limits_updated")
+    assert late["position"] == "ambiguous_previous_or_next"
+    assert late["accepted"] is False
+    assert any(isinstance(event, ToolRoundComplete) for event in events)
+    session._cancel_ack_watchdogs()
+    assert ledger.release(lease) is True
+    assert ledger.release(owner) is True
+
+
+async def test_late_snapshot_after_admission_before_wire_is_ambiguous_and_inert():
+    class BlockingWireWS(_QueueWS):
+        def __init__(self) -> None:
+            super().__init__()
+            self.send_started = asyncio.Event()
+            self.release_send = asyncio.Event()
+
+        async def send_json(self, payload: dict) -> None:
+            if payload.get("type") == "response.create":
+                self.send_started.set()
+                await self.release_send.wait()
+            await super().send_json(payload)
+
+    trace: list[dict] = []
+    rate_seen = asyncio.Event()
+
+    def observe(row: dict) -> None:
+        trace.append(row)
+        if row["kind"] == "rate_limits_updated":
+            rate_seen.set()
+
+    async def admit(_target: int | None) -> None:
+        return None
+
+    ledger = ProviderBudgetCoordinator()
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        provider_budget=ledger,
+        provider_observer=observe,
+        before_response_create=admit,
+    )
+    ws = BlockingWireWS()
+    session._ws = ws  # type: ignore[assignment]
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "completed-before-send",
+                "status": "completed",
+                "usage": _typed_usage(1_000),
+            },
+        }
+    )
+    stream = session._iter_events(ws)
+    assert isinstance(await anext(stream), Usage)
+    assert isinstance(await anext(stream), TurnComplete)
+
+    async def drain_stream() -> None:
+        async for _event in stream:
+            pass
+
+    drain = asyncio.create_task(drain_stream())
+    sending = asyncio.create_task(session._send_response_create())
+    await ws.send_started.wait()
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "event_id": "evt-after-admission",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 1, "reset_seconds": 60}
+            ],
+        }
+    )
+    await rate_seen.wait()
+    row = next(row for row in trace if row["kind"] == "rate_limits_updated")
+    assert row["position"] == "ambiguous_previous_or_next"
+    assert row["accepted"] is False
+    assert ledger.snapshot("secret", "model")["remaining"] > 1
+    ws.release_send.set()
+    await sending
+    assert len([row for row in ws.sent if row["type"] == "response.create"]) == 1
+    await ws.close()
+    await drain
+    await stream.aclose()
+    session._cancel_ack_watchdogs()
+
+
+async def test_second_response_active_rate_remains_exact_and_prevents_double_debit():
+    trace: list[dict] = []
+    ledger = ProviderBudgetCoordinator()
+    session = OpenAIRealtimeSession(
+        api_key="secret", model="model", provider_budget=ledger, provider_observer=trace.append
+    )
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "first",
+                "status": "completed",
+                "usage": _typed_usage(1_000),
+            },
+        }
+    )
+    stream = session._iter_events(ws)
+    assert isinstance(await anext(stream), Usage)
+    assert isinstance(await anext(stream), TurnComplete)
+    session._pending_response_creates.add("request-second")
+    await ws.emit(
+        {
+            "type": "response.created",
+            "response": {
+                "id": "second",
+                "metadata": {"podvoice_request_id": "request-second"},
+            },
+        }
+    )
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "event_id": "evt-second-active",
+            "rate_limits": [
+                {
+                    "name": "tokens",
+                    "limit": 40_000,
+                    "remaining": 10_000,
+                    "reset_seconds": 60,
+                }
+            ],
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "second",
+                "status": "completed",
+                "usage": _typed_usage(1_000),
+            },
+        }
+    )
+    await ws.incoming.put(None)
+    assert [event async for event in stream]
+
+    active_row = next(
+        row
+        for row in trace
+        if row["kind"] == "rate_limits_updated" and row["rate_event_id"] == "evt-second-active"
+    )
+    assert active_row["position"] == "active"
+    assert active_row["accepted"] is True
+    assert ledger.snapshot("secret", "model")["remaining"] >= 10_000
+
+
+async def test_late_snapshot_does_not_retroactively_fund_the_next_response_usage():
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 20_000, "reset_seconds": 60}],
+    )
+    session = OpenAIRealtimeSession(
+        api_key="secret", model="model", provider_budget=ledger, provider_observer=lambda _row: None
+    )
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "first",
+                "status": "completed",
+                "usage": _typed_usage(1_000),
+            },
+        }
+    )
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "event_id": "evt-first-late",
+            "rate_limits": [
+                {
+                    "name": "tokens",
+                    "limit": 40_000,
+                    "remaining": 10_000,
+                    "reset_seconds": 60,
+                }
+            ],
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.created",
+            "response": {"id": "second", "metadata": {}},
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "second",
+                "status": "completed",
+                "usage": _typed_usage(1_000),
+            },
+        }
+    )
+    await ws.incoming.put(None)
+    assert [event async for event in session._iter_events(ws)]
+    # The late absolute snapshot anchored 10k. It was not counted as a start-time
+    # reservation for response two, whose own completed usage must debit exactly once.
+    assert 9_000 <= ledger.snapshot("secret", "model")["remaining"] < 9_100
+
+
+async def test_close_or_new_generation_makes_completed_late_snapshot_seam_inert():
+    trace: list[dict] = []
+    ledger = ProviderBudgetCoordinator()
+    session = OpenAIRealtimeSession(
+        api_key="secret", model="model", provider_budget=ledger, provider_observer=trace.append
+    )
+    session._connection_generation = 1
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "old-completed",
+                "status": "completed",
+                "usage": _typed_usage(1_000),
+            },
+        }
+    )
+    stream = session._iter_events(ws, generation=1)
+    assert isinstance(await anext(stream), Usage)
+    assert isinstance(await anext(stream), TurnComplete)
+    before = ledger.snapshot("secret", "model")["remaining"]
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "event_id": "evt-old-generation",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 1, "reset_seconds": 60}
+            ],
+        }
+    )
+    await session.close()
+    assert [event async for event in stream] == []
+    assert not any(row["kind"] == "rate_limits_updated" for row in trace)
+    assert ledger.snapshot("secret", "model")["remaining"] >= before
+
+
 async def test_multiple_pending_and_malformed_rate_are_bounded_positional_evidence():
     trace: list[dict] = []
     session = OpenAIRealtimeSession(api_key="secret", provider_observer=trace.append)
