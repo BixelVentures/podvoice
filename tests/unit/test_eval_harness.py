@@ -422,12 +422,36 @@ def test_safe_eval_can_expose_exact_production_schema_without_dispatching_it():
 
 
 def test_sensitive_fixture_exists_only_in_explicit_semantic_eval_profile():
-    default_names = {item["name"] for item in SafeEvalTools().declarations()}
-    semantic_names = {
-        item["name"] for item in SafeEvalTools(include_sensitive_fixture=True).declarations()
-    }
+    default_declarations = SafeEvalTools().declarations()
+    semantic_declarations = SafeEvalTools(include_sensitive_fixture=True).declarations()
+    default_names = {item["name"] for item in default_declarations}
+    semantic_names = {item["name"] for item in semantic_declarations}
     assert SAFE_EVAL_HIGH_RISK_TOOL not in default_names
     assert SAFE_EVAL_HIGH_RISK_TOOL in semantic_names
+    hass = next(row for row in default_declarations if row["name"] == "HassTurnOn")
+    assert hass["parameters"] == {
+        "type": "object",
+        "properties": {
+            "area": {"type": "string"},
+            "domain": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 1,
+                "uniqueItems": True,
+            },
+        },
+        "required": ["area", "domain"],
+        "additionalProperties": False,
+    }
+    sensitive = next(
+        row for row in semantic_declarations if row["name"] == SAFE_EVAL_HIGH_RISK_TOOL
+    )
+    assert sensitive["parameters"] == {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+        "required": ["name"],
+        "additionalProperties": False,
+    }
 
 
 async def test_safe_eval_sensitive_challenge_is_next_turn_one_shot_and_has_no_real_client():
@@ -460,9 +484,9 @@ async def test_safe_eval_dispatch_requires_exact_admitted_name_and_canonical_arg
         fixture_contracts=admission.contracts,
     )
 
-    wrong_name = await tools.dispatch("HassTurnOnAlias", {"name": "stuen"})
-    wrong_args = await tools.dispatch("HassTurnOn", {"name": "køkkenet"})
-    exact = await tools.dispatch("HassTurnOn", {"name": "stuen"})
+    wrong_name = await tools.dispatch("HassTurnOnAlias", {"area": "stuen", "domain": ["light"]})
+    wrong_args = await tools.dispatch("HassTurnOn", {"area": "stuen", "domain": "light"})
+    exact = await tools.dispatch("HassTurnOn", {"area": "stuen", "domain": ["light"]})
 
     assert wrong_name["error_kind"] == "eval_tool_refused"
     assert wrong_args["error_kind"] == "eval_fixture_args_mismatch"
@@ -651,7 +675,7 @@ async def test_live_collect_requires_exact_nonempty_tool_commit_edge_before_fixt
         eval_harness.ToolCall(
             "low",
             "HassTurnOn",
-            {"name": "stuen"},
+            {"area": "stuen", "domain": ["light"]},
             response_id="response-one",
             batch_id="response-one",
         )
@@ -681,7 +705,7 @@ async def test_live_collect_dispatches_fixture_only_after_matching_tool_commit_e
         eval_harness.ToolCall(
             "low",
             "HassTurnOn",
-            {"name": "stuen"},
+            {"area": "stuen", "domain": ["light"]},
             response_id="response-one",
             batch_id="response-one",
         )
@@ -751,7 +775,7 @@ async def test_live_collect_stops_third_tool_round_before_fixture_effect_or_four
             eval_harness.ToolCall(
                 f"call-{index}",
                 "HassTurnOn",
-                {"name": "stuen"},
+                {"area": "stuen", "domain": ["light"]},
                 response_id=response_id,
                 batch_id=response_id,
             )
@@ -762,6 +786,57 @@ async def test_live_collect_stops_third_tool_round_before_fixture_effect_or_four
     assert observed.error == "eval provider response-edge budget exhausted"
     assert observed.fixture_side_effects == 2
     assert len(sent) == 2
+
+
+async def test_live_collect_allows_exact_correction_action_close_and_farewell_four_edges():
+    sent: list[list[dict]] = []
+
+    class FakeSession:
+        async def send_tool_results(self, results):
+            sent.append(results)
+
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session = FakeSession()  # type: ignore[assignment]
+    driver.events.put_nowait(
+        eval_harness.ToolSchemaCorrection(
+            call_id="invalid",
+            name="HassTurnOn",
+            response={"ok": False, "error_kind": "schema_validation"},
+            response_id="response-invalid",
+        )
+    )
+    driver.events.put_nowait(
+        eval_harness.ToolCall(
+            "action",
+            "HassTurnOn",
+            {"area": "stuen", "domain": ["light"]},
+            response_id="response-action",
+            batch_id="response-action",
+        )
+    )
+    driver.events.put_nowait(eval_harness.ToolRoundComplete(response_id="response-action"))
+    driver.events.put_nowait(
+        eval_harness.ToolCall(
+            "close",
+            "end_conversation",
+            {},
+            response_id="response-close",
+            batch_id="response-close",
+        )
+    )
+    driver.events.put_nowait(eval_harness.ToolRoundComplete(response_id="response-close"))
+    driver.events.put_nowait(
+        eval_harness.TurnComplete(status="completed", response_id="response-farewell")
+    )
+
+    observed = await driver._collect_turn(turn_id="turn", started=0.0)
+
+    assert observed.response_status == "completed"
+    assert observed.schema_corrections == 1
+    assert observed.fixture_side_effects == 1
+    assert observed.decision_batches == [["HassTurnOn"], ["end_conversation"]]
+    assert observed.remain_open is False
+    assert [batch[0]["id"] for batch in sent] == ["invalid", "action", "close"]
 
 
 async def test_live_collect_pure_wait_requires_marker_then_completes_silently():
@@ -793,7 +868,7 @@ async def test_live_collect_pure_wait_requires_marker_then_completes_silently():
 
 
 def test_budget_hard_stops_before_an_unbounded_live_run():
-    budget = EvalBudget(max_turns=1, max_reserved_tokens=3072, max_actual_tokens=10)
+    budget = EvalBudget(max_turns=1, max_reserved_tokens=4096, max_actual_tokens=10)
     budget.reserve()
     budget.record({"input_text_tokens": 4, "output_audio_tokens": 4})
     with pytest.raises(RuntimeError, match="turn budget"):
@@ -833,7 +908,7 @@ async def test_budget_exhaustion_refuses_first_turn_before_provider_open():
     driver = NeverOpened()
     budget = EvalBudget(
         max_turns=1,
-        max_reserved_tokens=3 * eval_harness.MAX_OUTPUT_TOKENS,
+        max_reserved_tokens=4 * eval_harness.MAX_OUTPUT_TOKENS,
         max_actual_tokens=100_000,
         max_cost_usd=5.0,
     )
@@ -1667,7 +1742,7 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
 
     assert sessions == 7
     assert service._max_run_s == required
-    assert 40 * 60 < service._max_run_s < 42 * 60
+    assert 52 * 60 < service._max_run_s < 54 * 60
 
 
 async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(monkeypatch):
@@ -1742,9 +1817,9 @@ async def test_full_seven_session_profile_accepts_measured_14_5k_each(monkeypatc
     assert report["ok"] is True, report.get("error")
     assert calls == 7
     assert report["budget"]["actual_tokens"] == 101_500
-    assert report["budget"]["max_actual_tokens"] == 540_000
+    assert report["budget"]["max_actual_tokens"] == 720_000
     assert report["budget"]["max_cost_usd"] == pytest.approx(5.0)
-    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(36.0)
+    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(48.0)
     assert report["deadline_s"] > report["budget"]["rate_limit_wait_s"]
 
 

@@ -94,6 +94,20 @@ class ToolRoundComplete:
 
 
 @dataclass
+class ToolSchemaCorrection:
+    """One invalid function proposal needs a side-effect-free correction response.
+
+    This is deliberately not a ``ToolCall``: consumers must return the supplied,
+    bounded error on the exact call id without dispatching any domain adapter.
+    """
+
+    call_id: str
+    name: str
+    response: dict
+    response_id: str | None = None
+
+
+@dataclass
 class SilentToolComplete:
     """A pure silent no-op tool round completed without an assistant response.
 
@@ -170,6 +184,7 @@ VoiceEvent = Union[  # noqa: UP007
     OutputTranscript,
     TurnComplete,
     ToolRoundComplete,
+    ToolSchemaCorrection,
     SilentToolComplete,
     Interrupted,
     UserSpeechStarted,

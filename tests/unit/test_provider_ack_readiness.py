@@ -16,7 +16,13 @@ from gatekeeper.openai_realtime import (
     ProviderConfigurationError,
 )
 from gatekeeper.provider_budget import ProviderBudgetCoordinator, ProviderBudgetUnavailable
-from gatekeeper.voice import ToolCall, ToolRoundComplete, TurnComplete, Usage
+from gatekeeper.voice import (
+    ToolCall,
+    ToolRoundComplete,
+    ToolSchemaCorrection,
+    TurnComplete,
+    Usage,
+)
 
 
 class _Message:
@@ -80,9 +86,16 @@ class _HTTP:
         self.closed = True
 
 
-async def _collect(session: OpenAIRealtimeSession, ws: _QueueWS, output: list) -> None:
+async def _collect(
+    session: OpenAIRealtimeSession,
+    ws: _QueueWS,
+    output: list,
+    yielded: asyncio.Event | None = None,
+) -> None:
     async for event in session._iter_events(ws):
         output.append(event)
+        if yielded is not None:
+            yielded.set()
 
 
 async def _wait_for_sent(ws: _QueueWS, event_type: str, count: int = 1) -> list[dict]:
@@ -92,6 +105,375 @@ async def _wait_for_sent(ws: _QueueWS, event_type: str, count: int = 1) -> list[
             if len(matches) >= count:
                 return matches
             await asyncio.sleep(0)
+
+
+def _typed_usage(total: int = 1_000) -> dict:
+    return {
+        "total_tokens": total,
+        "input_tokens": total - 100,
+        "output_tokens": 100,
+        "input_token_details": {"text_tokens": total - 100},
+        "output_token_details": {"text_tokens": 100},
+    }
+
+
+def _area_tool_declaration() -> dict:
+    return {
+        "name": "HassTurnOn",
+        "description": "Turn on a target.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "area": {"type": "string"},
+                "domain": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 1,
+                },
+            },
+            "additionalProperties": False,
+        },
+    }
+
+
+async def test_schema_invalid_single_call_is_corrected_once_without_tool_escape():
+    session = OpenAIRealtimeSession(api_key="secret", tool_declarations=[_area_tool_declaration()])
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    events: list = []
+    yielded = asyncio.Event()
+    collector = asyncio.create_task(_collect(session, ws, events, yielded))
+
+    invalid = {
+        "type": "response.function_call_arguments.done",
+        "response_id": "r-invalid",
+        "call_id": "call-invalid",
+        "name": "HassTurnOn",
+        "arguments": '{"area":"stuen","domain":"light"}',
+    }
+    await ws.emit(invalid)
+    # The GA output-item terminal can carry the same proposal in either order. It is
+    # one proposal, never a second correction attempt.
+    await ws.emit(
+        {
+            "type": "response.output_item.done",
+            "response_id": "r-invalid",
+            "item": {
+                "type": "function_call",
+                "call_id": "call-invalid",
+                "name": "HassTurnOn",
+                "arguments": invalid["arguments"],
+            },
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-invalid",
+                "status": "completed",
+                "usage": _typed_usage(),
+            },
+        }
+    )
+    async with asyncio.timeout(1):
+        await yielded.wait()
+    correction = next(event for event in events if isinstance(event, ToolSchemaCorrection))
+    assert correction.call_id == "call-invalid"
+    assert correction.response == {
+        "ok": False,
+        "error_kind": "schema_validation",
+        "error": (
+            "Argumenterne matchede ikke værktøjets deklarerede schema. "
+            "Ret dem præcist efter schemaet og prøv kun én gang."
+        ),
+        "path": "domain",
+        "constraint": "type",
+    }
+    assert not any(isinstance(event, ToolCall) for event in events)
+    assert not any(isinstance(event, ToolRoundComplete) for event in events)
+
+    submitting = asyncio.create_task(
+        session.send_tool_results(
+            [
+                {
+                    "id": correction.call_id,
+                    "name": correction.name,
+                    "response": correction.response,
+                }
+            ]
+        )
+    )
+    item_create = (await _wait_for_sent(ws, "conversation.item.create"))[0]
+    assert item_create["item"]["call_id"] == "call-invalid"
+    assert "'light'" not in item_create["item"]["output"]
+    await ws.emit({"type": "conversation.item.added", "item": item_create["item"]})
+    await submitting
+    retry_create = (await _wait_for_sent(ws, "response.create"))[0]
+    retry_request = retry_create["response"]["metadata"]["podvoice_request_id"]
+    await ws.emit(
+        {
+            "type": "response.created",
+            "response": {
+                "id": "r-corrected",
+                "metadata": {"podvoice_request_id": retry_request},
+            },
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "r-corrected",
+            "call_id": "call-corrected",
+            "name": "HassTurnOn",
+            "arguments": '{"area":"stuen","domain":["light"]}',
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-corrected",
+                "status": "completed",
+                "usage": _typed_usage(),
+            },
+        }
+    )
+    await ws.incoming.put(None)
+    await collector
+    calls = [event for event in events if isinstance(event, ToolCall)]
+    assert [(call.id, call.args) for call in calls] == [
+        ("call-corrected", {"area": "stuen", "domain": ["light"]})
+    ]
+    assert sum(isinstance(event, ToolSchemaCorrection) for event in events) == 1
+    session._cancel_ack_watchdogs()
+
+
+async def test_schema_proposal_output_item_first_is_deduplicated_to_one_correction():
+    session = OpenAIRealtimeSession(api_key="secret", tool_declarations=[_area_tool_declaration()])
+    arguments = '{"area":"stuen","domain":"light"}'
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "response.output_item.done",
+            "response_id": "r-invalid",
+            "item": {
+                "type": "function_call",
+                "call_id": "call-invalid",
+                "name": "HassTurnOn",
+                "arguments": arguments,
+            },
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "r-invalid",
+            "call_id": "call-invalid",
+            "name": "HassTurnOn",
+            "arguments": arguments,
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-invalid",
+                "status": "completed",
+                "usage": _typed_usage(),
+            },
+        }
+    )
+    await ws.incoming.put(None)
+    events = [event async for event in session._iter_events(ws)]
+
+    assert sum(isinstance(event, ToolSchemaCorrection) for event in events) == 1
+    assert not any(isinstance(event, (ToolCall, ToolRoundComplete)) for event in events)
+
+
+async def test_sensitive_or_lifecycle_schema_failure_is_never_correction_eligible():
+    declarations = [
+        {
+            "name": "EvalUnlockDoor",
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        }
+    ]
+    session = OpenAIRealtimeSession(api_key="secret", tool_declarations=declarations)
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "r-sensitive",
+            "call_id": "call-sensitive",
+            "name": "EvalUnlockDoor",
+            "arguments": "{}",
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-sensitive",
+                "status": "completed",
+                "usage": _typed_usage(),
+            },
+        }
+    )
+    await ws.incoming.put(None)
+    events = [event async for event in session._iter_events(ws)]
+
+    assert not any(isinstance(event, (ToolCall, ToolSchemaCorrection)) for event in events)
+    terminal = next(event for event in events if isinstance(event, TurnComplete))
+    assert terminal.status == "failed"
+
+
+async def test_schema_correction_budget_resets_at_next_authoritative_user_turn():
+    session = OpenAIRealtimeSession(api_key="secret", tool_declarations=[_area_tool_declaration()])
+    session._schema_correction_used = True
+    ws = _QueueWS()
+    await ws.emit({"type": "input_audio_buffer.speech_stopped"})
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "r-new-turn",
+            "call_id": "call-new-turn",
+            "name": "HassTurnOn",
+            "arguments": '{"area":"stuen","domain":"light"}',
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-new-turn",
+                "status": "completed",
+                "usage": _typed_usage(),
+            },
+        }
+    )
+    await ws.incoming.put(None)
+    events = [event async for event in session._iter_events(ws)]
+
+    assert sum(isinstance(event, ToolSchemaCorrection) for event in events) == 1
+
+
+async def test_second_schema_invalid_response_is_terminal_without_second_correction():
+    session = OpenAIRealtimeSession(api_key="secret", tool_declarations=[_area_tool_declaration()])
+    session._schema_correction_used = True
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "r-second",
+            "call_id": "call-second",
+            "name": "HassTurnOn",
+            "arguments": '{"area":"stuen","domain":"light"}',
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-second",
+                "status": "completed",
+                "usage": _typed_usage(),
+            },
+        }
+    )
+    await ws.incoming.put(None)
+    events = [event async for event in session._iter_events(ws)]
+    assert not any(isinstance(event, (ToolCall, ToolSchemaCorrection)) for event in events)
+    terminal = next(event for event in events if isinstance(event, TurnComplete))
+    assert terminal.status == "failed"
+    assert terminal.error and "tool_schema_correction_exhausted" in terminal.error
+
+
+async def test_schema_correction_capacity_denial_is_rate_limit_terminal(monkeypatch):
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}],
+    )
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="production",
+        tool_declarations=[_area_tool_declaration()],
+        provider_budget=ledger,
+    )
+    session._connection_generation = 1
+    lease = ledger.production_started("secret", "model")
+    session._budget_production_leases[1] = lease
+    monkeypatch.setattr(ledger, "ensure_response_capacity", lambda *_args, **_kwargs: False)
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "r-invalid",
+            "call_id": "call-invalid",
+            "name": "HassTurnOn",
+            "arguments": '{"area":"stuen","domain":"light"}',
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-invalid",
+                "status": "completed",
+                "usage": _typed_usage(),
+            },
+        }
+    )
+    await ws.incoming.put(None)
+    events = [event async for event in session._iter_events(ws, generation=1)]
+    assert not any(isinstance(event, (ToolCall, ToolSchemaCorrection)) for event in events)
+    terminal = next(event for event in events if isinstance(event, TurnComplete))
+    assert terminal.status == "failed"
+    assert terminal.error and terminal.error.startswith("rate_limit_capacity ·")
+
+
+async def test_mixed_valid_and_schema_invalid_batch_never_corrects_or_dispatches():
+    session = OpenAIRealtimeSession(api_key="secret", tool_declarations=[_area_tool_declaration()])
+    ws = _QueueWS()
+    for call_id, arguments in (
+        ("valid", '{"area":"stuen","domain":["light"]}'),
+        ("invalid", '{"area":"stuen","domain":"light"}'),
+    ):
+        await ws.emit(
+            {
+                "type": "response.function_call_arguments.done",
+                "response_id": "r-mixed",
+                "call_id": call_id,
+                "name": "HassTurnOn",
+                "arguments": arguments,
+            }
+        )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-mixed",
+                "status": "completed",
+                "usage": _typed_usage(),
+            },
+        }
+    )
+    await ws.incoming.put(None)
+    events = [event async for event in session._iter_events(ws)]
+    assert not any(
+        isinstance(event, (ToolCall, ToolRoundComplete, ToolSchemaCorrection)) for event in events
+    )
+    terminal = next(event for event in events if isinstance(event, TurnComplete))
+    assert terminal.status == "failed"
+    assert terminal.error and "failed schema" in terminal.error
 
 
 async def test_connect_returns_only_after_accepted_session_updated(monkeypatch):

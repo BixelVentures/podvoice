@@ -21,7 +21,7 @@
       "exact_tool_name": "HassTurnOn",
       "risk": "low_risk",
       "cases": [
-        {"args": {"name": "stuen"}, "result": {"ok": true, "summary": "Tændt."}}
+        {"args": {"area": "stuen", "domain": ["light"]}, "result": {"ok": true, "summary": "Tændt."}}
       ]
     },
     {
@@ -200,7 +200,7 @@
           "expect": {
             "decisions": ["HassTurnOn", "end_conversation"],
             "decision_batches": [["HassTurnOn"], ["end_conversation"]],
-            "tool_args": {"HassTurnOn": {"name": "stuen"}},
+            "tool_args": {"HassTurnOn": {"area": "stuen", "domain": ["light"]}},
             "tool_outcomes": {
               "HassTurnOn": ["ok"],
               "end_conversation": ["ok"]

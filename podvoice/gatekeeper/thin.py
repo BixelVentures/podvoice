@@ -38,6 +38,7 @@ from .voice import (
     SilentToolComplete,
     ToolCall,
     ToolRoundComplete,
+    ToolSchemaCorrection,
     TurnComplete,
     Usage,
     UserSpeechStarted,
@@ -1157,6 +1158,21 @@ class ThinSession:
                 # A normal/end sibling dominates a model-violating mixed wait call.
                 self._wait_turns.clear()
             _LOG.info("thin: tool decision complete — result answer is now pending")
+        elif isinstance(ev, ToolSchemaCorrection):
+            self._trace_event(
+                "tool_schema_correction",
+                name=ev.name,
+                response_id=ev.response_id,
+            )
+            if not self._direct:
+                await self._discard_tool_preamble()
+                self._buf_out.clear()
+            else:
+                # Direct audio has already crossed the DAC and cannot truthfully be
+                # erased. Preserve exactly that heard transcript; the correction is
+                # still side-effect-free and its next response remains in this turn.
+                self._flush_transcript("out")
+            self._spawn(self._submit_schema_correction(ev), "thin-schema-correction")
         elif isinstance(ev, SilentToolComplete):
             for call_id in ev.call_ids:
                 self._complete_silent_wait_turn(call_id)
@@ -2070,6 +2086,25 @@ class ThinSession:
         if silent_complete is True:
             if tc.name == WAIT_FOR_USER_TOOL:
                 self._complete_silent_wait_turn(tc.id)
+
+    async def _submit_schema_correction(self, correction: ToolSchemaCorrection) -> None:
+        """Return a provider-authored schema error without touching a tool adapter."""
+        async with self._tool_lock:
+            try:
+                await self.brain.send_tool_results(
+                    [
+                        {
+                            "id": correction.call_id,
+                            "name": correction.name,
+                            "response": correction.response,
+                        }
+                    ]
+                )
+            except Exception as exc:
+                _LOG.warning("thin: schema correction submission failed: %s", exc)
+                self._trace_event("tool_schema_correction_failed")
+                if self._active:
+                    self._request_close("error:connection", error_kind="connection")
 
     async def _run_tool_batch(self, batch: _ToolBatch) -> None:
         for index in range(batch.size):
