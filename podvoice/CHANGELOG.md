@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.13.31 — korrekt pacing på hver Realtime-responsekant
+
+- Den observerede v1.13.30-fejl (`used=34805`, `requested=5769`, `retry=861 ms`)
+  er omsat til en rå regression. Providerbudgettet modellerer nu Tier-1 som en
+  kontinuerligt refillende token bucket med TPM/60 i stedet for et falsk helt
+  minutskifte.
+- Eval genbekræfter kapaciteten ved den sidste lokale grænse før hver billable
+  `response.create`, også ved normale, hurtige og deferred tool-resultater i samme
+  Realtime-session. Den kontekstafledte follow-up-grænse bevares frem til wire-send.
+- Dokumenterede kapacitetsventetider tæller ikke som modellens 20-sekunders semantiske
+  timeout, men forbliver under den samlede hard deadline og vises i rapporten.
+  Worst-case-deadlinen omfatter alle 36 mekanisk mulige responsekanter.
+- `rate_limits.updated` forankrer remaining atomisk, men `reset_seconds` bruges ikke
+  som refill-hastighed. Manglende/malformed/stale telemetry, atomic recheck-fejl, 429,
+  timeout og teardown forbliver fail-closed uden automatisk retry.
+- Prompt V6, model, SafeEval-fixtures, $5-loft, Voice PE/Talk-lås, Thin, lyd, gain,
+  VAD, firmware, playback og produktionsværktøjspolitik er uændrede.
+- Lokal kandidatgate: 201/201 fokustests, 599/599 non-socket og hele repoets 753/753
+  tests samt Ruff, mypy for 42 sourcefiler og diff-check er grønne. CI/ARM64-image,
+  installation og én rigtig fuld Prompt V6-live-preflight står fortsat åbne.
+
 ## 1.13.30 — sand live-preflight uden throwaway-probe
 
 - Live-preflight kører som en eksplicit, gensidigt eksklusiv systemdiagnose. Voice PE

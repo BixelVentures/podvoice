@@ -29,7 +29,7 @@ import logging
 import re
 import uuid
 from collections import deque
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
 
 import aiohttp
@@ -212,6 +212,12 @@ class OpenAIRealtimeSession:
     provider_budget: ProviderBudgetCoordinator = field(
         default_factory=lambda: PROVIDER_BUDGET, repr=False, kw_only=True
     )
+    # Eval-only admission hook.  It is invoked at the final causal boundary before
+    # every response.create, including deferred tool-result responses.  Production
+    # leaves it unset, so Voice PE/Talk latency and lifecycle are unchanged.
+    before_response_create: Callable[[int | None], Awaitable[None]] | None = field(
+        default=None, repr=False, kw_only=True
+    )
     voice: str = DEFAULT_VOICE
     instructions: str = ""  # empty -> built-in SYSTEM_PROMPT_DA
     # WHERE this session physically is. Without it the model cannot target the room's
@@ -267,6 +273,10 @@ class OpenAIRealtimeSession:
     # A pure wait_for_user round records its function output but intentionally creates
     # no assistant response, eliminating cross-turn silence state in ThinSession.
     _tool_result_response_required: bool = field(default=False, init=False, repr=False)
+    # Exact conservative bound derived from the completed tool-decision response.
+    # Eval's final response-create gate consumes it; production has no callback and
+    # continues to use the existing pre-effect capacity gate.
+    _next_response_capacity_tokens: int | None = field(default=None, init=False, repr=False)
     # A semantic-end result must produce exactly one final spoken farewell and no
     # further tool calls. Normal tool results stay auto to preserve multi-step work.
     _force_no_tools_followup: bool = field(default=False, init=False, repr=False)
@@ -503,6 +513,7 @@ class OpenAIRealtimeSession:
         self._active_response = False
         self._pending_create = False
         self._tool_result_response_required = False
+        self._next_response_capacity_tokens = None
         self._force_no_tools_followup = False
         self._silent_tool_call_ids.clear()
         self._outstanding_tool_calls.clear()
@@ -790,6 +801,13 @@ class OpenAIRealtimeSession:
         """Send one correlated response request without blocking the event reader."""
         if self._ws is None or bool(getattr(self._ws, "closed", False)):
             raise ConnectionError("OpenAI realtime socket closed before response creation")
+        if self.before_response_create is not None:
+            # The callback must finish before request correlation is registered or any
+            # billable frame is sent.  Failure is terminal; this layer never retries a
+            # rejected/completed provider edge.
+            await self.before_response_create(self._next_response_capacity_tokens)
+        if self._ws is None or bool(getattr(self._ws, "closed", False)):
+            raise ConnectionError("OpenAI realtime socket closed during response admission")
         request_id = f"pv_response_{uuid.uuid4().hex[:16]}"
         event_id = f"evt_response_{uuid.uuid4().hex[:19]}"
         payload: dict = {"type": "response.create", "event_id": event_id}
@@ -806,6 +824,7 @@ class OpenAIRealtimeSession:
             self._response_create_event_ids.pop(event_id, None)
             self._pending_response_creates.discard(request_id)
             raise
+        self._next_response_capacity_tokens = None
         self._arm_ack_watchdog(event_id, "response.create")
         return request_id
 
@@ -947,6 +966,7 @@ class OpenAIRealtimeSession:
                 return False
             else:
                 _LOG.info("turn: silent tool result recorded -> no response.create")
+                self._next_response_capacity_tokens = None
                 self._silent_tool_call_ids.clear()
                 return True
 
@@ -974,6 +994,7 @@ class OpenAIRealtimeSession:
                 self._active_response = False
                 self._pending_create = False
                 self._tool_result_response_required = False
+                self._next_response_capacity_tokens = None
                 self._force_no_tools_followup = False
                 self._silent_tool_call_ids.clear()
                 self._outstanding_tool_calls.clear()
@@ -1469,6 +1490,7 @@ class OpenAIRealtimeSession:
                     calls = list(staged_calls.values())
                     self._outstanding_tool_calls.update(call.call_id for call in calls)
                     self._tool_call_response_ids.update((call.call_id, rid) for call in calls)
+                    self._next_response_capacity_tokens = followup_tokens
                     self._pending_create = True
                     # Every completed batch, including pure wait_for_user, gets the
                     # same exact commit edge. Thin must never execute merely because
@@ -1491,6 +1513,7 @@ class OpenAIRealtimeSession:
                     if not self._outstanding_tool_calls and self._pending_create:
                         self._pending_create = False
                         if not self._tool_result_response_required:
+                            self._next_response_capacity_tokens = None
                             call_ids = tuple(sorted(self._silent_tool_call_ids))
                             self._silent_tool_call_ids.clear()
                             yield SilentToolComplete(call_ids=call_ids)
@@ -1509,6 +1532,7 @@ class OpenAIRealtimeSession:
                     # (the follow-up response's own response.done is the real end-of-turn).
                     self._pending_create = False
                     if not self._tool_result_response_required:
+                        self._next_response_capacity_tokens = None
                         _LOG.info(
                             "turn: response.done id=%s status=%s -> silent tool round complete",
                             rid,
@@ -1553,7 +1577,14 @@ class OpenAIRealtimeSession:
             elif t == "session.updated":
                 await self._accept_session_update()
             elif t == "rate_limits.updated":
-                if self._record_rate_limits(ev):
+                # A valid update can precede response.created, but only after our
+                # response.create is pending.  An unsolicited pre-send or late
+                # post-terminal event must not refill a later edge from stale data.
+                rate_is_causal = bool(
+                    (self._active_response and cur_rid not in (None, "?"))
+                    or self._pending_response_creates
+                )
+                if rate_is_causal and self._record_rate_limits(ev):
                     if self._active_response and cur_rid not in (None, "?"):
                         response_rate_observations.add(cur_rid)
                     else:
@@ -1724,6 +1755,7 @@ class OpenAIRealtimeSession:
         self._terminal_responses.clear()
         self._seen_tool_call_ids.clear()
         self._tool_round_edge_pending = False
+        self._next_response_capacity_tokens = None
         self._tool_call_response_ids.clear()
         for lease in tuple(self._budget_production_leases.values()):
             self.provider_budget.release(lease)

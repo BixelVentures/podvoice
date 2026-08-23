@@ -1,18 +1,73 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-08-22.
+Senest opdateret: 2026-08-23.
 
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv softwarekandidat:** v1.13.30 (arbejdstræ på branch
-`codex/v1.13.27-provider-safety`). **Aktuel gate:** den korrigerede maskinelle
-no-probe-kontrakt er lokalt grøn og har ingen åben P0/P1 i uafhængigt review;
-kandidatens eksakte commit, CI/ARM64-image og rigtige Prompt V6-live-eval står fortsat
-åbne. Kandidaten er derfor **NO-GO** for fysisk test.
+**Aktiv softwarekandidat:** lokal v1.13.31; installeret baseline er v1.13.30 fra remote
+commit `e21453d`. **Aktuel gate:** v1.13.31's response-edge pacing er lokalt grøn
+753/753 og uafhængigt review har ingen åben P0/P1. Eksakt commit, CI/ARM64-image,
+installation og en fuld rigtig Prompt V6-live-eval står åbne. Kandidaten er fortsat
+**NO-GO** for fysisk test.
 En live-rapport på de samme byggede bits og uafhængig review skal genoprette mindst
 97/100, før én frisk fysisk golden chain må begynde. Fysisk Voice PE-bevis og 10/10 er
 fortsat separate gates; v1.13.11 er uændret fysisk baseline.
+
+### Feltstop 23. august — v1.13.30 preflight ramte TPM på en responsekant
+
+**Observeret, ingen automatisk retry.** Add-on-kataloget leverede v1.13.30, og den
+installerede kandidat startede korrekt: loggen viste versionslinjen, 19 atomisk
+admitterede HA/MCP-værktøjer, et vellykket `GetLiveContext` og en godkendt Voice PE-
+firmwarekontrakt. Den eksplicit startede SafeEval `eval-1787479390-7aa3ed` tog den
+nøglebrede diagnostiklås og frigav den igen terminalt.
+
+- Prompt V6/default og de effektive, produktions- og reserverede schemahashes blev
+  fastholdt i rapporten. Første scenarie `arithmetic-followup` bestod begge ture med
+  svarene 84 og 90, samme Realtime-session og typet usage.
+- Næste scenarie valgte det lokale SafeEval-værktøj `get_time` på completed
+  responsekanter. Ingen rigtig HA-, musik- eller timerhandling blev udført.
+- En efterfølgende `response.create` blev afvist med
+  `TPM limit=40000, used=34805, requested=5769, retry≈861 ms`. Kørselen klassificerede
+  det som `diagnostic-capacity`, satte `coverage_complete=false`, stoppede før næste
+  tur/scenarie og genforsøgte ikke.
+- Faktisk registreret forbrug før stop var 33.792 tokens og **$0,0772896**, langt under
+  det prospektive $5-loft. Den fulde profil for web, approvals, værktøjsrækkefølge og
+  semantisk close blev ikke gennemført og giver derfor ikke 97/100.
+- **Falsificerbar regressionshypotese:** Den lokale reset-aware pacing tillod flere
+  produktionsformede responsekanter i samme scenariesession tættere end providerens
+  rullende TPM-vindue kunne bære. Den eksakte feltsekvens er flere completed
+  `get_time`-beslutning/resultatkanter efter den synlige resetventetid, derefter 429 på
+  næste result-response med kun 574 tokens over loftet. Før ny live-kørsel skal en rå
+  regression bevise pacing før hver responsekant i samme session, inklusive
+  tool-resultat/follow-up, uden at acceptere 429 eller indføre automatisk retry.
+- **Frosne ikke-mål:** Prompt, model, lyd, gain, VAD, firmware, playback,
+  Thin-lifecycle, HA/MCP-discovery og produktionsværktøjspolitik ændres ikke ud fra
+  denne kapacitetsfejl.
+
+**Lokalt implementeringsresultat, endnu ikke versioneret/installeret/live-kørt.** Den
+eksakte feltmatematik viste et rullende token-bucket-problem: `34805 + 5769 - 40000 =
+574`, og `574 / (40000/60) = 0,861 s`. Providerledgeren refiller derfor nu kontinuerligt
+med det dokumenterede TPM-loft/60 på hvert monotont read/debit; en gyldig
+`rate_limits.updated` forankrer remaining, men `reset_seconds` bruges aldrig som slope.
+En eval-only callback genbekræfter atomisk den fulde eller kontekstafledte kapacitet ved
+den sidste lokale grænse før **hver** klientstyret `response.create`, inklusive normal,
+hurtig og deferred tool-result/follow-up. Den genbruger ikke completed edges og retryer
+ikke en 429. En planlagt refillventetid vækkes ind i collectorens private mekanik, så den
+er uden for 20-sekunders semantisk timeout, men fortsat inden for kørselsdeadline og
+synlig `rate_limit_wait_s`. Worst-case-deadlinen følger nu alle 36 mekanisk mulige
+responsekanter og vises dynamisk som omtrent 41 minutter; normalprofilen forventes
+kortere.
+
+Rå regressioner dækker feltets 574-token underskud, officiel near-full/reset-permutation,
+senere debits uden epoch-jump, valid rate før/under response, malformed/manglende og
+unsolicited late rate, initial og tool-result-create, fast og normal tool-marker-
+rækkefølge, atomic recheck-fejl uden wire-send, timeout-credit og stale target ved close.
+Resultater på det frosne lokale træ: **201/201 focused**, **599/599 non-socket** og
+**753/753 fuldt testsæt** grønne; Ruff, mypy for 42 sourcefiler og `git diff --check` er
+grønne. Der er ikke kørt live API, installeret, committed eller pushed. Kandidaten er
+fortsat **NO-GO** indtil uafhængigt adversarial review, byg/CI og én ny rigtig Prompt
+V6-live-preflight på de præcise byggede bits; fysisk golden chain følger først derefter.
 
 ### Feltstop 22. august — v1.13.29 havde en unødvendig separat providerprobe
 

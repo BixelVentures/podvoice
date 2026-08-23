@@ -27,7 +27,7 @@ from gatekeeper.eval_harness import (
     read_pcm_fixture,
     run_scenario,
 )
-from gatekeeper.openai_realtime import DEFAULT_MODEL
+from gatekeeper.openai_realtime import DEFAULT_MODEL, OpenAIRealtimeSession
 from gatekeeper.provider_budget import ProviderBudgetCoordinator, ProviderBudgetUnavailable
 from gatekeeper.thin import (
     APPROVE_ACTION_DECLARATION,
@@ -1076,8 +1076,108 @@ async def test_live_driver_three_turn_allowance_paces_outside_semantic_timeout()
         )
         await driver.prepare_response_capacity()
 
-    assert waits == [pytest.approx(60.05), pytest.approx(60.05)]
+    expected = 1_000 / (40_000 / 60) + 0.05
+    assert waits == [pytest.approx(expected), pytest.approx(expected)]
     assert ledger.snapshot("secret", "model")["eval_trials"] == 1
+    assert ledger.release(lease) is True
+    assert ledger.release(diagnostic) is True
+
+
+async def test_field_429_chain_paces_exact_tool_edge_then_sends_one_create():
+    """eval-1787479390-7aa3ed: used34805 + requested5769 at a 40k/min bucket."""
+    clock = [0.0]
+    waits: list[float] = []
+
+    async def advance(delay: float) -> None:
+        waits.append(delay)
+        clock[0] += delay
+
+    class Wire:
+        closed = False
+
+        def __init__(self) -> None:
+            self.sent: list[dict] = []
+
+        async def send_json(self, payload: dict) -> None:
+            self.sent.append(payload)
+
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    diagnostic = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret",
+        "model",
+        tokens=15_000,
+        production_headroom=0,
+        diagnostic_lease=diagnostic,
+    )
+    ledger.account_usage("secret", "model", 34_805, lease=lease)
+    driver = eval_harness.LiveRealtimeDriver(
+        "secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+        capacity_sleep=advance,
+        capacity_monotonic=lambda: clock[0],
+        capacity_deadline=100.0,
+    )
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+        before_response_create=driver.prepare_response_capacity,
+    )
+    wire = Wire()
+    session._ws = wire  # type: ignore[assignment]
+    session._next_response_capacity_tokens = 5_769
+
+    await session._send_response_create()
+
+    assert waits == [pytest.approx(574 / (40_000 / 60) + 0.05)]
+    assert [item["type"] for item in wire.sent] == ["response.create"]
+    session._cancel_ack_watchdogs()
+    assert ledger.release(lease) is True
+    assert ledger.release(diagnostic) is True
+
+
+async def test_capacity_sleep_is_outside_semantic_timeout_but_inside_driver_deadline():
+    clock = [0.0]
+
+    async def advance(delay: float) -> None:
+        clock[0] += delay
+
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    diagnostic = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=diagnostic
+    )
+    ledger.account_usage("secret", "model", 39_900, lease=lease)
+    driver = eval_harness.LiveRealtimeDriver(
+        "secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+        capacity_sleep=advance,
+        capacity_monotonic=lambda: clock[0],
+        capacity_deadline=100.0,
+    )
+    driver.session = object()  # type: ignore[assignment]
+
+    collecting = asyncio.create_task(
+        driver._collect_turn(
+            turn_id="turn",
+            started=0.0,
+            semantic_timeout_s=20.0,
+        )
+    )
+    await asyncio.sleep(0)
+    await driver.prepare_response_capacity(15_000)
+    driver.events.put_nowait(eval_harness.TurnComplete(status="completed", response_id="answer"))
+    observed = await collecting
+
+    assert clock[0] > 20.0
+    assert observed.response_status == "completed"
     assert ledger.release(lease) is True
     assert ledger.release(diagnostic) is True
 
@@ -1233,8 +1333,9 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
     scenarios = load_scenarios()
     sessions = len(scenarios)
     turns = sum(len(scenario.turns) for scenario in scenarios)
+    response_edges = turns * eval_harness.MAX_EVAL_RESPONSE_EDGES_PER_TURN
     required = (
-        (turns - 1) * eval_harness.LIVE_EVAL_RESET_GAP_S
+        (response_edges - 1) * eval_harness.LIVE_EVAL_RESET_GAP_S
         + turns * eval_harness.LIVE_EVAL_TURN_TIMEOUT_S
         + sessions * eval_harness.C.CONNECT_TIMEOUT_S
         + 30.0
@@ -1243,7 +1344,7 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
 
     assert sessions == 7
     assert service._max_run_s == required
-    assert 16 * 60 < service._max_run_s < 17 * 60
+    assert 40 * 60 < service._max_run_s < 42 * 60
 
 
 async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(monkeypatch):
@@ -1410,8 +1511,9 @@ async def test_live_eval_waits_one_authoritative_reset_before_next_admission(mon
 
     assert report["ok"] is True
     assert calls == 2
-    assert waits == [pytest.approx(3.05)]
-    assert report["budget"]["rate_limit_wait_s"] == pytest.approx(3.05)
+    expected = 1 / (40_000 / 60) + 0.05
+    assert waits == [pytest.approx(expected)]
+    assert report["budget"]["rate_limit_wait_s"] == pytest.approx(expected)
     assert ledger.snapshot("secret", DEFAULT_MODEL)["eval_trials"] == 0
 
 
@@ -1517,7 +1619,7 @@ async def test_whole_run_timeout_bounds_provider_reset_wait(monkeypatch):
     ledger.update_rate_limits(
         "secret",
         DEFAULT_MODEL,
-        [{"name": "tokens", "limit": 40_000, "remaining": 14_999, "reset_seconds": 60}],
+        [{"name": "tokens", "limit": 40_000, "remaining": 0, "reset_seconds": 60}],
     )
     calls = 0
 
@@ -1530,7 +1632,7 @@ async def test_whole_run_timeout_bounds_provider_reset_wait(monkeypatch):
         ledger.update_rate_limits(
             "secret",
             DEFAULT_MODEL,
-            [{"name": "tokens", "limit": 40_000, "remaining": 14_999, "reset_seconds": 60}],
+            [{"name": "tokens", "limit": 40_000, "remaining": 0, "reset_seconds": 60}],
         )
         return ScenarioResult("first", True, "completed-before-wait", [])
 

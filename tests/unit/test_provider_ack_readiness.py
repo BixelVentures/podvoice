@@ -15,7 +15,7 @@ from gatekeeper.openai_realtime import (
     OpenAIRealtimeSession,
     ProviderConfigurationError,
 )
-from gatekeeper.provider_budget import ProviderBudgetCoordinator
+from gatekeeper.provider_budget import ProviderBudgetCoordinator, ProviderBudgetUnavailable
 from gatekeeper.voice import ToolCall, ToolRoundComplete, TurnComplete
 
 
@@ -401,7 +401,7 @@ async def test_exclusive_eval_response_may_complete_at_remaining_fourteen_thousa
 
     events = [event async for event in session._iter_events(ws)]
     assert any(isinstance(event, TurnComplete) and event.status == "completed" for event in events)
-    assert ledger.response_retry_after(lease) == pytest.approx(60.0)
+    assert ledger.response_retry_after(lease) == pytest.approx(1_000 / (40_000 / 60), abs=0.01)
     assert ledger.release(lease) is True
     assert ledger.release(owner) is True
 
@@ -873,6 +873,76 @@ async def test_response_create_error_is_correlated_and_unrelated_error_is_inert(
     await reader
 
 
+@pytest.mark.parametrize("target", [None, 5_769])
+async def test_response_create_waits_for_exact_eval_capacity_gate_before_wire(target):
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    seen: list[int | None] = []
+
+    async def capacity_gate(tokens: int | None) -> None:
+        seen.append(tokens)
+        entered.set()
+        await release.wait()
+
+    session = OpenAIRealtimeSession(api_key="k", before_response_create=capacity_gate)
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    session._next_response_capacity_tokens = target
+
+    sending = asyncio.create_task(session._send_response_create())
+    await entered.wait()
+    assert ws.sent == []
+    assert session._pending_response_creates == set()
+    release.set()
+    await sending
+
+    assert seen == [target]
+    assert [event["type"] for event in ws.sent] == ["response.create"]
+    assert session._next_response_capacity_tokens is None
+    session._cancel_ack_watchdogs()
+
+
+async def test_response_create_capacity_recheck_failure_has_zero_wire_send_or_retry():
+    calls = 0
+
+    async def capacity_gate(_tokens: int | None) -> None:
+        nonlocal calls
+        calls += 1
+        raise ProviderBudgetUnavailable("rate_limit_capacity · still insufficient after wait")
+
+    session = OpenAIRealtimeSession(api_key="k", before_response_create=capacity_gate)
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+
+    with pytest.raises(ProviderBudgetUnavailable, match="still insufficient"):
+        await session._send_response_create()
+
+    assert calls == 1
+    assert ws.sent == []
+    assert session._pending_response_creates == set()
+
+
+async def test_close_clears_stale_tool_capacity_target_before_new_generation():
+    admitted: list[int | None] = []
+
+    async def capacity_gate(tokens: int | None) -> None:
+        admitted.append(tokens)
+
+    session = OpenAIRealtimeSession(api_key="k", before_response_create=capacity_gate)
+    old_ws = _QueueWS()
+    session._ws = old_ws  # type: ignore[assignment]
+    session._next_response_capacity_tokens = 8_684
+    await session.close()
+
+    new_ws = _QueueWS()
+    session._ws = new_ws  # type: ignore[assignment]
+    await session._send_response_create()
+
+    assert admitted == [None]
+    assert [item["type"] for item in new_ws.sent] == ["response.create"]
+    session._cancel_ack_watchdogs()
+
+
 async def test_truncate_requires_matching_ack_and_correlates_error():
     session = OpenAIRealtimeSession(api_key="k")
     ws = _QueueWS()
@@ -977,6 +1047,7 @@ async def test_rate_limits_updated_are_retained_for_shared_budget_observation():
     session = OpenAIRealtimeSession(api_key="k")
     ws = _QueueWS()
     session._ws = ws  # type: ignore[assignment]
+    await session._send_response_create()
     await ws.emit(
         {
             "type": "rate_limits.updated",
@@ -995,6 +1066,28 @@ async def test_rate_limits_updated_are_retained_for_shared_budget_observation():
     async for _event in session._iter_events(ws):
         pass
     assert session._rate_limits["tokens"]["remaining"] == 39000
+    session._cancel_ack_watchdogs()
+
+
+async def test_unsolicited_late_rate_event_cannot_refill_a_future_response():
+    ledger = ProviderBudgetCoordinator()
+    session = OpenAIRealtimeSession(api_key="secret", model="model", provider_budget=ledger)
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 40_000, "reset_seconds": 60}
+            ],
+        }
+    )
+    await ws.close()
+
+    async for _event in session._iter_events(ws):
+        pass
+
+    assert session._rate_limits == {}
+    assert ledger.snapshot("secret", "model")["authoritative"] is False
 
 
 async def test_response_rate_event_after_created_prevents_completed_usage_double_debit():

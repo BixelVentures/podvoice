@@ -8,7 +8,7 @@ import aiohttp
 import pytest
 
 from gatekeeper.openai_realtime import OpenAIRealtimeSession
-from gatekeeper.voice import ToolCall, ToolRoundComplete, TurnComplete
+from gatekeeper.voice import ToolCall, ToolRoundComplete, TurnComplete, Usage
 
 
 @pytest.fixture(autouse=True)
@@ -214,7 +214,14 @@ async def test_completed_multi_tool_batch_is_registered_atomically_and_keeps_ord
 
 
 async def test_fast_result_cannot_create_followup_before_tool_round_edge_is_consumed():
-    session = OpenAIRealtimeSession(api_key="k", tool_declarations=_TOOLS)
+    admitted: list[int | None] = []
+
+    async def admit(tokens: int | None) -> None:
+        admitted.append(tokens)
+
+    session = OpenAIRealtimeSession(
+        api_key="k", tool_declarations=_TOOLS, before_response_create=admit
+    )
     session._ws = _FakeWS(_proposal("fast"), _done())  # type: ignore[assignment]
     stream = session._iter_events()
 
@@ -232,6 +239,40 @@ async def test_fast_result_cannot_create_followup_before_tool_round_edge_is_cons
     except StopAsyncIteration:
         pass
     assert sum(message["type"] == "response.create" for message in session._ws.sent) == 1
+    assert admitted == [6_000]
+
+
+async def test_delayed_result_preserves_exact_context_bound_until_followup_create():
+    admitted: list[int | None] = []
+
+    async def admit(tokens: int | None) -> None:
+        admitted.append(tokens)
+
+    done = _done()
+    done["response"]["usage"] = {
+        "input_token_details": {"text_tokens": 5_000, "audio_tokens": 0},
+        "output_token_details": {"text_tokens": 100, "audio_tokens": 0},
+    }
+    session = OpenAIRealtimeSession(
+        api_key="k", tool_declarations=_TOOLS, before_response_create=admit
+    )
+    session._ws = _FakeWS(_proposal("delayed"), done)  # type: ignore[assignment]
+    stream = session._iter_events()
+
+    assert isinstance(await anext(stream), Usage)
+    assert await anext(stream) == _call("delayed")
+    assert isinstance(await anext(stream), ToolRoundComplete)
+    # The parser has published the marker; the consumer now returns the result in
+    # normal queue order (not the fast-before-marker permutation above).
+    await session.send_tool_results(
+        [{"id": "delayed", "name": "get_time", "response": {"ok": True}}]
+    )
+    with pytest.raises(StopAsyncIteration):
+        await anext(stream)
+
+    assert admitted == [5_000 + 100 + 2_048 + 1_024 + 512]
+    assert sum(message["type"] == "response.create" for message in session._ws.sent) == 1
+    session._cancel_ack_watchdogs()
 
 
 async def test_pure_wait_batch_gets_the_same_exact_commit_edge_before_result():

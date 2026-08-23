@@ -114,7 +114,9 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
     en separat throwaway Response, probelease eller probesession. `rate_limits.updated`
     er kun valgfri pacingtelemetri: fravær eller malformed data vælger et nyt
     konservativt lokalt vindue og må aldrig genbruge gammel providerautoritet. Typet
-    usage på alle semantiske responsekanter, tre-kanters turnloft, hard deadline
+    usage på alle semantiske responsekanter, atomisk kontinuerlig TPM-pacing lige før
+    hver klientstyret `response.create` (også tool-resultat/follow-up), tre-kanters
+    turnloft, hard deadline
     og det prospektive prisloft er de bindende evalgrænser. En provider-429/capacity
     stopper hele diagnostikken særskilt og terminalt uden automatisk retry, næste
     scenarie eller sideeffekt.

@@ -90,10 +90,11 @@ def _full_profile_deadline_s() -> float:
     scenarios = load_scenarios()
     sessions = len(scenarios)
     turns = sum(len(scenario.turns) for scenario in scenarios)
-    # A nearly-full turn can require a reset before the next turn even when both
-    # turns share one Realtime session. Bound every inter-turn edge, not just fresh
-    # scenario sockets.
-    reset_waits = max(0, turns - 1) * LIVE_EVAL_RESET_GAP_S
+    # Pacing is enforced at every response.create, including up to two tool-result
+    # edges inside one user turn.  The hard deadline must therefore bound inter-edge
+    # waits, not merely inter-turn waits (v1.13.30 field 429).
+    response_edges = turns * MAX_EVAL_RESPONSE_EDGES_PER_TURN
+    reset_waits = max(0, response_edges - 1) * LIVE_EVAL_RESET_GAP_S
     provider_edges = sessions * C.CONNECT_TIMEOUT_S
     return reset_waits + turns * LIVE_EVAL_TURN_TIMEOUT_S + provider_edges + 30.0
 
@@ -219,6 +220,13 @@ class ConversationDriver(Protocol):
     async def submit_text(self, *, turn_id: str, text: str) -> TurnObservation: ...
 
     async def close(self) -> None: ...
+
+
+@dataclass(frozen=True)
+class _CapacityWaitStarted:
+    """Internal wake-up edge; never part of the provider/semantic transcript."""
+
+    seconds: float
 
 
 def _load_eval_manifest(path: pathlib.Path = SCENARIOS_PATH) -> dict[str, Any]:
@@ -972,8 +980,16 @@ async def run_scenario(
                 prepare_capacity = getattr(driver, "prepare_response_capacity", None)
                 if prepare_capacity is not None:
                     await prepare_capacity()
-                async with asyncio.timeout(turn_timeout_s):
-                    observed = await driver.submit_text(turn_id=turn_id, text=turn.text)
+                submit_bounded = getattr(driver, "submit_text_bounded", None)
+                if submit_bounded is not None:
+                    observed = await submit_bounded(
+                        turn_id=turn_id,
+                        text=turn.text,
+                        semantic_timeout_s=turn_timeout_s,
+                    )
+                else:
+                    async with asyncio.timeout(turn_timeout_s):
+                        observed = await driver.submit_text(turn_id=turn_id, text=turn.text)
             except TimeoutError:
                 observed = TurnObservation(
                     turn_id=turn_id,
@@ -1063,22 +1079,23 @@ class LiveRealtimeDriver:
         self._capacity_monotonic = capacity_monotonic
         self._capacity_deadline = capacity_deadline
         self._capacity_wait_observer = capacity_wait_observer
+        self._capacity_wait_credit_s = 0.0
         self.session: _ReadyRealtimeSession | None = None
         self.events: asyncio.Queue[Any] = asyncio.Queue()
         self.reader: asyncio.Task[None] | None = None
         self.session_id = ""
         self.is_open = False
 
-    async def prepare_response_capacity(self) -> None:
+    async def prepare_response_capacity(self, tokens: int | None = None) -> None:
         """Renew one eval response allowance, waiting for at most one known reset.
 
         This runs before the semantic turn timeout while the key-global diagnostic
         owner keeps Voice PE and Talk in explicit maintenance mode.
         """
         lease = self.budget_lease
-        if lease is None or self.provider_budget.ensure_response_capacity(lease):
+        if lease is None or self.provider_budget.ensure_response_capacity(lease, tokens):
             return
-        wait_s = self.provider_budget.response_retry_after(lease)
+        wait_s = self.provider_budget.response_retry_after(lease, tokens)
         if wait_s is None:
             raise ProviderBudgetUnavailable(
                 "rate_limit_capacity · eval response cannot preserve production headroom"
@@ -1091,10 +1108,16 @@ class LiveRealtimeDriver:
                     "rate_limit_capacity · provider reset wait exceeds the live eval deadline"
                 )
         if wait_s > 0:
+            # Credit the wait before sleeping.  A deferred tool-result create runs in
+            # the provider reader while _collect_turn is waiting on its queue; this
+            # private edge wakes that waiter so provider reset time is excluded from
+            # the 20 s semantic-response timeout but remains inside the whole-run cap.
+            self._capacity_wait_credit_s += wait_s
+            self.events.put_nowait(_CapacityWaitStarted(wait_s))
             await self._capacity_sleep(wait_s)
             if self._capacity_wait_observer is not None:
                 self._capacity_wait_observer(wait_s)
-        if not self.provider_budget.ensure_response_capacity(lease):
+        if not self.provider_budget.ensure_response_capacity(lease, tokens):
             raise ProviderBudgetUnavailable(
                 "rate_limit_capacity · eval response cannot preserve production headroom"
             )
@@ -1115,6 +1138,7 @@ class LiveRealtimeDriver:
             room_context=self.room_context,
             tool_declarations=self.tools.declarations(),
             provider_budget=self.provider_budget,
+            before_response_create=self.prepare_response_capacity,
         )
         # Base dataclass does not invoke a subclass post-init unless declared there.
         self.session.ready = asyncio.Event()
@@ -1149,6 +1173,24 @@ class LiveRealtimeDriver:
         try:
             await self.session.send_text(text)
             return await self._collect_turn(turn_id=turn_id, started=started)
+        finally:
+            self.tools.finish_turn()
+
+    async def submit_text_bounded(
+        self, *, turn_id: str, text: str, semantic_timeout_s: float
+    ) -> TurnObservation:
+        """Submit typed eval input with reset pacing excluded from semantic timeout."""
+        if not self.is_open or self.session is None:
+            raise RuntimeError("live eval session is not open")
+        started = time.monotonic()
+        self.tools.begin_turn(turn_id)
+        try:
+            await self.session.send_text(text)
+            return await self._collect_turn(
+                turn_id=turn_id,
+                started=started,
+                semantic_timeout_s=semantic_timeout_s,
+            )
         finally:
             self.tools.finish_turn()
 
@@ -1245,7 +1287,13 @@ class LiveRealtimeDriver:
         await session.send_tool_results(responses)
         observed.fixture_side_effects = self.tools.fixture_side_effects
 
-    async def _collect_turn(self, *, turn_id: str, started: float) -> TurnObservation:
+    async def _collect_turn(
+        self,
+        *,
+        turn_id: str,
+        started: float,
+        semantic_timeout_s: float | None = None,
+    ) -> TurnObservation:
         session = self.session
         if session is None:
             raise RuntimeError("live eval session is not open")
@@ -1255,8 +1303,23 @@ class LiveRealtimeDriver:
         tool_round_seen = False
         response_edges = 0
         pending_batches: dict[str, dict[int, ToolCall]] = {}
+        capacity_credit_at_start = self._capacity_wait_credit_s
+        semantic_deadline = (
+            self._capacity_monotonic() + semantic_timeout_s
+            if semantic_timeout_s is not None
+            else None
+        )
         while True:
-            event = await self.events.get()
+            if semantic_deadline is None:
+                event = await self.events.get()
+            else:
+                wait_credit = self._capacity_wait_credit_s - capacity_credit_at_start
+                remaining = semantic_deadline + wait_credit - self._capacity_monotonic()
+                if remaining <= 0:
+                    raise TimeoutError
+                event = await asyncio.wait_for(self.events.get(), timeout=remaining)
+            if isinstance(event, _CapacityWaitStarted):
+                continue
             if isinstance(event, Exception):
                 observed.error = str(event)
                 observed.response_status = "failed"

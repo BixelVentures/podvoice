@@ -76,10 +76,16 @@ rate-limit-isolation. Hver eval-/replay-prøve må kun starte under den eksakte
 nøglebrede diagnostiklås, når ingen produktion er aktiv. Første sideeffektfrie
 semantiske response er preflight; der findes ingen separat providerprobe eller
 throwaway Response.
-`rate_limits.updated` er valgfri pacingtelemetri: en gyldig event kan forbedre
-remaining/reset-pacing, mens en manglende eller malformed event vælger et nyt
-konservativt lokalt 40.000-token/60-sekunders vindue og aldrig genbruger et ældre
-providersnapshot. Kun én eval-prøve kan have reservationen ad gangen.
+`rate_limits.updated` er valgfri pacingtelemetri: en gyldig event forankrer den aktuelle
+remaining-værdi, mens en manglende eller malformed event bruger den samme kørsels nye
+konservative lokale tilstand og aldrig genbruger et ældre providersnapshot. Refill
+beregnes kontinuerligt fra det dokumenterede TPM-loft pr. 60 sekunder;
+`reset_seconds` er ikke en refill-hastighed. Kapaciteten genbekræftes atomisk umiddelbart
+før hver klientstyret `response.create`, også tool-resultat og efterfølgende tool-loop.
+En nødvendig refillventetid tæller i kørselsdeadline og vises i rapporten, men trækkes
+fra den enkelte responses 20-sekunders semantiske timeout. Kun én eval-prøve kan have
+reservationen ad gangen. Den mekaniske worst case med 36 responsekanter giver et synligt
+hard deadline-loft på omtrent 41 minutter; normal kørsel er typisk væsentligt kortere.
 `response.done`-usage debiterer både input-/outputtekst og -lyd; en gyldig
 rate-limit-event afstemmer remaining/reset med et monotont ur.
 Reconnect, fejl og teardown frigiver kun deres egen generation én gang. Eval genkører

@@ -33,8 +33,10 @@ class BudgetLease:
 @dataclass
 class _Bucket:
     limit: int
-    remaining: int
+    remaining: float
     reset_at: float
+    refill_at: float
+    refill_per_s: float
     authoritative: bool = False
     production: dict[str, int] = field(default_factory=dict)
     production_caps: dict[str, int] = field(default_factory=dict)
@@ -110,8 +112,10 @@ class ProviderBudgetCoordinator:
                 self._bucket_key_ids.pop(stale, None)
             bucket = _Bucket(
                 limit=self._default_limit,
-                remaining=self._default_limit,
+                remaining=float(self._default_limit),
                 reset_at=now + self._window_s,
+                refill_at=now,
+                refill_per_s=self._default_limit / self._window_s,
             )
             self._buckets[bucket_id] = bucket
             self._bucket_key_ids[bucket_id] = self._key_id(api_key)
@@ -147,13 +151,26 @@ class ProviderBudgetCoordinator:
         return sum(bucket.production.values()) + sum(bucket.eval_reservations.values())
 
     def _roll_window(self, bucket: _Bucket, now: float) -> None:
-        if now >= bucket.reset_at:
-            bucket.remaining = bucket.limit
+        """Continuously refill the provider's rolling token bucket.
+
+        The field 429 ``used=34805 requested=5769 retry=0.861`` at a 40k/min
+        limit is exact token-bucket arithmetic (574 / 666.67).  Treating reset as
+        an all-at-once epoch made local capacity jump to 40k while newer response
+        usage was still inside the provider's rolling minute.
+        """
+        elapsed = max(0.0, now - bucket.refill_at)
+        if elapsed > 0:
+            bucket.remaining = min(
+                float(bucket.limit),
+                bucket.remaining + elapsed * bucket.refill_per_s,
+            )
+            bucket.refill_at = now
+        if bucket.refill_per_s > 0:
+            bucket.reset_at = now + max(
+                0.0, (float(bucket.limit) - bucket.remaining) / bucket.refill_per_s
+            )
+        else:
             bucket.reset_at = now + self._window_s
-            # Session ownership survives a provider token-window reset; only its
-            # response allowance renews to the originally admitted bound.
-            bucket.production = dict(bucket.production_caps)
-            bucket.eval_reservations = dict(bucket.eval_caps)
 
     def _diagnostic_child_active(self, key_id: str) -> bool:
         return any(
@@ -239,6 +256,8 @@ class ProviderBudgetCoordinator:
                 bucket.limit = self._default_limit
                 bucket.remaining = self._default_limit
                 bucket.reset_at = now + self._window_s
+                bucket.refill_at = now
+                bucket.refill_per_s = self._default_limit / self._window_s
                 bucket.authoritative = False
                 owner.initialized_buckets.add(bucket_id)
             if bucket.production:
@@ -290,6 +309,8 @@ class ProviderBudgetCoordinator:
                 bucket.limit = self._default_limit
                 bucket.remaining = self._default_limit
                 bucket.reset_at = now + self._window_s
+                bucket.refill_at = now
+                bucket.refill_per_s = self._default_limit / self._window_s
                 bucket.authoritative = False
                 owner.initialized_buckets.add(bucket_id)
             if bucket.production or bucket.eval_reservations:
@@ -297,7 +318,12 @@ class ProviderBudgetCoordinator:
             available = max(0, bucket.remaining - self._reserved(bucket))
             if available >= tokens + production_headroom:
                 return 0.0
-            return max(0.0, bucket.reset_at - now)
+            needed = float(tokens + production_headroom) - available
+            if needed <= 0:
+                return 0.0
+            if bucket.refill_per_s <= 0:
+                return None
+            return needed / bucket.refill_per_s
 
     def release(self, lease: BudgetLease | None) -> bool:
         """Release exactly once.  Stale generations become harmless no-ops."""
@@ -435,7 +461,12 @@ class ProviderBudgetCoordinator:
             other = self._reserved(bucket) - owned
             if bucket.remaining - other - protected >= target:
                 return 0.0
-            return max(0.0, bucket.reset_at - now)
+            needed = float(target) - (bucket.remaining - other - protected)
+            if needed <= 0:
+                return 0.0
+            if bucket.refill_per_s <= 0:
+                return None
+            return needed / bucket.refill_per_s
 
     def account_usage(
         self,
@@ -459,6 +490,10 @@ class ProviderBudgetCoordinator:
             _bucket_id, bucket = self._bucket(api_key, model, now)
             if not provider_reservation_observed:
                 bucket.remaining = max(0, bucket.remaining - int(tokens))
+                if bucket.refill_per_s > 0:
+                    bucket.reset_at = (
+                        now + (float(bucket.limit) - bucket.remaining) / bucket.refill_per_s
+                    )
             if lease is not None and lease.bucket_id == _bucket_id and lease.role == "production":
                 owned = bucket.production.get(lease.lease_id)
                 if owned is not None:
@@ -501,8 +536,18 @@ class ProviderBudgetCoordinator:
         with self._lock:
             _bucket_id, bucket = self._bucket(api_key, model, now)
             bucket.limit = limit
-            bucket.remaining = min(limit, remaining)
-            bucket.reset_at = now + reset_s
+            bucket.remaining = float(min(limit, remaining))
+            bucket.refill_at = now
+            # ``reset_seconds`` is not a refill slope.  OpenAI's documented example
+            # can report 50k limit / 49,950 remaining / reset 60; deriving a rate from
+            # that delta would yield an impossible 0.833 tokens/s.  TPM itself defines
+            # the bounded rolling refill rate.
+            bucket.refill_per_s = limit / self._window_s if limit > 0 else 0.0
+            bucket.reset_at = now + (
+                (limit - bucket.remaining) / bucket.refill_per_s
+                if bucket.refill_per_s > 0
+                else reset_s
+            )
             bucket.authoritative = True
         return True
 
@@ -513,7 +558,7 @@ class ProviderBudgetCoordinator:
             _bucket_id, bucket = self._bucket(api_key, model, now)
             return {
                 "limit": bucket.limit,
-                "remaining": bucket.remaining,
+                "remaining": int(bucket.remaining),
                 "reset_in_s": max(0.0, bucket.reset_at - now),
                 "authoritative": bucket.authoritative,
                 "production_sessions": len(bucket.production),

@@ -127,7 +127,7 @@ def test_authoritative_remaining_must_fit_eval_and_production_headroom():
         )
 
 
-def test_monotonic_provider_reset_reopens_budget_without_wall_clock():
+def test_monotonic_provider_budget_refills_continuously_without_wall_clock():
     clock = Clock()
     ledger = coordinator(clock)
     ledger.update_rate_limits(
@@ -138,9 +138,77 @@ def test_monotonic_provider_reset_reopens_budget_without_wall_clock():
     assert ledger.snapshot("secret", "model")["authoritative"] is True
     clock.now += 5.1
     snapshot = ledger.snapshot("secret", "model")
-    assert snapshot["remaining"] == 40_000
+    assert snapshot["remaining"] == pytest.approx(4_400, abs=1)
+    clock.now += 54
+    assert ledger.snapshot("secret", "model")["remaining"] == 40_000
     assert snapshot["authoritative"] is True
     assert admit_eval(ledger, tokens=10_000, production_headroom=15_000)
+
+
+def test_field_429_math_uses_continuous_refill_and_exact_retry_delay():
+    """v1.13.30: 40k - 34,805 used left 5,195; next edge needed 5,769."""
+    clock = Clock()
+    ledger = coordinator(clock)
+    owner = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret",
+        "model",
+        tokens=15_000,
+        production_headroom=0,
+        diagnostic_lease=owner,
+    )
+    ledger.account_usage("secret", "model", 34_805, lease=lease)
+
+    assert ledger.ensure_response_capacity(lease, 5_769) is False
+    assert ledger.response_retry_after(lease, 5_769) == pytest.approx(574 / (40_000 / 60))
+    clock.now += 574 / (40_000 / 60)
+    assert ledger.ensure_response_capacity(lease, 5_769) is True
+
+
+def test_provider_reset_seconds_never_changes_the_tpm_refill_slope():
+    clock = Clock()
+    ledger = coordinator(clock)
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 50_000, "remaining": 49_950, "reset_seconds": 60}],
+    )
+    clock.now += 1
+    # OpenAI's near-full/60s example must refill at 50k TPM, not delta/reset=.833/s.
+    assert ledger.snapshot("secret", "model")["remaining"] == 50_000
+
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 5_195, "reset_seconds": 0.861}],
+    )
+    clock.now += 0.861
+    # A short reset hint cannot be interpreted as refilling all 34,805 tokens.
+    assert ledger.snapshot("secret", "model")["remaining"] == 5_769
+
+
+def test_later_debits_extend_rolling_refill_without_epoch_jump():
+    clock = Clock()
+    ledger = coordinator(clock)
+    owner = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret",
+        "model",
+        tokens=15_000,
+        production_headroom=0,
+        diagnostic_lease=owner,
+    )
+    ledger.account_usage("secret", "model", 30_000, lease=lease)
+    clock.now += 30
+    assert ledger.snapshot("secret", "model")["remaining"] == 30_000
+    ledger.account_usage("secret", "model", 20_000, lease=lease)
+    clock.now += 30
+    # The second debit is still in the rolling minute.  The former epoch model
+    # incorrectly jumped to 40k here.
+    assert ledger.snapshot("secret", "model")["remaining"] == 30_000
+    ledger.account_usage("secret", "model", 5_000, lease=lease)
+    clock.now += 1
+    assert ledger.snapshot("secret", "model")["remaining"] == 25_666
 
 
 def test_stale_teardown_releases_exactly_once():
@@ -260,7 +328,11 @@ def test_provider_reset_replenishes_response_allowance_without_reopening_ownersh
     snapshot = ledger.snapshot("secret", "model")
 
     assert snapshot["production_sessions"] == 1
-    assert snapshot["reserved_tokens"] == 15_000
+    # Ownership survives; allowance is renewed atomically only when the next
+    # response edge asks for it.
+    assert snapshot["reserved_tokens"] == 3_000
+    assert ledger.ensure_response_capacity(production) is True
+    assert ledger.snapshot("secret", "model")["reserved_tokens"] == 15_000
     with pytest.raises(ProviderBudgetUnavailable, match="another production"):
         ledger.production_started("secret", "model")
 
@@ -337,8 +409,9 @@ def test_eval_multi_turn_allowance_renews_on_exact_authoritative_reset():
             "secret", "model", 14_000, lease=evaluation, provider_reservation_observed=True
         )
         assert ledger.ensure_response_capacity(evaluation) is False
-        assert ledger.response_retry_after(evaluation) == pytest.approx(60.0)
-        clock.now += 60.1
+        retry = 4_000 / (40_000 / 60)
+        assert ledger.response_retry_after(evaluation) == pytest.approx(retry)
+        clock.now += retry + 0.1
         assert ledger.ensure_response_capacity(evaluation) is True
         assert ledger.snapshot("secret", "model")["reserved_tokens"] == 15_000
 
@@ -358,12 +431,13 @@ def test_physical_session_fails_fast_during_eval_response_reset_wait():
     ledger.account_usage(
         "secret", "model", 14_000, lease=evaluation, provider_reservation_observed=True
     )
-    assert ledger.response_retry_after(evaluation) == pytest.approx(60.0)
+    retry = 4_000 / (40_000 / 60)
+    assert ledger.response_retry_after(evaluation) == pytest.approx(retry)
 
     with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
         ledger.production_started("secret", "model")
-    assert ledger.response_retry_after(evaluation) == pytest.approx(60.0)
-    clock.now += 60.1
+    assert ledger.response_retry_after(evaluation) == pytest.approx(retry)
+    clock.now += retry + 0.1
     assert ledger.ensure_response_capacity(evaluation) is True
     assert ledger.release(evaluation) is True
 
