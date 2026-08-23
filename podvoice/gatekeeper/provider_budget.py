@@ -428,6 +428,41 @@ class ProviderBudgetCoordinator:
                 table[lease.lease_id] = target
             return True
 
+    def clamp_unobserved_eval_completion(self, lease: BudgetLease) -> dict[str, int | float | str]:
+        """Fail-safe an eval edge when its completed-response rate seam is unresolved.
+
+        A deferred tool-result create can run inside the provider reader before that
+        reader consumes a queued late absolute snapshot.  Rather than guessing a
+        millisecond drain delay, maintenance-mode eval assumes zero remaining tokens;
+        the existing bounded refill wait and mandatory recheck then prove the next
+        edge. Production never calls this seam.
+        """
+        now = self._monotonic()
+        with self._lock:
+            bucket = self._buckets.get(lease.bucket_id)
+            if (
+                bucket is None
+                or lease.role != "eval"
+                or lease.lease_id not in bucket.eval_reservations
+            ):
+                return {"reason": "inactive_eval_lease"}
+            self._roll_window(bucket, now)
+            before = bucket.remaining
+            bucket.remaining = 0.0
+            bucket.refill_at = now
+            bucket.reset_at = (
+                now + bucket.limit / bucket.refill_per_s
+                if bucket.refill_per_s > 0
+                else now + self._window_s
+            )
+            return {
+                "reason": "unobserved_completion_clamped",
+                "remaining_before": round(before, 3),
+                "remaining_after": 0,
+                "limit": bucket.limit,
+                "refill_per_s": round(bucket.refill_per_s, 6),
+            }
+
     def ensure_response_capacity_observed(
         self, lease: BudgetLease, tokens: int | None = None
     ) -> tuple[bool, dict[str, int | float | bool | str | None]]:
@@ -667,6 +702,8 @@ class ProviderBudgetCoordinator:
         api_key: str,
         model: str,
         limits: list[dict],
+        *,
+        downward_only: bool = False,
     ) -> bool:
         """Ingest the provider's token limit using a monotonic reset deadline."""
         token_limit = next(
@@ -695,12 +732,19 @@ class ProviderBudgetCoordinator:
         now = self._monotonic()
         with self._lock:
             _bucket_id, bucket = self._bucket(api_key, model, now)
-            bucket.limit = limit
-            bucket.remaining = float(min(limit, remaining))
+            effective_limit = min(bucket.limit, limit) if downward_only else limit
+            bucket.limit = effective_limit
+            observed_remaining = float(min(effective_limit, remaining))
+            bucket.remaining = (
+                min(bucket.remaining, observed_remaining) if downward_only else observed_remaining
+            )
             bucket.refill_at = now
-            bucket.refill_per_s = limit / self._window_s if limit > 0 else 0.0
+            observed_refill = effective_limit / self._window_s if effective_limit > 0 else 0.0
+            bucket.refill_per_s = (
+                min(bucket.refill_per_s, observed_refill) if downward_only else observed_refill
+            )
             bucket.reset_at = now + (
-                (limit - bucket.remaining) / bucket.refill_per_s
+                (effective_limit - bucket.remaining) / bucket.refill_per_s
                 if bucket.refill_per_s > 0
                 else reset_s
             )
@@ -708,7 +752,12 @@ class ProviderBudgetCoordinator:
         return True
 
     def update_rate_limits_observed(
-        self, api_key: str, model: str, limits: list[dict]
+        self,
+        api_key: str,
+        model: str,
+        limits: list[dict],
+        *,
+        downward_only: bool = False,
     ) -> tuple[bool, dict[str, int | float | bool | str | None]]:
         """Ingest rate telemetry and return its exact atomic ledger transition."""
         token_limit = next(
@@ -739,24 +788,33 @@ class ProviderBudgetCoordinator:
             _bucket_id, bucket = self._bucket(api_key, model, now)
             before_remaining = bucket.remaining
             before_authoritative = bucket.authoritative
-            bucket.limit = limit
-            bucket.remaining = float(min(limit, remaining))
+            effective_limit = min(bucket.limit, limit) if downward_only else limit
+            bucket.limit = effective_limit
+            observed_remaining = float(min(effective_limit, remaining))
+            bucket.remaining = (
+                min(bucket.remaining, observed_remaining) if downward_only else observed_remaining
+            )
             bucket.refill_at = now
             # ``reset_seconds`` is not a refill slope.  OpenAI's documented example
             # can report 50k limit / 49,950 remaining / reset 60; deriving a rate from
             # that delta would yield an impossible 0.833 tokens/s.  TPM itself defines
             # the bounded rolling refill rate.
-            bucket.refill_per_s = limit / self._window_s if limit > 0 else 0.0
+            observed_refill = effective_limit / self._window_s if effective_limit > 0 else 0.0
+            bucket.refill_per_s = (
+                min(bucket.refill_per_s, observed_refill) if downward_only else observed_refill
+            )
             bucket.reset_at = now + (
-                (limit - bucket.remaining) / bucket.refill_per_s
+                (effective_limit - bucket.remaining) / bucket.refill_per_s
                 if bucket.refill_per_s > 0
                 else reset_s
             )
             bucket.authoritative = True
             return True, {
-                "reason": "accepted",
-                "limit": limit,
+                "reason": "accepted_downward_anchor" if downward_only else "accepted",
+                "limit": effective_limit,
+                "observed_limit": limit,
                 "remaining": remaining,
+                "downward_only": downward_only,
                 "reset_seconds": reset_s,
                 "ledger_remaining_before": round(before_remaining, 3),
                 "ledger_remaining_after": round(bucket.remaining, 3),

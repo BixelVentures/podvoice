@@ -317,6 +317,11 @@ class OpenAIRealtimeSession:
         default_factory=dict, init=False, repr=False
     )
     _schema_correction_used: bool = field(default=False, init=False, repr=False)
+    # A rate event has no response id.  Exactly one valid, event-id-bearing token
+    # snapshot may conservatively lower the ledger after a completed response, but
+    # only until any newer response.create attempt starts in the same generation.
+    _late_rate_anchor_generation: int | None = field(default=None, init=False, repr=False)
+    _late_rate_anchor_response_id: str | None = field(default=None, init=False, repr=False)
     # Duplicate/out-of-order terminal events and call-id reuse must stay inert for
     # the whole socket lifetime. Histories are bounded well above realistic 60-minute
     # session volume so malformed peers cannot grow memory without limit.
@@ -548,6 +553,8 @@ class OpenAIRealtimeSession:
         self._staged_tool_calls.clear()
         self._invalid_tool_responses.clear()
         self._schema_correction_used = False
+        self._late_rate_anchor_generation = None
+        self._late_rate_anchor_response_id = None
         self._terminal_responses.clear()
         self._seen_tool_call_ids.clear()
         self._tool_round_edge_pending = False
@@ -720,12 +727,14 @@ class OpenAIRealtimeSession:
             return "invalid"
         return value
 
-    def _record_rate_limits(self, event: dict) -> bool:
-        accepted, _observation = self._record_rate_limits_observed(event)
+    def _record_rate_limits(self, event: dict, *, downward_only: bool = False) -> bool:
+        accepted, _observation = self._record_rate_limits_observed(
+            event, downward_only=downward_only
+        )
         return accepted
 
     def _record_rate_limits_observed(
-        self, event: dict
+        self, event: dict, *, downward_only: bool = False
     ) -> tuple[bool, dict[str, int | float | bool | str | None]]:
         limits = event.get("rate_limits") or []
         for limit in limits:
@@ -733,7 +742,10 @@ class OpenAIRealtimeSession:
                 continue
             self._rate_limits[str(limit["name"])] = dict(limit)
         return self.provider_budget.update_rate_limits_observed(
-            self.api_key, self.model, list(limits)
+            self.api_key,
+            self.model,
+            list(limits),
+            downward_only=downward_only,
         )
 
     def _arm_ack_watchdog(self, event_id: str, label: str) -> None:
@@ -873,11 +885,32 @@ class OpenAIRealtimeSession:
         if self._ws is None or bool(getattr(self._ws, "closed", False)):
             raise ConnectionError("OpenAI realtime socket closed before response creation")
         requested_capacity = self._next_response_capacity_tokens
-        if self.before_response_create is not None:
-            # The callback must finish before request correlation is registered or any
-            # billable frame is sent.  Failure is terminal; this layer never retries a
-            # rejected/completed provider edge.
-            await self.before_response_create(requested_capacity)
+        if (
+            self.budget_role == "eval"
+            and self.budget_lease is not None
+            and self._late_rate_anchor_generation == self._connection_generation
+            and self._late_rate_anchor_response_id is not None
+        ):
+            clamp = self.provider_budget.clamp_unobserved_eval_completion(self.budget_lease)
+            if self.provider_observer is not None:
+                self._observe_provider(
+                    "unobserved_completion_capacity_clamp",
+                    response_id=self._late_rate_anchor_response_id,
+                    atomic=clamp,
+                )
+        try:
+            if self.before_response_create is not None:
+                # Keep the one-shot late snapshot seam open while a bounded capacity
+                # wait is actually suspended. Its mandatory final recheck then sees
+                # the newest downward anchor. An admitted callback returns without an
+                # interleaving await at this layer.
+                await self.before_response_create(requested_capacity)
+        finally:
+            # This is the atomic admission boundary: invalidate before request
+            # registration, wire I/O, or an exception escaping. A later send failure
+            # or correlated provider rejection can never reopen the old seam.
+            self._late_rate_anchor_generation = None
+            self._late_rate_anchor_response_id = None
         if self._ws is None or bool(getattr(self._ws, "closed", False)):
             raise ConnectionError("OpenAI realtime socket closed during response admission")
         request_id = f"pv_response_{uuid.uuid4().hex[:16]}"
@@ -1089,6 +1122,8 @@ class OpenAIRealtimeSession:
                 self._staged_tool_calls.clear()
                 self._invalid_tool_responses.clear()
                 self._schema_correction_used = False
+                self._late_rate_anchor_generation = None
+                self._late_rate_anchor_response_id = None
                 self._terminal_responses.clear()
                 self._seen_tool_call_ids.clear()
                 self._tool_round_edge_pending = False
@@ -1300,7 +1335,10 @@ class OpenAIRealtimeSession:
         pending_response_rate_observations = 0
         response_rate_observations: dict[str, int] = {}
         last_done_response_id: str | None = None
+        last_done_status: str | None = None
         last_done_at: float | None = None
+        late_rate_anchored_response_id: str | None = None
+        seen_rate_event_ids: set[str] = set()
         async for msg in ws:
             if generation is not None and generation != self._connection_generation:
                 return
@@ -1312,6 +1350,8 @@ class OpenAIRealtimeSession:
                 continue
             t = ev.get("type")
             if t == "response.created":
+                self._late_rate_anchor_generation = None
+                self._late_rate_anchor_response_id = None
                 self._active_response = True
                 cur_rid = _rid(ev)
                 if pending_response_rate_observations:
@@ -1512,7 +1552,16 @@ class OpenAIRealtimeSession:
                 pending_response_rate_observations = 0
                 cur_rid = None
                 last_done_response_id = rid
+                last_done_status = status
                 last_done_at = time.monotonic() if self.provider_observer is not None else None
+                if status == "completed":
+                    self._late_rate_anchor_generation = (
+                        generation if generation is not None else self._connection_generation
+                    )
+                    self._late_rate_anchor_response_id = rid
+                else:
+                    self._late_rate_anchor_generation = None
+                    self._late_rate_anchor_response_id = None
                 staged_calls = self._staged_tool_calls.pop(rid, {})
                 production_lease = (
                     self._budget_production_leases.get(generation)
@@ -1827,45 +1876,99 @@ class OpenAIRealtimeSession:
             elif t == "session.updated":
                 await self._accept_session_update()
             elif t == "rate_limits.updated":
-                # A valid update can precede response.created, but only after our
-                # response.create is pending.  An unsolicited pre-send or late
-                # post-terminal event must not refill a later edge from stale data.
+                # The event has no response id.  Normal start-position telemetry is
+                # accepted only before any prior terminal can make it ambiguous.  One
+                # valid snapshot after a completed response, with no newer create
+                # pending/active, may conservatively lower (never raise) the absolute
+                # ledger.  It is not retroactively attributed to either response.
+                pending_count = len(self._pending_response_creates)
+                active = self._active_response and cur_rid not in (None, "?")
+                rate_event_id = str(ev.get("event_id") or "")
+                duplicate_event_id = bool(rate_event_id and rate_event_id in seen_rate_event_ids)
+                rate_history_available = len(seen_rate_event_ids) < _PROTOCOL_HISTORY_MAX
+                if rate_event_id and not duplicate_event_id and rate_history_available:
+                    seen_rate_event_ids.add(rate_event_id)
+                stream_generation = (
+                    generation if generation is not None else self._connection_generation
+                )
+                late_completion_position = bool(
+                    last_done_response_id is not None
+                    and last_done_status == "completed"
+                    and not active
+                    and pending_count == 0
+                    and self._late_rate_anchor_generation == stream_generation
+                    and self._late_rate_anchor_response_id == last_done_response_id
+                    and late_rate_anchored_response_id != last_done_response_id
+                    and bool(rate_event_id)
+                )
+                ambiguous_after_done = bool(
+                    last_done_response_id is not None and (active or pending_count)
+                )
                 rate_is_positional = bool(
-                    (self._active_response and cur_rid not in (None, "?"))
-                    or self._pending_response_creates
+                    not duplicate_event_id
+                    and rate_history_available
+                    and (
+                        late_completion_position
+                        or active
+                        or (last_done_response_id is None and pending_count == 1)
+                    )
+                )
+                token_rate = next(
+                    (
+                        item
+                        for item in (ev.get("rate_limits") or [])
+                        if isinstance(item, dict) and item.get("name") == "tokens"
+                    ),
+                    None,
+                )
+                safe_token_rate = (
+                    {
+                        "limit": self._safe_rate_number(token_rate, "limit"),
+                        "remaining": self._safe_rate_number(token_rate, "remaining"),
+                        "reset_seconds": self._safe_rate_number(token_rate, "reset_seconds"),
+                    }
+                    if token_rate is not None
+                    else None
+                )
+                positional_rejection_reason = (
+                    "missing_tokens_rate"
+                    if token_rate is None
+                    else "malformed_tokens_rate"
+                    if safe_token_rate is not None
+                    and any(value in (None, "invalid") for value in safe_token_rate.values())
+                    else "positional_unaccepted"
                 )
                 accepted = False
                 rate_observation: dict[str, int | float | bool | str | None] = {
-                    "reason": "positional_unaccepted"
+                    "reason": positional_rejection_reason
                 }
                 if rate_is_positional:
                     if self.provider_observer is not None:
-                        accepted, rate_observation = self._record_rate_limits_observed(ev)
+                        accepted, rate_observation = self._record_rate_limits_observed(
+                            ev, downward_only=late_completion_position
+                        )
                     else:
-                        accepted = self._record_rate_limits(ev)
+                        accepted = self._record_rate_limits(
+                            ev, downward_only=late_completion_position
+                        )
                         rate_observation = {"reason": "observer_disabled"}
+                    if accepted and late_completion_position:
+                        late_rate_anchored_response_id = last_done_response_id
+                        self._late_rate_anchor_generation = None
+                        self._late_rate_anchor_response_id = None
                 if self.provider_observer is not None:
-                    pending_count = len(self._pending_response_creates)
                     position = (
-                        "active"
-                        if self._active_response and cur_rid not in (None, "?")
-                        else "ambiguous_multiple_pending"
+                        "ambiguous_multiple_pending"
                         if pending_count > 1
+                        else "active"
+                        if active
                         else "ambiguous_previous_or_next"
-                        if pending_count == 1 and last_done_response_id is not None
+                        if ambiguous_after_done
                         else "positional_before_created"
                         if pending_count == 1
                         else "late_after_done"
                         if last_done_response_id is not None
                         else "unsolicited"
-                    )
-                    token_rate = next(
-                        (
-                            item
-                            for item in (ev.get("rate_limits") or [])
-                            if isinstance(item, dict) and item.get("name") == "tokens"
-                        ),
-                        None,
                     )
                     prior_rate_count = (
                         response_rate_observations.get(str(cur_rid), 0)
@@ -1880,30 +1983,23 @@ class OpenAIRealtimeSession:
                         pending_response_creates=pending_count,
                         pending_request_ids=sorted(self._pending_response_creates)[:4],
                         previous_done_response_id=last_done_response_id,
+                        previous_done_status=last_done_status,
                         previous_done_age_ms=(
                             round((time.monotonic() - last_done_at) * 1000, 3)
                             if last_done_at is not None
                             else None
                         ),
                         accepted=accepted,
+                        rate_event_id=(rate_event_id or None),
+                        duplicate_event_id=duplicate_event_id,
                         positional_rate_count=(
                             prior_rate_count + 1 if accepted else prior_rate_count
                         ),
                         duplicate_positional=bool(accepted and prior_rate_count > 0),
-                        token_rate=(
-                            {
-                                "limit": self._safe_rate_number(token_rate, "limit"),
-                                "remaining": self._safe_rate_number(token_rate, "remaining"),
-                                "reset_seconds": self._safe_rate_number(
-                                    token_rate, "reset_seconds"
-                                ),
-                            }
-                            if token_rate is not None
-                            else None
-                        ),
+                        token_rate=safe_token_rate,
                         atomic=rate_observation,
                     )
-                if accepted:
+                if accepted and not late_completion_position:
                     if self._active_response and cur_rid not in (None, "?"):
                         response_rate_observations[cur_rid] = (
                             response_rate_observations.get(cur_rid, 0) + 1
@@ -2096,6 +2192,8 @@ class OpenAIRealtimeSession:
         self._staged_tool_calls.clear()
         self._invalid_tool_responses.clear()
         self._schema_correction_used = False
+        self._late_rate_anchor_generation = None
+        self._late_rate_anchor_response_id = None
         self._terminal_responses.clear()
         self._seen_tool_call_ids.clear()
         self._tool_round_edge_pending = False
