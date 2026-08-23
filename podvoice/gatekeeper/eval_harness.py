@@ -130,6 +130,7 @@ class TurnExpectation:
     answer_all: tuple[str, ...] = ()
     answer_patterns: tuple[str, ...] = ()
     tool_args: dict[str, dict[str, Any]] = field(default_factory=dict)
+    tool_args_any: dict[str, tuple[dict[str, Any], ...]] = field(default_factory=dict)
     tool_outcomes: dict[str, tuple[str, ...]] = field(default_factory=dict)
     fixture_side_effects: int | None = None
     remain_open: bool = True
@@ -337,6 +338,19 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
             answer_patterns = tuple(expected.get("answer_patterns") or ())
             for pattern in answer_patterns:
                 re.compile(pattern)
+            raw_tool_args = expected.get("tool_args") or {}
+            raw_tool_args_any = expected.get("tool_args_any") or {}
+            if not isinstance(raw_tool_args, dict) or not isinstance(raw_tool_args_any, dict):
+                raise ValueError(f"{scenario_id}: tool argument expectations must be objects")
+            if set(raw_tool_args).intersection(raw_tool_args_any):
+                raise ValueError(f"{scenario_id}: tool args cannot be both exact and any-of")
+            if any(
+                not isinstance(variants, list)
+                or not variants
+                or any(not isinstance(args, dict) for args in variants)
+                for variants in raw_tool_args_any.values()
+            ):
+                raise ValueError(f"{scenario_id}: tool_args_any requires non-empty object lists")
             turns.append(
                 EvalTurn(
                     text=text,
@@ -353,9 +367,10 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                         answer_any=tuple(expected.get("answer_any") or ()),
                         answer_all=tuple(expected.get("answer_all") or ()),
                         answer_patterns=answer_patterns,
-                        tool_args={
-                            str(name): dict(args)
-                            for name, args in (expected.get("tool_args") or {}).items()
+                        tool_args={str(name): dict(args) for name, args in raw_tool_args.items()},
+                        tool_args_any={
+                            str(name): tuple(dict(args) for args in variants)
+                            for name, variants in raw_tool_args_any.items()
                         },
                         tool_outcomes={
                             str(name): tuple(outcomes)
@@ -465,6 +480,16 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
                 Finding(
                     "wrong-tool-args",
                     f"Forventede {name} med {expected_args}, fik {actual_args or 'ingen kald'}.",
+                )
+            )
+    for name, allowed_args in expect.tool_args_any.items():
+        actual_args = observed.tool_args.get(name, [])
+        if len(actual_args) != 1 or actual_args[0] not in allowed_args:
+            findings.append(
+                Finding(
+                    "wrong-tool-args",
+                    f"Forventede ét {name}-kald med en eksplicit tilladt argumentdict, "
+                    f"fik {actual_args or 'ingen kald'}.",
                 )
             )
     for name, expected_outcomes in expect.tool_outcomes.items():
@@ -737,7 +762,7 @@ class SafeEvalTools:
                 ),
                 "parameters": {
                     "type": "object",
-                    "properties": {"name": {"type": "string"}},
+                    "properties": {"name": {"type": "string", "enum": ["hoveddøren"]}},
                     "required": ["name"],
                     "additionalProperties": False,
                 },
@@ -969,6 +994,17 @@ def _admit_eval_tools(
                 ]:
                     raise ValueError(
                         f"{scenario.id}: expected args for {name} lack an exact fixture case"
+                    )
+            for name, variants in turn.expect.tool_args_any.items():
+                expected_contract = contracts.get(name)
+                fixture_args = (
+                    [case.args for case in expected_contract.cases]
+                    if expected_contract is not None
+                    else []
+                )
+                if not variants or any(args not in fixture_args for args in variants):
+                    raise ValueError(
+                        f"{scenario.id}: allowed args for {name} lack exact fixture cases"
                     )
     return EvalToolAdmission(source, {name: contracts[name] for name in required})
 
@@ -1551,7 +1587,7 @@ class LiveRealtimeDriver:
                     observed.schema_corrections, 1
                 )
                 if response_edges >= allowed_edges:
-                    observed.error = "eval provider response-edge budget exhausted"
+                    observed.error = "eval model response-edge limit exhausted before final answer"
                     observed.response_status = "failed"
                     break
                 await self._dispatch_tool_batch(list(committed_batch.values()), observed)
@@ -1562,7 +1598,7 @@ class LiveRealtimeDriver:
                 response_edges += 1
                 observed.schema_corrections += 1
                 if response_edges >= MAX_EVAL_RESPONSE_EDGES_PER_TURN:
-                    observed.error = "eval provider response-edge budget exhausted"
+                    observed.error = "eval model response-edge limit exhausted before final answer"
                     observed.response_status = "failed"
                     break
                 await session.send_tool_results(
