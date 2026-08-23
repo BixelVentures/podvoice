@@ -165,6 +165,84 @@ def test_field_429_math_uses_continuous_refill_and_exact_retry_delay():
     assert ledger.ensure_response_capacity(lease, 5_769) is True
 
 
+def test_atomic_admission_observation_matches_the_exact_locked_decision():
+    clock = Clock()
+    ledger = coordinator(clock)
+    owner = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=owner
+    )
+    ledger.account_usage("secret", "model", 35_743, lease=lease)
+
+    admitted, row = ledger.ensure_response_capacity_observed(lease, 5_692)
+    wait_s, wait_row = ledger.response_retry_after_observed(lease, 5_692)
+    assert admitted is False
+    assert row == {
+        "reason": "insufficient_capacity",
+        "target_tokens": 5_692,
+        "limit": 40_000,
+        "remaining": 4_257.0,
+        "available": 4_257.0,
+        "owned_before": 0,
+        "owned_after": 0,
+        "reserved_total": 0,
+        "authoritative": False,
+    }
+    assert wait_s == pytest.approx(1_435 / (40_000 / 60))
+    assert wait_row["needed"] == 1_435.0
+    clock.now += wait_s
+    admitted, after = ledger.ensure_response_capacity_observed(lease, 5_692)
+    assert admitted is True
+    assert after["owned_after"] == 5_692
+
+
+@pytest.mark.parametrize(
+    "rate",
+    [
+        {"limit": True, "remaining": 1, "reset_seconds": 1},
+        {"limit": 40_000, "remaining": float("nan"), "reset_seconds": 1},
+        {"limit": 40_000, "remaining": 1, "reset_seconds": float("inf")},
+    ],
+)
+def test_atomic_rate_observation_rejects_bool_nan_and_inf(rate):
+    ledger = ProviderBudgetCoordinator()
+    accepted, row = ledger.update_rate_limits_observed(
+        "secret", "model", [{"name": "tokens", **rate}]
+    )
+    assert accepted is False
+    assert row == {"reason": "malformed_tokens_rate"}
+
+
+def test_observed_and_normal_budget_paths_are_state_equivalent():
+    clocks = [Clock(), Clock()]
+    normal, observed = (coordinator(clock) for clock in clocks)
+    owners = [item.diagnostic_started("secret") for item in (normal, observed)]
+    leases = [
+        item.reserve_eval(
+            "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=owner
+        )
+        for item, owner in zip((normal, observed), owners, strict=True)
+    ]
+
+    assert normal.ensure_response_capacity(leases[0], 12_000) is True
+    admitted, _row = observed.ensure_response_capacity_observed(leases[1], 12_000)
+    assert admitted is True
+    normal.account_usage("secret", "model", 26_000, lease=leases[0])
+    observed.account_usage_observed("secret", "model", 26_000, lease=leases[1])
+    assert normal.snapshot("secret", "model") == observed.snapshot("secret", "model")
+    assert normal.ensure_response_capacity(leases[0], 15_000) is False
+    denied, _row = observed.ensure_response_capacity_observed(leases[1], 15_000)
+    assert denied is False
+    assert normal.response_retry_after(leases[0], 15_000) == pytest.approx(
+        observed.response_retry_after_observed(leases[1], 15_000)[0]
+    )
+
+    rate = [{"name": "tokens", "limit": 40_000, "remaining": 12_345, "reset_seconds": 9}]
+    assert normal.update_rate_limits("secret", "model", rate) is True
+    assert observed.update_rate_limits_observed("secret", "model", rate)[0] is True
+    assert normal.snapshot("secret", "model") == observed.snapshot("secret", "model")
+
+
 def test_provider_reset_seconds_never_changes_the_tpm_refill_slope():
     clock = Clock()
     ledger = coordinator(clock)

@@ -961,6 +961,139 @@ async def test_runner_aborts_semantic_429_before_followup_without_text_false_pos
     )
 
 
+async def test_runner_capacity_failure_carries_completed_partial_turn_evidence():
+    scenario = load_scenarios()[0]
+
+    class PartialDriver:
+        async def open(self, *, run_id: str, scenario_id: str) -> str:
+            return "partial-session"
+
+        async def submit_text(self, *, turn_id: str, text: str) -> TurnObservation:
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id="partial-session",
+                accepted=False,
+                response_status="failed",
+                error="rate_limit_exceeded · 429",
+                fixture_side_effects=2,
+                response_usage=[
+                    {"response_id": f"r-{index}", "provider_total_tokens": tokens}
+                    for index, tokens in enumerate((5_623, 5_613, 5_676, 5_709, 5_774), 1)
+                ],
+                provider_trace=[
+                    {
+                        "kind": "response_done",
+                        "status": "completed",
+                        "usage": {"total_tokens": tokens},
+                    }
+                    for tokens in (5_623, 5_613, 5_676, 5_709, 5_774)
+                ],
+            )
+
+        async def close(self) -> None:
+            return None
+
+    with pytest.raises(eval_harness.ScenarioExecutionError) as raised:
+        await run_scenario(PartialDriver(), scenario, run_id="run", budget=EvalBudget())
+    partial = raised.value.result
+    assert len(partial.turns) == 1
+    assert [
+        row["provider_total_tokens"] for row in partial.turns[0].observation.response_usage
+    ] == [5_623, 5_613, 5_676, 5_709, 5_774]
+    assert partial.turns[0].observation.fixture_side_effects == 2
+
+
+async def test_timeout_preserves_active_bounded_trace_and_usage():
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session_id = "timeout-session"
+    driver.session = object()  # type: ignore[assignment]
+    driver._record_provider_trace({"kind": "response_created", "response_id": "r1"})
+    driver.events.put_nowait(
+        eval_harness.Usage(
+            response_id="r1",
+            provider_input_tokens=900,
+            provider_output_tokens=100,
+            provider_total_tokens=1_000,
+            input_text_tokens=900,
+            output_text_tokens=100,
+        )
+    )
+    with pytest.raises(TimeoutError):
+        await driver._collect_turn(turn_id="turn", started=0.0, semantic_timeout_s=0.001)
+    partial = driver.take_partial_observation(
+        turn_id="turn", status="timeout", error="turn timeout after 0.001s"
+    )
+    assert partial.usage["provider_total_tokens"] == 1_000
+    assert partial.response_usage[0]["response_id"] == "r1"
+    assert partial.provider_trace[0]["kind"] == "response_created"
+
+
+@pytest.mark.parametrize("failure_stage", ["capacity_before_wire", "transport_after_pre_wire"])
+async def test_generic_pre_response_failures_preserve_partial_trace(failure_stage):
+    scenario = load_scenarios()[0]
+
+    class FailingDriver:
+        def __init__(self) -> None:
+            self.session_id = "failure-session"
+            self.trace: list[dict] = []
+
+        async def open(self, *, run_id: str, scenario_id: str) -> str:
+            return self.session_id
+
+        async def prepare_response_capacity(self) -> None:
+            self.trace.append({"kind": "capacity_check", "admitted": False})
+            if failure_stage == "capacity_before_wire":
+                raise ProviderBudgetUnavailable("rate_limit_capacity · no capacity")
+
+        async def submit_text_bounded(self, **_kwargs):
+            self.trace.append({"kind": "response_create_pre_wire", "request_id": "opaque"})
+            raise ConnectionError("socket closed during response send")
+
+        def take_partial_observation(
+            self, *, turn_id: str, status: str, error: str
+        ) -> TurnObservation:
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id=self.session_id,
+                accepted=False,
+                response_status=status,
+                error=error,
+                provider_trace=list(self.trace),
+            )
+
+        async def close(self) -> None:
+            return None
+
+    with pytest.raises(eval_harness.ScenarioExecutionError) as raised:
+        await run_scenario(FailingDriver(), scenario, run_id="run", budget=EvalBudget())
+    trace = raised.value.result.turns[0].observation.provider_trace
+    assert trace[0]["kind"] == "capacity_check"
+    if failure_stage == "capacity_before_wire":
+        assert all(row["kind"] != "response_create_pre_wire" for row in trace)
+        assert "diagnostic_capacity" in str(raised.value)
+    else:
+        assert trace[-1]["kind"] == "response_create_pre_wire"
+        assert "provider_or_transport_failure" in str(raised.value)
+
+
+def test_provider_trace_is_bounded_sanitized_and_marks_truncation():
+    driver = eval_harness.LiveRealtimeDriver("secret", capacity_monotonic=lambda: 1.0)
+    for index in range(200):
+        driver._record_provider_trace(
+            {
+                "kind": "synthetic",
+                "index": index,
+                "nonfinite": float("nan"),
+                "long": "x" * 500,
+            }
+        )
+    observed = driver.take_partial_observation(turn_id="turn", status="failed", error="synthetic")
+    assert len(observed.provider_trace) == 128
+    assert observed.provider_trace[-1] == {"kind": "trace_truncated", "dropped": 73}
+    assert observed.provider_trace[0]["nonfinite"] == "nonfinite"
+    assert len(observed.provider_trace[0]["long"]) == 96
+
+
 async def test_live_service_semantic_429_stops_all_later_scenarios(monkeypatch):
     calls: list[str] = []
 
@@ -984,6 +1117,65 @@ async def test_live_service_semantic_429_stops_all_later_scenarios(monkeypatch):
     assert report["classification"] == "diagnostic-capacity"
     assert len(calls) == 2
     assert len(report["results"]) == 1
+
+
+async def test_live_service_persists_partial_scenario_and_trace_budget_mismatch(monkeypatch):
+    async def partial_failure(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        observation = TurnObservation(
+            turn_id="time-2",
+            session_id="partial-time",
+            accepted=False,
+            response_status="failed",
+            error="rate_limit_exceeded · 429",
+            fixture_side_effects=2,
+            tool_results={
+                "get_time": [
+                    {"ok": True, "data": {"iso": "2026-08-23T12:00:00+02:00"}},
+                    {"ok": True, "data": {"iso": "2026-08-23T12:00:01+02:00"}},
+                ]
+            },
+            provider_trace=[
+                {
+                    "kind": "response_done",
+                    "status": "completed",
+                    "usage": {"total_tokens": tokens},
+                }
+                for tokens in (5_623, 5_613, 5_676, 5_709, 5_774)
+            ],
+        )
+        result = ScenarioResult(
+            scenario.id,
+            False,
+            "partial-time",
+            [
+                eval_harness.TurnResult(
+                    "time-2",
+                    "Og hvilken ugedag er det?",
+                    False,
+                    observation,
+                    [eval_harness.Finding("provider-terminal", "429")],
+                )
+            ],
+        )
+        raise eval_harness.ScenarioExecutionError("diagnostic_capacity · 429", result)
+
+    monkeypatch.setattr(eval_harness, "run_scenario", partial_failure)
+    report = await LiveEvalService(provider_budget=ProviderBudgetCoordinator()).run(
+        api_key="secret",
+        scenario_ids={"time-followup"},
+        tool_declarations=_production_snapshot(),
+    )
+    assert report["classification"] == "diagnostic-capacity"
+    assert len(report["results"]) == 1
+    assert len(report["results"][0]["turns"][0]["observation"]["provider_trace"]) == 5
+    assert report["results"][0]["turns"][0]["observation"]["fixture_side_effects"] == 2
+    assert report["provider_provenance"] == {
+        "trace_event_count": 5,
+        "trace_completed_tokens": 28_395,
+        "budget_actual_tokens": 0,
+        "trace_minus_budget_tokens": 28_395,
+        "trace_truncated_events": 0,
+    }
 
 
 async def test_runner_timeout_never_submits_a_followup_into_the_hung_response():
