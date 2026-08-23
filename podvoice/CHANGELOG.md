@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.13.38 — synlig SafeEval-kontekst og sand delteststatus
+
+- Den semantiske SafeEval-test viser nu eksplicit modellen, at det eneste syntetiske
+  basisområde hedder `stue`. Den eksakte lokale fixture er uændret; `stuen`,
+  `Evalrum`, navne-selector, scalar-domain, ekstra felter og dubletter forbliver røde.
+- Målrettede scenariekørsler rapporterer særskilt valgt resultat, fuldt profilscope,
+  gennemført dækning og release-status. En grøn deltest kan aldrig vises eller gemmes
+  som en fuld maskinel preflight.
+- Rapporter bevares bounded pr. run-id. Ændringer i prompt, model, schema,
+  scenariemanifest eller syntetisk kontekst gør ældre fuld evidens stale; audio-replay
+  kan ikke overskrive releasebeviset.
+- Produktionsprompt, produktionsschema, dispatch, providerpacing, edge-loft, lyd, VAD,
+  Thin, HA/MCP, firmware og lifecycle er uændrede. Lokal gate: 338/338 fokustests og
+  857/857 fuld suite samt Ruff, format, mypy og diff-check.
+
 ## 1.13.37 — SafeEval måler semantik uden skjulte literal-fælder
 
 - Web-fixturet accepterer tre eksplicitte, schema-gyldige FCK-søgeformuleringer som
