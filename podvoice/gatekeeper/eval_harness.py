@@ -20,6 +20,7 @@ import contextlib
 import hashlib
 import json
 import logging
+import math
 import pathlib
 import re
 import time
@@ -188,6 +189,7 @@ class TurnObservation:
     diagnostic_transcript: str = ""
     usage: dict[str, int] = field(default_factory=dict)
     response_usage: list[dict[str, int | str]] = field(default_factory=list)
+    provider_trace: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -211,6 +213,40 @@ class ScenarioResult:
     passed: bool
     session_id: str
     turns: list[TurnResult]
+
+
+class ScenarioExecutionError(RuntimeError):
+    """Terminal provider/transport failure carrying its bounded partial evidence."""
+
+    def __init__(self, message: str, result: ScenarioResult) -> None:
+        super().__init__(message)
+        self.result = result
+
+
+def _provider_provenance_summary(
+    results: list[ScenarioResult], budget: EvalBudget
+) -> dict[str, int]:
+    observations = [turn.observation for result in results for turn in result.turns]
+    completed_total = sum(
+        int(row.get("usage", {}).get("total_tokens", 0))
+        for observation in observations
+        for row in observation.provider_trace
+        if row.get("kind") == "response_done"
+        and row.get("status") == "completed"
+        and isinstance(row.get("usage"), dict)
+    )
+    return {
+        "trace_event_count": sum(len(item.provider_trace) for item in observations),
+        "trace_completed_tokens": completed_total,
+        "budget_actual_tokens": budget.actual_tokens,
+        "trace_minus_budget_tokens": completed_total - budget.actual_tokens,
+        "trace_truncated_events": sum(
+            int(row.get("dropped", 0))
+            for observation in observations
+            for row in observation.provider_trace
+            if row.get("kind") == "trace_truncated"
+        ),
+    }
 
 
 class ConversationDriver(Protocol):
@@ -985,6 +1021,7 @@ async def run_scenario(
             if index > 1:
                 budget.reserve(MAX_EVAL_RESPONSE_EDGES_PER_TURN)
             turn_id = f"{scenario.id}-{index}-{uuid.uuid4().hex[:8]}"
+            failure_message: str | None
             try:
                 prepare_capacity = getattr(driver, "prepare_response_capacity", None)
                 if prepare_capacity is not None:
@@ -1000,29 +1037,84 @@ async def run_scenario(
                     async with asyncio.timeout(turn_timeout_s):
                         observed = await driver.submit_text(turn_id=turn_id, text=turn.text)
             except TimeoutError:
-                observed = TurnObservation(
-                    turn_id=turn_id,
-                    session_id=session_id,
-                    accepted=False,
-                    error=f"turn timeout after {turn_timeout_s:g}s",
-                    response_status="timeout",
+                timeout_error = f"turn timeout after {turn_timeout_s:g}s"
+                take_partial = getattr(driver, "take_partial_observation", None)
+                observed = (
+                    take_partial(turn_id=turn_id, status="timeout", error=timeout_error)
+                    if take_partial is not None
+                    else TurnObservation(
+                        turn_id=turn_id,
+                        session_id=session_id,
+                        accepted=False,
+                        error=timeout_error,
+                        response_status="timeout",
+                    )
                 )
+            except Exception as exc:
+                raw_error = str(exc) or type(exc).__name__
+                take_partial = getattr(driver, "take_partial_observation", None)
+                observed = (
+                    take_partial(turn_id=turn_id, status="failed", error=raw_error)
+                    if take_partial is not None
+                    else TurnObservation(
+                        turn_id=turn_id,
+                        session_id=session_id,
+                        accepted=False,
+                        error=raw_error,
+                        response_status="failed",
+                    )
+                )
+                failure_message = (
+                    f"diagnostic_capacity · {raw_error}"
+                    if isinstance(exc, ProviderBudgetUnavailable)
+                    or _is_provider_capacity_rejection(raw_error)
+                    else f"provider_or_transport_failure · status=failed · {raw_error}"
+                )
+                results.append(
+                    TurnResult(
+                        turn_id,
+                        turn.text,
+                        False,
+                        observed,
+                        [Finding("provider-terminal", failure_message)],
+                    )
+                )
+                raise ScenarioExecutionError(
+                    failure_message,
+                    ScenarioResult(scenario.id, False, session_id, results),
+                ) from exc
             if observed.session_id != session_id:
                 observed.error = (
                     f"session changed from {session_id} to {observed.session_id} inside scenario"
                 )
             if observed.error and "provider_usage_unknown" in observed.error:
-                raise RuntimeError(observed.error)
-            if _is_provider_capacity_rejection(observed.error):
-                raise RuntimeError(f"diagnostic_capacity · {observed.error}")
-            if (
+                failure_message = observed.error
+            elif _is_provider_capacity_rejection(observed.error):
+                failure_message = f"diagnostic_capacity · {observed.error}"
+            elif (
                 not observed.accepted
                 or observed.error is not None
                 or observed.response_status != "completed"
             ):
                 detail = observed.error or "provider response did not complete"
-                raise RuntimeError(
+                failure_message = (
                     f"provider_or_transport_failure · status={observed.response_status} · {detail}"
+                )
+            else:
+                failure_message = None
+            if failure_message is not None:
+                results.append(
+                    TurnResult(
+                        turn_id,
+                        turn.text,
+                        False,
+                        observed,
+                        [Finding("provider-terminal", failure_message)],
+                    )
+                )
+                raise ScenarioExecutionError(
+                    failure_message,
+                    ScenarioResult(scenario.id, False, session_id, results),
                 )
             budget.record(observed.usage)
             findings = grade_turn(turn.expect, observed)
@@ -1089,11 +1181,71 @@ class LiveRealtimeDriver:
         self._capacity_deadline = capacity_deadline
         self._capacity_wait_observer = capacity_wait_observer
         self._capacity_wait_credit_s = 0.0
+        self._provider_trace_started = self._capacity_monotonic()
+        self._provider_trace: list[dict[str, Any]] = []
+        self._provider_trace_order = 0
+        self._provider_trace_cursor = 0
+        self._provider_trace_dropped = 0
+        self._active_observation: TurnObservation | None = None
         self.session: _ReadyRealtimeSession | None = None
         self.events: asyncio.Queue[Any] = asyncio.Queue()
         self.reader: asyncio.Task[None] | None = None
         self.session_id = ""
         self.is_open = False
+
+    @staticmethod
+    def _safe_trace_value(value: Any) -> Any:
+        if value is None or isinstance(value, (bool, int)):
+            return value
+        if isinstance(value, float):
+            return value if math.isfinite(value) else "nonfinite"
+        if isinstance(value, str):
+            return value[:96]
+        if isinstance(value, dict):
+            return {
+                str(key)[:48]: LiveRealtimeDriver._safe_trace_value(item)
+                for key, item in list(value.items())[:24]
+            }
+        if isinstance(value, (list, tuple)):
+            return [LiveRealtimeDriver._safe_trace_value(item) for item in value[:24]]
+        return type(value).__name__
+
+    def _record_provider_trace(self, event: dict[str, Any]) -> None:
+        # Nine bounded response edges need far fewer than 128 events. Ignore excess
+        # input instead of letting a malformed peer grow the diagnostic artifact.
+        if len(self._provider_trace) >= 127:
+            self._provider_trace_dropped += 1
+            return
+        self._provider_trace_order += 1
+        self._provider_trace.append(
+            {
+                "order": self._provider_trace_order,
+                "monotonic_ms": round(
+                    (self._capacity_monotonic() - self._provider_trace_started) * 1000, 3
+                ),
+                **self._safe_trace_value(event),
+            }
+        )
+
+    def _attach_provider_trace(self, observed: TurnObservation) -> None:
+        observed.provider_trace = self._provider_trace[self._provider_trace_cursor :]
+        self._provider_trace_cursor = len(self._provider_trace)
+        if self._provider_trace_dropped:
+            observed.provider_trace.append(
+                {"kind": "trace_truncated", "dropped": self._provider_trace_dropped}
+            )
+            self._provider_trace_dropped = 0
+
+    def take_partial_observation(self, *, turn_id: str, status: str, error: str) -> TurnObservation:
+        observed = self._active_observation or TurnObservation(
+            turn_id=turn_id, session_id=self.session_id
+        )
+        observed.accepted = False
+        observed.response_status = status
+        observed.error = error
+        self._attach_provider_trace(observed)
+        self._active_observation = None
+        return observed
 
     async def prepare_response_capacity(self, tokens: int | None = None) -> None:
         """Renew one eval response allowance, waiting for at most one known reset.
@@ -1102,9 +1254,19 @@ class LiveRealtimeDriver:
         owner keeps Voice PE and Talk in explicit maintenance mode.
         """
         lease = self.budget_lease
-        if lease is None or self.provider_budget.ensure_response_capacity(lease, tokens):
+        if lease is None:
             return
-        wait_s = self.provider_budget.response_retry_after(lease, tokens)
+        admitted, admission = self.provider_budget.ensure_response_capacity_observed(lease, tokens)
+        self._record_provider_trace(
+            {
+                "kind": "capacity_check",
+                "admitted": admitted,
+                "atomic": admission,
+            }
+        )
+        if admitted:
+            return
+        wait_s, wait_observation = self.provider_budget.response_retry_after_observed(lease, tokens)
         if wait_s is None:
             raise ProviderBudgetUnavailable(
                 "rate_limit_capacity · eval response cannot preserve production headroom"
@@ -1117,6 +1279,14 @@ class LiveRealtimeDriver:
                     "rate_limit_capacity · provider reset wait exceeds the live eval deadline"
                 )
         if wait_s > 0:
+            self._record_provider_trace(
+                {
+                    "kind": "capacity_wait_started",
+                    "target_tokens": tokens,
+                    "wait_s": wait_s,
+                    "atomic": wait_observation,
+                }
+            )
             # Credit the wait before sleeping.  A deferred tool-result create runs in
             # the provider reader while _collect_turn is waiting on its queue; this
             # private edge wakes that waiter so provider reset time is excluded from
@@ -1126,7 +1296,19 @@ class LiveRealtimeDriver:
             await self._capacity_sleep(wait_s)
             if self._capacity_wait_observer is not None:
                 self._capacity_wait_observer(wait_s)
-        if not self.provider_budget.ensure_response_capacity(lease, tokens):
+        admitted_after_wait, recheck = self.provider_budget.ensure_response_capacity_observed(
+            lease, tokens
+        )
+        self._record_provider_trace(
+            {
+                "kind": "capacity_recheck",
+                "target_tokens": tokens,
+                "wait_s": wait_s,
+                "admitted": admitted_after_wait,
+                "atomic": recheck,
+            }
+        )
+        if not admitted_after_wait:
             raise ProviderBudgetUnavailable(
                 "rate_limit_capacity · eval response cannot preserve production headroom"
             )
@@ -1148,6 +1330,7 @@ class LiveRealtimeDriver:
             tool_declarations=self.tools.declarations(),
             provider_budget=self.provider_budget,
             before_response_create=self.prepare_response_capacity,
+            provider_observer=self._record_provider_trace,
         )
         # Base dataclass does not invoke a subclass post-init unless declared there.
         self.session.ready = asyncio.Event()
@@ -1307,6 +1490,7 @@ class LiveRealtimeDriver:
         if session is None:
             raise RuntimeError("live eval session is not open")
         observed = TurnObservation(turn_id=turn_id, session_id=self.session_id)
+        self._active_observation = observed
         output: list[str] = []
         usage = Usage()
         tool_round_seen = False
@@ -1396,6 +1580,9 @@ class LiveRealtimeDriver:
                         if key != "response_id"
                     }
                 )
+                observed.usage = {
+                    key: value for key, value in asdict(usage).items() if key != "response_id"
+                }
             elif isinstance(event, SilentToolComplete):
                 if pending_batches:
                     observed.error = "tool batch completed without its exact commit edge"
@@ -1417,6 +1604,8 @@ class LiveRealtimeDriver:
         observed.usage = {
             key: value for key, value in asdict(usage).items() if key != "response_id"
         }
+        self._attach_provider_trace(observed)
+        self._active_observation = None
         return observed
 
     async def close(self) -> None:
@@ -2150,9 +2339,15 @@ class LiveEvalService:
                                     budget.rate_limit_wait_s + seconds,
                                 ),
                             )
-                            results.append(
-                                await run_scenario(driver, scenario, run_id=run_id, budget=budget)
-                            )
+                            try:
+                                results.append(
+                                    await run_scenario(
+                                        driver, scenario, run_id=run_id, budget=budget
+                                    )
+                                )
+                            except ScenarioExecutionError as exc:
+                                results.append(exc.result)
+                                raise
                         finally:
                             self._provider_budget.release(provider_lease)
                         token_window_used += budget.actual_tokens - before_tokens
@@ -2185,6 +2380,7 @@ class LiveEvalService:
                     ),
                     "coverage_complete": False,
                     "results": [asdict(result) for result in results],
+                    "provider_provenance": _provider_provenance_summary(results, budget),
                     "budget": asdict(budget),
                     "deadline_s": self._max_run_s,
                 }
@@ -2197,6 +2393,7 @@ class LiveEvalService:
                 "model": model,
                 **prompt_metadata,
                 "results": [asdict(result) for result in results],
+                "provider_provenance": _provider_provenance_summary(results, budget),
                 "budget": asdict(budget),
                 "deadline_s": self._max_run_s,
             }

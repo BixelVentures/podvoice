@@ -428,6 +428,65 @@ class ProviderBudgetCoordinator:
                 table[lease.lease_id] = target
             return True
 
+    def ensure_response_capacity_observed(
+        self, lease: BudgetLease, tokens: int | None = None
+    ) -> tuple[bool, dict[str, int | float | bool | str | None]]:
+        """The normal admission decision plus an atomic, credential-free snapshot."""
+        now = self._monotonic()
+        with self._lock:
+            bucket = self._buckets.get(lease.bucket_id)
+            if bucket is None:
+                return False, {"reason": "missing_bucket", "target_tokens": tokens}
+            self._roll_window(bucket, now)
+            if lease.role == "production":
+                table = bucket.production
+                caps = bucket.production_caps
+                protected = 0
+            elif lease.role == "eval":
+                if bucket.production:
+                    return False, {"reason": "production_active", "target_tokens": tokens}
+                table = bucket.eval_reservations
+                caps = bucket.eval_caps
+                protected = bucket.eval_headroom.get(lease.lease_id, 0)
+            else:
+                return False, {"reason": "invalid_role", "target_tokens": tokens}
+            owned = table.get(lease.lease_id)
+            cap = caps.get(lease.lease_id)
+            if owned is None or cap is None:
+                return False, {"reason": "inactive_lease", "target_tokens": tokens}
+            target = cap if tokens is None else int(tokens)
+            if target <= 0:
+                return False, {"reason": "invalid_target", "target_tokens": target}
+            other = self._reserved(bucket) - owned
+            before_owned = owned
+            available = bucket.remaining - other - protected
+            admitted = available >= target
+            if not admitted:
+                return False, {
+                    "reason": "insufficient_capacity",
+                    "target_tokens": target,
+                    "limit": bucket.limit,
+                    "remaining": round(bucket.remaining, 3),
+                    "available": round(available, 3),
+                    "owned_before": before_owned,
+                    "owned_after": before_owned,
+                    "reserved_total": self._reserved(bucket),
+                    "authoritative": bucket.authoritative,
+                }
+            if owned < target:
+                table[lease.lease_id] = target
+            return True, {
+                "reason": "admitted",
+                "target_tokens": target,
+                "limit": bucket.limit,
+                "remaining": round(bucket.remaining, 3),
+                "available": round(available, 3),
+                "owned_before": before_owned,
+                "owned_after": table[lease.lease_id],
+                "reserved_total": self._reserved(bucket),
+                "authoritative": bucket.authoritative,
+            }
+
     def response_retry_after(self, lease: BudgetLease, tokens: int | None = None) -> float | None:
         """Return the exact active eval lease's next bounded reset delay.
 
@@ -468,6 +527,58 @@ class ProviderBudgetCoordinator:
                 return None
             return needed / bucket.refill_per_s
 
+    def response_retry_after_observed(
+        self, lease: BudgetLease, tokens: int | None = None
+    ) -> tuple[float | None, dict[str, int | float | bool | str | None]]:
+        """Retry delay plus its exact locked, credential-free calculation inputs."""
+        now = self._monotonic()
+        with self._lock:
+            bucket = self._buckets.get(lease.bucket_id)
+            if bucket is None:
+                return None, {"reason": "missing_bucket", "target_tokens": tokens}
+            self._roll_window(bucket, now)
+            if lease.role != "eval" or lease.lease_id not in bucket.eval_reservations:
+                return None, {"reason": "inactive_eval_lease", "target_tokens": tokens}
+            key_id = self._bucket_key_ids.get(lease.bucket_id)
+            owner = self._diagnostics.get(key_id or "")
+            conservative_ready = bool(
+                owner is not None and lease.bucket_id in owner.initialized_buckets
+            )
+            if (not bucket.authoritative and not conservative_ready) or bucket.production:
+                return None, {"reason": "not_waitable", "target_tokens": tokens}
+            owned = bucket.eval_reservations[lease.lease_id]
+            cap = bucket.eval_caps.get(lease.lease_id)
+            if cap is None:
+                return None, {"reason": "missing_cap", "target_tokens": tokens}
+            target = cap if tokens is None else int(tokens)
+            if target <= 0:
+                return None, {"reason": "invalid_target", "target_tokens": target}
+            protected = bucket.eval_headroom.get(lease.lease_id, 0)
+            other = self._reserved(bucket) - owned
+            if bucket.remaining - other - protected >= target:
+                return 0.0, {
+                    "reason": "already_available",
+                    "target_tokens": target,
+                    "remaining": round(bucket.remaining, 3),
+                    "available": round(bucket.remaining - other - protected, 3),
+                    "refill_per_s": round(bucket.refill_per_s, 6),
+                }
+            needed = float(target) - (bucket.remaining - other - protected)
+            if needed <= 0:
+                return 0.0, {"reason": "already_available", "target_tokens": target}
+            if bucket.refill_per_s <= 0:
+                return None, {"reason": "no_refill", "target_tokens": target}
+            wait_s = needed / bucket.refill_per_s
+            return wait_s, {
+                "reason": "wait",
+                "target_tokens": target,
+                "remaining": round(bucket.remaining, 3),
+                "available": round(bucket.remaining - other - protected, 3),
+                "needed": round(needed, 3),
+                "refill_per_s": round(bucket.refill_per_s, 6),
+                "wait_s": wait_s,
+            }
+
     def account_usage(
         self,
         api_key: str,
@@ -503,6 +614,48 @@ class ProviderBudgetCoordinator:
                 if owned is not None:
                     bucket.eval_reservations[lease.lease_id] = max(0, owned - int(tokens))
 
+    def account_usage_observed(
+        self,
+        api_key: str,
+        model: str,
+        tokens: int,
+        *,
+        lease: BudgetLease | None = None,
+        provider_reservation_observed: bool = False,
+    ) -> dict[str, int | float | bool | str]:
+        """Debit usage and return the exact atomic before/after ledger values."""
+        if tokens <= 0:
+            return {"reason": "ignored_nonpositive", "tokens": int(tokens)}
+        now = self._monotonic()
+        with self._lock:
+            _bucket_id, bucket = self._bucket(api_key, model, now)
+            remaining_before = bucket.remaining
+            reserved_before = self._reserved(bucket)
+            if not provider_reservation_observed:
+                bucket.remaining = max(0, bucket.remaining - int(tokens))
+                if bucket.refill_per_s > 0:
+                    bucket.reset_at = (
+                        now + (float(bucket.limit) - bucket.remaining) / bucket.refill_per_s
+                    )
+            if lease is not None and lease.bucket_id == _bucket_id and lease.role == "production":
+                owned = bucket.production.get(lease.lease_id)
+                if owned is not None:
+                    bucket.production[lease.lease_id] = max(0, owned - int(tokens))
+            elif lease is not None and lease.bucket_id == _bucket_id and lease.role == "eval":
+                owned = bucket.eval_reservations.get(lease.lease_id)
+                if owned is not None:
+                    bucket.eval_reservations[lease.lease_id] = max(0, owned - int(tokens))
+            return {
+                "reason": "accounted",
+                "tokens": int(tokens),
+                "provider_reservation_observed": provider_reservation_observed,
+                "remaining_before": round(remaining_before, 3),
+                "remaining_after": round(bucket.remaining, 3),
+                "reserved_before": reserved_before,
+                "reserved_after": self._reserved(bucket),
+                "authoritative": bucket.authoritative,
+            }
+
     def is_authoritative(self, api_key: str, model: str) -> bool:
         now = self._monotonic()
         with self._lock:
@@ -527,14 +680,65 @@ class ProviderBudgetCoordinator:
         if token_limit is None:
             return False
         try:
-            limit = max(0, int(token_limit["limit"]))
-            remaining = max(0, int(token_limit["remaining"]))
-            reset_s = max(0.0, float(token_limit["reset_seconds"]))
+            raw_limit = token_limit["limit"]
+            raw_remaining = token_limit["remaining"]
+            raw_reset = token_limit["reset_seconds"]
+            if any(isinstance(value, bool) for value in (raw_limit, raw_remaining, raw_reset)):
+                raise ValueError
+            limit = max(0, int(raw_limit))
+            remaining = max(0, int(raw_remaining))
+            reset_s = max(0.0, float(raw_reset))
+            if not all(value < float("inf") for value in (limit, remaining, reset_s)):
+                raise ValueError
         except (KeyError, TypeError, ValueError):
             return False
         now = self._monotonic()
         with self._lock:
             _bucket_id, bucket = self._bucket(api_key, model, now)
+            bucket.limit = limit
+            bucket.remaining = float(min(limit, remaining))
+            bucket.refill_at = now
+            bucket.refill_per_s = limit / self._window_s if limit > 0 else 0.0
+            bucket.reset_at = now + (
+                (limit - bucket.remaining) / bucket.refill_per_s
+                if bucket.refill_per_s > 0
+                else reset_s
+            )
+            bucket.authoritative = True
+        return True
+
+    def update_rate_limits_observed(
+        self, api_key: str, model: str, limits: list[dict]
+    ) -> tuple[bool, dict[str, int | float | bool | str | None]]:
+        """Ingest rate telemetry and return its exact atomic ledger transition."""
+        token_limit = next(
+            (
+                item
+                for item in limits
+                if isinstance(item, dict) and str(item.get("name") or "") == "tokens"
+            ),
+            None,
+        )
+        if token_limit is None:
+            return False, {"reason": "missing_tokens_rate"}
+        try:
+            raw_limit = token_limit["limit"]
+            raw_remaining = token_limit["remaining"]
+            raw_reset = token_limit["reset_seconds"]
+            if any(isinstance(value, bool) for value in (raw_limit, raw_remaining, raw_reset)):
+                raise ValueError
+            limit = max(0, int(raw_limit))
+            remaining = max(0, int(raw_remaining))
+            reset_s = max(0.0, float(raw_reset))
+            if not all(value < float("inf") for value in (limit, remaining, reset_s)):
+                raise ValueError
+        except (KeyError, TypeError, ValueError):
+            return False, {"reason": "malformed_tokens_rate"}
+        now = self._monotonic()
+        with self._lock:
+            _bucket_id, bucket = self._bucket(api_key, model, now)
+            before_remaining = bucket.remaining
+            before_authoritative = bucket.authoritative
             bucket.limit = limit
             bucket.remaining = float(min(limit, remaining))
             bucket.refill_at = now
@@ -549,7 +753,16 @@ class ProviderBudgetCoordinator:
                 else reset_s
             )
             bucket.authoritative = True
-        return True
+            return True, {
+                "reason": "accepted",
+                "limit": limit,
+                "remaining": remaining,
+                "reset_seconds": reset_s,
+                "ledger_remaining_before": round(before_remaining, 3),
+                "ledger_remaining_after": round(bucket.remaining, 3),
+                "authoritative_before": before_authoritative,
+                "authoritative_after": True,
+            }
 
     def snapshot(self, api_key: str, model: str) -> dict[str, int | float | bool]:
         """Test/diagnostic state with counts only; never returns the key fingerprint."""

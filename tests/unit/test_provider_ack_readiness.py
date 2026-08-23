@@ -261,6 +261,217 @@ async def test_budgeted_production_direct_response_debits_valid_top_total_once()
     assert ledger.release(lease) is True
 
 
+async def test_eval_provenance_labels_rate_positions_counts_and_duplicate_done():
+    trace: list[dict] = []
+    ledger = ProviderBudgetCoordinator()
+    owner = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=owner
+    )
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+        provider_observer=trace.append,
+    )
+    session._pending_response_creates.add("req-one")
+    ws = _QueueWS()
+    rate = {
+        "type": "rate_limits.updated",
+        "rate_limits": [
+            {"name": "tokens", "limit": 40_000, "remaining": 30_000, "reset_seconds": 60}
+        ],
+    }
+    done = {
+        "type": "response.done",
+        "response": {
+            "id": "resp-one",
+            "status": "completed",
+            "usage": {
+                "total_tokens": 1_000,
+                "input_tokens": 900,
+                "output_tokens": 100,
+                "input_token_details": {"text_tokens": 900},
+                "output_token_details": {"text_tokens": 100},
+            },
+        },
+    }
+    await ws.emit(rate)
+    await ws.emit(
+        {
+            "type": "response.created",
+            "response": {"id": "resp-one", "metadata": {"podvoice_request_id": "req-one"}},
+        }
+    )
+    await ws.emit(rate)
+    await ws.emit(done)
+    await ws.emit(rate)
+    await ws.emit(done)
+    await ws.incoming.put(None)
+
+    events = [event async for event in session._iter_events(ws)]
+    assert len([event for event in events if isinstance(event, Usage)]) == 1
+    rate_rows = [row for row in trace if row["kind"] == "rate_limits_updated"]
+    assert [row["position"] for row in rate_rows] == [
+        "positional_before_created",
+        "active",
+        "late_after_done",
+    ]
+    assert rate_rows[1]["duplicate_positional"] is True
+    assert rate_rows[2]["accepted"] is False
+    created = next(row for row in trace if row["kind"] == "response_created")
+    assert created["request_id_matched"] is True
+    assert created["pending_before"] == 1 and created["pending_after"] == 0
+    completed = next(row for row in trace if row["kind"] == "response_done")
+    assert completed["rate_observation_count"] == 2
+    assert completed["usage"]["total_tokens"] == 1_000
+    assert [row["kind"] for row in trace].count("duplicate_response_done") == 1
+    assert ledger.release(lease) is True
+    assert ledger.release(owner) is True
+
+
+async def test_rate_after_done_with_next_pending_is_explicitly_ambiguous():
+    trace: list[dict] = []
+    session = OpenAIRealtimeSession(api_key="secret", provider_observer=trace.append)
+    ws = _QueueWS()
+    done = {
+        "type": "response.done",
+        "response": {
+            "id": "old",
+            "status": "completed",
+            "usage": {
+                "total_tokens": 2,
+                "input_tokens": 1,
+                "output_tokens": 1,
+                "input_token_details": {"text_tokens": 1},
+                "output_token_details": {"text_tokens": 1},
+            },
+        },
+    }
+    await ws.emit(done)
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 20_000, "reset_seconds": 60}
+            ],
+        }
+    )
+    await ws.incoming.put(None)
+
+    stream = session._iter_events(ws)
+    assert isinstance(await anext(stream), Usage)
+    # The consumer pauses after completed usage, then a new create becomes pending
+    # before the next uncorrelated rate event is read.
+    session._pending_response_creates.add("new-request")
+    assert [event async for event in stream]
+    row = next(row for row in trace if row["kind"] == "rate_limits_updated")
+    assert row["position"] == "ambiguous_previous_or_next"
+    assert row["pending_request_ids"] == ["new-request"]
+
+
+async def test_multiple_pending_and_malformed_rate_are_bounded_positional_evidence():
+    trace: list[dict] = []
+    session = OpenAIRealtimeSession(api_key="secret", provider_observer=trace.append)
+    session._pending_response_creates.update({"req-a", "req-b"})
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "rate_limits": [
+                {
+                    "name": "tokens",
+                    "limit": True,
+                    "remaining": float("nan"),
+                    "reset_seconds": float("inf"),
+                }
+            ],
+        }
+    )
+    await ws.incoming.put(None)
+    assert [event async for event in session._iter_events(ws)] == []
+    row = next(row for row in trace if row["kind"] == "rate_limits_updated")
+    assert row["position"] == "ambiguous_multiple_pending"
+    assert row["pending_response_creates"] == 2
+    assert row["accepted"] is False
+    assert row["atomic"] == {"reason": "malformed_tokens_rate"}
+    assert row["token_rate"] == {
+        "limit": "invalid",
+        "remaining": "invalid",
+        "reset_seconds": "invalid",
+    }
+    assert "nan" not in str(row).lower() and "inf" not in str(row).lower()
+
+
+async def test_stale_generation_emits_no_provenance_or_budget_mutation():
+    trace: list[dict] = []
+    ledger = ProviderBudgetCoordinator()
+    session = OpenAIRealtimeSession(
+        api_key="secret", model="model", provider_budget=ledger, provider_observer=trace.append
+    )
+    session._connection_generation = 2
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 1, "reset_seconds": 60}
+            ],
+        }
+    )
+    await ws.incoming.put(None)
+    assert [event async for event in session._iter_events(ws, generation=1)] == []
+    assert trace == []
+    assert ledger.snapshot("secret", "model")["authoritative"] is False
+
+
+async def test_provider_observer_does_not_change_response_create_wire_or_capacity_callback():
+    admitted: list[int | None] = []
+
+    async def admit(tokens: int | None) -> None:
+        admitted.append(tokens)
+
+    traces: list[dict] = []
+    sessions: list[OpenAIRealtimeSession] = []
+    payloads: list[dict] = []
+    for observer in (None, traces.append):
+        session = OpenAIRealtimeSession(
+            api_key="secret", before_response_create=admit, provider_observer=observer
+        )
+        ws = _QueueWS()
+        session._ws = ws  # type: ignore[assignment]
+        session._next_response_capacity_tokens = 5_757
+        await session._send_response_create({"tool_choice": "none"})
+        payload = dict(ws.sent[0])
+        payload.pop("event_id")
+        payload["response"]["metadata"].pop("podvoice_request_id")
+        payloads.append(payload)
+        sessions.append(session)
+
+    assert payloads == [payloads[0], payloads[0]]
+    assert admitted == [5_757, 5_757]
+    assert [row["kind"] for row in traces] == [
+        "response_create_pre_wire",
+        "response_create_sent",
+    ]
+    for session in sessions:
+        session._cancel_ack_watchdogs()
+
+
+async def test_provider_observer_failure_never_replaces_wire_or_terminal_behavior():
+    def broken_observer(_row: dict) -> None:
+        raise RuntimeError("diagnostic sink failed")
+
+    session = OpenAIRealtimeSession(api_key="secret", provider_observer=broken_observer)
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    await session._send_response_create()
+    assert [row["type"] for row in ws.sent] == ["response.create"]
+    session._cancel_ack_watchdogs()
+
+
 @pytest.mark.parametrize(
     ("usage", "error_fragment"),
     [
@@ -1032,6 +1243,49 @@ async def test_response_create_error_is_correlated_and_unrelated_error_is_inert(
     assert failure.error == "OpenAI rejected response.create: response rejected"
     assert not session._pending_response_creates
     assert create["event_id"] not in session._ack_watchdogs
+    await ws.close()
+    await reader
+
+
+async def test_correlated_429_trace_contains_only_structured_capacity_fields():
+    trace: list[dict] = []
+    session = OpenAIRealtimeSession(api_key="k", provider_observer=trace.append)
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    session._configured = True
+    events: list = []
+    reader = asyncio.create_task(_collect(session, ws, events))
+    await session._send_response_create()
+    create = (await _wait_for_sent(ws, "response.create"))[0]
+    await ws.emit(
+        {
+            "type": "error",
+            "error": {
+                "event_id": create["event_id"],
+                "code": "rate_limit_exceeded",
+                "type": "tokens",
+                "message": (
+                    "Limit 40000, Used 35073, Requested 5757. "
+                    "Please try again in 1.245s. secret material must not persist"
+                ),
+            },
+        }
+    )
+    await asyncio.sleep(0)
+    row = next(row for row in trace if row["kind"] == "response_create_rejected")
+    assert row == {
+        "kind": "response_create_rejected",
+        "request_id": next(
+            item["request_id"] for item in trace if item["kind"] == "response_create_pre_wire"
+        ),
+        "error_code": "rate_limit_exceeded",
+        "error_type": "tokens",
+        "limit": 40_000,
+        "used": 35_073,
+        "requested": 5_757,
+        "retry_s": 1.245,
+    }
+    assert "secret material" not in str(trace)
     await ws.close()
     await reader
 

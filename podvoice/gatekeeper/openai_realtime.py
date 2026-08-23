@@ -27,10 +27,12 @@ import hashlib
 import json
 import logging
 import re
+import time
 import uuid
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
+from typing import Any
 
 import aiohttp
 from jsonschema import Draft202012Validator, FormatChecker
@@ -218,6 +220,10 @@ class OpenAIRealtimeSession:
     before_response_create: Callable[[int | None], Awaitable[None]] | None = field(
         default=None, repr=False, kw_only=True
     )
+    # Eval-only bounded provenance sink. Production leaves this unset, so tracing
+    # cannot alter physical latency or lifecycle. Payloads are constructed from
+    # numeric provider/budget fields and opaque response/request ids only.
+    provider_observer: Callable[[dict[str, Any]], None] | None = field(default=None, repr=False)
     voice: str = DEFAULT_VOICE
     instructions: str = ""  # empty -> built-in SYSTEM_PROMPT_DA
     # WHERE this session physically is. Without it the model cannot target the room's
@@ -657,13 +663,57 @@ class OpenAIRealtimeSession:
             if value
         ) or str(error)
 
+    def _observe_provider(self, kind: str, **fields: Any) -> None:
+        observer = self.provider_observer
+        if observer is None:
+            return
+        try:
+            observer({"kind": kind, **fields})
+        except Exception as exc:  # diagnostics must never own provider behavior
+            _LOG.warning("provider provenance observer failed: %s", exc)
+
+    @staticmethod
+    def _capacity_error_fields(message: str) -> dict[str, int | float]:
+        fields: dict[str, int | float] = {}
+        patterns = {
+            "limit": r"limit(?:ed to|=|\s)(\d+)",
+            "used": r"used(?:=|\s)(\d+)",
+            "requested": r"requested(?:=|\s)(\d+)",
+            "retry_s": r"(?:try again in|retry(?: after|=|\s))\s*([0-9]+(?:\.[0-9]+)?)s?",
+        }
+        for name, pattern in patterns.items():
+            match = re.search(pattern, message, flags=re.IGNORECASE)
+            if match is not None:
+                value = float(match.group(1)) if name == "retry_s" else int(match.group(1))
+                fields[name] = value
+        return fields
+
+    @staticmethod
+    def _safe_rate_number(token_rate: dict | None, name: str) -> int | float | str | None:
+        if token_rate is None or name not in token_rate:
+            return None
+        value = token_rate.get(name)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return "invalid"
+        if isinstance(value, float) and not (-float("inf") < value < float("inf")):
+            return "invalid"
+        return value
+
     def _record_rate_limits(self, event: dict) -> bool:
+        accepted, _observation = self._record_rate_limits_observed(event)
+        return accepted
+
+    def _record_rate_limits_observed(
+        self, event: dict
+    ) -> tuple[bool, dict[str, int | float | bool | str | None]]:
         limits = event.get("rate_limits") or []
         for limit in limits:
             if not isinstance(limit, dict) or not limit.get("name"):
                 continue
             self._rate_limits[str(limit["name"])] = dict(limit)
-        return self.provider_budget.update_rate_limits(self.api_key, self.model, list(limits))
+        return self.provider_budget.update_rate_limits_observed(
+            self.api_key, self.model, list(limits)
+        )
 
     def _arm_ack_watchdog(self, event_id: str, label: str) -> None:
         generation = self._connection_generation
@@ -801,11 +851,12 @@ class OpenAIRealtimeSession:
         """Send one correlated response request without blocking the event reader."""
         if self._ws is None or bool(getattr(self._ws, "closed", False)):
             raise ConnectionError("OpenAI realtime socket closed before response creation")
+        requested_capacity = self._next_response_capacity_tokens
         if self.before_response_create is not None:
             # The callback must finish before request correlation is registered or any
             # billable frame is sent.  Failure is terminal; this layer never retries a
             # rejected/completed provider edge.
-            await self.before_response_create(self._next_response_capacity_tokens)
+            await self.before_response_create(requested_capacity)
         if self._ws is None or bool(getattr(self._ws, "closed", False)):
             raise ConnectionError("OpenAI realtime socket closed during response admission")
         request_id = f"pv_response_{uuid.uuid4().hex[:16]}"
@@ -818,12 +869,25 @@ class OpenAIRealtimeSession:
         payload["response"] = response_payload
         self._response_create_event_ids[event_id] = request_id
         self._pending_response_creates.add(request_id)
+        if self.provider_observer is not None:
+            self._observe_provider(
+                "response_create_pre_wire",
+                request_id=request_id,
+                event_id=event_id,
+                capacity_target=requested_capacity,
+            )
         try:
             await self._ws.send_json(payload)
         except BaseException:
             self._response_create_event_ids.pop(event_id, None)
             self._pending_response_creates.discard(request_id)
             raise
+        if self.provider_observer is not None:
+            self._observe_provider(
+                "response_create_sent",
+                request_id=request_id,
+                event_id=event_id,
+            )
         self._next_response_capacity_tokens = None
         self._arm_ack_watchdog(event_id, "response.create")
         return request_id
@@ -1178,8 +1242,10 @@ class OpenAIRealtimeSession:
         # response currently being created, and the id we last logged as "speaking".
         cur_rid: str | None = None
         spoke_rid: str | None = None
-        pending_response_rate_observation = False
-        response_rate_observations: set[str] = set()
+        pending_response_rate_observations = 0
+        response_rate_observations: dict[str, int] = {}
+        last_done_response_id: str | None = None
+        last_done_at: float | None = None
         async for msg in ws:
             if generation is not None and generation != self._connection_generation:
                 return
@@ -1193,10 +1259,13 @@ class OpenAIRealtimeSession:
             if t == "response.created":
                 self._active_response = True
                 cur_rid = _rid(ev)
-                if pending_response_rate_observation:
+                if pending_response_rate_observations:
                     if cur_rid != "?":
-                        response_rate_observations.add(cur_rid)
-                    pending_response_rate_observation = False
+                        response_rate_observations[cur_rid] = (
+                            response_rate_observations.get(cur_rid, 0)
+                            + pending_response_rate_observations
+                        )
+                    pending_response_rate_observations = 0
                 response = ev.get("response") or {}
                 metadata = response.get("metadata") if isinstance(response, dict) else None
                 request_id = (
@@ -1204,7 +1273,9 @@ class OpenAIRealtimeSession:
                     if isinstance(metadata, dict)
                     else ""
                 )
-                if request_id in self._pending_response_creates:
+                pending_before = len(self._pending_response_creates)
+                request_id_matched = request_id in self._pending_response_creates
+                if request_id_matched:
                     self._pending_response_creates.discard(request_id)
                     for event_id, pending_request_id in tuple(
                         self._response_create_event_ids.items()
@@ -1219,6 +1290,16 @@ class OpenAIRealtimeSession:
                     cur_rid,
                     self._pending_create,
                 )
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "response_created",
+                        response_id=cur_rid or "?",
+                        request_id=request_id,
+                        request_id_matched=request_id_matched,
+                        pending_before=pending_before,
+                        pending_after=len(self._pending_response_creates),
+                        generation=generation,
+                    )
             elif t == "response.output_audio.delta":  # VERIFY: GA event name
                 d = ev.get("delta")
                 if d:
@@ -1346,14 +1427,23 @@ class OpenAIRealtimeSession:
                     self._speech_stop_emitted = True
                     yield UserSpeechStopped()
             elif t == "response.done":
-                self._active_response = False
                 rid, status = _rid(ev), _rstatus(ev)
-                provider_reservation_observed = rid in response_rate_observations
-                response_rate_observations.discard(rid)
-                pending_response_rate_observation = False
-                cur_rid = None
                 if not self._remember_terminal_response(rid, status):
+                    if self.provider_observer is not None:
+                        self._observe_provider(
+                            "duplicate_response_done",
+                            response_id=rid,
+                            status=status,
+                            generation=generation,
+                        )
                     continue
+                self._active_response = False
+                rate_observation_count = response_rate_observations.pop(rid, 0)
+                provider_reservation_observed = rate_observation_count > 0
+                pending_response_rate_observations = 0
+                cur_rid = None
+                last_done_response_id = rid
+                last_done_at = time.monotonic() if self.provider_observer is not None else None
                 staged_calls = self._staged_tool_calls.pop(rid, {})
                 production_lease = (
                     self._budget_production_leases.get(generation)
@@ -1394,13 +1484,53 @@ class OpenAIRealtimeSession:
                         - usage.unattributed_output_tokens,
                         usage.unattributed_input_tokens + usage.unattributed_output_tokens,
                     )
-                    self.provider_budget.account_usage(
-                        self.api_key,
-                        self.model,
-                        usage.provider_total_tokens,
-                        lease=usage_lease,
-                        provider_reservation_observed=provider_reservation_observed,
+                    if self.provider_observer is not None:
+                        usage_observation = self.provider_budget.account_usage_observed(
+                            self.api_key,
+                            self.model,
+                            usage.provider_total_tokens,
+                            lease=usage_lease,
+                            provider_reservation_observed=provider_reservation_observed,
+                        )
+                    else:
+                        self.provider_budget.account_usage(
+                            self.api_key,
+                            self.model,
+                            usage.provider_total_tokens,
+                            lease=usage_lease,
+                            provider_reservation_observed=provider_reservation_observed,
+                        )
+                        usage_observation = {"reason": "observer_disabled"}
+                else:
+                    usage_observation = {"reason": "usage_missing_or_invalid"}
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "response_done",
+                        response_id=rid,
+                        status=status,
+                        provider_rate_observed=provider_reservation_observed,
+                        rate_observation_count=rate_observation_count,
+                        usage=(
+                            {
+                                "total_tokens": usage.provider_total_tokens,
+                                "input_tokens": usage.provider_input_tokens,
+                                "output_tokens": usage.provider_output_tokens,
+                                "detail_tokens": (
+                                    usage.provider_total_tokens
+                                    - usage.unattributed_input_tokens
+                                    - usage.unattributed_output_tokens
+                                ),
+                                "residual_tokens": (
+                                    usage.unattributed_input_tokens
+                                    + usage.unattributed_output_tokens
+                                ),
+                            }
+                            if usage is not None
+                            else None
+                        ),
+                        atomic_usage=usage_observation,
                     )
+                if usage is not None:
                     yield usage
                 staged_failure = self._invalid_tool_responses.pop(rid, None)
                 if status != "completed":
@@ -1578,15 +1708,86 @@ class OpenAIRealtimeSession:
                 # A valid update can precede response.created, but only after our
                 # response.create is pending.  An unsolicited pre-send or late
                 # post-terminal event must not refill a later edge from stale data.
-                rate_is_causal = bool(
+                rate_is_positional = bool(
                     (self._active_response and cur_rid not in (None, "?"))
                     or self._pending_response_creates
                 )
-                if rate_is_causal and self._record_rate_limits(ev):
-                    if self._active_response and cur_rid not in (None, "?"):
-                        response_rate_observations.add(cur_rid)
+                accepted = False
+                rate_observation: dict[str, int | float | bool | str | None] = {
+                    "reason": "positional_unaccepted"
+                }
+                if rate_is_positional:
+                    if self.provider_observer is not None:
+                        accepted, rate_observation = self._record_rate_limits_observed(ev)
                     else:
-                        pending_response_rate_observation = True
+                        accepted = self._record_rate_limits(ev)
+                        rate_observation = {"reason": "observer_disabled"}
+                if self.provider_observer is not None:
+                    pending_count = len(self._pending_response_creates)
+                    position = (
+                        "active"
+                        if self._active_response and cur_rid not in (None, "?")
+                        else "ambiguous_multiple_pending"
+                        if pending_count > 1
+                        else "ambiguous_previous_or_next"
+                        if pending_count == 1 and last_done_response_id is not None
+                        else "positional_before_created"
+                        if pending_count == 1
+                        else "late_after_done"
+                        if last_done_response_id is not None
+                        else "unsolicited"
+                    )
+                    token_rate = next(
+                        (
+                            item
+                            for item in (ev.get("rate_limits") or [])
+                            if isinstance(item, dict) and item.get("name") == "tokens"
+                        ),
+                        None,
+                    )
+                    prior_rate_count = (
+                        response_rate_observations.get(str(cur_rid), 0)
+                        if self._active_response and cur_rid not in (None, "?")
+                        else pending_response_rate_observations
+                    )
+                    self._observe_provider(
+                        "rate_limits_updated",
+                        response_id=(cur_rid if self._active_response else None),
+                        position=position,
+                        generation=generation,
+                        pending_response_creates=pending_count,
+                        pending_request_ids=sorted(self._pending_response_creates)[:4],
+                        previous_done_response_id=last_done_response_id,
+                        previous_done_age_ms=(
+                            round((time.monotonic() - last_done_at) * 1000, 3)
+                            if last_done_at is not None
+                            else None
+                        ),
+                        accepted=accepted,
+                        positional_rate_count=(
+                            prior_rate_count + 1 if accepted else prior_rate_count
+                        ),
+                        duplicate_positional=bool(accepted and prior_rate_count > 0),
+                        token_rate=(
+                            {
+                                "limit": self._safe_rate_number(token_rate, "limit"),
+                                "remaining": self._safe_rate_number(token_rate, "remaining"),
+                                "reset_seconds": self._safe_rate_number(
+                                    token_rate, "reset_seconds"
+                                ),
+                            }
+                            if token_rate is not None
+                            else None
+                        ),
+                        atomic=rate_observation,
+                    )
+                if accepted:
+                    if self._active_response and cur_rid not in (None, "?"):
+                        response_rate_observations[cur_rid] = (
+                            response_rate_observations.get(cur_rid, 0) + 1
+                        )
+                    else:
+                        pending_response_rate_observations += 1
             elif t == "error":
                 err = ev.get("error") or {}
                 self.last_error = self._error_text(err)
@@ -1629,6 +1830,14 @@ class OpenAIRealtimeSession:
                     self._resolve_ack_watchdog(error_event_id)
                     self._pending_response_creates.discard(rejected_request_id)
                     response_failure = f"OpenAI rejected response.create: {self.last_error}"
+                    if self.provider_observer is not None:
+                        self._observe_provider(
+                            "response_create_rejected",
+                            request_id=rejected_request_id,
+                            error_code=str(err.get("code") or ""),
+                            error_type=str(err.get("type") or ""),
+                            **self._capacity_error_fields(message),
+                        )
                     _LOG.warning("openai rejected correlated response.create: %s", err)
                     yield TurnComplete(status="failed", error=response_failure)
                     continue
