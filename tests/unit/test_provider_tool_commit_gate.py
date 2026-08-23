@@ -250,6 +250,9 @@ async def test_delayed_result_preserves_exact_context_bound_until_followup_creat
 
     done = _done()
     done["response"]["usage"] = {
+        "total_tokens": 5_100,
+        "input_tokens": 5_000,
+        "output_tokens": 100,
         "input_token_details": {"text_tokens": 5_000, "audio_tokens": 0},
         "output_token_details": {"text_tokens": 100, "audio_tokens": 0},
     }

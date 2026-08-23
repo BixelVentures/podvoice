@@ -187,6 +187,7 @@ class TurnObservation:
     first_audio_ms: int | None = None
     diagnostic_transcript: str = ""
     usage: dict[str, int] = field(default_factory=dict)
+    response_usage: list[dict[str, int | str]] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -515,11 +516,13 @@ class EvalBudget:
 
     def record(self, usage: dict[str, int]) -> None:
         # Cached counts are a breakdown of input, not extra tokens.
-        tokens = sum(
+        provider_total = max(0, int(usage.get("provider_total_tokens", 0)))
+        tokens = provider_total or sum(
             max(0, int(usage.get(key, 0)))
             for key in (
                 "input_text_tokens",
                 "input_audio_tokens",
+                "input_image_tokens",
                 "output_text_tokens",
                 "output_audio_tokens",
             )
@@ -530,10 +533,16 @@ class EvalBudget:
         rates = {
             "input_text_tokens": 4.0 / 1_000_000,
             "input_audio_tokens": 32.0 / 1_000_000,
+            "input_image_tokens": 32.0 / 1_000_000,
             "cached_text_tokens": 0.4 / 1_000_000,
             "cached_audio_tokens": 0.4 / 1_000_000,
             "output_text_tokens": 24.0 / 1_000_000,
             "output_audio_tokens": 64.0 / 1_000_000,
+            # The provider's top-level totals are billing/capacity truth. Any
+            # tokens not classified by details are charged at the most expensive
+            # rate for their input/output side, never silently treated as free.
+            "unattributed_input_tokens": 32.0 / 1_000_000,
+            "unattributed_output_tokens": 64.0 / 1_000_000,
         }
         cached_text = max(0, int(usage.get("cached_text_tokens", 0)))
         cached_audio = max(0, int(usage.get("cached_audio_tokens", 0)))
@@ -1379,8 +1388,13 @@ class LiveRealtimeDriver:
                 if tool_round_seen or not observed.decisions:
                     observed.first_audio_ms = round((time.monotonic() - started) * 1000)
             elif isinstance(event, Usage):
+                observed.response_usage.append(asdict(event))
                 usage = Usage(
-                    **{key: getattr(usage, key) + getattr(event, key) for key in asdict(usage)}
+                    **{
+                        key: getattr(usage, key) + getattr(event, key)
+                        for key in asdict(usage)
+                        if key != "response_id"
+                    }
                 )
             elif isinstance(event, SilentToolComplete):
                 if pending_batches:
@@ -1400,7 +1414,9 @@ class LiveRealtimeDriver:
         observed.answer = "".join(output).strip()
         observed.fixture_side_effects = self.tools.fixture_side_effects
         observed.elapsed_ms = round((time.monotonic() - started) * 1000)
-        observed.usage = asdict(usage)
+        observed.usage = {
+            key: value for key, value in asdict(usage).items() if key != "response_id"
+        }
         return observed
 
     async def close(self) -> None:

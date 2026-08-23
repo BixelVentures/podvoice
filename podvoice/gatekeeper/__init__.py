@@ -7,4 +7,4 @@ PodConnect's Attention API while the conversation is live.
 See ``docs/INVARIANTER.md`` for the binding architecture contract.
 """
 
-__version__ = "1.13.31"
+__version__ = "1.13.32"

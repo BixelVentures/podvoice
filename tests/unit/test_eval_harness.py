@@ -697,6 +697,45 @@ async def test_live_collect_dispatches_fixture_only_after_matching_tool_commit_e
     assert len(sent) == 1
 
 
+async def test_live_collect_persists_per_response_top_totals_and_residual():
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session = object()  # type: ignore[assignment]
+    driver.events.put_nowait(
+        eval_harness.Usage(
+            response_id="resp-observed",
+            input_text_tokens=700,
+            output_text_tokens=100,
+            provider_input_tokens=900,
+            provider_output_tokens=120,
+            provider_total_tokens=1_020,
+            unattributed_input_tokens=200,
+            unattributed_output_tokens=20,
+        )
+    )
+    driver.events.put_nowait(
+        eval_harness.TurnComplete(status="completed", response_id="resp-observed")
+    )
+    observed = await driver._collect_turn(turn_id="turn", started=0.0)
+    assert observed.usage["provider_total_tokens"] == 1_020
+    assert observed.response_usage == [
+        {
+            "response_id": "resp-observed",
+            "input_text_tokens": 700,
+            "input_audio_tokens": 0,
+            "input_image_tokens": 0,
+            "cached_text_tokens": 0,
+            "cached_audio_tokens": 0,
+            "output_text_tokens": 100,
+            "output_audio_tokens": 0,
+            "provider_input_tokens": 900,
+            "provider_output_tokens": 120,
+            "provider_total_tokens": 1_020,
+            "unattributed_input_tokens": 200,
+            "unattributed_output_tokens": 20,
+        }
+    ]
+
+
 async def test_live_collect_stops_third_tool_round_before_fixture_effect_or_fourth_response():
     sent: list[list[dict]] = []
 
@@ -1139,6 +1178,98 @@ async def test_field_429_chain_paces_exact_tool_edge_then_sends_one_create():
     session._cancel_ack_watchdogs()
     assert ledger.release(lease) is True
     assert ledger.release(diagnostic) is True
+
+
+async def test_v11331_field_gap_uses_provider_total_and_waits_exactly_once():
+    """Details=33,455 but provider totals=35,743; next edge requests 5,692."""
+    clock = [0.0]
+    waits: list[float] = []
+
+    async def advance(delay: float) -> None:
+        waits.append(delay)
+        clock[0] += delay
+
+    class Wire:
+        closed = False
+
+        def __init__(self) -> None:
+            self.sent: list[dict] = []
+
+        async def send_json(self, payload: dict) -> None:
+            self.sent.append(payload)
+
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    diagnostic = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=diagnostic
+    )
+    usage = OpenAIRealtimeSession._usage_of(
+        {
+            "response": {
+                "id": "field-aggregate",
+                "usage": {
+                    "total_tokens": 35_743,
+                    "input_tokens": 32_000,
+                    "output_tokens": 3_743,
+                    "input_token_details": {"text_tokens": 30_000},
+                    "output_token_details": {"text_tokens": 3_455},
+                },
+            }
+        }
+    )
+    assert usage is not None
+    assert usage.provider_total_tokens == 35_743
+    assert usage.input_text_tokens + usage.output_text_tokens == 33_455
+    assert usage.unattributed_input_tokens + usage.unattributed_output_tokens == 2_288
+    ledger.account_usage("secret", "model", usage.provider_total_tokens, lease=lease)
+    driver = eval_harness.LiveRealtimeDriver(
+        "secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+        capacity_sleep=advance,
+        capacity_monotonic=lambda: clock[0],
+        capacity_deadline=100.0,
+    )
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+        before_response_create=driver.prepare_response_capacity,
+    )
+    wire = Wire()
+    session._ws = wire  # type: ignore[assignment]
+    session._next_response_capacity_tokens = 5_692
+
+    await session._send_response_create()
+
+    assert waits == [pytest.approx(1_435 / (40_000 / 60) + 0.05)]
+    assert [item["type"] for item in wire.sent] == ["response.create"]
+    session._cancel_ack_watchdogs()
+    assert ledger.release(lease) is True
+    assert ledger.release(diagnostic) is True
+
+
+def test_eval_budget_uses_provider_total_and_conservatively_prices_residual():
+    budget = EvalBudget(max_actual_tokens=2_000, max_cost_usd=1.0)
+    budget.record(
+        {
+            "provider_total_tokens": 1_250,
+            "input_text_tokens": 700,
+            "input_audio_tokens": 200,
+            "input_image_tokens": 50,
+            "output_text_tokens": 100,
+            "output_audio_tokens": 20,
+            "unattributed_input_tokens": 150,
+            "unattributed_output_tokens": 30,
+        }
+    )
+    assert budget.actual_tokens == 1_250
+    assert budget.cost_usd == pytest.approx(
+        (700 * 4 + 200 * 32 + 50 * 32 + 100 * 24 + 20 * 64 + 150 * 32 + 30 * 64) / 1_000_000
+    )
 
 
 async def test_capacity_sleep_is_outside_semantic_timeout_but_inside_driver_deadline():

@@ -1361,25 +1361,19 @@ class OpenAIRealtimeSession:
                     else None
                 )
                 tool_budget_lease = production_lease or self.budget_lease
-                eval_usage_valid = not (
-                    self.budget_role == "eval"
-                    and not self._production_tool_usage_is_authoritative(ev)
+                parsed_usage = self._usage_of(ev)
+                authoritative_usage = (
+                    parsed_usage is not None and parsed_usage.provider_total_tokens > 0
                 )
-                production_tool_usage_valid = not (
-                    staged_calls
-                    and tool_budget_lease is not None
-                    and not self._production_tool_usage_is_authoritative(ev)
+                eval_usage_valid = not (self.budget_role == "eval" and not authoritative_usage)
+                budgeted_usage_valid = not (
+                    tool_budget_lease is not None and not authoritative_usage
                 )
-                usage = (
-                    self._usage_of(ev) if production_tool_usage_valid and eval_usage_valid else None
-                )
+                usage = parsed_usage if budgeted_usage_valid and eval_usage_valid else None
                 followup_tokens = (
                     max(
                         TOOL_FOLLOWUP_MINIMUM_RESERVE,
-                        usage.input_text_tokens
-                        + usage.input_audio_tokens
-                        + usage.output_text_tokens
-                        + usage.output_audio_tokens
+                        usage.provider_total_tokens
                         + MAX_TOOL_RESULT_TOKENS
                         + MAX_OUTPUT_TOKENS
                         + TOOL_FOLLOWUP_PROTOCOL_MARGIN,
@@ -1389,13 +1383,21 @@ class OpenAIRealtimeSession:
                 )
                 usage_lease = tool_budget_lease
                 if usage is not None:
+                    _LOG.info(
+                        "response usage id=%s total=%d input=%d output=%d details=%d residual=%d",
+                        rid,
+                        usage.provider_total_tokens,
+                        usage.provider_input_tokens,
+                        usage.provider_output_tokens,
+                        usage.provider_total_tokens
+                        - usage.unattributed_input_tokens
+                        - usage.unattributed_output_tokens,
+                        usage.unattributed_input_tokens + usage.unattributed_output_tokens,
+                    )
                     self.provider_budget.account_usage(
                         self.api_key,
                         self.model,
-                        usage.input_text_tokens
-                        + usage.input_audio_tokens
-                        + usage.output_text_tokens
-                        + usage.output_audio_tokens,
+                        usage.provider_total_tokens,
                         lease=usage_lease,
                         provider_reservation_observed=provider_reservation_observed,
                     )
@@ -1443,15 +1445,11 @@ class OpenAIRealtimeSession:
                         provider_rate_observed=provider_reservation_observed,
                     )
                     continue
-                if (
-                    staged_calls
-                    and tool_budget_lease is not None
-                    and not production_tool_usage_valid
-                ):
+                if tool_budget_lease is not None and not budgeted_usage_valid:
                     self._cancelled_tool_calls.update(staged_calls)
                     error = (
                         "rate_limit_capacity · missing or invalid authoritative usage "
-                        "for tool response"
+                        "for completed response"
                     )
                     self.last_error = error
                     yield TurnComplete(
@@ -1656,52 +1654,66 @@ class OpenAIRealtimeSession:
 
     @staticmethod
     def _usage_of(ev: dict) -> Usage | None:
-        """Token counts from a response.done event (verified GA shape 2026-07:
-        response.usage.{input_token_details{text_tokens,audio_tokens,cached_tokens,
-        cached_tokens_details{...}},output_token_details{text_tokens,audio_tokens}})."""
+        """Strict completed-response usage from the verified GA 2026-07 shape.
+
+        ``total_tokens`` and its input/output split own capacity accounting. Detail
+        objects retain modality/cached pricing; an unexplained positive difference
+        remains explicit and conservatively priced rather than silently discarded.
+        """
         r = ev.get("response")
         u = r.get("usage") if isinstance(r, dict) else None
         if not isinstance(u, dict):
             return None
-        ind = u.get("input_token_details") or {}
-        outd = u.get("output_token_details") or {}
+        ind = u.get("input_token_details")
+        outd = u.get("output_token_details")
+        if not isinstance(ind, dict) or not isinstance(outd, dict):
+            return None
         cached = ind.get("cached_tokens_details") or {}
-        return Usage(
-            input_text_tokens=int(ind.get("text_tokens") or 0),
-            input_audio_tokens=int(ind.get("audio_tokens") or 0),
-            cached_text_tokens=int(cached.get("text_tokens") or 0),
-            cached_audio_tokens=int(cached.get("audio_tokens") or 0),
-            output_text_tokens=int(outd.get("text_tokens") or 0),
-            output_audio_tokens=int(outd.get("audio_tokens") or 0),
-        )
+        if not isinstance(cached, dict):
+            return None
 
-    @staticmethod
-    def _production_tool_usage_is_authoritative(ev: dict) -> bool:
-        """Require typed, nonnegative usage before releasing a production effect."""
-        response = ev.get("response")
-        usage = response.get("usage") if isinstance(response, dict) else None
-        if not isinstance(usage, dict):
-            return False
-        input_details = usage.get("input_token_details")
-        output_details = usage.get("output_token_details")
-        if not isinstance(input_details, dict) or not isinstance(output_details, dict):
-            return False
-        token_keys = {"text_tokens", "audio_tokens"}
-        if not token_keys.intersection(input_details) or not token_keys.intersection(
-            output_details
-        ):
-            return False
-        values = [
-            input_details.get("text_tokens", 0),
-            input_details.get("audio_tokens", 0),
-            output_details.get("text_tokens", 0),
-            output_details.get("audio_tokens", 0),
-        ]
-        valid = all(
-            isinstance(value, int) and not isinstance(value, bool) and value >= 0
-            for value in values
+        def token(name: str, source: dict) -> int:
+            value = source.get(name, 0)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise ValueError(name)
+            return value
+
+        try:
+            total = token("total_tokens", u)
+            input_total = token("input_tokens", u)
+            output_total = token("output_tokens", u)
+            input_text = token("text_tokens", ind)
+            input_audio = token("audio_tokens", ind)
+            input_image = token("image_tokens", ind)
+            output_text = token("text_tokens", outd)
+            output_audio = token("audio_tokens", outd)
+            cached_text = token("text_tokens", cached)
+            cached_audio = token("audio_tokens", cached)
+        except ValueError:
+            return None
+        if total != input_total + output_total:
+            return None
+        known_input = input_text + input_audio + input_image
+        known_output = output_text + output_audio
+        if input_total < known_input or output_total < known_output:
+            return None
+        if cached_text > input_text or cached_audio > input_audio:
+            return None
+        return Usage(
+            response_id=str(r.get("id") or "") if isinstance(r, dict) else "",
+            input_text_tokens=input_text,
+            input_audio_tokens=input_audio,
+            input_image_tokens=input_image,
+            cached_text_tokens=cached_text,
+            cached_audio_tokens=cached_audio,
+            output_text_tokens=output_text,
+            output_audio_tokens=output_audio,
+            provider_input_tokens=input_total,
+            provider_output_tokens=output_total,
+            provider_total_tokens=total,
+            unattributed_input_tokens=input_total - known_input,
+            unattributed_output_tokens=output_total - known_output,
         )
-        return valid and sum(values) > 0
 
     async def reconnect(self) -> None:
         await self.close()

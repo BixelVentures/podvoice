@@ -73,6 +73,9 @@ def estimate_usd(model: str, u: Usage) -> float:
         + u.cached_audio_tokens * rates["audio_cached"]
         + u.output_text_tokens * rates["text_out"]
         + u.output_audio_tokens * rates["audio_out"]
+        + u.input_image_tokens * max(rates["text_in"], rates["audio_in"])
+        + u.unattributed_input_tokens * max(rates["text_in"], rates["audio_in"])
+        + u.unattributed_output_tokens * max(rates["text_out"], rates["audio_out"])
     )
     return usd / 1_000_000
 

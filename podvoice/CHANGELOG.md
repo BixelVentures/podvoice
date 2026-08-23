@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.13.32 — autoritativ Realtime-usage på hver response
+
+- `response.done.usage.total_tokens`, `input_tokens` og `output_tokens` er nu den
+  bindende kapacitets- og pacingkilde. Modalitetsdetaljer bruges som prisopdeling, ikke
+  længere som en ufuldstændig erstatning for providerens total.
+- Manglende, negative eller indbyrdes modstridende totaltal fejler lukket i både
+  SafeEval og budgetterede Voice PE-/Talk-responses. En handling frigives aldrig ud fra
+  en mindre tekst/lyd-detaljesum, hvis providerens total kræver mere resultatkapacitet.
+- Reasoning-, image- og andre ukategoriserede tokens bevares som synlig residual og
+  prissættes konservativt. Evalrapporten gemmer response-id, topniveau, detaljesum og
+  residual per response, så næste feltkørsel kan skelne intern residual fra ekstern
+  samme-nøgletrafik.
+- Feltmatematikken fra v1.13.31 er regressionstestet: lokal detaljesum 33.455,
+  provider-total 35.743 og næste request 5.692 giver én 2,1525-sekunders ventetid plus
+  guard og præcis ét wire-send. Der er fortsat intet automatisk 429-retry.
+- Prompt V6, model, SafeEval-fixtures, $5-loft, diagnostic lock, Thin, lyd, gain, VAD,
+  firmware, playback, HA/MCP og produktionsværktøjspolitik er uændrede.
+- Lokal kandidatgate: 221/221 fokustests og hele repoets 772/772 tests samt Ruff,
+  mypy for 42 sourcefiler og diff-check er grønne. CI/ARM64-image, installation og én
+  rigtig fuld Prompt V6-live-preflight står fortsat åbne.
+
 ## 1.13.31 — korrekt pacing på hver Realtime-responsekant
 
 - Den observerede v1.13.30-fejl (`used=34805`, `requested=5769`, `retry=861 ms`)

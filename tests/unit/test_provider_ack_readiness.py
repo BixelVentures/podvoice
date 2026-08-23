@@ -16,7 +16,7 @@ from gatekeeper.openai_realtime import (
     ProviderConfigurationError,
 )
 from gatekeeper.provider_budget import ProviderBudgetCoordinator, ProviderBudgetUnavailable
-from gatekeeper.voice import ToolCall, ToolRoundComplete, TurnComplete
+from gatekeeper.voice import ToolCall, ToolRoundComplete, TurnComplete, Usage
 
 
 class _Message:
@@ -155,7 +155,7 @@ async def test_response_start_rate_reservation_does_not_kill_session_readiness(m
     await session.close()
 
 
-async def test_prior_authoritative_budget_cannot_cover_response_missing_its_rate_event(
+async def test_duplicate_done_with_top_residual_debits_usage_exactly_once(
     monkeypatch,
 ):
     ledger = ProviderBudgetCoordinator()
@@ -168,6 +168,9 @@ async def test_prior_authoritative_budget_cannot_cover_response_missing_its_rate
     session = OpenAIRealtimeSession(api_key="secret", model="model")
     ws = _QueueWS()
     usage = {
+        "total_tokens": 1_200,
+        "input_tokens": 1_100,
+        "output_tokens": 100,
         "input_token_details": {"text_tokens": 700, "audio_tokens": 200},
         "output_token_details": {"text_tokens": 50, "audio_tokens": 50},
     }
@@ -178,8 +181,84 @@ async def test_prior_authoritative_budget_cannot_cover_response_missing_its_rate
         {"type": "response.done", "response": {"id": "r1", "status": "completed", "usage": usage}}
     )
     await ws.incoming.put(None)
-    assert [event async for event in session._iter_events(ws)]
-    assert ledger.snapshot("secret", "model")["remaining"] == 39_000
+    events = [event async for event in session._iter_events(ws)]
+    assert len([event for event in events if isinstance(event, Usage)]) == 1
+    assert ledger.snapshot("secret", "model")["remaining"] == 38_800
+
+
+@pytest.mark.parametrize(
+    "usage",
+    [
+        {
+            "input_token_details": {"text_tokens": 900},
+            "output_token_details": {"text_tokens": 100},
+        },
+        {
+            "total_tokens": 1_001,
+            "input_tokens": 900,
+            "output_tokens": 100,
+            "input_token_details": {"text_tokens": 900},
+            "output_token_details": {"text_tokens": 100},
+        },
+    ],
+)
+async def test_budgeted_production_direct_response_requires_authoritative_top_totals(usage):
+    ledger = ProviderBudgetCoordinator()
+    session = OpenAIRealtimeSession(
+        api_key="secret", model="model", budget_role="production", provider_budget=ledger
+    )
+    session._connection_generation = 1
+    lease = ledger.production_started("secret", "model")
+    session._budget_production_leases[1] = lease
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {"id": "direct-invalid", "status": "completed", "usage": usage},
+        }
+    )
+    await ws.incoming.put(None)
+
+    events = [event async for event in session._iter_events(ws, generation=1)]
+    assert not any(isinstance(event, (Usage, ToolCall, ToolRoundComplete)) for event in events)
+    terminal = [event for event in events if isinstance(event, TurnComplete)][-1]
+    assert terminal.status == "failed"
+    assert "invalid authoritative usage" in str(terminal.error)
+    assert ledger.snapshot("secret", "model")["reserved_tokens"] == 15_000
+    assert ledger.release(lease) is True
+
+
+async def test_budgeted_production_direct_response_debits_valid_top_total_once():
+    ledger = ProviderBudgetCoordinator()
+    session = OpenAIRealtimeSession(
+        api_key="secret", model="model", budget_role="production", provider_budget=ledger
+    )
+    session._connection_generation = 1
+    lease = ledger.production_started("secret", "model")
+    session._budget_production_leases[1] = lease
+    ws = _QueueWS()
+    done = {
+        "type": "response.done",
+        "response": {
+            "id": "direct-valid",
+            "status": "completed",
+            "usage": {
+                "total_tokens": 1_200,
+                "input_tokens": 1_100,
+                "output_tokens": 100,
+                "input_token_details": {"text_tokens": 900},
+                "output_token_details": {"text_tokens": 100},
+            },
+        },
+    }
+    await ws.emit(done)
+    await ws.emit(done)
+    await ws.incoming.put(None)
+
+    events = [event async for event in session._iter_events(ws, generation=1)]
+    assert len([event for event in events if isinstance(event, Usage)]) == 1
+    assert ledger.snapshot("secret", "model")["reserved_tokens"] == 13_800
+    assert ledger.release(lease) is True
 
 
 @pytest.mark.parametrize(
@@ -308,6 +387,9 @@ async def test_same_generation_direct_then_two_tool_rounds_keep_spoken_result_ca
                     "id": response_id,
                     "status": "completed",
                     "usage": {
+                        "total_tokens": tokens,
+                        "input_tokens": tokens - 100,
+                        "output_tokens": 100,
                         "input_token_details": {"text_tokens": tokens - 100},
                         "output_token_details": {"text_tokens": 100},
                     },
@@ -391,6 +473,9 @@ async def test_exclusive_eval_response_may_complete_at_remaining_fourteen_thousa
                 "id": "r-exclusive",
                 "status": "completed",
                 "usage": {
+                    "total_tokens": 16_000,
+                    "input_tokens": 15_900,
+                    "output_tokens": 100,
                     "input_token_details": {"text_tokens": 15_900},
                     "output_token_details": {"text_tokens": 100},
                 },
@@ -462,6 +547,9 @@ async def test_exclusive_eval_tool_round_keeps_six_thousand_result_capacity_at_r
                 "id": "r-tool-14",
                 "status": "completed",
                 "usage": {
+                    "total_tokens": 10_000,
+                    "input_tokens": 9_900,
+                    "output_tokens": 100,
                     "input_token_details": {"text_tokens": 9_900},
                     "output_token_details": {"text_tokens": 100},
                 },
@@ -529,6 +617,9 @@ async def test_tool_call_is_not_released_when_repeated_context_exceeds_followup_
                 "id": "r-context",
                 "status": "completed",
                 "usage": {
+                    "total_tokens": 10_000,
+                    "input_tokens": 9_900,
+                    "output_tokens": 100,
                     "input_token_details": {"text_tokens": 9_900},
                     "output_token_details": {"text_tokens": 100},
                 },
@@ -541,6 +632,75 @@ async def test_tool_call_is_not_released_when_repeated_context_exceeds_followup_
     terminal = [event for event in events if isinstance(event, TurnComplete)][-1]
     assert terminal.status == "failed"
     assert "tool result response" in str(terminal.error)
+    assert ledger.release(lease) is True
+    assert ledger.release(owner) is True
+
+
+async def test_tool_effect_gate_uses_top_total_not_smaller_detail_sum():
+    ledger = ProviderBudgetCoordinator()
+    owner = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=owner
+    )
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+        tool_declarations=[
+            {
+                "name": "HassTurnOn",
+                "description": "safe fixture",
+                "parameters": {"type": "object", "additionalProperties": True},
+            }
+        ],
+    )
+    ws = _QueueWS()
+    await ws.emit({"type": "response.created", "response": {"id": "r-residual"}})
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 12_000, "reset_seconds": 60}
+            ],
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "r-residual",
+            "call_id": "call-residual",
+            "name": "HassTurnOn",
+            "arguments": '{"name":"light.kitchen"}',
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "r-residual",
+                "status": "completed",
+                "usage": {
+                    "total_tokens": 10_000,
+                    "input_tokens": 9_000,
+                    "output_tokens": 1_000,
+                    "input_token_details": {"text_tokens": 4_500},
+                    "output_token_details": {"text_tokens": 500},
+                },
+            },
+        }
+    )
+    await ws.incoming.put(None)
+
+    events = [event async for event in session._iter_events(ws)]
+    assert not any(isinstance(event, (ToolCall, ToolRoundComplete)) for event in events)
+    terminal = [event for event in events if isinstance(event, TurnComplete)][-1]
+    assert terminal.status == "failed"
+    assert "tool result response" in str(terminal.error)
+    snapshot = ledger.snapshot("secret", "model")
+    assert snapshot["remaining"] == 12_000
+    assert snapshot["reserved_tokens"] == 5_000
     assert ledger.release(lease) is True
     assert ledger.release(owner) is True
 
@@ -604,6 +764,9 @@ async def test_first_semantic_completed_response_needs_usage_but_not_rate_teleme
                 "id": "first-semantic",
                 "status": "completed",
                 "usage": {
+                    "total_tokens": 1_000,
+                    "input_tokens": 900,
+                    "output_tokens": 100,
                     "input_token_details": {"text_tokens": 900, "audio_tokens": 0},
                     "output_token_details": {"text_tokens": 100, "audio_tokens": 0},
                 },
@@ -1133,6 +1296,9 @@ async def test_response_rate_event_after_created_prevents_completed_usage_double
                 "id": "semantic-response",
                 "status": "completed",
                 "usage": {
+                    "total_tokens": 6,
+                    "input_tokens": 4,
+                    "output_tokens": 2,
                     "input_token_details": {"text_tokens": 4, "audio_tokens": 0},
                     "output_token_details": {"text_tokens": 2, "audio_tokens": 0},
                 },
@@ -1182,6 +1348,9 @@ async def test_malformed_current_rate_event_cannot_cover_completed_response_usag
                 "id": "r-malformed",
                 "status": "completed",
                 "usage": {
+                    "total_tokens": 1_000,
+                    "input_tokens": 900,
+                    "output_tokens": 100,
                     "input_token_details": {"text_tokens": 900, "audio_tokens": 0},
                     "output_token_details": {"text_tokens": 100, "audio_tokens": 0},
                 },

@@ -141,16 +141,23 @@ class Idle:
 class Usage:
     """Token consumption for one completed response (``response.done`` usage block).
 
-    Feeds the cost meter: audio tokens dominate spend on a voice device, so they
-    are carried separately from text. ``cached_tokens`` are billed at the cached
-    rate (a large discount) and are subtracted from ``input_*`` by the meter."""
+    Provider top-level totals are capacity truth. Modality details feed pricing;
+    cached tokens are subsets of input and any top-level residual is retained so
+    it can neither disappear from pacing nor be priced as free."""
 
+    response_id: str = ""
     input_text_tokens: int = 0
     input_audio_tokens: int = 0
+    input_image_tokens: int = 0
     cached_text_tokens: int = 0
     cached_audio_tokens: int = 0
     output_text_tokens: int = 0
     output_audio_tokens: int = 0
+    provider_input_tokens: int = 0
+    provider_output_tokens: int = 0
+    provider_total_tokens: int = 0
+    unattributed_input_tokens: int = 0
+    unattributed_output_tokens: int = 0
 
 
 # Union of everything ``events()`` can yield. Runtime assignment (not an

@@ -5,14 +5,86 @@ Senest opdateret: 2026-08-23.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv softwarekandidat:** lokal v1.13.31; installeret baseline er v1.13.30 fra remote
-commit `e21453d`. **Aktuel gate:** v1.13.31's response-edge pacing er lokalt grøn
-753/753 og uafhængigt review har ingen åben P0/P1. Eksakt commit, CI/ARM64-image,
-installation og en fuld rigtig Prompt V6-live-eval står åbne. Kandidaten er fortsat
+**Aktiv softwarekandidat:** lokal v1.13.32; installeret v1.13.31 er fra remote commit
+`9c2a768`. **Aktuel gate:** v1.13.32's autoritative usage-korrektion er lokalt grøn
+772/772 og uafhængigt review har ingen åben P0/P1. Eksakt commit, CI/ARM64-image,
+installation og én fuld rigtig Prompt V6-live-eval står åbne. Kandidaten er fortsat
 **NO-GO** for fysisk test.
 En live-rapport på de samme byggede bits og uafhængig review skal genoprette mindst
 97/100, før én frisk fysisk golden chain må begynde. Fysisk Voice PE-bevis og 10/10 er
 fortsat separate gates; v1.13.11 er uændret fysisk baseline.
+
+### Feltstop 23. august — v1.13.31 forklarede ikke hele providerens rullende forbrug
+
+**Observeret på eksakt installeret CI/ARM64-artifact; ingen automatisk retry.**
+v1.13.31 startede korrekt med Voice PE, 19 HA/MCP-værktøjer og vellykket
+`GetLiveContext`. SafeEval `eval-1787484610-a49ab1` fastholdt Prompt V6/default og de
+forventede schemahashes. `arithmetic-followup` bestod begge ture i samme
+Realtime-session med svarene 84 og 90. En senere sideeffektfri værktøjsopfølgning blev
+afvist af OpenAI med `TPM limit=40000, used=35743, requested=5692, retry=2,152 s`.
+
+- Rapporten klassificerede fejlen som `diagnostic-capacity`, satte
+  `coverage_complete=false` og fortsatte ikke til næste scenarie. Lokalt registreret
+  forbrug var 33.455 tokens, $0,065332 og 55,073 sekunders pacingventetid.
+- Forskellen mellem providerens `used=35743` og det lokale `actual_tokens=33455` er
+  **2.288 tokens**. Den forrige kontinuerlige refill rettede epoch-jump-fejlen, men
+  feltbeviset falsificerer, at completed-response-usage alene beskriver hele den
+  kapacitet, providerens næste responsekant reserverer imod.
+- Ingen rigtig HA-, MCP-, PodConnect-, musik- eller timerhandling blev udført:
+  `/api/status` viste efter stop `diagnostic_active=false`, 0 sessions, 0 tool calls og
+  HA/MCP oppe med 26 deklarationer. Voice PE blev frigivet; fysisk wake/rearm er ikke
+  brugt som bevis i denne maskinelle kørsel.
+- **Berørte invarianter:** providerfejl skal være kausalt korrelerede og synlige;
+  eval må ikke skjule 429 med retry; hver klientstyret `response.create` skal være
+  sikkert admitted; diagnostiklåsen skal frigives terminalt; diagnostiske fixtures må
+  aldrig nå rigtige adaptere; maskinelt grønt må ikke udledes af et delvist scenarie.
+- **Falsificerbar hovedhypotese:** Realtime-providerens rullende TPM-regnskab omfatter
+  reservation/overhead, som ikke findes i den lokale sum af `response.done.usage`,
+  eller den lokale debit/refill binder en autoritativ snapshot til den forkerte
+  responsekant. Før rettelse skal rå feltevents og officiel kontrakt skelne mellem
+  outputreservation, cached/input-usage, protokoloverhead og ekstern samme-nøgletrafik.
+- **Påkrævet regression:** reproducer `used=35743`, lokal completed usage 33.455,
+  `requested=5692` og 2,152 s uden at gætte en fast margin; bevis atomic admission ved
+  hver initial og deferred tool-result-responsekant, korrekte before/active/late/
+  manglende rate-events, flere efterfølgende debits, timeout/teardown og nul wire-send,
+  fixtureeffekt eller retry ved utilstrækkelig kapacitet. En ny live-kørsel må først
+  ske efter frozen focused/full/lint/mypy, uafhængigt review og nyt CI/ARM64-artifact.
+- **Rollback:** v1.13.31 forbliver installeret men live-preflight må ikke genkøres og
+  fysisk golden chain må ikke begynde. Ved usikker årsag bevares terminal 429 og den
+  sideeffektfrie NO-GO i stedet for at sænke gaten eller tilføje en blind buffer.
+- **Frosne ikke-mål:** Prompt V6, model, lyd, gain, VAD, firmware, playback,
+  Thin-lifecycle, HA/MCP-discovery og produktionsværktøjspolitik ændres ikke.
+
+**Lokalt implementeringsresultat, endnu ikke versioneret/bygget/installeret/live-kørt.**
+Den officielle Realtime-kontrakt gør topniveauets `total_tokens`, `input_tokens` og
+`output_tokens` til den samlede usage for en completed response. Den hidtidige parser
+ignorerede disse felter og summerede kun tekst-/lyddetaljer. Parseren kræver og
+validerer nu ikke-negative heltal, `total=input+output`, at topniveauet ikke er mindre
+end detaljerne, og at cached er en delmængde. Providerledger, responsekapacitet og
+SafeEvals faktiske tokenloft bruger `total_tokens`; modalitetsdetaljer bevares til pris,
+og en uklassificeret input-/outputrest prises konservativt med den dyreste relevante
+modalitet. Image-input kan ikke forsvinde fra prisloftet.
+
+Hver eval-response gemmer nu et sikkert observationsobjekt med response-id,
+topniveauets tre totalsummer, detaljesum og input-/outputrest i rapporten og en
+tilsvarende sanitiseret loglinje. Den gamle v1.13.31-rapport gemte ikke topniveauet, så
+de 2.288 tokens er **ikke retrospektivt bevist** som denne rest; ekstern samme-nøgle-
+trafik eller anden providerbaseline er fortsat en falsificerbar alternativ forklaring.
+Den næste live-kørsel kan nu skelne dem per response.
+
+Rå regressioner beviser blandt andet: detaljesum 33.455/topniveau 35.743 og næste kant
+5.692 giver præcis `(35743+5692-40000)/(40000/60)=2,1525 s` plus den eksisterende
+50 ms grænsemargin og præcis én wire-send; malformed/manglende/modstridende totalsummer
+fejler lukket; topniveau større end detaljesummen kan ikke frigive en staged
+værktøjseffekt uden kapacitet til resultatet; duplicate completion debiterer ikke igen;
+en budgetejet direkte produktionsresponse uden gyldige topniveauer fejler terminalt,
+så en senere tur ikke kan admitted på stale kapacitet; residual, cached og image
+dobbelttælles ikke og bliver ikke gratis. Focused-, full-, Ruff- og mypy-gaten er nu
+kørt: **221/221 focused**, **772/772 unrestricted full**
+inklusive lokale HTTP/WebSocket-integrationer, Ruff grøn, mypy grøn for 42 sourcefiler
+og `git diff --check` grøn. Uafhængigt adversarial review, versionering, CI/ARM64-build,
+installation og en frisk fuld live-eval er fortsat åbne gates; kandidaten er derfor
+fortsat NO-GO for fysisk golden chain.
 
 ### Feltstop 23. august — v1.13.30 preflight ramte TPM på en responsekant
 

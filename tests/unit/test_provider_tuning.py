@@ -1049,6 +1049,9 @@ def test_usage_event_from_response_done():
         "type": "response.done",
         "response": {
             "usage": {
+                "total_tokens": 630,
+                "input_tokens": 210,
+                "output_tokens": 420,
                 "input_token_details": {
                     "text_tokens": 10,
                     "audio_tokens": 200,
@@ -1063,3 +1066,60 @@ def test_usage_event_from_response_done():
     assert isinstance(u, Usage)
     assert u.input_audio_tokens == 200 and u.cached_audio_tokens == 115
     assert u.output_audio_tokens == 400 and u.output_text_tokens == 20
+    assert u.provider_total_tokens == 630
+    assert u.unattributed_input_tokens == 0
+    assert u.unattributed_output_tokens == 0
+
+
+def test_usage_top_level_totals_retain_residual_and_image_detail():
+    ev = {
+        "response": {
+            "id": "resp-field",
+            "usage": {
+                "total_tokens": 1_250,
+                "input_tokens": 1_100,
+                "output_tokens": 150,
+                "input_token_details": {
+                    "text_tokens": 700,
+                    "audio_tokens": 200,
+                    "image_tokens": 50,
+                    "cached_tokens_details": {"text_tokens": 100},
+                },
+                "output_token_details": {"text_tokens": 100, "audio_tokens": 20},
+            },
+        }
+    }
+    usage = OpenAIRealtimeSession._usage_of(ev)
+    assert usage is not None
+    assert usage.response_id == "resp-field"
+    assert usage.provider_total_tokens == 1_250
+    assert usage.input_image_tokens == 50
+    assert usage.unattributed_input_tokens == 150
+    assert usage.unattributed_output_tokens == 30
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"total_tokens": None},
+        {"total_tokens": "100"},
+        {"total_tokens": 100.0},
+        {"total_tokens": True},
+        {"total_tokens": -1},
+        {"input_tokens": -1},
+        {"output_tokens": -1},
+        {"total_tokens": 101},
+        {"input_tokens": 79},
+        {"output_tokens": 19},
+    ],
+)
+def test_usage_rejects_missing_malformed_or_inconsistent_top_totals(overrides):
+    usage = {
+        "total_tokens": 100,
+        "input_tokens": 80,
+        "output_tokens": 20,
+        "input_token_details": {"text_tokens": 80},
+        "output_token_details": {"text_tokens": 20},
+    }
+    usage.update(overrides)
+    assert OpenAIRealtimeSession._usage_of({"response": {"usage": usage}}) is None
