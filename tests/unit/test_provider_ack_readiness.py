@@ -298,7 +298,7 @@ async def test_sensitive_or_lifecycle_schema_failure_is_never_correction_eligibl
             "name": "EvalUnlockDoor",
             "parameters": {
                 "type": "object",
-                "properties": {"name": {"type": "string"}},
+                "properties": {"name": {"type": "string", "enum": ["hoveddøren"]}},
                 "required": ["name"],
                 "additionalProperties": False,
             },
@@ -312,7 +312,7 @@ async def test_sensitive_or_lifecycle_schema_failure_is_never_correction_eligibl
             "response_id": "r-sensitive",
             "call_id": "call-sensitive",
             "name": "EvalUnlockDoor",
-            "arguments": "{}",
+            "arguments": '{"name":"hoveddør"}',
         }
     )
     await ws.emit(
@@ -329,6 +329,8 @@ async def test_sensitive_or_lifecycle_schema_failure_is_never_correction_eligibl
     events = [event async for event in session._iter_events(ws)]
 
     assert not any(isinstance(event, (ToolCall, ToolSchemaCorrection)) for event in events)
+    assert not any(row.get("type") == "conversation.item.create" for row in ws.sent)
+    assert not any(row.get("type") == "response.create" for row in ws.sent)
     terminal = next(event for event in events if isinstance(event, TurnComplete))
     assert terminal.status == "failed"
 
