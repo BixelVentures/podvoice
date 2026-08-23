@@ -1221,11 +1221,31 @@ setInterval(function () {
       if (data.budget) box.appendChild(ee("div", "sub", "Forbrug: " + (data.budget.actual_tokens || 0) + " tokens · estimeret $" + Number(data.budget.cost_usd || 0).toFixed(3)));
       return;
     }
-    var head = ee("div", "line " + (data.ok ? "out" : "in"));
-    head.appendChild(ee("div", "who", data.ok ? "✓ MASKINEL PREFLIGHT BESTÅET" : "✕ MASKINEL PREFLIGHT IKKE BESTÅET"));
+    // A selected subset is useful diagnostic evidence, but it is never the release
+    // preflight.  Read the explicit server contract fail-closed: neither `ok` nor a
+    // green selected result may be promoted to full-profile evidence by the panel.
+    var hasReleaseTruth = typeof data.selected_ok === "boolean" &&
+      typeof data.profile_complete === "boolean" &&
+      typeof data.coverage_complete === "boolean" &&
+      typeof data.release_preflight_passed === "boolean";
+    var selectedOk = hasReleaseTruth && data.selected_ok === true;
+    var profileComplete = hasReleaseTruth && data.profile_complete === true;
+    var coverageComplete = hasReleaseTruth && data.coverage_complete === true;
+    var releasePassed = hasReleaseTruth && data.release_preflight_passed === true &&
+      selectedOk && profileComplete && coverageComplete;
+    var targeted = hasReleaseTruth && !profileComplete;
+    var headline = !hasReleaseTruth ? "✕ RAPPORT MANGLER RELEASE-KONTRAKT" :
+      targeted ? (selectedOk ? "✓ MÅLRETTET DIAGNOSE BESTÅET – IKKE FULD PREFLIGHT" : "✕ MÅLRETTET DIAGNOSE IKKE BESTÅET") :
+      (releasePassed ? "✓ MASKINEL PREFLIGHT BESTÅET" : "✕ MASKINEL PREFLIGHT IKKE BESTÅET");
+    // Only the complete release profile may receive the panel's green success style.
+    var head = ee("div", "line " + (releasePassed ? "out" : "in"));
+    head.appendChild(ee("div", "who", headline));
     var promptLabel = data.prompt_source === "default" ? "prompt v" + (data.prompt_version || "?") : "brugerdefineret prompt";
     head.appendChild(document.createTextNode((data.results || []).length + " scenarier · " + (data.model || "ukendt model") + " · " + promptLabel));
     box.appendChild(head);
+    box.appendChild(ee("div", "sub", "Udvalgte scenarier: " + (selectedOk ? "bestået" : "ikke bestået") + " · Fuld profil valgt: " + (profileComplete ? "ja" : "nej") + " · Dækning gennemført: " + (coverageComplete ? "ja" : "nej") + " · Release-preflight: " + (releasePassed ? "bestået" : "ikke bestået")));
+    if (targeted) box.appendChild(ee("div", "sub", "Denne delkørsel er kun diagnose og erstatter ikke den fulde release-preflight."));
+    if (!hasReleaseTruth) box.appendChild(ee("div", "sub", "Rapporten kan ikke bruges som releasebevis, fordi de eksplicitte statusfelter mangler."));
     box.appendChild(ee("div", "sub", "Semantisk profil testet: " + ((data.semantic_profile_covered || []).join(", ") || "ingen")));
     box.appendChild(ee("div", "sub", "Fixturerede evner i denne test: " + ((data.capabilities_admitted || []).join(", ") || "ingen")));
     if ((data.capabilities_not_exercised || []).length) box.appendChild(ee("div", "sub", "Fundet, men ikke funktionstestet her: " + data.capabilities_not_exercised.join(", ") + ". Tilstedeværelse er ikke funktionsbevis."));
