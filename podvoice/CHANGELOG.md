@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.13.37 — SafeEval måler semantik uden skjulte literal-fælder
+
+- Web-fixturet accepterer tre eksplicitte, schema-gyldige FCK-søgeformuleringer som
+  fulde argument-dicts. Beståelse kræver stadig præcis ét kald, ét `ok`-resultat og
+  det korrekte svar; dubletter, andre klubber, fremtidige kampe og ekstra felter er røde.
+- Den eval-følsomme dørlås eksponerer nu kun den eksakte fixtureværdi `hoveddøren`
+  som enum. Andre mål stopper terminalt uden schema-korrektion, challenge eller effekt.
+- Den syntetiske HA-testverden definerer området som grundformen `stue`. Kun
+  `area=stue, domain=[light]` kan give fixture-succes; navn, bøjningsvariant og scalar
+  domain forbliver afvist.
+- Produktionsschema, schema-hash, dispatch, Prompt V6, model, edge-loft, lyd, VAD,
+  Thin, HA/MCP, firmware og lifecycle er uændrede. Lokal gate: 329/329 fokustests og
+  843/843 fuld suite samt Ruff, format, mypy og diff-check.
+
 ## 1.13.36 — kapacitetsventen genberegnes før wire
 
 - SafeEval genberegner nu den atomiske Realtime-kapacitet efter hvert bounded wait.

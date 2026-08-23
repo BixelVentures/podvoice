@@ -128,6 +128,23 @@ def test_tool_admission_filters_injected_production_tools_without_substring_alia
     assert set(admission.contracts) == {"get_time", "google_web_sogning"}
 
 
+def test_eval_only_sensitive_schema_does_not_mutate_production_snapshot_or_hash():
+    scenario = next(row for row in load_scenarios() if row.id == "sensitive-confirmation")
+    production = _production_snapshot()
+    frozen = json.loads(json.dumps(production))
+    production_hash = eval_harness._schema_sha256(production)
+
+    admission = eval_harness._admit_eval_tools([scenario], production)
+
+    assert production == frozen
+    assert eval_harness._schema_sha256(production) == production_hash
+    assert SAFE_EVAL_HIGH_RISK_TOOL not in {row["name"] for row in production}
+    sensitive = next(
+        row for row in admission.declarations if row["name"] == SAFE_EVAL_HIGH_RISK_TOOL
+    )
+    assert sensitive["parameters"]["properties"]["name"]["enum"] == ["hoveddøren"]
+
+
 @pytest.mark.parametrize(
     "failure",
     [
@@ -241,16 +258,21 @@ def test_audio_replay_matches_only_an_exact_known_eval_utterance():
 def test_web_oracle_accepts_spoken_words_or_digits_but_still_requires_winner():
     scenario = next(s for s in load_scenarios() if s.id == "web-routing")
     expected = scenario.turns[0].expect
-    for answer in (
-        "FCK vandt 2-0.",
-        "FCK vandt kampen med to nul.",
-        "Kampen endte 2-0 til FC København.",
+    allowed_queries = tuple(case["query"] for case in expected.tool_args_any["google_web_sogning"])
+    for query, answer in zip(
+        allowed_queries,
+        (
+            "FCK vandt 2-0.",
+            "FCK vandt kampen med to nul.",
+            "Kampen endte 2-0 til FC København.",
+        ),
+        strict=True,
     ):
         observed = TurnObservation(
             turn_id="turn",
             session_id="session",
             decisions=["google_web_sogning"],
-            tool_args={"google_web_sogning": [{"query": "FCK seneste kamp"}]},
+            tool_args={"google_web_sogning": [{"query": query}]},
             tool_results={
                 "google_web_sogning": [
                     {"ok": True, "summary": "FCK vandt to nul i den seneste kamp."}
@@ -271,6 +293,34 @@ def test_web_oracle_accepts_spoken_words_or_digits_but_still_requires_winner():
     )
     assert {finding.code for finding in grade_turn(expected, wrong_winner)} == {
         "answer-pattern-mismatch"
+    }
+
+
+def test_web_oracle_rejects_two_otherwise_allowed_calls():
+    expected = next(s for s in load_scenarios() if s.id == "web-routing").turns[0].expect
+    observed = TurnObservation(
+        turn_id="turn",
+        session_id="session",
+        decisions=["google_web_sogning", "google_web_sogning"],
+        tool_args={
+            "google_web_sogning": [
+                {"query": "FC København seneste kamp resultat"},
+                {"query": "FCK latest match result"},
+            ]
+        },
+        tool_results={
+            "google_web_sogning": [
+                {"ok": True, "summary": "FCK vandt to nul."},
+                {"ok": True, "summary": "FCK vandt to nul."},
+            ]
+        },
+        answer="FCK vandt 2-0.",
+    )
+
+    assert {finding.code for finding in grade_turn(expected, observed)} == {
+        "wrong-decision",
+        "wrong-tool-args",
+        "wrong-tool-outcome",
     }
 
 
@@ -448,7 +498,7 @@ def test_sensitive_fixture_exists_only_in_explicit_semantic_eval_profile():
     )
     assert sensitive["parameters"] == {
         "type": "object",
-        "properties": {"name": {"type": "string"}},
+        "properties": {"name": {"type": "string", "enum": ["hoveddøren"]}},
         "required": ["name"],
         "additionalProperties": False,
     }
@@ -484,14 +534,102 @@ async def test_safe_eval_dispatch_requires_exact_admitted_name_and_canonical_arg
         fixture_contracts=admission.contracts,
     )
 
-    wrong_name = await tools.dispatch("HassTurnOnAlias", {"area": "stuen", "domain": ["light"]})
-    wrong_args = await tools.dispatch("HassTurnOn", {"area": "stuen", "domain": "light"})
-    exact = await tools.dispatch("HassTurnOn", {"area": "stuen", "domain": ["light"]})
+    wrong_name = await tools.dispatch("HassTurnOnAlias", {"area": "stue", "domain": ["light"]})
+    wrong_args = await tools.dispatch("HassTurnOn", {"area": "stue", "domain": "light"})
+    exact = await tools.dispatch("HassTurnOn", {"area": "stue", "domain": ["light"]})
 
     assert wrong_name["error_kind"] == "eval_tool_refused"
     assert wrong_args["error_kind"] == "eval_fixture_args_mismatch"
     assert exact["ok"] is True
     assert tools.fixture_side_effects == 1
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"area": "stuen", "domain": ["light"]},
+        {"name": "stue", "domain": ["light"]},
+        {"area": "stue", "domain": "light"},
+        {"area": "stue", "domain": ["light"], "extra": True},
+        {"area": "stue", "domain": ["light", "light"]},
+    ],
+)
+async def test_safe_eval_low_risk_fixture_rejects_every_noncanonical_target(args):
+    scenario = next(row for row in load_scenarios() if row.id == "low-risk-action-then-close")
+    admission = eval_harness._admit_eval_tools([scenario], _production_snapshot())
+    tools = SafeEvalTools(
+        admission.declarations,
+        admitted_names=set(admission.contracts),
+        fixture_contracts=admission.contracts,
+    )
+
+    result = await tools.dispatch("HassTurnOn", args)
+
+    assert result["ok"] is False
+    assert result["error_kind"] == "eval_fixture_args_mismatch"
+    assert tools.fixture_side_effects == 0
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["Brøndby seneste kamp", "FCK næste kamp", "", "FCK seneste kamp ekstra"],
+)
+async def test_safe_eval_web_fixture_rejects_non_enumerated_full_dicts(query):
+    scenario = next(row for row in load_scenarios() if row.id == "web-routing")
+    admission = eval_harness._admit_eval_tools([scenario], _production_snapshot())
+    tools = SafeEvalTools(
+        admission.declarations,
+        admitted_names=set(admission.contracts),
+        fixture_contracts=admission.contracts,
+    )
+
+    result = await tools.dispatch("google_web_sogning", {"query": query})
+
+    assert result["ok"] is False
+    assert result["error_kind"] == "eval_fixture_args_mismatch"
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"query": "FCK seneste kamp", "extra": True},
+        {"query": "FCK seneste kamp", "season": "future"},
+        {},
+    ],
+)
+async def test_safe_eval_web_fixture_rejects_extra_or_missing_fields(args):
+    scenario = next(row for row in load_scenarios() if row.id == "web-routing")
+    admission = eval_harness._admit_eval_tools([scenario], _production_snapshot())
+    tools = SafeEvalTools(
+        admission.declarations,
+        admitted_names=set(admission.contracts),
+        fixture_contracts=admission.contracts,
+    )
+
+    result = await tools.dispatch("google_web_sogning", args)
+
+    assert result["ok"] is False
+    assert result["error_kind"] == "eval_fixture_args_mismatch"
+
+
+async def test_safe_eval_web_fixture_accepts_only_the_three_enumerated_queries():
+    scenario = next(row for row in load_scenarios() if row.id == "web-routing")
+    admission = eval_harness._admit_eval_tools([scenario], _production_snapshot())
+    allowed = admission.contracts["google_web_sogning"].cases
+
+    assert [case.args for case in allowed] == [
+        {"query": "FCK seneste kamp"},
+        {"query": "FC København seneste kamp resultat"},
+        {"query": "FCK latest match result"},
+    ]
+    for case in allowed:
+        tools = SafeEvalTools(
+            admission.declarations,
+            admitted_names=set(admission.contracts),
+            fixture_contracts=admission.contracts,
+        )
+        result = await tools.dispatch("google_web_sogning", case.args)
+        assert result["ok"] is True
 
 
 async def test_safe_eval_changed_and_expired_challenges_fail_closed():
@@ -552,6 +690,40 @@ def test_semantic_security_scenarios_assert_decisions_outcomes_and_lifecycle_not
     assert safe_close.decisions == ("HassTurnOn", "end_conversation")
     assert safe_close.decision_batches == (("HassTurnOn",), ("end_conversation",))
     assert safe_close.remain_open is False
+
+
+def test_low_risk_oracle_rejects_duplicate_otherwise_canonical_calls():
+    expected = (
+        next(row for row in load_scenarios() if row.id == "low-risk-action-then-close")
+        .turns[0]
+        .expect
+    )
+    observed = TurnObservation(
+        turn_id="turn",
+        session_id="session",
+        decisions=["HassTurnOn", "HassTurnOn", "end_conversation"],
+        decision_batches=[["HassTurnOn"], ["HassTurnOn"], ["end_conversation"]],
+        tool_args={
+            "HassTurnOn": [
+                {"area": "stue", "domain": ["light"]},
+                {"area": "stue", "domain": ["light"]},
+            ]
+        },
+        tool_results={
+            "HassTurnOn": [{"ok": True}, {"ok": True}],
+            "end_conversation": [{"ok": True}],
+        },
+        fixture_side_effects=2,
+        remain_open=False,
+    )
+
+    codes = {finding.code for finding in grade_turn(expected, observed)}
+    assert {
+        "wrong-decision-order",
+        "wrong-decision-batches",
+        "wrong-tool-outcome",
+        "wrong-fixture-side-effects",
+    } <= codes
 
 
 async def test_safe_live_batch_blocks_close_when_sensitive_action_needs_confirmation():
@@ -888,7 +1060,7 @@ async def test_live_collect_stops_third_tool_round_before_fixture_effect_or_four
         driver.events.put_nowait(eval_harness.ToolRoundComplete(response_id=response_id))
     observed = await driver._collect_turn(turn_id="turn", started=0.0)
     assert observed.response_status == "failed"
-    assert observed.error == "eval provider response-edge budget exhausted"
+    assert observed.error == "eval model response-edge limit exhausted before final answer"
     assert observed.fixture_side_effects == 2
     assert len(sent) == 2
 
