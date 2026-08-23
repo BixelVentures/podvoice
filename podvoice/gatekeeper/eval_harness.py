@@ -1265,7 +1265,7 @@ class LiveRealtimeDriver:
         return observed
 
     async def prepare_response_capacity(self, tokens: int | None = None) -> None:
-        """Renew one eval response allowance, waiting for at most one known reset.
+        """Renew one eval response allowance before wire, bounded by the run deadline.
 
         This runs before the semantic turn timeout while the key-global diagnostic
         owner keeps Voice PE and Talk in explicit maintenance mode.
@@ -1273,32 +1273,39 @@ class LiveRealtimeDriver:
         lease = self.budget_lease
         if lease is None:
             return
-        admitted, admission = self.provider_budget.ensure_response_capacity_observed(lease, tokens)
-        self._record_provider_trace(
-            {
-                "kind": "capacity_check",
-                "admitted": admitted,
-                "atomic": admission,
-            }
-        )
-        if admitted:
-            return
-        wait_s, wait_observation = self.provider_budget.response_retry_after_observed(lease, tokens)
-        if wait_s is None:
-            raise ProviderBudgetUnavailable(
-                "rate_limit_capacity · eval response cannot preserve production headroom"
+        attempt = 0
+        while True:
+            admitted, admission = self.provider_budget.ensure_response_capacity_observed(
+                lease, tokens
             )
-        wait_s += 0.05
-        if self._capacity_deadline is not None:
-            remaining = max(0.0, self._capacity_deadline - self._capacity_monotonic())
-            if wait_s >= remaining:
+            self._record_provider_trace(
+                {
+                    "kind": "capacity_check" if attempt == 0 else "capacity_recheck",
+                    "attempt": attempt,
+                    "admitted": admitted,
+                    "atomic": admission,
+                }
+            )
+            if admitted:
+                return
+            wait_s, wait_observation = self.provider_budget.response_retry_after_observed(
+                lease, tokens
+            )
+            if wait_s is None:
                 raise ProviderBudgetUnavailable(
-                    "rate_limit_capacity · provider reset wait exceeds the live eval deadline"
+                    "rate_limit_capacity · eval response capacity is not waitable"
                 )
-        if wait_s > 0:
+            wait_s += 0.05
+            if self._capacity_deadline is not None:
+                remaining = max(0.0, self._capacity_deadline - self._capacity_monotonic())
+                if wait_s >= remaining:
+                    raise ProviderBudgetUnavailable(
+                        "rate_limit_capacity · provider reset wait exceeds the live eval deadline"
+                    )
             self._record_provider_trace(
                 {
                     "kind": "capacity_wait_started",
+                    "attempt": attempt,
                     "target_tokens": tokens,
                     "wait_s": wait_s,
                     "atomic": wait_observation,
@@ -1313,22 +1320,7 @@ class LiveRealtimeDriver:
             await self._capacity_sleep(wait_s)
             if self._capacity_wait_observer is not None:
                 self._capacity_wait_observer(wait_s)
-        admitted_after_wait, recheck = self.provider_budget.ensure_response_capacity_observed(
-            lease, tokens
-        )
-        self._record_provider_trace(
-            {
-                "kind": "capacity_recheck",
-                "target_tokens": tokens,
-                "wait_s": wait_s,
-                "admitted": admitted_after_wait,
-                "atomic": recheck,
-            }
-        )
-        if not admitted_after_wait:
-            raise ProviderBudgetUnavailable(
-                "rate_limit_capacity · eval response cannot preserve production headroom"
-            )
+            attempt += 1
 
     async def open(self, *, run_id: str, scenario_id: str) -> str:
         self.session_id = f"{run_id}:{scenario_id}:{uuid.uuid4().hex[:8]}"
@@ -1372,12 +1364,6 @@ class LiveRealtimeDriver:
         if not self.is_open or self.session is None:
             raise RuntimeError("live eval session is not open")
         started = time.monotonic()
-        if self.budget_lease is not None and not self.provider_budget.ensure_response_capacity(
-            self.budget_lease
-        ):
-            raise ProviderBudgetUnavailable(
-                "rate_limit_capacity · eval response cannot preserve production headroom"
-            )
         self.tools.begin_turn(turn_id)
         try:
             await self.session.send_text(text)
@@ -1410,12 +1396,7 @@ class LiveRealtimeDriver:
         if rate != 24_000 or not pcm:
             raise ValueError("audio replay requires non-empty 24 kHz provider PCM")
         started = time.monotonic()
-        if self.budget_lease is not None and not self.provider_budget.ensure_response_capacity(
-            self.budget_lease
-        ):
-            raise ProviderBudgetUnavailable(
-                "rate_limit_capacity · eval response cannot preserve production headroom"
-            )
+        await self.prepare_response_capacity()
         self.tools.begin_turn(turn_id)
         try:
             await pace_pcm(pcm, rate, self.session.send_audio)
@@ -1432,12 +1413,7 @@ class LiveRealtimeDriver:
         session = self.session
         if session is None:
             raise RuntimeError("live eval session is not open")
-        if self.budget_lease is not None and not self.provider_budget.ensure_response_capacity(
-            self.budget_lease, TOOL_FOLLOWUP_MINIMUM_RESERVE
-        ):
-            raise ProviderBudgetUnavailable(
-                "rate_limit_capacity · eval tool result cannot preserve production headroom"
-            )
+        await self.prepare_response_capacity(TOOL_FOLLOWUP_MINIMUM_RESERVE)
         calls = sorted(calls, key=lambda call: call.batch_index)
         observed.decision_batches.append([call.name for call in calls])
         for call in calls:

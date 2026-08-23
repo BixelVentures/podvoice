@@ -598,6 +598,111 @@ async def test_safe_live_batch_blocks_close_when_sensitive_action_needs_confirma
     assert len(sent) == 1 and len(sent[0]) == 2
 
 
+async def test_safe_live_batch_waits_for_feedback_capacity_before_fixture_effect():
+    clock = [0.0]
+    waits: list[float] = []
+    sent: list[list[dict]] = []
+
+    async def advance(delay: float) -> None:
+        waits.append(delay)
+        clock[0] += delay
+
+    class FakeSession:
+        async def send_tool_results(self, results):
+            sent.append(results)
+
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    diagnostic = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=diagnostic
+    )
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 5_000, "reset_seconds": 60}],
+    )
+    driver = eval_harness.LiveRealtimeDriver(
+        "secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+        capacity_sleep=advance,
+        capacity_monotonic=lambda: clock[0],
+        capacity_deadline=100.0,
+    )
+    driver.session = FakeSession()  # type: ignore[assignment]
+    driver.tools.begin_turn("safe")
+    observed = TurnObservation(turn_id="safe", session_id="session")
+
+    await driver._dispatch_tool_batch(
+        [
+            eval_harness.ToolCall(
+                "light",
+                "HassTurnOn",
+                {"area": "stuen", "domain": ["light"]},
+                batch_id="batch",
+            )
+        ],
+        observed,
+    )
+
+    assert waits == [pytest.approx(1_000 / (40_000 / 60) + 0.05)]
+    assert observed.fixture_side_effects == 1
+    assert len(sent) == 1
+    driver.tools.finish_turn()
+    assert ledger.release(lease) is True
+    assert ledger.release(diagnostic) is True
+
+
+async def test_safe_live_batch_deadline_exhaustion_has_zero_fixture_effect():
+    sent: list[list[dict]] = []
+
+    class FakeSession:
+        async def send_tool_results(self, results):
+            sent.append(results)
+
+    ledger = ProviderBudgetCoordinator()
+    diagnostic = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=diagnostic
+    )
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 1_000, "reset_seconds": 60}],
+    )
+    driver = eval_harness.LiveRealtimeDriver(
+        "secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+        capacity_deadline=1.0,
+        capacity_monotonic=lambda: 0.0,
+    )
+    driver.session = FakeSession()  # type: ignore[assignment]
+    driver.tools.begin_turn("safe")
+    observed = TurnObservation(turn_id="safe", session_id="session")
+
+    with pytest.raises(ProviderBudgetUnavailable, match="deadline"):
+        await driver._dispatch_tool_batch(
+            [
+                eval_harness.ToolCall(
+                    "light",
+                    "HassTurnOn",
+                    {"area": "stuen", "domain": ["light"]},
+                    batch_id="batch",
+                )
+            ],
+            observed,
+        )
+
+    assert observed.fixture_side_effects == 0
+    assert sent == []
+    driver.tools.finish_turn()
+    assert ledger.release(lease) is True
+    assert ledger.release(diagnostic) is True
+
+
 async def test_safe_live_driver_consumes_nested_production_challenge_on_next_turn_once():
     sent: list[list[dict]] = []
 
@@ -1445,6 +1550,262 @@ async def test_field_429_chain_paces_exact_tool_edge_then_sends_one_create():
     session._cancel_ack_watchdogs()
     assert ledger.release(lease) is True
     assert ledger.release(diagnostic) is True
+
+
+async def test_v11335_downward_snapshot_during_wait_recomputes_then_sends_one_create():
+    """eval-1787498165-272088: the first wait is stale after a downward anchor."""
+    clock = [0.0]
+    waits: list[float] = []
+
+    async def advance_with_late_anchor(delay: float) -> None:
+        waits.append(delay)
+        if len(waits) == 1:
+            clock[0] += 0.034851
+            ledger.update_rate_limits(
+                "secret",
+                "model",
+                [
+                    {
+                        "name": "tokens",
+                        "limit": 40_000,
+                        "remaining": 11_485,
+                        "reset_seconds": 52.193,
+                    }
+                ],
+                downward_only=True,
+            )
+            clock[0] += delay - 0.034851
+        else:
+            clock[0] += delay
+
+    class Wire:
+        closed = False
+
+        def __init__(self) -> None:
+            self.sent: list[dict] = []
+
+        async def send_json(self, payload: dict) -> None:
+            self.sent.append(payload)
+
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    diagnostic = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=diagnostic
+    )
+    ledger.account_usage("secret", "model", 11_363, lease=lease)
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 13_653, "reset_seconds": 60}],
+    )
+    driver = eval_harness.LiveRealtimeDriver(
+        "secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+        capacity_sleep=advance_with_late_anchor,
+        capacity_monotonic=lambda: clock[0],
+        capacity_deadline=100.0,
+    )
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+        before_response_create=driver.prepare_response_capacity,
+    )
+    wire = Wire()
+    session._ws = wire  # type: ignore[assignment]
+
+    await session._send_response_create()
+
+    assert len(waits) == 2
+    assert waits[0] == pytest.approx((15_000 - 13_653) / (40_000 / 60) + 0.05)
+    remaining_after_first = 11_485 + (waits[0] - 0.034851) * (40_000 / 60)
+    assert remaining_after_first == pytest.approx(12_844, abs=3)
+    assert waits[1] == pytest.approx((15_000 - remaining_after_first) / (40_000 / 60) + 0.05)
+    assert [item["type"] for item in wire.sent] == ["response.create"]
+    session._cancel_ack_watchdogs()
+    assert ledger.release(lease) is True
+    assert ledger.release(diagnostic) is True
+
+
+async def test_capacity_loop_recomputes_for_each_new_downward_snapshot():
+    clock = [0.0]
+    waits: list[float] = []
+    snapshots = iter((8_000, 4_000))
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    diagnostic = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=diagnostic
+    )
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 10_000, "reset_seconds": 60}],
+    )
+
+    async def lower_each_wait(delay: float) -> None:
+        waits.append(delay)
+        try:
+            remaining = next(snapshots)
+        except StopIteration:
+            clock[0] += delay
+            return
+        ledger.update_rate_limits(
+            "secret",
+            "model",
+            [{"name": "tokens", "limit": 40_000, "remaining": remaining, "reset_seconds": 60}],
+            downward_only=True,
+        )
+        clock[0] += delay
+
+    driver = eval_harness.LiveRealtimeDriver(
+        "secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+        capacity_sleep=lower_each_wait,
+        capacity_monotonic=lambda: clock[0],
+        capacity_deadline=100.0,
+    )
+
+    await driver.prepare_response_capacity()
+
+    assert len(waits) == 3
+    assert ledger.ensure_response_capacity(lease) is True
+    assert ledger.release(lease) is True
+    assert ledger.release(diagnostic) is True
+
+
+@pytest.mark.parametrize("failure", ["deadline", "lease_loss", "nonwaitable"])
+async def test_capacity_loop_terminal_paths_never_reach_response_wire(failure: str):
+    clock = [0.0]
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    diagnostic = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=diagnostic
+    )
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 1_000, "reset_seconds": 60}],
+    )
+    sent: list[dict] = []
+
+    class Wire:
+        closed = False
+
+        async def send_json(self, payload: dict) -> None:
+            sent.append(payload)
+
+    async def sleep(delay: float) -> None:
+        if failure == "lease_loss":
+            ledger.release(lease)
+        clock[0] += delay
+
+    if failure == "nonwaitable":
+        ledger.release(lease)
+    driver = eval_harness.LiveRealtimeDriver(
+        "secret",
+        model="model",
+        budget_lease=lease,
+        provider_budget=ledger,
+        capacity_sleep=sleep,
+        capacity_monotonic=lambda: clock[0],
+        capacity_deadline=1.0 if failure == "deadline" else 100.0,
+    )
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+        before_response_create=driver.prepare_response_capacity,
+    )
+    session._ws = Wire()  # type: ignore[assignment]
+
+    with pytest.raises(ProviderBudgetUnavailable, match="rate_limit_capacity"):
+        await session._send_response_create()
+
+    assert sent == []
+    session._cancel_ack_watchdogs()
+    ledger.release(lease)
+    assert ledger.release(diagnostic) is True
+
+
+async def test_capacity_loop_cancellation_propagates_without_response_wire():
+    ledger = ProviderBudgetCoordinator()
+    diagnostic = ledger.diagnostic_started("secret")
+    lease = ledger.reserve_eval(
+        "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=diagnostic
+    )
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 1_000, "reset_seconds": 60}],
+    )
+    sent: list[dict] = []
+
+    class Wire:
+        closed = False
+
+        async def send_json(self, payload: dict) -> None:
+            sent.append(payload)
+
+    async def cancel(_delay: float) -> None:
+        raise asyncio.CancelledError
+
+    driver = eval_harness.LiveRealtimeDriver(
+        "secret", model="model", budget_lease=lease, provider_budget=ledger, capacity_sleep=cancel
+    )
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="eval",
+        budget_lease=lease,
+        provider_budget=ledger,
+        before_response_create=driver.prepare_response_capacity,
+    )
+    session._ws = Wire()  # type: ignore[assignment]
+
+    with pytest.raises(asyncio.CancelledError):
+        await session._send_response_create()
+
+    assert sent == []
+    assert ledger.release(lease) is True
+    assert ledger.release(diagnostic) is True
+
+
+async def test_audio_replay_awaits_bounded_capacity_before_sending_pcm(monkeypatch):
+    order: list[str] = []
+
+    class FakeSession:
+        async def send_audio(self, _pcm: bytes) -> None:
+            order.append("audio")
+
+    async def prepare(_tokens: int | None = None) -> None:
+        order.append("capacity")
+
+    async def paced(pcm: bytes, rate: int, sink) -> None:
+        assert pcm and rate == 24_000
+        order.append("pace")
+        await sink(pcm)
+
+    async def collect(*, turn_id: str, started: float, semantic_timeout_s=None):
+        return TurnObservation(turn_id=turn_id, session_id="session")
+
+    monkeypatch.setattr(eval_harness, "pace_pcm", paced)
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.is_open = True
+    driver.session = FakeSession()  # type: ignore[assignment]
+    driver.prepare_response_capacity = prepare  # type: ignore[method-assign]
+    driver._collect_turn = collect  # type: ignore[method-assign]
+
+    await driver.submit_audio(turn_id="audio", pcm=b"\x00\x00", rate=24_000)
+
+    assert order == ["capacity", "pace", "audio"]
 
 
 async def test_v11331_field_gap_uses_provider_total_and_waits_exactly_once():

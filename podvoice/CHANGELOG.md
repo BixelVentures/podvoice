@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.13.36 — kapacitetsventen genberegnes før wire
+
+- SafeEval genberegner nu den atomiske Realtime-kapacitet efter hvert bounded wait.
+  Hvis et nyt autoritativt snapshot sænker saldoen under ventetiden, beregnes kun den
+  resterende lokale ventetid; der sendes stadig højst én `response.create` og udføres
+  intet provider-retry.
+- Den eksakte v1.13.35-sekvens er dækket: `remaining=13653` → vent → nyt snapshot
+  `11485` → ny bounded vent → atomisk godkendelse → præcis ét wire-send. Deadline,
+  cancellation, lease-tab og nonwaitable state stopper før wire og effekt.
+- Tekst, audio-replay og SafeEval-værktøjsfixtures bruger samme capacity-seam. Audio
+  gates før PCM/VAD, og værktøjsfixtures kræver feedbackkapacitet før lokal effekt.
+- Prompt V6, model, lyd, VAD, Thin, HA/MCP, firmware, playback og fysisk lifecycle er
+  uændrede. Lokal gate: 313/313 fokustests og 827/827 fuld suite samt Ruff, format,
+  mypy og diff-check. CI/ARM64, installation og fuld live-preflight er fortsat åbne.
+
 ## 1.13.35 — providerens sene kapacitetssnapshot gates før næste response
 
 - Et gyldigt, unikt token-snapshot efter en completed response kan nu forankre den
