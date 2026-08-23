@@ -14,14 +14,16 @@
       "exact_tool_name": "google_web_sogning",
       "risk": "read_only",
       "cases": [
-        {"args": {"query": "FCK seneste kamp"}, "result": {"ok": true, "summary": "FCK vandt to nul i den seneste kamp."}}
+        {"args": {"query": "FCK seneste kamp"}, "result": {"ok": true, "summary": "FCK vandt to nul i den seneste kamp."}},
+        {"args": {"query": "FC København seneste kamp resultat"}, "result": {"ok": true, "summary": "FCK vandt to nul i den seneste kamp."}},
+        {"args": {"query": "FCK latest match result"}, "result": {"ok": true, "summary": "FCK vandt to nul i den seneste kamp."}}
       ]
     },
     {
       "exact_tool_name": "HassTurnOn",
       "risk": "low_risk",
       "cases": [
-        {"args": {"area": "stuen", "domain": ["light"]}, "result": {"ok": true, "summary": "Tændt."}}
+        {"args": {"area": "stue", "domain": ["light"]}, "result": {"ok": true, "summary": "Tændt.", "data": {"synthetic_area": "stue", "domain": "light"}}}
       ]
     },
     {
@@ -137,8 +139,12 @@
               "(?:fck|fc københavn).*vandt.*(?:2 0|to nul)",
               "(?:2 0|to nul).*til (?:fck|fc københavn)"
             ],
-            "tool_args": {
-              "google_web_sogning": {"query": "FCK seneste kamp"}
+            "tool_args_any": {
+              "google_web_sogning": [
+                {"query": "FCK seneste kamp"},
+                {"query": "FC København seneste kamp resultat"},
+                {"query": "FCK latest match result"}
+              ]
             },
             "tool_outcomes": {"google_web_sogning": ["ok"]},
             "forbid": ["get_time"],
@@ -192,7 +198,7 @@
     },
     {
       "id": "low-risk-action-then-close",
-      "description": "A low-risk action completes before semantic close in the same user turn.",
+      "description": "A low-risk action targets the synthetic test-world base area named stue, then completes semantic close in the same user turn.",
       "exact_tool_names": ["HassTurnOn", "end_conversation"],
       "turns": [
         {
@@ -200,7 +206,7 @@
           "expect": {
             "decisions": ["HassTurnOn", "end_conversation"],
             "decision_batches": [["HassTurnOn"], ["end_conversation"]],
-            "tool_args": {"HassTurnOn": {"area": "stuen", "domain": ["light"]}},
+            "tool_args": {"HassTurnOn": {"area": "stue", "domain": ["light"]}},
             "tool_outcomes": {
               "HassTurnOn": ["ok"],
               "end_conversation": ["ok"]
