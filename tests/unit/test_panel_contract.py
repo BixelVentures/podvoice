@@ -191,6 +191,45 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     assert "data.diagnostic_active" in html
 
 
+def test_targeted_eval_can_never_render_as_full_release_preflight():
+    html = PANEL.read_text()
+
+    assert 'typeof data.selected_ok === "boolean"' in html
+    assert 'typeof data.profile_complete === "boolean"' in html
+    assert 'typeof data.coverage_complete === "boolean"' in html
+    assert 'typeof data.release_preflight_passed === "boolean"' in html
+    assert "data.release_preflight_passed === true &&" in html
+    assert "selectedOk && profileComplete && coverageComplete" in html
+    assert "data.coverage_complete === true" in html
+    assert "Fuld profil valgt: " in html
+    assert "Dækning gennemført: " in html
+    assert "Fuld profil: " not in html
+    assert "var targeted = hasReleaseTruth && !profileComplete;" in html
+    assert '"line " + (releasePassed ? "out" : "in")' in html
+    assert "MÅLRETTET DIAGNOSE BESTÅET \u2013 IKKE FULD PREFLIGHT" in html
+    assert "Denne delkørsel er kun diagnose" in html
+    assert "RAPPORT MANGLER RELEASE-KONTRAKT" in html
+
+
+def test_failed_full_eval_is_not_presented_as_a_targeted_diagnosis():
+    html = PANEL.read_text()
+
+    # Full-vs-targeted is selected-scope truth, not whether the selected run passed.
+    assert "var targeted = hasReleaseTruth && !profileComplete;" in html
+    assert "targeted ? (selectedOk ?" in html
+    assert '(releasePassed ? "✓ MASKINEL PREFLIGHT BESTÅET"' in html
+
+
+def test_panel_rejects_inconsistent_release_true_without_complete_coverage():
+    html = PANEL.read_text()
+
+    # Even a malformed report claiming release=true remains non-green unless the
+    # independent selected/profile/coverage truths all agree.
+    assert "data.release_preflight_passed === true &&" in html
+    assert "selectedOk && profileComplete && coverageComplete" in html
+    assert '"line " + (releasePassed ? "out" : "in")' in html
+
+
 def test_panel_does_not_claim_unverified_stop_and_labels_capability_truth():
     html = PANEL.read_text()
 
