@@ -548,6 +548,7 @@ async def test_safe_eval_dispatch_requires_exact_admitted_name_and_canonical_arg
     "args",
     [
         {"area": "stuen", "domain": ["light"]},
+        {"area": "Evalrum", "domain": ["light"]},
         {"name": "stue", "domain": ["light"]},
         {"area": "stue", "domain": "light"},
         {"area": "stue", "domain": ["light"], "extra": True},
@@ -2179,7 +2180,9 @@ async def test_live_service_reports_the_exact_effective_prompt_identity(monkeypa
         voice="marin",
         instructions="min aktive prompt",
     )
-    assert report["ok"] is True, report.get("error")
+    assert report["selected_ok"] is True, report.get("error")
+    assert report["ok"] is False
+    assert report["release_preflight_passed"] is False
     assert report["prompt_source"] == "custom"
     assert report["prompt_version"] is None
     assert len(report["prompt_sha256"]) == 64
@@ -2189,6 +2192,57 @@ async def test_live_service_reports_the_exact_effective_prompt_identity(monkeypa
     assert report["tool_schema_profile"] == "production-plus-safe-sensitive-fixture"
     assert report["tool_schema_sha256"] == report["production_tool_schema_sha256"]
     assert "min aktive prompt" not in str(report)
+
+
+async def test_targeted_low_risk_selector_reports_partial_scope_and_visible_test_area(
+    monkeypatch,
+):
+    observed_contexts: list[str] = []
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        observed_contexts.append(driver.room_context)
+        return ScenarioResult(scenario.id, True, "session", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    production = _production_snapshot()
+    production_hash = eval_harness._schema_sha256(production)
+
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run(
+        api_key="secret",
+        scenario_ids={"low-risk-action-then-close"},
+        tool_declarations=production,
+    )
+
+    assert report["selected_ok"] is True
+    assert report["ok"] is False
+    assert report["profile_complete"] is False
+    assert report["release_preflight_passed"] is False
+    assert report["coverage_complete"] is False
+    assert report["semantic_profile_covered"] == ["low-risk-action-then-close"]
+    assert report["eval_room_context_profile"] == "synthetic-base-area-stue-v1"
+    assert len(report["eval_room_context_sha256"]) == 64
+    assert observed_contexts == [eval_harness.SAFE_EVAL_ROOM_CONTEXT]
+    assert "stue" in observed_contexts[0]
+    assert "Evalrum" not in observed_contexts[0]
+    assert report["production_tool_schema_sha256"] == production_hash
+
+
+async def test_full_selector_is_the_only_semantic_profile_marked_complete(monkeypatch):
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        return ScenarioResult(scenario.id, True, "session", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run(
+        api_key="secret",
+        tool_declarations=_production_snapshot(),
+    )
+
+    assert report["ok"] is True
+    assert report["selected_ok"] is True
+    assert report["profile_complete"] is True
+    assert report["release_preflight_passed"] is True
+    assert report["coverage_complete"] is True
+    assert set(report["semantic_profile_covered"]) == {scenario.id for scenario in load_scenarios()}
 
 
 async def test_live_service_paces_fresh_sessions_below_tier_one_tpm(monkeypatch):
@@ -2223,7 +2277,7 @@ async def test_live_service_paces_fresh_sessions_below_tier_one_tpm(monkeypatch)
         scenario_ids={"arithmetic-followup", "time-followup", "semantic-close"},
         tool_declarations=_production_snapshot(),
     )
-    assert report["ok"] is True
+    assert report["selected_ok"] is True
     # One further 14k session fits beside the first; the third is paced into the
     # next window once used tokens plus the 15k reservation exceed 30k.
     assert waits == [60.5]
@@ -2254,7 +2308,7 @@ async def test_live_service_default_keeps_one_measured_session_of_tpm_headroom(m
         scenario_ids={"arithmetic-followup", "time-followup"},
         tool_declarations=_production_snapshot(),
     )
-    assert report["ok"] is True
+    assert report["selected_ok"] is True
     # 25k eval ceiling leaves 15k of the 40k Tier-1 window for a measured
     # ordinary PodVoice session, so two fresh eval sessions cannot share a minute.
     assert waits == [60.5]
@@ -2322,7 +2376,7 @@ async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(mo
         tool_declarations=_production_snapshot(),
     )
 
-    assert report["ok"] is True
+    assert report["selected_ok"] is True
     assert calls == 2
     assert waits == [60.5]
 
@@ -2396,7 +2450,7 @@ async def test_physical_session_attempt_during_eval_is_rejected_without_stopping
         scenario_ids={"arithmetic-followup", "time-followup"},
         tool_declarations=_production_snapshot(),
     )
-    assert report["ok"] is True
+    assert report["selected_ok"] is True
     assert calls == 2
     assert conflicts and all("diagnostic_busy" in item for item in conflicts)
     production = ledger.production_started("secret", DEFAULT_MODEL)
@@ -2440,7 +2494,7 @@ async def test_live_eval_waits_one_authoritative_reset_before_next_admission(mon
         tool_declarations=_production_snapshot(),
     )
 
-    assert report["ok"] is True
+    assert report["selected_ok"] is True
     assert calls == 2
     expected = 1 / (40_000 / 60) + 0.05
     assert waits == [pytest.approx(expected)]
@@ -2489,7 +2543,7 @@ async def test_physical_session_starting_during_reset_wait_is_diagnostic_busy(mo
         tool_declarations=_production_snapshot(),
     )
 
-    assert report["ok"] is True
+    assert report["selected_ok"] is True
     assert conflict and "diagnostic_busy" in conflict
     assert calls == 2
 
@@ -2539,7 +2593,7 @@ async def test_reset_wait_does_not_replay_a_completed_scenario(monkeypatch):
         tool_declarations=_production_snapshot(),
     )
 
-    assert report["ok"] is True
+    assert report["selected_ok"] is True
     assert len(completed) == 2
     assert len(set(completed)) == 2
     assert conflicts and all("diagnostic_busy" in item for item in conflicts)
@@ -2613,7 +2667,8 @@ async def test_live_service_background_job_survives_requests_and_retains_result(
     await service._job
     retained = service.status(run_id)
     assert retained["status"] == "complete"
-    assert retained["ok"] is True
+    assert retained["selected_ok"] is True
+    assert retained["ok"] is False
     assert service.status("eval-unknown")["status"] == "not_found"
 
 
@@ -2632,8 +2687,137 @@ async def test_live_service_cancel_is_explicit_and_does_not_leave_busy(monkeypat
     await service.aclose()
     report = service.status(started["run_id"])
     assert report["status"] == "cancelled"
-    assert service.status()["status"] == "cancelled"
+    assert service.status()["status"] == "idle"
     assert ledger.diagnostic_is_active("secret") is False
+
+
+async def test_release_status_retains_full_evidence_across_subset_and_replay_and_revokes_on_full_fail(
+    monkeypatch,
+):
+    fail_full = False
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        passed = not (fail_full and scenario.id == "low-risk-action-then-close")
+        return ScenarioResult(scenario.id, passed, "session", [])
+
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    service = LiveEvalService(provider_budget=_known_provider_budget())
+
+    full_started = service.start(api_key="secret", tool_declarations=_production_snapshot())
+    assert service._job is not None
+    await service._job
+    full_report = service.status(full_started["run_id"])
+    assert full_report["release_preflight_passed"] is True
+    assert service.status()["run_id"] == full_started["run_id"]
+    assert service._last_full_candidate_identity == full_report["candidate_identity_sha256"]
+
+    subset_started = service.start(
+        api_key="secret",
+        scenario_ids={"low-risk-action-then-close"},
+        tool_declarations=_production_snapshot(),
+    )
+    assert service._job is not None
+    await service._job
+    subset_report = service.status(subset_started["run_id"])
+    assert subset_report["selected_ok"] is True
+    assert subset_report["release_preflight_passed"] is False
+    assert service.status()["run_id"] == full_started["run_id"]
+
+    service._retain_report(
+        {"ok": True, "status": "complete", "kind": "audio-replay", "run_id": "replay-1"},
+        kwargs={"run_id": "replay-1", "model": DEFAULT_MODEL},
+        requested_full_profile=False,
+    )
+    assert service.status("replay-1")["kind"] == "audio-replay"
+    assert service.status()["run_id"] == full_started["run_id"]
+
+    fail_full = True
+    failed_started = service.start(api_key="secret", tool_declarations=_production_snapshot())
+    assert service._job is not None
+    await service._job
+    failed_report = service.status(failed_started["run_id"])
+    assert failed_report["selected_ok"] is False
+    assert failed_report["profile_complete"] is True
+    assert failed_report["release_preflight_passed"] is False
+    assert failed_report["ok"] is False
+    assert service.status()["run_id"] == failed_started["run_id"]
+    assert service.status(full_started["run_id"])["release_preflight_passed"] is True
+
+
+def test_live_service_retains_a_bounded_number_of_exact_run_reports():
+    service = LiveEvalService(provider_budget=_known_provider_budget())
+    for index in range(eval_harness.MAX_RETAINED_EVAL_REPORTS + 1):
+        run_id = f"subset-{index}"
+        service._retain_report(
+            {"ok": False, "status": "complete", "run_id": run_id},
+            kwargs={"run_id": run_id},
+            requested_full_profile=False,
+        )
+
+    assert len(service._reports_by_run_id) == eval_harness.MAX_RETAINED_EVAL_REPORTS
+    assert service.status("subset-0")["status"] == "not_found"
+    assert (
+        service.status(f"subset-{eval_harness.MAX_RETAINED_EVAL_REPORTS}")["status"] == "complete"
+    )
+
+
+@pytest.mark.parametrize(
+    "changed_field",
+    [
+        "full_profile_tool_schema_sha256",
+        "eval_room_context_sha256",
+        "scenario_manifest_sha256",
+    ],
+)
+def test_semantic_subset_with_a_different_candidate_invalidates_default_full_evidence(
+    changed_field,
+):
+    service = LiveEvalService(provider_budget=_known_provider_budget())
+    identity = {
+        "prompt_sha256": "1" * 64,
+        "full_profile_tool_schema_sha256": "2" * 64,
+        "production_tool_schema_sha256": "3" * 64,
+        "reserved_tool_schema_sha256": "4" * 64,
+        "tool_schema_profile": "production-plus-safe-sensitive-fixture",
+        "eval_room_context_profile": eval_harness.SAFE_EVAL_ROOM_CONTEXT_PROFILE,
+        "eval_room_context_sha256": "5" * 64,
+        "scenario_manifest_sha256": "6" * 64,
+    }
+    service._retain_report(
+        {"ok": True, "status": "complete", "run_id": "full", **identity},
+        kwargs={"run_id": "full", "model": DEFAULT_MODEL},
+        requested_full_profile=True,
+    )
+    changed = dict(identity)
+    changed[changed_field] = "f" * 64
+    service._retain_report(
+        {"ok": False, "status": "complete", "run_id": "subset", **changed},
+        kwargs={"run_id": "subset", "model": DEFAULT_MODEL},
+        requested_full_profile=False,
+    )
+
+    assert service.status()["status"] == "idle"
+    assert service.status("full")["status"] == "complete"
+
+
+async def test_terminal_full_failure_keeps_full_profile_identity_but_revokes_release(
+    monkeypatch,
+):
+    async def provider_failure(*args, **kwargs):
+        raise ConnectionError("provider terminal")
+
+    monkeypatch.setattr(eval_harness, "run_scenario", provider_failure)
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run(
+        api_key="secret",
+        tool_declarations=_production_snapshot(),
+    )
+
+    assert report["status"] == "failed"
+    assert report["selected_ok"] is False
+    assert report["profile_complete"] is True
+    assert report["coverage_complete"] is False
+    assert report["release_preflight_passed"] is False
+    assert report["ok"] is False
 
 
 def test_live_service_rejects_mixed_known_and_unknown_scenarios():
