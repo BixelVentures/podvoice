@@ -72,6 +72,12 @@ RESERVED_DECLARATIONS = (
     APPROVE_ACTION_DECLARATION,
 )
 SAFE_EVAL_HIGH_RISK_TOOL = "EvalUnlockDoor"
+SAFE_EVAL_ROOM_CONTEXT_PROFILE = "synthetic-base-area-stue-v1"
+SAFE_EVAL_ROOM_CONTEXT = (
+    "Det eneste syntetiske basisområde i denne testverden hedder stue. "
+    "Alle værktøjsresultater er faste testdata."
+)
+MAX_RETAINED_EVAL_REPORTS = 16
 LIVE_EVAL_TURN_TIMEOUT_S = 20.0
 LIVE_EVAL_RESET_GAP_S = 60.5
 LIVE_EVAL_ACTUAL_COST_CAP_USD = 5.00
@@ -920,12 +926,26 @@ def _capability_metadata(
         if isinstance(row, dict) and row.get("name")
     }
     admitted = set(admission.contracts)
+    covered = {scenario.id for scenario in scenarios}
+    full_profile = {scenario.id for scenario in load_scenarios()}
+    profile_complete = covered == full_profile
     return {
         "semantic_profile_covered": sorted(scenario.id for scenario in scenarios),
+        "profile_complete": profile_complete,
+        # Compatibility for stored reports. New consumers use the explicit
+        # release_preflight_passed conjunction returned by LiveEvalService.run().
+        "coverage_complete": profile_complete,
         "capabilities_admitted": sorted(admitted),
         "capabilities_not_exercised": sorted(snapshot_names - admitted),
         "capability_evidence": "presence_only_not_function_proof",
     }
+
+
+def _scenario_manifest_sha256() -> str:
+    payload = [asdict(scenario) for scenario in load_scenarios()]
+    return hashlib.sha256(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
 
 
 def _admit_eval_tools(
@@ -1203,7 +1223,7 @@ class LiveRealtimeDriver:
         voice: str = DEFAULT_VOICE,
         instructions: str = SYSTEM_PROMPT_DA,
         tool_declarations: list[dict[str, Any]] | None = None,
-        room_context: str = "Evalrum. Alle værktøjsresultater er faste testdata.",
+        room_context: str = SAFE_EVAL_ROOM_CONTEXT,
         interrupt_response: bool = True,
         include_sensitive_fixture: bool = False,
         budget_lease: BudgetLease | None = None,
@@ -1705,7 +1725,9 @@ class LiveEvalService:
         self._active_run_id: str | None = None
         self._active_kind: str | None = None
         self._started_at: float | None = None
-        self._last_report: dict[str, Any] | None = None
+        self._reports_by_run_id: dict[str, dict[str, Any]] = {}
+        self._last_full_report: dict[str, Any] | None = None
+        self._last_full_candidate_identity: str | None = None
 
     async def _reserve_eval_after_capacity_reset(
         self,
@@ -1864,35 +1886,98 @@ class LiveEvalService:
     async def _run_background(self, **kwargs: Any) -> None:
         run_id = str(kwargs["run_id"])
         operation = str(kwargs.pop("operation", "scenarios"))
+        scenario_ids = kwargs.get("scenario_ids")
+        requested_full_profile = operation == "scenarios" and (
+            scenario_ids is None
+            or set(scenario_ids) == {scenario.id for scenario in load_scenarios()}
+        )
+        report: dict[str, Any]
         try:
             if operation == "replay":
-                self._last_report = await self.run_replay(**kwargs)
+                report = await self.run_replay(**kwargs)
             else:
-                self._last_report = await self.run(**kwargs)
+                report = await self.run(**kwargs)
         except asyncio.CancelledError:
-            self._last_report = {
+            report = {
                 "ok": False,
                 "status": "cancelled",
                 "run_id": run_id,
                 "error": "Live-evalueringen blev afbrudt, da add-on stoppede.",
             }
+            self._retain_report(
+                report,
+                kwargs=kwargs,
+                requested_full_profile=requested_full_profile,
+            )
             raise
         except Exception as exc:  # defensive job boundary; run normally reports failures
             message = str(exc)
             secret = str(kwargs.get("api_key") or "")
             if secret:
                 message = message.replace(secret, "[REDACTED]")
-            self._last_report = {
+            report = {
                 "ok": False,
                 "status": "failed",
                 "run_id": run_id,
                 "error": message[:500] or type(exc).__name__,
             }
         finally:
+            if "report" in locals() and run_id not in self._reports_by_run_id:
+                self._retain_report(
+                    report,
+                    kwargs=kwargs,
+                    requested_full_profile=requested_full_profile,
+                )
             if self._active_run_id == run_id:
                 self._active_run_id = None
                 self._active_kind = None
                 self._started_at = None
+
+    def _retain_report(
+        self,
+        report: dict[str, Any],
+        *,
+        kwargs: dict[str, Any],
+        requested_full_profile: bool,
+    ) -> None:
+        """Retain exact run evidence without letting a subset replace release truth."""
+        retained = dict(report)
+        run_id = str(retained.get("run_id") or kwargs.get("run_id") or "")
+        if not run_id:
+            return
+        identity_payload = {
+            "model": str(kwargs.get("model") or DEFAULT_MODEL),
+            "voice": str(kwargs.get("voice") or DEFAULT_VOICE),
+            "prompt_sha256": retained.get("prompt_sha256")
+            or hashlib.sha256(
+                str(kwargs.get("instructions") or SYSTEM_PROMPT_DA).strip().encode()
+            ).hexdigest(),
+            "full_profile_tool_schema_sha256": retained.get("full_profile_tool_schema_sha256"),
+            "production_tool_schema_sha256": retained.get("production_tool_schema_sha256"),
+            "reserved_tool_schema_sha256": retained.get("reserved_tool_schema_sha256"),
+            "tool_schema_profile": retained.get("tool_schema_profile"),
+            "eval_room_context_profile": retained.get("eval_room_context_profile"),
+            "eval_room_context_sha256": retained.get("eval_room_context_sha256"),
+            "scenario_manifest_sha256": retained.get("scenario_manifest_sha256")
+            or _scenario_manifest_sha256(),
+        }
+        candidate_identity = hashlib.sha256(
+            json.dumps(identity_payload, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        retained["candidate_identity_sha256"] = candidate_identity
+        self._reports_by_run_id[run_id] = retained
+        while len(self._reports_by_run_id) > MAX_RETAINED_EVAL_REPORTS:
+            self._reports_by_run_id.pop(next(iter(self._reports_by_run_id)))
+        if requested_full_profile:
+            self._last_full_report = retained
+            self._last_full_candidate_identity = candidate_identity
+        elif (
+            retained.get("kind") != "audio-replay"
+            and self._last_full_candidate_identity is not None
+            and candidate_identity != self._last_full_candidate_identity
+        ):
+            self._last_full_report = None
+            self._last_full_candidate_identity = None
 
     async def run_replay(
         self,
@@ -2224,10 +2309,10 @@ class LiveEvalService:
                     "started_at": self._started_at,
                     "deadline_s": self._max_run_s,
                 }
-        if self._last_report is not None and (
-            run_id is None or run_id == self._last_report.get("run_id")
-        ):
-            return dict(self._last_report)
+        if run_id is not None and run_id in self._reports_by_run_id:
+            return dict(self._reports_by_run_id[run_id])
+        if run_id is None and self._last_full_report is not None:
+            return dict(self._last_full_report)
         return {
             "ok": False,
             "status": "not_found" if run_id else "idle",
@@ -2321,14 +2406,23 @@ class LiveEvalService:
             prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA.strip()
             production_declarations = SafeEvalTools(tool_declarations).declarations()
             eval_declarations = admission.declarations
+            full_profile_declarations = _admit_eval_tools(
+                load_scenarios(), tool_declarations
+            ).declarations
             prompt_metadata = {
                 "prompt_source": "default" if prompt_is_default else "custom",
                 "prompt_version": PROMPT_VERSION if prompt_is_default else None,
                 "prompt_sha256": hashlib.sha256(effective_prompt.encode()).hexdigest(),
                 "tool_schema_sha256": _schema_sha256(eval_declarations),
+                "full_profile_tool_schema_sha256": _schema_sha256(full_profile_declarations),
                 "production_tool_schema_sha256": _schema_sha256(production_declarations),
                 "reserved_tool_schema_sha256": _schema_sha256(RESERVED_DECLARATIONS),
                 "tool_schema_profile": "production-plus-safe-sensitive-fixture",
+                "eval_room_context_profile": SAFE_EVAL_ROOM_CONTEXT_PROFILE,
+                "eval_room_context_sha256": hashlib.sha256(
+                    SAFE_EVAL_ROOM_CONTEXT.encode()
+                ).hexdigest(),
+                "scenario_manifest_sha256": _scenario_manifest_sha256(),
                 **_capability_metadata(admission, selected),
             }
             results: list[ScenarioResult] = []
@@ -2434,6 +2528,9 @@ class LiveEvalService:
                         else "provider-or-eval-failure"
                     ),
                     "coverage_complete": False,
+                    "profile_complete": bool(prompt_metadata["profile_complete"]),
+                    "selected_ok": False,
+                    "release_preflight_passed": False,
                     "results": [asdict(result) for result in results],
                     "provider_provenance": _provider_provenance_summary(results, budget),
                     "budget": asdict(budget),
@@ -2441,8 +2538,15 @@ class LiveEvalService:
                 }
             finally:
                 self._provider_budget.release(diagnostic_lease)
+            selected_ok = all(result.passed for result in results)
+            profile_complete = bool(prompt_metadata["profile_complete"])
+            coverage_complete = bool(prompt_metadata["coverage_complete"])
+            release_preflight_passed = selected_ok and profile_complete and coverage_complete
             return {
-                "ok": all(result.passed for result in results),
+                "ok": release_preflight_passed,
+                "selected_ok": selected_ok,
+                "profile_complete": profile_complete,
+                "release_preflight_passed": release_preflight_passed,
                 "status": "complete",
                 "classification": (
                     "complete-with-schema-correction"

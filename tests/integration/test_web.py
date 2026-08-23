@@ -174,6 +174,63 @@ async def test_live_eval_endpoint_is_bounded_and_never_handles_a_key():
         assert len(calls) == 2
 
 
+async def test_live_eval_api_preserves_targeted_truth_separate_from_release_evidence():
+    async def live_eval(*, action="start", scenario_ids=None, run_id=None):
+        assert action == "start"
+        assert scenario_ids == {"low-risk-action-then-close"}
+        return {
+            "ok": False,
+            "status": "complete",
+            "run_id": "eval-targeted",
+            "selected_ok": True,
+            "profile_complete": False,
+            "release_preflight_passed": False,
+            "semantic_profile_covered": ["low-risk-action-then-close"],
+            "results": [],
+        }
+
+    app = create_app(StatusHub(), {}, live_eval=live_eval)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post(
+            "/api/eval/live", json={"scenario_ids": ["low-risk-action-then-close"]}
+        )
+        assert response.status == 200
+        body = await response.json()
+
+    assert body["selected_ok"] is True
+    assert body["profile_complete"] is False
+    assert body["release_preflight_passed"] is False
+    assert body["ok"] is False
+
+
+async def test_live_eval_api_preserves_failed_full_scope_separate_from_coverage():
+    async def live_eval(*, action="start", scenario_ids=None, run_id=None):
+        assert action == "start"
+        assert scenario_ids is None
+        return {
+            "ok": False,
+            "status": "complete",
+            "run_id": "eval-full-failed",
+            "selected_ok": False,
+            "profile_complete": True,
+            "coverage_complete": False,
+            "release_preflight_passed": False,
+            "results": [],
+        }
+
+    app = create_app(StatusHub(), {}, live_eval=live_eval)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post("/api/eval/live", json={})
+        assert response.status == 200
+        body = await response.json()
+
+    assert body["selected_ok"] is False
+    assert body["profile_complete"] is True
+    assert body["coverage_complete"] is False
+    assert body["release_preflight_passed"] is False
+    assert body["ok"] is False
+
+
 async def test_live_eval_endpoint_reports_unavailable_and_busy():
     async with TestClient(TestServer(create_app(StatusHub(), {}))) as client:
         unavailable = await client.post("/api/eval/live", json={})
