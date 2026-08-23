@@ -8,7 +8,13 @@ import aiohttp
 import pytest
 
 from gatekeeper.openai_realtime import OpenAIRealtimeSession
-from gatekeeper.voice import ToolCall, ToolRoundComplete, TurnComplete, Usage
+from gatekeeper.voice import (
+    ToolCall,
+    ToolRoundComplete,
+    ToolSchemaCorrection,
+    TurnComplete,
+    Usage,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -159,13 +165,25 @@ async def test_non_completed_or_missing_status_never_releases_tool_calls():
         assert session._pending_create is False
 
 
-async def test_invalid_json_or_schema_fails_the_completed_turn_without_dispatch():
+async def test_invalid_json_or_undeclared_tool_fails_without_dispatch_or_correction():
     invalid = (
         _proposal("bad-json", arguments="{"),
         _proposal("not-object", arguments="[]"),
         _proposal("non-standard", arguments='{"value":NaN}'),
         _proposal("duplicate-key", arguments='{"value":1,"value":2}'),
         _proposal("undeclared", name="delete_everything"),
+    )
+    for proposal in invalid:
+        session, events = await _events(proposal, _done())
+        assert not any(isinstance(event, (ToolCall, ToolSchemaCorrection)) for event in events)
+        turn = next(event for event in events if isinstance(event, TurnComplete))
+        assert turn.status == "failed"
+        assert turn.error
+        assert session._outstanding_tool_calls == set()
+
+
+async def test_single_schema_failure_requests_one_correction_without_dispatch():
+    invalid = (
         _proposal("missing-field", name="set_level", arguments="{}"),
         _proposal("wrong-type", name="set_level", arguments='{"level":"loud"}'),
         _proposal("extra-field", name="set_level", arguments='{"level":2,"room":"x"}'),
@@ -173,10 +191,34 @@ async def test_invalid_json_or_schema_fails_the_completed_turn_without_dispatch(
     for proposal in invalid:
         session, events = await _events(proposal, _done())
         assert not any(isinstance(event, ToolCall) for event in events)
-        turn = next(event for event in events if isinstance(event, TurnComplete))
-        assert turn.status == "failed"
-        assert turn.error
-        assert session._outstanding_tool_calls == set()
+        correction = next(event for event in events if isinstance(event, ToolSchemaCorrection))
+        assert correction.call_id == proposal["call_id"]
+        assert correction.name == "set_level"
+        assert correction.response["error_kind"] == "schema_validation"
+        assert set(correction.response) == {
+            "ok",
+            "error_kind",
+            "error",
+            "path",
+            "constraint",
+        }
+        assert session._outstanding_tool_calls == {proposal["call_id"]}
+
+
+async def test_second_schema_failure_in_same_turn_is_terminal_without_dispatch():
+    session = OpenAIRealtimeSession(api_key="k", tool_declarations=_TOOLS)
+    session._schema_correction_used = True
+    session._ws = _FakeWS(  # type: ignore[assignment]
+        _proposal("second", name="set_level", arguments='{"level":"loud"}'),
+        _done(),
+    )
+    events = [event async for event in session._iter_events()]
+
+    assert not any(isinstance(event, (ToolCall, ToolSchemaCorrection)) for event in events)
+    turn = next(event for event in events if isinstance(event, TurnComplete))
+    assert turn.status == "failed"
+    assert turn.error and "tool_schema_correction_exhausted" in turn.error
+    assert session._outstanding_tool_calls == set()
 
 
 async def test_one_invalid_sibling_rejects_the_entire_completed_tool_batch():
@@ -378,6 +420,7 @@ async def test_full_schema_constraint_is_enforced_at_runtime():
     )
     events = [event async for event in session._iter_events()]
     assert not any(isinstance(event, ToolCall) for event in events)
-    assert len(events) == 1 and isinstance(events[0], TurnComplete)
-    assert events[0].status == "failed"
-    assert "less than the minimum" in str(events[0].error)
+    assert len(events) == 1 and isinstance(events[0], ToolSchemaCorrection)
+    assert events[0].response["path"] == "level"
+    assert events[0].response["constraint"] == "minimum"
+    assert "-1" not in json.dumps(events[0].response)

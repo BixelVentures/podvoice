@@ -57,6 +57,7 @@ from .voice import (
     SilentToolComplete,
     ToolCall,
     ToolRoundComplete,
+    ToolSchemaCorrection,
     TurnComplete,
     Usage,
     UserSpeechStarted,
@@ -69,6 +70,9 @@ _LOG = logging.getLogger("podvoice.openai")
 _CLIENT_ITEM_ID_MAX_LENGTH = 32
 _CLIENT_ITEM_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _PROTOCOL_HISTORY_MAX = 4096
+_SCHEMA_CORRECTION_FORBIDDEN_TOOLS = frozenset(
+    {"end_conversation", "wait_for_user", "approve_action", "EvalUnlockDoor"}
+)
 
 
 @dataclass(frozen=True)
@@ -78,6 +82,19 @@ class _StagedToolCall:
     call_id: str
     name: str
     args: dict
+
+
+@dataclass(frozen=True)
+class _InvalidToolCall:
+    """One quarantined proposal, optionally eligible for one safe correction."""
+
+    call_id: str
+    name: str
+    args: dict
+    failure: str
+    schema_correctable: bool
+    correction_path: str = "$"
+    correction_constraint: str = "schema"
 
 
 class ProviderConfigurationError(RuntimeError):
@@ -296,7 +313,10 @@ class OpenAIRealtimeSession:
     _staged_tool_calls: dict[str, dict[str, _StagedToolCall]] = field(
         default_factory=dict, init=False, repr=False
     )
-    _invalid_tool_responses: dict[str, str] = field(default_factory=dict, init=False, repr=False)
+    _invalid_tool_responses: dict[str, _InvalidToolCall] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _schema_correction_used: bool = field(default=False, init=False, repr=False)
     # Duplicate/out-of-order terminal events and call-id reuse must stay inert for
     # the whole socket lifetime. Histories are bounded well above realistic 60-minute
     # session volume so malformed peers cannot grow memory without limit.
@@ -527,6 +547,7 @@ class OpenAIRealtimeSession:
         self._tool_call_response_ids.clear()
         self._staged_tool_calls.clear()
         self._invalid_tool_responses.clear()
+        self._schema_correction_used = False
         self._terminal_responses.clear()
         self._seen_tool_call_ids.clear()
         self._tool_round_edge_pending = False
@@ -905,6 +926,7 @@ class OpenAIRealtimeSession:
                 raise ConnectionError("OpenAI realtime session was not ready for text") from exc
         if self._ws is None or bool(getattr(self._ws, "closed", False)):
             raise ConnectionError("OpenAI realtime socket closed before text submission")
+        self._schema_correction_used = False
         iid = _safe_client_item_id(item_id)
         pending = self._register_item_create(item_id=iid, item_type="message")
         create_event_id = pending.event_id
@@ -1066,6 +1088,7 @@ class OpenAIRealtimeSession:
                 self._tool_call_response_ids.clear()
                 self._staged_tool_calls.clear()
                 self._invalid_tool_responses.clear()
+                self._schema_correction_used = False
                 self._terminal_responses.clear()
                 self._seen_tool_call_ids.clear()
                 self._tool_round_edge_pending = False
@@ -1091,6 +1114,9 @@ class OpenAIRealtimeSession:
         call_id = str(ev.get("call_id") or "")
         name = str(ev.get("name") or "")
         failure: str | None = None
+        schema_correctable = False
+        correction_path = "$"
+        correction_constraint = "schema"
         args: dict = {}
 
         if response_id in self._terminal_responses:
@@ -1140,6 +1166,10 @@ class OpenAIRealtimeSession:
                 )
                 message = exc.message if isinstance(exc, ValidationError) else str(exc)
                 failure = f"tool arguments failed schema at {location or '$'}: {message}"
+                schema_correctable = isinstance(exc, ValidationError)
+                if isinstance(exc, ValidationError):
+                    correction_path = location or "$"
+                    correction_constraint = str(exc.validator or "schema")[:48]
 
         calls = self._staged_tool_calls.setdefault(response_id, {})
         proposal = _StagedToolCall(call_id=call_id, name=name, args=args)
@@ -1154,7 +1184,32 @@ class OpenAIRealtimeSession:
             failure = f"reused session call_id: {call_id}"
 
         if failure is not None:
-            self._invalid_tool_responses[error_response_id] = failure
+            invalid = _InvalidToolCall(
+                call_id=call_id,
+                name=name,
+                args=args,
+                failure=failure,
+                schema_correctable=(
+                    schema_correctable
+                    and response_id != "?"
+                    and bool(call_id)
+                    and bool(name)
+                    and validator is not None
+                ),
+                correction_path=correction_path[:96],
+                correction_constraint=correction_constraint,
+            )
+            previous_invalid = self._invalid_tool_responses.get(error_response_id)
+            if previous_invalid is None:
+                self._invalid_tool_responses[error_response_id] = invalid
+            elif previous_invalid != invalid:
+                self._invalid_tool_responses[error_response_id] = _InvalidToolCall(
+                    call_id="",
+                    name="",
+                    args={},
+                    failure="multiple or conflicting invalid tool calls in one response",
+                    schema_correctable=False,
+                )
             _LOG.error(
                 "turn: rejecting staged tool-call response=%s call_id=%s name=%s: %s",
                 response_id,
@@ -1357,6 +1412,18 @@ class OpenAIRealtimeSession:
                     _LOG.debug("ignoring uncorrelated %s id=%s", t, item_id)
             elif t == "response.function_call_arguments.done":
                 self._stage_tool_call(ev, cur_rid)
+            elif t == "response.output_item.done":
+                item = ev.get("item") or {}
+                if item.get("type") == "function_call":
+                    self._stage_tool_call(
+                        {
+                            "response_id": ev.get("response_id"),
+                            "call_id": item.get("call_id"),
+                            "name": item.get("name"),
+                            "arguments": item.get("arguments"),
+                        },
+                        cur_rid,
+                    )
             elif t == "input_audio_buffer.speech_started":
                 # Full-duplex Talk treats every speech edge as an interruption even
                 # after generation has outrun physical playback.  Half-duplex Voice PE
@@ -1383,6 +1450,7 @@ class OpenAIRealtimeSession:
                 # would count the user's own speaking time as latency and abort every
                 # turn before a reply is even possible.
                 if not self._speech_stop_emitted:
+                    self._schema_correction_used = False
                     self._speech_stop_emitted = True
                     yield UserSpeechStopped()
             elif t == "input_audio_buffer.timeout_triggered":
@@ -1424,6 +1492,7 @@ class OpenAIRealtimeSession:
                 # not emit speech_stopped.  For normal VAD this is the SAME boundary,
                 # so never publish it twice.
                 if not self._speech_stop_emitted:
+                    self._schema_correction_used = False
                     self._speech_stop_emitted = True
                     yield UserSpeechStopped()
             elif t == "response.done":
@@ -1532,7 +1601,7 @@ class OpenAIRealtimeSession:
                     )
                 if usage is not None:
                     yield usage
-                staged_failure = self._invalid_tool_responses.pop(rid, None)
+                staged_invalid = self._invalid_tool_responses.pop(rid, None)
                 if status != "completed":
                     # A failed/cancelled function-call response is not permission to
                     # manufacture either a spoken result or a silent success. Cancel
@@ -1563,14 +1632,67 @@ class OpenAIRealtimeSession:
                         provider_rate_observed=provider_reservation_observed,
                     )
                     continue
-                if staged_failure is not None:
+                if staged_invalid is not None:
                     # A completed response containing a malformed/undeclared tool call
                     # is still unsafe. Surface a failed turn and execute none of the
                     # batch, including otherwise-valid sibling calls.
                     self._cancelled_tool_calls.update(staged_calls)
+                    correction_eligible = (
+                        staged_invalid.schema_correctable
+                        and not staged_calls
+                        and not self._schema_correction_used
+                        and staged_invalid.name not in _SCHEMA_CORRECTION_FORBIDDEN_TOOLS
+                        and status == "completed"
+                    )
+                    if (
+                        correction_eligible
+                        and tool_budget_lease is not None
+                        and not self.provider_budget.ensure_response_capacity(
+                            tool_budget_lease, followup_tokens
+                        )
+                    ):
+                        error = (
+                            "rate_limit_capacity · insufficient reserved capacity for "
+                            "schema correction response"
+                        )
+                        self.last_error = error
+                        yield TurnComplete(
+                            status="failed",
+                            error=error,
+                            response_id=rid,
+                            provider_rate_observed=provider_reservation_observed,
+                        )
+                        continue
+                    if correction_eligible:
+                        self._schema_correction_used = True
+                        self._remember_tool_call_id(staged_invalid.call_id)
+                        self._outstanding_tool_calls.add(staged_invalid.call_id)
+                        self._tool_call_response_ids[staged_invalid.call_id] = rid
+                        self._next_response_capacity_tokens = followup_tokens
+                        self._pending_create = True
+                        yield ToolSchemaCorrection(
+                            call_id=staged_invalid.call_id,
+                            name=staged_invalid.name,
+                            response={
+                                "ok": False,
+                                "error_kind": "schema_validation",
+                                "error": (
+                                    "Argumenterne matchede ikke værktøjets deklarerede "
+                                    "schema. Ret dem præcist efter schemaet og prøv kun én gang."
+                                ),
+                                "path": staged_invalid.correction_path,
+                                "constraint": staged_invalid.correction_constraint,
+                            },
+                            response_id=rid,
+                        )
+                        continue
                     yield TurnComplete(
                         status="failed",
-                        error=staged_failure,
+                        error=(
+                            f"tool_schema_correction_exhausted · {staged_invalid.failure}"
+                            if staged_invalid.schema_correctable and self._schema_correction_used
+                            else staged_invalid.failure
+                        ),
                         response_id=rid,
                         provider_rate_observed=provider_reservation_observed,
                     )
@@ -1973,6 +2095,7 @@ class OpenAIRealtimeSession:
         self._preconnect_audio_bytes = 0
         self._staged_tool_calls.clear()
         self._invalid_tool_responses.clear()
+        self._schema_correction_used = False
         self._terminal_responses.clear()
         self._seen_tool_call_ids.clear()
         self._tool_round_edge_pending = False

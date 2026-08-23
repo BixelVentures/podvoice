@@ -59,6 +59,7 @@ from .voice import (
     SilentToolComplete,
     ToolCall,
     ToolRoundComplete,
+    ToolSchemaCorrection,
     TurnComplete,
     Usage,
 )
@@ -81,7 +82,12 @@ GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE = 0.017
 # output ceiling. Official GPT-Realtime-2.1 rates make this $0.9216; cached input can
 # only lower it. Round up so the prospective $5 gate remains a hard guard.
 LIVE_EVAL_WORST_RESPONSE_COST_USD = 1.00
-MAX_EVAL_RESPONSE_EDGES_PER_TURN = 3
+# Normal corpus turns need at most three edges (two decision batches + final audio).
+# Prompt V6 permits one schema correction, which is itself a real response edge.
+# The mechanical cost/deadline reserve includes that fourth edge, but ordinary model
+# tool loops remain capped at three unless the typed correction edge was observed.
+MAX_EVAL_NORMAL_RESPONSE_EDGES_PER_TURN = 3
+MAX_EVAL_RESPONSE_EDGES_PER_TURN = 4
 MAX_LIVE_EVAL_PROMPT_BYTES = 32 * 1024
 _LOG = logging.getLogger(__name__)
 
@@ -190,6 +196,7 @@ class TurnObservation:
     usage: dict[str, int] = field(default_factory=dict)
     response_usage: list[dict[str, int | str]] = field(default_factory=list)
     provider_trace: list[dict[str, Any]] = field(default_factory=list)
+    schema_corrections: int = 0
 
 
 @dataclass(frozen=True)
@@ -709,8 +716,16 @@ class SafeEvalTools:
                 "description": "Turn on a Home Assistant entity. Eval result only.",
                 "parameters": {
                     "type": "object",
-                    "properties": {"name": {"type": "string"}},
-                    "required": ["name"],
+                    "properties": {
+                        "area": {"type": "string"},
+                        "domain": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "minItems": 1,
+                            "uniqueItems": True,
+                        },
+                    },
+                    "required": ["area", "domain"],
                     "additionalProperties": False,
                 },
             },
@@ -1091,6 +1106,8 @@ async def run_scenario(
                 failure_message = observed.error
             elif _is_provider_capacity_rejection(observed.error):
                 failure_message = f"diagnostic_capacity · {observed.error}"
+            elif observed.error and observed.error.startswith("tool_schema_correction_exhausted ·"):
+                failure_message = f"prompt_or_tool_contract_failure · {observed.error}"
             elif (
                 not observed.accepted
                 or observed.error is not None
@@ -1554,13 +1571,33 @@ class LiveRealtimeDriver:
                     observed.error = "missing, stale, or mismatched tool commit edge"
                     observed.response_status = "failed"
                     break
-                if response_edges >= MAX_EVAL_RESPONSE_EDGES_PER_TURN:
+                allowed_edges = MAX_EVAL_NORMAL_RESPONSE_EDGES_PER_TURN + min(
+                    observed.schema_corrections, 1
+                )
+                if response_edges >= allowed_edges:
                     observed.error = "eval provider response-edge budget exhausted"
                     observed.response_status = "failed"
                     break
                 await self._dispatch_tool_batch(list(committed_batch.values()), observed)
                 pending_batches.pop(response_id, None)
                 tool_round_seen = True
+                output.clear()
+            elif isinstance(event, ToolSchemaCorrection):
+                response_edges += 1
+                observed.schema_corrections += 1
+                if response_edges >= MAX_EVAL_RESPONSE_EDGES_PER_TURN:
+                    observed.error = "eval provider response-edge budget exhausted"
+                    observed.response_status = "failed"
+                    break
+                await session.send_tool_results(
+                    [
+                        {
+                            "id": event.call_id,
+                            "name": event.name,
+                            "response": event.response,
+                        }
+                    ]
+                )
                 output.clear()
             elif isinstance(event, OutputTranscript):
                 # The provider emits deltas. Only the result response is authoritative.
@@ -2095,6 +2132,7 @@ class LiveEvalService:
                 message = str(exc).replace(api_key, "[REDACTED]")[:500]
                 budget_exhausted = "budget_exhausted" in message
                 usage_unknown = "provider_usage_unknown" in message
+                tool_contract_failure = "prompt_or_tool_contract_failure" in message
                 diagnostic_capacity = "diagnostic_capacity" in message or any(
                     marker in message.lower()
                     for marker in ("rate_limit", "rate limit", "429", "insufficient_quota")
@@ -2114,6 +2152,8 @@ class LiveEvalService:
                         if diagnostic_capacity
                         else "provider-usage-unknown"
                         if usage_unknown
+                        else "prompt-or-tool-contract-failure"
+                        if tool_contract_failure
                         else "provider-or-eval-failure"
                     ),
                     "coverage_complete": False,
@@ -2358,6 +2398,7 @@ class LiveEvalService:
                 message = message[:500]
                 budget_exhausted = "budget_exhausted" in message
                 usage_unknown = "provider_usage_unknown" in message
+                tool_contract_failure = "prompt_or_tool_contract_failure" in message
                 diagnostic_capacity = "diagnostic_capacity" in message or any(
                     marker in message.lower()
                     for marker in ("rate_limit", "rate limit", "429", "insufficient_quota")
@@ -2376,6 +2417,8 @@ class LiveEvalService:
                         if diagnostic_capacity
                         else "provider-usage-unknown"
                         if usage_unknown
+                        else "prompt-or-tool-contract-failure"
+                        if tool_contract_failure
                         else "provider-or-eval-failure"
                     ),
                     "coverage_complete": False,
@@ -2389,6 +2432,15 @@ class LiveEvalService:
             return {
                 "ok": all(result.passed for result in results),
                 "status": "complete",
+                "classification": (
+                    "complete-with-schema-correction"
+                    if any(
+                        turn.observation.schema_corrections
+                        for scenario in results
+                        for turn in scenario.turns
+                    )
+                    else "complete"
+                ),
                 "run_id": run_id,
                 "model": model,
                 **prompt_metadata,

@@ -30,6 +30,7 @@ from gatekeeper.voice import (
     SilentToolComplete,
     ToolCall,
     ToolRoundComplete,
+    ToolSchemaCorrection,
     TurnComplete,
     UserSpeechStarted,
     UserSpeechStopped,
@@ -331,6 +332,85 @@ async def test_wait_for_user_result_submission_failure_closes_cleanly():
     try:
         await session.wake()
         brain.emit(ToolCall("wait-broken", "wait_for_user", {}))
+        await _wait_until(lambda: session._active is False, max_wait=3.0)
+        assert session.sm.state is State.IDLE
+        assert len(attention.release_calls) == 1
+    finally:
+        await session.aclose()
+
+
+async def test_schema_correction_is_returned_without_dispatching_tool_adapter():
+    class CountingTools(FakeTools):
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        async def dispatch(self, name: str, args: dict) -> dict:
+            self.calls.append((name, args))
+            return await super().dispatch(name, args)
+
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    tools = CountingTools()
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            AudioChunk(_frame(), item_id="invalid-preamble"),
+            ToolSchemaCorrection(
+                call_id="invalid-call",
+                name="HassTurnOn",
+                response={
+                    "ok": False,
+                    "error_kind": "schema_validation",
+                    "path": "domain",
+                    "constraint": "type",
+                },
+                response_id="invalid-response",
+            ),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert tools.calls == []
+        assert brain.truncations == [("invalid-preamble", 0)]
+        assert session._held_announce_pcm == []
+        assert session._buf_out == []
+        assert brain.sent_tool_results == [
+            [
+                {
+                    "id": "invalid-call",
+                    "name": "HassTurnOn",
+                    "response": {
+                        "ok": False,
+                        "error_kind": "schema_validation",
+                        "path": "domain",
+                        "constraint": "type",
+                    },
+                }
+            ]
+        ]
+        assert session._active is True
+    finally:
+        await session.aclose()
+
+
+async def test_schema_correction_submission_failure_closes_and_releases_once():
+    class BrokenCorrectionBrain(LiveFake):
+        async def send_tool_results(self, results: list) -> None:
+            raise ConnectionError("correction ACK failed")
+
+    brain = BrokenCorrectionBrain()
+    session, attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            ToolSchemaCorrection(
+                call_id="invalid-call",
+                name="HassTurnOn",
+                response={"ok": False, "error_kind": "schema_validation"},
+                response_id="invalid-response",
+            )
+        )
         await _wait_until(lambda: session._active is False, max_wait=3.0)
         assert session.sm.state is State.IDLE
         assert len(attention.release_calls) == 1
