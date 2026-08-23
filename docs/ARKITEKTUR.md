@@ -160,8 +160,9 @@ autoriseres mod frisk state og dispatches til det samme eksakte entity-id. Det e
 lokal intent-routing: serveren fortolker ingen brugerfraser, men håndhæver grænsen på
 den modelvalgte, strukturerede handling.
 
-Alle Realtime-sessioner deler et budget per nøgleidentitet og model. Produktion har
-prioritet; eval må kun starte med separat reservation og fysisk headroom. En completed
+Alle Realtime-sessioner deler et budget per nøgleidentitet og model. Produktion og
+live-eval er gensidigt eksklusive under den nøglebrede diagnostiklås; eval bruger en
+separat response-reservation, men simulerer ikke fysisk headroom. En completed
 tool-batch frigives ikke, hvis den samme generation mangler autoritativ usage eller
 reserveret kapacitet til at levere resultatet/farvel. Dermed kan en hjemmehandling ikke
 blive udført og derefter efterlade brugeren uden den causale tilbagemelding.
