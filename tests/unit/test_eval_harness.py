@@ -2494,9 +2494,10 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
     )
     service = LiveEvalService(provider_budget=_known_provider_budget())
 
-    assert sessions == 7
+    assert sessions == 9
+    assert turns == 15
     assert service._max_run_s == required
-    assert 52 * 60 < service._max_run_s < 54 * 60
+    assert 66 * 60 < service._max_run_s < 67 * 60
 
 
 async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(monkeypatch):
@@ -2548,7 +2549,7 @@ async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(mo
     assert waits == [60.5]
 
 
-async def test_full_seven_session_profile_accepts_measured_14_5k_each(monkeypatch):
+async def test_full_nine_session_profile_accepts_measured_14_5k_each(monkeypatch):
     clock = [0.0]
     calls = 0
 
@@ -2569,11 +2570,11 @@ async def test_full_seven_session_profile_accepts_measured_14_5k_each(monkeypatc
     ).run(api_key="secret", tool_declarations=_production_snapshot())
 
     assert report["ok"] is True, report.get("error")
-    assert calls == 7
-    assert report["budget"]["actual_tokens"] == 101_500
-    assert report["budget"]["max_actual_tokens"] == 720_000
+    assert calls == 9
+    assert report["budget"]["actual_tokens"] == 130_500
+    assert report["budget"]["max_actual_tokens"] == 900_000
     assert report["budget"]["max_cost_usd"] == pytest.approx(5.0)
-    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(48.0)
+    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(60.0)
     assert report["deadline_s"] > report["budget"]["rate_limit_wait_s"]
 
 

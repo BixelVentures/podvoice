@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.13.40 — korte opfølgninger forbliver åbne
+
+- Realtime-værktøjet `end_conversation` kræver nu, at den seneste brugertur selv klart
+  afslutter samtalen. En tidligere afsluttet opgave er aldrig i sig selv lukkeevidens.
+- En plausibel kort fortsættelse, korrektion, præcisering eller reference skal besvares
+  eller afklares og må ikke fejlfortolkes som et høfligt farvel.
+- SafeEval dækker både `Og læg seks til.` og den fysisk observerede tekstdiagnostik
+  `Læg seks til.`, plus kort farvel og handling-efterfulgt-af-afslutning. Diagnostikken
+  gør ingen påstand om lydækvivalens, fordi feltfejlens provider-PCM ikke blev gemt.
+- Ingen fraseliste, transcript-veto, ekstra semantikmotor, runtime-lifecycle,
+  playback-, teardown- eller rearm-adfærd er tilføjet.
+
 ## 1.13.39 — Voice PE genfinder sin identitet efter DHCP-skift
 
 - Voice PE kan erstatte en stale cachet IP med frisk native `.local`-opdagelse uden
