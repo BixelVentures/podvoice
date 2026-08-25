@@ -104,7 +104,20 @@ def test_lifecycle_manifest_is_tracked_explicit_and_covers_each_mechanical_bound
         "test_reply.py",
         "test_playout.py",
         "test_rearm_is_single_flight_and_ack_cannot_cross_calls",
-        "test_stop_playback_requires_cancel_service_and_media_stop",
+        "test_stop_playback_uses_exact_firmware_owned_cancel",
+        "test_stop_playback_waits_for_exact_drained_cancel_ack",
+        "test_rebooted_device_cancel_fault_falls_back_to_orphan_silence",
+        "test_rearm_wait_budget_includes_silence_and_full_detector_recovery",
+        "test_correlated_playback_ack_carries_exact_playback_id",
+        "test_correlated_playback_rejects_superseded_duplicate_and_out_of_order_edges",
+        "test_correlated_playback_fault_and_disconnect_fail_closed",
+        "test_correlated_reply_uses_one_device_owned_play_command",
+        "test_foreign_announcement_fault_ack_prevents_bus_mutation_and_reply_command",
+        "test_foreign_start_after_reservation_faults_before_device_owned_launch",
+        "test_missing_arm_ack_times_out_without_bus_mutation_or_media_command",
+        "test_uncorrelated_timer_announcement_plays_only_without_active_reply_lease",
+        "test_uncorrelated_timer_is_cancelled_before_next_reply_and_old_ack_is_inert",
+        "test_correlated_reply_fails_closed_when_device_play_service_fails",
         "test_stop_playback_fails_closed_when_reply_cancel_cannot_be_sent",
         "test_late_rearm_ack_cannot_settle_the_next_token",
         "test_contract_rejects_an_otherwise_complete_wrong_firmware_build",
@@ -112,6 +125,8 @@ def test_lifecycle_manifest_is_tracked_explicit_and_covers_each_mechanical_bound
         "test_next_physical_wake_and_provider_session_complete_cross_session_proof",
         "test_attempt_rejected_before_finish_cannot_be_completed_by_a_later_wake",
         "test_direct_answer_is_one_response_and_keeps_same_session_open",
+        "test_wake_cancels_owned_timer_announcement_before_realtime_admission",
+        "test_wake_fails_closed_when_owned_timer_cannot_be_cancelled",
         "test_direct_followup_reuses_context_without_a_second_provider_session",
         "test_response_created_exposes_exact_semantic_end_response_id",
         "test_raw_done_before_created_preserves_terminal_request_source",
@@ -121,6 +136,12 @@ def test_lifecycle_manifest_is_tracked_explicit_and_covers_each_mechanical_bound
         "test_terminal_completion_without_correlated_start_closes_silently",
         "test_superseded_semantic_response_cannot_bind_to_new_close_turn",
         "test_completed_terminal_response_without_audio_closes_silently",
+        "test_completed_ordinary_response_without_audio_fails_closed_without_phantom_history",
+        "test_fast_legacy_tool_task_keeps_zero_audio_decision_owned_until_turn_complete",
+        "test_talk_completed_ordinary_response_without_audio_fails_closed_without_phantom_history",
+        "test_actual_voicepe_token_ack_drives_exact_thin_lease_and_fault_close",
+        "test_old_playback_finish_cannot_mutate_a_new_reply_lease",
+        "test_missing_playback_start_uses_one_command_then_closes",
         "test_correlated_terminal_farewell_plays_before_one_teardown_and_rearm",
         "test_correlated_terminal_farewell_plays_then_closes_in_talk",
         "test_stale_terminal_audio_is_silent_in_talk",
@@ -130,6 +151,7 @@ def test_lifecycle_manifest_is_tracked_explicit_and_covers_each_mechanical_bound
         "test_duplicate_terminal_response_start_fails_closed_once",
         "test_conflicting_lifecycle_batch_is_rejected_atomically",
         "test_hung_teardown_edges_are_bounded_and_keep_wake_latch_closed",
+        "test_in_spec_physical_cancel_drain_completes_before_rearm_without_retry",
         "test_full_teardown_retry_must_succeed_before_one_rearm",
         "test_failed_physical_silence_is_retried_before_one_rearm",
         "test_total_close_deadline_includes_hung_error_speech_and_rearms",
@@ -141,6 +163,7 @@ def test_lifecycle_manifest_is_tracked_explicit_and_covers_each_mechanical_bound
         "test_physical_callback_opens_exact_fresh_session_and_persists_rearm_proof",
         "test_concurrent_close_requests_have_exactly_one_owner",
         "test_talk_and_voicepe_share_the_same_lifecycle_contract",
+        "test_async_input_transcript_hides_unheard_tool_preamble",
         "test_ten_complete_wake_followup_semantic_close_rearm_cycles",
     ):
         assert any(expected in node for node in nodes)
@@ -292,6 +315,13 @@ def test_preflight_rejects_non_312_python(tmp_path: Path):
     fake_python.chmod(0o755)
     with pytest.raises(DevCycleError, match=r"require Python 3\.12"):
         preflight(tmp_path, os.environ.copy(), str(fake_python))
+
+
+def test_preflight_read_probe_is_bounded_and_skips_missing_files():
+    source = Path(dev_cycle.__file__).read_text(encoding="utf-8")
+    assert "for p in sys.argv[1:] if Path(p).is_file()" in source
+    assert '[python, "-c", read_probe, *probe_files]' in source
+    assert '[python, "-c", read_probe, *tracked]' not in source
 
 
 def test_scope_change_invalidates_focused_result():

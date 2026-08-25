@@ -4,9 +4,6 @@ A software stand-in for the Voice PE: the browser sends typed text and (on a
 secure origin) mic PCM over a WebSocket; we forward to an OpenAI Realtime
 session and stream the spoken reply (24 kHz PCM) + transcript back. Independent
 of the ducking/Attention pipeline — it's a test/console surface.
-
-Without an OpenAI key (or in ``simulate``), a SimConsole echoes a canned reply +
-a short tone so the console still demos.
 """
 
 from __future__ import annotations
@@ -20,7 +17,6 @@ from typing import Protocol
 
 from aiohttp import WSMsgType
 
-from . import audio as audio_mod
 from . import constants as C
 from .config import Config
 from .history import TALK_ROOM as HISTORY_TALK_ROOM
@@ -47,49 +43,15 @@ class ConsoleSession(Protocol):
     async def close(self) -> None: ...
 
 
-class SimConsole:
-    """Keyless echo bridge so the console works in simulate / no-key mode."""
-
-    def __init__(self) -> None:
-        self._q: asyncio.Queue = asyncio.Queue()
-        self._closed = False
-
-    async def connect(self) -> None:
-        pass
-
-    async def send_text(self, text: str, *, item_id: str | None = None) -> None:
-        await self._q.put(OutputTranscript(f"(demo) Du sagde: {text}"))
-        await self._q.put(AudioChunk(audio_mod.error_tone(OUTPUT_RATE)))
-        await self._q.put(TurnComplete())
-
-    async def send_audio(self, pcm16k: bytes) -> None:
-        pass  # mic ignored in demo mode
-
-    async def clear_input_audio(self) -> None:
-        pass
-
-    async def send_tool_results(self, results: list) -> None:
-        pass  # demo has no tool calls
-
-    async def events(self) -> AsyncIterator[object]:
-        while not self._closed:
-            ev = await self._q.get()
-            if ev is None:
-                break
-            yield ev
-
-    async def close(self) -> None:
-        self._closed = True
-        await self._q.put(None)
-
-
 def console_factory(cfg: Config, tools=None):
     """Return ``make(model=None, voice=None)`` building a session per browser.
 
-    Real brain when the OpenAI key is set and not simulating; otherwise the
-    keyless echo demo. ``tools`` (a ToolBridge) gives the console the same home /
-    music control as the room pipeline.
+    A missing provider key disables the surface instead of selecting a parallel
+    canned-response runtime. ``tools`` (a ToolBridge) gives the console the same
+    home / music control as the room pipeline.
     """
+    if not cfg.openai_api_key:
+        return None
     decls = tools.declarations() if tools is not None else None
 
     def _make(
@@ -99,8 +61,6 @@ def console_factory(cfg: Config, tools=None):
         noise: str | None = None,
         interrupt_response: bool = True,
     ) -> ConsoleSession:
-        if cfg.simulate or not cfg.openai_api_key:
-            return SimConsole()
         from . import constants as _C
         from .openai_realtime import make_session
 

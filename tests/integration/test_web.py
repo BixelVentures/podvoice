@@ -111,7 +111,7 @@ def test_capability_verification_requires_available_exact_current_tool_success()
 
 
 async def test_status_and_health():
-    hub = StatusHub(simulate=True)
+    hub = StatusHub()
     hub.set_state("kitchen", "AI_SPEAKING")
     app = create_app(hub, {"kitchen": _StubSession("kitchen")}, tools=_StubTools())
     async with TestClient(TestServer(app)) as client:
@@ -119,7 +119,7 @@ async def test_status_and_health():
         assert r.status == 200
         body = await r.json()
         assert body["version"]
-        assert body["simulate"] is True
+        assert "simulate" not in body
         assert body["rooms"][0]["state"] == "AI_SPEAKING"
         assert body["capabilities"]["web_search"] is True
         assert body["capabilities"]["music"] is True
@@ -604,15 +604,31 @@ async def test_control_actions():
         assert (await r.json())["ok"] is True
         assert stub.sm.posted[-1].type is EventType.CLOSURE_TOKEN
 
-        r = await client.post("/api/control", json={"room": "kitchen", "action": "test_tone"})
-        assert (await r.json())["ok"] is True
-        assert stub.playback.tones == 1
-
         r = await client.post("/api/control", json={"room": "nope", "action": "listen"})
         assert r.status == 404
 
         r = await client.post("/api/control", json={"room": "kitchen", "action": "bogus"})
         assert r.status == 400
+
+
+async def test_speaker_diagnostic_cannot_overwrite_active_reply_bus():
+    from gatekeeper.reply import ReplyBus
+
+    stub = _StubSession("kitchen")
+    stub._active = True
+    stub.reply_bus = ReplyBus()
+    stub.reply_url = "http://podvoice.local/reply/kitchen.flac"
+    stub.reply_bus.start("kitchen")
+    stub.reply_bus.push("kitchen", b"ANSWER")
+    stub.reply_bus.end("kitchen")
+
+    async with _client(StatusHub(), {"kitchen": stub}) as client:
+        response = await client.post(
+            "/api/control", json={"room": "kitchen", "action": "test_speaker"}
+        )
+
+    assert response.status == 409
+    assert [chunk async for chunk in stub.reply_bus.stream("kitchen")] == [b"ANSWER"]
 
 
 async def test_settings_get_set_and_restart():

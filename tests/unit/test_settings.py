@@ -37,6 +37,7 @@ def test_legacy_lifecycle_settings_cannot_be_resurrected(tmp_path):
                 "engine": "classic",
                 "speaker_path": "direct",
                 "full_duplex": True,
+                "simulate": True,
             }
         )
     )
@@ -44,10 +45,15 @@ def test_legacy_lifecycle_settings_cannot_be_resurrected(tmp_path):
     assert loaded["engine"] == "thin"
     assert loaded["speaker_path"] == "announce"
     assert loaded["full_duplex"] is False
-    saved = S.save_settings({"engine": "classic", "speaker_path": "auto", "full_duplex": True}, p)
+    assert "simulate" not in loaded
+    saved = S.save_settings(
+        {"engine": "classic", "speaker_path": "auto", "full_duplex": True, "simulate": True},
+        p,
+    )
     assert saved["engine"] == "thin"
     assert saved["speaker_path"] == "announce"
     assert saved["full_duplex"] is False
+    assert "simulate" not in saved
 
 
 def test_load_config_merges_settings_with_keys(tmp_path, monkeypatch):
@@ -62,6 +68,7 @@ def test_load_config_merges_settings_with_keys(tmp_path, monkeypatch):
     assert cfg.engine == "thin"  # from settings
     assert cfg.openai_api_key == "o"  # from options (keys only)
     assert cfg.podconnect_base_url == "http://x:8099"
+    assert not hasattr(cfg, "simulate")
 
 
 def test_stale_tuning_reset_on_version_bump(tmp_path):

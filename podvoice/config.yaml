@@ -2,7 +2,7 @@
 # Production behavior follows docs/INVARIANTER.md; tunable defaults live in
 # gatekeeper/settings.py and operational constants in gatekeeper/constants.py.
 name: PodVoice
-version: "1.13.43"
+version: "1.13.44"
 slug: podvoice
 description: OpenAI Realtime voice assistant bridge for custom-firmware Voice PE
 arch:
@@ -18,7 +18,7 @@ ingress_port: 8098
 panel_icon: mdi:microphone-message
 panel_title: PodVoice
 # Configuration holds ONLY the API key. Everything else (model, PodConnect
-# URL/token, Voice-PE PSK, rooms, tuning, simulate) is edited in the panel's
+# URL/token, Voice-PE PSK, rooms and tuning) is edited in the panel's
 # Settings page and stored in the add-on's /data (see settings.py).
 options:
   openai_api_key: ""

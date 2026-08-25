@@ -234,13 +234,21 @@ def preflight(root: Path, env: dict[str, str], python: str) -> list[str]:
     sibling_tool(python, "ruff")
     sibling_tool(python, "mypy")
     _git(root, "status", "--porcelain", "--untracked-files=no")
-    tracked = _git(root, "ls-files").splitlines()
+    # A preflight only needs to prove that representative repository files are
+    # readable. Reading every tracked file made each gate hydrate the whole
+    # checkout on synchronized storage and could consume the complete timeout
+    # before any useful check started.
+    probe_files = (
+        "pyproject.toml",
+        "scripts/dev_cycle.py",
+        "podvoice/gatekeeper/thin.py",
+    )
     read_probe = (
         "from pathlib import Path; import sys; "
-        "[Path(p).open('rb').read(4096) for p in sys.argv[1:]]"
+        "[Path(p).open('rb').read(4096) for p in sys.argv[1:] if Path(p).is_file()]"
     )
     _run(
-        [python, "-c", read_probe, *tracked],
+        [python, "-c", read_probe, *probe_files],
         cwd=root,
         env=env,
         timeout=COLLECTION_TIMEOUT_S,

@@ -52,7 +52,6 @@ a **Save & restart** button). The HA **Configuration** tab is intentionally just
 | PodConnect URL | Where PodConnect's Attention API lives. Usually `http://homeassistant.local:8099`. |
 | PodConnect token | The secret token that lets PodVoice control the music. |
 | Voice PE PSK | The encryption key shared with the Voice PE firmware. |
-| Simulation mode | Run the built-in demo with no hardware/keys. |
 | Rooms | Pair each Voice PE (`voicepe_host`) with a PodConnect `room` so the right room ducks. |
 | Advanced tuning | Duck/lounge levels, lounge window, heartbeat, watchdog, VAD threshold — leave as is unless you know why. |
 
@@ -122,21 +121,14 @@ still lives in the **Configuration** tab.
 
 The panel has a **Talk** tab — a software stand-in for the Voice PE running the REAL engine. Type or
 speak and the assistant answers out loud (the reply is spoken in your browser) with a live transcript.
-With a real OpenAI key set it's the real assistant; with `simulate: true` (or no key) it echoes a
-demo reply. A **model dropdown** and a **voice dropdown** affect only that browser session.
+With a real OpenAI key set it's the real assistant; without the key the surface is unavailable
+instead of inventing a demo reply. A **model dropdown** and a **voice dropdown** affect only that browser session.
 All the selectable models are realtime voice models — there is nothing to get wrong here.
 
 There's also a 🎤 mic button for hands-free voice **in** — but browsers only allow microphone access on
 a secure page. If you open Home Assistant over plain `http://…` on your LAN, the mic is disabled
 (you'll see a note) while typing + spoken replies keep working. Open HA over **HTTPS / Nabu Casa** (or
 `localhost`) and the mic turns on automatically.
-
-## Try it without hardware (simulation)
-
-Set the **simulate** option to `true` and start the add-on. PodVoice will run a built-in demo —
-no OpenAI key, Voice PE, or PodConnect required — that cycles realistic conversations through the
-panel so you can see exactly how it behaves before your hardware arrives. Turn it back to `false`
-for real use.
 
 ## Troubleshooting
 

@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.13.44 — terminale events og fysisk playback bindes til samme svar
+
+- Realtime-events for et allerede terminalt response-id eller et nyt response-id med
+  genbrugt request-metadata kan ikke genåbne responsen, sende sen lyd eller transcript
+  videre eller blokere den næste tool-result response.
+- En almindelig completed respons uden PCM behandles som en uhørt providerfejl og
+  åbner ikke opfølgning eller historik. Kun den separat korrelerede semantiske
+  afslutningsrespons må lukke stille.
+- Hvert Thin-samtalesvar får et proces-randomiseret, monotont token fra Thin-lease
+  gennem native API og firmware til en tokenbærende start/finish/fault-ACK. Manglende,
+  fremmede, dublerede, out-of-order og gamle ACK'er kan ikke flytte en nyere samtale.
+- Normale svar starter med én firmware-ejet play-service på en intern FLAC-player med
+  egen HTTP-kilde, resampler og mixer-input. HA's offentlige media player kan dermed
+  ikke afgive falske reply-start/-finish-events; en forladt reservation udløber bounded.
+  Cancel, reconnect-orphan og rearm bliver først grønne efter privat player-idle og en
+  fysisk tom/stoppet resampler.
+- Timer og højttalerdiagnostik bruger samme fysiske output-arbitrering med eget token,
+  men uden Thin-callback. Wake stopper først sådan lyd; ReplyBus muteres aldrig under
+  en anden ejer. Manglende svarstart fejler efter ét forsøg uden usikker gen-announce.
+- Den konfigurerbare legacy-simulator og dens parallelle runtime er fjernet fra den
+  shippede add-on. Udviklingsfixtures findes kun under testtræet.
+- Gain, VAD, prompt, værktøjssemantik, rearm-kontrakt og half-duplex-transport er
+  uændrede.
+
 ## 1.13.43 — rearm kan ikke længere være falsk grøn
 
 - Firmware genåbner ikke længere wake-latchen ud fra et sticky tidligere wake,
