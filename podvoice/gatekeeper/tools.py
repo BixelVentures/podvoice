@@ -707,8 +707,7 @@ class ToolRouter:
                 "(mandag-søndag), and week_number is the numbered ISO week. Never "
                 "confuse weekday with week_number. Request only fields the latest turn "
                 "asks for; do not inherit a field merely because the previous turn used "
-                "it. If the latest turn wraps up the conversation, use the conversation-"
-                "ending tool instead.",
+                "it.",
                 "parameters": {
                     "type": "object",
                     "properties": {

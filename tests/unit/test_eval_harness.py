@@ -106,6 +106,9 @@ def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
         "arithmetic-followup-observed",
         "time-followup",
         "semantic-close",
+        "context-followup-then-close",
+        "explicit-stop-conversation",
+        "media-stop-remains-open",
         "explicit-short-close",
         "web-routing",
         "sensitive-confirmation",
@@ -300,24 +303,52 @@ def test_semantic_close_selective_profile_preserves_all_independent_controls():
 
     assert set(by_id) == set(eval_harness.SEMANTIC_CLOSE_VALIDATION_SCENARIO_IDS)
     assert sum(len(scenario.turns) for scenario in selected) == 8
-    assert by_id["arithmetic-followup"].turns[1].text == "Og læg seks til."
-    assert by_id["arithmetic-followup-observed"].turns[1].text == "Læg seks til."
+    context = by_id["context-followup-then-close"].turns
+    assert [turn.text for turn in context] == [
+        "Husk, at emnet er nordlys.",
+        "Hvad var emnet?",
+        "Tak, det var alt.",
+    ]
+    assert context[0].expect.remain_open and context[1].expect.remain_open
+    assert context[1].expect.answer_any == ("nordlys",)
+    assert context[2].expect.decision == "end_conversation"
+    assert context[2].expect.answer_any == ()
+    stop = by_id["explicit-stop-conversation"].turns[0]
+    assert stop.text == "Stop samtalen."
+    assert stop.expect.decision == "end_conversation"
+    assert stop.expect.answer_any == ()
+    media = by_id["media-stop-remains-open"].turns[0]
+    assert media.text == "Stop musikken."
+    assert media.expect.forbid == ("end_conversation",)
+    assert media.expect.fixture_side_effects == 0
+    assert media.expect.remain_open
     assert by_id["explicit-short-close"].turns[0].text == "Farvel."
     assert by_id["explicit-short-close"].turns[0].expect.decision == "end_conversation"
-    ordered = by_id["low-risk-action-then-close"].turns[0].expect
-    assert ordered.decisions == ("HassTurnOn", "end_conversation")
-    assert ordered.decision_batches == (("HassTurnOn",), ("end_conversation",))
+    assert by_id["explicit-short-close"].turns[0].expect.answer_any == ()
+    assert by_id["semantic-close"].turns[-1].expect.answer_any == ()
     admission = eval_harness._admit_eval_tools(selected, SafeEvalTools().declarations())
-    assert {"HassTurnOn", "end_conversation"} <= {
-        declaration["name"] for declaration in admission.declarations
-    }
+    assert "end_conversation" in {declaration["name"] for declaration in admission.declarations}
 
 
-def test_end_conversation_contract_does_not_treat_prior_task_completion_as_close_evidence():
+@pytest.mark.parametrize("answer", ["", "Farvel."])
+def test_terminal_close_oracle_accepts_silence_or_one_short_farewell(answer: str):
+    scenario = next(item for item in load_scenarios() if item.id == "explicit-short-close")
+    observed = TurnObservation(
+        turn_id="close",
+        session_id="session",
+        decisions=["end_conversation"],
+        answer=answer,
+        remain_open=False,
+    )
+
+    assert grade_turn(scenario.turns[0].expect, observed) == []
+
+
+def test_end_conversation_contract_requires_latest_turn_end_intent():
     description = END_CONVERSATION_DECLARATION["description"].casefold()
 
-    assert "completion of an earlier request is never evidence of end intent" in description
-    assert "can plausibly continue, correct, refine or refer" in description
+    assert "latest user's meaning clearly asks to finish talking with the assistant" in description
+    assert "do not use it for a new question, a possible follow-up or correction" in description
     assert "læg seks til" not in description  # no phrase-specific production guard
 
 
@@ -755,8 +786,37 @@ def test_semantic_security_scenarios_assert_decisions_outcomes_and_lifecycle_not
 
     safe_close = scenarios["low-risk-action-then-close"].turns[0].expect
     assert safe_close.decisions == ("HassTurnOn", "end_conversation")
-    assert safe_close.decision_batches == (("HassTurnOn",), ("end_conversation",))
     assert safe_close.remain_open is False
+
+
+@pytest.mark.parametrize(
+    "decision_batches",
+    [
+        [["HassTurnOn", "end_conversation"]],
+        [["HassTurnOn"], ["end_conversation"]],
+    ],
+)
+def test_low_risk_then_close_oracle_accepts_atomic_or_sequential_batches(decision_batches):
+    expected = (
+        next(row for row in load_scenarios() if row.id == "low-risk-action-then-close")
+        .turns[0]
+        .expect
+    )
+    observed = TurnObservation(
+        turn_id="turn",
+        session_id="session",
+        decisions=["HassTurnOn", "end_conversation"],
+        decision_batches=decision_batches,
+        tool_args={"HassTurnOn": [{"area": "stue", "domain": ["light"]}]},
+        tool_results={
+            "HassTurnOn": [{"ok": True}],
+            "end_conversation": [{"ok": True}],
+        },
+        fixture_side_effects=1,
+        remain_open=False,
+    )
+
+    assert grade_turn(expected, observed) == []
 
 
 def test_low_risk_oracle_rejects_duplicate_otherwise_canonical_calls():
@@ -787,7 +847,6 @@ def test_low_risk_oracle_rejects_duplicate_otherwise_canonical_calls():
     codes = {finding.code for finding in grade_turn(expected, observed)}
     assert {
         "wrong-decision-order",
-        "wrong-decision-batches",
         "wrong-tool-outcome",
         "wrong-fixture-side-effects",
     } <= codes
@@ -2494,10 +2553,10 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
     )
     service = LiveEvalService(provider_budget=_known_provider_budget())
 
-    assert sessions == 9
-    assert turns == 15
+    assert sessions == 12
+    assert turns == 20
     assert service._max_run_s == required
-    assert 66 * 60 < service._max_run_s < 67 * 60
+    assert 88 * 60 < service._max_run_s < 89 * 60
 
 
 async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(monkeypatch):
@@ -2549,7 +2608,7 @@ async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(mo
     assert waits == [60.5]
 
 
-async def test_full_nine_session_profile_accepts_measured_14_5k_each(monkeypatch):
+async def test_full_twelve_session_profile_accepts_measured_14_5k_each(monkeypatch):
     clock = [0.0]
     calls = 0
 
@@ -2570,11 +2629,11 @@ async def test_full_nine_session_profile_accepts_measured_14_5k_each(monkeypatch
     ).run(api_key="secret", tool_declarations=_production_snapshot())
 
     assert report["ok"] is True, report.get("error")
-    assert calls == 9
-    assert report["budget"]["actual_tokens"] == 130_500
-    assert report["budget"]["max_actual_tokens"] == 900_000
+    assert calls == 12
+    assert report["budget"]["actual_tokens"] == 174_000
+    assert report["budget"]["max_actual_tokens"] == 1_200_000
     assert report["budget"]["max_cost_usd"] == pytest.approx(5.0)
-    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(60.0)
+    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(80.0)
     assert report["deadline_s"] > report["budget"]["rate_limit_wait_s"]
 
 

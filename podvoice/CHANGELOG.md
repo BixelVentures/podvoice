@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.13.42 — én session gennem opfølgninger, én korreleret afslutning
+
+- Én wake åbner fortsat én Realtime-session, og første tur plus alle naturlige
+  opfølgninger deler samme socket og samtalekontekst indtil semantisk afslutning.
+- `end_conversation` er bundet fra det præcise modelkald gennem request, response-id,
+  socket-generation, terminal PCM og completion. Stale, dublerede, superseded og
+  out-of-order events kan ikke lukke en nyere tur eller afspilles som farvel.
+- Et korreleret kort farvel afspilles færdigt; manglende eller fejlet terminallyd lukker
+  stille. Det lokale cachede farvel og de gentagne lifecycle-promptregler er fjernet.
+- Silence, eventuel cachet fejllyd, provider/device/attention-teardown og første rearm
+  deler én deadline; hvert senere rearm-forsøg har også en hård timeout.
+- Voice PE og Talk deler de samme regressioner. Den hurtige lifecycle-gate dækker 118
+  deterministiske cases på cirka 10 sekunder. Den korte sideeffektfrie Realtime-profil
+  tester samme-session-kontekst, `Farvel`, `Tak, det var alt`, `Stop samtalen` og
+  `Stop musikken` som anti-close-kontrol uden en rigtig musikhandling.
+
 ## 1.13.41 — hurtig selektiv test af samtaleafslutning
 
 - Test-fanen har nu én tydelig knap til den eksisterende, navngivne SafeEval-profil

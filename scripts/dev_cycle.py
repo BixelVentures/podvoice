@@ -21,6 +21,34 @@ FAST_TIMEOUT_S = 120
 RELEASE_TIMEOUT_S = 240
 RELEASE_CONTRACT = "tests/unit/test_release_contract.py"
 FULL_SUITE_MARKER = "tests"
+LIFECYCLE_SMOKE_MANIFEST = "scripts/lifecycle_smoke.txt"
+LIFECYCLE_RUNTIME_FILES = frozenset(
+    {
+        "podvoice/gatekeeper/openai_realtime.py",
+        "podvoice/gatekeeper/playback.py",
+        "podvoice/gatekeeper/playout.py",
+        "podvoice/gatekeeper/reply.py",
+        "podvoice/gatekeeper/talk.py",
+        "podvoice/gatekeeper/thin.py",
+        "podvoice/gatekeeper/trace_oracle.py",
+        "podvoice/gatekeeper/voice.py",
+        "podvoice/gatekeeper/voicepe.py",
+    }
+)
+LIFECYCLE_WORKFLOW_FILES = frozenset(
+    {
+        "scripts/__init__.py",
+        "scripts/dev",
+        "scripts/dev_cycle.py",
+        LIFECYCLE_SMOKE_MANIFEST,
+    }
+)
+LIFECYCLE_FIRMWARE_FILES = frozenset(
+    {
+        "esphome/podvoice.yaml",
+        "esphome/voice-pe-podvoice-base.yaml",
+    }
+)
 
 
 class DevCycleError(RuntimeError):
@@ -283,6 +311,58 @@ def diff_check(root: Path, env: dict[str, str], merge_base: str) -> None:
         _run(["git", *args], cwd=root, env=env, timeout=30)
 
 
+def load_lifecycle_smoke(root: Path, tracked_tests: Sequence[str]) -> tuple[str, ...]:
+    """Load an auditable node-id manifest and reject stale or ambiguous entries."""
+    manifest = root / LIFECYCLE_SMOKE_MANIFEST
+    try:
+        lines = manifest.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise DevCycleError(f"cannot read lifecycle smoke manifest: {manifest}") from exc
+    nodes = tuple(
+        line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")
+    )
+    if not nodes:
+        raise DevCycleError("lifecycle smoke manifest is empty")
+    if len(nodes) != len(set(nodes)):
+        raise DevCycleError("lifecycle smoke manifest contains duplicate node ids")
+
+    tracked = set(tracked_tests)
+    invalid = [node for node in nodes if node.split("::", 1)[0] not in tracked]
+    if invalid:
+        raise DevCycleError(f"lifecycle smoke references untracked tests: {', '.join(invalid)}")
+    return nodes
+
+
+def select_lifecycle_tests(changes: Sequence[str], nodes: Sequence[str]) -> list[str]:
+    """Select the fixed mechanical smoke and fail closed outside its ownership."""
+    selected = set(nodes)
+    covered_test_files = {node.split("::", 1)[0] for node in nodes}
+
+    for path in changes:
+        if path in LIFECYCLE_RUNTIME_FILES or path in LIFECYCLE_WORKFLOW_FILES:
+            continue
+        if path in LIFECYCLE_FIRMWARE_FILES or path.startswith(
+            "esphome/components/podvoice_audio/"
+        ):
+            continue
+        if path.startswith("docs/") or path in {"AGENTS.md", "CLAUDE.md", "README.md"}:
+            continue
+        if path.startswith("tests/") and path.endswith(".py"):
+            if path not in covered_test_files and path != "tests/unit/test_dev_cycle.py":
+                raise DevCycleError(
+                    f"lifecycle smoke does not own changed test surface {path}; use fast or release"
+                )
+            # Run the entire changed test file so a newly added regression cannot sit
+            # outside the fixed node-id list and produce a false focused green.
+            selected = {node for node in selected if node.split("::", 1)[0] != path}
+            selected.add(path)
+            continue
+        raise DevCycleError(
+            f"lifecycle smoke does not cover changed surface {path}; use fast or release"
+        )
+    return sorted(selected)
+
+
 def select_tests(changes: Sequence[str], tracked_tests: Sequence[str]) -> tuple[list[str], str]:
     test_set = set(tracked_tests)
     selected: set[str] = set()
@@ -388,6 +468,41 @@ def run_fast(
     diff_check(root, env, snapshot.merge_base)
 
 
+def run_lifecycle(
+    root: Path,
+    env: dict[str, str],
+    python: str,
+    snapshot: ScopeSnapshot,
+) -> None:
+    changes = list(snapshot.changes)
+    tracked_tests = _git(root, "ls-files", "tests/**/test_*.py").splitlines()
+    nodes = load_lifecycle_smoke(root, tracked_tests)
+    tests = select_lifecycle_tests(changes, nodes)
+    print(
+        "lifecycle focused/partial: deterministic mechanics only; "
+        "not release, live eval, golden chain, or physical evidence",
+        flush=True,
+    )
+    print(f"lifecycle smoke scope: {len(tests)} selectors", flush=True)
+
+    ruff = sibling_tool(python, "ruff")
+    changed_python = [path for path in changes if path.endswith(".py") and (root / path).is_file()]
+    if changed_python:
+        _run([ruff, "check", *changed_python], cwd=root, env=env, timeout=30)
+        _run([ruff, "format", "--check", *changed_python], cwd=root, env=env, timeout=30)
+    if any(path in LIFECYCLE_RUNTIME_FILES for path in changes):
+        mypy = sibling_tool(python, "mypy")
+        _run([mypy, "podvoice/gatekeeper"], cwd=root, env=env, timeout=60)
+    collect(root, env, python, tests)
+    _run(
+        [python, "-m", "pytest", "-q", *tests],
+        cwd=root,
+        env=env,
+        timeout=int(os.environ.get("PODVOICE_FAST_TIMEOUT", FAST_TIMEOUT_S)),
+    )
+    diff_check(root, env, snapshot.merge_base)
+
+
 def run_release(
     root: Path,
     env: dict[str, str],
@@ -414,7 +529,12 @@ def run_release(
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("preflight", "fast", "release"), nargs="?", default="fast")
+    parser.add_argument(
+        "mode",
+        choices=("preflight", "fast", "lifecycle", "release"),
+        nargs="?",
+        default="fast",
+    )
     parser.add_argument("--base", default=os.environ.get("PODVOICE_BASE", "origin/main"))
     return parser.parse_args(argv)
 
@@ -429,14 +549,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             warnings = preflight(root, env, python)
             for warning in warnings:
                 print(f"warning: {warning}", file=sys.stderr)
-            if args.mode in {"fast", "release"}:
+            if args.mode in {"fast", "lifecycle", "release"}:
                 before = scope_snapshot(root, args.base)
                 if args.mode == "fast":
                     run_fast(root, env, python, before)
+                elif args.mode == "lifecycle":
+                    run_lifecycle(root, env, python, before)
                 else:
                     run_release(root, env, python, before)
                 require_unchanged_scope(before, scope_snapshot(root, args.base))
-        label = "focused/partial" if args.mode == "fast" else args.mode
+        label = "focused/partial" if args.mode in {"fast", "lifecycle"} else args.mode
         print(f"{label} completed in {time.monotonic() - started:.1f}s", flush=True)
         return 0
     except DevCycleError as exc:

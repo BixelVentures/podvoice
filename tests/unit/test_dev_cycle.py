@@ -10,8 +10,10 @@ from scripts.dev_cycle import (
     ScopeSnapshot,
     changed_files,
     diff_check,
+    load_lifecycle_smoke,
     preflight,
     require_unchanged_scope,
+    select_lifecycle_tests,
     select_tests,
     sibling_tool,
     tool_environment,
@@ -86,6 +88,118 @@ def test_direct_runtime_contract_is_selected_without_claiming_release():
         "tests/unit/test_voicepe_wake.py",
     ]
     assert "full suite still required" in reason
+
+
+def test_lifecycle_manifest_is_tracked_explicit_and_covers_each_mechanical_boundary():
+    root = Path(__file__).parents[2]
+    tracked = [str(path.relative_to(root)) for path in root.glob("tests/**/test_*.py")]
+    nodes = load_lifecycle_smoke(root, tracked)
+
+    assert len(nodes) == len(set(nodes))
+    for expected in (
+        "test_firmware_contract.py",
+        "test_voicepe_wake.py",
+        "test_trace_oracle.py",
+        "test_provider_tool_commit_gate.py",
+        "test_reply.py",
+        "test_playout.py",
+        "test_rearm_is_single_flight_and_ack_cannot_cross_calls",
+        "test_direct_answer_is_one_response_and_keeps_same_session_open",
+        "test_direct_followup_reuses_context_without_a_second_provider_session",
+        "test_response_created_exposes_exact_semantic_end_response_id",
+        "test_raw_done_before_created_preserves_terminal_request_source",
+        "test_only_correlated_terminal_completion_can_confirm_semantic_end",
+        "test_stale_audio_cannot_become_terminal_farewell",
+        "test_discarded_decision_preamble_cannot_fake_terminal_farewell",
+        "test_terminal_completion_without_correlated_start_closes_silently",
+        "test_superseded_semantic_response_cannot_bind_to_new_close_turn",
+        "test_completed_terminal_response_without_audio_closes_silently",
+        "test_correlated_terminal_farewell_plays_before_one_teardown_and_rearm",
+        "test_correlated_terminal_farewell_plays_then_closes_in_talk",
+        "test_stale_terminal_audio_is_silent_in_talk",
+        "test_hung_error_close_is_bounded_in_talk",
+        "test_failed_correlated_terminal_response_closes_silently_and_rearms",
+        "test_failed_terminal_response_closes_silently_in_talk",
+        "test_duplicate_terminal_response_start_fails_closed_once",
+        "test_conflicting_lifecycle_batch_is_rejected_atomically",
+        "test_hung_teardown_edges_are_bounded_and_rearm_still_runs",
+        "test_total_close_deadline_includes_hung_error_speech_and_rearms",
+        "test_each_rearm_retry_attempt_has_a_hard_timeout",
+        "test_concurrent_close_requests_have_exactly_one_owner",
+        "test_talk_and_voicepe_share_the_same_lifecycle_contract",
+        "test_ten_complete_wake_followup_semantic_close_rearm_cycles",
+    ):
+        assert any(expected in node for node in nodes)
+
+    provider_contract = (root / "tests/unit/test_provider_ack_readiness.py").read_text()
+    provider_case = provider_contract.split(
+        "async def test_response_created_exposes_exact_semantic_end_response_id():", 1
+    )[1].split("\nasync def test_", 1)[0]
+    for assertion in (
+        'assert audio.response_id == "semantic-final"',
+        "assert audio.generation is None",
+        'assert done.response_id == "semantic-final"',
+        'assert done.purpose == "semantic_end"',
+        "assert done.generation is None",
+        'assert done.source_call_id == "end-source"',
+    ):
+        assert assertion in provider_case
+
+    raw_done_case = provider_contract.split(
+        "async def test_raw_done_before_created_preserves_terminal_request_source():", 1
+    )[1].split("\nasync def test_", 1)[0]
+    for assertion in (
+        "assert not any(isinstance(event, ResponseStarted) for event in events)",
+        'assert done.response_id == "terminal-out-of-order"',
+        'assert done.purpose == "semantic_end"',
+        'assert done.source_call_id == "end-out-of-order"',
+    ):
+        assert assertion in raw_done_case
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "podvoice/gatekeeper/prompt.py",
+        "podvoice/gatekeeper/tools.py",
+        "podvoice/gatekeeper/eval_harness.py",
+        "podvoice/gatekeeper/constants.py",
+        "podvoice/gatekeeper/static/index.html",
+        "podvoice/config.yaml",
+        "tests/unit/test_eval_harness.py",
+    ],
+)
+def test_lifecycle_smoke_fails_closed_outside_mechanical_ownership(path: str):
+    with pytest.raises(DevCycleError, match=r"does not cover|does not own"):
+        select_lifecycle_tests([path], ["tests/unit/test_trace_oracle.py"])
+
+
+def test_changed_covered_test_file_runs_whole_file_not_only_named_nodes():
+    nodes = [
+        "tests/integration/test_thin.py::test_one",
+        "tests/integration/test_thin.py::test_two",
+        "tests/unit/test_trace_oracle.py",
+    ]
+    assert select_lifecycle_tests(["tests/integration/test_thin.py"], nodes) == [
+        "tests/integration/test_thin.py",
+        "tests/unit/test_trace_oracle.py",
+    ]
+
+
+def test_lifecycle_smoke_allows_only_explicit_runtime_firmware_and_docs_surfaces():
+    nodes = ["tests/unit/test_trace_oracle.py"]
+    selected = select_lifecycle_tests(
+        [
+            "podvoice/gatekeeper/thin.py",
+            "podvoice/gatekeeper/openai_realtime.py",
+            "podvoice/gatekeeper/voicepe.py",
+            "esphome/podvoice.yaml",
+            "esphome/components/podvoice_audio/podvoice_audio.cpp",
+            "docs/EVALUERING.md",
+        ],
+        nodes,
+    )
+    assert selected == nodes
 
 
 @pytest.mark.parametrize(

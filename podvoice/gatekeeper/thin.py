@@ -27,7 +27,6 @@ from .events import Event, EventType, State
 from .execution_policy import ExecutionContext
 from .led import led_command_for
 from .playout import PlayoutClock
-from .podconnect import AttentionDown, UnknownRoom, Unsupervised
 from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 from .voice import (
     AudioChunk,
@@ -35,6 +34,7 @@ from .voice import (
     InputTranscript,
     Interrupted,
     OutputTranscript,
+    ResponseStarted,
     SilentToolComplete,
     ToolCall,
     ToolRoundComplete,
@@ -95,22 +95,22 @@ BARGE_DEBOUNCE_S = 0.6
 # preset (server_vad) the SERVER also closes idle conversations via idle_timeout_ms;
 # this fallback is the belt for semantic_vad and for a server that never says so.
 IDLE_FALLBACK_S = 25.0
+TEARDOWN_STEP_TIMEOUT_S = 2.0
+TEARDOWN_ERROR_SPEECH_TIMEOUT_S = 4.0
+TEARDOWN_REARM_TIMEOUT_S = 4.0
+TEARDOWN_TOTAL_TIMEOUT_S = 12.0
+REARM_RETRY_DELAYS_S = (1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
 END_CONVERSATION_TOOL = "end_conversation"
 WAIT_FOR_USER_TOOL = "wait_for_user"
 APPROVE_ACTION_TOOL = "approve_action"
 END_CONVERSATION_DECLARATION = {
     "name": END_CONVERSATION_TOOL,
     "description": (
-        "Signal only when the latest user's clear, audible meaning itself is to end the "
-        "current voice conversation. Decide from meaning and conversation context, never "
-        "from a keyword. Completion of an earlier request is never evidence of end intent. "
-        "A polite latest turn qualifies only when its own meaning clearly ends the interaction. "
-        "If a short or fragmentary latest turn can plausibly continue, correct, refine or refer "
-        "to the previous answer, treat it as conversational content and answer or clarify. "
-        "Never use it for unclear, noisy or fragmentary input, ordinary questions, embedded "
-        "politeness, background speech, a media stop, or merely mentioning a farewell. If "
-        "the user is addressing the assistant but end intent is uncertain, ask for a repeat. "
-        "After the tool result, follow the system prompt's short Danish farewell rule."
+        "End the current voice conversation when the latest user's meaning clearly asks to "
+        "finish talking with the assistant, for example a farewell, 'that is all', or 'stop "
+        "the conversation'. Do not use it for a new question, a possible follow-up or "
+        "correction, ordinary politeness, background speech, or a request to stop media, a "
+        "timer, or a home device. Call it at most once in a turn."
     ),
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
@@ -164,10 +164,14 @@ class _ClosureTurn:
     # persistence timestamp must come from here rather than event-arrival order.
     user_finished_at: float | None = None
     semantic_end: bool = False
+    correlation_required: bool = False
+    semantic_source_call_id: str | None = None
+    terminal_response_id: str | None = None
+    terminal_generation: int | None = None
+    terminal_had_audio: bool = False
     response_done: bool = False
     superseded: bool = False
     confirmed: bool = False
-    fallback_started: bool = False
 
 
 @dataclass
@@ -802,7 +806,18 @@ class ThinSession:
         self._trace_reason = reason
         self._trace_event("close_requested", reason=reason)
         _LOG.info("thin: closing conversation (%s) [room=%s]", reason, self.room)
-        await self._silence_device()
+        close_deadline = time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S
+        rearm_reserve = (
+            TEARDOWN_REARM_TIMEOUT_S
+            if not self._closing and hasattr(self.voicepe, "rearm_wake_word")
+            else 0.0
+        )
+        await self._teardown_step(
+            "silence-device",
+            self._silence_device(),
+            deadline=close_deadline,
+            reserve_s=rearm_reserve,
+        )
         if error_kind is not None:
             self._invalidate_playback_lease("error-speech")
             self._device_playing = False
@@ -813,8 +828,14 @@ class ThinSession:
             # Once teardown/rearm completes, IDLE must be dark; a persistent red ring
             # made a healthy rearmed puck look permanently wedged in the room.
             self._set_led(State.IDLE, error=True)
-            await self._speak_error(error_kind)
-        await self._teardown(release_music=True)
+            await self._teardown_step(
+                "error-speech",
+                self._speak_error(error_kind),
+                deadline=close_deadline,
+                timeout_s=TEARDOWN_ERROR_SPEECH_TIMEOUT_S,
+                reserve_s=rearm_reserve,
+            )
+        await self._teardown(release_music=True, deadline=close_deadline)
         if error_kind is not None:
             self._set_led(State.IDLE)
             self._hub_state("IDLE", None)
@@ -829,11 +850,48 @@ class ThinSession:
         if task is not None:
             await asyncio.shield(task)
 
-    async def _teardown(self, *, release_music: bool) -> None:
+    async def _teardown(self, *, release_music: bool, deadline: float | None = None) -> None:
         async with self._teardown_lock:
-            await self._teardown_locked(release_music=release_music)
+            await self._teardown_locked(
+                release_music=release_music,
+                deadline=deadline or time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
+            )
 
-    async def _teardown_locked(self, *, release_music: bool) -> None:
+    async def _teardown_step(
+        self,
+        label: str,
+        awaitable,
+        *,
+        deadline: float,
+        timeout_s: float | None = None,
+        reserve_s: float = 0.0,
+    ) -> tuple[bool, object | None]:
+        """Run one external teardown edge without letting it block physical rearm."""
+        remaining = deadline - time.monotonic() - reserve_s
+        if remaining <= 0:
+            if inspect.iscoroutine(awaitable):
+                awaitable.close()
+            self._trace_event("teardown_step_timeout", step=label, reason="total-deadline")
+            return False, None
+        try:
+            step_timeout = TEARDOWN_STEP_TIMEOUT_S if timeout_s is None else timeout_s
+            result = await asyncio.wait_for(awaitable, timeout=min(step_timeout, remaining))
+            return True, result
+        except TimeoutError:
+            _LOG.error("thin: teardown step timed out step=%s [room=%s]", label, self.room)
+            self._trace_event("teardown_step_timeout", step=label)
+        except Exception as exc:
+            _LOG.warning("thin: teardown step failed step=%s [room=%s]: %s", label, self.room, exc)
+            self._trace_event("teardown_step_failed", step=label)
+        return False, None
+
+    async def _teardown_locked(self, *, release_music: bool, deadline: float) -> None:
+        teardown_deadline = deadline
+        rearm_reserve = (
+            TEARDOWN_REARM_TIMEOUT_S
+            if not self._closing and hasattr(self.voicepe, "rearm_wake_word")
+            else 0.0
+        )
         history_session = self._history_session
         transcription_seconds = self._transcription_audio_seconds
         self._transcription_audio_seconds = 0.0
@@ -900,47 +958,49 @@ class ThinSession:
         if self.reply_bus is not None:
             self.reply_bus.end(self.room)
         if hasattr(self.voicepe, "stop_streaming"):
-            try:
-                stream_stopped = await self.voicepe.stop_streaming()
-                if stream_stopped is False:
-                    self._device_stream_fault = True
-                    _LOG.error("thin: Voice PE refused mic-forward stop [room=%s]", self.room)
-                    self._trace_event("mic_stream_stop_failed")
-                    if self.hub is not None:
-                        self.hub.set_service(
-                            "voicepe",
-                            "down",
-                            reason="Voice PE kunne ikke lukke mikrofonkanalen",
-                            source="firmware-runtime",
-                        )
-            except Exception as exc:
-                _LOG.warning("thin: mic-forward stop failed [room=%s]: %s", self.room, exc)
+            stream_ok, stream_stopped = await self._teardown_step(
+                "stop-streaming",
+                self.voicepe.stop_streaming(),
+                deadline=teardown_deadline,
+                reserve_s=rearm_reserve,
+            )
+            if not stream_ok or stream_stopped is False:
                 self._device_stream_fault = True
+                self._trace_event("mic_stream_stop_failed")
                 if self.hub is not None:
                     self.hub.set_service(
                         "voicepe",
                         "down",
-                        reason="Voice PE mistede mikrofonkanalen under teardown",
+                        reason="Voice PE kunne ikke lukke mikrofonkanalen",
                         source="firmware-runtime",
                     )
         if hasattr(self.voicepe, "drain_mic"):
             stale = self.voicepe.drain_mic()
             if stale:
                 _LOG.info("thin: cleared %d mic frames after conversation close", stale)
-        with contextlib.suppress(Exception):
-            await self.brain.close()
+        await self._teardown_step(
+            "provider-close",
+            self.brain.close(),
+            deadline=teardown_deadline,
+            reserve_s=rearm_reserve,
+        )
         if release_music:
-            with contextlib.suppress(Exception):
-                await self.heartbeat.stop()
-            try:
-                await self.attention.release(self.room)
+            await self._teardown_step(
+                "heartbeat-stop",
+                self.heartbeat.stop(),
+                deadline=teardown_deadline,
+                reserve_s=rearm_reserve,
+            )
+            attention_ok, _ = await self._teardown_step(
+                "attention-release",
+                self.attention.release(self.room),
+                deadline=teardown_deadline,
+                reserve_s=rearm_reserve,
+            )
+            if attention_ok:
                 if self.hub is not None:
                     self.hub.incr("attention_releases")
                     self.hub.set_level(self.room, 100)
-            except (AttentionDown, Unsupervised, UnknownRoom):
-                pass
-            except Exception:
-                pass
         self._set_led(State.IDLE)
         # Firmware keeps its detector task alive and single-uses a conversation latch.
         # Reopen that latch only after provider, mic, reply path and attention are all
@@ -948,10 +1008,13 @@ class ThinSession:
         # During add-on shutdown (_closing) leave the puck stopped; the next native API
         # connection starts it through the firmware's normal client-connected hook.
         if not self._closing and hasattr(self.voicepe, "rearm_wake_word"):
-            try:
-                await self._rearm_device()
-            except Exception as exc:
-                _LOG.warning("thin: wake-word rearm failed [room=%s]: %s", self.room, exc)
+            rearm_ok, _ = await self._teardown_step(
+                "wake-rearm",
+                self._rearm_device(),
+                deadline=teardown_deadline,
+                timeout_s=TEARDOWN_REARM_TIMEOUT_S,
+            )
+            if not rearm_ok:
                 self._schedule_rearm_retry()
         if self.audio_trace is not None:
             try:
@@ -1102,6 +1165,25 @@ class ThinSession:
     async def _on_event(self, ev) -> None:
         self._last_activity = time.monotonic()
         if isinstance(ev, AudioChunk):
+            turn = self._closure_turn
+            if turn is not None and turn.semantic_end and turn.correlation_required:
+                generation_matches = (
+                    turn.terminal_generation is None or ev.generation == turn.terminal_generation
+                )
+                if (
+                    turn.terminal_response_id is None
+                    or ev.response_id != turn.terminal_response_id
+                    or not generation_matches
+                ):
+                    self._trace_event(
+                        "semantic_end_audio_stale",
+                        response_id=ev.response_id,
+                        expected=turn.terminal_response_id,
+                        generation=ev.generation,
+                        expected_generation=turn.terminal_generation,
+                    )
+                    return
+                turn.terminal_had_audio = True
             self._on_reply_audio(ev)
         elif isinstance(ev, Interrupted):
             self._trace_event("speech_started_or_interrupted")
@@ -1132,6 +1214,41 @@ class ThinSession:
                 # Dropping subsequent mic frames with the provider VAD still open
                 # would leave it stuck forever in speech_started.
                 self._spawn(self.brain.clear_input_audio(), "thin-clear-half-duplex-input")
+        elif isinstance(ev, ResponseStarted):
+            if ev.purpose != "semantic_end":
+                return
+            turn = self._closure_turn
+            if (
+                turn is None
+                or not turn.semantic_end
+                or turn.superseded
+                or not turn.correlation_required
+                or ev.source_call_id != turn.semantic_source_call_id
+            ):
+                self._trace_event(
+                    "semantic_end_response_stale",
+                    response_id=ev.response_id,
+                    generation=ev.generation,
+                    source_call_id=ev.source_call_id,
+                    expected_source_call_id=(turn.semantic_source_call_id if turn else None),
+                )
+                return
+            if turn.terminal_response_id is not None:
+                self._trace_event(
+                    "semantic_end_response_duplicate",
+                    response_id=ev.response_id,
+                    expected=turn.terminal_response_id,
+                )
+                self._request_close("error:connection", error_kind="connection")
+                return
+            turn.terminal_response_id = ev.response_id
+            turn.terminal_generation = ev.generation
+            self._trace_event(
+                "semantic_end_response_started",
+                response_id=ev.response_id,
+                generation=ev.generation,
+                turn=turn.serial,
+            )
         elif isinstance(ev, ToolRoundComplete):
             # OpenAI had to wait for the function-call response.done before it
             # could request the spoken result.  This edge separates those two
@@ -1187,7 +1304,54 @@ class ThinSession:
                 had_tool=self._turn_had_tool,
                 status=ev.status,
                 error=ev.error,
+                response_id=ev.response_id,
+                purpose=ev.purpose,
             )
+            closure = self._closure_turn
+            if closure is not None and closure.semantic_end and closure.correlation_required:
+                if closure.terminal_response_id is None and ev.purpose == "semantic_end":
+                    if ev.source_call_id != closure.semantic_source_call_id:
+                        self._trace_event(
+                            "semantic_end_completion_stale",
+                            response_id=ev.response_id,
+                            source_call_id=ev.source_call_id,
+                            expected_source_call_id=closure.semantic_source_call_id,
+                            status=ev.status,
+                        )
+                        return
+                    self._discard_failed_response()
+                    closure.response_done = True
+                    closure.confirmed = True
+                    self._trace_event(
+                        "semantic_end_silent",
+                        reason="terminal-response-start-missing",
+                        turn=closure.serial,
+                    )
+                    self._request_close("model-close-silent")
+                    return
+                generation_matches = (
+                    closure.terminal_generation is None
+                    or ev.generation == closure.terminal_generation
+                )
+                if ev.response_id != closure.terminal_response_id or not generation_matches:
+                    self._trace_event(
+                        "semantic_end_completion_stale",
+                        response_id=ev.response_id,
+                        expected=closure.terminal_response_id,
+                        generation=ev.generation,
+                        expected_generation=closure.terminal_generation,
+                        status=ev.status,
+                    )
+                    return
+                if ev.source_call_id != closure.semantic_source_call_id:
+                    self._trace_event(
+                        "semantic_end_completion_stale",
+                        response_id=ev.response_id,
+                        source_call_id=ev.source_call_id,
+                        expected_source_call_id=closure.semantic_source_call_id,
+                        status=ev.status,
+                    )
+                    return
             if ev.status != "completed":
                 self._wait_turns.clear()
                 turn = self._ensure_closure_turn()
@@ -1198,15 +1362,18 @@ class ThinSession:
                     turn.serial,
                 )
                 if turn.semantic_end and not turn.superseded:
-                    # Realtime already made the semantic decision. A failed final
-                    # response is a transport failure, not permission to reinterpret
-                    # the user's words or pretend an inaudible farewell completed.
-                    if not turn.fallback_started:
-                        turn.fallback_started = True
-                        self._spawn(
-                            self._fallback_semantic_goodbye(turn, ev.status, self._epoch),
-                            "thin-semantic-goodbye-fallback",
-                        )
+                    # Realtime already made the semantic decision. Farewell audio is
+                    # optional: a failed terminal response closes silently instead of
+                    # inventing speech or waiting on playback events that cannot exist.
+                    self._discard_failed_response()
+                    turn.response_done = True
+                    turn.confirmed = True
+                    self._trace_event(
+                        "semantic_end_silent",
+                        reason="terminal-response-failed",
+                        turn=turn.serial,
+                    )
+                    self._request_close("model-close-silent")
                     return
                 if ev.status == "cancelled":
                     # A real interruption cancelled this response. It is not an error
@@ -1243,6 +1410,8 @@ class ThinSession:
             else:
                 had_reply = self._speaking
                 turn = self._ensure_closure_turn()
+                if not turn.correlation_required:
+                    turn.terminal_had_audio = had_reply
                 turn.response_done = True
                 self._reconcile_closure(turn)
                 if had_reply and self._active and not self._ending_conversation:
@@ -1397,7 +1566,15 @@ class ThinSession:
         _LOG.info("thin: semantic conversation end confirmed [turn=%d]", turn.serial)
         self._trace_event("endphrase_confirmed", source="provider-semantic", turn=turn.serial)
         if self._active:
-            self._arm_goodbye("thin-semantic-end-reconciled")
+            if turn.terminal_had_audio:
+                self._arm_goodbye("thin-semantic-end-reconciled")
+            else:
+                self._trace_event(
+                    "semantic_end_silent",
+                    reason="completed-without-audio",
+                    turn=turn.serial,
+                )
+                self._request_close("model-close-silent")
 
     def _discard_failed_response(self) -> None:
         """Forget provider output that never became a completed audible response."""
@@ -1409,56 +1586,6 @@ class ThinSession:
         self._reply_audible_until = 0.0
         self._turn_cue_appended = False
         self.playout.reset()
-
-    async def _fallback_semantic_goodbye(
-        self, turn: _ClosureTurn, provider_status: str, epoch: float
-    ) -> None:
-        """Speak a cached farewell after Realtime accepted end intent but audio failed.
-
-        The provider still owns the *meaning*: this path is reachable only after its
-        reserved semantic ``end_conversation`` signal. PodVoice owns the mechanical
-        guarantee that the acknowledged close is heard and physically drained before
-        the one close transaction rearms the wake word.
-        """
-        self._discard_failed_response()
-        self._trace_event(
-            "semantic_end_reply_failed",
-            status=provider_status,
-            turn=turn.serial,
-        )
-        pcm: bytes | None = None
-        if self.speech is not None:
-            with contextlib.suppress(Exception):
-                pcm = self.speech.cached(C.FALLBACK_GOODBYE)
-        if (
-            not self._active
-            or epoch != self._epoch
-            or turn is not self._closure_turn
-            or turn.superseded
-        ):
-            return
-        if not pcm:
-            _LOG.error("thin: cached semantic goodbye unavailable — closing safely")
-            self._trace_event("semantic_end_fallback_unavailable", turn=turn.serial)
-            self._request_close("model-close-fallback-missing")
-            return
-
-        _LOG.warning(
-            "thin: using cached semantic goodbye after provider status=%s [turn=%d]",
-            provider_status,
-            turn.serial,
-        )
-        self._trace_event("semantic_end_fallback", source="cached-voice", turn=turn.serial)
-        self._on_reply_audio(AudioChunk(pcm, item_id="local-semantic-goodbye"))
-        self._buf_out.append(C.FALLBACK_GOODBYE)
-        turn.response_done = True
-        self._reconcile_closure(turn)
-        if self._direct:
-            self._end_direct_stream()
-        elif self.reply_bus is not None:
-            self._publish_held_announce()
-        self._flush_transcript("out")
-        self._speaking = False
 
     def _flush_transcript(self, direction: str, *, ts: float | None = None) -> None:
         buf = self._buf_in if direction == "in" else self._buf_out
@@ -1553,6 +1680,8 @@ class ThinSession:
         item = self._held_announce_item or self._last_item
         self._held_announce_pcm.clear()
         self._held_announce_item = None
+        self._speaking = False
+        self._direct = False
         self.playout.reset()
         self._reply_audible_until = 0.0
         if item and hasattr(self.brain, "truncate"):
@@ -1861,6 +1990,14 @@ class ThinSession:
                 _LOG.info("thin: duplicate semantic end call ignored [call_id=%s]", tc.id)
                 self._trace_event("semantic_end_duplicate", call_id=tc.id)
                 return False
+            if turn.semantic_end:
+                self._trace_event(
+                    "semantic_end_conflict",
+                    call_id=tc.id,
+                    reason="multiple-call-ids",
+                )
+                self._request_close("error:connection", error_kind="connection")
+                return False
             self._apply_semantic_end(tc, turn)
         return True
 
@@ -1903,6 +2040,28 @@ class ThinSession:
         else:
             self._flush_transcript("out")
         self._turn_had_tool = True
+        names = [call.name for call in batch.calls.values()]
+        lifecycle_error: str | None = None
+        if WAIT_FOR_USER_TOOL in names and len(names) != 1:
+            lifecycle_error = "wait_for_user must be the only lifecycle decision in a turn"
+        elif names.count(END_CONVERSATION_TOOL) > 1:
+            lifecycle_error = "end_conversation may appear at most once in a turn"
+        if lifecycle_error is not None:
+            batch.results = {
+                index: {
+                    "ok": False,
+                    "error_kind": "invalid_lifecycle_batch",
+                    "error": lifecycle_error,
+                }
+                for index in batch.calls
+            }
+            self._trace_event(
+                "lifecycle_batch_rejected",
+                batch_id=batch.batch_id,
+                reason=lifecycle_error,
+            )
+            await self._submit_tool_batch_if_ready(batch)
+            return
         if (
             any(call.name == APPROVE_ACTION_TOOL for call in batch.calls.values())
             and batch.size != 1
@@ -2137,7 +2296,11 @@ class ThinSession:
         needs_confirmation = any(
             result.get("error_kind") == "needs_confirmation" for _call, result in ordered
         )
-        end_calls = [call for call, _result in ordered if call.name == END_CONVERSATION_TOOL]
+        end_calls = [
+            call
+            for call, result in ordered
+            if call.name == END_CONVERSATION_TOOL and bool(result.get("ok"))
+        ]
         if needs_confirmation and end_calls:
             # The model may propose a sensitive action and close in either sibling
             # order. The server cannot accept a farewell while the exact action still
@@ -2183,6 +2346,11 @@ class ThinSession:
     def _apply_semantic_end(self, tc: ToolCall, turn: _ClosureTurn) -> None:
         self._semantic_end_call_ids.add(tc.id)
         turn.semantic_end = True
+        turn.correlation_required = tc.response_id is not None or tc.batch_id is not None
+        turn.semantic_source_call_id = tc.id
+        turn.terminal_response_id = None
+        turn.terminal_generation = None
+        turn.terminal_had_audio = False
         turn.response_done = False
         self._ending_conversation = True
         self._trace_event("semantic_end_requested", call_id=tc.id, turn=turn.serial)
@@ -2788,13 +2956,14 @@ class ThinSession:
             )
 
         async def _retry() -> None:
-            delays = (1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
             while not self._closing:
-                delay = delays[min(self._rearm_retry_attempt, len(delays) - 1)]
+                delay = REARM_RETRY_DELAYS_S[
+                    min(self._rearm_retry_attempt, len(REARM_RETRY_DELAYS_S) - 1)
+                ]
                 self._rearm_retry_attempt += 1
                 await asyncio.sleep(delay)
                 try:
-                    await self._rearm_device()
+                    await asyncio.wait_for(self._rearm_device(), timeout=TEARDOWN_REARM_TIMEOUT_S)
                     return
                 except asyncio.CancelledError:
                     raise
@@ -2958,7 +3127,7 @@ class ThinSession:
         pcm = None
         if self.speech is not None:
             with contextlib.suppress(Exception):
-                pcm = await self.speech.say(C.ERROR_PHRASES.get(kind, C.FALLBACK_CONNECTION))
+                pcm = self.speech.cached(C.ERROR_PHRASES.get(kind, C.FALLBACK_CONNECTION))
         try:
             await self._play_oneshot(
                 pcm or audio_mod.error_tone(C.OUTPUT_RATE),

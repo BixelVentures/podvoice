@@ -195,23 +195,25 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
 def test_test_tab_exposes_exact_eight_turn_semantic_close_profile():
     html = PANEL.read_text()
     scenario_ids = [
-        "arithmetic-followup",
-        "arithmetic-followup-observed",
+        "context-followup-then-close",
+        "explicit-stop-conversation",
+        "media-stop-remains-open",
         "semantic-close",
         "explicit-short-close",
-        "low-risk-action-then-close",
     ]
     expected_profile = """var closeScenarioIds = [
-    "arithmetic-followup",
-    "arithmetic-followup-observed",
+    "context-followup-then-close",
+    "explicit-stop-conversation",
+    "media-stop-remains-open",
     "semantic-close",
-    "explicit-short-close",
-    "low-risk-action-then-close"
+    "explicit-short-close"
   ];"""
 
     assert 'id="eval_close"' in html
     assert "Test samtaleafslutning (8 ture)" in html
     assert "præcis 5 scenarier og 8 ture" in html
+    assert "samme-session-kontekst" in html
+    assert "mediestop som negativ kontrol" in html
     assert "Hårdt samlet prisloft: $5" in html
     assert "Ingen eksterne effekter" in html
     assert html.count(expected_profile) == 1

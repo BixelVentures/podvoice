@@ -54,6 +54,7 @@ from .voice import (
     InputTranscript,
     Interrupted,
     OutputTranscript,
+    ResponseStarted,
     SilentToolComplete,
     ToolCall,
     ToolRoundComplete,
@@ -303,6 +304,7 @@ class OpenAIRealtimeSession:
     # A semantic-end result must produce exactly one final spoken farewell and no
     # further tool calls. Normal tool results stay auto to preserve multi-step work.
     _force_no_tools_followup: bool = field(default=False, init=False, repr=False)
+    _semantic_end_source_call_id: str | None = field(default=None, init=False, repr=False)
     _silent_tool_call_ids: set[str] = field(default_factory=set, init=False, repr=False)
     _outstanding_tool_calls: set[str] = field(default_factory=set, init=False, repr=False)
     _cancelled_tool_calls: set[str] = field(default_factory=set, init=False, repr=False)
@@ -358,6 +360,12 @@ class OpenAIRealtimeSession:
     # rejection correlation defined by the protocol.
     _response_create_event_ids: dict[str, str] = field(default_factory=dict, init=False, repr=False)
     _pending_response_creates: set[str] = field(default_factory=set, init=False, repr=False)
+    _response_request_purposes: dict[str, str] = field(default_factory=dict, init=False, repr=False)
+    _response_purposes: dict[str, str] = field(default_factory=dict, init=False, repr=False)
+    _response_request_sources: dict[str, str | None] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _response_sources: dict[str, str | None] = field(default_factory=dict, init=False, repr=False)
     _operation_event_ids: dict[str, tuple[str, str | None]] = field(
         default_factory=dict, init=False, repr=False
     )
@@ -546,6 +554,7 @@ class OpenAIRealtimeSession:
         self._tool_result_response_required = False
         self._next_response_capacity_tokens = None
         self._force_no_tools_followup = False
+        self._semantic_end_source_call_id = None
         self._silent_tool_call_ids.clear()
         self._outstanding_tool_calls.clear()
         self._cancelled_tool_calls.clear()
@@ -562,6 +571,10 @@ class OpenAIRealtimeSession:
         self._cancel_ack_watchdogs()
         self._response_create_event_ids.clear()
         self._pending_response_creates.clear()
+        self._response_request_purposes.clear()
+        self._response_purposes.clear()
+        self._response_request_sources.clear()
+        self._response_sources.clear()
         self._operation_event_ids.clear()
         self._rate_limits.clear()
         self._speech_stop_emitted = False
@@ -880,7 +893,13 @@ class OpenAIRealtimeSession:
         finally:
             self._forget_item_create(pending)
 
-    async def _send_response_create(self, response: dict | None = None) -> str:
+    async def _send_response_create(
+        self,
+        response: dict | None = None,
+        *,
+        purpose: str = "turn",
+        source_call_id: str | None = None,
+    ) -> str:
         """Send one correlated response request without blocking the event reader."""
         if self._ws is None or bool(getattr(self._ws, "closed", False)):
             raise ConnectionError("OpenAI realtime socket closed before response creation")
@@ -923,6 +942,8 @@ class OpenAIRealtimeSession:
         payload["response"] = response_payload
         self._response_create_event_ids[event_id] = request_id
         self._pending_response_creates.add(request_id)
+        self._response_request_purposes[request_id] = purpose
+        self._response_request_sources[request_id] = source_call_id
         if self.provider_observer is not None:
             self._observe_provider(
                 "response_create_pre_wire",
@@ -935,6 +956,8 @@ class OpenAIRealtimeSession:
         except BaseException:
             self._response_create_event_ids.pop(event_id, None)
             self._pending_response_creates.discard(request_id)
+            self._response_request_purposes.pop(request_id, None)
+            self._response_request_sources.pop(request_id, None)
             raise
         if self.provider_observer is not None:
             self._observe_provider(
@@ -1055,6 +1078,7 @@ class OpenAIRealtimeSession:
                 self._tool_result_response_required = True
                 if r.get("name") == "end_conversation":
                     self._force_no_tools_followup = True
+                    self._semantic_end_source_call_id = call_id
 
         if self._tool_round_edge_pending:
             self._pending_create = True
@@ -1109,12 +1133,17 @@ class OpenAIRealtimeSession:
                 self._cancel_ack_watchdogs()
                 self._response_create_event_ids.clear()
                 self._pending_response_creates.clear()
+                self._response_request_purposes.clear()
+                self._response_purposes.clear()
+                self._response_request_sources.clear()
+                self._response_sources.clear()
                 self._operation_event_ids.clear()
                 self._active_response = False
                 self._pending_create = False
                 self._tool_result_response_required = False
                 self._next_response_capacity_tokens = None
                 self._force_no_tools_followup = False
+                self._semantic_end_source_call_id = None
                 self._silent_tool_call_ids.clear()
                 self._outstanding_tool_calls.clear()
                 self._cancelled_tool_calls.clear()
@@ -1370,6 +1399,8 @@ class OpenAIRealtimeSession:
                 )
                 pending_before = len(self._pending_response_creates)
                 request_id_matched = request_id in self._pending_response_creates
+                purpose = self._response_request_purposes.pop(request_id, "turn")
+                source_call_id = self._response_request_sources.pop(request_id, None)
                 if request_id_matched:
                     self._pending_response_creates.discard(request_id)
                     for event_id, pending_request_id in tuple(
@@ -1395,6 +1426,15 @@ class OpenAIRealtimeSession:
                         pending_after=len(self._pending_response_creates),
                         generation=generation,
                     )
+                if request_id_matched and cur_rid not in (None, "?"):
+                    self._response_purposes[cur_rid] = purpose
+                    self._response_sources[cur_rid] = source_call_id
+                    yield ResponseStarted(
+                        response_id=cur_rid,
+                        purpose=purpose,
+                        generation=generation,
+                        source_call_id=source_call_id,
+                    )
             elif t == "response.output_audio.delta":  # VERIFY: GA event name
                 d = ev.get("delta")
                 if d:
@@ -1410,7 +1450,12 @@ class OpenAIRealtimeSession:
                         else:
                             _LOG.info("turn: speaking response %s", drid)
                     # item_id feeds the Track-B playout clock -> conversation.item.truncate.
-                    yield AudioChunk(base64.b64decode(d), item_id=ev.get("item_id"))
+                    yield AudioChunk(
+                        base64.b64decode(d),
+                        item_id=ev.get("item_id"),
+                        response_id=None if drid == "?" else drid,
+                        generation=generation,
+                    )
             elif t == "response.output_audio_transcript.delta":
                 yield OutputTranscript(ev.get("delta", ""))
             elif t == "conversation.item.input_audio_transcription.completed":
@@ -1475,6 +1520,7 @@ class OpenAIRealtimeSession:
                     self._pending_create = False
                     self._tool_result_response_required = False
                     self._force_no_tools_followup = False
+                    self._semantic_end_source_call_id = None
                     self._silent_tool_call_ids.clear()
                 if self.interrupt_response:
                     self._cancelled_tool_calls.update(self._outstanding_tool_calls)
@@ -1537,6 +1583,30 @@ class OpenAIRealtimeSession:
                     yield UserSpeechStopped()
             elif t == "response.done":
                 rid, status = _rid(ev), _rstatus(ev)
+                response = ev.get("response") or {}
+                metadata = response.get("metadata") if isinstance(response, dict) else None
+                request_id = (
+                    str(metadata.get("podvoice_request_id") or "")
+                    if isinstance(metadata, dict)
+                    else ""
+                )
+                if request_id in self._pending_response_creates:
+                    # A malformed/out-of-order provider may deliver done before
+                    # created. Metadata still binds it to our exact request; preserve
+                    # purpose/source so Thin can fail the missing-start edge closed.
+                    self._pending_response_creates.discard(request_id)
+                    self._response_purposes[rid] = self._response_request_purposes.pop(
+                        request_id, "turn"
+                    )
+                    self._response_sources[rid] = self._response_request_sources.pop(
+                        request_id, None
+                    )
+                    for event_id, pending_request_id in tuple(
+                        self._response_create_event_ids.items()
+                    ):
+                        if pending_request_id == request_id:
+                            self._response_create_event_ids.pop(event_id, None)
+                            self._resolve_ack_watchdog(event_id)
                 if not self._remember_terminal_response(rid, status):
                     if self.provider_observer is not None:
                         self._observe_provider(
@@ -1546,6 +1616,8 @@ class OpenAIRealtimeSession:
                             generation=generation,
                         )
                     continue
+                response_purpose = self._response_purposes.pop(rid, None)
+                response_source_call_id = self._response_sources.pop(rid, None)
                 self._active_response = False
                 rate_observation_count = response_rate_observations.pop(rid, 0)
                 provider_reservation_observed = rate_observation_count > 0
@@ -1665,6 +1737,9 @@ class OpenAIRealtimeSession:
                         status=effective_status,
                         error=error,
                         response_id=rid,
+                        generation=generation,
+                        purpose=response_purpose,
+                        source_call_id=response_source_call_id,
                         provider_rate_observed=provider_reservation_observed,
                     )
                     continue
@@ -1678,6 +1753,9 @@ class OpenAIRealtimeSession:
                         status="failed",
                         error=error,
                         response_id=rid,
+                        generation=generation,
+                        purpose=response_purpose,
+                        source_call_id=response_source_call_id,
                         provider_rate_observed=provider_reservation_observed,
                     )
                     continue
@@ -1709,6 +1787,9 @@ class OpenAIRealtimeSession:
                             status="failed",
                             error=error,
                             response_id=rid,
+                            generation=generation,
+                            purpose=response_purpose,
+                            source_call_id=response_source_call_id,
                             provider_rate_observed=provider_reservation_observed,
                         )
                         continue
@@ -1743,6 +1824,9 @@ class OpenAIRealtimeSession:
                             else staged_invalid.failure
                         ),
                         response_id=rid,
+                        generation=generation,
+                        purpose=response_purpose,
+                        source_call_id=response_source_call_id,
                         provider_rate_observed=provider_reservation_observed,
                     )
                     continue
@@ -1757,6 +1841,9 @@ class OpenAIRealtimeSession:
                         status="failed",
                         error=error,
                         response_id=rid,
+                        generation=generation,
+                        purpose=response_purpose,
+                        source_call_id=response_source_call_id,
                         provider_rate_observed=provider_reservation_observed,
                     )
                     continue
@@ -1779,6 +1866,9 @@ class OpenAIRealtimeSession:
                         status="failed",
                         error=error,
                         response_id=rid,
+                        generation=generation,
+                        purpose=response_purpose,
+                        source_call_id=response_source_call_id,
                         provider_rate_observed=provider_reservation_observed,
                     )
                     continue
@@ -1870,6 +1960,9 @@ class OpenAIRealtimeSession:
                     status=status,
                     error=_rerror(ev),
                     response_id=rid,
+                    generation=generation,
+                    purpose=response_purpose,
+                    source_call_id=response_source_call_id,
                     provider_rate_observed=provider_reservation_observed,
                 )
 
@@ -2047,6 +2140,12 @@ class OpenAIRealtimeSession:
                 if rejected_request_id is not None:
                     self._resolve_ack_watchdog(error_event_id)
                     self._pending_response_creates.discard(rejected_request_id)
+                    rejected_purpose = self._response_request_purposes.pop(
+                        rejected_request_id, "turn"
+                    )
+                    rejected_source_call_id = self._response_request_sources.pop(
+                        rejected_request_id, None
+                    )
                     response_failure = f"OpenAI rejected response.create: {self.last_error}"
                     if self.provider_observer is not None:
                         self._observe_provider(
@@ -2057,7 +2156,13 @@ class OpenAIRealtimeSession:
                             **self._capacity_error_fields(message),
                         )
                     _LOG.warning("openai rejected correlated response.create: %s", err)
-                    yield TurnComplete(status="failed", error=response_failure)
+                    yield TurnComplete(
+                        status="failed",
+                        error=response_failure,
+                        purpose=rejected_purpose,
+                        generation=generation,
+                        source_call_id=rejected_source_call_id,
+                    )
                     continue
                 operation = self._operation_event_ids.pop(error_event_id, None)
                 if operation is not None:
@@ -2075,9 +2180,16 @@ class OpenAIRealtimeSession:
         """Create one result response with the correct lifecycle tool policy."""
         if self._ws is None:
             return
-        tool_choice = "none" if self._force_no_tools_followup else "auto"
+        semantic_end = self._force_no_tools_followup
+        source_call_id = self._semantic_end_source_call_id if semantic_end else None
+        tool_choice = "none" if semantic_end else "auto"
         self._force_no_tools_followup = False
-        await self._send_response_create({"tool_choice": tool_choice})
+        self._semantic_end_source_call_id = None
+        await self._send_response_create(
+            {"tool_choice": tool_choice},
+            purpose="semantic_end" if semantic_end else "tool_result",
+            source_call_id=source_call_id,
+        )
 
     @staticmethod
     def _usage_of(ev: dict) -> Usage | None:
@@ -2186,6 +2298,10 @@ class OpenAIRealtimeSession:
         self._cancel_ack_watchdogs()
         self._response_create_event_ids.clear()
         self._pending_response_creates.clear()
+        self._response_request_purposes.clear()
+        self._response_purposes.clear()
+        self._response_request_sources.clear()
+        self._response_sources.clear()
         self._operation_event_ids.clear()
         self._preconnect_audio.clear()
         self._preconnect_audio_bytes = 0

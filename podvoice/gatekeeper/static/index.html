@@ -367,7 +367,7 @@
       <button id="eval_live">Kør sikker preflight</button>
       <button id="eval_close" class="ghost">Test samtaleafslutning (8 ture)</button>
       <button id="eval_replay" class="ghost">Genafspil seneste OpenAI-lyd 3×</button>
-      <p class="sub" style="margin:8px 0 0">Den korte test kører præcis 5 scenarier og 8 ture om matematiske opfølgninger og semantisk afslutning. Hårdt samlet prisloft: $5. Ingen eksterne effekter.</p>
+      <p class="sub" style="margin:8px 0 0">Den korte test kører præcis 5 scenarier og 8 ture om samme-session-kontekst, eksplicit samtalestop og mediestop som negativ kontrol. Hårdt samlet prisloft: $5. Ingen eksterne effekter.</p>
       <div id="eval_result" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
     </div>
     <div class="section">
@@ -1175,11 +1175,11 @@ setInterval(function () {
   var replayButton = document.getElementById("eval_replay");
   var box = document.getElementById("eval_result");
   var closeScenarioIds = [
-    "arithmetic-followup",
-    "arithmetic-followup-observed",
+    "context-followup-then-close",
+    "explicit-stop-conversation",
+    "media-stop-remains-open",
     "semantic-close",
-    "explicit-short-close",
-    "low-risk-action-then-close"
+    "explicit-short-close"
   ];
   var pollGeneration = 0;
   if (!button || !closeButton || !replayButton || !box) return;

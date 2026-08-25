@@ -58,9 +58,10 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
    domæneværktøjs resultat kan udløse den nødvendige resultatsrespons; et godkendt
    `end_conversation` kan udløse præcis ét kort farvel. Ingen af delene åbner en ny
    Realtime-session eller mister den eksisterende samtalekontekst.
-5. Hvis Realtime har foreslået semantisk afslutning, men den efterfølgende lydrespons
-   eksplicit fejler, må transporten afspille et cachet farvel. Fallbacken må aldrig
-   udløses af brugertransskription alene og må først lukke efter fysisk playback-finish.
+5. Efter committed `end_conversation` må den korrelerede terminalrespons indeholde ét
+   kort farvel eller ingen lyd. Lyd afspilles færdig før lukning; manglende eller fejlet
+   terminallyd lukker stille. Transporten må ikke opfinde betydning eller afspille et
+   lokalt cachet farvel.
 6. Semantisk afslutning, fysisk stop, timeout og fejl samles i én atomisk close-owner.
    Provider, mic, playback, ducking og attention frigives præcis én gang.
 7. Rearm sker først efter fuld teardown. Firmwarekvitteringen må kun åbne næste latch,

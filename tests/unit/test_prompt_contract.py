@@ -1,11 +1,11 @@
-"""Behavioral contracts carried by the default Realtime V4 prompt."""
+"""Behavioral contracts carried by the default Realtime prompt."""
 
 from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
-def test_v5_is_prioritized_and_model_owned():
+def test_v7_is_prioritized_and_model_owned():
     prompt = SYSTEM_PROMPT_DA.lower()
-    assert PROMPT_VERSION == 6
+    assert PROMPT_VERSION == 7
     assert "kald approve_action med præcis dette challenge_id" in prompt
     assert "gentag aldrig det oprindelige handlingsværktøj" in prompt
     assert "# prioritet" in prompt
@@ -42,14 +42,19 @@ def test_sensitive_actions_and_semantic_close_are_explicit():
     prompt = SYSTEM_PROMPT_DA.lower()
     assert "bekræft altid før oplåsning" in prompt
     assert "annullerer den ventende handling" in prompt
+    assert prompt.count("kald end_conversation") == 1
     assert "kald end_conversation præcis én gang" in prompt
-    assert "aldrig ud fra et bestemt ord eller en fraseliste" in prompt
-    assert "aldrig parallelt" in prompt
-    assert "ved en ren afslutning" in prompt
+    assert "brug ingen fraseliste" in prompt
+    assert "kald opgaven før end_conversation" in prompt
+    assert "kræver opgaven bekræftelse, skal samtalen forblive åben" in prompt
+    assert "højst ét kort dansk farvel, eller afslut uden ord" in prompt
+    assert "brug ingen flere værktøjer" in prompt
 
 
 def test_direct_answers_need_no_lifecycle_tool_round():
     prompt = SYSTEM_PROMPT_DA.lower()
     assert "giv et direkte svar i samme respons" in prompt
     assert "kald intet værktøj, når intet værktøj er nødvendigt" in prompt
+    assert "samtalen fortsætter gennem naturlige opfølgninger" in prompt
+    assert "bevar senest bekræftede emne, mål og værktøjsresultat som aktiv kontekst" in prompt
     assert "continue_conversation" not in prompt

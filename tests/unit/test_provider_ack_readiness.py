@@ -17,6 +17,8 @@ from gatekeeper.openai_realtime import (
 )
 from gatekeeper.provider_budget import ProviderBudgetCoordinator, ProviderBudgetUnavailable
 from gatekeeper.voice import (
+    AudioChunk,
+    ResponseStarted,
     ToolCall,
     ToolRoundComplete,
     ToolSchemaCorrection,
@@ -2286,7 +2288,7 @@ async def test_response_create_error_is_correlated_and_unrelated_error_is_inert(
     session._configured = True
     events: list = []
     reader = asyncio.create_task(_collect(session, ws, events))
-    await session._send_response_create()
+    await session._send_response_create(purpose="semantic_end", source_call_id="end-rejected")
     create = (await _wait_for_sent(ws, "response.create"))[0]
     await ws.emit(
         {
@@ -2306,8 +2308,105 @@ async def test_response_create_error_is_correlated_and_unrelated_error_is_inert(
     failure = next(event for event in events if isinstance(event, TurnComplete))
     assert failure.status == "failed"
     assert failure.error == "OpenAI rejected response.create: response rejected"
+    assert failure.purpose == "semantic_end"
+    assert failure.source_call_id == "end-rejected"
     assert not session._pending_response_creates
     assert create["event_id"] not in session._ack_watchdogs
+    await ws.close()
+    await reader
+
+
+async def test_response_created_exposes_exact_semantic_end_response_id():
+    session = OpenAIRealtimeSession(api_key="k")
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    session._configured = True
+    events: list = []
+    reader = asyncio.create_task(_collect(session, ws, events))
+
+    await session._send_response_create(
+        {"tool_choice": "none"},
+        purpose="semantic_end",
+        source_call_id="end-source",
+    )
+    create = (await _wait_for_sent(ws, "response.create"))[0]
+    await ws.emit(
+        {
+            "type": "response.created",
+            "response": {
+                "id": "semantic-final",
+                "metadata": create["response"]["metadata"],
+            },
+        }
+    )
+    await asyncio.sleep(0)
+    started = next(event for event in events if isinstance(event, ResponseStarted))
+    assert started.response_id == "semantic-final"
+    assert started.purpose == "semantic_end"
+    assert started.generation is None
+    assert started.source_call_id == "end-source"
+    assert not session._pending_response_creates
+
+    await ws.emit(
+        {
+            "type": "response.output_audio.delta",
+            "response_id": "semantic-final",
+            "item_id": "farewell-item",
+            "delta": base64.b64encode(b"farewell-pcm").decode(),
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {"id": "semantic-final", "status": "completed"},
+        }
+    )
+    await asyncio.sleep(0)
+    audio = next(event for event in events if isinstance(event, AudioChunk))
+    done = next(event for event in events if isinstance(event, TurnComplete))
+    assert audio.response_id == "semantic-final"
+    assert audio.generation is None
+    assert done.response_id == "semantic-final"
+    assert done.purpose == "semantic_end"
+    assert done.generation is None
+    assert done.source_call_id == "end-source"
+
+    await ws.close()
+    await reader
+
+
+async def test_raw_done_before_created_preserves_terminal_request_source():
+    session = OpenAIRealtimeSession(api_key="k")
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    session._configured = True
+    events: list = []
+    reader = asyncio.create_task(_collect(session, ws, events))
+
+    await session._send_response_create(
+        {"tool_choice": "none"},
+        purpose="semantic_end",
+        source_call_id="end-out-of-order",
+    )
+    create = (await _wait_for_sent(ws, "response.create"))[0]
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "terminal-out-of-order",
+                "status": "completed",
+                "metadata": create["response"]["metadata"],
+            },
+        }
+    )
+    await asyncio.sleep(0)
+    assert not any(isinstance(event, ResponseStarted) for event in events)
+    done = next(event for event in events if isinstance(event, TurnComplete))
+    assert done.response_id == "terminal-out-of-order"
+    assert done.purpose == "semantic_end"
+    assert done.source_call_id == "end-out-of-order"
+    assert not session._pending_response_creates
+
     await ws.close()
     await reader
 
