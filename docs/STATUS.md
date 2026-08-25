@@ -5,16 +5,18 @@ Senest opdateret: 2026-08-25.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv softwarekandidat:** installeret v1.13.41 er feltstoppet efter korrekt hørt,
-men forkert besvaret og selvforstærket samtalekontekst. Oprydningskandidaten er
-versioneret v1.13.42, men endnu ikke bygget, installeret eller fysisk testet.
-**Aktuel gate:** v1.13.41 beviste fysisk wake, én Realtime-session gennem seks ture,
-eksplicit model-close på “Farvel.”, fysisk playback, én teardown og wake-rearm på
-101 ms. Den bestod ikke golden chain: Realtime hørte “Hvad er tolv gange syv?” korrekt,
-svarede `28` og argumenterede derefter ud fra sin egen fejl. Kandidaten er **NO-GO**.
-Produktretningen er nu reduceret til én minimal lifecycle-kontrakt; ingen ny fysisk test
-må startes, før de nedenstående mekaniske P1-huller, modelkontraktens dubletter og den
-hurtige lifecycle-gate er lukket på samme artifact.
+**Aktiv softwarekandidat:** v1.13.42 er installeret og startet på HA Green. Den bestod
+selve den sammenhængende femtursdialog og modelsemantisk lukning, men bestod **ikke**
+den efterfølgende fysiske re-wake. Kandidaten er derfor **NO-GO** for golden chain og
+release, selv om add-on-loggen fejlagtigt kaldte firmwarekvitteringen fysisk bevist.
+Installeret v1.13.41 blev tidligere feltstoppet efter korrekt hørt, men forkert besvaret
+og selvforstærket samtalekontekst.
+**Aktuel gate:** v1.13.42 beviste én fysisk wake, én Realtime-session gennem fem ture,
+korrekt samme-session-kontekst, præcis ét `end_conversation`, fysisk farvel og én
+teardown. Firmware meldte wake-rearm efter teardown, men næste “Okay Nabu” udløste
+ingen wake. Den direkte fysiske observation falsificerer dermed den grønne rearmstatus;
+golden chain er rød, og 10/10 må ikke startes. Produktretningen forbliver den minimale
+lifecycle-kontrakt nedenfor.
 
 ### Aktiv feltbeslutning 25. august — minimal Realtime-lifecycle uden overfit
 
@@ -77,8 +79,110 @@ speakerlyd samt hele eventrækkefølgen.
   Ruff, format og mypy er grønne. Uafhængigt adversarial recheck af det uversionerede
   runtime-snapshot fandt P0=0/P1=0 og gav GO for maskinel testklarhed; versions-/docsændring
   ændrer ikke runtime. Resterende usikkerhed er den lille rigtige Realtime-close-matrix,
-  build/artifact-identitet og fysisk Voice PE-kæde. Kandidaten er derfor maskintestklar,
-  men **ikke installeret, fysisk golden-chain-bevist eller releasegodkendt**.
+  rigtige Realtime-close-matrix og fysisk Voice PE-kæde. Kandidaten blev 25. august
+  installeret fra det opdaterede HA-katalog som v1.13.42. Opstartsloggen viste
+  `PodVoice gatekeeper v1.13.42`, HA/MCP-forbindelse med 19 værktøjer og fungerende
+  `GetLiveContext`, `PodVoice ready — rooms: ['r0']`, succesfuldt Voice PE-handshake,
+  firmwarekontrakt OK, mic-tuning og wake word `okay_nabu`. Den er derfor installeret
+  og klar til næste gate, men var på dette tidspunkt **ikke live-close-matrix-, fysisk
+  golden-chain- eller releasegodkendt**.
+
+- **Frisk fysisk evidens for v1.13.42 kl. 15.24–15.25:** én wake åbnede én
+  Realtime-session. `12 × 7` gav korrekt `84`; opfølgningen “Læg seks til” gav korrekt
+  `90`; datoen blev hentet korrekt; den senere reference til det tidligere regnestykke
+  bevarede konteksten og bad fornuftigt om præcisering mellem `84` og `90`. Afslutningen
+  gav præcis ét committed `end_conversation`, en kort fysisk farvelrespons, én
+  model-close, media stop og attention-release. Add-on-loggen registrerede derefter
+  `wake continuity proven`, men ingen ny wake blev observeret, og ejerens umiddelbare
+  efterfølgende “Okay Nabu” virkede ikke. Det er stærkere fysisk modbevis end ACK'en:
+  samtaledelen er grøn, men lifecycle/golden chain er **NO-GO**.
+- **Ny falsificerbar rearm-hypotese:** firmwaregrenen for kontinuitet accepterer
+  `podvoice_detector_continuity_proven`, den brede tilstand
+  `micro_wake_word.is_running()` og fire nye mikrofonframes som fysisk bevis. Det
+  beviser et levende mic-sourceflow, men ikke entydigt at modellen står i
+  `DETECTING_WAKE_WORD` og faktisk kan genkende næste wake. Den nuværende automatiske
+  regression gengiver samme antagelse statisk og kan derfor ikke opdage denne
+  falsk-grønne tilstand. Før ny fysisk kandidat skal readiness enten få et stærkere
+  firmwarebevis eller degraderes ærligt, og den observerede ACK-uden-ny-wake-kæde skal
+  være en regression. Ingen gain-, VAD-, prompt- eller semantikændring er indiceret af
+  denne fejl.
+- **Aktiv rearm-korrektionsgrænse:** hele kæden er afsluttet fysisk playback →
+  `podvoice_stream_stop` → provider/attention-close → én firmware-rearm → næste
+  detektion → én ny session. Berørte invarianter er exactly-once teardown/rearm,
+  firmwareejet fysisk wake og sand readiness. Den minimale plan er at fjerne den
+  falsk-grønne kontinuitetsgren som autoritet, gennemføre én bounded og observerbar
+  detektor-reset ved rearm, holde latch lukket ved stop/start-/audio-timeout og kun
+  rapportere reset som `recovered`; en virkelig efterfølgende wake er fortsat eneste
+  grønne bevis for den nye detektorinstans. Regressionerne skal afvise mic-progress,
+  `STARTING`/`STOPPING`, stale/duplicate ACK, disconnect og timeout som `proven`, bevise
+  én reset/én latch-open/én add-on-rearm per teardown og bevare den modsatte Talk-
+  adapter. Firmware-render/compile, fokuseret lifecycle-suite, fuld statisk/testgate,
+  uafhængigt adversarial review, artifact-identitet og fysisk wake → dialog → close →
+  ny wake er sammensatte gates. **Ikke-mål:** ingen ændring af gain, VAD, lydtransport,
+  Realtime, prompt, semantik, playback eller stilhedslukning. Rollback er hele firmware-
+  og kontraktændringen, hvis reset ikke når stabil operationelt gul readiness bounded,
+  skaber duplicate wake/session eller den nye fysiske wake fortsat fejler.
+- **Adversarial stop-the-line under v1.13.43-arbejdet:** første cross-session-orakel
+  bandt kun næste wake og provider-connect via rum og tid. En afvist wake A kunne derfor
+  efterlade beviset åbent, så en senere wake/session B fejlagtigt gjorde A grøn. Samme
+  review viste, at et kendt mic-forward-fault (`down`) kunne overskrives til
+  `degraded` af en vellykket detektor-reset. Kandidaten forbliver NO-GO, mens
+  wake-attempt, history-session og frisk provider-generation bindes med ét nonce,
+  samtlige early-return-/fejlveje invaliderer netop dette forsøg, bevisvinduet udløber,
+  og mic-fault forbliver `down` indtil en faktisk vellykket mic-start. Regressionerne
+  skal falsificere wake A → early return → wake/session B, uændret provider-generation,
+  flere firmware-buildmarkører og statusopgradering efter mic-start-fejl.
+- **Andet adversarial stop-the-line:** timeout/fejl i mic-stop, provider-close,
+  heartbeat-stop eller attention-release kunne stadig efterfølges af firmware-rearm.
+  Det strider mod invariant 7 og kunne åbne næste latch oven på gammel fysisk eller
+  provider-tilstand. Rettelsesgrænsen udvides derfor kun til mekanisk teardown:
+  rearm blokeres, readiness forbliver `fault`, nye wakes afvises, og den samme
+  close-owner genkører hele teardown bounded før én rearm. Det strikte trace-orakel
+  skal kræve `teardown_complete` før rearm og afvise enhver teardown-/mic-fejl.
+- **Faktisk ændring og maskinel status for v1.13.43:** firmware-rearm er nu én
+  tokenkorreleret, bounded detektor-reset med `recovered`/`fault`; add-on accepterer
+  aldrig ACK som fysisk `proven`, kræver eksakt buildmarkør `podvoice_build_11343` og
+  afviser stale, duplicate, disconnectede og fremmede ACK'er. Thin rearmer kun efter
+  bekræftet fysisk silence, mic-stop, provider-close, heartbeat-stop og
+  attention-release. En fejl
+  holder latch og readiness lukket, afviser nye wakes og genkører hele teardown før
+  præcis én rearm. Den næste fysiske callback bindes med nonce til netop den nye
+  history-session og en større provider-generation; rejected/early/nonphysical
+  forsøg, udløbet bevis og senere sessions kan ikke retroaktivt gøre tracen grøn.
+  Mic-forward-fault forbliver `down` indtil en faktisk vellykket mic-start.
+  Lifecycle-manifestet har 71 eksplicitte selectors og kører på cirka 10 sekunder;
+  den fulde lokale gate (Ruff, format, mypy og hele testsuiten) er grøn på 37,1 s i
+  den rene Python 3.12-runtime. ESPHome config og en frisk compile af de aktuelle bits
+  er grøn; ELF indeholder både `correlated_reset_rearm_v2` og
+  `podvoice_build_11343`. Validation-only OTA-artifact har SHA-256
+  `8e21eb11d201db800d9bc0d7647d60149473ab8af39a9edcff75358a841dcd2d` og må ikke
+  flashes, fordi det er bygget med dummy-valideringsnøgle. Uafhængigt review har nul
+  P0/P1; kandidatstatus er GO til rigtig build/install og én frisk fysisk
+  golden-chain-gate, men fortsat NO-GO til golden-label/release. Resterende usikkerhed
+  er operationel ESPHome `STARTING` versus rigtig detectorfunktion og kan kun lukkes
+  af den korrelerede fysiske kæde teardown → reset → næste “Okay Nabu” → ny
+  provider-session; derefter kræver lifecycle-release stadig 10/10 ubrudte cyklusser.
+- **Tredje adversarial stop-the-line:** frozen review fandt, at native reconnect efter
+  en returneret men ufuldstændig close kunne omgå full-teardown-retry og kalde rearm,
+  at en stray wake-callback kunne male readiness grøn før samme gate, og at resultatet
+  fra fysisk `silence-device` ikke indgik i `teardown_complete`. Kandidaten er igen
+  NO-GO, indtil reconnect kun afleverer ejerskab til full-teardown-retry, callbacken
+  afvises før readiness-promotion, fysisk silence indgår i gaten/retryes, og
+  cross-session-TTL bruger monotont ur. Ovenstående maskinelle resultat er derfor
+  historik for pre-fix-diffen, ikke kandidatgodkendelse.
+- **Tredje stop-the-line er lukket på frozen diff:** reconnect afleverer nu kun
+  ufuldstændig teardown til den single-flight full-teardown-retry; en callback under
+  samme tilstand afvises før readiness-promotion. Fysisk silence er en reel gate, og
+  den shippede Voice PE-adapter returnerer kun succes, når både required reply-cancel
+  og announcement media-player STOP er køet; manglende target/client eller exception
+  forbliver fejl og bevarer `_announcing`. Den integrerede fail→success-regression
+  beviser nul tidlig rearm, to rigtige adapter-stopforsøg og præcis én senere rearm.
+  Den endelige fulde gate er grøn på 37,1 s, focused causal suite er 227/227 grøn,
+  `git diff --check` er grøn, og to uafhængige frozen reviews finder P0=0/P1=0 med
+  henholdsvis **97/100** og **96/100** maskinel confidence. v1.13.43 er derfor **GO
+  til rigtig build/install og én frisk fysisk golden chain**, men fortsat NO-GO til
+  golden-label/release, indtil den installerede buildmarkør, fysisk playback-finish,
+  teardown/reset og den næste wake→provider-session er bevist på samme kandidat.
 
 ### Aktiv feltbeslutning 25. august — falsk semantisk close på matematisk opfølgning
 

@@ -28,7 +28,10 @@
     {"at_ms": 5200, "event": "playback_started"},
     {"at_ms": 5500, "event": "playback_finished"},
     {"at_ms": 5510, "event": "close_requested", "reason": "model-close"},
-    {"at_ms": 5600, "event": "wake_rearmed"},
-    {"at_ms": 5650, "event": "capture_finished", "reason": "model-close"}
+    {"at_ms": 5580, "event": "teardown_complete"},
+    {"at_ms": 5600, "event": "wake_rearm_recovered"},
+    {"at_ms": 5650, "event": "capture_finished", "reason": "model-close"},
+    {"at_ms": 6000, "event": "next_wake_received", "attempt_id": "attempt-2"},
+    {"at_ms": 6300, "event": "next_session_opened", "attempt_id": "attempt-2", "history_session": "r0:session-2", "provider_generation": 2}
   ]
 }

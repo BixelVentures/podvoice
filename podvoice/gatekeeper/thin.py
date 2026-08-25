@@ -17,6 +17,7 @@ import hashlib
 import inspect
 import json
 import logging
+import secrets
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -97,7 +98,7 @@ BARGE_DEBOUNCE_S = 0.6
 IDLE_FALLBACK_S = 25.0
 TEARDOWN_STEP_TIMEOUT_S = 2.0
 TEARDOWN_ERROR_SPEECH_TIMEOUT_S = 4.0
-TEARDOWN_REARM_TIMEOUT_S = 4.0
+TEARDOWN_REARM_TIMEOUT_S = 6.0
 TEARDOWN_TOTAL_TIMEOUT_S = 12.0
 REARM_RETRY_DELAYS_S = (1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
 END_CONVERSATION_TOOL = "end_conversation"
@@ -346,7 +347,9 @@ class ThinSession:
         self._history_session = ""  # explicit wake/session boundary in persisted history
         self._teardown_lock = asyncio.Lock()  # wake must never race a teardown in flight
         self._rearm_retry_task: asyncio.Task | None = None
+        self._teardown_retry_task: asyncio.Task | None = None
         self._rearm_retry_attempt = 0
+        self._teardown_incomplete = False
         self._device_stream_fault = False
         self._physical_link_lost = False
         self._muted = False
@@ -429,6 +432,9 @@ class ThinSession:
         if self._rearm_retry_task is not None:
             self._rearm_retry_task.cancel()
             self._rearm_retry_task = None
+        if self._teardown_retry_task is not None:
+            self._teardown_retry_task.cancel()
+            self._teardown_retry_task = None
         self._trace_reason = "shutdown"
         await self._teardown(release_music=True)
         with contextlib.suppress(Exception):
@@ -450,7 +456,7 @@ class ThinSession:
         return {"ok": age < 5.0, "frames": frames, "bytes": vp.bytes_in, "age_s": round(age, 1)}
 
     # ------------------------------------------------------------- conversation
-    async def wake(self) -> None:
+    async def wake(self, rearm_attempt_id: str | None = None) -> None:
         """Open ONE conversation: duck, stream mic, connect the brain. Idempotent."""
         if self._teardown_lock.locked():
             # A teardown is mid-flight: its remaining awaits (stop_streaming, brain
@@ -462,16 +468,27 @@ class ThinSession:
                         pass  # wait for the close to finish, then proceed
             except TimeoutError:
                 _LOG.warning("thin: wake REFUSED — previous close is stuck [room=%s]", self.room)
+                if self.audio_trace is not None:
+                    self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
                 return
-        if self._muted or self._active or self._closing:
+        if self._muted or self._active or self._closing or self._teardown_incomplete:
             _LOG.info(
-                "thin: wake IGNORED [room=%s] (muted=%s active=%s closing=%s)",
+                "thin: wake IGNORED [room=%s] (muted=%s active=%s closing=%s teardown_incomplete=%s)",
                 self.room,
                 self._muted,
                 self._active,
                 self._closing,
+                self._teardown_incomplete,
             )
+            if self.audio_trace is not None:
+                self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
             return
+        if self.audio_trace is not None and rearm_attempt_id is not None:
+            self.audio_trace.note_next_wake(self.room, rearm_attempt_id)
+        elif self.audio_trace is not None:
+            # Programmatic/Talk admission is not physical wake evidence and must not
+            # leave an earlier puck trace open for a later callback to complete.
+            self.audio_trace.reject_next_session(self.room)
         _LOG.info(
             "thin: conversation open [room=%s] echo-shield=%s preset-mode=%s "
             "mic_channel=%s mic_gain=%s openai_noise=%s",
@@ -544,6 +561,8 @@ class ThinSession:
         if hasattr(self.voicepe, "start_streaming"):
             stream_started = await self.voicepe.start_streaming()
             if stream_started is False:
+                if self.audio_trace is not None:
+                    self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
                 self._device_stream_fault = True
                 _LOG.error("thin: Voice PE refused mic-forward start [room=%s]", self.room)
                 self._trace_event("mic_stream_start_failed")
@@ -600,9 +619,12 @@ class ThinSession:
                 ).encode()
             ).hexdigest(),
         )
+        previous_provider_generation = getattr(self.brain, "_connection_generation", None)
         try:
             await asyncio.wait_for(self.brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
         except Exception as e:
+            if self.audio_trace is not None:
+                self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
             _LOG.warning("thin: provider connect failed: %s", e)
             diagnostic_busy = "diagnostic_busy" in str(e).lower()
             if self.hub is not None and not diagnostic_busy:
@@ -615,6 +637,16 @@ class ThinSession:
             await self._fail("diagnostic" if diagnostic_busy else "connection")
             return
         self._trace_event("provider_connected")
+        if self.audio_trace is not None and rearm_attempt_id is not None:
+            proved = self.audio_trace.prove_next_session(
+                self.room,
+                rearm_attempt_id,
+                self._history_session,
+                provider_generation=getattr(self.brain, "_connection_generation", None),
+                previous_provider_generation=previous_provider_generation,
+            )
+            if not proved:
+                self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
         if self.hub is not None:
             self.hub.set_service(
                 "openai",
@@ -812,7 +844,7 @@ class ThinSession:
             if not self._closing and hasattr(self.voicepe, "rearm_wake_word")
             else 0.0
         )
-        await self._teardown_step(
+        silence_complete, _ = await self._teardown_step(
             "silence-device",
             self._silence_device(),
             deadline=close_deadline,
@@ -835,7 +867,11 @@ class ThinSession:
                 timeout_s=TEARDOWN_ERROR_SPEECH_TIMEOUT_S,
                 reserve_s=rearm_reserve,
             )
-        await self._teardown(release_music=True, deadline=close_deadline)
+        await self._teardown(
+            release_music=True,
+            deadline=close_deadline,
+            silence_complete=silence_complete,
+        )
         if error_kind is not None:
             self._set_led(State.IDLE)
             self._hub_state("IDLE", None)
@@ -850,11 +886,18 @@ class ThinSession:
         if task is not None:
             await asyncio.shield(task)
 
-    async def _teardown(self, *, release_music: bool, deadline: float | None = None) -> None:
+    async def _teardown(
+        self,
+        *,
+        release_music: bool,
+        deadline: float | None = None,
+        silence_complete: bool = True,
+    ) -> None:
         async with self._teardown_lock:
             await self._teardown_locked(
                 release_music=release_music,
                 deadline=deadline or time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
+                silence_complete=silence_complete,
             )
 
     async def _teardown_step(
@@ -885,7 +928,9 @@ class ThinSession:
             self._trace_event("teardown_step_failed", step=label)
         return False, None
 
-    async def _teardown_locked(self, *, release_music: bool, deadline: float) -> None:
+    async def _teardown_locked(
+        self, *, release_music: bool, deadline: float, silence_complete: bool
+    ) -> None:
         teardown_deadline = deadline
         rearm_reserve = (
             TEARDOWN_REARM_TIMEOUT_S
@@ -957,6 +1002,7 @@ class ThinSession:
                 policy.clear_session(history_session)
         if self.reply_bus is not None:
             self.reply_bus.end(self.room)
+        stream_complete = True
         if hasattr(self.voicepe, "stop_streaming"):
             stream_ok, stream_stopped = await self._teardown_step(
                 "stop-streaming",
@@ -965,6 +1011,7 @@ class ThinSession:
                 reserve_s=rearm_reserve,
             )
             if not stream_ok or stream_stopped is False:
+                stream_complete = False
                 self._device_stream_fault = True
                 self._trace_event("mic_stream_stop_failed")
                 if self.hub is not None:
@@ -978,14 +1025,16 @@ class ThinSession:
             stale = self.voicepe.drain_mic()
             if stale:
                 _LOG.info("thin: cleared %d mic frames after conversation close", stale)
-        await self._teardown_step(
+        provider_complete, _ = await self._teardown_step(
             "provider-close",
             self.brain.close(),
             deadline=teardown_deadline,
             reserve_s=rearm_reserve,
         )
+        heartbeat_complete = True
+        attention_complete = True
         if release_music:
-            await self._teardown_step(
+            heartbeat_complete, _ = await self._teardown_step(
                 "heartbeat-stop",
                 self.heartbeat.stop(),
                 deadline=teardown_deadline,
@@ -1001,13 +1050,35 @@ class ThinSession:
                 if self.hub is not None:
                     self.hub.incr("attention_releases")
                     self.hub.set_level(self.room, 100)
+            attention_complete = attention_ok
         self._set_led(State.IDLE)
+        teardown_complete = (
+            silence_complete
+            and stream_complete
+            and provider_complete
+            and heartbeat_complete
+            and attention_complete
+        )
+        self._teardown_incomplete = not teardown_complete
+        if teardown_complete:
+            self._trace_event("teardown_complete")
+        else:
+            self._trace_event("rearm_blocked_incomplete_teardown")
+            if hasattr(self.voicepe, "wake_readiness"):
+                self.voicepe.wake_readiness = "fault"
+            if self.hub is not None:
+                self.hub.set_service(
+                    "voicepe",
+                    "down",
+                    reason="Teardown er ikke fuldført; wake holdes lukket og prøves igen",
+                    source="firmware-runtime",
+                )
         # Firmware keeps its detector task alive and single-uses a conversation latch.
         # Reopen that latch only after provider, mic, reply path and attention are all
         # closed; firmware performs a stop/start cycle only as an explicit recovery.
         # During add-on shutdown (_closing) leave the puck stopped; the next native API
         # connection starts it through the firmware's normal client-connected hook.
-        if not self._closing and hasattr(self.voicepe, "rearm_wake_word"):
+        if teardown_complete and not self._closing and hasattr(self.voicepe, "rearm_wake_word"):
             rearm_ok, _ = await self._teardown_step(
                 "wake-rearm",
                 self._rearm_device(),
@@ -1016,7 +1087,12 @@ class ThinSession:
             )
             if not rearm_ok:
                 self._schedule_rearm_retry()
-        if self.audio_trace is not None:
+        elif not teardown_complete and not self._closing:
+            self._schedule_teardown_retry(
+                release_music=release_music,
+                silence_complete=silence_complete,
+            )
+        if teardown_complete and self.audio_trace is not None:
             try:
                 self.audio_trace.finish(self._trace_reason)
             except Exception as exc:
@@ -1024,6 +1100,41 @@ class ThinSession:
                 _LOG.warning("thin: could not save audio trace: %s", exc)
         self._stop_sent_t = None
         self._stop_sent_epoch = None
+
+    def _schedule_teardown_retry(self, *, release_music: bool, silence_complete: bool) -> None:
+        """Retry the full close chain; never retry rearm on top of partial teardown."""
+        if self._closing or (
+            self._teardown_retry_task is not None and not self._teardown_retry_task.done()
+        ):
+            return
+
+        async def _retry() -> None:
+            attempt = 0
+            physical_silence_complete = silence_complete
+            while self._teardown_incomplete and not self._closing:
+                delay = REARM_RETRY_DELAYS_S[min(attempt, len(REARM_RETRY_DELAYS_S) - 1)]
+                attempt += 1
+                await asyncio.sleep(delay)
+                if not physical_silence_complete:
+                    physical_silence_complete, _ = await self._teardown_step(
+                        "silence-device-retry",
+                        self._silence_device(),
+                        deadline=time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
+                        reserve_s=TEARDOWN_REARM_TIMEOUT_S,
+                    )
+                await self._teardown(
+                    release_music=release_music,
+                    silence_complete=physical_silence_complete,
+                )
+
+        task = self._spawn(_retry(), "thin-full-teardown-retry")
+        self._teardown_retry_task = task
+
+        def _clear(done: asyncio.Task) -> None:
+            if self._teardown_retry_task is done:
+                self._teardown_retry_task = None
+
+        task.add_done_callback(_clear)
 
     # ------------------------------------------------------------- audio pumps
     async def _pump_mic(self) -> None:
@@ -2429,6 +2540,16 @@ class ThinSession:
     def _on_wake_cb(self) -> None:
         # A genuine detector callback is the strongest available runtime proof. A
         # cold-boot recovery remains amber only until this first physical wake.
+        if self._closing or self._teardown_incomplete:
+            self._trace_event("wake_rejected_incomplete_teardown")
+            _LOG.warning(
+                "thin: wake callback rejected before readiness promotion "
+                "[room=%s closing=%s teardown_incomplete=%s]",
+                self.room,
+                self._closing,
+                self._teardown_incomplete,
+            )
+            return
         if hasattr(self.voicepe, "wake_readiness"):
             self.voicepe.wake_readiness = "proven"
         self._rearm_retry_attempt = 0
@@ -2438,8 +2559,12 @@ class ThinSession:
         if self.hub is not None and self._voicepe_contract_ok():
             self.hub.set_service(
                 "voicepe",
-                "up",
-                reason="Wakeword blev fysisk registreret",
+                "down" if self._device_stream_fault else "up",
+                reason=(
+                    "Wakeword blev registreret, men mikrofonkanalen er fejlramt"
+                    if self._device_stream_fault
+                    else "Wakeword blev fysisk registreret"
+                ),
                 source="firmware-runtime",
             )
         _LOG.info(
@@ -2472,7 +2597,8 @@ class ThinSession:
                 self._set_led(State.LISTENING)
                 self._hub_state("LISTENING", "👂 Vågnede igen — lytter")
             return
-        self._spawn(self.wake(), "thin-wake")
+        rearm_attempt_id = secrets.token_hex(12)
+        self._spawn(self.wake(rearm_attempt_id), "thin-wake")
 
     def _on_device_event(self, room: str, state: object) -> None:
         etype = getattr(state, "event_type", None) or getattr(state, "event", None)
@@ -2849,6 +2975,9 @@ class ThinSession:
     async def _reassert_device(self) -> None:
         if self._close_task is not None and not self._close_task.done():
             return  # the close transaction exclusively owns final stop+rearm
+        if self._teardown_incomplete:
+            self._schedule_teardown_retry(release_music=True, silence_complete=False)
+            return  # reconnect may never bypass the full close owner and open the latch
         if self._active:
             if self._physical_link_lost:
                 return  # the old conversation is already closing; never revive its mic
@@ -2893,50 +3022,32 @@ class ThinSession:
     async def _rearm_device(self) -> str:
         """Reopen the firmware latch without confusing recovery with proof."""
         outcome = await self.voicepe.rearm_wake_word()
-        # Test doubles and legacy implementations predate the explicit outcome and
-        # represent a successful proven rearm when they return None.
-        readiness = outcome if outcome in ("proven", "recovered") else "proven"
+        if outcome != "recovered":
+            raise RuntimeError(f"ugyldig wake-rearm-kvittering: {outcome!r}")
+        readiness = outcome
         if hasattr(self.voicepe, "wake_readiness"):
             self.voicepe.wake_readiness = readiness
         self._rearm_retry_attempt = 0
-        if readiness == "proven":
-            self._trace_event("wake_rearmed")
-            _LOG.info("thin: wake continuity proven [room=%s]", self.room)
-            if self.hub is not None:
-                status = (
-                    "down"
+        self._trace_event("wake_rearm_recovered")
+        _LOG.warning(
+            "thin: wake detector recovered; awaiting first physical proof [room=%s]",
+            self.room,
+        )
+        if self.hub is not None:
+            self.hub.set_service(
+                "voicepe",
+                "down" if self._device_stream_fault else "degraded",
+                reason=(
+                    "Voice PE-mikrofonkanalen fejlede; wake-reset er kun foreløbig"
                     if self._device_stream_fault
-                    else "up"
-                    if self._voicepe_contract_ok()
-                    else "degraded"
-                )
-                self.hub.set_service(
-                    "voicepe",
-                    status,
-                    reason=(
-                        "Voice PE-mikrofonkanalen fejlede; wakeword blev rearmet"
-                        if self._device_stream_fault
-                        else "Wakeword er fysisk kvitteret og rearmet"
-                    ),
-                    source="firmware-runtime",
-                )
-        else:
-            self._trace_event("wake_rearm_recovered")
-            _LOG.warning(
-                "thin: wake detector recovered; awaiting first physical proof [room=%s]",
-                self.room,
+                    else "Voice PE er forbundet; wake-motoren afprøves"
+                ),
+                source="firmware-runtime",
             )
-            if self.hub is not None:
-                self.hub.set_service(
-                    "voicepe",
-                    "degraded",
-                    reason="Voice PE er forbundet; wake-motoren afprøves",
-                    source="firmware-runtime",
-                )
-                self.hub.activity(
-                    self.room,
-                    "🟡 Wake-motor genstartet — klar, men bekræftes ved næste 'Okay Nabu'",
-                )
+            self.hub.activity(
+                self.room,
+                "🟡 Wake-motor genstartet — klar, men bekræftes ved næste 'Okay Nabu'",
+            )
         return readiness
 
     def _schedule_rearm_retry(self) -> None:
@@ -3032,8 +3143,9 @@ class ThinSession:
         if self.reply_bus is not None:
             self.reply_bus.end(self.room)
         if hasattr(self.voicepe, "stop_playback"):
-            with contextlib.suppress(Exception):
-                await self.voicepe.stop_playback()
+            stopped = await self.voicepe.stop_playback()
+            if stopped is False:
+                raise RuntimeError("Voice PE kunne ikke stoppe fysisk playback")
         self.playback.flush()
 
     async def _play_oneshot(self, pcm: bytes, *, wait_for_physical_finish: bool = False) -> bool:

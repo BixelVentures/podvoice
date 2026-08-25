@@ -36,6 +36,7 @@ class FakeBrainSession:
         self.connected: bool = False
         self.closed: bool = False
         self.connect_count: int = 0
+        self._connection_generation: int = 0
         self.reconnect_count: int = 0
         self.truncations: list[tuple[str, int]] = []
         self.input_clear_count: int = 0
@@ -50,6 +51,7 @@ class FakeBrainSession:
     # --- VoiceSession ------------------------------------------------------
 
     async def connect(self) -> None:
+        self._connection_generation += 1
         self.connected = True
         self.closed = False
         self.connect_count += 1

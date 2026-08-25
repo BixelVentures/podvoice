@@ -21,6 +21,7 @@ import ipaddress
 import json
 import logging
 import pathlib
+import secrets
 import socket
 import time
 from collections.abc import AsyncIterator, Callable
@@ -35,6 +36,7 @@ log = logging.getLogger(__name__)
 # session.updated hand-off. The provider uses the same 12 s bound, so neither stage
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
+EXPECTED_FIRMWARE_BUILD = "podvoice_build_11343"
 
 # --- Firmware contract ----------------------------------------------------------
 # Everything the add-on ASSUMES the flashed firmware provides, verified on EVERY
@@ -124,6 +126,7 @@ class VoicePELink:
         self._media_key: int | None = None  # the media_player key (AI-reply announce path)
         self._mute_key: int | None = None  # the mute switch/sensor key (None = not published)
         self._event_key: int | None = None  # PodVoice lifecycle event entity
+        self._rearm_ack_key: int | None = None  # correlated reset ACK text sensor
         # Retired direct-path capability, retained only to diagnose old firmware.
         # setting. The device advertises event_types on its podvoice_event entity; the
         # Fixed firmware adds the capability marker "direct_speaker_v3". It also emits
@@ -146,11 +149,19 @@ class VoicePELink:
         self.supports_physical_rearm_ack = False
         self.supports_continuous_rearm = False
         self.supports_rearm_audio_progress = False
+        self.supports_correlated_reset_rearm = False
+        self.firmware_build: str | None = None
+        self.firmware_builds: list[str] = []
         self.supports_playback_events = False
         self.wake_readiness = "unknown"
         self._rearm_lock = asyncio.Lock()
         self._rearm_waiter: asyncio.Event | None = None
         self._rearm_outcome: str | None = None
+        # A random process/connection epoch prevents a retained text-sensor state from
+        # an earlier add-on process from matching the first waiter after restart. Calls
+        # then advance monotonically inside that epoch.
+        self._rearm_token = secrets.randbits(30)
+        self._rearm_expected_token: int | None = None
         # same_breath firmware emits its explicit event at the local wake edge and the
         # stock VA reports the same physical wake again through handle_start ~300 ms
         # later.  Remember the first edge so the latter remains an ACK/fallback rather
@@ -541,6 +552,7 @@ class VoicePELink:
         self._media_key = None
         self._mute_key = None
         self._event_key = None
+        self._rearm_ack_key = None
         self.supports_direct = False
         self.supports_same_breath = False
         self.supports_wake_audio_boundary = False
@@ -549,6 +561,9 @@ class VoicePELink:
         self.supports_physical_rearm_ack = False
         self.supports_continuous_rearm = False
         self.supports_rearm_audio_progress = False
+        self.supports_correlated_reset_rearm = False
+        self.firmware_build = None
+        self.firmware_builds = []
         self.supports_playback_events = False
         self._announcing = False
         self._warned_missing = set()  # a reflash may have added the service — warn fresh
@@ -581,6 +596,12 @@ class VoicePELink:
                 and "mute" in getattr(e, "object_id", "")
             ]
             self._mute_key = getattr(mutes[0], "key", None) if mutes else None
+            text_sensors = [e for e in (entities or []) if type(e).__name__ == "TextSensorInfo"]
+            rearm_ack = next(
+                (e for e in text_sensors if getattr(e, "object_id", "") == "podvoice_rearm_ack"),
+                None,
+            )
+            self._rearm_ack_key = getattr(rearm_ack, "key", None) if rearm_ack else None
             # Does this firmware have the 2b direct path? Ask the DEVICE, not a setting.
             events = [e for e in (entities or []) if type(e).__name__ == "EventInfo"]
             podvoice_event = next(
@@ -597,6 +618,13 @@ class VoicePELink:
             self.supports_physical_rearm_ack = "physical_rearm_ack_v1" in advertised
             self.supports_continuous_rearm = "continuous_rearm_v1" in advertised
             self.supports_rearm_audio_progress = "physical_rearm_audio_progress_v1" in advertised
+            self.supports_correlated_reset_rearm = "correlated_reset_rearm_v2" in advertised
+            self.firmware_builds = sorted(
+                value for value in advertised if value.startswith("podvoice_build_")
+            )
+            self.firmware_build = (
+                self.firmware_builds[0] if len(self.firmware_builds) == 1 else None
+            )
             self.supports_playback_events = "podvoice_playback_events_v1" in advertised
             self.supports_direct = (
                 "direct_speaker_v3" in advertised
@@ -624,6 +652,8 @@ class VoicePELink:
             missing_entities.append("light")  # LED feedback — degraded UX only
         if self._mute_key is None:
             missing_entities.append("mute")  # hardware-mute detection — degraded only
+        if self._rearm_ack_key is None:
+            missing_entities.append("rearm_ack")
         missing_capabilities = []
         if not self.supports_podvoice_channel:
             missing_capabilities.append("podvoice_channel_v1")
@@ -639,9 +669,18 @@ class VoicePELink:
             missing_capabilities.append("continuous_rearm_v1")
         if not self.supports_rearm_audio_progress:
             missing_capabilities.append("physical_rearm_audio_progress_v1")
+        if not self.supports_correlated_reset_rearm:
+            missing_capabilities.append("correlated_reset_rearm_v2")
+        if self.firmware_build != EXPECTED_FIRMWARE_BUILD:
+            missing_capabilities.append(EXPECTED_FIRMWARE_BUILD)
         if not self.supports_playback_events:
             missing_capabilities.append("podvoice_playback_events_v1")
-        ok = not missing_required and self._media_key is not None and not missing_capabilities
+        ok = (
+            not missing_required
+            and self._media_key is not None
+            and self._rearm_ack_key is not None
+            and not missing_capabilities
+        )
         self.contract = {
             "ok": ok,
             "esphome_version": getattr(info, "esphome_version", None),
@@ -650,6 +689,8 @@ class VoicePELink:
             "missing_optional": missing_optional,
             "missing_entities": missing_entities,
             "missing_capabilities": missing_capabilities,
+            "firmware_build": self.firmware_build,
+            "firmware_builds": self.firmware_builds,
         }
         if ok:
             log.info(
@@ -767,20 +808,26 @@ class VoicePELink:
             raise RuntimeError("firmware mangler continuous_rearm_v1")
         if not self.supports_rearm_audio_progress:
             raise RuntimeError("firmware mangler physical_rearm_audio_progress_v1")
+        if not self.supports_correlated_reset_rearm:
+            raise RuntimeError("firmware mangler correlated_reset_rearm_v2")
         async with self._rearm_lock:
             waiter = asyncio.Event()
+            token = self._rearm_token
+            self._rearm_token = (self._rearm_token + 1) & 0x3FFFFFFF
             self._rearm_waiter = waiter
             self._rearm_outcome = None
+            self._rearm_expected_token = token
             try:
-                ok = await self._call_service("podvoice_rearm_wake_word")
+                ok = await self._call_service("podvoice_rearm_wake_word", {"token": token})
                 if not ok:
                     self.wake_readiness = "fault"
                     raise RuntimeError("podvoice_rearm_wake_word blev ikke udført")
-                await asyncio.wait_for(waiter.wait(), timeout=3.0)
+                # Firmware's bounded reset may spend up to 2 s reaching STOPPED and
+                # then up to 3 s starting with fresh mic progress. The adapter must
+                # outwait that full protocol or its late correlated ACK would be
+                # needlessly discarded and retried.
+                await asyncio.wait_for(waiter.wait(), timeout=5.5)
                 outcome = self._rearm_outcome
-                if outcome == "proven":
-                    self.wake_readiness = "proven"
-                    return "proven"
                 if outcome == "recovered":
                     self.wake_readiness = "recovered"
                     return "recovered"
@@ -797,6 +844,7 @@ class VoicePELink:
                 if self._rearm_waiter is waiter:
                     self._rearm_waiter = None
                 self._rearm_outcome = None
+                self._rearm_expected_token = None
 
     async def set_light(self, on: bool, rgb: tuple[float, float, float], brightness: float) -> None:
         """Drive the LED ring. Best-effort; no-op if the device has no resolvable light."""
@@ -823,6 +871,7 @@ class VoicePELink:
             self._direct_prepare_waiter = None
         if self._rearm_waiter is not None:
             self._rearm_outcome = "disconnected"
+            self._rearm_expected_token = None
             self._rearm_waiter.set()
         self.wake_readiness = "fault"
         log.warning("voicepe %s disconnected (expected=%s)", self.host, expected_disconnect)
@@ -951,18 +1000,26 @@ class VoicePELink:
                 self._run_cb(self.on_media_state, False)
         elif explicit_playback and event_type == "podvoice_playback_fault":
             self._announcing = False
-        if key == self._event_key and event_type == "podvoice_wake_rearmed":
-            if self._rearm_waiter is not None:
-                self._rearm_outcome = "proven"
-                self._rearm_waiter.set()
-        elif key == self._event_key and event_type == "podvoice_wake_rearm_recovered":
-            if self._rearm_waiter is not None:
-                self._rearm_outcome = "recovered"
-                self._rearm_waiter.set()
-        elif key == self._event_key and event_type == "podvoice_wake_rearm_fault":
-            if self._rearm_waiter is not None:
-                self._rearm_outcome = "fault"
-                self._rearm_waiter.set()
+        if key == self._rearm_ack_key and tname == "TextSensorState":
+            ack = str(getattr(state, "state", ""))
+            token_text, separator, outcome = ack.partition(":")
+            if (
+                separator
+                and token_text.isdigit()
+                and int(token_text) == self._rearm_expected_token
+                and outcome in ("recovered", "fault")
+                and self._rearm_outcome is None
+            ):
+                if self._rearm_waiter is not None:
+                    self._rearm_outcome = outcome
+                    self._rearm_waiter.set()
+            else:
+                log.warning(
+                    "voicepe %s: ignored stale/invalid wake-rearm ACK %r (expected token=%s)",
+                    self.host,
+                    ack,
+                    self._rearm_expected_token,
+                )
         # Media-player announce state -> "reply finished playing" ground truth.
         if (
             not self.supports_playback_events
@@ -1150,18 +1207,17 @@ class VoicePELink:
             "podvoice_stop_word_enable" if on else "podvoice_stop_word_disable"
         )
 
-    async def stop_playback(self) -> None:
+    async def stop_playback(self) -> bool:
         """STOP the announcement pipeline on the device — the missing half of "stop".
 
         With the buffered FLAC reply the device holds the WHOLE reply once fetched, so
         ending our HTTP stream does nothing: the speaker talks on. A real stop must be a
         media_player STOP command aimed at the announcement pipeline (announcement=True,
-        verified against aioesphomeapi 45.3.1). Best-effort: a failure must never block
-        the state machine's teardown."""
-        await self._call_service("podvoice_reply_cancel")
-        self._announcing = False
+        verified against aioesphomeapi 45.3.1). Both commands must be queued before
+        teardown may rearm; otherwise the buffered FLAC can outlive the conversation."""
+        cancel_ok = await self._call_service("podvoice_reply_cancel")
         if self._media_key is None or self._client is None:
-            return
+            return False
         try:
             from aioesphomeapi.model import MediaPlayerCommand  # lazy like the other imports
 
@@ -1170,8 +1226,13 @@ class VoicePELink:
                 key=self._media_key, command=MediaPlayerCommand.STOP, announcement=True
             )
             log.info("voicepe %s: sent media_player STOP (announcement)", self.host)
+            if not cancel_ok:
+                return False
+            self._announcing = False
+            return True
         except Exception as e:
             log.warning("voicepe %s: media_player STOP failed: %s", self.host, e)
+            return False
 
     async def aclose(self) -> None:
         """Unsubscribe, stop reconnect, and disconnect."""

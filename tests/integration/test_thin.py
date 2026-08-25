@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import array
 import asyncio
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -12,6 +13,7 @@ from fakes.fake_brain import FakeBrainSession
 from fakes.fake_voicepe import FakeVoicePELink
 
 from gatekeeper import constants as C
+from gatekeeper.audio_trace import AudioTraceRecorder
 from gatekeeper.events import Event, EventType, State
 from gatekeeper.execution_policy import ExecutionContext, ExecutionPolicy
 from gatekeeper.heartbeat import Heartbeat
@@ -844,10 +846,83 @@ async def test_failed_mic_start_is_visible_and_never_connects_realtime():
         assert hub.snapshot()["services"]["voicepe"] == "down"
         assert (
             hub.snapshot()["service_details"]["voicepe"]["reason"]
-            == "Voice PE-mikrofonkanalen fejlede; wakeword blev rearmet"
+            == "Voice PE-mikrofonkanalen fejlede; wake-reset er kun foreløbig"
         )
         assert len(attention.release_calls) == 1
         assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_ignored_wake_attempt_rejects_pending_cross_session_proof():
+    class TraceProbe:
+        def __init__(self) -> None:
+            self.rejected: list[tuple[str, str | None]] = []
+
+        def reject_next_session(self, room: str, attempt_id: str | None = None) -> None:
+            self.rejected.append((room, attempt_id))
+
+    session, _attention, _voicepe = _build(LiveFake())
+    probe = TraceProbe()
+    session.audio_trace = probe  # type: ignore[assignment]
+    session._muted = True
+
+    await session.wake("wake-attempt-a")
+
+    assert probe.rejected == [(ROOM, "wake-attempt-a")]
+
+
+async def test_detector_callback_cannot_hide_a_known_mic_stream_fault():
+    hub = StatusHub()
+    session, _attention, _voicepe = _build(LiveFake(), hub=hub)
+    session._device_stream_fault = True
+    session._active = True
+
+    session._on_wake_cb()
+
+    assert hub.snapshot()["services"]["voicepe"] == "down"
+    assert (
+        hub.snapshot()["service_details"]["voicepe"]["reason"]
+        == "Wakeword blev registreret, men mikrofonkanalen er fejlramt"
+    )
+
+
+async def test_wake_callback_during_incomplete_teardown_cannot_promote_readiness():
+    hub = StatusHub()
+    session, _attention, voicepe = _build(LiveFake(), hub=hub)
+    session._teardown_incomplete = True
+    voicepe.wake_readiness = "fault"
+    hub.set_service("voicepe", "down", reason="incomplete", source="test")
+
+    session._on_wake_cb()
+
+    assert voicepe.wake_readiness == "fault"
+    assert hub.snapshot()["services"]["voicepe"] == "down"
+
+
+async def test_physical_callback_opens_exact_fresh_session_and_persists_rearm_proof(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm(ROOM)
+    assert recorder.begin(ROOM) is True
+    previous = recorder.finish("model-close")
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    session.audio_trace = recorder
+    await session.start()
+    try:
+        session._on_wake_cb()
+        await _wait_until(lambda: brain.connect_count == 1)
+
+        persisted = json.loads(recorder.artifact(previous["id"], "manifest").read_text())
+        wake = next(
+            event for event in persisted["events"] if event["event"] == "next_wake_received"
+        )
+        opened = next(
+            event for event in persisted["events"] if event["event"] == "next_session_opened"
+        )
+        assert wake["attempt_id"] == opened["attempt_id"]
+        assert opened["history_session"] == session._history_session
+        assert opened["provider_generation"] == brain._connection_generation == 1
     finally:
         await session.aclose()
 
@@ -2115,6 +2190,29 @@ async def test_recovered_rearm_is_usable_but_amber_until_a_physical_wake():
         await session.aclose()
 
 
+async def test_unknown_rearm_outcome_fails_closed_instead_of_becoming_green():
+    class UnknownAckVoicePE(FakeVoicePELink):
+        async def rearm_wake_word(self):
+            self.rearm_calls += 1
+            return None
+
+    voicepe = UnknownAckVoicePE(room=ROOM)
+    session = ThinSession(
+        room=ROOM,
+        attention=FakeAttention(),
+        heartbeat=Heartbeat(FakeAttention(), period_ms=20),
+        brain=LiveFake(),
+        voicepe=voicepe,
+        playback=Playback(sink=voicepe.play_pcm),
+        tools=FakeTools(),
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+    )
+
+    with pytest.raises(RuntimeError, match="ugyldig wake-rearm-kvittering"):
+        await session._rearm_device()
+
+
 async def test_native_link_without_physical_wake_proof_stays_degraded():
     hub = StatusHub()
     session, _attention, voicepe = _build(LiveFake(), hub=hub)
@@ -3208,7 +3306,7 @@ async def test_duplicate_terminal_response_start_fails_closed_once():
         await session.aclose()
 
 
-async def test_hung_teardown_edges_are_bounded_and_rearm_still_runs(monkeypatch):
+async def test_hung_teardown_edges_are_bounded_and_keep_wake_latch_closed(monkeypatch):
     from gatekeeper import thin as thin_mod
 
     monkeypatch.setattr(thin_mod, "TEARDOWN_STEP_TIMEOUT_S", 0.02)
@@ -3232,7 +3330,60 @@ async def test_hung_teardown_edges_are_bounded_and_rearm_still_runs(monkeypatch)
         await session.wake()
         await asyncio.wait_for(session.stop(reason="test-bounded-close"), timeout=0.5)
         assert session.sm.state is State.IDLE
-        assert voicepe.rearm_calls == 1
+        assert voicepe.rearm_calls == 0
+        assert voicepe.wake_readiness == "fault"
+        assert session._teardown_incomplete is True
+        await session._reassert_device()
+        assert voicepe.rearm_calls == 0
+    finally:
+        await session.aclose()
+
+
+async def test_full_teardown_retry_must_succeed_before_one_rearm(monkeypatch):
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "TEARDOWN_STEP_TIMEOUT_S", 0.02)
+    monkeypatch.setattr(thin_mod, "REARM_RETRY_DELAYS_S", (0.01,))
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    calls = 0
+    original_stop = voicepe.stop_streaming
+
+    async def fail_once() -> bool:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return False
+        return await original_stop()
+
+    voicepe.stop_streaming = fail_once  # type: ignore[method-assign]
+    await session.start()
+    try:
+        await session.wake()
+        await session.stop(reason="retry-full-close")
+        assert voicepe.rearm_calls == 0
+        await _wait_until(lambda: voicepe.rearm_calls == 1)
+        assert calls == 2
+        assert session._teardown_incomplete is False
+    finally:
+        await session.aclose()
+
+
+async def test_failed_physical_silence_is_retried_before_one_rearm(monkeypatch):
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "TEARDOWN_STEP_TIMEOUT_S", 0.02)
+    monkeypatch.setattr(thin_mod, "REARM_RETRY_DELAYS_S", (0.01,))
+    session, _attention, voicepe = _build(LiveFake())
+    voicepe.stop_playback_results = [False, True]
+    await session.start()
+    try:
+        await session.wake()
+        await session.stop(reason="retry-silence")
+        assert voicepe.rearm_calls == 0
+        await _wait_until(lambda: voicepe.rearm_calls == 1)
+        assert voicepe.stop_playback_calls == 2
+        assert session._teardown_incomplete is False
     finally:
         await session.aclose()
 

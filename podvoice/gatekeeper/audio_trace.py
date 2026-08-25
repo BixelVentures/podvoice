@@ -29,6 +29,7 @@ from typing import Any
 
 _LOG = logging.getLogger("podvoice.audio_trace")
 _SAFE_ID = re.compile(r"^[0-9A-Za-z_-]+$")
+_NEXT_SESSION_PROOF_TTL_S = 120.0
 
 
 @dataclass
@@ -98,6 +99,11 @@ class AudioTraceRecorder:
         self._stages: dict[str, _Stage] = {}
         self._limit_reported: set[str] = set()
         self._latest = self._load_latest()
+        # A completed physical trace remains pending only in this live process until
+        # the next genuine wake also opens a fresh provider session. This lets the
+        # strict oracle prove cross-session rearm without pretending an ACK is a wake.
+        self._pending_next_session: dict[str, Any] | None = None
+        self._rejected_before_finish: dict[str, tuple[str, float]] = {}
 
     def arm(self, room: str) -> dict[str, Any]:
         if self._active_room is not None:
@@ -203,6 +209,19 @@ class AudioTraceRecorder:
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         self._latest = manifest
+        rejected = self._rejected_before_finish.pop(room, None)
+        if rejected is None or time.monotonic() - rejected[1] > _NEXT_SESSION_PROOF_TTL_S:
+            self._pending_next_session = {
+                "id": trace_id,
+                "room": room,
+                "started_at": self._started_wall,
+                "finished_at": time.time(),
+                "finished_mono": time.monotonic(),
+                "attempt_id": None,
+                "wake_at": None,
+            }
+        else:
+            self._pending_next_session = None
         self._active_room = None
         self._trace_id = None
         self._metadata = {}
@@ -211,6 +230,90 @@ class AudioTraceRecorder:
         self._cleanup()
         _LOG.info("audio trace saved id=%s stages=%s", trace_id, ",".join(stages) or "none")
         return manifest
+
+    def note_next_wake(self, room: str, attempt_id: str) -> bool:
+        """Bind one admitted physical callback to the pending closed trace."""
+        pending = self._pending_next_session
+        if pending is None or pending["room"] != room or pending["wake_at"] is not None:
+            return False
+        if time.monotonic() - float(pending["finished_mono"]) > _NEXT_SESSION_PROOF_TTL_S:
+            self._pending_next_session = None
+            return False
+        pending["attempt_id"] = attempt_id
+        pending["wake_at"] = time.time()
+        return True
+
+    def prove_next_session(
+        self,
+        room: str,
+        attempt_id: str,
+        history_session: str,
+        *,
+        provider_generation: int | None,
+        previous_provider_generation: int | None,
+    ) -> bool:
+        """Persist proof only for the exact wake and a fresh provider generation."""
+        pending = self._pending_next_session
+        if (
+            pending is None
+            or pending["room"] != room
+            or pending["attempt_id"] != attempt_id
+            or pending["wake_at"] is None
+            or not history_session
+            or provider_generation is None
+            or previous_provider_generation is None
+            or provider_generation <= previous_provider_generation
+        ):
+            return False
+        target = self.path / f"{pending['id']}.json"
+        try:
+            manifest = json.loads(target.read_text(encoding="utf-8"))
+            events = list(manifest.get("events") or [])
+            started_at = float(pending["started_at"])
+            last_ms = max((int(event.get("at_ms") or 0) for event in events), default=0)
+            wake_ms = max(last_ms + 1, round((float(pending["wake_at"]) - started_at) * 1000))
+            session_ms = max(wake_ms + 1, round((time.time() - started_at) * 1000))
+            events.extend(
+                (
+                    {
+                        "at_ms": wake_ms,
+                        "event": "next_wake_received",
+                        "source": "physical_wake_callback",
+                        "attempt_id": attempt_id,
+                    },
+                    {
+                        "at_ms": session_ms,
+                        "event": "next_session_opened",
+                        "source": "provider_connected",
+                        "attempt_id": attempt_id,
+                        "history_session": history_session,
+                        "provider_generation": provider_generation,
+                    },
+                )
+            )
+            manifest["events"] = events
+            manifest["next_session_proven_at"] = time.time()
+            target.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+            self._latest = manifest
+            return True
+        except Exception as exc:
+            _LOG.warning("could not persist next-session rearm proof: %s", exc)
+            return False
+        finally:
+            self._pending_next_session = None
+
+    def reject_next_session(self, room: str, attempt_id: str | None = None) -> None:
+        """Invalidate a failed callback, including one that arrived before trace finish."""
+        pending = self._pending_next_session
+        if pending is None and attempt_id is not None and self._active_room == room:
+            self._rejected_before_finish[room] = (attempt_id, time.monotonic())
+            return
+        if (
+            pending is not None
+            and pending["room"] == room
+            and (attempt_id is None or pending["attempt_id"] in {None, attempt_id})
+        ):
+            self._pending_next_session = None
 
     def snapshot(self) -> dict[str, Any]:
         active = None

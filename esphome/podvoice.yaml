@@ -48,48 +48,22 @@ api:
         - script.stop: podvoice_finish_reply
         - lambda: "id(podvoice_reply_phase) = 0;"
         - lambda: "id(pv_audio).stop_streaming();"
-    # One wake opens one conversation. microWakeWord deliberately remains live because
-    # it owns the passive microphone tap. A real wake detection proves the detector was
-    # in DETECTING_WAKE_WORD; as long as nobody stopped it, rearm is therefore the small
-    # and safe operation of reopening the single-use conversation latch. Stop/start is
-    # recovery only — cycling a healthy inference task after every turn created the
-    # very dead-wake race this action is meant to prevent.
+    # One wake opens one conversation. A teardown always performs one bounded detector
+    # reset before reopening the single-use latch. The previous continuity shortcut
+    # could report green from a sticky prior-wake flag plus passive mic callbacks while
+    # microWakeWord was not actually detecting. Reset completion is therefore only an
+    # operational `recovered` ACK; the next real wake is the sole green proof.
+    # `token` correlates the ACK to this service invocation so a late event from a
+    # timed-out reset cannot satisfy a later retry.
     - action: podvoice_rearm_wake_word
+      variables:
+        token: int
       then:
         - script.stop: podvoice_finish_reply
         - lambda: "id(podvoice_reply_phase) = 0;"
-        - if:
-            condition:
-              and:
-                - lambda: "return id(podvoice_detector_continuity_proven);"
-                - micro_wake_word.is_running:
-            then:
-              # `is_running()` is true in STARTING, DETECTING and STOPPING. Require
-              # fresh physical mic callbacks as proof that the continuous detector's
-              # source is genuinely alive before opening the next conversation latch.
-              - lambda: "id(podvoice_rearm_frame_marker) = id(pv_audio).frames_written();"
-              - wait_until:
-                  condition:
-                    lambda: |-
-                      return static_cast<uint32_t>(id(pv_audio).frames_written()
-                               - id(podvoice_rearm_frame_marker)) >= 4;
-                  timeout: 700ms
-              - if:
-                  condition:
-                    and:
-                      - micro_wake_word.is_running:
-                      - lambda: |-
-                          return static_cast<uint32_t>(id(pv_audio).frames_written()
-                                   - id(podvoice_rearm_frame_marker)) >= 4;
-                  then:
-                    - lambda: "id(podvoice_conversation_active) = false;"
-                    - event.trigger:
-                        id: podvoice_event
-                        event_type: podvoice_wake_rearmed
-                  else:
-                    - script.execute: podvoice_recover_wake_word
-            else:
-              - script.execute: podvoice_recover_wake_word
+        - script.execute:
+            id: podvoice_recover_wake_word
+            token: !lambda "return token;"
     # Arm playback telemetry for exactly the next PodVoice reply. Other announcements
     # (timer, HA, test tone) use the same media player and must never close a Realtime
     # conversation or move its LED/echo gate.
@@ -234,6 +208,8 @@ media_player:
 script:
   - id: podvoice_recover_wake_word
     mode: restart
+    parameters:
+      token: int
     then:
       # Recovery earns an operational (amber) ACK only after a complete stop/start
       # and fresh physical microphone callbacks. A STARTING state can no longer be
@@ -269,17 +245,20 @@ script:
                                  - id(podvoice_rearm_frame_marker)) >= 4;
                 then:
                   - lambda: "id(podvoice_conversation_active) = false;"
-                  - event.trigger:
-                      id: podvoice_event
-                      event_type: podvoice_wake_rearm_recovered
+                  - text_sensor.template.publish:
+                      id: podvoice_rearm_ack
+                      state: !lambda |-
+                        return std::to_string(token) + ":recovered";
                 else:
-                  - event.trigger:
-                      id: podvoice_event
-                      event_type: podvoice_wake_rearm_fault
+                  - text_sensor.template.publish:
+                      id: podvoice_rearm_ack
+                      state: !lambda |-
+                        return std::to_string(token) + ":fault";
           else:
-            - event.trigger:
-                id: podvoice_event
-                event_type: podvoice_wake_rearm_fault
+            - text_sensor.template.publish:
+                id: podvoice_rearm_ack
+                state: !lambda |-
+                  return std::to_string(token) + ":fault";
   - id: podvoice_finish_reply
     mode: restart
     then:
@@ -343,14 +322,22 @@ event:
         physical_rearm_ack_v1,
         continuous_rearm_v1,
         physical_rearm_audio_progress_v1,
-        podvoice_wake_rearmed,
-        podvoice_wake_rearm_recovered,
-        podvoice_wake_rearm_fault,
+        correlated_reset_rearm_v2,
+        podvoice_build_11343,
         podvoice_playback_events_v1,
         podvoice_playback_started,
         podvoice_playback_finished,
         podvoice_playback_fault,
       ]
+
+# Correlated firmware-to-add-on ACK. Unlike an Event entity's event_type, this state
+# can carry the full monotonic service token, so delayed/replayed ACK N cannot settle
+# waiter N+1. It is diagnostic transport state, never user-facing readiness truth.
+text_sensor:
+  - platform: template
+    id: podvoice_rearm_ack
+    name: "PodVoice rearm ACK"
+    entity_category: diagnostic
 
 # The vendored base owns micro_wake_word.on_wake_word_detected. It emits exactly one
 # wake_okay_nabu event and opens pv_audio; package-list concatenation is deliberately

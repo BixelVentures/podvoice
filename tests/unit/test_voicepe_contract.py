@@ -33,12 +33,16 @@ FULL_CAPABILITIES = [
     "physical_rearm_ack_v1",
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
+    "correlated_reset_rearm_v2",
+    "podvoice_build_11343",
     "podvoice_playback_events_v1",
 ]
 REARM_CAPABILITIES = [
     "physical_rearm_ack_v1",
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
+    "correlated_reset_rearm_v2",
+    "podvoice_build_11343",
 ]
 
 
@@ -54,17 +58,31 @@ class LightInfo:
         self.key = key
 
 
+class TextSensorInfo:
+    def __init__(self, object_id: str, key: int) -> None:
+        self.object_id = object_id
+        self.key = key
+
+
+class TextSensorState:
+    def __init__(self, state: str, key: int = 4) -> None:
+        self.state = state
+        self.key = key
+
+
 class _StubClient:
     def __init__(self, service_names: list[str], entities: list) -> None:
         self._services = [_Svc(n) for n in service_names]
         self._entities = entities
         self.executed: list[str] = []
+        self.executed_args: list[dict] = []
 
     async def list_entities_services(self):
         return self._entities, self._services
 
     async def execute_service(self, svc, args):
         self.executed.append(svc.name)
+        self.executed_args.append(dict(args))
 
     def media_player_command(self, **kwargs):
         self.executed.append(f"media:{kwargs.get('key')}")
@@ -76,6 +94,7 @@ class _StubClient:
 def _link(client: _StubClient) -> VoicePELink:
     link = VoicePELink("pv-test.local", "psk", room="stue")
     link._client = client  # type: ignore[assignment]
+    link._rearm_token = 0
     return link
 
 
@@ -85,6 +104,7 @@ async def test_contract_ok_with_full_firmware(caplog):
         [
             MediaPlayerInfo("external_media_player", 7),
             LightInfo("led_ring", 9),
+            TextSensorInfo("podvoice_rearm_ack", 4),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -97,6 +117,92 @@ async def test_contract_ok_with_full_firmware(caplog):
     assert report["missing_capabilities"] == []
     # va_abort/stop_word are known-optional (degraded, not broken) — no WARNING lines.
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+async def test_stop_playback_requires_cancel_service_and_media_stop():
+    client = _StubClient(
+        FULL_SERVICES,
+        [MediaPlayerInfo("external_media_player", 7)],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+    link._announcing = True
+
+    assert await link.stop_playback() is True
+    assert "podvoice_reply_cancel" in client.executed
+    assert "media:7" in client.executed
+    assert link._announcing is False
+
+
+async def test_stop_playback_fails_closed_when_reply_cancel_cannot_be_sent():
+    client = _StubClient(
+        FULL_SERVICES,
+        [MediaPlayerInfo("external_media_player", 7)],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+    link._announcing = True
+
+    async def refuse_cancel(_service, _args):
+        raise ConnectionError("device disconnected")
+
+    client.execute_service = refuse_cancel  # type: ignore[method-assign]
+
+    assert await link.stop_playback() is False
+    assert link._announcing is True
+
+
+async def test_stop_playback_fails_closed_without_physical_media_target():
+    client = _StubClient(FULL_SERVICES, [])
+    link = _link(client)
+    await link._resolve_entities()
+
+    assert await link.stop_playback() is False
+
+
+async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build():
+    wrong_build = [
+        capability
+        for capability in FULL_CAPABILITIES
+        if not capability.startswith("podvoice_build_")
+    ] + ["podvoice_build_11342"]
+    client = _StubClient(
+        FULL_SERVICES,
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            EventInfo("podvoice_event", 3, wrong_build),
+        ],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+
+    report = link._verify_contract()
+
+    assert report["ok"] is False
+    assert report["firmware_build"] == "podvoice_build_11342"
+    assert report["missing_capabilities"] == ["podvoice_build_11343"]
+
+
+async def test_contract_rejects_multiple_firmware_build_markers():
+    capabilities = [*FULL_CAPABILITIES, "podvoice_build_11342"]
+    client = _StubClient(
+        FULL_SERVICES,
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            EventInfo("podvoice_event", 3, capabilities),
+        ],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+
+    report = link._verify_contract()
+
+    assert report["ok"] is False
+    assert report["firmware_build"] is None
+    assert report["firmware_builds"] == ["podvoice_build_11342", "podvoice_build_11343"]
+    assert report["missing_capabilities"] == ["podvoice_build_11343"]
 
 
 async def test_contract_mismatch_is_loud_and_reported(caplog):
@@ -170,6 +276,7 @@ async def test_link_state_is_truthful(caplog):
         [
             MediaPlayerInfo("external_media_player", 7),
             LightInfo("led_ring", 9),
+            TextSensorInfo("podvoice_rearm_ack", 4),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -187,6 +294,7 @@ async def test_full_admission_cancels_queued_same_generation_recovery():
         FULL_SERVICES,
         [
             MediaPlayerInfo("external_media_player", 7),
+            TextSensorInfo("podvoice_rearm_ack", 4),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -386,6 +494,7 @@ async def test_stale_cached_ip_rotates_to_native_discovery_and_survives_next_dhc
             return (
                 [
                     MediaPlayerInfo("external_media_player", 7),
+                    TextSensorInfo("podvoice_rearm_ack", 4),
                     EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
                 ],
                 [
@@ -796,6 +905,8 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "physical_rearm_ack_v1",
         "continuous_rearm_v1",
         "physical_rearm_audio_progress_v1",
+        "correlated_reset_rearm_v2",
+        "podvoice_build_11343",
         "podvoice_playback_events_v1",
     ]
     assert link.supports_same_breath is False
@@ -883,27 +994,34 @@ async def test_playback_event_capability_and_edges_are_read_from_firmware():
 async def test_rearm_calls_the_dedicated_firmware_service():
     client = _StubClient(
         FULL_SERVICES,
-        [EventInfo("podvoice_event", 3, REARM_CAPABILITIES)],
+        [
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
+        ],
     )
     link = _link(client)
     await link._resolve_entities()
     task = asyncio.create_task(link.rearm_wake_word())
     await asyncio.sleep(0)
-    link._on_state(SimpleNamespace(event_type="podvoice_wake_rearmed", key=3))
-    await task
+    link._on_state(TextSensorState("0:recovered"))
+    assert await task == "recovered"
     assert client.executed == ["podvoice_rearm_wake_word"]
+    assert client.executed_args == [{"token": 0}]
 
 
 async def test_rearm_recovery_is_degraded_not_physical_proof():
     client = _StubClient(
         FULL_SERVICES,
-        [EventInfo("podvoice_event", 3, REARM_CAPABILITIES)],
+        [
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
+        ],
     )
     link = _link(client)
     await link._resolve_entities()
     task = asyncio.create_task(link.rearm_wake_word())
     await asyncio.sleep(0)
-    link._on_state(SimpleNamespace(event_type="podvoice_wake_rearm_recovered", key=3))
+    link._on_state(TextSensorState("0:recovered"))
     assert await task == "recovered"
     assert link.wake_readiness == "recovered"
 
@@ -911,13 +1029,16 @@ async def test_rearm_recovery_is_degraded_not_physical_proof():
 async def test_rearm_fault_fails_immediately():
     client = _StubClient(
         FULL_SERVICES,
-        [EventInfo("podvoice_event", 3, REARM_CAPABILITIES)],
+        [
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
+        ],
     )
     link = _link(client)
     await link._resolve_entities()
     task = asyncio.create_task(link.rearm_wake_word())
     await asyncio.sleep(0)
-    link._on_state(SimpleNamespace(event_type="podvoice_wake_rearm_fault", key=3))
+    link._on_state(TextSensorState("0:fault"))
     with pytest.raises(RuntimeError, match="recovery fejlede"):
         await task
     assert link.wake_readiness == "fault"
@@ -926,7 +1047,10 @@ async def test_rearm_fault_fails_immediately():
 async def test_rearm_is_single_flight_and_ack_cannot_cross_calls():
     client = _StubClient(
         FULL_SERVICES,
-        [EventInfo("podvoice_event", 3, REARM_CAPABILITIES)],
+        [
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
+        ],
     )
     link = _link(client)
     await link._resolve_entities()
@@ -934,27 +1058,57 @@ async def test_rearm_is_single_flight_and_ack_cannot_cross_calls():
     second = asyncio.create_task(link.rearm_wake_word())
     await asyncio.sleep(0)
     assert client.executed == ["podvoice_rearm_wake_word"]
-    link._on_state(SimpleNamespace(event_type="podvoice_wake_rearmed", key=3))
-    assert await first == "proven"
+    link._on_state(TextSensorState("0:recovered"))
+    assert await first == "recovered"
     await asyncio.sleep(0)
     assert client.executed == ["podvoice_rearm_wake_word", "podvoice_rearm_wake_word"]
-    link._on_state(SimpleNamespace(event_type="podvoice_wake_rearm_recovered", key=3))
+    link._on_state(TextSensorState("1:recovered"))
+    assert await second == "recovered"
+
+
+async def test_late_rearm_ack_cannot_settle_the_next_token():
+    client = _StubClient(
+        FULL_SERVICES,
+        [
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
+        ],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+
+    first = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    link._on_state(TextSensorState("0:recovered"))
+    assert await first == "recovered"
+
+    second = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    link._on_state(TextSensorState("0:recovered"))
+    await asyncio.sleep(0)
+    assert second.done() is False
+    link._on_state(TextSensorState("1:recovered"))
     assert await second == "recovered"
 
 
 async def test_disconnect_settles_pending_rearm_and_late_ack_is_ignored():
     client = _StubClient(
         FULL_SERVICES,
-        [EventInfo("podvoice_event", 3, REARM_CAPABILITIES)],
+        [
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
+        ],
     )
     link = _link(client)
     await link._resolve_entities()
     task = asyncio.create_task(link.rearm_wake_word())
     await asyncio.sleep(0)
     await link._on_disconnect(expected_disconnect=True)
+    # The stale state can arrive before the waiting coroutine gets its next event-loop
+    # turn; it must not overwrite the terminal disconnect outcome.
+    link._on_state(TextSensorState("0:recovered"))
     with pytest.raises(RuntimeError, match="forsvandt"):
         await task
-    link._on_state(SimpleNamespace(event_type="podvoice_wake_rearmed", key=3))
     assert link.wake_readiness == "fault"
 
 
@@ -975,6 +1129,7 @@ async def test_reply_is_armed_before_the_media_command():
         FULL_SERVICES,
         [
             MediaPlayerInfo("external_media_player", 7),
+            TextSensorInfo("podvoice_rearm_ack", 4),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -1108,6 +1263,7 @@ async def test_wake_word_is_reasserted_on_every_connect():
         [
             MediaPlayerInfo("external_media_player", 7),
             LightInfo("led_ring", 9),
+            TextSensorInfo("podvoice_rearm_ack", 4),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
