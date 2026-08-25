@@ -535,8 +535,6 @@
         <p class="sub" style="margin:6px 0 0">Tells the assistant who it is and what it can do (so it answers "what can you do?" and never goes silent). Edit freely, then Save &amp; restart.</p>
 
         <div class="setgrid" style="margin-top:14px">
-          <label for="s_simulate">Simulation mode</label>
-          <input id="s_simulate" type="checkbox">
           <label for="s_podconnect_base_url">PodConnect URL</label>
           <input id="s_podconnect_base_url" type="text" autocomplete="off">
           <label for="s_podconnect_token">PodConnect token</label>
@@ -626,7 +624,6 @@ function renderSub(data) {
   var sub = document.getElementById("sub");
   var bits = ["Dansk taleassistent"];
   if (data && data.version) bits.push("v" + data.version);
-  if (data && data.simulate) bits.push("simulation");
   bits.push(connected ? "status live" : "status forbinder…");
   sub.textContent = bits.join(" · ");
   sub.style.color = connected ? "" : "var(--amber)";
@@ -743,7 +740,7 @@ function roomCard(rm) {
   box.appendChild(meta);
 
   var ctl = el("div", "ctl");
-  [["Lyt", "listen"], ["Stop", "stop"], ["Test tone", "test_tone"], ["Test højttaler 🔊", "test_speaker"]].forEach(function (pair) {
+  [["Lyt", "listen"], ["Stop", "stop"], ["Test højttaler 🔊", "test_speaker"]].forEach(function (pair) {
     var b = el("button", "ghost", pair[0]);
     b.setAttribute("aria-label", pair[0] + " in " + safe(rm, "room", ""));
     b.onclick = function () { control(rm.room, pair[1], b); };
@@ -1771,7 +1768,7 @@ setInterval(function () {
     "turn_preset", "wake_word", "idle_timeout_s", "max_session_min", "force_mini",
     "openai_turn", "openai_threshold", "openai_prefix_ms", "openai_silence_ms", "openai_eagerness",
     "mic_channel", "mic_gain", "openai_noise",
-    "duck_level", "system_prompt", "simulate", "panel_lan_open",
+    "duck_level", "system_prompt", "panel_lan_open",
     "podconnect_base_url", "podconnect_token", "ha_mcp_url", "ha_mcp_token"];
   var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1, mic_channel: 1, mic_gain: 1,
               openai_threshold: 1, openai_prefix_ms: 1, openai_silence_ms: 1 };
@@ -1982,8 +1979,8 @@ setInterval(function () {
     try { j = await r.json(); }
     catch (e) { j = null; }
     busy(false);
-    if (r.status === 501 || (j && j.error && /unavailable|simulation/i.test(j.error))) {
-      show("warn", "Diagnostics unavailable — turn Simulation mode OFF (in Setup above) and Save & restart."); return;
+    if (r.status === 501 || (j && j.error && /unavailable/i.test(j.error))) {
+      show("warn", "Diagnostics unavailable in this runtime. Check the add-on Log."); return;
     }
     if (!j) { show("warn", "Unexpected response from the add-on. Check the add-on Log."); return; }
     if (!j.ok) {

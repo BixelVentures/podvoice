@@ -97,9 +97,10 @@ BARGE_DEBOUNCE_S = 0.6
 # this fallback is the belt for semantic_vad and for a server that never says so.
 IDLE_FALLBACK_S = 25.0
 TEARDOWN_STEP_TIMEOUT_S = 2.0
+TEARDOWN_SILENCE_TIMEOUT_S = 4.0
 TEARDOWN_ERROR_SPEECH_TIMEOUT_S = 4.0
-TEARDOWN_REARM_TIMEOUT_S = 6.0
-TEARDOWN_TOTAL_TIMEOUT_S = 12.0
+TEARDOWN_REARM_TIMEOUT_S = 9.5
+TEARDOWN_TOTAL_TIMEOUT_S = 18.0
 REARM_RETRY_DELAYS_S = (1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
 END_CONVERSATION_TOOL = "end_conversation"
 WAIT_FOR_USER_TOOL = "wait_for_user"
@@ -483,6 +484,34 @@ class ThinSession:
             if self.audio_trace is not None:
                 self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
             return
+        if hasattr(self.voicepe, "stop_uncorrelated_playback"):
+            try:
+                stopped = await asyncio.wait_for(
+                    self.voicepe.stop_uncorrelated_playback(), timeout=2.0
+                )
+            except Exception as exc:
+                stopped = False
+                _LOG.warning(
+                    "thin: wake REFUSED — out-of-band playback stop failed [room=%s]: %s",
+                    self.room,
+                    exc,
+                )
+            if not stopped:
+                self._trace_event("uncorrelated_playback_stop_failed")
+                if self.audio_trace is not None:
+                    self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
+                if rearm_attempt_id is not None:
+                    # The physical callback already consumed firmware's one-shot wake
+                    # latch. Failed physical silence must enter the SAME full retry
+                    # owner as teardown; never rearm directly on top of audible media.
+                    self._teardown_incomplete = True
+                    if hasattr(self.voicepe, "wake_readiness"):
+                        self.voicepe.wake_readiness = "fault"
+                    self._schedule_teardown_retry(
+                        release_music=True,
+                        silence_complete=False,
+                    )
+                return
         if self.audio_trace is not None and rearm_attempt_id is not None:
             self.audio_trace.note_next_wake(self.room, rearm_attempt_id)
         elif self.audio_trace is not None:
@@ -848,6 +877,7 @@ class ThinSession:
             "silence-device",
             self._silence_device(),
             deadline=close_deadline,
+            timeout_s=TEARDOWN_SILENCE_TIMEOUT_S,
             reserve_s=rearm_reserve,
         )
         if error_kind is not None:
@@ -1120,6 +1150,7 @@ class ThinSession:
                         "silence-device-retry",
                         self._silence_device(),
                         deadline=time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
+                        timeout_s=TEARDOWN_SILENCE_TIMEOUT_S,
                         reserve_s=TEARDOWN_REARM_TIMEOUT_S,
                     )
                 await self._teardown(
@@ -1525,6 +1556,19 @@ class ThinSession:
                     turn.terminal_had_audio = had_reply
                 turn.response_done = True
                 self._reconcile_closure(turn)
+                if not had_reply and not turn.semantic_end:
+                    # A completed ordinary answer with no PCM was never heard. Only
+                    # the separately correlated semantic-end response may close
+                    # silently; treating an ordinary zero-audio completion as a
+                    # successful turn would persist phantom speech and open followup.
+                    self._discard_failed_response()
+                    self._trace_event(
+                        "completed_response_without_audio",
+                        response_id=ev.response_id,
+                        turn=turn.serial,
+                    )
+                    await self._fail("connection")
+                    return
                 if had_reply and self._active and not self._ending_conversation:
                     cue = audio_mod.turn_tone(C.OUTPUT_RATE)
                     if self._direct and self._direct_q is not None:
@@ -1999,33 +2043,27 @@ class ThinSession:
     async def _announce_with_retry(
         self, lease: _PlaybackLease, retry_after_s: float | None = None
     ) -> None:
-        """Start one owned reply; retry the same lease, never fail open."""
+        """Start one owned reply exactly once, then fail closed if no physical start."""
         retry_after_s = ANNOUNCE_START_TIMEOUT_S if retry_after_s is None else retry_after_s
         # Pre-arm the echo shield: sound can start before the ANNOUNCING state lands.
         self._gate_until = max(self._gate_until, time.monotonic() + ANNOUNCE_PREARM_S)
         can_track = hasattr(self.reply_bus, "fetch_count")
         before = self.reply_bus.fetch_count(self.room) if can_track else 0
-        for attempt in range(2):
+        if not self._lease_is_current(lease) or lease.phase != "requested":
+            return
+        await self._play_reply_url(lease)
+        try:
+            await asyncio.wait_for(self._playback_started.wait(), timeout=retry_after_s)
+            return
+        except TimeoutError:
             if not self._lease_is_current(lease) or lease.phase != "requested":
                 return
-            await self._play_reply_url(lease)
-            try:
-                await asyncio.wait_for(self._playback_started.wait(), timeout=retry_after_s)
-                return
-            except TimeoutError:
-                if not self._lease_is_current(lease) or lease.phase != "requested":
-                    return
-                fetched = not can_track or self.reply_bus.fetch_count(self.room) > before
-                _LOG.warning(
-                    "thin: reply did not report playback start (attempt=%d fetched=%s id=%s)",
-                    attempt + 1,
-                    fetched,
-                    lease.playback_id,
-                )
-                if attempt == 0:
-                    if self.hub is not None:
-                        self.hub.activity(self.room, "🔇 Svaret startede ikke — prøver igen")
-                    continue
+            fetched = not can_track or self.reply_bus.fetch_count(self.room) > before
+            _LOG.warning(
+                "thin: reply did not report playback start (fetched=%s id=%s)",
+                fetched,
+                lease.playback_id,
+            )
         if self._lease_is_current(lease) and lease.phase == "requested":
             lease.phase = "fault"
             self._trace_event(
@@ -2226,8 +2264,10 @@ class ThinSession:
                 self._speech_tools.discard(call_id)
                 if self._tool_tasks.get(call_id) is _task:
                     self._tool_tasks.pop(call_id, None)
-            if not self._speech_tools:
-                self._turn_had_tool = False
+            # Tool execution and provider response completion are independent
+            # clocks. Keep response ownership until TurnComplete consumes it;
+            # otherwise a fast tool can make its zero-audio decision response look
+            # like a broken ordinary spoken answer.
 
         task.add_done_callback(_untrack_batch)
 
@@ -2246,8 +2286,8 @@ class ThinSession:
         def _untrack(_task: asyncio.Task, _id: str = tc.id) -> None:
             self._speech_tools.discard(_id)
             self._tool_tasks.pop(_id, None)
-            if not self._speech_tools:
-                self._turn_had_tool = False
+            # `_turn_had_tool` belongs to the provider response, not task lifetime;
+            # TurnComplete clears it after recognizing the silent decision response.
 
         task.add_done_callback(_untrack)
 

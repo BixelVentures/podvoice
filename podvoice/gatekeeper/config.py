@@ -53,7 +53,6 @@ class Config:
     wake_word: str = "okay_nabu"  # device wake model, re-asserted on every connect
     idle_timeout_s: int = 8  # close the conversation after this much user silence
     max_session_min: int = 15  # hard ceiling on one conversation (provider caps at 60)
-    simulate: bool = False
     engine: str = "thin"  # canonical PodVoice lifecycle; classic is legacy only
     reply_streaming: bool = False  # stream the reply FLAC while it generates (experimental)
     speaker_path: str = "announce"  # announce (proven) | auto | direct — see 1.11.1
@@ -156,7 +155,6 @@ def from_options(opts: dict) -> Config:
         ),
         idle_timeout_s=max(_int(opts, "idle_timeout_s", 8), 3),
         max_session_min=min(max(_int(opts, "max_session_min", 15), 1), 55),
-        simulate=bool(opts.get("simulate", False)),
         # One production engine. Keeping a saved legacy value must never resurrect the
         # parallel classic lifecycle after an upgrade.
         engine="thin",

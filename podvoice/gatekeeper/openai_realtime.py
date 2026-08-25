@@ -1379,17 +1379,17 @@ class OpenAIRealtimeSession:
                 continue
             t = ev.get("type")
             if t == "response.created":
-                self._late_rate_anchor_generation = None
-                self._late_rate_anchor_response_id = None
-                self._active_response = True
                 cur_rid = _rid(ev)
-                if pending_response_rate_observations:
-                    if cur_rid != "?":
-                        response_rate_observations[cur_rid] = (
-                            response_rate_observations.get(cur_rid, 0)
-                            + pending_response_rate_observations
-                        )
-                    pending_response_rate_observations = 0
+                if cur_rid in self._terminal_responses:
+                    # A terminal response can never become active again.  In
+                    # particular, a malformed done -> created tail must not clear
+                    # the rate anchor, consume request correlation, admit late
+                    # audio, or wedge the next tool-result response as "active".
+                    _LOG.warning(
+                        "turn: ignoring response.created after terminal response id=%s",
+                        cur_rid,
+                    )
+                    continue
                 response = ev.get("response") or {}
                 metadata = response.get("metadata") if isinstance(response, dict) else None
                 request_id = (
@@ -1399,6 +1399,28 @@ class OpenAIRealtimeSession:
                 )
                 pending_before = len(self._pending_response_creates)
                 request_id_matched = request_id in self._pending_response_creates
+                if request_id and not request_id_matched:
+                    # A consumed/stale request id cannot mint a second provider
+                    # response under a fresh response id. Tombstone that new id so
+                    # its entire created/audio/transcript/done tail is inert.
+                    if cur_rid not in (None, "?"):
+                        self._remember_terminal_response(cur_rid, "stale_request")
+                    _LOG.warning(
+                        "turn: ignoring response.created for stale request=%s response=%s",
+                        request_id,
+                        cur_rid,
+                    )
+                    continue
+                self._late_rate_anchor_generation = None
+                self._late_rate_anchor_response_id = None
+                self._active_response = True
+                if pending_response_rate_observations:
+                    if cur_rid != "?":
+                        response_rate_observations[cur_rid] = (
+                            response_rate_observations.get(cur_rid, 0)
+                            + pending_response_rate_observations
+                        )
+                    pending_response_rate_observations = 0
                 purpose = self._response_request_purposes.pop(request_id, "turn")
                 source_call_id = self._response_request_sources.pop(request_id, None)
                 if request_id_matched:
@@ -1436,9 +1458,15 @@ class OpenAIRealtimeSession:
                         source_call_id=source_call_id,
                     )
             elif t == "response.output_audio.delta":  # VERIFY: GA event name
+                drid = _rid(ev)
+                if drid in self._terminal_responses:
+                    _LOG.warning(
+                        "turn: ignoring audio after terminal response id=%s",
+                        drid,
+                    )
+                    continue
                 d = ev.get("delta")
                 if d:
-                    drid = _rid(ev)
                     if drid != spoke_rid:  # first audio chunk of this response
                         spoke_rid = drid
                         if drid != "?" and cur_rid not in ("?", None) and drid != cur_rid:
@@ -1457,6 +1485,13 @@ class OpenAIRealtimeSession:
                         generation=generation,
                     )
             elif t == "response.output_audio_transcript.delta":
+                transcript_rid = _rid(ev)
+                if transcript_rid in self._terminal_responses:
+                    _LOG.warning(
+                        "turn: ignoring transcript after terminal response id=%s",
+                        transcript_rid,
+                    )
+                    continue
                 yield OutputTranscript(ev.get("delta", ""))
             elif t == "conversation.item.input_audio_transcription.completed":
                 # ONLY the completed (final) transcript drives the displayed line. We used to

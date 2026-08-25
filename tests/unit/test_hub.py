@@ -8,11 +8,11 @@ from gatekeeper.hub import StatusHub
 
 
 async def test_snapshot_shape_and_state_levels():
-    hub = StatusHub(simulate=True)
+    hub = StatusHub()
     hub.register_room("kitchen")
     hub.set_state("kitchen", "LOUNGE_WINDOW")
     snap = hub.snapshot()
-    assert snap["simulate"] is True
+    assert "simulate" not in snap
     assert set(snap["services"]) == {"openai", "voicepe", "podconnect", "mcp"}
     room = snap["rooms"][0]
     assert room["room"] == "kitchen"

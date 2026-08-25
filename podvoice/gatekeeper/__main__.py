@@ -31,7 +31,6 @@ from .podconnect import AttentionClient
 from .reply import ReplyBus
 from .settings import DEFAULTS as SETTINGS_DEFAULTS
 from .settings import load_settings, masked, save_settings
-from .sim import build_sim_sessions, run_driver
 from .speech import Speech
 from .timers import TimerManager
 from .tools import ToolRouter
@@ -254,7 +253,7 @@ async def run(cfg: Config) -> None:
     from .audio_trace import AudioTraceRecorder
 
     history = History()  # persisted conversations (Talk + Voice PE rooms) for the History tab
-    hub = StatusHub(simulate=cfg.simulate, history=history)
+    hub = StatusHub(history=history)
     # Privacy-safe evidence: disabled until the owner arms exactly one conversation
     # from the ingress panel; local files are bounded and rotated automatically.
     audio_trace = AudioTraceRecorder()
@@ -268,119 +267,140 @@ async def run(cfg: Config) -> None:
     timers: TimerManager | None = None
     speech: Speech | None = None
     usage: UsageMeter | None = None
-    driver: asyncio.Task | None = None
     probe: asyncio.Task | None = None
     prewarm: asyncio.Task | None = None
     probe_task: asyncio.Task | None = None  # periodic MCP real-probe
 
-    if cfg.simulate:
-        rooms = [r.room for r in cfg.rooms] or ["kitchen", "living"]
-        _LOG.info("SIMULATION mode — no provider/Voice PE/PodConnect needed. Rooms: %s", rooms)
-        sessions = build_sim_sessions(hub, rooms)
-    else:
-        if not cfg.rooms:
-            _LOG.error("no rooms configured (set the Voice-PE -> room map); panel only")
-        attention = AttentionClient(cfg.podconnect_base_url, cfg.podconnect_token or None)
-        # Bounded timeouts so a slow/wedged HA service can never hang a tool call (and thus
-        # the whole conversational turn). ha_tools also wraps dispatch in wait_for as a belt.
-        ha_client = httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=3.0))
+    if not cfg.rooms:
+        _LOG.error("no rooms configured (set the Voice-PE -> room map); panel only")
+    attention = AttentionClient(cfg.podconnect_base_url, cfg.podconnect_token or None)
+    # Bounded timeouts so a slow/wedged HA service can never hang a tool call (and thus
+    # the whole conversational turn). ha_tools also wraps dispatch in wait_for as a belt.
+    ha_client = httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=3.0))
 
-        # The assistant's own voice for the fixed spoken lines (errors, timer). Uses the
-        # OpenAI TTS key + the configured voice; degrades to a tone if no key / on failure.
-        speech = Speech(cfg.openai_api_key, voice=cfg.openai_voice)
-        if not speech.available:
-            _LOG.info("no OpenAI key for speech — fixed lines (errors/timer) play a tone")
+    # The assistant's own voice for the fixed spoken lines (errors, timer). Uses the
+    # OpenAI TTS key + the configured voice; degrades to a tone if no key / on failure.
+    speech = Speech(cfg.openai_api_key, voice=cfg.openai_voice)
+    if not speech.available:
+        _LOG.info("no OpenAI key for speech — fixed lines (errors/timer) play a tone")
 
-        # Kitchen timers ring on the Voice PE via each room's reply path, in the assistant's
-        # voice. The closure reads `sessions` late (the dict is filled a few lines below).
-        async def _timer_ring(label: str) -> None:
-            from . import audio as audio_mod
-            from . import constants as CC
+    # Kitchen timers ring on the Voice PE via each room's reply path, in the assistant's
+    # voice. The closure reads `sessions` late (the dict is filled a few lines below).
+    async def _timer_ring(label: str) -> None:
+        from . import audio as audio_mod
+        from . import constants as CC
 
-            # Say WHICH timer rang ("Din pasta-timer er færdig!") — synthesized per label
-            # in the assistant's voice and cached; the generic line is the fallback.
-            text = f"Din {label}-timer er færdig!" if label and label != "timer" else CC.TIMER_DONE
-            spoken = await speech.say(text) or await speech.say(CC.TIMER_DONE)
-            tone = audio_mod.error_tone(CC.OUTPUT_RATE) * 2
-            for s in sessions.values():
-                bus, url = getattr(s, "reply_bus", None), getattr(s, "reply_url", None)
-                if bus is None or not url:
-                    continue
-                if not getattr(s, "_active", False):  # conversation already ducks
-                    with contextlib.suppress(Exception):
-                        # Short TTL: PodConnect auto-restores the music ~5s later.
-                        await s.attention.engage(s.room, 20, 5000)
+        # Say WHICH timer rang ("Din pasta-timer er færdig!") — synthesized per label
+        # in the assistant's voice and cached; the generic line is the fallback.
+        text = f"Din {label}-timer er færdig!" if label and label != "timer" else CC.TIMER_DONE
+        spoken = await speech.say(text) or await speech.say(CC.TIMER_DONE)
+        tone = audio_mod.error_tone(CC.OUTPUT_RATE) * 2
+
+        async def _ring_room(s, deadline: float | None = None) -> None:
+            # A timer must remain audible, but it may never overwrite the ReplyBus or
+            # physical player owned by an active conversation. Wait boundedly for the
+            # one announcement slot; wake admission uses the same VoicePE lock and
+            # cancels an already-started timer before opening Realtime.
+            deadline = deadline or asyncio.get_running_loop().time() + 120.0
+            while getattr(s, "_active", False):
+                if asyncio.get_running_loop().time() >= deadline:
+                    _LOG.warning("timer: ring expired waiting for room %s", s.room)
+                    return
+                await asyncio.sleep(0.25)
+            bus, url = getattr(s, "reply_bus", None), getattr(s, "reply_url", None)
+            if bus is None or not url:
+                return
+            with contextlib.suppress(Exception):
+                # Short TTL: PodConnect auto-restores the music ~5s later.
+                await s.attention.engage(s.room, 20, 5000)
+
+            def _prepare() -> None:
                 bus.clear(s.room)
                 bus.start(s.room)
                 bus.push(s.room, spoken or tone)
                 bus.end(s.room)
+
+            if getattr(s, "_active", False):
+                return await _ring_room(s, deadline)
+            if hasattr(s.voicepe, "play_uncorrelated"):
+                played = await s.voicepe.play_uncorrelated(url, _prepare)
+            else:
+                _prepare()
+                await s.voicepe.play_url(url)
+                played = True
+            if not played:
+                if asyncio.get_running_loop().time() < deadline:
+                    await asyncio.sleep(0.25)
+                    return await _ring_room(s, deadline)
+                _LOG.warning("timer: physical ring expired for room %s", s.room)
+                return
+            if hub is not None:
+                hub.activity(s.room, f"⏰ Timer færdig: {label}")
+
+        await asyncio.gather(*(_ring_room(s) for s in sessions.values()))
+
+    timers = TimerManager(_timer_ring)
+    _LOG.info("timers: in-memory (an add-on restart clears running timers)")
+    # Home control = HA's own MCP server on the LAN. Default: the Supervisor proxy
+    # with the token the add-on already holds; Settings can point directly at
+    # http://<ha>:8123/api/mcp with a long-lived token for non-supervised setups.
+    mcp_url = cfg.ha_mcp_url or f"{C.SUPERVISOR_CORE_API}/mcp"
+    mcp_token = cfg.ha_mcp_token or cfg.supervisor_token
+    mcp = HomeAssistantMCP(mcp_url, mcp_token, ha_client) if mcp_token else None
+    tools = ToolRouter(
+        mcp, supervisor_token=cfg.supervisor_token, client=ha_client, timers=timers, hub=hub
+    )
+    if attention is not None:
+        # Room names power the model's default speaker (see _build_session): without
+        # them every media call fails with HA's "multiple targets".
+        with contextlib.suppress(Exception):
+            for r in await attention.rooms():
+                rid = str(r.get("id") or r.get("room") or "")
+                if rid:
+                    _ROOM_NAMES[rid] = str(r.get("name") or rid)
+            _LOG.info("podconnect rooms: %s", _ROOM_NAMES or "none")
+    await tools.start()  # fetch the MCP tool list BEFORE sessions copy declarations
+
+    async def _probe_loop() -> None:
+        # Healthy discovery is re-proved periodically. A connection-shaped failure
+        # wakes this loop and follows ToolRouter's bounded 1/2/5/10/30/60 recovery
+        # schedule; it never requires an add-on or Voice PE restart.
+        while True:
+            delay = tools.next_probe_delay()
+            try:
+                await asyncio.wait_for(tools.wait_for_recovery_signal(), timeout=delay)
+            except TimeoutError:
                 with contextlib.suppress(Exception):
-                    await s.voicepe.play_url(url)
-                if hub is not None:
-                    hub.activity(s.room, f"⏰ Timer færdig: {label}")
+                    await tools.probe()
 
-        timers = TimerManager(_timer_ring)
-        _LOG.info("timers: in-memory (an add-on restart clears running timers)")
-        # Home control = HA's own MCP server on the LAN. Default: the Supervisor proxy
-        # with the token the add-on already holds; Settings can point directly at
-        # http://<ha>:8123/api/mcp with a long-lived token for non-supervised setups.
-        mcp_url = cfg.ha_mcp_url or f"{C.SUPERVISOR_CORE_API}/mcp"
-        mcp_token = cfg.ha_mcp_token or cfg.supervisor_token
-        mcp = HomeAssistantMCP(mcp_url, mcp_token, ha_client) if mcp_token else None
-        tools = ToolRouter(
-            mcp, supervisor_token=cfg.supervisor_token, client=ha_client, timers=timers, hub=hub
+    probe_task = asyncio.create_task(_probe_loop(), name="mcp-probe")
+    if mcp is None:
+        _LOG.warning(
+            "no SUPERVISOR_TOKEN and no ha_mcp_token — home control disabled "
+            "(clock + timers still work)"
         )
-        if attention is not None:
-            # Room names power the model's default speaker (see _build_session): without
-            # them every media call fails with HA's "multiple targets".
-            with contextlib.suppress(Exception):
-                for r in await attention.rooms():
-                    rid = str(r.get("id") or r.get("room") or "")
-                    if rid:
-                        _ROOM_NAMES[rid] = str(r.get("name") or rid)
-                _LOG.info("podconnect rooms: %s", _ROOM_NAMES or "none")
-        await tools.start()  # fetch the MCP tool list BEFORE sessions copy declarations
-
-        async def _probe_loop() -> None:
-            # Healthy discovery is re-proved periodically. A connection-shaped failure
-            # wakes this loop and follows ToolRouter's bounded 1/2/5/10/30/60 recovery
-            # schedule; it never requires an add-on or Voice PE restart.
-            while True:
-                delay = tools.next_probe_delay()
-                try:
-                    await asyncio.wait_for(tools.wait_for_recovery_signal(), timeout=delay)
-                except TimeoutError:
-                    with contextlib.suppress(Exception):
-                        await tools.probe()
-
-        probe_task = asyncio.create_task(_probe_loop(), name="mcp-probe")
-        if mcp is None:
-            _LOG.warning(
-                "no SUPERVISOR_TOKEN and no ha_mcp_token — home control disabled "
-                "(clock + timers still work)"
-            )
-        # Cost telemetry: every response's token usage -> /data + two HA cost sensors.
-        usage = UsageMeter(cfg.supervisor_token, ha_client)
-        sessions = {
-            r.room: _build_session(
-                cfg,
-                r,
-                attention,
-                tools,
-                hub,
-                reply_bus,
-                reply_token,
-                speech,
-                usage,
-                audio_trace,
-            )
-            for r in cfg.rooms
-        }
+    # Cost telemetry: every response's token usage -> /data + two HA cost sensors.
+    usage = UsageMeter(cfg.supervisor_token, ha_client)
+    sessions = {
+        r.room: _build_session(
+            cfg,
+            r,
+            attention,
+            tools,
+            hub,
+            reply_bus,
+            reply_token,
+            speech,
+            usage,
+            audio_trace,
+        )
+        for r in cfg.rooms
+    }
 
     # S1 (audio stream) reads the LIVE room session's audio reception when one is
     # running — it owns the single voice_assistant slot, so a separate run_s1
     # subscription would be rejected and falsely report "no audio". Falls back to the
-    # standalone probe when no session is up (e.g. before first connect / simulate).
+    # standalone probe when no session is up (for example before first connect).
     async def _diag_s1_live(room: str | None = None) -> dict:
         sess = sessions.get(room) if room else next(iter(sessions.values()), None)
         if sess is not None and hasattr(sess, "audio_health"):
@@ -400,7 +420,9 @@ async def run(cfg: Config) -> None:
         from .talk import TALK_ROOM, BrowserLink, TalkHub
         from .thin import ThinSession
 
-        if attention is None:  # no PodConnect client (bare simulate) — no ducking to run
+        if console_make is None:
+            raise RuntimeError("OpenAI API-nøgle mangler")
+        if attention is None:
             raise RuntimeError("talk session needs the attention client")
         # The browser captures at OpenAI's OWN 24 kHz, so nothing resamples the
         # audio on the way in (the 48k->16k->24k round trip was mangling Danish).
@@ -544,15 +566,13 @@ async def run(cfg: Config) -> None:
             name="speech-prewarm",
         )
         _LOG.info("pre-warming spoken lines in the assistant's voice")
-    if cfg.simulate:
-        driver = asyncio.create_task(run_driver(sessions), name="sim-driver")
     if attention is not None:
         probe = asyncio.create_task(_health_probe(cfg, hub, attention), name="health-probe")
     try:
         await stop.wait()
     finally:
         _LOG.info("PodVoice shutting down — restoring music")
-        for task in (driver, probe, prewarm, probe_task):
+        for task in (probe, prewarm, probe_task):
             if task is not None:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):

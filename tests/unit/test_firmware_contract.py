@@ -38,20 +38,105 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "continuous_rearm_v1" in overlay
     assert "physical_rearm_audio_progress_v1" in overlay
     assert "correlated_reset_rearm_v2" in overlay
-    assert "podvoice_build_11343" in overlay
+    assert "podvoice_build_11344" in overlay
+    assert "podvoice_build_11343" not in overlay
     assert "podvoice_playback_events_v1" in overlay
+    assert "correlated_playback_v2" in overlay
     assert "action: podvoice_reply_expect" in overlay
+    assert "action: podvoice_reply_play" in overlay
     assert "action: podvoice_reply_cancel" in overlay
-    assert "event_type: podvoice_playback_started" in overlay
-    assert "event_type: podvoice_playback_finished" in overlay
-    assert "event_type: podvoice_playback_fault" in overlay
-    assert "announcement_resampling_speaker).has_buffered_data()" in overlay
-    assert "decibel_reduction: 0" in overlay  # !extend must preserve upstream music restore
+    assert "action: podvoice_reply_silence" in overlay
+    assert "id: podvoice_playback_ack" in overlay
+    expect = overlay.split("action: podvoice_reply_expect", 1)[1].split(
+        "action: podvoice_reply_play", 1
+    )[0]
+    play = overlay.split("action: podvoice_reply_play", 1)[1].split(
+        "action: podvoice_reply_cancel", 1
+    )[0]
+    cancel = overlay.split("action: podvoice_reply_cancel", 1)[1].split(
+        "# RUNTIME audio tuning", 1
+    )[0]
+    finish = overlay.split("- id: podvoice_finish_reply", 1)[1].split("# --- Phase 2", 1)[0]
+    assert "token: int" in expect
+    assert "media_player.is_announcing: podvoice_reply_player" in expect
+    assert '":armed"' in expect
+    assert expect.index("media_player.is_announcing") < expect.index(
+        "id(podvoice_reply_token) = token"
+    )
+    assert "id(podvoice_reply_token) = token" in expect
+    assert "id(podvoice_reply_phase) != 0" in expect
+    assert "podvoice_reply_resampling_speaker).is_running()" in expect
+    assert "url: string" in play
+    assert "id(podvoice_reply_phase) = 2" in play
+    assert "id(podvoice_last_play_token) != token" in play
+    assert "id(podvoice_last_play_token) = token" in play
+    assert ".set_media_url(url)" in play
+    assert play.index("id(podvoice_reply_phase) = 2") < play.index(".set_media_url(url)")
+    reserved_foreign = overlay.split("An announcement arriving while only reserved", 1)[1].split(
+        '- lambda: "return id(podvoice_reply_phase) == 2;"', 1
+    )[0]
+    assert "id(podvoice_reply_phase) == 1" in reserved_foreign
+    assert '":fault"' in reserved_foreign
+    assert "id(podvoice_reply_token) == token" in cancel
+    assert "script.stop: podvoice_reply_reservation_timeout" in cancel
+    assert "id: podvoice_reply_player" in cancel
+    assert "id(podvoice_reply_phase) = 5" in cancel
+    silence = overlay.split("action: podvoice_reply_silence", 1)[1].split(
+        "# RUNTIME audio tuning", 1
+    )[0]
+    assert "id(podvoice_reply_token) = token" in silence
+    assert "id(podvoice_reply_phase) = 5" in silence
+    assert "id: podvoice_cancel_reply" in silence
+    cancel_reply = overlay.split("- id: podvoice_cancel_reply", 1)[1].split(
+        "- id: podvoice_recover_wake_word", 1
+    )[0]
+    assert "podvoice_reply_resampling_speaker).has_buffered_data()" in cancel_reply
+    assert "podvoice_reply_resampling_speaker).is_running()" in cancel_reply
+    assert "id(podvoice_reply_phase) == 5" in cancel_reply
+    assert "id(podvoice_reply_token) == token" in cancel_reply
+    assert '":cancelled"' in cancel_reply
+    assert '":fault"' in cancel_reply
     stream_stop = overlay.split("action: podvoice_stream_stop", 1)[1].split(
         "action: podvoice_rearm_wake_word", 1
     )[0]
-    assert "script.stop: podvoice_finish_reply" in stream_stop
-    assert "id(podvoice_reply_phase) = 0" in stream_stop
+    assert "pv_audio).stop_streaming" in stream_stop
+    assert "podvoice_reply_phase" not in stream_stop
+    assert "podvoice_reply_player" not in stream_stop
+    rearm = overlay.split("action: podvoice_rearm_wake_word", 1)[1].split(
+        "action: podvoice_reply_expect", 1
+    )[0]
+    assert "id: podvoice_rearm_after_silence" in rearm
+    rearm_silence = overlay.split("- id: podvoice_rearm_after_silence", 1)[1].split(
+        "- id: podvoice_recover_wake_word", 1
+    )[0]
+    assert "podvoice_reply_resampling_speaker).has_buffered_data()" in rearm_silence
+    assert "podvoice_reply_resampling_speaker).is_running()" in rearm_silence
+    assert "id: podvoice_recover_wake_word" in rearm_silence
+    assert '":fault"' in rearm_silence
+    reservation_timeout = overlay.split("- id: podvoice_reply_reservation_timeout", 1)[1].split(
+        "- id: podvoice_recover_wake_word", 1
+    )[0]
+    assert "delay: 3s" in reservation_timeout
+    assert "id(podvoice_reply_phase) == 1" in reservation_timeout
+    assert "id(podvoice_reply_token) == token" in reservation_timeout
+    assert '":fault"' in reservation_timeout
+    assert "parameters:\n      token: int" in finish
+    assert '":started"' in overlay
+    assert '":finished"' in finish
+    assert '":fault"' in finish
+    assert "id(podvoice_reply_phase) == 4" in finish
+    assert "id(podvoice_reply_token) == token" in finish
+    assert "podvoice_reply_resampling_speaker).has_buffered_data()" in overlay
+    assert "id: podvoice_reply_player" in overlay
+    assert "internal: true" in overlay
+    assert "id: podvoice_reply_http_source" in overlay
+    private_player = overlay.split(
+        "  - platform: speaker_source\n    id: podvoice_reply_player", 1
+    )[1].split("id: !extend external_media_player", 1)[0]
+    assert "podvoice_reply_resampling_speaker" in private_player
+    assert "podvoice_reply_http_source" in private_player
+    assert "external_media_player" not in private_player
+    assert "decibel_reduction: 0" in overlay  # !extend must preserve upstream music restore
     assert "podvoice_direct_prepare" not in overlay
     assert "direct_speaker_v3" not in overlay
 
@@ -92,7 +177,8 @@ def test_each_detection_is_single_use_and_rearm_always_resets_detector():
     )
     assert "podvoice_detector_continuity_proven" not in rearm_action
     assert "frames_written()" not in rearm_action
-    assert "script.execute:\n            id: podvoice_recover_wake_word" in rearm_action
+    assert "script.execute:\n            id: podvoice_rearm_after_silence" in rearm_action
+    assert "script.execute:\n                id: podvoice_recover_wake_word" in overlay
     assert "token: int" in rearm_action
     assert "micro_wake_word.stop:" in recovery
     assert "micro_wake_word.start:" in recovery

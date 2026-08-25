@@ -45,8 +45,6 @@ api:
         - lambda: "id(pv_audio).start_streaming();"
     - action: podvoice_stream_stop
       then:
-        - script.stop: podvoice_finish_reply
-        - lambda: "id(podvoice_reply_phase) = 0;"
         - lambda: "id(pv_audio).stop_streaming();"
     # One wake opens one conversation. A teardown always performs one bounded detector
     # reset before reopening the single-use latch. The previous continuity shortcut
@@ -60,20 +58,132 @@ api:
         token: int
       then:
         - script.stop: podvoice_finish_reply
-        - lambda: "id(podvoice_reply_phase) = 0;"
+        - script.stop: podvoice_reply_reservation_timeout
+        - script.stop: podvoice_cancel_reply
+        - script.stop: podvoice_rearm_after_silence
+        - media_player.stop:
+            id: podvoice_reply_player
+            announcement: true
         - script.execute:
-            id: podvoice_recover_wake_word
+            id: podvoice_rearm_after_silence
             token: !lambda "return token;"
     # Arm playback telemetry for exactly the next PodVoice reply. Other announcements
     # (timer, HA, test tone) use the same media player and must never close a Realtime
     # conversation or move its LED/echo gate.
     - action: podvoice_reply_expect
+      variables:
+        token: int
       then:
-        - lambda: "id(podvoice_reply_phase) = 1;"
+        - if:
+            condition:
+              or:
+                - lambda: "return id(podvoice_reply_phase) != 0;"
+                - media_player.is_announcing: podvoice_reply_player
+                - lambda: |-
+                    return id(podvoice_reply_resampling_speaker).has_buffered_data()
+                           || id(podvoice_reply_resampling_speaker).is_running();
+            then:
+              - text_sensor.template.publish:
+                  id: podvoice_playback_ack
+                  state: !lambda |-
+                    return std::to_string(token) + ":fault";
+            else:
+              - lambda: "id(podvoice_reply_token) = token;"
+              - lambda: "id(podvoice_reply_phase) = 1;"
+              - text_sensor.template.publish:
+                  id: podvoice_playback_ack
+                  state: !lambda |-
+                    return std::to_string(token) + ":armed";
+              - script.execute:
+                  id: podvoice_reply_reservation_timeout
+                  token: !lambda "return token;"
+    # Launch the exact reserved reply on-device. Keeping phase transition and media
+    # call in one native-API action removes the add-on ACK round-trip in which an
+    # unrelated HA announcement could otherwise inherit the reserved token.
+    - action: podvoice_reply_play
+      variables:
+        token: int
+        url: string
+      then:
+        - if:
+            condition:
+              and:
+                - lambda: "return id(podvoice_last_play_token) != token;"
+                - or:
+                    - lambda: "return id(podvoice_reply_phase) == 0;"
+                    - lambda: |-
+                        return id(podvoice_reply_phase) == 1
+                               && id(podvoice_reply_token) == token;
+                - not:
+                    media_player.is_announcing: podvoice_reply_player
+                - lambda: |-
+                    return !id(podvoice_reply_resampling_speaker).has_buffered_data()
+                           && !id(podvoice_reply_resampling_speaker).is_running();
+            then:
+              - script.stop: podvoice_reply_reservation_timeout
+              - lambda: |-
+                  id(podvoice_reply_token) = token;
+                  id(podvoice_last_play_token) = token;
+                  id(podvoice_reply_phase) = 2;
+                  id(podvoice_reply_player)
+                    ->make_call()
+                    .set_media_url(url)
+                    .set_announcement(true)
+                    .perform();
+            else:
+              - if:
+                  condition:
+                    lambda: |-
+                      return id(podvoice_reply_phase) == 1
+                             && id(podvoice_reply_token) == token;
+                  then:
+                    - script.stop: podvoice_reply_reservation_timeout
+                    - lambda: "id(podvoice_reply_phase) = 0;"
+              - text_sensor.template.publish:
+                  id: podvoice_playback_ack
+                  state: !lambda |-
+                    return std::to_string(token) + ":fault";
     - action: podvoice_reply_cancel
+      variables:
+        token: int
+      then:
+        - if:
+            condition:
+              lambda: "return id(podvoice_reply_token) == token;"
+            then:
+              - script.stop: podvoice_finish_reply
+              - script.stop: podvoice_reply_reservation_timeout
+              - script.stop: podvoice_cancel_reply
+              - media_player.stop:
+                  id: podvoice_reply_player
+                  announcement: true
+              - lambda: "id(podvoice_reply_phase) = 5;"
+              - script.execute:
+                  id: podvoice_cancel_reply
+                  token: !lambda "return token;"
+            else:
+              - text_sensor.template.publish:
+                  id: podvoice_playback_ack
+                  state: !lambda |-
+                    return std::to_string(token) + ":fault";
+    # Process/reconnect recovery may not know the old lease token. This trusted
+    # mechanical action adopts a fresh request token, stops the private player and
+    # proves silence through the same drained `cancelled` ACK.
+    - action: podvoice_reply_silence
+      variables:
+        token: int
       then:
         - script.stop: podvoice_finish_reply
-        - lambda: "id(podvoice_reply_phase) = 0;"
+        - script.stop: podvoice_reply_reservation_timeout
+        - script.stop: podvoice_cancel_reply
+        - lambda: "id(podvoice_reply_token) = token;"
+        - lambda: "id(podvoice_reply_phase) = 5;"
+        - media_player.stop:
+            id: podvoice_reply_player
+            announcement: true
+        - script.execute:
+            id: podvoice_cancel_reply
+            token: !lambda "return token;"
     # RUNTIME audio tuning — no reflash. PodVoice's panel calls these.
     - action: podvoice_set_mic_channel
       variables:
@@ -150,47 +260,109 @@ globals:
     type: bool
     restore_value: false
     initial_value: "false"
-  # 0=none, 1=PodVoice reply armed, 2=ANNOUNCING observed, 3=draining the dedicated
-  # announcement resampler. Requiring phase 2 prevents an early state callback from
+  # 0=none, 1=reserved, 2=device-owned launch issued, 3=ANNOUNCING observed,
+  # 4=normal drain, 5=cancel drain, 6=rearm drain. Requiring phase 2 prevents an early state callback from
   # fabricating a finish before playback actually began.
   - id: podvoice_reply_phase
     type: uint8_t
     restore_value: false
     initial_value: "0"
+  - id: podvoice_reply_token
+    type: int
+    restore_value: false
+    initial_value: "-1"
+  - id: podvoice_last_play_token
+    type: int
+    restore_value: false
+    initial_value: "-1"
   - id: podvoice_rearm_frame_marker
     type: uint32_t
     restore_value: false
     initial_value: "0"
 
-# Publish the physical announcement lifecycle explicitly.  Relying on native-API
-# MediaPlayerEntityState proved insufficient in the room: audio played, but no
-# ANNOUNCING edge reached the add-on.  ESPHome's own on_announcement/on_state triggers
-# run at the source and therefore remain authoritative even when music resumes.
+# Give PodVoice a private FLAC announcement source and mixer input. The public HA media
+# player remains available for music/HA audio, but cannot produce lifecycle edges for a
+# PodVoice token.
+speaker:
+  - id: !extend mixing_speaker
+    source_speakers:
+      - id: podvoice_reply_mixing_input
+        timeout: never
+  - platform: resampler
+    id: podvoice_reply_resampling_speaker
+    output_speaker: podvoice_reply_mixing_input
+    sample_rate: 48000
+    bits_per_sample: 16
+
+media_source:
+  - platform: audio_http
+    id: podvoice_reply_http_source
+    buffer_size: 250000
+
+# Publish physical reply lifecycle from only the private PodVoice player.
 media_player:
-  - id: !extend external_media_player
+  - platform: speaker_source
+    id: podvoice_reply_player
+    internal: true
+    announcement_pipeline:
+      format: FLAC
+      num_channels: 1
+      sample_rate: 48000
+      speaker: podvoice_reply_resampling_speaker
+      sources:
+        - podvoice_reply_http_source
+    on_announcement:
+      - mixer_speaker.apply_ducking:
+          id: media_mixing_input
+          decibel_reduction: 20
     on_state:
+      # An announcement arriving while only reserved is foreign. Fault the lease;
+      # never let that source become physical proof for a PodVoice reply.
       - if:
           condition:
             and:
               - lambda: "return id(podvoice_reply_phase) == 1;"
-              - media_player.is_announcing: external_media_player
+              - media_player.is_announcing: podvoice_reply_player
           then:
-            - lambda: "id(podvoice_reply_phase) = 2;"
-            - event.trigger:
-                id: podvoice_event
-                event_type: podvoice_playback_started
+            - lambda: "id(podvoice_reply_phase) = 0;"
+            - text_sensor.template.publish:
+                id: podvoice_playback_ack
+                state: !lambda |-
+                  return std::to_string(id(podvoice_reply_token)) + ":fault";
       - if:
           condition:
             and:
               - lambda: "return id(podvoice_reply_phase) == 2;"
-              - not:
-                  media_player.is_announcing: external_media_player
+              - media_player.is_announcing: podvoice_reply_player
           then:
             - lambda: "id(podvoice_reply_phase) = 3;"
-            - script.execute: podvoice_finish_reply
-      # !extend replaces the base trigger list on this ESPHome version. Preserve the
-      # upstream music-unduck callback explicitly; rendered-config validation locks
-      # this beside both PodVoice telemetry callbacks.
+            - text_sensor.template.publish:
+                id: podvoice_playback_ack
+                state: !lambda |-
+                  return std::to_string(id(podvoice_reply_token)) + ":started";
+      - if:
+          condition:
+            and:
+              - lambda: "return id(podvoice_reply_phase) == 3;"
+              - not:
+                  media_player.is_announcing: podvoice_reply_player
+          then:
+            - lambda: "id(podvoice_reply_phase) = 4;"
+            - script.execute:
+                id: podvoice_finish_reply
+                token: !lambda "return id(podvoice_reply_token);"
+      - if:
+          condition:
+            not:
+              media_player.is_announcing: podvoice_reply_player
+          then:
+            - mixer_speaker.apply_ducking:
+                id: media_mixing_input
+                decibel_reduction: 0
+  # !extend replaces the base trigger list on this ESPHome version. Preserve the
+  # upstream public music/announcement unduck callback explicitly.
+  - id: !extend external_media_player
+    on_state:
       - if:
           condition:
             and:
@@ -199,6 +371,8 @@ media_player:
                   voice_assistant.is_running:
               - not:
                   media_player.is_announcing: external_media_player
+              - not:
+                  media_player.is_announcing: podvoice_reply_player
           then:
             - mixer_speaker.apply_ducking:
                 id: media_mixing_input
@@ -206,6 +380,91 @@ media_player:
                 duration: 1.0s
 
 script:
+  - id: podvoice_reply_reservation_timeout
+    mode: restart
+    parameters:
+      token: int
+    then:
+      - delay: 3s
+      - if:
+          condition:
+            lambda: |-
+              return id(podvoice_reply_phase) == 1
+                     && id(podvoice_reply_token) == token;
+          then:
+            - lambda: "id(podvoice_reply_phase) = 0;"
+            - text_sensor.template.publish:
+                id: podvoice_playback_ack
+                state: !lambda |-
+                  return std::to_string(token) + ":fault";
+  - id: podvoice_cancel_reply
+    mode: restart
+    parameters:
+      token: int
+    then:
+      - wait_until:
+          condition:
+            lambda: |-
+              return id(podvoice_reply_player).state
+                       != media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING
+                     && !id(podvoice_reply_resampling_speaker).has_buffered_data()
+                     && !id(podvoice_reply_resampling_speaker).is_running();
+          timeout: 3s
+      - if:
+          condition:
+            lambda: |-
+              return id(podvoice_reply_phase) == 5
+                     && id(podvoice_reply_token) == token;
+          then:
+            - if:
+                condition:
+                  lambda: |-
+                    return id(podvoice_reply_player).state
+                             != media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING
+                           && !id(podvoice_reply_resampling_speaker).has_buffered_data()
+                           && !id(podvoice_reply_resampling_speaker).is_running();
+                then:
+                  - text_sensor.template.publish:
+                      id: podvoice_playback_ack
+                      state: !lambda |-
+                        return std::to_string(token) + ":cancelled";
+                else:
+                  - text_sensor.template.publish:
+                      id: podvoice_playback_ack
+                      state: !lambda |-
+                        return std::to_string(token) + ":fault";
+            - lambda: "id(podvoice_reply_phase) = 0;"
+  - id: podvoice_rearm_after_silence
+    mode: restart
+    parameters:
+      token: int
+    then:
+      - lambda: "id(podvoice_reply_phase) = 6;"
+      - wait_until:
+          condition:
+            lambda: |-
+              return id(podvoice_reply_player).state
+                       != media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING
+                     && !id(podvoice_reply_resampling_speaker).has_buffered_data()
+                     && !id(podvoice_reply_resampling_speaker).is_running();
+          timeout: 3s
+      - if:
+          condition:
+            lambda: |-
+              return id(podvoice_reply_player).state
+                       != media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING
+                     && !id(podvoice_reply_resampling_speaker).has_buffered_data()
+                     && !id(podvoice_reply_resampling_speaker).is_running();
+          then:
+            - lambda: "id(podvoice_reply_phase) = 0;"
+            - script.execute:
+                id: podvoice_recover_wake_word
+                token: !lambda "return token;"
+          else:
+            - text_sensor.template.publish:
+                id: podvoice_rearm_ack
+                state: !lambda |-
+                  return std::to_string(token) + ":fault";
   - id: podvoice_recover_wake_word
     mode: restart
     parameters:
@@ -261,6 +520,8 @@ script:
                   return std::to_string(token) + ":fault";
   - id: podvoice_finish_reply
     mode: restart
+    parameters:
+      token: int
     then:
       # Media-player IDLE means the source is done; the dedicated announcement
       # resampler may still hold the final samples.  Do not call it physically
@@ -268,23 +529,39 @@ script:
       - wait_until:
           condition:
             lambda: |-
-              return !id(announcement_resampling_speaker).has_buffered_data()
-                     && !id(announcement_resampling_speaker).is_running();
+              return !id(podvoice_reply_resampling_speaker).has_buffered_data()
+                     && !id(podvoice_reply_resampling_speaker).is_running();
           timeout: 3s
       - if:
           condition:
             lambda: |-
-              return !id(announcement_resampling_speaker).has_buffered_data()
-                     && !id(announcement_resampling_speaker).is_running();
+              return id(podvoice_reply_phase) == 4
+                     && id(podvoice_reply_token) == token
+                     && !id(podvoice_reply_resampling_speaker).has_buffered_data()
+                     && !id(podvoice_reply_resampling_speaker).is_running();
           then:
-            - event.trigger:
-                id: podvoice_event
-                event_type: podvoice_playback_finished
+            - text_sensor.template.publish:
+                id: podvoice_playback_ack
+                state: !lambda |-
+                  return std::to_string(token) + ":finished";
           else:
-            - event.trigger:
-                id: podvoice_event
-                event_type: podvoice_playback_fault
-      - lambda: "id(podvoice_reply_phase) = 0;"
+            - if:
+                condition:
+                  lambda: |-
+                    return id(podvoice_reply_phase) == 4
+                           && id(podvoice_reply_token) == token;
+                then:
+                  - text_sensor.template.publish:
+                      id: podvoice_playback_ack
+                      state: !lambda |-
+                        return std::to_string(token) + ":fault";
+      - if:
+          condition:
+            lambda: |-
+              return id(podvoice_reply_phase) == 4
+                     && id(podvoice_reply_token) == token;
+          then:
+            - lambda: "id(podvoice_reply_phase) = 0;"
 
 # --- Phase 2: custom wake-word model (docs/wake-word.md) -----------------------------
 # When the custom-trained microWakeWord model is ready, uncomment to load it. NOTE on
@@ -323,7 +600,8 @@ event:
         continuous_rearm_v1,
         physical_rearm_audio_progress_v1,
         correlated_reset_rearm_v2,
-        podvoice_build_11343,
+        correlated_playback_v2,
+        podvoice_build_11344,
         podvoice_playback_events_v1,
         podvoice_playback_started,
         podvoice_playback_finished,
@@ -337,6 +615,10 @@ text_sensor:
   - platform: template
     id: podvoice_rearm_ack
     name: "PodVoice rearm ACK"
+    entity_category: diagnostic
+  - platform: template
+    id: podvoice_playback_ack
+    name: "PodVoice playback ACK"
     entity_category: diagnostic
 
 # The vendored base owns micro_wake_word.on_wake_word_detected. It emits exactly one

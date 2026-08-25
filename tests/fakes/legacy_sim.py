@@ -1,9 +1,10 @@
-"""Simulation mode — runs the full gatekeeper with in-process doubles.
+"""Developer-only legacy lifecycle simulation with in-process doubles.
 
 Lets the sidebar panel show the whole IDLE -> LISTENING -> AI_SPEAKING ->
 LOUNGE -> release flow animating live, with working controls, before any real
-Voice PE / provider key exists. The doubles live in-package (not in tests/) so the
-shipped add-on can run ``simulate: true``.
+Voice PE / provider key exists. This fixture deliberately lives outside the
+shipped ``gatekeeper`` package and can only be imported explicitly by tests or a
+developer harness.
 """
 
 from __future__ import annotations
@@ -13,15 +14,15 @@ import itertools
 import logging
 from collections.abc import AsyncIterator
 
-from . import constants as C
-from .audio import silence_frame
-from .events import Event, EventType
-from .gatekeeper import Gatekeeper
-from .heartbeat import Heartbeat
-from .hub import StatusHub
-from .playback import Playback
-from .voice import AudioChunk, OutputTranscript, TurnComplete
-from .watchdog import BargeIn
+from gatekeeper import constants as C
+from gatekeeper.audio import silence_frame
+from gatekeeper.events import Event, EventType
+from gatekeeper.gatekeeper import Gatekeeper
+from gatekeeper.heartbeat import Heartbeat
+from gatekeeper.hub import StatusHub
+from gatekeeper.playback import Playback
+from gatekeeper.voice import AudioChunk, OutputTranscript, TurnComplete
+from gatekeeper.watchdog import BargeIn
 
 _LOG = logging.getLogger("podvoice.sim")
 
@@ -126,7 +127,7 @@ class SimTools:
 
 def build_sim_sessions(hub: StatusHub, rooms: list[str]) -> dict:
     """Build a RoomSession per room backed entirely by sim doubles."""
-    from .orchestrator import RoomSession  # local import avoids a cycle
+    from gatekeeper.orchestrator import RoomSession  # local import avoids a cycle
 
     sessions: dict = {}
     for room in rooms:

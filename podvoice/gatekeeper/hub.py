@@ -57,8 +57,7 @@ def _bounded_result(result: dict, limit: int = 4000) -> dict:
 
 
 class StatusHub:
-    def __init__(self, simulate: bool = False, history: History | None = None) -> None:
-        self.simulate = simulate
+    def __init__(self, history: History | None = None) -> None:
         self._history = history  # optional History; room transcripts are persisted to it
         self._rooms: dict[str, dict] = {}
         self._services: dict[str, str] = {
@@ -135,7 +134,6 @@ class StatusHub:
         return {
             "version": __version__,
             "observed_at": time.time(),
-            "simulate": self.simulate,
             "services": dict(self._services),
             "service_details": {
                 name: dict(detail) for name, detail in self._service_details.items()

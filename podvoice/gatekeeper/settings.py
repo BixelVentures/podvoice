@@ -156,7 +156,6 @@ TUNING_KEYS: frozenset[str] = frozenset(
 # NOT here (it's the one add-on option).
 DEFAULTS: dict = {
     "settings_version": SETTINGS_VERSION,
-    "simulate": False,
     "full_duplex": False,  # half-duplex (continued conversation) is the shipped mode; True is
     # the experimental open-mic duplex opt-in (Phase 1.4 test matrix gates promotion)
     "system_prompt": SYSTEM_PROMPT_DA,  # who the assistant is + what it can do (editable)

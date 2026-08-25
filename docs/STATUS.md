@@ -5,7 +5,7 @@ Senest opdateret: 2026-08-25.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv softwarekandidat:** v1.13.42 er installeret og startet på HA Green. Den bestod
+**Installeret software:** v1.13.42 er startet på HA Green. Den bestod
 selve den sammenhængende femtursdialog og modelsemantisk lukning, men bestod **ikke**
 den efterfølgende fysiske re-wake. Kandidaten er derfor **NO-GO** for golden chain og
 release, selv om add-on-loggen fejlagtigt kaldte firmwarekvitteringen fysisk bevist.
@@ -17,6 +17,99 @@ teardown. Firmware meldte wake-rearm efter teardown, men næste “Okay Nabu” 
 ingen wake. Den direkte fysiske observation falsificerer dermed den grønne rearmstatus;
 golden chain er rød, og 10/10 må ikke startes. Produktretningen forbliver den minimale
 lifecycle-kontrakt nedenfor.
+
+**Aktiv udviklingskandidat:** v1.13.44 på `codex/provider-playback-correlation` er lokalt
+release- og firmwarebygget, men endnu ikke committed, CI-bygget, installeret eller
+fysisk bevist. Kandidaten forbliver derfor **NO-GO for installation og golden chain**,
+indtil frozen review, exact-commit CI/ARM64 og bitidentitet er lukket. Installeret fysisk
+baseline er fortsat den fejlede v1.13.42-kæde ovenfor; maskintests må ikke overskrive den.
+
+### Aktiv beslutningspost — provider-tail og fysisk playback-korrelation
+
+- **Observeret fejl og stærkeste evidens:** en deterministisk reproduktion af
+  `response.done(r) → response.created(r) → audio.delta(r) → response.done(r)` gav
+  både `TurnComplete` og en stale `AudioChunk`, efterlod provideren aktiv og kan wedge
+  næste tool-resultat. En almindelig completed respons uden PCM åbner opfølgning og kan
+  gemme et uhørt assistant-transcript. Shippet firmware udsender samtidig kun boolske
+  `podvoice_playback_started/finished/fault`; Thin-tests bruger syntetiske playback-id'er,
+  som den fysiske adapter aldrig leverer. `simulate` kan fortsat aktiveres via shipped
+  config/UI og importerer legacy `sim.py`.
+- **Hele berørte kæde og nærliggende races:** provider response-id/status → audio og
+  transcript → Thin turn-complete/history/followup → reply lease/id →
+  firmware-ejet reply-play → privat announcement start/drain/fault → native API →
+  playback finish → close/teardown/rearm. Nærliggende fejlveje er done-before-created,
+  terminal tail, duplicate/out-of-order events, gammel finish efter ny arm, reconnect,
+  missing/fremmed token, silent semantic end versus silent ordinary response, Talk-
+  adapteren og dev-simulatoren.
+- **Berørte invarianter:** lifecycle 3–5 og 10–13; Realtime-events efter terminal status
+  skal være virkningsløse, kun korreleret semantic end må lukke stille, fysisk playback
+  skal ejes af samme lease fra request til drain, og classic/sim må ikke kunne aktiveres
+  fra produktion. Én wake/én session, opfølgninger og rearm må ikke ændres.
+- **Falsificerbar årsagshypotese:** terminal response-id'er kontrolleres for sent i
+  providerparseren; Thin skelner ikke ordinary zero-PCM completion fra lovlig silent
+  semantic end; firmwareeventtypen kan ikke bære leaseidentitet; og simulatorflaget er
+  blevet bevaret som produktionsindstilling. Tidlig terminal-afvisning, ordinary
+  zero-PCM fail-closed, en tokenbærende entity fra firmware samt fjernet shipped
+  simulate-aktivering skal lukke hullerne uden lokal semantik eller parallel runtime.
+- **Planlagte regressioner og sammensatte gates:** eksakt fire-event provider-tail plus
+  næste normale tool-resultat; ordinary zero-PCM må ikke gemmes eller åbne followup og
+  skal fejle hørligt, mens korreleret silent semantic end fortsat lukker rent; source-
+  kontrakt for nul shipped simulate-import/config/UI; token-match gennem
+  expect→start→finish/fault og afvisning af missing/wrong/stale/duplicate/out-of-order
+  token efter ny lease/reconnect; Talk-paritet; focused, lifecycle, fuld release,
+  firmware render/config/compile og to uafhængige frozen reviews.
+- **Ikke-mål og rollback:** ingen prompt-, gain-, VAD-, mic-channel-, resampling-,
+  HA/MCP-, tool-, rearm- eller latencyændring. Dev-simulation må leve som separat
+  test-entrypoint, aldrig shipped runtime. Rollback er hele provider/silent/sim/token-
+  ændringen, hvis token kan krydse leases, Talk ændres, ordinary svar lukkes semantisk,
+  eller firmware/add-on bits ikke har eksakt samme kontrakt/buildmarkør.
+
+**Faktisk ændring og resultater for v1.13.44.** Providerparseren tombstoner nu både
+events efter et terminalt response-id og et nyt response-id, der genbruger allerede
+forbrugt request-metadata; den efterfølgende legitime tool-resultrespons bruger stadig
+samme socket. Thin fejler ordinary completed uden PCM hørbart og uden transcript eller
+followup, mens korreleret silent semantic end fortsat lukker stille. Tool-taskens
+levetid kan ikke længere nulstille response-ejerskab før dens lydløse decision-
+`TurnComplete`. Shipped simulate-config, runtime, console-fallback og modul er fjernet;
+kun `tests/fakes/legacy_sim.py` er bevaret som testfixture.
+
+Fysisk svarplayback bruger nu én procesrandomiseret og monoton token fra Thin-lease via
+native API til firmware-ACK `token:started|finished|fault`; missing, wrong, stale,
+duplicate, out-of-order og disconnect-events er inerte. Normale svar sendes med præcis
+én device-ejet `podvoice_reply_play(token,url)`. Timer og diagnostik reserverer først et
+auxiliary token, muterer derefter ReplyBus og starter samme private player, men deres
+ACK'er når aldrig Thin. Den private FLAC-player har egen HTTP-kilde, resampler og mixer-
+input; HA's offentlige media player kan derfor ikke levere falske reply-events. En
+forladt auxiliary reservation udløber bounded, og ny reserve afvises under start/drain.
+Cancel og ukendt orphan-recovery kvitteres først efter privat player-idle og fysisk tom/
+stoppet resampler. Disconnect bevarer den ukendte lease; rearm udfører desuden sin egen
+bounded silence/drain-gate før wake-recovery; adapterens 9 s og Thin-gatens 9,5 s
+dækker firmwaregrænsen på 3 + 2 + 3 s. Firmware-reset med mismatchet exact cancel
+falder via fault over i frisk tokenbåret orphan-silence ved næste retry. Wake stopper
+auxiliary playback før Realtime-admission, og manglende stop afviser wake.
+
+- **Lokale gates:** den auditerede lifecycle-manifestpakke er 163/163 grøn; fuld
+  releasegate er grøn på 42,7 s med Ruff, format, mypy og hele pytest-suiten.
+  Localhost-webregressionen beviser, at aktivt svar ikke kan overskrives af
+  `test_speaker`. Preflight læser nu kun tre repræsentative filer i stedet for at
+  hydrere hele det synkroniserede checkout; den tidligere 15 s timeout er elimineret.
+- **Firmwarebevis:** ESPHome 2026.6.2 config og validation-only compile er grønne fra
+  kilde-SHA-256 `fed87c0e510b7100192fa7fb98aaada32f70e2c8dec43a2917487de50775d6cb`.
+  ELF indeholder `podvoice_build_11344`, `correlated_playback_v2` og
+  `podvoice_playback_ack`. SHA-256 er OTA
+  `4429da95127528b809576d902941a688ed9fd2607989f3fc335173ceff6ade38`, ELF
+  `4c06e3445e2f3e1ae2b6d9e1a8a700e48a6ecd8550aa3e5d0cab15c54ff19672` og factory
+  `b70e871347c3ce639457c4990b6445dbe3b319a5bf89cdbd0893dc100d85eace`.
+- **Afvigelser og resterende usikkerhed:** første reviewer-loop falsificerede den
+  tidsbaserede `armed → offentlig media-command`-løsning: en HA-announcement kunne
+  arve tokenet. Det krævede den isolerede private FLAC-pipeline ovenfor; prompt, gain,
+  VAD, HA/MCP og rearm-semantik blev ikke ændret. Validation-firmware bruger dummy-
+  secrets og må ikke flashes. Kandidaten er ikke fysisk testklar før final frozen review,
+  commit, exact-commit CI/ARM64 og installerbar artifact/digest; derefter kræves frisk
+  fysisk golden chain og 10/10 ubrudte cyklusser. Rollback-grænsen ovenfor gælder.
+- **Frozen review:** to uafhængige adversarial reviews er GO for exact commit/CI uden
+  P0/P1 og scorer henholdsvis 97/100 og 98/100 maskinel confidence. Det er ikke fysisk
+  releasebevis; exact-SHA CI/ARM64 og installerbar bitidentitet mangler fortsat.
 
 ### Aktiv feltbeslutning 25. august — minimal Realtime-lifecycle uden overfit
 
