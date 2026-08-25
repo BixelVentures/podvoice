@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+if [ -n "${PODVOICE_PYTHON:-}" ]; then
+  exec "$PODVOICE_PYTHON" "$(dirname "$0")/dev_cycle.py" "$@"
+fi
+project_python="$(dirname "$0")/../.venv/bin/python"
+if [ -x "$project_python" ]; then
+  exec "$project_python" "$(dirname "$0")/dev_cycle.py" "$@"
+fi
+echo "Set PODVOICE_PYTHON to the Python 3.12 executable in the project venv." >&2
+exit 2

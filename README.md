@@ -66,6 +66,10 @@ animates the full wake → duck → speak → lounge → release
 flow per room so you can watch the panel work before the Voice PE / OpenAI key arrive.
 
 ## Develop & test
+
+The fast local feedback loop and the unchanged release gate are described in
+[`docs/UDVIKLINGSFLOW.md`](docs/UDVIKLINGSFLOW.md).
+
 ```sh
 python3.12 -m venv .venv && . .venv/bin/activate
 pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
