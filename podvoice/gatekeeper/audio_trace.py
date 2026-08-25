@@ -263,6 +263,7 @@ class AudioTraceRecorder:
             raise ValueError("Lydbeviset mangler providerlyd")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         events = list(manifest.get("events") or [])
+        metadata = manifest.get("metadata") if isinstance(manifest.get("metadata"), dict) else {}
         starts = [event for event in events if event.get("event") == "speech_started"]
         if turn_index >= len(starts):
             raise ValueError("Lydbeviset indeholder ikke den valgte brugertur")
@@ -338,6 +339,14 @@ class AudioTraceRecorder:
             ),
             None,
         )
+
+        def source_text(name: str) -> str | None:
+            value = metadata.get(name)
+            return value if isinstance(value, str) and value else None
+
+        source_prompt_version = metadata.get("prompt_version")
+        if not isinstance(source_prompt_version, int) or isinstance(source_prompt_version, bool):
+            source_prompt_version = None
         return {
             "trace_id": trace_id,
             "room": str(manifest.get("room") or ""),
@@ -351,6 +360,12 @@ class AudioTraceRecorder:
             "source_tool_schema_sha256": (
                 str(source_contract["tool_schema_sha256"]) if source_contract else None
             ),
+            "source_model": source_text("model"),
+            "source_prompt_source": source_text("prompt_source"),
+            "source_prompt_version": source_prompt_version,
+            "source_prompt_version_present": "prompt_version" in metadata,
+            "source_prompt_sha256": source_text("prompt_sha256"),
+            "source_room_context_sha256": source_text("room_context_sha256"),
             "begin_sample": begin,
             "end_sample": end,
         }

@@ -74,12 +74,39 @@ def _production_snapshot() -> list[dict]:
     return SafeEvalTools().declarations()
 
 
+def _audio_source_provenance(
+    scenario,
+    *,
+    room_context: str = "",
+    model: str = DEFAULT_MODEL,
+    instructions: str = eval_harness.SYSTEM_PROMPT_DA,
+    declarations: list[dict] | None = None,
+) -> dict:
+    declarations = declarations or SafeEvalTools().declarations()
+    admitted = eval_harness._admit_eval_tools([scenario], declarations).declarations
+    effective_prompt = instructions.strip()
+    is_default = effective_prompt == eval_harness.SYSTEM_PROMPT_DA.strip()
+    return {
+        "source_tool_schema_sha256": eval_harness._schema_sha256(admitted),
+        "source_model": model,
+        "source_prompt_source": "default" if is_default else "custom",
+        "source_prompt_version": eval_harness.PROMPT_VERSION if is_default else None,
+        "source_prompt_version_present": True,
+        "source_prompt_sha256": eval_harness.hashlib.sha256(effective_prompt.encode()).hexdigest(),
+        "source_room_context_sha256": eval_harness.hashlib.sha256(
+            room_context.encode()
+        ).hexdigest(),
+    }
+
+
 def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
     scenarios = load_scenarios()
     assert {s.id for s in scenarios} == {
         "arithmetic-followup",
+        "arithmetic-followup-observed",
         "time-followup",
         "semantic-close",
+        "explicit-short-close",
         "web-routing",
         "sensitive-confirmation",
         "sensitive-action-with-close",
@@ -253,6 +280,45 @@ def test_audio_replay_matches_only_an_exact_known_eval_utterance():
     assert matched[0].id == "time-followup"
     assert matched[1] == 0
     assert match_scenario_turn("Hvad er klokken måske") is None
+    observed_followup = match_scenario_turn("Læg seks til.")
+    assert observed_followup is not None
+    assert observed_followup[0].id == "arithmetic-followup-observed"
+    assert observed_followup[1] == 1
+    historical_followup = match_scenario_turn("Og læg seks til.")
+    assert historical_followup is not None
+    assert historical_followup[0].id == "arithmetic-followup"
+    assert historical_followup[1] == 1
+
+
+def test_semantic_close_selective_profile_preserves_all_independent_controls():
+    selected = [
+        scenario
+        for scenario in load_scenarios()
+        if scenario.id in eval_harness.SEMANTIC_CLOSE_VALIDATION_SCENARIO_IDS
+    ]
+    by_id = {scenario.id: scenario for scenario in selected}
+
+    assert set(by_id) == set(eval_harness.SEMANTIC_CLOSE_VALIDATION_SCENARIO_IDS)
+    assert sum(len(scenario.turns) for scenario in selected) == 8
+    assert by_id["arithmetic-followup"].turns[1].text == "Og læg seks til."
+    assert by_id["arithmetic-followup-observed"].turns[1].text == "Læg seks til."
+    assert by_id["explicit-short-close"].turns[0].text == "Farvel."
+    assert by_id["explicit-short-close"].turns[0].expect.decision == "end_conversation"
+    ordered = by_id["low-risk-action-then-close"].turns[0].expect
+    assert ordered.decisions == ("HassTurnOn", "end_conversation")
+    assert ordered.decision_batches == (("HassTurnOn",), ("end_conversation",))
+    admission = eval_harness._admit_eval_tools(selected, SafeEvalTools().declarations())
+    assert {"HassTurnOn", "end_conversation"} <= {
+        declaration["name"] for declaration in admission.declarations
+    }
+
+
+def test_end_conversation_contract_does_not_treat_prior_task_completion_as_close_evidence():
+    description = END_CONVERSATION_DECLARATION["description"].casefold()
+
+    assert "completion of an earlier request is never evidence of end intent" in description
+    assert "can plausibly continue, correct, refine or refer" in description
+    assert "læg seks til" not in description  # no phrase-specific production guard
 
 
 def test_web_oracle_accepts_spoken_words_or_digits_but_still_requires_winner():
@@ -996,6 +1062,16 @@ async def test_live_collect_dispatches_fixture_only_after_matching_tool_commit_e
     assert observed.response_status == "completed"
     assert observed.fixture_side_effects == 1
     assert observed.decision_batches == [["HassTurnOn"]]
+    assert observed.tool_calls == [
+        {
+            "call_id": "low",
+            "name": "HassTurnOn",
+            "response_id": "response-one",
+            "batch_id": "response-one",
+            "batch_index": 0,
+            "batch_size": 1,
+        }
+    ]
     assert len(sent) == 1
 
 
@@ -1223,6 +1299,34 @@ async def test_captured_pcm_hook_validates_and_paces_device_audio(tmp_path: path
     assert sleeps == [0.02, 0.02]
 
 
+async def test_audio_submit_collects_diagnostic_transcript_after_turn_complete():
+    class FakeSession:
+        async def send_audio(self, _pcm):
+            return None
+
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session = FakeSession()  # type: ignore[assignment]
+    driver.session_id = "audio-session"
+    driver.is_open = True
+    driver.events.put_nowait(
+        eval_harness.TurnComplete(status="completed", response_id="audio-response")
+    )
+
+    async def late_transcript():
+        await asyncio.sleep(0)
+        driver.events.put_nowait(eval_harness.InputTranscript("Hvad er klokken?"))
+
+    transcript_task = asyncio.create_task(late_transcript())
+    observed = await driver.submit_audio(
+        turn_id="audio-turn",
+        pcm=b"\x00\x00" * 480,
+        rate=24_000,
+    )
+    await transcript_task
+
+    assert observed.diagnostic_transcript == "Hvad er klokken?"
+
+
 async def test_runner_uses_one_session_and_event_driven_driver_results():
     scenario = load_scenarios()[0]
 
@@ -1254,6 +1358,69 @@ async def test_runner_uses_one_session_and_event_driven_driver_results():
     assert result.passed is True
     assert driver.calls == 2 and driver.closed is True
     assert all(turn.observation.session_id == "session-one" for turn in result.turns)
+
+
+async def test_observed_arithmetic_followup_end_call_is_a_deterministic_red_regression():
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
+    assert [turn.text for turn in scenario.turns] == [
+        "Hvad er tolv gange syv?",
+        "Læg seks til.",
+    ]
+
+    class ObservedFieldFailure:
+        def __init__(self):
+            self.calls = 0
+
+        async def open(self, *, run_id, scenario_id):
+            assert scenario_id == "arithmetic-followup-observed"
+            return "field-session"
+
+        async def submit_text(self, *, turn_id, text):
+            self.calls += 1
+            if self.calls == 1:
+                return TurnObservation(
+                    turn_id=turn_id,
+                    session_id="field-session",
+                    answer="Fireogfirs.",
+                )
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id="field-session",
+                decisions=["end_conversation"],
+                decision_batches=[["end_conversation"]],
+                tool_calls=[
+                    {
+                        "call_id": "end-field",
+                        "name": "end_conversation",
+                        "response_id": "close-response",
+                        "batch_id": "close-response",
+                        "batch_index": 0,
+                        "batch_size": 1,
+                    }
+                ],
+                answer="Farvel.",
+                remain_open=False,
+            )
+
+        async def close(self):
+            return None
+
+    result = await run_scenario(
+        ObservedFieldFailure(),
+        scenario,
+        run_id="field-regression",
+        budget=EvalBudget(),
+    )
+
+    assert result.passed is False
+    assert result.turns[0].passed is True
+    assert result.turns[1].passed is False
+    assert result.turns[1].observation.tool_calls[0]["call_id"] == "end-field"
+    assert {finding.code for finding in result.turns[1].findings} == {
+        "wrong-decision",
+        "answer-missing-any",
+        "wrong-lifecycle",
+    }
 
 
 async def test_runner_timeout_is_a_failure_not_a_retry():
@@ -2327,9 +2494,10 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
     )
     service = LiveEvalService(provider_budget=_known_provider_budget())
 
-    assert sessions == 7
+    assert sessions == 9
+    assert turns == 15
     assert service._max_run_s == required
-    assert 52 * 60 < service._max_run_s < 54 * 60
+    assert 66 * 60 < service._max_run_s < 67 * 60
 
 
 async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(monkeypatch):
@@ -2381,7 +2549,7 @@ async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(mo
     assert waits == [60.5]
 
 
-async def test_full_seven_session_profile_accepts_measured_14_5k_each(monkeypatch):
+async def test_full_nine_session_profile_accepts_measured_14_5k_each(monkeypatch):
     clock = [0.0]
     calls = 0
 
@@ -2402,11 +2570,11 @@ async def test_full_seven_session_profile_accepts_measured_14_5k_each(monkeypatc
     ).run(api_key="secret", tool_declarations=_production_snapshot())
 
     assert report["ok"] is True, report.get("error")
-    assert calls == 7
-    assert report["budget"]["actual_tokens"] == 101_500
-    assert report["budget"]["max_actual_tokens"] == 720_000
+    assert calls == 9
+    assert report["budget"]["actual_tokens"] == 130_500
+    assert report["budget"]["max_actual_tokens"] == 900_000
     assert report["budget"]["max_cost_usd"] == pytest.approx(5.0)
-    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(48.0)
+    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(60.0)
     assert report["deadline_s"] > report["budget"]["rate_limit_wait_s"]
 
 
@@ -2886,6 +3054,7 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
 
     monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", FakeDriver)
     pcm = b"\x01\x00" * 24000
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
     fixture = AudioReplayFixture(
         trace_id="trace-one",
         turn_index=0,
@@ -2896,8 +3065,8 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
         diagnostic_transcript="Hvad er klokken?",
         exact_sample_offsets=True,
         room_context="Evalrum",
+        **_audio_source_provenance(scenario, room_context="Evalrum"),
     )
-    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
     declarations = SafeEvalTools().declarations()
     report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
         api_key="secret",
@@ -2914,6 +3083,15 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
     assert report["tool_schema_sha256"] == report["production_tool_schema_sha256"]
     assert len(opened) == 4  # one text control + three independent audio sessions
     assert audio_seen == [pcm, pcm, pcm]
+    assert report["context_seed_turns"] == 0
+    assert report["context_seed"] == {
+        "kind": "canonical-scenario-text",
+        "turn_count": 0,
+        "texts": [],
+        "exact_physical_prefix_replayed": False,
+    }
+    assert report["control_context"] == []
+    assert report["trial_contexts"] == [[], [], []]
     assert report["trace"]["sha256"] == fixture.sha256
     assert all(trial["observation"]["diagnostic_transcript"] for trial in report["trials"])
     assert report["transcription_budget"] == {
@@ -2923,6 +3101,180 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
         "cost_usd": pytest.approx(0.00085),
     }
     assert report["budget"]["cost_usd"] >= report["transcription_budget"]["cost_usd"]
+
+
+async def test_contextual_audio_replay_seeds_prior_turns_in_every_fresh_session(monkeypatch):
+    opened: list[str] = []
+    ordered_inputs: list[tuple[str, str, str]] = []
+    pcm = b"\x02\x00" * 24_000
+
+    class ContextDriver:
+        def __init__(self, *args, **kwargs):
+            self.session_id = ""
+            self.seeded = False
+
+        async def open(self, *, run_id, scenario_id):
+            self.session_id = f"{run_id}:{scenario_id}:{len(opened)}"
+            opened.append(self.session_id)
+            return self.session_id
+
+        async def prepare_response_capacity(self):
+            return None
+
+        async def submit_text(self, *, turn_id, text):
+            ordered_inputs.append((self.session_id, "text", text))
+            if text == "Hvad er tolv gange syv?":
+                self.seeded = True
+                answer = "Fireogfirs."
+            else:
+                assert text == "Læg seks til."
+                assert self.seeded is True
+                answer = "Halvfems."
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id=self.session_id,
+                answer=answer,
+                usage={"provider_total_tokens": 100, "input_text_tokens": 100},
+                provider_trace=[
+                    {
+                        "kind": "response_done",
+                        "response_id": f"response-{len(ordered_inputs)}",
+                    }
+                ],
+            )
+
+        async def submit_audio(self, *, turn_id, pcm: bytes, rate: int):
+            assert rate == 24_000
+            assert self.seeded is True
+            ordered_inputs.append((self.session_id, "audio", "Læg seks til."))
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id=self.session_id,
+                answer="Halvfems.",
+                diagnostic_transcript="Læg seks til.",
+                usage={"provider_total_tokens": 120, "input_audio_tokens": 120},
+                provider_trace=[
+                    {
+                        "kind": "response_done",
+                        "response_id": f"response-{len(ordered_inputs)}",
+                    }
+                ],
+            )
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ContextDriver)
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
+    fixture = AudioReplayFixture(
+        trace_id="trace-context",
+        turn_index=1,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Læg seks til.",
+        exact_sample_offsets=True,
+        **_audio_source_provenance(scenario),
+    )
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=1,
+        repeats=3,
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+
+    assert report["ok"] is True
+    assert report["classification"] == "audio-replay-consistent"
+    assert report["context_seed_turns"] == 1
+    assert report["context_seed"] == {
+        "kind": "canonical-scenario-text",
+        "turn_count": 1,
+        "texts": ["Hvad er tolv gange syv?"],
+        "exact_physical_prefix_replayed": False,
+    }
+    assert len(opened) == 4
+    assert report["budget"]["turns"] == 8
+    assert len(report["control_context"]) == 1
+    assert len(report["trial_contexts"]) == 3
+    assert all(len(context) == 1 for context in report["trial_contexts"])
+    assert all(result["passed"] for result in report["control_context"])
+    assert all(result["passed"] for context in report["trial_contexts"] for result in context)
+    assert report["control_context"][0]["observation"]["provider_trace"][0][
+        "response_id"
+    ].startswith("response-")
+    for session_id in opened:
+        inputs = [item for item in ordered_inputs if item[0] == session_id]
+        assert [item[1] for item in inputs] == (
+            ["text", "text"] if session_id == opened[0] else ["text", "audio"]
+        )
+        assert inputs[0][2] == "Hvad er tolv gange syv?"
+
+
+async def test_contextual_audio_replay_cannot_go_green_when_seed_turn_fails(monkeypatch):
+    opened: list[str] = []
+    target_calls = 0
+    pcm = b"\x03\x00" * 24_000
+
+    class FailedContextDriver:
+        def __init__(self, *args, **kwargs):
+            self.session_id = ""
+
+        async def open(self, *, run_id, scenario_id):
+            self.session_id = f"{run_id}:{scenario_id}:{len(opened)}"
+            opened.append(self.session_id)
+            return self.session_id
+
+        async def submit_text(self, *, turn_id, text):
+            nonlocal target_calls
+            if text != "Hvad er tolv gange syv?":
+                target_calls += 1
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id=self.session_id,
+                answer="Syvogfirs.",
+                usage={"provider_total_tokens": 100, "input_text_tokens": 100},
+            )
+
+        async def submit_audio(self, **kwargs):
+            nonlocal target_calls
+            target_calls += 1
+            raise AssertionError("target PCM must not run without proven context")
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", FailedContextDriver)
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
+    fixture = AudioReplayFixture(
+        trace_id="trace-context-failed",
+        turn_index=1,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Læg seks til.",
+        exact_sample_offsets=True,
+        **_audio_source_provenance(scenario),
+    )
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=1,
+        repeats=3,
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+
+    assert report["ok"] is False
+    assert report["classification"] == "context-seed-failure"
+    assert len(opened) == 4
+    assert target_calls == 0
+    assert report["budget"]["turns"] == 4
+    assert report["control"]["findings"][0]["code"] == "context-seed-failed"
+    assert all(trial["findings"][0]["code"] == "context-seed-failed" for trial in report["trials"])
 
 
 async def test_audio_replay_transcription_surcharge_can_block_before_provider_socket(monkeypatch):
@@ -2985,6 +3337,9 @@ async def test_audio_replay_refuses_a_proven_different_source_tool_schema(monkey
 
     monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ForbiddenDriver)
     pcm = b"\x00\x00" * 24000
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
+    provenance = _audio_source_provenance(scenario)
+    provenance["source_tool_schema_sha256"] = "0" * 64
     fixture = AudioReplayFixture(
         trace_id="trace-schema",
         turn_index=0,
@@ -2994,9 +3349,8 @@ async def test_audio_replay_refuses_a_proven_different_source_tool_schema(monkey
         sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
         diagnostic_transcript="Hvad er klokken?",
         exact_sample_offsets=True,
-        source_tool_schema_sha256="0" * 64,
+        **provenance,
     )
-    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
     report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
         api_key="secret",
         fixture=fixture,
@@ -3006,6 +3360,208 @@ async def test_audio_replay_refuses_a_proven_different_source_tool_schema(monkey
         tool_declarations=SafeEvalTools().declarations(),
     )
     assert report["ok"] is False
-    assert report["classification"] == "tool-schema-mismatch"
-    assert report["trace"]["schema_match"] is False
+    assert report["classification"] == "trace-provenance-mismatch"
+    assert report["trace"]["provenance_mismatches"] == ["tool_schema_sha256"]
+    assert report["trace"]["provenance_match"] is False
     assert report["budget"]["turns"] == 0
+
+
+async def test_audio_replay_refuses_trace_without_complete_source_provenance(monkeypatch):
+    class ForbiddenDriver:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("missing provenance must be rejected before provider connect")
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ForbiddenDriver)
+    pcm = b"\x00\x00" * 24_000
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
+    fixture = AudioReplayFixture(
+        trace_id="trace-without-provenance",
+        turn_index=0,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Hvad er klokken?",
+        exact_sample_offsets=True,
+    )
+
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=0,
+        repeats=3,
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+
+    assert report["ok"] is False
+    assert report["classification"] == "trace-provenance-missing"
+    assert report["trace"]["missing_provenance"] == [
+        "model",
+        "prompt_sha256",
+        "prompt_source",
+        "prompt_version",
+        "room_context_sha256",
+        "tool_schema_sha256",
+    ]
+    assert report["budget"]["turns"] == 0
+
+
+async def test_audio_replay_refuses_source_prompt_model_or_room_context_mismatch(monkeypatch):
+    class ForbiddenDriver:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("provenance mismatch must precede provider connect")
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ForbiddenDriver)
+    pcm = b"\x00\x00" * 24_000
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
+    provenance = _audio_source_provenance(scenario, room_context="Evalrum")
+    provenance.update(
+        {
+            "source_model": "gpt-realtime-other",
+            "source_prompt_source": "custom",
+            "source_prompt_version": 999,
+            "source_prompt_version_present": True,
+            "source_prompt_sha256": "1" * 64,
+            "source_room_context_sha256": "2" * 64,
+        }
+    )
+    fixture = AudioReplayFixture(
+        trace_id="trace-mismatched-provenance",
+        turn_index=0,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Hvad er klokken?",
+        exact_sample_offsets=True,
+        room_context="Evalrum",
+        **provenance,
+    )
+
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=0,
+        repeats=3,
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+
+    assert report["ok"] is False
+    assert report["classification"] == "trace-provenance-mismatch"
+    assert report["trace"]["provenance_mismatches"] == [
+        "model",
+        "prompt_sha256",
+        "prompt_source",
+        "prompt_version",
+        "room_context_sha256",
+    ]
+    assert report["budget"]["turns"] == 0
+
+
+async def test_contextual_audio_replay_requires_exact_provider_sample_offsets(monkeypatch):
+    class ForbiddenDriver:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("inexact contextual PCM must not reach the provider")
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ForbiddenDriver)
+    pcm = b"\x00\x00" * 24_000
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
+    fixture = AudioReplayFixture(
+        trace_id="legacy-context",
+        turn_index=0,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Læg seks til.",
+        exact_sample_offsets=False,
+        **_audio_source_provenance(scenario),
+    )
+
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=1,
+        repeats=3,
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+
+    assert report["ok"] is False
+    assert report["status"] == "invalid"
+
+
+@pytest.mark.parametrize(
+    ("diagnostic_transcript", "finding"),
+    [
+        ("", "audio-transcript-missing"),
+        ("Læg seks fra.", "audio-transcript-mismatch"),
+    ],
+)
+async def test_audio_trial_requires_exact_nonempty_diagnostic_transcript(
+    monkeypatch, diagnostic_transcript, finding
+):
+    opened: list[str] = []
+
+    class TranscriptDriver:
+        def __init__(self, *args, **kwargs):
+            self.session_id = ""
+
+        async def open(self, *, run_id, scenario_id):
+            self.session_id = f"{run_id}:{scenario_id}:{len(opened)}"
+            opened.append(self.session_id)
+            return self.session_id
+
+        async def submit_text(self, *, turn_id, text):
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id=self.session_id,
+                decisions=["get_time"],
+                tool_args={"get_time": [{"fields": ["time"]}]},
+                answer="Klokken er fjorten.",
+                usage={"input_text_tokens": 100},
+            )
+
+        async def submit_audio(self, *, turn_id, pcm, rate):
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id=self.session_id,
+                decisions=["get_time"],
+                tool_args={"get_time": [{"fields": ["time"]}]},
+                answer="Klokken er fjorten.",
+                diagnostic_transcript=diagnostic_transcript,
+                usage={"input_audio_tokens": 100},
+            )
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", TranscriptDriver)
+    pcm = b"\x01\x00" * 24_000
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
+    fixture = AudioReplayFixture(
+        trace_id="trace-transcript-gate",
+        turn_index=0,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Hvad er klokken?",
+        exact_sample_offsets=True,
+        **_audio_source_provenance(scenario),
+    )
+
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=0,
+        repeats=1,
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+
+    assert report["ok"] is False
+    assert report["classification"] == "audio-specific-failure"
+    assert [item["code"] for item in report["trials"][0]["findings"]] == [finding]

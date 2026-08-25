@@ -514,6 +514,12 @@ async def _audio_replay_eval(request: web.Request) -> web.Response:
             exact_sample_offsets=raw["exact_sample_offsets"],
             room_context=room_context,
             source_tool_schema_sha256=raw.get("source_tool_schema_sha256"),
+            source_model=raw.get("source_model"),
+            source_prompt_source=raw.get("source_prompt_source"),
+            source_prompt_version=raw.get("source_prompt_version"),
+            source_prompt_version_present=bool(raw.get("source_prompt_version_present", False)),
+            source_prompt_sha256=raw.get("source_prompt_sha256"),
+            source_room_context_sha256=raw.get("source_room_context_sha256"),
         )
         report = await run(
             action="replay",

@@ -47,7 +47,7 @@
   "scenarios": [
     {
       "id": "arithmetic-followup",
-      "description": "Direct Danish answer and a contextual follow-up in one session.",
+      "description": "Historical Danish arithmetic follow-up with an explicit conjunction.",
       "exact_tool_names": [],
       "turns": [
         {
@@ -60,6 +60,29 @@
         },
         {
           "text": "Og læg seks til.",
+          "expect": {
+            "direct_answer": true,
+            "answer_any": ["90", "halvfems"],
+            "remain_open": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "arithmetic-followup-observed",
+      "description": "Independent text diagnostic for the observed Danish wording; it does not claim audio equivalence.",
+      "exact_tool_names": [],
+      "turns": [
+        {
+          "text": "Hvad er tolv gange syv?",
+          "expect": {
+            "direct_answer": true,
+            "answer_any": ["84", "fireogfirs"],
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Læg seks til.",
           "expect": {
             "direct_answer": true,
             "answer_any": ["90", "halvfems"],
@@ -149,6 +172,21 @@
             "tool_outcomes": {"google_web_sogning": ["ok"]},
             "forbid": ["get_time"],
             "remain_open": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "explicit-short-close",
+      "description": "A short explicit Danish farewell closes directly.",
+      "exact_tool_names": ["end_conversation"],
+      "turns": [
+        {
+          "text": "Farvel.",
+          "expect": {
+            "decision": "end_conversation",
+            "answer_any": ["farvel", "vi ses", "hej hej"],
+            "remain_open": false
           }
         }
       ]

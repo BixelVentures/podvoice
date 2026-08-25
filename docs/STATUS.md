@@ -5,13 +5,125 @@ Senest opdateret: 2026-08-25.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv softwarekandidat:** installeret v1.13.38 er feltstoppet; lokal v1.13.39 er
-frosset og afventer CI/ARM64, installation og DHCP-recovery-bevis.
-**Aktuel gate:** v1.13.38 bestod den fulde SafeEval, men blev efter strømudfald
-strandet på en cachet DHCP-adresse. Den lokale v1.13.39-rettelse har uafhængig
-kode-/testscore 97/100 og nul kendte P0/P1. Fysisk test er **NO-GO**, indtil samme
-artifact automatisk beviser `.162` → `.193`, fuld admission og første wake med den
-kanoniske `.local`-adresse. Golden chain og 10/10 er fortsat separate gates.
+**Aktiv softwarekandidat:** installeret v1.13.39 er feltstoppet efter en falsk
+modelsemantisk afslutning i den første fysiske samtale.
+**Aktuel gate:** v1.13.39 er bygget fra `bb378fd`, bestod fuld lokal og CI-gate samt
+ARM64-build og er installeret. Den første fysiske tur kørte stadig på den midlertidige
+rå adresse `.193`. Bagefter blev det kanoniske `podvoice-pe-0a7e7a.local` gemt; en
+frisk add-on-start opløste det direkte til `.193`, gennemførte handshake, kontrakt,
+mic/wake-tuning og cachede den autentificerede peer. Det beviser den holdbare normale
+navnevej, men ikke den særlige runtime-rotation fra en aktiv stale `.162`-klient.
+Samtaleturen beviste wake, samme Realtime-session, fysisk playback, teardown og rearm,
+men lukkede fejlagtigt på en matematisk opfølgning. Kandidaten er derfor **NO-GO** for
+golden chain og 10/10, indtil den eksakte lydfejl er klassificeret, og en ny kandidat
+har bestået de relevante maskin-, lydreplay- og fysiske gates.
+
+### Aktiv feltbeslutning 25. august — falsk semantisk close på matematisk opfølgning
+
+**Observeret på installeret v1.13.39 kl. 11.42.** Voice PE åbnede én
+Realtime-session. Første tur brugte `get_time`; næste tur “Hvad er tolv gange syv?”
+blev besvaret korrekt med `84`. På den kontekstafhængige opfølgning gemte den
+asynkrone diagnostiske transskription “Læg seks til.”, men Realtime kaldte
+`end_conversation`, sagde farvel og lukkede. Fysisk playback, én teardown og wake-rearm
+gennemførte rent. Turen er rød: det korrekte svar var `90` eller, ved usikker lyd, en
+opklaring — aldrig afslutning. Audio-trace var ikke armeret i denne samtale; der findes
+derfor intet eksakt provider-PCM fra feltfejlen, som må foregives matchet eller replayet.
+
+- **Hele berørte kæde:** rearmet mic-gate → fysisk opfølgningslyd → providerens rå
+  audiotolkning → automatisk tool-valg → `end_conversation`-resultat → farvel-playback
+  → teardown/rearm → næste wake. Transcriptet kommer fra en separat asynkron
+  transskriptionsmodel og beviser derfor ikke alene, hvad Realtime-modellen hørte.
+- **Berørte invarianter:** Realtime ejer semantisk afslutning; PodVoice må ikke indføre
+  frasebaseret close/anti-close eller en parallel semantikmotor. Thin må kun udføre den
+  mekaniske close præcis én gang efter et gyldigt modelkald. Samme session og kontekst
+  skal overleve naturlige opfølgninger.
+- **Falsificerbar hovedhypotese:** Realtime-audiomodellen forveksler den fonetisk korte
+  danske fortsættelse med afslutningshensigt, og den reserverede tool-beskrivelses brede
+  positive regel om et høfligt wrap-up efter en opgave øger risikoen. Den er kun støttet,
+  hvis tekstkontrollen svarer `90`, mens den eksakte provider-PCM gentagne gange vælger
+  `end_conversation`; ellers skal event-/kontekst- eller prompt/tool-kontrakten undersøges.
+- **Planlagte regressioner og sammensatte gates:** bevar eksisterende tekstkontrol og
+  skaf først en ny, samtykket audio-trace, hvis den eksakte normaliserede transskription
+  matcher en kanonisk sikker eval-ytring. Kør derefter tre friske, uafhængige replays af
+  target-turnens eksakte provider-PCM med matchende model, produktionsprompt,
+  byte-identisk tool-schema og rumkontekst; gem response-/call-id, diagnostisk transcript
+  og usage.
+  Enhver rettelse skal bevare eksplicit afslutning, høflighed uden close, matematik
+  `84 → 90`, wait-for-user, almindelige domæneværktøjer, Talk/Thin og fysisk lifecycle.
+  Derefter focused gate, fuld suite/static, uafhængig adversarial review, exact ARM64
+  artifact og én frisk fysisk golden chain. 10/10 starter først efter denne kæde.
+- **Ikke-mål og rollback:** ingen lokal fraseliste, transcript-veto, obligatorisk
+  `continue_conversation`, to-respons-vej, lyd/VAD/gain/firmware-, playback-, DHCP- eller
+  HA/MCP-ændring. Hvis lydreplay ikke reproducerer årsagen, stoppes prompt/tool-
+  ændringen; v1.13.39 forbliver installeret som diagnostisk, men ikke testgodkendt.
+
+**Aktiv minimal produktbeslutning.** Der findes direkte fysisk eventevidens for samme
+session, de to korrekte svar, det efterfølgende committed `end_conversation`-kald,
+farvel-playback, teardown og rearm samt den separate diagnostiske transskription “Læg
+seks til.”. Der findes **ikke** eksakt provider-PCM for target-turnen, fordi audio-trace
+ikke var armeret. Hovedhypotesen er derfor fortsat falsificerbar, ikke bevist: den brede
+positive sætning i `end_conversation`-deklarationen om et høfligt wrap-up efter en
+afsluttet opgave kan gøre den foregående opgaves afslutning til fejlagtigt positivt
+close-bevis, selv om den seneste korte tur plausibelt fortsætter konteksten.
+
+Den mindste planlagte produktændring er én variabel: fjern den brede positive sætning
+fra den reserverede tool-beskrivelse og gør eksplicit, at en tidligere opgaves
+afslutning aldrig i sig selv er end-intent; den seneste tur skal selv klart afslutte.
+Den observerede tekstsekvens `Hvad er tolv gange syv?` → `Læg seks til.` tilføjes som
+tekst-/live-eval-diagnostik med forventet `84 → 90`, men må ikke kaldes lydækvivalent
+eller fysisk reproduktion. Ikke-mål er uændret: ingen frase- eller transcript-veto,
+ingen `continue_conversation`-/to-respons-vej, ingen promptomskrivning og ingen ændring
+af Realtime-eventrækkefølge, Thin-lifecycle, playback, teardown eller rearm. Rollback-
+grænsen er den ene tool-description-diff, hvis betalt Realtime-validering ikke reducerer
+false-close uden samtidig at bryde eksplicit semantisk close.
+
+**Faktisk evalgrundlag.** Audio-replay af en
+kontekstafhængig scenarietur åbner en frisk Realtime-session for tekstkontrollen og hver
+af de tre PCM-prøver. Den seeder tidligere ture som **kanonisk scenarietekst** i samme
+session og kræver, at hver expectation og session-id består, før target-PCM må sendes;
+rapporten siger eksplicit, at den fysiske prefix-lyd ikke er replayet.
+Fejler én seed-tur, sendes target slet ikke, og rapporten klassificerer
+`context-seed-failure`; en isoleret tur tre kan derfor ikke længere se grøn ud uden tur
+et og to. Rapporten bevarer seed-turenes usage, committed call-/response-/batch-id'er og
+providertrace ved siden af kontrol og trials. Alle seed- og target-ture tælles i de
+eksisterende token-/responskanter, og den
+prospektive grænse plus faktisk usage forbliver under det hårde samlede loft på $5.
+
+Reviewerens første NO-GO er lukket fail-closed i evalvejen: en trace uden matchende
+kildemodel, prompt-source/version/hash, tool-schemahash eller rumkonteksthash må ikke
+åbne providerreplay eller blive grøn; gamle traces uden provenance afvises. En
+kontekstuel target kræver eksakte provider-sample-offsets. Hver PCM-prøves nye
+diagnostiske transcript skal være ikke-tomt og eksakt normaliseret lig den kanoniske
+ytring, ellers får prøven `audio-transcript-missing` eller
+`audio-transcript-mismatch`. Scenariets tekstkontrol bruger nu det observerede ordvalg
+“Læg seks til.” og forventer `90`; det er en diagnostisk tekstklasse, ikke en påstand om
+lydækvivalens. Uden armed PCM fra feltkørslen findes stadig ingen fysisk replay-fixture.
+
+**Faktisk minimal produktændring, endnu ikke testlåst eller releasegodkendt.** Kun den
+reserverede `end_conversation`-beskrivelse er ændret: tidligere opgaveafslutning er ikke
+close-bevis, og en kort seneste tur, som plausibelt fortsætter, korrigerer, præciserer
+eller refererer til det foregående svar, skal besvares eller afklares. Systemprompt,
+Realtime-runtime, Thin-lifecycle, lyd, firmware og værktøjsdispatch er urørte. Thin
+gemmer desuden kun de allerede anvendte model-, prompt- og rumkonteksthashes som
+trace-provenance; det ændrer ingen samtaleadfærd. Den tidligere fokuserede
+eval-harness/audio-trace/replay-endpoint-pakke var **155/155** grøn på 3,00 s, men det er
+ikke resultat for den nye tool-description-diff. For den nye diff er den målrettede
+prompt-/tool-/eval-/oracle-/Thin-gate **30/30** grøn på 4,79 s; Ruff check var grøn på
+0,01 s, mypy for `thin.py` og `eval_harness.py` var grøn på 0,32 s, og `diff --check` er
+ren. Ingen betalt provider blev kaldt. Uafhængigt adversarial review gav derefter GO
+til live-eval med 0 P0/P1. Den billige P2-lukning ændrer kun evalprofilen: historiske
+`arithmetic-followup` bevarer “Og læg seks til.”, observerede
+`arithmetic-followup-observed` bevarer “Læg seks til.” som en separat eksakt tekstcase,
+og `explicit-short-close` tilføjer den korte positive kontrol “Farvel.”. Den selektive
+close-valideringsprofil omfatter desuden `semantic-close` og den eksisterende
+`low-risk-action-then-close`, så task→close-batchrækkefølgen fortsat bevises. Profilen er
+præcis disse fem scenarie-id'er og **8 ture** i alt. En lille betalt kørsel af netop denne
+profil er stadig obligatorisk, fordi deterministiske tests ikke kan bevise, at
+Realtime-modellens tool-valg faktisk ændres, eller at naturlig eksplicit close bevares.
+P2-ændringen tilføjer ingen produktionsadfærd. Dens fokuserede
+manifest-/admission-/oracle-/context-gate er **11/11** grøn på 0,47 s; Ruff check var
+grøn på 0,01 s, mypy for `eval_harness.py` var grøn på 0,30 s, og `diff --check` er ren.
+Den genåbner endnu ingen fysisk gate.
 
 ### Aktiv feltbeslutning 25. august — Voice PE strandet på cachet DHCP-adresse
 
