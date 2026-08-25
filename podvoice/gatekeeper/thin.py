@@ -483,7 +483,8 @@ class ThinSession:
         self._stop_sent_epoch = None
         if self.audio_trace is not None:
             effective_prompt = (getattr(self.brain, "instructions", "") or SYSTEM_PROMPT_DA).strip()
-            prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA
+            prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA.strip()
+            source_room_context = str(getattr(self.brain, "room_context", "") or "")
             self.audio_trace.begin(
                 self.room,
                 {
@@ -498,6 +499,7 @@ class ThinSession:
                     "prompt_source": "default" if prompt_is_default else "custom",
                     "prompt_version": PROMPT_VERSION if prompt_is_default else None,
                     "prompt_sha256": hashlib.sha256(effective_prompt.encode()).hexdigest(),
+                    "room_context_sha256": hashlib.sha256(source_room_context.encode()).hexdigest(),
                     "wake_audio_boundary": getattr(
                         self.voicepe, "supports_wake_audio_boundary", None
                     ),

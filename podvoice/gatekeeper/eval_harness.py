@@ -80,10 +80,11 @@ SAFE_EVAL_ROOM_CONTEXT = (
 MAX_RETAINED_EVAL_REPORTS = 16
 LIVE_EVAL_TURN_TIMEOUT_S = 20.0
 LIVE_EVAL_RESET_GAP_S = 60.5
+LIVE_EVAL_TRANSCRIPT_GRACE_S = 2.0
 LIVE_EVAL_ACTUAL_COST_CAP_USD = 5.00
 GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE = 0.017
 # Conservative per-edge cost for the production-shaped typed profile and the bounded
-# (max 8 s) single-turn replay: at most 12,288 audio tokens in a 128k context,
+# (max 8 s) target-turn replay: at most 12,288 audio tokens in a 128k context,
 # all remaining input charged as uncached text, plus PodVoice's 1,024-token audio
 # output ceiling. Official GPT-Realtime-2.1 rates make this $0.9216; cached input can
 # only lower it. Round up so the prospective $5 gate remains a hard guard.
@@ -181,6 +182,12 @@ class AudioReplayFixture:
     exact_sample_offsets: bool
     room_context: str = ""
     source_tool_schema_sha256: str | None = None
+    source_model: str | None = None
+    source_prompt_source: str | None = None
+    source_prompt_version: int | None = None
+    source_prompt_version_present: bool = False
+    source_prompt_sha256: str | None = None
+    source_room_context_sha256: str | None = None
 
 
 @dataclass
@@ -190,6 +197,7 @@ class TurnObservation:
     accepted: bool = True
     decisions: list[str] = field(default_factory=list)
     decision_batches: list[list[str]] = field(default_factory=list)
+    tool_calls: list[dict[str, Any]] = field(default_factory=list)
     tool_args: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     tool_results: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     fixture_side_effects: int = 0
@@ -1456,7 +1464,18 @@ class LiveRealtimeDriver:
         self.tools.begin_turn(turn_id)
         try:
             await pace_pcm(pcm, rate, self.session.send_audio)
-            return await self._collect_turn(turn_id=turn_id, started=started)
+            observed = await self._collect_turn(turn_id=turn_id, started=started)
+            if not observed.diagnostic_transcript:
+                try:
+                    async with asyncio.timeout(LIVE_EVAL_TRANSCRIPT_GRACE_S):
+                        while not observed.diagnostic_transcript:
+                            event = await self.events.get()
+                            if isinstance(event, InputTranscript):
+                                observed.diagnostic_transcript = event.text
+                except TimeoutError:
+                    pass
+                self._attach_provider_trace(observed)
+            return observed
         finally:
             self.tools.finish_turn()
 
@@ -1474,6 +1493,16 @@ class LiveRealtimeDriver:
         observed.decision_batches.append([call.name for call in calls])
         for call in calls:
             observed.decisions.append(call.name)
+            observed.tool_calls.append(
+                {
+                    "call_id": call.id,
+                    "name": call.name,
+                    "response_id": call.response_id,
+                    "batch_id": call.batch_id,
+                    "batch_index": call.batch_index,
+                    "batch_size": call.batch_size,
+                }
+            )
             observed.tool_args.setdefault(call.name, []).append(call.args)
 
         # approve_action represents the whole confirmation turn. A sibling call makes
@@ -1843,6 +1872,7 @@ class LiveEvalService:
                 "deadline_s": self._max_run_s,
                 "error": "En live-evaluering kører allerede.",
             }
+        matched = match_scenario_turn(fixture.diagnostic_transcript)
         if (
             repeats < 1
             or repeats > 5
@@ -1852,6 +1882,10 @@ class LiveEvalService:
             or hashlib.sha256(fixture.pcm).hexdigest() != fixture.sha256
             or turn_index < 0
             or turn_index >= len(scenario.turns)
+            or matched is None
+            or matched[0].id != scenario.id
+            or matched[1] != turn_index
+            or (turn_index > 0 and not fixture.exact_sample_offsets)
         ):
             return {"ok": False, "status": "invalid", "error": "Ugyldigt replay-bevis."}
         run_id = self._new_run_id()
@@ -2002,6 +2036,7 @@ class LiveEvalService:
             }
         async with self._lock:
             run_id = run_id or self._new_run_id()
+            matched = match_scenario_turn(fixture.diagnostic_transcript)
             if (
                 repeats < 1
                 or repeats > 5
@@ -2011,6 +2046,10 @@ class LiveEvalService:
                 or hashlib.sha256(fixture.pcm).hexdigest() != fixture.sha256
                 or turn_index < 0
                 or turn_index >= len(scenario.turns)
+                or matched is None
+                or matched[0].id != scenario.id
+                or matched[1] != turn_index
+                or (turn_index > 0 and not fixture.exact_sample_offsets)
             ):
                 return {
                     "ok": False,
@@ -2035,7 +2074,22 @@ class LiveEvalService:
                     "error": "Den valgte prompt er for stor til sikker live-evaluering.",
                     "deadline_s": self._max_run_s,
                 }
-            replay_edges = MAX_EVAL_RESPONSE_EDGES_PER_TURN * (repeats + 1)
+            # A contextual replay is meaningful only inside the scenario state that
+            # preceded the selected turn. Every control/trial therefore owns a fresh
+            # provider session seeded with the canonical scenario text (not claimed as
+            # exact physical prefix audio) plus one target turn (typed for the control,
+            # exact PCM for trials). Budget every seeded turn; counting only the target
+            # would make the hard price/token cap false.
+            turns_per_session = turn_index + 1
+            replay_sessions = repeats + 1
+            total_replay_turns = turns_per_session * replay_sessions
+            replay_edges = MAX_EVAL_RESPONSE_EDGES_PER_TURN * total_replay_turns
+            context_seed_metadata = {
+                "kind": "canonical-scenario-text",
+                "turn_count": turn_index,
+                "texts": [turn.text for turn in scenario.turns[:turn_index]],
+                "exact_physical_prefix_replayed": False,
+            }
             transcription_seconds = len(fixture.pcm) / (fixture.rate * 2) * repeats
             transcription_cost = transcription_seconds / 60.0 * GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE
             transcription_budget = {
@@ -2045,7 +2099,7 @@ class LiveEvalService:
                 "cost_usd": transcription_cost,
             }
             budget = EvalBudget(
-                max_turns=repeats + 1,
+                max_turns=total_replay_turns,
                 max_reserved_tokens=replay_edges * MAX_OUTPUT_TOKENS,
                 max_actual_tokens=replay_edges * self._next_scenario_reserve,
                 max_cost_usd=LIVE_EVAL_ACTUAL_COST_CAP_USD,
@@ -2095,12 +2149,62 @@ class LiveEvalService:
                 "tool_schema_profile": "production-replay",
                 **_capability_metadata(admission, [scenario]),
             }
-            schema_match = (
-                None
-                if fixture.source_tool_schema_sha256 is None
-                else fixture.source_tool_schema_sha256 == prompt_metadata["tool_schema_sha256"]
+            replay_room_context_sha256 = hashlib.sha256(fixture.room_context.encode()).hexdigest()
+            source_provenance = {
+                "model": fixture.source_model,
+                "prompt_source": fixture.source_prompt_source,
+                "prompt_version": fixture.source_prompt_version,
+                "prompt_version_present": fixture.source_prompt_version_present,
+                "prompt_sha256": fixture.source_prompt_sha256,
+                "tool_schema_sha256": fixture.source_tool_schema_sha256,
+                "room_context_sha256": fixture.source_room_context_sha256,
+            }
+            replay_provenance = {
+                "model": model,
+                "prompt_source": prompt_metadata["prompt_source"],
+                "prompt_version": prompt_metadata["prompt_version"],
+                "prompt_version_present": True,
+                "prompt_sha256": prompt_metadata["prompt_sha256"],
+                "tool_schema_sha256": prompt_metadata["tool_schema_sha256"],
+                "room_context_sha256": replay_room_context_sha256,
+            }
+            required_source_fields = {
+                "model",
+                "prompt_source",
+                "prompt_sha256",
+                "tool_schema_sha256",
+                "room_context_sha256",
+            }
+            missing_provenance = sorted(
+                field
+                for field in required_source_fields
+                if not isinstance(source_provenance[field], str)
+                or not str(source_provenance[field]).strip()
             )
-            if schema_match is False:
+            if not fixture.source_prompt_version_present or (
+                fixture.source_prompt_source != "custom"
+                and (
+                    not isinstance(fixture.source_prompt_version, int)
+                    or isinstance(fixture.source_prompt_version, bool)
+                )
+            ):
+                missing_provenance.append("prompt_version")
+            missing_provenance = sorted(set(missing_provenance))
+            provenance_mismatches = sorted(
+                field
+                for field, source_value in source_provenance.items()
+                if field not in missing_provenance
+                and not (
+                    field == "prompt_version_present" and "prompt_version" in missing_provenance
+                )
+                and source_value != replay_provenance[field]
+            )
+            if missing_provenance or provenance_mismatches:
+                classification = (
+                    "trace-provenance-missing"
+                    if missing_provenance
+                    else "trace-provenance-mismatch"
+                )
                 return {
                     "ok": False,
                     "status": "complete",
@@ -2108,15 +2212,20 @@ class LiveEvalService:
                     "run_id": run_id,
                     "model": model,
                     **prompt_metadata,
-                    "classification": "tool-schema-mismatch",
+                    "classification": classification,
+                    "coverage_complete": False,
+                    "context_seed": context_seed_metadata,
                     "control": None,
                     "trials": [],
                     "trace": {
                         "id": fixture.trace_id,
                         "turn_index": fixture.turn_index,
                         "sha256": fixture.sha256,
-                        "source_tool_schema_sha256": fixture.source_tool_schema_sha256,
-                        "schema_match": False,
+                        "source_provenance": source_provenance,
+                        "replay_provenance": replay_provenance,
+                        "missing_provenance": missing_provenance,
+                        "provenance_mismatches": provenance_mismatches,
+                        "provenance_match": False,
                     },
                     "budget": asdict(budget),
                     "transcription_budget": transcription_budget,
@@ -2140,11 +2249,15 @@ class LiveEvalService:
                     token_window_started = self._monotonic()
                     token_window_used = 0
 
-            async def one(index: int, *, audio: bool) -> TurnResult:
+            async def one(index: int, *, audio: bool) -> tuple[list[TurnResult], TurnResult]:
                 nonlocal token_window_used
                 if diagnostic_lease is None:
                     raise RuntimeError("diagnostic owner missing before replay trial")
                 await pace_new_session()
+                # Keep the first prospective $5 guard in front of lease/socket work,
+                # exactly like run_scenario(). Later prefix/target turns reserve at
+                # their own boundary after the preceding usage has been accounted.
+                budget.reserve(MAX_EVAL_RESPONSE_EDGES_PER_TURN)
                 provider_lease = await self._reserve_eval_after_capacity_reset(
                     api_key=api_key,
                     model=model,
@@ -2154,8 +2267,10 @@ class LiveEvalService:
                 )
                 before_tokens = budget.actual_tokens
                 driver: LiveRealtimeDriver | None = None
+                context: list[TurnResult] = []
+                target: TurnResult | None = None
+                submitted_turns = 0
                 try:
-                    budget.reserve(MAX_EVAL_RESPONSE_EDGES_PER_TURN)
                     driver = LiveRealtimeDriver(
                         api_key,
                         model=model,
@@ -2175,36 +2290,110 @@ class LiveEvalService:
                             budget, "rate_limit_wait_s", budget.rate_limit_wait_s + seconds
                         ),
                     )
-                    await driver.open(run_id=run_id, scenario_id=scenario.id)
-                    turn_id = f"{scenario.id}-{'audio' if audio else 'control'}-{index}"
-                    prepare_capacity = getattr(driver, "prepare_response_capacity", None)
-                    if prepare_capacity is not None:
-                        await prepare_capacity()
-                    async with asyncio.timeout(25.0):
-                        observed = (
-                            await driver.submit_audio(
-                                turn_id=turn_id, pcm=fixture.pcm, rate=fixture.rate
+                    session_id = await driver.open(run_id=run_id, scenario_id=scenario.id)
+
+                    async def submit(position: int, *, target_audio: bool) -> TurnResult:
+                        nonlocal submitted_turns
+                        turn = scenario.turns[position]
+                        if submitted_turns:
+                            budget.reserve(MAX_EVAL_RESPONSE_EDGES_PER_TURN)
+                        prepare_capacity = getattr(driver, "prepare_response_capacity", None)
+                        if prepare_capacity is not None:
+                            await prepare_capacity()
+                        kind = "audio" if target_audio else "text"
+                        turn_id = f"{scenario.id}-{kind}-{index}-{position + 1}"
+                        async with asyncio.timeout(25.0):
+                            observed = (
+                                await driver.submit_audio(
+                                    turn_id=turn_id,
+                                    pcm=fixture.pcm,
+                                    rate=fixture.rate,
+                                )
+                                if target_audio
+                                else await driver.submit_text(turn_id=turn_id, text=turn.text)
                             )
-                            if audio
-                            else await driver.submit_text(turn_id=turn_id, text=expected_turn.text)
+                        budget.record(observed.usage)
+                        submitted_turns += 1
+                        findings = grade_turn(turn.expect, observed)
+                        if target_audio:
+                            diagnostic = _normalise(observed.diagnostic_transcript)
+                            expected_diagnostic = _normalise(turn.text)
+                            if not diagnostic:
+                                findings.append(
+                                    Finding(
+                                        "audio-transcript-missing",
+                                        "Audio-trial mangler diagnostisk transcript.",
+                                    )
+                                )
+                            elif diagnostic != expected_diagnostic:
+                                findings.append(
+                                    Finding(
+                                        "audio-transcript-mismatch",
+                                        "Audio-trialets diagnostiske transcript matcher ikke "
+                                        "den eksakte normaliserede eval-ytring.",
+                                    )
+                                )
+                        if observed.session_id != session_id:
+                            findings.append(
+                                Finding(
+                                    "session-changed",
+                                    "Replay skiftede provider-session inde i scenariet.",
+                                )
+                            )
+                        return TurnResult(
+                            turn_id,
+                            turn.text,
+                            not findings,
+                            observed,
+                            findings,
                         )
+
+                    for position in range(turn_index):
+                        seeded = await submit(position, target_audio=False)
+                        context.append(seeded)
+                        if not seeded.passed:
+                            # Never let a context-free target appear green merely because
+                            # its isolated wording happened to get the expected answer.
+                            # The PCM is deliberately not sent after a failed prefix.
+                            blocked_id = f"{scenario.id}-context-blocked-{index}-{turn_index + 1}"
+                            blocked = TurnResult(
+                                blocked_id,
+                                expected_turn.text,
+                                False,
+                                TurnObservation(
+                                    turn_id=blocked_id,
+                                    session_id=session_id,
+                                    accepted=False,
+                                    response_status="blocked",
+                                    error=(
+                                        f"context seed failed before target turn {turn_index + 1}"
+                                    ),
+                                    remain_open=False,
+                                ),
+                                [
+                                    Finding(
+                                        "context-seed-failed",
+                                        "En tidligere scenarietur fejlede; target-turnen blev ikke replayet.",
+                                    )
+                                ],
+                            )
+                            target = blocked
+                            break
+
+                    if target is None:
+                        target = await submit(turn_index, target_audio=audio)
                 finally:
                     if driver is not None:
                         await driver.close()
                     self._provider_budget.release(provider_lease)
-                budget.record(observed.usage)
                 token_window_used += budget.actual_tokens - before_tokens
-                findings = grade_turn(expected_turn.expect, observed)
-                return TurnResult(
-                    observed.turn_id,
-                    expected_turn.text,
-                    not findings,
-                    observed,
-                    findings,
-                )
+                assert target is not None
+                return context, target
 
             control: TurnResult | None = None
+            control_context: list[TurnResult] = []
             trials: list[TurnResult] = []
+            trial_contexts: list[list[TurnResult]] = []
             try:
                 diagnostic_lease = self._provider_budget.diagnostic_started(api_key)
             except ProviderBudgetUnavailable as exc:
@@ -2222,9 +2411,11 @@ class LiveEvalService:
                 }
             try:
                 async with asyncio.timeout(self._max_run_s):
-                    control = await one(0, audio=False)
+                    control_context, control = await one(0, audio=False)
                     for index in range(1, repeats + 1):
-                        trials.append(await one(index, audio=True))
+                        context, trial = await one(index, audio=True)
+                        trial_contexts.append(context)
+                        trials.append(trial)
             except Exception as exc:
                 message = str(exc).replace(api_key, "[REDACTED]")[:500]
                 budget_exhausted = "budget_exhausted" in message
@@ -2254,8 +2445,13 @@ class LiveEvalService:
                         else "provider-or-eval-failure"
                     ),
                     "coverage_complete": False,
+                    "context_seed": context_seed_metadata,
                     "control": asdict(control) if control else None,
+                    "control_context": [asdict(result) for result in control_context],
                     "trials": [asdict(result) for result in trials],
+                    "trial_contexts": [
+                        [asdict(result) for result in context] for context in trial_contexts
+                    ],
                     "budget": asdict(budget),
                     "transcription_budget": transcription_budget,
                     "deadline_s": self._max_run_s,
@@ -2263,8 +2459,19 @@ class LiveEvalService:
             finally:
                 self._provider_budget.release(diagnostic_lease)
             passed = sum(result.passed for result in trials)
+            context_complete = (
+                len(control_context) == turn_index
+                and all(result.passed for result in control_context)
+                and len(trial_contexts) == repeats
+                and all(
+                    len(context) == turn_index and all(result.passed for result in context)
+                    for context in trial_contexts
+                )
+            )
             classification = (
-                "prompt-or-tool-contract-failure"
+                "context-seed-failure"
+                if not context_complete
+                else "prompt-or-tool-contract-failure"
                 if control is not None and not control.passed
                 else "audio-replay-consistent"
                 if passed == repeats
@@ -2286,13 +2493,22 @@ class LiveEvalService:
                     "sha256": fixture.sha256,
                     "diagnostic_transcript": fixture.diagnostic_transcript,
                     "exact_sample_offsets": fixture.exact_sample_offsets,
-                    "source_tool_schema_sha256": fixture.source_tool_schema_sha256,
-                    "schema_match": schema_match,
+                    "source_provenance": source_provenance,
+                    "replay_provenance": replay_provenance,
+                    "missing_provenance": [],
+                    "provenance_mismatches": [],
+                    "provenance_match": True,
                 },
                 "expected": {"scenario_id": scenario.id, "text": expected_turn.text},
+                "context_seed_turns": turn_index,
+                "context_seed": context_seed_metadata,
                 "classification": classification,
                 "control": asdict(control) if control else None,
+                "control_context": [asdict(result) for result in control_context],
                 "trials": [asdict(result) for result in trials],
+                "trial_contexts": [
+                    [asdict(result) for result in context] for context in trial_contexts
+                ],
                 "budget": asdict(budget),
                 "transcription_budget": transcription_budget,
                 "deadline_s": self._max_run_s,

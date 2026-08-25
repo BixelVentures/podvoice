@@ -79,7 +79,19 @@ def test_event_detail_may_be_named_name(tmp_path):
 def test_trace_events_capture_exact_provider_sample_offsets_and_replay_a_turn(tmp_path):
     recorder = AudioTraceRecorder(tmp_path)
     recorder.arm("r0")
-    assert recorder.begin("r0") is True
+    assert (
+        recorder.begin(
+            "r0",
+            {
+                "model": "gpt-realtime-2.1",
+                "prompt_source": "default",
+                "prompt_version": 6,
+                "prompt_sha256": "b" * 64,
+                "room_context_sha256": "c" * 64,
+            },
+        )
+        is True
+    )
     recorder.event("provider_contract", tool_schema_sha256="a" * 64, tool_count=7)
     silence = b"\x00\x00" * 2400
     speech = (1200).to_bytes(2, "little", signed=True) * 2400
@@ -99,6 +111,12 @@ def test_trace_events_capture_exact_provider_sample_offsets_and_replay_a_turn(tm
     assert fixture["exact_sample_offsets"] is True
     assert fixture["diagnostic_transcript"] == "Hvad er klokken?"
     assert fixture["source_tool_schema_sha256"] == "a" * 64
+    assert fixture["source_model"] == "gpt-realtime-2.1"
+    assert fixture["source_prompt_source"] == "default"
+    assert fixture["source_prompt_version"] == 6
+    assert fixture["source_prompt_version_present"] is True
+    assert fixture["source_prompt_sha256"] == "b" * 64
+    assert fixture["source_room_context_sha256"] == "c" * 64
     assert fixture["duration_ms"] == 300
     assert fixture["begin_sample"] == 0
     assert fixture["end_sample"] == 7200
@@ -129,6 +147,12 @@ def test_old_trace_fallback_only_allows_first_turn_before_playback(tmp_path):
     fixture = recorder.replay_turn(trace_id)
     assert fixture["exact_sample_offsets"] is False
     assert fixture["source_tool_schema_sha256"] is None
+    assert fixture["source_model"] is None
+    assert fixture["source_prompt_source"] is None
+    assert fixture["source_prompt_version"] is None
+    assert fixture["source_prompt_version_present"] is False
+    assert fixture["source_prompt_sha256"] is None
+    assert fixture["source_room_context_sha256"] is None
     assert fixture["duration_ms"] == 2400
 
     raw = json.loads((tmp_path / f"{trace_id}.json").read_text())

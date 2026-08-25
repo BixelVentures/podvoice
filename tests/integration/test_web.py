@@ -281,6 +281,12 @@ async def test_audio_replay_endpoint_uses_only_local_trace_and_known_eval_text()
                 "diagnostic_transcript": "Hvad er klokken?",
                 "exact_sample_offsets": True,
                 "source_tool_schema_sha256": "c" * 64,
+                "source_model": "gpt-realtime-2.1",
+                "source_prompt_source": "default",
+                "source_prompt_version": 6,
+                "source_prompt_version_present": True,
+                "source_prompt_sha256": "d" * 64,
+                "source_room_context_sha256": "e" * 64,
             }
 
     async def live_eval(**kwargs):
@@ -311,6 +317,12 @@ async def test_audio_replay_endpoint_uses_only_local_trace_and_known_eval_text()
         assert calls[0]["repeats"] == 3
         assert calls[0]["fixture"].room_context == "Det præcise fysiske rum"
         assert calls[0]["fixture"].source_tool_schema_sha256 == "c" * 64
+        assert calls[0]["fixture"].source_model == "gpt-realtime-2.1"
+        assert calls[0]["fixture"].source_prompt_source == "default"
+        assert calls[0]["fixture"].source_prompt_version == 6
+        assert calls[0]["fixture"].source_prompt_version_present is True
+        assert calls[0]["fixture"].source_prompt_sha256 == "d" * 64
+        assert calls[0]["fixture"].source_room_context_sha256 == "e" * 64
 
 
 async def test_audio_replay_endpoint_rejects_unknown_transcript_without_provider_call():
@@ -327,7 +339,10 @@ async def test_audio_replay_endpoint_rejects_unknown_transcript_without_provider
                 "pcm": b"\x00\x00" * 24000,
                 "duration_ms": 1000,
                 "sha256": "b" * 64,
-                "diagnostic_transcript": "En ukendt testytring",
+                # This is the observed field transcript, but not the canonical safe
+                # scenario utterance "Og læg seks til.". No PCM was armed in that
+                # field run, so the endpoint must not fabricate an exact match.
+                "diagnostic_transcript": "Læg seks til.",
                 "exact_sample_offsets": True,
             }
 
