@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.13.39 — Voice PE genfinder sin identitet efter DHCP-skift
+
+- Voice PE kan erstatte en stale cachet IP med frisk native `.local`-opdagelse uden
+  parallelle klienter. Recovery bruger bounded `1/2/5/10/30/60` sekunders backoff.
+- Ny adresse caches først efter Noise-handshake, eksakt enhedsnavn, firmwarekontrakt,
+  subscriptions, mic channel/gain, wake word og rearm. Forkert enhed fejler lukket.
+- Fysisk linktab lukker en aktiv Voice PE-samtale præcis én gang. Reconnect under
+  teardown kan ikke fortsætte gammel mic eller dobbelt-rearme; Talk er uændret.
+- Regressionerne dækker den observerede `.162 → .193`-kæde, et senere `.200`-skift,
+  stale callbacks, capped recovery og én teardown/rearm. Lokal gate: 46/46 fokuserede,
+  fuld unrestricted pytest exit 0 samt Ruff, format, mypy og diff-check.
+
 ## 1.13.38 — synlig SafeEval-kontekst og sand delteststatus
 
 - Den semantiske SafeEval-test viser nu eksplicit modellen, at det eneste syntetiske

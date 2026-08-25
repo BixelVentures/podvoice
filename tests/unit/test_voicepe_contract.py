@@ -166,8 +166,12 @@ async def test_link_state_is_truthful(caplog):
     Field bug: the device DHCP'd to a new IP and the dot stayed green for days
     while every wake died silently."""
     client = _ConnectableClient(
-        ["podvoice_stream_start", "podvoice_stream_stop"],
-        [MediaPlayerInfo("external_media_player", 7), LightInfo("led_ring", 9)],
+        FULL_SERVICES,
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            LightInfo("led_ring", 9),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+        ],
     )
     link = _link(client)
     states: list[bool] = []
@@ -176,6 +180,111 @@ async def test_link_state_is_truthful(caplog):
     assert states == [True]  # green only after a REAL completed connect
     await link._on_disconnect(expected_disconnect=False)
     assert states == [True, False]  # and honest about losing the device
+
+
+async def test_full_admission_cancels_queued_same_generation_recovery():
+    client = _ConnectableClient(
+        FULL_SERVICES,
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+        ],
+    )
+    client.connected_address = "192.168.86.193"
+    link = _link(client)
+    started = asyncio.Event()
+
+    async def delayed_recovery():
+        started.set()
+        await asyncio.Event().wait()
+
+    recovery = asyncio.create_task(delayed_recovery())
+    link._recovery_task = recovery
+    await started.wait()
+    await link._on_connect()
+    await asyncio.sleep(0)
+    assert recovery.cancelled()
+    assert link._recovery_token == 1
+
+
+async def test_contract_rejection_has_zero_subscription_or_settings_side_effects():
+    client = _ConnectableClient([], [])
+    subscribed: list[str] = []
+    client.subscribe_voice_assistant = lambda **kwargs: subscribed.append("voice")
+    client.subscribe_states = lambda callback: subscribed.append("states")
+    link = _link(client)
+    link.mic_gain = 7
+    link.wake_word = "hey_jarvis"
+    with pytest.raises(RuntimeError, match="contract is not admitted"):
+        await link._on_connect()
+    assert subscribed == []
+    assert client.executed == []
+
+
+async def test_generation_admission_failure_force_disconnects_and_queues_bounded_recovery(
+    monkeypatch,
+):
+    import sys
+    import types
+
+    from gatekeeper import voicepe as vp
+
+    disconnects: list[bool] = []
+    subscriptions: list[str] = []
+    reconnects: list[object] = []
+    recoveries: list[str] = []
+
+    class Client:
+        def __init__(self, address, port, password, **kwargs):
+            self.address = address
+
+        async def device_info(self):
+            return SimpleNamespace(esphome_version="broken")
+
+        async def list_entities_services(self):
+            return [], []
+
+        def subscribe_voice_assistant(self, **kwargs):
+            subscriptions.append("voice")
+
+        def subscribe_states(self, callback):
+            subscriptions.append("states")
+
+        async def disconnect(self, force=False):
+            disconnects.append(force)
+
+    class Reconnect:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            reconnects.append(self)
+
+        async def start(self):
+            return None
+
+        async def stop(self):
+            return None
+
+    package = types.ModuleType("aioesphomeapi")
+    package.APIClient = Client
+    package.ReconnectLogic = Reconnect
+    monkeypatch.setitem(sys.modules, "aioesphomeapi", package)
+
+    link = vp.VoicePELink("pv.local", "psk", room="stue")
+    monkeypatch.setattr(link, "_host_resolves", lambda: True)
+
+    async def record_recovery(generation: int, error_kind: str, token: int):
+        recoveries.append(error_kind)
+
+    link._recover_address = record_recovery  # type: ignore[method-assign]
+    await link.start()
+    await reconnects[0].kwargs["on_connect"]()
+    recovery = link._recovery_task
+    assert recovery is not None
+    await recovery
+    assert disconnects == [True]
+    assert subscriptions == []
+    assert recoveries == ["_VoicePEAdmissionError"]
+    assert link._link_up is False
 
 
 async def test_raw_ip_host_gets_a_warning(caplog):
@@ -202,8 +311,9 @@ async def test_cached_ip_is_offered_alongside_the_hostname(tmp_path, monkeypatch
     captured: dict = {}
 
     class _FakeClient:
-        def __init__(self, address, port, password, noise_psk=None):
+        def __init__(self, address, port, password, noise_psk=None, expected_name=None):
             captured["address"] = address
+            captured["expected_name"] = expected_name
 
     class _FakeReconnect:
         def __init__(self, **kw):
@@ -227,6 +337,436 @@ async def test_cached_ip_is_offered_alongside_the_hostname(tmp_path, monkeypatch
     # configured name does not resolve in this container.
     assert isinstance(captured["address"], str)
     assert captured["address"] in ("pv.local", "192.168.86.140")
+    assert captured["expected_name"] == "pv"
+
+
+async def test_stale_cached_ip_rotates_to_native_discovery_and_survives_next_dhcp_change(
+    tmp_path, monkeypatch
+):
+    """Exact field chain: cached .162 refuses, the same .local identity appears at
+    .193, later disconnects, and appears at .200. Each old generation is fully stopped
+    before the next one starts; readiness follows only completed handshakes."""
+    import json as _json
+    import sys
+    import types
+
+    from gatekeeper import voicepe as vp
+
+    cache = tmp_path / "ip.json"
+    cache.write_text(_json.dumps({"pv.local": "192.168.86.162"}))
+    monkeypatch.setattr(vp.VoicePELink, "_IP_CACHE", cache)
+    monkeypatch.setattr(vp.VoicePELink, "_host_resolves", lambda self: False)
+    monkeypatch.setattr(vp.VoicePELink, "_RECOVERY_BACKOFF_S", (0.0,))
+    discovered = ["192.168.86.193"]
+    events: list[str] = []
+    clients: list[object] = []
+    reconnects: list[object] = []
+    service_calls: list[tuple[str, dict]] = []
+    subscriptions: list[tuple[str, str]] = []
+    reconnect_admission_entered = asyncio.Event()
+    reconnect_admission_release = asyncio.Event()
+
+    class SocketAPIError(Exception):
+        pass
+
+    class FakeClient:
+        def __init__(self, address, port, password, noise_psk=None, expected_name=None):
+            self.address = address
+            self.connected_address = address
+            self.expected_name = expected_name
+            clients.append(self)
+
+        async def disconnect(self, force=False):
+            events.append(f"disconnect:{self.address}:{force}")
+
+        async def device_info(self):
+            return SimpleNamespace(esphome_version="2026.6.3")
+
+        async def list_entities_services(self):
+            return (
+                [
+                    MediaPlayerInfo("external_media_player", 7),
+                    EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+                ],
+                [
+                    _Svc(name)
+                    for name in [
+                        *FULL_SERVICES,
+                        "podvoice_set_mic_channel",
+                        "podvoice_set_mic_gain",
+                        "podvoice_set_wake_word",
+                    ]
+                ],
+            )
+
+        def subscribe_voice_assistant(self, **kwargs):
+            subscriptions.append((self.address, "voice"))
+            return lambda: events.append(f"unsub-va:{self.address}")
+
+        def subscribe_states(self, callback):
+            subscriptions.append((self.address, "states"))
+            return lambda: events.append(f"unsub-states:{self.address}")
+
+        async def execute_service(self, service, args):
+            service_calls.append((service.name, dict(args)))
+
+    class FakeReconnect:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            self.address = kwargs["client"].address
+            reconnects.append(self)
+
+        async def start(self):
+            events.append(f"start:{self.address}")
+
+        async def stop(self):
+            events.append(f"stop:{self.address}")
+
+    async def resolve(hosts, port, **kwargs):
+        assert hosts == ["pv.local"]
+        assert kwargs["timeout"] == 5.0
+        return [(2, 1, 6, "", (discovered[0], port))]
+
+    package = types.ModuleType("aioesphomeapi")
+    package.__path__ = []
+    package.APIClient = FakeClient
+    package.ReconnectLogic = FakeReconnect
+    resolver = types.ModuleType("aioesphomeapi.host_resolver")
+    resolver.async_resolve_host = resolve
+    monkeypatch.setitem(sys.modules, "aioesphomeapi", package)
+    monkeypatch.setitem(sys.modules, "aioesphomeapi.host_resolver", resolver)
+
+    link = vp.VoicePELink("pv.local", "psk", room="stue")
+    states: list[bool] = []
+    link.on_link = states.append
+    link.mic_channel = 1
+    link.mic_gain = 7
+    link.wake_word = "hey_jarvis"
+
+    async def physical_reconnect_admission():
+        events.append("physical-reconnect-rearm")
+        reconnect_admission_entered.set()
+        await reconnect_admission_release.wait()
+
+    link.on_reconnect = physical_reconnect_admission
+    await link.start()
+    assert clients[0].address == "192.168.86.162"
+    assert clients[0].expected_name == "pv"
+
+    await reconnects[0].kwargs["on_connect_error"](SocketAPIError("refused"))
+    recovery = link._recovery_task
+    assert recovery is not None
+    await recovery
+    assert [client.address for client in clients] == ["192.168.86.162", "192.168.86.193"]
+    assert (
+        events.index("stop:192.168.86.162")
+        < events.index("disconnect:192.168.86.162:True")
+        < events.index("start:192.168.86.193")
+    )
+
+    admitted = asyncio.create_task(reconnects[1].kwargs["on_connect"]())
+    await reconnect_admission_entered.wait()
+    assert states == []  # link remains false through tuning, wake and physical rearm
+    assert subscriptions == [
+        ("192.168.86.193", "voice"),
+        ("192.168.86.193", "states"),
+    ]
+    assert service_calls == [
+        ("podvoice_set_mic_channel", {"channel": 1}),
+        ("podvoice_set_mic_gain", {"gain": 7}),
+        ("podvoice_set_wake_word", {"name": "hey_jarvis"}),
+    ]
+    reconnect_admission_release.set()
+    await admitted
+    assert states == [True]
+    assert _json.loads(cache.read_text())["pv.local"] == "192.168.86.193"
+
+    # The refused .162 generation can report late/duplicate callbacks, but can neither
+    # republish link state nor subscribe/recover after the admitted .193 generation.
+    await reconnects[0].kwargs["on_disconnect"](False)
+    await reconnects[0].kwargs["on_connect_error"](SocketAPIError("late"))
+    await reconnects[0].kwargs["on_connect"]()
+    assert states == [True]
+    assert len(reconnects) == 2
+    assert len(subscriptions) == 2
+
+    await reconnects[1].kwargs["on_disconnect"](False)
+    assert states == [True, False]
+    discovered[0] = "192.168.86.200"
+    await reconnects[1].kwargs["on_connect_error"](SocketAPIError("refused"))
+    recovery = link._recovery_task
+    assert recovery is not None
+    await recovery
+    await reconnects[2].kwargs["on_connect"]()
+    assert states == [True, False, True]
+    assert _json.loads(cache.read_text())["pv.local"] == "192.168.86.200"
+
+
+def test_native_resolver_addrinfo_shape_yields_numeric_candidate():
+    from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr
+
+    result = VoicePELink._numeric_addresses(
+        [AddrInfo(2, 1, 6, IPv4Sockaddr("192.168.86.193", 6053))]
+    )
+    assert result == ["192.168.86.193"]
+
+
+async def test_discovery_failures_back_off_globally_then_later_rotate_once(monkeypatch):
+    import sys
+    import types
+
+    from gatekeeper import voicepe as vp
+
+    delays: list[float] = []
+    resolver_calls = 0
+    resolver_active = 0
+    resolver_peak = 0
+    clients: list[str] = []
+    reconnects: list[object] = []
+
+    async def no_wait(delay: float):
+        delays.append(delay)
+
+    monkeypatch.setattr(vp.asyncio, "sleep", no_wait)
+
+    class SocketAPIError(Exception):
+        pass
+
+    class Client:
+        def __init__(self, address, port, password, **kwargs):
+            self.address = address
+            clients.append(address)
+
+        async def disconnect(self, force=False):
+            return None
+
+    class Reconnect:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            reconnects.append(self)
+
+        async def start(self):
+            return None
+
+        async def stop(self):
+            return None
+
+    async def resolve(hosts, port, **kwargs):
+        nonlocal resolver_calls, resolver_active, resolver_peak
+        resolver_calls += 1
+        resolver_active += 1
+        resolver_peak = max(resolver_peak, resolver_active)
+        try:
+            if resolver_calls <= 6:
+                return []
+            return [(2, 1, 6, "", ("192.168.86.193", port))]
+        finally:
+            resolver_active -= 1
+
+    package = types.ModuleType("aioesphomeapi")
+    package.__path__ = []
+    package.APIClient = Client
+    package.ReconnectLogic = Reconnect
+    resolver = types.ModuleType("aioesphomeapi.host_resolver")
+    resolver.async_resolve_host = resolve
+    monkeypatch.setitem(sys.modules, "aioesphomeapi", package)
+    monkeypatch.setitem(sys.modules, "aioesphomeapi.host_resolver", resolver)
+
+    link = vp.VoicePELink("pv.local", "psk", room="stue")
+    monkeypatch.setattr(link, "_host_resolves", lambda: False)
+    monkeypatch.setattr(link, "_load_cached_ip", lambda: "192.168.86.162")
+    await link.start()
+    for _ in range(7):
+        await reconnects[0].kwargs["on_connect_error"](SocketAPIError("offline"))
+        recovery = link._recovery_task
+        assert recovery is not None
+        await recovery
+    assert delays[:7] == [1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 60.0]
+    assert resolver_peak == 1
+    assert clients == ["192.168.86.162", "192.168.86.193"]
+
+
+async def test_auth_error_does_not_rotate_and_stale_generation_callbacks_are_inert(
+    tmp_path, monkeypatch
+):
+    import json as _json
+    import sys
+    import types
+
+    from gatekeeper import voicepe as vp
+
+    cache = tmp_path / "ip.json"
+    cache.write_text(_json.dumps({"pv.local": "192.168.86.162"}))
+    monkeypatch.setattr(vp.VoicePELink, "_IP_CACHE", cache)
+    monkeypatch.setattr(vp.VoicePELink, "_host_resolves", lambda self: False)
+    monkeypatch.setattr(vp.VoicePELink, "_RECOVERY_BACKOFF_S", (0.0,))
+    reconnects: list[object] = []
+
+    class FakeClient:
+        def __init__(self, address, port, password, **kwargs):
+            self.address = address
+
+        async def disconnect(self, force=False):
+            return None
+
+    class FakeReconnect:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            reconnects.append(self)
+
+        async def start(self):
+            return None
+
+        async def stop(self):
+            return None
+
+    package = types.ModuleType("aioesphomeapi")
+    package.__path__ = []
+    package.APIClient = FakeClient
+    package.ReconnectLogic = FakeReconnect
+    monkeypatch.setitem(sys.modules, "aioesphomeapi", package)
+
+    link = vp.VoicePELink("pv.local", "psk", room="stue")
+    states: list[bool] = []
+    link.on_link = states.append
+    await link.start()
+    generation = link._connection_generation
+    InvalidEncryptionKeyAPIError = type("InvalidEncryptionKeyAPIError", (Exception,), {})
+    await reconnects[0].kwargs["on_connect_error"](InvalidEncryptionKeyAPIError("bad psk"))
+    assert link._recovery_task is None
+
+    recoveries: list[tuple[int, str]] = []
+
+    async def record_recovery(generation: int, error_kind: str, token: int):
+        recoveries.append((generation, error_kind))
+
+    link._recover_address = record_recovery  # type: ignore[method-assign]
+    wrong_device = InvalidEncryptionKeyAPIError("wrong encrypted device")
+    wrong_device.received_name = "some-other-esphome"
+    await reconnects[0].kwargs["on_connect_error"](wrong_device)
+    recovery = link._recovery_task
+    assert recovery is not None
+    await recovery
+    assert recoveries == [(generation, "InvalidEncryptionKeyAPIError")]
+
+    link._connection_generation += 1
+    await reconnects[0].kwargs["on_disconnect"](False)
+    assert states == []
+    assert link._connection_generation == generation + 1
+
+
+@pytest.mark.parametrize("cached", ["garbage", "0.0.0.0", "::", "224.0.0.1", "127.0.0.1"])
+def test_unsafe_cached_addresses_are_never_used(tmp_path, monkeypatch, cached):
+    import json as _json
+
+    from gatekeeper import voicepe as vp
+
+    cache = tmp_path / "ip.json"
+    cache.write_text(_json.dumps({"pv.local": cached}))
+    monkeypatch.setattr(vp.VoicePELink, "_IP_CACHE", cache)
+    assert vp.VoicePELink("pv.local", "psk", room="stue")._load_cached_ip() == ""
+
+
+async def test_generation_stop_force_disconnects_even_when_reconnect_stop_fails():
+    calls: list[str] = []
+
+    class Reconnect:
+        async def stop(self):
+            calls.append("stop")
+            raise TimeoutError("stuck")
+
+    class Client:
+        async def disconnect(self, force=False):
+            calls.append(f"disconnect:{force}")
+
+    with pytest.raises(TimeoutError, match="stuck"):
+        await VoicePELink._stop_connection_generation(Reconnect(), Client())
+    assert calls == ["stop", "disconnect:True"] * 3
+
+
+async def test_generation_cleanup_retries_before_any_new_client_can_start():
+    calls: list[str] = []
+
+    class Reconnect:
+        attempts = 0
+
+        async def stop(self):
+            self.attempts += 1
+            calls.append(f"stop:{self.attempts}")
+            if self.attempts == 1:
+                raise TimeoutError("transient")
+
+    class Client:
+        async def disconnect(self, force=False):
+            calls.append(f"disconnect:{force}")
+
+    await VoicePELink._stop_connection_generation(Reconnect(), Client())
+    assert calls == ["stop:1", "disconnect:True", "stop:2", "disconnect:True"]
+
+
+async def test_close_cancels_discovery_and_prevents_late_generation(tmp_path, monkeypatch):
+    import json as _json
+    import sys
+    import types
+
+    from gatekeeper import voicepe as vp
+
+    cache = tmp_path / "ip.json"
+    cache.write_text(_json.dumps({"pv.local": "192.168.86.162"}))
+    monkeypatch.setattr(vp.VoicePELink, "_IP_CACHE", cache)
+    monkeypatch.setattr(vp.VoicePELink, "_host_resolves", lambda self: False)
+    monkeypatch.setattr(vp.VoicePELink, "_RECOVERY_BACKOFF_S", (0.0,))
+    resolver_started = asyncio.Event()
+    release_resolver = asyncio.Event()
+    clients: list[object] = []
+    reconnects: list[object] = []
+
+    class SocketAPIError(Exception):
+        pass
+
+    class FakeClient:
+        def __init__(self, address, port, password, **kwargs):
+            self.address = address
+            clients.append(self)
+
+        async def disconnect(self, force=False):
+            return None
+
+    class FakeReconnect:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            reconnects.append(self)
+
+        async def start(self):
+            return None
+
+        async def stop(self):
+            return None
+
+    async def resolve(hosts, port, **kwargs):
+        assert kwargs["timeout"] == 5.0
+        resolver_started.set()
+        await release_resolver.wait()
+        return [(2, 1, 6, "", ("192.168.86.193", port))]
+
+    package = types.ModuleType("aioesphomeapi")
+    package.__path__ = []
+    package.APIClient = FakeClient
+    package.ReconnectLogic = FakeReconnect
+    resolver = types.ModuleType("aioesphomeapi.host_resolver")
+    resolver.async_resolve_host = resolve
+    monkeypatch.setitem(sys.modules, "aioesphomeapi", package)
+    monkeypatch.setitem(sys.modules, "aioesphomeapi.host_resolver", resolver)
+
+    link = vp.VoicePELink("pv.local", "psk", room="stue")
+    await link.start()
+    await reconnects[0].kwargs["on_connect_error"](SocketAPIError("refused"))
+    await resolver_started.wait()
+    await link.aclose()
+    release_resolver.set()
+    await asyncio.sleep(0)
+    assert len(clients) == 1
+    assert link._client is None
 
 
 # ------------------------------------------------------- B1-2b direct PCM path contract
@@ -564,8 +1104,12 @@ async def test_wake_word_is_reasserted_on_every_connect():
     cut (the 1.6.0 gain lesson). The SETTING has to be re-applied on each connect, or the
     puck quietly goes back to answering "Okay Nabu"."""
     client = _ConnectableClient(
-        ["podvoice_stream_start", "podvoice_stream_stop", "podvoice_set_wake_word"],
-        [MediaPlayerInfo("external_media_player", 7), LightInfo("led_ring", 9)],
+        [*FULL_SERVICES, "podvoice_set_wake_word"],
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            LightInfo("led_ring", 9),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+        ],
     )
     link = _link(client)
     link.wake_word = "hey_jarvis"

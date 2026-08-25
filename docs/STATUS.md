@@ -1,18 +1,525 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-08-23.
+Senest opdateret: 2026-08-25.
 
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv softwarekandidat:** lokal v1.13.32; installeret v1.13.31 er fra remote commit
-`9c2a768`. **Aktuel gate:** v1.13.32's autoritative usage-korrektion er lokalt grøn
-772/772 og uafhængigt review har ingen åben P0/P1. Eksakt commit, CI/ARM64-image,
-installation og én fuld rigtig Prompt V6-live-eval står åbne. Kandidaten er fortsat
-**NO-GO** for fysisk test.
-En live-rapport på de samme byggede bits og uafhængig review skal genoprette mindst
-97/100, før én frisk fysisk golden chain må begynde. Fysisk Voice PE-bevis og 10/10 er
-fortsat separate gates; v1.13.11 er uændret fysisk baseline.
+**Aktiv softwarekandidat:** installeret v1.13.38 er feltstoppet; lokal v1.13.39 er
+frosset og afventer CI/ARM64, installation og DHCP-recovery-bevis.
+**Aktuel gate:** v1.13.38 bestod den fulde SafeEval, men blev efter strømudfald
+strandet på en cachet DHCP-adresse. Den lokale v1.13.39-rettelse har uafhængig
+kode-/testscore 97/100 og nul kendte P0/P1. Fysisk test er **NO-GO**, indtil samme
+artifact automatisk beviser `.162` → `.193`, fuld admission og første wake med den
+kanoniske `.local`-adresse. Golden chain og 10/10 er fortsat separate gates.
+
+### Aktiv feltbeslutning 25. august — Voice PE strandet på cachet DHCP-adresse
+
+**Observeret på installeret v1.13.38 efter strømudfald og HA Green-genstart.** Voice PE
+stod sandt offline i PodVoice, og ESPHome Builder viste først `No status`. PodVoice-loggen
+viste, at add-on-containeren ikke kunne opløse `podvoice-pe-0a7e7a.local`, valgte den
+cachede adresse `192.168.86.162` og fik `Connect call failed` mod ESPHome API-port 6053.
+ReconnectLogic fortsatte derefter mod samme numeriske klientadresse uden recovery.
+
+En USB-reset og ubrudt serielog beviste en sund firmwareboot: nul mislykkede bootforsøg,
+Voice Kit 1.3.1, fuldført setup, Wi-Fi SSID `Banana-split`, signal omkring -30 dBm og ny
+DHCP-adresse `192.168.86.193`. Den installerede add-on fandt ikke denne adresse selv.
+Som kontrolleret feltworkaround blev rumadressen midlertidigt sat til `.193`; efter en
+PodVoice-genstart gennemførte klienten resolve, TCP-connect og Noise-handshake, verificerede
+firmwarekontrakten, genanvendte mic channel 1/gain 16 og `okay_nabu`, og panelet viste
+`Voice PE: forbundet - wake afprøves`. Workarounden er ikke en produktrettelse: næste
+DHCP-skift kan gentage fejlen.
+
+- **Hele berørte kæde:** puck-boot og DHCP → navne-/adresseopdagelse i add-on-netværket →
+  APIClient/ReconnectLogic-ejerskab → Noise-handshake → entities/services/subscriptions →
+  mic/wake-konfiguration → sand link/readiness → første wake. Ingen Realtime-session eller
+  HA/MCP-effekt må åbnes under adresseflytningen.
+- **Berørte invarianter:** VoicePELink er eneste native-API-adapter; én fysisk puck må have
+  højst én aktiv klient/reconnect-ejer; panelet bliver kun grønt efter et ægte fuldført
+  handshake; reconnect skal genopbygge subscriptions, firmwarekontrakt, mic tuning og
+  wake word uden at skabe duplicate callbacks eller en parallel runtime.
+- **Falsificerbar årsag:** når `.local` ikke kan opløses ved `start()`, konstrueres
+  `APIClient` én gang med cachet numerisk adresse. Senere retries kan ikke udskifte klientens
+  target, selv om puckens DHCP-adresse har ændret sig. En test med cache `.162`, afvist
+  forbindelse og efterfølgende discovery `.193` skal derfor forblive offline på gammel kode
+  og gennemføre præcis ét frisk handshake på rettelsen.
+- **Bindende retning:** behold det stabile `.local`-navn som enhedsidentitet, men gør
+  numeriske fallbackadresser generationsbundne og udskiftelige efter en connection-shaped
+  fejl. Adressekilden skal være lokal og identitetsbundet; en ny klient/reconnect-generation
+  må først overtage efter den gamle er stoppet og må kun publicere link efter fuld Noise-
+  handshake og firmwareverifikation.
+- **Planlagte regressioner/gates:** startup med valid cache; stale cache → ny adresse → én
+  handshake; aktiv disconnect efter DHCP-skift; discovery-stale/duplicate/out-of-order;
+  auth/PSK-fejl må ikke rotere blindt; close/reconnect-race; ingen dobbelt subscriptions eller
+  callbacks; link forbliver falsk indtil fuld connect; reassert af mic/wake/firmwarekontrakt;
+  Thin opposite-adapter/lifecycle-regression. Derefter focused, fuld unrestricted suite,
+  Ruff/format, mypy, diff-check og uafhængigt adversarial review før build/install.
+- **Rollback og ikke-mål:** ingen firmwareflash, prompt-, audio-, VAD-, playback-, Realtime-,
+  HA/MCP- eller semantic-lifecycleændring. Ingen fast IP eller ubegrænset subnetscan som
+  produktløsning. Ved uklar identitet eller uafsluttet gammel generation forbliver linket
+  offline frem for at forbinde til en vilkårlig ESPHome-enhed.
+
+**Faktisk lokal v1.13.39-ændring og resultat.** `VoicePELink` ejer nu én
+generationsbundet klient og recovery-ejer. En connection-shaped fejl mod en cachet IP
+starter native `.local`-discovery med tværgenerations-backoff `1/2/5/10/30/60`.
+Gammel klient lukkes før næste generation. Noise, eksakt enhedsnavn, device-info,
+firmwarekontrakt, subscriptions, mic channel/gain, wake word og fysisk rearm skal alle
+bestå før linket publiceres; kun den autentificerede peer caches atomisk. Forkert
+enhedsnavn evikterer cache, mens reel PSK/auth-fejl ikke roteres blindt. Stale callbacks
+og forsinket recovery er inerte.
+
+Uventet fysisk linktab lukker en aktiv `ThinSession` præcis én gang. Teardown ejer
+rearm, så samtidig reconnect hverken fortsætter en session med manglende lyd, genstarter
+gammel mic eller dobbelt-rearmer. Talk og prompt/Realtime/værktøjer/HA/MCP/lyd/VAD/
+playback/firmware er uændrede.
+
+Den sammensatte regression beviser `.162` → `.193` → gammel ejer lukket → præcis ét
+subscriptionsæt → mic channel/gain + wake word → fysisk rearm → først derefter
+link-ready og cache `.193`; senere `.200` genfindes. En separat regression beviser
+capped backoff, én resolver-/klientejer og senere recovery. Pauset teardown/reconnect
+beviser én providerlukning og én rearm.
+
+Gates på de frosne kildebytes: **46/46 fokuserede** grønne; fuld unrestricted pytest
+**exit 0** inklusive HTTP/WebSocket; Ruff og format (**91 filer**) grønne; mypy
+**42 kildefiler** grøn; scoped `git diff --check` ren. Worktreeens cloud-dehydrerede
+Python-runtime hang før collection, så fuldsuiten blev kørt mod samme kildebytes i et
+frisk, låst Python 3.12-miljø. Uafhængig adversarial review finder nul P0/P1 og scorer
+**97/100**. Dette er softwarebevis: v1.13.39 skal bygges og installeres, rummet sættes
+tilbage til `podvoice-pe-0a7e7a.local`, og den eksisterende stale `.162`-cache skal
+automatisk ende på `.193` med første wake, før den fysiske gate genåbnes.
+
+### Fysisk golden-chain-forsøg 23. august — v1.13.38, ikke bestået
+
+Den første friske fysiske kæde efter den grønne maskinegate åbnede én Realtime-session,
+svarede korrekt `84` på den første tur, bevarede sessionen gennem opfølgningen og
+lukkede senere semantisk med fysisk farvel, teardown/rearm og en vellykket ny wake.
+Opfølgningen kan dog ikke godkendes: den kendte ytring “Og læg seks til” blev gemt som
+“Hold sekste”, og modellen svarede `72` i stedet for det korrekte `90`. Den efterfølgende
+friske session hørte “Hvad er to plus to?” og svarede korrekt `4`, hvorefter
+`end_conversation`, farvel-playback og wake-rearm gennemførte rent.
+
+Forsøget er derfor **rødt**, selv om brugeren oplevede den mekaniske kæde som flydende.
+Et korrekt første svar og ren lifecycle kan ikke opveje semantisk afvigende fysisk
+input. Den armerede trace gemte device/provider/speaker-lyd for forsøget, men den
+aktuelle revisionsvej kan ikke hente WAV-filerne uden en separat browser-sessioncookie;
+historikkens konkrete transcript/svar er allerede tilstrækkeligt til at afvise forsøget.
+Næste tilladte forsøg bruger en tydeligere, stadig kontekstafhængig opfølgning og skal
+have semantisk konsistent transcript, korrekt `90`, samme session og den samme fulde
+close/rearm/new-wake-kæde. 10/10 forbliver blokeret.
+
+Det næste forsøg gav korrekt `84` og derefter korrekt `90` i samme session og lukkede
+rent via modelsemantik. Det tæller alligevel ikke som golden chain: en forudgående
+kort fejlopstart forbrugte den armerede lydtrace, den korrekte sessions opfølgning blev
+stadig gemt som det tvetydige “Læg sekste”, og der kom ingen efterfølgende ny wake efter
+den korrekte sessions rearm. Dette er et nyttigt fysisk delbevis, men ikke en grøn kæde.
+
+### Feltstop 23. august — v1.13.37 kunne ikke se det syntetiske områdenavn
+
+**Observeret på eksakt installeret CI/ARM64-artifact; ingen automatisk retry.**
+SafeEval `eval-1787501209-667292` gennemførte 30/36 mulige providerkanter og bestod
+seks af syv scenarier uden 429. Low-risk-turnen kaldte først det produktionsschema-
+gyldige `HassTurnOn(area="stuen", domain=["light"])` og derefter
+`HassTurnOn(area="Evalrum", domain=["light"])`. Begge blev afvist af den lokale
+fixture, som alene kendte `area="stue"`; tredje tool-batch ramte korrekt finality-
+loftet før dispatch, så fixtureeffekter forblev nul. Rapporten brugte $0,145 og 327,52
+sekunders pacing.
+
+- **Falsificeret præmis og stærkere årsag:** `stue` var ikke eksponeret i providerens
+  schema. Admission sender den byte-identiske produktionsdeklaration med fri
+  area-string; canonical fixture og scenarioexpectation er server-side. Samtidig
+  injicerede den semantiske evaldriver den synlige rumkontekst `Evalrum`, hvilket
+  forklarer modellens andet forslag præcist. At begge forslag nåede fixture mismatch
+  frem for schemafejl beviser, at et påstået enum aldrig var på wire.
+- **Bindende minimalændring:** den semantiske SafeEval-rumkontekst navngiver nu det ene
+  syntetiske basisområde eksplicit og med små bogstaver: `stue`. Den skjulte fixture
+  forbliver præcis `area=stue`; `stuen`, `Evalrum`, `name=stue`, scalar-domain, ekstra
+  felter og duplicates forbliver røde. Rumkontekstprofil og hash gemmes i rapporten.
+  Ingen fuzzy alias, enum-overlay, global prompt-/produktionsschemaændring eller højere
+  edge-loft.
+- **Næste bounded gate:** den eksisterende eksplicitte scenario-selector må køre kun
+  `low-risk-action-then-close`. Rapporten skal vise præcis dette coverage-scope og
+  `selected_ok=true`, `profile_complete=false` og
+  `release_preflight_passed=false`; `ok` følger release-preflight og må derfor ikke
+  blive sandt for et subset. En grøn målrettet kørsel er ikke fuld profilbevis.
+- **Rollback og ikke-mål:** produktionsprompt, schema/hash/dispatch, providerpacing,
+  prisloft, audio/VAD, Thin, HA/MCP, firmware og lifecycle er frosne. Ved nyt model-loop
+  forbliver scenariet rødt frem for at udvide fixture eller cap.
+
+**Faktisk lokalt resultat på frosne bits:** den semantiske SafeEval-driver viser nu
+det ene syntetiske basisområde som `stue`; den eksisterende fixture forbliver eksakt
+`area="stue", domain=["light"]`, og regressionsmatricen holder `stuen`, `Evalrum`,
+`name`, scalar-domain, ekstra felter og duplicates røde. Rapporten gemmer både
+rumkontekstprofil/hash og scenariemanifesthash uden at ændre produktionsprompt,
+produktionsschema/hash, dispatch eller edge-loft.
+
+Målrettet scope er fail-closed adskilt fra releasebevis:
+`selected_ok` beskriver kun de valgte scenarier, `profile_complete` beskriver det
+krævede fulde selector-scope, `coverage_complete` falder ved terminalt delresultat, og
+`release_preflight_passed`/`ok` kræver alle tre. Rapporter gemmes bounded pr. run-id;
+subset og audio-replay kan ikke overskrive seneste fulde kandidat, en fejlet fuld
+kørsel tilbagekalder den, og ændret prompt/schema/kontekst/scenariemanifest gør ældre
+fuldt bevis stale. Panel/API bruger samme konjunktion og viser målrettet resultat som
+delbevis, ikke samlet grønt.
+
+Gates før feltkørsel: **338/338 fokuserede**, **857/857 fulde unrestricted**,
+Ruff-format/Ruff-check grøn, mypy **42 filer** grøn og `git diff --check` ren.
+v1.13.38 blev derefter bygget i GitHub CI inklusive ARM64, installeret og startet med
+19 atomisk admitted HA/MCP-værktøjer, 26 samlede deklarationer, vellykket
+`GetLiveContext` og Voice PE-firmwarekontrakt OK.
+
+**Faktisk installeret live-resultat:** fuld SafeEval
+`eval-1787503600-2aaa0e` bestod alle **7/7 scenarier og 12/12 ture**.
+`selected_ok`, `profile_complete`, `coverage_complete`,
+`release_preflight_passed` og `ok` er alle sande; status og klassifikation er
+`complete`. Low-risk-turnen kaldte præcis
+`HassTurnOn({"area":"stue","domain":["light"]})`, fik ét lokalt `ok`, kaldte
+derefter `end_conversation` og lukkede semantisk. Web kaldte én tilladt eksakt query;
+følsom handling oprettede én lokal challenge og blev godkendt præcis én gang i næste
+tur. Alle response-statusser var completed; schema-korrektioner og provider-retries
+var nul. Forbrug: **125.410 tokens**, **$0,2341568** og **322,36 s** bounded
+rate-limit-pacing, under $5-loftet.
+
+Efter run: `diagnostic_active=false`, sessions/virkelige tool-kald/attention er nul,
+r0 er IDLE/forbundet/ikke ducked, og MCP er current/ready med generation 4, 26
+deklarationer og ingen fejl. Hjem, web, musik, tid og timere er synlige; vejr mangler
+fortsat sandt. SafeEval har bevist maskinel routing/finality og nul virkelige effekter,
+men ikke fysisk wake, playback eller rearm. Én frisk fysisk golden chain må først
+startes efter den samtidige uafhængige slutscore på mindst 97/100.
+
+### Feltstop 23. august — v1.13.36 målte fixturestavning frem for semantisk kontrakt
+
+**Observeret på eksakt installeret CI/ARM64-artifact; ingen automatisk retry.**
+SafeEval `eval-1787499427-4fb6ef` gennemførte arithmetic, alle tre time-ture,
+semantic-close og pacinggaterne. Rapporten brugte 12/12 reserverede ture, 120.296
+faktiske tokens, $0,1755 og 318,98 sekunders pacing. Tre scenarier blev røde:
+
+- Web kaldte `google_web_sogning` med de schema-gyldige queries
+  `FC København seneste kamp resultat` og `FCK latest match result`. Begge blev lokalt
+  afvist, fordi fixturen kun kendte `FCK seneste kamp`; modellen rapporterede derefter
+  webfejl.
+- Sensitive-confirmation kaldte først `EvalUnlockDoor(name="hoveddør")`, som fixturen
+  afviste, og derefter `name="hoveddøren"`, som korrekt skabte én challenge. Næste tur
+  godkendte den én gang med præcis én lokal fixtureeffekt.
+- Low-risk-action kaldte først `HassTurnOn(area="stue", domain=["light"])` og derefter
+  `HassTurnOn(name="stue", domain=["light"])`; begge blev fixtureafvist. En tredje
+  tool-batch ramte korrekt det normale tre-response-loft før dispatch, så effekter
+  forblev nul. Fejlen er et per-turn model-loop/finality-stop, ikke globalt tokenbudget.
+
+- **Berørte invarianter:** SafeEval må kun returnere lokale, eksplicit deklarerede
+  fixtureudfald og aldrig fuzzy-matche, coerce eller kontakte HA/MCP. Produktionsprompt,
+  fuldt produktionsschema, schemahash, runtime-dispatch og tre normale responsekanter
+  er frosne. Den eval-følsomme fixture er fortsat udelukket fra schema-korrektion: et
+  ikke-kanonisk argument stopper terminalt uden ToolCall, output, challenge eller
+  effekt; gentagne kald skal fortsat gøre scenariet rødt.
+- **Falsificerbar årsag:** den hidtidige oracle kræver én eksakt argumentdict per tool,
+  selv når produktionsschemaet med vilje tillader fri søgetekst. Det gør en sikker,
+  semantisk korrekt query til en kunstig tool-fejl og fremkalder model-retry. Omvendt
+  er adgangs- og HA-mål ikke fritekst-fixtures: de skal have én syntetisk kanonisk
+  identitet, så eval aldrig foregiver rigtig target-resolution.
+- **Planlagte regressioner:** web accepterer kun tre navngivne fuld-dict-cases og
+  graderen accepterer præcis ét kald med én af dem, ét `ok`-udfald og korrekt svar.
+  Forkert klub, future-query, ekstra felt, tom query, to tilladte kald og mismatch plus
+  heldigt svar er røde. EvalUnlockDoor er eval-only låst til `hoveddøren`; `hoveddør`
+  stopper terminalt med nul schema-korrektion/ToolCall/output/challenge/effekt. Kun det
+  eksakte kald kan skabe én challenge og næste tur godkende én gang. Den syntetiske HA-
+  testverden hedder kun `stue`; `name=stue`, `area=stuen`, scalar-domain, ekstra felt
+  og duplicates er røde.
+- **Rollback og ikke-mål:** edge-loftet hæves ikke. Ingen produktionsschema-, hash-,
+  dispatch-, prompt-, provider-, lyd-, VAD-, Thin-, firmware-, HA/MCP- eller lifecycle-
+  ændring. Hvis den finite oracle ikke kan bevises eksakt og sideeffektfri, beholdes
+  v1.13.36 NO-GO.
+
+**Faktisk lokalt resultat, endnu ikke versioneret/bygget/installeret/live.** Web-oraclet
+har nu præcis tre eksplicitte fuld-dict-fixtures. `tool_args_any` accepterer kun ét
+faktisk kald med én af de tre dicts; beslutning og `ok`-udfald skal fortsat forekomme
+præcis én gang, og svaret skal fortsat sige, at FCK vandt 2-0. Forkert klub, future-
+query, tom query, næsten-match, ekstra felt, to ellers tilladte kald og heldigt svar
+efter fixtureafvisning er røde.
+
+Den eval-only følsomme deklaration eksponerer kun enum-værdien `hoveddøren`.
+`hoveddør` stoppes derfor terminalt af den eksisterende sensitive no-correction-grænse
+med nul ToolSchemaCorrection, output, ToolCall, challenge og effekt. Det eksakte kald
+kan fortsat oprette én serverholdt challenge, som kun næste tur kan godkende én gang.
+Produktionssnapshot, produktionshash og produktionsdispatch er byte-/adfærdsmæssigt
+uændrede.
+
+Den syntetiske HA-testverden har nu ét dokumenteret basisområdenavn: `stue`.
+Kun `{"area":"stue","domain":["light"]}` får det lokale succesresultat;
+`name=stue`, `area=stuen`, scalar-domain, ekstra felter og duplicates er røde. Det
+normale tre-response-loft er uændret; terminalteksten siger nu sandt
+`eval model response-edge limit exhausted before final answer` frem for at ligne et
+globalt providerbudgetproblem.
+
+Frosne lokale gates: **329/329 focused**, **843/843 unrestricted full** inklusive
+HTTP/WebSocket, Ruff check og format grønne for 91 filer, mypy grøn for 42 sourcefiler
+og `git diff --check` grøn. Uafhængigt adversarial review, versionering, CI/ARM64,
+installation og én frisk SafeEval er fortsat åbne; v1.13.36 forbliver derfor NO-GO
+for fysisk golden chain.
+
+### Feltstop 23. august — v1.13.35 genberegnede ikke pacing efter nyt snapshot
+
+**Observeret på eksakt installeret CI/ARM64-artifact; ingen automatisk retry.**
+SafeEval `eval-1787498165-272088` bestod arithmetic og de første to time-ture. Efter
+en completed response med `total_tokens=5695` blev et gyldigt sent snapshot accepteret
+med `remaining=18632`. Den næste completed kant efterlod lokalt `remaining=13653` og
+eval-owned `3637`. Før næste brugertur beregnede den atomiske capacity-check derfor
+én vent på `2,019 s` for target `15000`. **34,851 ms** efter den foregående done
+ankrede endnu et gyldigt nedadgående snapshot `remaining=11485`. Efter den allerede
+beregnede vent var den nye recheck kun nået til `remaining=12844`; runtime stoppede
+med `diagnostic_capacity · rate_limit_capacity · eval response cannot preserve
+production headroom`. Der blev ikke sendt en ny response, udført effekt eller prøvet
+igen hos provideren.
+
+- **Hele berørte kæde:** turn-preflight → atomisk capacity-check → lokal bounded sleep
+  under nøgle-eksklusiv diagnostic → samtidig gyldigt nedadgående provider-snapshot →
+  atomisk recheck → højst én `response.create`. Et snapshot under ventetiden kan gøre
+  den tidligere wait-beregning for kort; næste beregning skal derfor bruge den nye
+  locked ledger og samme hårde run-deadline.
+- **Berørte invarianter:** live-eval er gensidigt eksklusiv med produktion og bruger
+  `production_headroom=0`; lokalt simuleret fysisk headroom er ikke en sikkerhedsgrænse.
+  Hver klientstyret responsekant skal være admitted umiddelbart før wire. Vent før wire
+  er pacing, ikke provider-retry. 429 forbliver terminal; cancellation, lease-tab,
+  nonwaitable state eller deadline giver nul create/effekt.
+- **Falsificerbar årsag:** `prepare_response_capacity()` gør præcis én wait og én
+  recheck. Den accepterede downward anchor under sleep er korrekt, men ændrer target-
+  underskuddet efter at wait allerede er fastlagt. Fejltekstens “production headroom”
+  er historisk og falsk for denne sti; konkret var protected headroom nul.
+- **Planlagte regressioner:** den eksakte sekvens `13653 → wait 2,019 s → snapshot
+  11485 → recheck 12844` skal genberegne en ny bounded wait og derefter sende præcis én
+  create. Flere nedadgående snapshots må forlænge pacing uden wire-retry; deadline,
+  cancellation, lease-tab og nonwaitable state stopper før wire. En provider-429 efter
+  en faktisk create forbliver terminal uden retry.
+- **Rollback og ikke-mål:** ingen margin, fast ekstra sleep, lease-refund eller ændring
+  af prompt, model, audio, VAD, Thin, HA/MCP, firmware eller fysisk lifecycle. Hvis den
+  recomputede loop ikke kan bevises bounded af samme run-deadline, beholdes v1.13.35
+  NO-GO.
+
+**Faktisk lokalt resultat, endnu ikke versioneret/bygget/installeret/live.**
+`prepare_response_capacity()` genberegner nu den atomiske capacity-state efter hver
+bounded sleep, indtil samme responsekant enten er admitted eller den eksisterende
+run-deadline, cancellation, lease-tab eller nonwaitable state stopper før wire. Det er
+lokal pacing før requesten, ikke provider-retry. Den eksakte feltregression udfører
+første vent fra `remaining=13653`, accepterer under sleep snapshot `11485`, rechecker
+omkring `12844`, beregner endnu én vent og sender derefter præcis én
+`response.create`. Flere nedadgående snapshots er dækket uden fast margin eller
+ubegrænset loop.
+
+De tre nabogates bruger nu samme ene capacity-seam: typed text ejer ikke længere en
+dobbelt fail-fast-precheck før den eksakte response-create-callback; audio-replay
+afventer den bounded preparer før PCM/VAD; og SafeEval tool-batches afventer minimum
+feedbackkapacitet før lokal fixtureeffekt, hvorefter den eksisterende context-derived
+follow-up-gate stadig gælder. Deadline, cancellation, lease-tab og nonwaitable state
+giver nul wire/fixtureeffekt. Fejltekst og arkitekturdokument siger nu sandt, at
+diagnostikken er nøgle-eksklusiv og bruger `production_headroom=0`.
+
+Frosne lokale gates: **313/313 focused**, **827/827 unrestricted full** inklusive
+HTTP/WebSocket, Ruff check og format grønne for 91 filer, mypy grøn for 42 sourcefiler
+og `git diff --check` grøn. Uafhængigt adversarial review fandt nul kendte P0/P1;
+v1.13.36 er versioneret lokalt, mens CI/ARM64, installation og én frisk SafeEval er
+fortsat åbne; v1.13.35 forbliver derfor NO-GO
+for fysisk golden chain.
+
+### Feltstop 23. august — v1.13.34 afviste et entydigt sent completion-snapshot
+
+**Observeret på eksakt installeret CI/ARM64-artifact; ingen automatisk retry.**
+SafeEval `eval-1787495167-f34dcd` modtog en completed response
+`resp_EG3SG…` med typet usage `total_tokens=5812`. **38,21 ms** senere ankom en gyldig
+token-rate-event med `remaining=5204` og `reset_seconds=52.193`. Tracen klassificerede
+den sandt positionelt som `late_after_done`, men runtime afviste den som ledger-anchor
+og beholdt lokalt `remaining=15269`. Næste responsekant blev derfor admitted med
+`target=9396`; OpenAI afviste den med `limit=40000`, `used=34532`, `requested=5764`
+og `retry_after=0,444 s`. Kørselen stoppede terminalt uden retry eller rigtig ekstern
+effekt; fysisk test blev ikke startet.
+
+- **Hele berørte kæde:** completed `response.done` + autoritativ usage → gyldig
+  positionsløs token-rate-event → providerledgerens monotone anchor → atomisk
+  capacity-wait/recheck → højst én `response.create` → providerterminal eller næste
+  completed response → diagnostikteardown. Eventet har ikke response-id og må derfor
+  aldrig bindes ved nærhed alene, når en ny response allerede er pending/created.
+- **Berørte invarianter:** hver klientstyret responsekant skal admitted mod den nyeste
+  kausalt forsvarlige kapacitet; gyldig providertelemetri må ikke kasseres, når dens
+  placering er entydig; ambiguous/stale/duplicate/cross-generation-events må ikke øge
+  kapacitet; 429 er terminal uden retry; diagnostiklås, $5-loft, SafeEval-isolation og
+  nul rigtig HA/MCP-effekt bevares.
+- **Falsificerbar hypotese:** på samme socketgeneration uden pending eller aktiv næste
+  response er en gyldig, event-id-bærende token-rate-event efter én completed response
+  det nyeste absolutte providersnapshot. Den må ikke kaldes response-id-kausal, men kan
+  sikkert forankre ledgeren nedad og dermed forhindre false-admission. Den eksisterende
+  generelle `late_after_done`-afvisning kasserer dette strengere snapshot. Hvis et nyt
+  response allerede er registreret som pending/created, er samme placering tvetydig
+  og skal fortsat afvises; en præcis aktiv response beholder den eksisterende
+  starttelemetri-seam. Under en endnu uafsluttet capacity-wait er snapshotten fortsat
+  nedadgående input til den obligatoriske atomiske recheck.
+- **Påkrævede regressioner:** eksakt `done → 38,21 ms → valid rate → target 9396`
+  skal forankre `remaining=5204`, vente/rechecke og sende præcis én response; den samme
+  late event med næste pending/created skal være `ambiguous_previous_or_next` og inert.
+  Duplicate, gammel generation og event efter close er inerte; usage og snapshot må
+  ikke dobbeltdebitere; provider-429 forbliver terminal uden wire-retry. Rapportens
+  positionslabel skal være sand og må ikke kaldes response-id-kausal.
+- **Rollback og ikke-mål:** ved uafklaret association beholdes terminal NO-GO frem for
+  fast margin, blind ventetid eller retry. Prompt V6, model, lyd, gain, VAD, firmware,
+  playback, Thin-lifecycle, HA/MCP og værktøjspolitik er frosne. Implementeringen må
+  kun ændre rate-eventens entydige late-completion-seam, ledger-anchor og tilhørende
+  bounded observations-/regressionstests.
+
+**Faktisk lokalt resultat, endnu ikke versioneret/bygget/installeret/live.** En
+completed response åbner nu en generationsbundet engangsseam for ét gyldigt,
+event-id-bærende token-snapshot, men kun mens der ikke er en nyere registreret
+`response.create` eller en aktiv response. Snapshotten mærkes fortsat positionelt
+`late_after_done`, tilskrives ikke retroaktivt til den completed eller næste response
+og kan kun stramme den atomiske ledger: remaining, limit og refill-hastighed kan aldrig
+stige. Seamen forbliver åben gennem en eventuel capacity-wait, så dens obligatoriske
+slutrecheck ser en snapshot, der ankommer under ventetiden; den lukkes atomisk før
+request-registrering og wire-I/O. Når en deferred tool-result-response oprettes inde i
+selve provider-readeren, kan readeren ikke samtidig konsumere den allerede kølagte
+snapshot. Den eval-eksklusive admission klemmer derfor den uobserverede completion-
+kapacitet til nul og bruger den samme bounded refill-wait plus slutrecheck; den gætter
+ikke en millisekundventetid og ændrer ikke produktionsvejen. Første gyldige snapshot
+forbruger seamen; exact/different duplicate,
+non-completed status, pending create, sendefejl, korreleret 429, stale generation,
+close/reconnect og teardown er inerte. En præcis aktiv response beholder den eksisterende
+starttelemetri, så senere responses ikke dobbeltdebiteres.
+
+Den eksakte feltregression debiterer først usage 5.812 til lokal remaining 15.269,
+modtager 38,21 ms senere snapshot 5.204/reset 52,193, venter atomisk på target 9.396,
+rechecker og sender præcis én `response.create`; der er ingen retry. Højere observeret
+limit kan ikke hæve hverken øjeblikkelig kapacitet eller fremtidig refill, mens et lavere
+limit strammer begge. En særskilt rå inline-regression beviser `done → fast tool-result
+→ late rate kølagt bag readeren → konservativ wait/recheck → præcis én create`; den
+senere læste rate mærkes sandt som tvetydig og kan ikke finansiere requesten bagud.
+Frosne lokale gates efter den sidste safetyrettelse: **304/304 focused**, scoped Ruff
+check og format, scoped mypy og `git diff --check` grønne. Den ubegrænsede full suite,
+uafhængigt review, versionering,
+CI/ARM64, installation og én frisk SafeEval er fortsat åbne; kandidaten er derfor
+fortsat NO-GO for fysisk golden chain.
+
+### Feltstop 23. august — v1.13.33 afviste schema-ugyldig HA-domain før effekt
+
+**Observeret på eksakt installeret CI/ARM64-artifact; ingen automatisk retry.**
+SafeEval `eval-1787489397-3f58f2` gennemførte arithmetic-, time-, semantic-close-,
+web- og sensitive-approval-forløbene uden 429 eller rigtig ekstern effekt. I
+`low-risk-action-then-close` genererede modellen et `HassTurnOn`-kald med
+`domain: "light"`, mens den aktuelt annoncerede Home Assistant-deklaration kræver en
+array. Runtime afviste derfor kaldet før `ToolCall`, SafeEval-fixture og enhver rigtig
+HA/MCP-dispatch med: `tool arguments failed schema at domain: 'light' is not of type
+'array'`. Diagnostiklåsen blev frigivet; fysisk test blev ikke startet.
+
+- **Berørte invarianter:** modelargumenter er altid utroværdige; deklareret schema og
+  runtimevalidering skal være samme kontrakt; en schema-korrektionsrunde må aldrig
+  dispatches som værktøj eller udvide mål, domæner eller effekt; SafeEval må kun acceptere eksplicitte,
+  schema-gyldige fixturevarianter; fejl må give nul rigtig effekt, ingen automatisk
+  transport-/provider-retry og højst én bounded schema-korrektion.
+- **Falsificerbar hypotese:** GPT-Realtime-2.1 understøtter function calling, men ikke
+  Structured Outputs, så schema-ugyldige argumenter kan forekomme. Prompt V6 tillader
+  én schemafejlskorrektion, men runtime kasserer i dag det ugyldige kald terminalt uden
+  et sanitiseret `function_call_output`; modellen får derfor ingen mulighed for den
+  lovede korrektion. Samtidig er eval-fixturen forkert modelleret: “lyset i stuen” er
+  et områdekald og skal bruge `area: "stuen", domain: ["light"]`, ikke
+  `name: "stuen"` som om rummet var én entitet.
+- **Påkrævet regression:** admission accepterer kun den eksakte schema-gyldige
+  område-fixture og afviser scalar-domain som canonical fixture. Et råt ugyldigt
+  modelkald giver nul `ToolCall`/fixture/rigtig effekt og højst én sanitiseret
+  schema-korrektionsresponse til samme call-id under de eksisterende capacity-, ACK-,
+  deadline- og $5-gates. Et efterfølgende korrekt array-kald udføres præcis én gang før
+  completed-gated `end_conversation`; andet ugyldigt, stale/duplicate/cross-response,
+  cancel eller 429 stopper terminalt uden yderligere retry. Thin og SafeEval skal dele
+  samme Realtime-kontrakt, og udtømt korrektion klassificeres som model-/tool-contract-
+  fejl, ikke providerudfald. Full suite, Ruff, mypy, uafhængigt review, nyt CI/ARM64 og
+  installation kræves før én ny live-kørsel.
+- **Rollback og ikke-mål:** behold streng schemaafvisning frem for coercion,
+  schema-løsning, promptændring eller løs fixturematching. Prompt V6, model, lyd, gain, VAD, firmware,
+  playback, Thin-lifecycle, HA/MCP-discovery og fysisk adfærd er frosne.
+
+**Faktisk lokalt resultat, endnu ikke versioneret/bygget/installeret/live.** Den fælles
+Realtime-provider udsender nu en særskilt `ToolSchemaCorrection` kun for ét enkelt,
+deklareret, ikke-reserveret schema-ugyldigt kald i en completed response med gyldig
+usage og kapacitet. Eventet er aldrig et `ToolCall`: Thin og SafeEval returnerer ét
+bounded, sanitiseret `function_call_output` på samme call-id uden adapterdispatch,
+kasserer eventuel værktøjspreamble og lader den næste schema-gyldige proposal passere
+de normale commit-, policy-, approval-, ACK- og capacity-gates. Andet ugyldigt kald,
+blandet batch, lifecycle-/approvalværktøj, eval-følsom fixture, manglende kapacitet,
+429, ACK-fejl eller teardown stopper terminalt. Den normale tre-kants turngrænse får
+kun én mekanisk fjerde kant, når den typede korrektion faktisk er observeret; pris- og
+deadlinebudgettet reserverer konservativt denne mulighed på forhånd.
+
+SafeEval-rumtesten bruger nu den produktionsrealistiske fixture
+`{"area":"stuen","domain":["light"]}`. Den følsomme `EvalUnlockDoor`-deklaration er
+uændret låst til påkrævet `{"name":<string>}`. Regressionen gennemfører den fulde
+syntetiske sekvens ugyldig scalar → sanitiseret korrektion → gyldigt `HassTurnOn` →
+`end_conversation` → farvel med fire reelle providerkanter, præcis én lokal
+fixtureeffekt og nul rigtig HA/MCP-effekt. Preamble, duplicate/output-item-rækkefølge,
+mixed batch, anden fejl, capacity/429, ACK, teardown, reset og shared Thin-adapter er
+dækket. Frosne gates: **255/255 focused**, **802/802 unrestricted full** inklusive
+HTTP/WebSocket, Ruff check og format grønne for 91 filer, mypy grøn for 42 sourcefiler
+og `git diff --check` grøn. Den resterende usikkerhed er kun feltadfærd: GPT-Realtime-
+2.1 skal på eksakt bygget artifact faktisk bruge den ene korrektion og fuldføre hele
+Prompt V6-profilen. Installeret v1.13.33 forbliver NO-GO; næste gate er versionering,
+CI/ARM64, installation og præcis én ny sideeffektfri live-preflight.
+
+### Feltstop 23. august — v1.13.32 mangler rate-snapshot-proveniens
+
+**Observeret på eksakt installeret CI/ARM64-artifact; ingen automatisk retry.**
+SafeEval `eval-1787486814-7a4d94` bestod `arithmetic-followup` i samme session med
+svarene 84 og 90 og korrekte topniveauer. I `time-followup` gennemførte modellen fem
+responsekanter og valgte kun den lokale `get_time`-fixture. Den sjette kant blev
+afvist med `TPM limit=40000, used=35073, requested=5757, retry=1,245 s`.
+
+- De to gemte arithmetic-responses havde provider-total 5.533 og 5.566, og begge
+  havde `residual=0`. Runtime-loggen viste desuden fem completed time-responses med
+  totalsummerne 5.623, 5.613, 5.676, 5.709 og 5.774; alle havde `residual=0`.
+- Rapporten sluttede korrekt som `diagnostic-capacity`, `coverage_complete=false`,
+  uden retry eller næste scenarie. Den viste 33.720 faktisk registrerede tokens,
+  $0,0561008 og 55,666 sekunders pacingventetid. Dette budgettal udelader usage fra den
+  afbrudte tur og kan derfor ikke sammenlignes direkte med providerens `used=35073`.
+- Ingen rigtig HA-, MCP-, PodConnect-, musik- eller timerhandling blev udført. Den
+  eksklusive diagnostiklås blev frigivet terminalt; fysisk wake/rearm er ikke bevis.
+- **Falsificeret hypotese:** De gemte responses viser, at topniveau-minus-detaljer
+  ikke forklarer afvigelsen på disse kanter. Rettelsen af den officielle usage-kontrakt
+  forbliver nødvendig, men er ikke tilstrækkelig til en grøn fuld preflight.
+- **Uafklaret kausalitet:** v1.13.32 loggede ikke de rå `rate_limits.updated`-
+  tokenfelter eller deres before-created/active-rækkefølge, og den afbrudte scenario-
+  observation blev ikke gemt. OpenAI-eventet har intet response-id. Feltbeviset kan
+  derfor endnu ikke skelne mellem forkert lokal snapshot-association, providerens
+  interne completion-justering, nylig/ekstern samme-nøgletrafik eller en ufuldstændig
+  lokal rapportaggregation.
+- **Berørte invarianter:** hver responsekant skal admitted kausalt; providerfejl og
+  budgettilstand skal være revisionsbare; ingen 429 må skjules med retry; afbrudte
+  scenarier må ikke kassere det evidensspor, der kræves for årsagsanalyse; ingen
+  diagnostisk fixture må nå en rigtig adapter.
+- **Næste afgrænsede ændring:** tilføj bounded, sanitiseret per-edge proveniens med
+  monotontid, response-id, created/done, rå token-limit/remaining/reset, ledger før/
+  efter, parsed usage-total, admission target/wait og terminal provider used/requested/
+  retry. Gem også den afbrudte partial observation. Ændr ikke pacingmatematikken ud fra
+  denne kørsel; en ny live-kørsel må først ske efter frozen tests/review/CI/ARM64.
+- **Rollback og ikke-mål:** behold terminal NO-GO frem for fast buffer, blind ekstra
+  ventetid eller automatisk retry. Prompt V6, model, lyd, gain, VAD, firmware,
+  playback, Thin-lifecycle, HA/MCP og værktøjspolitik er frosne.
+
+**Lokalt instrumenteringsresultat, endnu ikke versioneret/bygget/installeret/live.**
+Ingen pacingberegning eller provideradmission er ændret. Eval-only tracing gemmer nu
+højst 128 sanitiserede, monotont ordnede rækker per tur: atomic capacity-check/wait/
+recheck, pre-wire/sent request-id, created response-id og request-match, positional
+rate-event med rå gyldige tokenfelter, pending-count/ids, duplicate/ambiguous/late-
+klassifikation, done-status/usage/rate-count og strukturerede 429-tal uden rå
+providertekst. Recorderens fravær eller fejl ændrer ikke wire, pacing eller terminal
+adfærd; Voice PE/Talk bruger de oprindelige ikke-allokerende budgetveje.
+
+Failed, timeoutede og pre-wire-afbrudte ture bærer deres bounded partial observation
+ind i rapporten. Dermed gemmes alle fem completed `time-followup`-kanter og deres lokale
+fixture-outcomes før en sjette 429. Den nye rapport viser særskilt completed trace-total,
+budget-total og forskellen. Dette retter også feltfortolkningen: `33720` var arithmetic
+`11099` plus kun de første fire time-kanter `22621`; den femte completed kant `5774`
+blev kasseret af den gamle fejlrapport. Alle completed responses før 429 summerede
+derfor til `39494`, så `35073-33720=1353` var en sammenligning af forskellige
+populationer og er **ikke** et bevist provider/lokalt gap. Selve false-admission er
+fortsat uafklaret, indtil de nye rate-/ledger-rækker findes fra eksakt installerede bits.
+
+Frosne lokale gates: **160/160 focused**, **790/790 unrestricted full** inklusive lokale
+HTTP/WebSocket-integrationer, Ruff grøn, mypy grøn for 42 sourcefiler og
+`git diff --check` grøn. Uafhængigt adversarial review finder ingen åben P0/P1 i denne
+instrumenteringsslice, men scorer den 94/100, fordi root cause og pacing bevidst ikke er
+ændret. Kandidaten er fortsat NO-GO for fysisk test indtil version/build/CI/ARM64,
+installation og en ny SafeEval-trace er uafhængigt vurderet.
 
 ### Feltstop 23. august — v1.13.31 forklarede ikke hele providerens rullende forbrug
 

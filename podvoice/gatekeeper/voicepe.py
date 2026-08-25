@@ -17,13 +17,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import ipaddress
 import json
 import logging
 import pathlib
 import socket
 import time
 from collections.abc import AsyncIterator, Callable
-from typing import Any
+from typing import Any, ClassVar
 
 from . import constants as C
 
@@ -55,6 +56,10 @@ OPTIONAL_SERVICES: dict[str, str] = {
 }
 
 
+class _VoicePEAdmissionError(Exception):
+    """A connected socket failed the local firmware/settings admission boundary."""
+
+
 class VoicePELink:
     """aioesphomeapi client for one Voice PE. Satisfies ``VoicePELinkLike``."""
 
@@ -81,6 +86,16 @@ class VoicePELink:
             )
         self._client: Any = None  # APIClient, built lazily in start()
         self._reconnect: Any = None  # ReconnectLogic
+        self._connection_generation = 0
+        self._current_target = host
+        self._recovery_task: asyncio.Task[None] | None = None
+        self._rotation_lock = asyncio.Lock()
+        self._lifecycle_lock = asyncio.Lock()
+        self._closed = False
+        self._started = False
+        self._link_up = False
+        self._recovery_attempt = 0
+        self._recovery_token = 0
         self._unsub_va: Callable[[], None] | None = None
         self._unsub_states: Callable[[], None] | None = None
         self._audio_q: asyncio.Queue[bytes] = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
@@ -164,9 +179,6 @@ class VoicePELink:
 
     async def start(self) -> None:
         """Build the client and start the reconnect loop (owns the connection)."""
-        # Lazy import so the module imports without aioesphomeapi installed.
-        from aioesphomeapi import APIClient, ReconnectLogic  # VERIFY: import path
-
         # VERIFY: APIClient(address, port, password, *, noise_psk=...) signature.
         # Password is "" because the device uses Noise PSK encryption (§4.6).
         # mDNS can stop resolving (container DNS hiccup, IPv6 flap) — the field log
@@ -189,16 +201,204 @@ class VoicePELink:
                 self.host,
                 cached,
             )
-        self._client = APIClient(target, self._port, "", noise_psk=self._noise_psk)
-        # VERIFY: ReconnectLogic kwargs (client/on_connect/on_disconnect/name).
-        # start() owns the connect loop; do NOT call client.connect() ourselves.
-        self._reconnect = ReconnectLogic(
-            client=self._client,
-            on_connect=self._on_connect,
-            on_disconnect=self._on_disconnect,
+        async with self._lifecycle_lock:
+            if self._started:
+                return
+            self._closed = False
+            await self._start_connection_generation(target)
+            self._started = True
+
+    async def _start_connection_generation(self, target: str) -> None:
+        """Start exactly one native-API generation for a resolved candidate."""
+        from aioesphomeapi import APIClient, ReconnectLogic
+
+        self._connection_generation += 1
+        generation = self._connection_generation
+        expected_name = self.host.removesuffix(".local") if self.host.endswith(".local") else None
+        client = APIClient(
+            target,
+            self._port,
+            "",
+            noise_psk=self._noise_psk,
+            expected_name=expected_name,
+        )
+
+        async def on_connect() -> None:
+            if generation != self._connection_generation or client is not self._client:
+                await client.disconnect(force=True)
+                return
+            try:
+                async with self._rotation_lock:
+                    if generation != self._connection_generation or client is not self._client:
+                        return
+                    await self._on_connect(generation=generation, client=client)
+            except Exception as error:
+                log.warning("voicepe %s connection admission failed: %s", self.host, error)
+                self._set_link(False)
+                with contextlib.suppress(Exception):
+                    await asyncio.wait_for(client.disconnect(force=True), timeout=5.0)
+                self._queue_address_recovery(
+                    generation, _VoicePEAdmissionError(type(error).__name__)
+                )
+
+        async def on_disconnect(expected_disconnect: bool) -> None:
+            if generation != self._connection_generation or client is not self._client:
+                return
+            await self._on_disconnect(expected_disconnect)
+
+        async def on_connect_error(error: Exception) -> None:
+            if generation != self._connection_generation or client is not self._client:
+                return
+            self._queue_address_recovery(generation, error)
+
+        reconnect = ReconnectLogic(
+            client=client,
+            on_connect=on_connect,
+            on_disconnect=on_disconnect,
+            on_connect_error=on_connect_error,
             name=self.host,
         )
-        await self._reconnect.start()
+        self._current_target = target
+        self._client = client
+        self._reconnect = reconnect
+        await reconnect.start()
+
+    _RECOVERABLE_CONNECTION_ERRORS: ClassVar[set[str]] = {
+        "BadNameAPIError",
+        "ConnectionNotEstablishedAPIError",
+        "ReadFailedAPIError",
+        "ResolveAPIError",
+        "ResolveTimeoutAPIError",
+        "SocketAPIError",
+        "SocketClosedAPIError",
+        "TimeoutAPIError",
+        "_VoicePEAdmissionError",
+    }
+    _RECOVERY_BACKOFF_S: ClassVar[tuple[float, ...]] = (1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
+
+    def _queue_address_recovery(self, generation: int, error: Exception) -> None:
+        """Queue address discovery without blocking ReconnectLogic's internal lock."""
+        error_kind = type(error).__name__
+        if error_kind == "InvalidEncryptionKeyAPIError":
+            received_name = str(getattr(error, "received_name", "") or "")
+            if not received_name or received_name == self.host.removesuffix(".local"):
+                return
+        elif error_kind not in self._RECOVERABLE_CONNECTION_ERRORS:
+            return
+        if self._closed or generation != self._connection_generation:
+            return
+        if self._recovery_task is not None and not self._recovery_task.done():
+            return
+        token = self._recovery_token
+        task = asyncio.create_task(self._recover_address(generation, error_kind, token))
+        self._recovery_task = task
+        task.add_done_callback(self._address_recovery_done)
+
+    def _address_recovery_done(self, task: asyncio.Task[None]) -> None:
+        if self._recovery_task is task:
+            self._recovery_task = None
+        if not task.cancelled() and (error := task.exception()) is not None:
+            log.warning("voicepe %s address recovery failed: %s", self.host, error)
+
+    async def _recover_address(self, generation: int, error_kind: str, token: int) -> None:
+        """Discover the exact .local identity and rotate a stale numeric generation."""
+        if not self.host.endswith(".local"):
+            return
+        if error_kind in ("BadNameAPIError", "InvalidEncryptionKeyAPIError"):
+            self._forget_cached_ip()
+        delay_s = self._RECOVERY_BACKOFF_S[
+            min(self._recovery_attempt, len(self._RECOVERY_BACKOFF_S) - 1)
+        ]
+        self._recovery_attempt += 1
+        await asyncio.sleep(delay_s)
+        if token != self._recovery_token or generation != self._connection_generation:
+            return
+        try:
+            from aioesphomeapi.host_resolver import async_resolve_host
+
+            infos = await async_resolve_host([self.host], self._port, timeout=5.0)
+        except Exception as error:
+            log.info("voicepe %s address discovery unavailable: %s", self.host, error)
+            return
+        candidates = self._numeric_addresses(infos)
+        allow_same = error_kind == "_VoicePEAdmissionError"
+        target = next(
+            (address for address in candidates if allow_same or address != self._current_target),
+            None,
+        )
+        if target is None:
+            return
+
+        async with self._rotation_lock:
+            if (
+                self._closed
+                or generation != self._connection_generation
+                or token != self._recovery_token
+            ):
+                return
+            old_reconnect = self._reconnect
+            old_client = self._client
+            await self._on_disconnect(expected_disconnect=False)
+            self._connection_generation += 1  # stale callbacks become inert before awaits
+            self._unsubscribe_native_api()
+            self._reconnect = None
+            self._client = None
+            await self._stop_connection_generation(old_reconnect, old_client)
+            if self._closed:
+                return
+            log.warning(
+                "voicepe %s: rotating stale address %s -> %s",
+                self.host,
+                self._current_target,
+                target,
+            )
+            await self._start_connection_generation(target)
+
+    @staticmethod
+    async def _stop_connection_generation(reconnect: Any, client: Any) -> None:
+        last_error: BaseException | None = None
+        for attempt in range(3):
+            stop_ok = reconnect is None
+            disconnect_ok = client is None
+            try:
+                if reconnect is not None:
+                    await asyncio.wait_for(reconnect.stop(), timeout=5.0)
+                    stop_ok = True
+            except BaseException as error:
+                last_error = error
+            try:
+                if client is not None:
+                    await asyncio.wait_for(client.disconnect(force=True), timeout=5.0)
+                    disconnect_ok = True
+            except BaseException as error:
+                last_error = error
+            if stop_ok and disconnect_ok:
+                return
+            if attempt < 2:
+                await asyncio.sleep((0.1, 0.5)[attempt])
+        if last_error is not None:
+            raise last_error
+
+    @staticmethod
+    def _numeric_addresses(infos: list[Any]) -> list[str]:
+        addresses: list[str] = []
+        for info in infos:
+            sockaddr = getattr(info, "sockaddr", None)
+            if sockaddr is None and isinstance(info, tuple) and len(info) >= 5:
+                sockaddr = info[4]
+            candidate = getattr(sockaddr, "address", None)
+            if candidate is None and isinstance(sockaddr, tuple) and sockaddr:
+                candidate = sockaddr[0]
+            try:
+                address = str(ipaddress.ip_address(str(candidate)))
+            except ValueError:
+                continue
+            parsed = ipaddress.ip_address(address)
+            if parsed.is_unspecified or parsed.is_multicast or parsed.is_loopback:
+                continue
+            if address not in addresses:
+                addresses.append(address)
+        return addresses
 
     _IP_CACHE = pathlib.Path("/data/podvoice-device-ip.json")
 
@@ -212,20 +412,30 @@ class VoicePELink:
     def _load_cached_ip(self) -> str:
         try:
             data = json.loads(self._IP_CACHE.read_text())
-            return str(data.get(self.host) or "")
+            candidate = str(data.get(self.host) or "")
+            return candidate if self._safe_numeric_address(candidate) else ""
         except Exception:
             return ""
 
-    def _remember_ip(self) -> None:
-        """Cache the host's CURRENT numeric address while name resolution still works.
+    def _safe_numeric_address(self, candidate: str) -> bool:
+        try:
+            parsed = ipaddress.ip_address(candidate)
+        except ValueError:
+            return False
+        return not (
+            parsed.is_unspecified
+            or parsed.is_multicast
+            or (parsed.is_loopback and candidate != self.host)
+        )
 
-        (client.address echoes back whatever we passed in — a list renders as text —
-        so resolve it ourselves instead of parroting our own input into the cache.)"""
-        ip = ""
-        with contextlib.suppress(Exception):
-            infos = socket.getaddrinfo(self.host, self._port, proto=socket.IPPROTO_TCP)
-            ip = str(infos[0][4][0]) if infos else ""
-        if not ip or ip == self.host:
+    def _remember_ip(self) -> None:
+        """Cache only the authenticated native API peer after full admission."""
+        candidate = getattr(self._client, "connected_address", "")
+        try:
+            ip = str(ipaddress.ip_address(str(candidate)))
+        except ValueError:
+            return
+        if not self._safe_numeric_address(ip):
             return
         with contextlib.suppress(Exception):
             data = {}
@@ -234,38 +444,91 @@ class VoicePELink:
             if data.get(self.host) != ip:
                 data[self.host] = ip
                 self._IP_CACHE.parent.mkdir(parents=True, exist_ok=True)
-                self._IP_CACHE.write_text(json.dumps(data))
+                temporary = self._IP_CACHE.with_suffix(self._IP_CACHE.suffix + ".tmp")
+                temporary.write_text(json.dumps(data))
+                temporary.replace(self._IP_CACHE)
                 log.info("voicepe %s: remembered address %s (mDNS fallback)", self.host, ip)
 
-    async def _on_connect(self) -> None:
-        self._remember_ip()
+    def _forget_cached_ip(self) -> None:
+        with contextlib.suppress(Exception):
+            data = json.loads(self._IP_CACHE.read_text()) if self._IP_CACHE.exists() else {}
+            if self.host in data:
+                data.pop(self.host)
+                temporary = self._IP_CACHE.with_suffix(self._IP_CACHE.suffix + ".tmp")
+                temporary.write_text(json.dumps(data))
+                temporary.replace(self._IP_CACHE)
+
+    def _generation_is_current(self, generation: int | None, client: Any) -> bool:
+        return generation is None or (
+            not self._closed
+            and generation == self._connection_generation
+            and client is self._client
+        )
+
+    async def _on_connect(self, *, generation: int | None = None, client: Any = None) -> None:
         """Re-subscribe on every (re)connect — subscriptions don't survive a reconnect."""
+        client = self._client if client is None else client
+        if not self._generation_is_current(generation, client):
+            return
         # VERIFY: device_info() coroutine name/shape.
-        info = await self._client.device_info()
+        info = await client.device_info()
         # Resolve the wake-gate services + LED-ring light + mute key from the device
         # catalog FIRST — subscribe_states fires an immediate full state dump, so the
         # entity keys must already be cached or that first dump can't be routed (the
         # LED/mute key would still be None). Resolve before subscribing.
         await self._resolve_entities()
+        if not self._generation_is_current(generation, client):
+            return
         self._verify_contract(info)
+        if not self.contract.get("ok", False):
+            raise RuntimeError("Voice PE firmware contract is not admitted")
+
         # VERIFY: subscribe_voice_assistant signature. Passing a non-None
         # handle_audio auto-sets VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO (no flags arg).
-        self._unsub_va = self._client.subscribe_voice_assistant(
-            handle_start=self._handle_start,
-            handle_stop=self._handle_stop,
-            handle_audio=self._handle_audio,
+        async def handle_start(*args: Any, **kwargs: Any) -> int | None:
+            if not self._generation_is_current(generation, client):
+                return 0
+            return await self._handle_start(*args, **kwargs)
+
+        async def handle_stop(*args: Any, **kwargs: Any) -> None:
+            if self._generation_is_current(generation, client):
+                await self._handle_stop(*args, **kwargs)
+
+        async def handle_audio(data: bytes, data2: bytes | None = None) -> None:
+            if self._generation_is_current(generation, client):
+                await self._handle_audio(data, data2)
+
+        def handle_state(state: object) -> None:
+            if self._generation_is_current(generation, client):
+                self._on_state(state)
+
+        self._unsub_va = client.subscribe_voice_assistant(
+            handle_start=handle_start,
+            handle_stop=handle_stop,
+            handle_audio=handle_audio,
         )
         # VERIFY: subscribe_states(callback) -> unsubscribe callable.
-        self._unsub_states = self._client.subscribe_states(self._on_state)
-        # Let the orchestrator re-assert stream + LED for the CURRENT state.
+        self._unsub_states = client.subscribe_states(handle_state)
+        await self.apply_mic_tuning()  # survives puck reboots and add-on restarts
+        if not self._generation_is_current(generation, client):
+            return
+        await self.apply_wake_word()  # ditto: the SETTING is the truth, not RAM
+        if not self._generation_is_current(generation, client):
+            return
+        # Reassert/rearm only after identity, firmware and settings have all passed.
         if self.on_reconnect is not None:
             result = self.on_reconnect()
             if asyncio.iscoroutine(result):
                 await result
-        await self.apply_mic_tuning()  # survives puck reboots and add-on restarts
-        await self.apply_wake_word()  # ditto: the SETTING is the truth, not RAM
-        if self.on_link is not None:
-            self._run_cb(self.on_link, True)
+        if not self._generation_is_current(generation, client):
+            return
+        self._remember_ip()
+        self._recovery_attempt = 0
+        self._recovery_token += 1
+        recovery = self._recovery_task
+        if recovery is not None and recovery is not asyncio.current_task():
+            recovery.cancel()
+        self._set_link(True)
 
     async def _resolve_entities(self) -> None:
         """Cache the podvoice_stream_* user services + the LED-ring light key.
@@ -432,9 +695,13 @@ class VoicePELink:
         if self.mic_channel is None and self.mic_gain is None:
             return
         if self.mic_channel is not None:
-            await self._call_service("podvoice_set_mic_channel", {"channel": int(self.mic_channel)})
+            if not await self._call_service(
+                "podvoice_set_mic_channel", {"channel": int(self.mic_channel)}
+            ):
+                raise RuntimeError("Voice PE mic channel could not be applied")
         if self.mic_gain is not None:
-            await self._call_service("podvoice_set_mic_gain", {"gain": int(self.mic_gain)})
+            if not await self._call_service("podvoice_set_mic_gain", {"gain": int(self.mic_gain)}):
+                raise RuntimeError("Voice PE mic gain could not be applied")
         log.info(
             "voicepe %s: mic tuning applied (channel=%s gain=%s)",
             self.host,
@@ -448,7 +715,8 @@ class VoicePELink:
         reboot, and nobody notices until 'Okay Nabu' quietly answers again."""
         if not self.wake_word:
             return
-        await self._call_service("podvoice_set_wake_word", {"name": str(self.wake_word)})
+        if not await self._call_service("podvoice_set_wake_word", {"name": str(self.wake_word)}):
+            raise RuntimeError("Voice PE wake word could not be applied")
         log.info("voicepe %s: wake word applied (%s)", self.host, self.wake_word)
 
     async def _call_service(self, name: str, args: dict | None = None) -> bool:
@@ -558,8 +826,22 @@ class VoicePELink:
             self._rearm_waiter.set()
         self.wake_readiness = "fault"
         log.warning("voicepe %s disconnected (expected=%s)", self.host, expected_disconnect)
+        self._set_link(False)
+
+    def _set_link(self, connected: bool) -> None:
+        if connected == self._link_up:
+            return
+        self._link_up = connected
         if self.on_link is not None:
-            self._run_cb(self.on_link, False)
+            self._run_cb(self.on_link, connected)
+
+    def _unsubscribe_native_api(self) -> None:
+        if self._unsub_va is not None:
+            self._unsub_va()
+            self._unsub_va = None
+        if self._unsub_states is not None:
+            self._unsub_states()
+            self._unsub_states = None
 
     async def _handle_start(self, *args: Any, **kwargs: Any) -> int | None:
         # This callback exists for the native API subscription and legacy diagnosis.
@@ -893,14 +1175,26 @@ class VoicePELink:
 
     async def aclose(self) -> None:
         """Unsubscribe, stop reconnect, and disconnect."""
-        if self._unsub_va is not None:
-            self._unsub_va()
-            self._unsub_va = None
-        if self._unsub_states is not None:
-            self._unsub_states()
-            self._unsub_states = None
-        if self._reconnect is not None:
-            await self._reconnect.stop()
-            self._reconnect = None
-        if self._client is not None:
-            await self._client.disconnect()
+        async with self._lifecycle_lock:
+            self._closed = True
+            self._started = False
+            self._connection_generation += 1
+            self._recovery_token += 1
+            recovery = self._recovery_task
+            self._recovery_task = None
+            if recovery is not None:
+                recovery.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await recovery
+            self._unsubscribe_native_api()
+            reconnect, self._reconnect = self._reconnect, None
+            client, self._client = self._client, None
+            with contextlib.suppress(Exception):
+                await self._stop_connection_generation(reconnect, client)
+            pending = [task for task in self._pending if task is not asyncio.current_task()]
+            for task in pending:
+                task.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
+            self._pending.clear()
+            self._set_link(False)

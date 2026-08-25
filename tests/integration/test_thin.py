@@ -1837,6 +1837,79 @@ async def test_idle_reconnect_recovers_the_firmware_wake_latch():
         await session.aclose()
 
 
+async def test_active_physical_link_loss_closes_once_and_reconnect_cannot_revive_old_mic():
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        assert session._active is True
+        reconnect_start_calls = 0
+        original_start = voicepe.start_streaming
+
+        async def count_reconnect_start():
+            nonlocal reconnect_start_calls
+            reconnect_start_calls += 1
+            return await original_start()
+
+        voicepe.start_streaming = count_reconnect_start
+        session._on_link(False)
+        session._on_link(False)  # duplicate native disconnect callback
+        await session._reassert_device()  # a fast new generation races the close
+        assert reconnect_start_calls == 0
+        await _wait_until(lambda: session._active is False)
+        assert voicepe.streaming is False
+        assert brain.closed is True
+        assert session._trace_reason == "voicepe-link-lost"
+    finally:
+        await session.aclose()
+
+
+async def test_recovered_idle_link_suppresses_delayed_offline_warning():
+    hub = StatusHub()
+    session, _attention, voicepe = _build(LiveFake(), hub=hub)
+    await session.start()
+    try:
+        voicepe._link_up = True
+        session._spawn_link_warning(delay_s=0)
+        await asyncio.sleep(0.01)
+        assert not [item for item in hub.snapshot()["activity"] if "været væk" in item["text"]]
+    finally:
+        await session.aclose()
+
+
+async def test_reconnect_during_link_loss_teardown_cannot_double_rearm():
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    entered_stop = asyncio.Event()
+    release_stop = asyncio.Event()
+    original_stop = voicepe.stop_streaming
+
+    async def paused_stop():
+        entered_stop.set()
+        await release_stop.wait()
+        return await original_stop()
+
+    voicepe.stop_streaming = paused_stop
+    try:
+        await session.wake()
+        session._on_link(False)
+        await entered_stop.wait()  # teardown has set _active=False but has not rearmed
+        await session._reassert_device()  # fast admitted generation races that window
+        assert voicepe.rearm_calls == 0
+        release_stop.set()
+        close_task = session._close_task
+        assert close_task is not None
+        await close_task
+        assert voicepe.rearm_calls == 1
+        await session.wake()
+        assert session._active is True
+    finally:
+        release_stop.set()
+        await session.aclose()
+
+
 async def test_recovered_rearm_is_usable_but_amber_until_a_physical_wake():
     class RecoveryVoicePE(FakeVoicePELink):
         def __init__(self) -> None:

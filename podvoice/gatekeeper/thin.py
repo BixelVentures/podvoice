@@ -342,6 +342,7 @@ class ThinSession:
         self._rearm_retry_task: asyncio.Task | None = None
         self._rearm_retry_attempt = 0
         self._device_stream_fault = False
+        self._physical_link_lost = False
         self._muted = False
         self._closing = False
         self._reader: asyncio.Task | None = None
@@ -2574,6 +2575,12 @@ class ThinSession:
         """TRUE device-link state -> panel dot + a plain activity line. Before this,
         the dot went green at STARTUP (loop started != device reached) — a DHCP'd-away
         device looked healthy while every 'Okay Nabu' died silently."""
+        self._physical_link_lost = not up
+        if not up and self._active:
+            # The native mic/playback-event transport is physical evidence, not a UI
+            # detail. A lost puck cannot transparently continue the Realtime session;
+            # close this epoch exactly once and let the newly admitted generation rearm.
+            self._request_close("voicepe-link-lost")
         if self.hub is None:
             return
         self.hub.set_connected(self.room, up)
@@ -2614,8 +2621,8 @@ class ThinSession:
             await asyncio.sleep(delay_s)
             if self.hub is None:
                 return
-            link_up = getattr(self.voicepe, "_client", None) is not None
-            if link_up and self.sm.state is not State.IDLE:
+            link_up = bool(getattr(self.voicepe, "_link_up", False))
+            if link_up:
                 return  # already back — say nothing
             self.hub.activity(
                 self.room,
@@ -2668,7 +2675,11 @@ class ThinSession:
             )
 
     async def _reassert_device(self) -> None:
+        if self._close_task is not None and not self._close_task.done():
+            return  # the close transaction exclusively owns final stop+rearm
         if self._active:
+            if self._physical_link_lost:
+                return  # the old conversation is already closing; never revive its mic
             if hasattr(self.voicepe, "start_streaming"):
                 if await self.voicepe.start_streaming() is False:
                     self._device_stream_fault = True
