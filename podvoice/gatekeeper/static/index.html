@@ -365,7 +365,9 @@
       <h2>Maskinel Realtime-preflight</h2>
       <p class="sub" style="margin:2px 0 10px">Kører den rigtige model og produktionsprompt med faste, sikre testdata. Nabu og Talk låses, mens testen kører. Hårdt samlet prisloft: $5. Første sikre scenariesvar er samtidig providerpreflight; der køres ingen ekstra budgetprobe. En brugerdefineret prompt over 32 KiB blokeres kun i denne sikre live-test og ændres aldrig i produktion. Testen kan ikke styre hjemmet, musik eller timere og erstatter ikke den fysiske test.</p>
       <button id="eval_live">Kør sikker preflight</button>
+      <button id="eval_close" class="ghost">Test samtaleafslutning (8 ture)</button>
       <button id="eval_replay" class="ghost">Genafspil seneste OpenAI-lyd 3×</button>
+      <p class="sub" style="margin:8px 0 0">Den korte test kører præcis 5 scenarier og 8 ture om matematiske opfølgninger og semantisk afslutning. Hårdt samlet prisloft: $5. Ingen eksterne effekter.</p>
       <div id="eval_result" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
     </div>
     <div class="section">
@@ -1169,10 +1171,21 @@ setInterval(function () {
 // ---- Bounded live Realtime preflight; fixed tools, no HA/MCP side effects ----
 (function () {
   var button = document.getElementById("eval_live");
+  var closeButton = document.getElementById("eval_close");
   var replayButton = document.getElementById("eval_replay");
   var box = document.getElementById("eval_result");
+  var closeScenarioIds = [
+    "arithmetic-followup",
+    "arithmetic-followup-observed",
+    "semantic-close",
+    "explicit-short-close",
+    "low-risk-action-then-close"
+  ];
   var pollGeneration = 0;
-  if (!button || !replayButton || !box) return;
+  if (!button || !closeButton || !replayButton || !box) return;
+  function setButtonsDisabled(disabled) {
+    button.disabled = disabled; closeButton.disabled = disabled; replayButton.disabled = disabled;
+  }
   function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function renderRunning(data) {
     box.innerHTML = "";
@@ -1288,21 +1301,28 @@ setInterval(function () {
     }
     if (generation === pollGeneration) render({status:"failed",error:"Preflighten overskred sit deklarerede tidsloft."});
   }
-  button.onclick = async function () {
+  async function startLiveEval(scenarioIds) {
     var generation = ++pollGeneration;
-    button.disabled = true; replayButton.disabled = true; renderRunning(null);
+    setButtonsDisabled(true); renderRunning(null);
     try {
-      var response = await fetch("api/eval/live", {method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+      var body = scenarioIds ? JSON.stringify({scenario_ids:scenarioIds}) : "{}";
+      var response = await fetch("api/eval/live", {method:"POST",headers:{"Content-Type":"application/json"},body:body});
       var data = await response.json();
       if ((data.status === "running" || data.status === "busy") && data.run_id) {
         renderRunning(data); await poll(data.run_id, generation, data.deadline_s);
       } else { render(data); }
     } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre preflighten."}); }
-    finally { if (generation === pollGeneration) { button.disabled = false; replayButton.disabled = false; } }
+    finally { if (generation === pollGeneration) setButtonsDisabled(false); }
+  }
+  button.onclick = function () {
+    return startLiveEval(null);
+  };
+  closeButton.onclick = function () {
+    return startLiveEval(closeScenarioIds);
   };
   replayButton.onclick = async function () {
     var generation = ++pollGeneration;
-    button.disabled = true; replayButton.disabled = true;
+    setButtonsDisabled(true);
     box.innerHTML = ""; box.appendChild(ee("div", "empty", "Genafspiller præcis den seneste providerlyd tre gange med sikre værktøjer…"));
     try {
       var response = await fetch("api/eval/replay", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({repeats:3})});
@@ -1310,7 +1330,7 @@ setInterval(function () {
       if ((data.status === "running" || data.status === "busy") && data.run_id) await poll(data.run_id, generation, data.deadline_s);
       else render(data);
     } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre audio-replay."}); }
-    finally { if (generation === pollGeneration) { button.disabled = false; replayButton.disabled = false; } }
+    finally { if (generation === pollGeneration) setButtonsDisabled(false); }
   };
   (async function resume() {
     try {
@@ -1318,9 +1338,9 @@ setInterval(function () {
       var data = await response.json();
       if (data.status === "running" && data.run_id) {
         var generation = ++pollGeneration;
-        button.disabled = true; replayButton.disabled = true; renderRunning(data);
+        setButtonsDisabled(true); renderRunning(data);
         await poll(data.run_id, generation, data.deadline_s);
-        if (generation === pollGeneration) { button.disabled = false; replayButton.disabled = false; }
+        if (generation === pollGeneration) setButtonsDisabled(false);
       } else if (data.status === "complete" || data.status === "failed") { render(data); }
     } catch (error) { /* A status lookup must never disable the rest of the panel. */ }
   })();

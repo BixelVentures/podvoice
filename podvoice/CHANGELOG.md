@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.13.41 — hurtig selektiv test af samtaleafslutning
+
+- Test-fanen har nu én tydelig knap til den eksisterende, navngivne SafeEval-profil
+  med fem scenarier og otte ture for matematiske opfølgninger og semantisk afslutning.
+- Knappen genbruger den eksisterende sideeffektfrie live-eval, jobpolling og
+  diagnostiklås med samme hårde samlede prisloft på $5. Den fulde preflight er uændret.
+- Produktionsprompt, Realtime-runtime, værktøjsdispatch, lyd, lifecycle, playback,
+  teardown og rearm er uændrede.
+
 ## 1.13.40 — korte opfølgninger forbliver åbne
 
 - Realtime-værktøjet `end_conversation` kræver nu, at den seneste brugertur selv klart

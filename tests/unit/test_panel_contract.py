@@ -1,5 +1,6 @@
 """Locks for safety guidance that must be visible without reading add-on logs."""
 
+import json
 from pathlib import Path
 
 PANEL = Path(__file__).parents[2] / "podvoice" / "gatekeeper" / "static" / "index.html"
@@ -189,6 +190,40 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     assert 'window.addEventListener("podvoice-diagnostic"' in html
     assert 'setState("systemtest", "pill-degraded")' in html
     assert "data.diagnostic_active" in html
+
+
+def test_test_tab_exposes_exact_eight_turn_semantic_close_profile():
+    html = PANEL.read_text()
+    scenario_ids = [
+        "arithmetic-followup",
+        "arithmetic-followup-observed",
+        "semantic-close",
+        "explicit-short-close",
+        "low-risk-action-then-close",
+    ]
+    expected_profile = """var closeScenarioIds = [
+    "arithmetic-followup",
+    "arithmetic-followup-observed",
+    "semantic-close",
+    "explicit-short-close",
+    "low-risk-action-then-close"
+  ];"""
+
+    assert 'id="eval_close"' in html
+    assert "Test samtaleafslutning (8 ture)" in html
+    assert "præcis 5 scenarier og 8 ture" in html
+    assert "Hårdt samlet prisloft: $5" in html
+    assert "Ingen eksterne effekter" in html
+    assert html.count(expected_profile) == 1
+    assert "return startLiveEval(closeScenarioIds);" in html
+    assert "return startLiveEval(null);" in html
+    assert "JSON.stringify({scenario_ids:scenarioIds})" in html
+    assert "button.disabled = disabled; closeButton.disabled = disabled;" in html
+    assert "replayButton.disabled = disabled;" in html
+
+    manifest = json.loads((PANEL.parents[1] / "eval_scenarios.json").read_text())
+    scenarios = {scenario["id"]: scenario for scenario in manifest["scenarios"]}
+    assert sum(len(scenarios[scenario_id]["turns"]) for scenario_id in scenario_ids) == 8
 
 
 def test_targeted_eval_can_never_render_as_full_release_preflight():
