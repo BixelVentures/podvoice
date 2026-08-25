@@ -18,11 +18,12 @@ ingen wake. Den direkte fysiske observation falsificerer dermed den grønne rear
 golden chain er rød, og 10/10 må ikke startes. Produktretningen forbliver den minimale
 lifecycle-kontrakt nedenfor.
 
-**Aktiv udviklingskandidat:** v1.13.44 på `codex/provider-playback-correlation` er lokalt
-release- og firmwarebygget, men endnu ikke committed, CI-bygget, installeret eller
-fysisk bevist. Kandidaten forbliver derfor **NO-GO for installation og golden chain**,
-indtil frozen review, exact-commit CI/ARM64 og bitidentitet er lukket. Installeret fysisk
-baseline er fortsat den fejlede v1.13.42-kæde ovenfor; maskintests må ikke overskrive den.
+**Aktiv udviklingskandidat:** v1.13.44 på `codex/provider-playback-correlation`, kode-SHA
+`b2b9a82d34bd870518bbf60a08b9424500a74743`, er lokalt release-/firmwarebygget og har
+grøn exact-SHA GitHub-test samt ARM64 add-on-build i run `32889365515`. Den er endnu ikke
+installeret eller fysisk bevist. Kandidaten forbliver derfor **NO-GO for golden chain**,
+indtil installerbar bitidentitet og flash/install er lukket. Installeret fysisk baseline
+er fortsat den fejlede v1.13.42-kæde ovenfor; maskintests må ikke overskrive den.
 
 ### Aktiv beslutningspost — provider-tail og fysisk playback-korrelation
 
@@ -109,7 +110,8 @@ auxiliary playback før Realtime-admission, og manglende stop afviser wake.
   fysisk golden chain og 10/10 ubrudte cyklusser. Rollback-grænsen ovenfor gælder.
 - **Frozen review:** to uafhængige adversarial reviews er GO for exact commit/CI uden
   P0/P1 og scorer henholdsvis 97/100 og 98/100 maskinel confidence. Det er ikke fysisk
-  releasebevis; exact-SHA CI/ARM64 og installerbar bitidentitet mangler fortsat.
+  releasebevis; exact-SHA CI/ARM64 er nu grøn, mens installerbar bitidentitet fortsat
+  mangler.
 
 ### Aktiv feltbeslutning 25. august — minimal Realtime-lifecycle uden overfit
 
