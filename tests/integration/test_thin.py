@@ -27,6 +27,7 @@ from gatekeeper.voice import (
     InputTranscript,
     Interrupted,
     OutputTranscript,
+    ResponseStarted,
     SilentToolComplete,
     ToolCall,
     ToolRoundComplete,
@@ -508,6 +509,33 @@ def _build(
         speaker_path=speaker_path,
     )
     return session, attention, voicepe
+
+
+def _build_talk_session(brain):
+    sent: list[dict] = []
+    audio: list[bytes] = []
+
+    async def send_json(payload: dict) -> None:
+        sent.append(payload)
+
+    async def send_bytes(payload: bytes) -> None:
+        audio.append(payload)
+
+    attention = FakeAttention()
+    link = BrowserLink(send_json, send_bytes, room=ROOM)
+    session = ThinSession(
+        room=ROOM,
+        attention=attention,
+        heartbeat=Heartbeat(attention, period_ms=20),
+        brain=brain,
+        voicepe=link,
+        playback=Playback(sink=link.play_pcm),
+        tools=FakeTools(),
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+        full_duplex=True,
+    )
+    return session, attention, link, sent, audio
 
 
 async def _wait_until(pred, max_wait: float = 1.5) -> None:
@@ -1316,15 +1344,10 @@ async def test_provider_semantic_end_closes_varied_danish_meanings(user_text: st
         await session.aclose()
 
 
-async def test_failed_realtime_goodbye_uses_cached_voice_and_waits_for_physical_finish():
-    """Field 2026-08-19: semantic end succeeded, final response failed with 0 audio.
-
-    The model still owns the end decision. The transport must make that accepted
-    decision audible from the cache, then close only after the puck reports drain.
-    """
+async def test_failed_correlated_terminal_response_closes_silently_and_rearms():
+    """A committed semantic end does not need invented local farewell audio."""
     gemini = LiveFake()
-    goodbye_pcm = _frame(amplitude=1700, n_samples=7200)
-    speech = CachedSpeech(goodbye_pcm)
+    speech = CachedSpeech(_frame(amplitude=1700, n_samples=7200))
     session, attention, voicepe = _build(gemini, speech=speech)
     voicepe.supports_playback_events = True
     trace_events: list[str] = []
@@ -1339,31 +1362,39 @@ async def test_failed_realtime_goodbye_uses_cached_voice_and_waits_for_physical_
     try:
         await session.wake()
         gemini.emit(
-            InputTranscript("Tak, det var alt."),
-            ToolCall("end-field", "end_conversation", {}),
+            UserSpeechStopped(),
+            _batched_call(
+                "end-field",
+                "end_conversation",
+                {},
+                batch_id="end-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="end-decision"),
         )
         await _wait_until(lambda: len(gemini.sent_tool_results) == 1)
         gemini.emit(
-            ToolRoundComplete(response_id="batch-safe"),
-            TurnComplete(status="failed", error="server_error"),
+            ResponseStarted(
+                "end-final",
+                purpose="semantic_end",
+                generation=1,
+                source_call_id="end-field",
+            ),
+            TurnComplete(
+                status="failed",
+                error="server_error",
+                response_id="end-final",
+                generation=1,
+                source_call_id="end-field",
+            ),
         )
-
-        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
-        assert speech.calls == [C.FALLBACK_GOODBYE]
-        assert session._active is True
-        assert session._closure_turn is not None
-        assert session._closure_turn.confirmed is True
-
-        session._on_media_state(True)
-        await asyncio.sleep(0.05)
-        assert session._active is True
-        session._on_media_state(False)
         await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert speech.calls == []
+        assert voicepe.announced_urls == []
         assert len(attention.release_calls) == 1
         assert voicepe.rearm_calls == 1
-        assert session._trace_reason == "model-close"
-        # Physical trace 20260819T145100-102 contained both proven playback
-        # edges and then a synthetic missing-edge fault one millisecond later.
+        assert session._trace_reason == "model-close-silent"
         assert "playback_fault" not in trace_events
     finally:
         await session.aclose()
@@ -1399,7 +1430,7 @@ async def test_goodbye_watchdog_never_faults_a_proven_physical_finish(monkeypatc
         await session.aclose()
 
 
-async def test_failed_realtime_goodbye_has_the_same_contract_in_talk():
+async def test_failed_terminal_response_closes_silently_in_talk():
     sent: list[dict] = []
 
     async def send_json(payload: dict) -> None:
@@ -1429,21 +1460,155 @@ async def test_failed_realtime_goodbye_has_the_same_contract_in_talk():
     try:
         await session.wake()
         brain.emit(
-            InputTranscript("Tak, det var alt."),
-            ToolCall("end-talk", "end_conversation", {}),
+            UserSpeechStopped(),
+            _batched_call(
+                "end-talk",
+                "end_conversation",
+                {},
+                batch_id="end-talk-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="end-talk-decision"),
         )
         await _wait_until(lambda: len(brain.sent_tool_results) == 1)
-        brain.emit(ToolRoundComplete(), TurnComplete(status="failed"))
-        await _wait_until(lambda: any(message.get("type") == "play" for message in sent))
-        assert speech.calls == [C.FALLBACK_GOODBYE]
-        assert session._active is True
-
-        playback_id = next(
-            message["playback_id"] for message in sent if message.get("type") == "play"
+        brain.emit(
+            ResponseStarted(
+                "end-talk-final",
+                purpose="semantic_end",
+                generation=1,
+                source_call_id="end-talk",
+            ),
+            TurnComplete(
+                status="failed",
+                error="server_error",
+                response_id="end-talk-final",
+                generation=1,
+                source_call_id="end-talk",
+            ),
         )
-        link.media_state(True, playback_id)
-        link.media_state(False, playback_id)
         await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert speech.calls == []
+        assert not any(message.get("type") == "play" for message in sent)
+        assert len(attention.release_calls) == 1
+    finally:
+        await session.aclose()
+
+
+async def test_correlated_terminal_farewell_plays_then_closes_in_talk():
+    brain = LiveFake()
+    session, attention, link, sent, _audio = _build_talk_session(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "end-talk-audible",
+                "end_conversation",
+                {},
+                batch_id="talk-audible-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="talk-audible-decision"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        brain.emit(
+            ResponseStarted(
+                "talk-audible-final",
+                purpose="semantic_end",
+                generation=2,
+                source_call_id="end-talk-audible",
+            ),
+            AudioChunk(
+                _frame(),
+                item_id="talk-farewell",
+                response_id="talk-audible-final",
+                generation=2,
+            ),
+            TurnComplete(
+                status="completed",
+                response_id="talk-audible-final",
+                generation=2,
+                source_call_id="end-talk-audible",
+            ),
+        )
+        await _wait_until(lambda: any(message.get("type") == "play" for message in sent))
+        play = next(message for message in sent if message.get("type") == "play")
+        link.media_state(True, play["playback_id"])
+        link.media_state(False, play["playback_id"])
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert len(attention.release_calls) == 1
+    finally:
+        await session.aclose()
+
+
+async def test_stale_terminal_audio_is_silent_in_talk():
+    brain = LiveFake()
+    session, attention, _link, sent, _audio = _build_talk_session(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "end-talk-stale",
+                "end_conversation",
+                {},
+                batch_id="talk-stale-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="talk-stale-decision"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        brain.emit(
+            ResponseStarted(
+                "talk-stale-final",
+                purpose="semantic_end",
+                generation=3,
+                source_call_id="end-talk-stale",
+            ),
+            AudioChunk(_frame(), item_id="stale", response_id="wrong-response", generation=3),
+            TurnComplete(
+                status="completed",
+                response_id="talk-stale-final",
+                generation=3,
+                source_call_id="end-talk-stale",
+            ),
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert not any(message.get("type") == "play" for message in sent)
+        assert len(attention.release_calls) == 1
+    finally:
+        await session.aclose()
+
+
+async def test_hung_error_close_is_bounded_in_talk(monkeypatch):
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "TEARDOWN_STEP_TIMEOUT_S", 0.02)
+    monkeypatch.setattr(thin_mod, "TEARDOWN_ERROR_SPEECH_TIMEOUT_S", 0.03)
+    monkeypatch.setattr(thin_mod, "TEARDOWN_REARM_TIMEOUT_S", 0.03)
+    monkeypatch.setattr(thin_mod, "TEARDOWN_TOTAL_TIMEOUT_S", 0.12)
+    brain = LiveFake()
+    session, attention, _link, sent, _audio = _build_talk_session(brain)
+
+    async def hung_error_speech(_kind: str) -> None:
+        await asyncio.Event().wait()
+
+    session._speak_error = hung_error_speech  # type: ignore[method-assign]
+    await session.start()
+    try:
+        await session.wake()
+        started = asyncio.get_running_loop().time()
+        task = session._request_close("error:connection", error_kind="connection")
+        assert task is not None
+        await task
+        assert asyncio.get_running_loop().time() - started < 0.2
+        assert session.sm.state is State.IDLE
+        assert any(message.get("type") == "mic" and not message.get("on") for message in sent)
         assert len(attention.release_calls) == 1
     finally:
         await session.aclose()
@@ -2618,6 +2783,460 @@ async def test_low_risk_plus_end_executes_then_arms_semantic_close_after_atomic_
         await session.aclose()
 
 
+@pytest.mark.parametrize(
+    "names",
+    [
+        ("wait_for_user", "end_conversation"),
+        ("end_conversation", "end_conversation"),
+    ],
+)
+async def test_conflicting_lifecycle_batch_is_rejected_atomically(names: tuple[str, str]):
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call("life-a", names[0], {}, batch_id="bad-life", index=0, size=2),
+            _batched_call("life-b", names[1], {}, batch_id="bad-life", index=1, size=2),
+            ToolRoundComplete(response_id="bad-life"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        results = brain.sent_tool_results[0]
+        assert [item["response"]["error_kind"] for item in results] == [
+            "invalid_lifecycle_batch",
+            "invalid_lifecycle_batch",
+        ]
+        assert session._active is True
+        assert session._ending_conversation is False
+        assert session._closure_turn is not None
+        assert session._closure_turn.semantic_end is False
+    finally:
+        await session.aclose()
+
+
+async def test_only_correlated_terminal_completion_can_confirm_semantic_end():
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "end-correlated",
+                "end_conversation",
+                {},
+                batch_id="end-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="end-decision"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        brain.emit(
+            ResponseStarted(
+                "terminal-close",
+                purpose="semantic_end",
+                generation=1,
+                source_call_id="end-correlated",
+            ),
+            TurnComplete(
+                status="completed",
+                response_id="unrelated",
+                generation=1,
+                source_call_id="end-correlated",
+            ),
+        )
+        await asyncio.sleep(0.05)
+        assert session._active is True
+        assert session._closure_turn is not None
+        assert session._closure_turn.confirmed is False
+
+        brain.emit(
+            TurnComplete(
+                status="completed",
+                response_id="terminal-close",
+                generation=2,
+                source_call_id="end-correlated",
+            )
+        )
+        await asyncio.sleep(0.05)
+        assert session._active is True
+        assert session._closure_turn.confirmed is False
+
+        brain.emit(
+            TurnComplete(
+                status="completed",
+                response_id="terminal-close",
+                generation=1,
+                source_call_id="end-correlated",
+            )
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+    finally:
+        await session.aclose()
+
+
+async def test_stale_audio_cannot_become_terminal_farewell():
+    brain = LiveFake()
+    session, attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "end-stale-audio",
+                "end_conversation",
+                {},
+                batch_id="stale-audio-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="stale-audio-decision"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        brain.emit(
+            ResponseStarted(
+                "terminal-audio",
+                purpose="semantic_end",
+                generation=3,
+                source_call_id="end-stale-audio",
+            ),
+            AudioChunk(_frame(), item_id="stale", response_id="unrelated-audio", generation=3),
+            TurnComplete(
+                status="completed",
+                response_id="terminal-audio",
+                generation=3,
+                source_call_id="end-stale-audio",
+            ),
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert voicepe.announced_urls == []
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_discarded_decision_preamble_cannot_fake_terminal_farewell():
+    brain = LiveFake()
+    session, attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            AudioChunk(_frame(), item_id="decision-preamble"),
+            _batched_call(
+                "end-after-preamble",
+                "end_conversation",
+                {},
+                batch_id="preamble-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="preamble-decision"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert brain.truncations == [("decision-preamble", 0)]
+        brain.emit(
+            ResponseStarted(
+                "preamble-terminal",
+                purpose="semantic_end",
+                generation=5,
+                source_call_id="end-after-preamble",
+            ),
+            TurnComplete(
+                status="completed",
+                response_id="preamble-terminal",
+                generation=5,
+                source_call_id="end-after-preamble",
+            ),
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert voicepe.announced_urls == []
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_terminal_completion_without_correlated_start_closes_silently():
+    brain = LiveFake()
+    session, attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "end-missing-start",
+                "end_conversation",
+                {},
+                batch_id="missing-start-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="missing-start-decision"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        brain.emit(
+            TurnComplete(
+                status="completed",
+                response_id="missing-created-edge",
+                generation=4,
+                purpose="semantic_end",
+                source_call_id="end-missing-start",
+            )
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert voicepe.announced_urls == []
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+        assert session._trace_reason == "model-close-silent"
+    finally:
+        await session.aclose()
+
+
+async def test_superseded_semantic_response_cannot_bind_to_new_close_turn():
+    brain = LiveFake()
+    session, attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "end-old",
+                "end_conversation",
+                {},
+                batch_id="old-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="old-decision"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+
+        brain.emit(
+            UserSpeechStarted(),
+            UserSpeechStopped(),
+            _batched_call(
+                "end-new",
+                "end_conversation",
+                {},
+                batch_id="new-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="new-decision"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 2)
+        brain.emit(
+            ResponseStarted(
+                "old-terminal",
+                purpose="semantic_end",
+                generation=1,
+                source_call_id="end-old",
+            ),
+            TurnComplete(
+                status="failed",
+                error="late-old-rejection",
+                purpose="semantic_end",
+                generation=1,
+                source_call_id="end-old",
+            ),
+        )
+        await asyncio.sleep(0.05)
+        assert session._active is True
+        assert session._closure_turn is not None
+        assert session._closure_turn.terminal_response_id is None
+
+        brain.emit(
+            ResponseStarted(
+                "new-terminal",
+                purpose="semantic_end",
+                generation=1,
+                source_call_id="end-new",
+            ),
+            TurnComplete(
+                status="completed",
+                response_id="new-terminal",
+                generation=1,
+                source_call_id="end-new",
+            ),
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_completed_terminal_response_without_audio_closes_silently():
+    brain = LiveFake()
+    session, attention, voicepe = _build(brain)
+    voicepe.supports_playback_events = True
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "end-silent",
+                "end_conversation",
+                {},
+                batch_id="silent-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="silent-decision"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        brain.emit(
+            ResponseStarted(
+                "silent-final",
+                purpose="semantic_end",
+                generation=1,
+                source_call_id="end-silent",
+            ),
+            TurnComplete(
+                status="completed",
+                response_id="silent-final",
+                generation=1,
+                source_call_id="end-silent",
+            ),
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert voicepe.announced_urls == []
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+        assert session._trace_reason == "model-close-silent"
+    finally:
+        await session.aclose()
+
+
+async def test_correlated_terminal_farewell_plays_before_one_teardown_and_rearm():
+    brain = LiveFake()
+    session, attention, voicepe = _build(brain)
+    voicepe.supports_playback_events = True
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "end-audible",
+                "end_conversation",
+                {},
+                batch_id="audible-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="audible-decision"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        brain.emit(
+            ResponseStarted(
+                "audible-final",
+                purpose="semantic_end",
+                generation=1,
+                source_call_id="end-audible",
+            ),
+            AudioChunk(_frame(), item_id="farewell", response_id="audible-final", generation=1),
+            OutputTranscript("Farvel."),
+            TurnComplete(
+                status="completed",
+                response_id="audible-final",
+                generation=1,
+                source_call_id="end-audible",
+            ),
+        )
+        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
+        assert session._active is True
+        session._on_media_state(True)
+        assert session._active is True
+        session._on_media_state(False)
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert brain.closed is True
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_duplicate_terminal_response_start_fails_closed_once():
+    brain = LiveFake()
+    session, attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "end-duplicate-response",
+                "end_conversation",
+                {},
+                batch_id="duplicate-response-decision",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="duplicate-response-decision"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        brain.emit(
+            ResponseStarted(
+                "terminal-one",
+                purpose="semantic_end",
+                generation=1,
+                source_call_id="end-duplicate-response",
+            ),
+            ResponseStarted(
+                "terminal-two",
+                purpose="semantic_end",
+                generation=1,
+                source_call_id="end-duplicate-response",
+            ),
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert brain.closed is True
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_hung_teardown_edges_are_bounded_and_rearm_still_runs(monkeypatch):
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "TEARDOWN_STEP_TIMEOUT_S", 0.02)
+    monkeypatch.setattr(thin_mod, "TEARDOWN_REARM_TIMEOUT_S", 0.05)
+    monkeypatch.setattr(thin_mod, "TEARDOWN_TOTAL_TIMEOUT_S", 0.2)
+
+    class HungBrain(LiveFake):
+        async def close(self) -> None:
+            await asyncio.Event().wait()
+
+    brain = HungBrain()
+    session, attention, voicepe = _build(brain)
+
+    async def hang_forever(*_args, **_kwargs):
+        await asyncio.Event().wait()
+
+    voicepe.stop_streaming = hang_forever
+    attention.release = hang_forever
+    await session.start()
+    try:
+        await session.wake()
+        await asyncio.wait_for(session.stop(reason="test-bounded-close"), timeout=0.5)
+        assert session.sm.state is State.IDLE
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
 async def test_multiple_sensitive_siblings_create_distinct_proposals_with_zero_effects():
     brain = LiveFake()
     tools = ApprovalTools()
@@ -2858,6 +3477,63 @@ async def test_typed_talk_turn_and_voice_turn_share_trusted_execution_context():
         await _wait_until(lambda: len(brain.sent_tool_results) == 1)
         assert tools.contexts[0].session_id == receipt["session_id"]
         assert tools.contexts[0].turn_id == "1"
+    finally:
+        await session.aclose()
+
+
+async def test_total_close_deadline_includes_hung_error_speech_and_rearms(monkeypatch):
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "TEARDOWN_STEP_TIMEOUT_S", 0.02)
+    monkeypatch.setattr(thin_mod, "TEARDOWN_ERROR_SPEECH_TIMEOUT_S", 0.03)
+    monkeypatch.setattr(thin_mod, "TEARDOWN_REARM_TIMEOUT_S", 0.03)
+    monkeypatch.setattr(thin_mod, "TEARDOWN_TOTAL_TIMEOUT_S", 0.12)
+
+    brain = LiveFake()
+    session, attention, voicepe = _build(brain)
+
+    async def hung_error_speech(_kind: str) -> None:
+        await asyncio.Event().wait()
+
+    session._speak_error = hung_error_speech  # type: ignore[method-assign]
+    await session.start()
+    try:
+        await session.wake()
+        started = asyncio.get_running_loop().time()
+        task = session._request_close("error:connection", error_kind="connection")
+        assert task is not None
+        await task
+        elapsed = asyncio.get_running_loop().time() - started
+        assert elapsed < 0.2
+        assert session.sm.state is State.IDLE
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_each_rearm_retry_attempt_has_a_hard_timeout(monkeypatch):
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "TEARDOWN_REARM_TIMEOUT_S", 0.01)
+    monkeypatch.setattr(thin_mod, "REARM_RETRY_DELAYS_S", (0.0,))
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    attempts = 0
+
+    async def hung_rearm() -> str:
+        nonlocal attempts
+        attempts += 1
+        await asyncio.Event().wait()
+        return "proven"
+
+    voicepe.rearm_wake_word = hung_rearm
+    await session.start()
+    try:
+        session._schedule_rearm_retry()
+        await _wait_until(lambda: attempts >= 2, max_wait=0.2)
+        assert session._rearm_retry_task is not None
+        assert not session._rearm_retry_task.done()
     finally:
         await session.aclose()
 

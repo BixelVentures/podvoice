@@ -143,8 +143,69 @@
           "text": "Tak, det var alt for nu.",
           "expect": {
             "decision": "end_conversation",
-            "answer_any": ["farvel", "vi ses", "hej hej"],
             "remain_open": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "context-followup-then-close",
+      "description": "A simple topic survives a same-session follow-up before an explicit semantic close.",
+      "exact_tool_names": ["end_conversation"],
+      "turns": [
+        {
+          "text": "Husk, at emnet er nordlys.",
+          "expect": {
+            "direct_answer": true,
+            "answer_any": ["nordlys"],
+            "forbid": ["end_conversation"],
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Hvad var emnet?",
+          "expect": {
+            "direct_answer": true,
+            "answer_any": ["nordlys"],
+            "forbid": ["end_conversation"],
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Tak, det var alt.",
+          "expect": {
+            "decision": "end_conversation",
+            "remain_open": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "explicit-stop-conversation",
+      "description": "An explicit request to stop the conversation closes directly.",
+      "exact_tool_names": ["end_conversation"],
+      "turns": [
+        {
+          "text": "Stop samtalen.",
+          "expect": {
+            "decision": "end_conversation",
+            "remain_open": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "media-stop-remains-open",
+      "description": "A media stop is not conversation-end intent and has no real side effect in SafeEval.",
+      "exact_tool_names": ["end_conversation"],
+      "turns": [
+        {
+          "text": "Stop musikken.",
+          "expect": {
+            "direct_answer": true,
+            "forbid": ["end_conversation"],
+            "fixture_side_effects": 0,
+            "remain_open": true
           }
         }
       ]
@@ -185,7 +246,6 @@
           "text": "Farvel.",
           "expect": {
             "decision": "end_conversation",
-            "answer_any": ["farvel", "vi ses", "hej hej"],
             "remain_open": false
           }
         }
@@ -243,7 +303,6 @@
           "text": "Tænd lyset i stuen, og så er det alt for nu.",
           "expect": {
             "decisions": ["HassTurnOn", "end_conversation"],
-            "decision_batches": [["HassTurnOn"], ["end_conversation"]],
             "tool_args": {"HassTurnOn": {"area": "stue", "domain": ["light"]}},
             "tool_outcomes": {
               "HassTurnOn": ["ok"],

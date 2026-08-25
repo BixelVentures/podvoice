@@ -157,7 +157,8 @@ def test_clock_declaration_is_scoped_to_the_latest_user_turn():
     description = declaration["description"].lower()
     assert "latest user turn" in description
     assert "previous turn" in description
-    assert "wraps up" in description
+    assert "previous turn used it" in description
+    assert "conversation" not in description.casefold()
     assert "weekday" in description and "week_number" in description
     assert "never confuse" in description
     assert declaration["parameters"]["additionalProperties"] is False

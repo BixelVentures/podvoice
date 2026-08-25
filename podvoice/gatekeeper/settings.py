@@ -111,6 +111,10 @@ LEGACY_PROMPT_HASHES = frozenset(
         # per-turn continue/end/wait decision contract; an exact V2 copy is not a
         # user customization and must not shadow that lifecycle fix forever.
         "f34e99761e98b86f7aa740ba201a6fd80188ac5e7a127abb30a509aeea6f9017",
+        # 1.13.41 Prompt V6 — retired when the repeated lifecycle instructions were
+        # reduced to one semantic close rule. Follow-ups remain in the same context;
+        # terminal output may now be one short farewell or no audio.
+        "8c85a3d0e500eec5f0d829ab7bbfa1ce1b7be5a6fc11ea8095f7e3e049d425a4",
     }
 )
 

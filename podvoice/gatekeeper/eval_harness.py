@@ -74,11 +74,11 @@ RESERVED_DECLARATIONS = (
 SAFE_EVAL_HIGH_RISK_TOOL = "EvalUnlockDoor"
 SEMANTIC_CLOSE_VALIDATION_SCENARIO_IDS = frozenset(
     {
-        "arithmetic-followup",
-        "arithmetic-followup-observed",
+        "context-followup-then-close",
+        "explicit-stop-conversation",
+        "media-stop-remains-open",
         "semantic-close",
         "explicit-short-close",
-        "low-risk-action-then-close",
     }
 )
 SAFE_EVAL_ROOM_CONTEXT_PROFILE = "synthetic-base-area-stue-v1"
@@ -137,7 +137,6 @@ def _schema_sha256(declarations: list[dict[str, Any]] | tuple[dict[str, Any], ..
 class TurnExpectation:
     decision: str | None = None
     decisions: tuple[str, ...] = ()
-    decision_batches: tuple[tuple[str, ...], ...] = ()
     allowed_decisions: tuple[str, ...] = ()
     direct_answer: bool = False
     allow_direct: bool = False
@@ -380,9 +379,6 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                     expect=TurnExpectation(
                         decision=expected.get("decision"),
                         decisions=tuple(expected.get("decisions") or ()),
-                        decision_batches=tuple(
-                            tuple(batch) for batch in (expected.get("decision_batches") or ())
-                        ),
                         allowed_decisions=tuple(expected.get("allowed_decisions") or ()),
                         direct_answer=bool(expected.get("direct_answer", False)),
                         allow_direct=bool(expected.get("allow_direct", False)),
@@ -486,16 +482,6 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
     forbidden = sorted(set(decisions).intersection(expect.forbid))
     if forbidden:
         findings.append(Finding("forbidden-decision", f"Forbudte kald: {forbidden}."))
-    if expect.decision_batches and observed.decision_batches != [
-        list(batch) for batch in expect.decision_batches
-    ]:
-        findings.append(
-            Finding(
-                "wrong-decision-batches",
-                f"Forventede batchrækkefølgen {list(expect.decision_batches)}, "
-                f"fik {observed.decision_batches}.",
-            )
-        )
     for name, expected_args in expect.tool_args.items():
         actual_args = observed.tool_args.get(name, [])
         if expected_args not in actual_args:

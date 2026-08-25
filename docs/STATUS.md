@@ -5,18 +5,80 @@ Senest opdateret: 2026-08-25.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Aktiv softwarekandidat:** installeret v1.13.39 er feltstoppet efter en falsk
-modelsemantisk afslutning i den første fysiske samtale.
-**Aktuel gate:** v1.13.39 er bygget fra `bb378fd`, bestod fuld lokal og CI-gate samt
-ARM64-build og er installeret. Den første fysiske tur kørte stadig på den midlertidige
-rå adresse `.193`. Bagefter blev det kanoniske `podvoice-pe-0a7e7a.local` gemt; en
-frisk add-on-start opløste det direkte til `.193`, gennemførte handshake, kontrakt,
-mic/wake-tuning og cachede den autentificerede peer. Det beviser den holdbare normale
-navnevej, men ikke den særlige runtime-rotation fra en aktiv stale `.162`-klient.
-Samtaleturen beviste wake, samme Realtime-session, fysisk playback, teardown og rearm,
-men lukkede fejlagtigt på en matematisk opfølgning. Kandidaten er derfor **NO-GO** for
-golden chain og 10/10, indtil den eksakte lydfejl er klassificeret, og en ny kandidat
-har bestået de relevante maskin-, lydreplay- og fysiske gates.
+**Aktiv softwarekandidat:** installeret v1.13.41 er feltstoppet efter korrekt hørt,
+men forkert besvaret og selvforstærket samtalekontekst. Oprydningskandidaten er
+versioneret v1.13.42, men endnu ikke bygget, installeret eller fysisk testet.
+**Aktuel gate:** v1.13.41 beviste fysisk wake, én Realtime-session gennem seks ture,
+eksplicit model-close på “Farvel.”, fysisk playback, én teardown og wake-rearm på
+101 ms. Den bestod ikke golden chain: Realtime hørte “Hvad er tolv gange syv?” korrekt,
+svarede `28` og argumenterede derefter ud fra sin egen fejl. Kandidaten er **NO-GO**.
+Produktretningen er nu reduceret til én minimal lifecycle-kontrakt; ingen ny fysisk test
+må startes, før de nedenstående mekaniske P1-huller, modelkontraktens dubletter og den
+hurtige lifecycle-gate er lukket på samme artifact.
+
+### Aktiv feltbeslutning 25. august — minimal Realtime-lifecycle uden overfit
+
+**Observeret på installeret v1.13.41 kl. 13.28–13.29.** Voice PE åbnede én
+Realtime-session. `get_time` lykkedes. Realtime modtog den korrekte transskription
+“Hvad er tolv gange syv?”, men svarede `28`. To korrekte transskriptioner af “Læg seks
+til.” førte til stadig længere forsvar for den forkerte modelkontekst. “Farvel.” gav
+præcis ét `end_conversation`, et kort fysisk farvel, model-close, attention-release og
+fysisk wake-rearm. Den armerede trace `20260825T132842-361` gemmer device-, provider- og
+speakerlyd samt hele eventrækkefølgen.
+
+- **Hele berørte kæde og nærliggende fejlveje:** fysisk wake → præcis én
+  Realtime-generation → samme socket/kontekst gennem opfølgninger → direkte svar eller
+  nødvendige domæneværktøjer → ét committed `end_conversation` → valgfri kort
+  providerlyd eller eksplicit stille afslutning → én teardown → bounded fysisk rearm →
+  næste wake. Nærliggende races er delayed/unrelated `TurnComplete`, modstridende
+  lifecycle-kald i samme batch, forskellige duplicate end-kald, playback uden lyd,
+  hængende provider/device/attention-close og den modsatte Talk-adapter.
+- **Berørte invarianter:** Realtime ejer betydning og afslutningsvalg; Thin ejer kun
+  mekanik og må aldrig fraseparse. Én wake må skabe én session. Kun den korrelerede,
+  completed terminalrespons må bekræfte semantic end. Lifecycle-signaler skal være
+  entydige, og teardown/rearm skal have præcis én ejer og en hård tidsgrænse.
+- **Falsificerbar årsagshypotese:** produktionsvejen er én og grundlæggende rigtig, men
+  modelkontrakten gentager afslutningsreglen i systemprompt, reserved tool og
+  domæneværktøj og overstyrer providerens batchform. Samtidig mangler Thin fire
+  serverhåndhævede grænser: close-response-korrelation, atomisk afvisning af mixed
+  wait/end, afvisning af flere end-kald og bounded teardown. Fjernes dubletterne og
+  håndhæves disse grænser, skal rå eventpermutationer blive deterministiske, mens en
+  lille live matrix stadig lukker “Farvel”, “Tak, det var alt” og “Stop samtalen”, men
+  ikke “Tak”, “stop musikken” eller en ny opgave.
+- **Bindende minimal kontrakt:** wake åbner én Realtime-session; første tur og 0..N
+  naturlige opfølgninger deler præcis den samme socket og samtalekontekst uden nyt wake;
+  Realtime svarer direkte eller kalder kun nødvendige værktøjer;
+  et entydigt `end_conversation` lukker. Har den korrelerede terminalrespons lyd,
+  afspilles den færdig; har den ingen lyd eller fejler, lukkes der stille uden lokal
+  semantik eller falsk playback-fejl. Derefter udføres én bounded teardown og én rearm.
+  “Stop musikken” er en domænehandling; “stop samtalen/Nabu” er semantic end.
+- **Planlagte regressioner og gates:** korreleret response-id/generation; stale,
+  duplicate og out-of-order completion; atomisk mixed wait/end og duplicate-name-end;
+  terminalrespons med farvel, completed uden lyd og failed uden lyd; hung provider,
+  device og attention med total teardown-deadline; samme tests for Voice PE og Talk;
+  ti simulerede lifecycle-cyklusser. Den lokale `lifecycle-smoke` må kun bevise disse
+  mekaniske egenskaber og skal normalt køre på få sekunder til højst to minutter. En
+  lille live close-matrix beviser kun modelvalget. Fuld SafeEval, øvrige funktioner,
+  CI/ARM64 og fysisk golden chain er separate senere gates.
+- **Ikke-mål og rollback:** ingen lokal fraseliste, transcript-veto, calculator eller
+  anden semantikmotor; ingen `continue_conversation`, parallel runtime, audio/VAD/gain,
+  firmware-, HA/MCP- eller funktionsændring. Matematik er ikke længere lifecycle-bevis.
+  Ved uløst P1, forskel mellem Talk og Voice PE, ukorreleret close eller stille close
+  uden et committed `end_conversation` forbliver kandidaten NO-GO og rulles tilbage
+  samlet før fysisk test.
+- **Faktisk ændring og maskinel status for v1.13.42:** samme-session-opfølgninger er
+  bevaret og promptlåst. Terminal request, source call-id, response-id, socket-generation,
+  PCM og completion er nu én korreleret kæde; stale, duplicate, superseded og raw
+  done-before-created-events fejler lukket. Kun eksakt terminal PCM kan blive farvel;
+  ellers lukkes stille. Silence, cachet fejllyd, teardown og første rearm deler én samlet
+  deadline, og hvert rearm-retry er bounded. Voice PE og Talk har parallelle mekaniske
+  regressioner. Hurtig lifecycle-gate: 54 selectors, 118/118 cases på 10,02 s;
+  Thin: 122/122; providergrænser: 89/89; tidligere samlet prompt/eval/UI-gate: 352/352.
+  Ruff, format og mypy er grønne. Uafhængigt adversarial recheck af det uversionerede
+  runtime-snapshot fandt P0=0/P1=0 og gav GO for maskinel testklarhed; versions-/docsændring
+  ændrer ikke runtime. Resterende usikkerhed er den lille rigtige Realtime-close-matrix,
+  build/artifact-identitet og fysisk Voice PE-kæde. Kandidaten er derfor maskintestklar,
+  men **ikke installeret, fysisk golden-chain-bevist eller releasegodkendt**.
 
 ### Aktiv feltbeslutning 25. august — falsk semantisk close på matematisk opfølgning
 

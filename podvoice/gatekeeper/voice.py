@@ -18,12 +18,14 @@ from typing import Protocol, Union, runtime_checkable
 class AudioChunk:
     """Raw 24 kHz / 16-bit / mono PCM emitted by the model.
 
-    ``item_id`` identifies the assistant conversation item the audio belongs to
-    (OpenAI Realtime). It is used for playout accounting and truncation on the Talk
-    full-duplex surface; Voice PE remains half-duplex."""
+    ``item_id`` identifies the assistant conversation item the audio belongs to.
+    ``response_id`` and ``generation`` keep terminal lifecycle audio bound to the
+    exact provider response and socket; neither field carries semantics."""
 
     pcm: bytes
     item_id: str | None = None
+    response_id: str | None = None
+    generation: int | None = None
 
 
 @dataclass
@@ -74,6 +76,11 @@ class TurnComplete:
     status: str = "completed"
     error: str | None = None
     response_id: str | None = None
+    generation: int | None = None
+    # Set only when a locally correlated response.create failed before the provider
+    # could assign a response id (for example the terminal semantic-end response).
+    purpose: str | None = None
+    source_call_id: str | None = None
     # True only when a valid rate_limits.updated edge was causally attached to this
     # exact response on this socket generation. Prior bucket authority is insufficient.
     provider_rate_observed: bool = False
@@ -91,6 +98,21 @@ class ToolRoundComplete:
     """
 
     response_id: str | None = None
+
+
+@dataclass
+class ResponseStarted:
+    """Provider accepted one correlated response request.
+
+    ``purpose`` is transport metadata authored by the provider adapter, never model
+    semantics.  Thin uses it to bind a terminal ``end_conversation`` result response
+    to the exact later ``TurnComplete`` that may close the room.
+    """
+
+    response_id: str
+    purpose: str = "turn"
+    generation: int | None = None
+    source_call_id: str | None = None
 
 
 @dataclass
@@ -184,6 +206,7 @@ VoiceEvent = Union[  # noqa: UP007
     OutputTranscript,
     TurnComplete,
     ToolRoundComplete,
+    ResponseStarted,
     ToolSchemaCorrection,
     SilentToolComplete,
     Interrupted,

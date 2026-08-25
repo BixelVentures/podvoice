@@ -84,8 +84,13 @@ beregnes kontinuerligt fra det dokumenterede TPM-loft pr. 60 sekunder;
 før hver klientstyret `response.create`, også tool-resultat og efterfølgende tool-loop.
 En nødvendig refillventetid tæller i kørselsdeadline og vises i rapporten, men trækkes
 fra den enkelte responses 20-sekunders semantiske timeout. Kun én eval-prøve kan have
-reservationen ad gangen. Den mekaniske worst case med 36 responsekanter giver et synligt
-hard deadline-loft på omtrent 41 minutter; normal kørsel er typisk væsentligt kortere.
+reservationen ad gangen. Standardprofilens 9 scenarier og 15 ture reserverer mekanisk
+højst fire kanter per tur — 60 i alt, inklusive en mulig typet skemakorrektion. Det
+globale hard deadline-loft er derfor omtrent 66 minutter; normal kørsel er typisk
+væsentligt kortere. Det nuværende loft er beregnet fra hele profilen og vises også for
+et selektivt scenarieudvalg. Det er et sikkerhedsloft, ikke en ETA. En brugerrettet ETA
+skal scopes til de faktisk valgte scenarier, ture og tilladte kanter, før den kan kaldes
+forventet køretid.
 `response.done`-usage debiterer både input-/outputtekst og -lyd; en gyldig
 rate-limit-event afstemmer remaining/reset med et monotont ur.
 Reconnect, fejl og teardown frigiver kun deres egen generation én gang. Eval genkører
@@ -105,13 +110,31 @@ Hver kørsel har hårde lofter for antal ture, reserverede outputtokens, faktisk
 tokens og estimeret pris. Faktiske tokenfelter gemmes særskilt, så prisestimater
 kan opdateres uden at ændre det oprindelige bevis.
 
-Den semantiske profil tillader højst tre providerresponser per brugertur og 36 for hele
-standardprofilen. En tredje værktøjsloopkant stoppes før ny fixtureeffekt eller en
-fjerde Response. Før hver tur reserveres den konservative pris for alle tre kanter;
+Den semantiske profil tillader normalt højst tre providerresponser per brugertur.
+Standardprofilens 15 ture giver dermed 45 normale kanter; den mekaniske deadline- og
+prisreservation rummer desuden én typet skemakorrektion per tur og derfor højst 60.
+En tredje værktøjsloopkant stoppes før ny fixtureeffekt eller en fjerde normal Response.
+Før hver tur reserveres den konservative pris for de tilladte kanter;
 samlet faktisk pris stopper ved $5; der findes ingen separat probepris.
 Manglende, negativ eller malformed `response.done.usage` klassificeres
 `provider-usage-unknown` og stopper kørslen uden næste providerkant. En custom prompt
 over 32 KiB blokeres før diagnostiklås/socket uden at ændre produktionsprompten.
+
+## Hurtig lokal lifecycle-gate
+
+`scripts/dev lifecycle` er den få-minutters, deterministiske udviklingsgate for den
+minimale mekaniske kæde. Dens auditerbare node-id-liste ligger i
+`scripts/lifecycle_smoke.txt` og dækker én wake-/provider-ejer, direkte svar,
+opfølgning i samme session, completed-korreleret tool-commit, modelsignaleret close,
+fysisk playback-edge, én teardown, native rearm-ACK, races, Talk-modadapteren,
+trace-oraklet og ti simulerede cyklusser.
+
+Gaten er altid **focused/partial**. Den foretager ingen live API-kald og beviser hverken
+Realtime-semantik, add-on-image, fysisk puck eller golden chain. Ukendte produktions-,
+semantik-, funktions- og testflader afvises i stedet for at give en falsk grøn status;
+en ændret dækket testfil køres i sin helhed. Den fulde lokale releasegate, exact-commit
+CI/ARM64-build, sikker live-preflight og de fysiske gates er fortsat separate og
+obligatoriske på den frosne kandidat.
 
 Audio-replay reserverer desuden eksakt PCM-varighed gange antal lydforsøg til OpenAIs
 særskilt fakturerede `gpt-live-transcribe`-pris på $0,017/minut. Tekstkontrollen har
