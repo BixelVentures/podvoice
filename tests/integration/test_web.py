@@ -339,10 +339,7 @@ async def test_audio_replay_endpoint_rejects_unknown_transcript_without_provider
                 "pcm": b"\x00\x00" * 24000,
                 "duration_ms": 1000,
                 "sha256": "b" * 64,
-                # This is the observed field transcript, but not the canonical safe
-                # scenario utterance "Og læg seks til.". No PCM was armed in that
-                # field run, so the endpoint must not fabricate an exact match.
-                "diagnostic_transcript": "Læg seks til.",
+                "diagnostic_transcript": "En ukendt testytring",
                 "exact_sample_offsets": True,
             }
 

@@ -101,10 +101,12 @@ APPROVE_ACTION_TOOL = "approve_action"
 END_CONVERSATION_DECLARATION = {
     "name": END_CONVERSATION_TOOL,
     "description": (
-        "Signal that the user's clear, audible meaning is to end the current voice "
-        "conversation. Decide from meaning and conversation context, never from a keyword. "
-        "A clear polite wrap-up after a completed request is end intent; the previous "
-        "turn's topic or tool must not override the latest user's meaning. "
+        "Signal only when the latest user's clear, audible meaning itself is to end the "
+        "current voice conversation. Decide from meaning and conversation context, never "
+        "from a keyword. Completion of an earlier request is never evidence of end intent. "
+        "A polite latest turn qualifies only when its own meaning clearly ends the interaction. "
+        "If a short or fragmentary latest turn can plausibly continue, correct, refine or refer "
+        "to the previous answer, treat it as conversational content and answer or clarify. "
         "Never use it for unclear, noisy or fragmentary input, ordinary questions, embedded "
         "politeness, background speech, a media stop, or merely mentioning a farewell. If "
         "the user is addressing the assistant but end intent is uncertain, ask for a repeat. "

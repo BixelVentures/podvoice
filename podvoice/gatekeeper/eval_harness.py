@@ -72,6 +72,15 @@ RESERVED_DECLARATIONS = (
     APPROVE_ACTION_DECLARATION,
 )
 SAFE_EVAL_HIGH_RISK_TOOL = "EvalUnlockDoor"
+SEMANTIC_CLOSE_VALIDATION_SCENARIO_IDS = frozenset(
+    {
+        "arithmetic-followup",
+        "arithmetic-followup-observed",
+        "semantic-close",
+        "explicit-short-close",
+        "low-risk-action-then-close",
+    }
+)
 SAFE_EVAL_ROOM_CONTEXT_PROFILE = "synthetic-base-area-stue-v1"
 SAFE_EVAL_ROOM_CONTEXT = (
     "Det eneste syntetiske basisområde i denne testverden hedder stue. "

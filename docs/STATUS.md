@@ -57,7 +57,27 @@ derfor intet eksakt provider-PCM fra feltfejlen, som må foregives matchet eller
   HA/MCP-ændring. Hvis lydreplay ikke reproducerer årsagen, stoppes prompt/tool-
   ændringen; v1.13.39 forbliver installeret som diagnostisk, men ikke testgodkendt.
 
-**Faktisk evalændring, endnu uden produktionsrettelse.** Audio-replay af en
+**Aktiv minimal produktbeslutning.** Der findes direkte fysisk eventevidens for samme
+session, de to korrekte svar, det efterfølgende committed `end_conversation`-kald,
+farvel-playback, teardown og rearm samt den separate diagnostiske transskription “Læg
+seks til.”. Der findes **ikke** eksakt provider-PCM for target-turnen, fordi audio-trace
+ikke var armeret. Hovedhypotesen er derfor fortsat falsificerbar, ikke bevist: den brede
+positive sætning i `end_conversation`-deklarationen om et høfligt wrap-up efter en
+afsluttet opgave kan gøre den foregående opgaves afslutning til fejlagtigt positivt
+close-bevis, selv om den seneste korte tur plausibelt fortsætter konteksten.
+
+Den mindste planlagte produktændring er én variabel: fjern den brede positive sætning
+fra den reserverede tool-beskrivelse og gør eksplicit, at en tidligere opgaves
+afslutning aldrig i sig selv er end-intent; den seneste tur skal selv klart afslutte.
+Den observerede tekstsekvens `Hvad er tolv gange syv?` → `Læg seks til.` tilføjes som
+tekst-/live-eval-diagnostik med forventet `84 → 90`, men må ikke kaldes lydækvivalent
+eller fysisk reproduktion. Ikke-mål er uændret: ingen frase- eller transcript-veto,
+ingen `continue_conversation`-/to-respons-vej, ingen promptomskrivning og ingen ændring
+af Realtime-eventrækkefølge, Thin-lifecycle, playback, teardown eller rearm. Rollback-
+grænsen er den ene tool-description-diff, hvis betalt Realtime-validering ikke reducerer
+false-close uden samtidig at bryde eksplicit semantisk close.
+
+**Faktisk evalgrundlag.** Audio-replay af en
 kontekstafhængig scenarietur åbner en frisk Realtime-session for tekstkontrollen og hver
 af de tre PCM-prøver. Den seeder tidligere ture som **kanonisk scenarietekst** i samme
 session og kræver, at hver expectation og session-id består, før target-PCM må sendes;
@@ -75,16 +95,35 @@ kildemodel, prompt-source/version/hash, tool-schemahash eller rumkonteksthash m�
 kontekstuel target kræver eksakte provider-sample-offsets. Hver PCM-prøves nye
 diagnostiske transcript skal være ikke-tomt og eksakt normaliseret lig den kanoniske
 ytring, ellers får prøven `audio-transcript-missing` eller
-`audio-transcript-mismatch`. Felttranscriptet “Læg seks til.” er med vilje ikke ændret
-til scenariets “Og læg seks til.”; uden armed PCM findes ingen gyldig trace-match.
+`audio-transcript-mismatch`. Scenariets tekstkontrol bruger nu det observerede ordvalg
+“Læg seks til.” og forventer `90`; det er en diagnostisk tekstklasse, ikke en påstand om
+lydækvivalens. Uden armed PCM fra feltkørslen findes stadig ingen fysisk replay-fixture.
 
-Produktionsprompt, `end_conversation`-deklaration, Realtime-semantik, lifecycle, lyd,
-firmware og værktøjsdispatch er urørte. Thin gemmer kun de allerede anvendte model-,
-prompt- og rumkonteksthashes som trace-provenance; det ændrer ingen samtaleadfærd. Den
-fokuserede eval-harness/audio-trace/replay-endpoint-pakke er **155/155** grøn på 3,00 s;
-Ruff format/check og mypy for alle fire ændrede kildefiler er grønne, og `diff --check`
-er ren. Dette retter ikke feltfejlen, skaber ingen produktionskandidat og genåbner ingen
-fysisk gate.
+**Faktisk minimal produktændring, endnu ikke testlåst eller releasegodkendt.** Kun den
+reserverede `end_conversation`-beskrivelse er ændret: tidligere opgaveafslutning er ikke
+close-bevis, og en kort seneste tur, som plausibelt fortsætter, korrigerer, præciserer
+eller refererer til det foregående svar, skal besvares eller afklares. Systemprompt,
+Realtime-runtime, Thin-lifecycle, lyd, firmware og værktøjsdispatch er urørte. Thin
+gemmer desuden kun de allerede anvendte model-, prompt- og rumkonteksthashes som
+trace-provenance; det ændrer ingen samtaleadfærd. Den tidligere fokuserede
+eval-harness/audio-trace/replay-endpoint-pakke var **155/155** grøn på 3,00 s, men det er
+ikke resultat for den nye tool-description-diff. For den nye diff er den målrettede
+prompt-/tool-/eval-/oracle-/Thin-gate **30/30** grøn på 4,79 s; Ruff check var grøn på
+0,01 s, mypy for `thin.py` og `eval_harness.py` var grøn på 0,32 s, og `diff --check` er
+ren. Ingen betalt provider blev kaldt. Uafhængigt adversarial review gav derefter GO
+til live-eval med 0 P0/P1. Den billige P2-lukning ændrer kun evalprofilen: historiske
+`arithmetic-followup` bevarer “Og læg seks til.”, observerede
+`arithmetic-followup-observed` bevarer “Læg seks til.” som en separat eksakt tekstcase,
+og `explicit-short-close` tilføjer den korte positive kontrol “Farvel.”. Den selektive
+close-valideringsprofil omfatter desuden `semantic-close` og den eksisterende
+`low-risk-action-then-close`, så task→close-batchrækkefølgen fortsat bevises. Profilen er
+præcis disse fem scenarie-id'er og **8 ture** i alt. En lille betalt kørsel af netop denne
+profil er stadig obligatorisk, fordi deterministiske tests ikke kan bevise, at
+Realtime-modellens tool-valg faktisk ændres, eller at naturlig eksplicit close bevares.
+P2-ændringen tilføjer ingen produktionsadfærd. Dens fokuserede
+manifest-/admission-/oracle-/context-gate er **11/11** grøn på 0,47 s; Ruff check var
+grøn på 0,01 s, mypy for `eval_harness.py` var grøn på 0,30 s, og `diff --check` er ren.
+Den genåbner endnu ingen fysisk gate.
 
 ### Aktiv feltbeslutning 25. august — Voice PE strandet på cachet DHCP-adresse
 

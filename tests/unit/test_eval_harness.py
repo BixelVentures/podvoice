@@ -103,8 +103,10 @@ def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
     scenarios = load_scenarios()
     assert {s.id for s in scenarios} == {
         "arithmetic-followup",
+        "arithmetic-followup-observed",
         "time-followup",
         "semantic-close",
+        "explicit-short-close",
         "web-routing",
         "sensitive-confirmation",
         "sensitive-action-with-close",
@@ -278,7 +280,45 @@ def test_audio_replay_matches_only_an_exact_known_eval_utterance():
     assert matched[0].id == "time-followup"
     assert matched[1] == 0
     assert match_scenario_turn("Hvad er klokken måske") is None
-    assert match_scenario_turn("Læg seks til.") is None
+    observed_followup = match_scenario_turn("Læg seks til.")
+    assert observed_followup is not None
+    assert observed_followup[0].id == "arithmetic-followup-observed"
+    assert observed_followup[1] == 1
+    historical_followup = match_scenario_turn("Og læg seks til.")
+    assert historical_followup is not None
+    assert historical_followup[0].id == "arithmetic-followup"
+    assert historical_followup[1] == 1
+
+
+def test_semantic_close_selective_profile_preserves_all_independent_controls():
+    selected = [
+        scenario
+        for scenario in load_scenarios()
+        if scenario.id in eval_harness.SEMANTIC_CLOSE_VALIDATION_SCENARIO_IDS
+    ]
+    by_id = {scenario.id: scenario for scenario in selected}
+
+    assert set(by_id) == set(eval_harness.SEMANTIC_CLOSE_VALIDATION_SCENARIO_IDS)
+    assert sum(len(scenario.turns) for scenario in selected) == 8
+    assert by_id["arithmetic-followup"].turns[1].text == "Og læg seks til."
+    assert by_id["arithmetic-followup-observed"].turns[1].text == "Læg seks til."
+    assert by_id["explicit-short-close"].turns[0].text == "Farvel."
+    assert by_id["explicit-short-close"].turns[0].expect.decision == "end_conversation"
+    ordered = by_id["low-risk-action-then-close"].turns[0].expect
+    assert ordered.decisions == ("HassTurnOn", "end_conversation")
+    assert ordered.decision_batches == (("HassTurnOn",), ("end_conversation",))
+    admission = eval_harness._admit_eval_tools(selected, SafeEvalTools().declarations())
+    assert {"HassTurnOn", "end_conversation"} <= {
+        declaration["name"] for declaration in admission.declarations
+    }
+
+
+def test_end_conversation_contract_does_not_treat_prior_task_completion_as_close_evidence():
+    description = END_CONVERSATION_DECLARATION["description"].casefold()
+
+    assert "completion of an earlier request is never evidence of end intent" in description
+    assert "can plausibly continue, correct, refine or refer" in description
+    assert "læg seks til" not in description  # no phrase-specific production guard
 
 
 def test_web_oracle_accepts_spoken_words_or_digits_but_still_requires_winner():
@@ -1318,6 +1358,69 @@ async def test_runner_uses_one_session_and_event_driven_driver_results():
     assert result.passed is True
     assert driver.calls == 2 and driver.closed is True
     assert all(turn.observation.session_id == "session-one" for turn in result.turns)
+
+
+async def test_observed_arithmetic_followup_end_call_is_a_deterministic_red_regression():
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
+    assert [turn.text for turn in scenario.turns] == [
+        "Hvad er tolv gange syv?",
+        "Læg seks til.",
+    ]
+
+    class ObservedFieldFailure:
+        def __init__(self):
+            self.calls = 0
+
+        async def open(self, *, run_id, scenario_id):
+            assert scenario_id == "arithmetic-followup-observed"
+            return "field-session"
+
+        async def submit_text(self, *, turn_id, text):
+            self.calls += 1
+            if self.calls == 1:
+                return TurnObservation(
+                    turn_id=turn_id,
+                    session_id="field-session",
+                    answer="Fireogfirs.",
+                )
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id="field-session",
+                decisions=["end_conversation"],
+                decision_batches=[["end_conversation"]],
+                tool_calls=[
+                    {
+                        "call_id": "end-field",
+                        "name": "end_conversation",
+                        "response_id": "close-response",
+                        "batch_id": "close-response",
+                        "batch_index": 0,
+                        "batch_size": 1,
+                    }
+                ],
+                answer="Farvel.",
+                remain_open=False,
+            )
+
+        async def close(self):
+            return None
+
+    result = await run_scenario(
+        ObservedFieldFailure(),
+        scenario,
+        run_id="field-regression",
+        budget=EvalBudget(),
+    )
+
+    assert result.passed is False
+    assert result.turns[0].passed is True
+    assert result.turns[1].passed is False
+    assert result.turns[1].observation.tool_calls[0]["call_id"] == "end-field"
+    assert {finding.code for finding in result.turns[1].findings} == {
+        "wrong-decision",
+        "answer-missing-any",
+        "wrong-lifecycle",
+    }
 
 
 async def test_runner_timeout_is_a_failure_not_a_retry():
@@ -3023,7 +3126,7 @@ async def test_contextual_audio_replay_seeds_prior_turns_in_every_fresh_session(
                 self.seeded = True
                 answer = "Fireogfirs."
             else:
-                assert text == "Og læg seks til."
+                assert text == "Læg seks til."
                 assert self.seeded is True
                 answer = "Halvfems."
             return TurnObservation(
@@ -3042,12 +3145,12 @@ async def test_contextual_audio_replay_seeds_prior_turns_in_every_fresh_session(
         async def submit_audio(self, *, turn_id, pcm: bytes, rate: int):
             assert rate == 24_000
             assert self.seeded is True
-            ordered_inputs.append((self.session_id, "audio", "Og læg seks til."))
+            ordered_inputs.append((self.session_id, "audio", "Læg seks til."))
             return TurnObservation(
                 turn_id=turn_id,
                 session_id=self.session_id,
                 answer="Halvfems.",
-                diagnostic_transcript="Og læg seks til.",
+                diagnostic_transcript="Læg seks til.",
                 usage={"provider_total_tokens": 120, "input_audio_tokens": 120},
                 provider_trace=[
                     {
@@ -3061,7 +3164,7 @@ async def test_contextual_audio_replay_seeds_prior_turns_in_every_fresh_session(
             return None
 
     monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ContextDriver)
-    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup")
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
     fixture = AudioReplayFixture(
         trace_id="trace-context",
         turn_index=1,
@@ -3069,7 +3172,7 @@ async def test_contextual_audio_replay_seeds_prior_turns_in_every_fresh_session(
         rate=24_000,
         duration_ms=1_000,
         sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
-        diagnostic_transcript="Og læg seks til.",
+        diagnostic_transcript="Læg seks til.",
         exact_sample_offsets=True,
         **_audio_source_provenance(scenario),
     )
@@ -3143,7 +3246,7 @@ async def test_contextual_audio_replay_cannot_go_green_when_seed_turn_fails(monk
             return None
 
     monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", FailedContextDriver)
-    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup")
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
     fixture = AudioReplayFixture(
         trace_id="trace-context-failed",
         turn_index=1,
@@ -3151,7 +3254,7 @@ async def test_contextual_audio_replay_cannot_go_green_when_seed_turn_fails(monk
         rate=24_000,
         duration_ms=1_000,
         sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
-        diagnostic_transcript="Og læg seks til.",
+        diagnostic_transcript="Læg seks til.",
         exact_sample_offsets=True,
         **_audio_source_provenance(scenario),
     )
@@ -3363,7 +3466,7 @@ async def test_contextual_audio_replay_requires_exact_provider_sample_offsets(mo
 
     monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ForbiddenDriver)
     pcm = b"\x00\x00" * 24_000
-    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup")
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
     fixture = AudioReplayFixture(
         trace_id="legacy-context",
         turn_index=0,
@@ -3371,7 +3474,7 @@ async def test_contextual_audio_replay_requires_exact_provider_sample_offsets(mo
         rate=24_000,
         duration_ms=1_000,
         sha256=eval_harness.hashlib.sha256(pcm).hexdigest(),
-        diagnostic_transcript="Og læg seks til.",
+        diagnostic_transcript="Læg seks til.",
         exact_sample_offsets=False,
         **_audio_source_provenance(scenario),
     )
