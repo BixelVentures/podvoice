@@ -20,6 +20,7 @@ class FakeVoicePELink:
         self.played: list[bytes] = []
         self.announced_urls: list[str] = []
         self.stop_playback_calls = 0
+        self.stop_playback_results: list[bool] = []
         self.light_commands: list[tuple[bool, tuple[float, float, float], float]] = []
         self.direct_events: list[str] = []
         self.direct_pcm: list[bytes] = []
@@ -34,6 +35,7 @@ class FakeVoicePELink:
         self.started = False
         self.streaming = False
         self.rearm_calls = 0
+        self.wake_readiness = "unknown"
         self.closed = False
 
     def feed(self, frames: list[bytes]) -> None:
@@ -54,9 +56,10 @@ class FakeVoicePELink:
         self.streaming = False
         return True
 
-    async def rearm_wake_word(self) -> None:
+    async def rearm_wake_word(self) -> str:
         await asyncio.sleep(0)
         self.rearm_calls += 1
+        return "recovered"
 
     def drain_mic(self) -> int:
         n = 0
@@ -78,8 +81,9 @@ class FakeVoicePELink:
     async def play_url(self, url: str) -> None:
         self.announced_urls.append(url)
 
-    async def stop_playback(self) -> None:
+    async def stop_playback(self) -> bool:
         self.stop_playback_calls += 1
+        return self.stop_playback_results.pop(0) if self.stop_playback_results else True
 
     async def set_light(self, on: bool, rgb: tuple[float, float, float], brightness: float) -> None:
         self.light_commands.append((on, rgb, brightness))

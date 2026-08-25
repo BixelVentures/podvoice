@@ -35,10 +35,66 @@ def test_voicepe_golden_trace_passes_strict_physical_oracle():
     assert report.contract[-2:] == ("close_requested", "session_closed")
 
 
+def test_rearm_ack_without_a_subsequent_real_wake_is_not_golden():
+    trace = _fixture("voicepe_golden.json")
+    trace["events"] = [event for event in trace["events"] if event["event"] != "next_wake_received"]
+
+    report = TraceOracle(
+        adapter="voicepe",
+        minimum_user_turns=2,
+        require_semantic_close=True,
+    ).score(trace)
+
+    assert not report.passed
+    assert "next_wake_received_count" in _codes(report)
+
+
+def test_next_wake_without_a_fresh_provider_session_is_not_golden():
+    trace = _fixture("voicepe_golden.json")
+    trace["events"] = [
+        event for event in trace["events"] if event["event"] != "next_session_opened"
+    ]
+
+    report = TraceOracle(adapter="voicepe", require_semantic_close=True).score(trace)
+
+    assert not report.passed
+    assert "next_session_opened_count" in _codes(report)
+
+
+def test_next_provider_session_must_match_exact_wake_attempt_and_identity():
+    trace = _fixture("voicepe_golden.json")
+    session = next(event for event in trace["events"] if event["event"] == "next_session_opened")
+    session["attempt_id"] = "another-attempt"
+    session.pop("history_session")
+    session.pop("provider_generation")
+
+    report = TraceOracle(adapter="voicepe", require_semantic_close=True).score(trace)
+
+    assert not report.passed
+    assert {
+        "next_session_attempt_mismatch",
+        "next_history_session_missing",
+        "next_provider_generation_missing",
+    } <= _codes(report)
+
+
+def test_teardown_failure_can_never_become_a_strict_physical_golden_chain():
+    trace = _fixture("voicepe_golden.json")
+    trace["events"].insert(
+        -4,
+        {"at_ms": 5570, "event": "teardown_step_timeout", "step": "provider-close"},
+    )
+
+    report = TraceOracle(adapter="voicepe", require_semantic_close=True).score(trace)
+
+    assert not report.passed
+    assert "incomplete_physical_teardown" in _codes(report)
+
+
 @pytest.mark.parametrize(
     ("fixture", "expected"),
     [
-        ("failure_missing_rearm.json", "wake_rearmed_count"),
+        ("failure_missing_rearm.json", "wake_rearm_recovered_count"),
         ("failure_duplicate_playback_finish.json", "playback_finish_without_start"),
     ],
 )

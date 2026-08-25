@@ -157,8 +157,9 @@ def compare_normalised_contracts(
 class TraceOracle:
     """Score one trace against mechanical lifecycle invariants.
 
-    ``strict_physical`` requires the modern Voice PE playback and rearm evidence used
-    for candidate admission. It can be disabled only to analyse historical traces.
+    ``strict_physical`` requires modern Voice PE playback/rearm evidence *and* the
+    subsequent genuine wake edge. An ACK-only trace can never claim a golden chain.
+    It can be disabled only to analyse historical traces.
     """
 
     def __init__(
@@ -447,9 +448,63 @@ class TraceOracle:
         self._ordered(names, "capture_started", "wake_received", issues)
         self._ordered(names, "close_requested", "capture_finished", issues)
         if self.strict_physical:
-            self._require_once(names, "wake_rearmed", issues)
-            self._ordered(names, "close_requested", "wake_rearmed", issues)
-            self._ordered(names, "wake_rearmed", "capture_finished", issues)
+            self._require_once(names, "teardown_complete", issues)
+            self._require_once(names, "wake_rearm_recovered", issues)
+            self._require_once(names, "next_wake_received", issues)
+            self._require_once(names, "next_session_opened", issues)
+            self._ordered(names, "close_requested", "wake_rearm_recovered", issues)
+            self._ordered(names, "teardown_complete", "wake_rearm_recovered", issues)
+            self._ordered(names, "wake_rearm_recovered", "capture_finished", issues)
+            self._ordered(names, "capture_finished", "next_wake_received", issues)
+            self._ordered(names, "next_wake_received", "next_session_opened", issues)
+            for failure in (
+                "teardown_step_timeout",
+                "teardown_step_failed",
+                "mic_stream_stop_failed",
+                "rearm_blocked_incomplete_teardown",
+                "playback_fault",
+                "wake_rejected_incomplete_teardown",
+            ):
+                if failure in names:
+                    issues.append(
+                        TraceIssue(
+                            "incomplete_physical_teardown",
+                            f"Physical chain contains failure event: {failure}",
+                            event_index=names.index(failure),
+                        )
+                    )
+            if isinstance(trace, Mapping):
+                events = trace.get("events") or []
+                wake: Mapping[str, Any] = next(
+                    (event for event in events if event.get("event") == "next_wake_received"),
+                    {},
+                )
+                session: Mapping[str, Any] = next(
+                    (event for event in events if event.get("event") == "next_session_opened"),
+                    {},
+                )
+                attempt_id = wake.get("attempt_id")
+                if not attempt_id or session.get("attempt_id") != attempt_id:
+                    issues.append(
+                        TraceIssue(
+                            "next_session_attempt_mismatch",
+                            "Next provider session is not bound to the exact physical wake attempt",
+                        )
+                    )
+                if not session.get("history_session"):
+                    issues.append(
+                        TraceIssue(
+                            "next_history_session_missing",
+                            "Next provider session has no fresh conversation identity",
+                        )
+                    )
+                if not isinstance(session.get("provider_generation"), int):
+                    issues.append(
+                        TraceIssue(
+                            "next_provider_generation_missing",
+                            "Next provider session has no concrete provider generation",
+                        )
+                    )
 
         if isinstance(trace, Mapping):
             stages = trace.get("stages")

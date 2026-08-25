@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.13.43 — rearm kan ikke længere være falsk grøn
+
+- Firmware genåbner ikke længere wake-latchen ud fra et sticky tidligere wake,
+  `micro_wake_word.is_running()` og passive mikrofonframes. Hver teardown udfører én
+  bounded stop/start-reset; en vellykket reset er kun gul `recovered`. Kun den næste
+  virkelige wake-callback gør readiness grøn.
+- Rearm-service og firmware-ACK er korreleret med et proces-randomiseret, derefter
+  monotont token over en dedikeret diagnostisk text-sensor. En forsinket, dubleret,
+  replayet eller tidligere proces-ACK kan derfor ikke godkende et senere retry. Den nye
+  `correlated_reset_rearm_v2`-capability og ACK-entitet gør, at add-onen afviser gammel
+  firmware fail-closed. Den kandidatbundne `podvoice_build_11343`-identitet skal også
+  matche, så en ældre firmware med genbrugte del-capabilities ikke kan blive admitted.
+- Ukendt eller manglende rearm-resultat kan ikke længere oversættes til `proven`.
+  Golden-chain-oraklet kræver nu en ægte efterfølgende wake efter teardown/rearm;
+  firmware-ACK alene er ikke længere nok.
+- Rearm kræver nu vellykket fysisk silence, mic-stop, provider-close, heartbeat-stop
+  og attention-release. Fejl holder latch og readiness lukket og genkører hele
+  teardown; reconnect og stray wake-events kan ikke omgå ejerskabet. Voice PE's
+  playback-stop er fail-closed og kræver både reply-cancel og køet media-player STOP.
+- Den næste wake bindes med nonce til én ny history-session og en stigende
+  provider-generation. Early, stale, nonphysical og udløbne forsøg kan derfor ikke
+  gøre en senere session retroaktivt grøn.
+- Gain, VAD, lydtransport, Realtime, prompt, semantik og stilhedslukning er
+  uændrede.
+
 ## 1.13.42 — én session gennem opfølgninger, én korreleret afslutning
 
 - Én wake åbner fortsat én Realtime-session, og første tur plus alle naturlige

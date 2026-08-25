@@ -48,6 +48,113 @@ def test_one_shot_trace_saves_input_provider_and_speaker_boundaries(tmp_path):
     assert recorder.snapshot()["active"] is None
 
 
+def test_next_physical_wake_and_provider_session_complete_cross_session_proof(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    assert recorder.begin("r0") is True
+    manifest = recorder.finish("model-close")
+
+    assert recorder.note_next_wake("r0", "attempt-a") is True
+    assert (
+        recorder.prove_next_session(
+            "r0",
+            "attempt-a",
+            "r0:session-a",
+            provider_generation=2,
+            previous_provider_generation=1,
+        )
+        is True
+    )
+
+    persisted = json.loads(recorder.artifact(manifest["id"], "manifest").read_text())
+    assert [event["event"] for event in persisted["events"]][-3:] == [
+        "capture_finished",
+        "next_wake_received",
+        "next_session_opened",
+    ]
+
+
+def test_failed_immediate_post_rearm_session_cannot_be_proven_by_a_later_attempt(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    assert recorder.begin("r0") is True
+    recorder.finish("model-close")
+
+    assert recorder.note_next_wake("r0", "attempt-a") is True
+    recorder.reject_next_session("r0", "attempt-a")
+    assert (
+        recorder.prove_next_session(
+            "r0",
+            "attempt-a",
+            "r0:session-a",
+            provider_generation=2,
+            previous_provider_generation=1,
+        )
+        is False
+    )
+
+
+def test_later_wake_cannot_complete_a_rejected_attempt(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    assert recorder.begin("r0") is True
+    recorder.finish("model-close")
+
+    assert recorder.note_next_wake("r0", "attempt-a") is True
+    recorder.reject_next_session("r0", "attempt-a")
+    assert recorder.note_next_wake("r0", "attempt-b") is False
+    assert (
+        recorder.prove_next_session(
+            "r0",
+            "attempt-b",
+            "r0:session-b",
+            provider_generation=3,
+            previous_provider_generation=2,
+        )
+        is False
+    )
+
+
+def test_attempt_rejected_before_finish_cannot_be_completed_by_a_later_wake(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    assert recorder.begin("r0") is True
+
+    recorder.reject_next_session("r0", "attempt-a")
+    recorder.finish("model-close")
+
+    assert recorder.note_next_wake("r0", "attempt-b") is False
+    assert (
+        recorder.prove_next_session(
+            "r0",
+            "attempt-b",
+            "r0:session-b",
+            provider_generation=3,
+            previous_provider_generation=2,
+        )
+        is False
+    )
+
+
+def test_unchanged_provider_generation_cannot_complete_rearm_proof(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    assert recorder.begin("r0") is True
+    recorder.finish("model-close")
+
+    assert recorder.note_next_wake("r0", "attempt-a") is True
+    assert (
+        recorder.prove_next_session(
+            "r0",
+            "attempt-a",
+            "r0:session-a",
+            provider_generation=2,
+            previous_provider_generation=2,
+        )
+        is False
+    )
+
+
 def test_trace_is_bounded_and_rejects_unsafe_artifact_names(tmp_path):
     recorder = AudioTraceRecorder(tmp_path, max_seconds=5)
     recorder.arm("r0")
