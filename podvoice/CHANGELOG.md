@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.13.48 — gammel mikrofondata kan ikke krydse rearm-grænsen
+
+- Native audio mærkes ved callback-modtagelsen med den aktuelle mekaniske generation.
+  Eksakt korreleret `recovered`-ACK avancerer grænsen og dræner allerede køet lyd, før
+  ThinSession vækkes; en gammel planlagt callback kan derfor ikke forgifte næste wake.
+- Lyd fra den nye generation umiddelbart efter ACK bevares, så same-breath-starten ikke
+  klippes. Wrong/fault/duplicate ACK, retry, reconnect og drainfejl er fail-closed.
+- Dette er add-on-only. Firmware, gain, VAD, wake, playback, prompt, Realtime-semantik,
+  værktøjer, ThinSession og Talk er uændrede.
+
 ## 1.13.47 — næste wake får ét ærligt providerforsøg
 
 - En ny production-generation ejer nu den faktisk resterende del af den eksisterende

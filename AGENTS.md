@@ -101,7 +101,9 @@ Før ændringer i arkitektur, Realtime, VAD, lyd, firmware eller lifecycle:
 1. Navngiv de berørte invarianter.
 2. Bevar én samlet half-duplex-kæde; optimer ikke én komponent på bekostning af den
    fysiske eventrækkefølge.
-3. Omsæt hver fysisk fejl til en regression med den observerede eventrækkefølge.
+3. Omsæt hver fysisk fejl til en permanent regression med den observerede kausale
+   eventrækkefølge. Ved generation-/release-/stale-callback-risiko skal testen injicere
+   en forsinket event efter grænsen og bevise, at den ikke krydser næste generation.
 4. Test både den fælles `ThinSession`-kontrakt og den relevante I/O-adapter.
 5. Kald aldrig en kandidat testklar eller færdig alene på komponenttests, Talk eller CI.
 6. Opdatér `docs/STATUS.md` ved ny fysisk evidens. Overskriv aldrig en bevist baseline
@@ -111,6 +113,12 @@ Før ændringer i arkitektur, Realtime, VAD, lyd, firmware eller lifecycle:
    tydeligt afvigende input kræver gennemlytning af både device- og provider-sporet og
    tæller som fejl/ukendt, indtil lydkæden er forklaret. Et heldigt tool-kald er ikke
    bevis for stabil hørelse.
+8. Ret den mindste ejergrænse uden samtidige tuninger eller nye abstraktioner. Kør først
+   målrettet regression og relevant adapter, derefter tidligere feltregressioner og én
+   fuld releasegate på det frosne diff. SafeEval køres kun ved ændret prompt, schema,
+   værktøjer eller Realtime-semantik.
+9. Rollback og byteidentitet arver aldrig “golden” eller “stabil”; kandidaten skal bestå
+   alle senere feltregressioner. Stabilitet kræver samme artifact 10/10 ubrudt.
 
 Før implementering skal lead desuden gennemgå hele den kausale kæde og mindst ét trin på
 hver side af den mistænkte fejl. En lokal rettelse er ugyldig, hvis den blot flytter
