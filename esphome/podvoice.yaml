@@ -645,13 +645,16 @@ external_components:
   # During the S1 hardware-iteration loop we point at `main` with refresh:0s so a
   # re-Install always pulls the latest fix — you change nothing on your side.
   # NOTE: builds MUST run outside iCloud (see docs) — /private/tmp/pv-esphome.
-  # Use the LOCAL form while iterating on the component; the git form is what a
-  # fresh machine should use once the change is pushed.
-  - source: { type: local, path: components }
+  # A fresh HA/ESPHome Builder installation only has this package file locally. Fetch
+  # the component from the immutable v1.13.44 production commit instead of requiring
+  # an undocumented manual copy into /config/esphome/components.
+  - source:
+      type: git
+      url: https://github.com/BixelVentures/podvoice
+      ref: 385b71c4f1d3285f130390d8735849268427add3
+      path: esphome/components
     components: [podvoice_audio]
-  # - source: { type: git, url: https://github.com/BixelVentures/podvoice, ref: main }
-  #   components: [podvoice_audio]
-  #   refresh: 0s
+    refresh: 0s
   # Local alternative (only if you copied the repo's esphome/ folder into /config/esphome):
   # - source: { type: local, path: components }
   #   components: [podvoice_audio]

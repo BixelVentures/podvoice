@@ -25,6 +25,33 @@ installeret eller fysisk bevist. Kandidaten forbliver derfor **NO-GO for golden 
 indtil installerbar bitidentitet og flash/install er lukket. Installeret fysisk baseline
 er fortsat den fejlede v1.13.42-kæde ovenfor; maskintests må ikke overskrive den.
 
+### Aktiv installationsbeslutning — selvstændig ESPHome-kilde
+
+- **Observeret fejl og stærkeste evidens:** HA's ESPHome Builder kan hente
+  `esphome/podvoice.yaml` fra GitHub, men den shippede `external_components`-blok peger
+  stadig på den lokale mappe `components`. En frisk HA-konfiguration fejler derfor med
+  `Could not find directory '/config/esphome/components'`, før firmware kan kompileres
+  eller flashes.
+- **Berørt kæde og invarianter:** katalogopdatering → eksakt add-on-version → GitHub-
+  firmwarepakke → ekstern `podvoice_audio`-komponent → ESPHome render/compile → USB-
+  flash → reboot → automatisk native-API handshake og eksakt firmwarekontrakt. Runtime,
+  lyd, VAD, gain, playback, teardown og rearm må være byteidentiske.
+- **Falsificerbar hypotese og ikke-mål:** den lokale udviklerkilde er den eneste årsag;
+  skift til ESPHomes Git-kilde på samme repo, den immutable v1.13.44-commit
+  `385b71c4f1d3285f130390d8735849268427add3` og den eksplicitte sti
+  `esphome/components` skal gøre en ren HA-build mulig uden kopierede filer. Der ændres
+  ingen firmwareadfærd, secrets, prompt eller lifecycle.
+- **Gate og rollback:** ren remote-package config/compile skal finde præcis
+  `esphome/components/podvoice_audio`; diffet må kun ændre kildeleveringen, og en
+  uafhængig reviewer skal kontrollere repo-layout, refresh/ref og rekursion. Rollback er
+  hele kildeændringen ved ændret renderet firmware eller manglende komponent.
+- **Aktuelt resultat:** en helt ny ESPHome 2026.6.2-workdir renderer den pinnede Git-
+  komponent grønt, og den statiske regression afviser igen en aktiv lokal kilde.
+  Uafhængigt adversarial review bekræfter ESPHomes `esphome/components`-opslag, ingen
+  rekursion og korrekt komponentafgrænsning; den oprindelige mutable `main`-reference
+  blev afvist og erstattet af immutable commit og eksplicit sti. Dette åbner kun build-
+  og flashgaten; fysisk handshake, kontrakt, golden chain og re-wake er endnu ikke bevist.
+
 ### Aktiv beslutningspost — provider-tail og fysisk playback-korrelation
 
 - **Observeret fejl og stærkeste evidens:** en deterministisk reproduktion af
