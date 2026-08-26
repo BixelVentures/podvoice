@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import importlib
 import re
 import tomllib
 from pathlib import Path
@@ -19,6 +18,24 @@ def test_release_version_is_identical_everywhere() -> None:
 
     assert match is not None
     assert project_version == match.group(1) == __version__
+
+
+def test_shipped_package_has_no_selectable_simulation_runtime() -> None:
+    shipped = ROOT / "podvoice" / "gatekeeper"
+    source = "\n".join(
+        path.read_text() for path in shipped.rglob("*") if path.suffix in {".py", ".html"}
+    ).lower()
+    for forbidden in (
+        "simconsole",
+        "cfg.simulate",
+        '"simulate"',
+        "from .sim",
+        "build_sim_sessions",
+        "run_driver",
+    ):
+        assert forbidden not in source
+    assert not (shipped / "sim.py").exists()
+    assert (ROOT / "tests" / "fakes" / "legacy_sim.py").exists()
 
 
 def test_status_defines_one_honest_milestone_vocabulary() -> None:
@@ -41,28 +58,6 @@ def test_architecture_keeps_semantic_end_signal_in_production() -> None:
     assert "intet obligatorisk fortsættelsessignal" in architecture
     assert "`end_conversation`" in architecture
     assert "de går aldrig gennem HA/MCP" in architecture
-
-
-def test_shipped_entrypoint_cannot_activate_legacy_simulation() -> None:
-    main_source = (ROOT / "podvoice" / "gatekeeper" / "__main__.py").read_text()
-    config_source = (ROOT / "podvoice" / "gatekeeper" / "config.py").read_text()
-    console_source = (ROOT / "podvoice" / "gatekeeper" / "console.py").read_text()
-    hub_source = (ROOT / "podvoice" / "gatekeeper" / "hub.py").read_text()
-
-    for forbidden in ("from .sim", "build_sim_sessions", "run_driver", "cfg.simulate"):
-        assert forbidden not in main_source
-    assert "simulate: bool" not in config_source
-    assert "cfg.simulate" not in console_source
-    assert "SimConsole" not in console_source
-    assert "simulate" not in hub_source
-
-    assert not (ROOT / "podvoice" / "gatekeeper" / "sim.py").exists()
-
-    # The explicit developer fixture remains importable outside the shipped package,
-    # but no setting or add-on entrypoint can select it.
-    sim = importlib.import_module("fakes.legacy_sim")
-    assert callable(sim.build_sim_sessions)
-    assert callable(sim.run_driver)
 
 
 def test_next_steps_lock_the_five_development_priorities() -> None:

@@ -832,7 +832,7 @@ async def _talk_ws(request: web.Request) -> web.WebSocketResponse:
             q.get("voice"),
         )
         connection.attach(session)
-    except Exception as e:  # for example missing provider/runtime dependencies
+    except Exception as e:  # e.g. no attention client is available
         await connection.send_json({"type": "error", "error": str(e)})
         await connection.aclose()
         await ws.close()
@@ -1493,6 +1493,12 @@ async def _control(request: web.Request) -> web.Response:
         await session.sm.post(Event(EventType.WAKE_WORD, room))
     elif action == "stop":
         await session.sm.post(Event(EventType.CLOSURE_TOKEN, room, {"kind": "stop"}))
+    elif action == "test_tone":
+        from . import audio as audio_mod
+        from . import constants as C
+
+        with contextlib.suppress(Exception):
+            await session.playback.play_tone(audio_mod.error_tone(C.OUTPUT_RATE))
     elif action == "test_speaker":
         # Drive the REAL announce path (reply_bus -> FLAC -> media_player announce) with a
         # tone, so the device speaker-out can be verified in isolation — no OpenAI, mic, or
@@ -1506,36 +1512,20 @@ async def _control(request: web.Request) -> web.Response:
             return web.json_response(
                 {"ok": False, "error": "no reply path on this session"}, status=400
             )
-        if getattr(session, "_active", False):
-            return web.json_response(
-                {"ok": False, "error": "conversation owns the speaker"}, status=409
-            )
         tone = audio_mod.error_tone(C.OUTPUT_RATE) * 2  # ~0.7s, clearly audible
-
-        def _prepare() -> None:
-            bus.clear(room)
-            bus.start(room)
-            bus.push(room, tone)
-            bus.end(room)
-
+        bus.clear(room)
+        bus.start(room)
+        bus.push(room, tone)
+        bus.end(room)
         if getattr(session, "speaker_path", "announce") == "direct" and hasattr(
             session, "_start_direct_sender"
         ):
             # Exercise the 0.67 direct VA-speaker path with the same tone.
-            _prepare()
             session._start_direct_sender()
             _LOG.info("test_speaker: pushed %d B tone to DIRECT path for room %s", len(tone), room)
         else:
-            if hasattr(session.voicepe, "play_uncorrelated"):
-                played = await session.voicepe.play_uncorrelated(url, _prepare)
-            else:
-                _prepare()
+            with contextlib.suppress(Exception):
                 await session.voicepe.play_url(url)
-                played = True
-            if not played:
-                return web.json_response(
-                    {"ok": False, "error": "speaker is already in use"}, status=409
-                )
             _LOG.info(
                 "test_speaker: pushed %d B tone to announce path for room %s", len(tone), room
             )

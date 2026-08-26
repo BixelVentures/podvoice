@@ -14,6 +14,7 @@ def test_defaults_and_roundtrip(tmp_path):
     assert d["engine"] == "thin" and d["rooms"] == [] and d["duck_level"] == 0
     assert d["mic_channel"] == 1 and d["mic_gain"] == 16
     assert d["openai_noise"] == "off"
+    assert "simulate" not in d
 
     saved = S.save_settings({"engine": "thin", "duck_level": 7, "bogus": "x"}, p)
     assert saved["engine"] == "thin" and saved["duck_level"] == 7
@@ -37,7 +38,6 @@ def test_legacy_lifecycle_settings_cannot_be_resurrected(tmp_path):
                 "engine": "classic",
                 "speaker_path": "direct",
                 "full_duplex": True,
-                "simulate": True,
             }
         )
     )
@@ -45,15 +45,10 @@ def test_legacy_lifecycle_settings_cannot_be_resurrected(tmp_path):
     assert loaded["engine"] == "thin"
     assert loaded["speaker_path"] == "announce"
     assert loaded["full_duplex"] is False
-    assert "simulate" not in loaded
-    saved = S.save_settings(
-        {"engine": "classic", "speaker_path": "auto", "full_duplex": True, "simulate": True},
-        p,
-    )
+    saved = S.save_settings({"engine": "classic", "speaker_path": "auto", "full_duplex": True}, p)
     assert saved["engine"] == "thin"
     assert saved["speaker_path"] == "announce"
     assert saved["full_duplex"] is False
-    assert "simulate" not in saved
 
 
 def test_load_config_merges_settings_with_keys(tmp_path, monkeypatch):
@@ -68,6 +63,14 @@ def test_load_config_merges_settings_with_keys(tmp_path, monkeypatch):
     assert cfg.engine == "thin"  # from settings
     assert cfg.openai_api_key == "o"  # from options (keys only)
     assert cfg.podconnect_base_url == "http://x:8099"
+
+
+def test_legacy_simulation_setting_cannot_be_loaded_or_enabled(tmp_path):
+    p = tmp_path / "podvoice.json"
+    saved = S.save_settings({"simulate": True}, p)
+    assert "simulate" not in saved
+    assert "simulate" not in S.load_settings(p)
+    cfg = load_config(tmp_path / "missing-options.json")
     assert not hasattr(cfg, "simulate")
 
 

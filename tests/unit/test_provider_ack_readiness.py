@@ -18,7 +18,6 @@ from gatekeeper.openai_realtime import (
 from gatekeeper.provider_budget import ProviderBudgetCoordinator, ProviderBudgetUnavailable
 from gatekeeper.voice import (
     AudioChunk,
-    OutputTranscript,
     ResponseStarted,
     ToolCall,
     ToolRoundComplete,
@@ -2377,20 +2376,12 @@ async def test_response_created_exposes_exact_semantic_end_response_id():
 
 
 async def test_raw_done_before_created_preserves_terminal_request_source():
-    session = OpenAIRealtimeSession(api_key="k", tool_declarations=[_area_tool_declaration()])
+    session = OpenAIRealtimeSession(api_key="k")
     ws = _QueueWS()
     session._ws = ws  # type: ignore[assignment]
     session._configured = True
     events: list = []
-    fresh_tool_round = asyncio.Event()
-
-    async def collect() -> None:
-        async for event in session._iter_events(ws):
-            events.append(event)
-            if isinstance(event, ToolRoundComplete) and event.response_id == "fresh-tool":
-                fresh_tool_round.set()
-
-    reader = asyncio.create_task(collect())
+    reader = asyncio.create_task(_collect(session, ws, events))
 
     await session._send_response_create(
         {"tool_choice": "none"},
@@ -2415,138 +2406,6 @@ async def test_raw_done_before_created_preserves_terminal_request_source():
     assert done.purpose == "semantic_end"
     assert done.source_call_id == "end-out-of-order"
     assert not session._pending_response_creates
-
-    # The rest of the malformed tail is inert: it cannot resurrect the terminal
-    # response, publish unheard output, or leave the provider wedged as active.
-    await ws.emit(
-        {
-            "type": "response.created",
-            "response": {
-                "id": "terminal-out-of-order",
-                "metadata": create["response"]["metadata"],
-            },
-        }
-    )
-    await ws.emit(
-        {
-            "type": "response.output_audio.delta",
-            "response_id": "terminal-out-of-order",
-            "item_id": "late-audio",
-            "delta": base64.b64encode(b"must-not-play").decode(),
-        }
-    )
-    await ws.emit(
-        {
-            "type": "response.output_audio_transcript.delta",
-            "response_id": "terminal-out-of-order",
-            "delta": "Må ikke gemmes.",
-        }
-    )
-    await ws.emit(
-        {
-            "type": "response.done",
-            "response": {
-                "id": "terminal-out-of-order",
-                "status": "completed",
-                "metadata": create["response"]["metadata"],
-            },
-        }
-    )
-    await asyncio.sleep(0)
-    assert sum(isinstance(event, TurnComplete) for event in events) == 1
-    assert not any(isinstance(event, ResponseStarted) for event in events)
-    assert not any(isinstance(event, AudioChunk) for event in events)
-    assert not any(isinstance(event, OutputTranscript) for event in events)
-    assert session._active_response is False
-    assert session._late_rate_anchor_response_id == "terminal-out-of-order"
-    assert not session._pending_response_creates
-    assert not session._response_request_purposes
-    assert not session._response_request_sources
-
-    # Reusing the already-consumed request metadata under a different response id
-    # is the same stale provider tail, not a new legitimate response.
-    await ws.emit(
-        {
-            "type": "response.created",
-            "response": {
-                "id": "stale-remint",
-                "metadata": create["response"]["metadata"],
-            },
-        }
-    )
-    await ws.emit(
-        {
-            "type": "response.output_audio.delta",
-            "response_id": "stale-remint",
-            "item_id": "reminted-audio",
-            "delta": base64.b64encode(b"still-must-not-play").decode(),
-        }
-    )
-    await ws.emit(
-        {
-            "type": "response.output_audio_transcript.delta",
-            "response_id": "stale-remint",
-            "delta": "Må heller ikke gemmes.",
-        }
-    )
-    await ws.emit(
-        {
-            "type": "response.done",
-            "response": {"id": "stale-remint", "status": "completed"},
-        }
-    )
-    await asyncio.sleep(0)
-    assert sum(isinstance(event, TurnComplete) for event in events) == 1
-    assert not any(
-        isinstance(event, AudioChunk) and event.response_id == "stale-remint" for event in events
-    )
-    assert not any(
-        isinstance(event, OutputTranscript) and event.text == "Må heller ikke gemmes."
-        for event in events
-    )
-    assert session._active_response is False
-
-    # A fresh tool round on the same socket must still create exactly one result
-    # response; this is the operational proof that the malformed tail did not wedge
-    # the active-response gate.
-    await session._send_response_create()
-    tool_create = (await _wait_for_sent(ws, "response.create", count=2))[1]
-    await ws.emit(
-        {
-            "type": "response.created",
-            "response": {"id": "fresh-tool", "metadata": tool_create["response"]["metadata"]},
-        }
-    )
-    await ws.emit(
-        {
-            "type": "response.function_call_arguments.done",
-            "response_id": "fresh-tool",
-            "call_id": "fresh-call",
-            "name": "HassTurnOn",
-            "arguments": '{"area":"stue","domain":["light"]}',
-        }
-    )
-    await ws.emit(
-        {
-            "type": "response.done",
-            "response": {
-                "id": "fresh-tool",
-                "status": "completed",
-                "usage": _typed_usage(),
-            },
-        }
-    )
-    async with asyncio.timeout(1):
-        await fresh_tool_round.wait()
-    submitting = asyncio.create_task(
-        session.send_tool_results(
-            [{"id": "fresh-call", "name": "HassTurnOn", "response": {"ok": True}}]
-        )
-    )
-    output = (await _wait_for_sent(ws, "conversation.item.create"))[-1]
-    await ws.emit({"type": "conversation.item.added", "item": output["item"]})
-    await submitting
-    assert len(await _wait_for_sent(ws, "response.create", count=3)) == 3
 
     await ws.close()
     await reader

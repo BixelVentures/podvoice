@@ -284,8 +284,9 @@ async def run(cfg: Config) -> None:
     if not speech.available:
         _LOG.info("no OpenAI key for speech — fixed lines (errors/timer) play a tone")
 
-    # Kitchen timers ring on the Voice PE via each room's reply path, in the assistant's
-    # voice. The closure reads `sessions` late (the dict is filled a few lines below).
+        # Kitchen timers ring on the Voice PE via each room's reply path, in the assistant's
+        # voice. The closure reads `sessions` late (the dict is filled a few lines below).
+
     async def _timer_ring(label: str) -> None:
         from . import audio as audio_mod
         from . import constants as CC
@@ -295,49 +296,22 @@ async def run(cfg: Config) -> None:
         text = f"Din {label}-timer er færdig!" if label and label != "timer" else CC.TIMER_DONE
         spoken = await speech.say(text) or await speech.say(CC.TIMER_DONE)
         tone = audio_mod.error_tone(CC.OUTPUT_RATE) * 2
-
-        async def _ring_room(s, deadline: float | None = None) -> None:
-            # A timer must remain audible, but it may never overwrite the ReplyBus or
-            # physical player owned by an active conversation. Wait boundedly for the
-            # one announcement slot; wake admission uses the same VoicePE lock and
-            # cancels an already-started timer before opening Realtime.
-            deadline = deadline or asyncio.get_running_loop().time() + 120.0
-            while getattr(s, "_active", False):
-                if asyncio.get_running_loop().time() >= deadline:
-                    _LOG.warning("timer: ring expired waiting for room %s", s.room)
-                    return
-                await asyncio.sleep(0.25)
+        for s in sessions.values():
             bus, url = getattr(s, "reply_bus", None), getattr(s, "reply_url", None)
             if bus is None or not url:
-                return
+                continue
+            if not getattr(s, "_active", False):  # conversation already ducks
+                with contextlib.suppress(Exception):
+                    # Short TTL: PodConnect auto-restores the music ~5s later.
+                    await s.attention.engage(s.room, 20, 5000)
+            bus.clear(s.room)
+            bus.start(s.room)
+            bus.push(s.room, spoken or tone)
+            bus.end(s.room)
             with contextlib.suppress(Exception):
-                # Short TTL: PodConnect auto-restores the music ~5s later.
-                await s.attention.engage(s.room, 20, 5000)
-
-            def _prepare() -> None:
-                bus.clear(s.room)
-                bus.start(s.room)
-                bus.push(s.room, spoken or tone)
-                bus.end(s.room)
-
-            if getattr(s, "_active", False):
-                return await _ring_room(s, deadline)
-            if hasattr(s.voicepe, "play_uncorrelated"):
-                played = await s.voicepe.play_uncorrelated(url, _prepare)
-            else:
-                _prepare()
                 await s.voicepe.play_url(url)
-                played = True
-            if not played:
-                if asyncio.get_running_loop().time() < deadline:
-                    await asyncio.sleep(0.25)
-                    return await _ring_room(s, deadline)
-                _LOG.warning("timer: physical ring expired for room %s", s.room)
-                return
             if hub is not None:
                 hub.activity(s.room, f"⏰ Timer færdig: {label}")
-
-        await asyncio.gather(*(_ring_room(s) for s in sessions.values()))
 
     timers = TimerManager(_timer_ring)
     _LOG.info("timers: in-memory (an add-on restart clears running timers)")
@@ -379,7 +353,7 @@ async def run(cfg: Config) -> None:
             "no SUPERVISOR_TOKEN and no ha_mcp_token — home control disabled "
             "(clock + timers still work)"
         )
-    # Cost telemetry: every response's token usage -> /data + two HA cost sensors.
+        # Cost telemetry: every response's token usage -> /data + two HA cost sensors.
     usage = UsageMeter(cfg.supervisor_token, ha_client)
     sessions = {
         r.room: _build_session(
@@ -400,7 +374,7 @@ async def run(cfg: Config) -> None:
     # S1 (audio stream) reads the LIVE room session's audio reception when one is
     # running — it owns the single voice_assistant slot, so a separate run_s1
     # subscription would be rejected and falsely report "no audio". Falls back to the
-    # standalone probe when no session is up (for example before first connect).
+    # standalone probe when no session is up (e.g. before first connect).
     async def _diag_s1_live(room: str | None = None) -> dict:
         sess = sessions.get(room) if room else next(iter(sessions.values()), None)
         if sess is not None and hasattr(sess, "audio_health"):
@@ -422,7 +396,7 @@ async def run(cfg: Config) -> None:
 
         if console_make is None:
             raise RuntimeError("OpenAI API-nøgle mangler")
-        if attention is None:
+        if attention is None:  # no PodConnect client — no ducking to run
             raise RuntimeError("talk session needs the attention client")
         # The browser captures at OpenAI's OWN 24 kHz, so nothing resamples the
         # audio on the way in (the 48k->16k->24k round trip was mangling Danish).

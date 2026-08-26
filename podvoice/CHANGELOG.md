@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.13.46 — fysisk samtaleruntime gendannet fra den beviste 1.13.43-baseline
+
+- Hele den Voice PE-relevante produktionsruntime er gendannet fra exact v1.13.43
+  commit `8d4fc9cd521f564a6205359f610ba2761284fc74`: public
+  `external_media_player`, samme-session-opfølgning, Realtime-adapter, teardown og
+  korreleret detector-reset/rearm.
+- v1.13.44/45's private reply-player, playback-token/cancel/drain-state machine og
+  provider/playback-hybrid er fjernet samlet. Der er ikke ændret gain, VAD,
+  idle-timeout eller prompt i restore-kandidaten.
+- Den parallelle produktionssimulator forbliver fjernet. Immutable ESPHome-component-
+  pin, maskintrace, hurtig udviklingsgate og konservativ felt-canary bevares som
+  ikke-parallel test-/buildinfrastruktur.
+- Kandidaten er kun maskinelt testklar. Den skal stadig bevise naturlig opfølgning,
+  model-close, én teardown/rearm, næste wake og automatisk Voice PE-forbindelse fysisk.
+
 ## 1.13.45 — den private Nabu-player følger igen det fysiske drejehjul
 
 - Drejehjulets `external_media_player`-volume spejles live til den token-isolerede

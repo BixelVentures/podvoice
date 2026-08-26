@@ -95,78 +95,41 @@ def test_lifecycle_manifest_is_tracked_explicit_and_covers_each_mechanical_bound
     tracked = [str(path.relative_to(root)) for path in root.glob("tests/**/test_*.py")]
     nodes = load_lifecycle_smoke(root, tracked)
 
-    assert len(nodes) == len(set(nodes))
-    for expected in (
-        "test_firmware_contract.py",
-        "test_voicepe_wake.py",
-        "test_trace_oracle.py",
-        "test_provider_tool_commit_gate.py",
-        "test_reply.py",
-        "test_playout.py",
-        "test_rearm_is_single_flight_and_ack_cannot_cross_calls",
-        "test_stop_playback_uses_exact_firmware_owned_cancel",
-        "test_stop_playback_waits_for_exact_drained_cancel_ack",
-        "test_rebooted_device_cancel_fault_falls_back_to_orphan_silence",
-        "test_rearm_wait_budget_includes_silence_and_full_detector_recovery",
+    expected_nodes = (
+        "tests/unit/test_firmware_contract.py",
+        "tests/unit/test_voicepe_wake.py",
+        "tests/unit/test_trace_oracle.py",
+        "tests/unit/test_audio_trace.py::test_next_physical_wake_and_provider_session_complete_cross_session_proof",
+        "tests/unit/test_audio_trace.py::test_failed_immediate_post_rearm_session_cannot_be_proven_by_a_later_attempt",
+        "tests/unit/test_audio_trace.py::test_attempt_rejected_before_finish_cannot_be_completed_by_a_later_wake",
+        "tests/unit/test_provider_tool_commit_gate.py",
+        "tests/unit/test_provider_ack_readiness.py::test_response_created_exposes_exact_semantic_end_response_id",
+        "tests/unit/test_provider_ack_readiness.py::test_raw_done_before_created_preserves_terminal_request_source",
+        "tests/unit/test_reply.py",
+        "tests/unit/test_playout.py",
+        "tests/unit/test_voicepe_contract.py",
+        "tests/unit/test_provider_tuning.py::test_semantic_end_result_forces_one_tool_free_farewell_response",
+        "tests/integration/test_talk.py",
+        "tests/integration/test_thin.py",
+    )
+    assert nodes == expected_nodes
+    assert len(nodes) == len(set(nodes)) == 15
+
+    # v1.13.46 restores the public v1.13.43 playback baseline. The full VoicePE and
+    # Thin modules above replace these removed private-player/token-specific cases;
+    # stale manifest names must never become an accidental release prerequisite.
+    retired_private_nodes = (
         "test_correlated_playback_ack_carries_exact_playback_id",
         "test_correlated_playback_rejects_superseded_duplicate_and_out_of_order_edges",
         "test_correlated_playback_fault_and_disconnect_fail_closed",
         "test_correlated_reply_uses_one_device_owned_play_command",
-        "test_foreign_announcement_fault_ack_prevents_bus_mutation_and_reply_command",
-        "test_foreign_start_after_reservation_faults_before_device_owned_launch",
-        "test_missing_arm_ack_times_out_without_bus_mutation_or_media_command",
-        "test_uncorrelated_timer_announcement_plays_only_without_active_reply_lease",
-        "test_uncorrelated_timer_is_cancelled_before_next_reply_and_old_ack_is_inert",
-        "test_correlated_reply_fails_closed_when_device_play_service_fails",
-        "test_stop_playback_fails_closed_when_reply_cancel_cannot_be_sent",
-        "test_late_rearm_ack_cannot_settle_the_next_token",
-        "test_contract_rejects_an_otherwise_complete_wrong_firmware_build",
-        "test_contract_rejects_multiple_firmware_build_markers",
-        "test_next_physical_wake_and_provider_session_complete_cross_session_proof",
-        "test_attempt_rejected_before_finish_cannot_be_completed_by_a_later_wake",
-        "test_direct_answer_is_one_response_and_keeps_same_session_open",
-        "test_wake_cancels_owned_timer_announcement_before_realtime_admission",
-        "test_wake_fails_closed_when_owned_timer_cannot_be_cancelled",
-        "test_direct_followup_reuses_context_without_a_second_provider_session",
-        "test_response_created_exposes_exact_semantic_end_response_id",
-        "test_raw_done_before_created_preserves_terminal_request_source",
-        "test_only_correlated_terminal_completion_can_confirm_semantic_end",
-        "test_stale_audio_cannot_become_terminal_farewell",
-        "test_discarded_decision_preamble_cannot_fake_terminal_farewell",
-        "test_terminal_completion_without_correlated_start_closes_silently",
-        "test_superseded_semantic_response_cannot_bind_to_new_close_turn",
-        "test_completed_terminal_response_without_audio_closes_silently",
-        "test_completed_ordinary_response_without_audio_fails_closed_without_phantom_history",
-        "test_fast_legacy_tool_task_keeps_zero_audio_decision_owned_until_turn_complete",
-        "test_talk_completed_ordinary_response_without_audio_fails_closed_without_phantom_history",
+        "test_stop_playback_uses_exact_firmware_owned_cancel",
+        "test_stop_playback_waits_for_exact_drained_cancel_ack",
+        "test_rebooted_device_cancel_fault_falls_back_to_orphan_silence",
         "test_actual_voicepe_token_ack_drives_exact_thin_lease_and_fault_close",
-        "test_old_playback_finish_cannot_mutate_a_new_reply_lease",
-        "test_missing_playback_start_uses_one_command_then_closes",
-        "test_correlated_terminal_farewell_plays_before_one_teardown_and_rearm",
-        "test_correlated_terminal_farewell_plays_then_closes_in_talk",
-        "test_stale_terminal_audio_is_silent_in_talk",
-        "test_hung_error_close_is_bounded_in_talk",
-        "test_failed_correlated_terminal_response_closes_silently_and_rearms",
-        "test_failed_terminal_response_closes_silently_in_talk",
-        "test_duplicate_terminal_response_start_fails_closed_once",
-        "test_conflicting_lifecycle_batch_is_rejected_atomically",
-        "test_hung_teardown_edges_are_bounded_and_keep_wake_latch_closed",
         "test_in_spec_physical_cancel_drain_completes_before_rearm_without_retry",
-        "test_full_teardown_retry_must_succeed_before_one_rearm",
-        "test_failed_physical_silence_is_retried_before_one_rearm",
-        "test_total_close_deadline_includes_hung_error_speech_and_rearms",
-        "test_each_rearm_retry_attempt_has_a_hard_timeout",
-        "test_unknown_rearm_outcome_fails_closed_instead_of_becoming_green",
-        "test_failed_mic_start_is_visible_and_never_connects_realtime",
-        "test_detector_callback_cannot_hide_a_known_mic_stream_fault",
-        "test_wake_callback_during_incomplete_teardown_cannot_promote_readiness",
-        "test_physical_callback_opens_exact_fresh_session_and_persists_rearm_proof",
-        "test_concurrent_close_requests_have_exactly_one_owner",
-        "test_talk_and_voicepe_share_the_same_lifecycle_contract",
-        "test_async_input_transcript_hides_unheard_tool_preamble",
-        "test_ten_complete_wake_followup_semantic_close_rearm_cycles",
-    ):
-        assert any(expected in node for node in nodes)
+    )
+    assert not any(retired in node for retired in retired_private_nodes for node in nodes)
 
     provider_contract = (root / "tests/unit/test_provider_ack_readiness.py").read_text()
     provider_case = provider_contract.split(

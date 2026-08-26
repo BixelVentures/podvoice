@@ -3,7 +3,8 @@
 A software stand-in for the Voice PE: the browser sends typed text and (on a
 secure origin) mic PCM over a WebSocket; we forward to an OpenAI Realtime
 session and stream the spoken reply (24 kHz PCM) + transcript back. Independent
-of the ducking/Attention pipeline — it's a test/console surface.
+of the ducking/Attention pipeline — it's a test/console surface. Without an OpenAI
+key the surface is unavailable; it never substitutes a second semantic runtime.
 """
 
 from __future__ import annotations

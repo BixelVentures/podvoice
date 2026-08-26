@@ -2,7 +2,7 @@
 
 The scenario runner is deliberately independent of Talk and Voice PE.  Both adapters
 can implement :class:`ConversationDriver`, so the same oracle grades provider-only,
-Talk, simulated Voice PE and (eventually) hardware-observed runs.  The included live
+Talk, synthetic Voice PE fixtures and (eventually) hardware-observed runs. The included live
 driver exercises the real OpenAI Realtime protocol with production prompt/config but
 dispatches only to :class:`SafeEvalTools`; it can never reach HA, MCP or PodConnect.
 

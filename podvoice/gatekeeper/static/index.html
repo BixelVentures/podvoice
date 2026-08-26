@@ -740,7 +740,7 @@ function roomCard(rm) {
   box.appendChild(meta);
 
   var ctl = el("div", "ctl");
-  [["Lyt", "listen"], ["Stop", "stop"], ["Test højttaler 🔊", "test_speaker"]].forEach(function (pair) {
+  [["Lyt", "listen"], ["Stop", "stop"], ["Test tone", "test_tone"], ["Test højttaler 🔊", "test_speaker"]].forEach(function (pair) {
     var b = el("button", "ghost", pair[0]);
     b.setAttribute("aria-label", pair[0] + " in " + safe(rm, "room", ""));
     b.onclick = function () { control(rm.room, pair[1], b); };
@@ -1980,7 +1980,7 @@ setInterval(function () {
     catch (e) { j = null; }
     busy(false);
     if (r.status === 501 || (j && j.error && /unavailable/i.test(j.error))) {
-      show("warn", "Diagnostics unavailable in this runtime. Check the add-on Log."); return;
+      show("warn", "Diagnostics unavailable — check the add-on configuration and Log."); return;
     }
     if (!j) { show("warn", "Unexpected response from the add-on. Check the add-on Log."); return; }
     if (!j.ok) {

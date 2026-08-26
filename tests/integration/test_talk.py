@@ -251,14 +251,7 @@ async def test_async_input_transcript_hides_unheard_tool_preamble():
         await _wait_until(lambda: len(wire.of("tool")) == 1)
         gemini.emit(TurnComplete())
         await _wait_until(lambda: len(gemini.sent_tool_results) == 1)
-        await _wait_until(lambda: not session._speech_tools)
-        assert session._active is True
-        assert session._trace_reason != "error:connection"
-        gemini.emit(
-            AudioChunk(array.array("h", [1200] * 2400).tobytes(), item_id="audible-final"),
-            OutputTranscript("AGF tabte to-en."),
-            TurnComplete(),
-        )
+        gemini.emit(OutputTranscript("AGF tabte to-en."), TurnComplete())
         await _wait_until(lambda: len(wire.of("transcript")) == 2)
         assert wire.of("transcript") == [
             {"type": "transcript", "dir": "in", "text": "Hvordan gik det AGF i går?"},

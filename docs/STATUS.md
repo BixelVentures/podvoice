@@ -133,12 +133,50 @@ indtil v1.13.44 selv består en frisk fysisk golden chain.
   clone. Den uafhængige adversarial reviewer fandt først den ugyldige kombinerede
   volume+URL-call; efter opsplitning og ny regression gav samme reviewer GO uden
   P0/P1-findings.
-- **Resterende usikkerhed og fysisk gate:** v1.13.45 er endnu ikke bygget, installeret
-  eller fysisk bevist og er derfor fortsat NO-GO. Én kort canary skal bevise dial under
-  aktivt svar, mindst tre almindelige svar med samme-session-opfølgning, model-close,
-  præcis teardown og næste ægte wake/friske session. Hvis den fejler rotary eller
-  opfølgning, tilbageføres hele playbackdelen til exact v1.13.43; rearmfejlen må først
-  ændres i en separat kandidat efter korreleret fysisk trace.
+- **Installeret kandidat og kontraktbevis:** main commit
+  `672fbb02f9dcfdaa841609a336529fd7885ab8b9` er installeret som add-on v1.13.45 og
+  OTA-flashet på Voice PE. Den 26. august kl. 12:07:59 annoncerede den genstartede puck
+  `podvoice_build_11345`; add-on'en accepterede firmwarekontrakten, anvendte mic
+  channel 1/gain 16 og satte wake word til `okay_nabu`. HA/MCP var samtidig forbundet
+  med 19 værktøjer. Dette beviser kandidatidentitet og maskinel readiness, ikke fysisk
+  samtaleadfærd.
+- **Resterende usikkerhed og fysisk gate:** v1.13.45 er fortsat fysisk ubevist og derfor
+  NO-GO som release. Én kort canary skal bevise dial under aktivt svar, mindst tre
+  almindelige svar med samme-session-opfølgning, model-close, præcis teardown og næste
+  ægte wake/friske session. Hvis den fejler rotary eller opfølgning, tilbageføres hele
+  playbackdelen til exact v1.13.43; rearmfejlen må først ændres i en separat kandidat
+  efter korreleret fysisk trace.
+- **Fysisk canary-resultat 26. august ca. 12:20 — NO-GO og rollback udløst:** drejehjulet
+  ændrede lydstyrken under Nabus svar, så v1.13.45 beviser rotary-paritet. Samme-session-
+  opfølgningen fejlede derimod: efter det korrekte svar på »Hvad er tolv gange syv?«
+  absorberede echo-shield 382 mic-frames frem til 12:21:07, men »læg 6 til« producerede
+  hverken provider-`speech_started` eller transcript. Den lokale femsekunders
+  idle-fallback lukkede først kl. 12:21:13; Realtime kaldte ikke `end_conversation`.
+  En ny wake kl. 12:21:29 åbnede en frisk session og svarede, så dette spor beviser
+  hverken semantisk fejllukning eller manglende efterfølgende rearm. Den falsificerbare
+  årsag er den v1.13.44-introducerede private playbacktopologi/echo-gate-grænse, som
+  v1.13.45 beholdt. I henhold til den forhåndsdefinerede rollback-grænse tilbageføres
+  nu hele playbackdelen til exact v1.13.43; der laves ikke endnu en lokal timinghybrid.
+- **Lead-beslutning efter canary og adversarial review:** den delvise playback-rollback
+  er erstattet af en fuld restore af den Voice PE-relevante produktionsruntime til
+  exact v1.13.43. Det omfatter firmware, `VoicePELink`, `ThinSession`, Realtime-
+  integration, runtime-config og deres kontrakttests. Kun den fjernede parallelle
+  simulator, immutable component-pin samt test/trace/buildinfrastruktur afviger; de
+  ændrer ikke den fysiske samtalevej. Rearm optimeres først som et separat delta efter
+  en frisk fysisk baseline.
+- **Faktisk kandidat v1.13.46 og maskinbevis:** version/build-id er alene løftet til
+  `1.13.46`/`podvoice_build_11346`, så installerede restore-bits kan bevises. Fokuseret
+  firmware/VoicePE/Thin/Talk-gate er grøn, lifecycle-manifestets 259 tests er grønne,
+  hele releasegaten er grøn på 36,7 sekunder, og ESPHome-konfigurationen validerer mod
+  de immutable kilder. Den generelle
+  single-domain-scope-gate klassificerer bevidst restore-diffet som tre domæner; det er
+  ikke en ny blandet featurekandidat, men en eksplicit total rollback godkendt af lead
+  og underlagt uafhængigt diff-review.
+- **Præcis gate-status:** v1.13.46 er ikke fysisk bevist, ikke golden og ikke release-
+  godkendt. Næste gate er exact-commit CI/image, installation og én frisk fysisk kæde,
+  som også beviser auto-connect og ny wake efter rearm. Først derefter laves en isoleret
+  rearm-kandidat; når golden chain, rearm og auto-connect er bevist på samme bits,
+  etableres 1.14-linjen og 10/10 ubrudte fysiske cyklusser køres.
 
 ### Aktiv beslutningspost — provider-tail og fysisk playback-korrelation
 

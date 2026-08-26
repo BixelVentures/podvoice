@@ -38,7 +38,6 @@ from gatekeeper.voice import (
     UserSpeechStarted,
     UserSpeechStopped,
 )
-from gatekeeper.voicepe import VoicePELink
 
 ROOM = "kitchen"
 REPLY_URL = f"http://gatekeeper.test:8098/reply/{ROOM}.flac"
@@ -118,96 +117,6 @@ async def test_fresh_tools_are_present_when_realtime_connects():
             "wait_for_user",
             "approve_action",
         ]
-    finally:
-        await session.aclose()
-
-
-async def test_wake_cancels_owned_timer_announcement_before_realtime_admission():
-    class TimerOwningVoicePE(FakeVoicePELink):
-        def __init__(self) -> None:
-            super().__init__(room=ROOM)
-            self.order: list[str] = []
-
-        async def stop_uncorrelated_playback(self) -> bool:
-            self.order.append("timer-stopped")
-            return True
-
-        async def start_streaming(self) -> bool:
-            self.order.append("mic-started")
-            return await super().start_streaming()
-
-    brain = LiveFake()
-    voicepe = TimerOwningVoicePE()
-    attention = FakeAttention()
-    session = ThinSession(
-        room=ROOM,
-        attention=attention,
-        heartbeat=Heartbeat(attention, period_ms=20),
-        brain=brain,
-        voicepe=voicepe,
-        playback=Playback(sink=voicepe.play_pcm),
-        tools=FakeTools(),
-        reply_bus=ReplyBus(),
-        reply_url=REPLY_URL,
-    )
-    await session.start()
-    try:
-        await session.wake()
-        assert voicepe.order[:2] == ["timer-stopped", "mic-started"]
-        assert brain.connect_count == 1
-        assert session._active is True
-    finally:
-        await session.aclose()
-
-
-async def test_wake_fails_closed_when_owned_timer_cannot_be_cancelled():
-    class StuckTimerVoicePE(FakeVoicePELink):
-        def __init__(self) -> None:
-            super().__init__(room=ROOM)
-            self.stop_results = [False, True]
-            self.order: list[str] = []
-
-        async def stop_uncorrelated_playback(self) -> bool:
-            if not self.stop_results:
-                return True
-            return await self.stop_playback()
-
-        async def stop_playback(self) -> bool:
-            result = self.stop_results.pop(0)
-            self.order.append(f"stop:{result}")
-            return result
-
-        async def rearm_wake_word(self) -> str:
-            self.order.append("rearm")
-            return await super().rearm_wake_word()
-
-    brain = LiveFake()
-    voicepe = StuckTimerVoicePE()
-    attention = FakeAttention()
-    session = ThinSession(
-        room=ROOM,
-        attention=attention,
-        heartbeat=Heartbeat(attention, period_ms=20),
-        brain=brain,
-        voicepe=voicepe,
-        playback=Playback(sink=voicepe.play_pcm),
-        tools=FakeTools(),
-        reply_bus=ReplyBus(),
-        reply_url=REPLY_URL,
-    )
-    await session.start()
-    try:
-        session._on_wake_cb()
-        await _wait_until(lambda: voicepe.rearm_calls == 1)
-        assert brain.connect_count == 0
-        assert session._active is False
-        assert attention.engage_calls == []
-        assert voicepe.wake_readiness == "recovered"
-        assert voicepe.order == ["stop:False", "stop:True", "rearm"]
-
-        session._on_wake_cb()
-        await _wait_until(lambda: brain.connect_count == 1)
-        assert session._active is True
     finally:
         await session.aclose()
 
@@ -345,24 +254,21 @@ async def test_old_playback_finish_cannot_mutate_a_new_reply_lease():
         await session.aclose()
 
 
-async def test_missing_playback_start_uses_one_command_then_closes(monkeypatch):
+async def test_missing_playback_start_retries_same_lease_then_closes(monkeypatch):
     import gatekeeper.thin as thin_mod
 
     monkeypatch.setattr(thin_mod, "ANNOUNCE_START_TIMEOUT_S", 0.02)
     brain = LiveFake()
     session, _attention, voicepe = _build(brain)
-
-    async def no_error_announcement(_kind: str) -> None:
-        return None
-
-    monkeypatch.setattr(session, "_speak_error", no_error_announcement)
     await session.start()
     try:
         await session.wake()
         brain.emit(AudioChunk(_frame(), item_id="answer"), TurnComplete())
-        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
+        await _wait_until(lambda: len(voicepe.announced_urls) == 2)
         await _wait_until(lambda: session.sm.state is State.IDLE)
-        assert voicepe.announced_urls == [REPLY_URL]
+        # The first two are the same owned reply. A later third URL may be the
+        # separately owned audible error line from the clean-close path.
+        assert voicepe.announced_urls[:2] == [REPLY_URL, REPLY_URL]
         assert brain.connect_count == 1
         assert brain.closed is True
     finally:
@@ -607,7 +513,7 @@ def _build(
     return session, attention, voicepe
 
 
-def _build_talk_session(brain, *, hub=None):
+def _build_talk_session(brain):
     sent: list[dict] = []
     audio: list[bytes] = []
 
@@ -627,7 +533,6 @@ def _build_talk_session(brain, *, hub=None):
         voicepe=link,
         playback=Playback(sink=link.play_pcm),
         tools=FakeTools(),
-        hub=hub,
         reply_bus=ReplyBus(),
         reply_url=REPLY_URL,
         full_duplex=True,
@@ -642,105 +547,6 @@ async def _wait_until(pred, max_wait: float = 1.5) -> None:
             return
         await asyncio.sleep(0.005)
     raise AssertionError("condition not met within timeout")
-
-
-async def test_actual_voicepe_token_ack_drives_exact_thin_lease_and_fault_close():
-    class Service:
-        def __init__(self, name: str) -> None:
-            self.name = name
-
-    class Client:
-        def __init__(self) -> None:
-            self.calls: list[tuple[str, dict]] = []
-            self.link = None
-
-        async def execute_service(self, service, args) -> None:
-            self.calls.append((service.name, dict(args)))
-            if service.name == "podvoice_reply_expect" and self.link is not None:
-                self.link._handle_playback_ack(f"{args['token']}:armed")
-            elif (
-                service.name
-                in (
-                    "podvoice_reply_cancel",
-                    "podvoice_reply_silence",
-                )
-                and self.link is not None
-            ):
-                self.link._handle_playback_ack(f"{args['token']}:cancelled")
-
-        def media_player_command(self, **kwargs) -> None:
-            self.calls.append(("media", dict(kwargs)))
-
-    class TextSensorState:
-        def __init__(self, state: str) -> None:
-            self.key = 5
-            self.state = state
-
-    brain = LiveFake()
-    client = Client()
-    link = VoicePELink("pv-test.local", "psk", room=ROOM)
-    client.link = link
-    link._client = client  # type: ignore[assignment]
-    link._media_key = 7
-    link._playback_ack_key = 5
-    link._playback_token = 100
-    link.supports_playback_events = True
-    link.supports_correlated_playback = True
-    link.supports_playback_ids = True
-    link._user_services = {
-        name: Service(name)
-        for name in (
-            "podvoice_reply_expect",
-            "podvoice_reply_play",
-            "podvoice_reply_cancel",
-            "podvoice_reply_silence",
-            "podvoice_stream_stop",
-        )
-    }
-    attention = FakeAttention()
-    session = ThinSession(
-        room=ROOM,
-        attention=attention,
-        heartbeat=Heartbeat(attention, period_ms=20),
-        brain=brain,
-        voicepe=link,
-        playback=Playback(sink=link.play_pcm),
-        tools=FakeTools(),
-        reply_bus=ReplyBus(),
-        reply_url=REPLY_URL,
-    )
-    session._active = True
-    session._epoch = 1.0
-    session.sm.state = State.LISTENING
-
-    lease = session._arm_playback_lease(item_id="item-a", kind="reply")
-    assert lease is not None
-    await session._play_reply_url(lease)
-    assert client.calls[0][0] == "podvoice_reply_play"
-    assert client.calls[0][1]["token"] == 100
-    link._on_state(TextSensorState("100:started"))
-    assert lease.phase == "started"
-    link._on_state(TextSensorState("100:finished"))
-    assert lease.phase == "finished"
-    await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
-
-    fault_lease = session._arm_playback_lease(item_id="item-b", kind="reply")
-    assert fault_lease is not None
-    await session._play_reply_url(fault_lease)
-    assert any(
-        name == "podvoice_reply_play" and args["token"] == 101 for name, args in client.calls
-    )
-    link._on_state(SimpleNamespace(event_type="podvoice_playback_fault", key=3))
-    assert fault_lease.phase == "requested"
-    link._on_state(TextSensorState("100:fault"))
-    assert fault_lease.phase == "requested"
-    session._closing = True  # keep the composite fault-close bounded; no firmware rearm here
-    link._on_state(TextSensorState("101:fault"))
-    assert fault_lease.phase == "fault"
-    await _wait_until(lambda: session._close_task is not None)
-    assert session._close_task is not None
-    await asyncio.wait_for(asyncio.shield(session._close_task), timeout=5.0)
-    assert session.sm.state is State.IDLE
 
 
 async def test_typed_turn_is_engine_owned_idempotent_and_busy_is_explicit():
@@ -931,7 +737,6 @@ async def test_late_input_transcript_is_timestamped_before_the_reply(tmp_path):
     session, _attention, _voicepe = _build(LiveFake(), hub=hub)
 
     await session._on_event(UserSpeechStopped())
-    await session._on_event(AudioChunk(_frame(), item_id="late-transcript-reply"))
     await session._on_event(OutputTranscript("Farvel."))
     await session._on_event(TurnComplete())
     await session._on_event(InputTranscript("Tak, det var alt for nu."))
@@ -3207,7 +3012,6 @@ async def test_stale_audio_cannot_become_terminal_farewell():
             ),
         )
         await _wait_until(lambda: session.sm.state is State.IDLE)
-        await _wait_until(lambda: len(attention.release_calls) == 1)
         assert voicepe.announced_urls == []
         assert len(attention.release_calls) == 1
         assert voicepe.rearm_calls == 1
@@ -3412,99 +3216,6 @@ async def test_completed_terminal_response_without_audio_closes_silently():
         await session.aclose()
 
 
-@pytest.mark.parametrize("include_transcript", [False, True])
-async def test_completed_ordinary_response_without_audio_fails_closed_without_phantom_history(
-    include_transcript: bool,
-):
-    class RecordingHub(StatusHub):
-        def __init__(self) -> None:
-            super().__init__()
-            self.transcripts: list[tuple[str, str]] = []
-
-        def transcript(self, room: str, direction: str, text: str, **_kwargs) -> None:
-            self.transcripts.append((direction, text))
-
-    hub = RecordingHub()
-    brain = LiveFake()
-    session, attention, voicepe = _build(brain, hub=hub)
-    await session.start()
-    try:
-        await session.wake()
-        events = [UserSpeechStopped()]
-        if include_transcript:
-            events.append(OutputTranscript("Et svar som aldrig blev afspillet."))
-        events.append(TurnComplete(status="completed", response_id="ordinary-silent"))
-        brain.emit(*events)
-
-        await _wait_until(lambda: session.sm.state is State.IDLE)
-        await _wait_until(lambda: voicepe.rearm_calls == 1)
-        assert all(direction != "out" for direction, _text in hub.transcripts)
-        assert session._trace_reason == "error:connection"
-        assert voicepe.announced_urls == [REPLY_URL]
-        assert len(attention.release_calls) == 1
-        assert voicepe.rearm_calls == 1
-    finally:
-        await session.aclose()
-
-
-async def test_fast_legacy_tool_task_keeps_zero_audio_decision_owned_until_turn_complete():
-    brain = LiveFake()
-    session, _attention, voicepe = _build(brain)
-    await session.start()
-    try:
-        await session.wake()
-        brain.emit(UserSpeechStopped(), ToolCall("fast", "get_time", {}))
-        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
-        await _wait_until(lambda: not session._speech_tools)
-        assert session._turn_had_tool is True
-
-        brain.emit(TurnComplete(response_id="silent-tool-decision"))
-        await _wait_until(lambda: session._turn_had_tool is False)
-        assert session._active is True
-        assert session._trace_reason != "error:connection"
-        assert voicepe.announced_urls == []
-
-        brain.emit(
-            AudioChunk(_frame(), item_id="tool-result-answer"),
-            OutputTranscript("Klokken er to."),
-            TurnComplete(response_id="tool-result-answer"),
-        )
-        await _wait_until(lambda: voicepe.announced_urls == [REPLY_URL])
-        assert brain.connect_count == 1
-    finally:
-        await session.aclose()
-
-
-async def test_talk_completed_ordinary_response_without_audio_fails_closed_without_phantom_history():
-    class RecordingHub(StatusHub):
-        def __init__(self) -> None:
-            super().__init__()
-            self.transcripts: list[tuple[str, str]] = []
-
-        def transcript(self, room: str, direction: str, text: str, **_kwargs) -> None:
-            self.transcripts.append((direction, text))
-
-    hub = RecordingHub()
-    brain = LiveFake()
-    session, attention, _link, sent, _audio = _build_talk_session(brain, hub=hub)
-    await session.start()
-    try:
-        await session.wake()
-        brain.emit(
-            UserSpeechStopped(),
-            OutputTranscript("Et uhørt Talk-svar."),
-            TurnComplete(status="completed", response_id="talk-ordinary-silent"),
-        )
-
-        await _wait_until(lambda: session.sm.state is State.IDLE)
-        assert all(direction != "out" for direction, _text in hub.transcripts)
-        assert session._trace_reason == "error:connection"
-        assert any(message.get("type") == "play" for message in sent)
-        assert len(attention.release_calls) == 1
-    finally:
-        await session.aclose()
-
-
 async def test_correlated_terminal_farewell_plays_before_one_teardown_and_rearm():
     brain = LiveFake()
     session, attention, voicepe = _build(brain)
@@ -3662,32 +3373,17 @@ async def test_failed_physical_silence_is_retried_before_one_rearm(monkeypatch):
     from gatekeeper import thin as thin_mod
 
     monkeypatch.setattr(thin_mod, "TEARDOWN_STEP_TIMEOUT_S", 0.02)
-    monkeypatch.setattr(thin_mod, "TEARDOWN_SILENCE_TIMEOUT_S", 0.04)
-    monkeypatch.setattr(thin_mod, "TEARDOWN_REARM_TIMEOUT_S", 0.05)
-    monkeypatch.setattr(thin_mod, "TEARDOWN_TOTAL_TIMEOUT_S", 0.18)
     monkeypatch.setattr(thin_mod, "REARM_RETRY_DELAYS_S", (0.01,))
     session, _attention, voicepe = _build(LiveFake())
-    calls = 0
-
-    async def mismatch_then_slow_orphan_drain() -> bool:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            return False
-        await asyncio.sleep(0.03)
-        return True
-
-    voicepe.stop_playback = mismatch_then_slow_orphan_drain
+    voicepe.stop_playback_results = [False, True]
     await session.start()
     try:
         await session.wake()
         await session.stop(reason="retry-silence")
         assert voicepe.rearm_calls == 0
         await _wait_until(lambda: voicepe.rearm_calls == 1)
-        assert calls == 2
+        assert voicepe.stop_playback_calls == 2
         assert session._teardown_incomplete is False
-        await _wait_until(lambda: session._teardown_retry_task is None)
-        assert session._teardown_retry_task is None
     finally:
         await session.aclose()
 
@@ -3733,7 +3429,7 @@ async def test_multiple_sensitive_siblings_create_distinct_proposals_with_zero_e
 async def test_later_completed_approval_executes_exact_proposal_once_and_teardown_clears_it():
     brain = LiveFake()
     tools = ApprovalTools()
-    session, _attention, voicepe = _build(brain)
+    session, _attention, _voicepe = _build(brain)
     session.tools = tools
     await session.start()
     try:
@@ -3753,10 +3449,7 @@ async def test_later_completed_approval_executes_exact_proposal_once_and_teardow
         await _wait_until(lambda: len(brain.sent_tool_results) == 1)
         challenge_id = brain.sent_tool_results[0][0]["response"]["approval"]["challenge_id"]
         await _wait_until(lambda: not session._speech_tools)
-        brain.emit(AudioChunk(_frame(), item_id="approval-prompt"), TurnComplete())
-        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
-        session._on_media_state(True)
-        session._on_media_state(False)
+        brain.emit(TurnComplete())
         await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
 
         brain.emit(
@@ -3777,12 +3470,7 @@ async def test_later_completed_approval_executes_exact_proposal_once_and_teardow
 
         # One-shot replay cannot execute the action again.
         await _wait_until(lambda: not session._speech_tools)
-        brain.emit(AudioChunk(_frame(), item_id="approval-result"), TurnComplete())
-        await _wait_until(lambda: len(voicepe.announced_urls) == 2)
-        session._on_media_state(True)
-        session._on_media_state(False)
-        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
-        brain.emit(UserSpeechStopped())
+        brain.emit(TurnComplete(), UserSpeechStopped())
         brain.emit(
             _batched_call(
                 "replay",
@@ -3804,7 +3492,7 @@ async def test_later_completed_approval_executes_exact_proposal_once_and_teardow
 async def test_intervening_turn_expires_challenge_and_new_session_cannot_replay_it():
     brain = LiveFake()
     tools = ApprovalTools()
-    session, _attention, voicepe = _build(brain)
+    session, _attention, _voicepe = _build(brain)
     session.tools = tools
     await session.start()
     try:
@@ -3824,17 +3512,7 @@ async def test_intervening_turn_expires_challenge_and_new_session_cannot_replay_
         await _wait_until(lambda: len(brain.sent_tool_results) == 1)
         challenge_id = brain.sent_tool_results[0][0]["response"]["approval"]["challenge_id"]
         await _wait_until(lambda: not session._speech_tools)
-        brain.emit(AudioChunk(_frame(), item_id="expire-prompt"), TurnComplete())
-        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
-        session._on_media_state(True)
-        session._on_media_state(False)
-        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
-        brain.emit(UserSpeechStopped(), AudioChunk(_frame(), item_id="intervening"), TurnComplete())
-        await _wait_until(lambda: len(voicepe.announced_urls) == 2)
-        session._on_media_state(True)
-        session._on_media_state(False)
-        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
-        brain.emit(UserSpeechStopped())
+        brain.emit(TurnComplete(), UserSpeechStopped(), TurnComplete(), UserSpeechStopped())
         brain.emit(
             _batched_call(
                 "late-approve",
@@ -3950,33 +3628,6 @@ async def test_typed_talk_turn_and_voice_turn_share_trusted_execution_context():
         await _wait_until(lambda: len(brain.sent_tool_results) == 1)
         assert tools.contexts[0].session_id == receipt["session_id"]
         assert tools.contexts[0].turn_id == "1"
-    finally:
-        await session.aclose()
-
-
-async def test_in_spec_physical_cancel_drain_completes_before_rearm_without_retry(monkeypatch):
-    from gatekeeper import thin as thin_mod
-
-    monkeypatch.setattr(thin_mod, "TEARDOWN_STEP_TIMEOUT_S", 0.02)
-    monkeypatch.setattr(thin_mod, "TEARDOWN_SILENCE_TIMEOUT_S", 0.04)
-    monkeypatch.setattr(thin_mod, "TEARDOWN_REARM_TIMEOUT_S", 0.05)
-    monkeypatch.setattr(thin_mod, "TEARDOWN_TOTAL_TIMEOUT_S", 0.18)
-
-    brain = LiveFake()
-    session, _attention, voicepe = _build(brain)
-
-    async def slow_but_valid_drain() -> bool:
-        await asyncio.sleep(0.03)
-        return True
-
-    voicepe.stop_playback = slow_but_valid_drain
-    await session.start()
-    try:
-        await session.wake()
-        await session.stop(reason="slow-valid-physical-drain")
-        assert session._teardown_incomplete is False
-        assert voicepe.rearm_calls == 1
-        assert session._teardown_retry_task is None
     finally:
         await session.aclose()
 
