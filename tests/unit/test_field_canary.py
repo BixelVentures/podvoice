@@ -23,7 +23,19 @@ def _trace() -> dict:
     )
     additions = [
         {"at_ms": 4610, "event": "speech_started_or_interrupted"},
-        {"at_ms": 4620, "event": "speech_stopped"},
+        {
+            "at_ms": 4620,
+            "event": "speech_stopped",
+            "accepted": True,
+            "audio_generation": 2,
+        },
+        {"at_ms": 4621, "event": "mic_gate_closed", "audio_generation": 2},
+        {
+            "at_ms": 4622,
+            "event": "audio_boundary_cut",
+            "reason": "speech-stopped",
+            "audio_generation": 3,
+        },
         {
             "at_ms": 4630,
             "event": "transcript_complete",
@@ -39,8 +51,32 @@ def _trace() -> dict:
         },
         {"at_ms": 4660, "event": "playback_started"},
         {"at_ms": 4670, "event": "playback_finished"},
+        {
+            "at_ms": 4671,
+            "event": "audio_boundary_cut",
+            "reason": "followup-open",
+            "audio_generation": 4,
+        },
+        {
+            "at_ms": 4672,
+            "event": "mic_gate_opened",
+            "reason": "followup",
+            "audio_generation": 4,
+        },
         {"at_ms": 4680, "event": "speech_started_or_interrupted"},
-        {"at_ms": 4690, "event": "speech_stopped"},
+        {
+            "at_ms": 4690,
+            "event": "speech_stopped",
+            "accepted": True,
+            "audio_generation": 4,
+        },
+        {"at_ms": 4691, "event": "mic_gate_closed", "audio_generation": 4},
+        {
+            "at_ms": 4692,
+            "event": "audio_boundary_cut",
+            "reason": "speech-stopped",
+            "audio_generation": 5,
+        },
         {
             "at_ms": 4700,
             "event": "transcript_complete",
@@ -56,8 +92,36 @@ def _trace() -> dict:
         },
         {"at_ms": 4730, "event": "playback_started"},
         {"at_ms": 4740, "event": "playback_finished"},
+        {
+            "at_ms": 4741,
+            "event": "audio_boundary_cut",
+            "reason": "followup-open",
+            "audio_generation": 6,
+        },
+        {
+            "at_ms": 4742,
+            "event": "mic_gate_opened",
+            "reason": "followup",
+            "audio_generation": 6,
+        },
     ]
     events[close_start_index:close_start_index] = additions
+    final_stop = next(
+        i
+        for i, event in enumerate(events)
+        if event["event"] == "speech_stopped" and i > close_start_index + len(additions)
+    )
+    events[final_stop]["audio_generation"] = 6
+    events[final_stop + 1]["audio_generation"] = 6
+    events[final_stop + 2]["audio_generation"] = 7
+    rearm_cut = next(
+        event
+        for event in events
+        if event["event"] == "audio_boundary_cut" and event.get("reason") == "rearm-ack"
+    )
+    rearm_cut["audio_generation"] = 8
+    rearm = next(event for event in events if event["event"] == "wake_rearm_recovered")
+    rearm["audio_generation"] = 8
     for index, event in enumerate(events):
         event["at_ms"] = index * 100
     return trace

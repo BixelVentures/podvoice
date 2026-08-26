@@ -16,6 +16,24 @@ Systemet skal give korte korrekte danske svar, bruge HA/MCP, PodConnect, musik, 
 web og timere korrekt og fejle hørligt. Det må aldrig lukke på almindelig tale, svare
 på sin egen højttaler eller blive dødt efter få samtaler.
 
+## Bindende lifecycle-mål
+
+```text
+wake → LISTENING → THINKING → AI_SPEAKING → LOUNGE_WINDOW
+     → opfølgning i samme session (gentag efter behov)
+     → Realtime end_conversation eller fire sekunders timeout
+     → CLOSING → én teardown → én rearm → IDLE → nyt wake
+```
+
+`CLOSING` er en transaktionsfase, ikke en ekstra runtime-`State`. De fem eksisterende
+stateværdier er fortsat den eneste mic-gate.
+
+Voice PE sender kun mic-lyd i `LISTENING` og `LOUNGE_WINDOW`. Realtime ejer sprog,
+matematik, kontekst, værktøjsvalg og semantisk close. PodVoice må kun eje mic-gate,
+dispatch, playback, timeout, teardown og rearm. Terminalresponsen er højst ét kort
+farvel; ingen lyd eller fejlet lyd lukker stille. Ingen lokal keywordliste må afgøre
+betydning.
+
 ## Release-gate 1 — arkitektur
 
 - Renderet firmware: 1 wake-trigger, 0 stock `voice_assistant.start`.
@@ -61,13 +79,39 @@ På præcis kandidatens bits skal følgende være grønt, før brugeren bedes ta
 - sikker live Realtime-preflight for direkte svar, opfølgning, tid, web og varieret
   semantisk lukning uden HA/MCP/PodConnect-sideeffekter;
 - trace-replay, der afviser manglende/dobbelte/omvendte wake-, provider-, playback-,
-  close-, capture- og rearm-events.
+  close-, capture- og rearm-events samt faldende audio-generation, providerlyd under
+  lukket mic-gate og opfølgning før fysisk playback-finish plus ekkohale;
 - rå providerpermutationer for completed/cancelled/failed/incomplete, schema/ACK-fejl,
   multi-call atomik, approval replay/expiry og rate-limit før sideeffekt.
 
 Live-preflight bruger et hårdt turn-, token-, pris- og timeoutloft. Et korrekt tekstsvar
 uden korrekt beslutning, session eller lifecycle er en fejl. Maskingaten kan stoppe en
 kandidat, men aldrig erstatte den efterfølgende fysiske Voice PE-gate.
+
+For en ren audio-/mic-gate-kandidat er den relevante live-gate kun den sideeffektfrie
+sekvens `math → math-opfølgning → time → weekday-opfølgning → semantic close`, fem
+gange på samme sessionskontrakt. Kun tidsturen må bruge `get_time`; matematik og
+opfølgning skal besvares direkte. Samlet prisloft er $5, uden budgetprobe og uden
+hjem-, musik- eller timerhandlinger. En bred SafeEval køres ikke igen, medmindre prompt,
+schema, værktøjer eller Realtime-semantik faktisk er ændret.
+
+### Lifecycle-confidence 97/100
+
+97/100 er engineering confidence, ikke en garanti for alle rum og providerudfald:
+
+| Område | Point | Obligatorisk bevis |
+|---|---:|---|
+| Én session og korrekt turkronologi | 20 | Alle maskinelle og fysiske kæder grønne |
+| Half-duplex og audio-isolation | 20 | Ingen providerlyd under lukket gate; race-regression grøn |
+| Realtime-semantik og værktøjsvalg | 15 | Fokuseret live-gate 5/5 |
+| Playback, teardown og rearm | 20 | Præcis én af hver; næste wake virker |
+| Stale/duplicate/out-of-order-sikkerhed | 10 | Alle relevante permutationer fail-closed |
+| Artifact-, trace- og review-sandhed | 7 | Samme bits, komplet trace, P0/P1=0 |
+| Fysisk ubrudt gate | 5 | Golden chain plus 10/10 fysisk |
+| **Samlet** | **97** | **Alle kategorier er obligatoriske** |
+
+De sidste tre point kræver den senere funktionsmatrix og syvdøgns soak. En kandidat må
+ikke kaldes 97/100 alene på CI, Talk, live-eval eller én fysisk samtale.
 
 ## Release-gate 2 — automatisk lifecycle
 
@@ -86,7 +130,9 @@ Krav: 10/10, ingen ekstra sessioner, ingen stock RUN_END og ingen kontrol-announ
 
 ## Release-gate 3 — fysisk Voice PE
 
-Flash kandidaten og kør 10 ubrudte samtaler på skrivebordet:
+Installér kandidatens exact add-on-artifact og kør 10 ubrudte samtaler på skrivebordet.
+Flash kun Voice PE, hvis kandidatdiffet faktisk ændrer firmwarekontrakten; en ren
+add-on-kandidat skal genbruge den allerede godkendte firmware:
 
 - Sig wake og spørgsmål i samme naturlige åndedrag; ingen kunstig pause.
 - Lydbevisets første input skal være spørgsmålet, ikke “Okay Nabu”, et fragment af
