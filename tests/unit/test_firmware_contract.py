@@ -16,6 +16,18 @@ def test_vendored_base_has_auditable_provenance():
     # official URL until they can be vendored as binary release artifacts.
 
 
+def test_fresh_ha_package_fetches_podvoice_audio_without_local_copy():
+    yaml = OVERLAY.read_text()
+    external = yaml.split("external_components:", 1)[1].split("podvoice_audio:", 1)[0]
+
+    assert "type: git" in external
+    assert "url: https://github.com/BixelVentures/podvoice" in external
+    assert "ref: 385b71c4f1d3285f130390d8735849268427add3" in external
+    assert "path: esphome/components" in external
+    assert "refresh: 0s" in external
+    assert "\n  - source: { type: local, path: components }" not in external
+
+
 def test_firmware_has_one_wake_owner_and_zero_stock_assist_starts():
     base = BASE.read_text()
     overlay = OVERLAY.read_text()
