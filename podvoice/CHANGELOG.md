@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.13.47 — næste wake får ét ærligt providerforsøg
+
+- En ny production-generation ejer nu den faktisk resterende del af den eksisterende
+  15.000-token reservation i stedet for at blive afvist lokalt, blot fordi den rullende
+  kapacitet er under hele maksimumreservationen.
+- HA/MCP, `end_conversation` og alle andre afsluttede værktøjsforslag forbliver
+  fail-closed, indtil den samme generation har autoritativ usage og eksakt kapacitet til
+  opfølgningen. Der tilføjes ingen budgetprobe, retry, ekstra socket eller bucket-reset.
+- Stale usage fra en lukket generation kan ikke debitere den næste generations
+  reservation. Setupfejl, provider-429, duplicate terminalevents og teardown frigiver
+  fortsat den eksakte lease højst én gang.
+- Dette er en add-on-only ændring. Firmware, wake, gain, VAD, playback, prompt og
+  lifecycle er uændrede; den installerede `podvoice_build_11346` er fortsat den krævede
+  firmwareidentitet.
+
 ## 1.13.46 — fysisk samtaleruntime gendannet fra den beviste 1.13.43-baseline
 
 - Hele den Voice PE-relevante produktionsruntime er gendannet fra exact v1.13.43

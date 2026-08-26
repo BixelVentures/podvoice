@@ -80,8 +80,10 @@ class _HTTP:
     def __init__(self, ws: _QueueWS) -> None:
         self.ws = ws
         self.closed = False
+        self.connect_calls = 0
 
     async def ws_connect(self, *_args, **_kwargs) -> _QueueWS:  # type: ignore[no-untyped-def]
+        self.connect_calls += 1
         return self.ws
 
     async def close(self) -> None:
@@ -137,6 +139,40 @@ def _area_tool_declaration() -> dict:
             "additionalProperties": False,
         },
     }
+
+
+def _empty_tool_declaration(name: str) -> dict:
+    return {
+        "name": name,
+        "description": "Test fixture.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+    }
+
+
+def _partial_production_session(
+    remaining: int,
+    declarations: list[dict],
+) -> tuple[ProviderBudgetCoordinator, OpenAIRealtimeSession]:
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": remaining, "reset_seconds": 60}],
+    )
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="production",
+        tool_declarations=declarations,
+        provider_budget=ledger,
+    )
+    session._connection_generation = 1
+    session._budget_production_leases[1] = ledger.production_started("secret", "model")
+    return ledger, session
 
 
 async def test_schema_invalid_single_call_is_corrected_once_without_tool_escape():
@@ -514,6 +550,128 @@ async def test_production_budget_lease_spans_connect_to_close(monkeypatch):
     await connecting
     await session.close()
     assert ledger.snapshot("secret", session.model)["production_sessions"] == 0
+
+
+async def test_fresh_production_connect_uses_partial_rolling_capacity_once(monkeypatch):
+    ws = _QueueWS()
+    http = _HTTP(ws)
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 11_500, "reset_seconds": 60}],
+    )
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda: http)
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="production",
+        provider_budget=ledger,
+    )
+
+    connecting = asyncio.create_task(session.connect())
+    await _wait_for_sent(ws, "session.update")
+    snapshot = ledger.snapshot("secret", "model")
+    assert snapshot["production_sessions"] == 1
+    assert snapshot["reserved_tokens"] == 11_500
+    assert snapshot["reserved_tokens"] <= snapshot["remaining"]
+    assert http.connect_calls == 1
+
+    await ws.emit({"type": "session.updated", "session": {"type": "realtime"}})
+    await connecting
+    await session.close()
+    assert http.connect_calls == 1
+    assert ledger.snapshot("secret", "model")["production_sessions"] == 0
+
+
+async def test_partial_owner_first_provider_response_429_never_retries_and_releases_lease(
+    monkeypatch,
+):
+    ws = _QueueWS()
+    http = _HTTP(ws)
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 5_000, "reset_seconds": 60}],
+    )
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda: http)
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="production",
+        provider_budget=ledger,
+    )
+
+    connecting = asyncio.create_task(session.connect())
+    await _wait_for_sent(ws, "session.update")
+    await ws.emit({"type": "session.updated", "session": {"type": "realtime"}})
+    await connecting
+    assert ledger.snapshot("secret", "model")["reserved_tokens"] == 5_000
+
+    async def stream_events() -> list:
+        return [event async for event in session.events()]
+
+    streaming = asyncio.create_task(stream_events())
+    await ws.emit(
+        {
+            "type": "error",
+            "error": {
+                "code": "rate_limit_exceeded",
+                "type": "tokens",
+                "message": "Limit 40000, Used 35000, Requested 5700. Please retry later.",
+            },
+        }
+    )
+    await ws.close()
+
+    with pytest.raises(ConnectionError, match="rate_limit_exceeded"):
+        await streaming
+    assert http.connect_calls == 1
+    assert [event["type"] for event in ws.sent] == ["session.update"]
+    assert ledger.snapshot("secret", "model")["production_sessions"] == 0
+
+
+async def test_partial_owner_setup_failure_releases_before_next_acquire(monkeypatch):
+    ws = _QueueWS()
+    http = _HTTP(ws)
+    ledger = ProviderBudgetCoordinator()
+    ledger.update_rate_limits(
+        "secret",
+        "model",
+        [{"name": "tokens", "limit": 40_000, "remaining": 5_000, "reset_seconds": 60}],
+    )
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda: http)
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        model="model",
+        budget_role="production",
+        provider_budget=ledger,
+    )
+
+    connecting = asyncio.create_task(session.connect())
+    update = (await _wait_for_sent(ws, "session.update"))[0]
+    assert ledger.snapshot("secret", "model")["reserved_tokens"] == 5_000
+    await ws.emit(
+        {
+            "type": "error",
+            "error": {
+                "event_id": update["event_id"],
+                "code": "invalid_request_error",
+                "message": "invalid session setup",
+            },
+        }
+    )
+
+    with pytest.raises(ProviderConfigurationError, match="invalid_request_error"):
+        await connecting
+    assert http.connect_calls == 1
+    assert http.closed is True
+    assert ledger.snapshot("secret", "model")["production_sessions"] == 0
+
+    next_owner = ledger.production_started("secret", "model")
+    assert ledger.snapshot("secret", "model")["reserved_tokens"] == 5_000
+    assert ledger.release(next_owner) is True
 
 
 async def test_response_start_rate_reservation_does_not_kill_session_readiness(monkeypatch):
@@ -1537,6 +1695,96 @@ async def test_provider_observer_failure_never_replaces_wire_or_terminal_behavio
     await session._send_response_create()
     assert [row["type"] for row in ws.sent] == ["response.create"]
     session._cancel_ack_watchdogs()
+
+
+@pytest.mark.parametrize(
+    ("tool_name", "arguments", "declaration"),
+    [
+        ("HassTurnOn", '{"area":"stuen","domain":["light"]}', _area_tool_declaration()),
+        ("GetLiveContext", "{}", _empty_tool_declaration("GetLiveContext")),
+        ("end_conversation", "{}", _empty_tool_declaration("end_conversation")),
+    ],
+)
+@pytest.mark.parametrize("remaining", [0, 5_999], ids=["zero-owner", "partial-owner"])
+async def test_underfunded_production_owner_releases_no_external_or_semantic_proposal(
+    tool_name: str,
+    arguments: str,
+    declaration: dict,
+    remaining: int,
+):
+    ledger, session = _partial_production_session(remaining, [declaration])
+    lease = session._budget_production_leases[1]
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "partial-tool",
+            "call_id": "partial-call",
+            "name": tool_name,
+            "arguments": arguments,
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.done",
+            "response": {
+                "id": "partial-tool",
+                "status": "completed",
+                "usage": _typed_usage(),
+            },
+        }
+    )
+    await ws.incoming.put(None)
+
+    events = [event async for event in session._iter_events(ws, generation=1)]
+    assert not any(isinstance(event, (ToolCall, ToolRoundComplete)) for event in events)
+    failed = next(event for event in events if isinstance(event, TurnComplete))
+    assert failed.status == "failed"
+    assert failed.error and "tool result response" in failed.error
+    assert ledger.lease_is_active(lease) is True
+    assert ledger.release(lease) is True
+
+
+async def test_current_partial_generation_top_up_releases_exactly_one_proposal():
+    ledger, session = _partial_production_session(5_000, [_area_tool_declaration()])
+    lease = session._budget_production_leases[1]
+    ws = _QueueWS()
+    await ws.emit({"type": "response.created", "response": {"id": "funded-tool"}})
+    await ws.emit(
+        {
+            "type": "rate_limits.updated",
+            "rate_limits": [
+                {"name": "tokens", "limit": 40_000, "remaining": 8_000, "reset_seconds": 60}
+            ],
+        }
+    )
+    await ws.emit(
+        {
+            "type": "response.function_call_arguments.done",
+            "response_id": "funded-tool",
+            "call_id": "funded-call",
+            "name": "HassTurnOn",
+            "arguments": '{"area":"stuen","domain":["light"]}',
+        }
+    )
+    done = {
+        "type": "response.done",
+        "response": {
+            "id": "funded-tool",
+            "status": "completed",
+            "usage": _typed_usage(),
+        },
+    }
+    await ws.emit(done)
+    await ws.emit(done)
+    await ws.incoming.put(None)
+
+    events = [event async for event in session._iter_events(ws, generation=1)]
+    assert [event.name for event in events if isinstance(event, ToolCall)] == ["HassTurnOn"]
+    assert sum(isinstance(event, ToolRoundComplete) for event in events) == 1
+    assert not any(isinstance(event, TurnComplete) and event.status == "failed" for event in events)
+    assert ledger.snapshot("secret", "model")["reserved_tokens"] == 6_000
+    assert ledger.release(lease) is True
 
 
 @pytest.mark.parametrize(
