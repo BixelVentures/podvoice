@@ -335,7 +335,8 @@ async def test_wait_for_user_result_submission_failure_closes_cleanly():
     try:
         await session.wake()
         brain.emit(ToolCall("wait-broken", "wait_for_user", {}))
-        await _wait_until(lambda: session._active is False, max_wait=3.0)
+        await _wait_until(lambda: len(attention.release_calls) == 1, max_wait=3.0)
+        assert session._active is False
         assert session.sm.state is State.IDLE
         assert len(attention.release_calls) == 1
     finally:
@@ -719,7 +720,8 @@ async def test_full_conversation_wake_reply_idle_close():
         await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)  # dim follow-up
 
         gemini.emit(Idle())  # the SERVER ends the conversation — no client timers
-        await _wait_until(lambda: session.sm.state is State.IDLE)
+        await _wait_until(lambda: len(attention.release_calls) == 1)
+        assert session.sm.state is State.IDLE
         await _wait_until(lambda: len(attention.release_calls) >= 1)  # music restored
         assert gemini.closed is True
         assert attention.engage_calls  # and it WAS ducked during the conversation

@@ -5,20 +5,71 @@ Senest opdateret: 2026-08-26.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Installeret software:** PodVoice add-on v1.13.46 kører på HA Green, og Voice PE er
+**Installeret software:** PodVoice add-on v1.13.47 fra exact main
+`eef3b6ddd30fa8aa61664571c54e967365eeee1b` kører på HA Green, og Voice PE er
 OTA-flashet med den HA-byggede v1.13.46-produktionsfirmware fra exact main
 `ff10cc3e93eebdb9b84fb88240338b0be5a38aea`. Automatisk native-API-reconnect,
 firmwarekontrakt, mic channel 1/gain 16 og `okay_nabu` er fysisk observeret. Installation
 må ikke overskrive den fortsat afviste golden-chain-status.
-**Aktuel gate:** v1.13.46 gendannede samme-session-opfølgning, model-close, fysisk
-playback, teardown og rearm fra v1.13.43. Den friske fysiske kæde 26. august blev
-alligevel **NO-GO**: første wakeforsøg blev ikke observeret, og en ny wake 2,6 sekunder
-efter korrekt close/rearm blev lokalt afvist før providersocket af den faste 15.000-
-token produktionsreservation. Kandidaten er ikke golden og må ikke gå til 10/10.
+**Aktuel gate:** v1.13.47 er **NO-GO**. Den fjernede den falske 15.000-token-afvisning,
+startede korrekt og genfandt Voice PE samt 19 HA/MCP-værktøjer, men den fysiske trace
+`20260826T145627-246` beviser lyd fra en tidligere samtale i den nye generation og et
+efterfølgende falsk `end_conversation`. Kandidaten er ikke golden og må ikke gå til
+10/10.
 
-**Aktiv udviklingskandidat:** add-on-only v1.13.47 retter kun den falske
-produktionsadmission beskrevet nedenfor. v1.13.46 forbliver installeret restore-baseline;
-firmware, wake, gain, VAD, playback, prompt, værktøjsskema og lifecycle er frosne.
+**Aktiv udviklingskandidat:** næste add-on-only kandidat lukker kun den observerede
+cross-session-audiorace oven på installeret v1.13.47. Voice PE-firmwaren forbliver
+v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
+
+### Aktiv beslutning 26. august — sen gammel mic-frame krydsede næste wake
+
+- **Observeret fejl og stærkeste direkte evidens:** På installeret exact v1.13.47 sagde
+  brugeren “Okay Nabu, hvad er tolv gange syv?”. Tracens første provider-VAD-turn varede
+  kun 276 ms, men blev transskriberet som hele den tidligere ytring “Hvad er klokken?” og
+  udløste `get_time`. En senere rigtig ytring blev korrekt transskriberet som “Hvad er
+  syv gange tolv?”, og “Læg seks til” blev også korrekt transskriberet, men kaldte
+  fejlagtigt `end_conversation`. Device-, provider- og speakerlyd er gemt samlet som
+  `20260826T145627-246`. En 276 ms turn kan ikke være den rapporterede fulde sætning;
+  kandidaten er fysisk NO-GO.
+- **Hele berørte kæde og nærliggende race:** samtale A → firmware
+  `podvoice_stream_stop` køes → add-on dræner `_audio_q` → allerede in-flight native-
+  API-audiocallback fra A ankommer efter drain → rearm → wake B → start bevarer med
+  vilje same-breath-frames → A-frame bliver første lyd på den friske providersocket.
+  Den nærliggende modsatte fejl er at dræne ved wake og derved klippe B's første ord.
+  Providerens forurenede kontekst kan påvirke senere værktøjsvalg, men falsk semantic
+  close skal måles særskilt efter ren lydtransport.
+- **Berørte invarianter, hypotese og ikke-mål:** lyd fra generation A må aldrig nå B;
+  samme-breath-input fra B må ikke mistes; én wake ejer én provider-generation; Realtime
+  ejer fortsat betydning og `end_conversation`. Den falsificerbare hypotese er, at
+  service-send + øjeblikkelig kødrain ikke udgør en transportbarriere, så en sen callback
+  efter drain overlever til næste wake. Ingen gain-, VAD-, prompt-, tool-description-,
+  playback-, budget- eller lokal semantikændring er mål.
+- **Planlagte regressioner og rollback:** gengiv close A → drain → forsinket A-frame →
+  rearm → wake B og kræv nul A-bytes på B's provider, samtidig med at B's 320 ms
+  same-breath-prefix bevares. Dæk duplicate/failed stop, reconnect og Talk-paritet.
+  Rettelsen skal ligge ved den mekaniske stop/rearm-generationsgrænse og må ikke være en
+  tidsbaseret sleep. Rollback er hele grænseændringen ved mistet B-prefix, dead mic,
+  ekstra stream/socket eller rearm uden fuld teardown. Først rød→grøn regression,
+  relevant adapter/Thin-gate, adversarial review, fuld gate, exact install og én ny
+  armeret fysisk canary kan åbne testen igen.
+- **Faktisk kandidat v1.13.48:** den registrerede native audio-callback fanger en
+  monoton audio-generation synkront, før aioesphomeapi planlægger dens coroutine. Kun
+  den eksakte aktive `recovered`-ACK avancerer generationen og dræner køen, før Thin
+  fortsætter. En forsinket A-callback bliver derfor inert; umiddelbar B-audio efter ACK
+  bevares. Wrong/fault/duplicate ACK og drainfejl forbliver fail-closed. Firmware,
+  ThinSession, Talk, Realtime-semantik, prompt, VAD, gain og playback er uændrede.
+- **Maskinbevis og review:** callback-regressionerne går gennem de faktisk registrerede
+  old/new native subscriptions og dækker fault→retry, reconnect, forsinket A og
+  umiddelbar B. 191 relevante Voice PE/Thin/Talk-tests er grønne; fuld releasegate er
+  grøn på 37,1 sekunder. Uafhængigt adversarial review gav GO med P0=0/P1=0. To
+  eksisterende teardown-tests venter nu på det cleanup-resultat, de påstår at bevise,
+  i stedet for et tidligere mellemstadie; det fjerner en observeret test-race uden at
+  ændre runtime.
+- **Præcis fysisk status:** v1.13.48 er maskinelt testklar, men ikke fysisk bevist og
+  ikke golden. Næste og eneste feltgate er exact image/install og én armeret canary,
+  der beviser ren første ytring, samme-session-opfølgning, model-close, én teardown,
+  rearm og næste wake. Audio, der først dekodes efter ACK, kan kun afvises eller
+  bekræftes af denne fysiske trace.
 
 ### Aktiv installationsbeslutning — selvstændig ESPHome-kilde
 
