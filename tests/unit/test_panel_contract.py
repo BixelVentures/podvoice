@@ -32,12 +32,11 @@ def test_panel_header_shows_running_version_from_status():
     assert 'connected ? "status live" : "status forbinder…"' in html
 
 
-def test_panel_cannot_activate_the_retired_simulation_runtime():
-    html = PANEL.read_text()
-
+def test_panel_has_no_production_simulation_control_or_status():
+    html = PANEL.read_text().lower()
     assert "s_simulate" not in html
+    assert "simulation mode" not in html
     assert '"simulate"' not in html
-    assert "Simulation mode" not in html
 
 
 def test_service_status_is_live_and_names_runtime_truths():

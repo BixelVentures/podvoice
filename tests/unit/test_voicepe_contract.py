@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -24,9 +23,7 @@ FULL_SERVICES = [
     "podvoice_stream_stop",
     "podvoice_rearm_wake_word",
     "podvoice_reply_expect",
-    "podvoice_reply_play",
     "podvoice_reply_cancel",
-    "podvoice_reply_silence",
 ]
 FULL_CAPABILITIES = [
     "podvoice_channel_v1",
@@ -37,8 +34,7 @@ FULL_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "correlated_playback_v2",
-    "podvoice_build_11345",
+    "podvoice_build_11346",
     "podvoice_playback_events_v1",
 ]
 REARM_CAPABILITIES = [
@@ -46,7 +42,7 @@ REARM_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11345",
+    "podvoice_build_11346",
 ]
 
 
@@ -80,7 +76,6 @@ class _StubClient:
         self._entities = entities
         self.executed: list[str] = []
         self.executed_args: list[dict] = []
-        self.service_hook = None
 
     async def list_entities_services(self):
         return self._entities, self._services
@@ -88,8 +83,6 @@ class _StubClient:
     async def execute_service(self, svc, args):
         self.executed.append(svc.name)
         self.executed_args.append(dict(args))
-        if self.service_hook is not None:
-            self.service_hook(svc.name, dict(args))
 
     def media_player_command(self, **kwargs):
         self.executed.append(f"media:{kwargs.get('key')}")
@@ -102,15 +95,6 @@ def _link(client: _StubClient) -> VoicePELink:
     link = VoicePELink("pv-test.local", "psk", room="stue")
     link._client = client  # type: ignore[assignment]
     link._rearm_token = 0
-    link._playback_token = 100
-
-    def acknowledge_firmware(name: str, args: dict) -> None:
-        if name == "podvoice_reply_expect":
-            link._handle_playback_ack(f"{args['token']}:armed")
-        elif name in ("podvoice_reply_cancel", "podvoice_reply_silence"):
-            link._handle_playback_ack(f"{args['token']}:cancelled")
-
-    client.service_hook = acknowledge_firmware
     return link
 
 
@@ -121,7 +105,6 @@ async def test_contract_ok_with_full_firmware(caplog):
             MediaPlayerInfo("external_media_player", 7),
             LightInfo("led_ring", 9),
             TextSensorInfo("podvoice_rearm_ack", 4),
-            TextSensorInfo("podvoice_playback_ack", 5),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -136,65 +119,18 @@ async def test_contract_ok_with_full_firmware(caplog):
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
-async def test_stop_playback_uses_exact_firmware_owned_cancel():
+async def test_stop_playback_requires_cancel_service_and_media_stop():
     client = _StubClient(
         FULL_SERVICES,
         [MediaPlayerInfo("external_media_player", 7)],
     )
     link = _link(client)
     await link._resolve_entities()
-    link._playback_expected_token = 100
-    link._playback_expected_id = "reply"
-    link._playback_phase = "started"
     link._announcing = True
 
     assert await link.stop_playback() is True
-    assert client.executed == ["podvoice_reply_cancel"]
-    assert link._announcing is False
-
-
-async def test_stop_playback_waits_for_exact_drained_cancel_ack():
-    client = _StubClient(FULL_SERVICES, [MediaPlayerInfo("external_media_player", 7)])
-    link = _link(client)
-    await link._resolve_entities()
-    link._playback_expected_token = 100
-    link._playback_expected_id = "reply"
-    link._playback_phase = "started"
-    link._announcing = True
-    client.service_hook = None
-
-    stop = asyncio.create_task(link.stop_playback())
-    await asyncio.sleep(0)
-    assert not stop.done()
-    link._handle_playback_ack("99:cancelled")
-    assert not stop.done()
-    link._handle_playback_ack("100:cancelled")
-
-    assert await stop is True
-    assert link._announcing is False
-    assert link._playback_expected_token is None
-
-
-async def test_rebooted_device_cancel_fault_falls_back_to_orphan_silence():
-    client = _StubClient(FULL_SERVICES, [MediaPlayerInfo("external_media_player", 7)])
-    link = _link(client)
-    await link._resolve_entities()
-    link._playback_expected_token = 100
-    link._playback_expected_id = "reply-before-reboot"
-    link._playback_phase = "started"
-    link._announcing = True
-
-    def rebooted_firmware(name: str, args: dict) -> None:
-        if name == "podvoice_reply_cancel":
-            link._handle_playback_ack(f"{args['token']}:fault")
-        elif name == "podvoice_reply_silence":
-            link._handle_playback_ack(f"{args['token']}:cancelled")
-
-    client.service_hook = rebooted_firmware
-    assert await link.stop_playback() is False
-    assert link._playback_expected_token is None
-    assert await link.stop_playback() is True
-    assert client.executed == ["podvoice_reply_cancel", "podvoice_reply_silence"]
+    assert "podvoice_reply_cancel" in client.executed
+    assert "media:7" in client.executed
     assert link._announcing is False
 
 
@@ -216,14 +152,12 @@ async def test_stop_playback_fails_closed_when_reply_cancel_cannot_be_sent():
     assert link._announcing is True
 
 
-async def test_stop_playback_recovers_unknown_orphan_without_public_entity():
+async def test_stop_playback_fails_closed_without_physical_media_target():
     client = _StubClient(FULL_SERVICES, [])
     link = _link(client)
     await link._resolve_entities()
 
-    assert await link.stop_playback() is True
-    assert client.executed == ["podvoice_reply_silence"]
-    assert client.executed_args == [{"token": 100}]
+    assert await link.stop_playback() is False
 
 
 async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build():
@@ -237,7 +171,6 @@ async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build():
         [
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
-            TextSensorInfo("podvoice_playback_ack", 5),
             EventInfo("podvoice_event", 3, wrong_build),
         ],
     )
@@ -248,7 +181,7 @@ async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build():
 
     assert report["ok"] is False
     assert report["firmware_build"] == "podvoice_build_11342"
-    assert report["missing_capabilities"] == ["podvoice_build_11345"]
+    assert report["missing_capabilities"] == ["podvoice_build_11346"]
 
 
 async def test_contract_rejects_multiple_firmware_build_markers():
@@ -258,7 +191,6 @@ async def test_contract_rejects_multiple_firmware_build_markers():
         [
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
-            TextSensorInfo("podvoice_playback_ack", 5),
             EventInfo("podvoice_event", 3, capabilities),
         ],
     )
@@ -269,8 +201,8 @@ async def test_contract_rejects_multiple_firmware_build_markers():
 
     assert report["ok"] is False
     assert report["firmware_build"] is None
-    assert report["firmware_builds"] == ["podvoice_build_11342", "podvoice_build_11345"]
-    assert report["missing_capabilities"] == ["podvoice_build_11345"]
+    assert report["firmware_builds"] == ["podvoice_build_11342", "podvoice_build_11346"]
+    assert report["missing_capabilities"] == ["podvoice_build_11346"]
 
 
 async def test_contract_mismatch_is_loud_and_reported(caplog):
@@ -286,8 +218,6 @@ async def test_contract_mismatch_is_loud_and_reported(caplog):
         "podvoice_rearm_wake_word",
         "podvoice_reply_cancel",
         "podvoice_reply_expect",
-        "podvoice_reply_play",
-        "podvoice_reply_silence",
         "podvoice_stream_start",
     ]
     assert "media_player" in report["missing_entities"]
@@ -347,7 +277,6 @@ async def test_link_state_is_truthful(caplog):
             MediaPlayerInfo("external_media_player", 7),
             LightInfo("led_ring", 9),
             TextSensorInfo("podvoice_rearm_ack", 4),
-            TextSensorInfo("podvoice_playback_ack", 5),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -366,7 +295,6 @@ async def test_full_admission_cancels_queued_same_generation_recovery():
         [
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
-            TextSensorInfo("podvoice_playback_ack", 5),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -567,7 +495,6 @@ async def test_stale_cached_ip_rotates_to_native_discovery_and_survives_next_dhc
                 [
                     MediaPlayerInfo("external_media_player", 7),
                     TextSensorInfo("podvoice_rearm_ack", 4),
-                    TextSensorInfo("podvoice_playback_ack", 5),
                     EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
                 ],
                 [
@@ -979,8 +906,7 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "continuous_rearm_v1",
         "physical_rearm_audio_progress_v1",
         "correlated_reset_rearm_v2",
-        "correlated_playback_v2",
-        "podvoice_build_11345",
+        "podvoice_build_11346",
         "podvoice_playback_events_v1",
     ]
     assert link.supports_same_breath is False
@@ -1062,87 +988,7 @@ async def test_playback_event_capability_and_edges_are_read_from_firmware():
     link._on_state(SimpleNamespace(event_type="podvoice_playback_started", key=3))
     assert edges[-1] is True  # a fault cannot poison the next correlated start
     await link._on_disconnect(expected_disconnect=True)
-    assert link._announcing is True  # disconnect cannot fabricate physical silence
-
-
-async def test_correlated_playback_ack_carries_exact_playback_id():
-    client = _StubClient(
-        FULL_SERVICES,
-        [
-            MediaPlayerInfo("external_media_player", 7),
-            TextSensorInfo("podvoice_playback_ack", 5),
-            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
-        ],
-    )
-    link = _link(client)
-    await link._resolve_entities()
-    edges: list[tuple[bool, str | None]] = []
-    link.on_media_state = lambda state, playback_id=None: edges.append((state, playback_id))
-
-    await link.play_url("http://podvoice.local/reply/r0.flac", playback_id="pv-play-7")
-    link._on_state(TextSensorState("100:started", key=5))
-    link._on_state(TextSensorState("100:finished", key=5))
-
-    assert client.executed_args == [{"token": 100, "url": "http://podvoice.local/reply/r0.flac"}]
-    assert edges == [(True, "pv-play-7"), (False, "pv-play-7")]
-    assert link._playback_expected_token is None
-
-
-async def test_correlated_playback_rejects_superseded_duplicate_and_out_of_order_edges():
-    client = _StubClient(
-        FULL_SERVICES,
-        [
-            MediaPlayerInfo("external_media_player", 7),
-            TextSensorInfo("podvoice_playback_ack", 5),
-            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
-        ],
-    )
-    link = _link(client)
-    await link._resolve_entities()
-    edges: list[tuple[bool, str | None]] = []
-    link.on_media_state = lambda state, playback_id=None: edges.append((state, playback_id))
-
-    link._on_state(TextSensorState("99:finished", key=5))  # retained state before arm
-    await link.play_url("http://podvoice.local/reply/a.flac", playback_id="A")
-    assert await link.play_url("http://podvoice.local/reply/b.flac", playback_id="B") is False
-    link._on_state(TextSensorState("100:started", key=5))
-    link._on_state(TextSensorState("100:finished", key=5))
-    assert await link.play_url("http://podvoice.local/reply/b.flac", playback_id="B") is True
-    link._on_state(TextSensorState("100:finished", key=5))  # superseded token
-    link._on_state(TextSensorState("101:finished", key=5))  # finish-before-start
-    link._on_state(TextSensorState("101:started", key=5))
-    link._on_state(TextSensorState("101:started", key=5))  # duplicate
-    link._on_state(TextSensorState("101:finished", key=5))
-    link._on_state(TextSensorState("101:finished", key=5))  # duplicate after clear
-
-    assert edges == [(True, "A"), (False, "A"), (True, "B"), (False, "B")]
-
-
-async def test_correlated_playback_fault_and_disconnect_fail_closed():
-    client = _StubClient(
-        FULL_SERVICES,
-        [
-            MediaPlayerInfo("external_media_player", 7),
-            TextSensorInfo("podvoice_playback_ack", 5),
-            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
-        ],
-    )
-    link = _link(client)
-    await link._resolve_entities()
-    faults: list[str | None] = []
-    link.on_playback_fault = faults.append
-
-    await link.play_url("http://podvoice.local/reply/a.flac", playback_id="A")
-    link._on_state(TextSensorState("999:fault", key=5))
-    link._on_state(TextSensorState("100:fault", key=5))
-    assert faults == ["A"]
-
-    await link.play_url("http://podvoice.local/reply/b.flac", playback_id="B")
-    await link._on_disconnect(expected_disconnect=True)
-    link._on_state(TextSensorState("101:started", key=5))
-    assert link._playback_expected_id == "B"
-    assert link._playback_phase == "armed"
-    assert faults == ["A"]
+    assert link._announcing is False
 
 
 async def test_rearm_calls_the_dedicated_firmware_service():
@@ -1161,24 +1007,6 @@ async def test_rearm_calls_the_dedicated_firmware_service():
     assert await task == "recovered"
     assert client.executed == ["podvoice_rearm_wake_word"]
     assert client.executed_args == [{"token": 0}]
-
-
-def test_rearm_wait_budget_includes_silence_and_full_detector_recovery():
-    root = Path(__file__).parents[2]
-    voicepe_source = (root / "podvoice" / "gatekeeper" / "voicepe.py").read_text()
-    thin_source = (root / "podvoice" / "gatekeeper" / "thin.py").read_text()
-    firmware = (root / "esphome" / "podvoice.yaml").read_text()
-    assert "await asyncio.wait_for(waiter.wait(), timeout=9.0)" in voicepe_source
-    assert "TEARDOWN_REARM_TIMEOUT_S = 9.5" in thin_source
-    rearm_silence = firmware.split("- id: podvoice_rearm_after_silence", 1)[1].split(
-        "- id: podvoice_recover_wake_word", 1
-    )[0]
-    recovery = firmware.split("- id: podvoice_recover_wake_word", 1)[1].split(
-        "- id: podvoice_finish_reply", 1
-    )[0]
-    assert "timeout: 3s" in rearm_silence
-    assert "timeout: 2s" in recovery
-    assert "timeout: 3s" in recovery
 
 
 async def test_rearm_recovery_is_degraded_not_physical_proof():
@@ -1296,215 +1124,19 @@ async def test_mic_queue_keeps_the_end_of_a_long_request_on_backpressure():
     assert newest == (600).to_bytes(2, "little")
 
 
-async def test_correlated_reply_uses_one_device_owned_play_command():
+async def test_reply_is_armed_before_the_media_command():
     client = _StubClient(
         FULL_SERVICES,
         [
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
-            TextSensorInfo("podvoice_playback_ack", 5),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
     link = _link(client)
     await link._resolve_entities()
-    await link.play_url("http://podvoice.local/reply/r0.flac", playback_id="pv-play-1")
-    assert client.executed == ["podvoice_reply_play"]
-    assert client.executed_args == [{"token": 100, "url": "http://podvoice.local/reply/r0.flac"}]
-
-
-async def test_foreign_announcement_fault_ack_prevents_bus_mutation_and_reply_command():
-    client = _StubClient(
-        FULL_SERVICES,
-        [
-            MediaPlayerInfo("external_media_player", 7),
-            TextSensorInfo("podvoice_playback_ack", 5),
-            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
-        ],
-    )
-    link = _link(client)
-    await link._resolve_entities()
-    client.service_hook = lambda name, args: (
-        link._handle_playback_ack(f"{args['token']}:fault")
-        if name == "podvoice_reply_expect"
-        else None
-    )
-    prepared: list[str] = []
-
-    played = await link.play_uncorrelated("timer", lambda: prepared.append("bus-mutated"))
-
-    assert played is False
-    assert prepared == []
-    assert client.executed == ["podvoice_reply_expect"]
-    assert client.executed_args == [{"token": 100}]
-    assert link._playback_expected_token is None
-
-
-async def test_foreign_start_after_reservation_faults_before_device_owned_launch():
-    client = _StubClient(
-        FULL_SERVICES,
-        [
-            MediaPlayerInfo("external_media_player", 7),
-            TextSensorInfo("podvoice_playback_ack", 5),
-            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
-        ],
-    )
-    link = _link(client)
-    await link._resolve_entities()
-    edges: list[tuple[bool, str]] = []
-    link.on_media_state = lambda playing, playback_id: edges.append((playing, playback_id))
-
-    def interleave_foreign_start(name: str, args: dict) -> None:
-        if name == "podvoice_reply_expect":
-            link._handle_playback_ack(f"{args['token']}:armed")
-        elif name == "podvoice_reply_play":
-            link._handle_playback_ack(f"{args['token']}:fault")
-
-    client.service_hook = interleave_foreign_start
-    assert await link.play_uncorrelated("reply", lambda: None) is False
-    link._handle_playback_ack("100:started")
-    link._handle_playback_ack("100:finished")
-
-    assert client.executed == ["podvoice_reply_expect", "podvoice_reply_play"]
-    assert edges == []
-    assert link._playback_expected_token is None
-
-
-async def test_missing_arm_ack_times_out_without_bus_mutation_or_media_command():
-    client = _StubClient(
-        FULL_SERVICES,
-        [
-            MediaPlayerInfo("external_media_player", 7),
-            TextSensorInfo("podvoice_playback_ack", 5),
-            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
-        ],
-    )
-    link = _link(client)
-    await link._resolve_entities()
-    client.service_hook = None
-    prepared: list[str] = []
-
-    played = await link.play_uncorrelated("timer", lambda: prepared.append("bus-mutated"))
-
-    assert played is False
-    assert prepared == []
-    assert client.executed == ["podvoice_reply_expect", "podvoice_reply_cancel"]
-    assert client.executed_args == [{"token": 100}, {"token": 100}]
-    assert link._playback_expected_token is None
-
-
-async def test_uncorrelated_timer_announcement_plays_only_without_active_reply_lease():
-    client = _StubClient(
-        FULL_SERVICES,
-        [
-            MediaPlayerInfo("external_media_player", 7),
-            TextSensorInfo("podvoice_rearm_ack", 4),
-            TextSensorInfo("podvoice_playback_ack", 5),
-            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
-        ],
-    )
-    link = _link(client)
-    await link._resolve_entities()
-    reply_edges: list[tuple[bool, str]] = []
-    link.on_media_state = lambda playing, playback_id: reply_edges.append((playing, playback_id))
-    assert await link.play_url("http://podvoice.local/timer.flac") is True
-    assert client.executed == ["podvoice_reply_expect", "podvoice_reply_play"]
-    assert client.executed_args == [
-        {"token": 100},
-        {"token": 100, "url": "http://podvoice.local/timer.flac"},
-    ]
-
-    # The timer owns the sole player until its exact auxiliary token finishes.
-    assert (
-        await link.play_url("http://podvoice.local/reply/r0.flac", playback_id="blocked-reply")
-        is False
-    )
-    link._on_state(TextSensorState("100:started", key=5))
-    link._on_state(TextSensorState("100:finished", key=5))
-    assert reply_edges == []
-    assert link._playback_expected_token is None
-
-    assert (
-        await link.play_url("http://podvoice.local/reply/r0.flac", playback_id="active-reply")
-        is True
-    )
-    expected = (link._playback_expected_token, link._playback_expected_id, link._playback_phase)
-    prepared: list[str] = []
-    assert (
-        await link.play_uncorrelated(
-            "http://podvoice.local/timer.flac", lambda: prepared.append("mutated-bus")
-        )
-        is False
-    )
-    assert prepared == []
-
-    assert client.executed == [
-        "podvoice_reply_expect",
-        "podvoice_reply_play",
-        "podvoice_reply_play",
-    ]
-    assert client.executed_args == [
-        {"token": 100},
-        {"token": 100, "url": "http://podvoice.local/timer.flac"},
-        {"token": 101, "url": "http://podvoice.local/reply/r0.flac"},
-    ]
-    assert (
-        link._playback_expected_token,
-        link._playback_expected_id,
-        link._playback_phase,
-    ) == expected
-
-
-async def test_uncorrelated_timer_is_cancelled_before_next_reply_and_old_ack_is_inert():
-    client = _StubClient(
-        FULL_SERVICES,
-        [
-            MediaPlayerInfo("external_media_player", 7),
-            TextSensorInfo("podvoice_rearm_ack", 4),
-            TextSensorInfo("podvoice_playback_ack", 5),
-            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
-        ],
-    )
-    link = _link(client)
-    await link._resolve_entities()
-    prepared: list[str] = []
-
-    assert await link.play_uncorrelated("timer", lambda: prepared.append("timer")) is True
-    assert await link.stop_uncorrelated_playback() is True
-    assert link._playback_expected_token is None
-    assert await link.play_url("reply", playback_id="reply-after-timer") is True
-    link._on_state(TextSensorState("100:started", key=5))
-    link._on_state(TextSensorState("100:finished", key=5))
-    assert link._playback_expected_token == 101
-    assert link._playback_expected_id == "reply-after-timer"
-    assert link._playback_phase == "armed"
-    assert client.executed == [
-        "podvoice_reply_expect",
-        "podvoice_reply_play",
-        "podvoice_reply_cancel",
-        "podvoice_reply_play",
-    ]
-    assert client.executed_args == [
-        {"token": 100},
-        {"token": 100, "url": "timer"},
-        {"token": 100},
-        {"token": 101, "url": "reply"},
-    ]
-
-
-async def test_correlated_reply_fails_closed_when_device_play_service_fails():
-    client = _StubClient(FULL_SERVICES, [MediaPlayerInfo("external_media_player", 7)])
-    link = _link(client)
-    await link._resolve_entities()
-
-    async def refuse_arm(_service, _args):
-        raise ConnectionError("device disconnected")
-
-    client.execute_service = refuse_arm  # type: ignore[method-assign]
-    await link.play_url("http://podvoice.local/reply/r0.flac", playback_id="reply")
-
-    assert client.executed == []
-    assert link._playback_expected_token is None
+    await link.play_url("http://podvoice.local/reply/r0.flac")
+    assert client.executed == ["podvoice_reply_expect", "media:7"]
 
 
 async def test_stream_service_results_are_not_discarded():
@@ -1632,7 +1264,6 @@ async def test_wake_word_is_reasserted_on_every_connect():
             MediaPlayerInfo("external_media_player", 7),
             LightInfo("led_ring", 9),
             TextSensorInfo("podvoice_rearm_ack", 4),
-            TextSensorInfo("podvoice_playback_ack", 5),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )

@@ -604,31 +604,15 @@ async def test_control_actions():
         assert (await r.json())["ok"] is True
         assert stub.sm.posted[-1].type is EventType.CLOSURE_TOKEN
 
+        r = await client.post("/api/control", json={"room": "kitchen", "action": "test_tone"})
+        assert (await r.json())["ok"] is True
+        assert stub.playback.tones == 1
+
         r = await client.post("/api/control", json={"room": "nope", "action": "listen"})
         assert r.status == 404
 
         r = await client.post("/api/control", json={"room": "kitchen", "action": "bogus"})
         assert r.status == 400
-
-
-async def test_speaker_diagnostic_cannot_overwrite_active_reply_bus():
-    from gatekeeper.reply import ReplyBus
-
-    stub = _StubSession("kitchen")
-    stub._active = True
-    stub.reply_bus = ReplyBus()
-    stub.reply_url = "http://podvoice.local/reply/kitchen.flac"
-    stub.reply_bus.start("kitchen")
-    stub.reply_bus.push("kitchen", b"ANSWER")
-    stub.reply_bus.end("kitchen")
-
-    async with _client(StatusHub(), {"kitchen": stub}) as client:
-        response = await client.post(
-            "/api/control", json={"room": "kitchen", "action": "test_speaker"}
-        )
-
-    assert response.status == 409
-    assert [chunk async for chunk in stub.reply_bus.stream("kitchen")] == [b"ANSWER"]
 
 
 async def test_settings_get_set_and_restart():
