@@ -5,23 +5,20 @@ Senest opdateret: 2026-08-26.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Installeret software:** PodVoice add-on v1.13.44 kører på HA Green, og Voice PE er
-USB-flashet med den HA-byggede v1.13.44-produktionsfirmware. Den senest gennemførte
-golden-chain-gate er fortsat den afviste v1.13.42-kæde: samtalen lykkedes, men den
-efterfølgende fysiske re-wake gjorde ikke. Installation må ikke overskrive det resultat.
-**Aktuel gate:** v1.13.44 har 26. august bestået fysisk flash, reboot og automatisk
-native-API-reconnect med eksakt firmwarekontrakt, men den efterfølgende fysiske prøve
-falsificerede testklarheden. Rearm gav to nye fysiske wakes efter idle-close, men efter
-tredje close kom ingen ny wake trods firmwarestatus `recovered`. Kandidaten er derfor
-**NO-GO for golden chain og 10/10**. Produktretningen forbliver den minimale lifecycle-
-kontrakt nedenfor.
+**Installeret software:** PodVoice add-on v1.13.46 kører på HA Green, og Voice PE er
+OTA-flashet med den HA-byggede v1.13.46-produktionsfirmware fra exact main
+`ff10cc3e93eebdb9b84fb88240338b0be5a38aea`. Automatisk native-API-reconnect,
+firmwarekontrakt, mic channel 1/gain 16 og `okay_nabu` er fysisk observeret. Installation
+må ikke overskrive den fortsat afviste golden-chain-status.
+**Aktuel gate:** v1.13.46 gendannede samme-session-opfølgning, model-close, fysisk
+playback, teardown og rearm fra v1.13.43. Den friske fysiske kæde 26. august blev
+alligevel **NO-GO**: første wakeforsøg blev ikke observeret, og en ny wake 2,6 sekunder
+efter korrekt close/rearm blev lokalt afvist før providersocket af den faste 15.000-
+token produktionsreservation. Kandidaten er ikke golden og må ikke gå til 10/10.
 
-**Aktiv udviklingskandidat:** v1.13.44 har grøn exact-SHA GitHub-test og ARM64 add-on-
-build i run `32889365515`. Installationsrettelsen er merged som
-`7d8ee853a2f10ecb8320ac6287d622bceb5b303d`; HA-konfigurationen er pinnet til samme
-commit. Installerbar bitidentitet, USB-flash og automatisk reconnect er nu lukket som
-beskrevet nedenfor. Installeret fysisk baseline er fortsat den fejlede v1.13.42-kæde,
-indtil v1.13.44 selv består en frisk fysisk golden chain.
+**Aktiv udviklingskandidat:** add-on-only v1.13.47 retter kun den falske
+produktionsadmission beskrevet nedenfor. v1.13.46 forbliver installeret restore-baseline;
+firmware, wake, gain, VAD, playback, prompt, værktøjsskema og lifecycle er frosne.
 
 ### Aktiv installationsbeslutning — selvstændig ESPHome-kilde
 
@@ -177,6 +174,69 @@ indtil v1.13.44 selv består en frisk fysisk golden chain.
   som også beviser auto-connect og ny wake efter rearm. Først derefter laves en isoleret
   rearm-kandidat; når golden chain, rearm og auto-connect er bevist på samme bits,
   etableres 1.14-linjen og 10/10 ubrudte fysiske cyklusser køres.
+
+### Aktiv beslutning 26. august — næste wake blev falsk afvist af fast 15k-reservation
+
+- **Observeret fejl og stærkeste direkte evidens:** Den installerede exact v1.13.46-
+  kæde gennemførte fem Realtime-responskanter i samme session. Providertranscriptet
+  indeholdt ordret `Læg seks til.`, modellen kaldte `end_conversation` på `Tak, det var
+  alt.`, fysisk farvel blev afspillet, og én teardown/rearm sluttede kl. 13.46.30. En ny
+  fysisk wake kl. 13.46.33 blev registreret med `active=False`, åbnede en ny lokal
+  samtalegeneration og blev derefter afvist **før providersocket** med
+  `rate_limit_capacity · provider token capacity is insufficient for a voice session`.
+  Samme lokale afvisning gentog sig kl. 13.46.46. Det beviser rearm og næste wake, men
+  afviser golden chain, fordi den nye Realtime-session ikke blev oprettet. Brugerens
+  første wakeforsøg gav intet observeret wake-event og forbliver en separat fysisk
+  wake-usikkerhed; firmwarefølsomhed må ikke ændres uden lyd-/wake-bevis.
+- **Hele berørte kæde og nærliggende races:** completed usage/rate-snapshot i gammel
+  generation → model-close → exact release af gammel production-lease → firmware-rearm
+  → ny wake/mic-latch → `OpenAIRealtime.connect()` → ny production-owner → session-
+  update/socket → første sideeffektfrie modelrespons → eventuel tool/farvel-kapacitet →
+  playback/teardown/rearm. Stale release/rate/usage fra gammel generation, samtidig
+  eval, duplicate wake/connect, connectfejl, provider-429 og underfinansieret toolrunde
+  skal forblive fail-closed og exactly-once.
+- **Berørte invarianter, falsificerbar årsag og ikke-mål:** Én wake må eje højst én
+  production-generation/socket; eval og production forbliver eksklusive; HA/MCP og
+  lifecycle-værktøjer må kun frigives efter completed autoritativ usage og eksakt
+  follow-up-kapacitet. Årsagen er den faste admission i `production_started(tokens=15000)`:
+  efter lease-release beholdt den autoritative rullende bucket sandt mindre end 15.000,
+  selv om én frisk sideeffektfri første respons kunne være mulig. Den nye generation
+  skal derfor eje `min(15000, floor(available))`, mens dens cap for atomisk senere top-up
+  forbliver 15.000. Ingen bucket-reset, magisk 6k-grænse, ekstra probe, automatisk retry,
+  ny socket, prompt-/schemaændring, firmware-, wake-, gain-, VAD-, playback- eller
+  lifecycleændring er mål.
+- **Planlagte regressioner og sammensatte gates:** Gammel session bruger bucket under
+  15k → exact release → +2,6 s → ny generation får en partial lease uden overreservation
+  og højst én socket. Duplicate start, stale release/rate/usage, connect/setup-fejl,
+  diagnostic/eval-eksklusivitet, cold bucket og zero-capacity dækkes. En completed
+  sideeffektfri første respons må bogføres/lukkes; et completed HA/MCP/`end_conversation`-
+  forslag uden follow-up-kapacitet giver nul dispatch/commit og én teknisk teardown;
+  gyldig current-generation top-up giver præcis én dispatch. Provider-429 giver ingen
+  retry eller anden socket. Thin/Voice PE-integrationen skal bevise close A → wake B
+  efter 2,6 s → ny providergeneration, og hele lifecycle-/releasegaten samt uafhængigt
+  adversarial review skal være grønne før versionering.
+- **Rollback-grænse og fysisk status:** Hele partial-leaseændringen rulles tilbage ved
+  overreservation, tabt eksklusivitet, ekstra socket/retry, ekstern effekt uden reserve
+  eller stale generationsejerskab. v1.13.46 forbliver fysisk NO-GO. En maskinelt grøn
+  kandidat må kun åbne én ny fysisk canary; den overtager ingen baseline før første wake,
+  samme-session-opfølgning, model-close, én teardown/rearm og umiddelbar næste wake med
+  ny rigtig Realtime-session er samlet bevist.
+- **Faktisk ændring og maskinresultat for v1.13.47:** `production_started()` giver én
+  eksklusiv production-generation `min(15000, floor(available))`, men beholder dens
+  15.000-cap til en senere atomisk top-up. Usage med forkert, lukket eller fremmed lease
+  afvises før debit. Der er ikke tilføjet probe, retry, socket, bucket-reset eller nogen
+  Voice PE-/Talk-lifecyclevej. 121 fokuserede budget-/Realtime-tests er grønne på under
+  ét sekund; de nye regressioner dækker nul og partial kapacitet for HA, MCP og
+  `end_conversation`, current-generation top-up, duplicate done, stale usage,
+  provider-429, setupfejl, release og diagnostic-eksklusivitet. Ruff, format, mypy og
+  diff-check er grønne. Uafhængigt adversarial diff-review gav P0=0, P1=0 og GO til
+  commit/maskinel releasegate. Den første hurtiggate ramte worktreets langsomme lokale
+  `.venv`; med den etablerede usynkroniserede værktøjsruntime blev hele testsuiten grøn,
+  hurtiggaten sluttede på 37,0 sekunder og den fulde lokale releasegate på 38,4 sekunder.
+- **Præcis kandidatstatus:** v1.13.47 er kun maskinelt reviewet og fortsat fysisk NO-GO.
+  Den ændrer kun add-onen og kræver derfor ikke ny firmwareflash;
+  `podvoice_build_11346` forbliver eksakt firmwarekontrakt. Først en grøn fuld gate,
+  exact image/install og den ovenfor definerede fysiske canary kan flytte status.
 
 ### Aktiv beslutningspost — provider-tail og fysisk playback-korrelation
 

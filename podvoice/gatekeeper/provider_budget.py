@@ -186,11 +186,15 @@ class ProviderBudgetCoordinator:
         *,
         tokens: int = 15_000,
     ) -> BudgetLease:
-        """Reserve one production session immediately; never queue behind eval.
+        """Own one production session immediately; never queue behind eval.
 
-        With no provider observation yet, exactly one household session is admitted
-        against the conservative configured ceiling. Once authoritative state exists,
-        insufficient capacity fails before socket/VAD/tool side effects begin.
+        With no provider observation yet, exactly one household session receives the
+        conservative configured allowance.  Once authoritative state exists, ownership
+        is still granted exactly once but may be only partially funded.  The first
+        provider response is side-effect-free; completed tool/lifecycle proposals must
+        independently top up their exact generation before dispatch.  This prevents a
+        fixed session allowance from falsely rejecting a fresh, cheaper context while
+        never reserving capacity the rolling provider bucket does not actually have.
         """
         if tokens <= 0:
             raise ValueError("invalid production token reservation")
@@ -209,12 +213,7 @@ class ProviderBudgetCoordinator:
                     "diagnostic_busy · live provider diagnostic is active"
                 )
             available = max(0, bucket.remaining - self._reserved(bucket))
-            if available < tokens:
-                raise ProviderBudgetUnavailable(
-                    "rate_limit_capacity · provider token capacity is insufficient "
-                    "for a voice session"
-                )
-            bucket.production[lease_id] = int(tokens)
+            bucket.production[lease_id] = min(int(tokens), int(available))
             bucket.production_caps[lease_id] = int(tokens)
         return BudgetLease(bucket_id, lease_id, "production")
 
@@ -634,6 +633,13 @@ class ProviderBudgetCoordinator:
         now = self._monotonic()
         with self._lock:
             _bucket_id, bucket = self._bucket(api_key, model, now)
+            if lease is not None:
+                table = {
+                    "production": bucket.production,
+                    "eval": bucket.eval_reservations,
+                }.get(lease.role)
+                if lease.bucket_id != _bucket_id or table is None or lease.lease_id not in table:
+                    return
             if not provider_reservation_observed:
                 bucket.remaining = max(0, bucket.remaining - int(tokens))
                 if bucket.refill_per_s > 0:
@@ -664,6 +670,17 @@ class ProviderBudgetCoordinator:
         now = self._monotonic()
         with self._lock:
             _bucket_id, bucket = self._bucket(api_key, model, now)
+            if lease is not None:
+                table = {
+                    "production": bucket.production,
+                    "eval": bucket.eval_reservations,
+                }.get(lease.role)
+                if lease.bucket_id != _bucket_id or table is None or lease.lease_id not in table:
+                    return {
+                        "reason": "inactive_lease",
+                        "tokens": int(tokens),
+                        "provider_reservation_observed": provider_reservation_observed,
+                    }
             remaining_before = bucket.remaining
             reserved_before = self._reserved(bucket)
             if not provider_reservation_observed:

@@ -390,6 +390,73 @@ def test_unknown_budget_allows_one_production_session_but_never_eval():
     assert ledger.release(production) is True
 
 
+def test_fresh_production_owner_uses_only_available_rolling_capacity_after_close():
+    clock = Clock()
+    ledger = coordinator(clock)
+    seed(ledger)
+    previous = ledger.production_started("secret", "model")
+    ledger.account_usage("secret", "model", 28_500, lease=previous)
+    assert ledger.release(previous) is True
+
+    clock.now += 2.6
+    current = ledger.production_started("secret", "model")
+    snapshot = ledger.snapshot("secret", "model")
+
+    assert snapshot["production_sessions"] == 1
+    assert snapshot["reserved_tokens"] == 13_233
+    assert snapshot["reserved_tokens"] <= snapshot["remaining"]
+    assert ledger.release(previous) is False
+    assert ledger.lease_is_active(current) is True
+
+
+def test_zero_capacity_still_owns_one_side_effect_free_production_generation():
+    ledger = coordinator()
+    seed(ledger, remaining=0)
+
+    production = ledger.production_started("secret", "model")
+    snapshot = ledger.snapshot("secret", "model")
+
+    assert snapshot["production_sessions"] == 1
+    assert snapshot["reserved_tokens"] == 0
+    assert ledger.has_capacity(production, 1) is False
+    with pytest.raises(ProviderBudgetUnavailable, match="another production"):
+        ledger.production_started("secret", "model")
+
+
+def test_diagnostic_owner_still_blocks_zero_capacity_production():
+    ledger = coordinator()
+    seed(ledger, remaining=0)
+    owner = ledger.diagnostic_started("secret")
+
+    with pytest.raises(ProviderBudgetUnavailable, match="diagnostic_busy"):
+        ledger.production_started("secret", "model")
+
+    assert ledger.snapshot("secret", "model")["production_sessions"] == 0
+    assert ledger.release(owner) is True
+
+
+def test_stale_usage_cannot_debit_the_next_partial_generation():
+    ledger = coordinator()
+    seed(ledger, remaining=11_500)
+    previous = ledger.production_started("secret", "model")
+    assert ledger.release(previous) is True
+    current = ledger.production_started("secret", "model")
+    before = ledger.snapshot("secret", "model")
+
+    ledger.account_usage("secret", "model", 5_700, lease=previous)
+    observed = ledger.account_usage_observed("secret", "model", 5_700, lease=previous)
+    after = ledger.snapshot("secret", "model")
+
+    assert observed == {
+        "reason": "inactive_lease",
+        "tokens": 5_700,
+        "provider_reservation_observed": False,
+    }
+    assert after["remaining"] == before["remaining"]
+    assert after["reserved_tokens"] == before["reserved_tokens"]
+    assert ledger.lease_is_active(current) is True
+
+
 def test_completed_usage_consumes_the_exact_generation_lease_without_double_count():
     ledger = coordinator()
     seed(ledger, remaining=16_000)
