@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 # session.updated hand-off. The provider uses the same 12 s bound, so neither stage
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
-EXPECTED_FIRMWARE_BUILD = "podvoice_build_11344"
+EXPECTED_FIRMWARE_BUILD = "podvoice_build_11345"
 _UNCORRELATED_PLAYBACK_ID = "__podvoice_uncorrelated__"
 
 # --- Firmware contract ----------------------------------------------------------

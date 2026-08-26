@@ -125,6 +125,9 @@ api:
                   id(podvoice_reply_token) = token;
                   id(podvoice_last_play_token) = token;
                   id(podvoice_reply_phase) = 2;
+                  auto volume_call = id(podvoice_reply_player)->make_call();
+                  volume_call.set_volume(id(external_media_player).volume);
+                  volume_call.perform();
                   id(podvoice_reply_player)
                     ->make_call()
                     .set_media_url(url)
@@ -311,6 +314,11 @@ media_player:
       speaker: podvoice_reply_resampling_speaker
       sources:
         - podvoice_reply_http_source
+    # Keep physical gain semantics identical to the v1.13.43 player controlled by
+    # the dial; copying a normalized volume across different ranges is not parity.
+    volume_increment: 0.05
+    volume_min: 0.4
+    volume_max: 0.85
     on_announcement:
       - mixer_speaker.apply_ducking:
           id: media_mixing_input
@@ -362,6 +370,17 @@ media_player:
   # !extend replaces the base trigger list on this ESPHome version. Preserve the
   # upstream public music/announcement unduck callback explicitly.
   - id: !extend external_media_player
+    # The physical dial still owns the public player's volume in the vendored base.
+    # Mirror every live change to the private Nabu player, so moving replies off the
+    # public lifecycle path does not silently remove v1.13.43's physical control.
+    on_volume:
+      - lambda: |-
+          id(podvoice_reply_player)
+            ->make_call()
+            .set_volume(id(external_media_player).volume)
+            .perform();
+      # !extend replaces the base trigger list on this ESPHome version.
+      - script.execute: control_leds
     on_state:
       - if:
           condition:
@@ -601,7 +620,7 @@ event:
         physical_rearm_audio_progress_v1,
         correlated_reset_rearm_v2,
         correlated_playback_v2,
-        podvoice_build_11344,
+        podvoice_build_11345,
         podvoice_playback_events_v1,
         podvoice_playback_started,
         podvoice_playback_finished,
@@ -646,7 +665,7 @@ external_components:
   # re-Install always pulls the latest fix — you change nothing on your side.
   # NOTE: builds MUST run outside iCloud (see docs) — /private/tmp/pv-esphome.
   # A fresh HA/ESPHome Builder installation only has this package file locally. Fetch
-  # the component from the immutable v1.13.44 production commit instead of requiring
+  # the component from the immutable v1.13.44 component commit instead of requiring
   # an undocumented manual copy into /config/esphome/components.
   - source:
       type: git

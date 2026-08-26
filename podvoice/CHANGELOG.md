@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.13.45 — den private Nabu-player følger igen det fysiske drejehjul
+
+- Drejehjulets `external_media_player`-volume spejles live til den token-isolerede
+  `podvoice_reply_player`, også mens et Nabu-svar afspilles.
+- Den private player bruger præcis samme increment/min/max som den fysisk virkende
+  v1.13.43-player. Ved svarstart udføres volume og media-URL som to separate ESPHome-
+  calls, fordi `SpeakerSourceMediaPlayer` ellers returnerer efter URL-handlingen og
+  ignorerer volume i samme call.
+- Rearm, idle-timeout, gain, VAD, Realtime, prompt, værktøjer og semantik er uændrede.
+- Kandidaten skal bestå den korte fysiske rotary/opfølgnings/re-wake-canary. Ved fejl er
+  exact v1.13.43 commit `8d4fc9cd521f564a6205359f610ba2761284fc74`
+  playback-rollbackgrænsen.
+
 ## 1.13.44 — terminale events og fysisk playback bindes til samme svar
 
 - Realtime-events for et allerede terminalt response-id eller et nyt response-id med
