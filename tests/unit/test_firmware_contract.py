@@ -50,7 +50,8 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "continuous_rearm_v1" in overlay
     assert "physical_rearm_audio_progress_v1" in overlay
     assert "correlated_reset_rearm_v2" in overlay
-    assert "podvoice_build_11344" in overlay
+    assert "podvoice_build_11345" in overlay
+    assert "podvoice_build_11344" not in overlay
     assert "podvoice_build_11343" not in overlay
     assert "podvoice_playback_events_v1" in overlay
     assert "correlated_playback_v2" in overlay
@@ -169,6 +170,35 @@ def test_wake_boundary_keeps_only_short_bridge_and_keepalive_never_trims_live_sp
     assert "ring_buffer_->read" in begin
     assert "ring_buffer_->reset()" not in begin
     assert "ring_buffer_->reset()" not in keepalive
+
+
+def test_physical_dial_and_private_reply_share_one_live_volume():
+    """The v1.13.43 dial behavior must survive the private reply path."""
+    base = BASE.read_text()
+    overlay = OVERLAY.read_text()
+    dial = base.split("- id: control_volume", 1)[1].split("- id: control_group_volume", 1)[0]
+    external_extension = overlay.split("- id: !extend external_media_player", 1)[1].split(
+        "\nscript:", 1
+    )[0]
+    play = overlay.split("action: podvoice_reply_play", 1)[1].split(
+        "action: podvoice_reply_cancel", 1
+    )[0]
+
+    assert "id: external_media_player" in dial
+    assert "on_volume:" in external_extension
+    assert "id(podvoice_reply_player)" in external_extension
+    assert ".set_volume(id(external_media_player).volume)" in external_extension
+    assert "volume_call.set_volume(id(external_media_player).volume)" in play
+    assert play.index("volume_call.perform()") < play.index(".set_media_url(url)")
+    private_player = overlay.split(
+        "  - platform: speaker_source\n    id: podvoice_reply_player", 1
+    )[1].split("id: !extend external_media_player", 1)[0]
+    assert "volume_increment: 0.05" in private_player
+    assert "volume_min: 0.4" in private_player
+    assert "volume_max: 0.85" in private_player
+    assert external_extension.index(".set_volume") < external_extension.index(
+        "script.execute: control_leds"
+    )
 
 
 def test_each_detection_is_single_use_and_rearm_always_resets_detector():

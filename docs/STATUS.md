@@ -1,29 +1,27 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-08-25.
+Senest opdateret: 2026-08-26.
 
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Installeret software:** v1.13.42 er startet på HA Green. Den bestod
-selve den sammenhængende femtursdialog og modelsemantisk lukning, men bestod **ikke**
-den efterfølgende fysiske re-wake. Kandidaten er derfor **NO-GO** for golden chain og
-release, selv om add-on-loggen fejlagtigt kaldte firmwarekvitteringen fysisk bevist.
-Installeret v1.13.41 blev tidligere feltstoppet efter korrekt hørt, men forkert besvaret
-og selvforstærket samtalekontekst.
-**Aktuel gate:** v1.13.42 beviste én fysisk wake, én Realtime-session gennem fem ture,
-korrekt samme-session-kontekst, præcis ét `end_conversation`, fysisk farvel og én
-teardown. Firmware meldte wake-rearm efter teardown, men næste “Okay Nabu” udløste
-ingen wake. Den direkte fysiske observation falsificerer dermed den grønne rearmstatus;
-golden chain er rød, og 10/10 må ikke startes. Produktretningen forbliver den minimale
-lifecycle-kontrakt nedenfor.
+**Installeret software:** PodVoice add-on v1.13.44 kører på HA Green, og Voice PE er
+USB-flashet med den HA-byggede v1.13.44-produktionsfirmware. Den senest gennemførte
+golden-chain-gate er fortsat den afviste v1.13.42-kæde: samtalen lykkedes, men den
+efterfølgende fysiske re-wake gjorde ikke. Installation må ikke overskrive det resultat.
+**Aktuel gate:** v1.13.44 har 26. august bestået fysisk flash, reboot og automatisk
+native-API-reconnect med eksakt firmwarekontrakt, men den efterfølgende fysiske prøve
+falsificerede testklarheden. Rearm gav to nye fysiske wakes efter idle-close, men efter
+tredje close kom ingen ny wake trods firmwarestatus `recovered`. Kandidaten er derfor
+**NO-GO for golden chain og 10/10**. Produktretningen forbliver den minimale lifecycle-
+kontrakt nedenfor.
 
-**Aktiv udviklingskandidat:** v1.13.44 på `codex/provider-playback-correlation`, kode-SHA
-`b2b9a82d34bd870518bbf60a08b9424500a74743`, er lokalt release-/firmwarebygget og har
-grøn exact-SHA GitHub-test samt ARM64 add-on-build i run `32889365515`. Den er endnu ikke
-installeret eller fysisk bevist. Kandidaten forbliver derfor **NO-GO for golden chain**,
-indtil installerbar bitidentitet og flash/install er lukket. Installeret fysisk baseline
-er fortsat den fejlede v1.13.42-kæde ovenfor; maskintests må ikke overskrive den.
+**Aktiv udviklingskandidat:** v1.13.44 har grøn exact-SHA GitHub-test og ARM64 add-on-
+build i run `32889365515`. Installationsrettelsen er merged som
+`7d8ee853a2f10ecb8320ac6287d622bceb5b303d`; HA-konfigurationen er pinnet til samme
+commit. Installerbar bitidentitet, USB-flash og automatisk reconnect er nu lukket som
+beskrevet nedenfor. Installeret fysisk baseline er fortsat den fejlede v1.13.42-kæde,
+indtil v1.13.44 selv består en frisk fysisk golden chain.
 
 ### Aktiv installationsbeslutning — selvstændig ESPHome-kilde
 
@@ -49,8 +47,98 @@ er fortsat den fejlede v1.13.42-kæde ovenfor; maskintests må ikke overskrive d
   komponent grønt, og den statiske regression afviser igen en aktiv lokal kilde.
   Uafhængigt adversarial review bekræfter ESPHomes `esphome/components`-opslag, ingen
   rekursion og korrekt komponentafgrænsning; den oprindelige mutable `main`-reference
-  blev afvist og erstattet af immutable commit og eksplicit sti. Dette åbner kun build-
-  og flashgaten; fysisk handshake, kontrakt, golden chain og re-wake er endnu ikke bevist.
+  blev afvist og erstattet af immutable commit og eksplicit sti. HA Green byggede den
+  pinnede produktionskonfiguration med ESPHome 2026.7.4. Factory-binaryens SHA-256 er
+  `45351a57cd215ded3fee3e270215b156c6d873f5982211db4c6dfd42db78f306`; før flash blev
+  den kontrolleret for `podvoice_reply_play`, `podvoice_reply_silence`,
+  `correlated_reset_rearm_v2`, `correlated_playback_v2` og `podvoice_build_11344`.
+  USB-flash til ESP32-S3 fuldførte med dataverifikation og hardware-reset. Uden add-on-
+  genstart genfandt PodVoice derefter enheden via `.local`, gennemførte Noise-handshake,
+  godkendte den eksakte firmwarekontrakt, anvendte mic channel 1/gain 16 og wake word
+  `okay_nabu`. Loggen står nu på “wake detector recovered; awaiting first physical
+  proof”. Det beviser installation og automatisk reconnect, ikke golden chain eller
+  næste fysiske re-wake efter en afsluttet samtale.
+
+### Frisk fysisk evidens 26. august — v1.13.44 NO-GO
+
+- Tre fysiske wakes kl. 11.03.30, 11.03.58 og 11.04.23 åbnede hver en ny session og
+  leverede mic-frames. De to første hørte “Hvad er tolv gange syv?” korrekt og
+  afspillede svar fysisk. Brugeren forsøgte samtidig at hæve lydstyrken med puckens
+  drejehjul. v1.13.44's private `podvoice_reply_player` er den nye ejer af Nabu-svar,
+  mens firmware-scriptet `control_volume` fortsat kun ændrer `external_media_player`;
+  fysisk svarlydstyrke og drejehjul har dermed ikke længere én dokumenteret ejer.
+- Den konfigurerede firesekunders stilhedslukker udløste efter svarenes fysiske drain,
+  før opfølgningen blev afleveret. Stilhedslukningen er ikke ændret i v1.13.43/44, men
+  brugerens lydstyrkehandling gjorde vinduet praktisk utilstrækkeligt i denne prøve.
+- Tredje wake blev delt af Realtime til “Ja.” og derefter “Hvad er klokken?”. Det første
+  fragment havde allerede skabt en aktiv respons, så det andet udløste providerfejlen
+  `conversation_already_has_active_response`. Det er en half-duplex/turn-boundary-fejl,
+  ikke manglende mic-transport.
+- Efter close kl. 11.04.40 meldte firmware igen `wake detector recovered; awaiting first
+  physical proof`, men brugerens efterfølgende wake gav ingen `wake signal`. To tidligere
+  re-wakes i samme forløb gør fejlen intermittent; de kan ikke godkende den tredje.
+  Kandidaten forbliver NO-GO. Næste ændring skal forklare både rotary→privat reply-volume
+  og den eksakte tredje teardown→reset→detector-eventkæde; gain, VAD, prompt og værktøjs-
+  semantik må ikke tunes for at maskere dem.
+
+### Aktiv beslutning 26. august — bevar v1.13.43-adfærd og stop blandede kandidater
+
+- **Beslutningsejer og eksakt baseline:** Lead Voice/Reliability Engineer. Den sidste
+  kodebaseline før v1.13.44's private playback er v1.13.43 commit
+  `8d4fc9cd521f564a6205359f610ba2761284fc74`. Den ejer rollback-sandheden for
+  drejehjul → `external_media_player`, samme-session-opfølgning og 1.13.43's korrelerede
+  rearm-reset. En erindret samtale eller et versionsnummer alene er ikke rollbackbevis.
+- **Observeret procesfejl:** exact diff v1.13.43→v1.13.44 ændrede i én kandidat mindst
+  provider/Realtimes terminale events, fysisk playbacktopologi og rearmens
+  silence/drain-grænse. Den uafhængige forudgående review advarede specifikt om, at den
+  private `podvoice_reply_player` var bredere og mere risikabel end den eksisterende
+  `external_media_player`-vej. Maskingaten var grøn, men havde ingen fysisk rotary-
+  regression. Det er en gatefejl, ikke acceptabel feltvarians.
+- **Berørte invarianter og kæde:** fysisk rotary/master-volume → aktiv Nabu-player →
+  fysisk reply start/drain → fuldt firesekunders opfølgningsvindue → samme Realtime-
+  session → semantic close → én teardown → privat/public player silence → detector-
+  reset → næste ægte wake. Playback-ejerskab må ikke kunne arves af fremmed HA-lyd, og
+  rearm må ikke godkendes af `recovered` alene.
+- **Falsificerbare hypoteser:** (1) volume-regressionen skyldes, at basefirmwarens
+  `control_volume` kun muterer `external_media_player`, mens v1.13.44 afspiller Nabu på
+  `podvoice_reply_player`; en fælles fysisk master-volume eller en eksakt tilbageførsel
+  til 1.13.43-playeren skal få rotary-canary til at bestå. (2) Den intermittente tredje
+  re-wake ligger efter v1.13.44's nye private-player drain eller i det uændrede
+  stop/start-reset; kun en korreleret firmwaretrace må vælge mellem dem.
+- **Én-delta-regel og rollback:** første kandidat må kun ændre playback/volume og skal
+  enten bevare den private tokenkæde med reel rotary-paritet eller tilbageføre hele
+  1.13.44-playbackdelen til exact v1.13.43. Den må ikke samtidig ændre rearm, VAD, gain,
+  prompt, Realtime eller idle-timeout. En separat senere kandidat må kun ændre rearm.
+  Hvis privat playback ikke kan bevise rotary, opfølgning og fremmed-HA-isolation i én
+  kort canary, er rollback-grænsen exact 1.13.43-playback — ikke et hybridt mellemtrin.
+- **Nye procesgates:** `scripts/candidate_scope.py` afviser flere uafhængige
+  produktionsdomæner eller produktionskode uden en ændret regression. Den strikte
+  `scripts/field_canary.py` kræver mindst fire fysiske ture, model-close, korrekt
+  teardown/playback, et fysisk afsluttet svar før hver almindelig opfølgning, næste
+  wake + frisk provider-session samt et eksplicit fysisk rotary-bevis. Ti fokustests
+  er grønne; disse værktøjer ændrer ingen runtime.
+  Udvikling og gates flyttes til en lokal usynkroniseret clone: samme exact diff tager
+  ca. 0,02 s dér mod timeout over 20 s i Documents-worktreet.
+- **Faktisk kandidat v1.13.45:** den private token-isolerede player beholdes, men får
+  v1.13.43's eksakte volume-interval og increment. Hver ændring fra det fysiske
+  drejehjuls `external_media_player` spejles til den private player; LED-callbacken,
+  som `!extend` ellers ville erstatte, bevares eksplicit. Ved reply-start udføres volume
+  og media-URL i to separate ESPHome-calls, fordi componentens URL-gren returnerer før
+  volume ellers anvendes. Rearm, idle-timeout, VAD, gain, Realtime og lifecycle er
+  uændrede.
+- **Faktiske maskinresultater og review:** kandidat-scope klassificerer kun
+  `physical_output` og består. 80 fokuserede kontrakt-/proces-tests er grønne;
+  ESPHome-konfigurationen validerer mod de immutable components; hele releasepakken
+  inklusive lint, format, mypy og test-suite er grøn på 42,2 sekunder i den lokale
+  clone. Den uafhængige adversarial reviewer fandt først den ugyldige kombinerede
+  volume+URL-call; efter opsplitning og ny regression gav samme reviewer GO uden
+  P0/P1-findings.
+- **Resterende usikkerhed og fysisk gate:** v1.13.45 er endnu ikke bygget, installeret
+  eller fysisk bevist og er derfor fortsat NO-GO. Én kort canary skal bevise dial under
+  aktivt svar, mindst tre almindelige svar med samme-session-opfølgning, model-close,
+  præcis teardown og næste ægte wake/friske session. Hvis den fejler rotary eller
+  opfølgning, tilbageføres hele playbackdelen til exact v1.13.43; rearmfejlen må først
+  ændres i en separat kandidat efter korreleret fysisk trace.
 
 ### Aktiv beslutningspost — provider-tail og fysisk playback-korrelation
 
