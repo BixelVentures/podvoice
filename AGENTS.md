@@ -14,6 +14,31 @@ spor, grønne deltests eller plausible lydhypoteser bliver til en ny produktions
 `docs/HANDOVER-v2.md` er historiske research-/handoverfiler. De må bruges som baggrund,
 men aldrig som autoritet over de fire filer ovenfor.
 
+## Hurtig standardcyklus
+
+Lokale gates må ikke køres fra Documents, Desktop, iCloud, OneDrive eller anden
+synkroniseret storage. Brug én vedvarende usynkroniseret dev-clone og en ekstern Python
+3.12-venv; det langsomme workspace må kun være redigerings-/handoverflade. De tre
+autoritative kommandoer er:
+
+```sh
+PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev fast --base origin/main
+PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev lifecycle --base origin/main
+PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev release --base origin/main
+```
+
+Kør `fast` under udvikling, `lifecycle` kun når dens mekaniske scope dækker hele diffet,
+og `release` præcis én gang efter diff-freeze og det review, ændringen kræver. Derefter
+ét PR/merge-flow uden manuelle CI-genkørsler og én installation af den grønne main-
+artifact. SafeEval/preflight må kun tilføjes, når ændringen berører prompt, schema,
+værktøjer eller Realtime-semantik.
+
+En timeout, sandboxfejl eller flaky test er ikke produktevidens og må ikke udløse en
+runtime-patch. Isolér årsagen én gang; ret workflowet eller testens observerede
+slutbetingelse separat, og genkør kun den gate, som fejlen faktisk ugyldiggjorde. Hvis
+samme procesforsinkelse gentager sig, er næste handling en permanent tooling-regression,
+ikke endnu en manuel workaround.
+
 ## Den eneste produktionsretning
 
 - Voice PE-firmware ejer fysisk wake, mic-latch, playback-events og rearm-bevis.
@@ -29,6 +54,48 @@ Classic (`orchestrator.py`, `state.py`, `gatekeeper.py`, `watchdog.py`) og direc
 karantæneret legacy/regressionskode. De må ikke importeres af add-on-builderen, aktiveres
 af settings eller udvikles som parallel produktionsvej. En ændring dér skal enten fjerne
 legacy eller bevare en historisk regression; den må ikke introducere ny produktlogik.
+
+## Bindende samtaleloop
+
+Al runtime-, firmware-, test- og UI-udvikling skal bevare præcis denne ene kæde:
+
+```text
+IDLE
+  → fysisk “Okay Nabu”
+LISTENING
+  → speech_stopped
+THINKING
+  → fysisk playback_started
+AI_SPEAKING
+  → fysisk playback_finished + ekkohale
+LOUNGE_WINDOW
+  → opfølgning i samme Realtime-session → THINKING → AI_SPEAKING → LOUNGE_WINDOW
+  → Realtime end_conversation eller fire sekunders fysisk stilhed
+CLOSING
+  → præcis én teardown → korreleret firmware-rearm
+IDLE
+```
+
+`CLOSING` er navnet på den ene close-transaction, ikke en sjette `State`; de eneste
+runtime-stateværdier er fortsat de fem produktstates.
+
+`State` er den eneste half-duplex mic-gate for Voice PE: kun `LISTENING` og
+`LOUNGE_WINDOW` må sende fysisk lyd til Realtime. Talk kan være full-duplex gennem samme
+`ThinSession`, men beviser ikke puckens lydvej. Én synkron audio-generation-grænse må
+kun skæres ved første gyldige `speech_stopped`, efter den aktuelle playback-leases
+fysiske finish plus ekkohale, og ved exact korreleret rearm-ACK. Der skæres aldrig ved
+wake, fordi same-breath-prefix skal bevares.
+
+LED er feedback på samme kæde, ikke en anden state machine: bright cyan ved
+`LISTENING`, amber ved `THINKING`, green først ved fysisk `playback_started`, dim cyan
+ved `LOUNGE_WINDOW` og slukket efter fuld teardown. Fejlet fysisk stop/rearm skal vises
+som fault, ikke falsk mørk readiness. Firmware ejer wake-latch, mic-forward,
+playback-events og rearm-bevis; add-onen sender kun LED-kommandoen for den aktuelle
+`ThinSession`-state.
+
+Enhver løsning med ny session per tur, lokal frase-/matematik-/semantikmotor,
+obligatorisk fortsættelsesværktøj, parallel runtime, wake-cut, timer-ejet turafslutning
+eller uobserveret firmware/gain/VAD/prompt-tuning er modstridende og må ikke merges.
 
 ## Ord med præcis betydning
 

@@ -249,6 +249,12 @@ class TraceOracle:
         self._closure(events, names, issues)
 
         if self.adapter == "voicepe":
+            self._audio_boundaries(
+                events,
+                names,
+                issues,
+                require_contract=self.strict_physical,
+            )
             self._voicepe(trace, names, issues)
 
         return TraceReport(
@@ -436,6 +442,224 @@ class TraceOracle:
                         event_index=closes[0],
                     )
                 )
+
+    @staticmethod
+    def _audio_boundaries(
+        events: list[Mapping[str, Any]],
+        names: list[str],
+        issues: list[TraceIssue],
+        *,
+        require_contract: bool,
+    ) -> None:
+        """Reject stale/reversed generations and provider audio through a closed gate."""
+        last_generation: int | None = None
+        last_boundary: int | None = None
+        gate_closed_at: tuple[int, int | None, int | None] | None = None
+        valid_reasons = {"speech-stopped", "followup-open", "rearm-ack"}
+
+        for index, (event, name) in enumerate(zip(events, names, strict=True)):
+            generation = event.get("audio_generation")
+            if isinstance(generation, int):
+                if last_generation is not None and generation < last_generation:
+                    issues.append(
+                        TraceIssue(
+                            "audio_generation_reversed",
+                            "Audio generation moved backwards",
+                            event_index=index,
+                        )
+                    )
+                last_generation = (
+                    generation if last_generation is None else max(last_generation, generation)
+                )
+
+            if name == "audio_boundary_cut":
+                reason = str(event.get("reason") or "")
+                if reason not in valid_reasons:
+                    issues.append(
+                        TraceIssue(
+                            "audio_boundary_reason_invalid",
+                            f"Unexpected audio boundary reason: {reason or '<missing>'}",
+                            event_index=index,
+                        )
+                    )
+                if not isinstance(generation, int):
+                    issues.append(
+                        TraceIssue(
+                            "audio_boundary_generation_missing",
+                            "Audio boundary has no concrete generation",
+                            event_index=index,
+                        )
+                    )
+                elif last_boundary is not None and generation <= last_boundary:
+                    issues.append(
+                        TraceIssue(
+                            "audio_boundary_not_advanced",
+                            "Audio boundary did not advance its generation",
+                            event_index=index,
+                        )
+                    )
+                if isinstance(generation, int):
+                    last_boundary = generation
+
+            if name == "mic_gate_closed":
+                provider_offset = event.get("provider_sample_offset")
+                gate_closed_at = (
+                    index,
+                    int(provider_offset) if isinstance(provider_offset, int) else None,
+                    generation if isinstance(generation, int) else None,
+                )
+                continue
+
+            if gate_closed_at is None:
+                continue
+            closed_index, closed_offset, closed_generation = gate_closed_at
+            provider_offset = event.get("provider_sample_offset")
+            if (
+                closed_offset is not None
+                and isinstance(provider_offset, int)
+                and provider_offset > closed_offset
+            ):
+                issues.append(
+                    TraceIssue(
+                        "provider_audio_while_mic_gate_closed",
+                        "Provider input advanced while the half-duplex gate was closed",
+                        event_index=index,
+                    )
+                )
+                closed_offset = provider_offset
+                gate_closed_at = (closed_index, closed_offset, closed_generation)
+            if name == "mic_gate_opened":
+                if (
+                    closed_generation is not None
+                    and isinstance(generation, int)
+                    and generation <= closed_generation
+                ):
+                    issues.append(
+                        TraceIssue(
+                            "mic_gate_open_without_audio_boundary",
+                            "Mic gate reopened without a fresh audio generation",
+                            event_index=index,
+                        )
+                    )
+                gate_closed_at = None
+
+        if not require_contract:
+            return
+
+        accepted_stops = [
+            index
+            for index, event in enumerate(events)
+            if names[index] == "speech_stopped" and event.get("accepted") is True
+        ]
+        all_stops = [index for index, name in enumerate(names) if name == "speech_stopped"]
+        if len(accepted_stops) != len(all_stops):
+            issues.append(
+                TraceIssue(
+                    "accepted_speech_boundary_missing",
+                    "Every physical speech_stopped must be an accepted state transition",
+                )
+            )
+
+        for position, stop_index in enumerate(accepted_stops):
+            window_end = (
+                accepted_stops[position + 1] if position + 1 < len(accepted_stops) else len(events)
+            )
+            closes = [
+                index
+                for index in range(stop_index + 1, window_end)
+                if names[index] == "mic_gate_closed"
+            ]
+            cuts = [
+                index
+                for index in range(stop_index + 1, window_end)
+                if names[index] == "audio_boundary_cut"
+                and events[index].get("reason") == "speech-stopped"
+            ]
+            if len(closes) != 1 or len(cuts) != 1 or not (stop_index < closes[0] < cuts[0]):
+                issues.append(
+                    TraceIssue(
+                        "speech_boundary_sequence_invalid",
+                        "Accepted speech_stopped must close the mic and cut exactly one generation",
+                        event_index=stop_index,
+                    )
+                )
+
+        followup_opens = [
+            index
+            for index, event in enumerate(events)
+            if names[index] == "mic_gate_opened" and event.get("reason") == "followup"
+        ]
+        followup_cuts = [
+            index
+            for index, event in enumerate(events)
+            if names[index] == "audio_boundary_cut" and event.get("reason") == "followup-open"
+        ]
+        if len(followup_opens) != len(followup_cuts):
+            issues.append(
+                TraceIssue(
+                    "followup_boundary_count",
+                    "Each physical follow-up open must own exactly one audio boundary",
+                )
+            )
+        for open_index in followup_opens:
+            prior_finish = max(
+                (index for index in range(open_index) if names[index] == "playback_finished"),
+                default=-1,
+            )
+            owned_cuts = [index for index in followup_cuts if prior_finish < index < open_index]
+            if prior_finish < 0 or len(owned_cuts) != 1:
+                issues.append(
+                    TraceIssue(
+                        "followup_open_before_physical_boundary",
+                        "Follow-up opened without playback finish and its exact audio cut",
+                        event_index=open_index,
+                    )
+                )
+
+        wake_opens = [
+            index
+            for index, event in enumerate(events)
+            if names[index] == "mic_gate_opened" and event.get("reason") == "wake"
+        ]
+        if len(wake_opens) != 1:
+            issues.append(
+                TraceIssue(
+                    "wake_mic_gate_open_count",
+                    f"Expected exactly one wake mic-gate open, got {len(wake_opens)}",
+                )
+            )
+
+        rearm_cuts = [
+            index
+            for index, event in enumerate(events)
+            if names[index] == "audio_boundary_cut" and event.get("reason") == "rearm-ack"
+        ]
+        rearm_events = [index for index, name in enumerate(names) if name == "wake_rearm_recovered"]
+        if len(rearm_cuts) != 1 or len(rearm_events) != 1 or rearm_cuts[0] > rearm_events[0]:
+            issues.append(
+                TraceIssue(
+                    "rearm_audio_boundary_sequence",
+                    "Recovered rearm must expose exactly one prior correlated audio cut",
+                )
+            )
+        elif not (
+            isinstance(events[rearm_cuts[0]].get("rearm_token"), int)
+            and isinstance(events[rearm_events[0]].get("rearm_token"), int)
+        ):
+            issues.append(
+                TraceIssue(
+                    "rearm_token_missing",
+                    "Rearm cut and recovered ACK must expose concrete firmware tokens",
+                )
+            )
+        elif events[rearm_cuts[0]]["rearm_token"] != events[rearm_events[0]]["rearm_token"]:
+            issues.append(
+                TraceIssue(
+                    "rearm_token_mismatch",
+                    "Rearm audio cut and recovered ACK have different firmware tokens",
+                    event_index=rearm_events[0],
+                )
+            )
 
     def _voicepe(
         self,

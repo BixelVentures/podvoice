@@ -5,23 +5,93 @@ Senest opdateret: 2026-08-26.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Installeret software:** PodVoice add-on v1.13.47 fra exact main
-`eef3b6ddd30fa8aa61664571c54e967365eeee1b` kører på HA Green, og Voice PE er
+**Installeret software:** PodVoice add-on v1.13.48 fra exact main
+`9e0f56a15622cde520e186ebe24f76cb56bf44fc` kører på HA Green, og Voice PE er
 OTA-flashet med den HA-byggede v1.13.46-produktionsfirmware fra exact main
 `ff10cc3e93eebdb9b84fb88240338b0be5a38aea`. Automatisk native-API-reconnect,
 firmwarekontrakt, mic channel 1/gain 16 og `okay_nabu` er fysisk observeret. Installation
 må ikke overskrive den fortsat afviste golden-chain-status.
-**Aktuel gate:** v1.13.47 er **NO-GO**. Den fjernede den falske 15.000-token-afvisning,
-startede korrekt og genfandt Voice PE samt 19 HA/MCP-værktøjer, men den fysiske trace
-`20260826T145627-246` beviser lyd fra en tidligere samtale i den nye generation og et
-efterfølgende falsk `end_conversation`. Kandidaten er ikke golden og må ikke gå til
-10/10.
+**Aktuel gate:** v1.13.48 er **NO-GO**. Den startede korrekt, genfandt Voice PE samt 19
+HA/MCP-værktøjer og gennemførte én teardown/rearm. Den fysiske trace
+`20260826T154813-263` transskriberede dog samme matematikspørgsmål i to efterfølgende
+ture og fejlroutede begge til `get_time(fields=["weekday"])`. Kandidaten er ikke golden
+og må ikke gå til 10/10.
 
-**Aktiv udviklingskandidat:** næste add-on-only kandidat lukker kun den observerede
-cross-session-audiorace oven på installeret v1.13.47. Voice PE-firmwaren forbliver
-v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
+**Aktiv udviklingskandidat:** v1.13.49 er ét add-on-only delta oven på installeret
+v1.13.48. Voice PE-firmwaren forbliver v1.13.46; wake, gain, VAD, playback, prompt,
+reasoning og værktøjsskema er frosne.
 
-### Aktiv beslutning 26. august — sen gammel mic-frame krydsede næste wake
+### Aktiv beslutning 26. august — én state-ejet mic-gate per Realtime-tur
+
+- **Observeret fejl og stærkeste direkte evidens:** Den armerede fysiske trace
+  `20260826T154813-263` modtog først “Hvad er tolv gange syv?”, men Realtime valgte
+  `get_time(fields=["weekday"])` og svarede “Det er onsdag”. Efter fysisk playback og
+  echo-gate blev næste tur transskriberet som præcis samme matematikspørgsmål og gentog
+  samme forkerte værktøjsrunde. Loggen viser til sidst én idle-teardown, to kørammer
+  drænet ved rearm og en korreleret `recovered`-ACK. Lifecycle kom hjem; input-/tur-
+  sandheden gjorde ikke.
+- **Hele berørte kæde og nærliggende races:** fysisk audio-callback A kan være planlagt,
+  men endnu ikke afviklet, når providerens `speech_stopped` afslutter tur A. Den
+  eksisterende v1.13.48-generation skærer kun ved rearm og kan derfor ikke afvise en
+  forsinket A-callback, der krydser THINKING/playback/echo-halen inden for samme
+  Realtime-session. Den modsatte fejl er at skære ved wake og klippe same-breath-prefix,
+  eller at åbne før fysisk playback-finish og sende højttalerekko som brugerlyd.
+- **Berørte invarianter og falsificerbar hypotese:** Én wake ejer én Realtime-session;
+  `State.LISTENING`/`LOUNGE_WINDOW` er de eneste fysiske mic-åbne states; alle øvrige
+  states er mic-lukkede; hver forsinket callback fra en lukket audio-generation er
+  inert; opfølgningen bevarer samme provider-generation. Hypotesen er, at én synkron
+  audio-boundary ved `speech_stopped`, én ny boundary lige før opfølgningsgaten åbner og
+  den eksisterende rearm-boundary giver providerinput `[A, B]` i stedet for `[A, A]`.
+- **Eksplicitte ikke-mål:** ingen firmware-, gain-, VAD-, prompt-, reasoning-, tool-,
+  playback-, HA/MCP-, Talk-semantik- eller lokal frase-/transcriptændring. Realtime ejer
+  fortsat matematik, værktøjsvalg og `end_conversation`. Den fejlagtige `get_time` må
+  ikke patches lokalt, før ren transport er bevist.
+- **Bindende firesekunders produktkrav:** Planen ændrer samtidig den gemte/default
+  opfølgnings-timeout fra otte til fire sekunder og UI-minimum fra fem til tre. Det er
+  en eksplicit produktbeslutning, ikke en forklaring på stale-audio-fejlen og ikke en
+  modelbeslutning. Regressionen skal bevise default/config/UI-værdien samt mekanisk
+  close efter fire sekunders fysisk stilhed; den fysiske canary skal stadig nå en normal
+  opfølgning inden for vinduet. Hvis den eksakte kandidat klipper en rettidig
+  opfølgning, er kandidaten NO-GO og boundary-deltaet må ikke bortforklare timingfejlen.
+- **Planlagte regressioner, gates og rollback:** Registreret native callback A skal
+  kunne forsinkes over `speech_stopped` og blive afvist; callbacks under playback skal
+  afvises efter opfølgningsboundary; umiddelbar frisk B efter åbning skal bevares én
+  gang. Dæk queue-full, reconnect, duplicate playback-finish, samtidig timeout/close og
+  Talk-paritet. Kør fokussuite, 30/30 sammensat lifecycle, fuld releasegate, uafhængigt
+  adversarial review og én exact fysisk canary. Rollback er hele mic-/audio-boundary-
+  deltaet ved klippet same-breath, død opfølgning, ekstra provider-session, LED/state-
+  divergens eller teardown/rearm-regression. En gentaget stale/replay-fejl stopper
+  videre symptompatching og udløser særskilt plan for at erstatte kun Thin-
+  orkestreringen.
+- **Faktisk v1.13.49-delta:** `VoicePELink.cut_audio_boundary(reason)` øger den allerede
+  eksisterende callback-generation synkront og dræner køen. `ThinSession` bruger de fem
+  eksisterende states som eneste Voice PE-mic-gate og skærer kun på første gyldige
+  `speech_stopped`, efter current playback-lease/epoch er valideret ved ekkohalens slut,
+  og gennem den eksisterende korrelerede rearm-ACK. En gammel ekkohale-task valideres
+  før den må røre køen. Wake skærer aldrig. LED følger samme kæde; ufuldstændig fysisk
+  teardown forbliver rød i stedet for falsk mørk readiness. Ingen `esphome/**`, firmware-
+  ABI, gain, VAD, kanal, prompt, reasoning eller værktøjskontrakt er ændret.
+- **Maskinelle resultater på den frosne kandidat:** Den eksakte callback
+  A→boundary→B-regression, blocked provider-send ved speech-stop, samme-session
+  math/follow-up-isolation, gammel echo-tail efter nyt wake, Talk A→B stop/truncate-
+  races, Talk-transportfejl, LED/reconnect/fault, målrettet v10→v11-timeoutmigration,
+  firmwarekontrakt og fail-closed trace-oracle er grønne. Hele releasegaten med Ruff,
+  formattering, mypy og fuldt unit-/integrationstestsæt bestod på 38,8 sekunder.
+  Uafhængigt adversarial lifecycle-review og separat firmware/LED/single-truth-review
+  gav begge **GO med P0=0 og P1=0**. Exact-commit CI og ARM64-image står fortsat åbne
+  efter commit; dette er maskinel testklarhed, ikke fysisk godkendelse.
+- **Fysisk status:** **IKKE TESTET**. v1.13.49 er ikke golden, ikke 10/10 og ikke
+  97/100, før exact artifact er installeret og den bindende canary plus ubrudte fysiske
+  cyklusser er gennemført.
+
+## Historisk evidens- og beslutningslog — udelukkende baggrund
+
+Alt nedenfor bevares som årsags-, regressions- og rollback-evidens. Historiske ord som
+“skal”, versionsplaner og kandidater er ikke længere aktive beslutninger og må aldrig
+tilsidesætte den aktuelle v1.13.49-beslutning ovenfor, `docs/INVARIANTER.md`,
+`docs/PRODUKTMÅL.md` eller `docs/ARKITEKTUR.md`.
+
+### Historisk beslutning 26. august — sen gammel mic-frame krydsede næste wake
 
 - **Observeret fejl og stærkeste direkte evidens:** På installeret exact v1.13.47 sagde
   brugeren “Okay Nabu, hvad er tolv gange syv?”. Tracens første provider-VAD-turn varede
@@ -71,7 +141,7 @@ v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
   rearm og næste wake. Audio, der først dekodes efter ACK, kan kun afvises eller
   bekræftes af denne fysiske trace.
 
-### Aktiv installationsbeslutning — selvstændig ESPHome-kilde
+### Historisk installationsbeslutning — selvstændig ESPHome-kilde
 
 - **Observeret fejl og stærkeste evidens:** HA's ESPHome Builder kan hente
   `esphome/podvoice.yaml` fra GitHub, men den shippede `external_components`-blok peger
@@ -91,7 +161,7 @@ v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
   `esphome/components/podvoice_audio`; diffet må kun ændre kildeleveringen, og en
   uafhængig reviewer skal kontrollere repo-layout, refresh/ref og rekursion. Rollback er
   hele kildeændringen ved ændret renderet firmware eller manglende komponent.
-- **Aktuelt resultat:** en helt ny ESPHome 2026.6.2-workdir renderer den pinnede Git-
+- **Historisk resultat:** en helt ny ESPHome 2026.6.2-workdir renderer den pinnede Git-
   komponent grønt, og den statiske regression afviser igen en aktiv lokal kilde.
   Uafhængigt adversarial review bekræfter ESPHomes `esphome/components`-opslag, ingen
   rekursion og korrekt komponentafgrænsning; den oprindelige mutable `main`-reference
@@ -129,7 +199,7 @@ v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
   og den eksakte tredje teardown→reset→detector-eventkæde; gain, VAD, prompt og værktøjs-
   semantik må ikke tunes for at maskere dem.
 
-### Aktiv beslutning 26. august — bevar v1.13.43-adfærd og stop blandede kandidater
+### Historisk beslutning 26. august — bevar v1.13.43-adfærd og stop blandede kandidater
 
 - **Beslutningsejer og eksakt baseline:** Lead Voice/Reliability Engineer. Den sidste
   kodebaseline før v1.13.44's private playback er v1.13.43 commit
@@ -226,7 +296,7 @@ v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
   rearm-kandidat; når golden chain, rearm og auto-connect er bevist på samme bits,
   etableres 1.14-linjen og 10/10 ubrudte fysiske cyklusser køres.
 
-### Aktiv beslutning 26. august — næste wake blev falsk afvist af fast 15k-reservation
+### Historisk beslutning 26. august — næste wake blev falsk afvist af fast 15k-reservation
 
 - **Observeret fejl og stærkeste direkte evidens:** Den installerede exact v1.13.46-
   kæde gennemførte fem Realtime-responskanter i samme session. Providertranscriptet
@@ -289,7 +359,7 @@ v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
   `podvoice_build_11346` forbliver eksakt firmwarekontrakt. Først en grøn fuld gate,
   exact image/install og den ovenfor definerede fysiske canary kan flytte status.
 
-### Aktiv beslutningspost — provider-tail og fysisk playback-korrelation
+### Historisk beslutningspost — provider-tail og fysisk playback-korrelation
 
 - **Observeret fejl og stærkeste evidens:** en deterministisk reproduktion af
   `response.done(r) → response.created(r) → audio.delta(r) → response.done(r)` gav
@@ -377,7 +447,7 @@ auxiliary playback før Realtime-admission, og manglende stop afviser wake.
   releasebevis; exact-SHA CI/ARM64 er nu grøn, mens installerbar bitidentitet fortsat
   mangler.
 
-### Aktiv feltbeslutning 25. august — minimal Realtime-lifecycle uden overfit
+### Historisk feltbeslutning 25. august — minimal Realtime-lifecycle uden overfit
 
 **Observeret på installeret v1.13.41 kl. 13.28–13.29.** Voice PE åbnede én
 Realtime-session. `get_time` lykkedes. Realtime modtog den korrekte transskription
@@ -465,7 +535,7 @@ speakerlyd samt hele eventrækkefølgen.
   firmwarebevis eller degraderes ærligt, og den observerede ACK-uden-ny-wake-kæde skal
   være en regression. Ingen gain-, VAD-, prompt- eller semantikændring er indiceret af
   denne fejl.
-- **Aktiv rearm-korrektionsgrænse:** hele kæden er afsluttet fysisk playback →
+- **Historisk rearm-korrektionsgrænse:** hele kæden er afsluttet fysisk playback →
   `podvoice_stream_stop` → provider/attention-close → én firmware-rearm → næste
   detektion → én ny session. Berørte invarianter er exactly-once teardown/rearm,
   firmwareejet fysisk wake og sand readiness. Den minimale plan er at fjerne den
@@ -543,7 +613,7 @@ speakerlyd samt hele eventrækkefølgen.
   golden-label/release, indtil den installerede buildmarkør, fysisk playback-finish,
   teardown/reset og den næste wake→provider-session er bevist på samme kandidat.
 
-### Aktiv feltbeslutning 25. august — falsk semantisk close på matematisk opfølgning
+### Historisk feltbeslutning 25. august — falsk semantisk close på matematisk opfølgning
 
 **Observeret på installeret v1.13.39 kl. 11.42.** Voice PE åbnede én
 Realtime-session. Første tur brugte `get_time`; næste tur “Hvad er tolv gange syv?”
@@ -582,7 +652,7 @@ derfor intet eksakt provider-PCM fra feltfejlen, som må foregives matchet eller
   HA/MCP-ændring. Hvis lydreplay ikke reproducerer årsagen, stoppes prompt/tool-
   ændringen; v1.13.39 forbliver installeret som diagnostisk, men ikke testgodkendt.
 
-**Aktiv minimal produktbeslutning.** Der findes direkte fysisk eventevidens for samme
+**Historisk minimal produktbeslutning.** Der findes direkte fysisk eventevidens for samme
 session, de to korrekte svar, det efterfølgende committed `end_conversation`-kald,
 farvel-playback, teardown og rearm samt den separate diagnostiske transskription “Læg
 seks til.”. Der findes **ikke** eksakt provider-PCM for target-turnen, fordi audio-trace
@@ -650,7 +720,7 @@ manifest-/admission-/oracle-/context-gate er **11/11** grøn på 0,47 s; Ruff ch
 grøn på 0,01 s, mypy for `eval_harness.py` var grøn på 0,30 s, og `diff --check` er ren.
 Den genåbner endnu ingen fysisk gate.
 
-### Aktiv feltbeslutning 25. august — Voice PE strandet på cachet DHCP-adresse
+### Historisk feltbeslutning 25. august — Voice PE strandet på cachet DHCP-adresse
 
 **Observeret på installeret v1.13.38 efter strømudfald og HA Green-genstart.** Voice PE
 stod sandt offline i PodVoice, og ESPHome Builder viste først `No status`. PodVoice-loggen
@@ -1287,7 +1357,7 @@ V6-live-preflight på de præcise byggede bits; fysisk golden chain følger før
 
 ### Feltstop 22. august — v1.13.29 havde en unødvendig separat providerprobe
 
-**Observeret fejl og aktiv lead-beslutning.** Den installerede v1.13.29 afsluttede
+**Observeret fejl og daværende lead-beslutning.** Den installerede v1.13.29 afsluttede
 preflight før semantisk eval, fordi en ekstra throwaway Response ikke modtog den
 forventede `rate_limits.updated`. Feltsekvensen var `session.updated` →
 `response.created` → samme `response.done(completed)` uden en logget gyldig rate-event.
@@ -1323,7 +1393,7 @@ Det falsificerer rate-telemetri som obligatorisk cold-admission-autoritet.
 
 ### Feltstop 22. august — v1.13.28 live-preflight og HA-readiness
 
-**Dette er observerede resultater og aktiv beslutning før rettelse.** Der må ikke køres
+**Dette er observerede resultater og daværende beslutning før rettelse.** Der må ikke køres
 flere blinde preflight-genforsøg eller fysisk golden chain på v1.13.28.
 
 - Første sikre providerbudget-probe sluttede som
@@ -1402,7 +1472,7 @@ flere blinde preflight-genforsøg eller fysisk golden chain på v1.13.28.
   eval success/fejl/timeout/cancel/add-on-stop frigiver låsen; næste wake virker; ingen
   HA/MCP/PodConnect-sideeffekt; UI viser aldrig fysisk klar under diagnostik.
 
-#### Aktiv recovery-beslutning — HA/MCP efter Supervisor-start
+#### Historisk recovery-beslutning — HA/MCP efter Supervisor-start
 
 - **Årsagen er nu feltbekræftet:** Den uændrede installerede v1.13.28 genvandt selv
   forbindelsen ved det gamle ti-minutters probeinterval. Loggen viser 502-svar kl.
@@ -1489,7 +1559,7 @@ VAD, transcription, rate limits, costs og GPT-Realtime-2.1. Tre uafhængige revi
 samlet af lead. **Auditten udvider stop-the-line fra replay til runtime-værktøjssikkerhed.**
 Ingen runtimekode, prompt, lyd, VAD eller firmware blev ændret under auditten.
 
-### Aktiv udviklingsbeslutning — providerfinalitet og serverautorisation
+### Historisk udviklingsbeslutning — providerfinalitet og serverautorisation
 
 **Beslutning taget før releasegodkendelse; nedenstående er krav og hypoteser, ikke
 opnåede resultater.** Kandidaten forbliver stop-the-line og må ikke installeres som
@@ -1782,7 +1852,7 @@ reproducerbar releaseevidens: add-on-image, live Prompt V6-eval og fysisk Voice 
 Audio-replay/proveniens er fortsat et separat uløst diagnosespor. Promptens almindelige
 adfærd, gain, VAD, firmware og playback må fortsat ikke ændres for at maskere det.
 
-## Aktuel feltstatus 21. august
+## Historisk feltstatus 21. august
 
 Den installerede v1.13.25 registrerede efter en manuel Voice PE-genstart en rigtig
 fysisk wake kl. 09.57.53. Realtime-socketen nåede `provider_connected` efter 1.341 ms,
@@ -1874,7 +1944,7 @@ stabil ord-/intentgenkendelse. Den må aldrig bruges som lydkvalitetsbaseline al
 |---|---|
 | Én fysisk golden chain | **Bestået på v1.13.11** |
 | Automatisk lifecycle-gate, 10/10 | Bestået i tests; skal altid genkøres på kandidat |
-| Fysisk Voice PE-gate, 10/10 ubrudt | **Mangler; aktuelt fysisk bevis er 1/10** |
+| Fysisk Voice PE-gate, 10/10 ubrudt | **Mangler; daværende fysisk bevis er 1/10** |
 | Svartid p90 ≤ 2,5 s | Ikke bevist; de seneste ture ligger omtrent 2,3–2,9 s |
 | Fuld funktionsmatrix | Ikke godkendt |
 | 7 døgn + Gemini/Alexa-benchmark | Ikke gennemført |

@@ -236,3 +236,94 @@ def test_identified_old_finish_cannot_balance_a_new_playback():
     codes = _codes(report)
     assert "playback_finish_without_start" in codes
     assert "playback_finish_missing" in codes
+
+
+def test_audio_generation_and_closed_mic_gate_fail_closed():
+    trace = _fixture("voicepe_golden.json")
+    events = trace["events"]
+    insert_at = next(i for i, event in enumerate(events) if event["event"] == "speech_stopped")
+    events[insert_at + 1 : insert_at + 1] = [
+        {
+            "at_ms": 1601,
+            "event": "mic_gate_closed",
+            "audio_generation": 0,
+            "provider_sample_offset": 32000,
+        },
+        {
+            "at_ms": 1602,
+            "event": "audio_boundary_cut",
+            "reason": "speech-stopped",
+            "audio_generation": 1,
+            "provider_sample_offset": 32000,
+        },
+        {
+            "at_ms": 1603,
+            "event": "provider_probe",
+            "audio_generation": 1,
+            "provider_sample_offset": 32160,
+        },
+        {
+            "at_ms": 1604,
+            "event": "mic_gate_opened",
+            "audio_generation": 0,
+            "provider_sample_offset": 32160,
+        },
+    ]
+
+    report = TraceOracle(adapter="voicepe", require_semantic_close=True).score(trace)
+    assert {
+        "provider_audio_while_mic_gate_closed",
+        "audio_generation_reversed",
+        "mic_gate_open_without_audio_boundary",
+    } <= _codes(report)
+
+
+def test_audio_boundary_must_advance_and_use_an_authoritative_reason():
+    trace = _fixture("voicepe_golden.json")
+    trace["events"].insert(
+        5,
+        {
+            "at_ms": 1601,
+            "event": "audio_boundary_cut",
+            "reason": "timer-guess",
+            "audio_generation": 2,
+        },
+    )
+    trace["events"].insert(
+        6,
+        {
+            "at_ms": 1602,
+            "event": "audio_boundary_cut",
+            "reason": "speech-stopped",
+            "audio_generation": 2,
+        },
+    )
+
+    report = TraceOracle(adapter="voicepe", require_semantic_close=True).score(trace)
+    assert {"audio_boundary_reason_invalid", "audio_boundary_not_advanced"} <= _codes(report)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected"),
+    [
+        ("missing", "rearm_token_missing"),
+        ("mismatch", "rearm_token_mismatch"),
+    ],
+)
+def test_rearm_audio_boundary_requires_the_exact_correlated_firmware_token(
+    mutation: str, expected: str
+):
+    trace = _fixture("voicepe_golden.json")
+    cut = next(
+        event
+        for event in trace["events"]
+        if event["event"] == "audio_boundary_cut" and event.get("reason") == "rearm-ack"
+    )
+    recovered = next(event for event in trace["events"] if event["event"] == "wake_rearm_recovered")
+    if mutation == "missing":
+        cut.pop("rearm_token")
+    else:
+        recovered["rearm_token"] = cut["rearm_token"] + 1
+
+    report = TraceOracle(adapter="voicepe", require_semantic_close=True).score(trace)
+    assert expected in _codes(report)

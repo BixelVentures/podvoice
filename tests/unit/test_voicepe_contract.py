@@ -1060,8 +1060,36 @@ async def test_rearm_epoch_drops_scheduled_old_audio_and_keeps_immediate_new_aud
     await delayed_a
     await immediate_b
     assert await task == "recovered"
+    assert link.rearm_token == 1
     assert link._audio_q.qsize() == 1
     assert await link._audio_q.get() == fresh_b
+
+
+async def test_audio_boundary_drops_delayed_native_callback_and_keeps_next_generation():
+    """The precise within-session race from field trace 20260826T154813-263."""
+    client = _ConnectableClient(
+        FULL_SERVICES,
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+        ],
+    )
+    link = _link(client)
+    await link._on_connect()
+    handle_audio = client.va_handlers["handle_audio"]
+
+    link._audio_q.put_nowait(b"queued-a")
+    delayed_a = handle_audio(b"callback-a")
+    generation, dropped = link.cut_audio_boundary("speech-stopped")
+    immediate_b = handle_audio(b"callback-b")
+
+    await delayed_a
+    await immediate_b
+    assert (generation, dropped) == (1, 1)
+    assert link.audio_generation == 1
+    assert link._audio_q.qsize() == 1
+    assert await link._audio_q.get() == b"callback-b"
 
 
 async def test_reconnect_makes_scheduled_old_callback_inert_and_keeps_new_audio():

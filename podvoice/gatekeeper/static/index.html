@@ -440,7 +440,7 @@
           <option value="hey_mycroft">Hey Mycroft</option>
         </select>
         <label for="s_idle_timeout_s">Luk efter stilhed (sek.)</label>
-        <input id="s_idle_timeout_s" type="number" min="5" max="120">
+        <input id="s_idle_timeout_s" type="number" min="3" max="120">
         <label for="s_duck_level">Musik mens Nabu lytter (%)</label>
         <input id="s_duck_level" type="number" min="0" max="100">
       </div>
@@ -1568,13 +1568,13 @@ setInterval(function () {
     sock.onopen = function () { if (generation !== socketGeneration) return; setState("forbinder…", "pill-degraded"); };
     sock.onclose = function () {
       if (generation !== socketGeneration) return;
-      wsReady = false; micBtn.disabled = true; micStop(); setState("offline", "pill-down");
+      wsReady = false; micBtn.disabled = true; micStop(); stopReply(false); setState("offline", "pill-down");
       sendBtn.disabled = true;
       if (leaseTimer) { clearInterval(leaseTimer); leaseTimer = null; }
       if (sock._intentional) return;
       reconnectTimer = setTimeout(function () { if (generation === socketGeneration) connect(); }, 2500);
     };
-    sock.onerror = function () { if (generation !== socketGeneration) return; micBtn.disabled = true; micStop(); setState("offline", "pill-down"); };
+    sock.onerror = function () { if (generation !== socketGeneration) return; micBtn.disabled = true; micStop(); stopReply(false); setState("offline", "pill-down"); };
     sock.onmessage = function (m) {
       if (generation !== socketGeneration || sock !== ws) return;
       if (typeof m.data !== "string") { if (!halted) playPcm(m.data); return; }
@@ -1605,7 +1605,9 @@ setInterval(function () {
       }
       else if (ev.type === "transcript") streamT(ev.dir === "in" ? "in" : "out", ev.text);
       else if (ev.type === "play") { halted = false; playReply(ev.url, ev.playback_id); }
-      else if (ev.type === "stop_playback") { stopReply(true); endTurn(); }
+      else if (ev.type === "stop_playback") {
+        if (!ev.playback_id || ev.playback_id === currentPlaybackId) { stopReply(false); endTurn(); }
+      }
       else if (ev.type === "mic") {
         if (!ev.on) micStop();
         else micBtn.classList.add("live");

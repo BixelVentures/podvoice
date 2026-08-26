@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.13.49 — én enkel lydgrænse mellem fysiske ture
+
+- Bevarer den virkende firmware-, Realtime-, værktøjs- og playback-vej uændret, men
+  gør de fem eksisterende lifecycle-states til den eneste half-duplex mic-gate.
+- Tilføjer én synkron audio-generation-grænse ved gyldigt `speech_stopped`, efter
+  korreleret fysisk playback-slut + ekkohale og ved korreleret rearm-ACK. Forsinkede
+  native callbacks fra den forrige tur kan dermed ikke blive næste brugerytring.
+- Validerer playback-lease og samtale-generation før ekkohalen må klippe køen, så en
+  gammel task aldrig kan fjerne same-breath-lyd fra et nyt wake.
+- Logger mic-gate, audio-generation og korrelation uden lokal sprog-, matematik- eller
+  afslutningslogik. Standardvinduet for en fysisk opfølgning er fire sekunder.
+- Add-on-only: Voice PE-firmware, gain, VAD, kanal, prompt og reasoning er uændrede.
+
 ## 1.13.48 — gammel mikrofondata kan ikke krydse rearm-grænsen
 
 - Native audio mærkes ved callback-modtagelsen med den aktuelle mekaniske generation.

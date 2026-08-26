@@ -751,10 +751,11 @@ async def test_late_input_transcript_is_timestamped_before_the_reply(tmp_path):
 
 
 async def test_barge_in_truncates_at_heard_position():
-    """User talks over the reply: device silenced + the server told the HEARD ms."""
+    """The separately gated full-duplex surface can still truncate heard audio."""
     gemini = LiveFake()
     hub = StatusHub()
     session, _attention, voicepe = _build(gemini, hub=hub)
+    session.full_duplex = True
     await session.start()
     try:
         await session.wake()
@@ -1015,6 +1016,7 @@ async def test_blip_does_not_interrupt_playback():
 
     gemini = LiveFake()
     session, _attention, voicepe = _build(gemini)
+    session.full_duplex = True
     await session.start()
     try:
         await session.wake()
@@ -1029,6 +1031,263 @@ async def test_blip_does_not_interrupt_playback():
         gemini.emit(Interrupted())
         await _wait_until(lambda: voicepe.stop_playback_calls >= 1)
     finally:
+        await session.aclose()
+
+
+async def test_stale_interrupted_cannot_reopen_half_duplex_thinking_state():
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(UserSpeechStopped())
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+        brain.emit(Interrupted())
+        await asyncio.sleep(0.7)
+        assert session.sm.state is State.THINKING
+        assert voicepe.stop_playback_calls == 0
+    finally:
+        await session.aclose()
+
+
+async def test_talk_stale_interruption_cannot_silence_a_new_playback(monkeypatch):
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "BARGE_DEBOUNCE_S", 0.05)
+    sent: list[dict] = []
+    stop_started = asyncio.Event()
+    release_stop = asyncio.Event()
+
+    async def send_json(payload: dict) -> None:
+        if payload.get("type") == "stop_playback":
+            stop_started.set()
+            await release_stop.wait()
+        sent.append(dict(payload))
+
+    async def send_bytes(_payload: bytes) -> None:
+        return None
+
+    brain = LiveFake()
+    attention = FakeAttention()
+    voicepe = BrowserLink(send_json, send_bytes, room=ROOM)
+    session = ThinSession(
+        room=ROOM,
+        attention=attention,
+        heartbeat=Heartbeat(attention, period_ms=20),
+        brain=brain,
+        voicepe=voicepe,
+        playback=Playback(sink=voicepe.play_pcm),
+        tools=FakeTools(),
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+        full_duplex=True,
+    )
+    await session.start()
+    try:
+        await session.wake()
+        lease_a = session._arm_playback_lease(item_id="a", kind="reply")
+        assert lease_a is not None
+        await voicepe.play_url(REPLY_URL, playback_id=lease_a.playback_id)
+        lease_a.phase = "started"
+        session._speaking = True
+        session._device_playing = True
+        session.sm.state = State.AI_SPEAKING
+        session._start_barge_debounce()
+        barge = session._barge_task
+        assert barge is not None
+        await stop_started.wait()
+
+        session._invalidate_playback_lease("test-next-playback")
+        lease_b = session._arm_playback_lease(item_id="b", kind="reply")
+        assert lease_b is not None
+        await voicepe.play_url(REPLY_URL, playback_id=lease_b.playback_id)
+        lease_b.phase = "started"
+        release_stop.set()
+        await barge
+
+        assert session._playback_lease is lease_b
+        stop = next(event for event in sent if event.get("type") == "stop_playback")
+        assert stop["playback_id"] == lease_a.playback_id
+        assert voicepe._playback_id == lease_b.playback_id
+        voicepe.playback_fault(lease_a.playback_id, "fault")
+        assert session._close_task is None
+        assert brain.truncations == []
+        assert session.sm.state is State.AI_SPEAKING
+    finally:
+        release_stop.set()
+        await session.aclose()
+
+
+async def test_talk_owned_barge_stop_is_not_a_playback_fault_or_close(monkeypatch):
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "BARGE_DEBOUNCE_S", 0.01)
+    brain = LiveFake()
+    session, _attention, voicepe, sent, _audio = _build_talk_session(brain)
+    await session.start()
+    try:
+        await session.wake()
+        lease = session._arm_playback_lease(item_id="a", kind="reply")
+        assert lease is not None
+        await voicepe.play_url(REPLY_URL, playback_id=lease.playback_id)
+        lease.phase = "started"
+        session._last_item = "a"
+        session.playout.on_sent("a", len(_frame()))
+        session._speaking = True
+        session._device_playing = True
+        session.sm.state = State.AI_SPEAKING
+
+        session._start_barge_debounce()
+        barge = session._barge_task
+        assert barge is not None
+        await barge
+
+        stop = next(event for event in sent if event.get("type") == "stop_playback")
+        assert stop["playback_id"] == lease.playback_id
+        assert voicepe._playback_id is None
+        assert session._playback_lease is None
+        assert session.sm.state is State.LISTENING
+        assert session._active is True
+        assert session._close_task is None
+
+        # A buggy/late browser fault for the intentionally cancelled A is stale.
+        voicepe.playback_fault(lease.playback_id, "fault")
+        await asyncio.sleep(0)
+        assert session._close_task is None
+        assert session.sm.state is State.LISTENING
+    finally:
+        await session.aclose()
+
+
+async def test_talk_owned_stop_send_failure_closes_without_reopening_listening():
+    sent: list[dict] = []
+
+    async def send_json(payload: dict) -> None:
+        if payload.get("type") == "stop_playback":
+            raise ConnectionError("talk socket lost")
+        sent.append(dict(payload))
+
+    async def send_bytes(_payload: bytes) -> None:
+        return None
+
+    brain = LiveFake()
+    attention = FakeAttention()
+    voicepe = BrowserLink(send_json, send_bytes, room=ROOM)
+    session = ThinSession(
+        room=ROOM,
+        attention=attention,
+        heartbeat=Heartbeat(attention, period_ms=20),
+        brain=brain,
+        voicepe=voicepe,
+        playback=Playback(sink=voicepe.play_pcm),
+        tools=FakeTools(),
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+        full_duplex=True,
+    )
+    await session.start()
+    try:
+        await session.wake()
+        lease = session._arm_playback_lease(item_id="a", kind="reply")
+        assert lease is not None
+        await voicepe.play_url(REPLY_URL, playback_id=lease.playback_id)
+        lease.phase = "started"
+        session._last_item = "a"
+        session._speaking = True
+        session._device_playing = True
+        session.sm.state = State.AI_SPEAKING
+
+        await session._on_interrupted(
+            epoch=session._epoch,
+            playback_generation=session._playback_generation,
+            playback_lease=lease,
+            item="a",
+        )
+        assert voicepe._playback_id == lease.playback_id
+        assert session._playback_lease is lease
+        assert session.sm.state is State.AI_SPEAKING
+        assert session._close_task is not None
+
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert session._active is False
+        assert session.sm.state is not State.LISTENING
+    finally:
+        await session.aclose()
+
+
+async def test_talk_stale_interruption_cannot_overwrite_b_while_a_truncate_waits(monkeypatch):
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "BARGE_DEBOUNCE_S", 0.01)
+
+    class BlockingTruncateBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.truncate_started = asyncio.Event()
+            self.release_truncate = asyncio.Event()
+
+        async def truncate(self, item_id: str, heard_ms: int) -> None:
+            self.truncate_started.set()
+            await self.release_truncate.wait()
+            self.truncations.append((item_id, heard_ms))
+
+    sent: list[dict] = []
+
+    async def send_json(payload: dict) -> None:
+        sent.append(dict(payload))
+
+    async def send_bytes(_payload: bytes) -> None:
+        return None
+
+    brain = BlockingTruncateBrain()
+    attention = FakeAttention()
+    voicepe = BrowserLink(send_json, send_bytes, room=ROOM)
+    session = ThinSession(
+        room=ROOM,
+        attention=attention,
+        heartbeat=Heartbeat(attention, period_ms=20),
+        brain=brain,
+        voicepe=voicepe,
+        playback=Playback(sink=voicepe.play_pcm),
+        tools=FakeTools(),
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+        full_duplex=True,
+    )
+    await session.start()
+    try:
+        await session.wake()
+        lease_a = session._arm_playback_lease(item_id="a", kind="reply")
+        assert lease_a is not None
+        await voicepe.play_url(REPLY_URL, playback_id=lease_a.playback_id)
+        lease_a.phase = "started"
+        session._last_item = "a"
+        session.playout.on_sent("a", len(_frame()))
+        session._speaking = True
+        session._device_playing = True
+        session.sm.state = State.AI_SPEAKING
+        session._start_barge_debounce()
+        barge = session._barge_task
+        assert barge is not None
+        await brain.truncate_started.wait()
+
+        session._invalidate_playback_lease("test-next-playback")
+        lease_b = session._arm_playback_lease(item_id="b", kind="reply")
+        assert lease_b is not None
+        await voicepe.play_url(REPLY_URL, playback_id=lease_b.playback_id)
+        lease_b.phase = "started"
+        session._buf_out[:] = ["B must survive"]
+        session.sm.state = State.AI_SPEAKING
+
+        brain.release_truncate.set()
+        await barge
+        assert brain.truncations[0][0] == "a"
+        assert session._playback_lease is lease_b
+        assert voicepe._playback_id == lease_b.playback_id
+        assert session._buf_out == ["B must survive"]
+        assert session.sm.state is State.AI_SPEAKING
+    finally:
+        brain.release_truncate.set()
         await session.aclose()
 
 
@@ -1246,6 +1505,124 @@ async def test_echo_shield_mic_never_reaches_model_during_reply():
         await asyncio.sleep(0.5)  # reverb tail + drain
         voicepe.feed([_frame(60)])  # the user actually speaks
         await _wait_until(lambda: len(gemini.sent_audio) == 2)  # heard again
+    finally:
+        await session.aclose()
+
+
+async def test_audio_generation_isolates_math_followup_in_one_session():
+    """A delayed A/playback tail cannot become the next follow-up B."""
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        question_a = _frame(111)
+        stale_a = _frame(222)
+        followup_b = _frame(333)
+        voicepe.feed([question_a])
+        await _wait_until(lambda: brain.sent_audio == [question_a])
+
+        brain.emit(UserSpeechStopped())
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+        assert [cut[0] for cut in voicepe.audio_boundary_cuts] == ["speech-stopped"]
+
+        # Both a delayed callback from A and physical reply/echo arrive while the
+        # state-owned half-duplex gate is closed.
+        voicepe.feed([stale_a])
+        brain.emit(AudioChunk(_frame(), item_id="answer-a"), TurnComplete())
+        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
+        session._on_media_state(True)
+        voicepe.feed([_frame(444)])
+        session._on_media_state(False)
+        voicepe.feed([_frame(555)])
+
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+        assert [cut[0] for cut in voicepe.audio_boundary_cuts] == [
+            "speech-stopped",
+            "followup-open",
+        ]
+        voicepe.feed([followup_b])
+        await _wait_until(lambda: brain.sent_audio == [question_a, followup_b])
+        assert brain.connect_count == 1
+
+        # Duplicate/out-of-order stop is inert after the authoritative close.
+        brain.emit(UserSpeechStopped(), UserSpeechStopped())
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+        assert [cut[0] for cut in voicepe.audio_boundary_cuts].count("speech-stopped") == 2
+    finally:
+        await session.aclose()
+
+
+async def test_speech_stop_serialises_an_inflight_provider_send_at_the_wire_boundary():
+    class BlockingBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.send_started = asyncio.Event()
+            self.release_send = asyncio.Event()
+
+        async def send_audio(self, pcm: bytes) -> None:
+            self.send_started.set()
+            await self.release_send.wait()
+            await super().send_audio(pcm)
+
+    brain = BlockingBrain()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        first = _frame(611)
+        voicepe.feed([first])
+        await brain.send_started.wait()
+
+        stop = asyncio.create_task(session._on_event(UserSpeechStopped()))
+        await asyncio.sleep(0)
+        assert stop.done() is False
+        assert session.sm.state is State.LISTENING
+
+        brain.release_send.set()
+        await stop
+        assert brain.sent_audio == [first]
+        assert session.sm.state is State.THINKING
+
+        voicepe.feed([_frame(622)])
+        await asyncio.sleep(0.05)
+        assert brain.sent_audio == [first]
+    finally:
+        await session.aclose()
+
+
+async def test_old_echo_tail_cannot_cut_same_breath_audio_after_new_wake():
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(UserSpeechStopped(), AudioChunk(_frame(), item_id="old"), TurnComplete())
+        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
+        session._on_media_state(True)
+        session._on_media_state(False)  # arms the old conversation's echo-tail task
+        await session.stop(reason="test-close")
+
+        await session.wake()
+        prefix_b = _frame(777)
+        voicepe.feed([prefix_b])
+        await _wait_until(lambda: brain.sent_audio[-1:] == [prefix_b])
+        await asyncio.sleep(0.5)  # old tail has now fired and must have been inert
+        assert brain.sent_audio[-1:] == [prefix_b]
+        assert session.sm.state is State.LISTENING
+    finally:
+        await session.aclose()
+
+
+async def test_talk_full_duplex_keeps_state_contract_without_native_audio_cut():
+    brain = LiveFake()
+    session, _attention, _link, _sent, _audio = _build_talk_session(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(UserSpeechStopped())
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+        assert brain.connect_count == 1
     finally:
         await session.aclose()
 
@@ -2261,9 +2638,50 @@ async def test_fault_retries_until_recovered_without_a_reboot():
     try:
         await session._reassert_device()
         assert hub.snapshot()["services"]["voicepe"] == "down"
+        await _wait_until(lambda: bool(voicepe.light_commands))
+        assert voicepe.light_commands[-1] == (True, (1.0, 0.0, 0.0), 1.0)
         await _wait_until(lambda: voicepe.rearm_calls == 2, max_wait=1.5)
         assert voicepe.wake_readiness == "recovered"
         assert hub.snapshot()["services"]["voicepe"] == "degraded"
+        await _wait_until(lambda: voicepe.light_commands[-1][0] is False)
+    finally:
+        await session.aclose()
+
+
+async def test_close_stays_fault_red_until_rearm_retry_recovers(monkeypatch):
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "REARM_RETRY_DELAYS_S", (0.01,))
+
+    class RetryVoicePE(FakeVoicePELink):
+        async def rearm_wake_word(self) -> str:
+            self.rearm_calls += 1
+            if self.rearm_calls == 1:
+                raise RuntimeError("first rearm failed")
+            self.rearm_token = self.rearm_calls
+            self.cut_audio_boundary("rearm-ack")
+            return "recovered"
+
+    voicepe = RetryVoicePE(room=ROOM)
+    session = ThinSession(
+        room=ROOM,
+        attention=FakeAttention(),
+        heartbeat=Heartbeat(FakeAttention(), period_ms=20),
+        brain=LiveFake(),
+        voicepe=voicepe,
+        playback=Playback(sink=voicepe.play_pcm),
+        tools=FakeTools(),
+        reply_bus=ReplyBus(),
+        reply_url=REPLY_URL,
+    )
+    await session.start()
+    try:
+        await session.wake()
+        await session.stop(reason="test-rearm-retry-led")
+        assert voicepe.rearm_calls == 1
+        assert voicepe.light_commands[-1] == (True, (1.0, 0.0, 0.0), 1.0)
+        await _wait_until(lambda: voicepe.rearm_calls == 2)
+        await _wait_until(lambda: voicepe.light_commands[-1][0] is False)
     finally:
         await session.aclose()
 
@@ -2372,6 +2790,52 @@ async def test_ring_turns_amber_while_it_works():
         await session.aclose()
 
 
+@pytest.mark.parametrize(
+    "state",
+    [State.LISTENING, State.THINKING, State.AI_SPEAKING, State.LOUNGE_WINDOW],
+)
+async def test_reconnect_reasserts_each_active_led_after_stream(state):
+    from gatekeeper.led import led_command_for
+
+    session, _attention, voicepe = _build(LiveFake())
+    await session.start()
+    try:
+        session._active = True
+        session.sm.state = state
+        voicepe.streaming = False
+        voicepe.light_commands.clear()
+        await session._reassert_device()
+        expected = led_command_for(state)
+        await _wait_until(lambda: len(voicepe.light_commands) == 1)
+        assert voicepe.streaming is True
+        assert voicepe.rearm_calls == 0
+        assert voicepe.light_commands[-1] == (expected.on, expected.rgb, expected.brightness)
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.parametrize(
+    ("active", "method"), [(True, "start_streaming"), (False, "stop_streaming")]
+)
+async def test_reconnect_stream_failure_is_fault_red(active: bool, method: str):
+    session, _attention, voicepe = _build(LiveFake())
+
+    async def fail() -> bool:
+        return False
+
+    setattr(voicepe, method, fail)
+    await session.start()
+    try:
+        session._active = active
+        session.sm.state = State.LISTENING if active else State.IDLE
+        with pytest.raises(RuntimeError):
+            await session._reassert_device()
+        await _wait_until(lambda: bool(voicepe.light_commands))
+        assert voicepe.light_commands[-1] == (True, (1.0, 0.0, 0.0), 1.0)
+    finally:
+        await session.aclose()
+
+
 async def test_device_side_hush_truncates_the_model():
     """The firmware silences a playing reply when it hears a wake word ('Okay Nabu' /
     'stop') — on the echo-cancelled channel, mic still gated. The model must be told
@@ -2389,7 +2853,7 @@ async def test_device_side_hush_truncates_the_model():
         await _wait_until(lambda: len(gemini.truncations) == 1, max_wait=3.0)
         item, heard_ms = gemini.truncations[0]
         assert item == "hushed" and heard_ms >= 0
-        assert session.sm.state is State.LISTENING  # ring says "your turn" again
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
     finally:
         await session.aclose()
 
@@ -3301,6 +3765,7 @@ async def test_duplicate_terminal_response_start_fails_closed_once():
             ),
         )
         await _wait_until(lambda: session.sm.state is State.IDLE)
+        await _wait_until(lambda: voicepe.rearm_calls == 1)
         assert brain.closed is True
         assert len(attention.release_calls) == 1
         assert voicepe.rearm_calls == 1
@@ -3335,6 +3800,7 @@ async def test_hung_teardown_edges_are_bounded_and_keep_wake_latch_closed(monkey
         assert voicepe.rearm_calls == 0
         assert voicepe.wake_readiness == "fault"
         assert session._teardown_incomplete is True
+        assert voicepe.light_commands[-1] == (True, (1.0, 0.0, 0.0), 1.0)
         await session._reassert_device()
         assert voicepe.rearm_calls == 0
     finally:
@@ -3364,9 +3830,11 @@ async def test_full_teardown_retry_must_succeed_before_one_rearm(monkeypatch):
         await session.wake()
         await session.stop(reason="retry-full-close")
         assert voicepe.rearm_calls == 0
+        assert voicepe.light_commands[-1] == (True, (1.0, 0.0, 0.0), 1.0)
         await _wait_until(lambda: voicepe.rearm_calls == 1)
         assert calls == 2
         assert session._teardown_incomplete is False
+        await _wait_until(lambda: voicepe.light_commands[-1][0] is False)
     finally:
         await session.aclose()
 

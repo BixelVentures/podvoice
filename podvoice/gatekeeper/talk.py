@@ -215,8 +215,21 @@ class BrowserLink:
         self._playback_phase = "issued"
         await self._safe_json({"type": "play", "url": url, "playback_id": self._playback_id})
 
-    async def stop_playback(self) -> None:
-        await self._safe_json({"type": "stop_playback", "playback_id": self._playback_id})
+    async def stop_playback(self, *, playback_id: str | None = None) -> bool:
+        """Stop exactly the reply owned by the caller, never a newer browser reply."""
+        owned_id = playback_id or self._playback_id
+        sent = await self._safe_json(
+            {
+                "type": "stop_playback",
+                "playback_id": owned_id,
+            }
+        )
+        if not sent:
+            return False
+        if self._playback_id == owned_id:
+            self._playback_id = None
+            self._playback_phase = "idle"
+        return True
 
     async def play_pcm(self, chunk: bytes) -> None:
         """Raw 24 kHz PCM (error clips via Playback) — the old binary channel."""
@@ -268,9 +281,12 @@ class BrowserLink:
             self.on_playback_fault(playback_id, reason=reason)
         self._playback_id = None
 
-    async def _safe_json(self, payload: dict) -> None:
-        with contextlib.suppress(Exception):  # a closed socket must never break the engine
+    async def _safe_json(self, payload: dict) -> bool:
+        try:
             await self._send_json(payload)
+        except Exception:  # callers decide whether this edge is safety-critical
+            return False
+        return True
 
 
 class TalkHub:

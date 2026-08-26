@@ -343,9 +343,14 @@ class ThinSession:
         self._heard_signal = False  # has this conversation carried real audio yet?
         self._goodbye: asyncio.Task | None = None  # armed close-after-goodbye (one per conv)
         self._close_task: asyncio.Task | None = None  # exactly one close transaction per epoch
+        self._close_id: str | None = None
         self._epoch = 0.0  # conversation identity (monotonic start) for armed tasks
         self._history_session = ""  # explicit wake/session boundary in persisted history
         self._teardown_lock = asyncio.Lock()  # wake must never race a teardown in flight
+        # Serialises the final provider send with speech_stopped. A frame that already
+        # left the native queue must finish at the wire seam before the state-owned
+        # gate can close; no send may complete after mic_gate_closed.
+        self._mic_send_lock = asyncio.Lock()
         self._rearm_retry_task: asyncio.Task | None = None
         self._teardown_retry_task: asyncio.Task | None = None
         self._rearm_retry_attempt = 0
@@ -534,6 +539,7 @@ class ThinSession:
         self._transcription_audio_seconds = 0.0
         self._ending_conversation = False
         self._close_task = None
+        self._close_id = None
         self._playback_started.clear()
         self._playback_finished.clear()
         self._invalidate_playback_lease("new-conversation")
@@ -547,6 +553,7 @@ class ThinSession:
         self._last_user_utterance = ""
         self._last_activity = self._conv_started
         self.sm.state = State.LISTENING
+        self._trace_event("mic_gate_opened", state=State.LISTENING.name, reason="wake")
         self._set_led(State.LISTENING)  # instantly — before the WS connect
         self._hub_state("LISTENING", "👋 Vågnede — samtalen er åben")
         # Duck for the WHOLE conversation (no per-turn pumping — one calm level).
@@ -823,6 +830,7 @@ class ThinSession:
         if not self._active:
             return None
         epoch = self._epoch
+        self._close_id = secrets.token_hex(8)
         self._close_task = self._spawn(
             self._close_transaction(epoch=epoch, reason=reason, error_kind=error_kind),
             f"thin-close-{reason}",
@@ -873,7 +881,6 @@ class ThinSession:
             silence_complete=silence_complete,
         )
         if error_kind is not None:
-            self._set_led(State.IDLE)
             self._hub_state("IDLE", None)
         else:
             self._hub_state("IDLE", "💤 Samtale slut — musikken er tilbage")
@@ -1051,7 +1058,6 @@ class ThinSession:
                     self.hub.incr("attention_releases")
                     self.hub.set_level(self.room, 100)
             attention_complete = attention_ok
-        self._set_led(State.IDLE)
         teardown_complete = (
             silence_complete
             and stream_complete
@@ -1061,8 +1067,16 @@ class ThinSession:
         )
         self._teardown_incomplete = not teardown_complete
         if teardown_complete:
+            # A physical puck is not safely ready until its correlated rearm ACK.
+            # Avoid a false-dark gap between teardown and a later failed rearm.
+            if self._closing or not hasattr(self.voicepe, "rearm_wake_word"):
+                self._set_led(State.IDLE)
             self._trace_event("teardown_complete")
         else:
+            # A dark ring is the normal IDLE privacy signal. If physical stop failed,
+            # darkness would lie; keep a red fault indication until the full retry has
+            # actually closed the device stream and rearm is allowed.
+            self._set_led(State.IDLE, error=True)
             self._trace_event("rearm_blocked_incomplete_teardown")
             if hasattr(self.voicepe, "wake_readiness"):
                 self.voicepe.wake_readiness = "fault"
@@ -1086,6 +1100,7 @@ class ThinSession:
                 timeout_s=TEARDOWN_REARM_TIMEOUT_S,
             )
             if not rearm_ok:
+                self._set_led(State.IDLE, error=True)
                 self._schedule_rearm_retry()
         elif not teardown_complete and not self._closing:
             self._schedule_teardown_retry(
@@ -1153,21 +1168,27 @@ class ThinSession:
                     continue  # drain quietly; stream stop is in flight
                 if self.audio_trace is not None:
                     self.audio_trace.audio("device", frame, C.INPUT_RATE)
-                if not self.full_duplex and (
-                    self._speaking
-                    or self._device_playing
-                    or self._playback_blocks_input()
-                    or time.monotonic() < self._gate_until
-                    or time.monotonic() < self._reply_audible_until
+                if not self.full_duplex and self.sm.state not in (
+                    State.LISTENING,
+                    State.LOUNGE_WINDOW,
                 ):
-                    # Echo shield (half-duplex): the device is speaking — its own voice
-                    # must never reach the model's ears. In full_duplex the shield is
-                    # OFF: the XMOS AEC + the conservative turn preset carry echo
-                    # rejection, and talking over the reply is a real barge-in.
+                    # The existing lifecycle state is the only Voice PE mic gate.
+                    # Playback flags and clocks still describe their own mechanical
+                    # work, but cannot independently open or close provider input.
                     self._gate_dropped += 1
                     continue
                 try:
-                    await self.brain.send_audio(frame)
+                    if self.full_duplex:
+                        await self.brain.send_audio(frame)
+                    else:
+                        async with self._mic_send_lock:
+                            if not self._active or self.sm.state not in (
+                                State.LISTENING,
+                                State.LOUNGE_WINDOW,
+                            ):
+                                self._gate_dropped += 1
+                                continue
+                            await self.brain.send_audio(frame)
                     self._transcription_audio_seconds += len(frame) / (2.0 * C.INPUT_RATE)
                 except Exception as e:
                     _LOG.warning("thin: provider send failed (%s)", e)
@@ -1273,6 +1294,30 @@ class ThinSession:
                 return
 
     # ------------------------------------------------------------- provider events
+    def _accept_user_speech_stopped(self) -> None:
+        """Commit one provider speech boundary while the wire seam is serialised."""
+        turn_open = (
+            self._active
+            and self.sm.state in (State.LISTENING, State.LOUNGE_WINDOW)
+            and not self._speaking
+            and not self._device_playing
+        )
+        if self._closure_turn is None or self._closure_turn.response_done:
+            self._begin_closure_turn()
+        turn = self._ensure_closure_turn()
+        if turn.user_finished_at is None:
+            turn.user_finished_at = time.time()
+        self._trace_event("speech_stopped", accepted=turn_open)
+        self._speech_stop_t = time.monotonic()
+        if not turn_open:
+            return
+        self.sm.state = State.THINKING
+        if not self.full_duplex:
+            self._trace_event("mic_gate_closed", state=State.THINKING.name)
+            self._cut_audio_boundary("speech-stopped")
+        self._set_led(State.THINKING)
+        self._hub_state("THINKING", None)
+
     async def _on_event(self, ev) -> None:
         self._last_activity = time.monotonic()
         if isinstance(ev, AudioChunk):
@@ -1599,19 +1644,11 @@ class ThinSession:
                 self._trace_event("half_duplex_input_cleared")
                 self._cancel_barge_debounce()
                 return
-            if self._closure_turn is None or self._closure_turn.response_done:
-                self._begin_closure_turn()
-            turn = self._ensure_closure_turn()
-            if turn.user_finished_at is None:
-                turn.user_finished_at = time.time()
-            self._trace_event("speech_stopped")
-            self._speech_stop_t = time.monotonic()  # the clock the family actually feels
-            if self._active and not self._speaking and not self._device_playing:
-                # You stopped talking and it is working: amber. Without this the ring
-                # stayed cyan and the room could not tell "listening" from "thinking".
-                self.sm.state = State.THINKING
-                self._set_led(State.THINKING)
-                self._hub_state("THINKING", None)
+            if self.full_duplex:
+                self._accept_user_speech_stopped()
+            else:
+                async with self._mic_send_lock:
+                    self._accept_user_speech_stopped()
             self._cancel_barge_debounce()
         elif isinstance(ev, InputTranscript):
             self._trace_event("input_transcript", text=ev.text[:500])
@@ -1947,6 +1984,20 @@ class ThinSession:
         and the reply keeps playing — the announce buffer already holds it, so a
         server-side generation cancel costs nothing audible. Sustained speech is a
         real barge-in."""
+        if not self.full_duplex:
+            # Voice PE is structurally half-duplex. A provider interruption can mark
+            # fresh speech only while its state-owned gate is already open; it can
+            # never reopen THINKING/AI_SPEAKING or silence physical playback.
+            if self._active and self.sm.state in (State.LISTENING, State.LOUNGE_WINDOW):
+                self._begin_closure_turn()
+                self._cancel_followup_edge()
+                self._turn_cue_appended = False
+                self.sm.state = State.LISTENING
+                self._set_led(State.LISTENING)
+                self._hub_state("LISTENING", "🎙️ Lytter")
+            else:
+                self._trace_event("half_duplex_interruption_ignored")
+            return
         if not (self._speaking or self._device_playing or self._playback_blocks_input()):
             # Nothing is audibly playing: this speech_started is the user's NORMAL
             # turn start, not an interruption. This guard is ALSO the spurious-idle
@@ -1963,11 +2014,34 @@ class ThinSession:
             return
         if self.hub is not None:
             self.hub.activity(self.room, "👂 Mulig afbrydelse — lytter efter")
-        self._barge_task = self._spawn(self._barge_after_debounce(), "thin-barge")
+        self._barge_task = self._spawn(
+            self._barge_after_debounce(
+                epoch=self._epoch,
+                playback_generation=self._playback_generation,
+                playback_lease=self._playback_lease,
+                item=self.playout.current_item() or self._last_item,
+            ),
+            "thin-barge",
+        )
 
-    async def _barge_after_debounce(self) -> None:
+    async def _barge_after_debounce(
+        self,
+        *,
+        epoch: float,
+        playback_generation: int,
+        playback_lease: _PlaybackLease | None,
+        item: str | None,
+    ) -> None:
         await asyncio.sleep(BARGE_DEBOUNCE_S)
-        await self._on_interrupted()
+        if not self._interruption_owner_is_current(epoch, playback_generation, playback_lease):
+            self._trace_event("stale_interruption_ignored")
+            return
+        await self._on_interrupted(
+            epoch=epoch,
+            playback_generation=playback_generation,
+            playback_lease=playback_lease,
+            item=item,
+        )
 
     def _cancel_barge_debounce(self) -> None:
         """speech_stopped landed inside the window — false alarm, keep playing."""
@@ -1978,23 +2052,74 @@ class ThinSession:
                 self.hub.activity(self.room, "😮‍💨 Falsk alarm — spiller videre")
         self._barge_task = None
 
-    async def _on_interrupted(self) -> None:
+    def _interruption_owner_is_current(
+        self,
+        epoch: float,
+        playback_generation: int,
+        playback_lease: _PlaybackLease | None,
+    ) -> bool:
+        return (
+            self._active
+            and self._epoch == epoch
+            and self._playback_generation == playback_generation
+            and (playback_lease is None or self._playback_lease is playback_lease)
+            and not self._ending_conversation
+        )
+
+    async def _on_interrupted(
+        self,
+        *,
+        epoch: float | None = None,
+        playback_generation: int | None = None,
+        playback_lease: _PlaybackLease | None = None,
+        item: str | None = None,
+    ) -> None:
         """The user talked over the reply: silence the device NOW and tell the server
         exactly how much was HEARD, so its memory matches the room's ears."""
-        await self._silence_device()
+        if not self.full_duplex:
+            return
+        epoch = self._epoch if epoch is None else epoch
+        playback_generation = (
+            self._playback_generation if playback_generation is None else playback_generation
+        )
+        if not self._interruption_owner_is_current(epoch, playback_generation, playback_lease):
+            self._trace_event("stale_interruption_ignored")
+            return
+        item = item or self.playout.current_item() or self._last_item
+        playback_id = playback_lease.playback_id if playback_lease is not None else None
+        if hasattr(self.voicepe, "stop_playback"):
+            try:
+                stopped = await self.voicepe.stop_playback(playback_id=playback_id)
+            except Exception:
+                stopped = False
+            if stopped is False:
+                self._trace_event(
+                    "playback_fault",
+                    playback_id=playback_id,
+                    reason="owned-stop-send-failed",
+                )
+                self._request_close("playback-fault", error_kind="device")
+                return
+        if not self._interruption_owner_is_current(epoch, playback_generation, playback_lease):
+            self._trace_event("stale_interruption_ignored")
+            return
+        self._clear_local_playback()
         self._sync_playout()
-        item = self.playout.current_item() or self._last_item
         if item and hasattr(self.brain, "truncate"):
             with contextlib.suppress(Exception):
                 await self.brain.truncate(item, self.playout.heard_ms(item))
+        if not self._interruption_owner_is_current(epoch, playback_generation, playback_lease):
+            self._trace_event("stale_interruption_ignored")
+            return
         self._buf_out.clear()  # the cancelled tail was never heard — don't persist it
         if self.hub is not None:
             self.hub.incr("barge_ins")
-        if self._active:
-            self._speaking = False
-            self.sm.state = State.LISTENING
-            self._set_led(State.LISTENING)
-            self._hub_state("LISTENING", "✋ Afbrudt — lytter")
+        self._invalidate_playback_lease("interrupted")
+        self._device_playing = False
+        self._speaking = False
+        self.sm.state = State.LISTENING
+        self._set_led(State.LISTENING)
+        self._hub_state("LISTENING", "✋ Afbrudt — lytter")
 
     async def _announce_with_retry(
         self, lease: _PlaybackLease, retry_after_s: float | None = None
@@ -2761,10 +2886,9 @@ class ThinSession:
                 await self.brain.truncate(item, self.playout.heard_ms(item))
         self._buf_out.clear()  # the unheard tail must not be persisted as spoken
         self._speaking = False
-        if self._active:
-            self.sm.state = State.LISTENING
-            self._set_led(State.LISTENING)
-            self._hub_state("LISTENING", "🤫 Stoppet — jeg lytter")
+        # Physical finish has already armed the normal echo-tail task. That task owns
+        # the atomic audio cut + LOUNGE transition; opening LISTENING here would create
+        # a second, earlier mic owner and admit the reply tail.
         if self.hub is not None:
             self.hub.incr("barge_ins")
 
@@ -2773,15 +2897,30 @@ class ThinSession:
     ) -> None:
         """After the reverb tail: drop what the mic queued during the reply and report
         how much the shield absorbed — the assistant literally cannot hear itself."""
+        conversation_epoch = self._epoch
         await asyncio.sleep(tail_s)
-        if self._device_playing:
-            return  # a new reply started inside the tail — the shield is still up
-        stale = self.voicepe.drain_mic() if hasattr(self.voicepe, "drain_mic") else 0
+        # Validate the full owner chain *before* touching the shared audio queue. A
+        # delayed tail task from conversation A must never cut same-breath audio from
+        # a freshly woken conversation B.
+        if (
+            lease is None
+            or not self._active
+            or conversation_epoch != self._epoch
+            or self._playback_lease is not lease
+            or lease.epoch != self._epoch
+            or lease.phase != "finished"
+            or self._device_playing
+            or self._speaking
+            or self._ending_conversation
+        ):
+            return
+        generation, stale = self._cut_audio_boundary("followup-open")
         self._trace_event(
             "echo_gate_released",
             tail_ms=round(tail_s * 1000),
             dropped=self._gate_dropped,
             drained=stale,
+            audio_generation=generation,
         )
         if self._gate_dropped or stale:
             _LOG.info(
@@ -2790,29 +2929,24 @@ class ThinSession:
                 stale,
             )
         self._gate_dropped = 0
-        if lease is not None:
-            if self._playback_lease is not lease or lease.epoch != self._epoch:
-                return
-            if lease.phase != "finished":
-                return
-            self._playback_lease = None
-            if (
-                lease.kind in ("reply", "oneshot")
-                and self._active
-                and not self._speaking
-                and not self._ending_conversation
-            ):
-                self._enter_followup()
+        self._playback_lease = None
+        if lease.kind in ("reply", "oneshot"):
+            self._enter_followup()
 
     def _trace_provider_audio(self, pcm: bytes, rate: int) -> None:
         if self.audio_trace is not None:
             self.audio_trace.audio("provider", pcm, rate)
 
     def _trace_event(self, event_name: str, **details) -> None:
-        identifiers = {
+        payload = {
             "session_id": self._history_session or None,
+            "provider_generation": getattr(self.brain, "_connection_generation", None),
             "turn_id": self._external_turn_id(),
+            "audio_generation": getattr(self.voicepe, "audio_generation", None),
+            "close_id": self._close_id,
+            "rearm_token": getattr(self.voicepe, "rearm_token", None),
         }
+        payload.update(details)
         if self.hub is not None and hasattr(self.hub, "timeline"):
             at_ms = (
                 round((time.monotonic() - self._conv_started) * 1000)
@@ -2823,12 +2957,11 @@ class ThinSession:
                 self.room,
                 event_name,
                 session=f"{self._epoch:.6f}" if self._epoch else None,
-                **identifiers,
                 at_ms=at_ms,
-                **details,
+                **payload,
             )
         if self.audio_trace is not None:
-            self.audio_trace.event(event_name, **identifiers, **details)
+            self.audio_trace.event(event_name, **payload)
 
     def _enter_followup(self) -> None:
         """The room is quiet again: dim ring, open mic, one clear next-turn state."""
@@ -2847,10 +2980,25 @@ class ThinSession:
             return
         self._cancel_followup_edge()
         self.sm.state = State.LOUNGE_WINDOW
+        self._trace_event("mic_gate_opened", state=State.LOUNGE_WINDOW.name, reason="followup")
         self._set_led(State.LOUNGE_WINDOW)
         activity = "🔉 Bip — din tur" if self._turn_cue_appended else "🎙️ Din tur"
         self._hub_state("LOUNGE_WINDOW", activity, turn_cue=self._turn_cue_appended)
         self._last_activity = time.monotonic()
+
+    def _cut_audio_boundary(self, reason: str) -> tuple[int | None, int]:
+        """Cut one physical Voice PE audio generation without changing semantics."""
+        cutter = getattr(self.voicepe, "cut_audio_boundary", None)
+        if cutter is None:
+            return None, 0  # Talk/browser audio has no native callback generation.
+        generation, dropped = cutter(reason)
+        self._trace_event(
+            "audio_boundary_cut",
+            reason=reason,
+            audio_generation=generation,
+            drained=dropped,
+        )
+        return generation, dropped
 
     def _cancel_followup_edge(self) -> None:
         task, self._followup_task = self._followup_task, None
@@ -2982,8 +3130,15 @@ class ThinSession:
             if self._physical_link_lost:
                 return  # the old conversation is already closing; never revive its mic
             if hasattr(self.voicepe, "start_streaming"):
-                if await self.voicepe.start_streaming() is False:
+                try:
+                    stream_started = await self.voicepe.start_streaming()
+                except Exception:
                     self._device_stream_fault = True
+                    self._set_led(State.IDLE, error=True)
+                    raise
+                if stream_started is False:
+                    self._device_stream_fault = True
+                    self._set_led(State.IDLE, error=True)
                     if self.hub is not None:
                         self.hub.set_service(
                             "voicepe",
@@ -2995,8 +3150,15 @@ class ThinSession:
                 self._device_stream_fault = False
         else:
             if hasattr(self.voicepe, "stop_streaming"):
-                if await self.voicepe.stop_streaming() is False:
+                try:
+                    stream_stopped = await self.voicepe.stop_streaming()
+                except Exception:
                     self._device_stream_fault = True
+                    self._set_led(State.IDLE, error=True)
+                    raise
+                if stream_stopped is False:
+                    self._device_stream_fault = True
+                    self._set_led(State.IDLE, error=True)
                     if self.hub is not None:
                         self.hub.set_service(
                             "voicepe",
@@ -3013,6 +3175,7 @@ class ThinSession:
                 except Exception as exc:
                     _LOG.warning("thin: reconnect rearm failed [room=%s]: %s", self.room, exc)
                     self._schedule_rearm_retry()
+                    return
         self._set_led(self.sm.state)
 
     def _voicepe_contract_ok(self) -> bool:
@@ -3021,9 +3184,21 @@ class ThinSession:
 
     async def _rearm_device(self) -> str:
         """Reopen the firmware latch without confusing recovery with proof."""
+        generation_before = getattr(self.voicepe, "audio_generation", None)
         outcome = await self.voicepe.rearm_wake_word()
         if outcome != "recovered":
             raise RuntimeError(f"ugyldig wake-rearm-kvittering: {outcome!r}")
+        generation_after = getattr(self.voicepe, "audio_generation", None)
+        if (
+            isinstance(generation_before, int)
+            and isinstance(generation_after, int)
+            and generation_after > generation_before
+        ):
+            self._trace_event(
+                "audio_boundary_cut",
+                reason="rearm-ack",
+                audio_generation=generation_after,
+            )
         readiness = outcome
         if hasattr(self.voicepe, "wake_readiness"):
             self.voicepe.wake_readiness = readiness
@@ -3048,6 +3223,8 @@ class ThinSession:
                 self.room,
                 "🟡 Wake-motor genstartet — klar, men bekræftes ved næste 'Okay Nabu'",
             )
+        if not self._active:
+            self._set_led(State.IDLE)
         return readiness
 
     def _schedule_rearm_retry(self) -> None:
@@ -3058,6 +3235,7 @@ class ThinSession:
             return
         if hasattr(self.voicepe, "wake_readiness"):
             self.voicepe.wake_readiness = "fault"
+        self._set_led(State.IDLE, error=True)
         if self.hub is not None:
             self.hub.set_service(
                 "voicepe",
@@ -3087,6 +3265,7 @@ class ThinSession:
                     )
                     if hasattr(self.voicepe, "wake_readiness"):
                         self.voicepe.wake_readiness = "fault"
+                    self._set_led(State.IDLE, error=True)
                     if self.hub is not None:
                         self.hub.set_service(
                             "voicepe",
@@ -3123,7 +3302,8 @@ class ThinSession:
             played = min(played, self._direct_sent)
         self.playout.set_played(played)
 
-    async def _silence_device(self) -> None:
+    def _clear_local_playback(self) -> None:
+        """Clear only the local owner after a physical/adapter stop is still current."""
         # A stop-latency measurement only belongs to audible output in THIS epoch.
         # Marking every teardown let the next conversation's playback-finish close an
         # old marker and produced impossible 12-22 second "stop latency" values.
@@ -3142,11 +3322,14 @@ class ThinSession:
         self._cancel_direct()
         if self.reply_bus is not None:
             self.reply_bus.end(self.room)
+        self.playback.flush()
+
+    async def _silence_device(self) -> None:
+        self._clear_local_playback()
         if hasattr(self.voicepe, "stop_playback"):
             stopped = await self.voicepe.stop_playback()
             if stopped is False:
                 raise RuntimeError("Voice PE kunne ikke stoppe fysisk playback")
-        self.playback.flush()
 
     async def _play_oneshot(self, pcm: bytes, *, wait_for_physical_finish: bool = False) -> bool:
         """Play one short fixed clip (close cue, error line, spoken warning) on whichever

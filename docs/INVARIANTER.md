@@ -29,15 +29,29 @@ argumenter. Et afvigende eller gammelt kald skal afvises fail-closed.
 Når `full_duplex == false`, skal alle disse være sande samtidig:
 
 1. Realtime konfigureres med `interrupt_response: false`.
-2. Når modelsvaret er begyndt, sendes ingen mikrofonframes til Realtime før fysisk
-   playback-finish plus ekkohale.
-3. `input_audio_buffer.speech_started` betyder kun "VAD så lyd"; det er ikke i sig selv
+2. Den eksisterende `State` er eneste mic-gate: `LISTENING` og `LOUNGE_WINDOW` er åbne;
+   `IDLE`, `THINKING` og `AI_SPEAKING` er lukkede. Playback-flags, timere og
+   `_speaking` beskriver kun mekanik og må ikke være konkurrerende gateejere.
+3. Når brugerens tur er afleveret, sendes ingen mikrofonframes til Realtime før den
+   aktuelle playback-leases fysiske finish plus ekkohale har åbnet `LOUNGE_WINDOW`.
+4. `input_audio_buffer.speech_started` betyder kun "VAD så lyd"; det er ikke i sig selv
    et transport-interrupt.
-4. En VAD-start, der krydser svar-gaten, nulstilles med `input_audio_buffer.clear`.
+5. En VAD-start, der krydser svar-gaten, nulstilles med `input_audio_buffer.clear`.
    Ellers modtager serveren aldrig den efterfølgende stilhed og kan hænge permanent i
    `speech_started`.
-5. Voice PE må ikke love barge-in. Talk-browseren er den separate full-duplex-overflade
+6. Voice PE må ikke love barge-in. Talk-browseren er den separate full-duplex-overflade
    og må eksplicit bruge `interrupt_response: true` med browser-AEC.
+
+Tre og kun tre fysiske audio-generation-grænser er autoritative:
+
+1. første gyldige `speech_stopped` på en åben Voice PE-tur;
+2. den aktuelle playback-leases `playback_finished` plus ekkohale, atomisk før
+   `LOUNGE_WINDOW` åbnes;
+3. exact korreleret `token:recovered`-ACK efter fuld teardown.
+
+Grænsen øger generationen synkront og dræner køen. En callback, der allerede har
+fanget den gamle generation, er derefter inert. Der må aldrig skæres ved wake eller
+idempotent stream-keepalive; det ville klippe den bevidst bevarede same-breath-lyd.
 
 Den forbudte kombination er: **lokal half-duplex mic-gate + server-side automatisk
 response-interrupt**. Den gav feltfejlen 2026-08-18: tale registreret 139 ms før fysisk
@@ -48,6 +62,8 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
 1. Ét fysisk “Okay Nabu” giver én wake-event, åbner privacy-gated mic og præcis én
    Realtime-session.
 2. Første ytring og alle naturlige opfølgninger kører i samme session uden nyt wakeword.
+   Efter et fysisk svar er opfølgningsvinduet fire sekunder; fysisk stilhed lukker
+   mekanisk uden at foregive en semantisk modelbeslutning.
 3. En almindelig klar brugertur besvares direkte i én Realtime-respons. Kun en handling
    eller et opslag bruger det nødvendige domæneværktøj; `end_conversation` bruges kun
    til semantisk afslutning, og `wait_for_user` kun til ikke-henvendt tale. De to
@@ -81,6 +97,8 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
     forskellige sandheder. UI må ikke udlede "klar" af en åben socket. Hver session,
     tur, providerrespons, værktøjskald og playback skal kunne korreleres; events fra en
     gammel forbindelse eller gammel playback må ikke ændre den aktuelle tilstand.
+    Den sammenhængende trace-nøgle er `session_id → provider_generation → turn_id →
+    audio_generation → response_id/tool-call-id → playback_id → close_id → rearm_token`.
 11. `response.done` er kun providerens generationsslut, aldrig bevis for et stille rum.
     Et publiceret svar ejer én tur-bundet playback-lease fra request gennem fysisk start,
     fysisk finish og ekkohale. Først den samme leases finish må åbne opfølgningen eller

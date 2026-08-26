@@ -152,7 +152,10 @@ def test_talk_wakes_only_after_successful_capture_and_releases_tracks():
     assert "micBtn.disabled = !wsReady;" in html
     assert 'window.addEventListener("pagehide", micStop)' in html
     assert 'window.addEventListener("beforeunload", micStop)' in html
-    assert 'wsReady = false; micBtn.disabled = true; micStop(); setState("offline"' in html
+    assert (
+        "wsReady = false; micBtn.disabled = true; micStop(); stopReply(false); "
+        'setState("offline"' in html
+    )
     assert 'if (ev.state === "IDLE") { endTurn(); micStop(); }' in html
     assert 'micBtn.setAttribute("aria-pressed", "true")' in html
     assert "Talk-mikrofonen understøttes ikke inde i dette Home Assistant-panel" in html
@@ -172,6 +175,9 @@ def test_talk_v2_commits_only_acknowledged_text_and_detects_stale_sockets():
     assert "Date.now() - lastPong > 15000" in html
     assert "generation !== socketGeneration" in html
     assert "playback_id: playbackId" in html
+    assert "ev.playback_id === currentPlaybackId" in html
+    assert "stopReply(false); endTurn();" in html
+    assert 'micStop(); stopReply(false); setState("offline"' in html
 
 
 def test_test_tab_exposes_bounded_live_realtime_preflight():

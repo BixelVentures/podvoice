@@ -7,14 +7,27 @@
 ## Den eneste produktionsvej
 
 ```text
-Voice PE hører “Okay Nabu”
-  → firmware åbner podvoice_audio og udsender ét wake-event
-  → PodVoice åbner præcis én OpenAI Realtime-session
-  → al tale, værktøjer, svar og opfølgninger bliver i samme session
-  → Realtime fortolker en tydelig afslutningshensigt og signalerer den til PodVoice
-  → fysisk svarslut, timeout eller fejl lukker session og mikrofon præcis én gang
-  → Voice PE er straks tilbage i wakeword
+IDLE
+  → Voice PE hører fysisk “Okay Nabu” og udsender ét wake-event
+LISTENING
+  → PodVoice åbner præcis én OpenAI Realtime-session og streamer brugertalen
+  → Realtime speech_stopped
+THINKING
+  → Realtime svarer direkte eller bruger nødvendige værktøjer
+  → firmware melder fysisk playback_started
+AI_SPEAKING
+  → firmware melder playback_finished; PodVoice venter kort ekkohale
+LOUNGE_WINDOW
+  → opfølgning fortsætter i samme session → THINKING → AI_SPEAKING → LOUNGE_WINDOW
+  → Realtime signalerer end_conversation, eller fire sekunders stilhed udløber
+CLOSING
+  → højst ét kort farvel eller stille lukning
+  → præcis én teardown → exact korreleret firmware-rearm
+IDLE
 ```
+
+`CLOSING` er den ene close-transaktion, ikke en konkurrerende eller sjette
+runtime-`State`.
 
 Home Assistant Assist deltager ikke i samtalen. ESPHomes `voice_assistant`-protokol
 må kun fungere som lavniveau-abonnementet, der bærer mikrofonbytes over native API;
@@ -59,8 +72,10 @@ aktuelle tur.
 
 ## Ejerskab
 
-- Voice PE ejer wakeword, mikrofonport, LED og assistentens stemme.
-- PodVoice ejer samtalens transport og lifecycle.
+- Voice PE-firmware ejer wakeword, conversation-latch, fysisk mic-forward,
+  playback-start/slut/fault og korreleret rearm-bevis.
+- PodVoice/`ThinSession` ejer samtalens transport, state-ejet mic-gate, LED-kommando,
+  værktøjsdispatch, timeout, teardown og rearm-anmodning.
 - OpenAI Realtime ejer forståelse, svar og valg af eksponerede værktøjer.
 - HA MCP ejer adgang til eksponerede hjemmeenheder og HA-værktøjer.
 - PodConnect Control/HA ejer Spotify-søgning og musikstyring.
@@ -98,10 +113,28 @@ Lukning har to adskilte ejere:
 
 ## Half-duplex først
 
-Mens pucken afspiller et svar, sendes dens mikrofon ikke videre til OpenAI. Det er den
-pålidelige første version: ingen selvsvar og ingen falske afbrydelser fra højttaleren.
-Opfølgningen fortsætter i samme session, så half-duplex betyder ikke én kommando pr.
-wake. Fuld duplex og tale-stop midt i svar er en separat senere gate.
+`State` er den eneste gate for Voice PE-lyd til Realtime:
+
+| State | Mic til Realtime | LED |
+|---|---|---|
+| `IDLE` | lukket | slukket efter bevist teardown |
+| `LISTENING` | åben | klar cyan |
+| `THINKING` | lukket | amber |
+| `AI_SPEAKING` | lukket | grøn fra fysisk playback-start |
+| `LOUNGE_WINDOW` | åben | dæmpet cyan |
+
+Den native callback fanger sin audio-generation synkront. `VoicePELink` må kun øge
+generationen og dræne køen ved gyldigt `speech_stopped`, efter current playback-finish
+plus ekkohale og ved korreleret rearm-ACK. En delayed callback fra tur A kan derfor ikke
+blive opfølgning B. Der skæres aldrig ved wake, så same-breath-prefix bevares.
+
+Tidslinjen binder hele kæden som `session_id → provider_generation → turn_id →
+audio_generation → response/tool → playback_id → close_id → rearm_token`, så et
+tilfældigt korrekt svar aldrig kan skjule forkert input eller forkert ejer.
+
+Half-duplex betyder ikke én kommando pr. wake: Realtime-socketten holdes åben og
+konteksten bevares gennem opfølgninger. Fuld duplex og tale-stop midt i svar er en
+separat senere gate.
 
 ## Firmwarekontrakten
 
@@ -116,7 +149,14 @@ Godkendt firmware skal statisk og i renderet konfiguration have:
 - nul `voice_assistant.start`;
 - præcis ét `wake_okay_nabu`-event;
 - `podvoice_channel_v1` og `same_breath_v1`;
-- mikrofonstart ved den lokale wakekant, uden wake-chime eller 300 ms forsinkelse.
+- mikrofonstart ved den lokale wakekant, uden wake-chime eller 300 ms forsinkelse;
+- korreleret reset/rearm med frisk mic-fremdrift før `recovered`;
+- korrelerede `podvoice_playback_started`, `podvoice_playback_finished` og fault-events;
+- publiceret `led_ring`, som add-onen kan styre uden at gøre LED til lifecycle-bevis.
+
+En add-on-only ændring må genbruge denne ABI og kræver ingen flash. Ændres ESPHome,
+build-marker, services, capability-listen eller light-entity-kontrakten, er kandidaten
+ikke længere add-on-only og skal bygge, flashes og bestå firmwaregaten på ny.
 
 ## Maskinelle bevislag
 

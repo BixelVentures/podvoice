@@ -35,8 +35,11 @@ class FakeVoicePELink:
         self.started = False
         self.streaming = False
         self.rearm_calls = 0
+        self.rearm_token: int | None = None
         self.wake_readiness = "unknown"
         self.closed = False
+        self._audio_generation = 0
+        self.audio_boundary_cuts: list[tuple[str, int, int]] = []
 
     def feed(self, frames: list[bytes]) -> None:
         """Enqueue PCM frames to be yielded by ``pcm_frames()``."""
@@ -59,6 +62,8 @@ class FakeVoicePELink:
     async def rearm_wake_word(self) -> str:
         await asyncio.sleep(0)
         self.rearm_calls += 1
+        self.rearm_token = self.rearm_calls
+        self.cut_audio_boundary("rearm-ack")
         return "recovered"
 
     def drain_mic(self) -> int:
@@ -67,6 +72,16 @@ class FakeVoicePELink:
             self._audio_q.get_nowait()
             n += 1
         return n
+
+    @property
+    def audio_generation(self) -> int:
+        return self._audio_generation
+
+    def cut_audio_boundary(self, reason: str) -> tuple[int, int]:
+        self._audio_generation += 1
+        dropped = self.drain_mic()
+        self.audio_boundary_cuts.append((reason, self._audio_generation, dropped))
+        return self._audio_generation, dropped
 
     def pcm_frames(self) -> AsyncIterator[bytes]:
         async def _gen() -> AsyncIterator[bytes]:
@@ -81,7 +96,8 @@ class FakeVoicePELink:
     async def play_url(self, url: str) -> None:
         self.announced_urls.append(url)
 
-    async def stop_playback(self) -> bool:
+    async def stop_playback(self, *, playback_id: str | None = None) -> bool:
+        _ = playback_id
         self.stop_playback_calls += 1
         return self.stop_playback_results.pop(0) if self.stop_playback_results else True
 
