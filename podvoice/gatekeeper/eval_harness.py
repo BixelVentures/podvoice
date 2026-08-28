@@ -648,6 +648,21 @@ class SafeEvalTools:
     """
 
     _RESULTS: ClassVar[dict[str, dict[str, Any]]] = {
+        "set_timer": {
+            "ok": True,
+            "summary": "Timeren er sat til ti minutter.",
+            "data": {"id": 1, "seconds": 600},
+        },
+        "list_timers": {
+            "ok": True,
+            "summary": "Der kører én timer med ti minutter tilbage.",
+            "data": {"timers": [{"id": 1, "remaining_s": 600}]},
+        },
+        "cancel_timer": {
+            "ok": True,
+            "summary": "Timeren er annulleret.",
+            "data": {"id": 1},
+        },
         "google_web_sogning": {
             "ok": True,
             "summary": "FCK vandt to nul i den seneste kamp.",
@@ -1798,6 +1813,7 @@ class LiveEvalService:
         *,
         api_key: str,
         scenario_ids: set[str] | None = None,
+        repeats: int = 1,
         model: str = DEFAULT_MODEL,
         voice: str = DEFAULT_VOICE,
         instructions: str = SYSTEM_PROMPT_DA,
@@ -1811,6 +1827,12 @@ class LiveEvalService:
                 "started_at": self._started_at,
                 "deadline_s": self._max_run_s,
                 "error": "En live-evaluering kører allerede.",
+            }
+        if isinstance(repeats, bool) or not isinstance(repeats, int) or not 1 <= repeats <= 5:
+            return {
+                "ok": False,
+                "status": "invalid",
+                "error": "Scenarie-gentagelser skal være et heltal fra en til fem.",
             }
         known = {scenario.id for scenario in load_scenarios()}
         unknown = (scenario_ids or set()).difference(known)
@@ -1829,6 +1851,7 @@ class LiveEvalService:
                 run_id=run_id,
                 api_key=api_key,
                 scenario_ids=scenario_ids,
+                repeats=repeats,
                 model=model,
                 voice=voice,
                 instructions=instructions,
@@ -1840,6 +1863,7 @@ class LiveEvalService:
             "ok": True,
             "status": "running",
             "run_id": run_id,
+            "repeats": repeats,
             "started_at": self._started_at,
             "deadline_s": self._max_run_s,
         }
@@ -2547,6 +2571,7 @@ class LiveEvalService:
         *,
         api_key: str,
         scenario_ids: set[str] | None = None,
+        repeats: int = 1,
         model: str = DEFAULT_MODEL,
         voice: str = DEFAULT_VOICE,
         instructions: str = SYSTEM_PROMPT_DA,
@@ -2562,6 +2587,13 @@ class LiveEvalService:
             }
         async with self._lock:
             run_id = run_id or self._new_run_id()
+            if isinstance(repeats, bool) or not isinstance(repeats, int) or not 1 <= repeats <= 5:
+                return {
+                    "ok": False,
+                    "status": "invalid",
+                    "run_id": run_id,
+                    "error": "Scenarie-gentagelser skal være et heltal fra en til fem.",
+                }
             effective_prompt = (instructions or SYSTEM_PROMPT_DA).strip()
             if len(effective_prompt.encode("utf-8")) > MAX_LIVE_EVAL_PROMPT_BYTES:
                 return {
@@ -2603,7 +2635,7 @@ class LiveEvalService:
                     "results": [],
                     "deadline_s": self._max_run_s,
                 }
-            selected_turns = sum(len(scenario.turns) for scenario in selected)
+            selected_turns = repeats * sum(len(scenario.turns) for scenario in selected)
             response_edges = selected_turns * MAX_EVAL_RESPONSE_EDGES_PER_TURN
             budget = EvalBudget(
                 max_turns=selected_turns,
@@ -2656,7 +2688,8 @@ class LiveEvalService:
                 }
             try:
                 async with asyncio.timeout(self._max_run_s):
-                    for scenario in selected:
+                    run_plan = [scenario for _ in range(repeats) for scenario in selected]
+                    for scenario in run_plan:
                         elapsed = self._monotonic() - token_window_started
                         if elapsed >= 60.0:
                             token_window_started = self._monotonic()
@@ -2743,6 +2776,8 @@ class LiveEvalService:
                     "selected_ok": False,
                     "release_preflight_passed": False,
                     "results": [asdict(result) for result in results],
+                    "repeats_requested": repeats,
+                    "repeats_completed": len(results) // len(selected),
                     "provider_provenance": _provider_provenance_summary(results, budget),
                     "budget": asdict(budget),
                     "deadline_s": self._max_run_s,
@@ -2772,6 +2807,8 @@ class LiveEvalService:
                 "model": model,
                 **prompt_metadata,
                 "results": [asdict(result) for result in results],
+                "repeats_requested": repeats,
+                "repeats_completed": len(results) // len(selected),
                 "provider_provenance": _provider_provenance_summary(results, budget),
                 "budget": asdict(budget),
                 "deadline_s": self._max_run_s,

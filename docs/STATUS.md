@@ -1,27 +1,75 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-08-26.
+Senest opdateret: 2026-08-28.
 
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Installeret software:** PodVoice add-on v1.13.48 fra exact main
-`9e0f56a15622cde520e186ebe24f76cb56bf44fc` kører på HA Green, og Voice PE er
+**Installeret software:** PodVoice add-on v1.13.49 fra exact main
+`f1808517c56b23330b7a21b3de6f5f59d15192df` kører på HA Green, og Voice PE er
 OTA-flashet med den HA-byggede v1.13.46-produktionsfirmware fra exact main
 `ff10cc3e93eebdb9b84fb88240338b0be5a38aea`. Automatisk native-API-reconnect,
 firmwarekontrakt, mic channel 1/gain 16 og `okay_nabu` er fysisk observeret. Installation
 må ikke overskrive den fortsat afviste golden-chain-status.
-**Aktuel gate:** v1.13.48 er **NO-GO**. Den startede korrekt, genfandt Voice PE samt 19
-HA/MCP-værktøjer og gennemførte én teardown/rearm. Den fysiske trace
-`20260826T154813-263` transskriberede dog samme matematikspørgsmål i to efterfølgende
-ture og fejlroutede begge til `get_time(fields=["weekday"])`. Kandidaten er ikke golden
+**Aktuel gate:** v1.13.49 er **NO-GO**. Den fysiske prøve 28. august kl. 12.35-12.36
+beviste ren første transskription, ren opfølgning og samme Realtime-session, men
+Realtime kaldte fejlagtigt `list_timers` på “Læg seks til.”. Kandidaten er ikke golden
 og må ikke gå til 10/10.
 
-**Aktiv udviklingskandidat:** v1.13.49 er ét add-on-only delta oven på installeret
-v1.13.48. Voice PE-firmwaren forbliver v1.13.46; wake, gain, VAD, playback, prompt,
-reasoning og værktøjsskema er frosne.
+**Aktiv udviklingskandidat:** v1.13.50 må kun præcisere timer-værktøjernes semantiske
+ejergrænse. Voice PE-firmwaren forbliver v1.13.46; wake, gain, VAD, lydtransport,
+playback, lifecycle, prompt og reasoning er frosne.
 
-### Aktiv beslutning 26. august — én state-ejet mic-gate per Realtime-tur
+### Aktiv beslutning 28. august — timer-schema må ikke konkurrere med matematik
+
+- **Observeret fejl og stærkeste direkte evidens:** Første tur blev transskriberet som
+  “Hvad er tolv gange syv?”, svaret direkte uden værktøj og afspillet fysisk med
+  `speech-stop -> audible = 1447 ms`. Opfølgningen blev korrekt transskriberet som
+  “Læg seks til.” i samme provider-session, men modellen valgte `list_timers`; den
+  ekstra værktøjsrunde gjorde `speech-stop -> audible = 3883 ms`. “Slut.” gav præcis ét
+  `end_conversation`, én teardown og en korreleret rearm-ACK. Der blev ikke observeret
+  et efterfølgende wake, så rearm-kontinuitet er fortsat ubevist.
+- **Hele kæden og årsagsgrænsen:** Fysisk lyd → providertransskription → Realtime-
+  kontekst → værktøjsvalg → værktøjsresultat → ekstra modelrespons → fysisk playback.
+  Lydgrænsen leverede `[A, B]` som planlagt; fejlen opstod først ved Realtime-
+  værktøjsvalget. Den oplevede “gamle samtale” må derfor ikke bruges som evidens for
+  stale audio i denne trace.
+- **Berørte invarianter og falsificerbar hypotese:** Realtime ejer fortsat matematik,
+  opfølgning og værktøjsvalg. Timer-værktøjer må kun vælges ved en klar timerhensigt.
+  Hypotesen er, at de brede beskrivelser af `set_timer`, `list_timers` og
+  `cancel_timer` lader en kort numerisk opfølgning konkurrere med timerdomænet, selv om
+  standardprompten allerede kræver direkte matematik uden værktøj.
+- **Eksplicitte ikke-mål:** ingen lokal frase-, transcript- eller matematikrouting;
+  ingen firmware-, gain-, VAD-, state-, mic-gate-, playback-, timeout-, teardown-,
+  rearm-, HA/MCP- eller promptændring.
+- **Planlagte regressioner, gates og rollback:** Præcisér kun timerdeklarationernes
+  anvendelsesgrænse og test schemaet statisk. Kør derefter den eksisterende
+  sideeffektfrie Realtime-sekvens mod hele produktionsværktøjskassen fem gange; kun den
+  eksplicitte tidstur må kalde `get_time`, og ingen matematiktur må kalde timer- eller
+  andre domæneværktøjer. Hårdt samlet prisloft er $5. En ulovlig tool-selection stopper
+  kandidaten uden fysisk test. Rollback er hele schema-deltaet ved timerregression eller
+  manglende forbedring; der må ikke tilføjes lokal semantik som plaster.
+- **Faktisk v1.13.50-delta og lokal gate:** Kun beskrivelserne af `set_timer`,
+  `list_timers` og `cancel_timer` er præciseret med den samme model-ejede grænse:
+  seneste klare hensigt skal være en timerhandling; matematik og opfølgning til et
+  ikke-timeremne er eksplicit uden for værktøjets formål. Standardprompten, dispatch og
+  al mekanik er byteuændret. Den statiske schema-regression samt hele den hurtige gate
+  med Ruff, formattering, mypy og fuldt testset er grøn på 38,9 sekunder.
+- **Maskinel kandidatstatus:** Den fokuserede diagnose er nu én femturs-session med
+  matematik → opfølgning → tid → ugedag → modelafslutning og kan køre fem friske
+  sessioner under én samlet $5-grænse uden budgetprobe eller eksterne effekter. Tre
+  positive timer-fixtures beviser samtidig `set_timer`, `list_timers` og `cancel_timer`
+  mod de faktiske produktionsdeklarationer. Fast-gaten er grøn på 39,4 sekunder.
+  Uafhængigt adversarial review genkørte den grøn på 38,7 sekunder og gav GO med
+  P0=0/P1=0.
+- **Resterende stop før installation/fysisk test:** Én releasegate på dette frosne diff,
+  build/CI og installation mangler. Derefter skal den sideeffektfrie live-gate være 5/5
+  på de installerede bits. Live-rapporten skal samtidig bevise den aktive prompt-
+  identitet; en ukendt eller utilsigtet brugerdefineret prompt stopper kandidaten i
+  stedet for at blive skjult af schemaændringen. Først derefter åbnes én fysisk canary;
+  v1.13.50 er endnu ikke fysisk golden.
+
+### Afsluttet beslutning 26. august — én state-ejet mic-gate per Realtime-tur
 
 - **Observeret fejl og stærkeste direkte evidens:** Den armerede fysiske trace
   `20260826T154813-263` modtog først “Hvad er tolv gange syv?”, men Realtime valgte
@@ -88,7 +136,7 @@ reasoning og værktøjsskema er frosne.
 
 Alt nedenfor bevares som årsags-, regressions- og rollback-evidens. Historiske ord som
 “skal”, versionsplaner og kandidater er ikke længere aktive beslutninger og må aldrig
-tilsidesætte den aktuelle v1.13.49-beslutning ovenfor, `docs/INVARIANTER.md`,
+tilsidesætte den aktuelle v1.13.50-beslutning ovenfor, `docs/INVARIANTER.md`,
 `docs/PRODUKTMÅL.md` eller `docs/ARKITEKTUR.md`.
 
 ### Historisk beslutning 26. august — sen gammel mic-frame krydsede næste wake

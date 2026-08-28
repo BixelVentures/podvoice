@@ -451,7 +451,7 @@ async def run(cfg: Config) -> None:
             fixture=None,
             scenario=None,
             turn_index=0,
-            repeats=3,
+            repeats=None,
         ):
             from .openai_realtime import MINI_MODEL
 
@@ -464,7 +464,7 @@ async def run(cfg: Config) -> None:
                     fixture=fixture,
                     scenario=scenario,
                     turn_index=turn_index,
-                    repeats=repeats,
+                    repeats=3 if repeats is None else repeats,
                     model=MINI_MODEL if cfg.force_mini else cfg.openai_model,
                     voice=cfg.openai_voice,
                     instructions=cfg.system_prompt,
@@ -475,6 +475,7 @@ async def run(cfg: Config) -> None:
             return live_eval_service.start(
                 api_key=cfg.openai_api_key,
                 scenario_ids=scenario_ids,
+                repeats=1 if repeats is None else repeats,
                 model=MINI_MODEL if cfg.force_mini else cfg.openai_model,
                 voice=cfg.openai_voice,
                 instructions=cfg.system_prompt,

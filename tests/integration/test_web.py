@@ -6,6 +6,7 @@ import asyncio
 import json
 import time
 
+import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 from gatekeeper.events import EventType
@@ -172,6 +173,55 @@ async def test_live_eval_endpoint_is_bounded_and_never_handles_a_key():
         invalid = await client.post("/api/eval/live", json={"scenario_ids": [1]})
         assert invalid.status == 400
         assert len(calls) == 2
+
+
+async def test_live_eval_endpoint_forwards_five_bounded_repeats():
+    calls: list[dict] = []
+
+    async def live_eval(*, action="start", scenario_ids=None, run_id=None, repeats=1):
+        calls.append(
+            {
+                "action": action,
+                "scenario_ids": scenario_ids,
+                "run_id": run_id,
+                "repeats": repeats,
+            }
+        )
+        return {"ok": True, "status": "running", "run_id": "eval-golden"}
+
+    app = create_app(StatusHub(), {}, live_eval=live_eval)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post(
+            "/api/eval/live",
+            json={"scenario_ids": ["arithmetic-followup-observed"], "repeats": 5},
+        )
+
+    assert response.status == 202
+    assert calls == [
+        {
+            "action": "start",
+            "scenario_ids": {"arithmetic-followup-observed"},
+            "run_id": None,
+            "repeats": 5,
+        }
+    ]
+
+
+@pytest.mark.parametrize("repeats", [0, 6, True, 1.5, "5"])
+async def test_live_eval_endpoint_rejects_invalid_repeats_before_callback(repeats):
+    called = False
+
+    async def live_eval(**kwargs):
+        nonlocal called
+        called = True
+        return {"ok": True, "status": "running", "run_id": "must-not-run"}
+
+    app = create_app(StatusHub(), {}, live_eval=live_eval)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post("/api/eval/live", json={"repeats": repeats})
+
+    assert response.status == 400
+    assert called is False
 
 
 async def test_live_eval_api_preserves_targeted_truth_separate_from_release_evidence():

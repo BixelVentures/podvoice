@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.13.50 — timer-værktøjer konkurrerer ikke med matematik
+
+- Præciserer kun de tre eksisterende timerdeklarationer: de må vælges ved en klar
+  timerhensigt, aldrig som svar på matematik eller en opfølgning til et andet emne.
+- Den fysiske v1.13.49-trace hørte både “Hvad er tolv gange syv?” og “Læg seks til.”
+  korrekt i samme Realtime-session, men kaldte `list_timers` på opfølgningen. Derfor er
+  dette et afgrænset Realtime-schema-delta; der tilføjes ingen lokal routing.
+- Tilføjer en sideeffektfri målrettet gate: fem friske sessioner med fem ture i hver
+  samt positive lokale set/list/cancel-timer-fixtures. Hele produktionsschemaet er
+  synligt for modellen, mens ingen rigtig timer-, hjem- eller musikhandling kan køres.
+- Firmware, prompt, model, reasoning, gain, VAD, lydtransport, playback, timeout,
+  teardown og rearm er uændrede.
+
 ## 1.13.49 — én enkel lydgrænse mellem fysiske ture
 
 - Bevarer den virkende firmware-, Realtime-, værktøjs- og playback-vej uændret, men

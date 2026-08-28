@@ -365,9 +365,10 @@
       <h2>Maskinel Realtime-preflight</h2>
       <p class="sub" style="margin:2px 0 10px">Kører den rigtige model og produktionsprompt med faste, sikre testdata. Nabu og Talk låses, mens testen kører. Hårdt samlet prisloft: $5. Første sikre scenariesvar er samtidig providerpreflight; der køres ingen ekstra budgetprobe. En brugerdefineret prompt over 32 KiB blokeres kun i denne sikre live-test og ændres aldrig i produktion. Testen kan ikke styre hjemmet, musik eller timere og erstatter ikke den fysiske test.</p>
       <button id="eval_live">Kør sikker preflight</button>
+      <button id="eval_golden" class="ghost">Test golden-chain-semantik 5×</button>
       <button id="eval_close" class="ghost">Test samtaleafslutning (8 ture)</button>
       <button id="eval_replay" class="ghost">Genafspil seneste OpenAI-lyd 3×</button>
-      <p class="sub" style="margin:8px 0 0">Den korte test kører præcis 5 scenarier og 8 ture om samme-session-kontekst, eksplicit samtalestop og mediestop som negativ kontrol. Hårdt samlet prisloft: $5. Ingen eksterne effekter.</p>
+      <p class="sub" style="margin:8px 0 0">Golden-chain-testen kører matematik → opfølgning → tid → ugedag → afslutning i samme session, fem friske gange. Den korte afslutningstest kører præcis 5 scenarier og 8 ture. Hårdt samlet prisloft: $5. Ingen eksterne effekter.</p>
       <div id="eval_result" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
     </div>
     <div class="section">
@@ -1168,6 +1169,7 @@ setInterval(function () {
 // ---- Bounded live Realtime preflight; fixed tools, no HA/MCP side effects ----
 (function () {
   var button = document.getElementById("eval_live");
+  var goldenButton = document.getElementById("eval_golden");
   var closeButton = document.getElementById("eval_close");
   var replayButton = document.getElementById("eval_replay");
   var box = document.getElementById("eval_result");
@@ -1178,10 +1180,11 @@ setInterval(function () {
     "semantic-close",
     "explicit-short-close"
   ];
+  var goldenScenarioIds = ["arithmetic-followup-observed"];
   var pollGeneration = 0;
-  if (!button || !closeButton || !replayButton || !box) return;
+  if (!button || !goldenButton || !closeButton || !replayButton || !box) return;
   function setButtonsDisabled(disabled) {
-    button.disabled = disabled; closeButton.disabled = disabled; replayButton.disabled = disabled;
+    button.disabled = disabled; goldenButton.disabled = disabled; closeButton.disabled = disabled; replayButton.disabled = disabled;
   }
   function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function renderRunning(data) {
@@ -1298,11 +1301,14 @@ setInterval(function () {
     }
     if (generation === pollGeneration) render({status:"failed",error:"Preflighten overskred sit deklarerede tidsloft."});
   }
-  async function startLiveEval(scenarioIds) {
+  async function startLiveEval(scenarioIds, repeats) {
     var generation = ++pollGeneration;
     setButtonsDisabled(true); renderRunning(null);
     try {
-      var body = scenarioIds ? JSON.stringify({scenario_ids:scenarioIds}) : "{}";
+      var payload = {};
+      if (scenarioIds) payload.scenario_ids = scenarioIds;
+      if (repeats) payload.repeats = repeats;
+      var body = JSON.stringify(payload);
       var response = await fetch("api/eval/live", {method:"POST",headers:{"Content-Type":"application/json"},body:body});
       var data = await response.json();
       if ((data.status === "running" || data.status === "busy") && data.run_id) {
@@ -1313,6 +1319,9 @@ setInterval(function () {
   }
   button.onclick = function () {
     return startLiveEval(null);
+  };
+  goldenButton.onclick = function () {
+    return startLiveEval(goldenScenarioIds, 5);
   };
   closeButton.onclick = function () {
     return startLiveEval(closeScenarioIds);
