@@ -728,11 +728,13 @@ class ToolRouter:
             decls += [
                 {
                     "name": "set_timer",
-                    "description": "Start a countdown timer that will ring on this speaker "
-                    "when it finishes. Pass the duration EXACTLY as the user said it, split "
-                    "into minutes and seconds — 'ti minutter' -> minutes=10; 'halvandet "
-                    "minut' -> minutes=1, seconds=30. Do NOT convert units yourself. "
-                    "Confirm the duration back to the user in Danish.",
+                    "description": "Use only when the user's latest clear intent is to start "
+                    "a countdown timer that will ring on this speaker. Never use this for "
+                    "arithmetic or a numerical follow-up to a non-timer topic. Pass the "
+                    "duration EXACTLY as the user said it, split into minutes and seconds — "
+                    "'ti minutter' -> minutes=10; 'halvandet minut' -> minutes=1, seconds=30. "
+                    "Do NOT convert units yourself. Confirm the duration back to the user in "
+                    "Danish.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -753,13 +755,17 @@ class ToolRouter:
                 },
                 {
                     "name": "list_timers",
-                    "description": "List the currently running timers with remaining time.",
+                    "description": "Use only when the user's latest clear intent is to inspect "
+                    "currently running countdown timers, or when a timer cancellation needs "
+                    "an explicit timer choice. Never use this for arithmetic, current time or "
+                    "date, or a follow-up to a non-timer topic.",
                     "parameters": {"type": "object", "properties": {}},
                 },
                 {
                     "name": "cancel_timer",
-                    "description": "Cancel a running timer. Without an id, cancels the one "
-                    "expiring next.",
+                    "description": "Use only when the user's latest clear intent is to cancel "
+                    "a running countdown timer. Never use this for arithmetic or a follow-up "
+                    "to a non-timer topic. Without an id, cancels the one expiring next.",
                     "parameters": {
                         "type": "object",
                         "properties": {"id": {"type": "integer", "description": "Timer id."}},
