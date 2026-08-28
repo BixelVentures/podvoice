@@ -405,6 +405,7 @@ async def _live_eval(request: web.Request) -> web.Response:
             status=400,
         )
     raw_ids = body.get("scenario_ids")
+    raw_repeats = body.get("repeats")
     scenario_ids: set[str] | None = None
     if raw_ids is not None:
         if (
@@ -421,7 +422,23 @@ async def _live_eval(request: web.Request) -> web.Response:
                 status=400,
             )
         scenario_ids = set(raw_ids)
-    report = await run(action="start", scenario_ids=scenario_ids)
+    kwargs: dict[str, Any] = {"action": "start", "scenario_ids": scenario_ids}
+    if raw_repeats is not None:
+        if (
+            isinstance(raw_repeats, bool)
+            or not isinstance(raw_repeats, int)
+            or not 1 <= raw_repeats <= 5
+        ):
+            return web.json_response(
+                {
+                    "ok": False,
+                    "status": "invalid",
+                    "error": "repeats skal være et heltal fra en til fem.",
+                },
+                status=400,
+            )
+        kwargs["repeats"] = raw_repeats
+    report = await run(**kwargs)
     status = {"running": 202, "busy": 409, "invalid": 400, "failed": 502}.get(
         report.get("status"), 200
     )
