@@ -1,6 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from scripts import dev_cycle
@@ -272,7 +273,13 @@ def test_tools_must_live_beside_selected_python(monkeypatch: pytest.MonkeyPatch,
         sibling_tool(str(python), "ruff")
 
 
-def test_preflight_rejects_non_312_python(tmp_path: Path):
+def test_preflight_rejects_non_312_python(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    gib = 1024**3
+    monkeypatch.setattr(
+        dev_cycle.shutil,
+        "disk_usage",
+        lambda _root: SimpleNamespace(total=100 * gib, used=50 * gib, free=50 * gib),
+    )
     fake_python = tmp_path / "python"
     fake_python.write_text("#!/bin/sh\necho 3.11\n", encoding="utf-8")
     fake_python.chmod(0o755)
