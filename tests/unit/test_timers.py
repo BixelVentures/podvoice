@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from gatekeeper.timers import MAX_TIMERS, TimerManager
+from gatekeeper.tools import ToolRouter
 
 
 def _manager():
@@ -14,6 +15,18 @@ def _manager():
         rung.append(label)
 
     return TimerManager(announce), rung
+
+
+def test_timer_tool_descriptions_have_a_narrow_semantic_boundary():
+    tm, _ = _manager()
+    bridge = ToolRouter(None, timers=tm)
+    declarations = {row["name"]: row for row in bridge.declarations()}
+
+    for name in ("set_timer", "list_timers", "cancel_timer"):
+        description = declarations[name]["description"].lower()
+        assert "latest clear intent" in description
+        assert "arithmetic" in description
+        assert "non-timer topic" in description
 
 
 async def test_set_list_cancel():
