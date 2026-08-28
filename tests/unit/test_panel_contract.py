@@ -184,6 +184,7 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     html = PANEL.read_text()
 
     assert 'id="eval_live"' in html
+    assert 'id="eval_golden"' in html
     assert 'id="eval_replay"' in html
     assert 'id="eval_result"' in html
     assert 'fetch("api/eval/live"' in html
@@ -225,20 +226,39 @@ def test_test_tab_exposes_exact_eight_turn_semantic_close_profile():
     assert 'id="eval_close"' in html
     assert "Test samtaleafslutning (8 ture)" in html
     assert "præcis 5 scenarier og 8 ture" in html
-    assert "samme-session-kontekst" in html
-    assert "mediestop som negativ kontrol" in html
     assert "Hårdt samlet prisloft: $5" in html
     assert "Ingen eksterne effekter" in html
     assert html.count(expected_profile) == 1
     assert "return startLiveEval(closeScenarioIds);" in html
     assert "return startLiveEval(null);" in html
-    assert "JSON.stringify({scenario_ids:scenarioIds})" in html
-    assert "button.disabled = disabled; closeButton.disabled = disabled;" in html
+    assert "if (scenarioIds) payload.scenario_ids = scenarioIds;" in html
+    assert "if (repeats) payload.repeats = repeats;" in html
+    assert "button.disabled = disabled; goldenButton.disabled = disabled;" in html
     assert "replayButton.disabled = disabled;" in html
 
     manifest = json.loads((PANEL.parents[1] / "eval_scenarios.json").read_text())
     scenarios = {scenario["id"]: scenario for scenario in manifest["scenarios"]}
     assert sum(len(scenarios[scenario_id]["turns"]) for scenario_id in scenario_ids) == 8
+
+
+def test_test_tab_exposes_exact_five_by_five_golden_semantic_profile():
+    html = PANEL.read_text()
+    manifest = json.loads((PANEL.parents[1] / "eval_scenarios.json").read_text())
+    scenarios = {scenario["id"]: scenario for scenario in manifest["scenarios"]}
+    golden = scenarios["arithmetic-followup-observed"]
+
+    assert 'id="eval_golden"' in html
+    assert "Test golden-chain-semantik 5×" in html  # noqa: RUF001 - exact UI copy
+    assert 'var goldenScenarioIds = ["arithmetic-followup-observed"];' in html
+    assert "return startLiveEval(goldenScenarioIds, 5);" in html
+    assert len(golden["turns"]) == 5
+    assert [turn["text"] for turn in golden["turns"]] == [
+        "Hvad er tolv gange syv?",
+        "Læg seks til.",
+        "Hvad er klokken lige nu?",
+        "Og hvilken ugedag er det lige nu?",
+        "Tak, det var alt for denne test.",
+    ]
 
 
 def test_targeted_eval_can_never_render_as_full_release_preflight():
