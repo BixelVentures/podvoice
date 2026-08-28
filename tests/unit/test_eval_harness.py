@@ -34,6 +34,7 @@ from gatekeeper.thin import (
     END_CONVERSATION_DECLARATION,
     WAIT_FOR_USER_DECLARATION,
 )
+from gatekeeper.tools import ToolRouter
 
 
 async def test_live_cli_is_retired_before_service_budget_or_provider(monkeypatch, capsys):
@@ -71,7 +72,18 @@ def _known_provider_budget() -> ProviderBudgetCoordinator:
 
 
 def _production_snapshot() -> list[dict]:
-    return SafeEvalTools().declarations()
+    snapshot = SafeEvalTools().declarations()
+    timer_names = {"set_timer", "list_timers", "cancel_timer"}
+    timer_declarations = [
+        row
+        for row in ToolRouter(None, timers=object()).declarations()
+        if row["name"] in timer_names
+    ]
+    reserved_index = next(
+        index for index, row in enumerate(snapshot) if row["name"] == "end_conversation"
+    )
+    snapshot[reserved_index:reserved_index] = timer_declarations
+    return snapshot
 
 
 def _audio_source_provenance(
@@ -114,11 +126,21 @@ def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
         "sensitive-confirmation",
         "sensitive-action-with-close",
         "low-risk-action-then-close",
+        "timer-routing",
     }
     assert any(len(s.turns) > 1 for s in scenarios)
     decisions = {turn.expect.decision for scenario in scenarios for turn in scenario.turns}
     assert {"end_conversation", "get_time"} <= decisions
     assert any(turn.expect.direct_answer for scenario in scenarios for turn in scenario.turns)
+
+
+def test_every_scenario_utterance_has_one_exact_replay_match():
+    for scenario in load_scenarios():
+        for turn_index, turn in enumerate(scenario.turns):
+            matched = match_scenario_turn(turn.text)
+            assert matched is not None, turn.text
+            assert matched[0].id == scenario.id
+            assert matched[1] == turn_index
 
 
 def test_every_scenario_tool_name_has_one_explicit_canonical_fixture_contract():
@@ -291,6 +313,41 @@ def test_audio_replay_matches_only_an_exact_known_eval_utterance():
     assert historical_followup is not None
     assert historical_followup[0].id == "arithmetic-followup"
     assert historical_followup[1] == 1
+
+
+def test_golden_semantic_scenario_is_one_exact_five_turn_chain():
+    scenario = next(row for row in load_scenarios() if row.id == "arithmetic-followup-observed")
+
+    assert [turn.text for turn in scenario.turns] == [
+        "Hvad er tolv gange syv?",
+        "Læg seks til.",
+        "Hvad er klokken lige nu?",
+        "Og hvilken ugedag er det lige nu?",
+        "Tak, det var alt for denne test.",
+    ]
+    assert [turn.expect.decision for turn in scenario.turns] == [
+        None,
+        None,
+        "get_time",
+        "get_time",
+        "end_conversation",
+    ]
+    assert [turn.expect.direct_answer for turn in scenario.turns] == [
+        True,
+        True,
+        False,
+        False,
+        False,
+    ]
+    assert scenario.turns[2].expect.tool_args == {"get_time": {"fields": ["time"]}}
+    assert scenario.turns[3].expect.tool_args == {"get_time": {"fields": ["weekday"]}}
+    assert [turn.expect.remain_open for turn in scenario.turns] == [
+        True,
+        True,
+        True,
+        True,
+        False,
+    ]
 
 
 def test_semantic_close_selective_profile_preserves_all_independent_controls():
@@ -639,6 +696,42 @@ async def test_safe_eval_dispatch_requires_exact_admitted_name_and_canonical_arg
     assert wrong_args["error_kind"] == "eval_fixture_args_mismatch"
     assert exact["ok"] is True
     assert tools.fixture_side_effects == 1
+
+
+async def test_timer_routing_uses_exact_production_schemas_and_local_zero_effect_fixtures():
+    scenario = next(row for row in load_scenarios() if row.id == "timer-routing")
+    production = _production_snapshot()
+    production_by_name = {row["name"]: row for row in production}
+    admission = eval_harness._admit_eval_tools([scenario], production)
+    tools = SafeEvalTools(
+        admission.declarations,
+        admitted_names=set(admission.contracts),
+        fixture_contracts=admission.contracts,
+    )
+
+    assert set(admission.contracts) == {"set_timer", "list_timers", "cancel_timer"}
+    for name in admission.contracts:
+        assert (
+            next(row for row in admission.declarations if row["name"] == name)
+            == (production_by_name[name])
+        )
+
+    observed = []
+    for index, turn in enumerate(scenario.turns):
+        name = turn.expect.decision
+        assert name is not None
+        args = turn.expect.tool_args[name]
+        tools.begin_turn(f"timer-{index}")
+        observed.append(await tools.dispatch(name, args))
+        tools.finish_turn()
+
+    assert all(result["ok"] is True for result in observed)
+    assert tools.calls == [
+        ("set_timer", {"minutes": 10}),
+        ("list_timers", {}),
+        ("cancel_timer", {}),
+    ]
+    assert tools.fixture_side_effects == 0
 
 
 @pytest.mark.parametrize(
@@ -1424,6 +1517,9 @@ async def test_observed_arithmetic_followup_end_call_is_a_deterministic_red_regr
     assert [turn.text for turn in scenario.turns] == [
         "Hvad er tolv gange syv?",
         "Læg seks til.",
+        "Hvad er klokken lige nu?",
+        "Og hvilken ugedag er det lige nu?",
+        "Tak, det var alt for denne test.",
     ]
 
     class ObservedFieldFailure:
@@ -1480,6 +1576,72 @@ async def test_observed_arithmetic_followup_end_call_is_a_deterministic_red_regr
         "answer-missing-any",
         "wrong-lifecycle",
     }
+
+
+async def test_golden_semantic_runner_keeps_all_five_turns_in_one_session():
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
+
+    class GoldenDriver:
+        def __init__(self):
+            self.opened = 0
+            self.calls = 0
+            self.closed = 0
+
+        async def open(self, *, run_id, scenario_id):
+            assert run_id == "golden" and scenario_id == scenario.id
+            self.opened += 1
+            return "one-provider-session"
+
+        async def submit_text(self, *, turn_id, text):
+            index = self.calls
+            self.calls += 1
+            observations = (
+                TurnObservation(
+                    turn_id=turn_id,
+                    session_id="one-provider-session",
+                    answer="Fireogfirs.",
+                ),
+                TurnObservation(
+                    turn_id=turn_id,
+                    session_id="one-provider-session",
+                    answer="Halvfems.",
+                ),
+                TurnObservation(
+                    turn_id=turn_id,
+                    session_id="one-provider-session",
+                    decisions=["get_time"],
+                    tool_args={"get_time": [{"fields": ["time"]}]},
+                    answer="Klokken er fjorten.",
+                ),
+                TurnObservation(
+                    turn_id=turn_id,
+                    session_id="one-provider-session",
+                    decisions=["get_time"],
+                    tool_args={"get_time": [{"fields": ["weekday"]}]},
+                    answer="I dag er det mandag.",
+                ),
+                TurnObservation(
+                    turn_id=turn_id,
+                    session_id="one-provider-session",
+                    decisions=["end_conversation"],
+                    answer="",
+                    remain_open=False,
+                ),
+            )
+            assert text == scenario.turns[index].text
+            return observations[index]
+
+        async def close(self):
+            self.closed += 1
+
+    driver = GoldenDriver()
+    result = await run_scenario(driver, scenario, run_id="golden", budget=EvalBudget())
+
+    assert result.passed is True
+    assert driver.opened == 1
+    assert driver.calls == 5
+    assert driver.closed == 1
+    assert {turn.observation.session_id for turn in result.turns} == {"one-provider-session"}
 
 
 async def test_runner_timeout_is_a_failure_not_a_retry():
@@ -2553,10 +2715,10 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
     )
     service = LiveEvalService(provider_budget=_known_provider_budget())
 
-    assert sessions == 12
-    assert turns == 20
+    assert sessions == 13
+    assert turns == 26
     assert service._max_run_s == required
-    assert 88 * 60 < service._max_run_s < 89 * 60
+    assert 114 * 60 < service._max_run_s < 115 * 60
 
 
 async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(monkeypatch):
@@ -2608,7 +2770,7 @@ async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(mo
     assert waits == [60.5]
 
 
-async def test_full_twelve_session_profile_accepts_measured_14_5k_each(monkeypatch):
+async def test_full_thirteen_session_profile_accepts_measured_14_5k_each(monkeypatch):
     clock = [0.0]
     calls = 0
 
@@ -2629,11 +2791,11 @@ async def test_full_twelve_session_profile_accepts_measured_14_5k_each(monkeypat
     ).run(api_key="secret", tool_declarations=_production_snapshot())
 
     assert report["ok"] is True, report.get("error")
-    assert calls == 12
-    assert report["budget"]["actual_tokens"] == 174_000
-    assert report["budget"]["max_actual_tokens"] == 1_200_000
+    assert calls == 13
+    assert report["budget"]["actual_tokens"] == 188_500
+    assert report["budget"]["max_actual_tokens"] == 1_560_000
     assert report["budget"]["max_cost_usd"] == pytest.approx(5.0)
-    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(80.0)
+    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(104.0)
     assert report["deadline_s"] > report["budget"]["rate_limit_wait_s"]
 
 
@@ -3052,6 +3214,66 @@ def test_live_service_rejects_mixed_known_and_unknown_scenarios():
     report = service.start(api_key="secret", scenario_ids={"web-routing", "not-a-real-scenario"})
     assert report["status"] == "invalid"
     assert service.status()["status"] == "idle"
+
+
+@pytest.mark.parametrize("repeats", [0, 6, True, 1.5, "5"])
+def test_live_service_start_rejects_unbounded_or_non_integer_repeats(repeats):
+    service = LiveEvalService(provider_budget=_known_provider_budget())
+
+    report = service.start(
+        api_key="secret",
+        scenario_ids={"arithmetic-followup-observed"},
+        repeats=repeats,
+        tool_declarations=_production_snapshot(),
+    )
+
+    assert report["status"] == "invalid"
+    assert service.status()["status"] == "idle"
+
+
+@pytest.mark.parametrize("repeats", [0, 6, True, 1.5, "5"])
+async def test_live_service_run_rejects_unbounded_or_non_integer_repeats(repeats):
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run(
+        api_key="secret",
+        scenario_ids={"arithmetic-followup-observed"},
+        repeats=repeats,
+        tool_declarations=_production_snapshot(),
+    )
+
+    assert report["status"] == "invalid"
+
+
+async def test_live_service_runs_five_fresh_golden_sessions(monkeypatch):
+    drivers: list[object] = []
+    seen_sessions: list[str] = []
+
+    class FakeDriver:
+        def __init__(self, *args, **kwargs):
+            drivers.append(self)
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        assert scenario.id == "arithmetic-followup-observed"
+        session_id = f"golden-session-{len(seen_sessions) + 1}"
+        seen_sessions.append(session_id)
+        return ScenarioResult(scenario.id, True, session_id, [])
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", FakeDriver)
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run(
+        api_key="secret",
+        scenario_ids={"arithmetic-followup-observed"},
+        repeats=5,
+        tool_declarations=_production_snapshot(),
+    )
+
+    assert report["status"] == "complete"
+    assert report["selected_ok"] is True
+    assert report["repeats_requested"] == 5
+    assert report["repeats_completed"] == 5
+    assert report["budget"]["max_turns"] == 25
+    assert len(drivers) == 5
+    assert len({id(driver) for driver in drivers}) == 5
+    assert seen_sessions == [f"golden-session-{index}" for index in range(1, 6)]
 
 
 async def test_live_service_whole_job_timeout_is_retained_as_failure(monkeypatch):
