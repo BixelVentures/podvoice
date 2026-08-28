@@ -20,6 +20,27 @@
       ]
     },
     {
+      "exact_tool_name": "set_timer",
+      "risk": "low_risk_fixture_only",
+      "cases": [
+        {"args": {"minutes": 10}, "result": {"ok": true, "summary": "Timeren er sat til ti minutter.", "data": {"id": 1, "seconds": 600}}}
+      ]
+    },
+    {
+      "exact_tool_name": "list_timers",
+      "risk": "read_only_fixture_only",
+      "cases": [
+        {"args": {}, "result": {"ok": true, "summary": "Der kører én timer med ti minutter tilbage.", "data": {"timers": [{"id": 1, "remaining_s": 600}]}}}
+      ]
+    },
+    {
+      "exact_tool_name": "cancel_timer",
+      "risk": "low_risk_fixture_only",
+      "cases": [
+        {"args": {}, "result": {"ok": true, "summary": "Timeren er annulleret.", "data": {"id": 1}}}
+      ]
+    },
+    {
       "exact_tool_name": "HassTurnOn",
       "risk": "low_risk",
       "cases": [
@@ -51,7 +72,7 @@
       "exact_tool_names": [],
       "turns": [
         {
-          "text": "Hvad er tolv gange syv?",
+          "text": "Hvad er syv gange tolv?",
           "expect": {
             "direct_answer": true,
             "answer_any": ["84", "fireogfirs"],
@@ -70,8 +91,8 @@
     },
     {
       "id": "arithmetic-followup-observed",
-      "description": "Independent text diagnostic for the observed Danish wording; it does not claim audio equivalence.",
-      "exact_tool_names": [],
+      "description": "One-session semantic golden chain using the observed Danish wording; it does not claim audio equivalence.",
+      "exact_tool_names": ["get_time", "end_conversation"],
       "turns": [
         {
           "text": "Hvad er tolv gange syv?",
@@ -86,6 +107,69 @@
           "expect": {
             "direct_answer": true,
             "answer_any": ["90", "halvfems"],
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Hvad er klokken lige nu?",
+          "expect": {
+            "decision": "get_time",
+            "tool_args": {"get_time": {"fields": ["time"]}},
+            "answer_any": ["fjorten", "14"],
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Og hvilken ugedag er det lige nu?",
+          "expect": {
+            "decision": "get_time",
+            "tool_args": {"get_time": {"fields": ["weekday"]}},
+            "answer_any": ["mandag"],
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Tak, det var alt for denne test.",
+          "expect": {
+            "decision": "end_conversation",
+            "answer_any": [],
+            "remain_open": false
+          }
+        }
+      ]
+    },
+    {
+      "id": "timer-routing",
+      "description": "Positive no-side-effect fixtures prove that narrowed timer descriptions still admit explicit timer intents.",
+      "exact_tool_names": ["set_timer", "list_timers", "cancel_timer"],
+      "turns": [
+        {
+          "text": "Sæt en timer på ti minutter.",
+          "expect": {
+            "decision": "set_timer",
+            "tool_args": {"set_timer": {"minutes": 10}},
+            "answer_any": ["ti minutter", "10 minutter"],
+            "fixture_side_effects": 0,
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Hvilke timere kører?",
+          "expect": {
+            "decision": "list_timers",
+            "tool_args": {"list_timers": {}},
+            "answer_any": ["ti minutter", "10 minutter"],
+            "fixture_side_effects": 0,
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Annuller timeren.",
+          "expect": {
+            "decision": "cancel_timer",
+            "tool_args": {"cancel_timer": {}},
+            "answer_any": ["annulleret", "stoppet", "afbrudt"],
+            "fixture_side_effects": 0,
             "remain_open": true
           }
         }
