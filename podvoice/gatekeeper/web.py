@@ -482,13 +482,21 @@ async def _audio_replay_eval(request: web.Request) -> web.Response:
             status=400,
         )
     repeats = body.get("repeats", 3)
+    text_repeats = body.get("text_repeats", 1)
+    mode = body.get("mode")
     trace_id = body.get("trace_id")
     turn_index = body.get("turn_index", 0)
     if (
         not isinstance(repeats, int)
+        or isinstance(repeats, bool)
         or not 1 <= repeats <= 5
+        or not isinstance(text_repeats, int)
+        or isinstance(text_repeats, bool)
+        or not 1 <= text_repeats <= 5
+        or mode not in (None, "numeric-followup-ab")
         or (trace_id is not None and not isinstance(trace_id, str))
         or not isinstance(turn_index, int)
+        or isinstance(turn_index, bool)
         or turn_index < 0
     ):
         return web.json_response(
@@ -517,6 +525,21 @@ async def _audio_replay_eval(request: web.Request) -> web.Response:
                 status=409,
             )
         scenario, expected_index = matched
+        if mode == "numeric-followup-ab" and (
+            turn_index != 1
+            or expected_index != 1
+            or scenario.id != "arithmetic-followup-observed"
+            or repeats != 5
+            or text_repeats != 5
+        ):
+            return web.json_response(
+                {
+                    "ok": False,
+                    "status": "invalid",
+                    "error": "Numerisk A/B kræver den kendte opfølgning og præcis 5+5 gentagelser.",
+                },
+                status=400,
+            )
         room = str(raw.get("room") or "")
         session = request.app[SESSIONS].get(room)
         room_context = str(getattr(getattr(session, "brain", None), "room_context", "") or "")
@@ -537,6 +560,11 @@ async def _audio_replay_eval(request: web.Request) -> web.Response:
             source_prompt_version_present=bool(raw.get("source_prompt_version_present", False)),
             source_prompt_sha256=raw.get("source_prompt_sha256"),
             source_room_context_sha256=raw.get("source_room_context_sha256"),
+            source_podvoice_version=raw.get("source_podvoice_version"),
+            source_artifact_identity_kind=raw.get("source_artifact_identity_kind"),
+            source_artifact_sha256=raw.get("source_artifact_sha256"),
+            source_turn_preset=raw.get("source_turn_preset"),
+            source_openai_noise=raw.get("source_openai_noise"),
         )
         report = await run(
             action="replay",
@@ -544,6 +572,8 @@ async def _audio_replay_eval(request: web.Request) -> web.Response:
             scenario=scenario,
             turn_index=expected_index,
             repeats=repeats,
+            text_repeats=text_repeats,
+            mode=mode,
         )
     except ValueError as exc:
         return web.json_response({"ok": False, "status": "invalid", "error": str(exc)}, status=409)

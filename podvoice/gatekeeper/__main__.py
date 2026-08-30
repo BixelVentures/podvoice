@@ -452,6 +452,8 @@ async def run(cfg: Config) -> None:
             scenario=None,
             turn_index=0,
             repeats=None,
+            text_repeats=None,
+            mode=None,
         ):
             from .openai_realtime import MINI_MODEL
 
@@ -465,6 +467,8 @@ async def run(cfg: Config) -> None:
                     scenario=scenario,
                     turn_index=turn_index,
                     repeats=3 if repeats is None else repeats,
+                    text_repeats=1 if text_repeats is None else text_repeats,
+                    mode=mode,
                     model=MINI_MODEL if cfg.force_mini else cfg.openai_model,
                     voice=cfg.openai_voice,
                     instructions=cfg.system_prompt,

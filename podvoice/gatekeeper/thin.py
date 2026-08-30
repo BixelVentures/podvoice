@@ -22,6 +22,7 @@ import time
 from collections import OrderedDict
 from dataclasses import dataclass
 
+from . import __version__, runtime_artifact_identity
 from . import audio as audio_mod
 from . import constants as C
 from .events import Event, EventType, State
@@ -48,6 +49,33 @@ from .voice import (
 
 MAX_TYPED_TEXT_CHARS = 2000
 MAX_TALK_COMMAND_ID_CHARS = 128
+_PHYSICAL_PROVIDER_TRACE_KINDS = frozenset(
+    {
+        "response_created",
+        "conversation_item_added",
+        "response_output_item_added",
+        "response_output_item_done",
+        "input_audio_buffer_committed",
+        "response_done",
+        "duplicate_response_done",
+    }
+)
+_PHYSICAL_PROVIDER_TRACE_FIELDS = (
+    "event_id",
+    "response_id",
+    "conversation_id",
+    "request_id",
+    "request_id_matched",
+    "provider_event_type",
+    "previous_item_id",
+    "item_id",
+    "item_type",
+    "role",
+    "status",
+    "call_id",
+    "output_index",
+    "generation",
+)
 
 _LOG = logging.getLogger("podvoice.thin")
 
@@ -399,12 +427,13 @@ class ThinSession:
         # when a browser double-clicks or reconnects while an acknowledgement is late.
         self._text_input_lock = asyncio.Lock()
         self._text_receipts: OrderedDict[str, dict] = OrderedDict()
+        self._provider_trace_observer_original = None
+        self._provider_trace_observer_installed = False
 
         # Capture the exact post-resample bytes that the provider receives. The hook
         # remains installed but is a no-op unless the owner explicitly arms one trace.
         if self.audio_trace is not None and hasattr(self.brain, "audio_observer"):
             self.brain.audio_observer = self._trace_provider_audio
-
         if hub is not None:
             hub.register_room(room)
         if hasattr(voicepe, "on_wake"):
@@ -509,13 +538,17 @@ class ThinSession:
         self._history_session = f"{self.room}:{time.time_ns()}"
         self._stop_sent_t = None
         self._stop_sent_epoch = None
+        trace_started = False
         if self.audio_trace is not None:
-            effective_prompt = (getattr(self.brain, "instructions", "") or SYSTEM_PROMPT_DA).strip()
-            prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA.strip()
-            source_room_context = str(getattr(self.brain, "room_context", "") or "")
-            self.audio_trace.begin(
-                self.room,
-                {
+
+            def trace_metadata() -> dict:
+                effective_prompt = (
+                    getattr(self.brain, "instructions", "") or SYSTEM_PROMPT_DA
+                ).strip()
+                prompt_is_default = effective_prompt == SYSTEM_PROMPT_DA.strip()
+                source_room_context = str(getattr(self.brain, "room_context", "") or "")
+                artifact_identity_kind, artifact_sha256 = runtime_artifact_identity()
+                return {
                     "mic_channel": getattr(self.voicepe, "mic_channel", None),
                     "mic_gain": getattr(self.voicepe, "mic_gain", None),
                     "input_rate": getattr(self.brain, "input_rate", C.INPUT_RATE),
@@ -528,11 +561,15 @@ class ThinSession:
                     "prompt_version": PROMPT_VERSION if prompt_is_default else None,
                     "prompt_sha256": hashlib.sha256(effective_prompt.encode()).hexdigest(),
                     "room_context_sha256": hashlib.sha256(source_room_context.encode()).hexdigest(),
+                    "podvoice_version": __version__,
+                    "artifact_identity_kind": artifact_identity_kind,
+                    "artifact_sha256": artifact_sha256,
                     "wake_audio_boundary": getattr(
                         self.voicepe, "supports_wake_audio_boundary", None
                     ),
-                },
-            )
+                }
+
+            trace_started = self.audio_trace.begin(self.room, trace_metadata)
         self._trace_event("wake_received")
         self._trace_reason = "teardown"
         self._active = True
@@ -626,9 +663,14 @@ class ThinSession:
                 ).encode()
             ).hexdigest(),
         )
+        if trace_started:
+            self._install_provider_trace_observer()
         previous_provider_generation = getattr(self.brain, "_connection_generation", None)
         try:
             await asyncio.wait_for(self.brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
+        except asyncio.CancelledError:
+            self._restore_provider_trace_observer()
+            raise
         except Exception as e:
             if self.audio_trace is not None:
                 self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
@@ -900,12 +942,23 @@ class ThinSession:
         deadline: float | None = None,
         silence_complete: bool = True,
     ) -> None:
-        async with self._teardown_lock:
-            await self._teardown_locked(
-                release_music=release_music,
-                deadline=deadline or time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
-                silence_complete=silence_complete,
-            )
+        if not self._provider_trace_observer_installed:
+            async with self._teardown_lock:
+                await self._teardown_locked(
+                    release_music=release_music,
+                    deadline=deadline or time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
+                    silence_complete=silence_complete,
+                )
+            return
+        try:
+            async with self._teardown_lock:
+                await self._teardown_locked(
+                    release_music=release_music,
+                    deadline=deadline or time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
+                    silence_complete=silence_complete,
+                )
+        finally:
+            self._restore_provider_trace_observer()
 
     async def _teardown_step(
         self,
@@ -2936,6 +2989,57 @@ class ThinSession:
     def _trace_provider_audio(self, pcm: bytes, rate: int) -> None:
         if self.audio_trace is not None:
             self.audio_trace.audio("provider", pcm, rate)
+
+    def _trace_provider_event(self, row: dict) -> None:
+        """Persist bounded provider ancestry only inside an armed physical trace."""
+        if self.audio_trace is None or not isinstance(row, dict):
+            return
+        kind = row.get("kind")
+        if kind not in _PHYSICAL_PROVIDER_TRACE_KINDS:
+            return
+        details = {
+            field: row[field]
+            for field in _PHYSICAL_PROVIDER_TRACE_FIELDS
+            if field in row
+            and (isinstance(row[field], (str, int, float, bool)) or row[field] is None)
+        }
+        details.update(
+            {
+                "session_id": self._history_session or None,
+                "turn_id": self._external_turn_id(),
+                "audio_generation": getattr(self.voicepe, "audio_generation", None),
+            }
+        )
+        self.audio_trace.provider_event(f"provider_{kind}", **details)
+
+    def _install_provider_trace_observer(self) -> None:
+        """Scope passive provider evidence to one explicitly armed conversation."""
+        if (
+            self._provider_trace_observer_installed
+            or self.audio_trace is None
+            or not hasattr(self.brain, "provider_observer")
+        ):
+            return
+        original = self.brain.provider_observer
+
+        def observe_provider(event: dict) -> None:
+            try:
+                if original is not None:
+                    original(event)
+            finally:
+                self._trace_provider_event(event)
+
+        self._provider_trace_observer_original = original
+        self.brain.provider_observer = observe_provider
+        self._provider_trace_observer_installed = True
+
+    def _restore_provider_trace_observer(self) -> None:
+        if not self._provider_trace_observer_installed:
+            return
+        if hasattr(self.brain, "provider_observer"):
+            self.brain.provider_observer = self._provider_trace_observer_original
+        self._provider_trace_observer_original = None
+        self._provider_trace_observer_installed = False
 
     def _trace_event(self, event_name: str, **details) -> None:
         payload = {

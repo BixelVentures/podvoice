@@ -327,3 +327,18 @@ def test_rearm_audio_boundary_requires_the_exact_correlated_firmware_token(
 
     report = TraceOracle(adapter="voicepe", require_semantic_close=True).score(trace)
     assert expected in _codes(report)
+
+
+def test_truncated_provider_trace_fails_closed_even_when_lifecycle_is_otherwise_golden():
+    trace = _fixture("voicepe_golden.json")
+    trace["events"].insert(
+        2,
+        {
+            "at_ms": trace["events"][1]["at_ms"],
+            "event": "provider_trace_truncated",
+            "reason": "event_or_byte_limit",
+        },
+    )
+
+    report = TraceOracle(adapter="voicepe", require_semantic_close=True).score(trace)
+    assert "provider_trace_truncated" in _codes(report)

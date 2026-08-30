@@ -175,6 +175,201 @@ async def test_direct_followup_reuses_context_without_a_second_provider_session(
         await session.aclose()
 
 
+async def test_armed_physical_trace_records_content_free_provider_item_ancestry(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+
+    class ObservedBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.provider_observer = None
+            self.observer_at_connect = None
+
+        async def connect(self) -> None:
+            self.observer_at_connect = self.provider_observer
+            await super().connect()
+
+    brain = ObservedBrain()
+    session, _attention, _voicepe = _build(brain, audio_trace=recorder)
+    recorder.arm(ROOM)
+    await session.start()
+    try:
+        await session.wake()
+        assert callable(brain.provider_observer)
+        assert brain.observer_at_connect is brain.provider_observer
+        private = "must-not-enter-physical-trace"
+        brain.provider_observer(
+            {
+                "kind": "conversation_item_added",
+                "event_id": "event-u1",
+                "provider_event_type": "conversation.item.added",
+                "previous_item_id": None,
+                "item_id": "user-one",
+                "item_type": "message",
+                "role": "user",
+                "status": "completed",
+                "generation": 1,
+                "content": private,
+            }
+        )
+        brain.provider_observer(
+            {
+                "kind": "response_created",
+                "event_id": "event-r1",
+                "response_id": "response-one",
+                "conversation_id": "conversation-one",
+                "generation": 1,
+                "arbitrary": private,
+            }
+        )
+        brain.provider_observer(
+            {
+                "kind": "duplicate_response_done",
+                "event_id": "event-duplicate",
+                "response_id": "response-one",
+                "generation": 1,
+            }
+        )
+    finally:
+        await session.aclose()
+
+    assert brain.provider_observer is None
+    latest = recorder.snapshot()["latest"]
+    events = latest["events"]
+    added = next(row for row in events if row["event"] == "provider_conversation_item_added")
+    created = next(row for row in events if row["event"] == "provider_response_created")
+    assert (added["item_id"], added["role"], added["generation"]) == (
+        "user-one",
+        "user",
+        1,
+    )
+    assert (created["response_id"], created["conversation_id"]) == (
+        "response-one",
+        "conversation-one",
+    )
+    assert any(row["event"] == "provider_duplicate_response_done" for row in events)
+    assert private not in json.dumps(latest, ensure_ascii=False)
+
+
+async def test_unarmed_physical_session_never_installs_provider_observer(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+
+    class ObservedBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.provider_observer = None
+            self.observer_at_connect = "not-seen"
+
+        async def connect(self) -> None:
+            self.observer_at_connect = self.provider_observer
+            await super().connect()
+
+    brain = ObservedBrain()
+    session, _attention, _voicepe = _build(brain, audio_trace=recorder)
+    await session.start()
+    try:
+        assert brain.provider_observer is None
+        await session.wake()
+        assert brain.observer_at_connect is None
+        assert brain.provider_observer is None
+    finally:
+        await session.aclose()
+    assert brain.provider_observer is None
+
+
+async def test_armed_provider_observer_chains_and_restores_existing_sink(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    observed: list[dict] = []
+
+    class ObservedBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.provider_observer = observed.append
+            self.observer_at_connect = None
+
+        async def connect(self) -> None:
+            self.observer_at_connect = self.provider_observer
+            await super().connect()
+
+    brain = ObservedBrain()
+    original = brain.provider_observer
+    session, _attention, _voicepe = _build(brain, audio_trace=recorder)
+    recorder.arm(ROOM)
+    await session.start()
+    try:
+        await session.wake()
+        assert callable(brain.observer_at_connect)
+        assert brain.observer_at_connect is not original
+        event = {
+            "kind": "response_done",
+            "response_id": "response-one",
+            "status": "completed",
+        }
+        brain.provider_observer(event)
+        assert observed == [event]
+    finally:
+        await session.aclose()
+    assert brain.provider_observer is original
+
+
+async def test_armed_provider_observer_is_restored_after_connect_failure(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    observed: list[dict] = []
+
+    class FailingBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.provider_observer = observed.append
+            self.observer_at_connect = None
+
+        async def connect(self) -> None:
+            self.observer_at_connect = self.provider_observer
+            raise ConnectionError("expected-test-failure")
+
+    brain = FailingBrain()
+    original = brain.provider_observer
+    session, _attention, _voicepe = _build(brain, audio_trace=recorder)
+    recorder.arm(ROOM)
+    await session.start()
+    try:
+        await session.wake()
+        assert callable(brain.observer_at_connect)
+        assert brain.observer_at_connect is not original
+        assert brain.provider_observer is original
+    finally:
+        await session.aclose()
+    assert brain.provider_observer is original
+
+
+async def test_armed_provider_observer_is_restored_when_connect_is_cancelled(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    entered = asyncio.Event()
+    blocked = asyncio.Event()
+
+    class BlockingBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.provider_observer = None
+
+        async def connect(self) -> None:
+            entered.set()
+            await blocked.wait()
+
+    brain = BlockingBrain()
+    session, _attention, _voicepe = _build(brain, audio_trace=recorder)
+    recorder.arm(ROOM)
+    await session.start()
+    wake = asyncio.create_task(session.wake())
+    try:
+        await entered.wait()
+        assert callable(brain.provider_observer)
+        wake.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await wake
+        assert brain.provider_observer is None
+    finally:
+        await session.aclose()
+
+
 async def test_delayed_playback_start_cannot_open_or_cross_the_next_typed_turn():
     """Regression for the physical Talk ordering observed on 2026-08-20.
 
@@ -492,6 +687,7 @@ def _build(
     hub=None,
     speech=None,
     usage=None,
+    audio_trace=None,
 ):
     attention = FakeAttention()
     voicepe = FakeVoicePELink(room=ROOM)
@@ -507,6 +703,7 @@ def _build(
         hub=hub,
         speech=speech,
         usage=usage,
+        audio_trace=audio_trace,
         reply_bus=ReplyBus(),
         reply_url=REPLY_URL,
         speaker_path=speaker_path,

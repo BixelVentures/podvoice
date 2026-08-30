@@ -368,7 +368,9 @@
       <button id="eval_golden" class="ghost">Test golden-chain-semantik 5×</button>
       <button id="eval_close" class="ghost">Test samtaleafslutning (8 ture)</button>
       <button id="eval_replay" class="ghost">Genafspil seneste OpenAI-lyd 3×</button>
-      <p class="sub" style="margin:8px 0 0">Golden-chain-testen kører matematik → opfølgning → tid → ugedag → afslutning i samme session, fem friske gange. Den korte afslutningstest kører præcis 5 scenarier og 8 ture. Hårdt samlet prisloft: $5. Ingen eksterne effekter.</p>
+      <button id="eval_numeric_ab" class="ghost">Sammenlign numerisk opfølgning: tekst ↔ lyd 5×</button>
+      <p class="sub" style="margin:8px 0 0">Golden-chain-testen kører matematik → opfølgning → tid → ugedag → afslutning i samme session, fem friske gange. Den korte afslutningstest kører præcis 5 scenarier og 8 ture. A/B-testen kræver et frisk, eksakt lydtrace af den kendte numeriske opfølgning og sammenligner fem tekstsessioner med fem lydsessioner. Hårdt samlet prisloft: $5. Ingen eksterne effekter.</p>
+      <div id="eval_numeric_preview" class="sub" style="margin-top:8px">Numerisk A/B: intet lydbevis indlæst endnu.</div>
       <div id="eval_result" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
     </div>
     <div class="section">
@@ -957,6 +959,7 @@ setInterval(function () {
   var arm = document.getElementById("trace_arm");
   var cancel = document.getElementById("trace_cancel");
   var box = document.getElementById("trace_status");
+  var numericPreview = document.getElementById("eval_numeric_preview");
   if (!arm || !box) return;
   function te(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function stageText(name, stage) {
@@ -965,7 +968,7 @@ setInterval(function () {
   }
   function render(data) {
     box.innerHTML = "";
-    if (!data || data.ok === false) { box.appendChild(te("div", "empty", (data && data.error) || "Lydbevis er ikke tilgængeligt.")); return; }
+    if (!data || data.ok === false) { if (numericPreview) numericPreview.textContent = "Numerisk A/B: lydbevis er ikke tilgængeligt."; box.appendChild(te("div", "empty", (data && data.error) || "Lydbevis er ikke tilgængeligt.")); return; }
     if (data.active) {
       box.appendChild(te("div", "line out", "Optager samtalen i " + data.active.room + " — sig sætningen naturligt og afslut med “farvel”."));
       arm.disabled = true; cancel.hidden = true; return;
@@ -976,9 +979,13 @@ setInterval(function () {
     }
     arm.disabled = false; cancel.hidden = true;
     if (!data.latest) {
+      if (numericPreview) numericPreview.textContent = "Numerisk A/B: intet lydbevis indlæst endnu.";
       box.appendChild(te("div", "empty", "Ingen lydoptagelse endnu.")); return;
     }
     var latest = data.latest, stages = latest.stages || {};
+    var metadata = latest.metadata || {};
+    var providerContract = (latest.events || []).find(function (event) { return event && event.event === "provider_contract"; }) || {};
+    if (numericPreview) numericPreview.textContent = "Numerisk A/B-kandidat før start: trace " + latest.id + " · målturn 1 · PodVoice " + (metadata.podvoice_version || "mangler") + " · rootfs " + String(metadata.artifact_sha256 || "mangler").slice(0, 12) + " · prompt " + String(metadata.prompt_sha256 || "mangler").slice(0, 12) + " · schema " + String(providerContract.tool_schema_sha256 || "mangler").slice(0, 12) + " · rum " + String(metadata.room_context_sha256 || "mangler").slice(0, 12) + " · samlet prisloft $5.";
     var line = te("div", "line out");
     line.appendChild(te("div", "who", "Seneste lydbevis · " + latest.room));
     line.appendChild(te("div", "sub", stageText("Voice PE", stages.device)));
@@ -1172,6 +1179,7 @@ setInterval(function () {
   var goldenButton = document.getElementById("eval_golden");
   var closeButton = document.getElementById("eval_close");
   var replayButton = document.getElementById("eval_replay");
+  var numericAbButton = document.getElementById("eval_numeric_ab");
   var box = document.getElementById("eval_result");
   var closeScenarioIds = [
     "context-followup-then-close",
@@ -1182,15 +1190,33 @@ setInterval(function () {
   ];
   var goldenScenarioIds = ["arithmetic-followup-observed"];
   var pollGeneration = 0;
-  if (!button || !goldenButton || !closeButton || !replayButton || !box) return;
+  if (!button || !goldenButton || !closeButton || !replayButton || !numericAbButton || !box) return;
   function setButtonsDisabled(disabled) {
-    button.disabled = disabled; goldenButton.disabled = disabled; closeButton.disabled = disabled; replayButton.disabled = disabled;
+    button.disabled = disabled; goldenButton.disabled = disabled; closeButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
   }
   function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  function semanticAudioAbPassed(data) {
+    var trace = data && data.trace;
+    var controls = data && data.controls;
+    var trials = data && data.trials;
+    return !!data && data.kind === "semantic-audio-ab" &&
+      data.ok === true &&
+      data.decision === "GO_TO_PHYSICAL_CANARY" &&
+      data.classification === "semantic-audio-consistent" &&
+      !!trace && trace.provenance_match === true &&
+      data.text_repeats_requested === 5 &&
+      data.text_repeats_completed === 5 &&
+      data.audio_repeats_requested === 5 &&
+      data.audio_repeats_completed === 5 &&
+      Array.isArray(controls) && controls.length === 5 &&
+      controls.every(function (result) { return !!result && result.passed === true; }) &&
+      Array.isArray(trials) && trials.length === 5 &&
+      trials.every(function (result) { return !!result && result.passed === true; });
+  }
   function renderRunning(data) {
     box.innerHTML = "";
     var suffix = data && data.run_id ? " · " + data.run_id : "";
-    var label = data && data.kind === "audio-replay" ? "Genafspiller den samme providerlyd mod Realtime" : "Kører sikker Realtime-test";
+    var label = data && data.kind === "semantic-audio-ab" ? "Sammenligner samme opfølgning som tekst og eksakt providerlyd" : data && data.kind === "audio-replay" ? "Genafspiller den samme providerlyd mod Realtime" : "Kører sikker Realtime-test";
     var deadline = Math.max(1, Number(data && data.deadline_s || 720));
     var minutes = Math.ceil(deadline / 60);
     box.appendChild(ee("div", "empty", label + suffix + ". Nabu er midlertidigt låst imens. Samlet prisloft: $5; første sikre scenariesvar er providerpreflight. Tier-1-pacing kan tage op til " + minutes + " minutter…"));
@@ -1203,23 +1229,40 @@ setInterval(function () {
       failed.appendChild(document.createTextNode((data && data.error) || "Ingen gyldig rapport."));
       box.appendChild(failed); return;
     }
-    if (data.kind === "audio-replay") {
-      var replayHead = ee("div", "line " + (data.ok ? "out" : "in"));
+    if (data.kind === "audio-replay" || data.kind === "semantic-audio-ab") {
+      var isSemanticAb = data.kind === "semantic-audio-ab";
+      var replayPassed = isSemanticAb ? semanticAudioAbPassed(data) : data.ok === true;
+      var replayHead = ee("div", "line " + (replayPassed ? "out" : "in"));
       var labels = {
         "audio-replay-consistent":"Samme lyd blev forstået konsekvent",
+        "semantic-audio-consistent":"Tekst og lyd gav samme korrekte semantik",
         "audio-specific-failure":"Samme lyd fejlede konsekvent",
         "audio-model-nondeterminism":"Samme lyd gav skiftende beslutninger",
+        "text-contract-failure":"Tekstarmen fejlede konsekvent",
+        "text-model-nondeterminism":"Tekstarmen gav skiftende beslutninger",
+        "context-seed-failure":"Den fælles kontekst kunne ikke etableres",
+        "trace-provenance-missing":"Lydtracets kandidatdata mangler",
+        "trace-provenance-mismatch":"Lydtracet stammer fra andre kandidatbits",
         "prompt-or-tool-contract-failure":"Tekstkontrollen fejlede også",
         "tool-schema-mismatch":"Værktøjslisten er ændret siden optagelsen"
       };
-      replayHead.appendChild(ee("div", "who", data.ok ? "✓ AUDIO-REPLAY BESTÅET" : "✕ AUDIO-REPLAY IKKE BESTÅET"));
+      var replayName = isSemanticAb ? "NUMERISK A/B" : "AUDIO-REPLAY";
+      var replayState = replayPassed ? " BESTÅET" : isSemanticAb ? " BLOKERET" : " IKKE BESTÅET";
+      replayHead.appendChild(ee("div", "who", (replayPassed ? "✓ " : "✕ ") + replayName + replayState));
       replayHead.appendChild(document.createTextNode((labels[data.classification] || data.classification || "Ukendt resultat") + " · " + ((data.trace && data.trace.id) || "ukendt trace")));
-      if (data.trace && data.trace.schema_match === null) replayHead.appendChild(ee("div", "sub", "Ældre trace: oprindeligt værktøjsskema kan ikke bevises."));
-      if (data.trace && data.trace.schema_match === false) replayHead.appendChild(ee("div", "sub", "Replay blev stoppet før OpenAI-kald; optagelsen og kandidaten har forskellige værktøjsskemaer."));
       box.appendChild(replayHead);
+      var trace = data.trace || {}, source = trace.source_provenance || {}, replay = trace.replay_provenance || {};
+      var shortHash = function (value) { return value ? String(value).slice(0, 12) : "mangler"; };
+      box.appendChild(ee("div", "sub", "Kandidatmatch: " + (trace.provenance_match === true ? "ja" : "nej") + " · model " + (source.model || "mangler") + " → " + (replay.model || "mangler")));
+      box.appendChild(ee("div", "sub", "PodVoice " + (source.podvoice_version || "mangler") + " → " + (replay.podvoice_version || "mangler") + " · rootfs " + (source.artifact_identity_kind || "mangler") + "/" + shortHash(source.artifact_sha256) + " → " + (replay.artifact_identity_kind || "mangler") + "/" + shortHash(replay.artifact_sha256)));
+      box.appendChild(ee("div", "sub", "Prompt " + (source.prompt_source || "mangler") + "/v" + (source.prompt_version == null ? "?" : source.prompt_version) + " " + shortHash(source.prompt_sha256) + " → " + (replay.prompt_source || "mangler") + "/v" + (replay.prompt_version == null ? "?" : replay.prompt_version) + " " + shortHash(replay.prompt_sha256)));
+      box.appendChild(ee("div", "sub", "Værktøjsskema " + shortHash(source.tool_schema_sha256) + " → " + shortHash(replay.tool_schema_sha256) + " · rum " + shortHash(source.room_context_sha256) + " → " + shortHash(replay.room_context_sha256)));
+      if ((trace.missing_provenance || []).length) box.appendChild(ee("div", "sub", "Mangler: " + trace.missing_provenance.join(", ")));
+      if ((trace.provenance_mismatches || []).length) box.appendChild(ee("div", "sub", "Afviger: " + trace.provenance_mismatches.join(", ")));
       replayHead.appendChild(ee("div", "sub", "Replay tester kun: " + ((data.semantic_profile_covered || []).join(", ") || "ingen semantisk profil") + ". Andre fundne evner er ikke funktionsbevist."));
       var rows = [];
-      if (data.control) rows.push({label:"Tekstkontrol", result:data.control});
+      if ((data.controls || []).length) (data.controls || []).forEach(function (control, index) { rows.push({label:"Tekst " + (index + 1), result:control}); });
+      else if (data.control) rows.push({label:"Tekstkontrol", result:data.control});
       (data.trials || []).forEach(function (trial, index) { rows.push({label:"Lyd " + (index + 1), result:trial}); });
       rows.forEach(function (row) {
         var result = row.result || {}, observation = result.observation || {};
@@ -1231,6 +1274,7 @@ setInterval(function () {
         (result.findings || []).forEach(function (finding) { line.appendChild(ee("div", "sub", "Årsag: " + (finding.message || finding.code))); });
         box.appendChild(line);
       });
+      if (data.text_repeats_requested || data.audio_repeats_requested) box.appendChild(ee("div", "sub", "Gennemført: tekst " + (data.text_repeats_completed || 0) + "/" + (data.text_repeats_requested || 0) + " · lyd " + (data.audio_repeats_completed || 0) + "/" + (data.audio_repeats_requested || 0) + " · beslutning " + (data.decision || "BLOCKED")));
       if (data.budget) box.appendChild(ee("div", "sub", "Forbrug: " + (data.budget.actual_tokens || 0) + " tokens · estimeret $" + Number(data.budget.cost_usd || 0).toFixed(3)));
       return;
     }
@@ -1336,6 +1380,19 @@ setInterval(function () {
       if ((data.status === "running" || data.status === "busy") && data.run_id) await poll(data.run_id, generation, data.deadline_s);
       else render(data);
     } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre audio-replay."}); }
+    finally { if (generation === pollGeneration) setButtonsDisabled(false); }
+  };
+  numericAbButton.onclick = async function () {
+    var generation = ++pollGeneration;
+    setButtonsDisabled(true);
+    box.innerHTML = ""; box.appendChild(ee("div", "empty", "Sammenligner fem tekstsessioner med fem sessioner med den eksakte providerlyd. Samlet prisloft: $5; ingen eksterne effekter…"));
+    try {
+      var payload = {mode:"numeric-followup-ab",turn_index:1,repeats:5,text_repeats:5};
+      var response = await fetch("api/eval/replay", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      var data = await response.json();
+      if ((data.status === "running" || data.status === "busy") && data.run_id) await poll(data.run_id, generation, data.deadline_s);
+      else render(data);
+    } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre numerisk tekst/lyd-A/B."}); }
     finally { if (generation === pollGeneration) setButtonsDisabled(false); }
   };
   (async function resume() {

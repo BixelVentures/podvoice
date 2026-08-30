@@ -24,12 +24,17 @@ import re
 import time
 import wave
 from array import array
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 _LOG = logging.getLogger("podvoice.audio_trace")
 _SAFE_ID = re.compile(r"^[0-9A-Za-z_-]+$")
 _NEXT_SESSION_PROOF_TTL_S = 120.0
+PROVIDER_TRACE_STRING_MAX = 128
+PROVIDER_TRACE_EVENTS_MAX = 128
+PROVIDER_TRACE_BYTES_MAX = 64 * 1024
+_PROVIDER_TRACE_KEY_MAX = 64
 
 
 @dataclass
@@ -96,6 +101,9 @@ class AudioTraceRecorder:
         self._started_mono = 0.0
         self._metadata: dict[str, Any] = {}
         self._events: list[dict[str, Any]] = []
+        self._provider_trace_events = 0
+        self._provider_trace_bytes = 2  # canonical JSON array brackets
+        self._provider_trace_truncated = False
         self._stages: dict[str, _Stage] = {}
         self._limit_reported: set[str] = set()
         self._latest = self._load_latest()
@@ -118,9 +126,14 @@ class AudioTraceRecorder:
         self._armed_room = None
         return self.snapshot()
 
-    def begin(self, room: str, metadata: dict[str, Any] | None = None) -> bool:
+    def begin(
+        self,
+        room: str,
+        metadata: dict[str, Any] | Callable[[], dict[str, Any]] | None = None,
+    ) -> bool:
         if self._armed_room != room or self._active_room is not None:
             return False
+        resolved_metadata = metadata() if callable(metadata) else metadata
         now = time.time()
         self._armed_room = None  # one-shot: never record a later conversation by accident
         self._active_room = room
@@ -129,8 +142,11 @@ class AudioTraceRecorder:
         )
         self._started_wall = now
         self._started_mono = time.monotonic()
-        self._metadata = dict(metadata or {})
+        self._metadata = dict(resolved_metadata or {})
         self._events = []
+        self._provider_trace_events = 0
+        self._provider_trace_bytes = 2  # canonical JSON array brackets
+        self._provider_trace_truncated = False
         self._stages = {}
         self._limit_reported = set()
         self.event("capture_started", room=room)
@@ -164,19 +180,109 @@ class AudioTraceRecorder:
             for key, value in details.items()
             if isinstance(value, (str, int, float, bool)) or value is None
         }
+        self._events.append(self._event_row(event_name, clean))
+
+    def provider_event(self, event_name: str, **details: Any) -> None:
+        """Persist provider ancestry behind strict one-shot evidence bounds.
+
+        Provider telemetry is diagnostic evidence, never a reason to let the manifest
+        grow without limit.  Any string, event-count, or byte overflow emits one fixed
+        marker and closes this provider trace.  Continuing with partial identifiers
+        would make ancestry look complete when it is not, so truncation is fail-closed.
+        """
+        if self._active_room is None or self._provider_trace_truncated:
+            return
+        if len(str(event_name).encode("utf-8")) > PROVIDER_TRACE_STRING_MAX:
+            self._truncate_provider_trace("string_limit", field="event")
+            return
+
+        clean: dict[str, Any] = {}
+        for raw_key, value in details.items():
+            key = str(raw_key)
+            if len(key.encode("utf-8")) > _PROVIDER_TRACE_KEY_MAX:
+                self._truncate_provider_trace("string_limit", field="key")
+                return
+            if isinstance(value, str):
+                if len(value.encode("utf-8")) > PROVIDER_TRACE_STRING_MAX:
+                    self._truncate_provider_trace("string_limit", field=key)
+                    return
+                clean[key] = value
+            elif isinstance(value, bool) or value is None:
+                clean[key] = value
+            elif isinstance(value, int):
+                if not -(2**63) <= value < 2**63:
+                    self._truncate_provider_trace("number_limit", field=key)
+                    return
+                clean[key] = value
+            elif isinstance(value, float):
+                if not math.isfinite(value):
+                    self._truncate_provider_trace("number_limit", field=key)
+                    return
+                clean[key] = value
+
+        row = self._event_row(event_name, clean)
+        row_bytes = self._encoded_event_size(row)
+        marker = self._provider_truncation_row("event_or_byte_limit")
+        marker_bytes = self._encoded_event_size(marker)
+        reserved_marker_bytes = self._encoded_event_size(
+            self._provider_truncation_row(
+                "event_or_byte_limit", field="x" * _PROVIDER_TRACE_KEY_MAX
+            )
+        )
+        row_storage = row_bytes + (1 if self._provider_trace_events else 0)
+        reserved_marker_storage = reserved_marker_bytes + 1
+        if (
+            self._provider_trace_events + 2 > PROVIDER_TRACE_EVENTS_MAX
+            or self._provider_trace_bytes + row_storage + reserved_marker_storage
+            > PROVIDER_TRACE_BYTES_MAX
+        ):
+            self._append_provider_truncation(marker, marker_bytes)
+            return
+        self._events.append(row)
+        self._provider_trace_events += 1
+        self._provider_trace_bytes += row_storage
+
+    def _event_row(self, event_name: str, details: dict[str, Any]) -> dict[str, Any]:
         # Bind future lifecycle evidence to the exact sample boundary in every
         # recorded stream.  Wall-clock offsets are not sufficient after half-duplex
         # playback because provider audio is deliberately gated and therefore no
         # longer has the same duration as the physical capture.
+        clean = dict(details)
         for stage, bucket in self._stages.items():
             clean.setdefault(f"{stage}_sample_offset", bucket.samples)
-        self._events.append(
-            {
-                "at_ms": round((time.monotonic() - self._started_mono) * 1000),
-                "event": str(event_name),
-                **clean,
-            }
-        )
+        return {
+            "at_ms": round((time.monotonic() - self._started_mono) * 1000),
+            "event": str(event_name),
+            **clean,
+        }
+
+    @staticmethod
+    def _encoded_event_size(row: dict[str, Any]) -> int:
+        return len(json.dumps(row, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+    def _provider_truncation_row(self, reason: str, *, field: str | None = None) -> dict[str, Any]:
+        details: dict[str, Any] = {
+            "reason": reason,
+            "max_string_bytes": PROVIDER_TRACE_STRING_MAX,
+            "max_events": PROVIDER_TRACE_EVENTS_MAX,
+            "max_bytes": PROVIDER_TRACE_BYTES_MAX,
+        }
+        if field is not None:
+            details["field"] = field[:_PROVIDER_TRACE_KEY_MAX]
+        return self._event_row("provider_trace_truncated", details)
+
+    def _append_provider_truncation(self, marker: dict[str, Any], marker_bytes: int) -> None:
+        if self._provider_trace_truncated:
+            return
+        self._events.append(marker)
+        marker_storage = marker_bytes + (1 if self._provider_trace_events else 0)
+        self._provider_trace_events += 1
+        self._provider_trace_bytes += marker_storage
+        self._provider_trace_truncated = True
+
+    def _truncate_provider_trace(self, reason: str, *, field: str | None = None) -> None:
+        marker = self._provider_truncation_row(reason, field=field)
+        self._append_provider_truncation(marker, self._encoded_event_size(marker))
 
     def finish(self, reason: str) -> dict[str, Any] | None:
         if self._active_room is None or self._trace_id is None:
@@ -366,6 +472,8 @@ class AudioTraceRecorder:
             raise ValueError("Lydbeviset mangler providerlyd")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         events = list(manifest.get("events") or [])
+        if any(event.get("event") == "provider_trace_truncated" for event in events):
+            raise ValueError("Lydbevisets providertrace blev afkortet")
         metadata = manifest.get("metadata") if isinstance(manifest.get("metadata"), dict) else {}
         starts = [event for event in events if event.get("event") == "speech_started"]
         if turn_index >= len(starts):
@@ -469,6 +577,11 @@ class AudioTraceRecorder:
             "source_prompt_version_present": "prompt_version" in metadata,
             "source_prompt_sha256": source_text("prompt_sha256"),
             "source_room_context_sha256": source_text("room_context_sha256"),
+            "source_podvoice_version": source_text("podvoice_version"),
+            "source_artifact_identity_kind": source_text("artifact_identity_kind"),
+            "source_artifact_sha256": source_text("artifact_sha256"),
+            "source_turn_preset": source_text("turn_preset"),
+            "source_openai_noise": source_text("openai_noise"),
             "begin_sample": begin,
             "end_sample": end,
         }

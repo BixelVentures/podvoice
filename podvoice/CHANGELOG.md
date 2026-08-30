@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.13.51 — native Realtime-kontekst og lyd bliver målbar
+
+- Registrerer passivt providerens conversation-, item-, response- og ancestry-id'er,
+  så samme lokale socket ikke længere forveksles med bevis for samme serverkontekst.
+  Observeren ændrer ingen udgående Realtime-events og gemmer ikke nyt taleindhold.
+- Samler tekstkontroller og exact 24 kHz PCM-replay i én sideeffektfri A/B-gate med
+  exact rootfs-runtime-/prompt-/schema-/room-provenance og ét hårdt samlet prisloft på
+  $5. Ukendt provider-usage stopper fail-closed og kan aldrig fremstå som gratis.
+- Panelet får én målrettet numerisk opfølgningsgate med fem tekst- og fem lydforsøg.
+  Resultatet klassificerer context-, text-, audio- og nondeterminismefejl i stedet for
+  at udløse endnu en symptompatch.
+- Dette er en add-on-only diagnostikkandidat. Firmware, prompt, model, reasoning, gain,
+  VAD, lydtransport, værktøjsskema, playback, timeout, teardown og rearm er uændrede.
+
 ## 1.13.50 — timer-værktøjer konkurrerer ikke med matematik
 
 - Præciserer kun de tre eksisterende timerdeklarationer: de må vælges ved en klar

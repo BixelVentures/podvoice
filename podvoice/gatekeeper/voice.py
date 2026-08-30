@@ -58,9 +58,17 @@ class InputTranscript:
 
 @dataclass
 class OutputTranscript:
-    """Incremental transcript of the *model's* speech."""
+    """Incremental transcript of the *model's* speech.
+
+    Provider correlation is optional for compatibility with non-Realtime test
+    adapters.  The live Realtime evaluator requires both fields whenever its
+    matching ``TurnComplete`` carries them, so stale socket/response deltas cannot
+    become the graded answer for a later turn.
+    """
 
     text: str
+    response_id: str | None = None
+    generation: int | None = None
 
 
 @dataclass

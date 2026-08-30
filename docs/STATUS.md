@@ -1,26 +1,101 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-08-28.
+Senest opdateret: 2026-08-30.
 
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Installeret software:** PodVoice add-on v1.13.49 fra exact main
-`f1808517c56b23330b7a21b3de6f5f59d15192df` kører på HA Green, og Voice PE er
-OTA-flashet med den HA-byggede v1.13.46-produktionsfirmware fra exact main
-`ff10cc3e93eebdb9b84fb88240338b0be5a38aea`. Automatisk native-API-reconnect,
-firmwarekontrakt, mic channel 1/gain 16 og `okay_nabu` er fysisk observeret. Installation
-må ikke overskrive den fortsat afviste golden-chain-status.
-**Aktuel gate:** v1.13.49 er **NO-GO**. Den fysiske prøve 28. august kl. 12.35-12.36
-beviste ren første transskription, ren opfølgning og samme Realtime-session, men
-Realtime kaldte fejlagtigt `list_timers` på “Læg seks til.”. Kandidaten er ikke golden
-og må ikke gå til 10/10.
+**Synlig installeret software:** HA-panelet har vist PodVoice add-on v1.13.50, men exact
+installeret git-SHA, prompt-hash, tool-schema-hash og room-context-hash er endnu ikke
+korreleret til en gemt fysisk trace. Voice PE antages fortsat at køre den tidligere
+HA-byggede v1.13.46-produktionsfirmware fra exact main
+`ff10cc3e93eebdb9b84fb88240338b0be5a38aea`; det skal genbekræftes, når HA Green igen
+kan nås. Installation eller et korrekt svar må ikke overskrive den afviste gate.
+**Aktuel gate:** v1.13.50 er **NO-GO**. De seneste fysiske forløb bevarede samme lokale
+Realtime-session og kom rent gennem close, teardown og rearm, men den korte danske
+matematikopfølgning blev ikke stabilt forstået. Exact provider-conversation og aktivt
+artifact er endnu ikke bevist, så kandidaten må ikke gå til 10/10.
 
-**Aktiv udviklingskandidat:** v1.13.50 må kun præcisere timer-værktøjernes semantiske
-ejergrænse. Voice PE-firmwaren forbliver v1.13.46; wake, gain, VAD, lydtransport,
-playback, lifecycle, prompt og reasoning er frosne.
+**Aktiv udviklingskandidat:** v1.13.51 er en add-on-only diagnostikkandidat. Den må kun
+gøre providerens item-kæde passivt beviselig og samle den eksisterende tekst/PCM-replay
+under én pris- og provenancegate. Voice PE-firmware, wake, gain, VAD, lydtransport,
+playback, lifecycle, prompt, reasoning og produktionsværktøjsskema er frosne.
 
-### Aktiv beslutning 28. august — timer-schema må ikke konkurrere med matematik
+### Aktiv beslutning 30. august — bevis native Realtime-kontekst mod audiosemantik
+
+- **Observeret fejl og stærkeste direkte evidens:** I den armerede trace
+  `20260828T152317-683` svarede én provider-generation først 84 på tolv gange syv. På
+  “Læg seks til.” henviste Realtime selv til 84, men fortolkede samtidig lydens seks som
+  tres/uklart. En senere ikke-armeret prøve transskriberede diagnostisk “Med tallet seks
+  oveni.”, mens Realtime svarede på “lyd 6”. Begge forløb brugte én lokal session; close,
+  teardown og korreleret rearm var rene. Den diagnostiske transskription og Realtime-
+  modellens direkte audioforståelse er separate processer og må ikke sidestilles.
+- **Hele kæden og nærliggende fejlveje:** fysisk Voice PE-PCM → audio-generation →
+  provider-user-item → response/conversation → assistant-item → fysisk playback →
+  opfølgnings-user-item i samme provider-conversation. Nærliggende alternativer er
+  forkert artifact/provenance, manglende provider-item-ancestry, schema-/promptkonflikt,
+  native audiosemantik eller modelnondeterminisme. Mic-gate og stale transport åbnes kun
+  igen, hvis en korreleret PCM-/generationstrace direkte placerer fejlen dér.
+- **Berørte invarianter, hypotese og ikke-mål:** Realtime ejer fortsat sprog, matematik,
+  kontekst og værktøjsvalg; PodVoice observerer kun mekanikken. Hypotesen er, at
+  provider-konteksten består, mens den native model ikke stabilt fortolker den korte
+  danske lyd. Ingen transcript-first vej, lokal semantik, frase-/matematikrouting,
+  conversation-history replay, firmware-, gain-, VAD-, prompt-, reasoning-, schema-,
+  lifecycle-, playback-, timeout- eller rearmændring er mål for denne kandidat.
+- **Planlagte regressioner og sammensatte gates:** Observer alle provider-user- og
+  assistant-items med conversation-, item-, response-, previous-item- og generation-id
+  uden at ændre udgående wire eller gemme nyt indhold. Udvid exact PCM-replay med 1–5
+  tekstkontroller og 1–5 audioforsøg under ét $5-loft, exact provenance og nul eksterne
+  effekter. Dæk korrekt/brudt `U1 -> A1 -> U2`, duplicate/out-of-order/stale events,
+  tool-items, Talk/typed og Voice PE/audio samt observer on/off-wireidentitet.
+- **Stop og rollback:** En provenancefejl er BLOCKED, ikke produktevidens. Først en frisk
+  exact trace og tekst/PCM-klassifikation må vælge næste ene adfærdsdelta. Enhver wire-,
+  ACK-, dispatch-, latency-, playback- eller lifecycleændring fra observabiliteten
+  ruller hele v1.13.51-deltaet tilbage. HA Green var 30. august ikke tilgængelig fra
+  udviklingsmaskinen via Nabu Casa eller `homeassistant.local`, så live A/B og fysisk
+  canary står åbne og må ikke foregives som resultater.
+- **Faktisk v1.13.51-delta:** Providerobserveren er content-free, bounded og kun
+  installeret i den ene eksplicit armerede samtale; den gendannes på normal teardown,
+  connect-fejl og cancellation. Fysisk trace får version samt `rootfs-v1`-fingerprint,
+  som bygges over den færdige runtime-rootfs inklusive base-runtime, installerede
+  pakker, FLAC, modes og symlinks, men ikke foregiver at være en OCI-manifestdigest.
+  Numerisk A/B kræver matching `rootfs-v1`, model, Prompt V7/hash, fuldt schemahash,
+  room-context, turn-preset og OpenAI-noise før nogen providersocket åbnes. Begge ture
+  kræver en komplet ordnet `U1 -> A1 -> U2 -> A2`-kæde med exact response/generation;
+  tekst kræver request-ACK, lyd kræver audio-commit. Taloraklet afviser blandt andet
+  184 som 84, 190 som 90, negation og modstridende tal. Sent transcript bevarer den
+  allerede bundne ancestry; outputtekst og første lyd bindes til den afsluttede
+  response; ukendt provider-usage stopper hele replayet fail-closed. Panelet kan kun
+  vise grøn ved provenance-match og samtlige 5+5 beståede forsøg. Dockerfile er den
+  eneste ændring uden for add-onens diagnostikkode: den skriver rootfs-fingerprintet
+  ved build. Firmware og al frossen produktionsadfærd ovenfor er uændret.
+- **Faktiske lokale resultater og review:** Den endelige målrettede suite har **509/509**
+  grønne tests for evaluator, providerprotokol, audio trace, rootfs-identitet, Thin,
+  Talk/panel og web. Ruff, formattering, mypy over 42 source-filer og diff-check er
+  grønne. Første adversarial review fandt fire P1-huller i diagnosticeringen: sent
+  transcript overskrev trace, ukendt usage kunne se gratis ud, modeloutput manglede
+  responsebinding, og preset/noise manglede i provenance. Alle fire er rettet med
+  falsificerende regressioner. Det første helt uafhængige slutreview fandt derefter to
+  yderligere P1-huller: ekstra stale/duplicate/function-items kunne ligge ved siden af
+  den forventede providerkæde, og en fejlet/cancelled eval-response uden usage kunne
+  passere den normale terminalgren. Oraklet kræver nu den eksakte direkte-svarsekvens,
+  og alle eval-terminalstatusser stopper på ukendt usage; de fire nye falsifikationer er
+  grønne uden at ændre production-terminaladfærd. En tidligere fuld fast-gate på 1.094
+  tests blev grøn på
+  40,3 sekunder, men blev efterfulgt af disse rettelser og tæller derfor ikke som den
+  endelige releasegate. Det endelige uafhængige review af det refrosne diff gav
+  **GO med P0=0, P1=0 og P2=0**. Derefter bestod præcis én autoritativ
+  `scripts/dev release --base origin/main`: Ruff, formattering, mypy og **1.113/1.113**
+  tests grønne på **40,0 sekunder**. Exact-commit CI og ARM64-build står fortsat åbne.
+- **Præcis kandidat- og fysisk status:** v1.13.51 er lokalt releasegodkendt, men endnu
+  **ikke exact-commit-CI-godkendt, installeret, live-klassificeret eller fysisk golden**.
+  Der findes endnu ingen frisk `rootfs-v1`-bundet Voice PE-trace, ingen betalt 5+5 A/B,
+  ingen fysisk canary og ingen 10/10. HA Green er fortsat den eksterne grænse. Næste
+  tilladte rækkefølge er PR/CI/ARM64 → én installation → frisk armeret trace → den
+  sideeffektfrie 5+5-klassifikation. Først et
+  `GO_TO_PHYSICAL_CANARY` åbner canary; alt andet stopper uden symptompatch.
+
+### Historisk beslutning 28. august — timer-schema må ikke konkurrere med matematik
 
 - **Observeret fejl og stærkeste direkte evidens:** Første tur blev transskriberet som
   “Hvad er tolv gange syv?”, svaret direkte uden værktøj og afspillet fysisk med
@@ -136,7 +211,7 @@ playback, lifecycle, prompt og reasoning er frosne.
 
 Alt nedenfor bevares som årsags-, regressions- og rollback-evidens. Historiske ord som
 “skal”, versionsplaner og kandidater er ikke længere aktive beslutninger og må aldrig
-tilsidesætte den aktuelle v1.13.50-beslutning ovenfor, `docs/INVARIANTER.md`,
+tilsidesætte den aktuelle v1.13.51-beslutning ovenfor, `docs/INVARIANTER.md`,
 `docs/PRODUKTMÅL.md` eller `docs/ARKITEKTUR.md`.
 
 ### Historisk beslutning 26. august — sen gammel mic-frame krydsede næste wake

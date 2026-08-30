@@ -185,6 +185,16 @@ class TraceOracle:
             issues.append(TraceIssue("events_missing", "Trace has no structured events"))
             return TraceReport(self.adapter, tuple(issues), (), 0, 0)
 
+        for index, name in enumerate(names):
+            if name == "provider_trace_truncated":
+                issues.append(
+                    TraceIssue(
+                        "provider_trace_truncated",
+                        "Provider ancestry was truncated; this trace cannot prove lifecycle",
+                        event_index=index,
+                    )
+                )
+
         previous_ms = -1.0
         for index, event in enumerate(events):
             name = _name(event)

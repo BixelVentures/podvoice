@@ -71,6 +71,8 @@ _LOG = logging.getLogger("podvoice.openai")
 _CLIENT_ITEM_ID_MAX_LENGTH = 32
 _CLIENT_ITEM_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _PROTOCOL_HISTORY_MAX = 4096
+_PROVIDER_TRACE_LABEL_MAX = 96
+_PROVIDER_TRACE_ITEMS_MAX = 16
 _SCHEMA_CORRECTION_FORBIDDEN_TOOLS = frozenset(
     {"end_conversation", "wait_for_user", "approve_action", "EvalUnlockDoor"}
 )
@@ -119,6 +121,44 @@ def _safe_client_item_id(item_id: str | None) -> str:
     if 0 < len(raw) <= _CLIENT_ITEM_ID_MAX_LENGTH and _CLIENT_ITEM_ID_RE.fullmatch(raw):
         return raw
     return f"pv_{hashlib.sha256(raw.encode()).hexdigest()[:29]}"
+
+
+def _bounded_provider_label(value: object) -> str | None:
+    """Retain correlation labels without copying arbitrary provider content."""
+    if not isinstance(value, str) or not value:
+        return None
+    return value[:_PROVIDER_TRACE_LABEL_MAX]
+
+
+def _bounded_provider_index(value: object) -> int | None:
+    """Accept only a small non-negative protocol index in diagnostic output."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if 0 <= value <= _PROTOCOL_HISTORY_MAX else None
+
+
+def _provider_item_observation(item: object) -> dict[str, str | None]:
+    """Return the bounded, content-free fields needed to reconstruct item ancestry."""
+    row = item if isinstance(item, dict) else {}
+    return {
+        "item_id": _bounded_provider_label(row.get("id")),
+        "item_type": _bounded_provider_label(row.get("type")),
+        "role": _bounded_provider_label(row.get("role")),
+        "status": _bounded_provider_label(row.get("status")),
+        "call_id": _bounded_provider_label(row.get("call_id")),
+    }
+
+
+def _provider_output_observation(response: object) -> tuple[list[dict[str, str | None]], int]:
+    """Summarize a bounded response output list without transcript, audio, or arguments."""
+    row = response if isinstance(response, dict) else {}
+    output = row.get("output")
+    if not isinstance(output, list):
+        return [], 0
+    return (
+        [_provider_item_observation(item) for item in output[:_PROVIDER_TRACE_ITEMS_MAX]],
+        max(0, len(output) - _PROVIDER_TRACE_ITEMS_MAX),
+    )
 
 
 def _strict_json_object(raw: str) -> dict:
@@ -238,9 +278,10 @@ class OpenAIRealtimeSession:
     before_response_create: Callable[[int | None], Awaitable[None]] | None = field(
         default=None, repr=False, kw_only=True
     )
-    # Eval-only bounded provenance sink. Production leaves this unset, so tracing
-    # cannot alter physical latency or lifecycle. Payloads are constructed from
-    # numeric provider/budget fields and opaque response/request ids only.
+    # Passive bounded provenance sink. Normal production sessions leave it unset;
+    # ThinSession installs it temporarily only for an explicitly armed one-shot
+    # physical trace, then restores the prior value on every close path. Payloads
+    # contain numeric fields and opaque response/request/item identifiers only.
     provider_observer: Callable[[dict[str, Any]], None] | None = field(default=None, repr=False)
     voice: str = DEFAULT_VOICE
     instructions: str = ""  # empty -> built-in SYSTEM_PROMPT_DA
@@ -1419,8 +1460,12 @@ class OpenAIRealtimeSession:
                 if self.provider_observer is not None:
                     self._observe_provider(
                         "response_created",
-                        response_id=cur_rid or "?",
-                        request_id=request_id,
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        response_id=_bounded_provider_label(cur_rid) or "?",
+                        conversation_id=_bounded_provider_label(
+                            response.get("conversation_id") if isinstance(response, dict) else None
+                        ),
+                        request_id=_bounded_provider_label(request_id) or "",
                         request_id_matched=request_id_matched,
                         pending_before=pending_before,
                         pending_after=len(self._pending_response_creates),
@@ -1457,7 +1502,12 @@ class OpenAIRealtimeSession:
                         generation=generation,
                     )
             elif t == "response.output_audio_transcript.delta":
-                yield OutputTranscript(ev.get("delta", ""))
+                transcript_rid = _rid(ev)
+                yield OutputTranscript(
+                    ev.get("delta", ""),
+                    response_id=None if transcript_rid == "?" else transcript_rid,
+                    generation=generation,
+                )
             elif t == "conversation.item.input_audio_transcription.completed":
                 # ONLY the completed (final) transcript drives the displayed line. We used to
                 # ALSO emit on '.delta', but the console renders one bubble per event (no
@@ -1476,6 +1526,15 @@ class OpenAIRealtimeSession:
                 pending = self._pending_item_creates.get(item_id)
                 item_type = str(item.get("type") or "")
                 call_id = str(item.get("call_id") or "")
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "conversation_item_added",
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        provider_event_type=t,
+                        previous_item_id=_bounded_provider_label(ev.get("previous_item_id")),
+                        generation=generation,
+                        **_provider_item_observation(item),
+                    )
                 if (
                     pending is not None
                     and item_type == pending.item_type
@@ -1497,8 +1556,27 @@ class OpenAIRealtimeSession:
                     _LOG.debug("ignoring uncorrelated %s id=%s", t, item_id)
             elif t == "response.function_call_arguments.done":
                 self._stage_tool_call(ev, cur_rid)
+            elif t == "response.output_item.added":
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "response_output_item_added",
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        response_id=_bounded_provider_label(ev.get("response_id")),
+                        output_index=_bounded_provider_index(ev.get("output_index")),
+                        generation=generation,
+                        **_provider_item_observation(ev.get("item")),
+                    )
             elif t == "response.output_item.done":
                 item = ev.get("item") or {}
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "response_output_item_done",
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        response_id=_bounded_provider_label(ev.get("response_id")),
+                        output_index=_bounded_provider_index(ev.get("output_index")),
+                        generation=generation,
+                        **_provider_item_observation(item),
+                    )
                 if item.get("type") == "function_call":
                     self._stage_tool_call(
                         {
@@ -1574,6 +1652,14 @@ class OpenAIRealtimeSession:
                 elif item_id:
                     _LOG.debug("ignoring stale conversation.item.truncated id=%s", item_id)
             elif t == "input_audio_buffer.committed":
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "input_audio_buffer_committed",
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        item_id=_bounded_provider_label(ev.get("item_id")),
+                        previous_item_id=_bounded_provider_label(ev.get("previous_item_id")),
+                        generation=generation,
+                    )
                 # Belt-and-suspenders fallback for manual commits/providers that do
                 # not emit speech_stopped.  For normal VAD this is the SAME boundary,
                 # so never publish it twice.
@@ -1694,10 +1780,20 @@ class OpenAIRealtimeSession:
                 else:
                     usage_observation = {"reason": "usage_missing_or_invalid"}
                 if self.provider_observer is not None:
+                    observed_output, observed_output_truncated = _provider_output_observation(
+                        response
+                    )
                     self._observe_provider(
                         "response_done",
-                        response_id=rid,
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        response_id=_bounded_provider_label(rid) or "?",
+                        conversation_id=_bounded_provider_label(
+                            response.get("conversation_id") if isinstance(response, dict) else None
+                        ),
                         status=status,
+                        output_items=observed_output,
+                        output_items_truncated=observed_output_truncated,
+                        generation=generation,
                         provider_rate_observed=provider_reservation_observed,
                         rate_observation_count=rate_observation_count,
                         usage=(
@@ -1723,6 +1819,25 @@ class OpenAIRealtimeSession:
                 if usage is not None:
                     yield usage
                 staged_invalid = self._invalid_tool_responses.pop(rid, None)
+                if self.budget_role == "eval" and not eval_usage_valid:
+                    # A failed/cancelled response can still consume billable tokens.
+                    # Eval may not admit another edge under a hard USD cap when any
+                    # terminal response omitted authoritative usage.
+                    self._cancelled_tool_calls.update(staged_calls)
+                    usage_error = (
+                        "provider_usage_unknown · live eval response usage was missing or invalid"
+                    )
+                    self.last_error = usage_error
+                    yield TurnComplete(
+                        status="failed",
+                        error=usage_error,
+                        response_id=rid,
+                        generation=generation,
+                        purpose=response_purpose,
+                        source_call_id=response_source_call_id,
+                        provider_rate_observed=provider_reservation_observed,
+                    )
+                    continue
                 if status != "completed":
                     # A failed/cancelled function-call response is not permission to
                     # manufacture either a spoken result or a silent success. Cancel
@@ -1735,22 +1850,6 @@ class OpenAIRealtimeSession:
                     )
                     yield TurnComplete(
                         status=effective_status,
-                        error=error,
-                        response_id=rid,
-                        generation=generation,
-                        purpose=response_purpose,
-                        source_call_id=response_source_call_id,
-                        provider_rate_observed=provider_reservation_observed,
-                    )
-                    continue
-                if self.budget_role == "eval" and not eval_usage_valid:
-                    self._cancelled_tool_calls.update(staged_calls)
-                    error = (
-                        "provider_usage_unknown · live eval response usage was missing or invalid"
-                    )
-                    self.last_error = error
-                    yield TurnComplete(
-                        status="failed",
                         error=error,
                         response_id=rid,
                         generation=generation,
