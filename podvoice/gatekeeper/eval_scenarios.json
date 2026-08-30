@@ -76,6 +76,8 @@
           "expect": {
             "direct_answer": true,
             "answer_any": ["84", "fireogfirs"],
+            "numeric_result": 84,
+            "numeric_support": [7, 12],
             "remain_open": true
           }
         },
@@ -84,6 +86,8 @@
           "expect": {
             "direct_answer": true,
             "answer_any": ["90", "halvfems"],
+            "numeric_result": 90,
+            "numeric_support": [6, 84],
             "remain_open": true
           }
         }
@@ -99,6 +103,8 @@
           "expect": {
             "direct_answer": true,
             "answer_any": ["84", "fireogfirs"],
+            "numeric_result": 84,
+            "numeric_support": [7, 12],
             "remain_open": true
           }
         },
@@ -107,6 +113,8 @@
           "expect": {
             "direct_answer": true,
             "answer_any": ["90", "halvfems"],
+            "numeric_result": 90,
+            "numeric_support": [6, 84],
             "remain_open": true
           }
         },

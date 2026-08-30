@@ -30,6 +30,7 @@ import wave
 from dataclasses import asdict, dataclass, field
 from typing import Any, ClassVar, Protocol
 
+from . import __version__, runtime_artifact_identity
 from . import constants as C
 from .execution_policy import ExecutionContext, ExecutionPolicy, Risk
 from .openai_realtime import (
@@ -92,6 +93,9 @@ LIVE_EVAL_RESET_GAP_S = 60.5
 LIVE_EVAL_TRANSCRIPT_GRACE_S = 2.0
 LIVE_EVAL_ACTUAL_COST_CAP_USD = 5.00
 GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE = 0.017
+NUMERIC_FOLLOWUP_AB_MODE = "numeric-followup-ab"
+LIVE_EVAL_TURN_PRESET = "responsive"
+LIVE_EVAL_OPENAI_NOISE = "off"
 # Conservative per-edge cost for the production-shaped typed profile and the bounded
 # (max 8 s) target-turn replay: at most 12,288 audio tokens in a 128k context,
 # all remaining input charged as uncached text, plus PodVoice's 1,024-token audio
@@ -106,6 +110,14 @@ MAX_EVAL_NORMAL_RESPONSE_EDGES_PER_TURN = 3
 MAX_EVAL_RESPONSE_EDGES_PER_TURN = 4
 MAX_LIVE_EVAL_PROMPT_BYTES = 32 * 1024
 _LOG = logging.getLogger(__name__)
+
+
+def _valid_replay_count(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 5
+
+
+def _replay_kind(mode: str | None) -> str:
+    return "semantic-audio-ab" if mode == NUMERIC_FOLLOWUP_AB_MODE else "audio-replay"
 
 
 def _full_profile_deadline_s() -> float:
@@ -144,6 +156,8 @@ class TurnExpectation:
     answer_any: tuple[str, ...] = ()
     answer_all: tuple[str, ...] = ()
     answer_patterns: tuple[str, ...] = ()
+    numeric_result: int | None = None
+    numeric_support: tuple[int, ...] = ()
     tool_args: dict[str, dict[str, Any]] = field(default_factory=dict)
     tool_args_any: dict[str, tuple[dict[str, Any], ...]] = field(default_factory=dict)
     tool_outcomes: dict[str, tuple[str, ...]] = field(default_factory=dict)
@@ -196,6 +210,11 @@ class AudioReplayFixture:
     source_prompt_version_present: bool = False
     source_prompt_sha256: str | None = None
     source_room_context_sha256: str | None = None
+    source_podvoice_version: str | None = None
+    source_artifact_identity_kind: str | None = None
+    source_artifact_sha256: str | None = None
+    source_turn_preset: str | None = None
+    source_openai_noise: str | None = None
 
 
 @dataclass
@@ -220,6 +239,8 @@ class TurnObservation:
     response_usage: list[dict[str, int | str]] = field(default_factory=list)
     provider_trace: list[dict[str, Any]] = field(default_factory=list)
     schema_corrections: int = 0
+    response_id: str | None = None
+    generation: int | None = None
 
 
 @dataclass(frozen=True)
@@ -277,6 +298,214 @@ def _provider_provenance_summary(
             if row.get("kind") == "trace_truncated"
         ),
     }
+
+
+def _provider_item_chain_findings(
+    seed: TurnResult,
+    target: TurnResult,
+    *,
+    audio_target: bool,
+) -> list[Finding]:
+    """Prove two complete provider responses in one ordered conversation chain."""
+    seed_trace = seed.observation.provider_trace
+    target_trace = target.observation.provider_trace
+    if any(row.get("kind") == "trace_truncated" for row in (*seed_trace, *target_trace)):
+        return [
+            Finding(
+                "provider-item-chain-truncated",
+                "Providerens item-kæde blev afkortet og kan ikke bevise samme samtale.",
+            )
+        ]
+
+    def rows(
+        trace: list[dict[str, Any]], kind: str, **fields: object
+    ) -> list[tuple[int, dict[str, Any]]]:
+        return [
+            (index, row)
+            for index, row in enumerate(trace)
+            if row.get("kind") == kind
+            and all(row.get(field) == expected for field, expected in fields.items())
+        ]
+
+    def completed_turn(
+        result: TurnResult,
+        trace: list[dict[str, Any]],
+        *,
+        previous_item_id: str | None,
+        typed: bool,
+    ) -> tuple[str, str, str, int] | None:
+        observation = result.observation
+        response_id = observation.response_id
+        generation = observation.generation
+        if not isinstance(response_id, str) or not response_id or not isinstance(generation, int):
+            return None
+        # The numeric A/B target is a direct-answer canary. Any additional provider
+        # response or tool/function item makes the apparent U/A chain ambiguous, even
+        # when one matching response still exists inside it.
+        all_responses = rows(trace, "response_created")
+        all_done = rows(trace, "response_done")
+        all_duplicate_done = rows(trace, "duplicate_response_done")
+        all_conversation_items = rows(trace, "conversation_item_added")
+        all_output_added = rows(trace, "response_output_item_added")
+        all_output_done = rows(trace, "response_output_item_done")
+        all_commits = rows(trace, "input_audio_buffer_committed")
+        if (
+            len(all_responses) != 1
+            or len(all_done) != 1
+            or all_duplicate_done
+            or len(all_conversation_items) != 2
+            or len(all_output_added) != 1
+            or len(all_output_done) != 1
+            or len(all_commits) != (0 if typed else 1)
+            or any(
+                row.get("item_type") != "message" or row.get("role") not in {"user", "assistant"}
+                for _index, row in all_conversation_items
+            )
+            or any(
+                row.get("item_type") != "message" or row.get("role") != "assistant"
+                for _index, row in (*all_output_added, *all_output_done)
+            )
+        ):
+            return None
+        users = rows(
+            trace,
+            "conversation_item_added",
+            provider_event_type="conversation.item.added",
+            role="user",
+        )
+        responses = rows(trace, "response_created", response_id=response_id)
+        assistants = rows(
+            trace,
+            "conversation_item_added",
+            provider_event_type="conversation.item.added",
+            role="assistant",
+        )
+        if any(len(group) != 1 for group in (users, responses, assistants)):
+            return None
+        user_index, user = users[0]
+        response_index, response = responses[0]
+        assistant_index, assistant = assistants[0]
+        user_id = user.get("item_id")
+        assistant_id = assistant.get("item_id")
+        conversation_id = response.get("conversation_id")
+        if not all(
+            isinstance(value, str) and value for value in (user_id, assistant_id, conversation_id)
+        ):
+            return None
+        output_done = rows(
+            trace,
+            "response_output_item_done",
+            response_id=response_id,
+            item_id=assistant_id,
+            item_type="message",
+            role="assistant",
+            status="completed",
+            generation=generation,
+        )
+        output_added = rows(
+            trace,
+            "response_output_item_added",
+            response_id=response_id,
+            item_id=assistant_id,
+            item_type="message",
+            role="assistant",
+            generation=generation,
+        )
+        response_done = rows(
+            trace,
+            "response_done",
+            response_id=response_id,
+            conversation_id=conversation_id,
+            status="completed",
+            generation=generation,
+        )
+        if len(output_added) != 1 or len(output_done) != 1 or len(response_done) != 1:
+            return None
+        added_index, _added = output_added[0]
+        output_index, _output = output_done[0]
+        done_index, done = response_done[0]
+        output_items = done.get("output_items")
+        if (
+            not isinstance(output_items, list)
+            or len(output_items) != 1
+            or not isinstance(output_items[0], dict)
+            or output_items[0].get("item_id") != assistant_id
+            or output_items[0].get("item_type") != "message"
+            or output_items[0].get("role") != "assistant"
+            or output_items[0].get("status") != "completed"
+            or done.get("output_items_truncated") != 0
+        ):
+            return None
+        if not (
+            user.get("previous_item_id") == previous_item_id
+            and assistant.get("previous_item_id") == user_id
+            and user.get("generation") == generation
+            and response.get("generation") == generation
+            and assistant.get("generation") == generation
+            and user_index
+            < response_index
+            < assistant_index
+            < added_index
+            < output_index
+            < done_index
+        ):
+            return None
+        if typed and response.get("request_id_matched") is not True:
+            return None
+        assert isinstance(user_id, str)
+        assert isinstance(assistant_id, str)
+        assert isinstance(conversation_id, str)
+        return user_id, assistant_id, conversation_id, generation
+
+    if seed.observation.session_id != target.observation.session_id:
+        seed_chain = target_chain = None
+    else:
+        seed_chain = completed_turn(
+            seed,
+            seed_trace,
+            previous_item_id=None,
+            typed=True,
+        )
+        target_chain = (
+            completed_turn(
+                target,
+                target_trace,
+                previous_item_id=seed_chain[1],
+                typed=not audio_target,
+            )
+            if seed_chain is not None
+            else None
+        )
+    chain_ok = (
+        seed_chain is not None
+        and target_chain is not None
+        and target_chain[2] == seed_chain[2]
+        and target_chain[3] == seed_chain[3]
+    )
+    if chain_ok and audio_target:
+        assert seed_chain is not None and target_chain is not None
+        target_users = rows(target_trace, "conversation_item_added", role="user")
+        target_commits = rows(
+            target_trace,
+            "input_audio_buffer_committed",
+            item_id=target_chain[0],
+            previous_item_id=seed_chain[1],
+            generation=seed_chain[3],
+        )
+        chain_ok = (
+            len(target_users) == 1
+            and len(target_commits) == 1
+            and target_commits[0][0] < target_users[0][0]
+        )
+    if not chain_ok:
+        return [
+            Finding(
+                "provider-item-chain-broken",
+                "Provideren beviste ikke én komplet, ordnet U1 -> A1 -> U2 -> A2-kæde "
+                "med korrelerede completed-responses i samme conversation.",
+            )
+        ]
+    return []
 
 
 class ConversationDriver(Protocol):
@@ -360,6 +589,18 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
             answer_patterns = tuple(expected.get("answer_patterns") or ())
             for pattern in answer_patterns:
                 re.compile(pattern)
+            numeric_result = expected.get("numeric_result")
+            numeric_support = expected.get("numeric_support") or []
+            if numeric_result is not None and (
+                not isinstance(numeric_result, int) or isinstance(numeric_result, bool)
+            ):
+                raise ValueError(f"{scenario_id}: numeric_result must be an integer")
+            if not isinstance(numeric_support, list) or any(
+                not isinstance(value, int) or isinstance(value, bool) for value in numeric_support
+            ):
+                raise ValueError(f"{scenario_id}: numeric_support must contain integers")
+            if numeric_support and numeric_result is None:
+                raise ValueError(f"{scenario_id}: numeric_support requires numeric_result")
             raw_tool_args = expected.get("tool_args") or {}
             raw_tool_args_any = expected.get("tool_args_any") or {}
             if not isinstance(raw_tool_args, dict) or not isinstance(raw_tool_args_any, dict):
@@ -386,6 +627,8 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                         answer_any=tuple(expected.get("answer_any") or ()),
                         answer_all=tuple(expected.get("answer_all") or ()),
                         answer_patterns=answer_patterns,
+                        numeric_result=numeric_result,
+                        numeric_support=tuple(numeric_support),
                         tool_args={str(name): dict(args) for name, args in raw_tool_args.items()},
                         tool_args_any={
                             str(name): tuple(dict(args) for args in variants)
@@ -435,6 +678,84 @@ def match_scenario_turn(text: str) -> tuple[EvalScenario, int] | None:
 def _normalise(value: str) -> str:
     folded = unicodedata.normalize("NFKD", value.casefold())
     return " ".join(re.sub(r"[^a-z0-9æøå]+", " ", folded).split())
+
+
+def _danish_number_forms() -> dict[str, int]:
+    """Build bounded evaluator-only Danish cardinal forms through 199."""
+    units = {
+        2: "to",
+        3: "tre",
+        4: "fire",
+        5: "fem",
+        6: "seks",
+        7: "syv",
+        8: "otte",
+        9: "ni",
+    }
+    direct = {
+        10: "ti",
+        11: "elleve",
+        12: "tolv",
+        13: "tretten",
+        14: "fjorten",
+        15: "femten",
+        16: "seksten",
+        17: "sytten",
+        18: "atten",
+        19: "nitten",
+        20: "tyve",
+        30: "tredive",
+        40: "fyrre",
+        50: "halvtreds",
+        60: "tres",
+        70: "halvfjerds",
+        80: "firs",
+        90: "halvfems",
+    }
+    forms = {name: value for value, name in {**units, **direct}.items()}
+    for tens in range(20, 100, 10):
+        for unit, unit_name in units.items():
+            value = tens + unit
+            forms[f"{unit_name}og{direct[tens]}"] = value
+            forms[f"{unit_name} og {direct[tens]}"] = value
+    forms["hundrede"] = 100
+    forms["ethundrede"] = 100
+    forms["et hundrede"] = 100
+    under_hundred = tuple(forms.items())
+    for name, value in under_hundred:
+        if value >= 100:
+            continue
+        forms[f"hundredeog{name}"] = 100 + value
+        forms[f"ethundredeog{name}"] = 100 + value
+        forms[f"et hundrede og {name}"] = 100 + value
+    return forms
+
+
+_DANISH_NUMBER_FORMS = _danish_number_forms()
+_DANISH_NUMBER_PATTERN = re.compile(
+    r"(?<![a-z0-9æøå])("
+    + "|".join(re.escape(value) for value in sorted(_DANISH_NUMBER_FORMS, key=len, reverse=True))
+    + r")(?![a-z0-9æøå])"
+)
+_NUMERIC_CONTRADICTION_PATTERN = re.compile(
+    r"\b(?:ikke|nej|forkert|fejl|eller|men|måske|snarere|derimod)\b"
+)
+
+
+def _numeric_result_matches(expect: TurnExpectation, answer: str) -> bool:
+    expected = expect.numeric_result
+    if expected is None:
+        return True
+    normalised = _normalise(answer)
+    if _NUMERIC_CONTRADICTION_PATTERN.search(normalised):
+        return False
+    values = [int(value) for value in re.findall(r"(?<![a-z0-9])\d+(?![a-z0-9])", normalised)]
+    values.extend(
+        _DANISH_NUMBER_FORMS[match.group(1)]
+        for match in _DANISH_NUMBER_PATTERN.finditer(normalised)
+    )
+    allowed = {expected, *expect.numeric_support}
+    return expected in values and all(value in allowed for value in values)
 
 
 def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Finding]:
@@ -539,6 +860,13 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
             Finding(
                 "answer-pattern-mismatch",
                 "Svaret havde ikke den forventede betydningsrækkefølge.",
+            )
+        )
+    if not _numeric_result_matches(expect, observed.answer):
+        findings.append(
+            Finding(
+                "numeric-result-mismatch",
+                f"Svaret beviste ikke det præcise numeriske resultat {expect.numeric_result}.",
             )
         )
     if observed.remain_open is not expect.remain_open:
@@ -1319,7 +1647,10 @@ class LiveRealtimeDriver:
         )
 
     def _attach_provider_trace(self, observed: TurnObservation) -> None:
-        observed.provider_trace = self._provider_trace[self._provider_trace_cursor :]
+        # ``submit_audio`` may wait briefly for a diagnostic transcript after the
+        # response has completed.  Preserve the response/item ancestry attached by
+        # ``_collect_turn`` and append only events that arrived during that grace.
+        observed.provider_trace.extend(self._provider_trace[self._provider_trace_cursor :])
         self._provider_trace_cursor = len(self._provider_trace)
         if self._provider_trace_dropped:
             observed.provider_trace.append(
@@ -1406,9 +1737,9 @@ class LiveRealtimeDriver:
             voice=self.voice,
             instructions=self.instructions,
             input_rate=24_000,
-            preset="responsive",
+            preset=LIVE_EVAL_TURN_PRESET,
             interrupt_response=self.interrupt_response,
-            noise="off",
+            noise=LIVE_EVAL_OPENAI_NOISE,
             room_context=self.room_context,
             tool_declarations=self.tools.declarations(),
             provider_budget=self.provider_budget,
@@ -1580,6 +1911,9 @@ class LiveRealtimeDriver:
         observed = TurnObservation(turn_id=turn_id, session_id=self.session_id)
         self._active_observation = observed
         output: list[str] = []
+        output_by_response: dict[tuple[str, int], list[str]] = {}
+        first_audio_by_response: dict[tuple[str, int], int] = {}
+        unbound_first_audio_ms: int | None = None
         usage = Usage()
         tool_round_seen = False
         response_edges = 0
@@ -1628,6 +1962,9 @@ class LiveRealtimeDriver:
                 batch[event.batch_index] = event
                 # Anything spoken before the decision is a private preamble.
                 output.clear()
+                output_by_response.clear()
+                first_audio_by_response.clear()
+                unbound_first_audio_ms = None
             elif isinstance(event, ToolRoundComplete):
                 response_edges += 1
                 response_id = str(event.response_id or "")
@@ -1653,6 +1990,9 @@ class LiveRealtimeDriver:
                 pending_batches.pop(response_id, None)
                 tool_round_seen = True
                 output.clear()
+                output_by_response.clear()
+                first_audio_by_response.clear()
+                unbound_first_audio_ms = None
             elif isinstance(event, ToolSchemaCorrection):
                 response_edges += 1
                 observed.schema_corrections += 1
@@ -1670,15 +2010,39 @@ class LiveRealtimeDriver:
                     ]
                 )
                 output.clear()
+                output_by_response.clear()
+                first_audio_by_response.clear()
+                unbound_first_audio_ms = None
             elif isinstance(event, OutputTranscript):
                 # The provider emits deltas. Only the result response is authoritative.
                 if tool_round_seen or not observed.decisions:
-                    output.append(event.text)
+                    if (
+                        isinstance(event.response_id, str)
+                        and event.response_id
+                        and isinstance(event.generation, int)
+                    ):
+                        output_by_response.setdefault(
+                            (event.response_id, event.generation), []
+                        ).append(event.text)
+                    else:
+                        # Compatibility for provider-neutral fakes. A correlated live
+                        # TurnComplete never consumes this unbound bucket.
+                        output.append(event.text)
             elif isinstance(event, InputTranscript):
                 observed.diagnostic_transcript = event.text
-            elif isinstance(event, AudioChunk) and observed.first_audio_ms is None:
+            elif isinstance(event, AudioChunk):
                 if tool_round_seen or not observed.decisions:
-                    observed.first_audio_ms = round((time.monotonic() - started) * 1000)
+                    first_audio_ms = round((time.monotonic() - started) * 1000)
+                    if (
+                        isinstance(event.response_id, str)
+                        and event.response_id
+                        and isinstance(event.generation, int)
+                    ):
+                        first_audio_by_response.setdefault(
+                            (event.response_id, event.generation), first_audio_ms
+                        )
+                    elif unbound_first_audio_ms is None:
+                        unbound_first_audio_ms = first_audio_ms
             elif isinstance(event, Usage):
                 observed.response_usage.append(asdict(event))
                 usage = Usage(
@@ -1703,8 +2067,20 @@ class LiveRealtimeDriver:
                     observed.error = "tool response ended before its exact commit edge"
                     observed.response_status = "failed"
                     break
+                observed.response_id = event.response_id
+                observed.generation = event.generation
                 observed.response_status = event.status
                 observed.error = event.error
+                if (
+                    isinstance(event.response_id, str)
+                    and event.response_id
+                    and isinstance(event.generation, int)
+                ):
+                    response_key = (event.response_id, event.generation)
+                    output = output_by_response.get(response_key, [])
+                    observed.first_audio_ms = first_audio_by_response.get(response_key)
+                else:
+                    observed.first_audio_ms = unbound_first_audio_ms
                 break
         observed.answer = "".join(output).strip()
         observed.fixture_side_effects = self.tools.fixture_side_effects
@@ -1876,12 +2252,15 @@ class LiveEvalService:
         scenario: EvalScenario,
         turn_index: int,
         repeats: int = 3,
+        text_repeats: int = 1,
+        mode: str | None = None,
         model: str = DEFAULT_MODEL,
         voice: str = DEFAULT_VOICE,
         instructions: str = SYSTEM_PROMPT_DA,
         tool_declarations: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Start an exact provider-audio replay with no production tool dispatch."""
+        kind = _replay_kind(mode)
         if self._job is not None and not self._job.done():
             return {
                 "ok": False,
@@ -1893,23 +2272,36 @@ class LiveEvalService:
             }
         matched = match_scenario_turn(fixture.diagnostic_transcript)
         if (
-            repeats < 1
-            or repeats > 5
+            not _valid_replay_count(repeats)
+            or not _valid_replay_count(text_repeats)
+            or mode not in (None, NUMERIC_FOLLOWUP_AB_MODE)
             or fixture.rate != 24_000
             or not fixture.pcm
             or len(fixture.pcm) > fixture.rate * 2 * 8
             or hashlib.sha256(fixture.pcm).hexdigest() != fixture.sha256
+            or not isinstance(turn_index, int)
+            or isinstance(turn_index, bool)
             or turn_index < 0
             or turn_index >= len(scenario.turns)
+            or fixture.turn_index != turn_index
             or matched is None
             or matched[0].id != scenario.id
             or matched[1] != turn_index
             or (turn_index > 0 and not fixture.exact_sample_offsets)
+            or (
+                mode == NUMERIC_FOLLOWUP_AB_MODE
+                and (
+                    scenario.id != "arithmetic-followup-observed"
+                    or turn_index != 1
+                    or repeats != 5
+                    or text_repeats != 5
+                )
+            )
         ):
             return {"ok": False, "status": "invalid", "error": "Ugyldigt replay-bevis."}
         run_id = self._new_run_id()
         self._active_run_id = run_id
-        self._active_kind = "audio-replay"
+        self._active_kind = kind
         self._started_at = time.time()
         self._job = asyncio.create_task(
             self._run_background(
@@ -1920,6 +2312,8 @@ class LiveEvalService:
                 scenario=scenario,
                 turn_index=turn_index,
                 repeats=repeats,
+                text_repeats=text_repeats,
+                mode=mode,
                 model=model,
                 voice=voice,
                 instructions=instructions,
@@ -1930,8 +2324,10 @@ class LiveEvalService:
         return {
             "ok": True,
             "status": "running",
-            "kind": "audio-replay",
+            "kind": kind,
             "run_id": run_id,
+            "text_repeats_requested": text_repeats,
+            "audio_repeats_requested": repeats,
             "started_at": self._started_at,
             "deadline_s": self._max_run_s,
         }
@@ -2025,7 +2421,7 @@ class LiveEvalService:
             self._last_full_report = retained
             self._last_full_candidate_identity = candidate_identity
         elif (
-            retained.get("kind") != "audio-replay"
+            retained.get("kind") not in {"audio-replay", "semantic-audio-ab"}
             and self._last_full_candidate_identity is not None
             and candidate_identity != self._last_full_candidate_identity
         ):
@@ -2040,12 +2436,15 @@ class LiveEvalService:
         scenario: EvalScenario,
         turn_index: int,
         repeats: int,
+        text_repeats: int = 1,
+        mode: str | None = None,
         model: str = DEFAULT_MODEL,
         voice: str = DEFAULT_VOICE,
         instructions: str = SYSTEM_PROMPT_DA,
         tool_declarations: list[dict[str, Any]] | None = None,
         run_id: str | None = None,
     ) -> dict[str, Any]:
+        kind = _replay_kind(mode)
         if self._lock.locked():
             return {
                 "ok": False,
@@ -2057,23 +2456,36 @@ class LiveEvalService:
             run_id = run_id or self._new_run_id()
             matched = match_scenario_turn(fixture.diagnostic_transcript)
             if (
-                repeats < 1
-                or repeats > 5
+                not _valid_replay_count(repeats)
+                or not _valid_replay_count(text_repeats)
+                or mode not in (None, NUMERIC_FOLLOWUP_AB_MODE)
                 or fixture.rate != 24_000
                 or not fixture.pcm
                 or len(fixture.pcm) > fixture.rate * 2 * 8
                 or hashlib.sha256(fixture.pcm).hexdigest() != fixture.sha256
+                or not isinstance(turn_index, int)
+                or isinstance(turn_index, bool)
                 or turn_index < 0
                 or turn_index >= len(scenario.turns)
+                or fixture.turn_index != turn_index
                 or matched is None
                 or matched[0].id != scenario.id
                 or matched[1] != turn_index
                 or (turn_index > 0 and not fixture.exact_sample_offsets)
+                or (
+                    mode == NUMERIC_FOLLOWUP_AB_MODE
+                    and (
+                        scenario.id != "arithmetic-followup-observed"
+                        or turn_index != 1
+                        or repeats != 5
+                        or text_repeats != 5
+                    )
+                )
             ):
                 return {
                     "ok": False,
                     "status": "invalid",
-                    "kind": "audio-replay",
+                    "kind": kind,
                     "run_id": run_id,
                     "error": "Ugyldigt replay-bevis.",
                 }
@@ -2083,9 +2495,10 @@ class LiveEvalService:
                 return {
                     "ok": False,
                     "status": "blocked",
-                    "kind": "audio-replay",
+                    "kind": kind,
                     "run_id": run_id,
                     "classification": "eval-admission-blocked",
+                    "decision": "BLOCKED",
                     "blocked": {
                         "stage": "prompt_admission",
                         "reason": "custom prompt exceeds the safe live-eval 32 KiB limit",
@@ -2100,7 +2513,7 @@ class LiveEvalService:
             # exact PCM for trials). Budget every seeded turn; counting only the target
             # would make the hard price/token cap false.
             turns_per_session = turn_index + 1
-            replay_sessions = repeats + 1
+            replay_sessions = repeats + text_repeats
             total_replay_turns = turns_per_session * replay_sessions
             replay_edges = MAX_EVAL_RESPONSE_EDGES_PER_TURN * total_replay_turns
             context_seed_metadata = {
@@ -2134,9 +2547,10 @@ class LiveEvalService:
                 return {
                     "ok": False,
                     "status": "failed",
-                    "kind": "audio-replay",
+                    "kind": kind,
                     "run_id": run_id,
                     "classification": "budget-exhausted",
+                    "decision": "BLOCKED",
                     "coverage_complete": False,
                     "error": "budget_exhausted · replay transcription plus next response exceeds the hard USD cap",
                     "transcription_budget": transcription_budget,
@@ -2149,9 +2563,10 @@ class LiveEvalService:
                 return {
                     "ok": False,
                     "status": "blocked",
-                    "kind": "audio-replay",
+                    "kind": kind,
                     "run_id": run_id,
                     "classification": "eval-admission-blocked",
+                    "decision": "BLOCKED",
                     "blocked": {"stage": "tool_admission", "reason": str(exc)[:500]},
                     "error": str(exc)[:500],
                     "deadline_s": self._max_run_s,
@@ -2169,7 +2584,11 @@ class LiveEvalService:
                 **_capability_metadata(admission, [scenario]),
             }
             replay_room_context_sha256 = hashlib.sha256(fixture.room_context.encode()).hexdigest()
+            replay_artifact_kind, replay_artifact_sha256 = runtime_artifact_identity()
             source_provenance = {
+                "podvoice_version": fixture.source_podvoice_version,
+                "artifact_identity_kind": fixture.source_artifact_identity_kind,
+                "artifact_sha256": fixture.source_artifact_sha256,
                 "model": fixture.source_model,
                 "prompt_source": fixture.source_prompt_source,
                 "prompt_version": fixture.source_prompt_version,
@@ -2177,8 +2596,13 @@ class LiveEvalService:
                 "prompt_sha256": fixture.source_prompt_sha256,
                 "tool_schema_sha256": fixture.source_tool_schema_sha256,
                 "room_context_sha256": fixture.source_room_context_sha256,
+                "turn_preset": fixture.source_turn_preset,
+                "openai_noise": fixture.source_openai_noise,
             }
             replay_provenance = {
+                "podvoice_version": __version__,
+                "artifact_identity_kind": replay_artifact_kind,
+                "artifact_sha256": replay_artifact_sha256,
                 "model": model,
                 "prompt_source": prompt_metadata["prompt_source"],
                 "prompt_version": prompt_metadata["prompt_version"],
@@ -2186,13 +2610,20 @@ class LiveEvalService:
                 "prompt_sha256": prompt_metadata["prompt_sha256"],
                 "tool_schema_sha256": prompt_metadata["tool_schema_sha256"],
                 "room_context_sha256": replay_room_context_sha256,
+                "turn_preset": LIVE_EVAL_TURN_PRESET,
+                "openai_noise": LIVE_EVAL_OPENAI_NOISE,
             }
             required_source_fields = {
                 "model",
+                "podvoice_version",
+                "artifact_identity_kind",
+                "artifact_sha256",
                 "prompt_source",
                 "prompt_sha256",
                 "tool_schema_sha256",
                 "room_context_sha256",
+                "turn_preset",
+                "openai_noise",
             }
             missing_provenance = sorted(
                 field
@@ -2218,6 +2649,12 @@ class LiveEvalService:
                 )
                 and source_value != replay_provenance[field]
             )
+            if mode == NUMERIC_FOLLOWUP_AB_MODE and (
+                source_provenance["artifact_identity_kind"] != "rootfs-v1"
+                or replay_provenance["artifact_identity_kind"] != "rootfs-v1"
+            ):
+                provenance_mismatches.append("artifact_identity_kind")
+                provenance_mismatches = sorted(set(provenance_mismatches))
             if missing_provenance or provenance_mismatches:
                 classification = (
                     "trace-provenance-missing"
@@ -2227,15 +2664,21 @@ class LiveEvalService:
                 return {
                     "ok": False,
                     "status": "complete",
-                    "kind": "audio-replay",
+                    "kind": kind,
                     "run_id": run_id,
                     "model": model,
                     **prompt_metadata,
                     "classification": classification,
+                    "decision": "BLOCKED",
                     "coverage_complete": False,
                     "context_seed": context_seed_metadata,
                     "control": None,
+                    "controls": [],
                     "trials": [],
+                    "text_repeats_requested": text_repeats,
+                    "text_repeats_completed": 0,
+                    "audio_repeats_requested": repeats,
+                    "audio_repeats_completed": 0,
                     "trace": {
                         "id": fixture.trace_id,
                         "turn_index": fixture.turn_index,
@@ -2331,6 +2774,10 @@ class LiveEvalService:
                                 if target_audio
                                 else await driver.submit_text(turn_id=turn_id, text=turn.text)
                             )
+                        if observed.error and "provider_usage_unknown" in observed.error:
+                            # Cost is unknowable, so no later session/response may be
+                            # admitted under a claimed hard USD ceiling.
+                            raise RuntimeError(observed.error)
                         budget.record(observed.usage)
                         submitted_turns += 1
                         findings = grade_turn(turn.expect, observed)
@@ -2401,6 +2848,20 @@ class LiveEvalService:
 
                     if target is None:
                         target = await submit(turn_index, target_audio=audio)
+                    if (
+                        mode == NUMERIC_FOLLOWUP_AB_MODE
+                        and len(context) == 1
+                        and context[0].passed
+                        and target.observation.response_status != "blocked"
+                    ):
+                        ancestry_findings = _provider_item_chain_findings(
+                            context[0],
+                            target,
+                            audio_target=audio,
+                        )
+                        if ancestry_findings:
+                            target.findings.extend(ancestry_findings)
+                            target.passed = False
                 finally:
                     if driver is not None:
                         await driver.close()
@@ -2409,8 +2870,8 @@ class LiveEvalService:
                 assert target is not None
                 return context, target
 
-            control: TurnResult | None = None
-            control_context: list[TurnResult] = []
+            controls: list[TurnResult] = []
+            control_contexts: list[list[TurnResult]] = []
             trials: list[TurnResult] = []
             trial_contexts: list[list[TurnResult]] = []
             try:
@@ -2419,10 +2880,12 @@ class LiveEvalService:
                 return {
                     "ok": False,
                     "status": "failed",
-                    "kind": "audio-replay",
+                    "kind": kind,
                     "run_id": run_id,
                     "error": str(exc)[:500],
+                    "decision": "BLOCKED",
                     "control": None,
+                    "controls": [],
                     "trials": [],
                     "budget": asdict(budget),
                     "transcription_budget": transcription_budget,
@@ -2430,7 +2893,10 @@ class LiveEvalService:
                 }
             try:
                 async with asyncio.timeout(self._max_run_s):
-                    control_context, control = await one(0, audio=False)
+                    for index in range(1, text_repeats + 1):
+                        context, control = await one(index, audio=False)
+                        control_contexts.append(context)
+                        controls.append(control)
                     for index in range(1, repeats + 1):
                         context, trial = await one(index, audio=True)
                         trial_contexts.append(context)
@@ -2447,7 +2913,7 @@ class LiveEvalService:
                 return {
                     "ok": False,
                     "status": "failed",
-                    "kind": "audio-replay",
+                    "kind": kind,
                     "run_id": run_id,
                     "model": model,
                     **prompt_metadata,
@@ -2463,24 +2929,41 @@ class LiveEvalService:
                         if tool_contract_failure
                         else "provider-or-eval-failure"
                     ),
+                    "decision": "BLOCKED",
                     "coverage_complete": False,
                     "context_seed": context_seed_metadata,
-                    "control": asdict(control) if control else None,
-                    "control_context": [asdict(result) for result in control_context],
+                    "control": asdict(controls[0]) if controls else None,
+                    "control_context": (
+                        [asdict(result) for result in control_contexts[0]]
+                        if control_contexts
+                        else []
+                    ),
+                    "controls": [asdict(result) for result in controls],
+                    "control_contexts": [
+                        [asdict(result) for result in context] for context in control_contexts
+                    ],
                     "trials": [asdict(result) for result in trials],
                     "trial_contexts": [
                         [asdict(result) for result in context] for context in trial_contexts
                     ],
+                    "text_repeats_requested": text_repeats,
+                    "text_repeats_completed": len(controls),
+                    "audio_repeats_requested": repeats,
+                    "audio_repeats_completed": len(trials),
                     "budget": asdict(budget),
                     "transcription_budget": transcription_budget,
                     "deadline_s": self._max_run_s,
                 }
             finally:
                 self._provider_budget.release(diagnostic_lease)
-            passed = sum(result.passed for result in trials)
+            text_passed = sum(result.passed for result in controls)
+            audio_passed = sum(result.passed for result in trials)
             context_complete = (
-                len(control_context) == turn_index
-                and all(result.passed for result in control_context)
+                len(control_contexts) == text_repeats
+                and all(
+                    len(context) == turn_index and all(result.passed for result in context)
+                    for context in control_contexts
+                )
                 and len(trial_contexts) == repeats
                 and all(
                     len(context) == turn_index and all(result.passed for result in context)
@@ -2490,18 +2973,41 @@ class LiveEvalService:
             classification = (
                 "context-seed-failure"
                 if not context_complete
-                else "prompt-or-tool-contract-failure"
-                if control is not None and not control.passed
-                else "audio-replay-consistent"
-                if passed == repeats
+                else (
+                    "text-contract-failure"
+                    if mode == NUMERIC_FOLLOWUP_AB_MODE
+                    else "prompt-or-tool-contract-failure"
+                )
+                if text_passed == 0
+                else "text-model-nondeterminism"
+                if text_passed < text_repeats
+                else (
+                    "semantic-audio-consistent"
+                    if mode == NUMERIC_FOLLOWUP_AB_MODE
+                    else "audio-replay-consistent"
+                )
+                if audio_passed == repeats
                 else "audio-specific-failure"
-                if passed == 0
+                if audio_passed == 0
                 else "audio-model-nondeterminism"
             )
+            decision = (
+                "GO_TO_PHYSICAL_CANARY"
+                if mode == NUMERIC_FOLLOWUP_AB_MODE
+                and classification == "semantic-audio-consistent"
+                else "NO_GO"
+                if mode == NUMERIC_FOLLOWUP_AB_MODE
+                else "DIAGNOSTIC_ONLY"
+            )
             return {
-                "ok": bool(control and control.passed and passed == repeats),
+                "ok": bool(
+                    len(controls) == text_repeats
+                    and text_passed == text_repeats
+                    and len(trials) == repeats
+                    and audio_passed == repeats
+                ),
                 "status": "complete",
-                "kind": "audio-replay",
+                "kind": kind,
                 "run_id": run_id,
                 "model": model,
                 **prompt_metadata,
@@ -2522,8 +3028,19 @@ class LiveEvalService:
                 "context_seed_turns": turn_index,
                 "context_seed": context_seed_metadata,
                 "classification": classification,
-                "control": asdict(control) if control else None,
-                "control_context": [asdict(result) for result in control_context],
+                "decision": decision,
+                "text_repeats_requested": text_repeats,
+                "text_repeats_completed": len(controls),
+                "audio_repeats_requested": repeats,
+                "audio_repeats_completed": len(trials),
+                "control": asdict(controls[0]) if controls else None,
+                "control_context": (
+                    [asdict(result) for result in control_contexts[0]] if control_contexts else []
+                ),
+                "controls": [asdict(result) for result in controls],
+                "control_contexts": [
+                    [asdict(result) for result in context] for context in control_contexts
+                ],
                 "trials": [asdict(result) for result in trials],
                 "trial_contexts": [
                     [asdict(result) for result in context] for context in trial_contexts

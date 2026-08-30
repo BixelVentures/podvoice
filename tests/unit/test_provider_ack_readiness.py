@@ -18,6 +18,7 @@ from gatekeeper.openai_realtime import (
 from gatekeeper.provider_budget import ProviderBudgetCoordinator, ProviderBudgetUnavailable
 from gatekeeper.voice import (
     AudioChunk,
+    OutputTranscript,
     ResponseStarted,
     ToolCall,
     ToolRoundComplete,
@@ -25,6 +26,24 @@ from gatekeeper.voice import (
     TurnComplete,
     Usage,
 )
+
+
+async def test_output_transcript_keeps_wire_response_and_generation_identity():
+    session = OpenAIRealtimeSession(api_key="secret")
+    session._connection_generation = 7
+    ws = _QueueWS()
+    await ws.emit(
+        {
+            "type": "response.output_audio_transcript.delta",
+            "response_id": "response-current",
+            "delta": "Halvfems.",
+        }
+    )
+    await ws.incoming.put(None)
+
+    events = [event async for event in session._iter_events(ws, generation=7)]
+
+    assert events == [OutputTranscript("Halvfems.", response_id="response-current", generation=7)]
 
 
 class _Message:
@@ -1652,7 +1671,9 @@ async def test_stale_generation_emits_no_provenance_or_budget_mutation():
     assert ledger.snapshot("secret", "model")["authoritative"] is False
 
 
-async def test_provider_observer_does_not_change_response_create_wire_or_capacity_callback():
+async def test_provider_observer_does_not_change_response_create_wire_or_capacity_callback(
+    monkeypatch,
+):
     admitted: list[int | None] = []
 
     async def admit(tokens: int | None) -> None:
@@ -1660,7 +1681,13 @@ async def test_provider_observer_does_not_change_response_create_wire_or_capacit
 
     traces: list[dict] = []
     sessions: list[OpenAIRealtimeSession] = []
-    payloads: list[dict] = []
+    wire_bytes: list[bytes] = []
+    session_update_bytes: list[bytes] = []
+
+    class _FixedUUID:
+        hex = "0123456789abcdef" * 2
+
+    monkeypatch.setattr(realtime_module.uuid, "uuid4", lambda: _FixedUUID())
     for observer in (None, traces.append):
         session = OpenAIRealtimeSession(
             api_key="secret", before_response_create=admit, provider_observer=observer
@@ -1669,13 +1696,23 @@ async def test_provider_observer_does_not_change_response_create_wire_or_capacit
         session._ws = ws  # type: ignore[assignment]
         session._next_response_capacity_tokens = 5_757
         await session._send_response_create({"tool_choice": "none"})
-        payload = dict(ws.sent[0])
-        payload.pop("event_id")
-        payload["response"]["metadata"].pop("podvoice_request_id")
-        payloads.append(payload)
+        wire_bytes.append(
+            json.dumps(ws.sent, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        )
+        session_update_bytes.append(
+            json.dumps(session._session_update(), ensure_ascii=False, separators=(",", ":")).encode(
+                "utf-8"
+            )
+        )
         sessions.append(session)
 
-    assert payloads == [payloads[0], payloads[0]]
+    assert wire_bytes == [wire_bytes[0], wire_bytes[0]]
+    assert session_update_bytes == [session_update_bytes[0], session_update_bytes[0]]
+    sent = json.loads(wire_bytes[0])
+    assert "conversation" not in sent[0]["response"]
+    assert "input" not in sent[0]["response"]
+    assert "tracing" not in json.loads(session_update_bytes[0])["session"]
+    assert "include" not in json.loads(session_update_bytes[0])["session"]
     assert admitted == [5_757, 5_757]
     assert [row["kind"] for row in traces] == [
         "response_create_pre_wire",
@@ -1683,6 +1720,194 @@ async def test_provider_observer_does_not_change_response_create_wire_or_capacit
     ]
     for session in sessions:
         session._cancel_ack_watchdogs()
+
+
+async def test_provider_observer_records_bounded_content_free_item_ancestry():
+    trace: list[dict] = []
+    session = OpenAIRealtimeSession(api_key="secret", provider_observer=trace.append)
+    session._connection_generation = 3
+    ws = _QueueWS()
+    private = "must-not-enter-provider-trace-" + "x" * 300
+    response_output = [
+        {
+            "id": "assistant-one",
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "content": [{"type": "output_audio", "transcript": private, "audio": private}],
+        },
+        *[
+            {
+                "id": f"extra-{index}",
+                "type": "function_call",
+                "status": "completed",
+                "call_id": f"call-{index}",
+                "name": private,
+                "arguments": private,
+            }
+            for index in range(17)
+        ],
+    ]
+    events = [
+        {
+            "type": "input_audio_buffer.committed",
+            "event_id": "commit-one-" + "c" * 200,
+            "item_id": "user-one",
+            "previous_item_id": None,
+        },
+        {
+            "type": "conversation.item.added",
+            "event_id": "added-user-one",
+            "previous_item_id": None,
+            "item": {
+                "id": "user-one",
+                "type": "message",
+                "role": "user",
+                "status": "completed",
+                "content": [{"type": "input_audio", "transcript": private, "audio": private}],
+            },
+        },
+        {
+            "type": "response.created",
+            "event_id": "response-created-one",
+            "response": {
+                "id": "response-one",
+                "conversation_id": "conversation-one",
+                "metadata": {"private": private},
+            },
+        },
+        {
+            "type": "conversation.item.added",
+            "event_id": "added-assistant-one",
+            "previous_item_id": "user-one",
+            "item": {
+                "id": "assistant-one",
+                "type": "message",
+                "role": "assistant",
+                "status": "in_progress",
+                "content": [{"type": "output_audio", "transcript": private}],
+            },
+        },
+        {
+            "type": "response.output_item.added",
+            "event_id": "output-added-one",
+            "response_id": "response-one",
+            "output_index": 0,
+            "item": {
+                "id": "assistant-one",
+                "type": "message",
+                "role": "assistant",
+                "status": "in_progress",
+                "content": [{"type": "output_audio", "transcript": private}],
+            },
+        },
+        {
+            "type": "response.output_item.done",
+            "event_id": "output-done-one",
+            "response_id": "response-one",
+            "output_index": 0,
+            "item": response_output[0],
+        },
+        {
+            "type": "response.done",
+            "event_id": "response-done-one",
+            "response": {
+                "id": "response-one",
+                "conversation_id": "conversation-one",
+                "status": "completed",
+                "output": response_output,
+                "metadata": {"private": private},
+                "usage": _typed_usage(),
+            },
+        },
+        {
+            "type": "input_audio_buffer.committed",
+            "event_id": "commit-two",
+            "item_id": "user-two",
+            "previous_item_id": "assistant-one",
+        },
+    ]
+    for event in events:
+        await ws.emit(event)
+    await ws.incoming.put(None)
+
+    _ = [event async for event in session._iter_events(ws, generation=3)]
+
+    created = next(row for row in trace if row["kind"] == "response_created")
+    assert created["conversation_id"] == "conversation-one"
+    assert created["generation"] == 3
+    commits = [row for row in trace if row["kind"] == "input_audio_buffer_committed"]
+    assert [(row["item_id"], row["previous_item_id"]) for row in commits] == [
+        ("user-one", None),
+        ("user-two", "assistant-one"),
+    ]
+    added = [row for row in trace if row["kind"] == "conversation_item_added"]
+    assert [(row["item_id"], row["previous_item_id"], row["role"]) for row in added] == [
+        ("user-one", None, "user"),
+        ("assistant-one", "user-one", "assistant"),
+    ]
+    output_added = next(row for row in trace if row["kind"] == "response_output_item_added")
+    output_done = next(row for row in trace if row["kind"] == "response_output_item_done")
+    assert (output_added["response_id"], output_added["item_id"], output_added["status"]) == (
+        "response-one",
+        "assistant-one",
+        "in_progress",
+    )
+    assert (output_done["response_id"], output_done["item_id"], output_done["status"]) == (
+        "response-one",
+        "assistant-one",
+        "completed",
+    )
+    done = next(row for row in trace if row["kind"] == "response_done")
+    assert done["conversation_id"] == "conversation-one"
+    assert done["generation"] == 3
+    assert len(done["output_items"]) == 16
+    assert done["output_items_truncated"] == 2
+    assert len(commits[0]["event_id"]) == 96
+    assert private not in json.dumps(trace, ensure_ascii=False)
+
+
+async def test_item_ancestry_observation_keeps_typed_item_ack_strict():
+    trace: list[dict] = []
+    session = OpenAIRealtimeSession(api_key="secret", provider_observer=trace.append)
+    session._configured = True
+    session._configured_event.set()
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    submission = asyncio.create_task(session.send_text("Hej", item_id="typed-user"))
+    create = (await _wait_for_sent(ws, "conversation.item.create"))[0]
+
+    await ws.emit(
+        {
+            "type": "conversation.item.added",
+            "event_id": "unrelated-added",
+            "previous_item_id": "old-item",
+            "item": {"id": "assistant-stale", "type": "message", "role": "assistant"},
+        }
+    )
+    collector = asyncio.create_task(_collect(session, ws, []))
+    await asyncio.sleep(0)
+    assert not submission.done()
+    await ws.emit(
+        {
+            "type": "conversation.item.added",
+            "event_id": "typed-added",
+            "previous_item_id": "assistant-stale",
+            "item": create["item"],
+        }
+    )
+    await submission
+    assert [row["type"] for row in ws.sent] == [
+        "conversation.item.create",
+        "response.create",
+    ]
+    await ws.incoming.put(None)
+    await collector
+    assert [row["item_id"] for row in trace if row["kind"] == "conversation_item_added"] == [
+        "assistant-stale",
+        "typed-user",
+    ]
+    session._cancel_ack_watchdogs()
 
 
 async def test_provider_observer_failure_never_replaces_wire_or_terminal_behavior():
@@ -2277,6 +2502,26 @@ async def test_eval_direct_response_requires_authoritative_usage_before_any_next
     assert terminal.status == "failed"
     assert "provider_usage_unknown" in str(terminal.error)
     assert not any(isinstance(event, ToolCall) for event in events)
+
+
+@pytest.mark.parametrize("status", ["failed", "cancelled"])
+@pytest.mark.parametrize("usage", [None, {}])
+async def test_eval_noncompleted_terminal_still_requires_authoritative_usage(status, usage):
+    session = OpenAIRealtimeSession(api_key="secret", budget_role="eval")
+    ws = _QueueWS()
+    await ws.emit({"type": "response.created", "response": {"id": "r-terminal"}})
+    response = {"id": "r-terminal", "status": status}
+    if usage is not None:
+        response["usage"] = usage
+    await ws.emit({"type": "response.done", "response": response})
+    await ws.incoming.put(None)
+
+    events = [event async for event in session._iter_events(ws)]
+
+    terminal = [event for event in events if isinstance(event, TurnComplete)][-1]
+    assert terminal.status == "failed"
+    assert "provider_usage_unknown" in str(terminal.error)
+    assert not any(isinstance(event, Usage) for event in events)
 
 
 async def test_first_semantic_completed_response_needs_usage_but_not_rate_telemetry():

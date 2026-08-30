@@ -186,6 +186,7 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     assert 'id="eval_live"' in html
     assert 'id="eval_golden"' in html
     assert 'id="eval_replay"' in html
+    assert 'id="eval_numeric_ab"' in html
     assert 'id="eval_result"' in html
     assert 'fetch("api/eval/live"' in html
     assert 'fetch("api/eval/live?run_id="' in html
@@ -197,6 +198,9 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     assert "brugerdefineret prompt" in html
     assert "kan ikke styre hjemmet, musik eller timere" in html
     assert "audio-model-nondeterminism" in html
+    assert "semantic-audio-consistent" in html
+    assert "text-contract-failure" in html
+    assert "trace-provenance-mismatch" in html
     assert "tool-schema-mismatch" in html
     assert "Nabu og Talk låses" in html
     assert "$5" in html and "$0,128" not in html
@@ -204,6 +208,67 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     assert 'window.addEventListener("podvoice-diagnostic"' in html
     assert 'setState("systemtest", "pill-degraded")' in html
     assert "data.diagnostic_active" in html
+
+
+def test_test_tab_exposes_symmetric_numeric_followup_ab_without_answer_hints():
+    html = PANEL.read_text()
+    payload = 'var payload = {mode:"numeric-followup-ab",turn_index:1,repeats:5,text_repeats:5};'
+    button_start = html.index('id="eval_numeric_ab"')
+    button_end = html.index("</button>", button_start)
+    button_markup = html[button_start:button_end]
+
+    assert "Sammenlign numerisk opfølgning: tekst ↔ lyd 5×" in button_markup  # noqa: RUF001
+    assert html.count(payload) == 1
+    assert "numericAbButton.disabled = disabled;" in html
+    assert 'id="eval_numeric_preview"' in html
+    assert "data.text_repeats_requested === 5" in html
+    assert "data.audio_repeats_requested === 5" in html
+    assert "Numerisk A/B-kandidat før start: trace " in html
+    assert 'source.podvoice_version || "mangler"' in html
+    assert 'source.artifact_identity_kind || "mangler"' in html
+    assert "shortHash(source.artifact_sha256)" in html
+    assert 'data.kind === "semantic-audio-ab"' in html
+    assert "data.controls || []" in html
+    assert "data.trace || {}" in html
+    assert "trace.source_provenance || {}" in html
+    assert "trace.replay_provenance || {}" in html
+    assert "trace.provenance_match === true" in html
+    assert "trace.provenance_mismatches.join" in html
+    assert "data.text_repeats_completed" in html
+    assert "data.audio_repeats_completed" in html
+    assert "data.decision" in html
+    assert "Samlet prisloft: $5; ingen eksterne effekter" in html
+    assert "84" not in button_markup and "90" not in button_markup
+
+
+def test_semantic_audio_ab_panel_fails_closed_for_malformed_or_stale_report_contract():
+    html = PANEL.read_text()
+    contract_start = html.index("function semanticAudioAbPassed(data)")
+    contract_end = html.index("function renderRunning(data)", contract_start)
+    contract = html[contract_start:contract_end]
+    render_start = html.index("function render(data)")
+    render_end = html.index("function poll", render_start)
+    render = html[render_start:render_end]
+
+    required_guards = (
+        'data.kind === "semantic-audio-ab"',
+        "data.ok === true",
+        'data.decision === "GO_TO_PHYSICAL_CANARY"',
+        'data.classification === "semantic-audio-consistent"',
+        "trace.provenance_match === true",
+        "data.text_repeats_completed === 5",
+        "data.audio_repeats_completed === 5",
+        "Array.isArray(controls) && controls.length === 5",
+        "result.passed === true",
+        "Array.isArray(trials) && trials.length === 5",
+    )
+    for guard in required_guards:
+        assert guard in contract
+
+    assert "var replayPassed = isSemanticAb ? semanticAudioAbPassed(data)" in render
+    assert '"line " + (replayPassed ? "out" : "in")' in render
+    assert 'isSemanticAb ? " BLOKERET"' in render
+    assert '(data.ok ? "out" : "in")' not in render
 
 
 def test_test_tab_exposes_exact_eight_turn_semantic_close_profile():

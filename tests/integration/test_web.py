@@ -337,6 +337,11 @@ async def test_audio_replay_endpoint_uses_only_local_trace_and_known_eval_text()
                 "source_prompt_version_present": True,
                 "source_prompt_sha256": "d" * 64,
                 "source_room_context_sha256": "e" * 64,
+                "source_podvoice_version": "1.13.51",
+                "source_artifact_identity_kind": "rootfs-v1",
+                "source_artifact_sha256": "f" * 64,
+                "source_turn_preset": "responsive",
+                "source_openai_noise": "off",
             }
 
     async def live_eval(**kwargs):
@@ -373,6 +378,137 @@ async def test_audio_replay_endpoint_uses_only_local_trace_and_known_eval_text()
         assert calls[0]["fixture"].source_prompt_version_present is True
         assert calls[0]["fixture"].source_prompt_sha256 == "d" * 64
         assert calls[0]["fixture"].source_room_context_sha256 == "e" * 64
+        assert calls[0]["fixture"].source_turn_preset == "responsive"
+        assert calls[0]["fixture"].source_openai_noise == "off"
+
+
+async def test_numeric_followup_ab_endpoint_forwards_exact_symmetric_gate():
+    calls: list[dict] = []
+
+    class Recorder:
+        def snapshot(self):
+            return {"latest": {"id": "trace-followup", "room": "r0"}}
+
+        def replay_turn(self, trace_id, *, turn_index=0):
+            assert trace_id == "trace-followup"
+            assert turn_index == 1
+            return {
+                "trace_id": trace_id,
+                "room": "r0",
+                "turn_index": turn_index,
+                "rate": 24_000,
+                "pcm": b"\x02\x00" * 24_000,
+                "duration_ms": 1_000,
+                "sha256": "b" * 64,
+                "diagnostic_transcript": "Læg seks til.",
+                "exact_sample_offsets": True,
+                "source_tool_schema_sha256": "c" * 64,
+                "source_model": "gpt-realtime-2.1",
+                "source_prompt_source": "default",
+                "source_prompt_version": 6,
+                "source_prompt_version_present": True,
+                "source_prompt_sha256": "d" * 64,
+                "source_room_context_sha256": "e" * 64,
+                "source_podvoice_version": "1.13.51",
+                "source_artifact_identity_kind": "rootfs-v1",
+                "source_artifact_sha256": "f" * 64,
+                "source_turn_preset": "responsive",
+                "source_openai_noise": "off",
+            }
+
+    async def live_eval(**kwargs):
+        calls.append(kwargs)
+        return {
+            "ok": True,
+            "status": "running",
+            "kind": "semantic-audio-ab",
+            "run_id": "eval-ab",
+        }
+
+    app = create_app(StatusHub(), {}, live_eval=live_eval, audio_trace=Recorder())
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post(
+            "/api/eval/replay",
+            json={
+                "mode": "numeric-followup-ab",
+                "turn_index": 1,
+                "repeats": 5,
+                "text_repeats": 5,
+            },
+        )
+
+    assert response.status == 202
+    assert calls[0]["mode"] == "numeric-followup-ab"
+    assert calls[0]["scenario"].id == "arithmetic-followup-observed"
+    assert calls[0]["turn_index"] == 1
+    assert calls[0]["repeats"] == 5
+    assert calls[0]["text_repeats"] == 5
+    assert calls[0]["fixture"].source_podvoice_version == "1.13.51"
+    assert calls[0]["fixture"].source_artifact_identity_kind == "rootfs-v1"
+    assert calls[0]["fixture"].source_artifact_sha256 == "f" * 64
+    assert calls[0]["fixture"].source_turn_preset == "responsive"
+    assert calls[0]["fixture"].source_openai_noise == "off"
+
+
+@pytest.mark.parametrize("text_repeats", [0, 6, True, 1.5, "5"])
+async def test_audio_replay_endpoint_rejects_invalid_text_repeat_count(text_repeats):
+    class ForbiddenRecorder:
+        def snapshot(self):
+            raise AssertionError("invalid request must not read a trace")
+
+    async def live_eval(**kwargs):
+        raise AssertionError("invalid request must not reach eval")
+
+    app = create_app(
+        StatusHub(),
+        {},
+        live_eval=live_eval,
+        audio_trace=ForbiddenRecorder(),
+    )
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post(
+            "/api/eval/replay",
+            json={"repeats": 1, "text_repeats": text_repeats},
+        )
+
+    assert response.status == 400
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"mode": "numeric-followup-ab", "turn_index": 0, "repeats": 5, "text_repeats": 5},
+        {"mode": "numeric-followup-ab", "turn_index": 1, "repeats": 4, "text_repeats": 5},
+        {"mode": "numeric-followup-ab", "turn_index": 1, "repeats": 5, "text_repeats": 4},
+    ],
+)
+async def test_numeric_followup_ab_endpoint_rejects_noncanonical_shape(payload):
+    class Recorder:
+        def snapshot(self):
+            return {"latest": {"id": "trace-followup", "room": "r0"}}
+
+        def replay_turn(self, trace_id, *, turn_index=0):
+            transcript = "Læg seks til." if turn_index == 1 else "Hvad er tolv gange syv?"
+            return {
+                "trace_id": trace_id,
+                "room": "r0",
+                "turn_index": turn_index,
+                "rate": 24_000,
+                "pcm": b"\x02\x00" * 24_000,
+                "duration_ms": 1_000,
+                "sha256": "b" * 64,
+                "diagnostic_transcript": transcript,
+                "exact_sample_offsets": True,
+            }
+
+    async def live_eval(**kwargs):
+        raise AssertionError("noncanonical A/B must not reach eval")
+
+    app = create_app(StatusHub(), {}, live_eval=live_eval, audio_trace=Recorder())
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post("/api/eval/replay", json=payload)
+
+    assert response.status == 400
 
 
 async def test_audio_replay_endpoint_rejects_unknown_transcript_without_provider_call():

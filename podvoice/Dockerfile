@@ -21,5 +21,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY gatekeeper/ ./gatekeeper/
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
+# Bind every physical trace to the actual completed image payload, including the
+# base image, Python runtime, installed wheels and FLAC binary. Volatile runtime
+# mounts are excluded by the deterministic builder.
+RUN python -m gatekeeper.build_identity --write /app/runtime-artifact.sha256
 
 CMD ["/run.sh"]
