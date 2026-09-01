@@ -100,6 +100,7 @@ def test_lifecycle_manifest_is_tracked_explicit_and_covers_each_mechanical_bound
         "tests/unit/test_firmware_contract.py",
         "tests/unit/test_voicepe_wake.py",
         "tests/unit/test_trace_oracle.py",
+        "tests/unit/test_field_canary.py",
         "tests/unit/test_audio_trace.py::test_next_physical_wake_and_provider_session_complete_cross_session_proof",
         "tests/unit/test_audio_trace.py::test_failed_immediate_post_rearm_session_cannot_be_proven_by_a_later_attempt",
         "tests/unit/test_audio_trace.py::test_attempt_rejected_before_finish_cannot_be_completed_by_a_later_wake",
@@ -114,7 +115,7 @@ def test_lifecycle_manifest_is_tracked_explicit_and_covers_each_mechanical_bound
         "tests/integration/test_thin.py",
     )
     assert nodes == expected_nodes
-    assert len(nodes) == len(set(nodes)) == 15
+    assert len(nodes) == len(set(nodes)) == 16
 
     # v1.13.46 restores the public v1.13.43 playback baseline. The full VoicePE and
     # Thin modules above replace these removed private-player/token-specific cases;

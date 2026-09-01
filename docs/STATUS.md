@@ -1,27 +1,80 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-08-30.
+Senest opdateret: 2026-09-01.
 
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Synlig installeret software:** HA-panelet har vist PodVoice add-on v1.13.50, men exact
-installeret git-SHA, prompt-hash, tool-schema-hash og room-context-hash er endnu ikke
-korreleret til en gemt fysisk trace. Voice PE antages fortsat at køre den tidligere
-HA-byggede v1.13.46-produktionsfirmware fra exact main
-`ff10cc3e93eebdb9b84fb88240338b0be5a38aea`; det skal genbekræftes, når HA Green igen
-kan nås. Installation eller et korrekt svar må ikke overskrive den afviste gate.
-**Aktuel gate:** v1.13.50 er **NO-GO**. De seneste fysiske forløb bevarede samme lokale
-Realtime-session og kom rent gennem close, teardown og rearm, men den korte danske
-matematikopfølgning blev ikke stabilt forstået. Exact provider-conversation og aktivt
-artifact er endnu ikke bevist, så kandidaten må ikke gå til 10/10.
+**Installeret og korreleret kandidat:** add-on v1.13.51 med `rootfs-v1`, model,
+Prompt V7/hash, værktøjsskema, room-context, turn-preset og OpenAI-noise bevist i den
+armerede trace `20260901T092200-847`; Voice PE annoncerede den forventede
+v1.13.46-firmwarekontrakt. **Aktuel gate:** v1.13.51 er **NO-GO**. Første tur svarede
+84 og blev fysisk afspillet, men opfølgningen blev lukket lokalt efter accepteret
+`speech_started` uden matching `speech_stopped`.
 
-**Aktiv udviklingskandidat:** v1.13.51 er en add-on-only diagnostikkandidat. Den må kun
-gøre providerens item-kæde passivt beviselig og samle den eksisterende tekst/PCM-replay
-under én pris- og provenancegate. Voice PE-firmware, wake, gain, VAD, lydtransport,
-playback, lifecycle, prompt, reasoning og produktionsværktøjsskema er frosne.
+**Aktiv udviklingskandidat:** v1.13.52 retter kun ThinSessions mekaniske
+idle-timeout-arbitrering og den tilhørende trace-/regressionssandhed. Firmware, gain,
+VAD, lydtransport, playback, prompt, model, reasoning, schema, værktøjer, teardown og
+rearm er frosne.
 
-### Aktiv beslutning 30. august — bevis native Realtime-kontekst mod audiosemantik
+### Aktiv beslutning 1. september — idle-timeout må aldrig vinde over aktiv brugertale
+
+- **Observeret fejl og stærkeste direkte evidens:** Trace `20260901T092200-847` åbnede
+  opfølgningsgaten ved 7.253 ms, modtog et accepteret provider-`speech_started` ved
+  8.098 ms og modtog intet `speech_stopped`/commit. Ved 13.127 ms lukkede ThinSession
+  som `idle-fallback`; de 5.029 ms fra start til close matcher næste
+  `HEARTBEAT_S=5.0`-tick. Teardown og korreleret rearm gennemførte rent. Dette beviser
+  lokal timeoutfejl, men ikke hvorfor provider-VAD manglede stopkanten.
+- **Hele kæden og nærliggende fejlveje:** fysisk followup-PCM → åben state-ejet mic-gate
+  → provider-VAD-start → fortsat samme Realtime-session → enten matching VAD-stop og
+  svar eller bounded fejl/close → teardown → rearm. Nærliggende races er start lige før
+  idle-deadline, langsom `THINKING`/værktøjsrunde, half-duplex-input der straks ryddes,
+  Talk/full-duplex `Interrupted`, duplicate/stale stop og teardown uden stopkant.
+- **Berørte invarianter og falsificerbar hypotese:** Fire sekunders timeout betyder
+  ubrudt stilhed i `LISTENING`/`LOUNGE_WINDOW`. Hypotesen er, at den eksisterende
+  heartbeat forveksler “ingen ny provider-event” med stilhed, fordi den ikke gemmer en
+  accepteret aktiv talespændvidde og ikke afgrænser idle-close til lyttestates. Et
+  current start→stop-interval skal derfor overleve idle-deadlinen, mens ren stilhed
+  fortsat lukker og den eksisterende max-session stadig er hård ydergrænse.
+- **Ikke-mål:** ingen firmware-, gain-, VAD-, audio-, prompt-, model-, reasoning-,
+  schema-, værktøjs-, playback-, teardown- eller rearmændring; ingen ny timer- eller
+  lifecyclemotor og ingen lokal semantik.
+- **Planlagte regressioner og gates:** reproducer fysisk
+  `LOUNGE_WINDOW → speech_started → idle-deadline → speech_stopped`, deadline-racet,
+  ren stilhed, langsom `THINKING`/værktøjsrunde, answer-gate-clear, Talk-paritet og
+  reset ved wake/teardown. Trace-oraklet skal forstå det shippede `speech_started` og
+  afvise close inde i et åbent start→stop-interval. Kør målrettet test, `fast`, én
+  `lifecycle`, uafhængigt adversarial review og én `release`; ingen SafeEval, fordi
+  Realtime-semantikken er uændret.
+- **Rollback- og fysisk gate:** enhver ændring uden for timeout-owner/oracle/test/docs,
+  enhver idle-close under aktiv tale eller manglende ren-stilhed-close stopper hele
+  kandidaten. Efter exact-commit CI og installation kræves én frisk fysisk canary;
+  først derefter må den tidligere 5+5-klassifikation eller 10/10 åbnes igen.
+- **Faktisk v1.13.52-delta:** ThinSession gemmer én accepteret provider-VAD-spændvidde
+  som mekanisk faktum, separat fra de fem produktstates. Talestart fjerner den aktuelle
+  idle-deadline; matching stop rydder faktummet synkront efter Voice PE's mic-send-lock
+  og går til `THINKING`. Idle-close kræver fortsat `LISTENING`/`LOUNGE_WINDOW`, ingen
+  aktiv tale og en uændret udløbet deadline, som kun armeres ved wake, aktiv re-wake og
+  fysisk followup-open. Provider-metadata kan ikke flytte den. Heartbeat-poll er 250 ms,
+  så firesekundersvinduet har en bounded tolerance uden en ny timer. Trace-oraklet
+  normaliserer shippet `speech_started` og afviser kun `idle-fallback` inde i åben tale;
+  max-duration og explicit stop/error forbliver autoritative closere.
+- **Faktiske fokuserede resultater og review:** Den eksakte feltsekvens, første tur,
+  deadline-race bag mic-lock, ren stilhed, langsom THINKING/værktøjsrunde, provider-
+  metadata, delayed/discarded start, max-session, Talk-paritet, 10 simulerede cyklusser
+  og field-canary/oracle er grønne. Den uafhængige reviewer fandt først et P1-oraclehul,
+  hvor legitime sikkerhedsclosere blev afvist; det er rettet med modtests. Refrosset
+  slutreview er GO med P0=0, P1=0 og P2=0; reviewerens 242 fokuserede tests, Ruff,
+  format, mypy og diff-check er grønne. `scripts/dev lifecycle` er korrekt ikke
+  anvendelig på det samlede release-metadata-scope. Den stærkere autoritative
+  `scripts/dev release --base origin/main` er grøn på 37,8 sekunder med Ruff, format,
+  mypy, hele pytest-suiten og diff-check.
+- **Præcis fysisk status:** v1.13.52 er lokalt releasegodkendt, men endnu ikke merged,
+  exact-commit-CI-/ARM64-godkendt, installeret eller fysisk golden. Næste rækkefølge er
+  ét PR/merge, exact main-artifact, én installation og én armeret canary. Ingen ny 5+5
+  eller fysisk gentagelse må køres før disse samme bits er installeret.
+
+### Historisk beslutning 30. august — bevis native Realtime-kontekst mod audiosemantik
 
 - **Observeret fejl og stærkeste direkte evidens:** I den armerede trace
   `20260828T152317-683` svarede én provider-generation først 84 på tolv gange syv. På

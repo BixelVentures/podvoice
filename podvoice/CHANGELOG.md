@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.13.52 — aktiv brugertale kan ikke fejllukkes som stilhed
+
+- Idle-timeout gælder kun i de to åbne lyttestates og kan aldrig vinde, mens den
+  aktuelle provider-VAD-tur står mellem accepteret `speech_started` og matching
+  `speech_stopped`.
+- Talk og Voice PE deler samme mekaniske taleaktivitet, og state/reset følger fortsat
+  den ene eksisterende `ThinSession` uden en ny lifecycle- eller timeoutmotor.
+- Den eksisterende heartbeat kontrollerer den armerede stilhedsdeadline hvert 250 ms,
+  så fire sekunder ikke længere kvantiseres af et femsekunders tick.
+- Trace-oraklet følger det shippede `speech_started` og afviser idle-close inde i et
+  åbent start→stop-interval. Firmware, gain, VAD, lyd, prompt, model, reasoning,
+  værktøjer, playback, teardown og rearm er uændrede.
+
 ## 1.13.51 — native Realtime-kontekst og lyd bliver målbar
 
 - Registrerer passivt providerens conversation-, item-, response- og ancestry-id'er,

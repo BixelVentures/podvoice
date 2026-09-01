@@ -24,9 +24,11 @@ from gatekeeper.voice import (
     AudioChunk,
     Idle,
     InputTranscript,
+    Interrupted,
     OutputTranscript,
     ToolCall,
     TurnComplete,
+    UserSpeechStopped,
 )
 
 REPLY_URL = f"reply/{TALK_ROOM}.flac?t=tok"
@@ -210,6 +212,36 @@ async def test_model_closure_and_idle_close_reach_the_browser():
         await _wait_until(lambda: session.sm.state is State.IDLE)
         assert any(m["on"] is False for m in wire.of("mic"))  # forwarding OFF
         await _wait_until(lambda: len(attention.release_calls) >= 1)  # music back
+    finally:
+        await session.aclose()
+
+
+async def test_talk_open_speech_survives_idle_deadline_until_matching_stop(monkeypatch):
+    """Talk maps provider speech_started to Interrupted; the shared Thin lifecycle
+    must still distinguish an open browser-mic turn from idle room silence."""
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "HEARTBEAT_S", 0.02)
+    gemini = LiveFake()
+    session, link, _wire, _attention = _build(gemini)
+    session.full_duplex = True
+    session.idle_timeout_s = 0.06
+    await session.start()
+    try:
+        link.fire_wake()
+        await _wait_until(lambda: session.sm.state is State.LISTENING)
+        deadline = session._idle_deadline
+        assert deadline is not None
+
+        gemini.emit(Interrupted())
+        await asyncio.sleep(0.15)
+        assert asyncio.get_running_loop().time() >= deadline
+        assert session._active is True
+        assert session.sm.state is State.LISTENING
+
+        gemini.emit(UserSpeechStopped())
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+        assert session._active is True
     finally:
         await session.aclose()
 

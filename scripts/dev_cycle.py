@@ -40,6 +40,7 @@ LIFECYCLE_WORKFLOW_FILES = frozenset(
         "scripts/__init__.py",
         "scripts/dev",
         "scripts/dev_cycle.py",
+        "scripts/field_canary.py",
         LIFECYCLE_SMOKE_MANIFEST,
     }
 )

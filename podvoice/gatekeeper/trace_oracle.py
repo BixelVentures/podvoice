@@ -57,6 +57,7 @@ _ALIASES = {
     "talk_wake": "wake_received",
     "session_ready": "provider_connected",
     "provider_ready": "provider_connected",
+    "speech_started": "speech_started_or_interrupted",
     "user_speech_stopped": "speech_stopped",
     "assistant_audio_started": "response_audio_started",
     "reply_playback_started": "playback_started",
@@ -239,6 +240,7 @@ class TraceOracle:
                     "Speech start/stop edges are not balanced",
                 )
             )
+        self._speech_windows(events, names, issues)
 
         input_texts = [
             str(event.get("text") or "").strip()
@@ -274,6 +276,37 @@ class TraceOracle:
             event_count=len(events),
             user_turns=user_turns,
         )
+
+    @staticmethod
+    def _speech_windows(
+        events: list[Mapping[str, Any]], names: list[str], issues: list[TraceIssue]
+    ) -> None:
+        """Room-idle may never race an unfinished provider-VAD turn.
+
+        Explicit stop, provider/device failure and max-duration remain authoritative
+        bounded closers even if the provider never supplies its matching stop edge.
+        """
+        speech_started_at: int | None = None
+        for index, (event, name) in enumerate(zip(events, names, strict=True)):
+            if name == "speech_started_or_interrupted":
+                if speech_started_at is None:
+                    speech_started_at = index
+                continue
+            if name == "speech_stopped":
+                speech_started_at = None
+                continue
+            if (
+                name == "close_requested"
+                and speech_started_at is not None
+                and event.get("reason") == "idle-fallback"
+            ):
+                issues.append(
+                    TraceIssue(
+                        "close_during_open_speech",
+                        "Transport close began while provider VAD still had an open user turn",
+                        event_index=index,
+                    )
+                )
 
     @staticmethod
     def _require_once(names: list[str], name: str, issues: list[TraceIssue]) -> None:

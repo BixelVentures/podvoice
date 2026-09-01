@@ -35,6 +35,7 @@ from gatekeeper.voice import (
     ToolRoundComplete,
     ToolSchemaCorrection,
     TurnComplete,
+    Usage,
     UserSpeechStarted,
     UserSpeechStopped,
 )
@@ -1552,8 +1553,7 @@ async def test_same_breath_frames_are_preserved_at_wake_and_cleared_at_close():
 
 
 async def test_client_idle_fallback_closes(monkeypatch):
-    """If the server never sends Idle (field rejected), the client fallback closes
-    the conversation anyway (R3)."""
+    """Pure room silence still closes when no provider speech turn is open."""
     import gatekeeper.thin as thin_mod
 
     monkeypatch.setattr(thin_mod, "HEARTBEAT_S", 0.05)
@@ -1563,8 +1563,208 @@ async def test_client_idle_fallback_closes(monkeypatch):
     await session.start()
     try:
         await session.wake()
+        deadline = session._idle_deadline
+        assert deadline is not None
         await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=2.0)
+        closed_at = asyncio.get_running_loop().time()
+        assert deadline <= closed_at < deadline + 0.10
         await _wait_until(lambda: len(attention.release_calls) >= 1)
+        assert session._trace_reason == "idle-fallback"
+    finally:
+        await session.aclose()
+
+
+async def test_open_followup_speech_survives_idle_deadline_until_matching_stop(monkeypatch):
+    """Field trace 20260901T092200-847: a valid follow-up speech_started remained
+    open across the idle deadline. It is active speech, never physical room silence."""
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "HEARTBEAT_S", 0.02)
+    brain = LiveFake()
+    session, _attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            AudioChunk(_frame(), item_id="first-answer"),
+            TurnComplete(),
+        )
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)
+        session.idle_timeout_s = 0.06
+        session._on_media_state(False)
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+
+        deadline = session._idle_deadline
+        assert deadline is not None
+        brain.emit(UserSpeechStarted())
+        await asyncio.sleep(0.15)
+
+        assert asyncio.get_running_loop().time() >= deadline
+        assert session._active is True
+        assert session.sm.state in (State.LISTENING, State.LOUNGE_WINDOW)
+
+        brain.emit(UserSpeechStopped())
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+        assert session._active is True
+    finally:
+        await session.aclose()
+
+
+async def test_slow_tool_thinking_state_is_not_room_silence(monkeypatch):
+    """The four-second room timeout owns mic-open silence, not a slow tool turn."""
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "HEARTBEAT_S", 0.02)
+
+    class BlockingTools(FakeTools):
+        def __init__(self) -> None:
+            self.started = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def dispatch(self, name: str, args: dict) -> dict:
+            self.started.set()
+            await self.release.wait()
+            return await super().dispatch(name, args)
+
+    brain = LiveFake()
+    tools = BlockingTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        session.idle_timeout_s = 0.06
+        brain.emit(
+            UserSpeechStarted(),
+            UserSpeechStopped(),
+            ToolCall("slow-tool", "get_time", {}),
+        )
+        await tools.started.wait()
+        timeout_edge = asyncio.get_running_loop().time() + session.idle_timeout_s
+        await asyncio.sleep(0.15)
+
+        assert asyncio.get_running_loop().time() >= timeout_edge
+        assert session._active is True
+        assert session.sm.state is State.THINKING
+
+        tools.release.set()
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+    finally:
+        tools.release.set()
+        await session.aclose()
+
+
+async def test_provider_metadata_does_not_move_the_physical_idle_deadline(monkeypatch):
+    """Usage/transcript timing is provider metadata, not evidence that the room spoke."""
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "HEARTBEAT_S", 0.02)
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    session.idle_timeout_s = 0.08
+    await session.start()
+    try:
+        await session.wake()
+        deadline = session._idle_deadline
+        activity = session._last_activity
+
+        brain.emit(Usage())
+        await _wait_until(lambda: session._last_activity > activity)
+        assert session._idle_deadline == deadline
+
+        await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=1.0)
+        assert deadline is not None
+        assert asyncio.get_running_loop().time() >= deadline
+        assert session._trace_reason == "idle-fallback"
+    finally:
+        await session.aclose()
+
+
+async def test_speech_stop_waiting_for_mic_lock_cannot_idle_close(monkeypatch):
+    """The VAD-open fact remains authoritative until stop owns the provider wire seam."""
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "HEARTBEAT_S", 0.02)
+
+    class BlockingBrain(LiveFake):
+        def __init__(self) -> None:
+            super().__init__()
+            self.send_started = asyncio.Event()
+            self.release_send = asyncio.Event()
+
+        async def send_audio(self, pcm: bytes) -> None:
+            self.send_started.set()
+            await self.release_send.wait()
+            await super().send_audio(pcm)
+
+    brain = BlockingBrain()
+    session, _attention, voicepe = _build(brain)
+    session.idle_timeout_s = 0.06
+    await session.start()
+    try:
+        await session.wake()
+        deadline = session._idle_deadline
+        assert deadline is not None
+        brain.emit(UserSpeechStarted())
+        await _wait_until(lambda: session._user_speech_active)
+        voicepe.feed([_frame(611)])
+        await brain.send_started.wait()
+
+        brain.emit(UserSpeechStopped())
+        await asyncio.sleep(0.15)
+        assert asyncio.get_running_loop().time() >= deadline
+        assert session._active is True
+        assert session.sm.state is State.LISTENING
+        assert session._user_speech_active is True
+
+        brain.release_send.set()
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+        assert session._user_speech_active is False
+    finally:
+        brain.release_send.set()
+        await session.aclose()
+
+
+async def test_delayed_speech_start_in_thinking_is_discarded():
+    """A stale start after the accepted stop cannot reopen speech or the idle window."""
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(UserSpeechStarted(), UserSpeechStopped())
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+
+        brain.emit(UserSpeechStarted())
+        await _wait_until(lambda: brain.input_clear_count == 1)
+        assert session.sm.state is State.THINKING
+        assert session._user_speech_active is False
+        assert session._idle_deadline is None
+    finally:
+        await session.aclose()
+
+
+async def test_max_session_still_closes_an_open_provider_speech_turn(monkeypatch):
+    """Suppressing room-idle during speech never weakens the existing hard cost bound."""
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "HEARTBEAT_S", 0.02)
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    session.idle_timeout_s = 30
+    session.max_session_s = 0.08
+    await session.start()
+    try:
+        await session.wake()
+        max_deadline = session._conv_started + session.max_session_s
+        brain.emit(UserSpeechStarted())
+        await _wait_until(lambda: session._user_speech_active)
+
+        await _wait_until(lambda: session.sm.state is State.IDLE, max_wait=1.0)
+        assert asyncio.get_running_loop().time() >= max_deadline
+        assert session._trace_reason == "max_duration"
     finally:
         await session.aclose()
 
@@ -2563,6 +2763,7 @@ async def test_ten_complete_wake_followup_semantic_close_rearm_cycles():
             # remain open for a natural follow-up without another wake/provider connect.
             expected_announces = len(voicepe.announced_urls) + 1
             brain.emit(
+                UserSpeechStarted(),
                 UserSpeechStopped(),
                 InputTranscript("Hvad er klokken?"),
                 AudioChunk(_frame(), item_id=f"answer-{cycle}-1"),
@@ -2574,12 +2775,14 @@ async def test_ten_complete_wake_followup_semantic_close_rearm_cycles():
             )
             session._on_media_state(True)
             session._on_media_state(False)
+            await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
             assert session._active is True
             assert brain.connect_count == cycle
 
             # The follow-up is another turn in exactly the same Realtime session.
             expected_announces += 1
             brain.emit(
+                UserSpeechStarted(),
                 UserSpeechStopped(),
                 InputTranscript("Og hvilken ugedag er det?"),
                 AudioChunk(_frame(), item_id=f"answer-{cycle}-2"),
@@ -2591,6 +2794,7 @@ async def test_ten_complete_wake_followup_semantic_close_rearm_cycles():
             )
             session._on_media_state(True)
             session._on_media_state(False)
+            await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
             assert session._active is True
             assert brain.connect_count == cycle
 
@@ -2598,6 +2802,7 @@ async def test_ten_complete_wake_followup_semantic_close_rearm_cycles():
             # matcher.  Teardown waits for the spoken farewell's physical finish.
             call_id = f"end-{cycle}"
             brain.emit(
+                UserSpeechStarted(),
                 UserSpeechStopped(),
                 InputTranscript("Det var alt for nu."),
                 ToolCall(call_id, "end_conversation", {}),
