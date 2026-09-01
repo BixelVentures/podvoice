@@ -24,11 +24,21 @@ køb, ekstern kommunikation, væsentlig sletning og andre klassificerede sideeff
 kræver en server-ejet, kortlivet godkendelse bundet til session, handling, mål og
 argumenter. Et afvigende eller gammelt kald skal afvises fail-closed.
 
-## Shippet Voice PE er half-duplex
+## Bindende Voice PE-kontrakt er half-duplex
 
 Når `full_duplex == false`, skal alle disse være sande samtidig:
 
-1. Realtime konfigureres med `interrupt_response: false`.
+Denne sektion beskriver målkontrakten. `docs/STATUS.md` er eneste sandhed om, hvilke
+bits der faktisk er installeret og fysisk bevist.
+
+1. Realtime konfigureres med `interrupt_response: false` og
+   `create_response: false`. Semantic/server VAD registrerer og committer tale, men kun
+   `ThinSession` må mekanisk tillade én `response.create` for et accepteret,
+   korreleret input-item, og provideradapteren alene sender wire-eventet. Initiale og
+   afledte tool-/schema-/close-responses skal arve den samme
+   `(root_item_id, turn_id, provider_generation)` og have et unikt request-id. Numerisk
+   wire-metadata skal være kanoniske decimale strenge. Realtime ejer fortsat hele
+   svarets semantik.
 2. Den eksisterende `State` er eneste mic-gate: `LISTENING` og `LOUNGE_WINDOW` er åbne;
    `IDLE`, `THINKING` og `AI_SPEAKING` er lukkede. Playback-flags, timere og
    `_speaking` beskriver kun mekanik og må ikke være konkurrerende gateejere.
@@ -36,10 +46,18 @@ Når `full_duplex == false`, skal alle disse være sande samtidig:
    aktuelle playback-leases fysiske finish plus ekkohale har åbnet `LOUNGE_WINDOW`.
 4. `input_audio_buffer.speech_started` betyder kun "VAD så lyd"; det er ikke i sig selv
    et transport-interrupt.
-5. En VAD-start, der krydser svar-gaten, nulstilles med `input_audio_buffer.clear`.
-   Ellers modtager serveren aldrig den efterfølgende stilhed og kan hænge permanent i
-   `speech_started`.
-6. Voice PE må ikke love barge-in. Talk-browseren er den separate full-duplex-overflade
+5. En VAD-start, der krydser en lukket svar-gate, må aldrig skabe respons eller
+   værktøjskald. `input_audio_buffer.clear` er kun byte-clear og er ikke bevis for, at
+   den aktive VAD-spændvidde er afsluttet. Den crossed spændvidde skal enten afsluttes,
+   bindes til sit eksakte committed item og slettes med korreleret ACK før næste
+   mic-open, eller lukke hele sessionen fail-closed. Ved tvungen commit under aktiv
+   server-VAD kan provideren lovligt undlade `speech_stopped`; i den afviste sti er
+   committed item + item-added + eksakt delete-ACK derfor det fulde cleanup-bevis.
+6. Et accepteret `speech_stopped` lukker mic-gaten med det samme. Først et matching
+   `input_audio_buffer.committed`/user-item på samme generation må udløse præcis én
+   klientstyret `response.create`. Respons, lyd eller tool-call uden matching lokalt
+   request-id er en protokolfejl og lukker fail-closed.
+7. Voice PE må ikke love barge-in. Talk-browseren er den separate full-duplex-overflade
    og må eksplicit bruge `interrupt_response: true` med browser-AEC.
 
 Tre og kun tre fysiske audio-generation-grænser er autoritative:
@@ -53,9 +71,10 @@ Grænsen øger generationen synkront og dræner køen. En callback, der allerede
 fanget den gamle generation, er derefter inert. Der må aldrig skæres ved wake eller
 idempotent stream-keepalive; det ville klippe den bevidst bevarede same-breath-lyd.
 
-Den forbudte kombination er: **lokal half-duplex mic-gate + server-side automatisk
-response-interrupt**. Den gav feltfejlen 2026-08-18: tale registreret 139 ms før fysisk
-playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTER.
+De forbudte kombinationer er: **lokal half-duplex mic-gate + server-side automatisk
+response-interrupt** og **lokalt kasseret tur + server-side automatisk response**. Den
+første gav feltfejlen 2026-08-18; den anden gav trace `20260901T101334-410`, hvor en
+kasseret start overlevede playback og opslugte den næste opfølgning.
 
 ## Livscyklus
 
@@ -92,7 +111,9 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
    turen ved den autoritative taleslutgrænse; skrevet Talk-input skal gå gennem en
    tilsvarende offentlig turindgang. En adapter må aldrig kalde providerens `send_text`
    direkte, undertrykke sendefejl eller vise input som accepteret uden en korreleret
-   serverkvittering.
+   serverkvittering. På Voice PE må et committed provider-item ikke skabe en respons,
+   før Thin har accepteret den samme fysiske talespændvidde og sendt det ene korrelerede
+   response-request.
 10. WebSocket-forbindelse, provider-readiness, samtalestatus og inputaccept er fire
     forskellige sandheder. UI må ikke udlede "klar" af en åben socket. Hver session,
     tur, providerrespons, værktøjskald og playback skal kunne korreleres; events fra en
@@ -150,6 +171,12 @@ playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTE
 - Race/permutationer skal dække speech-start lige før playback, tool-resultat mellem
   responses, playback-start/slut i forskellig rækkefølge, samtidig stop/timeout/fejl og
   re-wake efter lukning.
+- Den sammensatte providerregression skal fortsætte efter enhver control-event: crossed
+  start → cleanup-request → senere stop/commit/item/ACK → frisk followup. Det er ikke
+  bevis, at klienten blot sendte `clear`, `commit`, `delete` eller `response.create`;
+  de efterfølgende serverevents skal bevise den påståede virkning.
+- Trace-oraklet skal afvise enhver response, tool-call eller playback uden kæden
+  accepteret fysisk tur → matching committed item → matching klient-request-id.
 - En fysisk Voice PE-trace skal vise forståelig første ytring, korrekt opfølgning,
   `playback_started`, `playback_finished`, `close_requested`, `wake_rearmed` og en ny
   provider-session ved næste wake.

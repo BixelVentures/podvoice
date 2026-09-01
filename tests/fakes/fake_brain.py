@@ -31,6 +31,7 @@ class FakeBrainSession:
         self.sent_audio: list[bytes] = []
         self.sent_text: list[str] = []
         self.sent_text_item_ids: list[str | None] = []
+        self.sent_text_turn_ids: list[int | None] = []
         self.sent_tool_results: list[list] = []
         self.stream_ended: int = 0
         self.connected: bool = False
@@ -40,6 +41,9 @@ class FakeBrainSession:
         self.reconnect_count: int = 0
         self.truncations: list[tuple[str, int]] = []
         self.input_clear_count: int = 0
+        self.manual_input_response: bool = False
+        self.accepted_input_turns: list[tuple[str, int, int]] = []
+        self.quarantined_input_turns: list[tuple[str, int]] = []
         self.idle_timeout_ms: int = 0  # set by __main__ wiring in thin mode
 
     # --- scripting helpers -------------------------------------------------
@@ -63,14 +67,27 @@ class FakeBrainSession:
     async def send_audio(self, pcm16k: bytes) -> None:
         self.sent_audio.append(pcm16k)
 
-    async def send_text(self, text: str, *, item_id: str | None = None) -> None:
+    async def send_text(
+        self,
+        text: str,
+        *,
+        item_id: str | None = None,
+        turn_id: int | None = None,
+    ) -> None:
         if not self.connected:
             raise ConnectionError("fake provider is not connected")
         self.sent_text.append(text)
         self.sent_text_item_ids.append(item_id)
+        self.sent_text_turn_ids.append(turn_id)
 
     async def clear_input_audio(self) -> None:
         self.input_clear_count += 1
+
+    async def accept_input_turn(self, item_id: str, turn_id: int, generation: int) -> None:
+        self.accepted_input_turns.append((item_id, turn_id, generation))
+
+    async def quarantine_input_turn(self, item_id: str, generation: int) -> None:
+        self.quarantined_input_turns.append((item_id, generation))
 
     async def audio_stream_end(self) -> None:
         self.stream_ended += 1

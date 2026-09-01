@@ -37,6 +37,7 @@ from .openai_realtime import (
     DEFAULT_MODEL,
     DEFAULT_VOICE,
     MAX_OUTPUT_TOKENS,
+    MINI_MODEL,
     TOOL_FOLLOWUP_MINIMUM_RESERVE,
     OpenAIRealtimeSession,
     ProviderConfigurationError,
@@ -55,14 +56,18 @@ from .thin import (
 )
 from .voice import (
     AudioChunk,
+    InputQuarantineResolved,
     InputTranscript,
     OutputTranscript,
+    ResponseStarted,
     SilentToolComplete,
     ToolCall,
     ToolRoundComplete,
     ToolSchemaCorrection,
     TurnComplete,
     Usage,
+    UserSpeechStarted,
+    UserSpeechStopped,
 )
 
 SCENARIOS_PATH = pathlib.Path(__file__).with_name("eval_scenarios.json")
@@ -102,6 +107,187 @@ LIVE_EVAL_OPENAI_NOISE = "off"
 # output ceiling. Official GPT-Realtime-2.1 rates make this $0.9216; cached input can
 # only lower it. Round up so the prospective $5 gate remains a hard guard.
 LIVE_EVAL_WORST_RESPONSE_COST_USD = 1.00
+PROTOCOL_OWNER_PROBE_KIND = "protocol-owner"
+PROTOCOL_OWNER_PROBE_DEADLINE_S = 45.0
+PROTOCOL_OWNER_PROBE_TOKEN_RESERVE = 16_000
+PROTOCOL_OWNER_BOOTSTRAP_PCM_MAX_S = 4.0
+PROTOCOL_OWNER_FRESH_SILENCE_S = 4.25
+PROTOCOL_OWNER_AUDIO_FRAME_MS = 20
+PROTOCOL_OWNER_FRESH_SILENCE_FRAMES = math.ceil(
+    PROTOCOL_OWNER_FRESH_SILENCE_S * 1000 / PROTOCOL_OWNER_AUDIO_FRAME_MS
+)
+PROTOCOL_OWNER_PROBE_MAX_AUDIO_S = (
+    2 * PROTOCOL_OWNER_BOOTSTRAP_PCM_MAX_S
+    + PROTOCOL_OWNER_FRESH_SILENCE_FRAMES * PROTOCOL_OWNER_AUDIO_FRAME_MS / 1000
+)
+PROTOCOL_OWNER_PROBE_TRANSCRIPTION_COST_USD = (
+    PROTOCOL_OWNER_PROBE_MAX_AUDIO_S / 60.0 * GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE
+)
+PROTOCOL_OWNER_PROBE_PROMPT = (
+    "Dette er en teknisk protokolkontrol uden værktøjer. "
+    "Følg kun den faste, ufarlige tekstinstruktion og brug aldrig værktøjer."
+)
+PROTOCOL_OWNER_BOOTSTRAP_TEXT = "Sig præcis: Dette er en sikker teknisk lydprøve uden handlinger."
+
+
+@dataclass(frozen=True)
+class _ProtocolOwnerVADConfig:
+    """Validated Voice PE turn detection plus exact bounded probe cost."""
+
+    turn_preset: str
+    openai_turn: str
+    openai_threshold: float
+    openai_prefix_ms: int
+    openai_silence_ms: int
+    openai_eagerness: str
+    openai_noise: str
+    effective_turn_detection: str
+    effective_threshold: float | None
+    effective_prefix_ms: int | None
+    effective_silence_ms: int | None
+    effective_eagerness: str | None
+    fresh_silence_frames: int
+    max_audio_s: float
+    transcription_cost_usd: float
+    sha256: str
+
+    def provenance(self) -> dict[str, Any]:
+        return {
+            "turn_preset": self.turn_preset,
+            "openai_turn": self.openai_turn,
+            "openai_threshold": self.openai_threshold,
+            "openai_prefix_ms": self.openai_prefix_ms,
+            "openai_silence_ms": self.openai_silence_ms,
+            "openai_eagerness": self.openai_eagerness,
+            "openai_noise": self.openai_noise,
+            "effective_turn_detection": self.effective_turn_detection,
+            "effective_threshold": self.effective_threshold,
+            "effective_prefix_ms": self.effective_prefix_ms,
+            "effective_silence_ms": self.effective_silence_ms,
+            "effective_eagerness": self.effective_eagerness,
+            "vad_config_sha256": self.sha256,
+        }
+
+
+def _protocol_owner_vad_config(
+    *,
+    turn_preset: str,
+    openai_turn: str,
+    openai_threshold: float,
+    openai_prefix_ms: int,
+    openai_silence_ms: int,
+    openai_eagerness: str,
+    openai_noise: str,
+) -> _ProtocolOwnerVADConfig:
+    """Resolve exactly the production VAD preset or reject it before provider I/O."""
+
+    if turn_preset not in {"conservative", "responsive", "custom"}:
+        raise ValueError("invalid turn preset")
+    if openai_noise not in {"off", "near_field", "far_field"}:
+        raise ValueError("invalid noise reduction")
+
+    if turn_preset == "conservative":
+        effective_turn_detection = "server_vad"
+        effective_threshold: float | None = 0.45
+        effective_prefix_ms: int | None = 800
+        effective_silence_ms: int | None = 500
+        effective_eagerness: str | None = None
+    elif turn_preset == "responsive":
+        effective_turn_detection = "semantic_vad"
+        effective_threshold = None
+        effective_prefix_ms = None
+        effective_silence_ms = None
+        effective_eagerness = "auto"
+    else:
+        if openai_turn not in {"server_vad", "semantic_vad"}:
+            raise ValueError("turn detection disabled or invalid")
+        effective_turn_detection = openai_turn
+        if openai_turn == "semantic_vad":
+            if openai_eagerness not in {"auto", "low", "medium", "high"}:
+                raise ValueError("invalid semantic VAD eagerness")
+            effective_threshold = None
+            effective_prefix_ms = None
+            effective_silence_ms = None
+            effective_eagerness = openai_eagerness
+        else:
+            if (
+                isinstance(openai_threshold, bool)
+                or not isinstance(openai_threshold, (int, float))
+                or not math.isfinite(float(openai_threshold))
+                or not 0.0 <= float(openai_threshold) <= 1.0
+            ):
+                raise ValueError("invalid VAD threshold")
+            if (
+                isinstance(openai_prefix_ms, bool)
+                or not isinstance(openai_prefix_ms, int)
+                or not 0 <= openai_prefix_ms <= 5_000
+            ):
+                raise ValueError("invalid VAD prefix")
+            if (
+                isinstance(openai_silence_ms, bool)
+                or not isinstance(openai_silence_ms, int)
+                or not 100 <= openai_silence_ms <= 10_000
+            ):
+                raise ValueError("invalid VAD silence")
+            effective_threshold = float(openai_threshold)
+            effective_prefix_ms = openai_prefix_ms
+            effective_silence_ms = openai_silence_ms
+            effective_eagerness = None
+
+    # Semantic VAD can legitimately take several seconds to close. For custom
+    # server VAD, cover the configured silence plus one 250 ms causal margin.
+    required_silence_s = PROTOCOL_OWNER_FRESH_SILENCE_S
+    if effective_silence_ms is not None:
+        required_silence_s = max(required_silence_s, (effective_silence_ms + 250) / 1000)
+    fresh_silence_frames = math.ceil(required_silence_s * 1000 / PROTOCOL_OWNER_AUDIO_FRAME_MS)
+    max_audio_ms = (
+        int(2 * PROTOCOL_OWNER_BOOTSTRAP_PCM_MAX_S * 1000)
+        + fresh_silence_frames * PROTOCOL_OWNER_AUDIO_FRAME_MS
+    )
+    max_audio_s = max_audio_ms / 1000
+    transcription_cost_usd = max_audio_s / 60.0 * GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE
+
+    turn_detection: dict[str, Any] = {
+        "type": effective_turn_detection,
+        "create_response": False,
+        "interrupt_response": False,
+    }
+    if effective_turn_detection == "server_vad":
+        turn_detection.update(
+            {
+                "threshold": effective_threshold,
+                "prefix_padding_ms": effective_prefix_ms,
+                "silence_duration_ms": effective_silence_ms,
+            }
+        )
+    else:
+        turn_detection["eagerness"] = effective_eagerness
+    effective_provider_config: dict[str, Any] = {"turn_detection": turn_detection}
+    if openai_noise != "off":
+        effective_provider_config["noise_reduction"] = {"type": openai_noise}
+    sha256 = hashlib.sha256(
+        json.dumps(effective_provider_config, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return _ProtocolOwnerVADConfig(
+        turn_preset=turn_preset,
+        openai_turn=openai_turn,
+        openai_threshold=float(openai_threshold),
+        openai_prefix_ms=openai_prefix_ms,
+        openai_silence_ms=openai_silence_ms,
+        openai_eagerness=openai_eagerness,
+        openai_noise=openai_noise,
+        effective_turn_detection=effective_turn_detection,
+        effective_threshold=effective_threshold,
+        effective_prefix_ms=effective_prefix_ms,
+        effective_silence_ms=effective_silence_ms,
+        effective_eagerness=effective_eagerness,
+        fresh_silence_frames=fresh_silence_frames,
+        max_audio_s=max_audio_s,
+        transcription_cost_usd=transcription_cost_usd,
+        sha256=sha256,
+    )
+
+
 # Normal corpus turns need at most three edges (two decision batches + final audio).
 # Prompt V6 permits one schema correction, which is itself a real response edge.
 # The mechanical cost/deadline reserve includes that fourth edge, but ordinary model
@@ -2107,6 +2293,535 @@ class LiveRealtimeDriver:
             self.events.get_nowait()
 
 
+class ProtocolOwnerProbeFailure(RuntimeError):
+    """Content-free failure from the one-shot live response-owner probe."""
+
+    def __init__(self, code: str, *, inconclusive: bool = False) -> None:
+        super().__init__(code)
+        self.code = code
+        self.inconclusive = inconclusive
+
+
+async def _execute_protocol_owner_probe(
+    *,
+    api_key: str,
+    model: str,
+    voice: str,
+    budget: EvalBudget,
+    provider_lease: BudgetLease,
+    provider_budget: ProviderBudgetCoordinator,
+    vad_config: _ProtocolOwnerVADConfig,
+    sleep=asyncio.sleep,
+    monotonic=time.monotonic,
+    session_factory=None,
+) -> dict[str, Any]:
+    """Prove manual response ownership on one real, side-effect-free socket.
+
+    The first typed response supplies non-private assistant PCM. While that response
+    is active, the PCM is paced back into VAD and the resulting crossed input span is
+    force-committed, deleted and acknowledged without creating a response. The same
+    PCM then drives one fresh audio turn, which must create exactly one owned response.
+    Opaque provider identifiers are retained only in this stack frame.
+    """
+
+    rows: list[dict[str, Any]] = []
+    trace_overflow = False
+    response_admissions = 0
+    capacity_deadline = monotonic() + PROTOCOL_OWNER_PROBE_DEADLINE_S
+
+    def observe(row: dict[str, Any]) -> None:
+        nonlocal trace_overflow
+        if len(rows) >= 128:
+            trace_overflow = True
+            return
+        # The production observer is already content-free. Keep only causal fields;
+        # transcript/audio/tool arguments can never enter even this in-memory proof.
+        allowed = {
+            "kind",
+            "request_id",
+            "response_id",
+            "conversation_id",
+            "root_item_id",
+            "committed_item_id",
+            "item_id",
+            "turn_id",
+            "generation",
+            "input_generation",
+            "purpose",
+            "request_id_matched",
+            "role",
+            "item_type",
+            "status",
+            "committed_item_count",
+        }
+        rows.append({key: value for key, value in row.items() if key in allowed})
+
+    async def admit_response(tokens: int | None = None) -> None:
+        nonlocal response_admissions
+        if response_admissions >= 2:
+            raise ProtocolOwnerProbeFailure("response-create-limit")
+        budget.reserve(1)
+        attempts = 0
+        while not provider_budget.ensure_response_capacity(provider_lease, tokens):
+            wait_s = provider_budget.response_retry_after(provider_lease, tokens)
+            if wait_s is None:
+                raise ProviderBudgetUnavailable(
+                    "diagnostic_capacity · protocol-owner response capacity unavailable"
+                )
+            wait_s = max(0.0, wait_s) + 0.05
+            if attempts >= 7 or wait_s >= max(0.0, capacity_deadline - monotonic()):
+                raise ProviderBudgetUnavailable(
+                    "diagnostic_capacity · protocol-owner capacity wait exceeds deadline"
+                )
+            await sleep(wait_s)
+            budget.rate_limit_wait_s += wait_s
+            attempts += 1
+        response_admissions += 1
+
+    factory = session_factory or OpenAIRealtimeSession
+    session = factory(
+        api_key=api_key,
+        model=model,
+        budget_role="eval",
+        budget_lease=provider_lease,
+        provider_budget=provider_budget,
+        before_response_create=admit_response,
+        provider_observer=observe,
+        voice=voice,
+        instructions=PROTOCOL_OWNER_PROBE_PROMPT,
+        input_rate=24_000,
+        preset=vad_config.turn_preset,
+        turn=vad_config.openai_turn,
+        threshold=vad_config.openai_threshold,
+        prefix_ms=vad_config.openai_prefix_ms,
+        silence_ms=vad_config.openai_silence_ms,
+        eagerness=vad_config.openai_eagerness,
+        interrupt_response=False,
+        manual_input_response=True,
+        noise=vad_config.openai_noise,
+        room_context="",
+        tool_declarations=[],
+    )
+    events: asyncio.Queue[Any] = asyncio.Queue()
+    stream_ended = object()
+    reader: asyncio.Task[None] | None = None
+    usage_by_response_id: dict[str, Usage] = {}
+    tool_events = 0
+
+    async def read_events() -> None:
+        try:
+            async for event in session.events():
+                events.put_nowait(event)
+        except Exception as exc:
+            events.put_nowait(exc)
+        finally:
+            events.put_nowait(stream_ended)
+
+    def inspect_common(event: Any) -> None:
+        nonlocal tool_events
+        if event is stream_ended:
+            raise ProtocolOwnerProbeFailure("provider-stream-ended")
+        if isinstance(event, Exception):
+            raise ProtocolOwnerProbeFailure("provider-stream-failed") from event
+        if isinstance(
+            event,
+            (ToolCall, ToolRoundComplete, ToolSchemaCorrection, SilentToolComplete),
+        ):
+            tool_events += 1
+            raise ProtocolOwnerProbeFailure("unexpected-tool-event")
+        if isinstance(event, Usage):
+            response_id = event.response_id
+            if not isinstance(response_id, str) or not response_id:
+                raise ProtocolOwnerProbeFailure("provider-usage-unknown")
+            if (
+                event.provider_total_tokens <= 0
+                or event.provider_total_tokens
+                != event.provider_input_tokens + event.provider_output_tokens
+            ):
+                raise ProtocolOwnerProbeFailure("provider-usage-unknown")
+            if response_id in usage_by_response_id:
+                raise ProtocolOwnerProbeFailure("duplicate-provider-usage")
+            try:
+                budget.record(asdict(event))
+            except RuntimeError as exc:
+                raise ProtocolOwnerProbeFailure("actual-budget-exceeded") from exc
+            usage_by_response_id[response_id] = event
+
+    async def next_event(timeout_s: float, timeout_code: str) -> Any:
+        try:
+            event = await asyncio.wait_for(events.get(), timeout=timeout_s)
+        except TimeoutError as exc:
+            raise ProtocolOwnerProbeFailure(timeout_code) from exc
+        inspect_common(event)
+        return event
+
+    def response_rows(
+        kind: str, source: list[dict[str, Any]] | None = None
+    ) -> list[dict[str, Any]]:
+        return [row for row in (rows if source is None else source) if row.get("kind") == kind]
+
+    bootstrap_item_id = "pv_protocol_bootstrap"
+    bootstrap_response_id: str | None = None
+    crossed_item_id: str | None = None
+    crossed_resolved = False
+    bootstrap_done = False
+    bootstrap_pcm = bytearray()
+    max_bootstrap_bytes = int(PROTOCOL_OWNER_BOOTSTRAP_PCM_MAX_S * 24_000 * 2)
+    quarantine_row_index: int | None = None
+    creates_before_quarantine: int | None = None
+    quarantine_speech_stops = 0
+    fresh_item_id: str | None = None
+    fresh_stop_item_id: str | None = None
+    fresh_response_id: str | None = None
+    accepted_row_index: int | None = None
+    sent_audio_bytes = 0
+
+    try:
+        await session.connect()
+        generation = getattr(session, "_connection_generation", None)
+        if isinstance(generation, bool) or not isinstance(generation, int) or generation < 1:
+            raise ProtocolOwnerProbeFailure("provider-generation-invalid")
+        reader = asyncio.create_task(read_events(), name="podvoice-protocol-owner-reader")
+        await session.send_text(
+            PROTOCOL_OWNER_BOOTSTRAP_TEXT,
+            item_id=bootstrap_item_id,
+            turn_id=0,
+        )
+
+        # Phase 1: assistant PCM must cross VAD while its source response is active.
+        while not (bootstrap_done and crossed_resolved):
+            event = await next_event(LIVE_EVAL_TURN_TIMEOUT_S, "bootstrap-timeout")
+            if isinstance(event, ResponseStarted):
+                if (
+                    bootstrap_response_id is not None
+                    or event.purpose != "turn"
+                    or event.root_item_id != bootstrap_item_id
+                    or event.turn_id != 0
+                    or event.generation != generation
+                    or not event.response_id
+                ):
+                    raise ProtocolOwnerProbeFailure("bootstrap-response-invalid")
+                bootstrap_response_id = event.response_id
+            elif isinstance(event, AudioChunk):
+                if (
+                    bootstrap_response_id is None
+                    or event.response_id != bootstrap_response_id
+                    or event.generation != generation
+                    or crossed_item_id is not None
+                ):
+                    if crossed_item_id is None:
+                        raise ProtocolOwnerProbeFailure("bootstrap-audio-uncorrelated")
+                    continue
+                remaining = max_bootstrap_bytes - len(bootstrap_pcm)
+                piece = bytes(event.pcm[:remaining])
+                if piece:
+                    bootstrap_pcm.extend(piece)
+                    await session.send_audio(piece)
+                    sent_audio_bytes += len(piece)
+                    await sleep(len(piece) / (24_000 * 2))
+            elif isinstance(event, UserSpeechStarted):
+                if (
+                    crossed_item_id is not None
+                    or bootstrap_response_id is None
+                    or bootstrap_done
+                    or not isinstance(event.item_id, str)
+                    or not event.item_id
+                    or event.generation != generation
+                ):
+                    raise ProtocolOwnerProbeFailure("crossed-speech-start-invalid")
+                crossed_item_id = event.item_id
+                quarantine_row_index = len(rows)
+                creates_before_quarantine = len(response_rows("response_create_sent"))
+                await session.quarantine_input_turn(crossed_item_id, generation)
+            elif isinstance(event, UserSpeechStopped):
+                quarantine_speech_stops += 1
+                raise ProtocolOwnerProbeFailure("quarantine-stop-observed", inconclusive=True)
+            elif isinstance(event, InputQuarantineResolved):
+                if (
+                    crossed_item_id is None
+                    or event.item_id != crossed_item_id
+                    or event.generation != generation
+                    or crossed_resolved
+                ):
+                    raise ProtocolOwnerProbeFailure("quarantine-resolution-invalid")
+                crossed_resolved = True
+            elif isinstance(event, TurnComplete):
+                if (
+                    bootstrap_response_id is None
+                    or event.response_id != bootstrap_response_id
+                    or event.generation != generation
+                    or event.status != "completed"
+                    or event.purpose != "turn"
+                    or bootstrap_done
+                ):
+                    raise ProtocolOwnerProbeFailure("bootstrap-response-invalid")
+                if crossed_item_id is None:
+                    raise ProtocolOwnerProbeFailure(
+                        "bootstrap-cross-not-observed", inconclusive=True
+                    )
+                bootstrap_done = True
+
+        if not bootstrap_pcm:
+            raise ProtocolOwnerProbeFailure("bootstrap-audio-missing", inconclusive=True)
+        if trace_overflow:
+            raise ProtocolOwnerProbeFailure("provider-trace-overflow")
+        if getattr(session, "_connection_generation", None) != generation:
+            raise ProtocolOwnerProbeFailure("provider-generation-changed")
+        if quarantine_row_index is None or creates_before_quarantine is None:
+            raise ProtocolOwnerProbeFailure("quarantine-correlation-failed")
+        quarantine_rows = rows[quarantine_row_index:]
+        committed_rows = response_rows("input_audio_buffer_committed", quarantine_rows)
+        added_rows = [
+            row
+            for row in response_rows("conversation_item_added", quarantine_rows)
+            if row.get("role") == "user"
+        ]
+        deleted_rows = response_rows("conversation_item_deleted", quarantine_rows)
+        rejected = response_rows("rejected_input_quarantined", quarantine_rows)
+        creates_after_quarantine = len(response_rows("response_create_sent"))
+        if creates_after_quarantine != creates_before_quarantine:
+            raise ProtocolOwnerProbeFailure("ghost-response-during-quarantine")
+        quarantine_kinds = [row.get("kind") for row in quarantine_rows]
+        committed_id = committed_rows[0].get("item_id") if len(committed_rows) == 1 else None
+        if (
+            committed_id is None
+            or len(added_rows) != 1
+            or len(deleted_rows) != 1
+            or len(rejected) != 1
+            or added_rows[0].get("item_id") != committed_id
+            or deleted_rows[0].get("item_id") != committed_id
+            or any(
+                row.get("generation") != generation
+                for row in (*committed_rows, *added_rows, *deleted_rows, *rejected)
+            )
+            or rejected[0].get("root_item_id") != crossed_item_id
+            or rejected[0].get("generation") != generation
+            or not (
+                max(
+                    quarantine_kinds.index("input_audio_buffer_committed"),
+                    quarantine_kinds.index("conversation_item_added"),
+                )
+                < quarantine_kinds.index("conversation_item_deleted")
+                < quarantine_kinds.index("rejected_input_quarantined")
+            )
+        ):
+            raise ProtocolOwnerProbeFailure("quarantine-correlation-failed")
+
+        # Phase 2: the same socket/VAD must accept a fresh audio span after cleanup.
+        accepted_row_index = len(rows)
+        frame_bytes = 24_000 * 2 * PROTOCOL_OWNER_AUDIO_FRAME_MS // 1000
+
+        async def consume_pending() -> bool:
+            nonlocal fresh_item_id, fresh_stop_item_id
+            stopped = False
+            while not events.empty():
+                event = events.get_nowait()
+                inspect_common(event)
+                if isinstance(event, UserSpeechStarted):
+                    if (
+                        fresh_item_id is not None
+                        or not isinstance(event.item_id, str)
+                        or not event.item_id
+                        or event.item_id == crossed_item_id
+                        or event.generation != generation
+                    ):
+                        raise ProtocolOwnerProbeFailure("fresh-speech-start-invalid")
+                    fresh_item_id = event.item_id
+                elif isinstance(event, UserSpeechStopped):
+                    if fresh_item_id is None:
+                        raise ProtocolOwnerProbeFailure("late-quarantine-stop")
+                    if (
+                        fresh_stop_item_id is not None
+                        or event.item_id != fresh_item_id
+                        or event.generation != generation
+                    ):
+                        raise ProtocolOwnerProbeFailure("fresh-speech-stop-invalid")
+                    fresh_stop_item_id = event.item_id
+                    stopped = True
+                elif isinstance(event, ResponseStarted):
+                    raise ProtocolOwnerProbeFailure("ghost-response-before-accept")
+                elif isinstance(event, InputQuarantineResolved):
+                    raise ProtocolOwnerProbeFailure("duplicate-quarantine-resolution")
+                elif isinstance(event, TurnComplete):
+                    raise ProtocolOwnerProbeFailure("duplicate-bootstrap-terminal")
+            return stopped
+
+        for offset in range(0, len(bootstrap_pcm), frame_bytes):
+            piece = bytes(bootstrap_pcm[offset : offset + frame_bytes])
+            await session.send_audio(piece)
+            sent_audio_bytes += len(piece)
+            await sleep(len(piece) / (24_000 * 2))
+            if await consume_pending():
+                break
+        if fresh_stop_item_id is None:
+            silence = bytes(frame_bytes)
+            for _ in range(vad_config.fresh_silence_frames):
+                await session.send_audio(silence)
+                sent_audio_bytes += len(silence)
+                await sleep(PROTOCOL_OWNER_AUDIO_FRAME_MS / 1000)
+                if await consume_pending():
+                    break
+        if fresh_item_id is None:
+            raise ProtocolOwnerProbeFailure("fresh-speech-start-missing")
+        if fresh_stop_item_id is None:
+            # Allow one final bounded processing edge after the configured silence.
+            event = await next_event(2.0, "fresh-speech-stop-missing")
+            if not isinstance(event, UserSpeechStopped):
+                if isinstance(event, ResponseStarted):
+                    raise ProtocolOwnerProbeFailure("ghost-response-before-accept")
+                raise ProtocolOwnerProbeFailure("fresh-speech-stop-missing")
+            if event.item_id != fresh_item_id or event.generation != generation:
+                raise ProtocolOwnerProbeFailure("fresh-speech-stop-invalid")
+            fresh_stop_item_id = event.item_id
+
+        assert accepted_row_index is not None
+        if getattr(session, "_connection_generation", None) != generation:
+            raise ProtocolOwnerProbeFailure("provider-generation-changed")
+        await session.accept_input_turn(fresh_stop_item_id, 1, generation)
+        accepted_done = False
+        while not accepted_done:
+            event = await next_event(LIVE_EVAL_TURN_TIMEOUT_S, "accepted-response-timeout")
+            if isinstance(event, ResponseStarted):
+                if (
+                    fresh_response_id is not None
+                    or event.purpose != "turn"
+                    or event.root_item_id != fresh_item_id
+                    or event.turn_id != 1
+                    or event.generation != generation
+                    or not event.response_id
+                ):
+                    raise ProtocolOwnerProbeFailure("accepted-response-correlation-failed")
+                fresh_response_id = event.response_id
+            elif isinstance(event, AudioChunk):
+                if (
+                    fresh_response_id is None
+                    or event.response_id != fresh_response_id
+                    or event.generation != generation
+                ):
+                    raise ProtocolOwnerProbeFailure("accepted-response-correlation-failed")
+            elif isinstance(event, (UserSpeechStarted, UserSpeechStopped)):
+                raise ProtocolOwnerProbeFailure("unexpected-input-after-accept")
+            elif isinstance(event, InputQuarantineResolved):
+                raise ProtocolOwnerProbeFailure("duplicate-quarantine-resolution")
+            elif isinstance(event, TurnComplete):
+                if (
+                    fresh_response_id is None
+                    or event.response_id != fresh_response_id
+                    or event.generation != generation
+                    or event.status != "completed"
+                    or event.purpose != "turn"
+                ):
+                    raise ProtocolOwnerProbeFailure("accepted-response-correlation-failed")
+                accepted_done = True
+
+        # A short guard catches a queued duplicate/ghost response without extending the
+        # probe into another semantic turn.
+        trailing_deadline = asyncio.get_running_loop().time() + 0.5
+        while True:
+            trailing_remaining_s = trailing_deadline - asyncio.get_running_loop().time()
+            if trailing_remaining_s <= 0:
+                break
+            try:
+                trailing = await asyncio.wait_for(events.get(), timeout=trailing_remaining_s)
+            except TimeoutError:
+                break
+            inspect_common(trailing)
+            if isinstance(trailing, (ResponseStarted, TurnComplete)):
+                raise ProtocolOwnerProbeFailure("duplicate-or-ghost-response")
+            if isinstance(trailing, (UserSpeechStarted, UserSpeechStopped)):
+                raise ProtocolOwnerProbeFailure("late-quarantine-stop")
+
+        if trace_overflow:
+            raise ProtocolOwnerProbeFailure("provider-trace-overflow")
+        if getattr(session, "_connection_generation", None) != generation:
+            raise ProtocolOwnerProbeFailure("provider-generation-changed")
+        if response_admissions != 2 or len(usage_by_response_id) != 2:
+            raise ProtocolOwnerProbeFailure("provider-usage-unknown")
+        if (
+            bootstrap_response_id not in usage_by_response_id
+            or fresh_response_id not in usage_by_response_id
+        ):
+            raise ProtocolOwnerProbeFailure("provider-usage-unknown")
+
+        accepted_rows = rows[accepted_row_index:]
+        accepted_turns = response_rows("accepted_input_turn", accepted_rows)
+        pre_wire = response_rows("response_create_pre_wire", accepted_rows)
+        sent = response_rows("response_create_sent", accepted_rows)
+        created = response_rows("response_created", accepted_rows)
+        done = response_rows("response_done", accepted_rows)
+        if not all(len(group) == 1 for group in (accepted_turns, pre_wire, sent, created, done)):
+            raise ProtocolOwnerProbeFailure("accepted-response-correlation-failed")
+        accepted = accepted_turns[0]
+        request_ids = {
+            pre_wire[0].get("request_id"),
+            sent[0].get("request_id"),
+            created[0].get("request_id"),
+        }
+        if (
+            accepted.get("root_item_id") != fresh_item_id
+            or accepted.get("committed_item_id") != fresh_stop_item_id
+            or accepted.get("turn_id") != 1
+            or accepted.get("generation") != generation
+            or len(request_ids) != 1
+            or None in request_ids
+            or created[0].get("request_id_matched") is not True
+            or created[0].get("root_item_id") != fresh_item_id
+            or created[0].get("turn_id") != 1
+            or created[0].get("input_generation") != generation
+            or created[0].get("response_id") != fresh_response_id
+            or done[0].get("response_id") != fresh_response_id
+            or done[0].get("status") != "completed"
+            or done[0].get("generation") != generation
+        ):
+            raise ProtocolOwnerProbeFailure("accepted-response-correlation-failed")
+        if any(
+            len(response_rows(kind)) != 2
+            for kind in (
+                "accepted_input_turn",
+                "response_create_pre_wire",
+                "response_create_sent",
+                "response_created",
+                "response_done",
+            )
+        ):
+            raise ProtocolOwnerProbeFailure("duplicate-or-ghost-response")
+        all_created = response_rows("response_created")
+        conversation_ids = {row.get("conversation_id") for row in all_created}
+        if len(conversation_ids) != 1 or None in conversation_ids or "" in conversation_ids:
+            raise ProtocolOwnerProbeFailure("provider-conversation-changed")
+        if sent_audio_bytes > int(vad_config.max_audio_s * 24_000 * 2):
+            raise ProtocolOwnerProbeFailure("audio-budget-exceeded")
+
+        return {
+            "same_socket": True,
+            "manual_input_response": True,
+            "tools_advertised": 0,
+            "bootstrap_responses": 1,
+            "quarantined_spans": 1,
+            "quarantined_items": len(committed_rows),
+            "quarantine_speech_stops": quarantine_speech_stops,
+            "responses_during_quarantine": 0,
+            "fresh_speech_starts": 1,
+            "fresh_speech_stops": 1,
+            "accepted_audio_turns": 1,
+            "accepted_audio_responses": 1,
+            "total_responses": 2,
+            "usage_events": len(usage_by_response_id),
+            "tool_events": tool_events,
+            "capacity_wait_s": round(budget.rate_limit_wait_s, 3),
+            "audio_seconds_max_reserved": vad_config.max_audio_s,
+            "audio_seconds_sent": round(sent_audio_bytes / (24_000 * 2), 3),
+        }
+    finally:
+        with contextlib.suppress(Exception):
+            async with asyncio.timeout(C.CONNECT_TIMEOUT_S):
+                await session.close()
+        if reader is not None:
+            reader.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await reader
+
+
 class LiveEvalService:
     """Serialized, resumable live-eval job owned by the add-on process.
 
@@ -2244,6 +2959,78 @@ class LiveEvalService:
             "deadline_s": self._max_run_s,
         }
 
+    def start_protocol_owner(
+        self,
+        *,
+        api_key: str,
+        max_cost_usd: float,
+        model: str = DEFAULT_MODEL,
+        voice: str = DEFAULT_VOICE,
+        turn_preset: str = LIVE_EVAL_TURN_PRESET,
+        openai_turn: str = "semantic_vad",
+        openai_threshold: float = 0.5,
+        openai_prefix_ms: int = 300,
+        openai_silence_ms: int = 500,
+        openai_eagerness: str = "auto",
+        openai_noise: str = LIVE_EVAL_OPENAI_NOISE,
+    ) -> dict[str, Any]:
+        """Start the one-shot hidden protocol probe without duplicating paid work."""
+        if self._job is not None and not self._job.done():
+            return {
+                "ok": False,
+                "status": "busy",
+                "kind": self._active_kind,
+                "run_id": self._active_run_id,
+                "started_at": self._started_at,
+                "deadline_s": (
+                    PROTOCOL_OWNER_PROBE_DEADLINE_S
+                    if self._active_kind == PROTOCOL_OWNER_PROBE_KIND
+                    else self._max_run_s
+                ),
+            }
+        if (
+            isinstance(max_cost_usd, bool)
+            or not isinstance(max_cost_usd, (int, float))
+            or not math.isfinite(float(max_cost_usd))
+            or float(max_cost_usd) != LIVE_EVAL_ACTUAL_COST_CAP_USD
+        ):
+            return {
+                "ok": False,
+                "status": "invalid",
+                "kind": PROTOCOL_OWNER_PROBE_KIND,
+                "error_code": "invalid-cost-confirmation",
+            }
+        run_id = self._new_run_id()
+        self._active_run_id = run_id
+        self._active_kind = PROTOCOL_OWNER_PROBE_KIND
+        self._started_at = time.time()
+        self._job = asyncio.create_task(
+            self._run_background(
+                operation=PROTOCOL_OWNER_PROBE_KIND,
+                run_id=run_id,
+                api_key=api_key,
+                max_cost_usd=float(max_cost_usd),
+                model=model,
+                voice=voice,
+                turn_preset=turn_preset,
+                openai_turn=openai_turn,
+                openai_threshold=openai_threshold,
+                openai_prefix_ms=openai_prefix_ms,
+                openai_silence_ms=openai_silence_ms,
+                openai_eagerness=openai_eagerness,
+                openai_noise=openai_noise,
+            ),
+            name=f"podvoice-protocol-owner-{run_id}",
+        )
+        return {
+            "ok": True,
+            "status": "running",
+            "kind": PROTOCOL_OWNER_PROBE_KIND,
+            "run_id": run_id,
+            "started_at": self._started_at,
+            "deadline_s": PROTOCOL_OWNER_PROBE_DEADLINE_S,
+        }
+
     def start_replay(
         self,
         *,
@@ -2342,17 +3129,31 @@ class LiveEvalService:
         )
         report: dict[str, Any]
         try:
-            if operation == "replay":
+            if operation == PROTOCOL_OWNER_PROBE_KIND:
+                report = await self.run_protocol_owner(**kwargs)
+            elif operation == "replay":
                 report = await self.run_replay(**kwargs)
             else:
                 report = await self.run(**kwargs)
         except asyncio.CancelledError:
-            report = {
-                "ok": False,
-                "status": "cancelled",
-                "run_id": run_id,
-                "error": "Live-evalueringen blev afbrudt, da add-on stoppede.",
-            }
+            if operation == PROTOCOL_OWNER_PROBE_KIND:
+                report = {
+                    "ok": False,
+                    "status": "cancelled",
+                    "kind": PROTOCOL_OWNER_PROBE_KIND,
+                    "run_id": run_id,
+                    "decision": "BLOCKED",
+                    "classification": "probe-cancelled",
+                    "error_code": "probe-cancelled",
+                    "deadline_s": PROTOCOL_OWNER_PROBE_DEADLINE_S,
+                }
+            else:
+                report = {
+                    "ok": False,
+                    "status": "cancelled",
+                    "run_id": run_id,
+                    "error": "Live-evalueringen blev afbrudt, da add-on stoppede.",
+                }
             self._retain_report(
                 report,
                 kwargs=kwargs,
@@ -2360,16 +3161,30 @@ class LiveEvalService:
             )
             raise
         except Exception as exc:  # defensive job boundary; run normally reports failures
-            message = str(exc)
-            secret = str(kwargs.get("api_key") or "")
-            if secret:
-                message = message.replace(secret, "[REDACTED]")
-            report = {
-                "ok": False,
-                "status": "failed",
-                "run_id": run_id,
-                "error": message[:500] or type(exc).__name__,
-            }
+            if operation == PROTOCOL_OWNER_PROBE_KIND:
+                # The hidden paid probe never publishes exception strings through the
+                # generic retained-status endpoint.
+                report = {
+                    "ok": False,
+                    "status": "failed",
+                    "kind": PROTOCOL_OWNER_PROBE_KIND,
+                    "run_id": run_id,
+                    "decision": "BLOCKED",
+                    "classification": "provider-or-protocol-failure",
+                    "error_code": "unhandled-probe-failure",
+                    "deadline_s": PROTOCOL_OWNER_PROBE_DEADLINE_S,
+                }
+            else:
+                message = str(exc)
+                secret = str(kwargs.get("api_key") or "")
+                if secret:
+                    message = message.replace(secret, "[REDACTED]")
+                report = {
+                    "ok": False,
+                    "status": "failed",
+                    "run_id": run_id,
+                    "error": message[:500] or type(exc).__name__,
+                }
         finally:
             if "report" in locals() and run_id not in self._reports_by_run_id:
                 self._retain_report(
@@ -2421,12 +3236,242 @@ class LiveEvalService:
             self._last_full_report = retained
             self._last_full_candidate_identity = candidate_identity
         elif (
-            retained.get("kind") not in {"audio-replay", "semantic-audio-ab"}
+            retained.get("kind")
+            not in {"audio-replay", "semantic-audio-ab", PROTOCOL_OWNER_PROBE_KIND}
             and self._last_full_candidate_identity is not None
             and candidate_identity != self._last_full_candidate_identity
         ):
             self._last_full_report = None
             self._last_full_candidate_identity = None
+
+    async def run_protocol_owner(
+        self,
+        *,
+        api_key: str,
+        max_cost_usd: float,
+        model: str = DEFAULT_MODEL,
+        voice: str = DEFAULT_VOICE,
+        turn_preset: str = LIVE_EVAL_TURN_PRESET,
+        openai_turn: str = "semantic_vad",
+        openai_threshold: float = 0.5,
+        openai_prefix_ms: int = 300,
+        openai_silence_ms: int = 500,
+        openai_eagerness: str = "auto",
+        openai_noise: str = LIVE_EVAL_OPENAI_NOISE,
+        run_id: str | None = None,
+        session_factory=None,
+    ) -> dict[str, Any]:
+        """Run one bounded production-adapter response-owner protocol proof."""
+        run_id = run_id or self._new_run_id()
+        artifact_kind, artifact_sha256 = runtime_artifact_identity()
+        try:
+            vad_config = _protocol_owner_vad_config(
+                turn_preset=turn_preset,
+                openai_turn=openai_turn,
+                openai_threshold=openai_threshold,
+                openai_prefix_ms=openai_prefix_ms,
+                openai_silence_ms=openai_silence_ms,
+                openai_eagerness=openai_eagerness,
+                openai_noise=openai_noise,
+            )
+        except ValueError:
+            vad_config = None
+        max_audio_s = (
+            vad_config.max_audio_s if vad_config is not None else PROTOCOL_OWNER_PROBE_MAX_AUDIO_S
+        )
+        transcription_cost_usd = (
+            vad_config.transcription_cost_usd
+            if vad_config is not None
+            else PROTOCOL_OWNER_PROBE_TRANSCRIPTION_COST_USD
+        )
+        vad_provenance: dict[str, Any] = (
+            {"vad_config_valid": False}
+            if vad_config is None
+            else {"vad_config_valid": True, **vad_config.provenance()}
+        )
+
+        def report(
+            *,
+            ok: bool,
+            status: str,
+            decision: str,
+            classification: str,
+            error_code: str | None,
+            budget: EvalBudget,
+            checks: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            payload: dict[str, Any] = {
+                "ok": ok,
+                "status": status,
+                "kind": PROTOCOL_OWNER_PROBE_KIND,
+                "run_id": run_id,
+                "decision": decision,
+                "classification": classification,
+                "podvoice_version": __version__,
+                "model": model,
+                "voice": voice,
+                "prompt_sha256": hashlib.sha256(PROTOCOL_OWNER_PROBE_PROMPT.encode()).hexdigest(),
+                "tool_schema_sha256": _schema_sha256([]),
+                "tool_schema_profile": "empty-protocol-owner",
+                **vad_provenance,
+                "manual_input_response": True,
+                "artifact_identity_kind": artifact_kind,
+                "artifact_sha256": artifact_sha256,
+                "checks": checks or {"passed": False},
+                "budget": asdict(budget),
+                "transcription_budget": {
+                    "audio_seconds_max": max_audio_s,
+                    "usd_per_minute": GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE,
+                    "reserved_cost_usd": transcription_cost_usd,
+                },
+                "deadline_s": PROTOCOL_OWNER_PROBE_DEADLINE_S,
+            }
+            if error_code is not None:
+                payload["error_code"] = error_code
+            return payload
+
+        budget = EvalBudget(
+            max_turns=2,
+            max_reserved_tokens=2 * MAX_OUTPUT_TOKENS,
+            max_actual_tokens=PROTOCOL_OWNER_PROBE_TOKEN_RESERVE,
+            max_cost_usd=LIVE_EVAL_ACTUAL_COST_CAP_USD,
+            mechanical_max_cost_usd=(
+                2 * LIVE_EVAL_WORST_RESPONSE_COST_USD + transcription_cost_usd
+            ),
+            cost_usd=transcription_cost_usd,
+        )
+        if (
+            isinstance(max_cost_usd, bool)
+            or not isinstance(max_cost_usd, (int, float))
+            or not math.isfinite(float(max_cost_usd))
+            or float(max_cost_usd) != LIVE_EVAL_ACTUAL_COST_CAP_USD
+        ):
+            return report(
+                ok=False,
+                status="invalid",
+                decision="BLOCKED",
+                classification="eval-admission-blocked",
+                error_code="invalid-cost-confirmation",
+                budget=budget,
+            )
+        if model not in {DEFAULT_MODEL, MINI_MODEL}:
+            return report(
+                ok=False,
+                status="invalid",
+                decision="BLOCKED",
+                classification="eval-admission-blocked",
+                error_code="unsupported-model",
+                budget=budget,
+            )
+        if vad_config is None:
+            return report(
+                ok=False,
+                status="invalid",
+                decision="BLOCKED",
+                classification="eval-admission-blocked",
+                error_code="invalid-vad-config",
+                budget=budget,
+            )
+        if (
+            budget.mechanical_max_cost_usd is None
+            or budget.mechanical_max_cost_usd > budget.max_cost_usd
+            or budget.cost_usd > budget.max_cost_usd
+        ):
+            return report(
+                ok=False,
+                status="failed",
+                decision="BLOCKED",
+                classification="budget-exhausted",
+                error_code="prospective-budget-exceeded",
+                budget=budget,
+            )
+        if self._lock.locked():
+            return report(
+                ok=False,
+                status="busy",
+                decision="BLOCKED",
+                classification="diagnostic-busy",
+                error_code="diagnostic-busy",
+                budget=budget,
+            )
+
+        diagnostic_lease: BudgetLease | None = None
+        provider_lease: BudgetLease | None = None
+        async with self._lock:
+            try:
+                diagnostic_lease = self._provider_budget.diagnostic_started(api_key)
+                # Cold admission is atomic and never waits/probes the provider. The
+                # same lease owns both bounded response edges on the same socket.
+                provider_lease = self._provider_budget.reserve_eval(
+                    api_key,
+                    model,
+                    tokens=PROTOCOL_OWNER_PROBE_TOKEN_RESERVE,
+                    production_headroom=0,
+                    diagnostic_lease=diagnostic_lease,
+                )
+                async with asyncio.timeout(PROTOCOL_OWNER_PROBE_DEADLINE_S):
+                    checks = await _execute_protocol_owner_probe(
+                        api_key=api_key,
+                        model=model,
+                        voice=voice,
+                        budget=budget,
+                        provider_lease=provider_lease,
+                        provider_budget=self._provider_budget,
+                        vad_config=vad_config,
+                        sleep=self._sleep,
+                        monotonic=self._monotonic,
+                        session_factory=session_factory,
+                    )
+                return report(
+                    ok=True,
+                    status="complete",
+                    decision="GO_TO_RELEASE_GATE",
+                    classification="protocol-owner-proven",
+                    error_code=None,
+                    budget=budget,
+                    checks=checks,
+                )
+            except ProtocolOwnerProbeFailure as exc:
+                return report(
+                    ok=False,
+                    status="failed",
+                    decision="BLOCKED",
+                    classification=(
+                        "probe-inconclusive" if exc.inconclusive else "protocol-owner-failure"
+                    ),
+                    error_code=exc.code,
+                    budget=budget,
+                )
+            except ProviderBudgetUnavailable:
+                return report(
+                    ok=False,
+                    status="failed",
+                    decision="BLOCKED",
+                    classification="diagnostic-capacity",
+                    error_code="diagnostic-capacity",
+                    budget=budget,
+                )
+            except TimeoutError:
+                return report(
+                    ok=False,
+                    status="failed",
+                    decision="BLOCKED",
+                    classification="protocol-owner-failure",
+                    error_code="probe-timeout",
+                    budget=budget,
+                )
+            except Exception:
+                return report(
+                    ok=False,
+                    status="failed",
+                    decision="BLOCKED",
+                    classification="provider-or-protocol-failure",
+                    error_code="provider-or-protocol-failure",
+                    budget=budget,
+                )
+            finally:
+                self._provider_budget.release(provider_lease)
+                self._provider_budget.release(diagnostic_lease)
 
     async def run_replay(
         self,
@@ -3059,7 +4104,11 @@ class LiveEvalService:
                     "run_id": self._active_run_id,
                     "kind": self._active_kind,
                     "started_at": self._started_at,
-                    "deadline_s": self._max_run_s,
+                    "deadline_s": (
+                        PROTOCOL_OWNER_PROBE_DEADLINE_S
+                        if self._active_kind == PROTOCOL_OWNER_PROBE_KIND
+                        else self._max_run_s
+                    ),
                 }
         if run_id is not None and run_id in self._reports_by_run_id:
             return dict(self._reports_by_run_id[run_id])

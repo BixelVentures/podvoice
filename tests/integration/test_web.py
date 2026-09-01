@@ -5,14 +5,21 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from unittest.mock import Mock
 
 import pytest
-from aiohttp.test_utils import TestClient, TestServer
+from aiohttp.test_utils import TestClient, TestServer, make_mocked_request
+from multidict import CIMultiDict
 
 from gatekeeper.events import EventType
 from gatekeeper.history import History
 from gatekeeper.hub import StatusHub
-from gatekeeper.web import _capability_details, create_app
+from gatekeeper.web import (
+    _capability_details,
+    _protocol_owner_eval,
+    _protocol_owner_source_allowed,
+    create_app,
+)
 
 
 class _StubSM:
@@ -309,6 +316,258 @@ async def test_live_eval_status_rejects_unknown_or_malformed_run_ids():
         assert malformed.status == 400
         missing = await client.get("/api/eval/live?run_id=eval-missing")
         assert missing.status == 404
+
+
+async def test_protocol_owner_probe_accepts_only_explicit_fixed_cap_and_filters_report():
+    calls: list[dict] = []
+    private = "sk-private-provider-value"
+
+    async def live_eval(**kwargs):
+        calls.append(kwargs)
+        return {
+            "ok": True,
+            "status": "running",
+            "kind": "protocol-owner",
+            "run_id": "eval-protocol-123",
+            "started_at": 1.25,
+            "deadline_s": 30,
+            "api_key": private,
+            "text": "private transcript",
+            "pcm": "private audio",
+            "trace": {"private": True},
+        }
+
+    app = create_app(StatusHub(), {}, live_eval=live_eval, locked=False)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post(
+            "/api/eval/protocol-owner",
+            data='{"max_cost_usd":5}',
+            headers={"Content-Type": "application/json"},
+        )
+        raw = await response.text()
+
+    assert response.status == 202
+    assert json.loads(raw) == {
+        "ok": True,
+        "status": "running",
+        "kind": "protocol-owner",
+        "run_id": "eval-protocol-123",
+        "started_at": 1.25,
+        "deadline_s": 30,
+    }
+    assert calls == [{"action": "protocol-owner", "max_cost_usd": 5.0}]
+    assert private not in raw
+    assert "transcript" not in raw
+    assert "audio" not in raw
+    assert "trace" not in raw
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "{}",
+        '{"max_cost_usd":4}',
+        '{"max_cost_usd":6}',
+        '{"max_cost_usd":5.0}',
+        '{"max_cost_usd":5e0}',
+        '{"max_cost_usd":"5"}',
+        '{"max_cost_usd":true}',
+        '{"max_cost_usd":null}',
+        '{"max_cost_usd":5,"text":"hello"}',
+        '{"max_cost_usd":5,"max_cost_usd":5}',
+        "[]",
+        "not-json",
+    ],
+)
+async def test_protocol_owner_probe_rejects_noncanonical_confirmation_before_service(payload):
+    called = False
+
+    async def live_eval(**kwargs):
+        nonlocal called
+        called = True
+        return {"ok": True, "status": "running"}
+
+    app = create_app(StatusHub(), {}, live_eval=live_eval)
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post(
+            "/api/eval/protocol-owner",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+
+    assert response.status == 400
+    assert called is False
+
+
+async def test_protocol_owner_probe_rejects_wrong_content_type_and_large_body():
+    called = False
+
+    async def live_eval(**kwargs):
+        nonlocal called
+        called = True
+        return {"ok": True, "status": "running"}
+
+    app = create_app(StatusHub(), {}, live_eval=live_eval)
+    async with TestClient(TestServer(app)) as client:
+        wrong_type = await client.post("/api/eval/protocol-owner", data='{"max_cost_usd":5}')
+        too_large = await client.post(
+            "/api/eval/protocol-owner",
+            data='{"max_cost_usd":5}' + (" " * 129),
+            headers={"Content-Type": "application/json"},
+        )
+
+    assert wrong_type.status == 415
+    assert too_large.status == 413
+    assert called is False
+
+
+async def test_protocol_owner_probe_rejects_missing_ambiguous_and_trailing_framing():
+    called = False
+
+    async def live_eval(**kwargs):
+        nonlocal called
+        called = True
+        return {"ok": True, "status": "running"}
+
+    transport = Mock()
+    transport.get_extra_info.side_effect = lambda name, default=None: (
+        ("127.0.0.1", 43210) if name == "peername" else default
+    )
+    app = create_app(StatusHub(), {}, live_eval=live_eval)
+    missing = make_mocked_request(
+        "POST",
+        "/api/eval/protocol-owner",
+        headers={"Content-Type": "application/json"},
+        app=app,
+        transport=transport,
+    )
+    ambiguous = make_mocked_request(
+        "POST",
+        "/api/eval/protocol-owner",
+        headers=CIMultiDict(
+            [
+                ("Content-Type", "application/json"),
+                ("Content-Length", "18"),
+                ("Content-Length", "18"),
+            ]
+        ),
+        app=app,
+        transport=transport,
+    )
+
+    class SplitTrailingPayload:
+        async def readexactly(self, size):
+            assert size == 18
+            return b'{"max_cost_usd":5}'
+
+        async def read(self, size=-1):
+            assert size == 1
+            return b" "
+
+    trailing = make_mocked_request(
+        "POST",
+        "/api/eval/protocol-owner",
+        headers={"Content-Type": "application/json", "Content-Length": "18"},
+        app=app,
+        transport=transport,
+        payload=SplitTrailingPayload(),
+    )
+    chunked = make_mocked_request(
+        "POST",
+        "/api/eval/protocol-owner",
+        headers={"Content-Type": "application/json", "Transfer-Encoding": "chunked"},
+        app=app,
+        transport=transport,
+    )
+
+    responses = [
+        await _protocol_owner_eval(request) for request in (missing, ambiguous, trailing, chunked)
+    ]
+    assert [response.status for response in responses] == [400, 400, 400, 400]
+    assert called is False
+
+
+async def test_protocol_owner_probe_is_unavailable_without_service():
+    app = create_app(StatusHub(), {})
+    async with TestClient(TestServer(app)) as client:
+        response = await client.post(
+            "/api/eval/protocol-owner",
+            data='{"max_cost_usd":5}',
+            headers={"Content-Type": "application/json"},
+        )
+        body = await response.json()
+    assert response.status == 501
+    assert body["status"] == "unavailable"
+
+
+async def test_protocol_owner_probe_busy_and_failure_never_leak_service_details(caplog):
+    private = "sk-do-not-log-this"
+
+    async def busy(**kwargs):
+        return {"ok": False, "status": "busy", "error": private, "trace": private}
+
+    async def failed(**kwargs):
+        raise RuntimeError(private)
+
+    busy_app = create_app(StatusHub(), {}, live_eval=busy)
+    async with TestClient(TestServer(busy_app)) as client:
+        busy_response = await client.post(
+            "/api/eval/protocol-owner",
+            data='{"max_cost_usd":5}',
+            headers={"Content-Type": "application/json"},
+        )
+        busy_text = await busy_response.text()
+    failed_app = create_app(StatusHub(), {}, live_eval=failed)
+    async with TestClient(TestServer(failed_app)) as client:
+        failed_response = await client.post(
+            "/api/eval/protocol-owner",
+            data='{"max_cost_usd":5}',
+            headers={"Content-Type": "application/json"},
+        )
+        failed_text = await failed_response.text()
+
+    assert busy_response.status == 409
+    assert failed_response.status == 502
+    assert private not in busy_text
+    assert private not in failed_text
+    assert private not in caplog.text
+
+
+async def test_protocol_owner_probe_is_ingress_or_loopback_only_even_when_panel_is_open():
+    assert _protocol_owner_source_allowed("127.0.0.1") is True
+    assert _protocol_owner_source_allowed("::1") is True
+    assert _protocol_owner_source_allowed("172.30.32.2") is True
+    assert _protocol_owner_source_allowed("172.30.32.3") is False
+    assert _protocol_owner_source_allowed("192.168.86.30") is False
+    assert _protocol_owner_source_allowed(None) is False
+    assert _protocol_owner_source_allowed("not-an-ip") is False
+
+    called = False
+
+    async def live_eval(**kwargs):
+        nonlocal called
+        called = True
+        return {"ok": True, "status": "running"}
+
+    transport = Mock()
+    transport.get_extra_info.side_effect = lambda name, default=None: (
+        ("192.168.86.30", 43210) if name == "peername" else default
+    )
+    app = create_app(StatusHub(), {}, live_eval=live_eval, locked=False)
+    request = make_mocked_request(
+        "POST",
+        "/api/eval/protocol-owner",
+        headers={
+            "Content-Type": "application/json",
+            "X-Forwarded-For": "172.30.32.2",
+        },
+        app=app,
+        transport=transport,
+    )
+    response = await _protocol_owner_eval(request)
+
+    assert response.status == 403
+    assert called is False
 
 
 async def test_audio_replay_endpoint_uses_only_local_trace_and_known_eval_text():

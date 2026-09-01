@@ -41,6 +41,12 @@ betydning.
 - Den fysiske wake-grænse kasserer al pre-wake-lyd lokalt. Realtime må aldrig modtage
   selve wakefrasen; al lyd efter detektionen bevares under provider-opkoblingen.
 - Dobbelt wake mens sessionen allerede er åben opretter ikke en ny session.
+- Voice PE beholder VAD, men bruger `interrupt_response: false` og
+  `create_response: false`. Kun et accepteret fysisk stop med matching committed
+  provider-item må udløse præcis ét korreleret `response.create`.
+- En crossed VAD-start under lukket mic-gate skal give nul response, nul tool-call og nul
+  playback. Dens eksakte item skal være slettet og ACK'et før opfølgningsgaten åbner;
+  ukendt cleanup lukker fail-closed.
 - Realtime har ét provider-neutralt `end_conversation`-signal til en tydelig semantisk
   afslutningshensigt. Signalet må ikke selv lukke transporten eller gå gennem HA/MCP.
 - Realtime bruger automatisk værktøjsvalg: et almindeligt spørgsmål besvares direkte i
@@ -75,9 +81,15 @@ På præcis kandidatens bits skal følgende være grønt, før brugeren bedes ta
 - hele unit-/integrationstesten, typecheck, formattering og add-on-build;
 - fælles `ThinSession`-regressioner for duplicate/busy/offline/closing, provider-tab,
   tool-ordering, semantisk close, én teardown og én rearm;
+- sammensat regression for accepteret tur → commit → matched response-request samt
+  crossed start → forced commit/item, også uden `speech_stopped` → exact delete/ACK →
+  frisk opfølgning i samme session; ethvert auto-/ukorreleret response- eller tool-event
+  skal fejle;
 - rigtig Talk-WebSocket med hello/lease/input-ACK, ordnede events og korreleret playback;
-- sikker live Realtime-preflight for direkte svar, opfølgning, tid, web og varieret
-  semantisk lukning uden HA/MCP/PodConnect-sideeffekter;
+- den bounded live-gate, som matcher kandidatens ændrede ejergrænse: en response-owner-
+  ændring kræver den sideeffektfrie commit/delete/ACK-protokolprobe; ændret prompt,
+  schema, værktøjer, model, reasoning eller audiosemantik kræver den fokuserede
+  semantiske preflight uden HA/MCP/PodConnect-sideeffekter;
 - trace-replay, der afviser manglende/dobbelte/omvendte wake-, provider-, playback-,
   close-, capture- og rearm-events samt faldende audio-generation, providerlyd under
   lukket mic-gate og opfølgning før fysisk playback-finish plus ekkohale;
@@ -88,10 +100,13 @@ Live-preflight bruger et hårdt turn-, token-, pris- og timeoutloft. Et korrekt 
 uden korrekt beslutning, session eller lifecycle er en fejl. Maskingaten kan stoppe en
 kandidat, men aldrig erstatte den efterfølgende fysiske Voice PE-gate.
 
-For en ren audio-/mic-gate-kandidat er den relevante live-gate kun den sideeffektfrie
-sekvens `math → math-opfølgning → time → weekday-opfølgning → semantic close`, fem
-gange på samme sessionskontrakt. Kun tidsturen må bruge `get_time`; matematik og
-opfølgning skal besvares direkte. Samlet prisloft er $5, uden budgetprobe og uden
+For en kandidat, der ændrer native audiosemantik eller mic-/turn-kontrakten på en måde,
+som kan påvirke semantik, er den fokuserede live-gate den sideeffektfrie sekvens
+`math → math-opfølgning → time → weekday-opfølgning → semantic close`, fem gange på
+samme sessionskontrakt. Kun tidsturen må bruge `get_time`; matematik og opfølgning skal
+besvares direkte. En ren response-owner-/ACK-ændring kører først den smallere officielle
+protokolprobe og genkører kun den semantiske 5×-gate ved ændret semantikscope eller ny
+ren fysisk evidens for en semantikfejl. Samlet prisloft er $5, uden budgetprobe og uden
 hjem-, musik- eller timerhandlinger. En bred SafeEval køres ikke igen, medmindre prompt,
 schema, værktøjer eller Realtime-semantik faktisk er ændret.
 

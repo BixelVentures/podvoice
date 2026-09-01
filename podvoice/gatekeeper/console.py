@@ -37,7 +37,13 @@ OUTPUT_RATE = C.OUTPUT_RATE
 
 class ConsoleSession(Protocol):
     async def connect(self) -> None: ...
-    async def send_text(self, text: str, *, item_id: str | None = None) -> None: ...
+    async def send_text(
+        self,
+        text: str,
+        *,
+        item_id: str | None = None,
+        turn_id: int | None = None,
+    ) -> None: ...
     async def send_audio(self, pcm16k: bytes) -> None: ...
     async def send_tool_results(self, results: list) -> bool | None: ...
     def events(self) -> AsyncIterator[object]: ...
@@ -61,6 +67,7 @@ def console_factory(cfg: Config, tools=None):
         input_rate: int | None = None,
         noise: str | None = None,
         interrupt_response: bool = True,
+        manual_input_response: bool = False,
     ) -> ConsoleSession:
         from . import constants as _C
         from .openai_realtime import make_session
@@ -73,6 +80,7 @@ def console_factory(cfg: Config, tools=None):
             input_rate=input_rate or _C.INPUT_RATE,
             noise=noise,
             interrupt_response=interrupt_response,
+            manual_input_response=manual_input_response,
         )
 
     return _make

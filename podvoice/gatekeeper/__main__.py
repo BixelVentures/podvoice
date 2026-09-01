@@ -13,6 +13,7 @@ import logging
 import secrets
 import signal
 import socket
+from typing import Any
 
 import httpx
 
@@ -108,6 +109,30 @@ def _room_speaker_name(room_id: str) -> str:
     return _ROOM_NAMES.get(room_id, "")
 
 
+def _start_protocol_owner_eval(
+    service: Any,
+    cfg: Config,
+    *,
+    max_cost_usd: Any,
+) -> dict[str, Any]:
+    """Forward the exact active physical Realtime configuration into the probe."""
+    from .openai_realtime import MINI_MODEL
+
+    return service.start_protocol_owner(
+        api_key=cfg.openai_api_key,
+        max_cost_usd=max_cost_usd,
+        model=MINI_MODEL if cfg.force_mini else cfg.openai_model,
+        voice=cfg.openai_voice,
+        turn_preset=cfg.turn_preset,
+        openai_turn=cfg.openai_turn,
+        openai_threshold=cfg.openai_threshold,
+        openai_prefix_ms=cfg.openai_prefix_ms,
+        openai_silence_ms=cfg.openai_silence_ms,
+        openai_eagerness=cfg.openai_eagerness,
+        openai_noise=cfg.openai_noise,
+    )
+
+
 def _build_session(
     cfg: Config,
     room: RoomMap,
@@ -140,6 +165,8 @@ def _build_session(
         # cancel an answer while PodVoice is closing the physical mic gate. The Talk
         # surface below opts into true interruption separately.
         interrupt_response=False,
+        # ThinSession is the sole response owner for every accepted physical turn.
+        manual_input_response=True,
     )
     voicepe = VoicePELink(room.voicepe_host, psk, room=room.room)
     voicepe.mic_channel = cfg.mic_channel
@@ -408,6 +435,7 @@ async def run(cfg: Config) -> None:
             input_rate=OPENAI_RATE,
             noise="far_field",
             interrupt_response=True,
+            manual_input_response=True,
         )
         link = BrowserLink(send_json, send_bytes)
         # RELATIVE url: the browser resolves it against the panel page, so it works
@@ -454,11 +482,18 @@ async def run(cfg: Config) -> None:
             repeats=None,
             text_repeats=None,
             mode=None,
+            max_cost_usd=None,
         ):
             from .openai_realtime import MINI_MODEL
 
             if action == "status":
                 return live_eval_service.status(run_id)
+            if action == "protocol-owner":
+                return _start_protocol_owner_eval(
+                    live_eval_service,
+                    cfg,
+                    max_cost_usd=max_cost_usd,
+                )
             declarations = tools.declarations() if tools is not None else []
             if action == "replay":
                 return live_eval_service.start_replay(

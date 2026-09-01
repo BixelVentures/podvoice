@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.13.53 — kun den accepterede fysiske tur må skabe et svar
+
+- Realtime-VAD bevares, men automatisk `response.create` slås fra. Først et matching
+  fysisk accepteret stop, committed user-item og item-ACK må udløse præcis ét
+  klientkorreleret svar i den eksisterende session.
+- En VAD-spændvidde, der krydser den lukkede half-duplex-gate, sættes i karantæne. Dens
+  eksakte committed item slettes med korreleret ACK, før opfølgningsvinduet kan åbne;
+  ukendt eller ufuldstændig oprydning lukker sessionen fail-closed.
+- Ukorrelerede, duplicate eller stale providerresponses lukkes, før lyd, transcript
+  eller værktøjskald kan nå ThinSession. Talk-audio bruger samme response-ejer, mens
+  typed Talk beholder sin eksisterende item-ACK-vej.
+- Firmware, gain, VAD-type/eagerness, lydtransport, prompt, model, reasoning, schema,
+  playback, firesekunders timeout, teardown og rearm er uændrede.
+
 ## 1.13.52 — aktiv brugertale kan ikke fejllukkes som stilhed
 
 - Idle-timeout gælder kun i de to åbne lyttestates og kan aldrig vinde, mens den
