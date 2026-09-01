@@ -113,9 +113,9 @@ MAX_REPLY_PLAY_S = 180.0
 FIXED_PLAYBACK_START_TIMEOUT_S = 2.0
 FIXED_PLAYBACK_FINISH_GRACE_S = 3.0
 ANNOUNCE_START_TIMEOUT_S = 2.5
-# Pipeline heartbeat cadence (replaces the old per-turn watchdogs): if the provider
-# reader has died while a conversation is open, say so and go home.
-HEARTBEAT_S = 5.0
+# Pipeline/idle arbitration cadence. Keep it below the four-second product window so
+# an armed physical-silence deadline is enforced within a small bounded tolerance.
+HEARTBEAT_S = 0.25
 # Barge-in blip filter: a speech_started that ends again within this window (cough,
 # clatter, echo residue) is a FALSE interruption — playback continues. Real speech
 # sustains past it and silences the device. (LiveKit ships 0.5 s; we start tighter.)
@@ -417,10 +417,15 @@ class ThinSession:
         self._followup_task: asyncio.Task | None = None  # delayed turn-ready LED fallback
         self._turn_cue_appended = False  # this reply ends with the audible hand-over cue
         self._discarding_half_duplex_input = False
+        # Mechanical provider-VAD fact, not a second lifecycle state. An accepted
+        # speech_started keeps the existing listening state open until its matching
+        # stop; absence of another provider event is never proof of room silence.
+        self._user_speech_active = False
         self._ending_conversation = False  # suppress "your turn" during a goodbye
         self._closure_serial = 0
         self._closure_turn: _ClosureTurn | None = None
-        self._last_activity = 0.0  # monotonic — feeds the client-side idle fallback
+        self._last_activity = 0.0  # monotonic diagnostic timestamp
+        self._idle_deadline: float | None = None
         self._trace_reason = "teardown"
         # Typed Talk turns enter through the engine, never straight into the provider.
         # This lock and bounded receipt cache make one command an exactly-once turn even
@@ -587,8 +592,10 @@ class ThinSession:
         self._tool_batches.clear()
         self._turn_cue_appended = False
         self._discarding_half_duplex_input = False
+        self._user_speech_active = False
         self._last_user_utterance = ""
         self._last_activity = self._conv_started
+        self._idle_deadline = self._conv_started + self.idle_timeout_s
         self.sm.state = State.LISTENING
         self._trace_event("mic_gate_opened", state=State.LISTENING.name, reason="wake")
         self._set_led(State.LISTENING)  # instantly — before the WS connect
@@ -775,7 +782,10 @@ class ThinSession:
                 return self._remember_text_receipt(
                     cid, "rejected", "closing", "Samtalen afsluttes; prøv igen om et øjeblik."
                 )
-            if self.sm.state not in (State.LISTENING, State.LOUNGE_WINDOW):
+            if self._user_speech_active or self.sm.state not in (
+                State.LISTENING,
+                State.LOUNGE_WINDOW,
+            ):
                 return self._remember_text_receipt(
                     cid,
                     "rejected",
@@ -787,6 +797,7 @@ class ThinSession:
             turn.user_finished_at = time.time()
             self._last_user_utterance = cleaned
             self._last_activity = time.monotonic()
+            self._idle_deadline = None
             self._speech_stop_t = self._last_activity
             self.sm.state = State.THINKING
             self._set_led(State.THINKING)
@@ -1019,6 +1030,8 @@ class ThinSession:
         self._held_announce_item = None
         self._turn_cue_appended = False
         self._discarding_half_duplex_input = False
+        self._user_speech_active = False
+        self._idle_deadline = None
         self._ending_conversation = False
         self._closure_turn = None
         self._last_user_utterance = ""
@@ -1326,19 +1339,27 @@ class ThinSession:
                 _LOG.warning("thin: audio pipeline died while active — failing over")
                 await self._fail("connection")
                 return
-            # Silence starts when the ROOM goes quiet. While the device is still
-            # playing, the family is listening, not ignoring us — and the moment the
-            # reply ends we give them the FULL window to answer (playback end sets
-            # _last_activity). Field 2026-08-07: it "stopped suddenly" mid-thought.
-            quiet = time.monotonic() - self._last_activity
+            # Idle owns only an explicitly armed listening window. Provider metadata,
+            # transcripts and usage are not physical room activity and cannot move its
+            # deadline. A matching speech start invalidates it until the turn stops.
+            now = time.monotonic()
             # _speaking means "the model is generating" — generation finishes long
             # before the device stops PLAYING, so closing on it alone truncated long
             # replies mid-sentence. Use the device's own playback truth, bounded.
             playing = self._device_playing and (
                 self._playback_t0 is None or time.monotonic() - self._playback_t0 < MAX_REPLY_PLAY_S
             )
-            if self._active and not self._speaking and not playing and quiet > self.idle_timeout_s:
-                _LOG.info("thin: client-side idle fallback (%.0fs quiet) — closing", quiet)
+            listening = self.sm.state in (State.LISTENING, State.LOUNGE_WINDOW)
+            if (
+                self._active
+                and listening
+                and not self._user_speech_active
+                and not self._speaking
+                and not playing
+                and self._idle_deadline is not None
+                and now >= self._idle_deadline
+            ):
+                _LOG.info("thin: client-side idle fallback — closing")
                 await self.stop(reason="idle-fallback")
                 return
             if time.monotonic() - self._conv_started > self.max_session_s:
@@ -1349,6 +1370,11 @@ class ThinSession:
     # ------------------------------------------------------------- provider events
     def _accept_user_speech_stopped(self) -> None:
         """Commit one provider speech boundary while the wire seam is serialised."""
+        # This helper runs synchronously after Voice PE's mic-send seam is acquired.
+        # Clear the VAD fact together with the state transition so heartbeat cannot
+        # observe an artificial gap between stop and THINKING.
+        self._user_speech_active = False
+        self._idle_deadline = None
         turn_open = (
             self._active
             and self.sm.state in (State.LISTENING, State.LOUNGE_WINDOW)
@@ -1395,6 +1421,16 @@ class ThinSession:
                 turn.terminal_had_audio = True
             self._on_reply_audio(ev)
         elif isinstance(ev, Interrupted):
+            # Full-duplex Talk represents the same provider speech_started edge as an
+            # interruption. Keep timeout ownership shared without changing adapters.
+            interruption_accepted = (
+                self._active
+                and not self._ending_conversation
+                and (self.full_duplex or self.sm.state in (State.LISTENING, State.LOUNGE_WINDOW))
+            )
+            if interruption_accepted:
+                self._user_speech_active = True
+                self._idle_deadline = None
             self._trace_event("speech_started_or_interrupted")
             self._start_barge_debounce()
         elif isinstance(ev, UserSpeechStarted):
@@ -1408,8 +1444,11 @@ class ThinSession:
             # The provider deliberately did NOT cancel its response. In the shipped
             # half-duplex contract, only an edge that crosses an active answer gate is
             # discarded. Ordinary first/follow-up speech must remain untouched.
+            state_open = self.sm.state in (State.LISTENING, State.LOUNGE_WINDOW)
             crossed_answer_gate = not self.full_duplex and (
-                self._speaking
+                not state_open
+                or self._ending_conversation
+                or self._speaking
                 or self._device_playing
                 or self._playback_blocks_input()
                 or time.monotonic() < self._gate_until
@@ -1419,6 +1458,9 @@ class ThinSession:
                 "half_duplex_input_discarded" if crossed_answer_gate else "speech_started"
             )
             self._discarding_half_duplex_input = crossed_answer_gate
+            self._user_speech_active = not crossed_answer_gate
+            if not crossed_answer_gate:
+                self._idle_deadline = None
             if crossed_answer_gate and hasattr(self.brain, "clear_input_audio"):
                 # Dropping subsequent mic frames with the provider VAD still open
                 # would leave it stuck forever in speech_started.
@@ -1694,6 +1736,8 @@ class ThinSession:
         elif isinstance(ev, UserSpeechStopped):
             if self._discarding_half_duplex_input:
                 self._discarding_half_duplex_input = False
+                self._user_speech_active = False
+                self._idle_deadline = None
                 self._trace_event("half_duplex_input_cleared")
                 self._cancel_barge_debounce()
                 return
@@ -2766,6 +2810,7 @@ class ThinSession:
             # Button press / habitual re-wake mid-conversation: silence any reply and
             # keep listening (the proven firmware can't distinguish the two sources).
             self._last_activity = time.monotonic()
+            self._idle_deadline = self._last_activity + self.idle_timeout_s
             self._cancel_followup_edge()
             if self._speaking or self._device_playing:
                 self._spawn(self._silence_device(), "thin-hush")
@@ -3089,6 +3134,7 @@ class ThinSession:
         activity = "🔉 Bip — din tur" if self._turn_cue_appended else "🎙️ Din tur"
         self._hub_state("LOUNGE_WINDOW", activity, turn_cue=self._turn_cue_appended)
         self._last_activity = time.monotonic()
+        self._idle_deadline = self._last_activity + self.idle_timeout_s
 
     def _cut_audio_boundary(self, reason: str) -> tuple[int | None, int]:
         """Cut one physical Voice PE audio generation without changing semantics."""

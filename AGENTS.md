@@ -79,6 +79,13 @@ IDLE
 `CLOSING` er navnet på den ene close-transaction, ikke en sjette `State`; de eneste
 runtime-stateværdier er fortsat de fem produktstates.
 
+Fire sekunders timeout betyder ubrudt fysisk stilhed i en åben lyttefase. En accepteret
+`speech_started` annullerer straks idle-deadlinen indtil matching `speech_stopped`;
+idle-close må atomisk genkontrollere, at state fortsat er `LISTENING` eller
+`LOUNGE_WINDOW`, og at ingen brugertale er aktiv. Timeout må aldrig lukke i `THINKING`,
+`AI_SPEAKING`, en værktøjsrunde eller et åbent start→stop-interval. Regressionen skal
+krydse den virkelige deadline med begge VAD-kanter, ikke springe direkte til stop.
+
 `State` er den eneste half-duplex mic-gate for Voice PE: kun `LISTENING` og
 `LOUNGE_WINDOW` må sende fysisk lyd til Realtime. Talk kan være full-duplex gennem samme
 `ThinSession`, men beviser ikke puckens lydvej. Én synkron audio-generation-grænse må

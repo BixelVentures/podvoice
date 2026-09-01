@@ -153,6 +153,56 @@ def test_unbalanced_native_vad_edges_are_rejected():
     assert "user_turns_missing" in _codes(report)
 
 
+def test_shipped_speech_started_name_is_the_canonical_open_vad_edge():
+    trace = _fixture("voicepe_golden.json")
+    for event in trace["events"]:
+        if event["event"] == "speech_started_or_interrupted":
+            event["event"] = "speech_started"
+
+    report = TraceOracle(
+        adapter="voicepe",
+        minimum_user_turns=2,
+        require_semantic_close=True,
+    ).score(trace)
+
+    assert report.passed, report.issues
+
+
+def test_close_inside_open_shipped_speech_fails_closed():
+    trace = _fixture("voicepe_golden.json")
+    close_index = next(
+        index for index, event in enumerate(trace["events"]) if event["event"] == "close_requested"
+    )
+    close_at = trace["events"][close_index]["at_ms"]
+    trace["events"].insert(
+        close_index,
+        {"at_ms": close_at - 1, "event": "speech_started"},
+    )
+    trace["events"][close_index + 1]["reason"] = "idle-fallback"
+
+    report = TraceOracle(adapter="voicepe", require_semantic_close=True).score(trace)
+
+    assert "close_during_open_speech" in _codes(report)
+
+
+@pytest.mark.parametrize("reason", ["max_duration", "error:connection", "stop"])
+def test_bounded_non_idle_close_remains_valid_during_open_speech(reason: str):
+    trace = _fixture("voicepe_golden.json")
+    close_index = next(
+        index for index, event in enumerate(trace["events"]) if event["event"] == "close_requested"
+    )
+    close_at = trace["events"][close_index]["at_ms"]
+    trace["events"].insert(
+        close_index,
+        {"at_ms": close_at - 1, "event": "speech_started"},
+    )
+    trace["events"][close_index + 1]["reason"] = reason
+
+    report = TraceOracle(adapter="voicepe", require_semantic_close=False).score(trace)
+
+    assert "close_during_open_speech" not in _codes(report)
+
+
 def test_talk_and_voicepe_normalise_to_the_same_shared_contract():
     voicepe = _fixture("voicepe_golden.json")
     talk_events = []

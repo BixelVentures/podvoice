@@ -140,6 +140,36 @@ def test_field_canary_accepts_complete_short_chain():
     assert passed, problems
 
 
+def test_field_canary_accepts_the_shipped_speech_started_event_name():
+    trace = _trace()
+    for event in trace["events"]:
+        if event["event"] == "speech_started_or_interrupted":
+            event["event"] = "speech_started"
+
+    passed, problems = score_canary(trace, volume_check="pass")
+
+    assert passed, problems
+
+
+def test_field_canary_rejects_close_inside_open_shipped_speech():
+    trace = _trace()
+    close_index = next(
+        index for index, event in enumerate(trace["events"]) if event["event"] == "close_requested"
+    )
+    close_at = trace["events"][close_index]["at_ms"]
+    trace["events"].insert(
+        close_index,
+        {"at_ms": close_at - 1, "event": "speech_started"},
+    )
+    trace["reason"] = "idle-fallback"
+    trace["events"][close_index + 1]["reason"] = "idle-fallback"
+
+    passed, problems = score_canary(trace, volume_check="pass")
+
+    assert not passed
+    assert any("close_during_open_speech" in problem for problem in problems)
+
+
 def test_field_canary_rejects_idle_close_even_when_other_edges_look_good():
     trace = _trace()
     trace["reason"] = "idle-fallback"

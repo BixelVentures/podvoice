@@ -1,6 +1,6 @@
 [project]
 name = "podvoice-gatekeeper"
-version = "1.13.51"
+version = "1.13.52"
 description = "Danish OpenAI Realtime voice assistant for Home Assistant and PodConnect"
 requires-python = ">=3.12"
 readme = "README.md"
