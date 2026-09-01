@@ -9,6 +9,7 @@ import json
 import aiohttp
 import pytest
 
+from gatekeeper import constants as C
 from gatekeeper.config import from_options
 from gatekeeper.console import console_factory
 from gatekeeper.openai_realtime import OpenAIRealtimeSession
@@ -58,6 +59,30 @@ class _QueueWS:
 
     async def emit(self, event: dict) -> None:
         await self.incoming.put(_Message(event))
+
+
+class _CancellationDelayedAppendWS(_QueueWS):
+    """A zero append whose cancellation cannot finish until the test releases it."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.append_entered = asyncio.Event()
+        self.append_cancel_seen = asyncio.Event()
+        self.allow_cancel_completion = asyncio.Event()
+        self.blocked_once = False
+
+    async def send_json(self, payload: dict) -> None:
+        if payload.get("type") != "input_audio_buffer.append" or self.blocked_once:
+            await super().send_json(payload)
+            return
+        self.blocked_once = True
+        self.append_entered.set()
+        try:
+            await asyncio.Future()
+        except asyncio.CancelledError:
+            self.append_cancel_seen.set()
+            await self.allow_cancel_completion.wait()
+            raise
 
 
 async def _collect(session: OpenAIRealtimeSession, ws: _QueueWS, output: list) -> None:
@@ -264,76 +289,11 @@ async def test_accepted_turn_waits_behind_an_unacknowledged_response_create():
     session._cancel_ack_watchdogs()
 
 
-async def test_quarantine_deletes_manual_and_stop_items_before_resolving():
-    trace: list[dict] = []
-    session = OpenAIRealtimeSession(
-        api_key="k",
-        manual_input_response=True,
-        interrupt_response=False,
-        provider_observer=trace.append,
-    )
-    session._connection_generation = 5
-    ws = _QueueWS()
-    session._ws = ws  # type: ignore[assignment]
-    events: list = []
-    collector = asyncio.create_task(_collect(session, ws, events))
-
-    await ws.emit({"type": "input_audio_buffer.speech_started", "item_id": "vad-q"})
-    await _wait_for(lambda: events == [UserSpeechStarted(item_id="vad-q", generation=5)])
-    await session.quarantine_input_turn("vad-q", generation=5)
-    assert [row["type"] for row in ws.sent] == ["input_audio_buffer.commit"]
-
-    await ws.emit({"type": "input_audio_buffer.committed", "item_id": "manual-item"})
-    await ws.emit(
-        {
-            "type": "conversation.item.added",
-            "item": {"id": "manual-item", "type": "message", "role": "user"},
-        }
-    )
-    await _wait_for(
-        lambda: any(
-            row.get("type") == "conversation.item.delete" and row.get("item_id") == "manual-item"
-            for row in ws.sent
-        )
-    )
-    # If the natural VAD stop races ahead of the forced-commit cleanup, both
-    # committed items must be deleted before the span can resolve.
-    await ws.emit({"type": "input_audio_buffer.speech_stopped", "item_id": "stop-item"})
-    await _wait_for(lambda: any(isinstance(event, UserSpeechStopped) for event in events))
-    assert not any(isinstance(event, InputQuarantineResolved) for event in events)
-
-    await ws.emit({"type": "input_audio_buffer.committed", "item_id": "stop-item"})
-    await ws.emit(
-        {
-            "type": "conversation.item.added",
-            "item": {"id": "stop-item", "type": "message", "role": "user"},
-        }
-    )
-    await _wait_for(
-        lambda: sum(row.get("type") == "conversation.item.delete" for row in ws.sent) == 2
-    )
-    await ws.emit({"type": "conversation.item.deleted", "item_id": "manual-item"})
-    await asyncio.sleep(0)
-    assert not any(isinstance(event, InputQuarantineResolved) for event in events)
-    await ws.emit({"type": "conversation.item.deleted", "item_id": "stop-item"})
-    await _wait_for(lambda: any(isinstance(event, InputQuarantineResolved) for event in events))
-    resolved = next(event for event in events if isinstance(event, InputQuarantineResolved))
-    assert resolved == InputQuarantineResolved(item_id="vad-q", generation=5)
-    assert _response_creates(ws) == []
-    assert [row["item_id"] for row in ws.sent if row.get("type") == "conversation.item.delete"] == [
-        "manual-item",
-        "stop-item",
-    ]
-    assert [row["kind"] for row in trace].count("conversation_item_deleted") == 2
-    assert [row["kind"] for row in trace].count("rejected_input_quarantined") == 1
-
-    await ws.incoming.put(None)
-    await collector
-    session._cancel_ack_watchdogs()
-
-
-async def test_forced_quarantine_resolves_without_a_speech_stopped_edge():
-    """Official Realtime semantics: manual commit may end the active VAD item."""
+@pytest.mark.parametrize("natural_item_before_commit", [False, True])
+async def test_quarantine_silence_waits_for_natural_stop_and_delete_before_fresh_turn(
+    natural_item_before_commit: bool,
+):
+    """Crossed audio drains to one rejected item before a fresh turn may own a response."""
     trace: list[dict] = []
     session = OpenAIRealtimeSession(
         api_key="k",
@@ -347,36 +307,113 @@ async def test_forced_quarantine_resolves_without_a_speech_stopped_edge():
     events: list = []
     collector = asyncio.create_task(_collect(session, ws, events))
 
-    await ws.emit({"type": "input_audio_buffer.speech_started", "item_id": "vad-forced"})
-    await _wait_for(lambda: events == [UserSpeechStarted(item_id="vad-forced", generation=12)])
-    await session.quarantine_input_turn("vad-forced", generation=12)
-    await ws.emit({"type": "input_audio_buffer.committed", "item_id": "manual-only"})
-    await ws.emit(
-        {
-            "type": "conversation.item.added",
-            "item": {"id": "manual-only", "type": "message", "role": "user"},
-        }
-    )
+    await ws.emit({"type": "input_audio_buffer.speech_started", "item_id": "rejected-q"})
+    await _wait_for(lambda: events == [UserSpeechStarted(item_id="rejected-q", generation=12)])
+    await session.quarantine_input_turn("rejected-q", generation=12)
+
+    # A manual commit during active VAD breaks start/stop item identity.  The safe
+    # production path instead keeps the mic closed and sends bounded internal silence
+    # until the server emits the natural terminal edge for this exact activation.
+    await _wait_for(lambda: any(row.get("type") == "input_audio_buffer.append" for row in ws.sent))
+    assert not any(row.get("type") == "input_audio_buffer.commit" for row in ws.sent)
+    drain_appends = [row for row in ws.sent if row.get("type") == "input_audio_buffer.append"]
+    assert drain_appends
+    assert all(set(base64.b64decode(row["audio"])) <= {0} for row in drain_appends)
+    assert not any(isinstance(event, InputQuarantineResolved) for event in events)
+    assert session._manual_input_span is not None
+    assert _response_creates(ws) == []
+
+    await ws.emit({"type": "input_audio_buffer.speech_stopped", "item_id": "rejected-q"})
+    await _wait_for(lambda: any(isinstance(event, UserSpeechStopped) for event in events))
+    if natural_item_before_commit:
+        await ws.emit(
+            {
+                "type": "conversation.item.added",
+                "item": {"id": "rejected-q", "type": "message", "role": "user"},
+            }
+        )
+        await asyncio.sleep(0)
+        assert not any(row.get("type") == "conversation.item.delete" for row in ws.sent)
+        await ws.emit({"type": "input_audio_buffer.committed", "item_id": "rejected-q"})
+    else:
+        await ws.emit({"type": "input_audio_buffer.committed", "item_id": "rejected-q"})
+        await ws.emit(
+            {
+                "type": "conversation.item.added",
+                "item": {"id": "rejected-q", "type": "message", "role": "user"},
+            }
+        )
     await _wait_for(
         lambda: any(
-            row.get("type") == "conversation.item.delete" and row.get("item_id") == "manual-only"
+            row.get("type") == "conversation.item.delete" and row.get("item_id") == "rejected-q"
             for row in ws.sent
         )
     )
-    await ws.emit({"type": "conversation.item.deleted", "item_id": "manual-only"})
+    assert not any(isinstance(event, InputQuarantineResolved) for event in events)
+    await ws.emit({"type": "conversation.item.deleted", "item_id": "rejected-q"})
     await _wait_for(lambda: isinstance(events[-1], InputQuarantineResolved))
 
-    assert events[-1] == InputQuarantineResolved(item_id="vad-forced", generation=12)
-    assert not any(isinstance(event, UserSpeechStopped) for event in events)
+    assert events[-1] == InputQuarantineResolved(item_id="rejected-q", generation=12)
+    assert [row["item_id"] for row in ws.sent if row.get("type") == "conversation.item.delete"] == [
+        "rejected-q",
+    ]
     assert _response_creates(ws) == []
     assert [row["kind"] for row in trace].count("rejected_input_quarantined") == 1
+
+    # Only a genuinely fresh start/stop after the exact cleanup ACK may own a response.
+    await ws.emit({"type": "input_audio_buffer.speech_started", "item_id": "accepted-u2"})
+    await _wait_for(lambda: events[-1] == UserSpeechStarted(item_id="accepted-u2", generation=12))
+    await ws.emit({"type": "input_audio_buffer.speech_stopped", "item_id": "accepted-u2"})
+    await _wait_for(lambda: events[-1] == UserSpeechStopped(item_id="accepted-u2", generation=12))
+    await session.accept_input_turn("accepted-u2", turn_id=2, generation=12)
+    await ws.emit({"type": "input_audio_buffer.committed", "item_id": "accepted-u2"})
+    await ws.emit(
+        {
+            "type": "conversation.item.added",
+            "item": {"id": "accepted-u2", "type": "message", "role": "user"},
+        }
+    )
+    await _wait_for(lambda: len(_response_creates(ws)) == 1)
+    create = _response_creates(ws)[0]
+    assert create["response"]["metadata"]["podvoice_root_item_id"] == "accepted-u2"
+    await ws.emit(
+        {
+            "type": "response.created",
+            "response": {"id": "response-u2", "metadata": create["response"]["metadata"]},
+        }
+    )
+    await ws.emit(
+        {"type": "response.done", "response": {"id": "response-u2", "status": "completed"}}
+    )
+    await _wait_for(
+        lambda: any(
+            isinstance(event, TurnComplete) and event.response_id == "response-u2"
+            for event in events
+        )
+    )
+    assert len(_response_creates(ws)) == 1
+    assert not any(isinstance(event, (ToolCall, SilentToolComplete)) for event in events)
+    assert [row["kind"] for row in trace].count("quarantine_silence_started") == 1
+    silence_stopped = [row for row in trace if row["kind"] == "quarantine_silence_stopped"]
+    assert len(silence_stopped) == 1
+    assert silence_stopped[0]["reason"] == "speech_stopped"
 
     await ws.incoming.put(None)
     await collector
     session._cancel_ack_watchdogs()
 
 
-async def test_late_stop_after_forced_quarantine_resolution_fails_closed():
+@pytest.mark.parametrize(
+    ("stop_item_ids", "error_pattern"),
+    [
+        (["foreign-stop"], r"changed|mismatch"),
+        (["rejected-q", "rejected-q"], r"duplicate"),
+    ],
+)
+async def test_quarantine_rejects_foreign_or_duplicate_terminal_stop(
+    stop_item_ids: list[str], error_pattern: str
+):
+    """Only one exact natural stop can terminate the rejected VAD activation."""
     session = OpenAIRealtimeSession(
         api_key="k",
         manual_input_response=True,
@@ -388,25 +425,121 @@ async def test_late_stop_after_forced_quarantine_resolution_fails_closed():
     events: list = []
     collector = asyncio.create_task(_collect(session, ws, events))
 
-    await ws.emit({"type": "input_audio_buffer.speech_started", "item_id": "vad-forced"})
+    try:
+        await ws.emit({"type": "input_audio_buffer.speech_started", "item_id": "rejected-q"})
+        await _wait_for(lambda: len(events) == 1)
+        await session.quarantine_input_turn("rejected-q", generation=13)
+        for item_id in stop_item_ids:
+            await ws.emit({"type": "input_audio_buffer.speech_stopped", "item_id": item_id})
+        async with asyncio.timeout(1):
+            with pytest.raises(ConnectionError, match=error_pattern):
+                await collector
+        assert ws.closed is True
+        assert _response_creates(ws) == []
+        assert not any(isinstance(event, InputQuarantineResolved) for event in events)
+    finally:
+        if not collector.done():
+            collector.cancel()
+        await asyncio.gather(collector, return_exceptions=True)
+        session._cancel_ack_watchdogs()
+
+
+async def test_quarantine_missing_natural_stop_is_bounded_fail_closed(monkeypatch):
+    """Silence exhaustion cannot reopen the mic or leave one orphaned VAD span."""
+    trace: list[dict] = []
+    session = OpenAIRealtimeSession(
+        api_key="k",
+        manual_input_response=True,
+        interrupt_response=False,
+        provider_observer=trace.append,
+    )
+    session._connection_generation = 14
+    monkeypatch.setattr(session, "_quarantine_silence_limit_s", lambda: 0.02)
+    monkeypatch.setattr(C, "CONNECT_TIMEOUT_S", 0.02)
+    ws = _QueueWS()
+    session._ws = ws  # type: ignore[assignment]
+    events: list = []
+
+    async def collect_public_stream() -> None:
+        async for event in session.events():
+            events.append(event)
+
+    collector = asyncio.create_task(collect_public_stream())
+
+    await ws.emit({"type": "input_audio_buffer.speech_started", "item_id": "rejected-q"})
     await _wait_for(lambda: len(events) == 1)
-    await session.quarantine_input_turn("vad-forced", generation=13)
-    await ws.emit({"type": "input_audio_buffer.committed", "item_id": "manual-only"})
+    await session.quarantine_input_turn("rejected-q", generation=14)
+
+    async with asyncio.timeout(1):
+        with pytest.raises(ConnectionError, match=r"input\.turn acknowledgement timed out"):
+            await collector
+    assert ws.closed is True
+    assert _response_creates(ws) == []
+    assert not any(isinstance(event, InputQuarantineResolved) for event in events)
+    stopped = [row for row in trace if row["kind"] == "quarantine_silence_stopped"]
+    assert len(stopped) == 1
+    assert stopped[0]["reason"] == "limit_exhausted"
+    session._cancel_ack_watchdogs()
+
+
+async def test_quarantine_stop_waits_for_inflight_zero_append_cancellation_barrier():
+    """No provider append may complete after the rejected span's terminal stop."""
+    trace: list[dict] = []
+    session = OpenAIRealtimeSession(
+        api_key="k",
+        input_rate=24_000,
+        manual_input_response=True,
+        interrupt_response=False,
+        provider_observer=trace.append,
+    )
+    session._connection_generation = 15
+    ws = _CancellationDelayedAppendWS()
+    session._ws = ws  # type: ignore[assignment]
+    session._configured = True
+    events: list = []
+    collector = asyncio.create_task(_collect(session, ws, events))
+
+    await ws.emit({"type": "input_audio_buffer.speech_started", "item_id": "rejected-q"})
+    await _wait_for(lambda: len(events) == 1)
+    await session.quarantine_input_turn("rejected-q", generation=15)
+    await asyncio.wait_for(ws.append_entered.wait(), timeout=1)
+
+    await ws.emit({"type": "input_audio_buffer.speech_stopped", "item_id": "rejected-q"})
+    await asyncio.wait_for(ws.append_cancel_seen.wait(), timeout=1)
+    await asyncio.sleep(0)
+
+    # The stop handler may mark the span, but must not publish its cleanup edge while
+    # an earlier zero append can still complete on the same socket.
+    assert not any(isinstance(event, UserSpeechStopped) for event in events)
+    assert not any(row["kind"] == "quarantine_silence_stopped" for row in trace)
+
+    ws.allow_cancel_completion.set()
+    await _wait_for(lambda: any(isinstance(event, UserSpeechStopped) for event in events))
+    await ws.emit({"type": "input_audio_buffer.committed", "item_id": "rejected-q"})
     await ws.emit(
         {
             "type": "conversation.item.added",
-            "item": {"id": "manual-only", "type": "message", "role": "user"},
+            "item": {"id": "rejected-q", "type": "message", "role": "user"},
         }
     )
-    await _wait_for(lambda: any(row.get("type") == "conversation.item.delete" for row in ws.sent))
-    await ws.emit({"type": "conversation.item.deleted", "item_id": "manual-only"})
+    await _wait_for(
+        lambda: any(
+            row.get("type") == "conversation.item.delete" and row.get("item_id") == "rejected-q"
+            for row in ws.sent
+        )
+    )
+    await ws.emit({"type": "conversation.item.deleted", "item_id": "rejected-q"})
     await _wait_for(lambda: isinstance(events[-1], InputQuarantineResolved))
 
-    await ws.emit({"type": "input_audio_buffer.speech_stopped", "item_id": "late-stop"})
-    with pytest.raises(ConnectionError, match="speech_stopped for unknown item late-stop"):
-        await collector
-    assert ws.closed is True
+    fresh_pcm = b"\x01\x00" * 480
+    await session.send_audio(fresh_pcm)
+    appends = [row for row in ws.sent if row.get("type") == "input_audio_buffer.append"]
+    assert len(appends) == 1
+    assert base64.b64decode(appends[0]["audio"]) == fresh_pcm
     assert _response_creates(ws) == []
+
+    await ws.incoming.put(None)
+    await collector
     session._cancel_ack_watchdogs()
 
 

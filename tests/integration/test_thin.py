@@ -1853,7 +1853,7 @@ async def test_rejected_vad_span_cannot_dispatch_a_ghost_tool_after_playback(
         brain.emit(UserSpeechStarted(item_id="rejected-q1", generation=generation))
         await _wait_until(lambda: brain.quarantined_input_turns == [("rejected-q1", generation)])
         if cleanup_before_playback:
-            brain.emit(UserSpeechStopped(item_id="rejected-q1-stop", generation=generation))
+            brain.emit(UserSpeechStopped(item_id="rejected-q1", generation=generation))
             brain.emit(InputQuarantineResolved(item_id="rejected-q1", generation=generation))
             await _wait_until(lambda: session._provider_input_quarantine is None)
             assert session.sm.state is State.THINKING
@@ -1876,10 +1876,10 @@ async def test_rejected_vad_span_cannot_dispatch_a_ghost_tool_after_playback(
         await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
         session._on_media_state(True)
         session._on_media_state(False)
-        # A forced manual commit may give the later VAD stop a different provider id.
-        # The adapter owns that mapping and resolves back to the original start key.
+        # The adapter drains silence without a manual commit, so the natural stop keeps
+        # the exact provider start ID before the rejected item is deleted and resolved.
         if not cleanup_before_playback:
-            brain.emit(UserSpeechStopped(item_id="rejected-q1-stop", generation=generation))
+            brain.emit(UserSpeechStopped(item_id="rejected-q1", generation=generation))
         await asyncio.sleep(0.4)
         if not cleanup_before_playback:
             assert session.sm.state is not State.LOUNGE_WINDOW
@@ -1933,24 +1933,25 @@ async def test_real_adapter_quarantine_then_fresh_followup_creates_exactly_one_r
         return [event for event in wire.sent if event.get("type") == "response.create"]
 
     async def finish_quarantine(generation: int) -> None:
-        # Official Realtime semantics: committing while server VAD is active creates
-        # the item but may emit no speech_stopped edge.  The exact commit/item/delete
-        # ACK is therefore the complete cleanup proof for this rejected span.
+        # A crossed VAD activation stays rejected until its natural stop and its sole
+        # natural item are deleted.  The adapter's private zero-PCM drain must never
+        # be confused with fresh physical input.
         await wire.emit(
-            {"type": "input_audio_buffer.committed", "item_id": "rejected-manual"},
+            {"type": "input_audio_buffer.speech_stopped", "item_id": "rejected-q1"},
+            {"type": "input_audio_buffer.committed", "item_id": "rejected-q1"},
             {
                 "type": "conversation.item.added",
-                "item": {"id": "rejected-manual", "type": "message", "role": "user"},
+                "item": {"id": "rejected-q1", "type": "message", "role": "user"},
             },
         )
         await _wait_until(
             lambda: any(
                 event.get("type") == "conversation.item.delete"
-                and event.get("item_id") == "rejected-manual"
+                and event.get("item_id") == "rejected-q1"
                 for event in wire.sent
             )
         )
-        await wire.emit({"type": "conversation.item.deleted", "item_id": "rejected-manual"})
+        await wire.emit({"type": "conversation.item.deleted", "item_id": "rejected-q1"})
         await _wait_until(lambda: session._provider_input_quarantine is None)
         assert brain._connection_generation == generation
 
@@ -1996,7 +1997,13 @@ async def test_real_adapter_quarantine_then_fresh_followup_creates_exactly_one_r
         # response U1 is pending. It must be deleted, never become a response root.
         await wire.emit({"type": "input_audio_buffer.speech_started", "item_id": "rejected-q1"})
         await _wait_until(
-            lambda: any(event.get("type") == "input_audio_buffer.commit" for event in wire.sent)
+            lambda: any(event.get("type") == "input_audio_buffer.append" for event in wire.sent)
+        )
+        assert not any(event.get("type") == "input_audio_buffer.commit" for event in wire.sent)
+        assert all(
+            set(base64.b64decode(event["audio"])) <= {0}
+            for event in wire.sent
+            if event.get("type") == "input_audio_buffer.append"
         )
         if cleanup_before_playback:
             await finish_quarantine(generation)
@@ -2008,6 +2015,17 @@ async def test_real_adapter_quarantine_then_fresh_followup_creates_exactly_one_r
         if not cleanup_before_playback:
             await asyncio.sleep(0.4)
             assert session.sm.state is not State.LOUNGE_WINDOW
+            # The physical frame arrives while the provider still owns the rejected
+            # VAD activation. Thin must discard it; only adapter-owned zero PCM may
+            # be present on the wire before exact cleanup resolution.
+            dropped_before = session._gate_dropped
+            voicepe.feed([_frame(amplitude=4321)])
+            await _wait_until(lambda: session._gate_dropped == dropped_before + 1)
+            assert all(
+                set(base64.b64decode(event["audio"])) <= {0}
+                for event in wire.sent
+                if event.get("type") == "input_audio_buffer.append"
+            )
             await finish_quarantine(generation)
         await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
 
@@ -3325,7 +3343,16 @@ async def test_ten_complete_wake_followup_semantic_close_rearm_cycles():
             session._on_media_state(True)
             assert session._active is True
             session._on_media_state(False)
-            await _wait_until(lambda: session.sm.state is State.IDLE)
+            await _wait_until(
+                lambda expected=cycle: (
+                    session.sm.state is State.IDLE
+                    and voicepe.streaming is False
+                    and brain.close_count == expected
+                    and len(attention.release_calls) == expected
+                    and voicepe.rearm_calls == expected
+                ),
+                max_wait=9.0,
+            )
 
             assert voicepe.streaming is False
             assert "abort" not in voicepe.direct_events

@@ -45,6 +45,11 @@ regressionen fortsætte gennem de efterfølgende korrelerede serverevents og bev
 tilstand, som runtime bygger videre på. En fake, der kun tæller outbound-kaldet, kan
 ikke godkende ejergrænsen.
 
+Manuel `input_audio_buffer.commit` er aldrig bevis for, at en aktiv provider-VAD er
+terminal. En afvist spændvidde må først frigive næste mic-open efter natural matching
+`speech_stopped`, commit/item og eksakt delete-ACK; manglende terminalkant skal lukke
+samme session bounded fail-closed.
+
 ## Den eneste produktionsretning
 
 - Voice PE-firmware ejer fysisk wake, mic-latch, playback-events og rearm-bevis.

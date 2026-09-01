@@ -5,11 +5,12 @@ Senest opdateret: 2026-09-01.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Installeret kandidat:** add-onen rapporterer v1.13.53 efter update fra exact-main-
-bygget `3f548a222f487868552f5f2b7eba8047dcef0cda`; CI-artifactets SHA-256 er
-`f58dba98014b6c39801d529d8e4c099f29eb3ba68539c21d7fb734e05166ab6d`.
-Startup-loggen beviser forbindelse til Voice PE samt HA/MCP, men installeret runtime-
-provenance, rigtig providerprotokol og fysisk funktion er endnu ikke bevist. Den
+**Installeret kandidat:** add-onen rapporterer v1.13.54 fra exact main
+`a026e9431b9efb801e3951fea5feae5103cf827b`; CI-artifactets SHA-256 er
+`0b4760d0c7a3731317bad487d5c5cb7ee3f6d82d5b308cc6ff1f7ff0943d04be`.
+Startup-loggen beviser version, forbindelse til Voice PE samt HA/MCP. Den installerede
+live-protokolprobe `eval-1788271680-65640a` brugte 171 tokens og estimeret `$0.009`, men
+stoppede fail-closed; v1.13.54 er derfor **ikke fysisk testklar**. Den
 tidligere installerede v1.13.52 fra exact main
 `a8df310c21fbd04e8b7fd673ffc22b8d1086b1a7`, runtime-rootfs `7813d11be6a2`, model
 `gpt-realtime-2.1`, Prompt V7 og den forventede v1.13.46-firmwarekontrakt er fortsat
@@ -19,12 +20,78 @@ Den fysiske trace
 `THINKING`, overlevede buffer-clear og playback, opslugte frisk opfølgningslyd og
 udløste et automatisk svar samt `get_time` uden en ny accepteret Thin-tur.
 
-**Aktiv udviklingskandidat:** v1.13.54 er en UI-only efterfølger til den installerede
-v1.13.53-response-owner. Den må kun gøre den allerede testede protokolprobe legitimt
-klikbar fra HA-panelet; fysisk accepterede brugerturns forbliver ene ejer af
+**Aktiv udviklingskandidat:** v1.13.55 retter kun den live-beviste afslutning af en
+afvist provider-VAD-spændvidde. Fysisk accepterede brugerturns forbliver ene ejer af
 `response.create`. Semantic VAD, samme Realtime-session og de fem eksisterende states
-bevares; firmware, gain, lydtransport, playback, prompt, model, reasoning, schema,
-værktøjer, firesekunders timeout, teardown og rearm er frosne.
+bevares; firmware, gain, fysisk lydtransport, playback, prompt, model, reasoning,
+schema, værktøjer, firesekunders timeout, teardown og rearm er frosne.
+
+### Aktiv beslutning 1. september — afvist VAD skal være terminal før næste mic-open
+
+- **Observeret fejl og stærkeste direkte evidens:** Den installerede exact-v1.13.54-
+  protokolprobe åbnede én `gpt-realtime-2.1`-session og fuldførte bootstrapresponsen. Efter
+  forced commit, user-item og delete-ACK publicerede adapteren karantænen som opløst uden
+  en terminal `speech_stopped`. Probe-fase 2 sendte derefter frisk PCM ind i providerens
+  fortsat aktive VAD-spændvidde; derfor kom ingen ny `speech_started`. Efter den
+  konfigurerede stilhed kom en legitim sen stopkant, men adapteren havde allerede
+  slettet sin span og lukkede kl. 16:08:10 med `speech_stopped for unknown item`.
+  Changed-ID er dokumenteret tilladt efter manuel commit, men live-start-ID'et blev ikke
+  bevaret, så den eksakte ID-relation foregives ikke. De
+  4,669 sekunder fra den forced-committede inputtransskription til fejlen matcher
+  semantic-VAD plus probens friske stilhed. Proben stoppede korrekt som
+  `provider-or-protocol-failure`; Golden Chain og 10/10 blev ikke åbnet.
+- **Kæde, invarianter og falsificerbar hypotese:** crossed fysisk/provider-input under
+  lukket answer-gate → nul response/tool/playback → provider-VAD skal bringes til én
+  autoritativ terminal stopkant → hvert resulterende user-item skal slettes med eksakt
+  ACK → først derefter må samme sessions `LOUNGE_WINDOW` åbne. OpenAIs officielle
+  kontrakt siger, at manuel commit under aktiv VAD bryder start-/stop-item-id-ligheden;
+  den siger ikke, at selve stopkanten kan foregives afsluttet. Hypotesen er derfor, at
+  den eksisterende forced-commit-specialcase pensionerer spanen for tidligt og lader
+  næste fysiske lyd blive dens hale.
+- **Mindste plan og ikke-mål:** Erstat den falske forced-commit-terminal med én bounded,
+  indholdsneutral nul-PCM-drænvej, mens den eksisterende fysiske state-gate er lukket.
+  Provideren skal selv levere natural `speech_stopped`/commit/item; det eksakte afviste
+  item slettes og ACKes, før karantænen opløses. Nul-PCM er protokolmekanik og må aldrig
+  indeholde Voice PE-frames, skabe response/tool/playback eller åbne en ekstra session.
+  Manglende terminal stop/commit/delete-ACK lukker samme session bounded fail-closed.
+  Ingen firmware-, gain-, VAD-type/eagerness-, prompt-, model-, reasoning-, schema-,
+  værktøjs-, playback-, timeout-, teardown-, rearm- eller lokal semantikændring er mål.
+- **Planlagte regressioner, gates og rollback:** Den eksakte live-rækkefølge skal være
+  rød før rettelsen og grøn bagefter: crossed start → nuldræn → natural stop → matching
+  commit/item/delete-ACK → frisk start/stop i samme generation → præcis én korreleret
+  response. Dæk stop før/efter commit, duplicate/stale/out-of-order events, manglende
+  stop, fresh PCM før resolution, reconnect, Talk-paritet og trace-sandhed. Kør `fast`,
+  relevant sammensat lifecycle, ét afsluttende `release` og uafhængigt adversarial
+  review. Derefter ét PR/merge/install og én ny eksplicit prisgodkendt live-probe. Hvis
+  natural terminal cleanup ikke kan bevises på rigtig provider uden fysisk mic-læk eller
+  en ekstra session, rulles deltaet tilbage og crossed span lukker fail-closed; der
+  tilføjes ingen ny timing-, gain-, prompt- eller fraseroutingpatch.
+- **Faktisk kandidatdelta og lokale resultater:** v1.13.55 sender ikke længere manuel
+  commit på en afvist aktiv VAD. Adapteren sender kun 20 ms nulrammer op til den
+  konfigurationsafledte grænse og joiner den eksakte drain-task ved natural
+  `speech_stopped`, før stop, item-sletning eller næste tur kan fortsætte. Manglende
+  terminalkant, fremmed ID, duplicate stop/delete-ACK eller uordnet cleanup lukker
+  fail-closed; duplicate matching commit/item er idempotente og kan ikke opløse
+  karantænen tidligt.
+  Proben tæller alle faktiske providerbytes, inklusive intern nul-PCM, og reserverer
+  samme silence-bound i både karantæne- og friskfasen. Semantic VAD-grænserne er
+  `high=2,25 s`, `auto/medium=4,25 s` og `low=8,25 s`; low-regressionen beviser 413
+  20-ms-frames per fase og samlet 24,52 s maksimal providerlyd. En blokeret-send-
+  regression beviser, at ingen append kan fuldføres efter stopbarrieren. Den målrettede
+  owner/probe/adapter/lifecycle-suite er grøn **78/78**; ACK-watchdoggens tre tidligere
+  fixed-sleep-tests er event-baserede og grønne **90/90** over 30 gentagelser. Den
+  samlede `scripts/dev fast --base origin/main` er grøn på **43,2 s** med Ruff,
+  format-check, mypy, hele pytest-suiten og diff-check. Firmware, gain, fysisk
+  lydtransport, VAD-konfiguration, prompt, model, reasoning, schema, værktøjer,
+  playback, timeout, teardown og rearm er fortsat byte-/adfærdsmæssigt uden for deltaet.
+  Uafhængigt afsluttende Ultra-review fandt **P0=0, P1=0, P2=1** og gav GO til
+  merge/install samt én ny prisgodkendt live-probe. Det ene P2 er kun diagnostisk:
+  den fysiske trace gemmer allerede lokal karantæne, commit/delete, provider-PCM og
+  offsets, men ikke de fire nye rå VAD-/nuldrænlabels. Det ændrer ingen gate og kan
+  tilføjes i en senere ren observabilitetsrelease; v1.13.55 må ikke udvides for det.
+  Den ene autoritative `scripts/dev release --base origin/main` er grøn på **43,0 s**
+  med Ruff, format-check, mypy, hele pytest-suiten og diff-check. Exact-commit-CI,
+  ARM64-image, merge, installation og den nye live-probe mangler fortsat.
 
 ### Aktiv beslutning 1. september — proben skal kunne startes uden browseromgåelse
 
@@ -62,15 +129,15 @@ værktøjer, firesekunders timeout, teardown og rearm er frosne.
   tests venter nu også på eksakt rearm og bevarer assertions om præcis én release og én
   rearm. Den oprindelige måltest er grøn **50/50** i separate processer, og de tre
   naboer er grønne **60/60**; Ruff og format-check er grønne.
-- **Releasegate, resterende gates og rollback:** Efter test-oraklets diff-freeze er den
-  ene autoritative `scripts/dev release --base origin/main` grøn på **42,4 s** med
-  Ruff, format-check, mypy, hele pytest-suiten og diff-check. Exact commit, CI/ARM64-
-  image, merge og installation mangler. Installeret HA-ingress skal derefter bevise,
-  at browserens kendte body bevarer entydig Content-Length; først en grøn rigtig
-  providerprobe åbner den fysiske canary. Hvis diffet rører produktionssamtalen,
-  knappen kan starte uden et nyt fysisk klik, eller ingress-framing afviger, rulles UI-
-  deltaet tilbage. Golden Chain og 10/10 er fortsat **0/1** og **0/10** og arves aldrig
-  fra v1.13.53.
+- **Releasegate, installeret resultat og rollback:** Den autoritative `release` var grøn
+  på **42,4 s**. UI-deltaet blev merged som exact main
+  `a026e9431b9efb801e3951fea5feae5103cf827b`; CI/ARM64-image blev grøn, og v1.13.54
+  blev installeret. Det eksplicitte fysiske klik nåede den korrekte ingress-route med
+  entydig framing og startede præcis én probe, så UI-scope er bevist. Proben fandt
+  derefter en separat runtime-protokolfejl og stoppede blokeret; den åbner derfor ikke
+  den fysiske canary. Hvis knappen kan starte uden et nyt fysisk klik, eller ingress-
+  framing afviger, rulles UI-deltaet tilbage. Golden Chain og 10/10 er fortsat **0/1**
+  og **0/10** og arves aldrig fra v1.13.53.
 
 ### Aktiv beslutning 1. september — kun accepteret fysisk tur må skabe providerrespons
 
@@ -111,10 +178,12 @@ værktøjer, firesekunders timeout, teardown og rearm er frosne.
   metadata serialiseres som kanoniske decimale strenge efter providerkontrakten.
   Ukorreleret providerrespons, child-event eller cleanup-fejl lukker fail-closed. Talk
   beholder sin eksplicitte full-duplex-kontrakt og bruger samme response-owner-kontrakt.
-- **Faktiske lokale regressioner og review:** Den permanente sammensatte test kører den
-  rigtige OpenAI-adapter gennem `ThinSession` for både tidlig og sen cleanup:
-  crossed start → forced commit uden påkrævet `speech_stopped` → eksakt item →
-  delete/ACK → frisk accepteret tur i samme generation → præcis én ny
+- **Historiske lokale regressioner og review:** v1.13.53-regressionen kørte den rigtige
+  OpenAI-adapter gennem `ThinSession`, men kodificerede den nu live-modbeviste antagelse,
+  at forced commit + item + delete-ACK kunne afslutte VAD uden `speech_stopped`. Den var
+  derfor grøn uden at bevise providerens terminale VAD-tilstand. v1.13.55 erstatter
+  denne test med crossed start → bounded nuldræn → natural matching stop → eksakt
+  commit/item/delete-ACK → frisk accepteret tur i samme generation → præcis én ny
   `response.create`, uden ghost tool eller playback.
   Dertil er accepted/rejected ownership, typed Talk, child/tool-responses, stale,
   duplicate, out-of-order, reconnect, timeout mod semantic close og trace-oraklet
@@ -131,10 +200,13 @@ værktøjer, firesekunders timeout, teardown og rearm er frosne.
   designet til `release`, fordi diffet også rører release-/dokumentationsflader; det er
   ikke en produkt- eller testfejl. Uafhængigt afsluttende Ultra-review af det frosne
   diff fandt **P0=0, P1=0 og P2=0**.
-- **Resterende maskinelle gates:** Den bounded, sideeffektfrie live protokolprobe skal
-  stadig bevise `VAD start → manual commit → exact item → delete/ACK → nul response →
-  frisk tur i samme session → explicit response.create` mod rigtig provider. Den er
-  **ikke kørt** og har ikke brugt API-budget. Den frosne v1.13.53-kandidat bestod den ene
+- **Live-resultat og resterende maskinelle gates:** Proben blev kørt på installeret
+  v1.13.54 som `eval-1788271680-65640a`, brugte 171 tokens og estimeret `$0.009`, og
+  stoppede ved en legitim sen `speech_stopped`, efter at den gamle regression allerede
+  havde erklæret karantænen opløst. Resultatet er **NO-GO** og modbeviser manual commit
+  som terminal. v1.13.55 skal derfor bevise `crossed start → bounded nuldræn → natural
+  matching stop → exact item/delete-ACK → nul response → frisk tur i samme session →
+  explicit response.create` mod rigtig provider. Den frosne v1.13.53-kandidat bestod den ene
   autoritative `scripts/dev release --base origin/main` på **42,5 s** med Ruff,
   format-check, mypy, hele pytest-suiten og diff-check. Den blev merged som exact main
   `3f548a222f487868552f5f2b7eba8047dcef0cda`; exact-commit-CI og ARM64-add-on-build
@@ -144,8 +216,9 @@ værktøjer, firesekunders timeout, teardown og rearm er frosne.
   supersedes kun af den UI-only v1.13.54. Den fokuserede semantiske 5×-preflight er
   ikke en erstatning for protokolproben og genkøres kun, hvis semantikscope eller ny
   ren fysisk evidens kræver den.
-- **Fysisk gate og rollback:** Der køres ingen flere fysiske gentagelser på v1.13.52.
-  Exact v1.13.54-artifact skal efter grøn installeret protokolprobe først bestå én
+- **Fysisk gate og rollback:** Der køres ingen flere fysiske gentagelser på v1.13.52
+  eller v1.13.54. Exact v1.13.55-artifact skal efter grøn installeret protokolprobe
+  først bestå én
   armeret golden chain: 12 × 7 → 84;
   “Læg seks til” → 90 i samme session; “Tak, det var alt” → ét model-close; én teardown,
   én rearm og næste wake med frisk provider-generation. Derefter kræves 10/10 ubrudte

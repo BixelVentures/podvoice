@@ -58,6 +58,7 @@ class _QueueWS:
         self.sent: list[dict] = []
         self.incoming: asyncio.Queue[_Message | None] = asyncio.Queue()
         self.closed = False
+        self.closed_event = asyncio.Event()
         self.append_started = asyncio.Event()
         self.release_append = asyncio.Event()
         self.block_first_append = False
@@ -89,6 +90,7 @@ class _QueueWS:
     async def close(self) -> None:
         if not self.closed:
             self.closed = True
+            self.closed_event.set()
             await self.incoming.put(None)
 
     async def emit(self, event: dict) -> None:
@@ -128,6 +130,11 @@ async def _wait_for_sent(ws: _QueueWS, event_type: str, count: int = 1) -> list[
             if len(matches) >= count:
                 return matches
             await asyncio.sleep(0)
+
+
+async def _wait_for_closed(ws: _QueueWS) -> None:
+    async with asyncio.timeout(1):
+        await ws.closed_event.wait()
 
 
 def _typed_usage(total: int = 1_000) -> dict:
@@ -2768,7 +2775,7 @@ async def test_missing_response_create_ack_closes_exact_socket_generation(monkey
     ws = _QueueWS()
     session._ws = ws  # type: ignore[assignment]
     await session._send_response_create()
-    await asyncio.sleep(0.03)
+    await _wait_for_closed(ws)
     assert ws.closed is True
     assert session.last_error == "response.create acknowledgement timed out"
     assert not session._pending_response_creates
@@ -3058,7 +3065,7 @@ async def test_missing_truncate_ack_closes_socket_and_cleans_operation(monkeypat
     ws = _QueueWS()
     session._ws = ws  # type: ignore[assignment]
     await session.truncate("item-a", 100)
-    await asyncio.sleep(0.03)
+    await _wait_for_closed(ws)
     assert ws.closed is True
     assert not session._operation_event_ids
     assert session.last_error == "conversation.item.truncate acknowledgement timed out"
@@ -3089,7 +3096,7 @@ async def test_clear_timeout_does_not_suppress_next_generation_and_old_ack_is_in
     session._ws = old_ws  # type: ignore[assignment]
     old_generation = session._connection_generation
     await session.clear_input_audio()
-    await asyncio.sleep(0.03)
+    await _wait_for_closed(old_ws)
     assert old_ws.closed is True
     assert not session._operation_event_ids
 

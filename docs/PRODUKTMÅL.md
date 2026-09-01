@@ -82,8 +82,9 @@ På præcis kandidatens bits skal følgende være grønt, før brugeren bedes ta
 - fælles `ThinSession`-regressioner for duplicate/busy/offline/closing, provider-tab,
   tool-ordering, semantisk close, én teardown og én rearm;
 - sammensat regression for accepteret tur → commit → matched response-request samt
-  crossed start → forced commit/item, også uden `speech_stopped` → exact delete/ACK →
-  frisk opfølgning i samme session; ethvert auto-/ukorreleret response- eller tool-event
+  crossed start → bounded nul-PCM med fysisk mic lukket → natural matching
+  `speech_stopped` → exact commit/item/delete-ACK → frisk opfølgning i samme session;
+  manuel commit som VAD-terminal og ethvert auto-/ukorreleret response- eller tool-event
   skal fejle;
 - rigtig Talk-WebSocket med hello/lease/input-ACK, ordnede events og korreleret playback;
 - den bounded live-gate, som matcher kandidatens ændrede ejergrænse: en response-owner-

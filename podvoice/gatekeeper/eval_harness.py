@@ -113,12 +113,18 @@ PROTOCOL_OWNER_PROBE_TOKEN_RESERVE = 16_000
 PROTOCOL_OWNER_BOOTSTRAP_PCM_MAX_S = 4.0
 PROTOCOL_OWNER_FRESH_SILENCE_S = 4.25
 PROTOCOL_OWNER_AUDIO_FRAME_MS = 20
+PROTOCOL_OWNER_SEMANTIC_VAD_SILENCE_S = {
+    "high": 2.25,
+    "auto": 4.25,
+    "medium": 4.25,
+    "low": 8.25,
+}
 PROTOCOL_OWNER_FRESH_SILENCE_FRAMES = math.ceil(
     PROTOCOL_OWNER_FRESH_SILENCE_S * 1000 / PROTOCOL_OWNER_AUDIO_FRAME_MS
 )
 PROTOCOL_OWNER_PROBE_MAX_AUDIO_S = (
     2 * PROTOCOL_OWNER_BOOTSTRAP_PCM_MAX_S
-    + PROTOCOL_OWNER_FRESH_SILENCE_FRAMES * PROTOCOL_OWNER_AUDIO_FRAME_MS / 1000
+    + 2 * PROTOCOL_OWNER_FRESH_SILENCE_FRAMES * PROTOCOL_OWNER_AUDIO_FRAME_MS / 1000
 )
 PROTOCOL_OWNER_PROBE_TRANSCRIPTION_COST_USD = (
     PROTOCOL_OWNER_PROBE_MAX_AUDIO_S / 60.0 * GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE
@@ -236,13 +242,18 @@ def _protocol_owner_vad_config(
 
     # Semantic VAD can legitimately take several seconds to close. For custom
     # server VAD, cover the configured silence plus one 250 ms causal margin.
-    required_silence_s = PROTOCOL_OWNER_FRESH_SILENCE_S
+    if effective_eagerness is not None:
+        required_silence_s = PROTOCOL_OWNER_SEMANTIC_VAD_SILENCE_S[effective_eagerness]
+    else:
+        required_silence_s = PROTOCOL_OWNER_FRESH_SILENCE_S
     if effective_silence_ms is not None:
         required_silence_s = max(required_silence_s, (effective_silence_ms + 250) / 1000)
     fresh_silence_frames = math.ceil(required_silence_s * 1000 / PROTOCOL_OWNER_AUDIO_FRAME_MS)
-    max_audio_ms = (
-        int(2 * PROTOCOL_OWNER_BOOTSTRAP_PCM_MAX_S * 1000)
-        + fresh_silence_frames * PROTOCOL_OWNER_AUDIO_FRAME_MS
+    # The same configured bound is reserved twice: once for the adapter-owned
+    # zero-PCM drain that terminates the rejected VAD activation, and once for the
+    # deliberately fresh accepted turn. Both are transcribed provider input.
+    max_audio_ms = int(2 * PROTOCOL_OWNER_BOOTSTRAP_PCM_MAX_S * 1000) + (
+        2 * fresh_silence_frames * PROTOCOL_OWNER_AUDIO_FRAME_MS
     )
     max_audio_s = max_audio_ms / 1000
     transcription_cost_usd = max_audio_s / 60.0 * GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE
@@ -2319,9 +2330,10 @@ async def _execute_protocol_owner_probe(
 
     The first typed response supplies non-private assistant PCM. While that response
     is active, the PCM is paced back into VAD and the resulting crossed input span is
-    force-committed, deleted and acknowledged without creating a response. The same
-    PCM then drives one fresh audio turn, which must create exactly one owned response.
-    Opaque provider identifiers are retained only in this stack frame.
+    ended by bounded zero-PCM, naturally committed, deleted and acknowledged without
+    creating a response. The same PCM then drives one fresh audio turn, which must
+    create exactly one owned response. Opaque provider identifiers are retained only
+    in this stack frame.
     """
 
     rows: list[dict[str, Any]] = []
@@ -2475,6 +2487,20 @@ async def _execute_protocol_owner_probe(
     fresh_response_id: str | None = None
     accepted_row_index: int | None = None
     sent_audio_bytes = 0
+    observed_audio_bytes: int | None = None
+    observed_audio_rate_invalid = False
+
+    if hasattr(session, "audio_observer"):
+        observed_audio_bytes = 0
+
+        def observe_provider_audio(pcm: bytes, rate: int) -> None:
+            nonlocal observed_audio_bytes, observed_audio_rate_invalid
+            if rate != 24_000:
+                observed_audio_rate_invalid = True
+            assert observed_audio_bytes is not None
+            observed_audio_bytes += len(pcm)
+
+        session.audio_observer = observe_provider_audio
 
     try:
         await session.connect()
@@ -2534,8 +2560,14 @@ async def _execute_protocol_owner_probe(
                 creates_before_quarantine = len(response_rows("response_create_sent"))
                 await session.quarantine_input_turn(crossed_item_id, generation)
             elif isinstance(event, UserSpeechStopped):
-                quarantine_speech_stops += 1
-                raise ProtocolOwnerProbeFailure("quarantine-stop-observed", inconclusive=True)
+                if (
+                    crossed_item_id is None
+                    or quarantine_speech_stops != 0
+                    or event.item_id != crossed_item_id
+                    or event.generation != generation
+                ):
+                    raise ProtocolOwnerProbeFailure("quarantine-stop-invalid")
+                quarantine_speech_stops = 1
             elif isinstance(event, InputQuarantineResolved):
                 if (
                     crossed_item_id is None
@@ -2578,6 +2610,9 @@ async def _execute_protocol_owner_probe(
         ]
         deleted_rows = response_rows("conversation_item_deleted", quarantine_rows)
         rejected = response_rows("rejected_input_quarantined", quarantine_rows)
+        silence_started = response_rows("quarantine_silence_started", quarantine_rows)
+        silence_stopped = response_rows("quarantine_silence_stopped", quarantine_rows)
+        provider_stops = response_rows("input_audio_buffer_speech_stopped", quarantine_rows)
         creates_after_quarantine = len(response_rows("response_create_sent"))
         if creates_after_quarantine != creates_before_quarantine:
             raise ProtocolOwnerProbeFailure("ghost-response-during-quarantine")
@@ -2588,20 +2623,44 @@ async def _execute_protocol_owner_probe(
             or len(added_rows) != 1
             or len(deleted_rows) != 1
             or len(rejected) != 1
+            or len(silence_started) != 1
+            or len(silence_stopped) != 1
+            or len(provider_stops) != 1
+            or quarantine_speech_stops != 1
+            or committed_id != crossed_item_id
             or added_rows[0].get("item_id") != committed_id
             or deleted_rows[0].get("item_id") != committed_id
             or any(
                 row.get("generation") != generation
-                for row in (*committed_rows, *added_rows, *deleted_rows, *rejected)
+                for row in (
+                    *committed_rows,
+                    *added_rows,
+                    *deleted_rows,
+                    *rejected,
+                    *silence_started,
+                    *silence_stopped,
+                    *provider_stops,
+                )
             )
             or rejected[0].get("root_item_id") != crossed_item_id
             or rejected[0].get("generation") != generation
+            or silence_started[0].get("root_item_id") != crossed_item_id
+            or silence_stopped[0].get("root_item_id") != crossed_item_id
+            or provider_stops[0].get("item_id") != crossed_item_id
             or not (
-                max(
+                quarantine_kinds.index("quarantine_silence_started")
+                < quarantine_kinds.index("input_audio_buffer_speech_stopped")
+                <= quarantine_kinds.index("quarantine_silence_stopped")
+                and max(
                     quarantine_kinds.index("input_audio_buffer_committed"),
                     quarantine_kinds.index("conversation_item_added"),
                 )
                 < quarantine_kinds.index("conversation_item_deleted")
+                and max(
+                    quarantine_kinds.index("input_audio_buffer_speech_stopped"),
+                    quarantine_kinds.index("quarantine_silence_stopped"),
+                    quarantine_kinds.index("conversation_item_deleted"),
+                )
                 < quarantine_kinds.index("rejected_input_quarantined")
             )
         ):
@@ -2789,7 +2848,12 @@ async def _execute_protocol_owner_probe(
         conversation_ids = {row.get("conversation_id") for row in all_created}
         if len(conversation_ids) != 1 or None in conversation_ids or "" in conversation_ids:
             raise ProtocolOwnerProbeFailure("provider-conversation-changed")
-        if sent_audio_bytes > int(vad_config.max_audio_s * 24_000 * 2):
+        actual_audio_bytes = (
+            observed_audio_bytes if observed_audio_bytes is not None else sent_audio_bytes
+        )
+        if observed_audio_rate_invalid:
+            raise ProtocolOwnerProbeFailure("provider-audio-rate-invalid")
+        if actual_audio_bytes > int(vad_config.max_audio_s * 24_000 * 2):
             raise ProtocolOwnerProbeFailure("audio-budget-exceeded")
 
         return {
@@ -2810,7 +2874,7 @@ async def _execute_protocol_owner_probe(
             "tool_events": tool_events,
             "capacity_wait_s": round(budget.rate_limit_wait_s, 3),
             "audio_seconds_max_reserved": vad_config.max_audio_s,
-            "audio_seconds_sent": round(sent_audio_bytes / (24_000 * 2), 3),
+            "audio_seconds_sent": round(actual_audio_bytes / (24_000 * 2), 3),
         }
     finally:
         with contextlib.suppress(Exception):
