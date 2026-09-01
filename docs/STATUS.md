@@ -5,18 +5,72 @@ Senest opdateret: 2026-09-01.
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Installeret og korreleret kandidat:** add-on v1.13.52 fra exact main
-`a8df310c21fbd04e8b7fd673ffc22b8d1086b1a7`, runtime-rootfs
-`7813d11be6a2`, model `gpt-realtime-2.1`, Prompt V7 og den forventede
-v1.13.46-firmwarekontrakt. **Aktuel gate:** v1.13.52 er **NO-GO**. Den fysiske trace
+**Installeret kandidat:** add-onen rapporterer v1.13.53 efter update fra exact-main-
+bygget `3f548a222f487868552f5f2b7eba8047dcef0cda`; CI-artifactets SHA-256 er
+`f58dba98014b6c39801d529d8e4c099f29eb3ba68539c21d7fb734e05166ab6d`.
+Startup-loggen beviser forbindelse til Voice PE samt HA/MCP, men installeret runtime-
+provenance, rigtig providerprotokol og fysisk funktion er endnu ikke bevist. Den
+tidligere installerede v1.13.52 fra exact main
+`a8df310c21fbd04e8b7fd673ffc22b8d1086b1a7`, runtime-rootfs `7813d11be6a2`, model
+`gpt-realtime-2.1`, Prompt V7 og den forventede v1.13.46-firmwarekontrakt er fortsat
+den seneste fuldt korrelerede fysiske kandidat. **Aktuel gate:** v1.13.52 er **NO-GO**.
+Den fysiske trace
 `20260901T101334-410` beviser, at en provider-VAD-start, som Thin afviste under
 `THINKING`, overlevede buffer-clear og playback, opslugte frisk opfølgningslyd og
 udløste et automatisk svar samt `get_time` uden en ny accepteret Thin-tur.
 
-**Aktiv udviklingskandidat:** v1.13.53 må kun gøre fysisk accepterede brugerturns til
-ejer af `response.create`. Semantic VAD, samme Realtime-session og de fem eksisterende
-states bevares; firmware, gain, lydtransport, playback, prompt, model, reasoning,
-schema, værktøjer, firesekunders timeout, teardown og rearm er frosne.
+**Aktiv udviklingskandidat:** v1.13.54 er en UI-only efterfølger til den installerede
+v1.13.53-response-owner. Den må kun gøre den allerede testede protokolprobe legitimt
+klikbar fra HA-panelet; fysisk accepterede brugerturns forbliver ene ejer af
+`response.create`. Semantic VAD, samme Realtime-session og de fem eksisterende states
+bevares; firmware, gain, lydtransport, playback, prompt, model, reasoning, schema,
+værktøjer, firesekunders timeout, teardown og rearm er frosne.
+
+### Aktiv beslutning 1. september — proben skal kunne startes uden browseromgåelse
+
+- **Observeret fejl og stærkeste direkte evidens:** Den installerede v1.13.53 har den
+  maskintestede, ingress-begrænsede `POST /api/eval/protocol-owner`, men panelet har
+  ingen synlig kontrol, som kan sende den kanoniske prisbekræftelse. Efter brugerens
+  eksplicitte `$5`-godkendelse afviste browserens URL-sikkerhed en scriptnavigation;
+  proben blev derfor ikke startet, og intet API-budget blev brugt. Direkte LAN-adgang
+  gav korrekt 403 og er ikke en tilladt triggervej.
+- **Kæde, invarianter og hypotese:** bruger ser fast prisloft → eksplicit klik → præcis
+  `application/json`-body `{"max_cost_usd":5}` gennem HA-ingress → eksisterende
+  ingress-/framingkontrol → eksisterende eval-lock og højst én probe → eksisterende
+  statuspoll. Hypotesen er alene, at en synlig knap over den allerede testede route
+  lukker workflow-hullet. Browserbeskyttelse, ingresskrav, canonical body og
+  sideeffektfri probe skal bevares.
+- **Ikke-mål:** ingen ændring af `ThinSession`, Realtime-adapter, VAD, lyd, firmware,
+  prompt, model, reasoning, schema, værktøjer, playback, timeout, teardown, rearm eller
+  budgetberegning. Ingen skjult automatisk probe og ingen genbrug af en tidligere
+  godkendelse.
+- **Faktisk UI-delta og regressioner:** Panelet har præcis én synlig
+  `Test sikker Realtime-svarstyring`-knap. Et fysisk klik låser alle evalknapper, sender
+  den eksakte kanoniske body og genbruger den eksisterende `run_id`-poller samt
+  generationssikre oplåsning. GO-visningen kræver exact
+  `complete/ok/GO_TO_RELEASE_GATE/protocol-owner-proven`; alt andet vises som blokeret
+  og siger fortsat, at fysisk Golden Chain og 10/10 mangler. Start→poll-integration,
+  canonical body/content-type, single-trigger, busy, disabled-state og fail-closed
+  rendering er grønne. Panel+probe er **66/66**, fokuseret web er **19/19**, og leadens
+  fokustest er **21/21**. `scripts/dev fast --base origin/main` er grøn på **42,6 s**
+  med Ruff, format-check, mypy, hele pytest-suiten og diff-check. Uafhængigt review af
+  kode/UI fandt **P0=0, P1=0 og P2=0**; et efterfølgende dokumentreview fandt to P1-
+  statusmodsigelser, som denne opdatering lukker uden produktionskodeændring. Første
+  `release`-forsøg afslørede derefter en eksisterende test-race: `IDLE` publiceres
+  bevidst før teardownens asynkrone attention-release og rearm, mens tre nye response-
+  close-tests brugte `IDLE` som fuld slutbetingelse. Ingen runtime blev ændret; de tre
+  tests venter nu også på eksakt rearm og bevarer assertions om præcis én release og én
+  rearm. Den oprindelige måltest er grøn **50/50** i separate processer, og de tre
+  naboer er grønne **60/60**; Ruff og format-check er grønne.
+- **Releasegate, resterende gates og rollback:** Efter test-oraklets diff-freeze er den
+  ene autoritative `scripts/dev release --base origin/main` grøn på **42,4 s** med
+  Ruff, format-check, mypy, hele pytest-suiten og diff-check. Exact commit, CI/ARM64-
+  image, merge og installation mangler. Installeret HA-ingress skal derefter bevise,
+  at browserens kendte body bevarer entydig Content-Length; først en grøn rigtig
+  providerprobe åbner den fysiske canary. Hvis diffet rører produktionssamtalen,
+  knappen kan starte uden et nyt fysisk klik, eller ingress-framing afviger, rulles UI-
+  deltaet tilbage. Golden Chain og 10/10 er fortsat **0/1** og **0/10** og arves aldrig
+  fra v1.13.53.
 
 ### Aktiv beslutning 1. september — kun accepteret fysisk tur må skabe providerrespons
 
@@ -80,16 +134,19 @@ schema, værktøjer, firesekunders timeout, teardown og rearm er frosne.
 - **Resterende maskinelle gates:** Den bounded, sideeffektfrie live protokolprobe skal
   stadig bevise `VAD start → manual commit → exact item → delete/ACK → nul response →
   frisk tur i samme session → explicit response.create` mod rigtig provider. Den er
-  **ikke kørt** og har ikke brugt API-budget. Den frosne kandidat bestod den ene
+  **ikke kørt** og har ikke brugt API-budget. Den frosne v1.13.53-kandidat bestod den ene
   autoritative `scripts/dev release --base origin/main` på **42,5 s** med Ruff,
-  format-check, mypy, hele pytest-suiten og diff-check. Exact-commit-CI, ARM64-image,
-  merge og installation er endnu ikke udført for v1.13.53. Kandidaten er derfor
-  **ikke testklar** og må ikke
-  kaldes shippet eller golden. Den fokuserede semantiske 5×-preflight er ikke en
-  erstatning for protokolproben og genkøres kun, hvis semantikscope eller ny ren fysisk
-  evidens kræver den.
+  format-check, mypy, hele pytest-suiten og diff-check. Den blev merged som exact main
+  `3f548a222f487868552f5f2b7eba8047dcef0cda`; exact-commit-CI og ARM64-add-on-build
+  blev grønne, og v1.13.53 blev installeret og startede med Voice PE samt HA/MCP.
+  Proben kunne ikke startes legitimt fra det installerede panel, fordi triggerknappen
+  manglede; derfor er v1.13.53 stadig **ikke provider- eller fysisk testklar** og
+  supersedes kun af den UI-only v1.13.54. Den fokuserede semantiske 5×-preflight er
+  ikke en erstatning for protokolproben og genkøres kun, hvis semantikscope eller ny
+  ren fysisk evidens kræver den.
 - **Fysisk gate og rollback:** Der køres ingen flere fysiske gentagelser på v1.13.52.
-  Exact v1.13.53-artifact skal først bestå én armeret golden chain: 12 × 7 → 84;
+  Exact v1.13.54-artifact skal efter grøn installeret protokolprobe først bestå én
+  armeret golden chain: 12 × 7 → 84;
   “Læg seks til” → 90 i samme session; “Tak, det var alt” → ét model-close; én teardown,
   én rearm og næste wake med frisk provider-generation. Derefter kræves 10/10 ubrudte
   cyklusser, fem med semantisk close og fem med fire sekunders reel stilhed. Hvis den
@@ -97,8 +154,9 @@ schema, værktøjer, firesekunders timeout, teardown og rearm er frosne.
   timing-, gain- eller fraseplastre; crossed input skal i stedet lukke sessionen
   fail-closed. Den meget korte første tur med arabisk diagnosticering forbliver en
   separat ukendt wake-/audio-boundary-observation, som kræver gennemlytning af device-
-  og providerlyd før enhver lyd- eller firmwareændring. Aktuel fysisk status for
-  v1.13.53 er canary **0/1** og ubrudte cyklusser **0/10**.
+  og providerlyd før enhver lyd- eller firmwareændring. Aktuel fysisk status for den
+  aktive exact v1.13.54-kandidat er canary **0/1** og ubrudte cyklusser **0/10**; intet
+  fysisk resultat arves fra v1.13.53.
 
 ### Historisk beslutning 1. september — idle-timeout må aldrig vinde over aktiv brugertale
 

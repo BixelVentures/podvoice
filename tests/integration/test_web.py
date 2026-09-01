@@ -362,6 +362,49 @@ async def test_protocol_owner_probe_accepts_only_explicit_fixed_cap_and_filters_
     assert "trace" not in raw
 
 
+async def test_protocol_owner_panel_flow_starts_once_then_polls_existing_status():
+    calls: list[dict] = []
+
+    async def live_eval(**kwargs):
+        calls.append(kwargs)
+        if kwargs.get("action") == "protocol-owner":
+            return {
+                "ok": True,
+                "status": "running",
+                "kind": "protocol-owner",
+                "run_id": "eval-protocol-panel",
+                "deadline_s": 45,
+            }
+        return {
+            "ok": True,
+            "status": "complete",
+            "kind": "protocol-owner",
+            "run_id": kwargs.get("run_id"),
+            "decision": "GO_TO_RELEASE_GATE",
+            "classification": "protocol-owner-proven",
+        }
+
+    app = create_app(StatusHub(), {}, live_eval=live_eval, locked=False)
+    async with TestClient(TestServer(app)) as client:
+        started = await client.post(
+            "/api/eval/protocol-owner",
+            data='{"max_cost_usd":5}',
+            headers={"Content-Type": "application/json"},
+        )
+        polled = await client.get("/api/eval/live?run_id=eval-protocol-panel")
+        started_body = await started.json()
+        polled_body = await polled.json()
+
+    assert started.status == 202
+    assert started_body["run_id"] == "eval-protocol-panel"
+    assert polled.status == 200
+    assert polled_body["classification"] == "protocol-owner-proven"
+    assert calls == [
+        {"action": "protocol-owner", "max_cost_usd": 5.0},
+        {"action": "status", "run_id": "eval-protocol-panel"},
+    ]
+
+
 @pytest.mark.parametrize(
     "payload",
     [

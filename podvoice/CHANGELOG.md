@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.13.54 — sikker protokolprobe kan startes fra panelet
+
+- Tilføjer én synlig panelknap til den allerede afgrænsede, ingress-beskyttede
+  Realtime-svarstyringsprobe. Klikket sender kun den eksakte `$5`-bekræftelse og
+  genbruger panelets eksisterende eval-lås, statuspolling og resultatvisning.
+- Panelet skelner tydeligt mellem bestået providerprotokol og fysisk Golden Chain;
+  proben kan aldrig markere canary eller 10/10 som bestået.
+- `ThinSession`, Realtime-adapter, VAD, lyd, firmware, prompt, model, reasoning,
+  værktøjer, playback, timeout, teardown og rearm er uændrede.
+
 ## 1.13.53 — kun den accepterede fysiske tur må skabe et svar
 
 - Realtime-VAD bevares, men automatisk `response.create` slås fra. Først et matching
