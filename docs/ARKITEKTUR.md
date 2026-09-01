@@ -155,12 +155,12 @@ inference. Realtime ejer stadig forståelse, værktøjsvalg, svar og `end_conver
 
 En provider-VAD-start, der ankommer efter mic-gaten er lukket, er en crossed span og må
 ikke blive næste tur. Den holdes i karantæne, må skabe nul response/tool/playback og skal
-opløses til et eksakt provider-item, som slettes med korreleret ACK før `LOUNGE_WINDOW`
-kan åbne. En tvungen commit under aktiv server-VAD kan lovligt afsluttes uden en
-`speech_stopped`-event; det eksakte committed item, item-added og delete-ACK udgør da
-hele cleanup-beviset. `input_audio_buffer.clear` alene er aldrig bevis. Hvis providerens
-commit/delete-kontrakt ikke afsluttes bounded og eksakt, lukkes sessionen fail-closed
-og Voice PE rearmes; ingen gammel VAD-spændvidde genbruges.
+afsluttes med bounded, adapter-ejet nul-PCM, mens den fysiske mic-gate forbliver lukket.
+Provideren skal derefter levere den naturlige, matching `speech_stopped`; først matching
+commit, item-added og eksakt delete-ACK udgør hele cleanup-beviset og må åbne
+`LOUNGE_WINDOW`. Manuel commit og `input_audio_buffer.clear` er aldrig VAD-terminaler.
+Hvis stop-/commit-/delete-kontrakten ikke afsluttes bounded og eksakt, lukkes sessionen
+fail-closed og Voice PE rearmes; ingen gammel VAD-spændvidde genbruges.
 
 ## Firmwarekontrakten
 

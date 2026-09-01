@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -72,6 +73,21 @@ class _ScriptedProtocolSession:
         self.fresh_started = False
         self.fresh_stopped = False
         self.silence_bytes = 0
+        self.quarantine_silence_bytes = 0
+        self.audio_observer = None
+
+    def _required_silence_s(self) -> float:
+        if self.kwargs["preset"] == "responsive":
+            return eval_harness.PROTOCOL_OWNER_SEMANTIC_VAD_SILENCE_S["auto"]
+        if self.kwargs["preset"] == "custom" and self.kwargs["turn"] == "semantic_vad":
+            return eval_harness.PROTOCOL_OWNER_SEMANTIC_VAD_SILENCE_S[self.kwargs["eagerness"]]
+        effective_silence_ms = (
+            500 if self.kwargs["preset"] == "conservative" else self.kwargs["silence_ms"]
+        )
+        return max(
+            eval_harness.PROTOCOL_OWNER_FRESH_SILENCE_S,
+            (effective_silence_ms + 250) / 1000,
+        )
 
     async def _emit(self, *events: Any) -> None:
         for event in events:
@@ -214,6 +230,8 @@ class _ScriptedProtocolSession:
 
     async def send_audio(self, pcm: bytes) -> None:
         self.sent_audio.append(bytes(pcm))
+        if self.audio_observer is not None:
+            self.audio_observer(pcm, 24_000)
         if not self.quarantine_resolved:
             if not self.crossed_emitted:
                 self.crossed_pcm_sent_during_response = True
@@ -229,23 +247,39 @@ class _ScriptedProtocolSession:
 
         if self.fresh_started and not self.fresh_stopped and not any(pcm):
             self.silence_bytes += len(pcm)
-            required_s = eval_harness.PROTOCOL_OWNER_FRESH_SILENCE_S
-            if self.kwargs["preset"] == "conservative" or (
-                self.kwargs["preset"] == "custom" and self.kwargs["turn"] == "server_vad"
-            ):
-                effective_silence_ms = (
-                    500 if self.kwargs["preset"] == "conservative" else self.kwargs["silence_ms"]
-                )
-                required_s = max(required_s, (effective_silence_ms + 250) / 1000)
-            required = int(required_s * 24_000 * 2)
+            required = int(self._required_silence_s() * 24_000 * 2)
             if self.silence_bytes >= required:
                 self.fresh_stopped = True
                 await self._emit(UserSpeechStopped("fresh-span", _GENERATION))
 
     async def quarantine_input_turn(self, item_id: str, generation: int) -> None:
         assert (item_id, generation) == ("crossed-span", _GENERATION)
-        committed_id = "crossed-committed"
+        committed_id = item_id
+        silence_frames = math.ceil(
+            self._required_silence_s() * 1000 / eval_harness.PROTOCOL_OWNER_AUDIO_FRAME_MS
+        )
+        zero_drain = bytes(
+            silence_frames * eval_harness.PROTOCOL_OWNER_AUDIO_FRAME_MS * 24_000 * 2 // 1000
+        )
+        self.quarantine_silence_bytes += len(zero_drain)
+        if self.audio_observer is not None:
+            self.audio_observer(zero_drain, 24_000)
         rows = [
+            {
+                "kind": "quarantine_silence_started",
+                "root_item_id": item_id,
+                "generation": _GENERATION,
+            },
+            {
+                "kind": "input_audio_buffer_speech_stopped",
+                "item_id": item_id,
+                "generation": _GENERATION,
+            },
+            {
+                "kind": "quarantine_silence_stopped",
+                "root_item_id": item_id,
+                "generation": _GENERATION,
+            },
             {
                 "kind": "input_audio_buffer_committed",
                 "item_id": committed_id,
@@ -272,10 +306,30 @@ class _ScriptedProtocolSession:
                 "committed_item_count": 1,
             },
         ]
+        if "missing_quarantine_stop" in self.faults:
+            rows = [
+                row
+                for row in rows
+                if row["kind"]
+                not in {"input_audio_buffer_speech_stopped", "quarantine_silence_stopped"}
+            ]
         if "duplicate_commit" in self.faults:
-            rows.insert(1, dict(rows[0]))
+            commit_index = next(
+                index
+                for index, row in enumerate(rows)
+                if row["kind"] == "input_audio_buffer_committed"
+            )
+            rows.insert(commit_index + 1, dict(rows[commit_index]))
         if "out_of_order_cleanup" in self.faults:
-            rows[1], rows[2] = rows[2], rows[1]
+            added_index = next(
+                index for index, row in enumerate(rows) if row["kind"] == "conversation_item_added"
+            )
+            deleted_index = next(
+                index
+                for index, row in enumerate(rows)
+                if row["kind"] == "conversation_item_deleted"
+            )
+            rows[added_index], rows[deleted_index] = rows[deleted_index], rows[added_index]
         if "ghost_create_during_quarantine" in self.faults:
             rows.insert(
                 -1,
@@ -299,8 +353,10 @@ class _ScriptedProtocolSession:
             )
             assert result["reason"] == "unobserved_completion_clamped"
         terminal: list[Any] = []
-        if "quarantine_stop" in self.faults:
+        if "missing_quarantine_stop" not in self.faults:
             terminal.append(UserSpeechStopped(item_id, _GENERATION))
+            if "duplicate_quarantine_stop" in self.faults:
+                terminal.append(UserSpeechStopped(item_id, _GENERATION))
         terminal.append(InputQuarantineResolved(item_id, _GENERATION))
         usage = self._usage("bootstrap-response", "bootstrap")
         if usage is not None:
@@ -480,7 +536,7 @@ async def test_protocol_owner_probe_proves_one_socket_quarantine_and_fresh_respo
         "bootstrap_responses": 1,
         "quarantined_spans": 1,
         "quarantined_items": 1,
-        "quarantine_speech_stops": 0,
+        "quarantine_speech_stops": 1,
         "responses_during_quarantine": 0,
         "fresh_speech_starts": 1,
         "fresh_speech_stops": 1,
@@ -491,7 +547,10 @@ async def test_protocol_owner_probe_proves_one_socket_quarantine_and_fresh_respo
         "tool_events": 0,
         "capacity_wait_s": 0.0,
         "audio_seconds_max_reserved": eval_harness.PROTOCOL_OWNER_PROBE_MAX_AUDIO_S,
-        "audio_seconds_sent": 4.3,
+        "audio_seconds_sent": round(
+            (sum(map(len, session.sent_audio)) + session.quarantine_silence_bytes) / (24_000 * 2),
+            3,
+        ),
     }
     assert len(factory.calls) == session.connect_count == session.close_count == 1
     assert factory.calls[0]["manual_input_response"] is True
@@ -659,19 +718,74 @@ async def test_protocol_owner_probe_reserves_custom_ten_second_server_vad() -> N
 
     assert report["ok"] is True
     assert report["effective_silence_ms"] == 10_000
-    assert report["transcription_budget"]["audio_seconds_max"] == pytest.approx(18.26)
+    assert report["transcription_budget"]["audio_seconds_max"] == pytest.approx(28.52)
     assert report["transcription_budget"]["reserved_cost_usd"] == pytest.approx(
-        18.26 / 60 * eval_harness.GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE
+        28.52 / 60 * eval_harness.GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE
     )
     assert report["budget"]["mechanical_max_cost_usd"] < 5.0
     assert factory.session is not None
     assert factory.session.silence_bytes >= int(10.25 * 24_000 * 2)
 
 
+async def test_protocol_owner_probe_reserves_custom_low_semantic_vad_for_both_phases() -> None:
+    config = {
+        **_ACTIVE_VAD_CONFIG,
+        "openai_turn": "semantic_vad",
+        "openai_eagerness": "low",
+    }
+    resolved = eval_harness._protocol_owner_vad_config(**config)
+    expected_frames = math.ceil(8.25 * 1000 / eval_harness.PROTOCOL_OWNER_AUDIO_FRAME_MS)
+    expected_phase_bytes = (
+        expected_frames * eval_harness.PROTOCOL_OWNER_AUDIO_FRAME_MS * 24_000 * 2 // 1000
+    )
+    expected_max_audio_s = (
+        2 * eval_harness.PROTOCOL_OWNER_BOOTSTRAP_PCM_MAX_S
+        + 2 * expected_frames * eval_harness.PROTOCOL_OWNER_AUDIO_FRAME_MS / 1000
+    )
+    adapter = OpenAIRealtimeSession(
+        api_key="unused",
+        preset="custom",
+        turn="semantic_vad",
+        eagerness="low",
+        interrupt_response=False,
+        manual_input_response=True,
+    )
+
+    assert adapter._quarantine_silence_limit_s() == pytest.approx(8.25)
+    assert resolved.fresh_silence_frames == expected_frames
+    assert resolved.max_audio_s == pytest.approx(expected_max_audio_s)
+
+    factory = _SessionFactory()
+    report = await LiveEvalService(
+        sleep=_SleepRecorder(),
+        provider_budget=_ledger(),
+    ).run_protocol_owner(
+        api_key=_API_KEY,
+        max_cost_usd=5.0,
+        session_factory=factory,
+        **config,
+    )
+
+    assert report["ok"] is True
+    assert report["effective_eagerness"] == "low"
+    assert report["transcription_budget"]["audio_seconds_max"] == pytest.approx(
+        expected_max_audio_s
+    )
+    assert report["transcription_budget"]["reserved_cost_usd"] == pytest.approx(
+        expected_max_audio_s / 60 * eval_harness.GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE
+    )
+    assert report["budget"]["mechanical_max_cost_usd"] < 5.0
+    assert report["checks"]["audio_seconds_sent"] <= expected_max_audio_s
+    assert factory.session is not None
+    assert factory.session.quarantine_silence_bytes == expected_phase_bytes
+    assert factory.session.silence_bytes == expected_phase_bytes
+
+
 @pytest.mark.parametrize(
     ("fault", "error_code", "classification"),
     [
-        ("quarantine_stop", "quarantine-stop-observed", "probe-inconclusive"),
+        ("missing_quarantine_stop", "quarantine-correlation-failed", "protocol-owner-failure"),
+        ("duplicate_quarantine_stop", "quarantine-stop-invalid", "protocol-owner-failure"),
         ("late_old_stop", "late-quarantine-stop", "protocol-owner-failure"),
         ("duplicate_resolution", "duplicate-quarantine-resolution", "protocol-owner-failure"),
         ("duplicate_commit", "quarantine-correlation-failed", "protocol-owner-failure"),

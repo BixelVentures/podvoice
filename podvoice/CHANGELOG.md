@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.13.55 — afvist provider-VAD afsluttes før næste opfølgning
+
+- Fjerner manuel commit som falsk terminal for en VAD-start, der krydser den lukkede
+  half-duplex-gate. Adapteren holder den fysiske mic lukket og sender kun bounded
+  nul-PCM, indtil provideren leverer den naturlige, matching `speech_stopped`.
+- Først matching stop, commit, user-item og eksakt delete-ACK opløser karantænen. En
+  manglende, fremmed, duplicate eller uordnet kant lukker sessionen fail-closed og kan
+  ikke blive næste opfølgning eller skabe et ghost-svar.
+- Den installerbare sideeffektfrie protokolprobe måler også adapterens interne nul-PCM
+  i sit prisloft. Firmware, gain, VAD-konfiguration, prompt, model, reasoning, schema,
+  værktøjer, playback, timeout, teardown og rearm er uændrede.
+
 ## 1.13.54 — sikker protokolprobe kan startes fra panelet
 
 - Tilføjer én synlig panelknap til den allerede afgrænsede, ingress-beskyttede

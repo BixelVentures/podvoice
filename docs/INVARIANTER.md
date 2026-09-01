@@ -48,11 +48,12 @@ bits der faktisk er installeret og fysisk bevist.
    et transport-interrupt.
 5. En VAD-start, der krydser en lukket svar-gate, må aldrig skabe respons eller
    værktøjskald. `input_audio_buffer.clear` er kun byte-clear og er ikke bevis for, at
-   den aktive VAD-spændvidde er afsluttet. Den crossed spændvidde skal enten afsluttes,
-   bindes til sit eksakte committed item og slettes med korreleret ACK før næste
-   mic-open, eller lukke hele sessionen fail-closed. Ved tvungen commit under aktiv
-   server-VAD kan provideren lovligt undlade `speech_stopped`; i den afviste sti er
-   committed item + item-added + eksakt delete-ACK derfor det fulde cleanup-bevis.
+   den aktive VAD-spændvidde er afsluttet. Mens den fysiske mic-gate forbliver lukket,
+   må adapteren kun sende bounded, indholdsneutral nul-PCM for at få provideren til at
+   levere spændviddens naturlige `speech_stopped`. Først matching stop, committed item,
+   item-added og eksakt delete-ACK er fuldt cleanup-bevis; derefter må næste mic-open
+   ske. Manuel commit må aldrig bruges som VAD-terminal. Mangler en af kanterne inden
+   den afgrænsede deadline, lukkes hele sessionen fail-closed.
 6. Et accepteret `speech_stopped` lukker mic-gaten med det samme. Først et matching
    `input_audio_buffer.committed`/user-item på samme generation må udløse præcis én
    klientstyret `response.create`. Respons, lyd eller tool-call uden matching lokalt
