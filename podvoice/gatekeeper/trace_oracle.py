@@ -11,7 +11,7 @@ pretending that Talk proves wake, microphone, speaker, or rearm hardware.
 
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -66,6 +66,59 @@ _ALIASES = {
     "session_closed": "capture_finished",
     "talk_ready": "followup_ready",
 }
+
+
+_OWNER_MARKERS = frozenset(
+    "accepted_input_turn rejected_input_quarantined input_quarantine_started "
+    "input_quarantine_resolved conversation_item_deleted response_create_pre_wire "
+    "response_create_sent".split()
+)
+_OWNER_RELEVANT = _OWNER_MARKERS | frozenset(
+    "speech_started speech_started_or_interrupted speech_stopped "
+    "half_duplex_input_discarded input_audio_buffer_committed "
+    "conversation_item_added conversation_item_created response_created response_done "
+    "response_output_item_added response_output_item_done response_audio_started tool_call".split()
+)
+_TurnKey = tuple[int, str]
+
+
+def _owner_name(event: Mapping[str, Any]) -> str:
+    return str(event.get("event") or "").removeprefix("provider_")
+
+
+def _owner_id(event: Mapping[str, Any], *names: str) -> str:
+    values = (event.get(name) for name in names)
+    return next(
+        (
+            str(value)
+            for value in values
+            if isinstance(value, (str, int)) and value and not isinstance(value, bool)
+        ),
+        "",
+    )
+
+
+def _provider_generation(event: Mapping[str, Any]) -> int | None:
+    values = (event.get(name) for name in ("generation", "provider_generation"))
+    return next(
+        (value for value in values if isinstance(value, int) and not isinstance(value, bool)),
+        None,
+    )
+
+
+def _ownership_enabled(events: Sequence[Mapping[str, Any]]) -> bool:
+    for event in events:
+        name = _owner_name(event)
+        if name in _OWNER_MARKERS or _owner_id(event, "root_item_id"):
+            return True
+        if name in {
+            "speech_started",
+            "speech_started_or_interrupted",
+            "speech_stopped",
+            "half_duplex_input_discarded",
+        } and _owner_id(event, "item_id"):
+            return True
+    return False
 
 
 def _events(trace: Mapping[str, Any] | Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -225,7 +278,8 @@ class TraceOracle:
         self._require_once(names, "provider_connected", issues)
         self._ordered(names, "wake_received", "provider_connected", issues)
 
-        user_turns = counts["speech_stopped"]
+        owned_turns = self._turn_ownership(events, names, issues)
+        user_turns = counts["speech_stopped"] if owned_turns is None else owned_turns
         if user_turns < self.minimum_user_turns:
             issues.append(
                 TraceIssue(
@@ -276,6 +330,350 @@ class TraceOracle:
             event_count=len(events),
             user_turns=user_turns,
         )
+
+    @staticmethod
+    def _turn_ownership(
+        events: list[Mapping[str, Any]],
+        names: list[str],
+        issues: list[TraceIssue],
+    ) -> int | None:
+        """Prove local turn -> provider item -> request -> response ownership."""
+
+        if not _ownership_enabled(events):
+            return None
+
+        marks: defaultdict[_TurnKey, defaultdict[str, list[int]]] = defaultdict(
+            lambda: defaultdict(list)
+        )
+        item_sets: defaultdict[_TurnKey, defaultdict[str, set[str]]] = defaultdict(
+            lambda: defaultdict(set)
+        )
+        item_roots: dict[_TurnKey, _TurnKey] = {}
+        raw_items: list[tuple[str, int, int, str]] = []
+        requests_raw: list[tuple[int, Mapping[str, Any]]] = []
+        responses_raw: list[tuple[int, Mapping[str, Any]]] = []
+        dependents: list[tuple[int, Mapping[str, Any], str]] = []
+        followups: list[int] = []
+        active_generation: int | None = None
+
+        def fail(code: str, message: str, index: int | None = None) -> None:
+            issues.append(TraceIssue(code, message, event_index=index))
+
+        def mark(key: _TurnKey, stage: str, index: int, item_id: str = "") -> None:
+            marks[key][stage].append(index)
+            if item_id:
+                item_sets[key][stage].add(item_id)
+
+        def bind(item: _TurnKey, root: _TurnKey, index: int) -> None:
+            previous = item_roots.get(item)
+            if previous is not None and previous != root:
+                fail("turn_ownership_conflict", f"Item {item[1]} has two roots", index)
+            item_roots[item] = root
+
+        for index, event in enumerate(events):
+            name = _owner_name(event)
+            if names[index] == "provider_connected":
+                active_generation = _provider_generation(event)
+                continue
+            if name == "mic_gate_opened" and event.get("reason") == "followup":
+                followups.append(index)
+                continue
+            user_item = name in {"conversation_item_added", "conversation_item_created"} and (
+                event.get("role") == "user" or event.get("item_type") == "input_audio"
+            )
+            tool_item = (
+                name in {"response_output_item_added", "response_output_item_done"}
+                and event.get("item_type") == "function_call"
+            )
+            if name not in _OWNER_RELEVANT and not user_item and not tool_item:
+                continue
+            generation = _provider_generation(event)
+            if generation is None:
+                fail("turn_generation_missing", "Ownership event has no generation", index)
+                continue
+            if active_generation is None:
+                active_generation = generation
+            elif generation != active_generation:
+                fail("stale_turn_generation", "Ownership event uses a stale generation", index)
+
+            root_id = _owner_id(event, "root_item_id", "input_item_id", "item_id")
+            key = (generation, root_id) if root_id else None
+            stage = (
+                "local_accept"
+                if name == "speech_stopped" and event.get("accepted") is True
+                else "local_reject"
+                if name == "half_duplex_input_discarded"
+                else "quarantine_start"
+                if name == "input_quarantine_started"
+                else "quarantine_done"
+                if name == "rejected_input_quarantined"
+                else "quarantine_resolved"
+                if name == "input_quarantine_resolved"
+                else "accepted"
+                if name == "accepted_input_turn"
+                else ""
+            )
+            if stage:
+                if key is None:
+                    fail("provider_item_without_local_turn", f"{name} omitted item id", index)
+                    continue
+                mark(key, stage, index)
+                committed = _owner_id(event, "committed_item_id")
+                if stage == "accepted" and committed:
+                    bind((generation, committed), key, index)
+            elif name == "input_audio_buffer_committed":
+                item_id = _owner_id(event, "item_id")
+                raw_items.append(("commit", index, generation, item_id))
+            elif user_item:
+                item_id = _owner_id(event, "item_id")
+                raw_items.append(("user_item", index, generation, item_id))
+            elif name == "conversation_item_deleted":
+                item_id = _owner_id(event, "item_id")
+                if key is None or not item_id:
+                    fail("rejected_item_not_deleted", "Delete ACK omitted ownership", index)
+                else:
+                    bind((generation, item_id), key, index)
+                    mark(key, "delete", index, item_id)
+            elif name == "response_create_sent":
+                requests_raw.append((index, event))
+            elif name == "response_created":
+                responses_raw.append((index, event))
+            elif name in {"response_done", "response_audio_started"}:
+                dependents.append((index, event, name))
+            elif name == "tool_call" or tool_item:
+                dependents.append((index, event, name))
+
+        for stage, index, generation, item_id in raw_items:
+            if not item_id:
+                fail("provider_item_without_local_turn", f"{stage} omitted item id", index)
+                continue
+            key = item_roots.get((generation, item_id), (generation, item_id))
+            mark(key, stage, index, item_id)
+
+        accepted = {key for key, stages in marks.items() if stages["accepted"]}
+        rejected = {
+            key
+            for key, stages in marks.items()
+            if any(
+                stages[stage] for stage in ("local_reject", "quarantine_start", "quarantine_done")
+            )
+        }
+        for key in accepted & rejected:
+            fail("turn_ownership_conflict", f"Turn {key[1]} is accepted and rejected")
+        for key, stages in marks.items():
+            if stages["local_accept"] and key not in accepted:
+                fail("accepted_turn_authorization_missing", f"Turn {key[1]} was not accepted")
+            if (stages["commit"] or stages["user_item"]) and key not in accepted | rejected:
+                fail("provider_item_without_local_turn", f"Provider item {key[1]} has no owner")
+
+        def one(key: _TurnKey, stage: str, code: str) -> int | None:
+            rows = marks[key][stage]
+            if len(rows) != 1:
+                fail(
+                    code, f"Turn {key[1]} has {len(rows)} {stage} edges", rows[0] if rows else None
+                )
+                return None
+            return rows[0]
+
+        accepted_turns: dict[_TurnKey, str] = {}
+        for key in accepted:
+            accepted_index = one(key, "accepted", "accepted_turn_authorization_missing")
+            is_text = (
+                accepted_index is not None and events[accepted_index].get("input_kind") == "text"
+            )
+            indexes = [
+                one(key, "local_accept", "provider_item_without_local_turn"),
+                one(key, "user_item", "accepted_turn_missing_provider_item"),
+                accepted_index,
+            ]
+            if not is_text:
+                indexes.insert(1, one(key, "commit", "accepted_turn_missing_provider_item"))
+            values = [index for index in indexes if index is not None]
+            turn_id = (
+                _owner_id(events[accepted_index], "turn_id", "turn")
+                if accepted_index is not None
+                else ""
+            )
+            accepted_turns[key] = turn_id
+            if not turn_id:
+                fail("provider_response_without_accepted_turn", f"Turn {key[1]} omitted turn id")
+            if len(values) == len(indexes) and not (
+                values[0] < min(values[1:-1]) <= max(values[1:-1]) <= values[-1]
+            ):
+                fail("provider_item_without_local_turn", f"Turn {key[1]} ownership is out of order")
+
+        requests: dict[str, tuple[int, _TurnKey, str, str]] = {}
+        for index, event in requests_raw:
+            request_id = _owner_id(event, "request_id")
+            root_id = _owner_id(event, "root_item_id")
+            generation = _provider_generation(event)
+            turn_id = _owner_id(event, "turn_id", "turn")
+            purpose = _owner_id(event, "purpose")
+            key = (generation, root_id) if generation is not None and root_id else None
+            if not request_id or key is None or not turn_id or not purpose:
+                fail(
+                    "provider_response_without_accepted_turn",
+                    "Response request omitted owner",
+                    index,
+                )
+                continue
+            if request_id in requests:
+                fail("duplicate_initial_response_request", f"Request {request_id} repeated", index)
+                continue
+            requests[request_id] = (index, key, turn_id, purpose)
+            if key in rejected:
+                fail(
+                    "rejected_turn_created_response",
+                    f"Rejected turn {key[1]} requested response",
+                    index,
+                )
+                continue
+            if key not in accepted or accepted_turns.get(key) != turn_id:
+                fail(
+                    "provider_response_without_accepted_turn",
+                    f"Request {request_id} has no turn",
+                    index,
+                )
+                continue
+            if index <= marks[key]["accepted"][0]:
+                fail(
+                    "provider_response_without_accepted_turn",
+                    f"Request {request_id} is early",
+                    index,
+                )
+            if purpose == "turn" and not _owner_id(event, "source_call_id"):
+                mark(key, "initial_request", index)
+
+        for key in accepted:
+            initial = marks[key]["initial_request"]
+            if len(initial) != 1:
+                fail(
+                    "duplicate_initial_response_request"
+                    if len(initial) > 1
+                    else "accepted_turn_missing_initial_response_request",
+                    f"Turn {key[1]} has {len(initial)} initial requests",
+                )
+
+        owned: dict[str, tuple[int, _TurnKey]] = {}
+        request_responses: Counter[str] = Counter()
+        for index, event in responses_raw:
+            response_id = _owner_id(event, "response_id")
+            request_id = _owner_id(event, "request_id")
+            request = requests.get(request_id)
+            generation = _provider_generation(event)
+            root_id = _owner_id(event, "root_item_id")
+            key = (generation, root_id) if generation is not None and root_id else None
+            if key in rejected:
+                fail(
+                    "rejected_turn_created_response",
+                    f"Rejected turn {key[1]} created response",
+                    index,
+                )
+            valid = (
+                bool(response_id)
+                and request is not None
+                and event.get("request_id_matched") is True
+                and request[0] < index
+                and key == request[1]
+                and _owner_id(event, "turn_id", "turn") == request[2]
+                and _owner_id(event, "purpose") == request[3]
+            )
+            input_generation = event.get("input_generation")
+            if isinstance(input_generation, int) and not isinstance(input_generation, bool):
+                valid = valid and key is not None and input_generation == key[0]
+            if not valid or request is None:
+                fail(
+                    "provider_response_without_accepted_turn",
+                    f"Response {response_id or '?'} is unowned",
+                    index,
+                )
+                continue
+            request_responses[request_id] += 1
+            if response_id in owned or request_responses[request_id] > 1:
+                fail("duplicate_provider_response", f"Response {response_id} repeated", index)
+            else:
+                owned[response_id] = (index, request[1])
+
+        provider_terminals: defaultdict[str, list[tuple[int, str]]] = defaultdict(list)
+        for index, event, kind in dependents:
+            if kind == "response_done" and str(event.get("event") or "").startswith("provider_"):
+                response_id = _owner_id(event, "response_id")
+                if response_id:
+                    provider_terminals[response_id].append(
+                        (index, _owner_id(event, "status") or "?")
+                    )
+
+        for index, event, kind in dependents:
+            response_id = _owner_id(event, "response_id")
+            owner = owned.get(response_id)
+            if owner is None or owner[0] >= index:
+                fail(
+                    "tool_call_without_owned_response"
+                    if kind
+                    in {"tool_call", "response_output_item_added", "response_output_item_done"}
+                    else "provider_response_without_accepted_turn",
+                    f"Event has no owned response {response_id or '?'}",
+                    index,
+                )
+                continue
+            if kind == "tool_call":
+                terminals = [row for row in provider_terminals[response_id] if row[0] < index]
+                if len(terminals) != 1 or terminals[0][1] != "completed":
+                    fail(
+                        "tool_call_from_uncompleted_response",
+                        f"Tool call escaped response {response_id} before completed",
+                        index,
+                    )
+
+        cleanup = (
+            "local_reject",
+            "quarantine_start",
+            "commit",
+            "user_item",
+            "delete",
+            "quarantine_done",
+            "quarantine_resolved",
+        )
+        for key in rejected:
+            indexes = [one(key, stage, "rejected_item_not_deleted") for stage in cleanup]
+            values = [index for index in indexes if index is not None]
+            same_items = (
+                bool(item_sets[key]["commit"])
+                and item_sets[key]["commit"]
+                == item_sets[key]["user_item"]
+                == item_sets[key]["delete"]
+            )
+            ordered = len(values) == len(cleanup) and (
+                values[0]
+                <= values[1]
+                < min(values[2], values[3])
+                <= max(values[2], values[3])
+                < values[4]
+                < values[5]
+                < values[6]
+            )
+            done = indexes[5]
+            expected = events[done].get("committed_item_count") if done is not None else None
+            count_ok = not isinstance(expected, int) or expected == len(item_sets[key]["commit"])
+            if not (same_items and ordered and count_ok):
+                fail("rejected_item_not_deleted", f"Turn {key[1]} cleanup is incomplete")
+            start, resolved = indexes[1], indexes[6]
+            premature = next(
+                (
+                    opened
+                    for opened in followups
+                    if start is not None and resolved is not None and start < opened < resolved
+                ),
+                None,
+            )
+            if premature is not None:
+                fail(
+                    "followup_open_before_rejected_turn_cleanup",
+                    f"Follow-up opened before {key[1]} cleanup",
+                    premature,
+                )
+
+        return len(accepted)
 
     @staticmethod
     def _speech_windows(

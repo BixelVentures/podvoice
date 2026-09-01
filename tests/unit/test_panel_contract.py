@@ -191,6 +191,11 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     assert 'fetch("api/eval/live"' in html
     assert 'fetch("api/eval/live?run_id="' in html
     assert 'fetch("api/eval/replay"' in html
+
+
+def test_protocol_owner_probe_has_no_panel_button_or_browser_call():
+    html = PANEL.read_text()
+    assert "/api/eval/protocol-owner" not in html
     assert 'data.status === "running" || data.status === "busy"' in html
     assert "poll(data.run_id, generation, data.deadline_s)" in html
     assert '"Årsag: " + (finding.message' in html

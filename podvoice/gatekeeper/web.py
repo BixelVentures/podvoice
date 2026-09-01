@@ -245,6 +245,17 @@ _TRUSTED_NETS = (
     ipaddress.ip_network("::1/128"),
     ipaddress.ip_network("172.30.32.0/23"),
 )
+_PROTOCOL_OWNER_INGRESS_IP = ipaddress.ip_address("172.30.32.2")
+_PROTOCOL_OWNER_MAX_BODY_BYTES = 128
+_PROTOCOL_OWNER_CANONICAL_BODY = b'{"max_cost_usd":5}'
+_PROTOCOL_OWNER_PUBLIC_STATUSES = {
+    "running",
+    "complete",
+    "busy",
+    "invalid",
+    "failed",
+    "unavailable",
+}
 
 
 def source_allowed(remote: str | None) -> bool:
@@ -256,6 +267,17 @@ def source_allowed(remote: str | None) -> bool:
     except ValueError:
         return False
     return any(ip in net for net in _TRUSTED_NETS)
+
+
+def _protocol_owner_source_allowed(remote: str | None) -> bool:
+    """The paid protocol probe is stricter than the optionally LAN-open panel."""
+    if not remote:
+        return False
+    try:
+        ip = ipaddress.ip_address(remote)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip == _PROTOCOL_OWNER_INGRESS_IP
 
 
 def _make_guard(locked: bool, reply_token: str | None):
@@ -364,6 +386,7 @@ def create_app(
             web.post("/api/eval/live", _live_eval),
             web.get("/api/eval/live", _live_eval_status),
             web.post("/api/eval/replay", _audio_replay_eval),
+            web.post("/api/eval/protocol-owner", _protocol_owner_eval),
             web.get("/api/events", _events),
             web.post("/api/control", _control),
             web.get("/api/console", _console_ws),
@@ -383,6 +406,111 @@ def create_app(
         ]
     )
     return app
+
+
+def _public_protocol_owner_report(report: object) -> dict[str, Any]:
+    """Allowlist content-free status fields; never reflect provider diagnostics."""
+    if not isinstance(report, dict):
+        return {"ok": False, "status": "failed", "kind": "protocol-owner"}
+    status = report.get("status")
+    if status not in _PROTOCOL_OWNER_PUBLIC_STATUSES:
+        status = "failed"
+    public: dict[str, Any] = {
+        "ok": report.get("ok") is True,
+        "status": status,
+        "kind": "protocol-owner",
+    }
+    run_id = report.get("run_id")
+    if (
+        isinstance(run_id, str)
+        and run_id.startswith("eval-")
+        and len(run_id) <= 80
+        and all(char.isalnum() or char in "-_" for char in run_id)
+    ):
+        public["run_id"] = run_id
+    for field in ("started_at", "deadline_s"):
+        value = report.get(field)
+        if (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            and value >= 0
+        ):
+            public[field] = value
+    if status != "running" and status != "complete":
+        public["error"] = {
+            "busy": "Protokoltesten er allerede aktiv.",
+            "invalid": "Protokoltesten afviste anmodningen.",
+            "unavailable": "Protokoltesten er ikke tilgængelig.",
+        }.get(status, "Protokoltesten fejlede.")
+    return public
+
+
+async def _protocol_owner_eval(request: web.Request) -> web.Response:
+    """Start the one fixed, ingress-only response-owner protocol probe."""
+    if not _protocol_owner_source_allowed(request.remote):
+        return web.json_response(
+            {"ok": False, "status": "forbidden", "error": "Ingress eller loopback kræves."},
+            status=403,
+        )
+    if request.content_type != "application/json":
+        return web.json_response(
+            {"ok": False, "status": "invalid", "error": "Content-Type skal være JSON."},
+            status=415,
+        )
+    content_lengths = request.headers.getall("Content-Length", [])
+    transfer_encodings = request.headers.getall("Transfer-Encoding", [])
+    if transfer_encodings or len(content_lengths) != 1:
+        return web.json_response(
+            {
+                "ok": False,
+                "status": "invalid",
+                "error": "Entydig Content-Length kræves; chunked body afvises.",
+            },
+            status=400,
+        )
+    if content_lengths[0] != str(len(_PROTOCOL_OWNER_CANONICAL_BODY)):
+        return web.json_response(
+            {"ok": False, "status": "invalid", "error": "JSON-body har forkert længde."},
+            status=(
+                413
+                if content_lengths[0].isdigit()
+                and int(content_lengths[0]) > _PROTOCOL_OWNER_MAX_BODY_BYTES
+                else 400
+            ),
+        )
+    try:
+        raw = await request.content.readexactly(len(_PROTOCOL_OWNER_CANONICAL_BODY))
+    except (asyncio.IncompleteReadError, ValueError):
+        return web.json_response(
+            {"ok": False, "status": "invalid", "error": "JSON-body er ufuldstændig."},
+            status=400,
+        )
+    if await request.content.read(1) or raw != _PROTOCOL_OWNER_CANONICAL_BODY:
+        return web.json_response(
+            {"ok": False, "status": "invalid", "error": "Ikke-kanonisk JSON-body."},
+            status=400,
+        )
+    run = request.app[LIVE_EVAL]
+    if run is None:
+        return web.json_response(
+            {"ok": False, "status": "unavailable", "error": "Protokoltesten er ikke tilgængelig."},
+            status=501,
+        )
+    try:
+        report = await run(action="protocol-owner", max_cost_usd=5.0)
+    except Exception:
+        _LOG.warning("protocol-owner probe service failed")
+        report = {"ok": False, "status": "failed"}
+    public = _public_protocol_owner_report(report)
+    status = {
+        "running": 202,
+        "busy": 409,
+        "invalid": 400,
+        "failed": 502,
+        "unavailable": 501,
+    }.get(public["status"], 200)
+    return web.json_response(public, status=status)
 
 
 async def _live_eval(request: web.Request) -> web.Response:

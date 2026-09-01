@@ -39,9 +39,13 @@ der startes aldrig et HA Assist-run eller en HA pipeline.
 De deler:
 
 - Realtime-session, model, prompt og værktøjer;
-- turn detection, half-duplex-ekkoport og follow-up-kontekst;
+- tur-/response-ejerskab og follow-up-kontekst;
 - Realtime-ejet hensigtsfortolkning samt transport-ejet udførelse, timeout og fejlteardown;
-- tilstandene lytter, tænker, taler og idle.
+- de fem states `IDLE`, `LISTENING`, `THINKING`, `AI_SPEAKING` og `LOUNGE_WINDOW`.
+
+Den fysiske half-duplex-ekkoport gælder kun Voice PE. Talk er den eksplicitte
+full-duplex-browseradapter med browser-AEC; den deler ejerskab og lifecycle, men er ikke
+fysisk bevis for puckens mic-gate.
 
 Kun adapteren er forskellig:
 
@@ -103,9 +107,10 @@ Lukning har to adskilte ejere:
   samtalen er slut, udsender modellen det interne `end_conversation`-signal. Det gælder
   naturlige formuleringer på tværs af ordvalg og sprog; PodVoice matcher ingen fraser,
   keywords eller dokumenterede ASR-fejl.
-- **PodVoice ejer mekanikken.** Signalet bindes til den konkrete tur, det korte
-  afslutningssvar afspilles, og først fysisk playback-finish må udløse én atomisk
-  teardown af Realtime, mikrofon, ducking og wake-lås.
+- **PodVoice ejer mekanikken.** Signalet bindes til den konkrete tur. Hvis Realtime har
+  leveret kort, korreleret svarlyd, afspilles den, og dens fysiske playback-finish
+  afventes; hvis der ikke er svarlyd, eller den fejler, lukkes stille. Begge veje ender i
+  præcis én atomisk teardown af Realtime, mikrofon, ducking og wake-lås.
 - Uklart input skal få Realtime til at spørge kort igen. Et løst “tak”, ord inde i en
   opgave, deltransskriptioner og et signal fra en gammel tur må aldrig lukke.
 - Et eksplicit hardware-stop, timeout og tekniske fejl er transport-sikkerhed og kan
@@ -135,6 +140,27 @@ tilfældigt korrekt svar aldrig kan skjule forkert input eller forkert ejer.
 Half-duplex betyder ikke én kommando pr. wake: Realtime-socketten holdes åben og
 konteksten bevares gennem opfølgninger. Fuld duplex og tale-stop midt i svar er en
 separat senere gate.
+
+Dette er den bindende målkontrakt; `docs/STATUS.md` afgør, om de installerede bits har
+bevist den. Voice PE beholder providerens VAD, men ikke providerens automatiske
+response-ejerskab.
+Sessionen bruger `interrupt_response: false` og `create_response: false`. Et accepteret
+fysisk `speech_stopped` lukker mic-gaten; når samme generations user-item er committed,
+tillader `ThinSession` præcis én respons. Provideradapteren sender det korrelerede
+`response.create` med unikt request-id og samme
+`(root_item_id, turn_id, provider_generation)`; alle afledte tool-/schema-/close-
+responses arver samme lease. Turn og generation serialiseres som kanoniske decimale
+strenge i providerens metadata. Denne klientevent er kun en mekanisk tilladelse til
+inference. Realtime ejer stadig forståelse, værktøjsvalg, svar og `end_conversation`.
+
+En provider-VAD-start, der ankommer efter mic-gaten er lukket, er en crossed span og må
+ikke blive næste tur. Den holdes i karantæne, må skabe nul response/tool/playback og skal
+opløses til et eksakt provider-item, som slettes med korreleret ACK før `LOUNGE_WINDOW`
+kan åbne. En tvungen commit under aktiv server-VAD kan lovligt afsluttes uden en
+`speech_stopped`-event; det eksakte committed item, item-added og delete-ACK udgør da
+hele cleanup-beviset. `input_audio_buffer.clear` alene er aldrig bevis. Hvis providerens
+commit/delete-kontrakt ikke afsluttes bounded og eksakt, lukkes sessionen fail-closed
+og Voice PE rearmes; ingen gammel VAD-spændvidde genbruges.
 
 ## Firmwarekontrakten
 

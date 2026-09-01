@@ -39,6 +39,12 @@ slutbetingelse separat, og genkør kun den gate, som fejlen faktisk ugyldiggjord
 samme procesforsinkelse gentager sig, er næste handling en permanent tooling-regression,
 ikke endnu en manuel workaround.
 
+En sendt provider-control-event er aldrig i sig selv bevis for sin påståede effekt.
+Ved `clear`, `commit`, `delete`, `cancel`, `truncate` og `response.create` skal
+regressionen fortsætte gennem de efterfølgende korrelerede serverevents og bevise den
+tilstand, som runtime bygger videre på. En fake, der kun tæller outbound-kaldet, kan
+ikke godkende ejergrænsen.
+
 ## Den eneste produktionsretning
 
 - Voice PE-firmware ejer fysisk wake, mic-latch, playback-events og rearm-bevis.

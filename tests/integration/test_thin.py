@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import array
 import asyncio
+import base64
 import json
 from types import SimpleNamespace
 
+import aiohttp
 import pytest
 from fakes.fake_attention import FakeAttention
 from fakes.fake_brain import FakeBrainSession
@@ -19,6 +21,7 @@ from gatekeeper.execution_policy import ExecutionContext, ExecutionPolicy
 from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.history import History
 from gatekeeper.hub import StatusHub
+from gatekeeper.openai_realtime import OpenAIRealtimeSession
 from gatekeeper.playback import Playback
 from gatekeeper.reply import ReplyBus
 from gatekeeper.talk import BrowserLink, TalkHub
@@ -26,6 +29,7 @@ from gatekeeper.thin import ThinSession
 from gatekeeper.voice import (
     AudioChunk,
     Idle,
+    InputQuarantineResolved,
     InputTranscript,
     Interrupted,
     OutputTranscript,
@@ -67,6 +71,43 @@ class LiveFake(FakeBrainSession):
             if ev is None:
                 return
             yield ev
+
+
+class _AdapterMessage:
+    type = aiohttp.WSMsgType.TEXT
+
+    def __init__(self, event: dict) -> None:
+        self.data = json.dumps(event)
+
+
+class _AdapterQueueWS:
+    """In-memory wire that keeps the real OpenAI adapter in the composite test."""
+
+    def __init__(self) -> None:
+        self.sent: list[dict] = []
+        self.incoming: asyncio.Queue[_AdapterMessage | None] = asyncio.Queue()
+        self.closed = False
+
+    async def send_json(self, payload: dict) -> None:
+        self.sent.append(payload)
+
+    def __aiter__(self):  # type: ignore[no-untyped-def]
+        return self
+
+    async def __anext__(self) -> _AdapterMessage:
+        message = await self.incoming.get()
+        if message is None:
+            raise StopAsyncIteration
+        return message
+
+    async def close(self) -> None:
+        if not self.closed:
+            self.closed = True
+            await self.incoming.put(None)
+
+    async def emit(self, *events: dict) -> None:
+        for event in events:
+            await self.incoming.put(_AdapterMessage(event))
 
 
 class FakeTools:
@@ -214,10 +255,23 @@ async def test_armed_physical_trace_records_content_free_provider_item_ancestry(
         )
         brain.provider_observer(
             {
+                "kind": "accepted_input_turn",
+                "item_id": "user-one",
+                "root_item_id": "user-one",
+                "committed_item_id": "user-one",
+                "turn_id": 1,
+                "generation": 1,
+            }
+        )
+        brain.provider_observer(
+            {
                 "kind": "response_created",
                 "event_id": "event-r1",
                 "response_id": "response-one",
                 "conversation_id": "conversation-one",
+                "request_id": "request-one",
+                "root_item_id": "user-one",
+                "purpose": "turn",
                 "generation": 1,
                 "arbitrary": private,
             }
@@ -238,6 +292,7 @@ async def test_armed_physical_trace_records_content_free_provider_item_ancestry(
     events = latest["events"]
     added = next(row for row in events if row["event"] == "provider_conversation_item_added")
     created = next(row for row in events if row["event"] == "provider_response_created")
+    accepted = next(row for row in events if row["event"] == "provider_accepted_input_turn")
     assert (added["item_id"], added["role"], added["generation"]) == (
         "user-one",
         "user",
@@ -247,6 +302,13 @@ async def test_armed_physical_trace_records_content_free_provider_item_ancestry(
         "response-one",
         "conversation-one",
     )
+    assert (
+        accepted["root_item_id"],
+        accepted["committed_item_id"],
+        accepted["turn_id"],
+        accepted["generation"],
+    ) == ("user-one", "user-one", 1, 1)
+    assert (created["root_item_id"], created["purpose"]) == ("user-one", "turn")
     assert any(row["event"] == "provider_duplicate_response_done" for row in events)
     assert private not in json.dumps(latest, ensure_ascii=False)
 
@@ -762,6 +824,7 @@ async def test_typed_turn_is_engine_owned_idempotent_and_busy_is_explicit():
         assert duplicate == first
         assert brain.sent_text == ["Hvad er tolv gange syv?"]
         assert brain.sent_text_item_ids and len(brain.sent_text_item_ids[0] or "") == 32
+        assert brain.sent_text_turn_ids == [1]
         assert session.sm.state is State.THINKING
         assert busy["status"] == "rejected" and busy["code"] == "busy"
     finally:
@@ -781,7 +844,13 @@ async def test_typed_turn_rejects_unbounded_text_and_command_ids_before_wake():
 
 async def test_typed_turn_provider_failure_has_no_phantom_transcript():
     class FailingTextBrain(LiveFake):
-        async def send_text(self, text: str, *, item_id: str | None = None) -> None:
+        async def send_text(
+            self,
+            text: str,
+            *,
+            item_id: str | None = None,
+            turn_id: int | None = None,
+        ) -> None:
             raise ConnectionError("socket died")
 
     class RecordingHub(StatusHub):
@@ -1746,6 +1815,362 @@ async def test_delayed_speech_start_in_thinking_is_discarded():
         await session.aclose()
 
 
+@pytest.mark.parametrize("cleanup_before_playback", [True, False])
+async def test_rejected_vad_span_cannot_dispatch_a_ghost_tool_after_playback(
+    cleanup_before_playback: bool,
+):
+    """Physical trace 20260901T101334-410, complete causal sequence.
+
+    A provider VAD start crosses the closed THINKING gate.  Clearing bytes is not a
+    turn cancellation: its delayed stop/commit used to survive playback, absorb the
+    fresh follow-up window and dispatch get_time without an accepted Thin turn.
+    """
+
+    class RecordingTools(FakeTools):
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        async def dispatch(self, name: str, args: dict) -> dict:
+            self.calls.append(name)
+            return await super().dispatch(name, args)
+
+    brain = LiveFake()
+    brain.manual_input_response = True
+    tools = RecordingTools()
+    session, _attention, voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        generation = brain._connection_generation
+        brain.emit(
+            UserSpeechStarted(item_id="accepted-u1", generation=generation),
+            UserSpeechStopped(item_id="accepted-u1", generation=generation),
+        )
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+        await _wait_until(lambda: len(brain.accepted_input_turns) == 1)
+
+        brain.emit(UserSpeechStarted(item_id="rejected-q1", generation=generation))
+        await _wait_until(lambda: brain.quarantined_input_turns == [("rejected-q1", generation)])
+        if cleanup_before_playback:
+            brain.emit(UserSpeechStopped(item_id="rejected-q1-stop", generation=generation))
+            brain.emit(InputQuarantineResolved(item_id="rejected-q1", generation=generation))
+            await _wait_until(lambda: session._provider_input_quarantine is None)
+            assert session.sm.state is State.THINKING
+        brain.emit(
+            ResponseStarted(
+                "response-u1",
+                generation=generation,
+                request_id="request-u1",
+                root_item_id="accepted-u1",
+                turn_id=1,
+            ),
+            AudioChunk(
+                _frame(),
+                item_id="first-answer",
+                response_id="response-u1",
+                generation=generation,
+            ),
+            TurnComplete(response_id="response-u1", generation=generation),
+        )
+        await _wait_until(lambda: REPLY_URL in voicepe.announced_urls)
+        session._on_media_state(True)
+        session._on_media_state(False)
+        # A forced manual commit may give the later VAD stop a different provider id.
+        # The adapter owns that mapping and resolves back to the original start key.
+        if not cleanup_before_playback:
+            brain.emit(UserSpeechStopped(item_id="rejected-q1-stop", generation=generation))
+        await asyncio.sleep(0.4)
+        if not cleanup_before_playback:
+            assert session.sm.state is not State.LOUNGE_WINDOW
+            brain.emit(InputQuarantineResolved(item_id="rejected-q1", generation=generation))
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+
+        brain.emit(
+            ToolCall("ghost-call", "get_time", {}, response_id="unowned-response"),
+        )
+        await asyncio.sleep(0.05)
+
+        assert tools.calls == []
+        assert brain.sent_tool_results == []
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.parametrize("cleanup_before_playback", [True, False])
+async def test_real_adapter_quarantine_then_fresh_followup_creates_exactly_one_response(
+    cleanup_before_playback: bool,
+):
+    """Real adapter + Thin: rejected Q cannot own the fresh accepted U2 response."""
+
+    class RecordingTools(FakeTools):
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        async def dispatch(self, name: str, args: dict) -> dict:
+            self.calls.append(name)
+            return await super().dispatch(name, args)
+
+    wire = _AdapterQueueWS()
+    brain = OpenAIRealtimeSession(
+        api_key="test",
+        manual_input_response=True,
+        interrupt_response=False,
+    )
+
+    async def connect_without_network() -> None:
+        brain._connection_generation += 1
+        brain._configured = True
+        brain._configured_event.set()
+        brain._ws = wire  # type: ignore[assignment]
+
+    brain.connect = connect_without_network  # type: ignore[method-assign]
+    tools = RecordingTools()
+    session, _attention, voicepe = _build(brain)
+    session.tools = tools
+
+    def response_creates() -> list[dict]:
+        return [event for event in wire.sent if event.get("type") == "response.create"]
+
+    async def finish_quarantine(generation: int) -> None:
+        # Official Realtime semantics: committing while server VAD is active creates
+        # the item but may emit no speech_stopped edge.  The exact commit/item/delete
+        # ACK is therefore the complete cleanup proof for this rejected span.
+        await wire.emit(
+            {"type": "input_audio_buffer.committed", "item_id": "rejected-manual"},
+            {
+                "type": "conversation.item.added",
+                "item": {"id": "rejected-manual", "type": "message", "role": "user"},
+            },
+        )
+        await _wait_until(
+            lambda: any(
+                event.get("type") == "conversation.item.delete"
+                and event.get("item_id") == "rejected-manual"
+                for event in wire.sent
+            )
+        )
+        await wire.emit({"type": "conversation.item.deleted", "item_id": "rejected-manual"})
+        await _wait_until(lambda: session._provider_input_quarantine is None)
+        assert brain._connection_generation == generation
+
+    async def complete_response(create: dict, response_id: str, item_id: str) -> None:
+        assert all(isinstance(value, str) for value in create["response"]["metadata"].values())
+        await wire.emit(
+            {
+                "type": "response.created",
+                "response": {
+                    "id": response_id,
+                    "metadata": create["response"]["metadata"],
+                },
+            },
+            {
+                "type": "response.output_audio.delta",
+                "response_id": response_id,
+                "item_id": item_id,
+                "delta": base64.b64encode(_frame()).decode(),
+            },
+            {
+                "type": "response.done",
+                "response": {"id": response_id, "status": "completed"},
+            },
+        )
+
+    await session.start()
+    try:
+        await session.wake()
+        generation = brain._connection_generation
+        await wire.emit(
+            {"type": "input_audio_buffer.speech_started", "item_id": "accepted-u1"},
+            {"type": "input_audio_buffer.speech_stopped", "item_id": "accepted-u1"},
+            {"type": "input_audio_buffer.committed", "item_id": "accepted-u1"},
+            {
+                "type": "conversation.item.added",
+                "item": {"id": "accepted-u1", "type": "message", "role": "user"},
+            },
+        )
+        await _wait_until(lambda: len(response_creates()) == 1)
+        first_create = response_creates()[0]
+
+        # This is the physical 101334 race: a new VAD span crosses THINKING while
+        # response U1 is pending. It must be deleted, never become a response root.
+        await wire.emit({"type": "input_audio_buffer.speech_started", "item_id": "rejected-q1"})
+        await _wait_until(
+            lambda: any(event.get("type") == "input_audio_buffer.commit" for event in wire.sent)
+        )
+        if cleanup_before_playback:
+            await finish_quarantine(generation)
+
+        await complete_response(first_create, "response-u1", "assistant-u1")
+        await _wait_until(lambda: len(voicepe.announced_urls) == 1)
+        session._on_media_state(True)
+        session._on_media_state(False)
+        if not cleanup_before_playback:
+            await asyncio.sleep(0.4)
+            assert session.sm.state is not State.LOUNGE_WINDOW
+            await finish_quarantine(generation)
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+
+        assert len(response_creates()) == 1
+        assert len(voicepe.announced_urls) == 1
+        assert tools.calls == []
+
+        # A genuinely fresh U2 now traverses the same real adapter and owns exactly
+        # one new response in the original Realtime generation.
+        await wire.emit(
+            {"type": "input_audio_buffer.speech_started", "item_id": "accepted-u2"},
+            {"type": "input_audio_buffer.speech_stopped", "item_id": "accepted-u2"},
+            {"type": "input_audio_buffer.committed", "item_id": "accepted-u2"},
+            {
+                "type": "conversation.item.added",
+                "item": {"id": "accepted-u2", "type": "message", "role": "user"},
+            },
+        )
+        await _wait_until(lambda: len(response_creates()) == 2)
+        second_create = response_creates()[1]
+        metadata = second_create["response"]["metadata"]
+        assert metadata["podvoice_root_item_id"] == "accepted-u2"
+        assert metadata["podvoice_generation"] == str(generation)
+        assert (
+            metadata["podvoice_turn_id"] != first_create["response"]["metadata"]["podvoice_turn_id"]
+        )
+
+        await complete_response(second_create, "response-u2", "assistant-u2")
+        await _wait_until(lambda: len(voicepe.announced_urls) == 2)
+        assert session._owned_provider_responses == {"response-u1", "response-u2"}
+        assert tools.calls == []
+        assert brain._connection_generation == generation
+    finally:
+        await session.aclose()
+
+
+async def test_silent_response_waits_for_rejected_span_cleanup_before_followup():
+    """A no-audio response still defers its ready edge to exact quarantine cleanup."""
+    brain = LiveFake()
+    brain.manual_input_response = True
+    session, _attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        generation = brain._connection_generation
+        brain.emit(
+            UserSpeechStarted(item_id="accepted-u1", generation=generation),
+            UserSpeechStopped(item_id="accepted-u1", generation=generation),
+        )
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+        brain.emit(
+            UserSpeechStarted(item_id="rejected-q1", generation=generation),
+            UserSpeechStopped(item_id="rejected-q1-stop", generation=generation),
+            ResponseStarted(
+                "response-u1",
+                generation=generation,
+                request_id="request-u1",
+                root_item_id="accepted-u1",
+                turn_id=1,
+            ),
+            TurnComplete(response_id="response-u1", generation=generation),
+        )
+        await _wait_until(lambda: session._followup_waits_for_quarantine)
+        assert session.sm.state is State.THINKING
+
+        brain.emit(InputQuarantineResolved(item_id="rejected-q1", generation=generation))
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+    finally:
+        await session.aclose()
+
+
+async def test_forged_response_start_cannot_authorize_a_tool():
+    class RecordingTools(FakeTools):
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        async def dispatch(self, name: str, args: dict) -> dict:
+            self.calls.append(name)
+            return await super().dispatch(name, args)
+
+    brain = LiveFake()
+    brain.manual_input_response = True
+    tools = RecordingTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        generation = brain._connection_generation
+        brain.emit(
+            ResponseStarted(
+                "forged-response",
+                generation=generation,
+                request_id="forged-request",
+                root_item_id="forged-root",
+                turn_id=1,
+            ),
+            ToolCall(
+                "forged-call",
+                "get_time",
+                {},
+                response_id="forged-response",
+                generation=generation,
+            ),
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert tools.calls == []
+        assert brain.sent_tool_results == []
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.parametrize(
+    "stale_event",
+    [
+        ToolCall(
+            "stale-call",
+            "get_time",
+            {},
+            response_id="response-u1",
+            generation=0,
+        ),
+        ToolRoundComplete(response_id="response-u1", generation=0),
+        ToolSchemaCorrection(
+            "stale-call",
+            "get_time",
+            {"ok": False},
+            response_id="response-u1",
+            generation=0,
+        ),
+        SilentToolComplete(
+            call_ids=("stale-call",),
+            response_id="response-u1",
+            generation=0,
+        ),
+    ],
+)
+async def test_stale_response_children_fail_before_lifecycle_or_tool_dispatch(stale_event):
+    brain = LiveFake()
+    brain.manual_input_response = True
+    session, _attention, _voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        generation = brain._connection_generation
+        brain.emit(
+            UserSpeechStarted(item_id="user-u1", generation=generation),
+            UserSpeechStopped(item_id="user-u1", generation=generation),
+            ResponseStarted(
+                "response-u1",
+                generation=generation,
+                request_id="request-u1",
+                root_item_id="user-u1",
+                turn_id=1,
+            ),
+            stale_event,
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert brain.sent_tool_results == []
+    finally:
+        await session.aclose()
+
+
 async def test_max_session_still_closes_an_open_provider_speech_turn(monkeypatch):
     """Suppressing room-idle during speech never weakens the existing hard cost bound."""
     from gatekeeper import thin as thin_mod
@@ -2247,6 +2672,81 @@ async def test_failed_correlated_terminal_response_closes_silently_and_rearms():
         assert voicepe.rearm_calls == 1
         assert session._trace_reason == "model-close-silent"
         assert "playback_fault" not in trace_events
+    finally:
+        await session.aclose()
+
+
+async def test_owned_initial_response_create_rejection_fails_and_rearms():
+    brain = LiveFake()
+    brain.manual_input_response = True
+    session, attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        generation = brain._connection_generation
+        brain.emit(
+            UserSpeechStarted(item_id="user-a", generation=generation),
+            UserSpeechStopped(item_id="user-a", generation=generation),
+        )
+        await _wait_until(lambda: brain.accepted_input_turns)
+        brain.emit(
+            TurnComplete(
+                status="failed",
+                error="response.create rejected",
+                purpose="turn",
+                generation=generation,
+            )
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_owned_terminal_response_create_rejection_closes_silently():
+    brain = LiveFake()
+    brain.manual_input_response = True
+    session, attention, voicepe = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        generation = brain._connection_generation
+        brain.emit(
+            UserSpeechStarted(item_id="user-end", generation=generation),
+            UserSpeechStopped(item_id="user-end", generation=generation),
+            ResponseStarted(
+                "end-decision",
+                generation=generation,
+                request_id="request-end-decision",
+                root_item_id="user-end",
+                turn_id=1,
+            ),
+            _batched_call(
+                "end-call",
+                "end_conversation",
+                {},
+                batch_id="end-decision",
+                index=0,
+                size=1,
+                generation=generation,
+            ),
+            ToolRoundComplete(response_id="end-decision", generation=generation),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        brain.emit(
+            TurnComplete(
+                status="failed",
+                error="response.create rejected",
+                purpose="semantic_end",
+                generation=generation,
+                source_call_id="end-call",
+            )
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert session._trace_reason == "model-close-silent"
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
     finally:
         await session.aclose()
 
@@ -3099,11 +3599,13 @@ async def test_puck_gets_the_shield_talk_gets_duplex():
     build = src[src.index("def _build_session") : src.index("def _make_talk")]
     assert "full_duplex=False" in build  # physical puck is structurally half-duplex
     assert "interrupt_response=False" in build
+    assert "manual_input_response=True" in build
     assert "full_duplex=cfg.full_duplex" not in build
     assert "interrupt_response=cfg.full_duplex" not in build
     talk = src[src.index("def _make_talk") :]
     assert "full_duplex=True" in talk  # Talk tab = proving ground (browser AEC)
     assert "interrupt_response=True" in talk
+    assert "manual_input_response=True" in talk
 
 
 def test_production_builder_has_no_classic_fallback():
@@ -3546,6 +4048,7 @@ def _batched_call(
     batch_id: str,
     index: int,
     size: int,
+    generation: int | None = None,
 ) -> ToolCall:
     return ToolCall(
         call_id,
@@ -3555,6 +4058,7 @@ def _batched_call(
         batch_id=batch_id,
         batch_index=index,
         batch_size=size,
+        generation=generation,
     )
 
 

@@ -44,6 +44,7 @@ class ToolCall:
     batch_id: str | None = None
     batch_index: int = 0
     batch_size: int = 1
+    generation: int | None = None
 
 
 @dataclass
@@ -106,6 +107,7 @@ class ToolRoundComplete:
     """
 
     response_id: str | None = None
+    generation: int | None = None
 
 
 @dataclass
@@ -121,6 +123,9 @@ class ResponseStarted:
     purpose: str = "turn"
     generation: int | None = None
     source_call_id: str | None = None
+    request_id: str | None = None
+    root_item_id: str | None = None
+    turn_id: int | None = None
 
 
 @dataclass
@@ -135,6 +140,7 @@ class ToolSchemaCorrection:
     name: str
     response: dict
     response_id: str | None = None
+    generation: int | None = None
 
 
 @dataclass
@@ -147,11 +153,21 @@ class SilentToolComplete:
     """
 
     call_ids: tuple[str, ...] = ()
+    response_id: str | None = None
+    generation: int | None = None
 
 
 @dataclass
 class Interrupted:
-    """Server-side barge-in signal — flush queued/in-flight playback."""
+    """Server-side barge-in signal — flush queued/in-flight playback.
+
+    ``item_id`` is the exact provider VAD span that caused the interruption.
+    ``generation`` prevents a delayed edge from an old socket being accepted by
+    the replacement conversation.
+    """
+
+    item_id: str | None = None
+    generation: int | None = None
 
 
 @dataclass
@@ -161,6 +177,9 @@ class UserSpeechStarted:
     Half-duplex transports use this edge to discard/reset accidental input at the
     answer boundary without pretending that server-side barge-in occurred.
     """
+
+    item_id: str | None = None
+    generation: int | None = None
 
 
 @dataclass
@@ -172,6 +191,23 @@ class UserSpeechStopped:
     gate-open) wrongly counts the user's own speaking time as model latency.
     Providers that don't surface a clean end-of-speech signal simply never emit
     this, leaving their TTFR watchdog inactive (safe)."""
+
+    item_id: str | None = None
+    generation: int | None = None
+
+
+@dataclass
+class InputQuarantineResolved:
+    """One rejected provider VAD span is absent from conversation history.
+
+    The event is emitted only after every user item committed for the span has
+    received an exact ``conversation.item.deleted`` acknowledgement. ``item_id``
+    remains the original ``speech_started`` key; provider-specific committed item
+    identifiers stay encapsulated by the adapter.
+    """
+
+    item_id: str
+    generation: int
 
 
 @dataclass
@@ -220,6 +256,7 @@ VoiceEvent = Union[  # noqa: UP007
     Interrupted,
     UserSpeechStarted,
     UserSpeechStopped,
+    InputQuarantineResolved,
     Idle,
     Usage,
 ]
@@ -235,7 +272,21 @@ class VoiceSession(Protocol):
 
     async def clear_input_audio(self) -> None: ...
 
-    async def send_text(self, text: str, *, item_id: str | None = None) -> None: ...
+    async def accept_input_turn(self, item_id: str, turn_id: int, generation: int) -> None:
+        """Accept one VAD item and request exactly one correlated response."""
+        ...
+
+    async def quarantine_input_turn(self, item_id: str, generation: int) -> None:
+        """Commit and delete one rejected VAD span before the mic gate reopens."""
+        ...
+
+    async def send_text(
+        self,
+        text: str,
+        *,
+        item_id: str | None = None,
+        turn_id: int | None = None,
+    ) -> None: ...
 
     async def send_tool_results(self, results: list) -> bool | None:
         """Submit outputs; True means a pure silent round completed immediately."""

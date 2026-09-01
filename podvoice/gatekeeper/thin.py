@@ -33,6 +33,7 @@ from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 from .voice import (
     AudioChunk,
     Idle,
+    InputQuarantineResolved,
     InputTranscript,
     Interrupted,
     OutputTranscript,
@@ -56,6 +57,11 @@ _PHYSICAL_PROVIDER_TRACE_KINDS = frozenset(
         "response_output_item_added",
         "response_output_item_done",
         "input_audio_buffer_committed",
+        "accepted_input_turn",
+        "rejected_input_quarantined",
+        "conversation_item_deleted",
+        "response_create_pre_wire",
+        "response_create_sent",
         "response_done",
         "duplicate_response_done",
     }
@@ -66,6 +72,13 @@ _PHYSICAL_PROVIDER_TRACE_FIELDS = (
     "conversation_id",
     "request_id",
     "request_id_matched",
+    "root_item_id",
+    "committed_item_id",
+    "turn_id",
+    "input_generation",
+    "purpose",
+    "input_kind",
+    "source_call_id",
     "provider_event_type",
     "previous_item_id",
     "item_id",
@@ -417,6 +430,14 @@ class ThinSession:
         self._followup_task: asyncio.Task | None = None  # delayed turn-ready LED fallback
         self._turn_cue_appended = False  # this reply ends with the audible hand-over cue
         self._discarding_half_duplex_input = False
+        # Mechanical provider ownership only.  These fields do not decide meaning or
+        # add a second lifecycle: they bind one provider VAD span to the existing
+        # LISTENING/LOUNGE gate and keep a rejected span out of the next turn.
+        self._provider_input_span: tuple[str, int] | None = None
+        self._provider_input_quarantine: tuple[str, int] | None = None
+        self._provider_turn_lease: tuple[str, int, int] | None = None
+        self._followup_waits_for_quarantine = False
+        self._owned_provider_responses: set[str] = set()
         # Mechanical provider-VAD fact, not a second lifecycle state. An accepted
         # speech_started keeps the existing listening state open until its matching
         # stop; absence of another provider event is never proof of room silence.
@@ -592,6 +613,11 @@ class ThinSession:
         self._tool_batches.clear()
         self._turn_cue_appended = False
         self._discarding_half_duplex_input = False
+        self._provider_input_span = None
+        self._provider_input_quarantine = None
+        self._provider_turn_lease = None
+        self._followup_waits_for_quarantine = False
+        self._owned_provider_responses.clear()
         self._user_speech_active = False
         self._last_user_utterance = ""
         self._last_activity = self._conv_started
@@ -803,13 +829,34 @@ class ThinSession:
             self._set_led(State.THINKING)
             self._hub_state("THINKING", None)
             turn_id = self._external_turn_id(turn)
+            # Use the same provider-safe id in the local boundary trace and on the
+            # wire, so typed Talk proves the identical accepted-turn ownership chain.
+            provider_item_id = f"pv_{hashlib.sha256(cid.encode()).hexdigest()[:29]}"
+            provider_generation = getattr(self.brain, "_connection_generation", None)
             self._trace_event("text_submitted", command_id=cid)
-            self._trace_event("speech_stopped", source="text")
+            self._trace_event(
+                "speech_stopped",
+                source="text",
+                accepted=True,
+                item_id=provider_item_id,
+                generation=provider_generation,
+            )
             try:
-                # Realtime client item ids are capped at 32 characters. Keep the
-                # namespace while deriving a stable id from the opaque command id.
-                provider_item_id = f"pv_{hashlib.sha256(cid.encode()).hexdigest()[:29]}"
-                await self.brain.send_text(cleaned, item_id=provider_item_id)
+                if self._manual_input_response_enabled():
+                    if not isinstance(provider_generation, int) or isinstance(
+                        provider_generation, bool
+                    ):
+                        raise ConnectionError("provider generation missing for typed turn")
+                    self._provider_turn_lease = (
+                        provider_item_id,
+                        turn.serial,
+                        provider_generation,
+                    )
+                await self.brain.send_text(
+                    cleaned,
+                    item_id=provider_item_id,
+                    turn_id=turn.serial,
+                )
             except Exception as exc:
                 _LOG.warning("thin: typed input submission failed [room=%s]: %s", self.room, exc)
                 self._trace_event("text_submit_failed", command_id=cid)
@@ -1030,6 +1077,11 @@ class ThinSession:
         self._held_announce_item = None
         self._turn_cue_appended = False
         self._discarding_half_duplex_input = False
+        self._provider_input_span = None
+        self._provider_input_quarantine = None
+        self._provider_turn_lease = None
+        self._followup_waits_for_quarantine = False
+        self._owned_provider_responses.clear()
         self._user_speech_active = False
         self._idle_deadline = None
         self._ending_conversation = False
@@ -1368,7 +1420,96 @@ class ThinSession:
                 return
 
     # ------------------------------------------------------------- provider events
-    def _accept_user_speech_stopped(self) -> None:
+    def _manual_input_response_enabled(self) -> bool:
+        """Whether this provider requires Thin to own each initial response."""
+        return bool(getattr(self.brain, "manual_input_response", False))
+
+    def _provider_generation_matches(self, generation: int | None) -> bool:
+        current = getattr(self.brain, "_connection_generation", None)
+        return (
+            isinstance(generation, int)
+            and not isinstance(generation, bool)
+            and isinstance(current, int)
+            and generation == current
+        )
+
+    def _response_event_is_owned(self, ev: object) -> bool:
+        """Fail closed before provider output crosses into playback/tool dispatch."""
+        if not self._manual_input_response_enabled():
+            return True
+        response_id = getattr(ev, "response_id", None)
+        generation = getattr(ev, "generation", None)
+        generation_matches = self._provider_generation_matches(generation)
+        if (
+            isinstance(ev, TurnComplete)
+            and response_id is None
+            and ev.status == "failed"
+            and ev.purpose in {"turn", "tool_result", "semantic_end"}
+            and generation_matches
+        ):
+            # A correlated response.create can fail before Realtime assigns an id.
+            # The provider already bound the error to our exact request; preserve
+            # Thin's established technical/silent-terminal failure handling.
+            return True
+        if (
+            isinstance(response_id, str)
+            and response_id in self._owned_provider_responses
+            and generation_matches
+        ):
+            return True
+        self._trace_event(
+            "provider_response_unowned",
+            response_id=response_id,
+            generation=generation,
+            event_type=type(ev).__name__,
+        )
+        self._request_close("error:connection", error_kind="connection")
+        return False
+
+    async def _quarantine_provider_input(self, item_id: str, generation: int) -> bool:
+        """Register one rejected VAD span without waiting inside the event reader."""
+        if self._provider_input_quarantine is not None:
+            if self._provider_input_quarantine == (item_id, generation):
+                self._trace_event(
+                    "input_quarantine_duplicate",
+                    item_id=item_id,
+                    generation=generation,
+                )
+                return True
+            self._trace_event(
+                "input_quarantine_conflict",
+                item_id=item_id,
+                generation=generation,
+            )
+            self._request_close("error:connection", error_kind="connection")
+            return False
+        self._provider_input_quarantine = (item_id, generation)
+        self._discarding_half_duplex_input = True
+        self._idle_deadline = None
+        self._trace_event(
+            "input_quarantine_started",
+            item_id=item_id,
+            generation=generation,
+        )
+        try:
+            await self.brain.quarantine_input_turn(item_id, generation)
+        except Exception as exc:
+            _LOG.warning("thin: provider input quarantine failed: %s", exc)
+            self._trace_event(
+                "input_quarantine_failed",
+                item_id=item_id,
+                generation=generation,
+            )
+            self._request_close("error:connection", error_kind="connection")
+            return False
+        return True
+
+    def _accept_user_speech_stopped(
+        self,
+        *,
+        item_id: str | None = None,
+        generation: int | None = None,
+    ) -> _ClosureTurn | None:
         """Commit one provider speech boundary while the wire seam is serialised."""
         # This helper runs synchronously after Voice PE's mic-send seam is acquired.
         # Clear the VAD fact together with the state transition so heartbeat cannot
@@ -1386,19 +1527,38 @@ class ThinSession:
         turn = self._ensure_closure_turn()
         if turn.user_finished_at is None:
             turn.user_finished_at = time.time()
-        self._trace_event("speech_stopped", accepted=turn_open)
+        self._trace_event(
+            "speech_stopped",
+            accepted=turn_open,
+            item_id=item_id,
+            generation=generation,
+        )
         self._speech_stop_t = time.monotonic()
         if not turn_open:
-            return
+            return None
         self.sm.state = State.THINKING
         if not self.full_duplex:
             self._trace_event("mic_gate_closed", state=State.THINKING.name)
             self._cut_audio_boundary("speech-stopped")
         self._set_led(State.THINKING)
         self._hub_state("THINKING", None)
+        return turn
 
     async def _on_event(self, ev) -> None:
         self._last_activity = time.monotonic()
+        if isinstance(
+            ev,
+            (
+                AudioChunk,
+                OutputTranscript,
+                TurnComplete,
+                ToolCall,
+                ToolRoundComplete,
+                ToolSchemaCorrection,
+                SilentToolComplete,
+            ),
+        ) and not self._response_event_is_owned(ev):
+            return
         if isinstance(ev, AudioChunk):
             turn = self._closure_turn
             if turn is not None and turn.semantic_end and turn.correlation_required:
@@ -1428,19 +1588,53 @@ class ThinSession:
                 and not self._ending_conversation
                 and (self.full_duplex or self.sm.state in (State.LISTENING, State.LOUNGE_WINDOW))
             )
+            if self._manual_input_response_enabled():
+                item_id, generation = ev.item_id, ev.generation
+                if (
+                    not isinstance(item_id, str)
+                    or not item_id
+                    or not self._provider_generation_matches(generation)
+                ):
+                    self._trace_event(
+                        "provider_input_start_invalid",
+                        item_id=item_id,
+                        generation=generation,
+                        source="interrupted",
+                    )
+                    self._request_close("error:connection", error_kind="connection")
+                    return
+                assert isinstance(generation, int) and not isinstance(generation, bool)
+                span = (item_id, generation)
+                if self._provider_input_span is not None:
+                    if self._provider_input_span == span:
+                        self._trace_event(
+                            "provider_input_start_duplicate",
+                            item_id=item_id,
+                            generation=generation,
+                        )
+                        return
+                    self._trace_event(
+                        "provider_input_start_conflict",
+                        item_id=item_id,
+                        generation=generation,
+                    )
+                    self._request_close("error:connection", error_kind="connection")
+                    return
+                if interruption_accepted:
+                    self._provider_input_span = span
+                else:
+                    await self._quarantine_provider_input(item_id, generation)
+                    return
             if interruption_accepted:
                 self._user_speech_active = True
                 self._idle_deadline = None
-            self._trace_event("speech_started_or_interrupted")
+            self._trace_event(
+                "speech_started_or_interrupted",
+                item_id=ev.item_id,
+                generation=ev.generation,
+            )
             self._start_barge_debounce()
         elif isinstance(ev, UserSpeechStarted):
-            current = self._closure_turn
-            if current is not None and any(
-                turn is current for _epoch, turn in self._wait_turns.values()
-            ):
-                # A genuine new utterance supersedes any still-pending lifecycle
-                # decision. Its delayed completion remains bound to the old turn.
-                self._begin_closure_turn()
             # The provider deliberately did NOT cancel its response. In the shipped
             # half-duplex contract, only an edge that crosses an active answer gate is
             # discarded. Ordinary first/follow-up speech must remain untouched.
@@ -1455,17 +1649,115 @@ class ThinSession:
                 or time.monotonic() < self._reply_audible_until
             )
             self._trace_event(
-                "half_duplex_input_discarded" if crossed_answer_gate else "speech_started"
+                "half_duplex_input_discarded" if crossed_answer_gate else "speech_started",
+                item_id=ev.item_id,
+                generation=ev.generation,
             )
             self._discarding_half_duplex_input = crossed_answer_gate
             self._user_speech_active = not crossed_answer_gate
+            if self._manual_input_response_enabled():
+                item_id, generation = ev.item_id, ev.generation
+                if (
+                    not isinstance(item_id, str)
+                    or not item_id
+                    or not self._provider_generation_matches(generation)
+                ):
+                    self._trace_event(
+                        "provider_input_start_invalid",
+                        item_id=item_id,
+                        generation=generation,
+                        source="vad",
+                    )
+                    self._request_close("error:connection", error_kind="connection")
+                    return
+                assert isinstance(generation, int) and not isinstance(generation, bool)
+                span = (item_id, generation)
+                if self._provider_input_span is not None:
+                    if self._provider_input_span == span:
+                        self._trace_event(
+                            "provider_input_start_duplicate",
+                            item_id=item_id,
+                            generation=generation,
+                        )
+                        return
+                    self._trace_event(
+                        "provider_input_start_conflict",
+                        item_id=item_id,
+                        generation=generation,
+                    )
+                    self._request_close("error:connection", error_kind="connection")
+                    return
+                if crossed_answer_gate:
+                    await self._quarantine_provider_input(item_id, generation)
+                    return
+                self._provider_input_span = span
+            current = self._closure_turn
+            if current is not None and any(
+                turn is current for _epoch, turn in self._wait_turns.values()
+            ):
+                # A genuine new utterance supersedes any still-pending lifecycle
+                # decision. Its delayed completion remains bound to the old turn.
+                self._begin_closure_turn()
             if not crossed_answer_gate:
                 self._idle_deadline = None
-            if crossed_answer_gate and hasattr(self.brain, "clear_input_audio"):
+            if (
+                crossed_answer_gate
+                and not self._manual_input_response_enabled()
+                and hasattr(self.brain, "clear_input_audio")
+            ):
                 # Dropping subsequent mic frames with the provider VAD still open
                 # would leave it stuck forever in speech_started.
                 self._spawn(self.brain.clear_input_audio(), "thin-clear-half-duplex-input")
         elif isinstance(ev, ResponseStarted):
+            if self._manual_input_response_enabled():
+                response_lease = (
+                    (ev.root_item_id, ev.turn_id, ev.generation)
+                    if isinstance(ev.root_item_id, str)
+                    and ev.root_item_id
+                    and isinstance(ev.turn_id, int)
+                    and not isinstance(ev.turn_id, bool)
+                    and isinstance(ev.generation, int)
+                    and not isinstance(ev.generation, bool)
+                    else None
+                )
+                if (
+                    not ev.response_id
+                    or not ev.request_id
+                    or not self._provider_generation_matches(ev.generation)
+                    or response_lease != self._provider_turn_lease
+                    or ev.response_id in self._owned_provider_responses
+                ):
+                    self._trace_event(
+                        "provider_response_start_invalid",
+                        response_id=ev.response_id,
+                        request_id=ev.request_id,
+                        root_item_id=ev.root_item_id,
+                        turn=ev.turn_id,
+                        generation=ev.generation,
+                        purpose=ev.purpose,
+                        expected_root_item_id=(
+                            self._provider_turn_lease[0]
+                            if self._provider_turn_lease is not None
+                            else None
+                        ),
+                        expected_turn=(
+                            self._provider_turn_lease[1]
+                            if self._provider_turn_lease is not None
+                            else None
+                        ),
+                    )
+                    self._request_close("error:connection", error_kind="connection")
+                    return
+                self._owned_provider_responses.add(ev.response_id)
+                self._trace_event(
+                    "provider_response_owned",
+                    response_id=ev.response_id,
+                    request_id=ev.request_id,
+                    root_item_id=ev.root_item_id,
+                    turn=ev.turn_id,
+                    generation=ev.generation,
+                    purpose=ev.purpose,
+                )
             if ev.purpose != "semantic_end":
                 return
             turn = self._closure_turn
@@ -1733,7 +2025,135 @@ class ThinSession:
                 self.hub.incr("tool_calls")
             self._speech_tools.add(ev.id)
             self._start_tool_task(ev, self._run_tool(ev))
+        elif isinstance(ev, InputQuarantineResolved):
+            if not self._manual_input_response_enabled():
+                return
+            resolved = (ev.item_id, ev.generation)
+            if self._provider_input_quarantine != resolved:
+                self._trace_event(
+                    "input_quarantine_resolution_stale",
+                    item_id=ev.item_id,
+                    generation=ev.generation,
+                    expected_item_id=(
+                        self._provider_input_quarantine[0]
+                        if self._provider_input_quarantine is not None
+                        else None
+                    ),
+                    expected_generation=(
+                        self._provider_input_quarantine[1]
+                        if self._provider_input_quarantine is not None
+                        else None
+                    ),
+                )
+                self._request_close("error:connection", error_kind="connection")
+                return
+            self._provider_input_quarantine = None
+            self._discarding_half_duplex_input = False
+            self._user_speech_active = False
+            self._trace_event(
+                "input_quarantine_resolved",
+                item_id=ev.item_id,
+                generation=ev.generation,
+            )
+            self._cancel_barge_debounce()
+            if self._followup_waits_for_quarantine:
+                self._enter_followup()
         elif isinstance(ev, UserSpeechStopped):
+            if self._manual_input_response_enabled():
+                item_id, generation = ev.item_id, ev.generation
+                if (
+                    not isinstance(item_id, str)
+                    or not item_id
+                    or not self._provider_generation_matches(generation)
+                ):
+                    self._trace_event(
+                        "provider_input_stop_invalid",
+                        item_id=item_id,
+                        generation=generation,
+                    )
+                    self._request_close("error:connection", error_kind="connection")
+                    return
+                assert isinstance(generation, int) and not isinstance(generation, bool)
+                stopped_span = (item_id, generation)
+                if self._provider_input_quarantine is not None:
+                    quarantine_item_id, quarantine_generation = self._provider_input_quarantine
+                    if generation != quarantine_generation:
+                        self._trace_event(
+                            "input_quarantine_stop_conflict",
+                            item_id=item_id,
+                            generation=generation,
+                            expected_generation=quarantine_generation,
+                        )
+                        self._request_close("error:connection", error_kind="connection")
+                        return
+                    self._user_speech_active = False
+                    self._idle_deadline = None
+                    self._trace_event(
+                        "input_quarantine_stopped",
+                        item_id=item_id,
+                        root_item_id=quarantine_item_id,
+                        generation=generation,
+                    )
+                    self._cancel_barge_debounce()
+                    return
+                if self._provider_input_span != stopped_span:
+                    self._trace_event(
+                        "provider_input_stop_unmatched",
+                        item_id=item_id,
+                        generation=generation,
+                        expected_item_id=(
+                            self._provider_input_span[0]
+                            if self._provider_input_span is not None
+                            else None
+                        ),
+                    )
+                    self._request_close("error:connection", error_kind="connection")
+                    return
+                self._provider_input_span = None
+                if self.full_duplex:
+                    accepted_turn = self._accept_user_speech_stopped(
+                        item_id=item_id,
+                        generation=generation,
+                    )
+                else:
+                    async with self._mic_send_lock:
+                        accepted_turn = self._accept_user_speech_stopped(
+                            item_id=item_id,
+                            generation=generation,
+                        )
+                if accepted_turn is None:
+                    await self._quarantine_provider_input(item_id, generation)
+                    self._cancel_barge_debounce()
+                    return
+                try:
+                    await self.brain.accept_input_turn(
+                        item_id,
+                        accepted_turn.serial,
+                        generation,
+                    )
+                except Exception as exc:
+                    _LOG.warning("thin: accepting provider input turn failed: %s", exc)
+                    self._trace_event(
+                        "provider_input_accept_failed",
+                        item_id=item_id,
+                        generation=generation,
+                        turn=accepted_turn.serial,
+                    )
+                    self._request_close("error:connection", error_kind="connection")
+                    return
+                self._provider_turn_lease = (
+                    item_id,
+                    accepted_turn.serial,
+                    generation,
+                )
+                self._trace_event(
+                    "provider_input_accepted",
+                    item_id=item_id,
+                    generation=generation,
+                    turn=accepted_turn.serial,
+                )
+                self._cancel_barge_debounce()
+                return
             if self._discarding_half_duplex_input:
                 self._discarding_half_duplex_input = False
                 self._user_speech_active = False
@@ -1868,7 +2288,12 @@ class ThinSession:
             return
         first = not self._speaking
         if first:
-            self._trace_event("response_audio_started", item_id=ev.item_id)
+            self._trace_event(
+                "response_audio_started",
+                item_id=ev.item_id,
+                response_id=ev.response_id,
+                generation=ev.generation,
+            )
             self._speaking = True
             self._direct = direct
             self._turn_cue_appended = False
@@ -3048,10 +3473,10 @@ class ThinSession:
             if field in row
             and (isinstance(row[field], (str, int, float, bool)) or row[field] is None)
         }
+        details.setdefault("turn_id", self._external_turn_id())
         details.update(
             {
                 "session_id": self._history_session or None,
-                "turn_id": self._external_turn_id(),
                 "audio_generation": getattr(self.voicepe, "audio_generation", None),
             }
         )
@@ -3115,6 +3540,12 @@ class ThinSession:
     def _enter_followup(self) -> None:
         """The room is quiet again: dim ring, open mic, one clear next-turn state."""
         lease = self._playback_lease
+        if self._provider_input_quarantine is not None:
+            # A lifecycle owner has proved the prior reply complete, but provider
+            # cleanup still owns the closed mic seam. Its exact ACK may finish later.
+            self._followup_waits_for_quarantine = True
+            return
+        self._followup_waits_for_quarantine = False
         # A finished lease remains busy through the echo tail. It is cleared by
         # _end_echo_gate; exposing LOUNGE earlier would accept speech that the mic gate
         # still has to discard.
