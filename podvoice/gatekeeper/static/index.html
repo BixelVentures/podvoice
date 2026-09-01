@@ -365,6 +365,7 @@
       <h2>Maskinel Realtime-preflight</h2>
       <p class="sub" style="margin:2px 0 10px">Kører den rigtige model og produktionsprompt med faste, sikre testdata. Nabu og Talk låses, mens testen kører. Hårdt samlet prisloft: $5. Første sikre scenariesvar er samtidig providerpreflight; der køres ingen ekstra budgetprobe. En brugerdefineret prompt over 32 KiB blokeres kun i denne sikre live-test og ændres aldrig i produktion. Testen kan ikke styre hjemmet, musik eller timere og erstatter ikke den fysiske test.</p>
       <button id="eval_live">Kør sikker preflight</button>
+      <button id="eval_protocol_owner" class="ghost">Test sikker Realtime-svarstyring</button>
       <button id="eval_golden" class="ghost">Test golden-chain-semantik 5×</button>
       <button id="eval_close" class="ghost">Test samtaleafslutning (8 ture)</button>
       <button id="eval_replay" class="ghost">Genafspil seneste OpenAI-lyd 3×</button>
@@ -1176,6 +1177,7 @@ setInterval(function () {
 // ---- Bounded live Realtime preflight; fixed tools, no HA/MCP side effects ----
 (function () {
   var button = document.getElementById("eval_live");
+  var protocolOwnerButton = document.getElementById("eval_protocol_owner");
   var goldenButton = document.getElementById("eval_golden");
   var closeButton = document.getElementById("eval_close");
   var replayButton = document.getElementById("eval_replay");
@@ -1190,9 +1192,9 @@ setInterval(function () {
   ];
   var goldenScenarioIds = ["arithmetic-followup-observed"];
   var pollGeneration = 0;
-  if (!button || !goldenButton || !closeButton || !replayButton || !numericAbButton || !box) return;
+  if (!button || !protocolOwnerButton || !goldenButton || !closeButton || !replayButton || !numericAbButton || !box) return;
   function setButtonsDisabled(disabled) {
-    button.disabled = disabled; goldenButton.disabled = disabled; closeButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
+    button.disabled = disabled; goldenButton.disabled = disabled; protocolOwnerButton.disabled = disabled; closeButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
   }
   function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function semanticAudioAbPassed(data) {
@@ -1216,13 +1218,24 @@ setInterval(function () {
   function renderRunning(data) {
     box.innerHTML = "";
     var suffix = data && data.run_id ? " · " + data.run_id : "";
-    var label = data && data.kind === "semantic-audio-ab" ? "Sammenligner samme opfølgning som tekst og eksakt providerlyd" : data && data.kind === "audio-replay" ? "Genafspiller den samme providerlyd mod Realtime" : "Kører sikker Realtime-test";
+    var label = data && data.kind === "protocol-owner" ? "Tester at kun accepteret tale kan udløse et Realtime-svar" : data && data.kind === "semantic-audio-ab" ? "Sammenligner samme opfølgning som tekst og eksakt providerlyd" : data && data.kind === "audio-replay" ? "Genafspiller den samme providerlyd mod Realtime" : "Kører sikker Realtime-test";
     var deadline = Math.max(1, Number(data && data.deadline_s || 720));
     var minutes = Math.ceil(deadline / 60);
-    box.appendChild(ee("div", "empty", label + suffix + ". Nabu er midlertidigt låst imens. Samlet prisloft: $5; første sikre scenariesvar er providerpreflight. Tier-1-pacing kan tage op til " + minutes + " minutter…"));
+    var detail = data && data.kind === "protocol-owner" ? ". Ingen hjem-, musik- eller timerhandlinger." : "; første sikre scenariesvar er providerpreflight.";
+    box.appendChild(ee("div", "empty", label + suffix + ". Nabu er midlertidigt låst imens. Samlet prisloft: $5" + detail + " Kan tage op til " + minutes + " minutter…"));
   }
   function render(data) {
     box.innerHTML = "";
+    if (data && data.kind === "protocol-owner") {
+      var protocolPassed = data.status === "complete" && data.ok === true && data.decision === "GO_TO_RELEASE_GATE" && data.classification === "protocol-owner-proven";
+      var protocolHead = ee("div", "line " + (protocolPassed ? "out" : "in"));
+      protocolHead.appendChild(ee("div", "who", protocolPassed ? "✓ REALTIME-SVARSTYRING BESTÅET" : "✕ REALTIME-SVARSTYRING BLOKERET"));
+      protocolHead.appendChild(document.createTextNode(protocolPassed ? "Afvist lyd gav intet svar, og den næste accepterede tur gav præcis ét svar i samme session." : "Protokoltesten gav ikke et gyldigt GO-resultat."));
+      box.appendChild(protocolHead);
+      box.appendChild(ee("div", "sub", "Resultat: " + (data.classification || data.error_code || data.status || "ukendt") + ". Fysisk golden chain og 10/10 mangler stadig."));
+      if (data.budget) box.appendChild(ee("div", "sub", "Forbrug: " + (data.budget.actual_tokens || 0) + " tokens · estimeret $" + Number(data.budget.cost_usd || 0).toFixed(3)));
+      return;
+    }
     if (!data || data.status !== "complete") {
       var failed = ee("div", "line in");
       failed.appendChild(ee("div", "who", "✕ Preflight fejlede"));
@@ -1363,6 +1376,18 @@ setInterval(function () {
   }
   button.onclick = function () {
     return startLiveEval(null);
+  };
+  protocolOwnerButton.onclick = async function () {
+    var generation = ++pollGeneration;
+    setButtonsDisabled(true); renderRunning({kind:"protocol-owner",deadline_s:45});
+    try {
+      var response = await fetch("api/eval/protocol-owner", {method:"POST",headers:{"Content-Type":"application/json"},body:'{"max_cost_usd":5}'});
+      var data = await response.json();
+      if ((data.status === "running" || data.status === "busy") && data.run_id) {
+        renderRunning(data); await poll(data.run_id, generation, data.deadline_s);
+      } else { render(data); }
+    } catch (error) { render({kind:"protocol-owner",status:"failed",error_code:"panel-request-failed"}); }
+    finally { if (generation === pollGeneration) setButtonsDisabled(false); }
   };
   goldenButton.onclick = function () {
     return startLiveEval(goldenScenarioIds, 5);

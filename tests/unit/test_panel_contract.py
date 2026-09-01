@@ -184,6 +184,7 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     html = PANEL.read_text()
 
     assert 'id="eval_live"' in html
+    assert 'id="eval_protocol_owner"' in html
     assert 'id="eval_golden"' in html
     assert 'id="eval_replay"' in html
     assert 'id="eval_numeric_ab"' in html
@@ -191,13 +192,34 @@ def test_test_tab_exposes_bounded_live_realtime_preflight():
     assert 'fetch("api/eval/live"' in html
     assert 'fetch("api/eval/live?run_id="' in html
     assert 'fetch("api/eval/replay"' in html
+    assert 'fetch("api/eval/protocol-owner"' in html
 
 
-def test_protocol_owner_probe_has_no_panel_button_or_browser_call():
+def test_protocol_owner_probe_has_one_canonical_locked_polling_trigger():
     html = PANEL.read_text()
-    assert "/api/eval/protocol-owner" not in html
+    handler_start = html.index("protocolOwnerButton.onclick = async function ()")
+    handler_end = html.index("goldenButton.onclick", handler_start)
+    handler = html[handler_start:handler_end]
+
+    assert html.count('id="eval_protocol_owner"') == 1
+    assert html.count('fetch("api/eval/protocol-owner"') == 1
+    assert html.count("body:'{\"max_cost_usd\":5}'") == 1
+    assert 'headers:{"Content-Type":"application/json"}' in html
+    assert "protocolOwnerButton.disabled = disabled;" in html
+    assert handler.index("setButtonsDisabled(true)") < handler.index(
+        'fetch("api/eval/protocol-owner"'
+    )
+    assert handler.index('fetch("api/eval/protocol-owner"') < handler.index(
+        "await poll(data.run_id, generation, data.deadline_s)"
+    )
+    assert "finally { if (generation === pollGeneration) setButtonsDisabled(false); }" in handler
     assert 'data.status === "running" || data.status === "busy"' in html
     assert "poll(data.run_id, generation, data.deadline_s)" in html
+    assert 'fetch("api/eval/live?run_id=" + encodeURIComponent(runId)' in html
+    assert 'data.kind === "protocol-owner"' in html
+    assert 'data.decision === "GO_TO_RELEASE_GATE"' in html
+    assert 'data.classification === "protocol-owner-proven"' in html
+    assert "Fysisk golden chain og 10/10 mangler stadig." in html
     assert '"Årsag: " + (finding.message' in html
     assert "data.prompt_source" in html
     assert "brugerdefineret prompt" in html

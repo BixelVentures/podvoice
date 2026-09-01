@@ -2666,6 +2666,7 @@ async def test_failed_correlated_terminal_response_closes_silently_and_rearms():
             ),
         )
         await _wait_until(lambda: session.sm.state is State.IDLE)
+        await _wait_until(lambda: voicepe.rearm_calls == 1)
         assert speech.calls == []
         assert voicepe.announced_urls == []
         assert len(attention.release_calls) == 1
@@ -2698,6 +2699,7 @@ async def test_owned_initial_response_create_rejection_fails_and_rearms():
             )
         )
         await _wait_until(lambda: session.sm.state is State.IDLE)
+        await _wait_until(lambda: voicepe.rearm_calls == 1)
         assert len(attention.release_calls) == 1
         assert voicepe.rearm_calls == 1
     finally:
@@ -2744,6 +2746,7 @@ async def test_owned_terminal_response_create_rejection_closes_silently():
             )
         )
         await _wait_until(lambda: session.sm.state is State.IDLE)
+        await _wait_until(lambda: voicepe.rearm_calls == 1)
         assert session._trace_reason == "model-close-silent"
         assert len(attention.release_calls) == 1
         assert voicepe.rearm_calls == 1
