@@ -1,30 +1,83 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-09-01.
+Senest opdateret: 2026-09-02.
 
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Installeret kandidat:** add-onen rapporterer v1.13.54 fra exact main
-`a026e9431b9efb801e3951fea5feae5103cf827b`; CI-artifactets SHA-256 er
-`0b4760d0c7a3731317bad487d5c5cb7ee3f6d82d5b308cc6ff1f7ff0943d04be`.
-Startup-loggen beviser version, forbindelse til Voice PE samt HA/MCP. Den installerede
-live-protokolprobe `eval-1788271680-65640a` brugte 171 tokens og estimeret `$0.009`, men
-stoppede fail-closed; v1.13.54 er derfor **ikke fysisk testklar**. Den
-tidligere installerede v1.13.52 fra exact main
-`a8df310c21fbd04e8b7fd673ffc22b8d1086b1a7`, runtime-rootfs `7813d11be6a2`, model
-`gpt-realtime-2.1`, Prompt V7 og den forventede v1.13.46-firmwarekontrakt er fortsat
-den seneste fuldt korrelerede fysiske kandidat. **Aktuel gate:** v1.13.52 er **NO-GO**.
-Den fysiske trace
-`20260901T101334-410` beviser, at en provider-VAD-start, som Thin afviste under
-`THINKING`, overlevede buffer-clear og playback, opslugte frisk opfølgningslyd og
-udløste et automatisk svar samt `get_time` uden en ny accepteret Thin-tur.
+**Installeret kandidat:** add-onen rapporterer v1.13.55 fra kandidatcommit
+`d496ca0`; runtime-rootfs er
+`645adfade8b46ab46068ff6121347d593b13737897db096420a9393bed77cbde`.
+Den armerede fysiske trace `20260902T141043-607` er én bestået Golden Chain på disse
+bits: 12 × 7 gav 84, “Læg seks til” gav 90 i samme provider-conversation og generation,
+og “Tak, det var alt” gav præcis ét `end_conversation`, én teardown og én rearm.
+Den efterfølgende tekst/lyd-sammenligning `eval-1788351114-20fddc` gav korrekt 90 uden
+værktøj i 5/5 tekstkontroller og 5/5 replay af den eksakte provider-PCM. Rapportens
+samlede NO-GO er dog ikke gyldig som provider-kædedom: oraklet kræver en indbyrdes
+rækkefølge mellem to sideordnede start-events, som alle ti liveforsøg og den armerede
+trace leverede modsat. Den separate diagnostiske ASR skrev samtidig “Klik seks til” i
+5/5 lydforsøg. Device-/provider-sammenligningen viser efterfølgende, at hele signalet
+nåede providerinputtet uforvansket; afvigelsen tilhører derfor den separate
+diagnose-ASR og er ikke en Voice PE-transport- eller runtime-semantikfejl. Den bevares
+synligt som en konservativ diagnostisk afvigelse. **Aktuel fysisk gate:**
+Golden Chain **1/1**; ubrudte lifecycle-cyklusser **0/10**. v1.13.55 er derfor ikke
+releasegodkendt endnu.
 
 **Aktiv udviklingskandidat:** v1.13.55 retter kun den live-beviste afslutning af en
 afvist provider-VAD-spændvidde. Fysisk accepterede brugerturns forbliver ene ejer af
 `response.create`. Semantic VAD, samme Realtime-session og de fem eksisterende states
 bevares; firmware, gain, fysisk lydtransport, playback, prompt, model, reasoning,
 schema, værktøjer, firesekunders timeout, teardown og rearm er frosne.
+
+### Aktiv beslutning 2. september — eval-oraklet må afspejle providerens partielle orden
+
+- **Observeret fejl og stærkeste direkte evidens:** Alle 5/5 tekst- og 5/5 lydsessioner
+  har eksakte, sammenhængende conversation-, generation-, user-, assistant- og
+  response-id'er samt completed-status. Den faktiske rækkefølge er konsekvent
+  `user added → response.created → response.output_item.added → assistant item added →
+  response.output_item.done → response.done`. Oraklet kræver fejlagtigt de to
+  sideordnede item-start-events i omvendt rækkefølge og mærker derfor alle ti som
+  `provider-item-chain-broken`. Den fokuserede fysiske lydsammenligning placerer
+  opfølgningssegmentet fra providerfilens 4,45–5,45 s ved devicefilens 13,09–14,09 s
+  med normaliseret korrelation 1,000 efter den kendte 16→24 kHz-konvertering. Det
+  beviser, at transporten ikke forvanskede opfølgningen; det afgør ikke alene den
+  separate ASR's ordvalg.
+- **Kæde, invarianter og falsificerbar hypotese:** Beviset skal fortsat kræve
+  `U1 → R1 → A1 → done → U2 → R2 → A2 → done` i samme conversation og generation,
+  med eksakt ancestry, item-/response-id, rolle, type, status og nul ekstra response-
+  eller tool-items. Hypotesen er kun, at `conversation.item.added` for assistant-itemet
+  og `response.output_item.added` er to start-observationer uden dokumenteret indbyrdes
+  totalorden; begge skal ligge efter `response.created` og før
+  `response.output_item.done`. Den diagnostiske transcript-afvigelse er en separat
+  inputbevisakse og må hverken omskrives til “Læg”, bruges til runtime-routing eller
+  fejlagtigt klassificeres som tekst-/promptkontraktfejl.
+- **Mindste plan og eksplicitte ikke-mål:** Ret kun evaluatorens eventorden og dens
+  testfixture til den faktisk observerede rækkefølge. Bevar transcript-afvigelsen
+  synlig og fail-closed, indtil den kan klassificeres med den bevarede lyd; ingen betalt
+  provider-genkørsel er nødvendig for eventorden. Ingen ændring af `ThinSession`,
+  Realtime-wire, prompt, tool-schema, model, reasoning, Voice PE, firmware, gain, VAD,
+  resampling, playback, timeout, teardown eller rearm er mål.
+- **Planlagte regressioner, gates og rollback:** Bevis begge lovlige rækkefølger af de
+  to start-events. Afvis stadig manglende, stale, duplicate eller ekstra events samt
+  enhver start-event før `response.created` eller efter `response.output_item.done`.
+  Kør den fokuserede oracle-suite og `scripts/dev fast`; en uafhængig reviewer skal
+  kontrollere, at ingen ID-, ancestry-, conversation-, generation- eller done-kant er
+  svækket. Hvis en ugyldig mutation bliver grøn, rulles evaluatorændringen tilbage.
+  Produktionsartifact v1.13.55 ændres eller geninstalleres ikke af denne
+  evaluatorrettelse; næste produktbevis er 10/10 ubrudte fysiske cyklusser på samme
+  installerede bits.
+- **Faktisk evaluator-delta og resultater:** Oraklet kræver nu
+  `user < response.created < begge item-start-events < output-item.done < response.done`
+  uden at opfinde en indbyrdes orden mellem de to start-events. Den faktisk observerede
+  orden var rød før rettelsen og er grøn bagefter; begge lovlige ordener består for
+  både tekst- og lydtarget, mens hver start-event efter `output-item.done` fortsat
+  afvises. Den fokuserede chain-suite er grøn **16/16**, og den samlede
+  `scripts/dev fast --base origin/main` er grøn på **42,6 s** med Ruff,
+  formatteringskontrol, mypy, hele pytest-suiten og diff-check. Uafhængigt afsluttende
+  review fandt **P0=0, P1=0 og P2=0**. Ingen runtime-, prompt-, schema-, audio-, VAD-,
+  firmware- eller lifecyclefil er ændret. Den ene autoritative
+  `scripts/dev release --base origin/main` er grøn på **42,9 s**. Rettelsen er alene
+  kilde-/evalværktøj; den installerede v1.13.55 skal ikke erstattes for dette delta.
 
 ### Aktiv beslutning 1. september — afvist VAD skal være terminal før næste mic-open
 

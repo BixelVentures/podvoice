@@ -3599,6 +3599,7 @@ def _numeric_followup_provider_trace(
     *,
     target: bool,
     audio: bool = False,
+    output_item_first: bool = True,
 ) -> list[dict]:
     suffix = hashlib.sha256(session_id.encode()).hexdigest()[:12]
     conversation_id = f"conversation-{suffix}"
@@ -3606,6 +3607,28 @@ def _numeric_followup_provider_trace(
     assistant_one = f"assistant-one-{suffix}"
     user_two = f"user-two-{suffix}"
     generation = 1
+
+    def assistant_start_events(assistant_id: str, previous_item_id: str) -> list[dict]:
+        assistant_item = {
+            "kind": "conversation_item_added",
+            "provider_event_type": "conversation.item.added",
+            "item_id": assistant_id,
+            "item_type": "message",
+            "role": "assistant",
+            "previous_item_id": previous_item_id,
+            "generation": generation,
+        }
+        output_item = {
+            "kind": "response_output_item_added",
+            "response_id": response_id,
+            "item_id": assistant_id,
+            "item_type": "message",
+            "role": "assistant",
+            "status": "in_progress",
+            "generation": generation,
+        }
+        return [output_item, assistant_item] if output_item_first else [assistant_item, output_item]
+
     if target:
         trace = []
         if audio:
@@ -3635,24 +3658,7 @@ def _numeric_followup_provider_trace(
                     "request_id_matched": not audio,
                     "generation": generation,
                 },
-                {
-                    "kind": "conversation_item_added",
-                    "provider_event_type": "conversation.item.added",
-                    "item_id": f"assistant-two-{suffix}",
-                    "item_type": "message",
-                    "role": "assistant",
-                    "previous_item_id": user_two,
-                    "generation": generation,
-                },
-                {
-                    "kind": "response_output_item_added",
-                    "response_id": response_id,
-                    "item_id": f"assistant-two-{suffix}",
-                    "item_type": "message",
-                    "role": "assistant",
-                    "status": "in_progress",
-                    "generation": generation,
-                },
+                *assistant_start_events(f"assistant-two-{suffix}", user_two),
                 {
                     "kind": "response_output_item_done",
                     "response_id": response_id,
@@ -3698,24 +3704,7 @@ def _numeric_followup_provider_trace(
             "request_id_matched": True,
             "generation": generation,
         },
-        {
-            "kind": "conversation_item_added",
-            "provider_event_type": "conversation.item.added",
-            "item_id": assistant_one,
-            "item_type": "message",
-            "role": "assistant",
-            "previous_item_id": user_one,
-            "generation": generation,
-        },
-        {
-            "kind": "response_output_item_added",
-            "response_id": response_id,
-            "item_id": assistant_one,
-            "item_type": "message",
-            "role": "assistant",
-            "status": "in_progress",
-            "generation": generation,
-        },
+        *assistant_start_events(assistant_one, user_one),
         {
             "kind": "response_output_item_done",
             "response_id": response_id,
@@ -3745,7 +3734,10 @@ def _numeric_followup_provider_trace(
 
 
 @pytest.mark.parametrize("audio_target", [False, True])
-def test_numeric_followup_provider_item_chain_oracle_accepts_only_exact_ancestry(audio_target):
+@pytest.mark.parametrize("output_item_first", [False, True])
+def test_numeric_followup_provider_item_chain_oracle_accepts_only_exact_ancestry(
+    audio_target, output_item_first
+):
     session_id = "run:scenario:session"
     seed = TurnResult(
         "seed",
@@ -3757,7 +3749,10 @@ def test_numeric_followup_provider_item_chain_oracle_accepts_only_exact_ancestry
             response_id="response-seed",
             generation=1,
             provider_trace=_numeric_followup_provider_trace(
-                session_id, "response-seed", target=False
+                session_id,
+                "response-seed",
+                target=False,
+                output_item_first=output_item_first,
             ),
         ),
         [],
@@ -3767,6 +3762,7 @@ def test_numeric_followup_provider_item_chain_oracle_accepts_only_exact_ancestry
         "response-target",
         target=True,
         audio=audio_target,
+        output_item_first=output_item_first,
     )
     target = TurnResult(
         "target",
@@ -3808,6 +3804,8 @@ def test_numeric_followup_provider_item_chain_oracle_accepts_only_exact_ancestry
         "target-request-unmatched",
         "target-done-missing",
         "target-done-out-of-order",
+        "target-output-added-after-output-done",
+        "target-assistant-added-after-output-done",
         "target-response-mismatch",
         "target-generation-mismatch",
     ],
@@ -3840,6 +3838,28 @@ def test_numeric_followup_provider_item_chain_fails_closed_on_incomplete_binding
         done = next(row for row in target_trace if row["kind"] == "response_done")
         target_trace.remove(done)
         target_trace.insert(2, done)
+    elif mutation == "target-output-added-after-output-done":
+        added = next(row for row in target_trace if row["kind"] == "response_output_item_added")
+        target_trace.remove(added)
+        output_done_index = next(
+            index
+            for index, row in enumerate(target_trace)
+            if row["kind"] == "response_output_item_done"
+        )
+        target_trace.insert(output_done_index + 1, added)
+    elif mutation == "target-assistant-added-after-output-done":
+        assistant = next(
+            row
+            for row in target_trace
+            if row["kind"] == "conversation_item_added" and row.get("role") == "assistant"
+        )
+        target_trace.remove(assistant)
+        output_done_index = next(
+            index
+            for index, row in enumerate(target_trace)
+            if row["kind"] == "response_output_item_done"
+        )
+        target_trace.insert(output_done_index + 1, assistant)
     elif mutation == "target-response-mismatch":
         target_response_id = "stale-response"
     elif mutation == "target-generation-mismatch":
