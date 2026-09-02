@@ -639,12 +639,9 @@ def _provider_item_chain_findings(
             and user.get("generation") == generation
             and response.get("generation") == generation
             and assistant.get("generation") == generation
-            and user_index
-            < response_index
-            < assistant_index
-            < added_index
-            < output_index
-            < done_index
+            and user_index < response_index
+            and response_index < min(assistant_index, added_index)
+            and max(assistant_index, added_index) < output_index < done_index
         ):
             return None
         if typed and response.get("request_id_matched") is not True:
