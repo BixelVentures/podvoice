@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import hmac
 import ipaddress
 import json
@@ -20,10 +21,12 @@ from typing import Any
 
 from aiohttp import web
 
+from . import __version__, runtime_artifact_identity
 from .console import run_console
 from .events import Event, EventType
 from .hub import StatusHub
 from .reply import encode_flac, flac_stream_args, wav_header
+from .trace_oracle import TraceOracle
 
 _LOG = logging.getLogger("podvoice.web")
 
@@ -91,7 +94,8 @@ _STUETEST_STEPS = [
 
 # One isolated lifecycle baseline, not a feature test. The separate stuetest covers
 # web/HA/music. Here ten predictable two-turn conversations test only same-breath wake,
-# Danish ASR, shared context, explicit Farvel, teardown and immediate rearm.
+# Danish ASR, shared context, five semantic closes, five physical-silence closes,
+# teardown and immediate rearm.
 _GROUNDTEST_STEPS: list[dict[str, Any]] = [
     {
         "say": "Okay Nabu, hvad er klokken?",
@@ -140,8 +144,8 @@ _GROUNDTEST_STEPS: list[dict[str, Any]] = [
         "new": True,
     },
     {
-        "say": "Hvilken farve sagde du?",
-        "expect": "Blå uden nyt wake-ord.",
+        "say": "Tak. Hvilken farve sagde du?",
+        "expect": "Blå uden nyt wake-ord; almindeligt tak må ikke lukke samtalen.",
         "kind": "simple",
     },
     {
@@ -206,7 +210,21 @@ _GROUNDTEST_STEPS: list[dict[str, Any]] = [
 # pause competed with the eight-second lounge timeout and could close an otherwise
 # healthy conversation.  Keep the twenty canonical utterances above for documentation,
 # but present and score them as pairs so the follow-up is spoken naturally before the
-# owner touches the panel.
+# owner touches the panel. The close plan is test data only: Realtime still decides
+# meaning and the runtime contains no local phrase matcher.
+_GROUNDTEST_CLOSE_PLAN: tuple[dict[str, str | None], ...] = (
+    {"close_mode": "semantic", "close_say": "Farvel."},
+    {"close_mode": "idle_timeout", "close_say": None},
+    {"close_mode": "semantic", "close_say": "Tak, det var alt."},
+    {"close_mode": "idle_timeout", "close_say": None},
+    {"close_mode": "semantic", "close_say": "Vi snakkes."},
+    {"close_mode": "idle_timeout", "close_say": None},
+    {"close_mode": "semantic", "close_say": "Det var det hele for nu."},
+    {"close_mode": "idle_timeout", "close_say": None},
+    {"close_mode": "semantic", "close_say": "Fint, så er vi færdige."},
+    {"close_mode": "idle_timeout", "close_say": None},
+)
+
 _GROUNDTEST_CASES: list[dict[str, Any]] = [
     {
         "say": _GROUNDTEST_STEPS[index]["say"],
@@ -222,9 +240,30 @@ _GROUNDTEST_CASES: list[dict[str, Any]] = [
             }
             else "simple"
         ),
+        **_GROUNDTEST_CLOSE_PLAN[index // 2],
+        "close_expect": (
+            "Realtime afslutter samtalen. Nabu må sige højst ét kort farvel eller "
+            "lukke stille; ringen skal slukke."
+            if _GROUNDTEST_CLOSE_PLAN[index // 2]["close_mode"] == "semantic"
+            else "Sig intet og rør intet. Efter fire sekunders ubrudt stilhed skal "
+            "ringen slukke uden en modelstyret afslutning."
+        ),
     }
     for index in range(0, len(_GROUNDTEST_STEPS), 2)
 ]
+
+_GROUNDTEST_SEMANTIC_CLOSE_REASONS = frozenset({"model-close", "model-close-silent"})
+_GROUNDTEST_FAILURE_EVENTS = frozenset(
+    {
+        "failure",
+        "teardown_step_timeout",
+        "teardown_step_failed",
+        "mic_stream_stop_failed",
+        "rearm_blocked_incomplete_teardown",
+        "playback_fault",
+        "wake_rejected_incomplete_teardown",
+    }
+)
 
 _GROUNDTEST_OUTCOMES = {
     "correct",
@@ -232,6 +271,7 @@ _GROUNDTEST_OUTCOMES = {
     "wrong_answer",
     "no_response",
     "blocked",
+    "system_failure",
 }
 
 # Sources allowed to reach the panel/API when locked (the default under HA):
@@ -379,6 +419,7 @@ def create_app(
             web.get("/api/groundtest", _groundtest),
             web.post("/api/groundtest/start", _groundtest_start),
             web.post("/api/groundtest/result", _groundtest_result),
+            web.post("/api/groundtest/final-wake", _groundtest_final_wake),
             web.get("/api/audio-trace", _audio_trace_status),
             web.post("/api/audio-trace/arm", _audio_trace_arm),
             web.post("/api/audio-trace/cancel", _audio_trace_cancel),
@@ -1377,6 +1418,833 @@ def _percentile(values: list[int], percentile: float) -> int | None:
     return ordered[min(rank - 1, len(ordered) - 1)]
 
 
+def _groundtest_runtime_provenance(session: object) -> dict[str, Any]:
+    """Freeze the non-secret runtime identity for one uninterrupted physical run."""
+    brain = getattr(session, "brain", None)
+    voicepe = getattr(session, "voicepe", None)
+    prompt = str(getattr(brain, "instructions", "") or "")
+    room_context = str(getattr(brain, "room_context", "") or "")
+    artifact_kind, artifact_sha256 = runtime_artifact_identity()
+    contract = getattr(voicepe, "contract", None)
+    contract = contract if isinstance(contract, dict) else {}
+    value: dict[str, Any] = {
+        "podvoice_version": __version__,
+        "artifact_identity_kind": artifact_kind,
+        "artifact_sha256": artifact_sha256,
+        "model": getattr(brain, "model", None),
+        "turn_preset": getattr(brain, "preset", None),
+        "openai_noise": getattr(brain, "noise", None),
+        "prompt_sha256": hashlib.sha256(prompt.encode()).hexdigest(),
+        "room_context_sha256": hashlib.sha256(room_context.encode()).hexdigest(),
+        "idle_timeout_s": getattr(session, "idle_timeout_s", None),
+        "speaker_path": getattr(session, "speaker_path", None),
+        "firmware_build": getattr(voicepe, "firmware_build", None),
+        "firmware_contract_ok": contract.get("ok") if contract else None,
+        "voicepe_connection_generation": getattr(voicepe, "_connection_generation", None),
+    }
+    value["fingerprint"] = hashlib.sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return value
+
+
+def _groundtest_timeline_window(
+    snapshot: dict[str, Any], *, room: str, after_seq: int
+) -> list[dict[str, Any]]:
+    events = []
+    for raw in snapshot.get("timeline_activity") or []:
+        seq = raw.get("seq")
+        if (
+            isinstance(seq, int)
+            and not isinstance(seq, bool)
+            and seq > after_seq
+            and raw.get("room") == room
+        ):
+            events.append(dict(raw))
+    return sorted(events, key=lambda item: int(item["seq"]))
+
+
+def _groundtest_manifest(recorder: Any, trace_id: str | None = None) -> dict[str, Any] | None:
+    """Load one bounded local trace without trusting a stale panel snapshot."""
+    if recorder is None:
+        return None
+    if trace_id is None:
+        snapshot = recorder.snapshot()
+        latest = snapshot.get("latest") if isinstance(snapshot, dict) else None
+        return dict(latest) if isinstance(latest, dict) else None
+    target = recorder.artifact(trace_id, "manifest")
+    if target is None:
+        return None
+    try:
+        value = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+    return dict(value) if isinstance(value, dict) else None
+
+
+def _groundtest_playback_pairs(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    starts = [
+        (index, item)
+        for index, item in enumerate(events)
+        if item.get("event") == "playback_started"
+    ]
+    finishes = [
+        (index, item)
+        for index, item in enumerate(events)
+        if item.get("event") == "playback_finished"
+    ]
+    pairs: list[dict[str, Any]] = []
+    for start_index, start in starts:
+        playback_id = str(start.get("playback_id") or "")
+        matches = [
+            (finish_index, finish)
+            for finish_index, finish in finishes
+            if finish.get("playback_id") == playback_id and finish_index > start_index
+        ]
+        if not playback_id or len(matches) != 1:
+            continue
+        finish_index, finish = matches[0]
+        pairs.append(
+            {
+                "playback_id": playback_id,
+                "turn_id": start.get("turn_id"),
+                "finish_turn_id": finish.get("turn_id"),
+                "start_index": start_index,
+                "finish_index": finish_index,
+            }
+        )
+    return pairs
+
+
+def _groundtest_provider_response_issues(
+    events: list[dict[str, Any]],
+    accepted: list[tuple[int, dict[str, Any]]],
+    playback_pairs: list[dict[str, Any]],
+    *,
+    expected_playbacks: int,
+) -> list[str]:
+    """Require one complete provider response chain for every accepted turn."""
+    issues: list[str] = []
+    for turn_index, (_, accepted_event) in enumerate(accepted):
+        turn_id = accepted_event.get("turn_id")
+        requests = [
+            (index, item)
+            for index, item in enumerate(events)
+            if item.get("event") == "provider_response_create_sent"
+            and item.get("turn_id") == turn_id
+        ]
+        if not requests:
+            issues.append(f"turn_{turn_index + 1}_provider_response_missing")
+            continue
+        owned_response_ids: set[str] = set()
+        for request_index, request in requests:
+            request_id = request.get("request_id")
+            created = [
+                (index, item)
+                for index, item in enumerate(events)
+                if item.get("event") == "provider_response_created"
+                and item.get("request_id") == request_id
+                and item.get("turn_id") == turn_id
+            ]
+            if len(created) != 1 or created[0][0] <= request_index:
+                issues.append(f"turn_{turn_index + 1}_provider_response_missing")
+                continue
+            response_id = str(created[0][1].get("response_id") or "")
+            completed = [
+                (index, item)
+                for index, item in enumerate(events)
+                if item.get("event") == "provider_response_done"
+                and item.get("response_id") == response_id
+                and item.get("turn_id") == turn_id
+                and item.get("status") == "completed"
+            ]
+            if not response_id or len(completed) != 1 or completed[0][0] <= created[0][0]:
+                issues.append(f"turn_{turn_index + 1}_provider_response_incomplete")
+                continue
+            owned_response_ids.add(response_id)
+        if turn_index < expected_playbacks and turn_index < len(playback_pairs):
+            audio_started = [
+                (index, item)
+                for index, item in enumerate(events)
+                if item.get("event")
+                in {"response_audio_started", "provider_response_audio_started"}
+                and item.get("turn_id") == turn_id
+                and item.get("response_id") in owned_response_ids
+            ]
+            playback_start = int(playback_pairs[turn_index]["start_index"])
+            if len(audio_started) != 1 or audio_started[0][0] >= playback_start:
+                issues.append(f"turn_{turn_index + 1}_provider_audio_owner")
+    return issues
+
+
+def _groundtest_generation_issues(
+    events: list[dict[str, Any]], provider_generation: object, *, before_index: int
+) -> list[str]:
+    if not isinstance(provider_generation, int) or isinstance(provider_generation, bool):
+        return ["provider_generation_missing"]
+    critical_local = {
+        "speech_started",
+        "speech_started_or_interrupted",
+        "speech_stopped",
+        "mic_gate_closed",
+        "mic_gate_opened",
+        "playback_started",
+        "playback_finished",
+        "semantic_end_requested",
+        "semantic_end_silent",
+        "endphrase_confirmed",
+        "response_audio_started",
+        "response_done",
+        "tool_call",
+    }
+    for item in events[:before_index]:
+        name = str(item.get("event") or "")
+        if name in critical_local and item.get("provider_generation") != provider_generation:
+            return ["provider_generation_mismatch"]
+        if (
+            name.startswith("provider_")
+            and name not in {"provider_contract", "provider_connected"}
+            and item.get("generation") != provider_generation
+        ):
+            return ["provider_generation_mismatch"]
+    return []
+
+
+def _groundtest_provenance_issues(metadata: dict[str, Any], run: dict[str, Any]) -> list[str]:
+    raw_provenance = run.get("provenance")
+    expected: dict[str, Any] = dict(raw_provenance) if isinstance(raw_provenance, dict) else {}
+    keys = (
+        "podvoice_version",
+        "artifact_identity_kind",
+        "artifact_sha256",
+        "model",
+        "turn_preset",
+        "openai_noise",
+        "prompt_sha256",
+        "room_context_sha256",
+        "speaker_path",
+        "firmware_build",
+        "firmware_contract_ok",
+        "voicepe_connection_generation",
+    )
+    return [
+        f"provenance_{key}"
+        for key in keys
+        if expected.get(key) in {None, ""} or metadata.get(key) != expected.get(key)
+    ]
+
+
+def _groundtest_trace_evidence(
+    trace: dict[str, Any],
+    *,
+    run: dict[str, Any],
+    case: dict[str, Any],
+    require_next_session: bool,
+) -> dict[str, Any]:
+    """Add the tiny 5+5 policy wrapper around the shared strict trace oracle."""
+    expected_turns = 3 if case.get("close_mode") == "semantic" else 2
+    report = TraceOracle(
+        adapter="voicepe",
+        strict_physical=True,
+        minimum_user_turns=expected_turns,
+        require_semantic_close=case.get("close_mode") == "semantic",
+        require_next_session=require_next_session,
+        require_turn_ownership=True,
+    ).score(trace)
+    issues = [issue.code for issue in report.errors]
+    events = [dict(item) for item in trace.get("events") or [] if isinstance(item, dict)]
+    raw_metadata = trace.get("metadata")
+    metadata: dict[str, Any] = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+    issues.extend(_groundtest_provenance_issues(metadata, run))
+
+    trace_id = str(trace.get("id") or "") or None
+    room = str(trace.get("room") or "") or None
+    if not trace_id:
+        issues.append("trace_id_missing")
+    if room != run.get("room"):
+        issues.append("trace_room_mismatch")
+
+    wake_edges = [item for item in events if item.get("event") == "wake_received"]
+    wake = wake_edges[0] if len(wake_edges) == 1 else {}
+    wake_attempt_id = (
+        str(wake.get("wake_attempt_id") or metadata.get("wake_attempt_id") or "") or None
+    )
+    wake_audio_generation = wake.get("audio_generation")
+    if (
+        wake.get("source") != "physical_wake_callback"
+        or metadata.get("wake_source") != "physical_wake_callback"
+        or not wake_attempt_id
+        or metadata.get("wake_attempt_id") != wake_attempt_id
+        or not isinstance(wake_audio_generation, int)
+        or isinstance(wake_audio_generation, bool)
+    ):
+        issues.append("physical_wake_missing")
+
+    current_session_ids = {
+        str(item.get("session_id"))
+        for item in events
+        if item.get("session_id") and item.get("event") not in {"next_session_opened"}
+    }
+    history_session = (
+        next(iter(current_session_ids), None) if len(current_session_ids) == 1 else None
+    )
+    if history_session is None:
+        issues.append("history_session_identity")
+
+    provider_edges = [item for item in events if item.get("event") == "provider_connected"]
+    provider = provider_edges[0] if len(provider_edges) == 1 else {}
+    provider_generation = provider.get("provider_generation")
+    if not isinstance(provider_generation, int) or isinstance(provider_generation, bool):
+        issues.append("provider_generation_missing")
+
+    contracts = [item for item in events if item.get("event") == "provider_contract"]
+    tool_schema_sha256 = contracts[0].get("tool_schema_sha256") if len(contracts) == 1 else None
+    if not tool_schema_sha256:
+        issues.append("provider_contract_missing")
+
+    accepted = [
+        (index, item)
+        for index, item in enumerate(events)
+        if item.get("event") == "speech_stopped" and item.get("accepted") is True
+    ]
+    turn_ids = [str(item.get("turn_id") or "") for _, item in accepted]
+    if len(accepted) != expected_turns:
+        issues.append("accepted_turn_count")
+    if any(not turn_id for turn_id in turn_ids) or len(set(turn_ids)) != len(turn_ids):
+        issues.append("accepted_turn_identity")
+
+    close_edges = [
+        (index, item) for index, item in enumerate(events) if item.get("event") == "close_requested"
+    ]
+    close_index, close = close_edges[0] if len(close_edges) == 1 else (-1, {})
+    close_reason = str(close.get("reason") or "") or None
+    close_id = str(close.get("close_id") or "") or None
+    measured_mode = (
+        "semantic"
+        if close_reason in _GROUNDTEST_SEMANTIC_CLOSE_REASONS
+        else "idle_timeout"
+        if close_reason == "idle-fallback"
+        else "other"
+        if close_reason
+        else None
+    )
+    if measured_mode != case.get("close_mode"):
+        issues.append("close_mode_mismatch")
+
+    teardown = [item for item in events if item.get("event") == "teardown_complete"]
+    rearms = [item for item in events if item.get("event") == "wake_rearm_recovered"]
+    rearm_cuts = [
+        item
+        for item in events
+        if item.get("event") == "audio_boundary_cut" and item.get("reason") == "rearm-ack"
+    ]
+    if not close_id or any(
+        len(group) != 1 or group[0].get("close_id") != close_id
+        for group in (teardown, rearms, rearm_cuts)
+    ):
+        issues.append("close_correlation")
+    rearm_token = rearms[0].get("rearm_token") if len(rearms) == 1 else None
+    rearm_audio_generation = rearms[0].get("audio_generation") if len(rearms) == 1 else None
+    if (
+        not isinstance(rearm_token, int)
+        or isinstance(rearm_token, bool)
+        or not isinstance(rearm_audio_generation, int)
+        or isinstance(rearm_audio_generation, bool)
+        or len(rearm_cuts) != 1
+        or rearm_cuts[0].get("rearm_token") != rearm_token
+        or rearm_cuts[0].get("audio_generation") != rearm_audio_generation
+    ):
+        issues.append("rearm_token_mismatch")
+
+    stages = trace.get("stages")
+    speaker = stages.get("speaker") if isinstance(stages, dict) else None
+    if not isinstance(speaker, dict) or int(speaker.get("samples") or 0) <= 0:
+        issues.append("speaker_audio_missing")
+
+    failures = [
+        str(item.get("event")) for item in events if item.get("event") in _GROUNDTEST_FAILURE_EVENTS
+    ]
+    if failures:
+        issues.append("failure_event")
+
+    # Provider and physical turn edges inside the live conversation must all expose
+    # the same concrete generation. Provider close may advance the adapter, so the
+    # teardown/rearm tail is deliberately outside this comparison.
+    issues.extend(
+        _groundtest_generation_issues(
+            events,
+            provider_generation,
+            before_index=close_index if close_index >= 0 else len(events),
+        )
+    )
+
+    playback_pairs = _groundtest_playback_pairs(events)
+    semantic_silent = [
+        (index, item)
+        for index, item in enumerate(events)
+        if item.get("event") == "semantic_end_silent"
+    ]
+    semantic_requests = [
+        (index, item)
+        for index, item in enumerate(events)
+        if item.get("event") == "semantic_end_requested"
+    ]
+    semantic_confirms = [item for item in events if item.get("event") == "endphrase_confirmed"]
+    semantic_tools = [
+        (index, item)
+        for index, item in enumerate(events)
+        if item.get("event") == "tool_call" and item.get("name") == "end_conversation"
+    ]
+    followups = [
+        (index, item)
+        for index, item in enumerate(events)
+        if item.get("event") == "mic_gate_opened"
+        and item.get("reason") == "followup"
+        and item.get("state") == "LOUNGE_WINDOW"
+    ]
+    if len(followups) != 2:
+        issues.append("followup_open_count")
+
+    expected_playbacks = 3 if close_reason == "model-close" else 2
+    if len(playback_pairs) != expected_playbacks:
+        issues.append("playback_count_for_close")
+    for turn_index in range(min(expected_playbacks, len(accepted), len(playback_pairs))):
+        accepted_index = accepted[turn_index][0]
+        pair = playback_pairs[turn_index]
+        turn_id = turn_ids[turn_index]
+        if (
+            pair.get("turn_id") != turn_id
+            or pair.get("finish_turn_id") != turn_id
+            or not accepted_index < int(pair["start_index"]) < int(pair["finish_index"])
+        ):
+            issues.append(f"turn_{turn_index + 1}_playback_chain")
+
+    issues.extend(
+        _groundtest_provider_response_issues(
+            events,
+            accepted,
+            playback_pairs,
+            expected_playbacks=expected_playbacks,
+        )
+    )
+    for turn_index in range(min(2, len(followups), len(playback_pairs))):
+        next_accepted = (
+            accepted[turn_index + 1][0] if turn_index + 1 < len(accepted) else close_index
+        )
+        if not (
+            int(playback_pairs[turn_index]["finish_index"])
+            < followups[turn_index][0]
+            < next_accepted
+        ):
+            issues.append(f"turn_{turn_index + 1}_followup_chain")
+
+    timeout_ms: int | None = None
+    if case.get("close_mode") == "semantic":
+        terminal_turn = turn_ids[2] if len(turn_ids) > 2 else None
+        if len(semantic_requests) != 1 or semantic_requests[0][1].get("turn_id") != terminal_turn:
+            issues.append("semantic_request_owner")
+        if (
+            len(semantic_tools) != 1
+            or semantic_tools[0][1].get("turn_id") != terminal_turn
+            or len(semantic_requests) != 1
+            or not (
+                accepted[2][0] < semantic_tools[0][0] < semantic_requests[0][0] < close_index
+                if len(accepted) > 2 and close_index >= 0
+                else False
+            )
+        ):
+            issues.append("semantic_tool_owner")
+        if close_reason == "model-close":
+            if semantic_silent or len(semantic_confirms) != 1:
+                issues.append("semantic_audible_shape")
+            if (
+                playback_pairs
+                and close_index >= 0
+                and int(playback_pairs[-1]["finish_index"]) >= close_index
+            ):
+                issues.append("semantic_playback_after_close")
+        elif close_reason == "model-close-silent":
+            if len(semantic_silent) != 1 or len(semantic_confirms) > 1:
+                issues.append("semantic_silent_shape")
+            if semantic_silent and close_index >= 0 and semantic_silent[0][0] >= close_index:
+                issues.append("semantic_silent_after_close")
+    else:
+        if semantic_requests or semantic_tools or semantic_confirms or semantic_silent:
+            issues.append("timeout_semantic_event")
+        if close_reason != "idle-fallback":
+            issues.append("timeout_close_reason")
+        if len(followups) == 2 and close_index >= 0:
+            open_at = followups[-1][1].get("at_ms")
+            close_at = close.get("at_ms")
+            if isinstance(open_at, (int, float)) and isinstance(close_at, (int, float)):
+                timeout_ms = round(float(close_at) - float(open_at))
+            if timeout_ms is None or not 3950 <= timeout_ms <= 4500:
+                issues.append("timeout_duration")
+            if any(
+                item.get("event")
+                in {"speech_started", "speech_started_or_interrupted", "speech_stopped"}
+                for item in events[followups[-1][0] + 1 : close_index]
+            ):
+                issues.append("speech_during_timeout")
+
+    next_wake = [item for item in events if item.get("event") == "next_wake_received"]
+    next_session = [item for item in events if item.get("event") == "next_session_opened"]
+    next_attempt_id = next_wake[0].get("attempt_id") if len(next_wake) == 1 else None
+    next_history_session = (
+        next_session[0].get("history_session") if len(next_session) == 1 else None
+    )
+    next_provider_generation = (
+        next_session[0].get("provider_generation") if len(next_session) == 1 else None
+    )
+    next_previous_provider_generation = (
+        next_session[0].get("previous_provider_generation") if len(next_session) == 1 else None
+    )
+    if require_next_session and (
+        not isinstance(provider_generation, int)
+        or next_previous_provider_generation != provider_generation + 1
+        or next_provider_generation != provider_generation + 2
+    ):
+        issues.append("next_provider_generation_not_exact")
+
+    issues = list(dict.fromkeys(issues))
+    return {
+        "machine_ok": not issues,
+        "machine_issues": issues,
+        "oracle_passed": report.passed,
+        "oracle_issues": [issue.code for issue in report.errors],
+        "trace_id": trace_id,
+        "room": room,
+        "history_session": history_session,
+        "wake_attempt_id": wake_attempt_id,
+        "wake_audio_generation": wake_audio_generation,
+        "provider_generation": provider_generation,
+        "tool_schema_sha256": tool_schema_sha256,
+        "expected_close_mode": case.get("close_mode"),
+        "measured_close_mode": measured_mode,
+        "measured_close_reason": close_reason,
+        "close_reason_match": measured_mode == case.get("close_mode"),
+        "close_id": close_id,
+        "rearm_token": rearm_token,
+        "rearm_audio_generation": rearm_audio_generation,
+        "accepted_speech_turns": len(accepted),
+        "playback_pairs": playback_pairs,
+        "timeout_ms": timeout_ms,
+        "failure_events": failures,
+        "next_wake_verified": require_next_session and not issues,
+        "next_attempt_id": next_attempt_id,
+        "next_history_session": next_history_session,
+        "next_provider_generation": next_provider_generation,
+        "next_previous_provider_generation": next_previous_provider_generation,
+    }
+
+
+def _groundtest_current_trace(
+    recorder: Any, *, run: dict[str, Any], case: dict[str, Any]
+) -> tuple[str, dict[str, Any]]:
+    """Return pending, invalid or complete evidence for the active physical cycle."""
+    snapshot = recorder.snapshot() if recorder is not None else {}
+    if not isinstance(snapshot, dict):
+        return "invalid", {"machine_ok": False, "machine_issues": ["audio_trace_missing"]}
+    if snapshot.get("active") is not None or snapshot.get("armed_room") is not None:
+        return "pending", {"machine_ok": False, "machine_issues": ["conversation_incomplete"]}
+    trace = _groundtest_manifest(recorder)
+    baseline = (
+        (run.get("results") or [])[-1].get("trace_id")
+        if run.get("results")
+        else (run.get("provenance") or {}).get("audio_trace_baseline_id")
+    )
+    if trace is None or trace.get("id") == baseline:
+        return "pending", {"machine_ok": False, "machine_issues": ["fresh_audio_trace_missing"]}
+    evidence = _groundtest_trace_evidence(
+        trace,
+        run=run,
+        case=case,
+        require_next_session=False,
+    )
+    return ("complete" if evidence.get("machine_ok") else "invalid"), evidence
+
+
+def _groundtest_previous_next_wake(
+    recorder: Any,
+    *,
+    run: dict[str, Any],
+    current: dict[str, Any],
+) -> dict[str, Any]:
+    previous = (run.get("results") or [])[-1] if run.get("results") else None
+    if not isinstance(previous, dict) or not previous.get("trace_id"):
+        return {"machine_ok": False, "machine_issues": ["previous_trace_missing"]}
+    trace = _groundtest_manifest(recorder, str(previous["trace_id"]))
+    index = int(previous.get("index", -1))
+    case = _GROUNDTEST_CASES[index] if 0 <= index < len(_GROUNDTEST_CASES) else {}
+    if trace is None:
+        return {"machine_ok": False, "machine_issues": ["previous_trace_missing"]}
+    evidence = _groundtest_trace_evidence(
+        trace,
+        run=run,
+        case=case,
+        require_next_session=True,
+    )
+    linkage_ok = (
+        evidence.get("next_attempt_id") == current.get("wake_attempt_id")
+        and evidence.get("next_history_session") == current.get("history_session")
+        and evidence.get("next_provider_generation") == current.get("provider_generation")
+        and previous.get("history_session") != current.get("history_session")
+    )
+    if not linkage_ok:
+        evidence["machine_ok"] = False
+        evidence["next_wake_verified"] = False
+        evidence["machine_issues"] = list(
+            dict.fromkeys([*(evidence.get("machine_issues") or []), "next_wake_link_mismatch"])
+        )
+    previous_token = previous.get("rearm_token")
+    current_token = current.get("rearm_token")
+    if (
+        not isinstance(previous_token, int)
+        or isinstance(previous_token, bool)
+        or current_token != ((previous_token + 1) & 0x3FFFFFFF)
+    ):
+        evidence["machine_ok"] = False
+        evidence["next_wake_verified"] = False
+        evidence["machine_issues"] = list(
+            dict.fromkeys([*(evidence.get("machine_issues") or []), "rearm_token_not_fresh"])
+        )
+    previous_audio_generation = previous.get("rearm_audio_generation")
+    current_audio_generation = current.get("wake_audio_generation")
+    if (
+        not isinstance(previous_audio_generation, int)
+        or isinstance(previous_audio_generation, bool)
+        or not isinstance(current_audio_generation, int)
+        or isinstance(current_audio_generation, bool)
+        or previous_audio_generation != current_audio_generation
+    ):
+        evidence["machine_ok"] = False
+        evidence["next_wake_verified"] = False
+        evidence["machine_issues"] = list(
+            dict.fromkeys(
+                [*(evidence.get("machine_issues") or []), "audio_generation_link_mismatch"]
+            )
+        )
+    return evidence
+
+
+def _groundtest_final_trace_evidence(
+    trace: dict[str, Any], *, run: dict[str, Any], previous: dict[str, Any]
+) -> dict[str, Any]:
+    """Score the unnumbered wake/svar check with the same physical oracle."""
+    report = TraceOracle(
+        adapter="voicepe",
+        strict_physical=True,
+        minimum_user_turns=1,
+        require_semantic_close=False,
+        require_next_session=False,
+        require_turn_ownership=True,
+    ).score(trace)
+    issues = [issue.code for issue in report.errors]
+    events = [dict(item) for item in trace.get("events") or [] if isinstance(item, dict)]
+    raw_metadata = trace.get("metadata")
+    metadata: dict[str, Any] = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+    issues.extend(_groundtest_provenance_issues(metadata, run))
+    if trace.get("room") != run.get("room"):
+        issues.append("trace_room_mismatch")
+
+    wakes = [item for item in events if item.get("event") == "wake_received"]
+    wake = wakes[0] if len(wakes) == 1 else {}
+    wake_attempt_id = wake.get("wake_attempt_id")
+    wake_audio_generation = wake.get("audio_generation")
+    if (
+        wake.get("source") != "physical_wake_callback"
+        or metadata.get("wake_source") != "physical_wake_callback"
+        or not wake_attempt_id
+        or metadata.get("wake_attempt_id") != wake_attempt_id
+        or not isinstance(wake_audio_generation, int)
+        or isinstance(wake_audio_generation, bool)
+    ):
+        issues.append("final_physical_wake")
+    session_ids = {str(item.get("session_id")) for item in events if item.get("session_id")}
+    history_session = next(iter(session_ids), None) if len(session_ids) == 1 else None
+    if history_session is None:
+        issues.append("final_history_session")
+    providers = [item for item in events if item.get("event") == "provider_connected"]
+    provider_generation = providers[0].get("provider_generation") if len(providers) == 1 else None
+    if not isinstance(provider_generation, int) or isinstance(provider_generation, bool):
+        issues.append("final_provider_generation")
+
+    accepted = [
+        (index, item)
+        for index, item in enumerate(events)
+        if item.get("event") == "speech_stopped" and item.get("accepted") is True
+    ]
+    pairs = _groundtest_playback_pairs(events)
+    if report.user_turns != 1 or len(accepted) != 1 or len(pairs) != 1:
+        issues.append("final_verification_shape")
+    elif (
+        not accepted[0][1].get("turn_id")
+        or pairs[0].get("turn_id") != accepted[0][1].get("turn_id")
+        or pairs[0].get("finish_turn_id") != accepted[0][1].get("turn_id")
+        or not accepted[0][0] < int(pairs[0]["start_index"]) < int(pairs[0]["finish_index"])
+    ):
+        issues.append("final_verification_owner")
+    issues.extend(
+        _groundtest_provider_response_issues(
+            events,
+            accepted,
+            pairs,
+            expected_playbacks=1,
+        )
+    )
+    stages = trace.get("stages")
+    speaker = stages.get("speaker") if isinstance(stages, dict) else None
+    if not isinstance(speaker, dict) or int(speaker.get("samples") or 0) <= 0:
+        issues.append("speaker_audio_missing")
+
+    closes = [item for item in events if item.get("event") == "close_requested"]
+    if len(closes) != 1 or closes[0].get("reason") != "groundtest-final-wake-cleanup":
+        issues.append("final_cleanup_close")
+    close_index = events.index(closes[0]) if len(closes) == 1 else len(events)
+    issues.extend(
+        _groundtest_generation_issues(
+            events,
+            provider_generation,
+            before_index=close_index,
+        )
+    )
+    if any(
+        item.get("event") in {"semantic_end_requested", "semantic_end_silent"}
+        or (item.get("event") == "tool_call" and item.get("name") == "end_conversation")
+        for item in events
+    ):
+        issues.append("final_verification_semantic_close")
+    if any(item.get("event") in _GROUNDTEST_FAILURE_EVENTS for item in events):
+        issues.append("failure_event")
+
+    if (
+        previous.get("next_attempt_id") != wake_attempt_id
+        or previous.get("next_history_session") != history_session
+        or previous.get("next_provider_generation") != provider_generation
+    ):
+        issues.append("final_next_wake_link")
+    wake_gates = [
+        item
+        for item in events
+        if item.get("event") == "mic_gate_opened" and item.get("reason") == "wake"
+    ]
+    rearms = [item for item in events if item.get("event") == "wake_rearm_recovered"]
+    previous_audio_generation = previous.get("rearm_audio_generation")
+    final_wake_audio_generation = (
+        wake_gates[0].get("audio_generation") if len(wake_gates) == 1 else None
+    )
+    if (
+        not isinstance(previous_audio_generation, int)
+        or isinstance(previous_audio_generation, bool)
+        or not isinstance(final_wake_audio_generation, int)
+        or isinstance(final_wake_audio_generation, bool)
+        or wake_audio_generation != final_wake_audio_generation
+        or final_wake_audio_generation != previous_audio_generation
+    ):
+        issues.append("final_audio_generation_link")
+    previous_token = previous.get("rearm_token")
+    final_token = rearms[0].get("rearm_token") if len(rearms) == 1 else None
+    if (
+        not isinstance(previous_token, int)
+        or isinstance(previous_token, bool)
+        or final_token != ((previous_token + 1) & 0x3FFFFFFF)
+    ):
+        issues.append("final_rearm_token_not_fresh")
+    issues = list(dict.fromkeys(issues))
+    return {
+        "machine_ok": not issues,
+        "machine_issues": issues,
+        "oracle_passed": report.passed,
+        "oracle_issues": [issue.code for issue in report.errors],
+        "trace_id": trace.get("id"),
+        "history_session": history_session,
+        "provider_generation": provider_generation,
+        "wake_attempt_id": wake_attempt_id,
+        "accepted_speech_turns": len(accepted),
+        "playback_pairs": pairs,
+        "cleanup_reason": "groundtest-final-wake-cleanup",
+    }
+
+
+def _groundtest_final_session_evidence(
+    snapshot: dict[str, Any], *, run: dict[str, Any], previous: dict[str, Any]
+) -> dict[str, Any]:
+    """Prove the final physical wake also carries one audible verification turn."""
+    room = str(run.get("room") or "")
+    cursor = run.get("final_wake_timeline_seq")
+    after_seq = cursor if isinstance(cursor, int) and not isinstance(cursor, bool) else -1
+    window = _groundtest_timeline_window(snapshot, room=room, after_seq=after_seq)
+    issues: list[str] = []
+    wakes = [item for item in window if item.get("event") == "wake_received"]
+    wake = wakes[0] if len(wakes) == 1 else {}
+    if len(wakes) != 1 or wake.get("source") != "physical_wake_callback":
+        issues.append("final_physical_wake")
+    epoch = wake.get("session")
+    history_session = wake.get("session_id")
+    events = [item for item in window if epoch and item.get("session") == epoch]
+    providers = [item for item in events if item.get("event") == "provider_connected"]
+    accepted = [
+        item
+        for item in events
+        if item.get("event") == "speech_stopped" and item.get("accepted") is True
+    ]
+    starts = [item for item in events if item.get("event") == "playback_started"]
+    finishes = [item for item in events if item.get("event") == "playback_finished"]
+    if len(providers) != 1 or len(accepted) != 1 or len(starts) != 1 or len(finishes) != 1:
+        issues.append("final_verification_shape")
+    provider = providers[0] if len(providers) == 1 else {}
+    generation = provider.get("provider_generation")
+    turn_id = accepted[0].get("turn_id") if len(accepted) == 1 else None
+    if (
+        not epoch
+        or not history_session
+        or not isinstance(generation, int)
+        or isinstance(generation, bool)
+        or any(
+            item.get("provider_generation") != generation
+            for item in (*accepted, *starts, *finishes)
+        )
+        or not turn_id
+        or any(item.get("turn_id") != turn_id for item in (*starts, *finishes))
+    ):
+        issues.append("final_verification_owner")
+    if (
+        wake
+        and providers
+        and accepted
+        and starts
+        and finishes
+        and not (
+            int(wake["seq"])
+            < int(provider["seq"])
+            < int(accepted[0]["seq"])
+            < int(starts[0]["seq"])
+            < int(finishes[0]["seq"])
+        )
+    ):
+        issues.append("final_verification_order")
+    if (
+        previous.get("next_attempt_id") != wake.get("wake_attempt_id")
+        or previous.get("next_history_session") != history_session
+        or previous.get("next_provider_generation") != generation
+    ):
+        issues.append("final_next_wake_link")
+    if any(item.get("event") in _GROUNDTEST_FAILURE_EVENTS for item in events):
+        issues.append("failure_event")
+    if any(item.get("event") == "semantic_end_requested" for item in events):
+        issues.append("final_verification_semantic_close")
+    issues = list(dict.fromkeys(issues))
+    return {
+        "machine_ok": not issues,
+        "machine_issues": issues,
+        "timeline_session": epoch,
+        "history_session": history_session,
+        "provider_generation": generation,
+        "wake_attempt_id": wake.get("wake_attempt_id"),
+        "turn_id": turn_id,
+    }
+
+
 def _groundtest_payload(hub: StatusHub) -> dict:
     run = hub.groundtest()
     results = run.get("results") or []
@@ -1396,11 +2264,47 @@ def _groundtest_payload(hub: StatusHub) -> dict:
         if item.get("kind") == "lookup" and item.get("latency_ms") is not None
     ]
     completed = bool(run.get("completed_at"))
+    semantic_matched = sum(
+        1
+        for item in results
+        if item.get("outcome") == "correct"
+        and item.get("machine_ok") is True
+        and item.get("expected_close_mode") == "semantic"
+        and item.get("close_reason_match") is True
+    )
+    timeout_matched = sum(
+        1
+        for item in results
+        if item.get("outcome") == "correct"
+        and item.get("machine_ok") is True
+        and item.get("expected_close_mode") == "idle_timeout"
+        and item.get("close_reason_match") is True
+    )
+    next_wake_verified = sum(
+        1
+        for item in results
+        if item.get("outcome") == "correct" and item.get("next_wake_verified") is True
+    )
+    schema_hashes = {
+        str(item.get("tool_schema_sha256")) for item in results if item.get("tool_schema_sha256")
+    }
+    runtime_fingerprints = {
+        str(item.get("runtime_fingerprint")) for item in results if item.get("runtime_fingerprint")
+    }
     summary: dict[str, Any] = {
         "rated": len(results),
         "total": len(_GROUNDTEST_CASES),
-        "sentences": len(_GROUNDTEST_CASES) * 3,
+        "sentences": sum(2 + int(bool(case.get("close_say"))) for case in _GROUNDTEST_CASES),
+        "final_wake_sentences": 1,
         "counts": counts,
+        "semantic_close_matched": semantic_matched,
+        "idle_timeout_matched": timeout_matched,
+        "cycle_close_matched": semantic_matched + timeout_matched,
+        "next_wake_verified": next_wake_verified,
+        "tool_schema_stable": len(schema_hashes) == 1 and len(results) == len(_GROUNDTEST_CASES),
+        "runtime_stable": (
+            len(runtime_fingerprints) == 1 and len(results) == len(_GROUNDTEST_CASES)
+        ),
         "simple_p50_ms": _percentile(simple, 0.50),
         "simple_p90_ms": _percentile(simple, 0.90),
         "lookup_p50_ms": _percentile(lookup, 0.50),
@@ -1408,13 +2312,18 @@ def _groundtest_payload(hub: StatusHub) -> dict:
     }
     summary["passed"] = bool(
         completed
-        # One ASR miss may be recorded, matching the former 19/20 sentence gate.
-        and counts["correct"] >= 9
+        and len(results) == len(_GROUNDTEST_CASES)
+        and counts["correct"] == len(_GROUNDTEST_CASES)
+        and semantic_matched == 5
+        and timeout_matched == 5
+        and next_wake_verified == len(_GROUNDTEST_CASES)
+        and summary["tool_schema_stable"]
+        and summary["runtime_stable"]
         and counts["wrong_answer"] == 0
+        and counts["wrong_hearing"] == 0
         and counts["no_response"] == 0
         and counts["blocked"] == 0
-        and summary["simple_p90_ms"] is not None
-        and summary["simple_p90_ms"] <= 2500
+        and counts["system_failure"] == 0
     )
     cases = []
     for index, case in enumerate(_GROUNDTEST_CASES):
@@ -1424,20 +2333,24 @@ def _groundtest_payload(hub: StatusHub) -> dict:
                 "number": index + 1,
                 **case,
                 "before": (
-                    "Den forrige samtale skal være lukket af Farvel. Sig straks næste "
-                    "wake og spørgsmålet i én sammenhæng."
+                    "Den forrige samtale skal være helt lukket. Næste wake beviser "
+                    "samtidig dens rearm; sig wake og spørgsmålet i én sammenhæng."
                     if index
                     else "Stå/sid normalt ved skrivebordet og sig wake og spørgsmålet i én sammenhæng."
                 ),
             }
         )
     return {
-        "title": "Lifecycle-test — 10 samtaler / 30 fysiske ytringer",
+        "title": "Lifecycle-test — 10 samtaler / 5 semantiske + 5 timeout",
         "cases": cases,
         # Kept for API consumers and documentation that enumerate all utterances.
         "steps": _GROUNDTEST_STEPS,
         "run": run,
         "summary": summary,
+        "final_wake_instruction": (
+            "Sig “Okay Nabu, er du klar?”. Vent på det korte svar, og tryk “Wake virkede”. "
+            "Kontrolsessionen lukkes derefter uden at tælle som en ellevte test."
+        ),
     }
 
 
@@ -1447,10 +2360,101 @@ async def _groundtest(request: web.Request) -> web.Response:
 
 async def _groundtest_start(request: web.Request) -> web.Response:
     hub: StatusHub = request.app[HUB]
+    active_run = hub.groundtest()
+    if active_run.get("started_at") is not None and active_run.get("completed_at") is None:
+        return web.json_response(
+            {"ok": False, "error": "Grundtesten kører allerede. Afslut den aktive runde."},
+            status=409,
+        )
+    sessions: dict = request.app[SESSIONS]
+    physical = [(str(room), session) for room, session in sessions.items() if room != "talk"]
+    if len(physical) != 1:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": "Grundtesten kræver præcis én valgt fysisk Voice PE.",
+            },
+            status=409,
+        )
+    room, session = physical[0]
+    room_status: dict[str, Any] = next(
+        (item for item in hub.snapshot().get("rooms") or [] if item.get("room") == room),
+        {},
+    )
+    if room_status.get("connected") is not True:
+        return web.json_response(
+            {"ok": False, "error": "Voice PE er ikke fysisk forbundet endnu."},
+            status=409,
+        )
+    if getattr(session, "_active", False):
+        return web.json_response(
+            {"ok": False, "error": "Afslut den aktive samtale før Grundtesten."},
+            status=409,
+        )
+    idle_timeout = getattr(session, "idle_timeout_s", None)
+    if not isinstance(idle_timeout, (int, float)) or isinstance(idle_timeout, bool):
+        return web.json_response(
+            {"ok": False, "error": "Den effektive stilhedstimeout kan ikke bevises."},
+            status=409,
+        )
+    if abs(float(idle_timeout) - 4.0) > 0.001:
+        return web.json_response(
+            {
+                "ok": False,
+                "error": 'Sæt "Luk efter stilhed" til 4 sekunder før Grundtesten.',
+            },
+            status=409,
+        )
+    voicepe = getattr(session, "voicepe", None)
+    contract = getattr(voicepe, "contract", None)
+    if not isinstance(contract, dict) or contract.get("ok") is not True:
+        return web.json_response(
+            {"ok": False, "error": "Voice PE-firmwaren matcher ikke PodVoice-kontrakten."},
+            status=409,
+        )
+    provenance = _groundtest_runtime_provenance(session)
+    if (
+        not provenance.get("firmware_build")
+        or not provenance.get("artifact_sha256")
+        or not provenance.get("model")
+        or not isinstance(provenance.get("voicepe_connection_generation"), int)
+    ):
+        return web.json_response(
+            {"ok": False, "error": "PodVoice- eller firmwareversionen kan ikke bevises."},
+            status=409,
+        )
+    recorder = request.app[AUDIO_TRACE]
+    if recorder is None:
+        return web.json_response(
+            {"ok": False, "error": "Lokalt lydbevis er ikke tilgængeligt."}, status=409
+        )
+    trace_state = recorder.snapshot()
+    if not isinstance(trace_state, dict) or trace_state.get("active") is not None:
+        return web.json_response(
+            {"ok": False, "error": "En anden lydmåling er allerede i gang."}, status=409
+        )
+    armed_room = trace_state.get("armed_room")
+    if armed_room not in {None, room}:
+        return web.json_response(
+            {"ok": False, "error": "Lydbevis er allerede armeret for et andet rum."},
+            status=409,
+        )
+    raw_latest = trace_state.get("latest")
+    latest: dict[str, Any] = dict(raw_latest) if isinstance(raw_latest, dict) else {}
+    provenance["audio_trace_baseline_id"] = latest.get("id")
+    if armed_room is None:
+        try:
+            recorder.arm(room)
+        except ValueError as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=409)
     # Reuse the acceptance baseline so the old evidence card and the guided test
     # describe the same physical run.
     hub.start_stuetest()
-    hub.start_groundtest(len(_GROUNDTEST_CASES))
+    hub.start_groundtest(
+        len(_GROUNDTEST_CASES),
+        room=room,
+        provenance=provenance,
+    )
     return web.json_response({"ok": True, **_groundtest_payload(hub)})
 
 
@@ -1460,59 +2464,154 @@ async def _groundtest_result(request: web.Request) -> web.Response:
         body = await request.json()
     except (json.JSONDecodeError, ValueError):
         return web.json_response({"ok": False, "error": "Ugyldige testdata"}, status=400)
-    try:
-        index = int(body.get("index"))
-    except (TypeError, ValueError):
+    if not isinstance(body, dict):
+        return web.json_response({"ok": False, "error": "Ugyldige testdata"}, status=400)
+    raw_index = body.get("index")
+    if not isinstance(raw_index, int) or isinstance(raw_index, bool):
         return web.json_response({"ok": False, "error": "Ugyldigt trin"}, status=400)
+    index = raw_index
     outcome = str(body.get("outcome") or "")
-    if outcome not in _GROUNDTEST_OUTCOMES:
+    if outcome not in _GROUNDTEST_OUTCOMES - {"system_failure"}:
         return web.json_response({"ok": False, "error": "Ugyldigt resultat"}, status=400)
     run = hub.groundtest()
+    run_id = str(body.get("run_id") or "")
+    case_id = str(body.get("case_id") or "")
+    if run_id != run.get("run_id") or case_id != run.get("case_id"):
+        return web.json_response(
+            {
+                "ok": False,
+                "error": "Denne testsamtale er forældet. Panelet er opdateret til den aktive test.",
+            },
+            status=409,
+        )
     if index != int(run.get("current_index") or 0):
         return web.json_response(
             {"ok": False, "error": "Det er ikke den aktive testsamtale"}, status=409
         )
+    case = _GROUNDTEST_CASES[index] if 0 <= index < len(_GROUNDTEST_CASES) else {}
+    sessions: dict = request.app[SESSIONS]
+    room = str(run.get("room") or "")
+    session = sessions.get(room)
+    recorder = request.app[AUDIO_TRACE]
+    if recorder is None:
+        return web.json_response(
+            {"ok": False, "error": "Lokalt lydbevis er ikke tilgængeligt."}, status=409
+        )
+
+    claimed = False
+    if outcome != "correct":
+        try:
+            hub.claim_groundtest_case(run_id, case_id, index)
+            claimed = True
+        except ValueError as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=409)
+        stop = getattr(session, "stop", None)
+        if stop is not None:
+            try:
+                await stop(reason="groundtest-aborted")
+            except asyncio.CancelledError:
+                hub.release_groundtest_case(run_id, case_id)
+                raise
+            except Exception as exc:
+                hub.release_groundtest_case(run_id, case_id)
+                _LOG.exception("could not isolate groundtest conversation in %s", room)
+                return web.json_response(
+                    {"ok": False, "error": f"Kunne ikke lukke testsamtalen rent: {exc}"},
+                    status=503,
+                )
+        trace_state = recorder.snapshot()
+        if isinstance(trace_state, dict) and trace_state.get("armed_room") is not None:
+            try:
+                recorder.cancel()
+            except ValueError:
+                pass
+
+    trace_status, machine = _groundtest_current_trace(recorder, run=run, case=case)
+    if outcome == "correct" and trace_status == "pending":
+        return web.json_response(
+            {
+                "ok": False,
+                "error": "Samtalen er ikke helt lukket og gemt endnu. Vent til ringen er slukket.",
+                "machine_issues": machine.get("machine_issues"),
+            },
+            status=409,
+        )
+
+    current_provenance = _groundtest_runtime_provenance(session) if session is not None else {}
+    expected_fingerprint = (run.get("provenance") or {}).get("fingerprint")
+    runtime_fingerprint = current_provenance.get("fingerprint")
+    if not expected_fingerprint or runtime_fingerprint != expected_fingerprint:
+        machine["machine_ok"] = False
+        machine["machine_issues"] = list(
+            dict.fromkeys([*(machine.get("machine_issues") or []), "runtime_changed"])
+        )
+    machine["runtime_fingerprint"] = runtime_fingerprint
+
+    previous_proof: dict[str, Any] | None = None
+    if outcome == "correct" and machine.get("machine_ok") is True and run.get("results"):
+        previous_proof = _groundtest_previous_next_wake(
+            recorder,
+            run=run,
+            current=machine,
+        )
+        if previous_proof.get("machine_ok") is not True:
+            machine["machine_ok"] = False
+            machine["machine_issues"] = list(
+                dict.fromkeys(
+                    [
+                        *(machine.get("machine_issues") or []),
+                        *(previous_proof.get("machine_issues") or []),
+                    ]
+                )
+            )
+
+    effective_outcome = outcome
+    if outcome == "correct" and machine.get("machine_ok") is not True:
+        effective_outcome = "system_failure"
+    if not claimed:
+        try:
+            hub.claim_groundtest_case(run_id, case_id, index)
+            claimed = True
+        except ValueError as exc:
+            return web.json_response({"ok": False, "error": str(exc)}, status=409)
+
     since = float(run.get("step_started_at") or 0.0)
     snap = hub.snapshot()
+
     hist = request.app[HISTORY]
     turns: list[dict] = []
     if hist is not None:
         for conv in hist.conversations(limit=20):
-            if conv.get("room") == "talk":
+            if conv.get("room") != room or conv.get("session") != machine.get("history_session"):
                 continue
-            turns.extend(
-                turn for turn in conv.get("turns") or [] if float(turn.get("ts") or 0.0) >= since
-            )
+            turns.extend(conv.get("turns") or [])
     turns.sort(key=lambda item: float(item.get("ts") or 0.0))
     tools = [
-        item for item in snap.get("tool_activity") or [] if float(item.get("ts") or 0.0) >= since
+        item
+        for item in snap.get("tool_activity") or []
+        if item.get("room") == room and float(item.get("ts") or 0.0) >= since
     ]
     states = [
-        item for item in snap.get("state_activity") or [] if float(item.get("ts") or 0.0) >= since
+        item
+        for item in snap.get("state_activity") or []
+        if item.get("room") == room and float(item.get("ts") or 0.0) >= since
     ]
     latencies = [
-        item for item in snap.get("latency_activity") or [] if float(item.get("ts") or 0.0) >= since
+        item
+        for item in snap.get("latency_activity") or []
+        if item.get("room") == room and float(item.get("ts") or 0.0) >= since
     ]
-    case = _GROUNDTEST_CASES[index] if 0 <= index < len(_GROUNDTEST_CASES) else {}
     inputs = [str(turn.get("text") or "") for turn in turns if turn.get("dir") == "in"]
     outputs = [str(turn.get("text") or "") for turn in turns if turn.get("dir") == "out"]
-    saw_idle = any(item.get("state") == "IDLE" for item in states)
-    if outcome == "correct" and (len(inputs) < 3 or len(outputs) < 3 or not saw_idle):
-        return web.json_response(
-            {
-                "ok": False,
-                "error": (
-                    "Vent med at godkende, til spørgsmålet og opfølgningen er besvaret, "
-                    "du har sagt farvel, og ringen er gået tilbage til idle."
-                ),
-            },
-            status=409,
-        )
     latency_values = [int(item["ms"]) for item in latencies if item.get("ms") is not None]
     evidence = {
         "say": case.get("say"),
         "followup": case.get("followup"),
-        "says": [case.get("say"), case.get("followup"), "Farvel."],
+        "says": [
+            value
+            for value in (case.get("say"), case.get("followup"), case.get("close_say"))
+            if value
+        ],
         "kind": case.get("kind"),
         "started_at": since,
         "inputs": inputs,
@@ -1524,42 +2623,178 @@ async def _groundtest_result(request: web.Request) -> web.Response:
         "latency_ms": max(latency_values) if latency_values else None,
         "latencies_ms": latency_values,
         "note": str(body.get("note") or "")[:500],
+        **machine,
     }
+    if outcome != "correct":
+        evidence["cleanup_room"] = room
+        evidence["cleanup_reason"] = "groundtest-aborted"
 
-    # Isolate every measured pair.  The former flow armed the next measurement while
-    # the just-rated conversation could still be in its lounge window; a late goodbye
-    # then polluted the next pair's transcript, states and latency.  Close the room
-    # that produced the evidence *before* record_groundtest advances step_started_at.
+    if effective_outcome == "correct" and previous_proof is not None:
+        try:
+            hub.confirm_groundtest_next_wake(index - 1, previous_proof)
+        except ValueError as exc:
+            hub.release_groundtest_case(run_id, case_id)
+            return web.json_response({"ok": False, "error": str(exc)}, status=409)
+
+    if effective_outcome == "correct":
+        try:
+            recorder.arm(room)
+        except ValueError as exc:
+            effective_outcome = "system_failure"
+            evidence["machine_ok"] = False
+            evidence["machine_issues"] = list(
+                dict.fromkeys([*(evidence.get("machine_issues") or []), "next_trace_arm_failed"])
+            )
+            evidence["trace_arm_error"] = str(exc)
+    if effective_outcome != "correct" and hasattr(recorder, "reject_next_session"):
+        recorder.reject_next_session(room)
+    try:
+        hub.record_groundtest(index, effective_outcome, evidence)
+    except ValueError as exc:
+        hub.release_groundtest_case(run_id, case_id)
+        return web.json_response({"ok": False, "error": str(exc)}, status=409)
+    return web.json_response({"ok": True, **_groundtest_payload(hub)})
+
+
+async def _groundtest_final_wake(request: web.Request) -> web.Response:
+    """Finish 10/10 only after cycle ten admits one genuinely fresh physical wake."""
+    hub: StatusHub = request.app[HUB]
+    try:
+        body = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return web.json_response({"ok": False, "error": "Ugyldige testdata"}, status=400)
+    if not isinstance(body, dict):
+        return web.json_response({"ok": False, "error": "Ugyldige testdata"}, status=400)
+    outcome = str(body.get("outcome") or "")
+    if outcome not in {"correct", "failed"}:
+        return web.json_response({"ok": False, "error": "Ugyldigt resultat"}, status=400)
+    run = hub.groundtest()
+    run_id = str(body.get("run_id") or "")
+    final_wake_id = str(body.get("final_wake_id") or "")
+    if run_id != run.get("run_id") or final_wake_id != run.get("final_wake_id"):
+        return web.json_response(
+            {"ok": False, "error": "Denne wake-kontrol er forældet."}, status=409
+        )
+    if not run.get("awaiting_final_wake"):
+        return web.json_response(
+            {"ok": False, "error": "Grundtesten afventer ikke en wake-kontrol."},
+            status=409,
+        )
     sessions: dict = request.app[SESSIONS]
-    room = next(
-        (
-            str(item.get("room") or "")
-            for item in reversed(states)
-            if str(item.get("room") or "") in sessions
-        ),
-        next(iter(sessions), "") if len(sessions) == 1 else "",
-    )
+    room = str(run.get("room") or "")
     session = sessions.get(room)
+    recorder = request.app[AUDIO_TRACE]
+    previous = (run.get("results") or [])[-1] if run.get("results") else None
+    if recorder is None or not isinstance(previous, dict) or not previous.get("trace_id"):
+        return web.json_response(
+            {"ok": False, "error": "Det sidste lokale lydbevis mangler."}, status=409
+        )
+    previous_trace = _groundtest_manifest(recorder, str(previous["trace_id"]))
+    if previous_trace is None:
+        return web.json_response(
+            {"ok": False, "error": "Det sidste lokale lydbevis mangler."}, status=409
+        )
+    previous_proof = _groundtest_trace_evidence(
+        previous_trace,
+        run=run,
+        case=_GROUNDTEST_CASES[-1],
+        require_next_session=True,
+    )
+    trace_state = recorder.snapshot()
+    if not isinstance(trace_state, dict):
+        return web.json_response(
+            {"ok": False, "error": "Wake-kontrollens lydbevis kan ikke læses."}, status=409
+        )
+    readiness = _groundtest_final_session_evidence(hub.snapshot(), run=run, previous=previous_proof)
+    current_provenance = _groundtest_runtime_provenance(session) if session is not None else {}
+    runtime_matches = current_provenance.get("fingerprint") == (run.get("provenance") or {}).get(
+        "fingerprint"
+    )
+    final_capture_active = (trace_state.get("active") or {}).get("room") == room
+    if outcome == "correct" and (
+        previous_proof.get("machine_ok") is not True
+        or readiness.get("machine_ok") is not True
+        or not runtime_matches
+        or not final_capture_active
+    ):
+        pending_issues = list(
+            dict.fromkeys(
+                [
+                    *(previous_proof.get("machine_issues") or []),
+                    *(readiness.get("machine_issues") or []),
+                    *([] if runtime_matches else ["runtime_changed"]),
+                    *([] if final_capture_active else ["final_audio_trace_not_active"]),
+                ]
+            )
+        )
+        return web.json_response(
+            {
+                "ok": False,
+                "error": "Den nye fysiske wake og Realtime-session er ikke bevist endnu.",
+                "machine_issues": pending_issues,
+            },
+            status=409,
+        )
+
+    try:
+        hub.claim_groundtest_final_wake(run_id, final_wake_id)
+    except ValueError as exc:
+        return web.json_response({"ok": False, "error": str(exc)}, status=409)
+
+    # This unnumbered session proves cycle ten's next wake. It is captured and scored
+    # with the same strict physical oracle, but can never count as conversation 11.
     stop = getattr(session, "stop", None)
     if stop is not None:
         try:
-            # Do not start a fresh media-player announcement just to mark the end of
-            # each measured pair. It can hold the puck's shared announcement pipeline
-            # across the next test wake. The panel already gives the transition cue.
-            await stop(reason="groundtest-verdict")
+            await stop(reason="groundtest-final-wake-cleanup")
+        except asyncio.CancelledError:
+            hub.release_groundtest_final_wake(run_id, final_wake_id)
+            raise
         except Exception as exc:
-            _LOG.exception("could not isolate groundtest conversation in %s", room)
+            hub.release_groundtest_final_wake(run_id, final_wake_id)
+            _LOG.exception("could not close final wake check in %s", room)
             return web.json_response(
-                {
-                    "ok": False,
-                    "error": f"Kunne ikke lukke testsamtalen rent: {exc}",
-                },
+                {"ok": False, "error": f"Kunne ikke lukke wake-kontrollen rent: {exc}"},
                 status=503,
             )
-        evidence["closed_room"] = room
+    elif outcome == "correct":
+        hub.release_groundtest_final_wake(run_id, final_wake_id)
+        return web.json_response(
+            {"ok": False, "error": "Wake-kontrollen kan ikke lukkes rent."}, status=503
+        )
+    if outcome == "failed":
+        after_stop = recorder.snapshot()
+        if isinstance(after_stop, dict) and after_stop.get("armed_room") is not None:
+            try:
+                recorder.cancel()
+            except ValueError:
+                pass
+
+    final_trace = _groundtest_manifest(recorder)
+    if final_trace is None or final_trace.get("id") == previous.get("trace_id"):
+        evidence: dict[str, Any] = {
+            "machine_ok": False,
+            "machine_issues": ["final_audio_trace_missing"],
+            "readiness": readiness,
+        }
+    else:
+        evidence = _groundtest_final_trace_evidence(final_trace, run=run, previous=previous_proof)
+        evidence["readiness"] = readiness
+    effective_outcome = outcome
+    if outcome == "correct" and evidence.get("machine_ok") is not True:
+        effective_outcome = "failed"
+    if effective_outcome == "correct":
+        try:
+            hub.confirm_groundtest_next_wake(len(_GROUNDTEST_CASES) - 1, previous_proof)
+        except ValueError as exc:
+            hub.release_groundtest_final_wake(run_id, final_wake_id)
+            return web.json_response({"ok": False, "error": str(exc)}, status=409)
+    elif hasattr(recorder, "reject_next_session"):
+        recorder.reject_next_session(room)
     try:
-        hub.record_groundtest(index, outcome, evidence)
+        hub.complete_groundtest_final_wake(effective_outcome, evidence)
     except ValueError as exc:
+        hub.release_groundtest_final_wake(run_id, final_wake_id)
         return web.json_response({"ok": False, "error": str(exc)}, status=409)
     return web.json_response({"ok": True, **_groundtest_payload(hub)})
 
@@ -1574,6 +2809,12 @@ async def _audio_trace_status(request: web.Request) -> web.Response:
 
 
 async def _audio_trace_arm(request: web.Request) -> web.Response:
+    hub: StatusHub = request.app[HUB]
+    groundtest = hub.groundtest()
+    if groundtest.get("started_at") and not groundtest.get("completed_at"):
+        return web.json_response(
+            {"ok": False, "error": "Lydbeviset ejes af den aktive Grundtest."}, status=409
+        )
     recorder = request.app[AUDIO_TRACE]
     if recorder is None:
         return web.json_response(
@@ -1595,6 +2836,12 @@ async def _audio_trace_arm(request: web.Request) -> web.Response:
 
 
 async def _audio_trace_cancel(request: web.Request) -> web.Response:
+    hub: StatusHub = request.app[HUB]
+    groundtest = hub.groundtest()
+    if groundtest.get("started_at") and not groundtest.get("completed_at"):
+        return web.json_response(
+            {"ok": False, "error": "Lydbeviset ejes af den aktive Grundtest."}, status=409
+        )
     recorder = request.app[AUDIO_TRACE]
     if recorder is None:
         return web.json_response(

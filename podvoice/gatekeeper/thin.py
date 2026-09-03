@@ -593,10 +593,25 @@ class ThinSession:
                     "wake_audio_boundary": getattr(
                         self.voicepe, "supports_wake_audio_boundary", None
                     ),
+                    "wake_source": (
+                        "physical_wake_callback" if rearm_attempt_id else "programmatic"
+                    ),
+                    "wake_attempt_id": rearm_attempt_id,
+                    "firmware_build": getattr(self.voicepe, "firmware_build", None),
+                    "firmware_contract_ok": (getattr(self.voicepe, "contract", None) or {}).get(
+                        "ok"
+                    ),
+                    "voicepe_connection_generation": getattr(
+                        self.voicepe, "_connection_generation", None
+                    ),
                 }
 
             trace_started = self.audio_trace.begin(self.room, trace_metadata)
-        self._trace_event("wake_received")
+        self._trace_event(
+            "wake_received",
+            source="physical_wake_callback" if rearm_attempt_id else "programmatic",
+            wake_attempt_id=rearm_attempt_id,
+        )
         self._trace_reason = "teardown"
         self._active = True
         self._transcription_audio_seconds = 0.0

@@ -223,11 +223,17 @@ class TraceOracle:
         strict_physical: bool = True,
         minimum_user_turns: int = 1,
         require_semantic_close: bool = False,
+        require_next_session: bool | None = None,
+        require_turn_ownership: bool = False,
     ) -> None:
         self.adapter = adapter
         self.strict_physical = strict_physical
         self.minimum_user_turns = max(0, int(minimum_user_turns))
         self.require_semantic_close = require_semantic_close
+        self.require_next_session = (
+            strict_physical if require_next_session is None else bool(require_next_session)
+        )
+        self.require_turn_ownership = bool(require_turn_ownership)
 
     def score(self, trace: Mapping[str, Any] | Sequence[Mapping[str, Any]]) -> TraceReport:
         events = _events(trace)
@@ -279,6 +285,13 @@ class TraceOracle:
         self._ordered(names, "wake_received", "provider_connected", issues)
 
         owned_turns = self._turn_ownership(events, names, issues)
+        if self.require_turn_ownership and owned_turns is None:
+            issues.append(
+                TraceIssue(
+                    "turn_ownership_missing",
+                    "Trace has no complete local-to-provider turn ownership evidence",
+                )
+            )
         user_turns = counts["speech_stopped"] if owned_turns is None else owned_turns
         if user_turns < self.minimum_user_turns:
             issues.append(
@@ -1115,13 +1128,14 @@ class TraceOracle:
         if self.strict_physical:
             self._require_once(names, "teardown_complete", issues)
             self._require_once(names, "wake_rearm_recovered", issues)
-            self._require_once(names, "next_wake_received", issues)
-            self._require_once(names, "next_session_opened", issues)
             self._ordered(names, "close_requested", "wake_rearm_recovered", issues)
             self._ordered(names, "teardown_complete", "wake_rearm_recovered", issues)
             self._ordered(names, "wake_rearm_recovered", "capture_finished", issues)
-            self._ordered(names, "capture_finished", "next_wake_received", issues)
-            self._ordered(names, "next_wake_received", "next_session_opened", issues)
+            if self.require_next_session:
+                self._require_once(names, "next_wake_received", issues)
+                self._require_once(names, "next_session_opened", issues)
+                self._ordered(names, "capture_finished", "next_wake_received", issues)
+                self._ordered(names, "next_wake_received", "next_session_opened", issues)
             for failure in (
                 "teardown_step_timeout",
                 "teardown_step_failed",
@@ -1138,7 +1152,7 @@ class TraceOracle:
                             event_index=names.index(failure),
                         )
                     )
-            if isinstance(trace, Mapping):
+            if self.require_next_session and isinstance(trace, Mapping):
                 events = trace.get("events") or []
                 wake: Mapping[str, Any] = next(
                     (event for event in events if event.get("event") == "next_wake_received"),

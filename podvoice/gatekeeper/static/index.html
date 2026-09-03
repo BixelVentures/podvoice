@@ -376,7 +376,7 @@
     </div>
     <div class="section">
       <h2>Grundtest</h2>
-      <p class="sub" style="margin:2px 0 10px">Én fast test af den fysiske Voice PE. Panelet gemmer, hvad Nabu hørte og gjorde; du afgør, om det faktisk var korrekt i rummet.</p>
+      <p class="sub" style="margin:2px 0 10px">Én fast test af den fysiske Voice PE. Hver testsamtale gemmes som et lokalt, automatisk lydbevis; du afgør, om svarene faktisk var korrekte i rummet. De seneste 12 lydbeviser beholdes lokalt; ældre slettes automatisk.</p>
       <button id="g_start">Start 10 samtaler</button>
       <div id="g_test" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
       <div id="g_actions" class="crow" hidden style="margin-top:10px;flex-wrap:wrap">
@@ -385,6 +385,10 @@
         <button data-outcome="wrong_answer" class="ghost">Forkert svar</button>
         <button data-outcome="no_response" class="ghost">Intet skete</button>
         <button data-outcome="blocked" class="ghost">Kan ikke testes nu</button>
+      </div>
+      <div id="g_final_actions" class="crow" hidden style="margin-top:10px;flex-wrap:wrap">
+        <button data-final-outcome="correct">Wake virkede</button>
+        <button data-final-outcome="failed" class="ghost">Wake fejlede</button>
       </div>
       <p id="g_hint" class="sub" style="margin-top:8px"></p>
     </div>
@@ -1026,6 +1030,7 @@ setInterval(function () {
 (function () {
   var box = document.getElementById("g_test");
   var actions = document.getElementById("g_actions");
+  var finalActions = document.getElementById("g_final_actions");
   var start = document.getElementById("g_start");
   var hint = document.getElementById("g_hint");
   var current = null;
@@ -1036,28 +1041,45 @@ setInterval(function () {
     var run = data.run || {}, sum = data.summary || {}, cases = data.cases || [];
     box.innerHTML = "";
     if (!run.started_at) {
+      start.hidden = false;
       box.appendChild(ge("div", "empty", "Ikke startet. Sæt dig som normalt ved skrivebordet; ændr ingen indstillinger under testen."));
-      actions.hidden = true; hint.textContent = "Testen tager cirka ti minutter. Hver samtale har spørgsmål, opfølgning og Farvel; bedøm først når ringen er slukket.";
+      actions.hidden = true; finalActions.hidden = true;
+      hint.textContent = "Ti ubrudte samtaler: fem med en afslutningssætning, fem med fire sekunders stilhed. Bedøm først når ringen er slukket.";
       return;
     }
     if (run.completed_at) {
+      start.hidden = false;
       var head = ge("div", "line " + (sum.passed ? "out" : "in"));
       head.appendChild(ge("div", "who", sum.passed ? "✓ GRUNDTEST GODKENDT" : "✕ GRUNDTEST IKKE GODKENDT"));
-      head.appendChild(document.createTextNode((sum.counts.correct || 0) + " af " + sum.total + " samtaler korrekte · 30 fysiske ytringer · p90 " + ms(sum.simple_p90_ms)));
+      head.appendChild(document.createTextNode((sum.counts.correct || 0) + " af " + sum.total + " samtaler korrekte · " + sum.sentences + " bedømte ytringer + 1 wake-kontrol"));
+      head.appendChild(ge("div", "sub", "Semantisk lukning " + (sum.semantic_close_matched || 0) + "/5 · stilhedstimeout " + (sum.idle_timeout_matched || 0) + "/5 · næste wake " + (sum.next_wake_verified || 0) + "/10"));
       box.appendChild(head);
       (run.results || []).forEach(function (r) {
         if (r.outcome === "correct") return;
         var line = ge("div", "line in");
-        line.appendChild(ge("div", "who", (r.index + 1) + ". " + ({wrong_hearing:"Forkert hørt",wrong_answer:"Forkert svar",no_response:"Intet skete",blocked:"Kunne ikke testes"}[r.outcome] || r.outcome)));
-        line.appendChild(document.createTextNode("Sagt: “" + ((r.says || [r.say]).join(" / ")) + "” · Hørt: “" + ((r.inputs || []).join(" / ") || "intet") + "” · Svar: “" + ((r.outputs || []).join(" / ") || "intet") + "”"));
+        line.appendChild(ge("div", "who", (r.index + 1) + ". " + ({wrong_hearing:"Forkert hørt",wrong_answer:"Forkert svar",no_response:"Intet skete",blocked:"Kunne ikke testes",system_failure:"Maskinelt bevis fejlede"}[r.outcome] || r.outcome)));
+        line.appendChild(document.createTextNode("Sagt: “" + ((r.says || [r.say]).join(" / ")) + "” · Hørt: “" + ((r.inputs || []).join(" / ") || "intet") + "” · Svar: “" + ((r.outputs || []).join(" / ") || "intet") + "” · Lukning: " + (r.measured_close_reason || "ikke målt")));
         box.appendChild(line);
       });
-      actions.hidden = true; start.textContent = "Start testen forfra";
+      actions.hidden = true; finalActions.hidden = true; start.textContent = "Start testen forfra";
       hint.textContent = sum.passed ? "Denne grundgate er bevist." : "Resultatet viser præcis, hvilket led der skal rettes før en ny fuld test.";
+      return;
+    }
+    if (run.awaiting_final_wake) {
+      start.hidden = true;
+      var finalLine = ge("div", "line out");
+      finalLine.appendChild(ge("div", "who", "10 samtaler målt — sidste rearm-bevis mangler"));
+      finalLine.appendChild(ge("div", "", data.final_wake_instruction));
+      finalLine.appendChild(ge("div", "sub", "Denne wake åbner en ny Realtime-session og tæller ikke som samtale 11."));
+      box.appendChild(finalLine);
+      actions.hidden = true; finalActions.hidden = false;
+      hint.textContent = "Lav wake-kontrollen inden to minutter. Tryk først efter det korte svar; panelet kontrollerer selv lyd, ny session, fysisk svar og genaktivering.";
+      start.textContent = "Start testen forfra";
       return;
     }
     var index = Number(run.current_index || 0), testCase = cases[index];
     if (!testCase) return;
+    start.hidden = true;
     var line = ge("div", "line out");
     line.appendChild(ge("div", "who", "Samtale " + testCase.number + " af " + cases.length + " · " + (testCase.kind === "lookup" ? "opslag" : "hurtigt svar")));
     line.appendChild(ge("div", "sub", testCase.before));
@@ -1065,15 +1087,18 @@ setInterval(function () {
     line.appendChild(ge("div", "sub", "Forvent: " + testCase.expect));
     var follow = ge("div", "", "2. Uden nyt wake-ord: “" + testCase.followup + "”"); follow.style.cssText = "font-size:1.12rem;font-weight:750;margin:12px 0 4px"; line.appendChild(follow);
     line.appendChild(ge("div", "sub", "Forvent: " + testCase.followup_expect));
-    var close = ge("div", "", "3. Sig: “Farvel.”"); close.style.cssText = "font-size:1.12rem;font-weight:750;margin:12px 0 4px"; line.appendChild(close);
-    line.appendChild(ge("div", "sub", "Forvent: ét kort farvel, ring og mikrofon slukker. Bedøm først derefter."));
+    var closeText = testCase.close_mode === "semantic"
+      ? "3. Sig: “" + testCase.close_say + "”"
+      : "3. Når opfølgningssvaret er helt færdigt: sig ingenting og vent i stilhed.";
+    var close = ge("div", "", closeText); close.style.cssText = "font-size:1.12rem;font-weight:750;margin:12px 0 4px"; line.appendChild(close);
+    line.appendChild(ge("div", "sub", "Forvent: " + testCase.close_expect));
     box.appendChild(line);
     if ((run.results || []).length) {
       var prev = run.results[run.results.length - 1];
       box.appendChild(ge("div", "sub", "Forrige: " + (prev.outcome === "correct" ? "korrekt" : "fejl") + " · målt svar " + ms(prev.latency_ms)));
     }
-    actions.hidden = false;
-    hint.textContent = "Rør ikke panelet under samtalen. Vælg først én dom efter opfølgningen og det afsluttende “Farvel”; næste trin beviser straks rearm.";
+    actions.hidden = false; finalActions.hidden = true;
+    hint.textContent = "Rør ikke panelet under samtalen. Vælg først én dom efter den viste afslutning og slukket ring; start næste samtale inden to minutter, så dens wake beviser den forrige rearm.";
     start.textContent = "Start testen forfra";
   }
   async function load() {
@@ -1082,8 +1107,11 @@ setInterval(function () {
   }
   start.onclick = async function () {
     start.disabled = true;
-    try { var r = await fetch("api/groundtest/start", {method:"POST",cache:"no-store"}); render(await r.json()); }
-    catch (e) { toast("Grundtesten kunne ikke startes"); }
+    try {
+      var r = await fetch("api/groundtest/start", {method:"POST",cache:"no-store"});
+      var data = await r.json(); if (!r.ok) throw new Error(data.error || "HTTP " + r.status); render(data);
+    }
+    catch (e) { toast("Grundtesten kunne ikke startes: " + e.message); }
     finally { start.disabled = false; }
   };
   actions.querySelectorAll("button[data-outcome]").forEach(function (button) {
@@ -1091,10 +1119,21 @@ setInterval(function () {
       if (!current || !current.run) return;
       actions.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
       try {
-        var r = await fetch("api/groundtest/result", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({index:current.run.current_index,outcome:button.dataset.outcome})});
+        var r = await fetch("api/groundtest/result", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run_id:current.run.run_id,case_id:current.run.case_id,index:current.run.current_index,outcome:button.dataset.outcome})});
         var data = await r.json(); if (!r.ok) throw new Error(data.error || "HTTP " + r.status); render(data);
-      } catch (e) { toast("Resultatet blev ikke gemt: " + e.message); }
+      } catch (e) { toast("Resultatet blev ikke gemt: " + e.message); await load(); }
       finally { actions.querySelectorAll("button").forEach(function (b) { b.disabled = false; }); }
+    };
+  });
+  finalActions.querySelectorAll("button[data-final-outcome]").forEach(function (button) {
+    button.onclick = async function () {
+      if (!current || !current.run) return;
+      finalActions.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+      try {
+        var r = await fetch("api/groundtest/final-wake", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run_id:current.run.run_id,final_wake_id:current.run.final_wake_id,outcome:button.dataset.finalOutcome})});
+        var data = await r.json(); if (!r.ok) throw new Error(data.error || "HTTP " + r.status); render(data);
+      } catch (e) { toast("Wake-kontrollen blev ikke gemt: " + e.message); await load(); }
+      finally { finalActions.querySelectorAll("button").forEach(function (b) { b.disabled = false; }); }
     };
   });
   load();
