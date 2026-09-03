@@ -3,19 +3,25 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import time
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 from unittest.mock import Mock
 
 import pytest
 from aiohttp.test_utils import TestClient, TestServer, make_mocked_request
 from multidict import CIMultiDict
 
+from gatekeeper.audio_trace import AudioTraceRecorder
 from gatekeeper.events import EventType
 from gatekeeper.history import History
 from gatekeeper.hub import StatusHub
 from gatekeeper.web import (
     _capability_details,
+    _groundtest_payload,
     _protocol_owner_eval,
     _protocol_owner_source_allowed,
     create_app,
@@ -44,9 +50,36 @@ class _StubSession:
         self.sm = _StubSM()
         self.playback = _StubPlayback()
         self.stops: list[str] = []
+        self.stop_hook: Callable[[str], None] | None = None
+        self.idle_timeout_s = 4.0
+        self.speaker_path = "announce"
+        self._active = False
+        self.brain = type(
+            "StubBrain",
+            (),
+            {
+                "model": "gpt-realtime-test",
+                "preset": "semantic",
+                "noise": "near_field",
+                "instructions": "test prompt",
+                "room_context": "test room",
+            },
+        )()
+        self.voicepe = type(
+            "StubVoicePE",
+            (),
+            {
+                "firmware_build": "podvoice_build_test",
+                "contract": {"ok": True},
+                "_connection_generation": 7,
+            },
+        )()
 
     async def stop(self, reason: str = "stop") -> None:
         self.stops.append(reason)
+        self._active = False
+        if self.stop_hook is not None:
+            self.stop_hook(reason)
 
 
 class _StubTools:
@@ -76,6 +109,419 @@ class _StubTools:
             },
             "discovery": {"fetched_at": time.time()},
         }
+
+
+def _groundtest_recorder(tmp_path: Path) -> AudioTraceRecorder:
+    """A real bounded recorder, retaining the complete ten-cycle test run."""
+
+    return AudioTraceRecorder(tmp_path / "groundtest-traces", max_seconds=60, keep=12)
+
+
+def _groundtest_event(
+    recorder: AudioTraceRecorder,
+    *,
+    at_ms: int,
+    event_name: str,
+    session_id: str,
+    provider_generation: int,
+    **details: Any,
+) -> None:
+    recorder.event(
+        event_name,
+        at_ms=at_ms,
+        session_id=session_id,
+        provider_generation=provider_generation,
+        **details,
+    )
+
+
+def _emit_owned_groundtest_turn(
+    recorder: AudioTraceRecorder,
+    *,
+    session_id: str,
+    generation: int,
+    number: int,
+    start_ms: int,
+    audio_generation: int,
+    provider_offset: int,
+    input_text: str,
+    output_text: str | None,
+    tool_name: str | None = None,
+) -> int:
+    """Emit one complete local -> provider -> playback ownership chain."""
+
+    event = lambda at_ms, event_name, **details: _groundtest_event(  # noqa: E731
+        recorder,
+        at_ms=at_ms,
+        event_name=event_name,
+        session_id=session_id,
+        provider_generation=generation,
+        **details,
+    )
+    turn_id = f"{session_id}:turn-{number}"
+    item_id = f"{session_id}:user-{number}"
+    request_id = f"{session_id}:request-{number}"
+    response_id = f"{session_id}:response-{number}"
+    event(
+        start_ms,
+        "speech_started_or_interrupted",
+        item_id=item_id,
+        turn_id=turn_id,
+        audio_generation=audio_generation,
+        provider_sample_offset=provider_offset - 4000,
+    )
+    event(
+        start_ms + 400,
+        "speech_stopped",
+        accepted=True,
+        item_id=item_id,
+        turn_id=turn_id,
+        audio_generation=audio_generation,
+        provider_sample_offset=provider_offset,
+    )
+    event(
+        start_ms + 401,
+        "mic_gate_closed",
+        state="THINKING",
+        turn_id=turn_id,
+        audio_generation=audio_generation,
+        provider_sample_offset=provider_offset,
+    )
+    event(
+        start_ms + 402,
+        "audio_boundary_cut",
+        reason="speech-stopped",
+        turn_id=turn_id,
+        audio_generation=audio_generation + 1,
+        provider_sample_offset=provider_offset,
+    )
+    event(
+        start_ms + 420,
+        "provider_input_audio_buffer_committed",
+        item_id=item_id,
+        generation=generation,
+    )
+    event(
+        start_ms + 421,
+        "provider_conversation_item_added",
+        item_id=item_id,
+        item_type="message",
+        role="user",
+        generation=generation,
+    )
+    event(
+        start_ms + 422,
+        "provider_accepted_input_turn",
+        root_item_id=item_id,
+        committed_item_id=item_id,
+        turn_id=turn_id,
+        generation=generation,
+    )
+    event(start_ms + 423, "transcript_complete", direction="in", text=input_text)
+    event(
+        start_ms + 430,
+        "provider_response_create_sent",
+        request_id=request_id,
+        root_item_id=item_id,
+        turn_id=turn_id,
+        purpose="turn",
+        generation=generation,
+    )
+    event(
+        start_ms + 431,
+        "provider_response_created",
+        response_id=response_id,
+        request_id=request_id,
+        request_id_matched=True,
+        root_item_id=item_id,
+        turn_id=turn_id,
+        purpose="turn",
+        generation=generation,
+    )
+
+    audible_response_id = response_id
+    if tool_name:
+        event(
+            start_ms + 450,
+            "provider_response_done",
+            response_id=response_id,
+            status="completed",
+            turn_id=turn_id,
+            generation=generation,
+        )
+        call_id = f"{session_id}:call-{number}"
+        event(
+            start_ms + 451,
+            "tool_call",
+            name=tool_name,
+            call_id=call_id,
+            response_id=response_id,
+            turn_id=turn_id,
+            generation=generation,
+        )
+        if output_text is not None:
+            result_request = f"{request_id}:tool"
+            audible_response_id = f"{response_id}:tool"
+            event(
+                start_ms + 460,
+                "provider_response_create_sent",
+                request_id=result_request,
+                root_item_id=item_id,
+                turn_id=turn_id,
+                purpose="tool-result",
+                source_call_id=call_id,
+                generation=generation,
+            )
+            event(
+                start_ms + 461,
+                "provider_response_created",
+                response_id=audible_response_id,
+                request_id=result_request,
+                request_id_matched=True,
+                root_item_id=item_id,
+                turn_id=turn_id,
+                purpose="tool-result",
+                generation=generation,
+            )
+
+    if output_text is None:
+        if not tool_name:
+            event(
+                start_ms + 470,
+                "provider_response_done",
+                response_id=response_id,
+                status="completed",
+                turn_id=turn_id,
+                generation=generation,
+            )
+        return start_ms + 480
+
+    event(
+        start_ms + 470,
+        "response_audio_started",
+        response_id=audible_response_id,
+        turn_id=turn_id,
+        generation=generation,
+    )
+    event(start_ms + 520, "transcript_complete", direction="out", text=output_text)
+    event(
+        start_ms + 530,
+        "provider_response_done",
+        response_id=audible_response_id,
+        status="completed",
+        turn_id=turn_id,
+        generation=generation,
+    )
+    playback_id = f"{session_id}:playback-{number}"
+    event(
+        start_ms + 600,
+        "playback_started",
+        playback_id=playback_id,
+        turn_id=turn_id,
+    )
+    event(
+        start_ms + 900,
+        "playback_finished",
+        playback_id=playback_id,
+        turn_id=turn_id,
+    )
+    return start_ms + 900
+
+
+def _emit_groundtest_trace(
+    recorder: AudioTraceRecorder,
+    *,
+    room: str,
+    session_id: str,
+    generation: int,
+    close_mode: str,
+    provenance: dict[str, Any],
+    silent_semantic_close: bool = False,
+    prove_previous: bool = True,
+) -> str:
+    """Create the same complete manifest produced by one physical Voice PE cycle."""
+
+    previous_manifest = recorder.snapshot().get("latest") or {}
+    previous_rearms = [
+        event
+        for event in previous_manifest.get("events") or []
+        if event.get("event") == "wake_rearm_recovered"
+    ]
+    previous_rearm = previous_rearms[-1] if previous_rearms else {}
+    audio_base = int(previous_rearm.get("audio_generation") or 0)
+    previous_token = previous_rearm.get("rearm_token")
+    rearm_token = int(previous_token) + 1 if isinstance(previous_token, int) else 101
+    attempt_id = f"physical-attempt-{generation}"
+    if prove_previous:
+        recorder.note_next_wake(room, attempt_id)
+        recorder.prove_next_session(
+            room,
+            attempt_id,
+            session_id,
+            provider_generation=generation,
+            previous_provider_generation=generation - 1,
+        )
+    trace_metadata = {
+        **provenance,
+        "wake_source": "physical_wake_callback",
+        "wake_attempt_id": attempt_id,
+    }
+    assert recorder.begin(room, trace_metadata) is True
+    # A strict physical result must contain actual bytes on all three observed seams.
+    recorder.audio("device", b"\x01\x00" * 1600, 16_000)
+    recorder.audio("provider", b"\x02\x00" * 2400, 24_000)
+    recorder.audio("speaker", b"\x03\x00" * 2400, 24_000)
+
+    event = lambda at_ms, event_name, **details: _groundtest_event(  # noqa: E731
+        recorder,
+        at_ms=at_ms,
+        event_name=event_name,
+        session_id=session_id,
+        provider_generation=generation,
+        **details,
+    )
+    event(
+        1,
+        "wake_received",
+        source="physical_wake_callback",
+        wake_attempt_id=attempt_id,
+        audio_generation=audio_base,
+    )
+    event(
+        2,
+        "mic_gate_opened",
+        reason="wake",
+        state="LISTENING",
+        audio_generation=audio_base,
+        provider_sample_offset=0,
+    )
+    event(100, "provider_contract", tool_schema_sha256="schema-stable")
+    event(200, "provider_connected")
+
+    first_end = _emit_owned_groundtest_turn(
+        recorder,
+        session_id=session_id,
+        generation=generation,
+        number=1,
+        start_ms=500,
+        audio_generation=audio_base,
+        provider_offset=8000,
+        input_text="Hvad er klokken?",
+        output_text="Klokken er tre.",
+        tool_name="get_time",
+    )
+    event(
+        first_end + 100,
+        "audio_boundary_cut",
+        reason="followup-open",
+        audio_generation=audio_base + 2,
+        provider_sample_offset=8000,
+    )
+    event(
+        first_end + 101,
+        "mic_gate_opened",
+        reason="followup",
+        state="LOUNGE_WINDOW",
+        audio_generation=audio_base + 2,
+        provider_sample_offset=8000,
+    )
+    second_end = _emit_owned_groundtest_turn(
+        recorder,
+        session_id=session_id,
+        generation=generation,
+        number=2,
+        start_ms=first_end + 400,
+        audio_generation=audio_base + 2,
+        provider_offset=16_000,
+        input_text="Og hvilken ugedag er det?",
+        output_text="Det er onsdag.",
+    )
+    event(
+        second_end + 100,
+        "audio_boundary_cut",
+        reason="followup-open",
+        audio_generation=audio_base + 4,
+        provider_sample_offset=16_000,
+    )
+    followup_open_ms = second_end + 101
+    event(
+        followup_open_ms,
+        "mic_gate_opened",
+        reason="followup",
+        state="LOUNGE_WINDOW",
+        audio_generation=audio_base + 4,
+        provider_sample_offset=16_000,
+    )
+
+    if close_mode == "semantic":
+        final_end = _emit_owned_groundtest_turn(
+            recorder,
+            session_id=session_id,
+            generation=generation,
+            number=3,
+            start_ms=followup_open_ms + 300,
+            audio_generation=audio_base + 4,
+            provider_offset=20_000,
+            input_text="Farvel.",
+            output_text=None if silent_semantic_close else "Farvel.",
+            tool_name="end_conversation",
+        )
+        terminal_turn = f"{session_id}:turn-3"
+        semantic_marker_ms = final_end - 28 if silent_semantic_close else final_end + 1
+        event(semantic_marker_ms, "semantic_end_requested", turn_id=terminal_turn)
+        if silent_semantic_close:
+            event(final_end - 20, "semantic_end_silent", turn_id=terminal_turn)
+        else:
+            event(final_end + 2, "endphrase_confirmed", turn_id=terminal_turn)
+        close_reason = "model-close-silent" if silent_semantic_close else "model-close"
+        close_ms = final_end + 100
+        final_generation = audio_base + 6
+    else:
+        close_reason = "idle-fallback"
+        close_ms = followup_open_ms + 4000
+        final_generation = audio_base + 5
+
+    close_id = f"close-{session_id}"
+    event(close_ms, "close_requested", reason=close_reason, close_id=close_id)
+    event(close_ms + 100, "teardown_complete", close_id=close_id)
+    event(
+        close_ms + 150,
+        "audio_boundary_cut",
+        reason="rearm-ack",
+        close_id=close_id,
+        audio_generation=final_generation,
+        provider_sample_offset=20_000 if close_mode == "semantic" else 16_000,
+        rearm_token=rearm_token,
+    )
+    event(
+        close_ms + 200,
+        "wake_rearm_recovered",
+        close_id=close_id,
+        audio_generation=final_generation,
+        rearm_token=rearm_token,
+    )
+    manifest = recorder.finish(close_reason)
+    assert manifest is not None
+    manifest["events"][-1]["at_ms"] = close_ms + 250
+    target = recorder.artifact(str(manifest["id"]), "manifest")
+    assert target is not None
+    target.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    recorder._latest = manifest
+    return str(manifest["id"])
+
+
+def _tamper_groundtest_trace(
+    recorder: AudioTraceRecorder,
+    trace_id: str,
+    mutate: Callable[[dict[str, Any]], None],
+) -> None:
+    target = recorder.artifact(trace_id, "manifest")
+    assert target is not None
+    manifest = json.loads(target.read_text(encoding="utf-8"))
+    mutate(manifest)
+    target.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    if (recorder.snapshot().get("latest") or {}).get("id") == trace_id:
+        recorder._latest = copy.deepcopy(manifest)
 
 
 def _client(hub: StatusHub, sessions: dict) -> TestClient:
@@ -943,8 +1389,16 @@ async def test_groundtest_guides_ten_uninterrupted_conversations_and_captures_ev
 ):
     hub = StatusHub()
     hist = History(path=tmp_path / "history.jsonl")
+    recorder = _groundtest_recorder(tmp_path)
     session = _StubSession("kitchen")
-    app = create_app(hub, {"kitchen": session}, tools=_StubTools(), history=hist)
+    hub.set_connected("kitchen", True)
+    app = create_app(
+        hub,
+        {"kitchen": session},
+        tools=_StubTools(),
+        history=hist,
+        audio_trace=recorder,
+    )
     async with TestClient(TestServer(app)) as client:
         response = await client.get("/api/groundtest")
         initial = await response.json()
@@ -953,22 +1407,41 @@ async def test_groundtest_guides_ten_uninterrupted_conversations_and_captures_ev
         assert initial["steps"][0]["say"] == "Okay Nabu, hvad er klokken?"
         assert initial["steps"][1].get("new") is not True
         assert initial["cases"][0]["followup"] == "Og hvilken ugedag er det?"
+        assert [case["close_mode"] for case in initial["cases"]] == [
+            "semantic",
+            "idle_timeout",
+        ] * 5
+        assert initial["summary"]["sentences"] == 25
         assert initial["run"]["started_at"] is None
 
         response = await client.post("/api/groundtest/start")
         started = await response.json()
         assert started["ok"] is True
         assert started["run"]["current_index"] == 0
+        assert recorder.snapshot()["armed_room"] == "kitchen"
 
         now = time.time()
-        hist.append("kitchen", "in", "Hvad er klokken?", ts=now)
-        hist.append("kitchen", "out", "Klokken er tre.", ts=now + 0.1)
-        hist.append("kitchen", "in", "Og hvilken ugedag er det?", ts=now + 0.2)
-        hist.append("kitchen", "out", "Det er onsdag.", ts=now + 0.3)
-        hist.append("kitchen", "in", "Farvel.", ts=now + 0.4)
-        hist.append("kitchen", "out", "Farvel.", ts=now + 0.5)
-        hub.set_state("kitchen", "LISTENING")
-        hub.set_state("kitchen", "IDLE")
+        history_session = "kitchen:cycle-1"
+        hist.append("kitchen", "in", "Hvad er klokken?", ts=now, session=history_session)
+        hist.append("kitchen", "out", "Klokken er tre.", ts=now + 0.1, session=history_session)
+        hist.append(
+            "kitchen",
+            "in",
+            "Og hvilken ugedag er det?",
+            ts=now + 0.2,
+            session=history_session,
+        )
+        hist.append("kitchen", "out", "Det er onsdag.", ts=now + 0.3, session=history_session)
+        hist.append("kitchen", "in", "Farvel.", ts=now + 0.4, session=history_session)
+        trace_id = _emit_groundtest_trace(
+            recorder,
+            room="kitchen",
+            session_id=history_session,
+            generation=1,
+            close_mode="semantic",
+            provenance=started["run"]["provenance"],
+            silent_semantic_close=True,
+        )
         hub.tool_call(
             "kitchen",
             "get_time",
@@ -978,7 +1451,13 @@ async def test_groundtest_guides_ten_uninterrupted_conversations_and_captures_ev
         hub.set_latency("kitchen", 1456)
 
         response = await client.post(
-            "/api/groundtest/result", json={"index": 0, "outcome": "correct"}
+            "/api/groundtest/result",
+            json={
+                "run_id": started["run"]["run_id"],
+                "case_id": started["run"]["case_id"],
+                "index": 0,
+                "outcome": "correct",
+            },
         )
         rated = await response.json()
 
@@ -986,7 +1465,7 @@ async def test_groundtest_guides_ten_uninterrupted_conversations_and_captures_ev
     assert rated["run"]["current_index"] == 1
     result = rated["run"]["results"][0]
     assert result["inputs"] == ["Hvad er klokken?", "Og hvilken ugedag er det?", "Farvel."]
-    assert result["outputs"] == ["Klokken er tre.", "Det er onsdag.", "Farvel."]
+    assert result["outputs"] == ["Klokken er tre.", "Det er onsdag."]
     assert result["says"] == [
         "Okay Nabu, hvad er klokken?",
         "Og hvilken ugedag er det?",
@@ -994,19 +1473,37 @@ async def test_groundtest_guides_ten_uninterrupted_conversations_and_captures_ev
     ]
     assert result["latency_ms"] == 1456
     assert result["latencies_ms"] == [1234, 1456]
-    assert result["closed_room"] == "kitchen"
-    assert session.stops == ["groundtest-verdict"]
+    assert result["machine_ok"] is True, result["machine_issues"]
+    assert result["trace_id"] == trace_id
+    assert result["oracle_passed"] is True
+    assert result["oracle_issues"] == []
+    assert result["next_wake_verified"] is False
+    assert result["measured_close_reason"] == "model-close-silent"
+    assert result["accepted_speech_turns"] == 3
+    assert session.stops == []
+    assert recorder.snapshot()["armed_room"] == "kitchen"
     assert result["tools"][0]["args"] == {}
     assert result["tools"][0]["result"]["data"]["time"] == "15:00"
     assert rated["summary"]["counts"]["correct"] == 1
 
 
-async def test_groundtest_rejects_skipping_the_active_conversation():
+async def test_groundtest_rejects_skipping_the_active_conversation(tmp_path):
     hub = StatusHub()
-    async with TestClient(TestServer(create_app(hub, {}))) as client:
-        await client.post("/api/groundtest/start")
+    session = _StubSession("kitchen")
+    recorder = _groundtest_recorder(tmp_path)
+    hub.set_connected("kitchen", True)
+    async with TestClient(
+        TestServer(create_app(hub, {"kitchen": session}, audio_trace=recorder))
+    ) as client:
+        started = await (await client.post("/api/groundtest/start")).json()
         response = await client.post(
-            "/api/groundtest/result", json={"index": 2, "outcome": "correct"}
+            "/api/groundtest/result",
+            json={
+                "run_id": started["run"]["run_id"],
+                "case_id": started["run"]["case_id"],
+                "index": 2,
+                "outcome": "correct",
+            },
         )
         body = await response.json()
     assert response.status == 409
@@ -1016,18 +1513,769 @@ async def test_groundtest_rejects_skipping_the_active_conversation():
 async def test_groundtest_cannot_mark_a_half_finished_pair_correct(tmp_path):
     hub = StatusHub()
     hist = History(path=tmp_path / "history.jsonl")
-    async with TestClient(TestServer(create_app(hub, {}, history=hist))) as client:
-        await client.post("/api/groundtest/start")
+    recorder = _groundtest_recorder(tmp_path)
+    session = _StubSession("kitchen")
+    hub.set_connected("kitchen", True)
+    async with TestClient(
+        TestServer(create_app(hub, {"kitchen": session}, history=hist, audio_trace=recorder))
+    ) as client:
+        started = await (await client.post("/api/groundtest/start")).json()
         now = time.time()
         hist.append("kitchen", "in", "Hvad er klokken?", ts=now)
         hist.append("kitchen", "out", "Klokken er tre.", ts=now + 0.1)
         response = await client.post(
-            "/api/groundtest/result", json={"index": 0, "outcome": "correct"}
+            "/api/groundtest/result",
+            json={
+                "run_id": started["run"]["run_id"],
+                "case_id": started["run"]["case_id"],
+                "index": 0,
+                "outcome": "correct",
+            },
         )
         body = await response.json()
 
     assert response.status == 409
-    assert "du har sagt farvel" in body["error"]
+    assert "ikke helt lukket" in body["error"]
+    assert "conversation_incomplete" in body["machine_issues"]
+
+
+async def test_groundtest_rejects_the_wrong_close_owner_and_missing_teardown(tmp_path):
+    hub = StatusHub()
+    session = _StubSession("kitchen")
+    recorder = _groundtest_recorder(tmp_path)
+    hub.set_connected("kitchen", True)
+    async with TestClient(
+        TestServer(create_app(hub, {"kitchen": session}, audio_trace=recorder))
+    ) as client:
+        started = await (await client.post("/api/groundtest/start")).json()
+        _emit_groundtest_trace(
+            recorder,
+            room="kitchen",
+            session_id="kitchen:wrong-owner",
+            generation=1,
+            close_mode="idle_timeout",
+            provenance=started["run"]["provenance"],
+        )
+        response = await client.post(
+            "/api/groundtest/result",
+            json={
+                "run_id": started["run"]["run_id"],
+                "case_id": started["run"]["case_id"],
+                "index": 0,
+                "outcome": "correct",
+            },
+        )
+        wrong_owner = await response.json()
+        assert response.status == 200
+        assert wrong_owner["run"]["results"][0]["outcome"] == "system_failure"
+        assert "close_mode_mismatch" in wrong_owner["run"]["results"][0]["machine_issues"]
+        assert wrong_owner["run"]["completed_at"] is not None
+
+        restarted = await (await client.post("/api/groundtest/start")).json()
+        trace_id = _emit_groundtest_trace(
+            recorder,
+            room="kitchen",
+            session_id="kitchen:no-teardown",
+            generation=3,
+            close_mode="semantic",
+            provenance=restarted["run"]["provenance"],
+        )
+        _tamper_groundtest_trace(
+            recorder,
+            trace_id,
+            lambda trace: trace.update(
+                events=[event for event in trace["events"] if event["event"] != "teardown_complete"]
+            ),
+        )
+        response = await client.post(
+            "/api/groundtest/result",
+            json={
+                "run_id": restarted["run"]["run_id"],
+                "case_id": restarted["run"]["case_id"],
+                "index": 0,
+                "outcome": "correct",
+            },
+        )
+        no_teardown = await response.json()
+        assert response.status == 200
+        result = no_teardown["run"]["results"][0]
+        assert result["outcome"] == "system_failure"
+        assert "teardown_complete_count" in result["oracle_issues"]
+
+
+async def test_groundtest_is_fail_fast_and_only_failure_cleanup_calls_stop(tmp_path):
+    hub = StatusHub()
+    session = _StubSession("kitchen")
+    recorder = _groundtest_recorder(tmp_path)
+    hub.set_connected("kitchen", True)
+    async with TestClient(
+        TestServer(create_app(hub, {"kitchen": session}, audio_trace=recorder))
+    ) as client:
+        started = await (await client.post("/api/groundtest/start")).json()
+        response = await client.post(
+            "/api/groundtest/result",
+            json={
+                "run_id": started["run"]["run_id"],
+                "case_id": started["run"]["case_id"],
+                "index": 0,
+                "outcome": "wrong_hearing",
+            },
+        )
+        body = await response.json()
+
+    assert response.status == 200
+    assert body["run"]["completed_at"] is not None
+    assert body["run"]["failed_at"] is not None
+    assert body["summary"]["passed"] is False
+    assert session.stops == ["groundtest-aborted"]
+    assert recorder.snapshot()["armed_room"] is None
+
+
+async def test_groundtest_requires_exact_four_second_timeout_and_fresh_case_token(tmp_path):
+    hub = StatusHub()
+    session = _StubSession("kitchen")
+    recorder = _groundtest_recorder(tmp_path)
+    session.idle_timeout_s = 5
+    hub.set_connected("kitchen", True)
+    async with TestClient(
+        TestServer(create_app(hub, {"kitchen": session}, audio_trace=recorder))
+    ) as client:
+        response = await client.post("/api/groundtest/start")
+        assert response.status == 409
+        assert "4 sekunder" in (await response.json())["error"]
+
+        session.idle_timeout_s = 4
+        started = await (await client.post("/api/groundtest/start")).json()
+        response = await client.post(
+            "/api/groundtest/result",
+            json={
+                "run_id": "stale-run",
+                "case_id": started["run"]["case_id"],
+                "index": 0,
+                "outcome": "wrong_hearing",
+            },
+        )
+        assert response.status == 409
+        assert "forældet" in (await response.json())["error"]
+        assert session.stops == []
+
+
+async def test_groundtest_requires_and_automatically_arms_local_audio_evidence(tmp_path):
+    hub = StatusHub()
+    session = _StubSession("kitchen")
+    hub.set_connected("kitchen", True)
+
+    async with TestClient(TestServer(create_app(hub, {"kitchen": session}))) as client:
+        response = await client.post("/api/groundtest/start")
+        body = await response.json()
+        assert response.status == 409
+        assert "lydbevis" in body["error"].lower()
+
+    recorder = _groundtest_recorder(tmp_path)
+    async with TestClient(
+        TestServer(create_app(hub, {"kitchen": session}, audio_trace=recorder))
+    ) as client:
+        response = await client.post("/api/groundtest/start")
+        assert response.status == 200
+        assert recorder.snapshot()["armed_room"] == "kitchen"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_issue"),
+    [
+        (
+            lambda trace: trace.update(
+                events=[
+                    event
+                    for event in trace["events"]
+                    if event["event"] != "speech_started_or_interrupted"
+                ]
+            ),
+            "speech_edges_unbalanced",
+        ),
+        (
+            lambda trace: trace.update(
+                events=[
+                    event
+                    for index, event in enumerate(trace["events"])
+                    if not (event["event"] == "mic_gate_closed" and index < 20)
+                ]
+            ),
+            "speech_boundary_sequence_invalid",
+        ),
+        (
+            lambda trace: next(
+                event for event in trace["events"] if event["event"] == "provider_response_created"
+            ).update(root_item_id="foreign-user"),
+            "provider_response_without_accepted_turn",
+        ),
+        (
+            lambda trace: next(
+                event for event in trace["events"] if event["event"] == "playback_finished"
+            ).update(turn_id="foreign-turn"),
+            "playback_owner_mismatch",
+        ),
+        (
+            lambda trace: next(
+                event for event in trace["events"] if event["event"] == "provider_response_created"
+            ).update(generation=999),
+            "stale_turn_generation",
+        ),
+        (
+            lambda trace: trace["stages"].pop("provider"),
+            "provider_audio_missing",
+        ),
+        (
+            lambda trace: trace["stages"].pop("speaker"),
+            "speaker_audio_missing",
+        ),
+        (
+            lambda trace: next(
+                event for event in trace["events"] if event["event"] == "speech_stopped"
+            ).pop("provider_generation"),
+            "provider_generation_mismatch",
+        ),
+        (
+            lambda trace: [
+                event.pop("audio_generation", None)
+                for event in trace["events"]
+                if event["event"] in {"wake_received", "wake_rearm_recovered"}
+            ],
+            "physical_wake_missing",
+        ),
+        (
+            lambda trace: trace.update(
+                events=[
+                    event
+                    for event in trace["events"]
+                    if event["event"]
+                    not in {
+                        "provider_response_created",
+                        "provider_response_done",
+                        "response_audio_started",
+                    }
+                ]
+            ),
+            "turn_1_provider_response_missing",
+        ),
+        (
+            lambda trace: trace["events"].insert(
+                -1,
+                copy.deepcopy(
+                    next(
+                        event for event in trace["events"] if event["event"] == "teardown_complete"
+                    )
+                ),
+            ),
+            "teardown_complete_count",
+        ),
+    ],
+    ids=[
+        "missing-speech-start",
+        "missing-mic-close",
+        "foreign-response-owner",
+        "foreign-playback-owner",
+        "stale-provider-generation",
+        "missing-provider-audio",
+        "missing-speaker-audio",
+        "missing-local-generation",
+        "missing-audio-generation",
+        "missing-provider-response",
+        "duplicate-teardown",
+    ],
+)
+async def test_groundtest_complete_trace_faults_fail_the_run_instead_of_false_green(
+    tmp_path,
+    mutation: Callable[[dict[str, Any]], None],
+    expected_issue: str,
+):
+    hub = StatusHub()
+    session = _StubSession("kitchen")
+    recorder = _groundtest_recorder(tmp_path)
+    hub.set_connected("kitchen", True)
+    async with TestClient(
+        TestServer(create_app(hub, {"kitchen": session}, audio_trace=recorder))
+    ) as client:
+        started = await (await client.post("/api/groundtest/start")).json()
+        trace_id = _emit_groundtest_trace(
+            recorder,
+            room="kitchen",
+            session_id="kitchen:tampered",
+            generation=1,
+            close_mode="semantic",
+            provenance=started["run"]["provenance"],
+        )
+        _tamper_groundtest_trace(recorder, trace_id, mutation)
+        response = await client.post(
+            "/api/groundtest/result",
+            json={
+                "run_id": started["run"]["run_id"],
+                "case_id": started["run"]["case_id"],
+                "index": 0,
+                "outcome": "correct",
+            },
+        )
+        body = await response.json()
+
+    assert response.status == 200
+    result = body["run"]["results"][0]
+    assert result["outcome"] == "system_failure"
+    assert result["machine_ok"] is False
+    assert expected_issue in {*result["oracle_issues"], *result["machine_issues"]}
+    assert body["run"]["completed_at"] is not None
+    assert body["summary"]["passed"] is False
+
+
+async def test_groundtest_cannot_claim_previous_cycle_rearm_from_an_unrelated_later_wake(
+    tmp_path,
+):
+    hub = StatusHub()
+    session = _StubSession("kitchen")
+    recorder = _groundtest_recorder(tmp_path)
+    hub.set_connected("kitchen", True)
+    async with TestClient(
+        TestServer(create_app(hub, {"kitchen": session}, audio_trace=recorder))
+    ) as client:
+        data = await (await client.post("/api/groundtest/start")).json()
+        _emit_groundtest_trace(
+            recorder,
+            room="kitchen",
+            session_id="kitchen:cycle-1",
+            generation=1,
+            close_mode="semantic",
+            provenance=data["run"]["provenance"],
+        )
+        response = await client.post(
+            "/api/groundtest/result",
+            json={
+                "run_id": data["run"]["run_id"],
+                "case_id": data["run"]["case_id"],
+                "index": 0,
+                "outcome": "correct",
+            },
+        )
+        assert response.status == 200
+        data = await response.json()
+
+        _emit_groundtest_trace(
+            recorder,
+            room="kitchen",
+            session_id="kitchen:cycle-2",
+            generation=3,
+            close_mode="idle_timeout",
+            provenance=data["run"]["provenance"],
+            prove_previous=False,
+        )
+        response = await client.post(
+            "/api/groundtest/result",
+            json={
+                "run_id": data["run"]["run_id"],
+                "case_id": data["run"]["case_id"],
+                "index": 1,
+                "outcome": "correct",
+            },
+        )
+        failed = await response.json()
+
+    assert response.status == 200
+    assert failed["run"]["completed_at"] is not None
+    assert failed["run"]["results"][-1]["outcome"] == "system_failure"
+    issues = set(failed["run"]["results"][-1]["machine_issues"])
+    assert {"next_wake_received_count", "next_session_opened_count"} & issues
+
+
+async def test_groundtest_rejects_a_3_8_second_close_as_not_the_configured_timeout(tmp_path):
+    hub = StatusHub()
+    session = _StubSession("kitchen")
+    recorder = _groundtest_recorder(tmp_path)
+    hub.set_connected("kitchen", True)
+    async with TestClient(
+        TestServer(create_app(hub, {"kitchen": session}, audio_trace=recorder))
+    ) as client:
+        # Advance once so the active case expects an idle timeout.
+        data = await (await client.post("/api/groundtest/start")).json()
+        _emit_groundtest_trace(
+            recorder,
+            room="kitchen",
+            session_id="kitchen:semantic",
+            generation=1,
+            close_mode="semantic",
+            provenance=data["run"]["provenance"],
+        )
+        data = await (
+            await client.post(
+                "/api/groundtest/result",
+                json={
+                    "run_id": data["run"]["run_id"],
+                    "case_id": data["run"]["case_id"],
+                    "index": 0,
+                    "outcome": "correct",
+                },
+            )
+        ).json()
+        trace_id = _emit_groundtest_trace(
+            recorder,
+            room="kitchen",
+            session_id="kitchen:early-timeout",
+            generation=3,
+            close_mode="idle_timeout",
+            provenance=data["run"]["provenance"],
+        )
+
+        def close_early(trace: dict[str, Any]) -> None:
+            close = next(event for event in trace["events"] if event["event"] == "close_requested")
+            delta = 200
+            close_index = trace["events"].index(close)
+            for event in trace["events"][close_index:]:
+                event["at_ms"] -= delta
+
+        _tamper_groundtest_trace(recorder, trace_id, close_early)
+        response = await client.post(
+            "/api/groundtest/result",
+            json={
+                "run_id": data["run"]["run_id"],
+                "case_id": data["run"]["case_id"],
+                "index": 1,
+                "outcome": "correct",
+            },
+        )
+        failed = await response.json()
+
+    assert response.status == 200
+    result = failed["run"]["results"][-1]
+    assert result["outcome"] == "system_failure"
+    assert "timeout_duration" in result["machine_issues"]
+
+
+@pytest.mark.parametrize("drop_final_wake_audio", [False, True])
+async def test_groundtest_requires_exact_ten_of_ten_and_a_final_physical_wake(
+    tmp_path, drop_final_wake_audio: bool
+):
+    hub = StatusHub()
+    session = _StubSession("kitchen")
+    recorder = _groundtest_recorder(tmp_path)
+    hub.set_connected("kitchen", True)
+    async with TestClient(
+        TestServer(create_app(hub, {"kitchen": session}, audio_trace=recorder))
+    ) as client:
+        data = await (await client.post("/api/groundtest/start")).json()
+        for index, case in enumerate(data["cases"]):
+            generation = index * 2 + 1
+            _emit_groundtest_trace(
+                recorder,
+                room="kitchen",
+                session_id=f"kitchen:cycle-{index + 1}",
+                generation=generation,
+                close_mode=str(case["close_mode"]),
+                provenance=data["run"]["provenance"],
+                silent_semantic_close=index == 2,
+            )
+            response = await client.post(
+                "/api/groundtest/result",
+                json={
+                    "run_id": data["run"]["run_id"],
+                    "case_id": data["run"]["case_id"],
+                    "index": index,
+                    "outcome": "correct",
+                },
+            )
+            assert response.status == 200, await response.text()
+            data = await response.json()
+
+        assert data["run"]["awaiting_final_wake"] is True
+        assert data["run"]["completed_at"] is None
+        assert data["summary"]["semantic_close_matched"] == 5
+        assert data["summary"]["idle_timeout_matched"] == 5
+        assert data["summary"]["next_wake_verified"] == 9
+        assert data["summary"]["passed"] is False
+
+        response = await client.post(
+            "/api/groundtest/final-wake",
+            json={
+                "run_id": data["run"]["run_id"],
+                "final_wake_id": data["run"]["final_wake_id"],
+                "outcome": "correct",
+            },
+        )
+        assert response.status == 409
+
+        assert recorder.note_next_wake(
+            "kitchen",
+            "physical-attempt-final",
+        )
+        assert recorder.prove_next_session(
+            "kitchen",
+            "physical-attempt-final",
+            "kitchen:final-wake",
+            provider_generation=21,
+            previous_provider_generation=20,
+        )
+        await asyncio.sleep(0.002)
+        assert recorder.begin(
+            "kitchen",
+            {
+                **data["run"]["provenance"],
+                "wake_source": "physical_wake_callback",
+                "wake_attempt_id": "physical-attempt-final",
+            },
+        )
+        recorder.audio("device", b"\x01\x00" * 1600, 16_000)
+        recorder.audio("provider", b"\x02\x00" * 2400, 24_000)
+        recorder.audio("speaker", b"\x03\x00" * 2400, 24_000)
+        _groundtest_event(
+            recorder,
+            at_ms=1,
+            event_name="wake_received",
+            session_id="kitchen:final-wake",
+            provider_generation=21,
+            source="physical_wake_callback",
+            wake_attempt_id="physical-attempt-final",
+            audio_generation=55,
+        )
+        _groundtest_event(
+            recorder,
+            at_ms=2,
+            event_name="mic_gate_opened",
+            session_id="kitchen:final-wake",
+            provider_generation=21,
+            reason="wake",
+            state="LISTENING",
+            audio_generation=55,
+            provider_sample_offset=0,
+        )
+        _groundtest_event(
+            recorder,
+            at_ms=100,
+            event_name="provider_contract",
+            session_id="kitchen:final-wake",
+            provider_generation=21,
+            tool_schema_sha256="schema-stable",
+        )
+        _groundtest_event(
+            recorder,
+            at_ms=200,
+            event_name="provider_connected",
+            session_id="kitchen:final-wake",
+            provider_generation=21,
+        )
+        final_turn_end = _emit_owned_groundtest_turn(
+            recorder,
+            session_id="kitchen:final-wake",
+            generation=21,
+            number=1,
+            start_ms=500,
+            audio_generation=55,
+            provider_offset=8000,
+            input_text="Er du klar?",
+            output_text="Ja.",
+        )
+        final_epoch = "final-physical-epoch"
+        final_turn = "kitchen:final-wake:turn-1"
+        hub.timeline(
+            "kitchen",
+            "wake_received",
+            session=final_epoch,
+            session_id="kitchen:final-wake",
+            source="physical_wake_callback",
+            wake_attempt_id="physical-attempt-final",
+            provider_generation=21,
+            at_ms=0,
+        )
+        hub.timeline(
+            "kitchen",
+            "provider_connected",
+            session=final_epoch,
+            session_id="kitchen:final-wake",
+            provider_generation=21,
+            at_ms=200,
+        )
+        hub.timeline(
+            "kitchen",
+            "speech_stopped",
+            session=final_epoch,
+            session_id="kitchen:final-wake",
+            provider_generation=21,
+            turn_id=final_turn,
+            accepted=True,
+            at_ms=700,
+        )
+        hub.timeline(
+            "kitchen",
+            "playback_started",
+            session=final_epoch,
+            session_id="kitchen:final-wake",
+            provider_generation=21,
+            turn_id=final_turn,
+            playback_id="final-p1",
+            at_ms=1000,
+        )
+        hub.timeline(
+            "kitchen",
+            "playback_finished",
+            session=final_epoch,
+            session_id="kitchen:final-wake",
+            provider_generation=21,
+            turn_id=final_turn,
+            playback_id="final-p1",
+            at_ms=1300,
+        )
+
+        def final_cleanup(reason: str) -> None:
+            assert reason == "groundtest-final-wake-cleanup"
+            close_id = "close-final-control"
+            _groundtest_event(
+                recorder,
+                at_ms=final_turn_end + 100,
+                event_name="close_requested",
+                session_id="kitchen:final-wake",
+                provider_generation=21,
+                reason=reason,
+                close_id=close_id,
+            )
+            _groundtest_event(
+                recorder,
+                at_ms=final_turn_end + 200,
+                event_name="teardown_complete",
+                session_id="kitchen:final-wake",
+                provider_generation=21,
+                close_id=close_id,
+            )
+            _groundtest_event(
+                recorder,
+                at_ms=final_turn_end + 250,
+                event_name="audio_boundary_cut",
+                session_id="kitchen:final-wake",
+                provider_generation=21,
+                reason="rearm-ack",
+                close_id=close_id,
+                audio_generation=57,
+                provider_sample_offset=8000,
+                rearm_token=111,
+            )
+            _groundtest_event(
+                recorder,
+                at_ms=final_turn_end + 300,
+                event_name="wake_rearm_recovered",
+                session_id="kitchen:final-wake",
+                provider_generation=21,
+                close_id=close_id,
+                audio_generation=57,
+                rearm_token=111,
+            )
+            final_manifest = recorder.finish(reason)
+            assert final_manifest is not None
+            final_manifest["events"][-1]["at_ms"] = final_turn_end + 350
+            if drop_final_wake_audio:
+                next(
+                    event for event in final_manifest["events"] if event["event"] == "wake_received"
+                ).pop("audio_generation")
+            final_target = recorder.artifact(str(final_manifest["id"]), "manifest")
+            assert final_target is not None
+            final_target.write_text(
+                json.dumps(final_manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+            recorder._latest = final_manifest
+            hub.timeline(
+                "kitchen",
+                "close_requested",
+                session=final_epoch,
+                session_id="kitchen:final-wake",
+                reason=reason,
+                close_id=close_id,
+            )
+            hub.timeline(
+                "kitchen",
+                "teardown_complete",
+                session=final_epoch,
+                session_id="kitchen:final-wake",
+                close_id=close_id,
+            )
+            hub.timeline(
+                "kitchen",
+                "wake_rearm_recovered",
+                session=final_epoch,
+                session_id="kitchen:final-wake",
+                close_id=close_id,
+            )
+            hub.set_state("kitchen", "IDLE")
+
+        session.stop_hook = final_cleanup
+        response = await client.post(
+            "/api/groundtest/final-wake",
+            json={
+                "run_id": data["run"]["run_id"],
+                "final_wake_id": data["run"]["final_wake_id"],
+                "outcome": "correct",
+            },
+        )
+        complete = await response.json()
+
+    assert response.status == 200
+    if drop_final_wake_audio:
+        assert complete["summary"]["passed"] is False
+        assert "final_physical_wake" in complete["run"]["final_wake"]["machine_issues"]
+        return
+    assert complete["summary"]["passed"] is True, complete["run"]["final_wake"]
+    assert complete["summary"]["counts"]["correct"] == 10
+    assert complete["summary"]["next_wake_verified"] == 10
+    assert complete["run"]["results"][-1]["next_wake_verified"] is True
+    assert complete["run"]["final_wake"]["history_session"] == "kitchen:final-wake"
+    assert session.stops == ["groundtest-final-wake-cleanup"]
+
+
+async def test_groundtest_owns_manual_audio_controls_while_running(tmp_path):
+    hub = StatusHub()
+    session = _StubSession("kitchen")
+    recorder = _groundtest_recorder(tmp_path)
+    hub.set_connected("kitchen", True)
+    async with TestClient(
+        TestServer(create_app(hub, {"kitchen": session}, audio_trace=recorder))
+    ) as client:
+        started = await client.post("/api/groundtest/start")
+        assert started.status == 200
+        armed = await client.post("/api/audio-trace/arm", json={"room": "kitchen"})
+        cancelled = await client.post("/api/audio-trace/cancel")
+        armed_body = await armed.json()
+        cancelled_body = await cancelled.json()
+
+    assert armed.status == 409
+    assert cancelled.status == 409
+    assert "aktive Grundtest" in armed_body["error"]
+    assert "aktive Grundtest" in cancelled_body["error"]
+
+
+def test_groundtest_summary_cannot_pass_nine_of_ten():
+    hub = StatusHub()
+    hub.start_groundtest(10, room="kitchen", provenance={"fingerprint": "same"})
+    for index in range(9):
+        hub.record_groundtest(
+            index,
+            "correct",
+            {
+                "machine_ok": True,
+                "expected_close_mode": "semantic" if index % 2 == 0 else "idle_timeout",
+                "close_reason_match": True,
+                "runtime_fingerprint": "same",
+                "tool_schema_sha256": "schema",
+                "room": "kitchen",
+                "timeline_session": f"s{index}",
+                "provider_generation": index + 1,
+                "wake_seq": index * 10 + 1,
+                "rearm_seq": index * 10 + 9,
+            },
+        )
+    hub.record_groundtest(
+        9,
+        "wrong_hearing",
+        {
+            "machine_ok": True,
+            "expected_close_mode": "idle_timeout",
+            "close_reason_match": True,
+        },
+    )
+    summary = _groundtest_payload(hub)["summary"]
+    assert summary["counts"]["correct"] == 9
+    assert summary["passed"] is False
 
 
 async def test_audio_trace_can_be_armed_only_for_a_real_room(tmp_path):

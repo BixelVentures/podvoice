@@ -1,6 +1,6 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-09-02.
+Senest opdateret: 2026-09-03.
 
 ## Aktiv lead-beslutning
 
@@ -23,11 +23,59 @@ synligt som en konservativ diagnostisk afvigelse. **Aktuel fysisk gate:**
 Golden Chain **1/1**; ubrudte lifecycle-cyklusser **0/10**. v1.13.55 er derfor ikke
 releasegodkendt endnu.
 
-**Aktiv udviklingskandidat:** v1.13.55 retter kun den live-beviste afslutning af en
-afvist provider-VAD-spændvidde. Fysisk accepterede brugerturns forbliver ene ejer af
-`response.create`. Semantic VAD, samme Realtime-session og de fem eksisterende states
-bevares; firmware, gain, fysisk lydtransport, playback, prompt, model, reasoning,
-schema, værktøjer, firesekunders timeout, teardown og rearm er frosne.
+**Aktiv udviklingskandidat:** v1.13.56 ændrer kun Grundtestens UI, lokale bevisoptagelse
+og evaluator. Den installerede samtaleadfærd fra v1.13.55 bevares; firmware, gain,
+fysisk lydtransport, playback, prompt, model, reasoning, schema, værktøjer,
+firesekunders timeout, teardown og rearm er frosne.
+
+### Aktiv beslutning 2. september — Grundtesten skal måle den bindende 5+5-gate
+
+- **Observeret fejl og stærkeste direkte evidens:** Panelets nuværende Grundtest beder
+  om `Farvel` i alle ti samtaler, kræver tre input- og tre outputtranscripts samt blot
+  en vilkårlig senere `IDLE`, og kan samlet bestå med 9/10 korrekte. Den måler derfor
+  hverken de fem bindende firesekunders-timeouts, stille model-close eller den faktiske
+  close-/teardown-/rearm-kæde i `docs/PRODUKTMÅL.md`.
+- **Kæde, invarianter og hypotese:** Testbeviset skal følge det automatisk optagede,
+  lokale device-/provider-/speaker-trace fra ét fysisk wake gennem to accepterede ture
+  og deres provider-ejede svar/playback til enten én modelsemantisk close eller præcis
+  `idle-fallback`, efterfulgt af én teardown og én korreleret rearm. Næste fysiske wake
+  skal binde den lukkede trace til præcis den næste session og provider-generation.
+  Hypotesen er alene, at Grundtestens UI og evaluator er forældede; produktionsruntime
+  udførte den seneste armerede Golden Chain korrekt og må ikke ændres for at rette
+  acceptværktøjet.
+- **Mindste plan og eksplicitte ikke-mål:** De ti eksisterende to-turs-samtaler får fem
+  varierede semantiske afslutninger og fem eksplicitte stilhedsforløb. Serveren måler
+  den forventede close-type, accepterede fysiske ture, playback-finish, close-id,
+  teardown og rearm i samme session; transcript bruges kun som synligt diagnosebevis.
+  Kun 10/10 med præcis 5/5 i hver close-type kan bestå. Ingen ændring af `ThinSession`,
+  Realtime-wire, prompt, schema, model, reasoning, VAD, firesekunders-timeout,
+  firmware, gain, lydtransport, playback, teardown eller rearm er mål.
+- **Regressioner, gates og rollback:** Bevis både kort og stille model-close samt
+  `idle-fallback`; krydsede close-typer, ekstra tale under timeout, manglende/dobbelt
+  close, manglende teardown/rearm, fremmed session og 9/10 skal afvises. Kør fokuseret
+  web-/paneltest, lifecycle-gaten, uafhængigt adversarial review og én `release` på
+  frosset diff. Hvis evaluatorens observering selv ændrer runtime eller en forkert
+  close-type kan blive grøn, rulles hele Groundtest-deltaet tilbage.
+- **Faktisk ændring og foreløbig status for v1.13.56:** Grundtesten armerer selv ét
+  lokalt lydbevis for hver af de ti samtaler og for den afsluttende wake-kontrol. Det
+  eksisterende strenge `TraceOracle` kontrollerer fysisk wake, accepteret lyd,
+  provider-ejet response, playback, close, teardown, audio-boundary og rearm; en lille
+  wrapper kontrollerer præcis 5 semantiske closes, 5 firesekunders timeouts og eksakt
+  generation-/tokenkobling mellem samtalerne. Første fejl stopper runden, manuelle
+  lydknapper kan ikke overtage recorderen, og afbrudte mobilrequests frigiver deres
+  claim. De seneste 12 traces beholdes lokalt, så hele runden plus slutkontrollen kan
+  efterprøves. `ThinSession` har kun fået passiv wake-/artifact-provenance i tracen;
+  udgående Realtime-wire og produktadfærd er uændrede. Første adversarial review fandt
+  tre falsk-grønne bevisveje: manglende generationsfelter, manglende komplet
+  providerrespons og manglende speaker-spor. Alle tre er nu fail-closed og dækket af
+  konkrete mutationer. En fjerde mutation kræver desuden konkret og ens
+  audio-generation på slut-wake, wake-gate og forrige rearm. Den fokuserede gate er
+  27/27 grøn, `scripts/dev fast` gennemførte formattering, Ruff, mypy og den valgte
+  fulde testsuite på 43,8 sekunder, og den fulde lokale releasegate bestod på 43,7
+  sekunder. Frozen Ultra-re-review er **GO med P0=0/P1=0** og bekræfter ingen ændring af
+  Realtime-wire, prompt, VAD eller firmwareadfærd. Exact-commit CI/ARM64, installation
+  og den fysiske 10/10 mangler fortsat. Fysisk status er derfor stadig Golden Chain 1/1
+  og ubrudte lifecycle-cyklusser 0/10 på v1.13.55.
 
 ### Aktiv beslutning 2. september — eval-oraklet må afspejle providerens partielle orden
 

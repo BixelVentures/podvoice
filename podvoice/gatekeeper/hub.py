@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import secrets
 import time
 from collections import deque
 
@@ -97,21 +98,34 @@ class StatusHub:
         # but every conversation keeps enough timestamps to explain wake, VAD,
         # provider/tool work, physical playback, close and wake rearm after the fact.
         self._timeline_activity: deque[dict] = deque(maxlen=600)
+        self._timeline_seq = 0
         # A non-destructive "start fresh stuetest now" marker. It lets acceptance
         # evidence ignore old persisted history and old in-memory counters without
         # deleting either.
         self._stuetest_started_at: float | None = None
         self._stuetest_metric_baseline: dict[str, int] = dict.fromkeys(_METRIC_KEYS, 0)
-        # Guided, physical 20-sentence baseline. The panel arms one sentence, the
-        # owner speaks it, and then records the physical verdict. Runtime evidence
-        # is attached by web.py; the human verdict is deliberately authoritative
-        # for "nothing happened" and answer relevance.
+        # Guided physical 10-cycle baseline. Each cycle has two ordinary turns plus
+        # either a semantic closing turn or measured silence. Runtime evidence is
+        # attached by web.py; the human verdict remains authoritative for answer
+        # relevance, while correlated timeline edges own lifecycle acceptance.
         self._groundtest: dict = {
+            "run_id": None,
+            "case_id": None,
+            "case_claimed": False,
             "started_at": None,
             "step_started_at": None,
+            "step_timeline_seq": None,
             "current_index": 0,
             "total": 0,
+            "room": None,
+            "provenance": None,
             "results": [],
+            "awaiting_final_wake": False,
+            "final_wake_id": None,
+            "final_wake_claimed": False,
+            "final_wake_timeline_seq": None,
+            "final_wake": None,
+            "failed_at": None,
             "completed_at": None,
         }
 
@@ -166,7 +180,14 @@ class StatusHub:
             for key, value in details.items()
             if isinstance(value, (str, int, float, bool)) or value is None
         }
-        item = {"ts": time.time(), "room": room, "event": str(event), **clean}
+        self._timeline_seq += 1
+        item = {
+            "seq": self._timeline_seq,
+            "ts": time.time(),
+            "room": room,
+            "event": str(event),
+            **clean,
+        }
         self._timeline_activity.append(item)
         self._broadcast({"type": "timeline", **item})
 
@@ -205,15 +226,33 @@ class StatusHub:
         )
         return self._stuetest_started_at
 
-    def start_groundtest(self, total: int) -> dict:
+    def start_groundtest(
+        self,
+        total: int,
+        *,
+        room: str | None = None,
+        provenance: dict | None = None,
+    ) -> dict:
         """Start and arm a fresh guided physical conversation baseline."""
         now = time.time()
         self._groundtest = {
+            "run_id": secrets.token_hex(12),
+            "case_id": secrets.token_hex(12),
+            "case_claimed": False,
             "started_at": now,
             "step_started_at": now,
+            "step_timeline_seq": self._timeline_seq,
             "current_index": 0,
             "total": max(0, int(total)),
+            "room": room,
+            "provenance": dict(provenance or {}),
             "results": [],
+            "awaiting_final_wake": False,
+            "final_wake_id": None,
+            "final_wake_claimed": False,
+            "final_wake_timeline_seq": None,
+            "final_wake": None,
+            "failed_at": None,
             "completed_at": None,
         }
         self.activity("*", "🎯 Grundtest startet — samtale 1 er klar")
@@ -226,8 +265,50 @@ class StatusHub:
             "results": [dict(item) for item in self._groundtest["results"]],
         }
 
+    def claim_groundtest_case(self, run_id: str, case_id: str, index: int) -> None:
+        """Consume one mobile-safe case token before a handler can await cleanup."""
+        run = self._groundtest
+        if (
+            run.get("run_id") != run_id
+            or run.get("case_id") != case_id
+            or run.get("current_index") != index
+            or run.get("completed_at") is not None
+            or run.get("case_claimed") is True
+        ):
+            raise ValueError("Denne testsamtale er forældet")
+        run["case_claimed"] = True
+
+    def release_groundtest_case(self, run_id: str, case_id: str) -> None:
+        run = self._groundtest
+        if run.get("run_id") == run_id and run.get("case_id") == case_id:
+            run["case_claimed"] = False
+
+    def confirm_groundtest_next_wake(self, index: int, evidence: dict) -> None:
+        """Attach strict next-wake proof to the already closed preceding cycle."""
+        results = self._groundtest.get("results") or []
+        if index < 0 or index >= len(results) or results[index].get("outcome") != "correct":
+            raise ValueError("Den forrige testsamtale kan ikke få wake-bevis")
+        results[index]["next_wake_verified"] = True
+        results[index]["next_wake_evidence"] = dict(evidence)
+
+    def claim_groundtest_final_wake(self, run_id: str, final_wake_id: str) -> None:
+        run = self._groundtest
+        if (
+            run.get("run_id") != run_id
+            or run.get("final_wake_id") != final_wake_id
+            or not run.get("awaiting_final_wake")
+            or run.get("final_wake_claimed") is True
+        ):
+            raise ValueError("Denne wake-kontrol er forældet")
+        run["final_wake_claimed"] = True
+
+    def release_groundtest_final_wake(self, run_id: str, final_wake_id: str) -> None:
+        run = self._groundtest
+        if run.get("run_id") == run_id and run.get("final_wake_id") == final_wake_id:
+            run["final_wake_claimed"] = False
+
     def record_groundtest(self, index: int, outcome: str, evidence: dict) -> dict:
-        """Record one two-turn verdict and immediately arm the next conversation."""
+        """Record one cycle; fail fast or arm its next physical continuity proof."""
         if self._groundtest["started_at"] is None:
             raise ValueError("Grundtesten er ikke startet")
         if index != self._groundtest["current_index"]:
@@ -238,15 +319,56 @@ class StatusHub:
         self._groundtest["results"].append(
             {"index": index, "outcome": outcome, "rated_at": now, **evidence}
         )
+        self._groundtest["case_claimed"] = False
         next_index = index + 1
         self._groundtest["current_index"] = next_index
-        if next_index >= self._groundtest["total"]:
+        if outcome != "correct":
+            self._groundtest["failed_at"] = now
             self._groundtest["completed_at"] = now
             self._groundtest["step_started_at"] = None
-            self.activity("*", "🏁 Grundtest færdig — resultatet er klar")
+            self._groundtest["step_timeline_seq"] = None
+            self.activity("*", "🛑 Grundtest stoppet ved første fejl")
+        elif next_index >= self._groundtest["total"]:
+            # The tenth close is not continuity proof for itself. Keep the run pending
+            # until one fresh physical wake opens a different provider generation.
+            self._groundtest["awaiting_final_wake"] = True
+            self._groundtest["case_id"] = None
+            self._groundtest["final_wake_id"] = secrets.token_hex(12)
+            self._groundtest["final_wake_claimed"] = False
+            self._groundtest["final_wake_timeline_seq"] = self._timeline_seq
+            self._groundtest["step_started_at"] = None
+            self._groundtest["step_timeline_seq"] = None
+            self.activity("*", "🔁 Ti samtaler målt — sidste fysiske wake mangler")
         else:
+            self._groundtest["case_id"] = secrets.token_hex(12)
+            self._groundtest["case_claimed"] = False
             self._groundtest["step_started_at"] = now
+            self._groundtest["step_timeline_seq"] = self._timeline_seq
             self.activity("*", f"🎯 Grundtest — samtale {next_index + 1} er klar")
+        self._broadcast({"type": "groundtest", **self._groundtest})
+        return self.groundtest()
+
+    def complete_groundtest_final_wake(self, outcome: str, evidence: dict) -> dict:
+        """Finish the run only after cycle ten's real next-wake check."""
+        if not self._groundtest.get("awaiting_final_wake"):
+            raise ValueError("Grundtesten afventer ikke den sidste wake-kontrol")
+        now = time.time()
+        self._groundtest["awaiting_final_wake"] = False
+        self._groundtest["final_wake_claimed"] = False
+        self._groundtest["final_wake"] = {
+            "outcome": outcome,
+            "rated_at": now,
+            **evidence,
+        }
+        if outcome != "correct":
+            self._groundtest["failed_at"] = now
+        self._groundtest["completed_at"] = now
+        self.activity(
+            "*",
+            "🏁 Grundtest færdig — resultatet er klar"
+            if outcome == "correct"
+            else "🛑 Grundtest stoppet — sidste wake fejlede",
+        )
         self._broadcast({"type": "groundtest", **self._groundtest})
         return self.groundtest()
 

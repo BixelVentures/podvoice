@@ -77,9 +77,18 @@ def test_guided_groundtest_keeps_each_followup_uninterrupted_before_verdict():
     assert "Forkert svar" in html
     assert "Intet skete" in html
     assert "Rør ikke panelet under samtalen" in html
-    assert "3. Sig: “Farvel.”" in html
+    assert 'testCase.close_mode === "semantic"' in html
+    assert "Når opfølgningssvaret er helt færdigt: sig ingenting og vent i stilhed." in html
+    assert "Nabu må sige højst ét kort farvel eller" not in html
+    assert "fem med en afslutningssætning, fem med fire sekunders stilhed" in html
+    assert 'id="g_final_actions"' in html
+    assert 'fetch("api/groundtest/final-wake"' in html
+    assert "10 samtaler målt — sidste rearm-bevis mangler" in html
+    assert "30 fysiske ytringer" not in html
     assert "Uden nyt wake-ord" in html
-    assert "næste trin beviser straks rearm" in html
+    assert "dens wake beviser den forrige rearm" in html
+    assert "De seneste 12 lydbeviser beholdes lokalt" in html
+    assert "inden to minutter" in html
 
 
 def test_test_tab_can_arm_one_local_physical_audio_trace():

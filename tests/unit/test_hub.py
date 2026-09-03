@@ -107,24 +107,42 @@ async def test_timeline_records_bounded_lifecycle_edge_and_broadcasts():
 
 async def test_groundtest_records_sequential_physical_verdicts():
     hub = StatusHub()
-    started = hub.start_groundtest(2)
+    started = hub.start_groundtest(2, room="kitchen", provenance={"fingerprint": "v1"})
     assert started["current_index"] == 0
-    first_start = started["step_started_at"]
+    assert started["run_id"]
+    assert started["case_id"]
 
-    after_first = hub.record_groundtest(
+    failed = hub.record_groundtest(
         0,
         "wrong_hearing",
         {"inputs": ["Ja klokken"], "outputs": ["Klokken er tre."], "latency_ms": 3000},
     )
-    assert after_first["current_index"] == 1
-    assert after_first["step_started_at"] >= first_start
-    assert after_first["results"][0]["outcome"] == "wrong_hearing"
+    assert failed["current_index"] == 1
+    assert failed["step_started_at"] is None
+    assert failed["failed_at"] is not None
+    assert failed["completed_at"] is not None
+    assert failed["results"][0]["outcome"] == "wrong_hearing"
 
-    complete = hub.record_groundtest(
+    restarted = hub.start_groundtest(2, room="kitchen", provenance={"fingerprint": "v1"})
+    first_case_id = restarted["case_id"]
+    after_first = hub.record_groundtest(
+        0, "correct", {"timeline_session": "s1", "provider_generation": 1}
+    )
+    assert after_first["completed_at"] is None
+    assert after_first["case_id"] != first_case_id
+    assert after_first["step_started_at"] is not None
+
+    pending = hub.record_groundtest(
         1, "correct", {"inputs": ["Hvilken dag?"], "outputs": ["Onsdag."]}
     )
+    assert pending["completed_at"] is None
+    assert pending["awaiting_final_wake"] is True
+    assert pending["final_wake_id"]
+
+    complete = hub.complete_groundtest_final_wake("correct", {"machine_ok": True})
     assert complete["completed_at"] is not None
-    assert complete["step_started_at"] is None
+    assert complete["awaiting_final_wake"] is False
+    assert complete["final_wake"]["machine_ok"] is True
 
 
 async def test_service_only_broadcasts_on_change():

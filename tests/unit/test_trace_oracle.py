@@ -261,6 +261,37 @@ def test_voicepe_golden_trace_passes_strict_physical_oracle():
     assert report.contract[-2:] == ("close_requested", "session_closed")
 
 
+def test_strict_closed_cycle_can_be_scored_before_its_next_physical_wake():
+    trace = _fixture("voicepe_golden.json")
+    trace["events"] = [
+        event
+        for event in trace["events"]
+        if event["event"] not in {"next_wake_received", "next_session_opened"}
+    ]
+
+    report = TraceOracle(
+        adapter="voicepe",
+        minimum_user_turns=2,
+        require_semantic_close=True,
+        require_next_session=False,
+    ).score(trace)
+
+    assert report.passed, report.issues
+
+
+def test_acceptance_oracle_can_require_explicit_provider_turn_ownership():
+    report = TraceOracle(
+        adapter="voicepe",
+        minimum_user_turns=2,
+        require_semantic_close=True,
+        require_next_session=False,
+        require_turn_ownership=True,
+    ).score(_fixture("voicepe_golden.json"))
+
+    assert not report.passed
+    assert "turn_ownership_missing" in _codes(report)
+
+
 def test_rearm_ack_without_a_subsequent_real_wake_is_not_golden():
     trace = _fixture("voicepe_golden.json")
     trace["events"] = [event for event in trace["events"] if event["event"] != "next_wake_received"]

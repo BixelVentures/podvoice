@@ -89,7 +89,7 @@ class AudioTraceRecorder:
         path: pathlib.Path = pathlib.Path("/data/podvoice-audio-traces"),
         *,
         max_seconds: int = 60,
-        keep: int = 5,
+        keep: int = 12,
     ) -> None:
         self.path = path
         self.max_seconds = max(5, int(max_seconds))
@@ -393,6 +393,7 @@ class AudioTraceRecorder:
                         "source": "provider_connected",
                         "attempt_id": attempt_id,
                         "history_session": history_session,
+                        "previous_provider_generation": previous_provider_generation,
                         "provider_generation": provider_generation,
                     },
                 )

@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.13.56 — Grundtesten måler den rigtige 5+5-lifecycle
+
+- De ti fysiske samtaler skifter nu mellem fem varierede Realtime-afslutninger og fem
+  ægte firesekunders stilhedstimeouts. Kort model-farvel og stille model-close er begge
+  gyldige; testfraserne bruges aldrig som lokal runtime-routing.
+- Et menneskeligt “Korrekt” kan kun godkendes, når den samme fysiske session viser to
+  svar, den forventede close-ejer, præcis én teardown og korreleret rearm. Første fejl
+  stopper runden, og kun eksakt 10/10 kan blive grøn.
+- Samtale 2–10 beviser den foregående rearm med en frisk provider-generation. Efter
+  samtale 10 kræves én separat fysisk wake/svar-kontrol med samme fulde lokale
+  lyd-/provider-/playback-orakel, før panelet viser godkendt.
+- Grundtesten ejer selv den lokale recorder under hele runden, frigiver låse ved
+  afbrudte mobilrequests og beholder 12 traces, så alle ti samtaler og slutkontrollen
+  kan efterprøves. Første machine-invalid trace stopper fail-closed.
+- Firmware, lydtransport, VAD, prompt, model og samtaleruntime er uændrede; den eneste
+  `ThinSession`-ændring er passiv wake- og artifact-provenance i det lokale trace.
+
 ## 1.13.55 — afvist provider-VAD afsluttes før næste opfølgning
 
 - Fjerner manuel commit som falsk terminal for en VAD-start, der krydser den lukkede
