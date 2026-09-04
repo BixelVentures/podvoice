@@ -1,14 +1,24 @@
 # Changelog
 
+## 1.13.59 — startup-identiteten viser den faktiske reasoning
+
+- Bevarer Kandidat A og dens faktiske `reasoning.effort: medium` uændret, men bruger
+  nu samme konstante værdi i både Realtime-sessionen og startup-identiteten. Dermed
+  kan den installerede log ikke længere fejlagtigt rapportere `low`, mens provideren
+  modtager `medium`.
+- Retter v1.13.58-changeloggens forkerte reasoning-beskrivelse. Værktøjsskema, prompt,
+  firmware, lyd, lifecycle, timeout, teardown og rearm er uændrede.
+
 ## 1.13.58 — Home Assistant er eneste live-domænesandhed
 
 - Fjerner PodVoices lokale `get_time` og de lokale model-synlige timere. Tid og dato
   kommer nu kun fra HA `GetDateTime`; HA-timere kommer i en senere, isoleret kandidat.
 - Binder MCP til LLM API-id `assist`. Kun eksplicit klassificerede HA-værktøjer kommer
   ind i nye Realtime-sessioner; ukendte navne vises som afventende i readiness.
-- Bevarer den fysisk kendte `reasoning: low` fra v1.13.56; v1.13.57's utestede
-  `medium` arves ikke. Model, promptens øvrige adfærd, firmware, gain, VAD,
-  lydtransport, half-duplex, playback, timeout, teardown og rearm er uændrede.
+- Bevarer v1.13.57's `reasoning: medium`. Model, promptens øvrige adfærd, firmware,
+  gain, VAD, lydtransport, half-duplex, playback, timeout, teardown og rearm er
+  uændrede. Den publicerede startup-identitet skrev fejlagtigt `low`; det rettes i
+  v1.13.59 uden at ændre den faktiske Realtime-session.
 - Kandidaten er NO-GO indtil SafeEval, fysisk Golden Chain og 10/10 er bevist på det
   samme installerede artifact.
 

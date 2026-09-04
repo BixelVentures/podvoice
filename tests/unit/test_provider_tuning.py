@@ -9,7 +9,7 @@ import aiohttp
 import pytest
 
 from gatekeeper import constants as C
-from gatekeeper.openai_realtime import OpenAIRealtimeSession
+from gatekeeper.openai_realtime import DEFAULT_REASONING_EFFORT, OpenAIRealtimeSession
 from gatekeeper.settings import load_settings, save_settings
 from gatekeeper.voice import (
     Interrupted,
@@ -824,7 +824,8 @@ def test_openai_session_semantic_with_noise():
 
 def test_candidate_a_keeps_the_current_reasoning_setting_frozen():
     session = OpenAIRealtimeSession(api_key="k")._session_update()["session"]
-    assert session["reasoning"] == {"effort": "medium"}
+    assert DEFAULT_REASONING_EFFORT == "medium"
+    assert session["reasoning"] == {"effort": DEFAULT_REASONING_EFFORT}
 
 
 def test_fresh_user_turn_allows_direct_answer_or_a_needed_tool():

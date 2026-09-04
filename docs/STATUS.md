@@ -69,6 +69,15 @@ Senest opdateret: 2026-09-04.
   installation, SafeEval og fysisk Golden Chain mangler stadig og må ikke foregives
   som bestået.
 
+- **Installeret artifact og identitetskorrektion:** v1.13.58 blev publiceret og
+  installeret som git `b32b0958827e58f00f937e4a10b7b53a9e0d3311`. Startup beviste
+  MCP API-id `assist`, 17 klassificerede HA-værktøjer uden konflikt og en gyldig
+  Voice PE-firmwarekontrakt. Realtime-koden sendte `reasoning.effort: medium`, men
+  startup-identiteten og changeloggen rapporterede fejlagtigt `low`. v1.13.59 retter
+  kun denne observerbarheds-/dokumentationsfejl ved at dele én reasoning-konstant;
+  provider-wire, værktøjer, prompt, audio og lifecycle er uændrede. SafeEval og fysisk
+  Golden Chain afventer det korrigerede installerede artifact.
+
 ### Aktiv beslutning 4. september — fysisk semantik fejlede på frisk v1.13.56-session
 
 - **Observeret fejl og stærkeste direkte evidens:** Den armerede fysiske trace
