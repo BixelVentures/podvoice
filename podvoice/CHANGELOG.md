@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.13.57 — Realtime får mere plads til korrekt fysisk semantik
+
+- Skifter kun `gpt-realtime-2.1` fra `reasoning.effort: low` til `medium`. Den friske
+  v1.13.56-trace `20260904T104120-439` oprettede en ny conversation, men routede
+  “Hvad 12 gange syv?” til `get_time`, hørte opfølgningen som “Læs sjette” og svarede
+  videre efter en 697 ms lydtur med tomt diagnostisk transcript og uafklaret faktisk
+  betydning. Medium er den ene falsificerbare kandidat til
+  bedre lydfortolkning, værktøjsvalg og efterlevelse af uklar-input-reglen.
+- Ingen ændring af prompt, værktøjsskema, gain, VAD, støjreduktion, firmware,
+  lydtransport, playback, timeout, teardown eller rearm. Kandidaten er NO-GO, indtil
+  live semantik, fysisk Golden Chain og 10/10 er bevist på samme artifact.
+
 ## 1.13.56 — Grundtesten måler den rigtige 5+5-lifecycle
 
 - De ti fysiske samtaler skifter nu mellem fem varierede Realtime-afslutninger og fem

@@ -1,15 +1,53 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-09-03.
+Senest opdateret: 2026-09-04.
 
 ## Aktiv lead-beslutning
 
+### Aktiv beslutning 4. september — fysisk semantik fejlede på frisk v1.13.56-session
+
+- **Observeret fejl og stærkeste direkte evidens:** Den armerede fysiske trace
+  `20260904T104120-439` kørte installeret add-on v1.13.56, rootfs
+  `b35e4449ab9d2537fae324f4a40910d92c808e48679b3fa4471a11212ba84908`, Prompt V7,
+  schema `f712a7c5e2a9` og firmware `podvoice_build_11346`. Wake oprettede den friske
+  provider-conversation `conv_EKJm56rcQEKDZ4iMzSQRe`; gammelt sessionsindhold er
+  derfor afkræftet for denne trace. Alligevel kaldte første tur `get_time` på det diagnostiske input
+  “Hvad 12 gange syv?”, opfølgningen blev diagnosticeret som “Læs sjette”, og en tredje
+  697 ms lydtur fik tomt transcript men et nyt kontekstbaseret svar. Samtalen lukkede
+  korrekt ved `idle-fallback` med én teardown og én rearm. Numerisk replay blev
+  fail-closed før providerbrug, fordi den diagnostiske tekst ikke matchede den kendte
+  sikre eval-ytring.
+- **Kæde, invarianter og falsificerbar hypotese:** fysisk wake → frisk Realtime-session
+  → tre accepterede provider-VAD-ture i samme conversation → forkert semantik/tool →
+  korrekt timeout/teardown/rearm. Realtime skal fortsat eje sprog, matematik,
+  værktøjsvalg og uklar tale; PodVoice må ikke indføre transcript-veto, frase-routing
+  eller lokal matematik. Hypotesen er, at `reasoning.effort: low` er utilstrækkeligt
+  robust til den fysiske danske lyd med fuldt produktionsschema. Det er ikke bevist af
+  én fejlende trace, fordi samme low-konfiguration tidligere har bestået. `medium` er
+  derfor kun en A/B-kandidat, der falsificeres, hvis den ikke forbedrer korrekt direkte
+  matematik, opfølgning og uklar-input-adfærd uden at ændre ownergrænsen.
+- **Én kandidat og ikke-mål:** v1.13.57 ændrer kun Realtime reasoning fra `low` til
+  `medium`. Prompt, schema, model, gain, VAD, noise reduction, turn cue, ekkohale,
+  firmware, lydtransport, playback, firesekunders timeout, teardown og rearm er frosne.
+  Den tredje lydtur kan være brugerens afslutning eller fysisk restlyd; uden segmentets
+  gennemlytning må den ikke bruges til en timingpatch.
+- **Regressioner, gates og rollback:** statisk wirekontrakt og fuld releasegate skal
+  være grønne; uafhængigt adversarial review skal have P0=0/P1=0. Den igangsatte
+  sideeffektfrie low-test forbliver diagnostik og må ikke blokere lokal udvikling ved
+  lang rate-limit-ventetid. En installation af v1.13.57 må kun ske som diagnostisk
+  kandidat, fordi HA-add-onen ejer Realtime-nøglen; ingen fysisk produkttest må starte,
+  før kandidatens sideeffektfrie Golden-semantikgate på medium er 5/5 under $5-loftet.
+  Derefter én armeret fysisk kæde: 12 x 7 → 84, “Læg seks til” → 90, semantisk
+  close, én teardown/rearm og næste wake. Kun samme artifact kan derefter gå til 10/10.
+  Rollback er hele reasoning-deltaet, hvis medium ikke forbedrer korrektheden eller øger
+  median provider-first-audio mere end 300 ms.
+
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Installeret kandidat:** add-onen rapporterer v1.13.55 fra kandidatcommit
-`d496ca0`; runtime-rootfs er
-`645adfade8b46ab46068ff6121347d593b13737897db096420a9393bed77cbde`.
-Den armerede fysiske trace `20260902T141043-607` er én bestået Golden Chain på disse
-bits: 12 × 7 gav 84, “Læg seks til” gav 90 i samme provider-conversation og generation,
+**Installeret kandidat:** add-onen rapporterer v1.13.56 med runtime-rootfs
+`b35e4449ab9d2537fae324f4a40910d92c808e48679b3fa4471a11212ba84908`.
+Den armerede v1.13.56-trace `20260904T104120-439` er NO-GO for fysisk semantik som
+beskrevet ovenfor. Den tidligere v1.13.55-trace `20260902T141043-607` bestod én Golden
+Chain: 12 × 7 gav 84, “Læg seks til” gav 90 i samme provider-conversation og generation,
 og “Tak, det var alt” gav præcis ét `end_conversation`, én teardown og én rearm.
 Den efterfølgende tekst/lyd-sammenligning `eval-1788351114-20fddc` gav korrekt 90 uden
 værktøj i 5/5 tekstkontroller og 5/5 replay af den eksakte provider-PCM. Rapportens
@@ -19,14 +57,15 @@ trace leverede modsat. Den separate diagnostiske ASR skrev samtidig “Klik seks
 5/5 lydforsøg. Device-/provider-sammenligningen viser efterfølgende, at hele signalet
 nåede providerinputtet uforvansket; afvigelsen tilhører derfor den separate
 diagnose-ASR og er ikke en Voice PE-transport- eller runtime-semantikfejl. Den bevares
-synligt som en konservativ diagnostisk afvigelse. **Aktuel fysisk gate:**
-Golden Chain **1/1**; ubrudte lifecycle-cyklusser **0/10**. v1.13.55 er derfor ikke
-releasegodkendt endnu.
+synligt som en konservativ diagnostisk afvigelse. **Aktuel fysisk gate:** v1.13.56
+Golden Chain **0/1**; ubrudte lifecycle-cyklusser **0/10**. Den tidligere v1.13.55-
+succes arves ikke af kandidaten.
 
-**Aktiv udviklingskandidat:** v1.13.56 ændrer kun Grundtestens UI, lokale bevisoptagelse
-og evaluator. Den installerede samtaleadfærd fra v1.13.55 bevares; firmware, gain,
-fysisk lydtransport, playback, prompt, model, reasoning, schema, værktøjer,
-firesekunders timeout, teardown og rearm er frosne.
+**Aktiv udviklingskandidat:** v1.13.57 ændrer kun Realtime reasoning fra `low` til
+`medium`. Den er ikke en bevist rettelse og er kun GO som diagnostisk kandidat efter
+grønne lokale gates og uafhængigt review; fysisk produkttest er lukket, indtil dens egen
+sideeffektfrie medium-gate er 5/5. Firmware, gain, VAD, fysisk lydtransport, playback,
+prompt, model, schema, værktøjer, firesekunders timeout, teardown og rearm er frosne.
 
 ### Aktiv beslutning 2. september — Grundtesten skal måle den bindende 5+5-gate
 
