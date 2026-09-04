@@ -12,11 +12,18 @@ En grøn deltest må aldrig tilsidesætte en invariant her.
 | Én wake → én kanal/session, mic-gate, playback, teardown og rearm | `ThinSession` |
 | Sprogforståelse, turforståelse, semantisk afslutningsintention og værktøjsvalg | OpenAI Realtime |
 | Endelig autorisation af højrisiko-/sideeffektende handlinger | server-side execution policy; aldrig prompten alene |
-| Hjem, musik, web, vejr og timere | værktøjer kaldt af Realtime; aldrig livscyklus |
+| Live-data og handlinger for tid, hjem, musik, web, vejr og senere timere | Home Assistant; klassificeret MCP API-id `assist`, med den eksisterende statiske `podconnect.*` HA-serviceadapter kun til private musikdata |
 | Start/slut på fysisk svarlyd | firmware-events fra PodVoice-announcement-kæden |
 
 Stock Home Assistant Assist må ikke starte eller eje en PodVoice-samtale. Et værktøj må
 aldrig åbne, lukke eller genstarte tale-/wake-kanalen.
+
+PodVoice må ikke have en konkurrerende lokal sandhed for tid, vejr eller countdown.
+`GetDateTime` er eneste tids-/datoværktøj, `google_web_sogning` er eneste webværktøj,
+og højst ét HA-weather-værktøj må være deklareret. Ukendte tool-navne vises som
+afventende klassifikation og sendes ikke til Realtime. En konflikt skjuler kun det
+berørte domæne. Et åbent Realtime-schemas snapshot er immutable; ny HA-discovery gælder
+først den næste session.
 
 Realtime må forstå, foreslå og føre den naturlige bekræftelsesdialog, men et modelkald
 er ikke i sig selv tilladelse til en højrisikohandling. Oplåsning, alarm fra, adgang,

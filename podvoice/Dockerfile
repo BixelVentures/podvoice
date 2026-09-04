@@ -4,8 +4,11 @@
 ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base-python:3.12-alpine3.21
 FROM ${BUILD_FROM}
 
+ARG PODVOICE_GIT_SHA=unknown
+
 ENV LANG=C.UTF-8 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PODVOICE_GIT_SHA=${PODVOICE_GIT_SHA}
 
 WORKDIR /app
 

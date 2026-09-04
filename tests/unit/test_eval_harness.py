@@ -35,7 +35,6 @@ from gatekeeper.thin import (
     END_CONVERSATION_DECLARATION,
     WAIT_FOR_USER_DECLARATION,
 )
-from gatekeeper.tools import ToolRouter
 
 
 async def test_live_cli_is_retired_before_service_budget_or_provider(monkeypatch, capsys):
@@ -73,18 +72,7 @@ def _known_provider_budget() -> ProviderBudgetCoordinator:
 
 
 def _production_snapshot() -> list[dict]:
-    snapshot = SafeEvalTools().declarations()
-    timer_names = {"set_timer", "list_timers", "cancel_timer"}
-    timer_declarations = [
-        row
-        for row in ToolRouter(None, timers=object()).declarations()
-        if row["name"] in timer_names
-    ]
-    reserved_index = next(
-        index for index, row in enumerate(snapshot) if row["name"] == "end_conversation"
-    )
-    snapshot[reserved_index:reserved_index] = timer_declarations
-    return snapshot
+    return SafeEvalTools().declarations()
 
 
 def _audio_source_provenance(
@@ -132,11 +120,10 @@ def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
         "sensitive-confirmation",
         "sensitive-action-with-close",
         "low-risk-action-then-close",
-        "timer-routing",
     }
     assert any(len(s.turns) > 1 for s in scenarios)
     decisions = {turn.expect.decision for scenario in scenarios for turn in scenario.turns}
-    assert {"end_conversation", "get_time"} <= decisions
+    assert {"end_conversation", "GetDateTime"} <= decisions
     assert any(turn.expect.direct_answer for scenario in scenarios for turn in scenario.turns)
 
 
@@ -166,8 +153,8 @@ def test_tool_admission_filters_injected_production_tools_without_substring_alia
     declarations.extend(
         [
             {
-                "name": "get_time_alias",
-                "description": "must never satisfy exact get_time",
+                "name": "GetDateTimeAlias",
+                "description": "must never satisfy exact GetDateTime",
                 "parameters": {"type": "object"},
             },
             {
@@ -180,10 +167,10 @@ def test_tool_admission_filters_injected_production_tools_without_substring_alia
 
     admission = eval_harness._admit_eval_tools([scenario], declarations)
 
-    assert {"get_time", "google_web_sogning", "InjectedProductionMutation"} <= {
+    assert {"GetDateTime", "google_web_sogning", "InjectedProductionMutation"} <= {
         row["name"] for row in admission.declarations
     }
-    assert set(admission.contracts) == {"get_time", "google_web_sogning"}
+    assert set(admission.contracts) == {"GetDateTime", "google_web_sogning"}
 
 
 def test_eval_only_sensitive_schema_does_not_mutate_production_snapshot_or_hash():
@@ -224,17 +211,17 @@ async def test_invalid_tool_admission_is_structured_and_precedes_budget_or_socke
         declarations = None
     assert declarations is None or isinstance(declarations, list)
     if declarations is None:
-        get_time = web = {}
+        date_time = web = {}
     else:
-        get_time = next(row for row in declarations if row["name"] == "get_time")
+        date_time = next(row for row in declarations if row["name"] == "GetDateTime")
         web = next(row for row in declarations if row["name"] == "google_web_sogning")
     if failure == "duplicate":
         assert declarations is not None
-        declarations.append(json.loads(json.dumps(get_time)))
+        declarations.append(json.loads(json.dumps(date_time)))
     elif failure == "alias_only":
         declarations = [
             {**json.loads(json.dumps(web)), "name": "google_web_sogning_alias"},
-            get_time,
+            date_time,
         ]
     elif failure == "remote_ref":
         web["parameters"] = {"$ref": "https://example.invalid/schema.json"}
@@ -334,8 +321,8 @@ def test_golden_semantic_scenario_is_one_exact_five_turn_chain():
     assert [turn.expect.decision for turn in scenario.turns] == [
         None,
         None,
-        "get_time",
-        "get_time",
+        "GetDateTime",
+        "GetDateTime",
         "end_conversation",
     ]
     assert [turn.expect.direct_answer for turn in scenario.turns] == [
@@ -348,8 +335,8 @@ def test_golden_semantic_scenario_is_one_exact_five_turn_chain():
     assert [turn.expect.numeric_result for turn in scenario.turns] == [84, 90, None, None, None]
     assert scenario.turns[0].expect.numeric_support == (7, 12)
     assert scenario.turns[1].expect.numeric_support == (6, 84)
-    assert scenario.turns[2].expect.tool_args == {"get_time": {"fields": ["time"]}}
-    assert scenario.turns[3].expect.tool_args == {"get_time": {"fields": ["weekday"]}}
+    assert scenario.turns[2].expect.tool_args == {"GetDateTime": {}}
+    assert scenario.turns[3].expect.tool_args == {"GetDateTime": {}}
     assert [turn.expect.remain_open for turn in scenario.turns] == [
         True,
         True,
@@ -586,27 +573,28 @@ def test_numeric_result_oracle_rejects_substrings_negation_and_conflicts(
 
 def test_oracle_requires_the_model_selected_temporal_field():
     expected = TurnExpectation(
-        decision="get_time",
-        tool_args={"get_time": {"fields": ["weekday"]}},
+        decision="GetDateTime",
+        tool_args={"GetDateTime": {}},
         answer_any=("mandag",),
     )
     good = TurnObservation(
         turn_id="t",
         session_id="s",
-        decisions=["get_time"],
-        tool_args={"get_time": [{"fields": ["weekday"]}]},
+        decisions=["GetDateTime"],
+        tool_args={"GetDateTime": [{}]},
         answer="I dag er det mandag.",
     )
     assert grade_turn(expected, good) == []
 
-    wrong_field = TurnObservation(
+    wrong_tool = TurnObservation(
         turn_id="t",
         session_id="s",
-        decisions=["get_time"],
-        tool_args={"get_time": [{"fields": ["week_number"]}]},
+        decisions=["HassGetCurrentTime"],
+        tool_args={"HassGetCurrentTime": [{}]},
         answer="Det er uge 34.",
     )
-    assert {finding.code for finding in grade_turn(expected, wrong_field)} == {
+    assert {finding.code for finding in grade_turn(expected, wrong_tool)} == {
+        "wrong-decision",
         "wrong-tool-args",
         "answer-missing-any",
     }
@@ -620,13 +608,17 @@ async def test_safe_eval_router_never_dispatches_unknown_tools():
     assert "continue_conversation" not in {
         declaration["name"] for declaration in tools.declarations()
     }
-    weekday = await tools.dispatch("get_time", {"fields": ["weekday"]})
+    weekday = await tools.dispatch("GetDateTime", {})
     assert weekday == {
         "ok": True,
-        "summary": "I dag er det mandag.",
-        "data": {"requested_fields": ["weekday"], "weekday": "mandag"},
+        "data": {
+            "date": "2026-08-17",
+            "time": "14:00",
+            "weekday": "mandag",
+            "week_number": 34,
+        },
     }
-    assert (await tools.dispatch("get_time", {}))["error_kind"] == "bad_args"
+    assert (await tools.dispatch("GetDateTime", {"field": "time"}))["error_kind"] == "bad_args"
     refused = await tools.dispatch("unlock_front_door", {"entity": "lock.front"})
     assert refused == {
         "ok": False,
@@ -739,42 +731,6 @@ async def test_safe_eval_dispatch_requires_exact_admitted_name_and_canonical_arg
     assert wrong_args["error_kind"] == "eval_fixture_args_mismatch"
     assert exact["ok"] is True
     assert tools.fixture_side_effects == 1
-
-
-async def test_timer_routing_uses_exact_production_schemas_and_local_zero_effect_fixtures():
-    scenario = next(row for row in load_scenarios() if row.id == "timer-routing")
-    production = _production_snapshot()
-    production_by_name = {row["name"]: row for row in production}
-    admission = eval_harness._admit_eval_tools([scenario], production)
-    tools = SafeEvalTools(
-        admission.declarations,
-        admitted_names=set(admission.contracts),
-        fixture_contracts=admission.contracts,
-    )
-
-    assert set(admission.contracts) == {"set_timer", "list_timers", "cancel_timer"}
-    for name in admission.contracts:
-        assert (
-            next(row for row in admission.declarations if row["name"] == name)
-            == (production_by_name[name])
-        )
-
-    observed = []
-    for index, turn in enumerate(scenario.turns):
-        name = turn.expect.decision
-        assert name is not None
-        args = turn.expect.tool_args[name]
-        tools.begin_turn(f"timer-{index}")
-        observed.append(await tools.dispatch(name, args))
-        tools.finish_turn()
-
-    assert all(result["ok"] is True for result in observed)
-    assert tools.calls == [
-        ("set_timer", {"minutes": 10}),
-        ("list_timers", {}),
-        ("cancel_timer", {}),
-    ]
-    assert tools.fixture_side_effects == 0
 
 
 @pytest.mark.parametrize(
@@ -1659,15 +1615,15 @@ async def test_golden_semantic_runner_keeps_all_five_turns_in_one_session():
                 TurnObservation(
                     turn_id=turn_id,
                     session_id="one-provider-session",
-                    decisions=["get_time"],
-                    tool_args={"get_time": [{"fields": ["time"]}]},
+                    decisions=["GetDateTime"],
+                    tool_args={"GetDateTime": [{}]},
                     answer="Klokken er fjorten.",
                 ),
                 TurnObservation(
                     turn_id=turn_id,
                     session_id="one-provider-session",
-                    decisions=["get_time"],
-                    tool_args={"get_time": [{"fields": ["weekday"]}]},
+                    decisions=["GetDateTime"],
+                    tool_args={"GetDateTime": [{}]},
                     answer="I dag er det mandag.",
                 ),
                 TurnObservation(
@@ -1969,7 +1925,7 @@ async def test_live_service_persists_partial_scenario_and_trace_budget_mismatch(
             error="rate_limit_exceeded · 429",
             fixture_side_effects=2,
             tool_results={
-                "get_time": [
+                "GetDateTime": [
                     {"ok": True, "data": {"iso": "2026-08-23T12:00:00+02:00"}},
                     {"ok": True, "data": {"iso": "2026-08-23T12:00:01+02:00"}},
                 ]
@@ -2814,10 +2770,10 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
     )
     service = LiveEvalService(provider_budget=_known_provider_budget())
 
-    assert sessions == 13
-    assert turns == 26
+    assert sessions == 12
+    assert turns == 23
     assert service._max_run_s == required
-    assert 114 * 60 < service._max_run_s < 115 * 60
+    assert 101 * 60 < service._max_run_s < 102 * 60
 
 
 async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(monkeypatch):
@@ -2869,7 +2825,7 @@ async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(mo
     assert waits == [60.5]
 
 
-async def test_full_thirteen_session_profile_accepts_measured_14_5k_each(monkeypatch):
+async def test_full_twelve_session_profile_accepts_measured_14_5k_each(monkeypatch):
     clock = [0.0]
     calls = 0
 
@@ -2890,11 +2846,11 @@ async def test_full_thirteen_session_profile_accepts_measured_14_5k_each(monkeyp
     ).run(api_key="secret", tool_declarations=_production_snapshot())
 
     assert report["ok"] is True, report.get("error")
-    assert calls == 13
-    assert report["budget"]["actual_tokens"] == 188_500
-    assert report["budget"]["max_actual_tokens"] == 1_560_000
+    assert calls == 12
+    assert report["budget"]["actual_tokens"] == 174_000
+    assert report["budget"]["max_actual_tokens"] == 1_380_000
     assert report["budget"]["max_cost_usd"] == pytest.approx(5.0)
-    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(104.0)
+    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(92.0)
     assert report["deadline_s"] > report["budget"]["rate_limit_wait_s"]
 
 
@@ -3398,7 +3354,7 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
 
     class FakeDriver:
         def __init__(self, *args, tool_declarations=None, **kwargs):
-            assert tool_declarations[0]["name"] == "get_time"
+            assert tool_declarations[0]["name"] == "GetDateTime"
 
         async def open(self, *, run_id, scenario_id):
             session_id = f"{run_id}:{scenario_id}:{len(opened)}"
@@ -3410,8 +3366,8 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
             return TurnObservation(
                 turn_id=turn_id,
                 session_id=opened[-1],
-                decisions=["get_time"],
-                tool_args={"get_time": [{"fields": ["time"]}]},
+                decisions=["GetDateTime"],
+                tool_args={"GetDateTime": [{}]},
                 answer="Klokken er fjorten.",
                 usage={"input_text_tokens": 100},
             )
@@ -3422,8 +3378,8 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
             return TurnObservation(
                 turn_id=turn_id,
                 session_id=opened[-1],
-                decisions=["get_time"],
-                tool_args={"get_time": [{"fields": ["time"]}]},
+                decisions=["GetDateTime"],
+                tool_args={"GetDateTime": [{}]},
                 answer="Klokken er fjorten.",
                 diagnostic_transcript="Hvad er klokken?",
                 usage={"input_text_tokens": 100},
@@ -4690,8 +4646,8 @@ async def test_audio_trial_requires_exact_nonempty_diagnostic_transcript(
             return TurnObservation(
                 turn_id=turn_id,
                 session_id=self.session_id,
-                decisions=["get_time"],
-                tool_args={"get_time": [{"fields": ["time"]}]},
+                decisions=["GetDateTime"],
+                tool_args={"GetDateTime": [{}]},
                 answer="Klokken er fjorten.",
                 usage={"input_text_tokens": 100},
             )
@@ -4700,8 +4656,8 @@ async def test_audio_trial_requires_exact_nonempty_diagnostic_transcript(
             return TurnObservation(
                 turn_id=turn_id,
                 session_id=self.session_id,
-                decisions=["get_time"],
-                tool_args={"get_time": [{"fields": ["time"]}]},
+                decisions=["GetDateTime"],
+                tool_args={"GetDateTime": [{}]},
                 answer="Klokken er fjorten.",
                 diagnostic_transcript=diagnostic_transcript,
                 usage={"input_audio_tokens": 100},

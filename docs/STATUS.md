@@ -4,6 +4,71 @@ Senest opdateret: 2026-09-04.
 
 ## Aktiv lead-beslutning
 
+### Aktiv beslutning 4. september — HA er eneste live-domænesandhed
+
+- **Observeret fejl og stærkeste direkte evidens:** Den publicerede main-kandidat
+  v1.13.57 (`cbd335f`) skiftede alene Realtime-reasoning til `medium`, men den seneste
+  armerede fysiske kæde valgte fortsat det lokale `get_time` på ren matematik. Den
+  samme friske session havde korrekt wake-, audio-, playback-, timeout-, teardown- og
+  rearm-korrelation. `tools.py` eksponerer samtidig både lokal `get_time`, lokale
+  in-memory-timere og HA's `GetDateTime`; den nuværende admission fjerner kun identiske
+  navne og kan derfor sende semantisk overlappende ejere til modellen. Den konkrete
+  årsagshypotese er, at blandet værktøjsejerskab gør et live-domæneværktøj til en
+  konkurrerende forklaring på almindelig tale. Hypotesen falsificeres, hvis samme rene
+  provider-PCM fortsat vælger HA `GetDateTime`, efter at lokale dubletter er væk.
+- **Hele berørte kæde og invarianter:** Voice PE-lyd → én frisk Realtime-session →
+  immutable tool-schema → modelbeslutning → completed, response-bundet dispatch →
+  playback → samme follow-up-session → semantisk close eller fire sekunders reel
+  stilhed → én teardown/rearm → frisk næste wake. HA er eneste ejer af tid, vejr, web,
+  musik, hjem og senere timer; Realtime ejer betydning og værktøjsvalg; PodVoice ejer
+  kun schema-admission, autorisation, dispatch og lifecyclemekanik. Ukendte eller
+  semantisk konfliktende HA-værktøjer må aldrig glide automatisk ind i en ny session.
+- **Én kandidat og eksplicitte ikke-mål:** v1.13.58 fjerner lokal `get_time` og lokale
+  timere fra det model-synlige schema, accepterer kun en statisk klassificeret
+  HA-værktøjsflade med `GetDateTime` og `google_web_sogning` som eneejere og binder den
+  superviserede MCP-klient til `/api/mcp/assist`. Den samme kandidat gør kun det lokale
+  test-/buildflow hurtigere uden produktionsadfærd. Firmware, LED, gain, VAD,
+  audioformat, half-duplex, FLAC-playback, audio-boundaries, firesekunders-timeout,
+  teardown, rearm og model er frosne. Reasoning fastholdes på aktuelle `main`-
+  indstilling `medium`; Kandidat A ændrer derfor ikke modeltuning samtidig med
+  værktøjsejerskabet.
+  Vejrkonfiguration og HA-backed timere er efterfølgende separate kandidater.
+  Den eksisterende statiske `podconnect.*` HA-serviceadapter til private musikdata
+  bevares uændret; den er HA-ejet, allowlistet og indgår i det effektive schema-hash,
+  men er ikke et dynamisk MCP-værktøj.
+- **Regressioner, sammensatte gates og rollback:** Tool-inventory skal vise præcis én
+  ejer for tid og web, ingen lokale timer, ingen ukendte modelværktøjer og et eksakt
+  API-id/schema-hash. Matematik og numerisk opfølgning skal være direkte svar i samme
+  session; kun tid må kalde `GetDateTime`; web må kun kalde `google_web_sogning`;
+  HA-tab skal fail-closed uden stale dispatch. Completed/cancelled/stale batch-, Talk-
+  og ThinSession-kontrakter genkøres. Derefter én sideeffektfri, prisbegrænset live-gate,
+  exact-commit CI/ARM64 og én fysisk Golden Chain før 10/10. Hvis ren lyd stadig vælger
+  `GetDateTime`, rulles der ikke videre med fraserouting; næste og eneste afgrænsede
+  diagnose er en identisk-PCM-modelsammenligning. Hele tool-deltaet kan rulles tilbage
+  uden firmwareflash.
+
+- **Faktisk implementering og lokal status:** Kandidat A er implementeret som
+  v1.13.58. Lokal `get_time` og model-synlige in-memory-timere er fjernet;
+  `GetDateTime` og `google_web_sogning` har hver én HA-ejer via det eksakte
+  `/api/mcp/assist`-endpoint. Sessionens værktøjsskema er immutable, og stale,
+  dublerede, ufuldstændige eller ikke-committede tool-batches udfører ingen handling.
+  Talk og Voice PE deler fortsat samme `ThinSession`-kontrakt. Reasoning er tilbageført
+  til `medium`, så kandidaten ikke blander modeltuning ind i tool-deltaet.
+  Candidate-scope består som ét domæne (`ha_tools`); kontrollen klassificerer nu kun
+  de faktisk ændrede tekstfragmenter, så et uændret `end_conversation` på samme
+  JSON-linje ikke giver en falsk semantikændring. Ruff, formattering, mypy,
+  tool-/eval-/scope-tests, hele Thin-integrationen og de reelle konsol-WebSocket-tests
+  er grønne. Den samlede releasekørsel fandt to forældede Talk-fixtures, der stadig
+  brugte lokal `get_time` uden provider-commit; de er migreret til den samme
+  committede `GetDateTime`-batch som produktionskontrakten, og hele den berørte
+  integrationpakke er derefter grøn. Det adversariale review fandt P0=0; dets to
+  P1-observationer er lukket:
+  adapterpariteten er grøn, og candidate-scope håndhæves nu også af `release` mod den
+  frosne merge-base. Den lokale releasegate er dermed grøn som én samlet, uændret
+  kandidat efter den målrettede integrationgenkørsel. Exact-commit CI/ARM64,
+  installation, SafeEval og fysisk Golden Chain mangler stadig og må ikke foregives
+  som bestået.
+
 ### Aktiv beslutning 4. september — fysisk semantik fejlede på frisk v1.13.56-session
 
 - **Observeret fejl og stærkeste direkte evidens:** Den armerede fysiske trace
@@ -61,11 +126,10 @@ synligt som en konservativ diagnostisk afvigelse. **Aktuel fysisk gate:** v1.13.
 Golden Chain **0/1**; ubrudte lifecycle-cyklusser **0/10**. Den tidligere v1.13.55-
 succes arves ikke af kandidaten.
 
-**Aktiv udviklingskandidat:** v1.13.57 ændrer kun Realtime reasoning fra `low` til
-`medium`. Den er ikke en bevist rettelse og er kun GO som diagnostisk kandidat efter
-grønne lokale gates og uafhængigt review; fysisk produkttest er lukket, indtil dens egen
-sideeffektfrie medium-gate er 5/5. Firmware, gain, VAD, fysisk lydtransport, playback,
-prompt, model, schema, værktøjer, firesekunders timeout, teardown og rearm er frosne.
+**Forrige diagnostiske kandidat:** v1.13.57 ændrede kun Realtime reasoning fra `low`
+til `medium`. Den er ikke en bevist rettelse og har ingen aktiv kandidatstatus efter
+beslutningen ovenfor. Firmware, gain, VAD, fysisk lydtransport, playback,
+firesekunders timeout, teardown og rearm forbliver frosne i v1.13.58.
 
 ### Aktiv beslutning 2. september — Grundtesten skal måle den bindende 5+5-gate
 

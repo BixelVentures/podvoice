@@ -6,6 +6,14 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: podvoice-ci-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   lint-test:
     runs-on: ubuntu-latest
@@ -25,19 +33,120 @@ jobs:
       - run: python -m pytest -q
 
   build-addon:
-    needs: lint-test
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            addon:
+              - 'podvoice/**'
+              - '.github/workflows/ci.yml'
       # home-assistant/builder is deprecated; build the aarch64 image with
       # docker buildx + an explicit FROM (BUILD_FROM no longer auto-injected
       # since Supervisor 2026.04.0). See PLAN.md §11 / §6 B.2.
       - uses: docker/setup-qemu-action@v3
+        if: steps.changes.outputs.addon == 'true'
       - uses: docker/setup-buildx-action@v3
+        if: steps.changes.outputs.addon == 'true'
+      - id: version
+        if: steps.changes.outputs.addon == 'true'
+        run: |
+          echo "version=$(sed -n 's/^version: \"\(.*\)\"/\1/p' podvoice/config.yaml)" >> "$GITHUB_OUTPUT"
+      - id: artifact
+        if: steps.changes.outputs.addon == 'true'
+        run: echo "context_sha=$(git ls-files -s podvoice | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        if: >-
+          steps.changes.outputs.addon == 'true' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
+        if: steps.changes.outputs.addon == 'true'
         with:
           context: ./podvoice
           platforms: linux/arm64
-          push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          push: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          tags: ghcr.io/bixelventures/aarch64-addon-podvoice:build-${{ steps.artifact.outputs.context_sha }}
+          labels: org.opencontainers.image.revision=${{ github.event.pull_request.head.sha }}
+          build-args: PODVOICE_GIT_SHA=${{ github.event.pull_request.head.sha }}
+          cache-from: type=gha,scope=podvoice-aarch64
+          cache-to: type=gha,mode=max,scope=podvoice-aarch64
+
+  publish-addon:
+    if: github.event_name == 'push'
+    needs: lint-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            addon:
+              - 'podvoice/**'
+              - '.github/workflows/ci.yml'
+      - uses: docker/setup-qemu-action@v3
+        if: steps.changes.outputs.addon == 'true'
+      - uses: docker/setup-buildx-action@v3
+        if: steps.changes.outputs.addon == 'true'
+      - id: version
+        if: steps.changes.outputs.addon == 'true'
+        run: |
+          echo "version=$(sed -n 's/^version: \"\(.*\)\"/\1/p' podvoice/config.yaml)" >> "$GITHUB_OUTPUT"
+      - id: artifact
+        if: steps.changes.outputs.addon == 'true'
+        run: echo "context_sha=$(git ls-files -s podvoice | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        if: steps.changes.outputs.addon == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Refuse an existing release version
+        if: steps.changes.outputs.addon == 'true'
+        shell: bash
+        run: |
+          set +e
+          inspect_output="$(docker buildx imagetools inspect \
+            ghcr.io/bixelventures/aarch64-addon-podvoice:${{ steps.version.outputs.version }} 2>&1)"
+          inspect_status=$?
+          set -e
+          if [ "$inspect_status" -eq 0 ]; then
+            echo "Release version already exists and is immutable." >&2
+            exit 1
+          fi
+          case "$inspect_output" in
+            *"manifest unknown"*|*"not found"*) ;;
+            *)
+              echo "$inspect_output" >&2
+              exit "$inspect_status"
+              ;;
+          esac
+      - name: Publish exact tested main image
+        id: publish
+        if: steps.changes.outputs.addon == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ./podvoice
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ghcr.io/bixelventures/aarch64-addon-podvoice:${{ steps.version.outputs.version }}
+            ghcr.io/bixelventures/aarch64-addon-podvoice:sha-${{ github.sha }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          build-args: PODVOICE_GIT_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=podvoice-aarch64
+          cache-to: type=gha,mode=max,scope=podvoice-aarch64
+      - name: Record published digest
+        if: steps.changes.outputs.addon == 'true'
+        run: echo "published_digest=${{ steps.publish.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"

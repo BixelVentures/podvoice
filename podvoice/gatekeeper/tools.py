@@ -1,31 +1,23 @@
-"""Tool router: model function-calls -> local tools + Home Assistant via MCP.
+"""Tool router: model function-calls -> Home Assistant via MCP.
 
 Replaces the hand-rolled REST bridge (ha_tools.py, deleted in Phase 3): instead
 of curated service wrappers + a home-grown discovery/allowlist layer, Home
-Assistant's own MCP server decides which tools exist and which entities they may
-touch (Settings > Voice assistants > exposed entities). PodVoice adds only what
-HA cannot provide:
+Assistant's own MCP server owns live data and actions. PodVoice admits only reviewed,
+uniquely classified tool names from the configured ``assist`` API. Unknown names stay
+visible in readiness as pending, but never enter a Realtime session implicitly.
 
-- ``get_time`` — local wall clock (HA's configured timezone), always available.
-- kitchen timers (``set_timer``/``list_timers``/``cancel_timer``) — they ring ON
-  the Voice PE, so they must live here.
-
-Everything else (lights, climate, covers, lists, scripts — including a web-search
-script if one is exposed to Assist) arrives as MCP tools and is passed to the
-model verbatim. Dispatch never raises: errors fold into ``{"ok": False}`` so the
-model is never left waiting.
+Dispatch never raises: errors fold into ``{"ok": False}`` so the model is never left
+waiting.
 """
 
 from __future__ import annotations
 
 import asyncio
-import datetime
 import hashlib
 import json
 import logging
 import math
 import time
-import zoneinfo
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -62,6 +54,7 @@ _STANDARD_CAPABILITY_HINTS = {
 # model-facing prose and must never turn a coincidental word (for example the timer
 # phrase "expiring next") into an available home capability.
 _TOOL_CAPABILITY_ROLES: dict[str, frozenset[str]] = {
+    "GetDateTime": frozenset({"time"}),
     "GetLiveContext": frozenset({"home_read"}),
     "HassGetState": frozenset({"home_read"}),
     "HassTurnOn": frozenset({"home_control"}),
@@ -69,8 +62,6 @@ _TOOL_CAPABILITY_ROLES: dict[str, frozenset[str]] = {
     "HassLightSet": frozenset({"home_control"}),
     "HassClimateGetTemperature": frozenset({"home_read"}),
     "HassClimateSetTemperature": frozenset({"home_control"}),
-    "HassGetCurrentDate": frozenset({"home_read"}),
-    "HassGetCurrentTime": frozenset({"home_read"}),
     "HassGetWeather": frozenset({"home_read", "weather"}),
     "weather_forecast": frozenset({"weather"}),
     "google_web_sogning": frozenset({"web_search"}),
@@ -89,6 +80,12 @@ _TOOL_CAPABILITY_ROLES: dict[str, frozenset[str]] = {
     "podconnect_recently_played": frozenset({"music_history"}),
     "podconnect_top_tracks": frozenset({"music_history"}),
     "podconnect_liked": frozenset({"music_history"}),
+}
+_PENDING_ROLE_CANDIDATES: dict[str, str] = {
+    "HassGetCurrentDate": "time",
+    "HassGetCurrentTime": "time",
+    "HassTimerStatus": "timers",
+    "HassCancelAllTimers": "timers",
 }
 _RESERVED_PROVIDER_TOOL_NAMES = frozenset({"end_conversation", "wait_for_user", "approve_action"})
 
@@ -109,65 +106,6 @@ _PODCONNECT_DATA_TOOLS = {
         "Fetch the signed-in user's Spotify Liked Songs. Returns "
         "{tracks:[{name,artist,uri}]}; this is private Spotify library data.",
     ),
-}
-
-# Danish day/month names for the spoken get_time summary (strftime is locale-dependent
-# and the Alpine container has no da_DK locale — hardcoding is the reliable way).
-_WEEKDAYS_DA = ("mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag")
-_TIME_FIELDS = ("time", "date", "weekday", "week_number")
-_MONTHS_DA = (
-    "januar",
-    "februar",
-    "marts",
-    "april",
-    "maj",
-    "juni",
-    "juli",
-    "august",
-    "september",
-    "oktober",
-    "november",
-    "december",
-)
-
-_CLOCK_HOURS_DA = (
-    "tolv",
-    "et",
-    "to",
-    "tre",
-    "fire",
-    "fem",
-    "seks",
-    "syv",
-    "otte",
-    "ni",
-    "ti",
-    "elleve",
-)
-_NUMBERS_DA = {
-    1: "et",
-    2: "to",
-    3: "tre",
-    4: "fire",
-    5: "fem",
-    6: "seks",
-    7: "syv",
-    8: "otte",
-    9: "ni",
-    10: "ti",
-    11: "elleve",
-    12: "tolv",
-    13: "tretten",
-    14: "fjorten",
-    15: "femten",
-    16: "seksten",
-    17: "sytten",
-    18: "atten",
-    19: "nitten",
-    20: "tyve",
-    30: "tredive",
-    40: "fyrre",
-    50: "halvtreds",
 }
 
 
@@ -196,6 +134,8 @@ class _DiscoverySnapshot:
     generation: int
     mcp_tools: tuple[dict[str, Any], ...]
     mcp_names: frozenset[str]
+    pending_names: frozenset[str]
+    role_conflicts: tuple[str, ...]
     podconnect_services: frozenset[str]
     fetched_at: float | None
     endpoint: str | None
@@ -251,34 +191,6 @@ _ACCESS_OPEN_COVER_CLASSES = {"door", "garage", "gate", "window"}
 _TEMPERATURE_KEYS = ("temperature", "target_temperature", "target_temp", "temp")
 
 
-def _number_da(value: int) -> str:
-    if value in _NUMBERS_DA:
-        return _NUMBERS_DA[value]
-    tens, ones = divmod(value, 10)
-    one_word = "en" if ones == 1 else _NUMBERS_DA[ones]
-    return f"{one_word}og{_NUMBERS_DA[tens * 10]}"
-
-
-def _spoken_clock(hour: int, minute: int) -> str:
-    """Natural Danish clock speech; never make the voice model pronounce ``17:59``."""
-    current = _CLOCK_HOURS_DA[hour % 12]
-    following = _CLOCK_HOURS_DA[(hour + 1) % 12]
-    if minute == 0:
-        return f"Klokken er {current}."
-    if minute == 15:
-        return f"Klokken er kvart over {current}."
-    if minute == 30:
-        return f"Klokken er halv {following}."
-    if minute == 45:
-        return f"Klokken er kvart i {following}."
-    if minute < 30:
-        unit = "minut" if minute == 1 else "minutter"
-        return f"Klokken er {_number_da(minute)} {unit} over {current}."
-    remaining = 60 - minute
-    unit = "minut" if remaining == 1 else "minutter"
-    return f"Klokken er {_number_da(remaining)} {unit} i {following}."
-
-
 def _mcp_result_to_contract(result: dict) -> dict:
     """Fold an MCP tools/call result into the one flat contract the prompt teaches:
     ``{ok, summary?, data?}`` on success, ``{ok: False, error_kind, error}`` on
@@ -322,20 +234,20 @@ class ToolRouter:
         *,
         supervisor_token: str = "",
         client: httpx.AsyncClient | None = None,
-        timers=None,  # TimerManager — local kitchen timers
         hub=None,  # StatusHub — the panel's "home control" service dot
         execution_policy: ExecutionPolicy | None = None,
     ) -> None:
         self._mcp = mcp
         self._token = supervisor_token
         self._client = client
-        self._timers = timers
         self._hub = hub
         self.execution_policy = execution_policy or ExecutionPolicy()
         self._discovery = _DiscoverySnapshot(
             generation=0,
             mcp_tools=(),
             mcp_names=frozenset(),
+            pending_names=frozenset(),
+            role_conflicts=(),
             podconnect_services=frozenset(),
             fetched_at=None,
             endpoint=self._safe_endpoint(getattr(mcp, "url", "")),
@@ -351,7 +263,6 @@ class ToolRouter:
         self._fetch_lock = asyncio.Lock()
         self._recovery_wakeup = asyncio.Event()
         self._mcp_epoch = 0
-        self._tz: datetime.tzinfo | None = None
         self._entity_index: dict[str, tuple[_CanonicalEntity, ...]] = {}
         self._entity_index_at = 0.0
         self._entity_lock = asyncio.Lock()
@@ -360,8 +271,7 @@ class ToolRouter:
     healthy: bool = True  # last REAL-probe outcome; wake speaks up when False
 
     async def start(self) -> None:
-        """Fetch the MCP tool list once at boot. Failure degrades to local-only
-        tools with a LOUD log line — a silent no-tool assistant is the old bug."""
+        """Fetch the Assist tool list once at boot and fail closed on discovery."""
         await self.probe()
         if self._mcp is not None and not self._discovery.mcp_tools:
             log.warning(
@@ -415,12 +325,14 @@ class ToolRouter:
                 generation=snap.generation + 1,
                 mcp_tools=snap.mcp_tools,
                 mcp_names=snap.mcp_names,
+                pending_names=snap.pending_names,
+                role_conflicts=snap.role_conflicts,
                 podconnect_services=frozenset(discovered),
                 fetched_at=snap.fetched_at,
                 endpoint=snap.endpoint,
                 api_id=snap.api_id,
                 server_info=snap.server_info,
-                schema_sha256=snap.schema_sha256,
+                schema_sha256=self._schema_sha256_for(snap.mcp_tools, discovered),
                 last_error=snap.last_error,
                 retry_state=snap.retry_state,
                 retry_attempt=snap.retry_attempt,
@@ -437,12 +349,14 @@ class ToolRouter:
                 generation=snap.generation + 1,
                 mcp_tools=snap.mcp_tools,
                 mcp_names=snap.mcp_names,
+                pending_names=snap.pending_names,
+                role_conflicts=snap.role_conflicts,
                 podconnect_services=frozenset(),
                 fetched_at=snap.fetched_at,
                 endpoint=snap.endpoint,
                 api_id=snap.api_id,
                 server_info=snap.server_info,
-                schema_sha256=snap.schema_sha256,
+                schema_sha256=self._schema_sha256_for(snap.mcp_tools, frozenset()),
                 last_error=snap.last_error,
                 retry_state=snap.retry_state,
                 retry_attempt=snap.retry_attempt,
@@ -456,12 +370,23 @@ class ToolRouter:
             return
         async with self._fetch_lock:
             snap = self._discovery
+            if self._mcp_api_id(self._mcp) != "assist":
+                self._record_discovery_failure(
+                    McpError(
+                        "MCP endpoint must target the explicit /api/mcp/assist LLM API",
+                        connection_shaped=True,
+                    )
+                )
+                if self._hub is not None:
+                    self._hub.set_service("mcp", "down")
+                return
             epoch = self._mcp_epoch
             age = time.time() - snap.fetched_at if snap.fetched_at is not None else math.inf
             if not force and snap.mcp_tools and age < _TOOLS_TTL_S:
                 return
             try:
-                tools = self._compile_mcp_tools(await self._mcp.list_tools())
+                compiled = self._compile_mcp_tools(await self._mcp.list_tools())
+                tools, pending, conflicts = self._admit_mcp_tools(compiled)
             except Exception as e:
                 failure = (
                     e
@@ -477,18 +402,22 @@ class ToolRouter:
                 log.warning("discarding stale MCP tools/list success after a newer failure")
                 return
             names = frozenset(t["name"] for t in tools)
-            encoded = json.dumps(tools, sort_keys=True, separators=(",", ":")).encode()
+            effective_schema_hash = self._schema_sha256_for(
+                tools, self._discovery.podconnect_services
+            )
             info = getattr(self._mcp, "server_info", {}) or {}
             self._discovery = _DiscoverySnapshot(
                 generation=snap.generation + 1,
                 mcp_tools=tuple(tools),
                 mcp_names=names,
+                pending_names=frozenset(pending),
+                role_conflicts=tuple(conflicts),
                 podconnect_services=self._discovery.podconnect_services,
                 fetched_at=time.time(),
                 endpoint=self._safe_endpoint(getattr(self._mcp, "url", "")),
                 api_id=self._mcp_api_id(self._mcp),
                 server_info=dict(info),
-                schema_sha256=hashlib.sha256(encoded).hexdigest(),
+                schema_sha256=effective_schema_hash,
                 last_error=None,
                 retry_state="ready",
                 retry_attempt=0,
@@ -499,9 +428,11 @@ class ToolRouter:
             if self._hub is not None:
                 self._hub.set_service("mcp", "up" if tools else "degraded")
             log.info(
-                "MCP tools: %d from HA (%s)",
+                "MCP assist tools: %d admitted (%s); pending=%s conflicts=%s",
                 len(tools),
                 ", ".join(sorted(names)) or "none",
+                ", ".join(sorted(pending)) or "none",
+                ", ".join(conflicts) or "none",
             )
 
     @staticmethod
@@ -565,6 +496,42 @@ class ToolRouter:
                 )
         return compiled
 
+    @staticmethod
+    def _admit_mcp_tools(
+        compiled: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], set[str], list[str]]:
+        """Admit the reviewed Assist surface; never infer roles from prose.
+
+        ``HassGetWeather`` is the preferred single HA weather owner. The legacy
+        ``weather_forecast`` name is admitted only when the preferred tool is absent.
+        Every other unknown name remains pending classification and cannot enter a
+        Realtime session.
+        """
+        by_name = {str(tool["name"]): tool for tool in compiled}
+        admitted_names = set(by_name).intersection(_TOOL_CAPABILITY_ROLES)
+        pending = set(by_name).difference(admitted_names)
+        conflicts: list[str] = []
+
+        if "HassGetWeather" in by_name and "weather_forecast" in by_name:
+            admitted_names.discard("weather_forecast")
+            pending.add("weather_forecast")
+
+        for name, role in _PENDING_ROLE_CANDIDATES.items():
+            if name not in by_name:
+                continue
+            role_owners = {
+                admitted_name
+                for admitted_name in admitted_names
+                if role in _TOOL_CAPABILITY_ROLES[admitted_name]
+            }
+            if role_owners:
+                conflicts.append(f"{role}:{name}")
+                admitted_names.difference_update(role_owners)
+                pending.update(role_owners)
+
+        admitted = [tool for tool in compiled if tool["name"] in admitted_names]
+        return admitted, pending, sorted(conflicts)
+
     @classmethod
     def _schema_nodes(cls, value: object):
         if isinstance(value, dict):
@@ -595,9 +562,11 @@ class ToolRouter:
         self._discovery = _DiscoverySnapshot(
             generation=snap.generation + 1,
             # Active sessions already copied their accepted schema. New sessions get
-            # local-only declarations until a complete fresh page is admitted.
+            # no HA declarations until a complete fresh page is admitted.
             mcp_tools=(),
             mcp_names=frozenset(),
+            pending_names=frozenset(),
+            role_conflicts=(),
             podconnect_services=frozenset(),
             fetched_at=time.time(),
             endpoint=snap.endpoint,
@@ -634,6 +603,8 @@ class ToolRouter:
             "api_id": snap.api_id,
             "server_info": dict(snap.server_info),
             "schema_sha256": snap.schema_sha256,
+            "pending_tools": sorted(snap.pending_names),
+            "role_conflicts": list(snap.role_conflicts),
             "last_error": snap.last_error,
             "retry_state": snap.retry_state,
             "retry_attempt": snap.retry_attempt,
@@ -647,9 +618,10 @@ class ToolRouter:
         if not endpoint:
             return None
         path = urlsplit(endpoint).path or "/"
-        if endpoint.startswith(C.SUPERVISOR_CORE_API):
-            return "supervisor_core:mcp"
-        return f"configured:{path}"
+        normalized = path.rstrip("/") or "/"
+        if normalized in {"/api/mcp/assist", "/core/api/mcp/assist"}:
+            return "assist"
+        return f"invalid:{normalized}"
 
     @staticmethod
     def _safe_endpoint(endpoint: Any) -> str | None:
@@ -698,82 +670,19 @@ class ToolRouter:
 
     # ------------------------------------------------------------------ declarations
     def declarations(self) -> list[dict]:
-        decls: list[dict] = [
-            {
-                "name": "get_time",
-                "description": "Read precisely requested current local time fields. You "
-                "interpret the latest user turn and choose one or more fields: time is "
-                "the clock, date is the calendar date, weekday is the day name "
-                "(mandag-søndag), and week_number is the numbered ISO week. Never "
-                "confuse weekday with week_number. Request only fields the latest turn "
-                "asks for; do not inherit a field merely because the previous turn used "
-                "it.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "fields": {
-                            "type": "array",
-                            "items": {"type": "string", "enum": list(_TIME_FIELDS)},
-                            "minItems": 1,
-                            "uniqueItems": True,
-                            "description": "Only the temporal fields requested now.",
-                        }
-                    },
-                    "required": ["fields"],
-                    "additionalProperties": False,
-                },
-            }
-        ]
-        if self._timers is not None:
-            decls += [
-                {
-                    "name": "set_timer",
-                    "description": "Use only when the user's latest clear intent is to start "
-                    "a countdown timer that will ring on this speaker. Never use this for "
-                    "arithmetic or a numerical follow-up to a non-timer topic. Pass the "
-                    "duration EXACTLY as the user said it, split into minutes and seconds — "
-                    "'ti minutter' -> minutes=10; 'halvandet minut' -> minutes=1, seconds=30. "
-                    "Do NOT convert units yourself. Confirm the duration back to the user in "
-                    "Danish.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "minutes": {
-                                "type": "integer",
-                                "description": "Minutes part of the duration (0 if none).",
-                            },
-                            "seconds": {
-                                "type": "integer",
-                                "description": "Seconds part of the duration (0 if none).",
-                            },
-                            "label": {
-                                "type": "string",
-                                "description": "Optional short label, e.g. 'pasta'.",
-                            },
-                        },
-                    },
-                },
-                {
-                    "name": "list_timers",
-                    "description": "Use only when the user's latest clear intent is to inspect "
-                    "currently running countdown timers, or when a timer cancellation needs "
-                    "an explicit timer choice. Never use this for arithmetic, current time or "
-                    "date, or a follow-up to a non-timer topic.",
-                    "parameters": {"type": "object", "properties": {}},
-                },
-                {
-                    "name": "cancel_timer",
-                    "description": "Use only when the user's latest clear intent is to cancel "
-                    "a running countdown timer. Never use this for arithmetic or a follow-up "
-                    "to a non-timer topic. Without an id, cancels the one expiring next.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {"id": {"type": "integer", "description": "Timer id."}},
-                    },
-                },
-            ]
+        return self._compose_declarations(
+            self._discovery.mcp_tools,
+            self._discovery.podconnect_services,
+        )
+
+    @staticmethod
+    def _compose_declarations(
+        mcp_tools: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+        podconnect_services: frozenset[str] | set[str],
+    ) -> list[dict]:
+        decls: list[dict] = []
         for tool_name, (service_name, description) in _PODCONNECT_DATA_TOOLS.items():
-            if service_name in self._discovery.podconnect_services:
+            if service_name in podconnect_services:
                 decls.append(
                     {
                         "name": tool_name,
@@ -782,9 +691,36 @@ class ToolRouter:
                     }
                 )
         local_names = {d["name"] for d in decls}
-        snapshot_tools = self._discovery.mcp_tools
-        decls += [json.loads(json.dumps(t)) for t in snapshot_tools if t["name"] not in local_names]
+        decls += [json.loads(json.dumps(t)) for t in mcp_tools if t["name"] not in local_names]
         return decls
+
+    def declaration_schema_sha256(self, declarations: list[dict] | None = None) -> str:
+        """Hash the exact detached tool page used by one Realtime session."""
+        snapshot = self.declarations() if declarations is None else declarations
+        return self._schema_sha256_for_declarations(snapshot)
+
+    def declaration_hashes(self, declarations: list[dict] | None = None) -> dict[str, str]:
+        """Bind each session tool independently so unrelated HA roles may refresh."""
+        snapshot = self.declarations() if declarations is None else declarations
+        return {
+            str(item["name"]): self._schema_sha256_for_declarations([item])
+            for item in snapshot
+            if item.get("name")
+        }
+
+    @staticmethod
+    def _schema_sha256_for(
+        mcp_tools: tuple[dict[str, Any], ...] | list[dict[str, Any]],
+        podconnect_services: frozenset[str] | set[str],
+    ) -> str:
+        return ToolRouter._schema_sha256_for_declarations(
+            ToolRouter._compose_declarations(mcp_tools, podconnect_services)
+        )
+
+    @staticmethod
+    def _schema_sha256_for_declarations(declarations: list[dict]) -> str:
+        encoded = json.dumps(declarations, sort_keys=True, separators=(",", ":")).encode()
+        return hashlib.sha256(encoded).hexdigest()
 
     def capabilities(self) -> dict:
         """Panel/debug view of what the assistant can *actually* call right now.
@@ -799,10 +735,8 @@ class ToolRouter:
         current = self._discovery.retry_state in {"ready", "disabled"}
         declared_roles: set[str] = set()
         role_tools: dict[str, list[str]] = {
-            "time": ["get_time"] if "get_time" in names else [],
-            "timers": [
-                name for name in ("set_timer", "list_timers", "cancel_timer") if name in names
-            ],
+            "time": [],
+            "timers": [],
             "home": [],
             "web_search": [],
             "weather": [],
@@ -828,8 +762,8 @@ class ToolRouter:
         caps = {
             "tools": names,
             "count": len(names),
-            "time": "get_time" in names,
-            "timers": any(n in names for n in ("set_timer", "list_timers", "cancel_timer")),
+            "time": "time" in declared_roles,
+            "timers": "timers" in declared_roles,
             "home": bool(role_tools["home"]),
             "web_search": "web_search" in declared_roles,
             "weather": "weather" in declared_roles,
@@ -841,8 +775,8 @@ class ToolRouter:
         caps["missing"] = missing
         caps["setup_hints"] = {key: _STANDARD_CAPABILITY_HINTS[key] for key in missing}
         caps["sources"] = {
-            "time": "podvoice_local",
-            "timers": "podvoice_local",
+            "time": "ha_mcp" if caps["time"] else "missing",
+            "timers": "ha_mcp" if caps["timers"] else "pending_ha_adapter",
             "home": "ha_mcp" if caps["home"] else "missing",
             "web_search": "ha_mcp" if caps["web_search"] else "missing",
             "weather": "ha_mcp" if caps["weather"] else "missing",
@@ -860,8 +794,44 @@ class ToolRouter:
         *,
         execution_context: ExecutionContext | None = None,
         approval_token: str | None = None,
+        expected_declaration_sha256: str | None = None,
     ) -> dict:
-        declaration = next((item for item in self.declarations() if item.get("name") == name), {})
+        # One lease spans schema verification, target resolution, policy and the
+        # physical MCP send. Discovery cannot replace a same-name contract between
+        # those steps.
+        async with self._fetch_lock:
+            return await self._dispatch_locked(
+                name,
+                args,
+                execution_context=execution_context,
+                approval_token=approval_token,
+                expected_declaration_sha256=expected_declaration_sha256,
+            )
+
+    async def _dispatch_locked(
+        self,
+        name: str,
+        args: dict,
+        *,
+        execution_context: ExecutionContext | None = None,
+        approval_token: str | None = None,
+        expected_declaration_sha256: str | None = None,
+    ) -> dict:
+        current_declarations = self.declarations()
+        declaration = next((item for item in current_declarations if item.get("name") == name), {})
+        current_declaration_sha256 = (
+            self._schema_sha256_for_declarations([declaration]) if declaration else None
+        )
+        if expected_declaration_sha256 is not None and (
+            current_declaration_sha256 != expected_declaration_sha256
+        ):
+            result = {
+                "ok": False,
+                "error_kind": "stale_schema",
+                "error": "Home Assistant tools changed during this conversation; start a new wake",
+            }
+            self._log_tool(name, result, dict(args))
+            return result
         dispatch_args: dict[str, Any] = dict(args)
         # A stale active session may still know a tool after discovery was invalidated.
         # Never refresh-and-execute that now-undeclared name below the policy boundary.
@@ -948,6 +918,7 @@ class ToolRouter:
         challenge_id: str,
         *,
         confirmation_context: ExecutionContext,
+        expected_declaration_hashes: dict[str, str] | None = None,
     ) -> dict:
         """Execute the server-held proposal released by a trusted later-turn signal.
 
@@ -969,6 +940,7 @@ class ToolRouter:
             approved.args,
             execution_context=approved.context,
             approval_token=approved.token,
+            expected_declaration_sha256=(expected_declaration_hashes or {}).get(approved.action),
         )
 
     def begin_execution_turn(self, context: ExecutionContext) -> None:
@@ -1350,17 +1322,6 @@ class ToolRouter:
 
     async def _dispatch(self, name: str, args: dict) -> dict:
         try:
-            if name == "get_time":  # local, always available — the clock never fails
-                return await self._get_time(args)
-            if self._timers is not None and name in ("set_timer", "list_timers", "cancel_timer"):
-                if name == "set_timer":
-                    # minutes+seconds as SEPARATE fields: a voice model doing its own
-                    # unit arithmetic is how "ti minutter" becomes an hour.
-                    total = int(args.get("minutes", 0) or 0) * 60 + int(args.get("seconds", 0) or 0)
-                    return self._timers.set_timer(total, str(args.get("label", "") or ""))
-                if name == "list_timers":
-                    return self._timers.list_timers()
-                return self._timers.cancel_timer(args.get("id"))
             if name in _PODCONNECT_DATA_TOOLS:
                 return await self._podconnect_data(name)
             if self._mcp is None:
@@ -1419,70 +1380,6 @@ class ToolRouter:
             "ok": True,
             "data": data,
             **({"empty": True} if isinstance(tracks, list) and not tracks else {}),
-        }
-
-    # ------------------------------------------------------------------ helpers
-    async def _get_timezone(self) -> datetime.tzinfo:
-        """HA's configured timezone (memoized). The add-on container itself runs UTC,
-        so the wall clock the household lives by comes from HA's /config. Falls back
-        to the container's local zone if HA is unreachable."""
-        if self._tz is not None:
-            return self._tz
-        if self._token and self._client is not None:
-            try:
-                r = await self._client.get(
-                    f"{C.SUPERVISOR_CORE_API}/config",
-                    headers={"Authorization": f"Bearer {self._token}"},
-                )
-                r.raise_for_status()
-                name = r.json().get("time_zone")
-                if name:
-                    self._tz = zoneinfo.ZoneInfo(name)
-                    return self._tz
-            except Exception as e:  # tz lookup must never break the clock
-                log.info("HA timezone unavailable (%s) — using container local time", e)
-        self._tz = datetime.datetime.now().astimezone().tzinfo or datetime.UTC
-        return self._tz
-
-    async def _get_time(self, args: dict) -> dict:
-        """Return only model-selected local time fields with a focused Danish summary.
-
-        Realtime still owns interpretation: it chooses ``fields`` from the declared
-        schema.  The tool only prevents unrelated temporal data from competing in the
-        result, which is what made a physically clear ``ugedag`` answer become an ISO
-        week number in the 1.13.24 field trace.
-        """
-        fields = args.get("fields")
-        if (
-            not isinstance(fields, list)
-            or not fields
-            or any(not isinstance(field, str) or field not in _TIME_FIELDS for field in fields)
-            or len(set(fields)) != len(fields)
-        ):
-            return {
-                "ok": False,
-                "error_kind": "bad_args",
-                "error": "fields must contain one or more unique values from "
-                "time, date, weekday, week_number",
-            }
-        now = datetime.datetime.now(await self._get_timezone())
-        weekday = _WEEKDAYS_DA[now.weekday()]
-        values: dict[str, str | int] = {
-            "time": f"{now:%H:%M}",
-            "date": f"{now:%Y-%m-%d}",
-            "weekday": weekday,
-            "week_number": now.isocalendar().week,
-        }
-        summaries = {
-            "time": _spoken_clock(now.hour, now.minute),
-            "date": f"Datoen er den {now.day}. {_MONTHS_DA[now.month - 1]} {now.year}.",
-            "weekday": f"I dag er det {weekday}.",
-            "week_number": f"Det er uge {now.isocalendar().week}.",
-        }
-        return {
-            "ok": True,
-            "summary": " ".join(summaries[field] for field in fields),
-            "data": {"requested_fields": fields, **{field: values[field] for field in fields}},
         }
 
     def _log_tool(self, name: str, result: dict, args: dict | None = None) -> None:

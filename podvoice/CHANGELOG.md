@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.13.58 — Home Assistant er eneste live-domænesandhed
+
+- Fjerner PodVoices lokale `get_time` og de lokale model-synlige timere. Tid og dato
+  kommer nu kun fra HA `GetDateTime`; HA-timere kommer i en senere, isoleret kandidat.
+- Binder MCP til LLM API-id `assist`. Kun eksplicit klassificerede HA-værktøjer kommer
+  ind i nye Realtime-sessioner; ukendte navne vises som afventende i readiness.
+- Bevarer den fysisk kendte `reasoning: low` fra v1.13.56; v1.13.57's utestede
+  `medium` arves ikke. Model, promptens øvrige adfærd, firmware, gain, VAD,
+  lydtransport, half-duplex, playback, timeout, teardown og rearm er uændrede.
+- Kandidaten er NO-GO indtil SafeEval, fysisk Golden Chain og 10/10 er bevist på det
+  samme installerede artifact.
+
 ## 1.13.57 — Realtime får mere plads til korrekt fysisk semantik
 
 - Skifter kun `gpt-realtime-2.1` fra `reasoning.effort: low` til `medium`. Den friske

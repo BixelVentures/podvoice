@@ -14,6 +14,7 @@ import contextlib
 import json
 import logging
 from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from aiohttp import WSMsgType
@@ -27,6 +28,7 @@ from .voice import (
     Interrupted,
     OutputTranscript,
     ToolCall,
+    ToolRoundComplete,
     TurnComplete,
 )
 
@@ -35,7 +37,17 @@ _LOG = logging.getLogger("podvoice.console")
 OUTPUT_RATE = C.OUTPUT_RATE
 
 
+@dataclass
+class _ConsoleToolBatch:
+    size: int
+    calls: dict[int, ToolCall] = field(default_factory=dict)
+    call_ids: set[str] = field(default_factory=set)
+    invalid: bool = False
+
+
 class ConsoleSession(Protocol):
+    podvoice_tool_declaration_hashes: dict[str, str]
+
     async def connect(self) -> None: ...
     async def send_text(
         self,
@@ -59,7 +71,6 @@ def console_factory(cfg: Config, tools=None):
     """
     if not cfg.openai_api_key:
         return None
-    decls = tools.declarations() if tools is not None else None
 
     def _make(
         model: str | None = None,
@@ -72,7 +83,12 @@ def console_factory(cfg: Config, tools=None):
         from . import constants as _C
         from .openai_realtime import make_session
 
-        return make_session(
+        decls = tools.declarations() if tools is not None else None
+        declaration_hasher = getattr(tools, "declaration_hashes", None)
+        tool_declaration_hashes = (
+            declaration_hasher(decls) if decls is not None and callable(declaration_hasher) else {}
+        )
+        session = make_session(
             cfg,
             model=model,
             voice=voice,
@@ -82,6 +98,8 @@ def console_factory(cfg: Config, tools=None):
             interrupt_response=interrupt_response,
             manual_input_response=manual_input_response,
         )
+        session.podvoice_tool_declaration_hashes = tool_declaration_hashes
+        return session
 
     return _make
 
@@ -130,6 +148,9 @@ async def _pump(ws, session: ConsoleSession, tools=None, history=None) -> None:
     """Forward session events to the browser (binary = audio, JSON = transcript)."""
     out_buf: list[str] = []  # coalesce transcript deltas -> one persisted turn each
     in_buf: list[str] = []
+    staged_tools: dict[tuple[str, int], _ConsoleToolBatch] = {}
+    consumed_batches: set[tuple[str, int]] = set()
+    consumed_call_ids: set[str] = set()
 
     def _flush() -> None:
         if history is not None:
@@ -153,19 +174,94 @@ async def _pump(ws, session: ConsoleSession, tools=None, history=None) -> None:
                 await ws.send_json({"type": "transcript", "dir": "in", "text": ev.text})
                 in_buf.append(ev.text)
             elif isinstance(ev, ToolCall):
-                result = (
-                    await tools.dispatch(ev.name, ev.args)
-                    if tools is not None
-                    else {"ok": False, "error": "no tools"}
+                if not ev.response_id or ev.generation is None:
+                    result = {
+                        "ok": False,
+                        "error_kind": "stale_response",
+                        "error": "tool call has no committed provider response",
+                    }
+                    await ws.send_json({"type": "tool", "name": ev.name, "result": result})
+                    await session.send_tool_results(
+                        [{"id": ev.id, "name": ev.name, "response": result}]
+                    )
+                    continue
+                key = (ev.response_id, ev.generation)
+                batch = staged_tools.setdefault(key, _ConsoleToolBatch(ev.batch_size))
+                valid = (
+                    key not in consumed_batches
+                    and ev.id not in consumed_call_ids
+                    and ev.batch_id == ev.response_id
+                    and ev.batch_size > 0
+                    and batch.size == ev.batch_size
+                    and 0 <= ev.batch_index < ev.batch_size
+                    and ev.batch_index not in batch.calls
+                    and ev.id not in batch.call_ids
                 )
-                await ws.send_json({"type": "tool", "name": ev.name, "result": result})
-                await session.send_tool_results(
-                    [{"id": ev.id, "name": ev.name, "response": result}]
-                )
+                if not valid:
+                    batch.invalid = True
+                    continue
+                batch.calls[ev.batch_index] = ev
+                batch.call_ids.add(ev.id)
+            elif isinstance(ev, ToolRoundComplete):
+                if not ev.response_id or ev.generation is None:
+                    continue
+                key = (ev.response_id, ev.generation)
+                if key not in staged_tools:
+                    continue
+                batch = staged_tools.pop(key)
+                calls = [batch.calls[index] for index in sorted(batch.calls)]
+                consumed_batches.add(key)
+                consumed_call_ids.update(call.id for call in calls)
+                if batch.invalid or len(calls) != batch.size:
+                    results = [
+                        {
+                            "id": call.id,
+                            "name": call.name,
+                            "response": {
+                                "ok": False,
+                                "error_kind": "stale_response",
+                                "error": "tool batch did not match its committed provider response",
+                            },
+                        }
+                        for call in calls
+                    ]
+                    if results:
+                        await session.send_tool_results(results)
+                    continue
+                results = []
+                for call in calls:
+                    if tools is None:
+                        result = {"ok": False, "error": "no tools"}
+                    else:
+                        dispatch = tools.dispatch
+                        captured_hashes = getattr(session, "podvoice_tool_declaration_hashes", None)
+                        expected = (
+                            captured_hashes.get(call.name) if captured_hashes is not None else None
+                        )
+                        if captured_hashes is not None and expected is None:
+                            result = {
+                                "ok": False,
+                                "error_kind": "stale_schema",
+                                "error": "tool was not declared for this conversation",
+                            }
+                        elif expected is not None:
+                            result = await dispatch(
+                                call.name,
+                                call.args,
+                                expected_declaration_sha256=expected,
+                            )
+                        else:
+                            result = await dispatch(call.name, call.args)
+                    await ws.send_json({"type": "tool", "name": call.name, "result": result})
+                    results.append({"id": call.id, "name": call.name, "response": result})
+                await session.send_tool_results(results)
             elif isinstance(ev, Interrupted):
+                staged_tools.clear()
                 out_buf.clear()  # cancelled reply — don't persist a fragment
                 await ws.send_json({"type": "interrupted"})  # barge-in: flush browser audio
             elif isinstance(ev, TurnComplete):
+                if ev.status != "completed" and ev.response_id and ev.generation is not None:
+                    staged_tools.pop((ev.response_id, ev.generation), _ConsoleToolBatch(0))
                 _flush()  # persist this turn (user + AI) as coalesced whole utterances
                 await ws.send_json({"type": "turn_complete"})
     except asyncio.CancelledError:

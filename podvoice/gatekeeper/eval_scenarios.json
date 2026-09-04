@@ -2,12 +2,10 @@
   "schema_version": 2,
   "fixture_contracts": [
     {
-      "exact_tool_name": "get_time",
+      "exact_tool_name": "GetDateTime",
       "risk": "read_only",
       "cases": [
-        {"args": {"fields": ["time"]}, "result": {"ok": true, "data": {"time": "14:00"}}},
-        {"args": {"fields": ["weekday"]}, "result": {"ok": true, "data": {"weekday": "mandag"}}},
-        {"args": {"fields": ["week_number"]}, "result": {"ok": true, "data": {"week_number": 34}}}
+        {"args": {}, "result": {"ok": true, "data": {"date": "2026-08-17", "time": "14:00", "weekday": "mandag", "week_number": 34}}}
       ]
     },
     {
@@ -17,27 +15,6 @@
         {"args": {"query": "FCK seneste kamp"}, "result": {"ok": true, "summary": "FCK vandt to nul i den seneste kamp."}},
         {"args": {"query": "FC København seneste kamp resultat"}, "result": {"ok": true, "summary": "FCK vandt to nul i den seneste kamp."}},
         {"args": {"query": "FCK latest match result"}, "result": {"ok": true, "summary": "FCK vandt to nul i den seneste kamp."}}
-      ]
-    },
-    {
-      "exact_tool_name": "set_timer",
-      "risk": "low_risk_fixture_only",
-      "cases": [
-        {"args": {"minutes": 10}, "result": {"ok": true, "summary": "Timeren er sat til ti minutter.", "data": {"id": 1, "seconds": 600}}}
-      ]
-    },
-    {
-      "exact_tool_name": "list_timers",
-      "risk": "read_only_fixture_only",
-      "cases": [
-        {"args": {}, "result": {"ok": true, "summary": "Der kører én timer med ti minutter tilbage.", "data": {"timers": [{"id": 1, "remaining_s": 600}]}}}
-      ]
-    },
-    {
-      "exact_tool_name": "cancel_timer",
-      "risk": "low_risk_fixture_only",
-      "cases": [
-        {"args": {}, "result": {"ok": true, "summary": "Timeren er annulleret.", "data": {"id": 1}}}
       ]
     },
     {
@@ -96,7 +73,7 @@
     {
       "id": "arithmetic-followup-observed",
       "description": "One-session semantic golden chain using the observed Danish wording; it does not claim audio equivalence.",
-      "exact_tool_names": ["get_time", "end_conversation"],
+      "exact_tool_names": ["GetDateTime", "end_conversation"],
       "turns": [
         {
           "text": "Hvad er tolv gange syv?",
@@ -121,8 +98,8 @@
         {
           "text": "Hvad er klokken lige nu?",
           "expect": {
-            "decision": "get_time",
-            "tool_args": {"get_time": {"fields": ["time"]}},
+            "decision": "GetDateTime",
+            "tool_args": {"GetDateTime": {}},
             "answer_any": ["fjorten", "14"],
             "remain_open": true
           }
@@ -130,8 +107,8 @@
         {
           "text": "Og hvilken ugedag er det lige nu?",
           "expect": {
-            "decision": "get_time",
-            "tool_args": {"get_time": {"fields": ["weekday"]}},
+            "decision": "GetDateTime",
+            "tool_args": {"GetDateTime": {}},
             "answer_any": ["mandag"],
             "remain_open": true
           }
@@ -147,52 +124,15 @@
       ]
     },
     {
-      "id": "timer-routing",
-      "description": "Positive no-side-effect fixtures prove that narrowed timer descriptions still admit explicit timer intents.",
-      "exact_tool_names": ["set_timer", "list_timers", "cancel_timer"],
-      "turns": [
-        {
-          "text": "Sæt en timer på ti minutter.",
-          "expect": {
-            "decision": "set_timer",
-            "tool_args": {"set_timer": {"minutes": 10}},
-            "answer_any": ["ti minutter", "10 minutter"],
-            "fixture_side_effects": 0,
-            "remain_open": true
-          }
-        },
-        {
-          "text": "Hvilke timere kører?",
-          "expect": {
-            "decision": "list_timers",
-            "tool_args": {"list_timers": {}},
-            "answer_any": ["ti minutter", "10 minutter"],
-            "fixture_side_effects": 0,
-            "remain_open": true
-          }
-        },
-        {
-          "text": "Annuller timeren.",
-          "expect": {
-            "decision": "cancel_timer",
-            "tool_args": {"cancel_timer": {}},
-            "answer_any": ["annulleret", "stoppet", "afbrudt"],
-            "fixture_side_effects": 0,
-            "remain_open": true
-          }
-        }
-      ]
-    },
-    {
       "id": "time-followup",
       "description": "A current fact uses the safe clock tool and context survives.",
-      "exact_tool_names": ["get_time"],
+      "exact_tool_names": ["GetDateTime"],
       "turns": [
         {
           "text": "Hvad er klokken?",
           "expect": {
-            "decision": "get_time",
-            "tool_args": {"get_time": {"fields": ["time"]}},
+            "decision": "GetDateTime",
+            "tool_args": {"GetDateTime": {}},
             "answer_any": ["fjorten", "14"],
             "remain_open": true
           }
@@ -200,8 +140,8 @@
         {
           "text": "Og hvilken ugedag er det?",
           "expect": {
-            "decision": "get_time",
-            "tool_args": {"get_time": {"fields": ["weekday"]}},
+            "decision": "GetDateTime",
+            "tool_args": {"GetDateTime": {}},
             "answer_any": ["mandag"],
             "remain_open": true
           }
@@ -209,8 +149,8 @@
         {
           "text": "Og hvilket ugenummer er det?",
           "expect": {
-            "decision": "get_time",
-            "tool_args": {"get_time": {"fields": ["week_number"]}},
+            "decision": "GetDateTime",
+            "tool_args": {"GetDateTime": {}},
             "answer_any": ["34", "fireogtredive"],
             "remain_open": true
           }
@@ -305,7 +245,7 @@
     {
       "id": "web-routing",
       "description": "A current sports result routes to web and uses only its fixture.",
-      "exact_tool_names": ["google_web_sogning", "get_time"],
+      "exact_tool_names": ["google_web_sogning", "GetDateTime"],
       "turns": [
         {
           "text": "Hvordan gik FCK i deres seneste kamp?",
@@ -323,7 +263,7 @@
               ]
             },
             "tool_outcomes": {"google_web_sogning": ["ok"]},
-            "forbid": ["get_time"],
+            "forbid": ["GetDateTime"],
             "remain_open": true
           }
         }

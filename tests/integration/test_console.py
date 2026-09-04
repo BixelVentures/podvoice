@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
 from aiohttp import WSMsgType
 from aiohttp.test_utils import TestClient, TestServer
 
@@ -12,7 +13,7 @@ from gatekeeper import constants as C
 from gatekeeper.config import from_options
 from gatekeeper.console import console_factory
 from gatekeeper.hub import StatusHub
-from gatekeeper.voice import AudioChunk, OutputTranscript, TurnComplete
+from gatekeeper.voice import AudioChunk, OutputTranscript, ToolCall, ToolRoundComplete, TurnComplete
 from gatekeeper.web import create_app
 
 
@@ -97,3 +98,220 @@ async def test_console_disabled_when_no_factory():
 def test_console_factory_fails_closed_without_provider_key():
     cfg = from_options({"podconnect_base_url": "", "podconnect_token": ""})
     assert console_factory(cfg) is None
+
+
+async def test_console_never_dispatches_tool_before_matching_commit_edge():
+    class _ToolConsole(_FakeConsole):
+        async def send_text(self, text: str, *, item_id: str | None = None) -> None:
+            await self._q.put(
+                ToolCall(
+                    "call-1",
+                    "GetDateTime",
+                    {},
+                    response_id="response-1",
+                    batch_id="response-1",
+                    batch_index=0,
+                    batch_size=1,
+                    generation=1,
+                )
+            )
+            await self._q.put(
+                TurnComplete(status="cancelled", response_id="response-1", generation=1)
+            )
+
+    class _Tools:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def dispatch(self, name, args):
+            self.calls += 1
+            return {"ok": True}
+
+    tools = _Tools()
+    app = create_app(
+        StatusHub(),
+        {},
+        make_console=lambda model=None, voice=None: _ToolConsole(),
+        tools=tools,
+    )
+    async with TestClient(TestServer(app)) as client:
+        ws = await client.ws_connect("/api/console")
+        await ws.receive_json()
+        await ws.send_json({"type": "text", "text": "tid"})
+        await asyncio.sleep(0.05)
+        assert tools.calls == 0
+        await ws.close()
+
+
+async def test_console_dispatches_complete_tool_batch_only_after_commit():
+    class _ToolConsole(_FakeConsole):
+        async def send_text(self, text: str, *, item_id: str | None = None) -> None:
+            await self._q.put(
+                ToolCall(
+                    "call-1",
+                    "GetDateTime",
+                    {},
+                    response_id="response-1",
+                    batch_id="response-1",
+                    batch_index=0,
+                    batch_size=1,
+                    generation=1,
+                )
+            )
+            await self._q.put(ToolRoundComplete(response_id="response-1", generation=1))
+
+    class _Tools:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def dispatch(self, name, args):
+            self.calls += 1
+            return {"ok": True}
+
+    tools = _Tools()
+    app = create_app(
+        StatusHub(),
+        {},
+        make_console=lambda model=None, voice=None: _ToolConsole(),
+        tools=tools,
+    )
+    async with TestClient(TestServer(app)) as client:
+        ws = await client.ws_connect("/api/console")
+        await ws.receive_json()
+        await ws.send_json({"type": "text", "text": "tid"})
+        message = await asyncio.wait_for(ws.receive_json(), timeout=2)
+        assert message["type"] == "tool"
+        assert tools.calls == 1
+        await ws.close()
+
+
+async def test_console_rejects_committed_tool_missing_from_session_schema():
+    class _ToolConsole(_FakeConsole):
+        def __init__(self) -> None:
+            super().__init__()
+            self.podvoice_tool_declaration_hashes: dict[str, str] = {}
+
+        async def send_text(self, text: str, *, item_id: str | None = None) -> None:
+            await self._q.put(
+                ToolCall(
+                    "call-new",
+                    "GetDateTime",
+                    {},
+                    response_id="response-1",
+                    batch_id="response-1",
+                    batch_index=0,
+                    batch_size=1,
+                    generation=1,
+                )
+            )
+            await self._q.put(ToolRoundComplete(response_id="response-1", generation=1))
+
+    class _Tools:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def dispatch(self, name, args):
+            self.calls += 1
+            return {"ok": True}
+
+    tools = _Tools()
+    app = create_app(
+        StatusHub(),
+        {},
+        make_console=lambda model=None, voice=None: _ToolConsole(),
+        tools=tools,
+    )
+    async with TestClient(TestServer(app)) as client:
+        ws = await client.ws_connect("/api/console")
+        await ws.receive_json()
+        await ws.send_json({"type": "text", "text": "tid"})
+        message = await asyncio.wait_for(ws.receive_json(), timeout=2)
+        assert message["result"]["error_kind"] == "stale_schema"
+        assert tools.calls == 0
+        await ws.close()
+
+
+@pytest.mark.parametrize("malformed", ["partial", "duplicate", "wrong_response"])
+async def test_console_malformed_committed_batch_has_zero_side_effects(malformed):
+    class _ToolConsole(_FakeConsole):
+        async def send_text(self, text: str, *, item_id: str | None = None) -> None:
+            first = ToolCall(
+                "call-1",
+                "GetDateTime",
+                {},
+                response_id="response-1",
+                batch_id=("other-response" if malformed == "wrong_response" else "response-1"),
+                batch_index=0,
+                batch_size=(2 if malformed == "partial" else 1),
+                generation=1,
+            )
+            await self._q.put(first)
+            if malformed == "duplicate":
+                await self._q.put(first)
+            await self._q.put(ToolRoundComplete(response_id="response-1", generation=1))
+
+    class _Tools:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def dispatch(self, name, args):
+            self.calls += 1
+            return {"ok": True}
+
+    tools = _Tools()
+    app = create_app(
+        StatusHub(),
+        {},
+        make_console=lambda model=None, voice=None: _ToolConsole(),
+        tools=tools,
+    )
+    async with TestClient(TestServer(app)) as client:
+        ws = await client.ws_connect("/api/console")
+        await ws.receive_json()
+        await ws.send_json({"type": "text", "text": "tid"})
+        await asyncio.sleep(0.05)
+        assert tools.calls == 0
+        await ws.close()
+
+
+async def test_console_committed_batch_replay_dispatches_exactly_once():
+    class _ToolConsole(_FakeConsole):
+        async def send_text(self, text: str, *, item_id: str | None = None) -> None:
+            call = ToolCall(
+                "call-once",
+                "GetDateTime",
+                {},
+                response_id="response-once",
+                batch_id="response-once",
+                batch_index=0,
+                batch_size=1,
+                generation=1,
+            )
+            commit = ToolRoundComplete(response_id="response-once", generation=1)
+            await self._q.put(call)
+            await self._q.put(commit)
+            await self._q.put(call)
+            await self._q.put(commit)
+
+    class _Tools:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def dispatch(self, name, args):
+            self.calls += 1
+            return {"ok": True}
+
+    tools = _Tools()
+    app = create_app(
+        StatusHub(),
+        {},
+        make_console=lambda model=None, voice=None: _ToolConsole(),
+        tools=tools,
+    )
+    async with TestClient(TestServer(app)) as client:
+        ws = await client.ws_connect("/api/console")
+        await ws.receive_json()
+        await ws.send_json({"type": "text", "text": "tid"})
+        await asyncio.sleep(0.1)
+        assert tools.calls == 1
+        await ws.close()

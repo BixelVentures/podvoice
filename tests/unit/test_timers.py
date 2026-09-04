@@ -1,11 +1,10 @@
-"""Kitchen timers: set/list/cancel + the expiry announce (0.67)."""
+"""Quarantined legacy timer manager regressions; not model-visible in production."""
 
 from __future__ import annotations
 
 import asyncio
 
 from gatekeeper.timers import MAX_TIMERS, TimerManager
-from gatekeeper.tools import ToolRouter
 
 
 def _manager():
@@ -15,18 +14,6 @@ def _manager():
         rung.append(label)
 
     return TimerManager(announce), rung
-
-
-def test_timer_tool_descriptions_have_a_narrow_semantic_boundary():
-    tm, _ = _manager()
-    bridge = ToolRouter(None, timers=tm)
-    declarations = {row["name"]: row for row in bridge.declarations()}
-
-    for name in ("set_timer", "list_timers", "cancel_timer"):
-        description = declarations[name]["description"].lower()
-        assert "latest clear intent" in description
-        assert "arithmetic" in description
-        assert "non-timer topic" in description
 
 
 async def test_set_list_cancel():
@@ -56,24 +43,6 @@ async def test_cancel_without_id_takes_next_to_expire():
     first = tm.set_timer(60, "først")
     r = tm.cancel_timer()  # spoken case: "annuller timeren"
     assert r["ok"] and r["id"] == first["id"]
-    await tm.aclose()
-
-
-async def test_dispatch_takes_minutes_and_seconds_separately():
-    """The tool schema passes minutes/seconds as SEPARATE fields so the voice model
-    never does unit arithmetic ('ti minutter' must not become an hour)."""
-    from gatekeeper.tools import ToolRouter
-
-    tm, _ = _manager()
-    bridge = ToolRouter(None, timers=tm)
-    r = await bridge.dispatch("set_timer", {"minutes": 10, "label": "pasta"})
-    assert r["ok"] and r["seconds"] == 600
-    r = await bridge.dispatch("set_timer", {"minutes": 1, "seconds": 30})
-    assert r["ok"] and r["seconds"] == 90
-    r = await bridge.dispatch("set_timer", {"seconds": 45})
-    assert r["ok"] and r["seconds"] == 45
-    r = await bridge.dispatch("set_timer", {})  # no duration at all -> clean error
-    assert r["ok"] is False
     await tm.aclose()
 
 

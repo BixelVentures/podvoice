@@ -822,7 +822,7 @@ def test_openai_session_semantic_with_noise():
     assert inp["noise_reduction"] == {"type": "far_field"}
 
 
-def test_realtime_21_uses_medium_reasoning_for_physical_semantic_reliability():
+def test_candidate_a_keeps_the_current_reasoning_setting_frozen():
     session = OpenAIRealtimeSession(api_key="k")._session_update()["session"]
     assert session["reasoning"] == {"effort": "medium"}
 

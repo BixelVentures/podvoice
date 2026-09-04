@@ -32,7 +32,7 @@ _LOG = logging.getLogger("podvoice.web")
 
 _STATIC = Path(__file__).parent / "static"
 DEFAULT_PORT = 8098
-_LOCAL_TOOL_NAMES = {"get_time", "set_timer", "list_timers", "cancel_timer"}
+_LOCAL_TOOL_NAMES: set[str] = set()
 _WEB_TOOL_HINTS = ("search", "søg", "web", "google", "nyheder", "news", "sport")
 _WEATHER_TOOL_HINTS = ("vejr", "weather", "forecast", "udsigt", "temperatur", "temperature")
 _MUSIC_TOOL_HINTS = (
@@ -1164,7 +1164,7 @@ def _capability_details(snapshot: dict) -> dict:
             "available": available,
             "verified": available and bool(matches),
             "last_verified_at": max((ts for _, ts in matches if ts), default=None),
-            "source": "lokal" if key in {"time", "timers"} else "Home Assistant / MCP",
+            "source": "Home Assistant / MCP",
             "reason": (
                 "Vellykket værktøjskald registreret"
                 if available and matches

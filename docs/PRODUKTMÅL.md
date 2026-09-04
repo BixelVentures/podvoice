@@ -104,7 +104,7 @@ kandidat, men aldrig erstatte den efterfølgende fysiske Voice PE-gate.
 For en kandidat, der ændrer native audiosemantik eller mic-/turn-kontrakten på en måde,
 som kan påvirke semantik, er den fokuserede live-gate den sideeffektfrie sekvens
 `math → math-opfølgning → time → weekday-opfølgning → semantic close`, fem gange på
-samme sessionskontrakt. Kun tidsturen må bruge `get_time`; matematik og opfølgning skal
+samme sessionskontrakt. Kun tidsturene må bruge HA `GetDateTime`; matematik og opfølgning skal
 besvares direkte. En ren response-owner-/ACK-ændring kører først den smallere officielle
 protokolprobe og genkører kun den semantiske 5×-gate ved ændret semantikscope eller ny
 ren fysisk evidens for en semantikfejl. Samlet prisloft er $5, uden budgetprobe og uden
@@ -240,9 +240,11 @@ Ved én regression slås funktionen fra uden ændring af den låste latency-base
 ## Udviklingsprioritet 3 — automatisk HA/MCP-recovery
 
 Et fejlet eller timeoutet `tools/list` må aldrig kræve manuel genindlæsning eller
-add-on-genstart. PodVoice skal oprette MCP-sessionen på ny med hurtig backoff (ca. 1,
-2, 5, 10 og 30 sekunder, derefter højst ét forsøg pr. minut), fortsætte samtalen, lokal
-tid og lokale timere imens og atomisk genaktivere HA-afhængige evner, når HA svarer.
+add-on-genstart. PodVoice skal oprette MCP-forbindelsen på ny med hurtig backoff (ca. 1,
+2, 5, 10 og 30 sekunder, derefter højst ét forsøg pr. minut), lade direkte Realtime-
+dialog og matematik fortsætte og atomisk genaktivere HA-afhængige evner i den næste
+session, når HA svarer. Tid, vejr, web, musik, hjem og timere må ikke falde tilbage til
+en konkurrerende lokal sandhed.
 Et værktøj fortsætter kun under udfaldet, hvis det har en faktisk uafhængig, rask
 adapter. I den nuværende topologi er `google_web_sogning`, HassMedia og PodConnects
 data-services HA-/Supervisor-afhængige; de skal derfor vises ærligt som midlertidigt

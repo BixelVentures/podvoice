@@ -27,6 +27,7 @@ from gatekeeper.voice import (
     Interrupted,
     OutputTranscript,
     ToolCall,
+    ToolRoundComplete,
     TurnComplete,
     UserSpeechStopped,
 )
@@ -258,11 +259,22 @@ async def test_tool_calls_are_visible_in_the_tab():
     try:
         link.fire_wake()
         await _wait_until(lambda: session.sm.state is State.LISTENING)
-        gemini.emit(ToolCall("c1", "get_time", {}))
+        gemini.emit(
+            ToolCall(
+                "c1",
+                "GetDateTime",
+                {},
+                response_id="time-response",
+                batch_id="time-response",
+            ),
+            ToolRoundComplete(response_id="time-response"),
+        )
         await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)
         await _wait_until(lambda: len(wire.of("tool")) == 1)
-        assert wire.of("tool")[0]["result"] == {"ok": True, "tool": "get_time"}
-        await _wait_until(lambda: any("get_time" in m.get("text", "") for m in wire.of("activity")))
+        assert wire.of("tool")[0]["result"] == {"ok": True, "tool": "GetDateTime"}
+        await _wait_until(
+            lambda: any("GetDateTime" in m.get("text", "") for m in wire.of("activity"))
+        )
     finally:
         await session.aclose()
 
@@ -279,9 +291,17 @@ async def test_async_input_transcript_hides_unheard_tool_preamble():
         gemini.emit(OutputTranscript("Det tjekker"))
         gemini.emit(InputTranscript("Hvordan gik det AGF i går?"))
         gemini.emit(OutputTranscript(" jeg."))
-        gemini.emit(ToolCall("c1", "get_time", {}))
+        gemini.emit(
+            ToolCall(
+                "c1",
+                "GetDateTime",
+                {},
+                response_id="lookup-response",
+                batch_id="lookup-response",
+            ),
+            ToolRoundComplete(response_id="lookup-response"),
+        )
         await _wait_until(lambda: len(wire.of("tool")) == 1)
-        gemini.emit(TurnComplete())
         await _wait_until(lambda: len(gemini.sent_tool_results) == 1)
         gemini.emit(OutputTranscript("AGF tabte to-en."), TurnComplete())
         await _wait_until(lambda: len(wire.of("transcript")) == 2)

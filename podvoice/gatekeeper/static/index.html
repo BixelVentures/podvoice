@@ -701,13 +701,19 @@ function renderCapabilities(caps, details) {
     wrap.appendChild(p);
   });
   var missing = caps.missing || [];
+  var discovery = caps.discovery || {};
+  var pending = discovery.pending_tools || [];
+  var conflicts = discovery.role_conflicts || [];
+  if (discovery.api_id) {
+    var schemaShort = discovery.schema_sha256 ? " · " + String(discovery.schema_sha256).slice(0, 12) : "";
+    wrap.appendChild(el("span", "pill pill-up", "MCP " + discovery.api_id + schemaShort));
+  }
   var labels = { home: "hjem/HA", web_search: "websøgning", weather: "vejr", music: "musikstyring" };
-  if (missing.length) {
+  if (missing.length || pending.length || conflicts.length) {
     warn.hidden = false;
-    var discovery = caps.discovery || {};
     if (discovery.retry_state === "retrying") {
       warn.appendChild(el("strong", null, "Home Assistant forbinder igen. "));
-      warn.appendChild(document.createTextNode("Dynamiske evner er midlertidigt skjult; tid og timere virker fortsat."));
+      warn.appendChild(document.createTextNode("Direkte dialog og matematik virker; HA-ejede live-evner er midlertidigt skjult."));
       var retryBits = [];
       if (discovery.api_id) retryBits.push("Kilde: " + discovery.api_id);
       if (discovery.last_error) retryBits.push("Seneste fejl: " + discovery.last_error);
@@ -715,12 +721,20 @@ function renderCapabilities(caps, details) {
       if (retryBits.length) warn.appendChild(el("div", "sub", retryBits.join(" · ")));
       return;
     }
-    warn.appendChild(el("strong", null, "Ikke alle standard-evner er synlige. "));
-    warn.appendChild(document.createTextNode("Mangler: " + missing.map(function (k) { return labels[k] || k; }).join(", ") + ". "));
+    if (missing.length) {
+      warn.appendChild(el("strong", null, "Ikke alle standard-evner er synlige. "));
+      warn.appendChild(document.createTextNode("Mangler: " + missing.map(function (k) { return labels[k] || k; }).join(", ") + ". "));
+    }
     (caps.setup_hints ? missing : []).forEach(function (k) {
       if (caps.setup_hints[k]) warn.appendChild(el("div", "sub", caps.setup_hints[k]));
     });
-    warn.appendChild(el("div", "sub", "Home Assistant/MCP er sandheden for hjem, vejr og musik. Gem i HA; PodVoice opdager ændringen automatisk."));
+    if (pending.length) warn.appendChild(el("div", "sub", "Afventer klassifikation: " + pending.join(", ") + "."));
+    if (conflicts.length) warn.appendChild(el("div", "sub", "Værktøjskonflikt: " + conflicts.join(", ") + "."));
+    var identity = [];
+    if (discovery.api_id) identity.push("MCP API: " + discovery.api_id);
+    if (discovery.schema_sha256) identity.push("schema: " + String(discovery.schema_sha256).slice(0, 12));
+    if (identity.length) warn.appendChild(el("div", "sub", identity.join(" · ")));
+    warn.appendChild(el("div", "sub", "Home Assistant/MCP er sandheden for tid, hjem, vejr, web, musik og senere timere. Gem i HA; PodVoice opdager ændringen automatisk."));
   }
 }
 
