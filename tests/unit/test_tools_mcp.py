@@ -1,4 +1,4 @@
-"""ToolRouter + minimal MCP client — local tools, HA-MCP tools, error folding."""
+"""ToolRouter + minimal MCP client — curated HA-MCP tools and error folding."""
 
 from __future__ import annotations
 
@@ -24,10 +24,9 @@ from gatekeeper.tools import (
     _MAX_MCP_TOTAL_BYTES,
     ToolRouter,
     _mcp_result_to_contract,
-    _spoken_clock,
 )
 
-MCP_URL = "http://supervisor/core/api/mcp"
+MCP_URL = "http://supervisor/core/api/mcp/assist"
 
 
 def _rpc_response(request) -> httpx.Response:
@@ -80,7 +79,7 @@ async def test_mcp_tools_become_declarations():
     async with httpx.AsyncClient() as client:
         router = await _router(client)
         names = [d["name"] for d in router.declarations()]
-    assert "get_time" in names  # local tool always present
+    assert "get_time" not in names
     assert "HassTurnOn" in names and "GetLiveContext" in names
     decl = next(d for d in router.declarations() if d["name"] == "HassTurnOn")
     assert decl["parameters"]["properties"]["name"]["type"] == "string"
@@ -120,25 +119,23 @@ async def test_unknown_tool_is_a_clean_error():
 
 
 @respx.mock
-async def test_mcp_down_degrades_to_local_tools():
+async def test_mcp_down_degrades_to_no_live_domain_tools():
     respx.post(MCP_URL).mock(return_value=httpx.Response(502, text="bad gateway"))
     async with httpx.AsyncClient() as client:
         mcp = HomeAssistantMCP(MCP_URL, "tok", client)
         router = ToolRouter(mcp, client=client)
         await router.start()  # must not raise
         names = [d["name"] for d in router.declarations()]
-        assert names == ["get_time"]  # local only (no timers wired in this test)
+        assert names == []
         r = await router.dispatch("get_time", {"fields": ["time"]})
-    assert r["ok"] is True and "Klokken er" in r["summary"]
-    assert r["data"]["requested_fields"] == ["time"]
-    assert set(r["data"]) == {"requested_fields", "time"}
+    assert r["ok"] is False and r["error_kind"] == "bad_args"
 
 
-def test_no_mcp_at_all_still_serves_local():
+def test_no_mcp_at_all_exposes_no_live_domain_tools():
     router = ToolRouter(None)
-    assert [d["name"] for d in router.declarations()] == ["get_time"]
+    assert router.declarations() == []
     caps = router.capabilities()
-    assert caps["time"] is True
+    assert caps["time"] is False
     assert caps["home"] is False
     assert caps["web_search"] is False
     assert caps["weather"] is False
@@ -146,77 +143,20 @@ def test_no_mcp_at_all_still_serves_local():
     assert caps["missing"] == ["home", "web_search", "weather", "music"]
     assert "MCP Server" in caps["setup_hints"]["home"]
     assert "weather-entity" in caps["setup_hints"]["weather"]
-    assert caps["sources"]["time"] == "podvoice_local"
+    assert caps["sources"]["time"] == "missing"
     assert caps["sources"]["home"] == "missing"
-
-
-def test_clock_declaration_is_scoped_to_the_latest_user_turn():
-    """A wrap-up after a weekday lookup must not inherit the old clock tool."""
-    router = ToolRouter(None)
-    declaration = next(item for item in router.declarations() if item["name"] == "get_time")
-    description = declaration["description"].lower()
-    assert "latest user turn" in description
-    assert "previous turn" in description
-    assert "previous turn used it" in description
-    assert "conversation" not in description.casefold()
-    assert "weekday" in description and "week_number" in description
-    assert "never confuse" in description
-    assert declaration["parameters"]["additionalProperties"] is False
-    assert declaration["parameters"]["required"] == ["fields"]
-    fields = declaration["parameters"]["properties"]["fields"]
-    assert fields["minItems"] == 1 and fields["uniqueItems"] is True
-    assert fields["items"]["enum"] == ["time", "date", "weekday", "week_number"]
-
-
-async def test_clock_tool_returns_only_the_model_selected_temporal_fields():
-    router = ToolRouter(None)
-
-    weekday = await router.dispatch("get_time", {"fields": ["weekday"]})
-    assert weekday["ok"] is True
-    assert weekday["data"]["requested_fields"] == ["weekday"]
-    assert set(weekday["data"]) == {"requested_fields", "weekday"}
-    assert weekday["summary"] == f"I dag er det {weekday['data']['weekday']}."
-    assert "uge " not in weekday["summary"].casefold()
-
-    week_number = await router.dispatch("get_time", {"fields": ["week_number"]})
-    assert week_number["ok"] is True
-    assert set(week_number["data"]) == {"requested_fields", "week_number"}
-    assert week_number["summary"] == f"Det er uge {week_number['data']['week_number']}."
-
-    combined = await router.dispatch("get_time", {"fields": ["date", "weekday"]})
-    assert combined["ok"] is True
-    assert combined["data"]["requested_fields"] == ["date", "weekday"]
-    assert set(combined["data"]) == {"requested_fields", "date", "weekday"}
-    assert "Datoen er" in combined["summary"] and "I dag er det" in combined["summary"]
-
-
-async def test_clock_tool_rejects_missing_unknown_or_duplicate_fields():
-    router = ToolRouter(None)
-    for args in ({}, {"fields": []}, {"fields": ["timezone"]}, {"fields": ["date", "date"]}):
-        result = await router.dispatch("get_time", args)
-        assert result["ok"] is False
-        assert result["error_kind"] == "bad_args"
-
-
-def test_clock_tool_produces_natural_danish_instead_of_reading_digits():
-    assert _spoken_clock(17, 0) == "Klokken er fem."
-    assert _spoken_clock(17, 15) == "Klokken er kvart over fem."
-    assert _spoken_clock(17, 30) == "Klokken er halv seks."
-    assert _spoken_clock(17, 45) == "Klokken er kvart i seks."
-    assert _spoken_clock(17, 59) == "Klokken er et minut i seks."
-    assert _spoken_clock(14, 51) == "Klokken er ni minutter i tre."
-    assert _spoken_clock(14, 21) == "Klokken er enogtyve minutter over to."
 
 
 async def test_capabilities_use_exact_admitted_tool_roles_not_description_substrings():
     class _RoleMCP:
-        url = "http://test/api/mcp"
+        url = "http://test/api/mcp/assist"
 
         def __init__(self):
             self.server_info = {"name": "Home Assistant", "version": "2026.8"}
 
         async def list_tools(self):
             return [
+                {"name": "GetDateTime", "description": "date and time", "inputSchema": {}},
                 {"name": "GetLiveContext", "description": "context", "inputSchema": {}},
                 {"name": "HassTurnOn", "description": "control", "inputSchema": {}},
                 {
@@ -245,40 +185,33 @@ async def test_capabilities_use_exact_admitted_tool_roles_not_description_substr
     await router.start()
     caps = router.capabilities()
     assert caps["home"] is True
+    assert caps["time"] is True
     assert caps["web_search"] is True
     assert caps["weather"] is True
     assert caps["music"] is True
     assert caps["missing"] == []
     assert caps["setup_hints"] == {}
     assert caps["sources"]["home"] == "ha_mcp"
+    assert caps["sources"]["time"] == "ha_mcp"
     assert caps["sources"]["weather"] == "ha_mcp"
     assert caps["tools"] == [
-        "get_time",
+        "GetDateTime",
         "GetLiveContext",
         "HassTurnOn",
         "google_web_sogning",
         "weather_forecast",
         "HassMediaSearchAndPlay",
         "HassMediaPause",
-        "unrelated",
     ]
-    assert caps["discovery"]["api_id"] == "configured:/api/mcp"
+    assert caps["discovery"]["api_id"] == "assist"
+    assert caps["discovery"]["pending_tools"] == ["unrelated"]
     assert caps["discovery"]["server_info"]["name"] == "Home Assistant"
     assert caps["discovery"]["schema_sha256"]
 
 
-def test_local_timer_word_next_does_not_claim_music():
-    class Timers:
-        pass
-
-    caps = ToolRouter(None, timers=Timers()).capabilities()
-    assert "cancel_timer" in caps["tools"]
-    assert caps["music"] is False
-
-
 async def test_read_only_home_and_private_music_history_do_not_claim_control_pills():
     class _ReadOnlyMCP:
-        url = "http://test/api/mcp"
+        url = "http://test/api/mcp/assist"
 
         def __init__(self):
             self.server_info = {"name": "Home Assistant", "version": "2026.8"}
@@ -309,7 +242,7 @@ async def test_read_only_home_and_private_music_history_do_not_claim_control_pil
 
 async def test_music_transport_alone_does_not_claim_music_playback():
     class _TransportOnlyMCP:
-        url = "http://test/api/mcp"
+        url = "http://test/api/mcp/assist"
 
         def __init__(self):
             self.server_info = {"name": "Home Assistant", "version": "2026.8"}
@@ -590,7 +523,7 @@ async def test_probe_self_heals_an_empty_tool_list():
     class _FlakyMCP:
         def __init__(self):
             self.calls = 0
-            self.url = "http://test/mcp"
+            self.url = "http://test/api/mcp/assist"
 
         async def list_tools(self):
             self.calls += 1
@@ -606,11 +539,11 @@ async def test_probe_self_heals_an_empty_tool_list():
     from gatekeeper.tools import ToolRouter
 
     mcp = _FlakyMCP()
-    router = ToolRouter(mcp, supervisor_token=None, client=None, timers=None, hub=None)
+    router = ToolRouter(mcp, supervisor_token=None, client=None, hub=None)
     await router.start()
     assert router.healthy is False
     assert router.discovery_status()["retry_delay_s"] == 1.0
-    assert [d["name"] for d in router.declarations()] == ["get_time"]
+    assert router.declarations() == []
     await router.probe()
     assert router.healthy is True
     assert mcp.calls == 2
@@ -620,7 +553,7 @@ async def test_probe_self_heals_an_empty_tool_list():
 
 async def test_recovery_backoff_is_bounded_and_502_502_success_is_atomic():
     class _FlakyMCP:
-        url = "http://supervisor/core/api/mcp"
+        url = "http://supervisor/core/api/mcp/assist"
 
         def __init__(self):
             self.calls = 0
@@ -639,7 +572,7 @@ async def test_recovery_backoff_is_bounded_and_502_502_success_is_atomic():
     await router.start()
     first = router.discovery_status()
     assert first["retry_attempt"] == 1 and first["retry_delay_s"] == 1.0
-    assert router.declarations() == [router.declarations()[0]]
+    assert router.declarations() == []
     await router.probe()
     second = router.discovery_status()
     assert second["retry_attempt"] == 2 and second["retry_delay_s"] == 2.0
@@ -647,12 +580,12 @@ async def test_recovery_backoff_is_bounded_and_502_502_success_is_atomic():
     recovered = router.discovery_status()
     assert recovered["retry_state"] == "ready" and recovered["last_error"] is None
     assert recovered["generation"] > second["generation"]
-    assert recovered["api_id"] == "supervisor_core:mcp"
+    assert recovered["api_id"] == "assist"
     assert "GetLiveContext" in {d["name"] for d in router.declarations()}
 
 
 def test_persistent_failure_backoff_caps_at_sixty_seconds():
-    router = ToolRouter(type("MCP", (), {"url": "http://test/api/mcp"})())
+    router = ToolRouter(type("MCP", (), {"url": "http://test/api/mcp/assist"})())
     delays = []
     for _ in range(8):
         router._record_discovery_failure("502")
@@ -817,12 +750,68 @@ def test_exact_observed_ha_19_tool_surface_fits_admission_caps():
         "google_web_sogning",
     ]
     raw = [{"name": name, "description": name, "inputSchema": {}} for name in observed]
-    assert [item["name"] for item in ToolRouter._compile_mcp_tools(raw)] == observed
+    compiled = ToolRouter._compile_mcp_tools(raw)
+    assert [item["name"] for item in compiled] == observed
+    admitted, pending, conflicts = ToolRouter._admit_mcp_tools(compiled)
+    assert {item["name"] for item in admitted} == set(observed) - {
+        "HassBroadcast",
+        "HassCancelAllTimers",
+    }
+    assert pending == {"HassBroadcast", "HassCancelAllTimers"}
+    assert conflicts == []
+
+
+def test_conflicting_time_owner_hides_only_time_domain():
+    raw = [
+        {"name": name, "description": name, "inputSchema": {}}
+        for name in ("GetDateTime", "HassGetCurrentTime", "google_web_sogning")
+    ]
+    admitted, pending, conflicts = ToolRouter._admit_mcp_tools(ToolRouter._compile_mcp_tools(raw))
+    assert [item["name"] for item in admitted] == ["google_web_sogning"]
+    assert pending == {"GetDateTime", "HassGetCurrentTime"}
+    assert conflicts == ["time:HassGetCurrentTime"]
+
+
+def test_weather_role_has_one_deterministic_owner():
+    raw = [
+        {"name": name, "description": name, "inputSchema": {}}
+        for name in ("weather_forecast", "HassGetWeather")
+    ]
+    admitted, pending, conflicts = ToolRouter._admit_mcp_tools(ToolRouter._compile_mcp_tools(raw))
+    assert [item["name"] for item in admitted] == ["HassGetWeather"]
+    assert pending == {"weather_forecast"}
+    assert conflicts == []
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    ("/api/mcp/another-agent", "/evil/mcp/assist", "/api/mcp/assist/extra"),
+)
+async def test_non_assist_mcp_endpoint_is_never_discovered_or_admitted(endpoint):
+    class _WrongAPI:
+        def __init__(self):
+            self.url = f"http://test{endpoint}"
+            self.server_info = {"name": "Home Assistant"}
+            self.list_calls = 0
+
+        async def list_tools(self):
+            self.list_calls += 1
+            return [{"name": "GetDateTime", "description": "time", "inputSchema": {}}]
+
+    mcp = _WrongAPI()
+    router = ToolRouter(mcp)
+    await router.start()
+    status = router.discovery_status()
+    assert mcp.list_calls == 0
+    assert router.declarations() == []
+    assert status["api_id"] == f"invalid:{endpoint}"
+    assert status["retry_state"] == "retrying"
+    assert "/api/mcp/assist" in status["last_error"]
 
 
 async def test_oversized_snapshot_fails_closed_with_retry_diagnostics():
     class _OversizedMCP:
-        url = "http://test/api/mcp"
+        url = "http://test/api/mcp/assist"
 
         def __init__(self):
             self.server_info = {"name": "Home Assistant", "version": "2026.8"}
@@ -838,12 +827,12 @@ async def test_oversized_snapshot_fails_closed_with_retry_diagnostics():
     status = router.discovery_status()
     assert status["retry_state"] == "retrying"
     assert f"exceeds {_MAX_MCP_TOOLS} tools" in status["last_error"]
-    assert [item["name"] for item in router.declarations()] == ["get_time"]
+    assert router.declarations() == []
 
 
-async def test_discovery_failure_keeps_captured_session_schema_but_next_session_is_local_only():
+async def test_discovery_failure_keeps_captured_session_schema_but_next_session_has_no_ha_tools():
     class _MCP:
-        url = "http://test/api/mcp"
+        url = "http://test/api/mcp/assist"
 
         def __init__(self):
             self.server_info = {"name": "Home Assistant", "version": "2026.8"}
@@ -864,15 +853,106 @@ async def test_discovery_failure_keeps_captured_session_schema_but_next_session_
     router._record_discovery_failure("HTTP 502")
     next_session_schema = router.declarations()
     assert "GetLiveContext" in {item["name"] for item in active_session_schema}
-    assert [item["name"] for item in next_session_schema] == ["get_time"]
+    assert next_session_schema == []
     assert router.capabilities()["home"] is False
     assert router.discovery_status()["retry_state"] == "retrying"
+
+
+async def test_open_session_schema_hash_fails_closed_after_same_name_schema_drift():
+    class _ChangingMCP:
+        url = "http://test/api/mcp/assist"
+
+        def __init__(self):
+            self.schema_type = "string"
+            self.call_count = 0
+            self.server_info = {"name": "Home Assistant"}
+
+        async def list_tools(self):
+            return [
+                {
+                    "name": "HassTurnOn",
+                    "description": "turn on",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {"name": {"type": self.schema_type}},
+                    },
+                }
+            ]
+
+        async def call_tool(self, name, args):
+            self.call_count += 1
+            return {"content": [{"type": "text", "text": "ok"}]}
+
+    mcp = _ChangingMCP()
+    router = ToolRouter(mcp)
+    await router.start()
+    session_declarations = router.declarations()
+    session_hash = router.declaration_hashes(session_declarations)["HassTurnOn"]
+    assert session_declarations[0]["parameters"]["properties"]["name"]["type"] == "string"
+
+    mcp.schema_type = "integer"
+    await router._refresh(force=True)
+    result = await router.dispatch(
+        "HassTurnOn",
+        {"name": "køkken"},
+        expected_declaration_sha256=session_hash,
+    )
+
+    assert result["error_kind"] == "stale_schema"
+    assert mcp.call_count == 0
+    assert router.declarations()[0]["parameters"]["properties"]["name"]["type"] == "integer"
+
+
+async def test_discovery_refresh_waits_for_the_complete_schema_bound_dispatch():
+    class _RacingMCP:
+        url = "http://test/api/mcp/assist"
+
+        def __init__(self):
+            self.schema_type = "string"
+            self.list_calls = 0
+            self.call_entered = asyncio.Event()
+            self.release_call = asyncio.Event()
+            self.server_info = {"name": "Home Assistant"}
+
+        async def list_tools(self):
+            self.list_calls += 1
+            return [
+                {
+                    "name": "GetDateTime",
+                    "description": "time",
+                    "inputSchema": {"type": "object", "title": self.schema_type},
+                }
+            ]
+
+        async def call_tool(self, name, args):
+            self.call_entered.set()
+            await self.release_call.wait()
+            return {"content": [{"type": "text", "text": "12:00"}]}
+
+    mcp = _RacingMCP()
+    router = ToolRouter(mcp)
+    await router.start()
+    session_hash = router.declaration_hashes()["GetDateTime"]
+    dispatch = asyncio.create_task(
+        router.dispatch("GetDateTime", {}, expected_declaration_sha256=session_hash)
+    )
+    await mcp.call_entered.wait()
+    mcp.schema_type = "integer"
+    refresh = asyncio.create_task(router._refresh(force=True))
+    await asyncio.sleep(0)
+    assert mcp.list_calls == 1
+
+    mcp.release_call.set()
+    assert (await dispatch)["ok"] is True
+    await refresh
+    assert mcp.list_calls == 2
+    assert router.declarations()[0]["parameters"]["title"] == "integer"
 
 
 @pytest.mark.parametrize("connection_shaped", [False, True])
 async def test_only_connection_shaped_tool_errors_invalidate_discovery(connection_shaped):
     class _MCP:
-        url = "http://test/api/mcp"
+        url = "http://test/api/mcp/assist"
 
         def __init__(self):
             self.server_info = {"name": "Home Assistant", "version": "2026.8"}
@@ -1033,7 +1113,7 @@ async def test_schema_admission_failure_resets_handshake_before_retry():
     async with httpx.AsyncClient() as client:
         router = await _router(client)
         assert router._mcp.initialized is False
-        assert [item["name"] for item in router.declarations()] == ["get_time"]
+        assert router.declarations() == []
         await router.probe()
     assert initialize_count == 2 and list_count == 2
     assert router._mcp.initialized is True
@@ -1045,7 +1125,7 @@ async def test_late_tools_list_success_cannot_overwrite_a_newer_failure():
     release = asyncio.Event()
 
     class _MCP:
-        url = "http://test/api/mcp"
+        url = "http://test/api/mcp/assist"
 
         def __init__(self):
             self.server_info = {}
@@ -1062,7 +1142,7 @@ async def test_late_tools_list_success_cannot_overwrite_a_newer_failure():
     release.set()
     await refresh
     assert router.discovery_status()["retry_state"] == "retrying"
-    assert [item["name"] for item in router.declarations()] == ["get_time"]
+    assert router.declarations() == []
 
 
 @respx.mock

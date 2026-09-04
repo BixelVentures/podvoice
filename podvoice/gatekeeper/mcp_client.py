@@ -3,12 +3,12 @@
 Topology (Task 3.1): OpenAI's server-side MCP needs a publicly reachable
 endpoint — wrong tradeoff for a home. So PodVoice is the MCP *client*: it talks
 JSON-RPC over MCP's **streamable-HTTP transport (stateless)** to HA's
-``/api/mcp`` on the LAN, and surfaces the tools to the Realtime session as
+``/api/mcp/assist`` on the LAN, and surfaces the tools to the Realtime session as
 ordinary function calls. Nothing about the house is internet-reachable.
 
-Default endpoint is the Supervisor proxy (``http://supervisor/core/api/mcp``,
+Default endpoint is the Supervisor proxy (``http://supervisor/core/api/mcp/assist``,
 authed with the token the add-on already holds). If a given HA setup doesn't
-proxy it, Settings can point directly at ``http://<ha>:8123/api/mcp`` with a
+proxy it, Settings can point directly at ``http://<ha>:8123/api/mcp/assist`` with a
 long-lived access token (``ha_mcp_url`` / ``ha_mcp_token``).
 
 Deliberately tiny (initialize / tools/list / tools/call): the official ``mcp``

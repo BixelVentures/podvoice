@@ -49,8 +49,8 @@ def test_reads_and_documented_reversible_actions_remain_frictionless() -> None:
         ("HassGetState", {"name": "loftlampen"}, Risk.READ_ONLY),
         ("HassClimateGetTemperature", {"name": "kontoret"}, Risk.READ_ONLY),
         ("HassGetWeather", {"name": "hjem"}, Risk.READ_ONLY),
+        ("GetDateTime", {}, Risk.READ_ONLY),
         ("google_web_sogning", {"query": "AGF"}, Risk.READ_ONLY),
-        ("set_timer", {"minutes": 3}, Risk.LOW_RISK),
         ("HassLightSet", {"entity_id": "light.loft"}, Risk.LOW_RISK),
         ("podconnect_pause", {"room": "kitchen"}, Risk.LOW_RISK),
         # Temperature needs canonical HA state to prove the +/-3 C condition.

@@ -81,10 +81,23 @@ aktuelle tur.
 - PodVoice/`ThinSession` ejer samtalens transport, state-ejet mic-gate, LED-kommando,
   værktøjsdispatch, timeout, teardown og rearm-anmodning.
 - OpenAI Realtime ejer forståelse, svar og valg af eksponerede værktøjer.
-- HA MCP ejer adgang til eksponerede hjemmeenheder og HA-værktøjer.
+- Home Assistant ejer alle live-data og handlinger. Det eksplicitte MCP API-id
+  `assist` leverer `GetDateTime` for tid/dato, `google_web_sogning` for web, én
+  weather-vej, musik/hjem/støvsuger og senere HA-backed timere.
+- Den eksisterende statiske `podconnect.*` HA-serviceadapter leverer kun private
+  musikdata, som Assist ikke eksponerer. Navnene er lokalt allowlistede, indgår i det
+  fulde sessionschema-hash og importeres aldrig dynamisk; PodVoice har ingen direkte
+  Spotify-provider.
 - PodConnect Control/HA ejer Spotify-søgning og musikstyring.
 - PodConnect Speakers ejer fysisk HomePod-afspilning og attention/ducking.
 - Hjemmets søgeagent ejer aktuel webviden.
+
+`ToolRouter` validerer først hele HA-siden og publicerer derefter atomisk kun statisk
+klassificerede navne. Nye navne bliver stående som `pending_tools`; de bliver aldrig
+modelværktøjer på baggrund af navn eller beskrivelse alene. `HassGetWeather` foretrækkes
+over `weather_forecast`, hvis begge findes. Et sessionsschema kopieres ved sessionstart
+og ændres ikke under opfølgninger; en genfundet HA-side gælder først næste session.
+PodVoice har ingen lokal `get_time` og ingen model-synlig in-memory timer.
 
 Ingen HA-, web-, musik- eller hjemmeværktøjer må åbne eller lukke Realtime-sessionen.
 Realtime svarer direkte i én respons, når intet værktøj er nødvendigt, og bruger kun et

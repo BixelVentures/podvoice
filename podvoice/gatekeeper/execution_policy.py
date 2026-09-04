@@ -113,21 +113,15 @@ _SAFE_TEMP_C = (17.0, 24.0)
 # inferred from substrings ("play" in "display", for example).  New reversible tools
 # must be added through reviewed exact metadata rather than silently becoming trusted.
 _EXPLICIT_READ_ONLY = {
+    "GetDateTime",
     "GetLiveContext",
     "HassGetState",
     "HassClimateGetTemperature",
-    "HassGetCurrentDate",
-    "HassGetCurrentTime",
     "HassGetWeather",
-    "HassTimerStatus",
-    "get_time",
-    "list_timers",
     "google_web_sogning",
     "weather_forecast",
 }
 _EXPLICIT_LOW_RISK = {
-    "set_timer",
-    "cancel_timer",
     "HassLightSet",
     "HassMediaSearchAndPlay",
     "HassMediaPause",

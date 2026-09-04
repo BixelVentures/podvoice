@@ -163,6 +163,96 @@ async def test_fresh_tools_are_present_when_realtime_connects():
         await session.aclose()
 
 
+async def test_tool_dispatch_is_bound_to_schema_captured_at_wake():
+    class SnapshotTools(FakeTools):
+        def __init__(self) -> None:
+            self.schema = "A"
+            self.expected_hashes: list[str | None] = []
+
+        def declarations(self) -> list[dict]:
+            return [
+                {
+                    "name": "HassTurnOn",
+                    "description": "turn on",
+                    "parameters": {"type": "object", "title": self.schema},
+                }
+            ]
+
+        def declaration_hashes(self, declarations=None) -> dict[str, str]:
+            return {"HassTurnOn": str(declarations[0]["parameters"]["title"])}
+
+        async def dispatch(
+            self,
+            name: str,
+            args: dict,
+            *,
+            expected_declaration_sha256: str | None = None,
+        ) -> dict:
+            self.expected_hashes.append(expected_declaration_sha256)
+            return {"ok": expected_declaration_sha256 == "A", "tool": name}
+
+    brain = LiveFake()
+    tools = SnapshotTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        tools.schema = "B"
+        brain.emit(ToolCall("schema-bound", "HassTurnOn", {"name": "køkken"}))
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert tools.expected_hashes == ["A"]
+    finally:
+        await session.aclose()
+
+
+async def test_newly_discovered_tool_cannot_enter_an_open_session():
+    class ChangingTools(FakeTools):
+        def __init__(self) -> None:
+            self.names = ["HassTurnOn"]
+            self.calls = 0
+
+        def declarations(self) -> list[dict]:
+            return [
+                {"name": name, "description": name, "parameters": {"type": "object"}}
+                for name in self.names
+            ]
+
+        def declaration_hashes(self, declarations=None) -> dict[str, str]:
+            return {str(item["name"]): f"hash:{item['name']}" for item in declarations}
+
+        async def dispatch(self, name: str, args: dict, **kwargs) -> dict:
+            self.calls += 1
+            return {"ok": True}
+
+    brain = LiveFake()
+    tools = ChangingTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        tools.names.append("GetDateTime")
+        brain.emit(
+            ToolCall(
+                "new-tool",
+                "GetDateTime",
+                {},
+                response_id="response-new-tool",
+                batch_id="response-new-tool",
+                batch_index=0,
+                batch_size=1,
+                generation=1,
+            ),
+            ToolRoundComplete(response_id="response-new-tool", generation=1),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert tools.calls == 0
+        assert brain.sent_tool_results[0][0]["response"]["error_kind"] == "stale_schema"
+    finally:
+        await session.aclose()
+
+
 async def test_direct_answer_is_one_response_and_keeps_same_session_open():
     """Regression for 1.13.22: ordinary answers must not take a lifecycle tool round."""
     brain = LiveFake()
@@ -770,6 +860,7 @@ def _build(
         reply_bus=ReplyBus(),
         reply_url=REPLY_URL,
         speaker_path=speaker_path,
+        allow_unbatched_tools=True,
     )
     return session, attention, voicepe
 
@@ -796,6 +887,7 @@ def _build_talk_session(brain):
         tools=FakeTools(),
         reply_bus=ReplyBus(),
         reply_url=REPLY_URL,
+        allow_unbatched_tools=True,
         full_duplex=True,
     )
     return session, attention, link, sent, audio
@@ -1052,6 +1144,92 @@ async def test_tool_call_dispatched_and_conversation_survives():
         await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)
         assert gemini.sent_tool_results[0][0]["name"] == "get_time"
         assert session.sm.state is not State.IDLE  # still open (model may keep talking)
+    finally:
+        await session.aclose()
+
+
+async def test_production_rejects_unbatched_tool_call_without_any_dispatch():
+    brain = LiveFake()
+    session, _attention, _voicepe = _build(brain)
+    session.allow_unbatched_tools = False
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(ToolCall("uncommitted", "HassTurnOn", {"name": "køkken"}))
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert brain.sent_tool_results == []
+    finally:
+        await session.aclose()
+
+
+async def test_production_rejects_tool_bound_to_a_different_response_batch():
+    class CountingTools(FakeTools):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def dispatch(self, name: str, args: dict) -> dict:
+            self.calls += 1
+            return {"ok": True}
+
+    brain = LiveFake()
+    tools = CountingTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            ToolCall(
+                "cross-bound",
+                "HassTurnOn",
+                {"name": "køkken"},
+                response_id="response-a",
+                batch_id="response-b",
+                batch_index=0,
+                batch_size=1,
+                generation=1,
+            ),
+            ToolRoundComplete(response_id="response-b", generation=1),
+        )
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert tools.calls == 0
+        assert brain.sent_tool_results == []
+    finally:
+        await session.aclose()
+
+
+async def test_committed_tool_batch_replay_never_dispatches_twice():
+    class CountingTools(FakeTools):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def dispatch(self, name: str, args: dict) -> dict:
+            self.calls += 1
+            return {"ok": True}
+
+    brain = LiveFake()
+    tools = CountingTools()
+    session, _attention, _voicepe = _build(brain)
+    session.tools = tools
+    await session.start()
+    call = ToolCall(
+        "once",
+        "HassTurnOn",
+        {"name": "køkken"},
+        response_id="response-once",
+        batch_id="response-once",
+        batch_index=0,
+        batch_size=1,
+        generation=1,
+    )
+    commit = ToolRoundComplete(response_id="response-once", generation=1)
+    try:
+        await session.wake()
+        brain.emit(call, commit)
+        await _wait_until(lambda: tools.calls == 1)
+        brain.emit(call, commit)
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert tools.calls == 1
     finally:
         await session.aclose()
 
@@ -3228,13 +3406,38 @@ async def test_talk_and_voicepe_share_the_same_lifecycle_contract():
             brain.emit(InputTranscript("Klar"))
             await asyncio.sleep(0.05)
             assert session._active is True
-            brain.emit(InputTranscript("Farvel"), ToolCall("end", "end_conversation", {}))
+            brain.emit(
+                InputTranscript("Farvel"),
+                _batched_call(
+                    "end",
+                    "end_conversation",
+                    {},
+                    batch_id="end-response",
+                    index=0,
+                    size=1,
+                ),
+                ToolRoundComplete(response_id="end-response"),
+            )
             await _wait_until(lambda brain=brain: len(brain.sent_tool_results) == 1)
             brain.emit(
-                ToolRoundComplete(),
-                AudioChunk(_frame(), item_id="bye"),
-                OutputTranscript("Farvel."),
-                TurnComplete(),
+                ResponseStarted(
+                    "end-final",
+                    purpose="semantic_end",
+                    generation=1,
+                    source_call_id="end",
+                ),
+                AudioChunk(
+                    _frame(),
+                    item_id="bye",
+                    response_id="end-final",
+                    generation=1,
+                ),
+                OutputTranscript("Farvel.", response_id="end-final", generation=1),
+                TurnComplete(
+                    response_id="end-final",
+                    generation=1,
+                    source_call_id="end",
+                ),
             )
             await _wait_until(
                 lambda session=session, brain=brain, attention=attention: (

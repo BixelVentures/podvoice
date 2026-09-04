@@ -33,6 +33,12 @@ og `release` præcis én gang efter diff-freeze og det review, ændringen kræve
 artifact. SafeEval/preflight må kun tilføjes, når ændringen berører prompt, schema,
 værktøjer eller Realtime-semantik.
 
+`fast` cacher kun stabile preflightdele og kører Ruff, format, mypy og fokuseret pytest
+parallelt med isolerede caches; der må ikke tilføjes en separat collection-pass. Målene
+er varm ≤8 s, kold ≤15 s og release ≤45 s. Brug lav intelligens til afgrænsede test-/
+docsreviews; brug Ultra én gang ved diff-freeze for højrisiko ejerskab, stale events,
+sideeffekter og artifact-sandhed — aldrig som standard i hvert loop.
+
 En timeout, sandboxfejl eller flaky test er ikke produktevidens og må ikke udløse en
 runtime-patch. Isolér årsagen én gang; ret workflowet eller testens observerede
 slutbetingelse separat, og genkør kun den gate, som fejlen faktisk ugyldiggjorde. Hvis

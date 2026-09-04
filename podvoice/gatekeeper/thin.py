@@ -21,6 +21,7 @@ import secrets
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
+from typing import Any
 
 from . import __version__, runtime_artifact_identity
 from . import audio as audio_mod
@@ -323,6 +324,7 @@ class ThinSession:
         speaker_path: str = "auto",  # "auto" (use direct iff the FIRMWARE advertises it)
         # | "announce" (force the HTTP/FLAC path) | "direct" (force PCM, for the sim/tests)
         full_duplex: bool = False,  # EXPERIMENTAL: mic stays open while the device plays
+        allow_unbatched_tools: bool = False,  # test-only legacy fake compatibility
         # (XMOS AEC + conservative turn detection carry echo rejection; Phase 1.4 gates it)
         idle_timeout_s: float = IDLE_FALLBACK_S,
         max_session_s: float = MAX_CONVERSATION_S,
@@ -335,6 +337,7 @@ class ThinSession:
         self.voicepe = voicepe
         self.playback = playback  # sim/console fallback sink only
         self.tools = tools
+        self._tool_declaration_hashes: dict[str, str] = {}
         self.hub = hub
         self.speech = speech
         self.reply_bus = reply_bus
@@ -344,6 +347,7 @@ class ThinSession:
         self.audio_trace = audio_trace
         self.speaker_path = speaker_path
         self.full_duplex = full_duplex
+        self.allow_unbatched_tools = allow_unbatched_tools
         # Duplex is parked. It must not ride on the AGC-less ASR baseline: even though
         # channel 1 is still AEC-processed, it deliberately lacks AGC and has not
         # passed the physical open-mic interruption gate. Keep the echo shield up unless
@@ -408,6 +412,8 @@ class ThinSession:
         self._tool_lock = asyncio.Lock()
         self._tool_tasks: dict[str, asyncio.Task] = {}
         self._tool_batches: dict[str, _ToolBatch] = {}
+        self._accepted_tool_call_ids: set[str] = set()
+        self._committed_tool_batch_ids: set[str] = set()
         self._semantic_end_call_ids: set[str] = set()
         self._wait_turns: dict[str, tuple[float, _ClosureTurn]] = {}
         self._playback_t0: float | None = None  # monotonic when the device started playing
@@ -626,6 +632,8 @@ class ThinSession:
         self._semantic_end_call_ids.clear()
         self._wait_turns.clear()
         self._tool_batches.clear()
+        self._accepted_tool_call_ids.clear()
+        self._committed_tool_batch_ids.clear()
         self._turn_cue_appended = False
         self._discarding_half_duplex_input = False
         self._provider_input_span = None
@@ -683,6 +691,12 @@ class ThinSession:
         # Tool declarations are part of session.update, which connect() sends. Setting
         # them afterwards made HA/PodConnect changes arrive one conversation late.
         decls = list(self.tools.declarations()) if self.tools is not None else []
+        declaration_hasher = (
+            getattr(self.tools, "declaration_hashes", None) if self.tools is not None else None
+        )
+        self._tool_declaration_hashes = (
+            declaration_hasher(decls) if callable(declaration_hasher) else {}
+        )
         # Lifecycle semantics are available for every provider/session, but this
         # reserved signal is handled by ThinSession and never dispatched to HA.
         reserved = {
@@ -1132,6 +1146,8 @@ class ThinSession:
             t.cancel()
         self._tool_tasks.clear()
         self._tool_batches.clear()
+        self._accepted_tool_call_ids.clear()
+        self._committed_tool_batch_ids.clear()
         self._semantic_end_call_ids.clear()
         self._wait_turns.clear()
         if history_session and self.tools is not None:
@@ -2022,9 +2038,17 @@ class ThinSession:
             if ev.batch_id is not None:
                 await self._accept_batched_tool_call(ev)
                 return
-            # Backwards-compatible one-call providers/fakes have no batch metadata.
-            # They retain the historical immediate-result path, while production
-            # providers use the completed-response batch contract above.
+            if not self.allow_unbatched_tools:
+                self._trace_event(
+                    "tool_batch_invalid",
+                    batch_id=None,
+                    call_id=ev.id,
+                    reason="missing_provider_commit_contract",
+                )
+                self._request_close("error:connection", error_kind="connection")
+                return
+            # Test-only compatibility for old deterministic fakes. Production builders
+            # never enable this path.
             if not self._prepare_legacy_tool_call(ev):
                 return
             if not self._direct:
@@ -2779,6 +2803,8 @@ class ThinSession:
         batch_id = str(tc.batch_id or "")
         if (
             not batch_id
+            or not tc.response_id
+            or tc.response_id != batch_id
             or tc.batch_size < 1
             or tc.batch_index < 0
             or tc.batch_index >= tc.batch_size
@@ -2788,6 +2814,10 @@ class ThinSession:
             return
         turn = self._ensure_closure_turn()
         batch = self._tool_batches.get(batch_id)
+        if batch_id in self._committed_tool_batch_ids or tc.id in self._accepted_tool_call_ids:
+            self._trace_event("tool_batch_replay", batch_id=batch_id, call_id=tc.id)
+            self._request_close("error:connection", error_kind="connection")
+            return
         if batch is None:
             batch = _ToolBatch(batch_id, tc.batch_size, turn, {}, {})
             self._tool_batches[batch_id] = batch
@@ -2801,6 +2831,7 @@ class ThinSession:
             self._request_close("error:connection", error_kind="connection")
             return
         batch.calls[tc.batch_index] = tc
+        self._accepted_tool_call_ids.add(tc.id)
         if len(batch.calls) != batch.size:
             return
 
@@ -2962,22 +2993,33 @@ class ThinSession:
                     "error": "approval challenge is missing, malformed, or unavailable",
                 }
             else:
-                result = await self.tools.approve_action(
-                    challenge_id.strip(),
-                    confirmation_context=self._execution_context(turn),
-                )
+                approve_action = self.tools.approve_action
+                approval_kwargs: dict[str, Any] = {
+                    "confirmation_context": self._execution_context(turn)
+                }
+                if self._accepts_keyword(approve_action, "expected_declaration_hashes"):
+                    approval_kwargs["expected_declaration_hashes"] = self._tool_declaration_hashes
+                result = await approve_action(challenge_id.strip(), **approval_kwargs)
         elif self.tools is None:
             result = {"ok": False, "error": "no tools configured"}
+        elif hasattr(self.tools, "declaration_hashes") and tc.name not in (
+            self._tool_declaration_hashes
+        ):
+            result = {
+                "ok": False,
+                "error_kind": "stale_schema",
+                "error": "tool was not declared for this conversation",
+            }
         else:
             dispatch = self.tools.dispatch
+            dispatch_kwargs: dict[str, Any] = {}
             if self._accepts_keyword(dispatch, "execution_context"):
-                result = await dispatch(
-                    tc.name,
-                    tc.args,
-                    execution_context=self._execution_context(turn),
+                dispatch_kwargs["execution_context"] = self._execution_context(turn)
+            if self._accepts_keyword(dispatch, "expected_declaration_sha256"):
+                dispatch_kwargs["expected_declaration_sha256"] = self._tool_declaration_hashes.get(
+                    tc.name
                 )
-            else:
-                result = await dispatch(tc.name, tc.args)
+            result = await dispatch(tc.name, tc.args, **dispatch_kwargs)
         self._trace_event(
             "tool_result",
             name=tc.name,
@@ -3064,6 +3106,7 @@ class ThinSession:
         ):
             return
         batch.submitting = True
+        self._committed_tool_batch_ids.add(batch.batch_id)
         self._tool_batches.pop(batch.batch_id, None)
         ordered = [(batch.calls[index], batch.results[index]) for index in range(batch.size)]
         needs_confirmation = any(

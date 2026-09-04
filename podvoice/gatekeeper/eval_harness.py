@@ -1170,21 +1170,6 @@ class SafeEvalTools:
     """
 
     _RESULTS: ClassVar[dict[str, dict[str, Any]]] = {
-        "set_timer": {
-            "ok": True,
-            "summary": "Timeren er sat til ti minutter.",
-            "data": {"id": 1, "seconds": 600},
-        },
-        "list_timers": {
-            "ok": True,
-            "summary": "Der kører én timer med ti minutter tilbage.",
-            "data": {"timers": [{"id": 1, "remaining_s": 600}]},
-        },
-        "cancel_timer": {
-            "ok": True,
-            "summary": "Timeren er annulleret.",
-            "data": {"id": 1},
-        },
         "google_web_sogning": {
             "ok": True,
             "summary": "FCK vandt to nul i den seneste kamp.",
@@ -1211,7 +1196,7 @@ class SafeEvalTools:
         self._session_id = f"safe-eval-{uuid.uuid4().hex}"
         self._policy = ExecutionPolicy(
             trusted_tools={
-                "get_time": Risk.READ_ONLY,
+                "GetDateTime": Risk.READ_ONLY,
                 "google_web_sogning": Risk.READ_ONLY,
                 "HassTurnOn": Risk.LOW_RISK,
             }
@@ -1251,26 +1236,9 @@ class SafeEvalTools:
     def _safe_declarations() -> list[dict[str, Any]]:
         return [
             {
-                "name": "get_time",
-                "description": "Read precisely requested current local time fields. "
-                "weekday is the day name; week_number is the numbered ISO week. "
-                "Never confuse them.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "fields": {
-                            "type": "array",
-                            "items": {
-                                "type": "string",
-                                "enum": ["time", "date", "weekday", "week_number"],
-                            },
-                            "minItems": 1,
-                            "uniqueItems": True,
-                        }
-                    },
-                    "required": ["fields"],
-                    "additionalProperties": False,
-                },
+                "name": "GetDateTime",
+                "description": "Get the current date and time from Home Assistant.",
+                "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
             },
             {
                 "name": "google_web_sogning",
@@ -1411,31 +1379,20 @@ class SafeEvalTools:
             return self._challenge(name, args)
         if name == "approve_action":
             return self._approve(args)
-        if name == "get_time":
-            values: dict[str, tuple[str, Any]] = {
-                "time": ("Klokken er fjorten.", "14:00"),
-                "date": ("Datoen er den 17. august 2026.", "2026-08-17"),
-                "weekday": ("I dag er det mandag.", "mandag"),
-                "week_number": ("Det er uge 34.", 34),
-            }
-            fields = args.get("fields")
-            if (
-                not isinstance(fields, list)
-                or not fields
-                or any(field not in values for field in fields)
-                or len(set(fields)) != len(fields)
-            ):
+        if name == "GetDateTime":
+            if args:
                 return {
                     "ok": False,
                     "error_kind": "bad_args",
-                    "error": "invalid eval time fields",
+                    "error": "GetDateTime takes no arguments",
                 }
             return {
                 "ok": True,
-                "summary": " ".join(values[field][0] for field in fields),
                 "data": {
-                    "requested_fields": fields,
-                    **{field: values[field][1] for field in fields},
+                    "date": "2026-08-17",
+                    "time": "14:00",
+                    "weekday": "mandag",
+                    "week_number": 34,
                 },
             }
         result = self._RESULTS.get(name)

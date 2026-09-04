@@ -1,8 +1,8 @@
 # Hurtig udviklingssløjfe
 
-Målet er praktisk: almindelige kodeiterationer skal typisk give brugbart feedback på
-sekunder og som hovedregel være færdige inden for 1–2 minutter. Den fulde releasekontrol
-ændres ikke af den hurtige sløjfe.
+Målet er praktisk: varm `fast` højst 8 sekunder, kold `fast` højst 15 sekunder og den
+fulde lokale releasegate højst 45 sekunder på den usynkroniserede clone. Den fulde
+releasekontrol ændres ikke af den hurtige sløjfe.
 
 ## Den korte vej
 
@@ -20,8 +20,10 @@ PODVOICE_PYTHON=/sti/til/venv/bin/python ./scripts/dev fast
 Kommandoen gør fire små ting:
 
 1. stopper hurtigt ved langsom fil-I/O, en optaget gate eller manglende værktøjer;
-2. holder Python- og mypy-caches uden for worktreet;
-3. kører Ruff på ændrede Python-filer og mypy ved runtimeændringer;
+2. cacher den stabile preflight og holder isolerede Python-, Ruff-, mypy- og pytest-
+   caches uden for worktreet;
+3. kører Ruff, format, mypy og den fokuserede pytest samtidig og stopper søskende ved
+   første fejl; der findes ingen separat `pytest --collect-only`-runde;
 4. kører ændrede tests og direkte modulkontrakter. Ukendt, firmware- eller
    releasepåvirkning falder automatisk tilbage til hele testsuiten.
 
@@ -53,15 +55,15 @@ Når ændringen er samlet og reviewet:
 PODVOICE_PYTHON=/sti/til/venv/bin/python ./scripts/dev release
 ```
 
-Den kører fuld Ruff, formatkontrol, mypy, hele pytest-suiten og diff-check af committed,
-staged og unstaged diff. Derefter er
+Den kører Ruff/format, mypy, unit- og integrationstest parallelt med isolerede caches og
+derefter diff-check af committed, staged og unstaged diff. Hver fase viser sin egen tid.
+Derefter er
 GitHub CI på den eksakte commit og den efterfølgende ARM64-imagebuild stadig påkrævet.
 Den hurtige kommando er feedback, ikke releasebevis.
 
-CI beholder derfor add-on-builden efter den fulde testgate. At bygge den dyre ARM64-
-artifact parallelt med en kandidat, som endnu kan fejle tests, ville kun flytte ventetid
-og skabe et artifact uden den krævede softwaregate. Pip- og Docker-lag caches i stedet,
-så den samme rækkefølge bliver hurtigere uden at svække exact-commit-evidensen.
+CI starter test og ARM64-build samtidig. Docs-only ændringer springer imagebuild over,
+og ARM64 bruger en fast BuildKit-cache-scope. Kun `main` publicerer det versionerede
+GHCR-image; teststatus og image-digest skal begge være grønne før installation.
 
 ## Den korte fysiske canary
 
@@ -91,5 +93,4 @@ Kør kun preflighten:
 ```
 
 Flyt worktreet ud af en synkroniseret mappe, frigør disk eller vent på den ene viste
-gateejer. Forlæng ikke timeouts som første løsning; collection skal normalt være færdig
-inden for 15 sekunder.
+gateejer. Forlæng ikke timeouts som første løsning; outputtet viser den langsomme fase.

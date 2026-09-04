@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fcntl
 import hashlib
+import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -15,6 +18,7 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TextIO
 
 COLLECTION_TIMEOUT_S = 15
 FAST_TIMEOUT_S = 120
@@ -65,6 +69,112 @@ class ScopeSnapshot:
     changes: tuple[str, ...]
     index_entries: str
     worktree_hashes: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True)
+class Stage:
+    name: str
+    command: tuple[str, ...]
+    timeout: int
+
+
+def _stage_environment(env: dict[str, str], stage: str) -> dict[str, str]:
+    """Give concurrent tools isolated caches under one persistent external root."""
+    cache_root = Path(
+        env.get(
+            "PODVOICE_DEV_CACHE",
+            str(Path(tempfile.gettempdir()) / f"podvoice-dev-cache-{os.getuid()}"),
+        )
+    )
+    safe_stage = stage.replace("/", "-").replace(" ", "-")
+    stage_env = dict(env)
+    for key, directory in (
+        ("PYTHONPYCACHEPREFIX", cache_root / "pycache" / safe_stage),
+        ("MYPY_CACHE_DIR", cache_root / "mypy" / safe_stage),
+        ("RUFF_CACHE_DIR", cache_root / "ruff" / safe_stage),
+    ):
+        directory.mkdir(parents=True, exist_ok=True)
+        stage_env[key] = str(directory)
+    pytest_cache = cache_root / "pytest" / safe_stage
+    pytest_cache.mkdir(parents=True, exist_ok=True)
+    existing_pytest_options = stage_env.get("PYTEST_ADDOPTS", "").strip()
+    cache_option = f"-o cache_dir={pytest_cache}"
+    stage_env["PYTEST_ADDOPTS"] = " ".join(
+        option for option in (existing_pytest_options, cache_option) if option
+    )
+    return stage_env
+
+
+def _stop_process_group(process: subprocess.Popen[str]) -> None:
+    """Stop a stage and every child it spawned; never leak a gate after failure."""
+    if process.poll() is not None:
+        return
+    with contextlib.suppress(ProcessLookupError):
+        os.killpg(process.pid, signal.SIGTERM)
+    with contextlib.suppress(subprocess.TimeoutExpired):
+        process.wait(timeout=2)
+    if process.poll() is None:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGKILL)
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=2)
+
+
+def run_parallel(root: Path, env: dict[str, str], stages: Sequence[Stage]) -> None:
+    """Run independent gates together and terminate siblings on the first failure."""
+    if not stages:
+        return
+    running: dict[str, tuple[subprocess.Popen[str], TextIO, float, Stage]] = {}
+    try:
+        for stage in stages:
+            stage_output: TextIO = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
+            process = subprocess.Popen(
+                list(stage.command),
+                cwd=root,
+                env=_stage_environment(env, stage.name),
+                text=True,
+                stdout=stage_output,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            running[stage.name] = (process, stage_output, time.monotonic(), stage)
+
+        while running:
+            now = time.monotonic()
+            for name, (process, captured_file, started, stage) in list(running.items()):
+                elapsed = now - started
+                if process.poll() is None and elapsed <= stage.timeout:
+                    continue
+                if process.poll() is None:
+                    _stop_process_group(process)
+                    failure: str | None = f"timed out after {stage.timeout}s"
+                else:
+                    failure = None if process.returncode == 0 else f"failed ({process.returncode})"
+                captured_file.seek(0)
+                captured = captured_file.read()
+                if captured:
+                    for line in captured.rstrip().splitlines():
+                        print(f"[{name}] {line}", flush=True)
+                captured_file.close()
+                del running[name]
+                print(f"{name}: {elapsed:.2f}s", flush=True)
+                if failure is not None:
+                    for (
+                        sibling,
+                        sibling_output,
+                        _sibling_started,
+                        _sibling_stage,
+                    ) in running.values():
+                        _stop_process_group(sibling)
+                        sibling_output.close()
+                    running.clear()
+                    raise DevCycleError(f"{name} {failure}: {' '.join(stage.command)}")
+            if running:
+                time.sleep(0.02)
+    finally:
+        for process, captured_file, _started, _stage in running.values():
+            _stop_process_group(process)
+            captured_file.close()
 
 
 def _run(
@@ -154,6 +264,7 @@ def tool_environment(root: Path) -> tuple[dict[str, str], str]:
     python = str(python_path)
 
     env = os.environ.copy()
+    env["PODVOICE_DEV_CACHE"] = str(cache_root)
     env["PYTHONPYCACHEPREFIX"] = str(pycache)
     env["MYPY_CACHE_DIR"] = str(mypy_cache)
     env.pop("PYTHONDONTWRITEBYTECODE", None)
@@ -169,6 +280,23 @@ def sibling_tool(python: str, name: str) -> str:
     return str(candidate)
 
 
+def preflight_fingerprint(root: Path, python: str, version: str) -> str:
+    fingerprint = hashlib.sha256()
+    fingerprint.update(str(Path(python).resolve()).encode())
+    fingerprint.update(version.encode())
+    for relative in (
+        "pyproject.toml",
+        "podvoice/requirements.txt",
+        "podvoice/requirements-dev.txt",
+        "scripts/dev_cycle.py",
+    ):
+        path = root / relative
+        if path.is_file():
+            fingerprint.update(relative.encode())
+            fingerprint.update(path.read_bytes())
+    return fingerprint.hexdigest()
+
+
 class GateLock:
     """One machine-wide owner for pytest/mypy/git gate work."""
 
@@ -179,7 +307,7 @@ class GateLock:
                 str(Path(tempfile.gettempdir()) / "podvoice-dev-gate.lock"),
             )
         )
-        self._handle = None
+        self._handle: TextIO | None = None
 
     def __enter__(self) -> GateLock:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -248,13 +376,20 @@ def preflight(root: Path, env: dict[str, str], python: str) -> list[str]:
         "from pathlib import Path; import sys; "
         "[Path(p).open('rb').read(4096) for p in sys.argv[1:] if Path(p).is_file()]"
     )
-    _run(
-        [python, "-c", read_probe, *probe_files],
-        cwd=root,
-        env=env,
-        timeout=COLLECTION_TIMEOUT_S,
-        capture=True,
-    )
+    fingerprint = preflight_fingerprint(root, python, version)
+    cache_file = Path(env["PODVOICE_DEV_CACHE"]) / "preflight" / f"{fingerprint}.json"
+    if not cache_file.is_file():
+        _run(
+            [python, "-c", read_probe, *probe_files],
+            cwd=root,
+            env=env,
+            timeout=COLLECTION_TIMEOUT_S,
+            capture=True,
+        )
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        temporary = cache_file.with_suffix(f".{os.getpid()}.tmp")
+        temporary.write_text(json.dumps({"python": version, "ok": True}), encoding="utf-8")
+        temporary.replace(cache_file)
     write_probe = (
         "from pathlib import Path; import os,sys,tempfile; "
         "fd,p=tempfile.mkstemp(prefix='.podvoice-io-',dir=sys.argv[1]); "
@@ -438,16 +573,6 @@ def select_tests(changes: Sequence[str], tracked_tests: Sequence[str]) -> tuple[
     return sorted(selected), reason
 
 
-def collect(root: Path, env: dict[str, str], python: str, tests: Sequence[str]) -> None:
-    _run(
-        [python, "-m", "pytest", "--collect-only", "-q", *tests],
-        cwd=root,
-        env=env,
-        timeout=COLLECTION_TIMEOUT_S,
-        capture=True,
-    )
-
-
 def run_fast(
     root: Path,
     env: dict[str, str],
@@ -461,19 +586,25 @@ def run_fast(
 
     ruff = sibling_tool(python, "ruff")
     changed_python = [path for path in changes if path.endswith(".py") and (root / path).is_file()]
+    stages: list[Stage] = []
     if changed_python:
-        _run([ruff, "check", *changed_python], cwd=root, env=env, timeout=30)
-        _run([ruff, "format", "--check", *changed_python], cwd=root, env=env, timeout=30)
+        stages.extend(
+            (
+                Stage("ruff", (ruff, "check", *changed_python), 30),
+                Stage("format", (ruff, "format", "--check", *changed_python), 30),
+            )
+        )
     if any(path.startswith("podvoice/gatekeeper/") for path in changes):
         mypy = sibling_tool(python, "mypy")
-        _run([mypy, "podvoice/gatekeeper"], cwd=root, env=env, timeout=60)
-    collect(root, env, python, tests)
-    _run(
-        [python, "-m", "pytest", "-q", *tests],
-        cwd=root,
-        env=env,
-        timeout=int(os.environ.get("PODVOICE_FAST_TIMEOUT", FAST_TIMEOUT_S)),
+        stages.append(Stage("mypy", (mypy, "podvoice/gatekeeper"), 60))
+    stages.append(
+        Stage(
+            "pytest",
+            (python, "-m", "pytest", "-q", *tests),
+            int(os.environ.get("PODVOICE_FAST_TIMEOUT", FAST_TIMEOUT_S)),
+        )
     )
+    run_parallel(root, env, stages)
     diff_check(root, env, snapshot.merge_base)
 
 
@@ -496,19 +627,25 @@ def run_lifecycle(
 
     ruff = sibling_tool(python, "ruff")
     changed_python = [path for path in changes if path.endswith(".py") and (root / path).is_file()]
+    stages: list[Stage] = []
     if changed_python:
-        _run([ruff, "check", *changed_python], cwd=root, env=env, timeout=30)
-        _run([ruff, "format", "--check", *changed_python], cwd=root, env=env, timeout=30)
+        stages.extend(
+            (
+                Stage("ruff", (ruff, "check", *changed_python), 30),
+                Stage("format", (ruff, "format", "--check", *changed_python), 30),
+            )
+        )
     if any(path in LIFECYCLE_RUNTIME_FILES for path in changes):
         mypy = sibling_tool(python, "mypy")
-        _run([mypy, "podvoice/gatekeeper"], cwd=root, env=env, timeout=60)
-    collect(root, env, python, tests)
-    _run(
-        [python, "-m", "pytest", "-q", *tests],
-        cwd=root,
-        env=env,
-        timeout=int(os.environ.get("PODVOICE_FAST_TIMEOUT", FAST_TIMEOUT_S)),
+        stages.append(Stage("mypy", (mypy, "podvoice/gatekeeper"), 60))
+    stages.append(
+        Stage(
+            "pytest",
+            (python, "-m", "pytest", "-q", *tests),
+            int(os.environ.get("PODVOICE_FAST_TIMEOUT", FAST_TIMEOUT_S)),
+        )
     )
+    run_parallel(root, env, stages)
     diff_check(root, env, snapshot.merge_base)
 
 
@@ -520,15 +657,35 @@ def run_release(
 ) -> None:
     ruff = sibling_tool(python, "ruff")
     mypy = sibling_tool(python, "mypy")
-    _run([ruff, "check", "."], cwd=root, env=env, timeout=60)
-    _run([ruff, "format", "--check", "."], cwd=root, env=env, timeout=60)
-    _run([mypy, "podvoice/gatekeeper"], cwd=root, env=env, timeout=90)
-    collect(root, env, python, [FULL_SUITE_MARKER])
-    _run(
-        [python, "-m", "pytest", "-q"],
-        cwd=root,
-        env=env,
-        timeout=int(os.environ.get("PODVOICE_RELEASE_TIMEOUT", RELEASE_TIMEOUT_S)),
+    release_timeout = int(os.environ.get("PODVOICE_RELEASE_TIMEOUT", RELEASE_TIMEOUT_S))
+    style_worker = (
+        "import subprocess,sys; "
+        "subprocess.run([sys.argv[1],'check','.'],check=True); "
+        "subprocess.run([sys.argv[1],'format','--check','.'],check=True)"
+    )
+    run_parallel(
+        root,
+        env,
+        [
+            Stage(
+                "candidate-scope",
+                (
+                    python,
+                    "scripts/candidate_scope.py",
+                    "--base",
+                    snapshot.merge_base,
+                ),
+                30,
+            ),
+            Stage("ruff-format", (python, "-c", style_worker, ruff), 60),
+            Stage("mypy", (mypy, "podvoice/gatekeeper"), 90),
+            Stage("unit", (python, "-m", "pytest", "-q", "tests/unit"), release_timeout),
+            Stage(
+                "integration",
+                (python, "-m", "pytest", "-q", "tests/integration"),
+                release_timeout,
+            ),
+        ],
     )
     diff_check(root, env, snapshot.merge_base)
     print(

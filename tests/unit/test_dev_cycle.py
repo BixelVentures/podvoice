@@ -1,5 +1,7 @@
+import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -9,11 +11,15 @@ from scripts.dev_cycle import (
     DevCycleError,
     GateLock,
     ScopeSnapshot,
+    Stage,
     changed_files,
     diff_check,
     load_lifecycle_smoke,
     preflight,
+    preflight_fingerprint,
     require_unchanged_scope,
+    run_parallel,
+    run_release,
     select_lifecycle_tests,
     select_tests,
     sibling_tool,
@@ -32,31 +38,99 @@ TRACKED_TESTS = [
 def test_ci_runs_for_prs_and_main_pushes_without_feature_branch_duplicates():
     workflow = (Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml").read_text()
     trigger_block = workflow.split("\njobs:", maxsplit=1)[0]
-    assert (
-        trigger_block
-        == """name: CI
-
-on:
-  pull_request:
-  push:
-    branches:
-      - main
-"""
-    )
+    assert "pull_request:" in trigger_block
+    assert "push:\n    branches:\n      - main" in trigger_block
+    assert "packages: write" in trigger_block
+    assert "cancel-in-progress: false" in trigger_block
 
 
-def test_ci_arm_build_uses_buildx_driver_after_tests_and_before_gha_cache_export():
+def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     workflow = (Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml").read_text()
-    build = workflow.split("  build-addon:\n", maxsplit=1)[1]
+    build = workflow.split("  build-addon:\n", maxsplit=1)[1].split(
+        "  publish-addon:\n", maxsplit=1
+    )[0]
+    publish = workflow.split("  publish-addon:\n", maxsplit=1)[1]
     qemu = "      - uses: docker/setup-qemu-action@v3\n"
     buildx = "      - uses: docker/setup-buildx-action@v3\n"
     build_push = "      - uses: docker/build-push-action@v6\n"
 
-    assert build.startswith("    needs: lint-test\n")
+    assert not build.startswith("    needs:")
     assert build.count(qemu) == build.count(buildx) == build.count(build_push) == 1
     assert build.index(qemu) < build.index(buildx) < build.index(build_push)
-    assert "          cache-from: type=gha\n" in build
-    assert "          cache-to: type=gha,mode=max\n" in build
+    assert "dorny/paths-filter@v3" in build
+    login = "      - uses: docker/login-action@v3\n"
+    assert build.count(login) == 1
+    assert build.index(login) < build.index(build_push)
+    assert "github.event_name == 'pull_request'" in build
+    assert "build-${{ steps.artifact.outputs.context_sha }}" in build
+    assert "ghcr.io/bixelventures/aarch64-addon-podvoice:" in build
+    assert "cache-from: type=gha,scope=podvoice-aarch64" in build
+    assert "cache-to: type=gha,mode=max,scope=podvoice-aarch64" in build
+    assert "needs: lint-test" in publish
+    assert "github.event_name == 'push'" in publish
+    assert "Publish exact tested main image" in publish
+    assert "docker/build-push-action@v6" in publish
+    assert "org.opencontainers.image.revision=${{ github.sha }}" in publish
+    assert "PODVOICE_GIT_SHA=${{ github.sha }}" in publish
+    assert "sha-${{ github.sha }}" in publish
+    assert "Refuse an existing release version" in publish
+    assert 'if [ "$inspect_status" -eq 0 ]' in publish
+    assert '"manifest unknown"' in publish and '"not found"' in publish
+    assert 'exit "$inspect_status"' in publish
+    assert "steps.publish.outputs.digest" in publish
+    manifest = (Path(__file__).parents[2] / "podvoice" / "config.yaml").read_text()
+    assert "image: ghcr.io/bixelventures/{arch}-addon-podvoice" in manifest
+
+
+def test_dev_cycle_has_no_redundant_pytest_collection_pass():
+    source = Path(dev_cycle.__file__).read_text(encoding="utf-8")
+    assert "--collect-only" not in source
+    assert "run_parallel(root, env, stages)" in source
+
+
+def test_parallel_stages_start_together_and_receive_isolated_caches(tmp_path: Path):
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    outputs = [tmp_path / "env-a.json", tmp_path / "env-b.json"]
+
+    env = os.environ.copy()
+    env["PODVOICE_DEV_CACHE"] = str(tmp_path / "cache")
+    stage_envs = [
+        {"OWN": str(first), "OTHER": str(second), "OUT": str(outputs[0])},
+        {"OWN": str(second), "OTHER": str(first), "OUT": str(outputs[1])},
+    ]
+    stages = []
+    for index, values in enumerate(stage_envs):
+        stage_name = f"stage-{index}"
+        stage_python = tmp_path / f"stage-{index}.py"
+        stage_python.write_text(
+            "import json,os,time\n"
+            "from pathlib import Path\n"
+            f"own=Path({values['OWN']!r}); other=Path({values['OTHER']!r})\n"
+            "own.touch()\n"
+            "deadline=time.monotonic()+2\n"
+            "while not other.exists() and time.monotonic() < deadline: time.sleep(0.01)\n"
+            "assert other.exists()\n"
+            f"Path({values['OUT']!r}).write_text(json.dumps({{k:os.environ[k] for k in "
+            "('PYTHONPYCACHEPREFIX','MYPY_CACHE_DIR','RUFF_CACHE_DIR','PYTEST_ADDOPTS')}))\n",
+            encoding="utf-8",
+        )
+        stages.append(Stage(stage_name, (sys.executable, str(stage_python)), 3))
+    run_parallel(tmp_path, env, stages)
+    caches = [json.loads(path.read_text(encoding="utf-8")) for path in outputs]
+    assert caches[0] != caches[1]
+    assert all(str(tmp_path / "cache") in value for row in caches for value in row.values())
+
+
+def test_parallel_timeout_is_structured_and_stops_process_group(tmp_path: Path):
+    env = os.environ.copy()
+    env["PODVOICE_DEV_CACHE"] = str(tmp_path / "cache")
+    with pytest.raises(DevCycleError, match="timed out"):
+        run_parallel(
+            tmp_path,
+            env,
+            [Stage("wedged", (sys.executable, "-c", "import time; time.sleep(10)"), 0)],
+        )
 
 
 def test_non_runtime_change_uses_small_contract_smoke():
@@ -295,11 +369,49 @@ def test_preflight_read_probe_is_bounded_and_skips_missing_files():
     assert '[python, "-c", read_probe, *tracked]' not in source
 
 
+def test_preflight_fingerprint_is_stable_and_invalidated_by_dependency_input(tmp_path: Path):
+    python = tmp_path / "venv" / "bin" / "python"
+    python.parent.mkdir(parents=True)
+    python.write_text("python", encoding="utf-8")
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject.write_text("version='1'", encoding="utf-8")
+    first = preflight_fingerprint(tmp_path, str(python), "3.12")
+    assert preflight_fingerprint(tmp_path, str(python), "3.12") == first
+    pyproject.write_text("version='2'", encoding="utf-8")
+    assert preflight_fingerprint(tmp_path, str(python), "3.12") != first
+
+
 def test_scope_change_invalidates_focused_result():
     before = ScopeSnapshot("head", "base", ("a.py",), "index", (("a.py", "old"),))
     after = ScopeSnapshot("head", "base", ("a.py",), "index", (("a.py", "new"),))
     with pytest.raises(DevCycleError, match="scope moved"):
         require_unchanged_scope(before, after)
+
+
+def test_release_runs_candidate_scope_against_frozen_merge_base(monkeypatch, tmp_path):
+    captured = []
+
+    monkeypatch.setattr("scripts.dev_cycle.sibling_tool", lambda _python, name: name)
+    monkeypatch.setattr(
+        "scripts.dev_cycle.run_parallel",
+        lambda _root, _env, stages: captured.extend(stages),
+    )
+    monkeypatch.setattr("scripts.dev_cycle.diff_check", lambda *_args: None)
+
+    run_release(
+        tmp_path,
+        {},
+        "python",
+        ScopeSnapshot("head", "frozen-base", (), "", ()),
+    )
+
+    scope = next(stage for stage in captured if stage.name == "candidate-scope")
+    assert scope.command == (
+        "python",
+        "scripts/candidate_scope.py",
+        "--base",
+        "frozen-base",
+    )
 
 
 def test_diff_check_covers_committed_staged_and_unstaged(

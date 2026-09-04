@@ -349,6 +349,7 @@ class OpenAIRealtimeSession:
     # no-resampling tool understood everything.
     input_rate: int = C.INPUT_RATE
     tool_declarations: list[dict] | None = None
+    podvoice_tool_declaration_hashes: dict[str, str] = field(default_factory=dict, repr=False)
     language: str = "da"
     # Turn detection: a PRESET (conservative/responsive) or "custom" via the raw knobs.
     # conservative = server_vad tuned hard-to-interrupt, so residual echo past the XMOS
