@@ -70,6 +70,8 @@ from .voice import (
 
 _LOG = logging.getLogger("podvoice.openai")
 
+DEFAULT_REASONING_EFFORT = "medium"
+
 _CLIENT_ITEM_ID_MAX_LENGTH = 32
 _CLIENT_ITEM_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _PROTOCOL_HISTORY_MAX = 4096
@@ -619,7 +621,7 @@ class OpenAIRealtimeSession:
             # and continued after a 697 ms turn whose actual meaning is unresolved.
             # Medium is only the single A/B candidate delta: language, tool choice and
             # semantic close still belong entirely to Realtime.
-            "reasoning": {"effort": "medium"},
+            "reasoning": {"effort": DEFAULT_REASONING_EFFORT},
             # Realtime answers ordinary turns directly in one response and calls a tool
             # only when the user's intent actually needs one. Semantic close remains the
             # reserved end_conversation tool; transport never infers it from transcript.

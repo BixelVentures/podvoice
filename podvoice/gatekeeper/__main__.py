@@ -28,7 +28,7 @@ from .heartbeat import Heartbeat
 from .history import History
 from .hub import StatusHub
 from .mcp_client import HomeAssistantMCP
-from .openai_realtime import DEFAULT_MODEL, OPENAI_RATE, make_session
+from .openai_realtime import DEFAULT_MODEL, DEFAULT_REASONING_EFFORT, OPENAI_RATE, make_session
 from .playback import Playback
 from .podconnect import AttentionClient
 from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
@@ -371,7 +371,7 @@ async def run(cfg: Config) -> None:
         artifact_kind,
         artifact_sha,
         DEFAULT_MODEL,
-        "low",
+        DEFAULT_REASONING_EFFORT,
         PROMPT_VERSION,
         hashlib.sha256(SYSTEM_PROMPT_DA.strip().encode()).hexdigest(),
         discovery.get("schema_sha256") or "unavailable",
