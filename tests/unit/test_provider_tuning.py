@@ -822,9 +822,9 @@ def test_openai_session_semantic_with_noise():
     assert inp["noise_reduction"] == {"type": "far_field"}
 
 
-def test_realtime_21_uses_low_reasoning_for_voice_latency():
+def test_realtime_21_uses_medium_reasoning_for_physical_semantic_reliability():
     session = OpenAIRealtimeSession(api_key="k")._session_update()["session"]
-    assert session["reasoning"] == {"effort": "low"}
+    assert session["reasoning"] == {"effort": "medium"}
 
 
 def test_fresh_user_turn_allows_direct_answer_or_a_needed_tool():

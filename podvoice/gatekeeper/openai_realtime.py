@@ -261,7 +261,7 @@ PRECONNECT_AUDIO_MAX_S = 12.0
 # server reserves output capacity when each response is created, so a short
 # tool/farewell round could request ~5.5k TPM despite producing one spoken word.
 # PodVoice's contract is at most two short spoken sentences; 1024 leaves ample
-# room for low-effort reasoning + tool JSON while cutting the reservation by 75%.
+# room for configured reasoning + tool JSON while cutting the reservation by 75%.
 MAX_OUTPUT_TOKENS = 1024
 # A completed function-call response is not safe to execute unless the same socket
 # generation still owns enough capacity for the entire conversation context repeated
@@ -614,9 +614,11 @@ class OpenAIRealtimeSession:
             "type": "realtime",  # speech-to-speech (vs "transcription")
             "output_modalities": ["audio"],
             "max_output_tokens": MAX_OUTPUT_TOKENS,
-            # OpenAI recommends low as the production voice-agent starting point:
-            # responsive, while retaining basic reasoning and tool selection.
-            "reasoning": {"effort": "low"},
+            # One physical v1.13.56 trace misrouted diagnostic arithmetic to get_time
+            # and continued after a 697 ms turn whose actual meaning is unresolved.
+            # Medium is only the single A/B candidate delta: language, tool choice and
+            # semantic close still belong entirely to Realtime.
+            "reasoning": {"effort": "medium"},
             # Realtime answers ordinary turns directly in one response and calls a tool
             # only when the user's intent actually needs one. Semantic close remains the
             # reserved end_conversation tool; transport never infers it from transcript.
