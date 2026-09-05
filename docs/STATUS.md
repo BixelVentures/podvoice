@@ -1,8 +1,38 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-09-04.
+Senest opdateret: 2026-09-05.
 
 ## Aktiv lead-beslutning
+
+### Aktiv beslutning 5. september — Grundtestens skjulte knapper
+
+- **Observeret fejl:** På installeret 1.13.59 var grundtest-run
+  `82da65389ccb86aa487f7f87` startet, current_index 0, ingen resultater. En frisk
+  ingress-side viste korrekt talepapir, men også slutkontrollens wake-knapper.
+  `.crow { display:flex }` overstyrer browserens standardregel for `hidden`.
+- **Hypotese og kæde:** API-run → eksisterende render/hidden → CSS → synlige
+  bedømmelsesknapper. En scoped CSS-regel skal skjule kun grundtestens skjulte
+  action-rækker. Reload skal genfinde serverens run uden at starte eller bedømme det.
+- **Scope:** 1.13.61 bygger på main 27f2ea2 (1.13.60); kun panelvisning ændres.
+  Runtime, prompt, tools, firmware, lyd, timeout og teardown/rearm er urørte.
+  UI må ikke foregive fysisk godkendelse eller ændre lifecycle.
+- **Bevisplan:** rød→grøn hidden-regression; rigtig browser med ikke-startet,
+  igangværende, sidste wake, bestået og fejlet run samt reload; uafhængigt review,
+  én releasegate og CI/image. Rollback er denne CSS-regel. Fysisk 10/10 er
+  fortsat ikke bevist; paneltesten er ikke Voice PE-evidens.
+
+**Implementeret og reviewet:** Kun én scoped CSS-regel ændrer produktadfærd.
+Den nye unit-regression fejlede før rettelsen; browserkontrollen bestod alle fem
+tilstande ved 320/1440 px både frisk og efter reload, uden writes eller JS-fejl.
+Den kører de shippede CSS/markup/controller-dele isoleret, ikke fuld HA-ingress.
+Uafhængigt adversarial review: P0=0/P1=0. Ruff, format og mypy bestod; lokal
+fast-pytest blev ugyldiggjort af sandboxens forbud mod loopback-bind, ikke en
+observeret produktfejl. Release køres med tilladt lokal testserver. Diff er frosset;
+Lokal release bestod på 27,0 s: unit 16,68 s, integration 26,75 s, Ruff/format,
+mypy og kandidat-scope grønne. Ingen separat lifecycle eller SafeEval: samtale-
+og Realtime-kontrakten er uændret mod main. CI/image og installeret panel-smoke
+mangler endnu.
+
 
 ### Aktiv beslutning 5. september — tilsluttet Spotify-konto og musikhandling
 
