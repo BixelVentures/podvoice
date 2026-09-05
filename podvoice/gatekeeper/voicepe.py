@@ -24,7 +24,7 @@ import pathlib
 import secrets
 import socket
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Coroutine
 from typing import Any, ClassVar
 
 from . import constants as C
@@ -101,6 +101,10 @@ class VoicePELink:
         self._unsub_va: Callable[[], None] | None = None
         self._unsub_states: Callable[[], None] | None = None
         self._audio_q: asyncio.Queue[bytes] = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
+        # Captured synchronously when aioesphomeapi receives each audio protobuf.
+        # A matching recovered rearm ACK advances the epoch before waking Thin, so an
+        # old coroutine that was scheduled but not yet run cannot poison the next wake.
+        self._audio_epoch = 0
         # Live audio-in health (read by the Voice PE tab's S1 check).
         self.frames_in = 0
         self.bytes_in = 0
@@ -505,9 +509,17 @@ class VoicePELink:
             if self._generation_is_current(generation, client):
                 await self._handle_stop(*args, **kwargs)
 
-        async def handle_audio(data: bytes, data2: bytes | None = None) -> None:
-            if self._generation_is_current(generation, client):
-                await self._handle_audio(data, data2)
+        def handle_audio(data: bytes, data2: bytes | None = None) -> Coroutine[Any, Any, None]:
+            # aioesphomeapi schedules the returned coroutine as a background task. The
+            # epoch must therefore be captured in this synchronous invocation, not in
+            # _handle_audio when that task eventually gets an event-loop turn.
+            audio_epoch = self._audio_epoch
+
+            async def deliver() -> None:
+                if self._generation_is_current(generation, client):
+                    await self._handle_audio(data, data2, audio_epoch=audio_epoch)
+
+            return deliver()
 
         def handle_state(state: object) -> None:
             if self._generation_is_current(generation, client):
@@ -931,13 +943,21 @@ class VoicePELink:
         # coroutine or aioesphomeapi raises "a coroutine was expected, got None".
         return None
 
-    async def _handle_audio(self, data: bytes, data2: bytes | None = None) -> None:
+    async def _handle_audio(
+        self,
+        data: bytes,
+        data2: bytes | None = None,
+        *,
+        audio_epoch: int,
+    ) -> None:
         # aioesphomeapi==45.3.* calls handle_audio(audio.data, audio.data2); the
         # second positional arg is the optional 2nd-channel bytes (or None), NOT
         # an `end` flag. A VoiceAssistantAudio{end=true} is intercepted by
         # aioesphomeapi and routed to handle_stop, never here. podvoice_audio
         # forwards a single channel, so data2 is always None — we ignore it.
         """Push one raw 16 kHz PCM frame; retain the newest speech on backpressure."""
+        if audio_epoch != self._audio_epoch:
+            return
         # Live S1 health: count frames + bytes so the panel can confirm the device is
         # streaming WITHOUT a competing diag subscription (we own the single VA slot).
         if self.frames_in == 0:
@@ -957,10 +977,11 @@ class VoicePELink:
                 self._audio_q.put_nowait(data)
 
     def drain_mic(self) -> int:
-        """Drop any queued mic frames. Called at conversation START: the queue is
-        shared across conversations, so the tail of the previous one (up to ~4 s of
-        buffered frames after the pump stops) must never become the FIRST audio of a
-        new session — that's stale speech/echo poisoning the model's ears."""
+        """Drop queued mic frames at start and the correlated rearm boundary.
+
+        The queue is shared across conversations, so the previous tail must never
+        become the first audio of a new provider session.
+        """
         n = 0
         while not self._audio_q.empty():
             try:
@@ -1011,6 +1032,26 @@ class VoicePELink:
                 and self._rearm_outcome is None
             ):
                 if self._rearm_waiter is not None:
+                    if outcome == "recovered":
+                        # This synchronous state callback is the exact cross-generation
+                        # barrier. Advance before waking Thin; already-scheduled audio
+                        # tasks retain their old epoch and will fail closed when run.
+                        self._audio_epoch += 1
+                        try:
+                            stale = self.drain_mic()
+                        except Exception:
+                            log.exception(
+                                "voicepe %s: mic boundary drain failed after rearm ACK",
+                                self.host,
+                            )
+                            outcome = "fault"
+                        else:
+                            if stale:
+                                log.info(
+                                    "voicepe %s: cleared %d queued mic frames at rearm boundary",
+                                    self.host,
+                                    stale,
+                                )
                     self._rearm_outcome = outcome
                     self._rearm_waiter.set()
             else:

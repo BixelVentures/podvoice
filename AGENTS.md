@@ -14,6 +14,31 @@ spor, grønne deltests eller plausible lydhypoteser bliver til en ny produktions
 `docs/HANDOVER-v2.md` er historiske research-/handoverfiler. De må bruges som baggrund,
 men aldrig som autoritet over de fire filer ovenfor.
 
+## Hurtig standardcyklus
+
+Lokale gates må ikke køres fra Documents, Desktop, iCloud, OneDrive eller anden
+synkroniseret storage. Brug én vedvarende usynkroniseret dev-clone og en ekstern Python
+3.12-venv; det langsomme workspace må kun være redigerings-/handoverflade. De tre
+autoritative kommandoer er:
+
+```sh
+PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev fast --base origin/main
+PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev lifecycle --base origin/main
+PODVOICE_PYTHON=/absolut/sti/til/python scripts/dev release --base origin/main
+```
+
+Kør `fast` under udvikling, `lifecycle` kun når dens mekaniske scope dækker hele diffet,
+og `release` præcis én gang efter diff-freeze og det review, ændringen kræver. Derefter
+ét PR/merge-flow uden manuelle CI-genkørsler og én installation af den grønne main-
+artifact. SafeEval/preflight må kun tilføjes, når ændringen berører prompt, schema,
+værktøjer eller Realtime-semantik.
+
+En timeout, sandboxfejl eller flaky test er ikke produktevidens og må ikke udløse en
+runtime-patch. Isolér årsagen én gang; ret workflowet eller testens observerede
+slutbetingelse separat, og genkør kun den gate, som fejlen faktisk ugyldiggjorde. Hvis
+samme procesforsinkelse gentager sig, er næste handling en permanent tooling-regression,
+ikke endnu en manuel workaround.
+
 ## Den eneste produktionsretning
 
 - Voice PE-firmware ejer fysisk wake, mic-latch, playback-events og rearm-bevis.
@@ -101,7 +126,9 @@ Før ændringer i arkitektur, Realtime, VAD, lyd, firmware eller lifecycle:
 1. Navngiv de berørte invarianter.
 2. Bevar én samlet half-duplex-kæde; optimer ikke én komponent på bekostning af den
    fysiske eventrækkefølge.
-3. Omsæt hver fysisk fejl til en regression med den observerede eventrækkefølge.
+3. Omsæt hver fysisk fejl til en permanent regression med den observerede kausale
+   eventrækkefølge. Ved generation-/release-/stale-callback-risiko skal testen injicere
+   en forsinket event efter grænsen og bevise, at den ikke krydser næste generation.
 4. Test både den fælles `ThinSession`-kontrakt og den relevante I/O-adapter.
 5. Kald aldrig en kandidat testklar eller færdig alene på komponenttests, Talk eller CI.
 6. Opdatér `docs/STATUS.md` ved ny fysisk evidens. Overskriv aldrig en bevist baseline
@@ -111,6 +138,12 @@ Før ændringer i arkitektur, Realtime, VAD, lyd, firmware eller lifecycle:
    tydeligt afvigende input kræver gennemlytning af både device- og provider-sporet og
    tæller som fejl/ukendt, indtil lydkæden er forklaret. Et heldigt tool-kald er ikke
    bevis for stabil hørelse.
+8. Ret den mindste ejergrænse uden samtidige tuninger eller nye abstraktioner. Kør først
+   målrettet regression og relevant adapter, derefter tidligere feltregressioner og én
+   fuld releasegate på det frosne diff. SafeEval køres kun ved ændret prompt, schema,
+   værktøjer eller Realtime-semantik.
+9. Rollback og byteidentitet arver aldrig “golden” eller “stabil”; kandidaten skal bestå
+   alle senere feltregressioner. Stabilitet kræver samme artifact 10/10 ubrudt.
 
 Før implementering skal lead desuden gennemgå hele den kausale kæde og mindst ét trin på
 hver side af den mistænkte fejl. En lokal rettelse er ugyldig, hvis den blot flytter

@@ -261,6 +261,7 @@ class _ConnectableClient(_StubClient):
         return Info()
 
     def subscribe_voice_assistant(self, **kwargs):
+        self.va_handlers = kwargs
         return lambda: None
 
     def subscribe_states(self, cb):
@@ -1026,6 +1027,114 @@ async def test_rearm_recovery_is_degraded_not_physical_proof():
     assert link.wake_readiness == "recovered"
 
 
+async def test_rearm_epoch_drops_scheduled_old_audio_and_keeps_immediate_new_audio():
+    """aioesphomeapi schedules async audio handlers. A callback invoked before the
+    matching ACK may run after it; epoch capture must still classify it as A. A B
+    callback invoked immediately after ACK must survive before Thin resumes."""
+    client = _ConnectableClient(
+        FULL_SERVICES,
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+        ],
+    )
+    link = _link(client)
+    await link._on_connect()
+    handle_audio = client.va_handlers["handle_audio"]
+    stale_a = b"old-audio"
+    fresh_b = b"fresh-audio"
+
+    failed = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    link._on_state(TextSensorState("0:fault"))
+    with pytest.raises(RuntimeError, match="recovery fejlede"):
+        await failed
+
+    task = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    delayed_a = handle_audio(stale_a)
+    link._on_state(TextSensorState("1:recovered"))
+    immediate_b = handle_audio(fresh_b)
+
+    await delayed_a
+    await immediate_b
+    assert await task == "recovered"
+    assert link._audio_q.qsize() == 1
+    assert await link._audio_q.get() == fresh_b
+
+
+async def test_reconnect_makes_scheduled_old_callback_inert_and_keeps_new_audio():
+    entities = [
+        MediaPlayerInfo("external_media_player", 7),
+        TextSensorInfo("podvoice_rearm_ack", 4),
+        EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+    ]
+    old_client = _ConnectableClient(FULL_SERVICES, entities)
+    link = _link(old_client)
+    link._connection_generation = 1
+    await link._on_connect(generation=1, client=old_client)
+    delayed_a = old_client.va_handlers["handle_audio"](b"old-generation")
+
+    new_client = _ConnectableClient(FULL_SERVICES, entities)
+    link._connection_generation = 2
+    link._client = new_client
+    await link._on_connect(generation=2, client=new_client)
+    task = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    link._on_state(TextSensorState("0:recovered"))
+    immediate_b = new_client.va_handlers["handle_audio"](b"new-generation")
+
+    await delayed_a
+    await immediate_b
+    assert await task == "recovered"
+    assert link._audio_q.qsize() == 1
+    assert await link._audio_q.get() == b"new-generation"
+
+
+async def test_fault_and_wrong_rearm_ack_never_advance_audio_epoch():
+    client = _StubClient(
+        FULL_SERVICES,
+        [
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
+        ],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+    task = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    link._on_state(TextSensorState("99:recovered"))
+    assert link._audio_epoch == 0
+    link._on_state(TextSensorState("0:fault"))
+    with pytest.raises(RuntimeError, match="recovery fejlede"):
+        await task
+    assert link._audio_epoch == 0
+
+
+async def test_rearm_boundary_drain_failure_fails_closed():
+    client = _StubClient(
+        FULL_SERVICES,
+        [
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
+        ],
+    )
+    link = _link(client)
+    await link._resolve_entities()
+
+    def broken_drain() -> int:
+        raise RuntimeError("queue unavailable")
+
+    link.drain_mic = broken_drain  # type: ignore[method-assign]
+    task = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    link._on_state(TextSensorState("0:recovered"))
+    with pytest.raises(RuntimeError, match="recovery fejlede"):
+        await task
+    assert link.wake_readiness == "fault"
+
+
 async def test_rearm_fault_fails_immediately():
     client = _StubClient(
         FULL_SERVICES,
@@ -1115,7 +1224,7 @@ async def test_disconnect_settles_pending_rearm_and_late_ack_is_ignored():
 async def test_mic_queue_keeps_the_end_of_a_long_request_on_backpressure():
     link = VoicePELink("pv-test.local", "psk", room="stue")
     for number in range(601):
-        await link._handle_audio(number.to_bytes(2, "little"))
+        await link._handle_audio(number.to_bytes(2, "little"), audio_epoch=link._audio_epoch)
     assert link._audio_q.qsize() == 600
     assert await link._audio_q.get() == (1).to_bytes(2, "little")
     newest = b""
