@@ -66,38 +66,31 @@ def test_unknown_side_effect_defaults_to_confirmation() -> None:
     assert assessment.requires_approval is True
 
 
-def test_private_account_reads_require_later_server_approval() -> None:
+def test_connected_spotify_reads_are_exact_read_only_contracts() -> None:
+    policy = ExecutionPolicy()
     for name in (
         "podconnect_recently_played",
         "podconnect_top_tracks",
         "podconnect_liked",
     ):
-        assessment = assess_tool(name, {}, trusted_risk=Risk.READ_ONLY)
-        assert assessment.risk is Risk.HIGH_RISK
-        assert assessment.reason == "private_account_disclosure"
+        assessment = assess_tool(name, {})
+        assert assessment.risk is Risk.READ_ONLY
+        assert assessment.reason == "known_exact_read_contract"
+        assert policy.authorize(name, {"limit": 7}) is None
 
-    # A dynamic name/description cannot turn calendar, messages or location into a
-    # generic trusted read contract.
-    for name in ("calendar_events", "read_private_messages", "get_person_location"):
+    # The grant is exact: neither unrelated private reads nor similar names inherit it.
+    for name in (
+        "calendar_events",
+        "read_private_messages",
+        "get_person_location",
+        "podconnect_recently_played_extra",
+        "podconnect_top_tracks_export",
+        "podconnect_read_private_messages",
+        "podconnect_delete_liked",
+    ):
         assert assess_tool(name, {}).requires_approval is True
-
-    policy = ExecutionPolicy()
-    proposal = ExecutionContext("session-private", "turn-1")
-    denied = policy.authorize("podconnect_recently_played", {}, context=proposal)
-    assert denied is not None and denied["error_kind"] == "needs_confirmation"
-    confirmation = ExecutionContext("session-private", "turn-2")
-    policy.begin_turn(confirmation)
-    approved = policy.confirm(denied["approval"]["challenge_id"], confirmation_context=confirmation)
-    assert approved is not None
-    assert (
-        policy.authorize(
-            approved.action,
-            approved.args,
-            context=approved.context,
-            approval_token=approved.token,
-        )
-        is None
-    )
+        assert policy.authorize(name, {}) is not None
+    assert assess_tool("podconnect_liked", {}, "Delete account records").requires_approval is True
 
 
 def test_aliases_and_descriptions_cannot_smuggle_a_dynamic_mutation() -> None:

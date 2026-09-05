@@ -9,7 +9,6 @@ import httpx
 import pytest
 import respx
 
-from gatekeeper.execution_policy import ExecutionContext
 from gatekeeper.mcp_client import HomeAssistantMCP, McpError, _sse_payload
 from gatekeeper.openai_realtime import OpenAIRealtimeSession
 from gatekeeper.tool_wire import (
@@ -1145,12 +1144,13 @@ async def test_late_tools_list_success_cannot_overwrite_a_newer_failure():
     assert router.declarations() == []
 
 
+@pytest.mark.parametrize("service", ["recently_played", "top_tracks", "liked"])
 @respx.mock
-async def test_podconnect_control_data_services_are_real_conditional_tools():
-    """Only HA-reported PodConnect services are declared; recently_played calls
+async def test_podconnect_control_data_services_are_real_conditional_tools(service):
+    """Only HA-reported PodConnect services are declared; personal music data uses
     the documented return_response REST path and returns the exact track contract."""
     services_url = "http://supervisor/core/api/services"
-    recent_url = "http://supervisor/core/api/services/podconnect/recently_played"
+    recent_url = f"http://supervisor/core/api/services/podconnect/{service}"
     respx.get(services_url).mock(
         return_value=httpx.Response(
             200,
@@ -1187,16 +1187,8 @@ async def test_podconnect_control_data_services_are_real_conditional_tools():
         router = ToolRouter(None, supervisor_token="supervisor-token", client=client)
         await router.start()
         names = [d["name"] for d in router.declarations()]
-        assert "podconnect_recently_played" in names
-        proposal = ExecutionContext("session", "turn-1")
-        denied = await router.dispatch("podconnect_recently_played", {}, execution_context=proposal)
-        assert denied["error_kind"] == "needs_confirmation"
-        assert not call.called
-        confirmation = ExecutionContext("session", "turn-2")
-        router.begin_execution_turn(confirmation)
-        result = await router.approve_action(
-            denied["approval"]["challenge_id"], confirmation_context=confirmation
-        )
+        assert f"podconnect_{service}" in names
+        result = await router.dispatch(f"podconnect_{service}", {})
     assert call.called
     assert result == {
         "ok": True,

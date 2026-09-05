@@ -3,9 +3,9 @@
 from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
-def test_v7_is_prioritized_and_model_owned():
+def test_v8_is_prioritized_and_model_owned():
     prompt = SYSTEM_PROMPT_DA.lower()
-    assert PROMPT_VERSION == 7
+    assert PROMPT_VERSION == 8
     assert "kald approve_action med præcis dette challenge_id" in prompt
     assert "gentag aldrig det oprindelige handlingsværktøj" in prompt
     assert "# prioritet" in prompt
