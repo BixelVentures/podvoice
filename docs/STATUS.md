@@ -4,6 +4,38 @@ Senest opdateret: 2026-09-04.
 
 ## Aktiv lead-beslutning
 
+### Aktiv beslutning 5. september — tilsluttet Spotify-konto og musikhandling
+
+- **Brugerbeslutning:** Brugeren har eksplicit bedt om at fjerne den ekstra
+  stemmegodkendelse for sin allerede tilsluttede Spotify-konto. Kun de tre
+  statiske PodConnect-musiklæsninger klassificeres read-only. Spotify OAuth
+  håndhæves stadig af HA; andre private data og risikohandlinger er uændrede.
+- **Evidens på installeret v1.13.59:** 09:41 personlig musik bad om gentagen
+  godkendelse og endte stale; 10:15 recently_played lykkedes efter approve_action.
+  14:43–14:44 korrekt transskriberet afspilningsønske gav kun forslag og ingen tools.
+  14:45 søgte HassMediaSearchAndPlay bogstaveligt efter kunstneren “Musik”.
+- **Hypotese:** musik-kontrakten skelner utilstrækkeligt mellem afspilning,
+  anbefaling og datalæsning. Ekstra lokal musikgodkendelse er eksplicit fravalgt af
+  brugeren; dette er ikke en generel ophævelse af serverautorisation.
+- **Kæde og invarianter:** fysisk input → Realtime med samme tools → completed
+  tool commit → HA-musikdata → HA-play → svar → fysisk finish → teardown/rearm.
+  Realtime beholder semantik; øvrige følsomme handlinger beholder eksakt engangs-
+  godkendelse, næste-tur-grænse og TTL. Ingen model-, lyd-, firmware-, VAD- eller
+  lifecycleændring. Ingen direkte Spotify-klient i PodVoice.
+- **Faktisk kandidat 1.13.60:** tre eksakte Spotify-læsninger tillades direkte;
+  prompten kræver musikhandling og fortsættelse efter datalæsning og undgår
+  bogstavelig søgning på generisk “musik”. Tidligere gemt 1.13.59-standardprompt
+  migreres via eksakt hash; brugerdefinerede prompts bevares.
+- **Regressioner:** alle tre data-services gennem rigtig ToolRouter/HA REST-mock;
+  private øvrige tools/lookalikes/destruktive beskrivelser er stadig beskyttet;
+  eksakt gammel prompt migreres, custom prompt bevares. Aliasrettelsen leveres
+  separat i PodConnect Speakers 0.26.1.
+- **Gates og rollback:** målrettede tests bestået; samlet lokal releasegate bestået (unit/integration, mypy, Ruff).
+  Uafhængigt review krævede promptmigration (nu implementeret). CI/ARM64,
+  sideeffektfri semantisk prøve og fysisk musik/Connect-prøve mangler stadig.
+  Isoleret add-on-delta kan rulles tilbage uden firmwareflash.
+  Status: ikke installeret og endnu ikke fysisk verificeret.
+
 ### Aktiv beslutning 4. september — HA er eneste live-domænesandhed
 
 - **Observeret fejl og stærkeste direkte evidens:** Den publicerede main-kandidat

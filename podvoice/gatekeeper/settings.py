@@ -60,6 +60,8 @@ SETTINGS_VERSION = 11
 # never matches and is always kept.
 LEGACY_PROMPT_HASHES = frozenset(
     {
+        # 1.13.59 default: direct connected Spotify music access.
+        "5320c5569570b35ad41570d0ffc1038830b418dde384ed815c3cd0ff752a4d5b",
         # pre-MCP default (referenced list_home/list_services/home_call) — retired 0.91
         "38e4311b176b5f3696516e36c5d3c38ee4b23294f84753860c01e7a03991619b",
         "0f96cf58ee764eb07fb0d98618ce592e17fea22d92bc1b44fff8d3b79f964ae4",
