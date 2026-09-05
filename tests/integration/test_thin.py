@@ -3776,3 +3776,132 @@ async def test_completed_batch_side_effects_execute_in_provider_index_order():
         assert [item["id"] for item in brain.sent_tool_results[0]] == ["first", "second"]
     finally:
         await session.aclose()
+
+
+async def test_word_stop_seals_publication_before_firmware_ack_and_next_wake():
+    brain = LiveFake()
+    session, attention, device = _build(brain)
+    ack = asyncio.Event()
+    entered = asyncio.Event()
+
+    async def wait_stop():
+        entered.set()
+        await ack.wait()
+        return True
+
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(AudioChunk(_frame(), item_id="reply"), TurnComplete())
+        await _wait_until(lambda: bool(device.announced_urls))
+        lease = session._playback_lease
+        session._on_media_state(True, lease.playback_id)
+        device.stop_playback = wait_stop
+        session._on_device_event(
+            ROOM, SimpleNamespace(event_type="wake_stop", playback_id=lease.playback_id)
+        )
+        assert session._transport_closing  # before the close task gets a turn
+        await entered.wait()
+        count = len(device.announced_urls)
+        await session._on_event(AudioChunk(_frame(), item_id="late"))
+        await session._on_event(TurnComplete())
+        session._on_media_state(False, lease.playback_id)
+        assert len(device.announced_urls) == count
+        assert device.rearm_calls == 0
+        ack.set()
+        await session._close_task
+        assert device.rearm_calls == 1
+        assert len(attention.release_calls) == 1
+        await session.wake()
+        session._on_device_event(
+            ROOM, SimpleNamespace(event_type="wake_stop", playback_id=lease.playback_id)
+        )
+        assert session._active and not session._transport_closing
+    finally:
+        ack.set()
+        await session.aclose()
+
+
+async def test_orphan_stop_without_ack_is_bounded_and_retries_without_rearm(monkeypatch):
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.02)
+    session, _attention, device = _build(LiveFake())
+    device.supports_local_stop = True
+    ack = asyncio.Event()
+
+    async def wait_for_ack():
+        await ack.wait()
+        return True
+
+    device.stop_playback = wait_for_ack
+    try:
+        await asyncio.wait_for(session._reassert_device(), timeout=0.5)
+        assert session._teardown_incomplete
+        assert device.rearm_calls == 0
+        assert session._teardown_retry_task is not None
+        ack.set()
+        await _wait_until(lambda: device.rearm_calls == 1, max_wait=2.0)
+        assert not session._teardown_incomplete
+    finally:
+        ack.set()
+        await session.aclose()
+
+
+async def test_word_stop_during_error_speech_joins_close_and_rechecks_silence():
+    session, attention, device = _build(LiveFake())
+    device.supports_playback_events = True
+    await session.start()
+    try:
+        await session.wake()
+        closing = asyncio.create_task(session._fail("connection"))
+        await _wait_until(lambda: bool(device.announced_urls))
+        playback_id = session._playback_lease.playback_id
+        session._on_media_state(True, playback_id)
+        session._on_device_event(
+            ROOM, SimpleNamespace(event_type="wake_stop", playback_id=playback_id)
+        )
+        await asyncio.wait_for(closing, 1.0)
+        assert len(device.announced_urls) == 1
+        assert device.stop_playback_calls == 2  # before error and after interrupted error
+        assert device.rearm_calls == 1
+        assert len(attention.release_calls) == 1
+    finally:
+        await session.aclose()
+
+
+async def test_orphan_cleanup_seals_wake_until_ack_and_rearm():
+    brain = LiveFake()
+    hub = StatusHub()
+    session, _attention, device = _build(brain, hub=hub)
+    device.supports_local_stop = True
+    ack = asyncio.Event()
+    entered = asyncio.Event()
+
+    async def wait_for_ack():
+        entered.set()
+        await ack.wait()
+        return True
+
+    device.stop_playback = wait_for_ack
+    await session.start()
+    device.wake_readiness = "fault"
+    hub.set_service("voicepe", "down", reason="orphan", source="test")
+    cleanup = asyncio.create_task(session._reassert_device())
+    try:
+        await entered.wait()
+        session._on_wake_cb()
+        await asyncio.sleep(0)
+        assert brain.connect_count == 0
+        assert not session._active
+        assert device.wake_readiness == "fault"
+        assert hub.snapshot()["services"]["voicepe"] == "down"
+        ack.set()
+        await cleanup
+        assert device.rearm_calls == 1
+        assert not session._teardown_incomplete
+        session._on_wake_cb()
+        await _wait_until(lambda: brain.connect_count == 1)
+        assert session._active
+    finally:
+        ack.set()
+        await cleanup
+        await session.aclose()

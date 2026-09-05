@@ -25,6 +25,7 @@ import secrets
 import socket
 import time
 from collections.abc import AsyncIterator, Callable, Coroutine
+from types import SimpleNamespace
 from typing import Any, ClassVar
 
 from . import constants as C
@@ -36,7 +37,7 @@ log = logging.getLogger(__name__)
 # session.updated hand-off. The provider uses the same 12 s bound, so neither stage
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
-EXPECTED_FIRMWARE_BUILD = "podvoice_build_11346"
+EXPECTED_FIRMWARE_BUILD = "podvoice_build_11348_stop1"
 
 # --- Firmware contract ----------------------------------------------------------
 # Everything the add-on ASSUMES the flashed firmware provides, verified on EVERY
@@ -47,7 +48,7 @@ REQUIRED_SERVICES: dict[str, str] = {
     "podvoice_stream_start": "mic-forward: the assistant is DEAF without it",
     "podvoice_stream_stop": "mic-forward close: the mic can never gate off",
     "podvoice_rearm_wake_word": "conversation close: the next wake can never fire",
-    "podvoice_reply_expect": "bind physical playback edges to the pending PodVoice reply",
+    "podvoice_reply_play": "atomic token and URL admission for the pending reply",
     "podvoice_reply_cancel": "clear a reply arm before another announcement can inherit it",
 }
 OPTIONAL_SERVICES: dict[str, str] = {
@@ -120,7 +121,7 @@ class VoicePELink:
         self.on_wake: Callable[[], Any] | None = None
         # Media-player announcement state (True while ANNOUNCING) — the ground truth for
         # "the reply finished PLAYING" (replaces the byte-estimate when available).
-        self.on_media_state: Callable[[bool], Any] | None = None
+        self.on_media_state: Callable[..., Any] | None = None
         # Hardware mute switch state -> red ring + session close in the orchestrator.
         self.on_mute: Callable[[bool], Any] | None = None
         self._pending: set[asyncio.Task[Any]] = set()
@@ -131,6 +132,16 @@ class VoicePELink:
         self._mute_key: int | None = None  # the mute switch/sensor key (None = not published)
         self._event_key: int | None = None  # PodVoice lifecycle event entity
         self._rearm_ack_key: int | None = None  # correlated reset ACK text sensor
+        self._reply_status_key: int | None = None
+        self.supports_playback_ids = True
+        self.supports_local_stop = False
+        self._reply_token: str | None = None
+        self._reply_id: str | None = None
+        self._orphan_reply_token: str | None = None
+        self._reply_phase = "idle"
+        self._reply_stop_seen = False
+        self._reply_stopped = asyncio.Event()
+        self._reply_stop_lock = asyncio.Lock()
         # Retired direct-path capability, retained only to diagnose old firmware.
         # setting. The device advertises event_types on its podvoice_event entity; the
         # Fixed firmware adds the capability marker "direct_speaker_v3". It also emits
@@ -565,6 +576,8 @@ class VoicePELink:
         self._mute_key = None
         self._event_key = None
         self._rearm_ack_key = None
+        self._reply_status_key = None
+        self.supports_local_stop = False
         self.supports_direct = False
         self.supports_same_breath = False
         self.supports_wake_audio_boundary = False
@@ -614,6 +627,11 @@ class VoicePELink:
                 None,
             )
             self._rearm_ack_key = getattr(rearm_ack, "key", None) if rearm_ack else None
+            reply_status = next(
+                (e for e in text_sensors if getattr(e, "object_id", "") == "podvoice_reply_status"),
+                None,
+            )
+            self._reply_status_key = getattr(reply_status, "key", None)
             # Does this firmware have the 2b direct path? Ask the DEVICE, not a setting.
             events = [e for e in (entities or []) if type(e).__name__ == "EventInfo"]
             podvoice_event = next(
@@ -638,6 +656,7 @@ class VoicePELink:
                 self.firmware_builds[0] if len(self.firmware_builds) == 1 else None
             )
             self.supports_playback_events = "podvoice_playback_events_v1" in advertised
+            self.supports_local_stop = "correlated_local_stop_v1" in advertised
             self.supports_direct = (
                 "direct_speaker_v3" in advertised
                 and "podvoice_direct_prepare" in self._user_services
@@ -666,6 +685,8 @@ class VoicePELink:
             missing_entities.append("mute")  # hardware-mute detection — degraded only
         if self._rearm_ack_key is None:
             missing_entities.append("rearm_ack")
+        if self._reply_status_key is None:
+            missing_entities.append("reply_status")
         missing_capabilities = []
         if not self.supports_podvoice_channel:
             missing_capabilities.append("podvoice_channel_v1")
@@ -687,10 +708,13 @@ class VoicePELink:
             missing_capabilities.append(EXPECTED_FIRMWARE_BUILD)
         if not self.supports_playback_events:
             missing_capabilities.append("podvoice_playback_events_v1")
+        if not self.supports_local_stop:
+            missing_capabilities.append("correlated_local_stop_v1")
         ok = (
             not missing_required
             and self._media_key is not None
             and self._rearm_ack_key is not None
+            and self._reply_status_key is not None
             and not missing_capabilities
         )
         self.contract = {
@@ -842,6 +866,10 @@ class VoicePELink:
                 outcome = self._rearm_outcome
                 if outcome == "recovered":
                     self.wake_readiness = "recovered"
+                    self._reply_token = self._reply_id = self._orphan_reply_token = None
+                    self._reply_phase = "idle"
+                    self._reply_stop_seen = False
+                    self._reply_stopped.clear()
                     return "recovered"
                 self.wake_readiness = "fault"
                 raise RuntimeError(
@@ -878,6 +906,8 @@ class VoicePELink:
     ) -> None:  # VERIFY: cb signature
         self._api_audio_ready = False
         self._announcing = False
+        self._reply_phase = "disconnected"
+        self._reply_stopped.set()
         if self._direct_prepare_waiter is not None:
             self._direct_prepare_waiter.set()
             self._direct_prepare_waiter = None
@@ -1005,6 +1035,18 @@ class VoicePELink:
         key = getattr(state, "key", None)
         tname = type(state).__name__
         event_type = getattr(state, "event_type", None) or getattr(state, "event", None)
+        if key == self._reply_status_key and tname == "TextSensorState":
+            self._on_reply_status(str(getattr(state, "state", "")))
+            return
+        # V2 replies are admitted and routed only through their correlated status.
+        if self.supports_local_stop and event_type in (
+            "podvoice_playback_started",
+            "podvoice_playback_finished",
+            "podvoice_playback_fault",
+            "wake_stop",
+            "reply_played",
+        ):
+            return
         if event_type in ("wake_okay_nabu", "wake"):
             self._last_local_wake_at = time.monotonic()
         # Firmware-owned playback edges are authoritative.  Native API media-player
@@ -1106,38 +1148,69 @@ class VoicePELink:
         """
         self._client.send_voice_assistant_audio(chunk)
 
-    async def play_url(self, url: str) -> None:
-        """Play the AI reply on the device by announcing a streaming-WAV URL through the
-        media_player. This is the ONLY working speaker-out path on the Voice PE (the VA
-        is wired to a media_player, not a speaker), and it keeps the XMOS AEC correct."""
-        if self._media_key is None or self._client is None:
-            log.warning(
-                "voicepe %s: NO media_player key resolved — cannot play reply (url=%s)",
-                self.host,
-                url,
-            )
+    async def play_url(self, url: str, *, playback_id: str | None = None) -> None:
+        """Submit token and URL atomically; firmware rejects plays after a local stop."""
+        if self._reply_phase in ("requested", "started", "stopping", "stop_detected"):
+            raise RuntimeError("Voice PE reply is still owned by the previous playback")
+        self._reply_token = secrets.token_hex(16)
+        self._reply_id = playback_id
+        self._reply_phase = "requested"
+        self._reply_stop_seen = False
+        self._reply_stopped.clear()
+        if not await self._call_service(
+            "podvoice_reply_play", {"token": self._reply_token, "url": url}
+        ):
+            self._reply_phase = "fault"
+            raise RuntimeError("Voice PE could not admit reply playback")
+
+    def _on_reply_status(self, value: str) -> None:
+        token, separator, outcome = value.partition(":")
+        if not separator or len(token) != 32 or any(c not in "0123456789abcdef" for c in token):
             return
-        log.info(
-            "voicepe %s: announcing reply via media_player key=%s url=%s",
-            self.host,
-            self._media_key,
-            url.split("?")[0],  # never log the ?t= reply token
-        )
-        try:
-            armed = await self._call_service("podvoice_reply_expect")
-            if self.supports_playback_events and not armed:
-                log.error(
-                    "voicepe %s: reply playback telemetry could not be armed; "
-                    "start/finish evidence will be missing",
-                    self.host,
+        if token != self._reply_token:
+            # Retained firmware state after add-on restart is useful ONLY to stop an
+            # orphan during cleanup. It can never become a live playback/stop event.
+            if self._reply_id is None:
+                self._orphan_reply_token = token
+            return
+        if outcome in ("stop_detected", "stopped_word"):
+            if self._reply_phase in ("idle", "finished", "disconnected", "fault"):
+                return
+            if not self._reply_stop_seen:
+                self._reply_stop_seen = True
+                self._reply_phase = "stop_detected"
+                if self.on_event and self._reply_id is not None:
+                    self._run_cb(
+                        self.on_event,
+                        self.room,
+                        SimpleNamespace(
+                            event_type="wake_stop",
+                            playback_id=self._reply_id,
+                        ),
+                    )
+        if outcome in ("stopped", "stopped_word", "fault"):
+            self._reply_phase = outcome
+            self._reply_stopped.set()
+            if outcome == "fault" and self.on_event and self._reply_id is not None:
+                self._run_cb(
+                    self.on_event,
+                    self.room,
+                    SimpleNamespace(
+                        event_type="podvoice_playback_fault",
+                        playback_id=self._reply_id,
+                    ),
                 )
-            # media_player_command is SYNCHRONOUS in aioesphomeapi (returns None, just
-            # queues send_message) — it must NOT be awaited. Awaiting the None it returns
-            # raised "NoneType can't be used in 'await' expression" every reply (the
-            # command still went out, but the exception was logged as a FAILED).
-            self._client.media_player_command(key=self._media_key, media_url=url, announcement=True)
-        except Exception as e:  # surface failures (was DEBUG — hid the no-sound cause)
-            log.warning("voicepe %s: media_player_command FAILED: %s", self.host, e)
+            return
+        if outcome == "started" and self._reply_phase == "requested":
+            self._reply_phase = "started"
+            self._announcing = True
+            if self.on_media_state:
+                self._run_cb(self.on_media_state, True, self._reply_id)
+        elif outcome == "finished" and self._reply_phase == "started":
+            self._reply_phase = "finished"
+            self._announcing = False
+            if self.on_media_state:
+                self._run_cb(self.on_media_state, False, self._reply_id)
 
     # ------------------------------------------------------------------ direct speaker path (0.67)
     async def begin_direct_reply(self) -> bool:
@@ -1249,31 +1322,28 @@ class VoicePELink:
         )
 
     async def stop_playback(self) -> bool:
-        """STOP the announcement pipeline on the device — the missing half of "stop".
-
-        With the buffered FLAC reply the device holds the WHOLE reply once fetched, so
-        ending our HTTP stream does nothing: the speaker talks on. A real stop must be a
-        media_player STOP command aimed at the announcement pipeline (announcement=True,
-        verified against aioesphomeapi 45.3.1). Both commands must be queued before
-        teardown may rearm; otherwise the buffered FLAC can outlive the conversation."""
-        cancel_ok = await self._call_service("podvoice_reply_cancel")
-        if self._media_key is None or self._client is None:
-            return False
-        try:
-            from aioesphomeapi.model import MediaPlayerCommand  # lazy like the other imports
-
-            # Synchronous (queues the message) — must NOT be awaited, same as play_url.
-            self._client.media_player_command(
-                key=self._media_key, command=MediaPlayerCommand.STOP, announcement=True
-            )
-            log.info("voicepe %s: sent media_player STOP (announcement)", self.host)
-            if not cancel_ok:
+        """True only for a correlated firmware drain ACK; send success is insufficient."""
+        async with self._reply_stop_lock:
+            if self._client is None or self._reply_status_key is None:
                 return False
-            self._announcing = False
-            return True
-        except Exception as e:
-            log.warning("voicepe %s: media_player STOP failed: %s", self.host, e)
-            return False
+            if self._reply_id is None and self._orphan_reply_token:
+                self._reply_token = self._orphan_reply_token
+            if self._reply_token is None:
+                self._reply_token = secrets.token_hex(16)
+            already_stopped = self._reply_phase in ("stopped", "stopped_word")
+            if not already_stopped:
+                self._reply_stopped.clear()
+                self._reply_phase = "stopping"
+            if not await self._call_service("podvoice_reply_cancel", {"token": self._reply_token}):
+                return False
+            if not already_stopped:
+                # The existing Thin teardown step supplies the timeout. Cancellation
+                # leaves token ownership intact so its retry can await the same ACK.
+                await self._reply_stopped.wait()
+            stopped = self._reply_phase in ("stopped", "stopped_word")
+            if stopped:
+                self._announcing = False
+            return stopped
 
     async def aclose(self) -> None:
         """Unsubscribe, stop reconnect, and disconnect."""

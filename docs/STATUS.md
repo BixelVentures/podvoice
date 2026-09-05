@@ -2,6 +2,74 @@
 
 Senest opdateret: 2026-08-26.
 
+## Isoleret stop-word-kandidat — 5. september 2026
+
+**Lead:** Codex, Lead Voice/Reliability Engineer. Bruger har autoriseret implementering
+og test, men **ingen merge eller installation før eksplicit besked**. Arbejdet ligger på
+`codex/voicepe-local-stop` i `/private/tmp/podvoice-stop-word`, oven på lokal snapshot
+`d936fe5` af workspace `186d0fc` plus de eksisterende v1.13.48-ændringer. Snapshot er kun
+isolationsgrundlag, ikke en ny fysisk baseline. Installerede bits er ikke undersøgt
+live i denne opgave; nedenstående auguststatus er historisk, ikke frisk verification.
+
+- **Observation:** koden indeholder stopmodellen, men armering afhænger af stock Assist
+  og callbacken afviser aktive samtaler. Adapterens STOP returnerer ved afsendelse,
+  ikke ved tømt pipeline. Ingen frisk fysisk stopmåling findes.
+- **Kæde:** mic → lokal stopmodel under eget playback → låst stop-token → lokalt
+  announcement STOP → korreleret stopdetektion → Thin close-owner → pipeline-drain ACK
+  → provider/mic/attention teardown → korreleret rearm → næste wake. Naboer: svarstart,
+  svarslut/lydhale, timer-ejerskab, farvel, disconnect, gamle callbacks og sen URL.
+- **Invarianter:** half-duplex 1–5, lifecycle 6–7 og 10–13. Lokal detektion er en
+  eksplicit transport-stopknap; Realtime beholder almindelig semantisk afslutning.
+  Hypotese: playback-bundet lokal armering og token-korreleret stop/drain kan afbryde
+  uden provider-input, dobbelt close eller lyd fra en gammel generation.
+- **Ikke-mål:** fortsat samtale efter stop, vilkårlig barge-in, tænketids-stop, latency,
+  gain/VAD/prompt/timeout-tuning, nye players, Classic/direct eller ændret tool-schema.
+- **Gates/rollback:** rød→grøn adapter/Thin/firmware-regression, kompilering af præcise
+  firmwarebits, modsatte Talk-adapter, uafhængigt adversarial review og én releasegate
+  efter diff-freeze. Fysisk canary + stopmatrix + golden chain/10 afventer særskilt
+  installationstilladelse. Rollback er hele feature-deltaet/tilhørende artifactpar.
+  Eksisterende audio-epoch-rettelse bevares; kandidaten er **ikke fysisk testklar**.
+- **Årsagsgrænse efter adversarial kilde-review:** ESPHome 2026.6.2-mixeren kan
+  beholde en source-reference efter source STOPPED og derefter publicere sidste mix.
+  Derfor er resampler/state-polling alene ugyldigt. Kandidaten holdes NO-GO mens en
+  kausal fence etableres: producer/command-quiescence → resampler-task stoppet →
+  sidste mixer-source-reference frigivet → pending output-frames passeret via fysisk
+  output-callback. Dette kræver kun observerende getters i pinnede upstream-komponenter;
+  source- og speakeradfærd ændres ikke. Paused/forced shared-stop giver fault, ikke ACK.
+  Atomic token+URL-admission erstatter den gamle separate expect+media-call, så en
+  sent afleveret URL ikke kan passere stop-låsen. Review gentages på hele kæden.
+- **Implementeret:** én firmwarelokal stop-owner, atomisk token+URL-admission,
+  playback-bundet stopmodel og korreleret pipeline-drain. Thin lukker lyd/provider/tools
+  synkront for ny publicering, samler stop i én close-owner og kræver ny silence-ACK
+  efter afbrudt fejlbesked. Reconnect blokerer wake før første cleanup-await og ejer
+  begrænset timeout/retry/rearm. Ingen prompt/schema/provider-semantik er ændret.
+- **Review:** uafhængig adversarial reviewer `stop_review` har gennemgået adapter,
+  faktisk C++-owner, upstream-kø/task/fence, error-oneshot og reconnect. Begge reconnect-
+  findings er rettet med kausale regressioner; afsluttende P0=0/P1=0. Godkendelsen gælder
+  diff-freeze/lokal releasegate, aldrig fysisk funktion eller installation.
+- **Verificeret før freeze:** 17 fokuserede stop/orphan-regressioner bestået; `scripts/dev
+  fast --base origin/main` grøn (38,9 s), herunder fuld testsuite, lint/format/typecheck.
+  ESPHome 2026.6.2 config valideret og ESP32-build gennemført (204,33 s) med falske
+  testcredentials. Alle 10 kompilerede C++-filer for owner/observers er byteidentiske
+  med komponentcommit `7a81707e8b722fcd4e50203f0f47f6f0117e2725`. Stopmodellens manifest
+  og TFLite SHA-256 håndhæves ved configvalidering. Modellen er trænet på engelsk;
+  dansk udtale er ukendt indtil den fysiske matrix.
+- **Gateafvigelser:** første fulde testsuite ramte sandboxens socketforbud; samme gate
+  blev kørt med lokal socketadgang. En efterfølgende kørsel blev korrekt forkastet,
+  fordi commit flyttede scopesnapshot under testen. Den næste uændrede fast-gate er
+  grøn. Ingen runtimekode er ændret for at kompensere for disse workflowfejl.
+- **Pakning/stopgrænse:** YAML peger nu på den ovenstående immutable komponentcommit.
+  Automatisk godkendelsesreview afviste feature-push til GitHub pga. manglende eksplicit
+  publiceringstilladelse. Commit findes derfor kun lokalt: frisk remote package-fetch
+  kan endnu ikke valideres. Det kompilerede testbuild brugte byteidentisk lokal source;
+  det beviser C++-kompilering, ikke den endelige remote-pakke. Push af feature-branch
+  og efterfølgende configvalidering afventer brugerens godkendelse. Ingen merge,
+  installation, fysisk golden chain, stoplatency eller 10/10 er udført.
+- **Resultat:** én `scripts/dev release --base origin/main` er grøn på det frosne
+  diff (39,1 s): 1008 tests, lint/format og mypy. Kun denne resultattekst er opdateret
+  efter gaten. Exact-commit CI/ARM64-artifact er ikke kørt. Kandidaten er fortsat
+  **ikke fysisk testklar**; remote package-fetch og alle fysiske gates er åbne.
+
 ## Aktiv lead-beslutning
 
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.

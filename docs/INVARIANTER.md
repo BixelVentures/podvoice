@@ -39,6 +39,13 @@ Når `full_duplex == false`, skal alle disse være sande samtidig:
 5. Voice PE må ikke love barge-in. Talk-browseren er den separate full-duplex-overflade
    og må eksplicit bruge `interrupt_response: true` med browser-AEC.
 
+Den isolerede `correlated_local_stop_v1`-kandidat tilføjer en lokal stemmestyret
+transport-stopknap under eget svar. Kun microWakeWord-modellen `Stop` må udløse den;
+ikke ASR-tekst, VAD eller providerfraser. Stop låser playback før lokal afbrydelse,
+lukker stille gennem samme close-owner og kræver korreleret pipeline-drain før rearm.
+Stopaktivering er playback-/timer-ejet; mikrofonlyd til OpenAI forbliver gated.
+Kandidaten er ikke fysisk godkendt, før den særskilte stop-gate er bestået.
+
 Den forbudte kombination er: **lokal half-duplex mic-gate + server-side automatisk
 response-interrupt**. Den gav feltfejlen 2026-08-18: tale registreret 139 ms før fysisk
 playback, 330 ms svar, ingen færdig opfølgning og en session fastlåst i LYTTER.

@@ -22,7 +22,7 @@ FULL_SERVICES = [
     "podvoice_stream_start",
     "podvoice_stream_stop",
     "podvoice_rearm_wake_word",
-    "podvoice_reply_expect",
+    "podvoice_reply_play",
     "podvoice_reply_cancel",
 ]
 FULL_CAPABILITIES = [
@@ -34,15 +34,16 @@ FULL_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11346",
+    "podvoice_build_11348_stop1",
     "podvoice_playback_events_v1",
+    "correlated_local_stop_v1",
 ]
 REARM_CAPABILITIES = [
     "physical_rearm_ack_v1",
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11346",
+    "podvoice_build_11348_stop1",
 ]
 
 
@@ -105,6 +106,7 @@ async def test_contract_ok_with_full_firmware(caplog):
             MediaPlayerInfo("external_media_player", 7),
             LightInfo("led_ring", 9),
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -119,18 +121,16 @@ async def test_contract_ok_with_full_firmware(caplog):
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
-async def test_stop_playback_requires_cancel_service_and_media_stop():
-    client = _StubClient(
-        FULL_SERVICES,
-        [MediaPlayerInfo("external_media_player", 7)],
-    )
+async def test_stop_playback_requires_correlated_firmware_ack():
+    client = _StubClient(FULL_SERVICES, [TextSensorInfo("podvoice_reply_status", 5)])
     link = _link(client)
     await link._resolve_entities()
-    link._announcing = True
-
-    assert await link.stop_playback() is True
-    assert "podvoice_reply_cancel" in client.executed
-    assert "media:7" in client.executed
+    pending = asyncio.create_task(link.stop_playback())
+    await asyncio.sleep(0)
+    assert not pending.done()
+    link._on_state(TextSensorState(f"{link._reply_token}:stopped", key=5))
+    assert await pending is True
+    assert client.executed == ["podvoice_reply_cancel"]
     assert link._announcing is False
 
 
@@ -171,6 +171,7 @@ async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build():
         [
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, wrong_build),
         ],
     )
@@ -181,7 +182,7 @@ async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build():
 
     assert report["ok"] is False
     assert report["firmware_build"] == "podvoice_build_11342"
-    assert report["missing_capabilities"] == ["podvoice_build_11346"]
+    assert report["missing_capabilities"] == ["podvoice_build_11348_stop1"]
 
 
 async def test_contract_rejects_multiple_firmware_build_markers():
@@ -191,6 +192,7 @@ async def test_contract_rejects_multiple_firmware_build_markers():
         [
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, capabilities),
         ],
     )
@@ -201,8 +203,8 @@ async def test_contract_rejects_multiple_firmware_build_markers():
 
     assert report["ok"] is False
     assert report["firmware_build"] is None
-    assert report["firmware_builds"] == ["podvoice_build_11342", "podvoice_build_11346"]
-    assert report["missing_capabilities"] == ["podvoice_build_11346"]
+    assert report["firmware_builds"] == ["podvoice_build_11342", "podvoice_build_11348_stop1"]
+    assert report["missing_capabilities"] == ["podvoice_build_11348_stop1"]
 
 
 async def test_contract_mismatch_is_loud_and_reported(caplog):
@@ -217,7 +219,7 @@ async def test_contract_mismatch_is_loud_and_reported(caplog):
     assert report["missing_required"] == [
         "podvoice_rearm_wake_word",
         "podvoice_reply_cancel",
-        "podvoice_reply_expect",
+        "podvoice_reply_play",
         "podvoice_stream_start",
     ]
     assert "media_player" in report["missing_entities"]
@@ -278,6 +280,7 @@ async def test_link_state_is_truthful(caplog):
             MediaPlayerInfo("external_media_player", 7),
             LightInfo("led_ring", 9),
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -296,6 +299,7 @@ async def test_full_admission_cancels_queued_same_generation_recovery():
         [
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -496,6 +500,7 @@ async def test_stale_cached_ip_rotates_to_native_discovery_and_survives_next_dhc
                 [
                     MediaPlayerInfo("external_media_player", 7),
                     TextSensorInfo("podvoice_rearm_ack", 4),
+                    TextSensorInfo("podvoice_reply_status", 5),
                     EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
                 ],
                 [
@@ -907,8 +912,9 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "continuous_rearm_v1",
         "physical_rearm_audio_progress_v1",
         "correlated_reset_rearm_v2",
-        "podvoice_build_11346",
+        "podvoice_build_11348_stop1",
         "podvoice_playback_events_v1",
+        "correlated_local_stop_v1",
     ]
     assert link.supports_same_breath is False
 
@@ -997,6 +1003,7 @@ async def test_rearm_calls_the_dedicated_firmware_service():
         FULL_SERVICES,
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1015,6 +1022,7 @@ async def test_rearm_recovery_is_degraded_not_physical_proof():
         FULL_SERVICES,
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1036,6 +1044,7 @@ async def test_rearm_epoch_drops_scheduled_old_audio_and_keeps_immediate_new_aud
         [
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -1068,6 +1077,7 @@ async def test_reconnect_makes_scheduled_old_callback_inert_and_keeps_new_audio(
     entities = [
         MediaPlayerInfo("external_media_player", 7),
         TextSensorInfo("podvoice_rearm_ack", 4),
+        TextSensorInfo("podvoice_reply_status", 5),
         EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
     ]
     old_client = _ConnectableClient(FULL_SERVICES, entities)
@@ -1097,6 +1107,7 @@ async def test_fault_and_wrong_rearm_ack_never_advance_audio_epoch():
         FULL_SERVICES,
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1117,6 +1128,7 @@ async def test_rearm_boundary_drain_failure_fails_closed():
         FULL_SERVICES,
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1140,6 +1152,7 @@ async def test_rearm_fault_fails_immediately():
         FULL_SERVICES,
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1158,6 +1171,7 @@ async def test_rearm_is_single_flight_and_ack_cannot_cross_calls():
         FULL_SERVICES,
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1180,6 +1194,7 @@ async def test_late_rearm_ack_cannot_settle_the_next_token():
         FULL_SERVICES,
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1205,6 +1220,7 @@ async def test_disconnect_settles_pending_rearm_and_late_ack_is_ignored():
         FULL_SERVICES,
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1239,13 +1255,17 @@ async def test_reply_is_armed_before_the_media_command():
         [
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
     link = _link(client)
     await link._resolve_entities()
     await link.play_url("http://podvoice.local/reply/r0.flac")
-    assert client.executed == ["podvoice_reply_expect", "media:7"]
+    assert client.executed == ["podvoice_reply_play"]
+    assert client.executed_args == [
+        {"token": link._reply_token, "url": "http://podvoice.local/reply/r0.flac"}
+    ]
 
 
 async def test_stream_service_results_are_not_discarded():
@@ -1373,6 +1393,7 @@ async def test_wake_word_is_reasserted_on_every_connect():
             MediaPlayerInfo("external_media_player", 7),
             LightInfo("led_ring", 9),
             TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
