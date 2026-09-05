@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.13.61 — Grundtesten viser kun de aktuelle knapper
+
+- Retter en CSS-fejl, hvor slutkontrollens wake-knapper var synlige allerede under
+  første samtale. Skjulte bedømmelsesrækker er nu faktisk skjulte.
+- Bygger videre på 1.13.60. Ingen ændring af samtalemotor, prompt, værktøjer, lyd,
+  firmware, timeout eller rearm i denne opdatering. Fysisk 10/10 er ikke bevist af
+  denne panelrettelse.
+
 ## 1.13.59 — startup-identiteten viser den faktiske reasoning
 
 - Bevarer Kandidat A og dens faktiske `reasoning.effort: medium` uændret, men bruger

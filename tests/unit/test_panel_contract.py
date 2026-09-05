@@ -6,6 +6,13 @@ from pathlib import Path
 PANEL = Path(__file__).parents[2] / "podvoice" / "gatekeeper" / "static" / "index.html"
 
 
+def test_groundtest_hidden_action_rows_override_flex_display():
+    html = PANEL.read_text()
+    assert "#g_actions[hidden], #g_final_actions[hidden] { display: none; }" in html
+    for element_id in ("g_actions", "g_final_actions"):
+        assert f'id="{element_id}" class="crow" hidden' in html
+
+
 def test_raw_device_ip_has_a_live_setup_warning():
     html = PANEL.read_text()
 
