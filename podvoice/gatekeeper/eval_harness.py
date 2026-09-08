@@ -346,6 +346,7 @@ def _schema_sha256(declarations: list[dict[str, Any]] | tuple[dict[str, Any], ..
 class TurnExpectation:
     decision: str | None = None
     decisions: tuple[str, ...] = ()
+    decision_batches: tuple[tuple[str, ...], ...] = ()
     allowed_decisions: tuple[str, ...] = ()
     direct_answer: bool = False
     allow_direct: bool = False
@@ -814,6 +815,9 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                     expect=TurnExpectation(
                         decision=expected.get("decision"),
                         decisions=tuple(expected.get("decisions") or ()),
+                        decision_batches=tuple(
+                            tuple(batch) for batch in expected.get("decision_batches", [])
+                        ),
                         allowed_decisions=tuple(expected.get("allowed_decisions") or ()),
                         direct_answer=bool(expected.get("direct_answer", False)),
                         allow_direct=bool(expected.get("allow_direct", False)),
@@ -961,6 +965,15 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
     if observed.response_status != "completed":
         findings.append(
             Finding("response-status", f"Providerstatus var {observed.response_status!r}.")
+        )
+    if expect.decision_batches and observed.decision_batches != [
+        list(batch) for batch in expect.decision_batches
+    ]:
+        findings.append(
+            Finding(
+                "wrong-decision-batches",
+                "Afslutning skal følge efter det bekræftede handlingsresultat.",
+            )
         )
     decisions = observed.decisions
     allowed = set(expect.allowed_decisions)
@@ -1199,6 +1212,7 @@ class SafeEvalTools:
                 "GetDateTime": Risk.READ_ONLY,
                 "google_web_sogning": Risk.READ_ONLY,
                 "HassTurnOn": Risk.LOW_RISK,
+                "HassMediaPause": Risk.LOW_RISK,
             }
         )
         if declarations is None:
@@ -1247,6 +1261,16 @@ class SafeEvalTools:
                     "type": "object",
                     "properties": {"query": {"type": "string"}},
                     "required": ["query"],
+                    "additionalProperties": False,
+                },
+            },
+            {
+                "name": "HassMediaPause",
+                "description": "Pause media in the named Home Assistant area. Eval result only.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"area": {"type": "string"}},
+                    "required": ["area"],
                     "additionalProperties": False,
                 },
             },
@@ -1395,6 +1419,10 @@ class SafeEvalTools:
                     "week_number": 34,
                 },
             }
+        if name == "HassMediaPause" and contract is not None:
+            fixture_result = next(case.result for case in contract.cases if case.args == args)
+            self.fixture_side_effects += int(fixture_result.get("ok") is True)
+            return json.loads(json.dumps(fixture_result))
         result = self._RESULTS.get(name)
         if result is None:
             return {

@@ -117,7 +117,10 @@ værktøjsvalg bevarer Realtime-modellens naturlige én-respons-vej og samme åb
 Lukning har to adskilte ejere:
 
 - **GPT Realtime ejer betydningen.** Når brugerens aktuelle tur tydeligt betyder, at
-  samtalen er slut, udsender modellen det interne `end_conversation`-signal. Det gælder
+  samtalen er slut, udsender modellen det interne `end_conversation`-signal. Det kan
+  også følge efter en fuldt bekræftet, selvstændig handling uden udestående dialog;
+  modellen skal først have set handlingsresultatet. En kort sand opgavekvittering
+  kan være terminalresponsen. Det gælder
   naturlige formuleringer på tværs af ordvalg og sprog; PodVoice matcher ingen fraser,
   keywords eller dokumenterede ASR-fejl.
 - **PodVoice ejer mekanikken.** Signalet bindes til den konkrete tur. Hvis Realtime har

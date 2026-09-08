@@ -7,6 +7,16 @@
 
 # Changelog
 
+## 1.13.64 — Modelvalgt afslutning efter udført handling
+
+- Prompt v9 og afslutningsværktøjet skelner mellem en selvstændig, bekræftet
+  handling og ønsket videre dialog. Ingen lokale ord-/fraseregler.
+- En opgave afsluttes først efter værktøjsresultatet med én kort kvittering.
+  Uklarhed, fejl og ventende bekræftelse tæller ikke som udført opgave.
+- Gemte standardprompts migreres; tilpassede prompts bevares.
+- Nye sikre evalpar for mediestop, dialog, uklarhed og fejl. Fysisk gate afventer.
+
+
 ## 1.13.62 — Hey Chat-kandidat
 
 - Tilføjer Hey Chat som fjerde vækkeord med Gem og genstart; retter lagringen.

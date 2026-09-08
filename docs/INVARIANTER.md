@@ -106,10 +106,11 @@ Kandidaten er ikke fysisk godkendt, før den særskilte stop-gate er bestået.
 4. Realtime konfigureres med automatisk værktøjsvalg. Der findes intet obligatorisk
    fortsættelsesværktøj eller en tvungen ekstra modelrespons for direkte svar. Et
    domæneværktøjs resultat kan udløse den nødvendige resultatsrespons; et godkendt
-   `end_conversation` kan udløse præcis ét kort farvel. Ingen af delene åbner en ny
+   `end_conversation` kan udløse én kort terminal kvittering eller ét farvel. Ingen af delene åbner en ny
    Realtime-session eller mister den eksisterende samtalekontekst.
-5. Efter committed `end_conversation` må den korrelerede terminalrespons indeholde ét
-   kort farvel eller ingen lyd. Lyd afspilles færdig før lukning; manglende eller fejlet
+5. Efter committed `end_conversation` må den korrelerede terminalrespons indeholde én
+   kort sand opgavekvittering, ét kort farvel eller ingen lyd. Lyd afspilles færdig før
+   lukning; manglende eller fejlet
    terminallyd lukker stille. Transporten må ikke opfinde betydning eller afspille et
    lokalt cachet farvel.
 6. Semantisk afslutning, fysisk stop, timeout og fejl samles i én atomisk close-owner.

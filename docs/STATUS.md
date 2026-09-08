@@ -2,6 +2,40 @@
 
 Senest opdateret: 2026-09-08.
 
+## Aktiv lead-beslutning — afsluttet handling, 8. september 2026
+
+Lead: Codex; separat kandidat fra main 1707b03. Brugeren bekræfter Texas Sun virker,
+men oplever fortsættelse efter "stop musikken" og ønsker modelsemantik uden fraseregler.
+Direkte kodeevidens: både prompt v8 og end_conversation-beskrivelsen forbyder mediestop
+som afslutning. Hypotese: en afgrænset fælles kontrakt for bekræftet, selvstændig handling
+fjerner denne modstrid. Ingen fysisk trace beviser endnu, at dette er hele feltårsagen.
+Kæde: wake → accepteret input → modelvalgt medieværktøj → korreleret resultat →
+modelvalgt end_conversation → kort kvittering → fysisk finish → én teardown/rearm.
+Invarianter: Realtime ejer betydningen; lifecycle 3–6 og 10–13 bevares. Uklarhed,
+ventende bekræftelse, fejl og ønsket videre dialog må ikke blive vellykket opgave-close;
+ingen ændring i mic, firmware, VAD, timeouts, dispatch eller transportejerskab.
+Planlagte målinger: SafeEval-par for handling/alene, handling+dialog, uklarhed og fejl;
+bekræftet resultat skal ligge i en tidligere tool-batch end opgave-close. Migration
+må kun erstatte byteidentisk gammel standardprompt. Thin/Talk-regressioner, uafhængigt
+review og én frosset releasegate. Rollback: hele prompt/schema/migration-diffet.
+Review fandt modstridende ældre evalkrav efter godkendt handling og manglende
+negativ kontrol af falske succesudsagn ved fejl/uklarhed. Evalkrav og terminalrespons-
+beskrivelsen opdateres samlet; ingen lokal samtalelogik indføres.
+Implementeret: prompt v9 og værktøjsbeskrivelse deler reglen om bekræftet, selvstændig
+handling; standardprompt v8 migreres, brugerændringer bevares. Begge I/O-adaptere har
+regression for handling → resultat → close → kvittering → finish → én teardown.
+Uafhængigt adversarial review: P0=0/P1=0, godkendt til én lokal releasegate efter
+grønne målrettede regressioner. Ruff/format og målrettede regressioner er grønne.
+Releasegate forsøgt én gang: Ruff/format og mypy grønne, men scopekontrollen stoppede
+på en nedarvet stop-coupling-post. Posten er arkiveret uændret nedenfor; genkontrol
+viser ha_tools + realtime_semantics fra evalfixtures og semantikkontrakten. Ingen
+produktionsdispatch er ændret. Scopegaten er fortsat rød; den omgås eller svækkes ikke.
+De resterende unit- og integrationstests er efterfølgende kørt samlet og bestået;
+diff-whitespacekontrollen er grøn. Dette ophæver ikke den røde scopegate.
+Status: ikke releasegodkendt. Live SafeEval på kandidatens installerede schema/prompt
+samt fysisk golden chain/10 af 10 afventer. Kandidaten er ikke fysisk
+testklar eller installeret. Eksisterende fysisk baseline ændres ikke.
+
 ## Stop efter Hey Chat — 8. september 2026
 
 Brugeren har betinget stop-merge af, at Hey Chat først er merged. GitHub bekræfter
@@ -56,7 +90,7 @@ vejledning siger stadig Okay Nabu; dette er en observeret UI-rest, ikke modelrea
 Ingen akustisk wake/stop-gate,
 stoplatency, golden chain eller 10/10 er endnu bevist på dette artifactpar.
 
-<!-- candidate-scope-coupling
+<!-- archived-stop-coupling
 {
   "version": 1,
   "base_tip": "fe6c471e9bfaf4031bbeb8709fc6f23a3299286f",

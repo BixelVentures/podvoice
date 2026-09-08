@@ -30,8 +30,8 @@ stateværdier er fortsat den eneste mic-gate.
 
 Voice PE sender kun mic-lyd i `LISTENING` og `LOUNGE_WINDOW`. Realtime ejer sprog,
 matematik, kontekst, værktøjsvalg og semantisk close. PodVoice må kun eje mic-gate,
-dispatch, playback, timeout, teardown og rearm. Terminalresponsen er højst ét kort
-farvel; ingen lyd eller fejlet lyd lukker stille. Ingen lokal keywordliste må afgøre
+dispatch, playback, timeout, teardown og rearm. Terminalresponsen er højst én kort
+sand opgavekvittering eller ét kort farvel; ingen lyd eller fejlet lyd lukker stille. Ingen lokal keywordliste må afgøre
 betydning.
 
 ## Release-gate 1 — arkitektur

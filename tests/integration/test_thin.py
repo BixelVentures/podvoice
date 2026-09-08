@@ -5655,3 +5655,68 @@ async def test_hey_chat_admission_drains_orphan_then_preserves_wake_and_rejects_
             admission.cancel()
         await asyncio.gather(admission, return_exceptions=True)
         await session.aclose()
+
+
+@pytest.mark.parametrize("surface", ["voicepe", "talk"])
+async def test_confirmed_action_then_model_close_plays_receipt_before_single_teardown(surface):
+    brain = LiveFake()
+    sent = []
+    if surface == "talk":
+        session, attention, link, sent, _audio = _build_talk_session(brain)
+    else:
+        session, attention, link = _build(brain)
+        link.supports_playback_events = True
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "action",
+                "HassMediaPause",
+                {"area": "stue"},
+                batch_id="action-response",
+                index=0,
+                size=1,
+            ),
+            ToolRoundComplete(response_id="action-response"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        assert session._active and not session._ending_conversation
+        assert brain.sent_tool_results[0][0]["response"]["ok"]
+        brain.emit(
+            _batched_call(
+                "close", "end_conversation", {}, batch_id="close-response", index=0, size=1
+            ),
+            ToolRoundComplete(response_id="close-response"),
+        )
+        await _wait_until(lambda: len(brain.sent_tool_results) == 2)
+        assert session._active and session._ending_conversation
+        brain.emit(
+            ResponseStarted(
+                "receipt", purpose="semantic_end", generation=1, source_call_id="close"
+            ),
+            AudioChunk(_frame(), item_id="receipt-item", response_id="receipt", generation=1),
+            OutputTranscript("Musikken er sat på pause."),
+            TurnComplete(
+                status="completed", response_id="receipt", generation=1, source_call_id="close"
+            ),
+        )
+        if surface == "talk":
+            await _wait_until(lambda: any(row.get("type") == "play" for row in sent))
+            play = next(row for row in sent if row.get("type") == "play")
+            link.media_state(True, play["playback_id"])
+            assert session._active
+            link.media_state(False, play["playback_id"])
+        else:
+            await _wait_until(lambda: len(link.announced_urls) == 1)
+            session._on_media_state(True)
+            assert session._active
+            session._on_media_state(False)
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert len(brain.sent_tool_results) == 2
+        assert len(attention.release_calls) == 1
+        if surface == "voicepe":
+            assert link.rearm_calls == 1
+    finally:
+        await session.aclose()

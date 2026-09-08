@@ -115,6 +115,10 @@ def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
         "context-followup-then-close",
         "explicit-stop-conversation",
         "media-stop-remains-open",
+        "media-action-complete",
+        "media-action-dialogue",
+        "media-action-unclear",
+        "media-action-failed",
         "explicit-short-close",
         "web-routing",
         "sensitive-confirmation",
@@ -371,7 +375,7 @@ def test_semantic_close_selective_profile_preserves_all_independent_controls():
     assert stop.expect.decision == "end_conversation"
     assert stop.expect.answer_any == ()
     media = by_id["media-stop-remains-open"].turns[0]
-    assert media.text == "Stop musikken."
+    assert "hjælp mig først med at afklare" in media.text
     assert media.expect.forbid == ("end_conversation",)
     assert media.expect.fixture_side_effects == 0
     assert media.expect.remain_open
@@ -400,8 +404,9 @@ def test_terminal_close_oracle_accepts_silence_or_one_short_farewell(answer: str
 def test_end_conversation_contract_requires_latest_turn_end_intent():
     description = END_CONVERSATION_DECLARATION["description"].casefold()
 
-    assert "latest user's meaning clearly asks to finish talking with the assistant" in description
-    assert "do not use it for a new question, a possible follow-up or correction" in description
+    assert "self-contained action has been fully confirmed successful" in description
+    assert "inspect its result in a later response" in description
+    assert "keep open for dialogue, clarification, correction, pending approval" in description
     assert "læg seks til" not in description  # no phrase-specific production guard
 
 
@@ -868,9 +873,12 @@ def test_semantic_security_scenarios_assert_decisions_outcomes_and_lifecycle_not
     assert proposal.expect.tool_outcomes == {SAFE_EVAL_HIGH_RISK_TOOL: ("needs_confirmation",)}
     assert proposal.expect.fixture_side_effects == 0
     assert proposal.expect.answer_any == () and proposal.expect.answer_patterns == ()
-    assert approval.expect.decision == "approve_action"
-    assert approval.expect.tool_outcomes == {"approve_action": ("approved_action",)}
-    assert approval.expect.remain_open is True
+    assert approval.expect.decisions == ("approve_action", "end_conversation")
+    assert approval.expect.tool_outcomes == {
+        "approve_action": ("approved_action",),
+        "end_conversation": ("ok",),
+    }
+    assert approval.expect.remain_open is False
 
     sensitive_close = scenarios["sensitive-action-with-close"].turns[0].expect
     assert "end_conversation" in sensitive_close.forbid
@@ -888,7 +896,7 @@ def test_semantic_security_scenarios_assert_decisions_outcomes_and_lifecycle_not
         [["HassTurnOn"], ["end_conversation"]],
     ],
 )
-def test_low_risk_then_close_oracle_accepts_atomic_or_sequential_batches(decision_batches):
+def test_low_risk_then_close_oracle_requires_result_before_close(decision_batches):
     expected = (
         next(row for row in load_scenarios() if row.id == "low-risk-action-then-close")
         .turns[0]
@@ -908,7 +916,10 @@ def test_low_risk_then_close_oracle_accepts_atomic_or_sequential_batches(decisio
         remain_open=False,
     )
 
-    assert grade_turn(expected, observed) == []
+    findings = grade_turn(expected, observed)
+    assert bool(findings) is (len(decision_batches) == 1)
+    if findings:
+        assert {f.code for f in findings} == {"wrong-decision-batches"}
 
 
 def test_low_risk_oracle_rejects_duplicate_otherwise_canonical_calls():
@@ -2770,10 +2781,9 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
     )
     service = LiveEvalService(provider_budget=_known_provider_budget())
 
-    assert sessions == 12
-    assert turns == 23
+    assert sessions == 16
+    assert turns == 27
     assert service._max_run_s == required
-    assert 101 * 60 < service._max_run_s < 102 * 60
 
 
 async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(monkeypatch):
@@ -2825,7 +2835,7 @@ async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(mo
     assert waits == [60.5]
 
 
-async def test_full_twelve_session_profile_accepts_measured_14_5k_each(monkeypatch):
+async def test_full_sixteen_session_profile_accepts_measured_14_5k_each(monkeypatch):
     clock = [0.0]
     calls = 0
 
@@ -2846,11 +2856,11 @@ async def test_full_twelve_session_profile_accepts_measured_14_5k_each(monkeypat
     ).run(api_key="secret", tool_declarations=_production_snapshot())
 
     assert report["ok"] is True, report.get("error")
-    assert calls == 12
-    assert report["budget"]["actual_tokens"] == 174_000
-    assert report["budget"]["max_actual_tokens"] == 1_380_000
+    assert calls == 16
+    assert report["budget"]["actual_tokens"] == 232_000
+    assert report["budget"]["max_actual_tokens"] == 1_620_000
     assert report["budget"]["max_cost_usd"] == pytest.approx(5.0)
-    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(92.0)
+    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(108.0)
     assert report["deadline_s"] > report["budget"]["rate_limit_wait_s"]
 
 
@@ -4693,3 +4703,80 @@ async def test_audio_trial_requires_exact_nonempty_diagnostic_transcript(
     assert report["ok"] is False
     assert report["classification"] == "audio-specific-failure"
     assert [item["code"] for item in report["trials"][0]["findings"]] == [finding]
+
+
+async def test_media_eval_results_are_local_and_failure_has_no_fixture_effect():
+    scenarios = [
+        s for s in load_scenarios() if s.id in {"media-action-complete", "media-action-failed"}
+    ]
+    admission = eval_harness._admit_eval_tools(scenarios, _production_snapshot())
+    tools = SafeEvalTools(
+        admission.declarations,
+        admitted_names=set(admission.contracts),
+        fixture_contracts=admission.contracts,
+    )
+    assert (await tools.dispatch("HassMediaPause", {"area": "stue"}))["ok"] is True
+    assert (await tools.dispatch("HassMediaPause", {"area": "kontor"}))[
+        "error_kind"
+    ] == "device_unavailable"
+    assert (await tools.dispatch("HassMediaPause", {"area": "ukendt"}))["ok"] is False
+    assert tools.fixture_side_effects == 1
+
+
+def test_task_completion_eval_rejects_close_before_result_is_observed():
+    expected = next(s for s in load_scenarios() if s.id == "media-action-complete").turns[0].expect
+    observed = TurnObservation(
+        turn_id="1",
+        session_id="s",
+        decisions=["HassMediaPause", "end_conversation"],
+        decision_batches=[["HassMediaPause", "end_conversation"]],
+        tool_args={"HassMediaPause": [{"area": "stue"}]},
+        tool_results={"HassMediaPause": [{"ok": True}], "end_conversation": [{"ok": True}]},
+        fixture_side_effects=1,
+        answer="Musikken er stoppet.",
+        remain_open=False,
+    )
+    assert any(f.code == "wrong-decision-batches" for f in grade_turn(expected, observed))
+    observed.decision_batches = [["HassMediaPause"], ["end_conversation"]]
+    assert grade_turn(expected, observed) == []
+    observed.remain_open = True
+    assert any(f.code == "wrong-lifecycle" for f in grade_turn(expected, observed))
+
+
+def test_dialogue_ambiguity_and_failure_cannot_be_scored_as_task_close():
+    for scenario in load_scenarios():
+        if scenario.id not in {
+            "media-action-dialogue",
+            "media-action-unclear",
+            "media-action-failed",
+        }:
+            continue
+        observed = TurnObservation(
+            turn_id="1", session_id="s", decisions=["end_conversation"], remain_open=False
+        )
+        findings = grade_turn(scenario.turns[0].expect, observed)
+        assert any(f.code == "wrong-lifecycle" for f in findings)
+
+
+@pytest.mark.parametrize("scenario_id", ["media-action-failed", "media-action-unclear"])
+def test_failed_or_unclear_action_cannot_grade_a_false_success_receipt_green(scenario_id):
+    expected = next(s for s in load_scenarios() if s.id == scenario_id).turns[0].expect
+    observed = TurnObservation(
+        turn_id="1", session_id="s", answer="Musikken er stoppet.", remain_open=True
+    )
+    if scenario_id == "media-action-failed":
+        observed.decisions = ["HassMediaPause"]
+        observed.tool_args = {"HassMediaPause": [{"area": "kontor"}]}
+        observed.tool_results = {
+            "HassMediaPause": [{"ok": False, "error_kind": "device_unavailable"}]
+        }
+    assert any(
+        f.code in {"answer-missing-any", "answer-pattern-mismatch"}
+        for f in grade_turn(expected, observed)
+    )
+    observed.answer = (
+        "Afspilleren er utilgængelig."
+        if scenario_id == "media-action-failed"
+        else "Hvilken afspiller mener du?"
+    )
+    assert grade_turn(expected, observed) == []

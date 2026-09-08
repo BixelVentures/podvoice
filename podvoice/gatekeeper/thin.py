@@ -149,11 +149,15 @@ APPROVE_ACTION_TOOL = "approve_action"
 END_CONVERSATION_DECLARATION = {
     "name": END_CONVERSATION_TOOL,
     "description": (
-        "End the current voice conversation when the latest user's meaning clearly asks to "
-        "finish talking with the assistant, for example a farewell, 'that is all', or 'stop "
-        "the conversation'. Do not use it for a new question, a possible follow-up or "
-        "correction, ordinary politeness, background speech, or a request to stop media, a "
-        "timer, or a home device. Call it at most once in a turn."
+        "End when the latest user clearly wants to finish talking, or a self-contained "
+        "action has been fully confirmed successful and the conversation leaves no "
+        "question, follow-up or other task pending. For task completion, first call the "
+        "domain tool, inspect its result in a later response, then call this tool alone; "
+        "never batch it with the action whose success is not yet known. After closing, "
+        "give one brief truthful action receipt without an extra farewell or invitation. "
+        "Do not infer completion from a media-stop word, politeness, an ordinary answer "
+        "or lookup. Keep open for dialogue, clarification, correction, pending approval "
+        "or failed actions; explicit user intent to end still applies. Call at most once."
     ),
     "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
 }
