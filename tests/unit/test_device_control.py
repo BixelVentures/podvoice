@@ -413,7 +413,8 @@ async def test_policy_sees_validated_inner_action_and_exact_target(rig):
 async def test_expired_capability_rejected(rig):
     token = (await rig.read())["capability_token"]
     adapter = rig.router._device_control
-    adapter._tickets[token] = replace(adapter._tickets[token], issued_at=0)
+    ticket = adapter._tickets[token]
+    adapter._tickets[token] = replace(ticket, issued_at=ticket.issued_at - 121)
     assert not (await rig.act(token))["ok"]
     assert not rig.writes
 

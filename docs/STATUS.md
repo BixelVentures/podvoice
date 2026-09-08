@@ -134,6 +134,39 @@ ikke vurderet som specifik tilladelse til at eksportere kandidatkode/metadata ti
 destinationen. Ingen remote branch, PR eller CI blev oprettet. Lokalt commit/handover
 kan afsluttes; push og kladde-PR afventer brugerens eksplicitte uploadgodkendelse.
 
+### Autoriseret levering — 8. september 2026
+
+Brugerens "Yes skub skub helt til add on" autoriserer nu push, merge og installation,
+men ophæver ikke testkrav. Branch er skubbet og kladde-PR #36 oprettet. ARM64-build
+bestod på b60fdfe; CI fandt en testantagelse, ikke en observeret runtimefejl:
+`issued_at=0` er ikke udløbet på en runner med monotonic-uptime under 120 sekunder.
+Rettelsen begrænses til relativ alder i testen. Ingen timeout eller runtime ændres.
+Enabled-feature integrationen udvides med kvittering/playback, modelstyret lukning,
+én teardown/rearm og ny wake med afvist gammel capability på både Voice PE og Talk.
+Dette er deterministisk adapterbevis, ikke fysisk lyd-/robotbevis. Kandidaten er
+fortsat ikke merge-/aktiveringsklar; fokuseret live SafeEval og browsergate mangler.
+
+Resultat: 59 målrettede cases bestod. `/root/device_control_review` finder ingen
+konkret blocker i det test-only delta og bekræfter bevisgrænsen (FakeVoicePELink,
+rigtig BrowserLink/ThinSession, ikke fysisk Voice PE). `fast` er grøn på hele
+testsuiten (51,8 s); langsom samlet kørsel ændrer ingen runtimehypotese.
+Chrome-browserprøve på loopback med kandidatens uændrede web/settings-kode og
+sideeffektfri HA-fixture bekræfter default-off, linjevis entity-liste, gemt tilvalg
+med præcis to værktøjer, gemt fravalg med straks nul ekstra værktøjer uden genstart,
+og afvisning af `light.not_allowed`. Fixturet sendte nul HA-handlinger.
+Live HA-panelet er læst og viser fortsat v1.13.64; hjemmets indstillinger er urørt.
+
+Frosset gate efter test-only reparation er grøn (28,6 s), 1107 unit- og 315
+integrationtests. Runtime og add-on-context er uændret fra b60fdfe.
+Reviewers leveringsafgørelse er NO under den nuværende eksplicitte før-merge-gate:
+default-off beviser ikke den manglende fokuserede live SafeEval. Et isoleret,
+server-ejet fixture-profile kan teste de to kandidatdeklarationer under den
+eksisterende diagnostiklås uden at aktivere HA-handlinger. Dette er endnu ikke
+implementeret. Ingen nye SSH-/administratorrettigheder er nødvendige som udgangspunkt.
+Diagnostik-først-installation er en anden rækkefølge end den registrerede releaseplan
+og kræver brugerens specifikke godkendelse; alternativet er en isoleret stagingvej.
+Ingen merge, installation eller aktivering udføres før den afklaring.
+
 ## Aktiv lead-beslutning — afsluttet handling, 8. september 2026
 
 Lead: Codex; separat kandidat fra main 1707b03. Brugeren bekræfter Texas Sun virker,
