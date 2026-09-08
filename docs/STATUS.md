@@ -2,6 +2,87 @@
 
 Senest opdateret: 2026-09-08.
 
+## Aktiv lead-beslutning — Stop-kontekst v2, 8. september 2026
+
+Lead: Codex. Bruger har godkendt hele planen: modelsemantik under lytning uden
+fraseregler; lokal stille afbrydelse under tænkning/tale; ingen omgørelse af allerede
+udførte handlinger. Base c85eca5 (1.13.64) bevares, inklusive afsluttet-handling-semantik.
+Observeret: tidlige Stop-forsøg fejlede, senere Stop/Hey Chat virkede. Kodebevis:
+PLAYING enable genindlæser Stop og giver mindst100x10ms cooldown. Tidligere stubtests
+rammer ikke inferens. Frisk trace20260908T123630-251 fejlede separat på
+max_output_tokens, ikke netværk, og beviser ikke Stop-detektion.
+Kæde: mic/modelberegning → generationsbundet eligibility/ACK → detektion → lokal
+outputstop → Thin close barrier → tool/provider-cancel → drain → disable ACK →
+teardown/rearm → Hey Chat; modsat vej listening → fuld modelsemantik → completed
+silent end_conversation → samme close. Invarianter: half-duplex3–7, lifecycle6–7/10–13.
+Hypotese: varm inferens med worker-fenced generationsgrænse fjerner load-blindhed uden
+at lade stale/idle detektion ramme nyt svar; modelvalgt silent-close giver stille
+semantisk afbrydelse uden keyword-routing. Ikke-mål: same-breath-tuning, outputloft,
+fejlklassifikation, gain/VAD/cutoff, fuld duplex eller nye medieejere.
+Regressioner: actual pinned MWW cooldown/queue, adapter+Thin THINKING/tool/playback/
+listen ACK-races, silent-schema/commit, modsatte Talk, 30 live semantiske cases ($5),
+40 fysiske Stop (39/40,p95<=500ms),10 tænketidsstop,50 self-stop-negativer,10 lifecycle.
+Uafhængigt review før frosset releasegate og ét parret artifact. Rollback: hele v2-parret.
+Status: under implementering; ingen ny release/installation/fysisk godkendelse.
+Brugerens merge-stop: Stop-kandidaten må først merges og installeres, når Roborock-
+delen i Home Assistant er ude. Denne afhængighed skal verificeres frisk før merge;
+implementering, tests og uafhængigt review kan fortsætte imens.
+
+Arbejdskandidat, endnu ikke testklar: silent end er implementeret med strict bool og
+korreleret output-ACK; seks målrettede tests består. Pinned ESPHome 2026.6.2
+streaming_model.cpp testes nu uændret med TFLite/platformgrænsen simuleret. Testen
+viser 100 under-cutoff-slices ved reload/reset; høje scores kan forlænge blindheden.
+StopGate bruger varm inferens, producer/consumer-watermark, release-fence og højst ét
+event per epoch uden upstream Stop-reset. Det beviser eventkorrelation, ikke neural
+isolation eller akustisk kvalitet. Firmware-, adapter- og Thin-kobling er under arbejde.
+Første adversarial review fandt P1 reconnect uden recovery-nonce og P1 same-batch
+rearm/wake-context-tab samt timer/mute-fejlveje. Årsagsgrænsen omfatter derfor retained
+context til disable-only recovery, reset før rearm-ACK og timerens separate epoch.
+Ingen frysning/releasegate før de fund er rettet og regressionsbevist. Ingen fysisk
+test, ny installation eller godkendelse er foretaget.
+Source-review stoppede derefter pinning på én P1: idle timer kunne bære en enabled
+Stop-epoch gennem detector-restart og ende permanent faulted uden ejer. Rettelsen
+skal bruge den eksisterende cancel/drain/rearm-kæde: suspendér timerens eligibility
+under cleanup, kvittér først efter disabled worker-fence, genoptag efter rearm. Ved
+egentlig idle-inferensfejl annulleres den ringende timer synligt, nye wake afvises,
+og samme Thin-teardown-recovery udføres. Ingen selvstændig firmware-restart-owner.
+Actual StopGate+PodVoiceReply testes sammen. Nyt review fandt et manglende main-tick
+mellem planlagt worker-stop og restart: idle fault må ikke annullere en timer, som
+cleanup har suspenderet for senere genoptagelse. Regressionen injicerer nu dette tick;
+kandidaten forbliver ikke testklar indtil uafhængig genkontrol.
+
+Samlet review fandt desuden P1: en forsinket idle-fault callback uden reset-/session-
+identitet kunne lukke næste wake. Fejl-events bindes derfor til forbindelsen og reset-
+generationen, og idle-fejl må kun eje idle recovery. En regression tilbageholder
+callbacken over rearm og ny samtale. Review fandt samtidig en sovende cleanup-retry,
+som kunne stoppe næste wake efter en anden succesfuld cleanup. Retry bruger nu samme
+teardown-lock også omkring silence og revaliderer epoch/inaktiv/ufuldendt efter waits.
+Ingen separat cleanup-owner tilføjes. Evalreview fandt også en utilstrækkelig stilheds-
+observation ved silent ACK; PCM og transcript efter tool-commit skal med i oraklet.
+Komponentkilde baf41b9 er uafhængigt godkendt (14 filer, SHA256
+8409fc77758a899ed5086510db85683f7f16bb7e5e5605a76ccedf3a99d8eec4), men push blev
+afvist af automatisk godkendelseskontrol. Destinationsgodkendelse afventes; ingen
+publiceret pin, release eller installation. De 30 nye semantiske scenarier er testdata;
+rigtig Realtime og fysisk gate er fortsat ikke kørt på kandidaten.
+
+Lokal kontrol 8. september 15:30: uafhængigt helkæde-review ved
+/root/stop_field_review: ingen resterende P0/P1, GO kun til lokale samlede gates.
+Tre findings er rettet og regressionsbevist: stale idle fault, sovende cleanup retry,
+og ikke-vakuøst silent-orakel. Ruff/format og mypy (43 kilder) er grønne. Den samlede
+fast-gate med adgang til lokale testporte kørte alle tests på 70,72 s; kun de to
+bevidste distributionslåse fejler, fordi firmwarekilden stadig er en lokal sti.
+Ingen tests eller låse svækkes for at omgå manglende publicering. 203 evaltests og
+14 actual-MWW/Stop-tests er særskilt grønne; dette er ikke live semantisk evidens.
+ESPHome 2026.6.2 compile er grøn (14,76 s), config_hash 0x90f13c23,
+build_time 2026-09-08 15:29:32 +0200. Alle 10 genererede C++-/headerfiler fra de
+14 reviewede komponentfiler matcher kilden byte for byte. Compile-only OTA SHA256:
+c66f58f705d5a03e0307917577f18305cee462b0ddf9be79bb8bc53b41bab826.
+Denne binær bruger dummy-testsecrets og må ikke installeres.
+Næste grænse: destinationsgodkendelse → publiceret source-pin → frisk main/Roborock-
+identitet og samlet review/freeze → krævede gates → koordineret rigtigt versionspar
+og live/fysiske prøver. Ingen frossen releasegate, merge, installation eller fysisk
+prøve er udført på Stop-v2. Kandidaten er fortsat ikke testklar til fysisk installation.
+
 ## Aktiv lead-beslutning — afsluttet handling, 8. september 2026
 
 Lead: Codex; separat kandidat fra main 1707b03. Brugeren bekræfter Texas Sun virker,
@@ -49,7 +130,7 @@ er grøn (28,8 s): scope, Ruff/format, mypy, unit og integration. Tidligere rød
 afløst af dette resultat; kun dokumenteret resultattekst ændres efter gaten.
 Kandidaten er klar til autoriseret publicering, ikke fysisk featuregodkendt.
 
-<!-- candidate-scope-coupling
+<!-- archived-candidate-scope-coupling
 {
   "version": 1,
   "base_tip": "1707b03ef94d5346a09d9fc4266a02d92aaddd2b",

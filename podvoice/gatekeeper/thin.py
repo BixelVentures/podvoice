@@ -157,9 +157,18 @@ END_CONVERSATION_DECLARATION = {
         "give one brief truthful action receipt without an extra farewell or invitation. "
         "Do not infer completion from a media-stop word, politeness, an ordinary answer "
         "or lookup. Keep open for dialogue, clarification, correction, pending approval "
-        "or failed actions; explicit user intent to end still applies. Call at most once."
+        "or failed actions; explicit user intent to end still applies. Call at most once. When the user wants to interrupt this conversation and have silence, set silent=true and produce no speech. Interpret the full intent; stopping a named object is not itself a request for silence. Do not hide an action receipt or error with silent mode."
     ),
-    "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "silent": {
+                "type": "boolean",
+                "description": "End without any spoken reply; default false.",
+            }
+        },
+        "additionalProperties": False,
+    },
 }
 WAIT_FOR_USER_DECLARATION = {
     "name": WAIT_FOR_USER_TOOL,
@@ -211,6 +220,7 @@ class _ClosureTurn:
     # persistence timestamp must come from here rather than event-arrival order.
     user_finished_at: float | None = None
     semantic_end: bool = False
+    silent_end: bool = False
     correlation_required: bool = False
     semantic_source_call_id: str | None = None
     terminal_response_id: str | None = None
@@ -439,6 +449,8 @@ class ThinSession:
         self._last_user_utterance = ""  # tool-policy evidence for this user turn
         self._barge_task: asyncio.Task | None = None  # pending blip-debounced barge-in
         self._followup_task: asyncio.Task | None = None  # delayed turn-ready LED fallback
+        self._stop_context_task: asyncio.Task | None = None
+        self._local_stop_armed = False
         self._turn_cue_appended = False  # this reply ends with the audible hand-over cue
         self._discarding_half_duplex_input = False
         # Mechanical provider ownership only.  These fields do not decide meaning or
@@ -652,6 +664,9 @@ class ThinSession:
         self._last_user_utterance = ""
         self._last_activity = self._conv_started
         self._idle_deadline = self._conv_started + self.idle_timeout_s
+        self._local_stop_armed = False
+        if not await self._set_local_stop(False):
+            return
         self.sm.state = State.LISTENING
         self._trace_event("mic_gate_opened", state=State.LISTENING.name, reason="wake")
         self._set_led(State.LISTENING)  # instantly — before the WS connect
@@ -979,6 +994,7 @@ class ThinSession:
             self._keepalive,
             self._barge_task,
             self._followup_task,
+            self._stop_context_task,
             self._goodbye,
             *self._tool_tasks.values(),
         ):
@@ -1222,6 +1238,17 @@ class ThinSession:
             deadline=teardown_deadline,
             reserve_s=rearm_reserve,
         )
+        stop_context_complete = True
+        if not self.full_duplex and getattr(self.voicepe, "supports_stop_context", False):
+            context_ok, context_disabled = await self._teardown_step(
+                "stop-context-disable",
+                self.voicepe.set_stop_context(False, closing=True),
+                deadline=teardown_deadline,
+                reserve_s=rearm_reserve,
+            )
+            stop_context_complete = context_ok and context_disabled is True
+            if stop_context_complete:
+                self._local_stop_armed = False
         heartbeat_complete = True
         attention_complete = True
         if release_music:
@@ -1246,6 +1273,7 @@ class ThinSession:
             silence_complete
             and stream_complete
             and provider_complete
+            and stop_context_complete
             and heartbeat_complete
             and attention_complete
         )
@@ -1307,24 +1335,46 @@ class ThinSession:
         ):
             return
 
+        epoch = self._epoch
+
+        def current() -> bool:
+            return (
+                self._epoch == epoch
+                and self._teardown_incomplete
+                and not self._closing
+                and not self._active
+            )
+
         async def _retry() -> None:
             attempt = 0
             physical_silence_complete = silence_complete
-            while self._teardown_incomplete and not self._closing:
+            while current():
                 delay = REARM_RETRY_DELAYS_S[min(attempt, len(REARM_RETRY_DELAYS_S) - 1)]
                 attempt += 1
                 await asyncio.sleep(delay)
-                if not physical_silence_complete:
-                    physical_silence_complete, _ = await self._teardown_step(
-                        "silence-device-retry",
-                        self._silence_device(),
-                        deadline=time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
-                        reserve_s=TEARDOWN_REARM_TIMEOUT_S,
-                    )
-                await self._teardown(
-                    release_music=release_music,
-                    silence_complete=physical_silence_complete,
-                )
+                # The existing teardown lock also gates wake. Hold it across both
+                # silence and cleanup, then recheck after lock/sleep boundaries:
+                # another recovery may have completed while this retry slept.
+                async with self._teardown_lock:
+                    if not current():
+                        return
+                    try:
+                        if not physical_silence_complete:
+                            physical_silence_complete, _ = await self._teardown_step(
+                                "silence-device-retry",
+                                self._silence_device(),
+                                deadline=time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
+                                reserve_s=TEARDOWN_REARM_TIMEOUT_S,
+                            )
+                        if not current():
+                            return
+                        await self._teardown_locked(
+                            release_music=release_music,
+                            deadline=time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S,
+                            silence_complete=physical_silence_complete,
+                        )
+                    finally:
+                        self._restore_provider_trace_observer()
 
         task = self._spawn(_retry(), "thin-full-teardown-retry")
         self._teardown_retry_task = task
@@ -1909,6 +1959,7 @@ class ThinSession:
         elif isinstance(ev, SilentToolComplete):
             for call_id in ev.call_ids:
                 self._complete_silent_wait_turn(call_id)
+                self._complete_silent_end_turn(call_id)
         elif isinstance(ev, TurnComplete):
             self._trace_event(
                 "response_done",
@@ -2201,6 +2252,8 @@ class ThinSession:
                     await self._quarantine_provider_input(item_id, generation)
                     self._cancel_barge_debounce()
                     return
+                if not await self._set_local_stop(True):
+                    return
                 try:
                     await self.brain.accept_input_turn(
                         item_id,
@@ -2242,6 +2295,8 @@ class ThinSession:
             else:
                 async with self._mic_send_lock:
                     self._accept_user_speech_stopped()
+                if not await self._set_local_stop(True):
+                    return
             self._cancel_barge_debounce()
         elif isinstance(ev, InputTranscript):
             self._trace_event("input_transcript", text=ev.text[:500])
@@ -2836,6 +2891,8 @@ class ThinSession:
             self._trace_event("wait_for_user_requested", call_id=tc.id)
             self._wait_turns[tc.id] = (self._epoch, turn)
         if tc.name == END_CONVERSATION_TOOL:
+            if not self._valid_end_args(tc.args):
+                return True  # Report invalid arguments without applying any close.
             if tc.id in self._semantic_end_call_ids:
                 _LOG.info("thin: duplicate semantic end call ignored [call_id=%s]", tc.id)
                 self._trace_event("semantic_end_duplicate", call_id=tc.id)
@@ -2899,7 +2956,12 @@ class ThinSession:
         self._turn_had_tool = True
         names = [call.name for call in batch.calls.values()]
         lifecycle_error: str | None = None
-        if WAIT_FOR_USER_TOOL in names and len(names) != 1:
+        if len(names) != 1 and any(
+            call.name == END_CONVERSATION_TOOL and call.args.get("silent") is True
+            for call in batch.calls.values()
+        ):
+            lifecycle_error = "silent end_conversation must be the only call in its response"
+        elif WAIT_FOR_USER_TOOL in names and len(names) != 1:
             lifecycle_error = "wait_for_user must be the only lifecycle decision in a turn"
         elif names.count(END_CONVERSATION_TOOL) > 1:
             lifecycle_error = "end_conversation may appear at most once in a turn"
@@ -3023,10 +3085,15 @@ class ThinSession:
         tool_started = time.monotonic()
         result: dict
         if tc.name == END_CONVERSATION_TOOL:
-            result = {
-                "ok": True,
-                "data": {"decision": END_CONVERSATION_TOOL},
-            }
+            result = (
+                {"ok": True, "data": {"decision": END_CONVERSATION_TOOL}}
+                if self._valid_end_args(tc.args)
+                else {
+                    "ok": False,
+                    "error_kind": "invalid_arguments",
+                    "error": "silent must be a boolean; no other arguments allowed",
+                }
+            )
         elif tc.name == WAIT_FOR_USER_TOOL:
             result = {
                 "ok": True,
@@ -3110,6 +3177,12 @@ class ThinSession:
                     # OpenAI records the function output but deliberately does not
                     # issue response.create, so silence cannot leak across turns.
                     tool_result["suppress_response"] = True
+                if (
+                    tc.name == END_CONVERSATION_TOOL
+                    and result.get("ok")
+                    and tc.args.get("silent") is True
+                ):
+                    tool_result["suppress_response"] = True
                 silent_complete = await self.brain.send_tool_results([tool_result])
             except Exception as exc:
                 _LOG.warning("thin: submitting %s result failed: %s", tc.name, exc)
@@ -3120,6 +3193,7 @@ class ThinSession:
         if silent_complete is True:
             if tc.name == WAIT_FOR_USER_TOOL:
                 self._complete_silent_wait_turn(tc.id)
+            self._complete_silent_end_turn(tc.id)
 
     async def _submit_schema_correction(self, correction: ToolSchemaCorrection) -> None:
         """Return a provider-authored schema error without touching a tool adapter."""
@@ -3199,6 +3273,8 @@ class ThinSession:
             item: dict[str, object] = {"id": call.id, "name": call.name, "response": result}
             if call.name == WAIT_FOR_USER_TOOL and len(ordered) == 1:
                 item["suppress_response"] = True
+            if call.name == END_CONVERSATION_TOOL and result.get("ok") and batch.turn.silent_end:
+                item["suppress_response"] = True
             tool_results.append(item)
         async with self._tool_lock:
             try:
@@ -3213,10 +3289,36 @@ class ThinSession:
             for call, _result in ordered:
                 if call.name == WAIT_FOR_USER_TOOL:
                     self._complete_silent_wait_turn(call.id)
+                self._complete_silent_end_turn(call.id)
+
+    @staticmethod
+    def _valid_end_args(args: dict) -> bool:
+        return (
+            isinstance(args, dict)
+            and set(args) <= {"silent"}
+            and type(args.get("silent", False)) is bool
+        )
+
+    def _complete_silent_end_turn(self, call_id: str) -> None:
+        turn = self._closure_turn
+        if (
+            self._active
+            and not self._transport_closing
+            and turn is not None
+            and turn.silent_end
+            and not turn.superseded
+            and turn.semantic_source_call_id == call_id
+        ):
+            self._discard_failed_response()
+            turn.response_done = True
+            turn.confirmed = True
+            self._trace_event("semantic_end_silent", reason="model-selected", call_id=call_id)
+            self._request_close("model-close-silent")
 
     def _apply_semantic_end(self, tc: ToolCall, turn: _ClosureTurn) -> None:
         self._semantic_end_call_ids.add(tc.id)
         turn.semantic_end = True
+        turn.silent_end = tc.args.get("silent") is True
         turn.correlation_required = tc.response_id is not None or tc.batch_id is not None
         turn.semantic_source_call_id = tc.id
         turn.terminal_response_id = None
@@ -3336,6 +3438,8 @@ class ThinSession:
             self._speaking,
         )
         if self._active:
+            if getattr(self.voicepe, "supports_stop_context", False):
+                return  # physical wake cannot transfer an active assistant turn
             if self._ending_conversation:
                 # A confirmed Farvel is a terminal transport transition. Keeping this
                 # wake inside the old socket recreates the observed "Okay Nabu" as an
@@ -3368,11 +3472,30 @@ class ThinSession:
         elif etype in ("wake_stop", "single_press") and self._active:
             playback_id = getattr(state, "playback_id", None)
             if etype == "wake_stop":
-                lease = self._playback_lease
-                if playback_id is None or lease is None or playback_id != lease.playback_id:
-                    return
+                if getattr(self.voicepe, "supports_stop_context", False):
+                    if (
+                        getattr(state, "stop_session", None) != self.voicepe._stop_session
+                        or getattr(state, "stop_generation", None) != self.voicepe._stop_generation
+                        or self.sm.state not in (State.THINKING, State.AI_SPEAKING)
+                    ):
+                        return
+                else:
+                    lease = self._playback_lease
+                    if playback_id is None or lease is None or playback_id != lease.playback_id:
+                        return
                 self._trace_event("stop_word_detected", playback_id=playback_id)
             self._request_close("stop-word" if etype == "wake_stop" else "stop")
+        elif etype == "stop_context_fault":
+            if not self.voicepe.accepts_stop_fault(state):
+                return
+            if getattr(state, "stop_idle", False) and self._active:
+                return  # idle fault owns recovery only, never a conversation close
+            if self._active:
+                self._request_close("stop-context-fault", error_kind="device")
+            else:
+                self._teardown_incomplete = True
+                self._set_led(State.IDLE, error=True)
+                self._schedule_teardown_retry(release_music=True, silence_complete=False)
         elif etype == "reply_played":
             # GROUND TRUTH from the firmware: VA reached RESPONSE_FINISHED, which it only
             # does once speaker_buffer_size_ == 0 AND !has_buffered_data() AND
@@ -3682,6 +3805,12 @@ class ThinSession:
             or self._ending_conversation
         ):
             return
+        if self._local_stop_armed:
+            if self._stop_context_task is None or self._stop_context_task.done():
+                self._stop_context_task = self._spawn(
+                    self._disable_stop_for_followup(), "thin-stop-disable"
+                )
+            return
         self._cancel_followup_edge()
         self.sm.state = State.LOUNGE_WINDOW
         self._trace_event("mic_gate_opened", state=State.LOUNGE_WINDOW.name, reason="followup")
@@ -3690,6 +3819,26 @@ class ThinSession:
         self._hub_state("LOUNGE_WINDOW", activity, turn_cue=self._turn_cue_appended)
         self._last_activity = time.monotonic()
         self._idle_deadline = self._last_activity + self.idle_timeout_s
+
+    async def _set_local_stop(self, enabled: bool) -> bool:
+        if self.full_duplex or not getattr(self.voicepe, "supports_stop_context", False):
+            return True
+        epoch = self._epoch
+        ok = await self.voicepe.set_stop_context(enabled)
+        if epoch != self._epoch or not self._active or self._transport_closing:
+            return False
+        if not ok:
+            self._request_close("stop-context-unconfirmed", error_kind="device")
+            return False
+        self._local_stop_armed = enabled
+        self._trace_event(
+            "stop_context_ack", enabled=enabled, generation=self.voicepe._stop_generation
+        )
+        return True
+
+    async def _disable_stop_for_followup(self) -> None:
+        if await self._set_local_stop(False):
+            self._enter_followup()
 
     def _cut_audio_boundary(self, reason: str) -> tuple[int | None, int]:
         """Cut one physical Voice PE audio generation without changing semantics."""

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from gatekeeper import settings as S
 from gatekeeper.config import load_config
 
@@ -251,12 +253,13 @@ def test_speaker_path_defaults_to_the_proven_announce_path():
     assert from_options({"speaker_path": "direct"}).speaker_path == "announce"
 
 
-def test_saved_stock_v8_migrates_but_custom_v8_survives(tmp_path):
+@pytest.mark.parametrize("version", [8, 9])
+def test_saved_stock_prompt_migrates_but_custom_prompt_survives(tmp_path, version):
     from pathlib import Path
 
     from gatekeeper.prompt import SYSTEM_PROMPT_DA
 
-    old = (Path(__file__).parents[1] / "fixtures" / "prompt_v8.txt").read_text().strip()
+    old = (Path(__file__).parents[1] / "fixtures" / f"prompt_v{version}.txt").read_text().strip()
     path = tmp_path / "settings.json"
     path.write_text(json.dumps({"settings_version": S.SETTINGS_VERSION, "system_prompt": old}))
     assert S.load_settings(path)["system_prompt"] == SYSTEM_PROMPT_DA

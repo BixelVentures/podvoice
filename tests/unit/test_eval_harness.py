@@ -107,7 +107,7 @@ def _audio_source_provenance(
 
 def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
     scenarios = load_scenarios()
-    assert {s.id for s in scenarios} == {
+    assert {s.id for s in scenarios if not s.id.startswith("stop-context-")} == {
         "arithmetic-followup",
         "arithmetic-followup-observed",
         "time-followup",
@@ -2781,8 +2781,8 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
     )
     service = LiveEvalService(provider_budget=_known_provider_budget())
 
-    assert sessions == 16
-    assert turns == 27
+    assert sessions == 46
+    assert turns == 61
     assert service._max_run_s == required
 
 
@@ -2835,7 +2835,7 @@ async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(mo
     assert waits == [60.5]
 
 
-async def test_full_sixteen_session_profile_accepts_measured_14_5k_each(monkeypatch):
+async def test_full_profile_accepts_measured_14_5k_each(monkeypatch):
     clock = [0.0]
     calls = 0
 
@@ -2856,11 +2856,11 @@ async def test_full_sixteen_session_profile_accepts_measured_14_5k_each(monkeypa
     ).run(api_key="secret", tool_declarations=_production_snapshot())
 
     assert report["ok"] is True, report.get("error")
-    assert calls == 16
-    assert report["budget"]["actual_tokens"] == 232_000
-    assert report["budget"]["max_actual_tokens"] == 1_620_000
+    assert calls == 46
+    assert report["budget"]["actual_tokens"] == 667_000
+    assert report["budget"]["max_actual_tokens"] == 3_660_000
     assert report["budget"]["max_cost_usd"] == pytest.approx(5.0)
-    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(108.0)
+    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(244.0)
     assert report["deadline_s"] > report["budget"]["rate_limit_wait_s"]
 
 
@@ -4780,3 +4780,145 @@ def test_failed_or_unclear_action_cannot_grade_a_false_success_receipt_green(sce
         else "Hvilken afspiller mener du?"
     )
     assert grade_turn(expected, observed) == []
+
+
+def test_stop_context_matrix_has_ten_independent_cases_per_category():
+    cases = [s for s in load_scenarios() if s.id.startswith("stop-context-")]
+    assert len(cases) == 30
+    for category in ("interrupt", "media", "correction"):
+        group = [s for s in cases if s.id.startswith(f"stop-context-{category}-")]
+        assert len(group) == 10
+        assert len({s.turns[-1].text for s in group}) == 10
+    assert sum(len(s.turns) > 1 for s in cases) >= 4
+    admission = eval_harness._admit_eval_tools(cases, SafeEvalTools().declarations())
+    assert {d["name"] for d in admission.declarations} >= {"end_conversation", "HassMediaPause"}
+
+
+@pytest.mark.parametrize("immediate", [False, True])
+async def test_live_silent_end_waits_for_exact_result_ack_and_discards_preamble(immediate):
+    sent = []
+    submitted = asyncio.Event()
+
+    class Session:
+        async def send_tool_results(self, results):
+            sent.append(results)
+            submitted.set()
+            return immediate
+
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session = Session()
+    driver.events.put_nowait(eval_harness.OutputTranscript(text="Vent lige..."))
+    driver.events.put_nowait(eval_harness.AudioChunk(pcm=b"\x01\x00" * 80))
+    driver.events.put_nowait(
+        eval_harness.ToolCall(
+            "end",
+            "end_conversation",
+            {"silent": True},
+            response_id="r",
+            batch_id="r",
+        )
+    )
+    driver.events.put_nowait(eval_harness.ToolRoundComplete(response_id="r"))
+    task = asyncio.create_task(driver._collect_turn(turn_id="turn", started=0.0))
+    await asyncio.wait_for(submitted.wait(), 2)
+    if not immediate:
+        driver.events.put_nowait(eval_harness.SilentToolComplete(call_ids=("old",)))
+        await asyncio.sleep(0)
+        assert not task.done()
+        driver.events.put_nowait(eval_harness.SilentToolComplete(call_ids=("end",)))
+    observed = await asyncio.wait_for(task, 2)
+    assert observed.silent_end and not observed.remain_open
+    assert observed.answer == "" and observed.first_audio_ms is None
+    assert sent[0][0]["suppress_response"] is True
+    expected = TurnExpectation(decision="end_conversation", remain_open=False, silent_end=True)
+    assert not grade_turn(expected, observed)
+
+
+@pytest.mark.parametrize(
+    "args", [{"silent": 1}, {"silent": "true"}, {"silent": None}, {"extra": True}]
+)
+async def test_eval_invalid_silent_close_keeps_turn_open(args):
+    sent = []
+
+    class Session:
+        async def send_tool_results(self, results):
+            sent.extend(results)
+            return False
+
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session = Session()
+    observed = TurnObservation("t", "s")
+    ids, done = await driver._dispatch_tool_batch(
+        [eval_harness.ToolCall("c", "end_conversation", args)], observed
+    )
+    assert not ids and not done and observed.remain_open
+    assert sent[0]["response"]["error_kind"] == "invalid_arguments"
+    assert not sent[0]["suppress_response"]
+
+
+async def test_eval_silent_close_cannot_hide_sibling_media_action():
+    sent = []
+
+    class Session:
+        async def send_tool_results(self, results):
+            sent.extend(results)
+            return False
+
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session = Session()
+    observed = TurnObservation("t", "s")
+    ids, done = await driver._dispatch_tool_batch(
+        [
+            eval_harness.ToolCall("m", "HassMediaPause", {"area": "stue"}, batch_index=0),
+            eval_harness.ToolCall("e", "end_conversation", {"silent": True}, batch_index=1),
+        ],
+        observed,
+    )
+    assert not ids and not done and observed.remain_open
+    assert observed.fixture_side_effects == 0
+    assert all(x["response"]["error_kind"] == "invalid_lifecycle_batch" for x in sent)
+
+
+@pytest.mark.parametrize(
+    "confirmed,answer,audio", [(False, "", None), (True, "Farvel", None), (True, "", 5)]
+)
+def test_silent_oracle_rejects_unconfirmed_or_audible_close(confirmed, answer, audio):
+    observed = TurnObservation(
+        "t",
+        "s",
+        decisions=["end_conversation"],
+        remain_open=False,
+        silent_end=confirmed,
+        answer=answer,
+        first_audio_ms=audio,
+    )
+    findings = grade_turn(
+        TurnExpectation(decision="end_conversation", remain_open=False, silent_end=True), observed
+    )
+    assert "wrong-silent-end" in {f.code for f in findings}
+
+
+@pytest.mark.parametrize("bound", [False, True])
+async def test_silent_eval_observes_output_after_tool_commit_before_exact_ack(bound):
+    class Session:
+        async def send_tool_results(self, results):
+            return False
+
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session = Session()
+    driver.events.put_nowait(
+        eval_harness.ToolCall(
+            "e", "end_conversation", {"silent": True}, response_id="r", batch_id="r"
+        )
+    )
+    driver.events.put_nowait(eval_harness.ToolRoundComplete(response_id="r"))
+    identity = {"response_id": "unexpected", "generation": 1} if bound else {}
+    driver.events.put_nowait(eval_harness.OutputTranscript(text="Farvel", **identity))
+    driver.events.put_nowait(eval_harness.AudioChunk(pcm=b"\x01\x00" * 80, **identity))
+    driver.events.put_nowait(eval_harness.SilentToolComplete(call_ids=("e",)))
+    observed = await driver._collect_turn(turn_id="t", started=0)
+    assert observed.answer == "Farvel" and observed.first_audio_ms is not None
+    findings = grade_turn(
+        TurnExpectation(decision="end_conversation", remain_open=False, silent_end=True), observed
+    )
+    assert "wrong-silent-end" in {f.code for f in findings}

@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 # session.updated hand-off. The provider uses the same 12 s bound, so neither stage
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
-EXPECTED_FIRMWARE_BUILD = "podvoice_build_11363_stop1"
+EXPECTED_FIRMWARE_BUILD = "podvoice_build_stop_context_v2"
 _WAKE_WORD_ACK_TIMEOUT_S = 3.0
 
 # --- Firmware contract ----------------------------------------------------------
@@ -52,6 +52,7 @@ REQUIRED_SERVICES: dict[str, str] = {
     "podvoice_rearm_wake_word": "conversation close: the next wake can never fire",
     "podvoice_reply_play": "atomic token and URL admission for the pending reply",
     "podvoice_reply_cancel": "clear a reply arm before another announcement can inherit it",
+    "podvoice_stop_context": "acknowledged conversation and turn bound Stop eligibility",
 }
 OPTIONAL_SERVICES: dict[str, str] = {
     "podvoice_va_abort": "stock-run abort (covered by the RUN_END fallback)",
@@ -137,6 +138,20 @@ class VoicePELink:
         self._reply_status_key: int | None = None
         self.supports_playback_ids = True
         self.supports_local_stop = False
+        self.supports_stop_context = False
+        self._stop_context_key: int | None = None
+        self._stop_session: str | None = None
+        self._stop_generation = 0
+        self._stop_armed = False
+        self._stop_cancelled = False
+        self._stop_changed = asyncio.Event()
+        self._stop_control_lock = asyncio.Lock()
+        self._stop_expected: tuple[str, int, str] | None = None
+        self._stop_outcome: str | None = None
+        self._stop_orphan: tuple[str, int] | None = None
+        self._retired_stop_session: str | None = None
+        self._stop_idle_confirmed = False
+        self._stop_reset_generation = 0
         self._reply_token: str | None = None
         self._reply_id: str | None = None
         self._orphan_reply_token: str | None = None
@@ -623,6 +638,9 @@ class VoicePELink:
         self._rearm_ack_key = None
         self._reply_status_key = None
         self.supports_local_stop = False
+        self.supports_stop_context = False
+        self._stop_context_key = None
+        self._reset_stop_context()
         self._wake_word_ack_key = None
         self.confirmed_wake_word = None
         self.supports_direct = False
@@ -679,6 +697,11 @@ class VoicePELink:
                 None,
             )
             self._reply_status_key = getattr(reply_status, "key", None)
+            stop_context = next(
+                (e for e in text_sensors if getattr(e, "object_id", "") == "podvoice_stop_context"),
+                None,
+            )
+            self._stop_context_key = getattr(stop_context, "key", None)
             wake_ack = next(
                 (
                     e
@@ -713,6 +736,7 @@ class VoicePELink:
             )
             self.supports_playback_events = "podvoice_playback_events_v1" in advertised
             self.supports_local_stop = "correlated_local_stop_v1" in advertised
+            self.supports_stop_context = "correlated_stop_context_v2" in advertised
             self.supports_direct = (
                 "direct_speaker_v3" in advertised
                 and "podvoice_direct_prepare" in self._user_services
@@ -743,6 +767,8 @@ class VoicePELink:
             missing_entities.append("rearm_ack")
         if self._reply_status_key is None:
             missing_entities.append("reply_status")
+        if self._stop_context_key is None:
+            missing_entities.append("stop_context")
         missing_capabilities = []
         if not self.supports_podvoice_channel:
             missing_capabilities.append("podvoice_channel_v1")
@@ -766,11 +792,14 @@ class VoicePELink:
             missing_capabilities.append("podvoice_playback_events_v1")
         if not self.supports_local_stop:
             missing_capabilities.append("correlated_local_stop_v1")
+        if not self.supports_stop_context:
+            missing_capabilities.append("correlated_stop_context_v2")
         ok = (
             not missing_required
             and self._media_key is not None
             and self._rearm_ack_key is not None
             and self._reply_status_key is not None
+            and self._stop_context_key is not None
             and not missing_capabilities
         )
         self.contract = {
@@ -938,6 +967,14 @@ class VoicePELink:
             self._rearm_outcome = None
             self._rearm_expected_token = token
             try:
+                previous_context = (
+                    (self._stop_session, self._stop_generation)
+                    if self._stop_session is not None
+                    else self._stop_orphan
+                )
+                self._retired_stop_session = self._stop_session
+                self._reset_stop_context()
+                self._stop_orphan = previous_context  # failed rearm can still disable/retry
                 ok = await self._call_service("podvoice_rearm_wake_word", {"token": token})
                 if not ok:
                     self.wake_readiness = "fault"
@@ -993,6 +1030,7 @@ class VoicePELink:
         self._wake_admitted = False
         self._announcing = False
         self._reply_phase = "disconnected"
+        self._reset_stop_context()
         self._reply_stopped.set()
         self.confirmed_wake_word = None
         self._wake_word_token = None
@@ -1157,6 +1195,9 @@ class VoicePELink:
         key = getattr(state, "key", None)
         tname = type(state).__name__
         event_type = getattr(state, "event_type", None) or getattr(state, "event", None)
+        if key == self._stop_context_key and tname == "TextSensorState":
+            self._on_stop_context(str(getattr(state, "state", "")))
+            return
         if key == self._reply_status_key and tname == "TextSensorState":
             self._on_reply_status(str(getattr(state, "state", "")))
             return
@@ -1222,6 +1263,7 @@ class VoicePELink:
                             outcome = "fault"
                         else:
                             self._last_rearm_token = int(token_text)
+                            self._stop_orphan = None
                             if stale:
                                 log.info(
                                     "voicepe %s: cleared %d queued mic frames at rearm boundary",
@@ -1284,6 +1326,8 @@ class VoicePELink:
 
     async def play_url(self, url: str, *, playback_id: str | None = None) -> None:
         """Submit token and URL atomically; firmware rejects plays after a local stop."""
+        if self.supports_stop_context and (not self._stop_armed or self._stop_cancelled):
+            raise RuntimeError("Voice PE Stop context is not armed")
         if self._reply_phase in ("requested", "started", "stopping", "stop_detected"):
             raise RuntimeError("Voice PE reply is still owned by the previous playback")
         self._reply_token = secrets.token_hex(16)
@@ -1291,11 +1335,206 @@ class VoicePELink:
         self._reply_phase = "requested"
         self._reply_stop_seen = False
         self._reply_stopped.clear()
-        if not await self._call_service(
-            "podvoice_reply_play", {"token": self._reply_token, "url": url}
-        ):
+        args: dict[str, Any] = {"token": self._reply_token, "url": url}
+        if self.supports_stop_context:
+            args.update(session=self._stop_session, generation=self._stop_generation)
+        if not await self._call_service("podvoice_reply_play", args):
             self._reply_phase = "fault"
             raise RuntimeError("Voice PE could not admit reply playback")
+
+    def _reset_stop_context(self) -> None:
+        self._stop_reset_generation += 1
+        self._stop_session = None
+        self._stop_generation = 0
+        self._stop_armed = False
+        self._stop_cancelled = False
+        self._stop_expected = None
+        self._stop_orphan = None
+        self._stop_idle_confirmed = False
+        self._stop_outcome = "disconnected"
+        self._stop_changed.set()
+
+    async def set_stop_context(self, enabled: bool, *, closing: bool = False) -> bool:
+        """Transport an owner-selected state; never inspect the user's words."""
+        if not self.supports_stop_context:
+            return False
+        connection = self._connection_generation
+        reset_generation = self._stop_reset_generation
+        async with self._stop_control_lock:
+            if (
+                connection != self._connection_generation
+                or reset_generation != self._stop_reset_generation
+            ):
+                return False
+
+            async def exchange() -> bool:
+                # Firmware publishes a fresh nonce after physical wake. This wait
+                # never clears the existing same-breath audio queue.
+                while self._stop_session is None:
+                    if closing and self._stop_idle_confirmed:
+                        return True  # firmware worker proved no conversation context
+                    if closing and self._stop_orphan is not None:
+                        self._stop_session, self._stop_generation = self._stop_orphan
+                        self._stop_cancelled = True  # recovery may only disable
+                        break
+                    self._stop_changed.clear()
+                    await self._stop_changed.wait()
+                    if (
+                        connection != self._connection_generation
+                        or self._stop_outcome == "disconnected"
+                    ):
+                        return False
+                token = self._stop_session
+                if (
+                    connection != self._connection_generation
+                    or reset_generation != self._stop_reset_generation
+                ):
+                    return False
+                self._stop_generation += 1
+                generation = self._stop_generation
+                if generation > 0x7FFFFFFF:
+                    return False
+                wanted = "armed" if enabled else "disabled"
+                self._stop_expected = (token, generation, wanted)
+                self._stop_outcome = None
+                self._stop_armed = False
+                self._stop_changed.clear()
+                if not await self._call_service(
+                    "podvoice_stop_context",
+                    {
+                        "session": token,
+                        "generation": generation,
+                        "enabled": enabled,
+                    },
+                ):
+                    return False
+                await self._stop_changed.wait()
+                return (
+                    connection == self._connection_generation
+                    and reset_generation == self._stop_reset_generation
+                    and self._stop_session == token
+                    and self._stop_generation == generation
+                    and (
+                        self._stop_outcome == wanted
+                        or (closing and not enabled and self._stop_outcome == "cancelled")
+                    )
+                    and (closing or not self._stop_cancelled)
+                )
+
+            try:
+                return await asyncio.wait_for(exchange(), timeout=3.0)
+            except TimeoutError:
+                return False
+            finally:
+                self._stop_expected = None
+
+    def accepts_stop_fault(self, event: object) -> bool:
+        """Revalidate at delivery so a queued callback cannot cross rearm/reconnect."""
+        if (
+            getattr(event, "stop_connection", None) != self._connection_generation
+            or getattr(event, "stop_reset", None) != self._stop_reset_generation
+        ):
+            return False
+        if getattr(event, "stop_idle", False):
+            return self._stop_session is None
+        return (
+            self._stop_session is not None
+            and getattr(event, "stop_session", None) == self._stop_session
+            and getattr(event, "stop_generation", None) == self._stop_generation
+        )
+
+    def _on_stop_context(self, value: str) -> None:
+        parts = value.split(":")
+        if len(parts) != 3:
+            return
+        token, raw_generation, outcome = parts
+        if len(token) != 32 or any(c not in "0123456789abcdef" for c in token):
+            return
+        if (
+            len(raw_generation) > 10
+            or not raw_generation.isascii()
+            or not raw_generation.isdecimal()
+        ):
+            return
+        generation = int(raw_generation)
+        if str(generation) != raw_generation or generation > 0x7FFFFFFF:
+            return
+        if token == "0" * 32 and generation == 0 and outcome == "fault":
+            if self._stop_session is not None:
+                return  # an idle sensor event cannot belong to an active conversation
+            self._stop_idle_confirmed = False
+            if self.on_event:
+                self._run_cb(
+                    self.on_event,
+                    self.room,
+                    SimpleNamespace(
+                        event_type="stop_context_fault",
+                        stop_idle=True,
+                        stop_connection=self._connection_generation,
+                        stop_reset=self._stop_reset_generation,
+                    ),
+                )
+            return
+        if token == "0" * 32 and generation == 0 and outcome == "idle":
+            if self._stop_session is None:
+                self._stop_idle_confirmed = True
+                self._stop_outcome = "idle"
+                self._stop_changed.set()
+            return
+        if (
+            generation == 0
+            and outcome == "disabled"
+            and self._stop_session is None
+            and token != self._retired_stop_session
+        ):
+            self._stop_idle_confirmed = False
+            self._stop_session = token
+            self._stop_outcome = "disabled"
+            self._stop_changed.set()
+            return
+        if token != self._stop_session or generation != self._stop_generation:
+            if self._stop_session is None and outcome in (
+                "armed",
+                "disabled",
+                "cancelled",
+                "stopped",
+                "fault",
+            ):
+                self._stop_idle_confirmed = False
+                self._stop_orphan = (token, generation)
+                self._stop_outcome = "orphan"
+                self._stop_changed.set()
+            return
+        if outcome in ("stopped", "fault") and (
+            self._stop_armed or self._stop_expected is not None
+        ):
+            self._stop_armed = False
+            self._stop_cancelled = True
+            self._stop_outcome = outcome
+            self._stop_changed.set()
+            if self.on_event:
+                self._run_cb(
+                    self.on_event,
+                    self.room,
+                    SimpleNamespace(
+                        event_type="stop_context_fault" if outcome == "fault" else "wake_stop",
+                        stop_session=token,
+                        stop_generation=generation,
+                        stop_connection=self._connection_generation,
+                        stop_reset=self._stop_reset_generation,
+                        stop_idle=False,
+                    ),
+                )
+            return
+        expected = self._stop_expected
+        if expected is None or expected[:2] != (token, generation):
+            return
+        if outcome != expected[2] and not (expected[2] == "disabled" and outcome == "cancelled"):
+            return
+        self._stop_armed = outcome == "armed"
+        self._stop_cancelled = self._stop_cancelled or outcome == "cancelled"
+        self._stop_outcome = outcome
+        self._stop_changed.set()
 
     def _on_reply_status(self, value: str) -> None:
         token, separator, outcome = value.partition(":")

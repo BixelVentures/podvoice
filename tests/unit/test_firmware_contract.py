@@ -50,13 +50,15 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "continuous_rearm_v1" in overlay
     assert "physical_rearm_audio_progress_v1" in overlay
     assert "correlated_reset_rearm_v2" in overlay
-    assert "podvoice_build_11363_stop1" in overlay
+    assert "podvoice_build_stop_context_v2" in overlay
     assert "podvoice_playback_events_v1" in overlay
     assert "action: podvoice_reply_play" in overlay
     assert "action: podvoice_reply_cancel" in overlay
     assert "correlated_local_stop_v1" in overlay
+    assert "correlated_stop_context_v2" in overlay
+    assert "action: podvoice_stop_context" in overlay
     assert "id: podvoice_reply_status" in overlay
-    assert "id(pv_reply).play(token, url)" in overlay
+    assert "id(pv_reply).play(token, url, session, generation)" in overlay
     assert "id(pv_reply).cancel(token)" in overlay
     assert "decibel_reduction: 0" in overlay
     stream_stop = overlay.split("action: podvoice_stream_stop", 1)[1].split(
@@ -91,7 +93,7 @@ def test_each_detection_is_single_use_and_rearm_always_resets_detector():
     overlay = OVERLAY.read_text()
     assert "stop_after_detection: false" in base
     assert 'return !id(podvoice_conversation_active) && wake_word != "Stop";' in base
-    assert "id(podvoice_conversation_active) = true;" in base
+    assert "id(podvoice_conversation_active) = id(pv_reply).begin_conversation();" in base
     assert "id: podvoice_conversation_active" in overlay
     assert "action: podvoice_rearm_wake_word" in overlay
     rearm_action = overlay.split("action: podvoice_rearm_wake_word", 1)[1].split(
