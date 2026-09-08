@@ -1,3 +1,9 @@
+## 1.13.68 — Bounded kapacitetsventning i sikker AI-test
+
+- Den isolerede AI-test kan vente på kapacitet før næste værktøjsrunde. Den kontrollerer samme forbindelse, generation og reservation igen før frigivelse.
+- Almindelige samtalers kapacitetskontrol, prislofter og afvisning ved providerfejl er uændrede. Ingen genforsøg eller større forbrugsgrænser.
+- Bevarer Stop fra 1.13.67 og kræver samme firmware `podvoice_build_11367_stop2`. Roborock er fortsat slået fra som standard; live- og fysisk godkendelse mangler.
+
 ## 1.13.66 — Præcist mål for Roborock-indstillinger (default off)
 
 - Præciserer kun handlingsværktøjets målfelt: indstillinger bruger deres select-ID, mens sugning og start bruger robot-ID'et.
