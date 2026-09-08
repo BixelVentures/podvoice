@@ -249,3 +249,17 @@ def test_speaker_path_defaults_to_the_proven_announce_path():
     # A stale/explicit override cannot resurrect the stock-VA-dependent experiment.
     assert from_options({"speaker_path": "auto"}).speaker_path == "announce"
     assert from_options({"speaker_path": "direct"}).speaker_path == "announce"
+
+
+def test_saved_stock_v8_migrates_but_custom_v8_survives(tmp_path):
+    from pathlib import Path
+
+    from gatekeeper.prompt import SYSTEM_PROMPT_DA
+
+    old = (Path(__file__).parents[1] / "fixtures" / "prompt_v8.txt").read_text().strip()
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"settings_version": S.SETTINGS_VERSION, "system_prompt": old}))
+    assert S.load_settings(path)["system_prompt"] == SYSTEM_PROMPT_DA
+    custom = old + "\nMin særlige instruktion."
+    path.write_text(json.dumps({"settings_version": S.SETTINGS_VERSION, "system_prompt": custom}))
+    assert S.load_settings(path)["system_prompt"] == custom

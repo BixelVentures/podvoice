@@ -3,9 +3,9 @@
 from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
-def test_v8_is_prioritized_and_model_owned():
+def test_v9_is_prioritized_and_model_owned():
     prompt = SYSTEM_PROMPT_DA.lower()
-    assert PROMPT_VERSION == 8
+    assert PROMPT_VERSION == 9
     assert "kald approve_action med præcis dette challenge_id" in prompt
     assert "gentag aldrig det oprindelige handlingsværktøj" in prompt
     assert "# prioritet" in prompt
@@ -46,7 +46,7 @@ def test_sensitive_actions_and_semantic_close_are_explicit():
     assert "kald end_conversation præcis én gang" in prompt
     assert "brug ingen fraseliste" in prompt
     assert "kald opgaven før end_conversation" in prompt
-    assert "kræver opgaven bekræftelse, skal samtalen forblive åben" in prompt
+    assert "mens opgaven afventer bekræftelse, skal samtalen forblive åben" in prompt
     assert "højst ét kort dansk farvel, eller afslut uden ord" in prompt
     assert "brug ingen flere værktøjer" in prompt
 

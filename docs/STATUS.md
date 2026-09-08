@@ -2,6 +2,68 @@
 
 Senest opdateret: 2026-09-08.
 
+## Aktiv lead-beslutning — afsluttet handling, 8. september 2026
+
+Lead: Codex; separat kandidat fra main 1707b03. Brugeren bekræfter Texas Sun virker,
+men oplever fortsættelse efter "stop musikken" og ønsker modelsemantik uden fraseregler.
+Direkte kodeevidens: både prompt v8 og end_conversation-beskrivelsen forbyder mediestop
+som afslutning. Hypotese: en afgrænset fælles kontrakt for bekræftet, selvstændig handling
+fjerner denne modstrid. Ingen fysisk trace beviser endnu, at dette er hele feltårsagen.
+Kæde: wake → accepteret input → modelvalgt medieværktøj → korreleret resultat →
+modelvalgt end_conversation → kort kvittering → fysisk finish → én teardown/rearm.
+Invarianter: Realtime ejer betydningen; lifecycle 3–6 og 10–13 bevares. Uklarhed,
+ventende bekræftelse, fejl og ønsket videre dialog må ikke blive vellykket opgave-close;
+ingen ændring i mic, firmware, VAD, timeouts, dispatch eller transportejerskab.
+Planlagte målinger: SafeEval-par for handling/alene, handling+dialog, uklarhed og fejl;
+bekræftet resultat skal ligge i en tidligere tool-batch end opgave-close. Migration
+må kun erstatte byteidentisk gammel standardprompt. Thin/Talk-regressioner, uafhængigt
+review og én frosset releasegate. Rollback: hele prompt/schema/migration-diffet.
+Review fandt modstridende ældre evalkrav efter godkendt handling og manglende
+negativ kontrol af falske succesudsagn ved fejl/uklarhed. Evalkrav og terminalrespons-
+beskrivelsen opdateres samlet; ingen lokal samtalelogik indføres.
+Implementeret: prompt v9 og værktøjsbeskrivelse deler reglen om bekræftet, selvstændig
+handling; standardprompt v8 migreres, brugerændringer bevares. Begge I/O-adaptere har
+regression for handling → resultat → close → kvittering → finish → én teardown.
+Uafhængigt adversarial review: P0=0/P1=0, godkendt til én lokal releasegate efter
+grønne målrettede regressioner. Ruff/format og målrettede regressioner er grønne.
+Releasegate forsøgt én gang: Ruff/format og mypy grønne, men scopekontrollen stoppede
+på en nedarvet stop-coupling-post. Posten er arkiveret uændret nedenfor; genkontrol
+viser ha_tools + realtime_semantics fra evalfixtures og semantikkontrakten. Ingen
+produktionsdispatch er ændret. Scopegaten er fortsat rød; den omgås eller svækkes ikke.
+De resterende unit- og integrationstests er efterfølgende kørt samlet og bestået;
+diff-whitespacekontrollen er grøn. Dette ophæver ikke den røde scopegate.
+Status: ikke releasegodkendt. Live SafeEval på kandidatens installerede schema/prompt
+samt fysisk golden chain/10 af 10 afventer. Kandidaten er ikke fysisk
+testklar eller installeret. Eksisterende fysisk baseline ændres ikke.
+
+Brugeren autoriserer nu merge og udgivelse. Scopefejlen løses i toolingens eksisterende
+fingerprint-bundne reviewkontrakt: det præcise par ha_tools/realtime_semantics kan
+godkendes uafhængigt, uden at fjerne registrerede risikodomæner. Hele det effektive
+produktionstræ og base bindes stadig til reviewet; ændrede bytes ugyldiggør det.
+Regressioner skal bevise afvisning uden review samt ved stale bytes/base/domæner/tests.
+Ingen yderligere runtimeændring. Ny tooling-kandidat kræver review og frosset gate.
+
+Toolingreview godkendt af /root/scope_review: P0=0/P1=0, 16/16 scopetests grønne.
+Revieweren har uafhængigt beregnet nedenstående fingerprint. Den nye frosne releasegate
+er grøn (28,8 s): scope, Ruff/format, mypy, unit og integration. Tidligere rød gate er
+afløst af dette resultat; kun dokumenteret resultattekst ændres efter gaten.
+Kandidaten er klar til autoriseret publicering, ikke fysisk featuregodkendt.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "1707b03ef94d5346a09d9fc4266a02d92aaddd2b",
+  "merge_base": "1707b03ef94d5346a09d9fc4266a02d92aaddd2b",
+  "domains": [
+    "ha_tools",
+    "realtime_semantics"
+  ],
+  "fingerprint": "e8ad1b66c5b1fc7a97e98ddd7499b275e86d85388270e32b5b98475d4262039c",
+  "reviewer": "/root/scope_review",
+  "rationale": "Confirmed-action semantics require matching prompt, tool description and SafeEval fixtures. Production dispatch and lifecycle owners are unchanged; full effective production tree independently verified."
+}
+-->
+
 ## Stop efter Hey Chat — 8. september 2026
 
 Brugeren har betinget stop-merge af, at Hey Chat først er merged. GitHub bekræfter
@@ -56,7 +118,7 @@ vejledning siger stadig Okay Nabu; dette er en observeret UI-rest, ikke modelrea
 Ingen akustisk wake/stop-gate,
 stoplatency, golden chain eller 10/10 er endnu bevist på dette artifactpar.
 
-<!-- candidate-scope-coupling
+<!-- archived-stop-coupling
 {
   "version": 1,
   "base_tip": "fe6c471e9bfaf4031bbeb8709fc6f23a3299286f",

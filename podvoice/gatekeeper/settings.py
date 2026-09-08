@@ -61,6 +61,8 @@ SETTINGS_VERSION = 11
 # never matches and is always kept.
 LEGACY_PROMPT_HASHES = frozenset(
     {
+        # v8: saved stock prompt must receive semantic task completion.
+        "10fd196068e204abcef635aca12bf34c7d74a3a0df79109328536e439f960cd0",
         # 1.13.59 default: direct connected Spotify music access.
         "5320c5569570b35ad41570d0ffc1038830b418dde384ed815c3cd0ff752a4d5b",
         # pre-MCP default (referenced list_home/list_services/home_call) — retired 0.91
