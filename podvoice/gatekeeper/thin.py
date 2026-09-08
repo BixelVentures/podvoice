@@ -279,9 +279,8 @@ DIRECT_LEAD_S = 0.15
 #          path (its STREAMING_RESPONSE branch is entirely #ifdef USE_MEDIA_PLAYER and
 #          media_player_ is nullptr here), so "stop" means "stop sending" and whatever
 #          is already buffered still plays. 0.15 s is the worst-case overhang — still
-#          ~15x faster than Gemini's ~2.2 s, and the puck's own wake-word hush (armed
-#          automatically by upstream's activate_stop_word_once on our TTS_START) keeps
-#          cutting "stop" locally at ~51 ms, unchanged.
+#          a legacy estimate, not a physical stop-word result. The production FLAC
+#          stop-word candidate uses a correlated local firmware drain contract.
 DIRECT_PLAYED_GRACE_S = 2.0  # wait this long past the expected end for reply_played
 
 
@@ -367,6 +366,8 @@ class ThinSession:
         self.sm = _Mini(self)
         self.playout = PlayoutClock()
         self._active = False  # one conversation open?
+        self._transport_closing = False
+        self._stop_error_speech = asyncio.Event()
         self._transcription_audio_seconds = 0.0
         self._speaking = False  # assistant audio currently announced/playing
         self._device_playing = False  # media_player ANNOUNCING — playback ground truth
@@ -620,6 +621,8 @@ class ThinSession:
         )
         self._trace_reason = "teardown"
         self._active = True
+        self._stop_error_speech.clear()
+        self._transport_closing = False
         self._transcription_audio_seconds = 0.0
         self._ending_conversation = False
         self._close_task = None
@@ -955,9 +958,28 @@ class ThinSession:
     def _request_close(self, reason: str, *, error_kind: str | None = None) -> asyncio.Task | None:
         """Compare-and-set the sole close transaction for this conversation epoch."""
         if self._close_task is not None and not self._close_task.done():
+            if reason in ("stop-word", "stop"):
+                self._stop_error_speech.set()
             return self._close_task
         if not self._active:
             return None
+        # Synchronous barrier: an ACK wait must not leave reader/tool publication
+        # alive for another event-loop turn after the user pressed/spoke stop.
+        self._transport_closing = True
+        self._ending_conversation = True
+        current = asyncio.current_task()
+        for task in (
+            self._reader,
+            self._pump,
+            self._beat,
+            self._keepalive,
+            self._barge_task,
+            self._followup_task,
+            self._goodbye,
+            *self._tool_tasks.values(),
+        ):
+            if task is not None and task is not current and not task.done():
+                task.cancel()
         epoch = self._epoch
         self._close_id = secrets.token_hex(8)
         self._close_task = self._spawn(
@@ -987,7 +1009,7 @@ class ThinSession:
             deadline=close_deadline,
             reserve_s=rearm_reserve,
         )
-        if error_kind is not None:
+        if error_kind is not None and not self._stop_error_speech.is_set():
             self._invalidate_playback_lease("error-speech")
             self._device_playing = False
             self._trace_event("failure", kind=error_kind)
@@ -1002,6 +1024,15 @@ class ThinSession:
                 self._speak_error(error_kind),
                 deadline=close_deadline,
                 timeout_s=TEARDOWN_ERROR_SPEECH_TIMEOUT_S,
+                reserve_s=rearm_reserve,
+            )
+        if error_kind is not None:
+            # Error speech created a NEW physical playback after the first stop.
+            # It needs its own ACK, including spoken stop during the error clip.
+            silence_complete, _ = await self._teardown_step(
+                "silence-after-error",
+                self._silence_device(),
+                deadline=close_deadline,
                 reserve_s=rearm_reserve,
             )
         await self._teardown(
@@ -1576,6 +1607,8 @@ class ThinSession:
         return turn
 
     async def _on_event(self, ev) -> None:
+        if self._transport_closing:
+            return
         self._last_activity = time.monotonic()
         if isinstance(
             ev,
@@ -2691,10 +2724,20 @@ class ThinSession:
         self._gate_until = max(self._gate_until, time.monotonic() + ANNOUNCE_PREARM_S)
         can_track = hasattr(self.reply_bus, "fetch_count")
         before = self.reply_bus.fetch_count(self.room) if can_track else 0
-        for attempt in range(2):
+        attempts = 1 if getattr(self.voicepe, "supports_local_stop", False) else 2
+        for attempt in range(attempts):
             if not self._lease_is_current(lease) or lease.phase != "requested":
                 return
-            await self._play_reply_url(lease)
+            try:
+                await self._play_reply_url(lease)
+            except Exception:
+                if self._lease_is_current(lease) and lease.phase == "requested":
+                    lease.phase = "fault"
+                    self._trace_event(
+                        "playback_fault", playback_id=lease.playback_id, reason="admission-failed"
+                    )
+                    self._request_close("playback-fault", error_kind="device")
+                return
             try:
                 await asyncio.wait_for(self._playback_started.wait(), timeout=retry_after_s)
                 return
@@ -2708,7 +2751,7 @@ class ThinSession:
                     fetched,
                     lease.playback_id,
                 )
-                if attempt == 0:
+                if attempt + 1 < attempts:
                     if self.hub is not None:
                         self.hub.activity(self.room, "🔇 Svaret startede ikke — prøver igen")
                     continue
@@ -2720,6 +2763,12 @@ class ThinSession:
             self._request_close("playback-fault", error_kind="device")
 
     async def _play_reply_url(self, lease: _PlaybackLease) -> None:
+        if self._transport_closing and not (
+            lease.kind == "oneshot"
+            and self._trace_reason.startswith("error:")
+            and not self._stop_error_speech.is_set()
+        ):
+            return
         if getattr(self.voicepe, "supports_playback_ids", False):
             await self.voicepe.play_url(self.reply_url, playback_id=lease.playback_id)
         else:
@@ -2965,6 +3014,8 @@ class ThinSession:
         *,
         approval_completed_gated: bool = False,
     ) -> dict:
+        if self._transport_closing:
+            raise asyncio.CancelledError
         tool_started = time.monotonic()
         result: dict
         if tc.name == END_CONVERSATION_TOOL:
@@ -3311,7 +3362,13 @@ class ThinSession:
         if etype in ("wake_okay_nabu", "wake"):
             self._on_wake_cb()
         elif etype in ("wake_stop", "single_press") and self._active:
-            self._spawn(self.stop(reason="stop"), "thin-stop")
+            playback_id = getattr(state, "playback_id", None)
+            if etype == "wake_stop":
+                lease = self._playback_lease
+                if playback_id is None or lease is None or playback_id != lease.playback_id:
+                    return
+                self._trace_event("stop_word_detected", playback_id=playback_id)
+            self._request_close("stop-word" if etype == "wake_stop" else "stop")
         elif etype == "reply_played":
             # GROUND TRUTH from the firmware: VA reached RESPONSE_FINISHED, which it only
             # does once speaker_buffer_size_ == 0 AND !has_buffered_data() AND
@@ -3321,11 +3378,15 @@ class ThinSession:
             if self._device_playing:
                 self._on_media_state(False)
         elif etype == "podvoice_playback_fault":
-            self._on_playback_fault(reason="announcement-drain-timeout")
+            self._on_playback_fault(
+                getattr(state, "playback_id", None), reason="announcement-drain-timeout"
+            )
 
     def _on_playback_fault(
         self, playback_id: str | None = None, *, reason: str = "adapter-fault"
     ) -> None:
+        if self._transport_closing:
+            return
         lease = self._playback_lease
         if lease is None:
             self._trace_event("playback_fault", playback_id=playback_id, reason=reason)
@@ -3354,7 +3415,8 @@ class ThinSession:
         (simultaneous with actual sound), and the real speech-stop->audible metric."""
         lease = self._playback_lease
         if (
-            lease is None
+            (self._transport_closing and (lease is None or lease.kind != "oneshot"))
+            or lease is None
             or lease.epoch != self._epoch
             or (playback_id is not None and playback_id != lease.playback_id)
         ):
@@ -3793,6 +3855,23 @@ class ThinSession:
                     raise RuntimeError("Voice PE kunne ikke åbne mic-forward")
                 self._device_stream_fault = False
         else:
+            # An orphan reply after add-on restart must earn a new correlated
+            # silence ACK before the ordinary detector reset can release its latch.
+            if getattr(self.voicepe, "supports_local_stop", False):
+                self._teardown_incomplete = True  # seal wake before the first await
+                deadline = time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S
+                silence_ok, _ = await self._teardown_step(
+                    "orphan-silence",
+                    self._silence_device(),
+                    deadline=deadline,
+                    reserve_s=TEARDOWN_REARM_TIMEOUT_S,
+                )
+                await self._teardown(
+                    release_music=True,
+                    deadline=deadline,
+                    silence_complete=silence_ok,
+                )
+                return  # full cleanup owns its bounded retry and eventual rearm
             if hasattr(self.voicepe, "stop_streaming"):
                 try:
                     stream_stopped = await self.voicepe.stop_streaming()
@@ -4019,11 +4098,21 @@ class ThinSession:
             return False
         duration_s = len(pcm) / float(C.OUTPUT_RATE * C.SAMPLE_WIDTH)
         try:
-            await asyncio.wait_for(
-                self._playback_finished.wait(),
-                timeout=max(FIXED_PLAYBACK_FINISH_GRACE_S, duration_s + 1.0),
-            )
-            return True
+            finished = asyncio.create_task(self._playback_finished.wait())
+            interrupted = asyncio.create_task(self._stop_error_speech.wait())
+            try:
+                done, _ = await asyncio.wait(
+                    (finished, interrupted),
+                    timeout=max(FIXED_PLAYBACK_FINISH_GRACE_S, duration_s + 1.0),
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if not done:
+                    raise TimeoutError
+                return finished in done and not self._stop_error_speech.is_set()
+            finally:
+                for waiter in (finished, interrupted):
+                    waiter.cancel()
+                await asyncio.gather(finished, interrupted, return_exceptions=True)
         except TimeoutError:
             _LOG.error("thin: fixed speech never reported physical playback finish")
             self._trace_event("fixed_playback_finish_missing", playback_id=lease.playback_id)

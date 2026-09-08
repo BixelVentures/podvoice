@@ -151,8 +151,7 @@ audio_generation → response/tool → playback_id → close_id → rearm_token`
 tilfældigt korrekt svar aldrig kan skjule forkert input eller forkert ejer.
 
 Half-duplex betyder ikke én kommando pr. wake: Realtime-socketten holdes åben og
-konteksten bevares gennem opfølgninger. Fuld duplex og tale-stop midt i svar er en
-separat senere gate.
+konteksten bevares gennem opfølgninger. Fuld duplex er en separat senere gate; lokalt stop har sin egen gate.
 
 Dette er den bindende målkontrakt; `docs/STATUS.md` afgør, om de installerede bits har
 bevist den. Voice PE beholder providerens VAD, men ikke providerens automatiske
@@ -174,6 +173,13 @@ commit, item-added og eksakt delete-ACK udgør hele cleanup-beviset og må åbne
 `LOUNGE_WINDOW`. Manuel commit og `input_audio_buffer.clear` er aldrig VAD-terminaler.
 Hvis stop-/commit-/delete-kontrakten ikke afsluttes bounded og eksakt, lukkes sessionen
 fail-closed og Voice PE rearmes; ingen gammel VAD-spændvidde genbruges.
+
+Den lokale stop-kandidat bruger microWakeWord-modellen `Stop` under eget playback.
+Token+URL optages atomisk; detektion stopper announcement og sender et korreleret event.
+ThinSession lukker stille via samme close-owner. Firmware kræver producer-quiescence,
+stoppet resampler, frigivet mixer-reference og output-consumed-frame fence før ACK.
+`stopped_word` åbner aldrig opfølgning; næste wake kræver fuld teardown og rearm.
+Den særskilte stop-gate i produktmål er endnu ikke fysisk bestået.
 
 ## Firmwarekontrakten
 

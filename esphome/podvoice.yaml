@@ -45,8 +45,6 @@ api:
         - lambda: "id(pv_audio).start_streaming();"
     - action: podvoice_stream_stop
       then:
-        - script.stop: podvoice_finish_reply
-        - lambda: "id(podvoice_reply_phase) = 0;"
         - lambda: "id(pv_audio).stop_streaming();"
     # One wake opens one conversation. A teardown always performs one bounded detector
     # reset before reopening the single-use latch. The previous continuity shortcut
@@ -59,21 +57,31 @@ api:
       variables:
         token: int
       then:
-        - script.stop: podvoice_finish_reply
-        - lambda: "id(podvoice_reply_phase) = 0;"
-        - script.execute:
-            id: podvoice_recover_wake_word
-            token: !lambda "return token;"
+        - if:
+            condition:
+              lambda: "return id(pv_reply).ready_to_rearm();"
+            then:
+              - script.execute:
+                  id: podvoice_recover_wake_word
+                  token: !lambda "return token;"
+            else:
+              - text_sensor.template.publish:
+                  id: podvoice_rearm_ack
+                  state: !lambda 'return std::to_string(token) + ":fault";'
     # Arm playback telemetry for exactly the next PodVoice reply. Other announcements
     # (timer, HA, test tone) use the same media player and must never close a Realtime
     # conversation or move its LED/echo gate.
-    - action: podvoice_reply_expect
+    - action: podvoice_reply_play
+      variables:
+        token: string
+        url: string
       then:
-        - lambda: "id(podvoice_reply_phase) = 1;"
+        - lambda: "id(pv_reply).play(token, url);"
     - action: podvoice_reply_cancel
+      variables:
+        token: string
       then:
-        - script.stop: podvoice_finish_reply
-        - lambda: "id(podvoice_reply_phase) = 0;"
+        - lambda: "id(pv_reply).cancel(token);"
     # RUNTIME audio tuning — no reflash. PodVoice's panel calls these.
     - action: podvoice_set_mic_channel
       variables:
@@ -93,9 +101,8 @@ api:
     # COMPILE time (EnableModelAction holds a WakeWordModel*), so it cannot take a name
     # chosen at runtime. `id(x)` expands to (*x) in ESPHome lambdas, hence the dot.
     #
-    # The "stop" model is deliberately NOT touched here: upstream's activate_stop_word_once
-    # arms and disarms it around each reply, and stomping on it would break stop-while-
-    # talking (measured at ~51 ms — the fastest thing this device does).
+    # The stop model has one firmware owner: pv_reply combines reply/timer demand.
+    # No physical stop latency has been established for this candidate.
     - action: podvoice_set_wake_word
       variables:
         name: string
@@ -164,10 +171,6 @@ globals:
   # 0=none, 1=PodVoice reply armed, 2=ANNOUNCING observed, 3=draining the dedicated
   # announcement resampler. Requiring phase 2 prevents an early state callback from
   # fabricating a finish before playback actually began.
-  - id: podvoice_reply_phase
-    type: uint8_t
-    restore_value: false
-    initial_value: "0"
   - id: podvoice_rearm_frame_marker
     type: uint32_t
     restore_value: false
@@ -180,25 +183,6 @@ globals:
 media_player:
   - id: !extend external_media_player
     on_state:
-      - if:
-          condition:
-            and:
-              - lambda: "return id(podvoice_reply_phase) == 1;"
-              - media_player.is_announcing: external_media_player
-          then:
-            - lambda: "id(podvoice_reply_phase) = 2;"
-            - event.trigger:
-                id: podvoice_event
-                event_type: podvoice_playback_started
-      - if:
-          condition:
-            and:
-              - lambda: "return id(podvoice_reply_phase) == 2;"
-              - not:
-                  media_player.is_announcing: external_media_player
-          then:
-            - lambda: "id(podvoice_reply_phase) = 3;"
-            - script.execute: podvoice_finish_reply
       # !extend replaces the base trigger list on this ESPHome version. Preserve the
       # upstream music-unduck callback explicitly; rendered-config validation locks
       # this beside both PodVoice telemetry callbacks.
@@ -255,7 +239,7 @@ script:
                         return static_cast<uint32_t>(id(pv_audio).frames_written()
                                  - id(podvoice_rearm_frame_marker)) >= 4;
                 then:
-                  - lambda: "id(podvoice_conversation_active) = false;"
+                  - lambda: "id(pv_reply).rearmed(); id(podvoice_conversation_active) = false;"
                   - text_sensor.template.publish:
                       id: podvoice_rearm_ack
                       state: !lambda |-
@@ -270,33 +254,6 @@ script:
                 id: podvoice_rearm_ack
                 state: !lambda |-
                   return std::to_string(token) + ":fault";
-  - id: podvoice_finish_reply
-    mode: restart
-    then:
-      # Media-player IDLE means the source is done; the dedicated announcement
-      # resampler may still hold the final samples.  Do not call it physically
-      # finished until that private speaker is drained and stopped.
-      - wait_until:
-          condition:
-            lambda: |-
-              return !id(announcement_resampling_speaker).has_buffered_data()
-                     && !id(announcement_resampling_speaker).is_running();
-          timeout: 3s
-      - if:
-          condition:
-            lambda: |-
-              return !id(announcement_resampling_speaker).has_buffered_data()
-                     && !id(announcement_resampling_speaker).is_running();
-          then:
-            - event.trigger:
-                id: podvoice_event
-                event_type: podvoice_playback_finished
-          else:
-            - event.trigger:
-                id: podvoice_event
-                event_type: podvoice_playback_fault
-      - lambda: "id(podvoice_reply_phase) = 0;"
-
 # Wake models are owned by the vendored base, not an appended overlay list.
 # See docs/wake-word.md and hey-chat-model.json for the pinned Hey Chat model.
 
@@ -325,8 +282,9 @@ event:
         continuous_rearm_v1,
         physical_rearm_audio_progress_v1,
         correlated_reset_rearm_v2,
-        podvoice_build_11362_heychat1,
+        podvoice_build_11363_stop1,
         podvoice_playback_events_v1,
+        correlated_local_stop_v1,
         podvoice_playback_started,
         podvoice_playback_finished,
         podvoice_playback_fault,
@@ -336,6 +294,10 @@ event:
 # can carry the full monotonic service token, so delayed/replayed ACK N cannot settle
 # waiter N+1. It is diagnostic transport state, never user-facing readiness truth.
 text_sensor:
+  - platform: template
+    name: "PodVoice Reply Status"
+    id: podvoice_reply_status
+    entity_category: diagnostic
   - platform: template
     id: podvoice_wake_word_ack
     name: "PodVoice wake word ACK"
@@ -364,6 +326,13 @@ text_sensor:
 #   package refs (the update ritual).
 #
 external_components:
+  - source:
+      type: git
+      url: https://github.com/BixelVentures/podvoice
+      ref: 305b51059dc0c7391b95896f359a6c7f64548f16
+      path: esphome/components
+    components: [podvoice_reply, mixer, resampler, speaker_source]
+    refresh: 0s
   # GIT (default — so you only need THIS one file in ESPHome; the component is fetched
   # automatically from the PodVoice repo under esphome/components/podvoice_audio/).
   # During the S1 hardware-iteration loop we point at `main` with refresh:0s so a
@@ -408,3 +377,15 @@ podvoice_audio:
   # room sound never reach Realtime. Audio produced after that edge is retained by
   # the add-on's separate preconnect buffer while the provider socket opens.
   ring_ms: 1500
+
+# Candidate-local observer components. The final reviewed source commit is pinned
+# before distribution; no add-on or firmware installation is authorized here.
+podvoice_reply:
+  id: pv_reply
+  player: external_media_player
+  resampler: announcement_resampling_speaker
+  source: announcement_mixing_input
+  mixer: mixing_speaker
+  output: i2s_audio_speaker
+  status: podvoice_reply_status
+  stop_model: stop

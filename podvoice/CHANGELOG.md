@@ -1,3 +1,10 @@
+## 1.13.63
+
+- Tilføjer firmwarelokalt “stop” under svar: afbryd lyd og luk samtalen stille.
+- Kræver den tilhørende stop-firmware; gamle firmwarebits afvises af kontrakten.
+- Korrelér playback/cancel/drain og blokér sen lyd samt wake under reconnect-cleanup.
+- Fysisk dansk stopgenkendelse, stoplatency og lifecycle afventer afprøvning.
+
 # Changelog
 
 ## 1.13.62 — Hey Chat-kandidat

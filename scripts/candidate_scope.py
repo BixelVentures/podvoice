@@ -5,12 +5,14 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 
@@ -135,18 +137,99 @@ def _git(root: Path, *args: str) -> str:
     return result.stdout
 
 
+def production_fingerprint(root: Path, base_tip: str, merge_base: str, paths: Sequence[str]) -> str:
+    """Bind review to effective files, including unstaged bytes and untracked additions."""
+    # Git diff can hide assume-unchanged/skip-worktree files. Bind the entire
+    # effective production tree, not merely paths reported as changed.
+    tracked = _git(root, "ls-files", "-z").split("\0")
+    inventory = {
+        name
+        for name in (*tracked, *paths)
+        if name not in _IGNORED_PRODUCTION_FILES and name.startswith(_PRODUCTION_PREFIXES)
+    }
+    manifest = []
+    for name in sorted(inventory):
+        path = root / name
+        if path.is_symlink():
+            mode, data = "120000", os.readlink(path).encode()
+        elif path.is_file():
+            mode = "100755" if path.stat().st_mode & 0o111 else "100644"
+            data = path.read_bytes()
+        elif not path.exists():
+            mode, data = "deleted", b""
+        else:
+            raise RuntimeError(f"unsupported production file type: {name}")
+        manifest.append((name, mode, hashlib.sha256(data).hexdigest()))
+    payload = {"base_tip": base_tip, "merge_base": merge_base, "files": manifest}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+
+
+def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> CandidateScope:
+    status = root / "docs/STATUS.md"
+    text = status.read_text() if status.exists() else ""
+    marker = "<!-- candidate-scope-coupling"
+    if marker not in text:
+        return report
+    records = re.findall(r"<!-- candidate-scope-coupling\n(.*?)\n-->", text, re.DOTALL)
+    failed = replace(report, passed=False, reason="invalid or stale reviewed coupling record")
+    if text.count(marker) != 1 or len(records) != 1:
+        return failed
+    try:
+        record = json.loads(records[0], object_pairs_hook=_unique_record)
+    except (ValueError, TypeError):
+        return failed
+    fields = {
+        "version",
+        "base_tip",
+        "merge_base",
+        "domains",
+        "fingerprint",
+        "reviewer",
+        "rationale",
+    }
+    if not isinstance(record, dict) or set(record) != fields:
+        return failed
+    if (
+        type(record["version"]) is not int
+        or record["version"] != 1
+        or record["base_tip"] != base_tip
+        or record["merge_base"] != report.base
+        or record["domains"] != ["physical_output", "rearm"]
+        or report.domains != ("physical_output", "rearm")
+        or not any((root / path).is_file() for path in report.test_files)
+        or not isinstance(record["reviewer"], str)
+        or not record["reviewer"].strip()
+        or not isinstance(record["rationale"], str)
+        or not record["rationale"].strip()
+        or record["fingerprint"]
+        != production_fingerprint(root, base_tip, report.base, report.production_files)
+    ):
+        return failed
+    return replace(report, passed=True, reason="exact reviewed stop/drain/rearm coupling")
+
+
+def _unique_record(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate coupling field")
+        result[key] = value
+    return result
+
+
 def inspect_repository(root: Path, base: str) -> CandidateScope:
     head = _git(root, "rev-parse", "HEAD").strip()
+    base_tip = _git(root, "rev-parse", f"{base}^{{commit}}").strip()
     merge_base = _git(root, "merge-base", "HEAD", base).strip()
     changes: set[str] = set()
     diffs: list[str] = []
     for args in (
-        ("diff", "--name-only", f"{merge_base}...HEAD"),
-        ("diff", "--name-only"),
-        ("diff", "--name-only", "--cached"),
-        ("ls-files", "--others", "--exclude-standard"),
+        ("diff", "--name-only", "-z", f"{merge_base}...HEAD"),
+        ("diff", "--name-only", "-z"),
+        ("diff", "--name-only", "-z", "--cached"),
+        ("ls-files", "-z", "--others", "--exclude-standard"),
     ):
-        changes.update(line for line in _git(root, *args).splitlines() if line)
+        changes.update(name for name in _git(root, *args).split("\0") if name)
     for args in (
         ("diff", "--unified=0", f"{merge_base}...HEAD", "--", "podvoice/gatekeeper", "esphome"),
         ("diff", "--unified=0", "--", "podvoice/gatekeeper", "esphome"),
@@ -154,7 +237,7 @@ def inspect_repository(root: Path, base: str) -> CandidateScope:
     ):
         diffs.append(_git(root, *args))
     result = classify_candidate(sorted(changes), "\n".join(diffs))
-    return CandidateScope(
+    report = CandidateScope(
         head=head,
         base=merge_base,
         production_files=result.production_files,
@@ -163,6 +246,7 @@ def inspect_repository(root: Path, base: str) -> CandidateScope:
         passed=result.passed,
         reason=result.reason,
     )
+    return reviewed_coupling(root, report, base_tip)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

@@ -50,20 +50,20 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "continuous_rearm_v1" in overlay
     assert "physical_rearm_audio_progress_v1" in overlay
     assert "correlated_reset_rearm_v2" in overlay
-    assert "podvoice_build_11362_heychat1" in overlay
+    assert "podvoice_build_11363_stop1" in overlay
     assert "podvoice_playback_events_v1" in overlay
-    assert "action: podvoice_reply_expect" in overlay
+    assert "action: podvoice_reply_play" in overlay
     assert "action: podvoice_reply_cancel" in overlay
-    assert "event_type: podvoice_playback_started" in overlay
-    assert "event_type: podvoice_playback_finished" in overlay
-    assert "event_type: podvoice_playback_fault" in overlay
-    assert "announcement_resampling_speaker).has_buffered_data()" in overlay
-    assert "decibel_reduction: 0" in overlay  # !extend must preserve upstream music restore
+    assert "correlated_local_stop_v1" in overlay
+    assert "id: podvoice_reply_status" in overlay
+    assert "id(pv_reply).play(token, url)" in overlay
+    assert "id(pv_reply).cancel(token)" in overlay
+    assert "decibel_reduction: 0" in overlay
     stream_stop = overlay.split("action: podvoice_stream_stop", 1)[1].split(
         "action: podvoice_rearm_wake_word", 1
     )[0]
-    assert "script.stop: podvoice_finish_reply" in stream_stop
-    assert "id(podvoice_reply_phase) = 0" in stream_stop
+    assert "pv_audio).stop_streaming()" in stream_stop
+    assert "pv_reply).rearmed()" not in stream_stop
     assert "podvoice_direct_prepare" not in overlay
     assert "direct_speaker_v3" not in overlay
 
@@ -90,7 +90,7 @@ def test_each_detection_is_single_use_and_rearm_always_resets_detector():
     base = BASE.read_text()
     overlay = OVERLAY.read_text()
     assert "stop_after_detection: false" in base
-    assert "return !id(podvoice_conversation_active);" in base
+    assert 'return !id(podvoice_conversation_active) && wake_word != "Stop";' in base
     assert "id(podvoice_conversation_active) = true;" in base
     assert "id: podvoice_conversation_active" in overlay
     assert "action: podvoice_rearm_wake_word" in overlay
@@ -100,11 +100,12 @@ def test_each_detection_is_single_use_and_rearm_always_resets_detector():
     recovery = (
         overlay.split("script:\n", 1)[1]
         .split("- id: podvoice_recover_wake_word", 1)[1]
-        .split("id: podvoice_finish_reply", 1)[0]
+        .split("# --- Phase 2:", 1)[0]
     )
     assert "podvoice_detector_continuity_proven" not in rearm_action
     assert "frames_written()" not in rearm_action
-    assert "script.execute:\n            id: podvoice_recover_wake_word" in rearm_action
+    assert "id: podvoice_recover_wake_word" in rearm_action
+    assert "pv_reply).ready_to_rearm()" in rearm_action
     assert "token: int" in rearm_action
     assert "micro_wake_word.stop:" in recovery
     assert "micro_wake_word.start:" in recovery
@@ -161,3 +162,30 @@ def test_center_button_never_starts_stock_assist():
     click = base.split("on_multi_click:", 1)[1].split("\n    - timing:", 1)[0]
     assert "- voice_assistant.start:" not in click
     assert "event_type: single_press" in click
+
+
+def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
+    import re
+
+    external = OVERLAY.read_text().split("external_components:", 1)[1]
+    source = external.split("components: [podvoice_reply, mixer, resampler, speaker_source]", 1)[0]
+    assert "type: local" not in source
+    assert "type: git" in source
+    assert "url: https://github.com/BixelVentures/podvoice" in source
+    assert "path: esphome/components" in source
+    assert re.search(r"ref: [0-9a-f]{40}\n", source)
+    assert "ref: 305b51059dc0c7391b95896f359a6c7f64548f16" in source
+
+
+def test_output_fence_uses_one_ordered_mixer_callback():
+    source = (ROOT / "esphome/components/mixer/speaker/mixer_speaker.cpp").read_text()
+    callback = source.split("void MixerSpeaker::setup()", 1)[1].split(
+        "void MixerSpeaker::loop()", 1
+    )[0]
+    assert callback.index("podvoice_consumed_frames_.fetch_add") < callback.index(
+        "atomic_subtract_clamped(this->frames_in_pipeline_"
+    )
+    owner = (ROOT / "esphome/components/podvoice_reply/podvoice_reply.h").read_text()
+    assert "add_audio_output_callback" not in owner
+    assert "output_frames_" not in owner
+    assert "fence_anchor_ = mixer_->podvoice_consumed_frames()" in owner

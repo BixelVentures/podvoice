@@ -84,6 +84,13 @@ response-interrupt** og **lokalt kasseret tur + server-side automatisk response*
 første gav feltfejlen 2026-08-18; den anden gav trace `20260901T101334-410`, hvor en
 kasseret start overlevede playback og opslugte den næste opfølgning.
 
+Den isolerede `correlated_local_stop_v1`-kandidat tilføjer en lokal stemmestyret
+transport-stopknap under eget svar. Kun microWakeWord-modellen `Stop` må udløse den;
+ikke ASR-tekst, VAD eller providerfraser. Stop låser playback før lokal afbrydelse,
+lukker stille gennem samme close-owner og kræver korreleret pipeline-drain før rearm.
+Stopaktivering er playback-/timer-ejet; mikrofonlyd til OpenAI forbliver gated.
+Kandidaten er ikke fysisk godkendt, før den særskilte stop-gate er bestået.
+
 ## Livscyklus
 
 1. Ét fysisk “Okay Nabu” giver én wake-event, åbner privacy-gated mic og præcis én

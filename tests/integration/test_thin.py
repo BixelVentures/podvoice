@@ -841,9 +841,10 @@ def _build(
     speech=None,
     usage=None,
     audio_trace=None,
+    device=None,
 ):
     attention = FakeAttention()
-    voicepe = FakeVoicePELink(room=ROOM)
+    voicepe = device if device is not None else FakeVoicePELink(room=ROOM)
     voicepe.supports_direct = supports_direct
     session = ThinSession(
         room=ROOM,
@@ -5382,4 +5383,275 @@ async def test_completed_batch_side_effects_execute_in_provider_index_order():
         ]
         assert [item["id"] for item in brain.sent_tool_results[0]] == ["first", "second"]
     finally:
+        await session.aclose()
+
+
+async def test_word_stop_seals_publication_before_firmware_ack_and_next_wake():
+    brain = LiveFake()
+    session, attention, device = _build(brain)
+    ack = asyncio.Event()
+    entered = asyncio.Event()
+
+    async def wait_stop():
+        entered.set()
+        await ack.wait()
+        return True
+
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(AudioChunk(_frame(), item_id="reply"), TurnComplete())
+        await _wait_until(lambda: bool(device.announced_urls))
+        lease = session._playback_lease
+        session._on_media_state(True, lease.playback_id)
+        device.stop_playback = wait_stop
+        session._on_device_event(
+            ROOM, SimpleNamespace(event_type="wake_stop", playback_id=lease.playback_id)
+        )
+        assert session._transport_closing  # before the close task gets a turn
+        await entered.wait()
+        count = len(device.announced_urls)
+        await session._on_event(AudioChunk(_frame(), item_id="late"))
+        await session._on_event(TurnComplete())
+        session._on_media_state(False, lease.playback_id)
+        assert len(device.announced_urls) == count
+        assert device.rearm_calls == 0
+        ack.set()
+        await session._close_task
+        assert device.rearm_calls == 1
+        assert len(attention.release_calls) == 1
+        await session.wake()
+        session._on_device_event(
+            ROOM, SimpleNamespace(event_type="wake_stop", playback_id=lease.playback_id)
+        )
+        assert session._active and not session._transport_closing
+    finally:
+        ack.set()
+        await session.aclose()
+
+
+async def test_orphan_stop_without_ack_is_bounded_and_retries_without_rearm(monkeypatch):
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.02)
+    session, _attention, device = _build(LiveFake())
+    device.supports_local_stop = True
+    ack = asyncio.Event()
+
+    async def wait_for_ack():
+        await ack.wait()
+        return True
+
+    device.stop_playback = wait_for_ack
+    try:
+        await asyncio.wait_for(session._reassert_device(), timeout=0.5)
+        assert session._teardown_incomplete
+        assert device.rearm_calls == 0
+        assert session._teardown_retry_task is not None
+        ack.set()
+        await _wait_until(lambda: device.rearm_calls == 1, max_wait=2.0)
+        assert not session._teardown_incomplete
+    finally:
+        ack.set()
+        await session.aclose()
+
+
+async def test_word_stop_during_error_speech_joins_close_and_rechecks_silence():
+    session, attention, device = _build(LiveFake())
+    device.supports_playback_events = True
+    await session.start()
+    try:
+        await session.wake()
+        closing = asyncio.create_task(session._fail("connection"))
+        await _wait_until(lambda: bool(device.announced_urls))
+        playback_id = session._playback_lease.playback_id
+        session._on_media_state(True, playback_id)
+        session._on_device_event(
+            ROOM, SimpleNamespace(event_type="wake_stop", playback_id=playback_id)
+        )
+        await asyncio.wait_for(closing, 1.0)
+        assert len(device.announced_urls) == 1
+        assert device.stop_playback_calls == 2  # before error and after interrupted error
+        assert device.rearm_calls == 1
+        assert len(attention.release_calls) == 1
+    finally:
+        await session.aclose()
+
+
+async def test_orphan_cleanup_seals_wake_until_ack_and_rearm():
+    brain = LiveFake()
+    hub = StatusHub()
+    session, _attention, device = _build(brain, hub=hub)
+    device.supports_local_stop = True
+    ack = asyncio.Event()
+    entered = asyncio.Event()
+
+    async def wait_for_ack():
+        entered.set()
+        await ack.wait()
+        return True
+
+    device.stop_playback = wait_for_ack
+    await session.start()
+    device.wake_readiness = "fault"
+    hub.set_service("voicepe", "down", reason="orphan", source="test")
+    cleanup = asyncio.create_task(session._reassert_device())
+    try:
+        await entered.wait()
+        session._on_wake_cb()
+        await asyncio.sleep(0)
+        assert brain.connect_count == 0
+        assert not session._active
+        assert device.wake_readiness == "fault"
+        assert hub.snapshot()["services"]["voicepe"] == "down"
+        ack.set()
+        await cleanup
+        assert device.rearm_calls == 1
+        assert not session._teardown_incomplete
+        session._on_wake_cb()
+        await _wait_until(lambda: brain.connect_count == 1)
+        assert session._active
+    finally:
+        ack.set()
+        await cleanup
+        await session.aclose()
+
+
+@pytest.mark.parametrize("admit", [True, False])
+async def test_real_reply_adapter_admission_fault_closes_without_overlapping_retry(admit):
+    from gatekeeper.voicepe import VoicePELink
+
+    session, attention, device = _build(LiveFake())
+    link = VoicePELink("test.local", "key", room=ROOM)
+    link._client = SimpleNamespace()
+    link._reply_status_key = 42
+    plays = []
+
+    async def service(name, args=None):
+        if name == "podvoice_reply_play":
+            plays.append(args["token"])
+            return admit
+        if name == "podvoice_reply_cancel":
+            link._on_reply_status(args["token"] + ":stopped")
+        return True
+
+    link._call_service = service
+    await session.start()
+    device.supports_local_stop = True
+    device.supports_playback_ids = True
+    device.play_url = link.play_url
+    device.stop_playback = link.stop_playback
+    link.on_media_state = session._on_media_state
+    try:
+        await session.wake()
+        lease = session._arm_playback_lease(item_id="reply", kind="reply")
+        await session._announce_with_retry(lease, retry_after_s=0.01)
+        assert session._close_task is not None
+        await session._close_task
+        assert len(plays) == 1
+        assert not session._active
+        assert device.rearm_calls == 1
+        assert len(attention.release_calls) == 1
+        link._on_reply_status(plays[0] + ":started")
+        assert not session._device_playing
+        await session.wake()
+        link._on_reply_status(plays[0] + ":started")
+        assert session._active and not session._device_playing
+    finally:
+        await session.aclose()
+
+
+async def test_hey_chat_admission_drains_orphan_then_preserves_wake_and_rejects_old_stop():
+    from unit.test_voicepe_contract import (
+        FULL_CAPABILITIES,
+        FULL_SERVICES,
+        EventInfo,
+        MediaPlayerInfo,
+        TextSensorInfo,
+        TextSensorState,
+        _ConnectableClient,
+        _link,
+        _StubClient,
+    )
+
+    client = _ConnectableClient(
+        [*FULL_SERVICES, "podvoice_set_wake_word"],
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+        ],
+    )
+    link = _link(client)
+    link.room = ROOM
+    link.wake_word = "hey_chat"
+    automatic = False
+    calls = {}
+
+    async def execute(svc, args):
+        await _StubClient.execute_service(client, svc, args)
+        calls[svc.name] = args
+        if automatic:
+            outcome = {
+                "podvoice_set_wake_word": (42, "hey_chat"),
+                "podvoice_reply_cancel": (5, "stopped"),
+                "podvoice_rearm_wake_word": (4, "recovered"),
+            }.get(svc.name)
+            if outcome:
+                client.state_callback(
+                    TextSensorState(str(args["token"]) + ":" + outcome[1], key=outcome[0])
+                )
+
+    client.execute_service = execute
+    brain = LiveFake()
+    session, _attention, _device = _build(brain, device=link)
+    session.playback.start()
+    admission = asyncio.create_task(link._on_connect())
+    wake = SimpleNamespace(key=3, event_type="wake_okay_nabu")
+    orphan = "a" * 32
+    try:
+        await _wait_until(lambda: "podvoice_set_wake_word" in calls)
+        old_callback = client.state_callback
+        old_callback(TextSensorState(orphan + ":started", key=5))
+        old_callback(wake)
+        assert brain.connect_count == 0
+        assert "podvoice_reply_cancel" not in calls
+        token = calls["podvoice_set_wake_word"]["token"]
+        old_callback(TextSensorState(token + ":hey_chat", key=42))
+        await _wait_until(lambda: "podvoice_reply_cancel" in calls)
+        assert calls["podvoice_reply_cancel"]["token"] == orphan
+        old_callback(wake)
+        old_callback(TextSensorState("b" * 32 + ":stopped", key=5))
+        await asyncio.sleep(0)
+        assert "podvoice_rearm_wake_word" not in calls
+        assert brain.connect_count == 0
+        old_callback(TextSensorState(orphan + ":stopped", key=5))
+        await _wait_until(lambda: "podvoice_rearm_wake_word" in calls)
+        token = calls["podvoice_rearm_wake_word"]["token"]
+        old_callback(TextSensorState(str(token) + ":recovered", key=4))
+        old_callback(wake)
+        old_callback(wake)
+        frame = _frame()
+        await client.va_handlers["handle_audio"](frame)
+        await asyncio.wait_for(admission, 1.0)
+        await _wait_until(lambda: brain.connect_count == 1 and bool(brain.sent_audio))
+        assert brain.sent_audio[0] == frame
+        automatic = True
+        await session.stop()
+        await link._on_connect()  # fresh native subscription, real orphan cleanup again
+        client.state_callback(wake)
+        await _wait_until(lambda: brain.connect_count == 2)
+        lease = session._arm_playback_lease(item_id="next", kind="reply")
+        await session._play_reply_url(lease)
+        client.state_callback(TextSensorState(link._reply_token + ":started", key=5))
+        old_callback(TextSensorState(link._reply_token + ":stopped_word", key=5))
+        assert session._active and not session._transport_closing
+        client.state_callback(TextSensorState(link._reply_token + ":stopped_word", key=5))
+        await session._close_task
+        assert not session._active
+    finally:
+        automatic = True
+        if not admission.done():
+            admission.cancel()
+        await asyncio.gather(admission, return_exceptions=True)
         await session.aclose()

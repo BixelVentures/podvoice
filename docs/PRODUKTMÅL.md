@@ -316,8 +316,27 @@ Kør syv døgn uden manuel genstart, fastlåst session eller tabt musiktilstand.
 derefter samme danske manuskript, rum og handlinger med Gemini for Home og Alexa+.
 PodVoice må kun kaldes bedre på de målepunkter, hvor de fysiske tal faktisk er bedre.
 
+## Særskilt gate — lokalt stop under svar
+
+Bruger har valgt: “stop” afbryder svaret, lukker stille og kræver nyt wake word.
+Kandidaten må udvikles isoleret; installation og merge afventer brugerens besked.
+Den må ikke sammenblandes med latency, feedbacksignal, VAD, gain eller full-duplex.
+Før fysisk featuregodkendelse kræves maskinel gate og fysisk godkendt grundkæde.
+
+- 40 forsøg med brugerens naturlige danske “stop”: 1/3 meter × 50/80 % volumen,
+  10 per kombination. Mindst 39/40 detektioner og mindst 9/10 i hver kombination.
+- p95 fra slutningen af brugerens ord til sidste hørbare assistant-lyd ≤ 500 ms.
+  Misses opgøres separat; firmware-STOP eller source IDLE må ikke erstatte lydmålingen.
+- 50 svar uden bruger-stop, heraf 10 med ordet “stop” i svaret: 0 selvafbrydelser.
+- 0 gammel lyd efter stop eller ny wake. 10/10 ubrudte stop → teardown → ny wake → svar.
+- Ny almindelig golden chain og 10/10 fysisk lifecycle på samme add-on/firmware-par.
+- Fysisk rotary, musik restore, timer-stop, disconnect under svar og efterfølgende
+  recovery bevares. Under stop må der ikke startes nye hjemmehandlinger; allerede
+  udførte handlinger kan ikke fortrydes af transport-stoppet.
+- Audio fra rum/device/provider samt tidslinje gemmes med token/playback/session-id.
+  Ukendt lyd, selvafbrydelse, delt-output-fejl eller død wake giver NO-GO.
+
 ## Parkeret
 
-Taleafbrydelse midt i assistentens svar er ikke en del af den første half-duplex-release.
-Den kræver en separat fysisk gate for wake/stop-model eller dokumenteret full-duplex;
-den må ikke genindføres ved at åbne mikrofonen ukontrolleret under højttalerafspilning.
+Vilkårlig taleafbrydelse og fortsættelse i samme samtale kræver en separat featuregate.
+De må ikke indføres ved at sende mikrofonframes til OpenAI under Voice PE-afspilning.
