@@ -82,6 +82,24 @@ Den eksisterende canonical `esphome/secrets.yaml` er siden fundet lokalt og brug
 nu uden nøgleoutput til et separat firmwarebuild; den første testnøgle-binær
 erstattes og leveres ikke. Eksakt CI/ARM64-image og fysisk verification mangler.
 
+**Lokalt handoff:** Implementationscommit `4ef2dec` på `codex/hey-chat` i
+`/private/tmp/podvoice-hey-chat`; addon-version 1.13.62, firmwaremarkør
+`podvoice_build_11362_heychat1`. Firmwarebuild med den eksisterende canonical
+Noise-konfiguration bestod på 16,43 s (statisk RAM 76.312 bytes, flash 3.046.547).
+Det er endnu ikke live-verificeret, at den lokale nøgle/navnekonfiguration matcher
+den aktuelt startede enhed. Secrets og binærer er ignorerede og må ikke pushes.
+
+- OTA SHA-256: `bfdda9c7dd248ec8bf5a8a17cdcbf07ef67cb5a7deee9e9979dd6ca6dfe265a3`.
+- Factory SHA-256: `4bbaa82362fa3b599fa6329190b9ec4e0c9ad8958ec8739baac4ce1654849ff1`.
+- Add-on source-context SHA-256: `26ddbe312516c9ec7b23001900db506fb652ef3bf5d2d58066944c55c145e52b`.
+
+Push til `https://github.com/BixelVentures/podvoice.git` blev afvist af automatisk
+sikkerhedsreview, fordi eksportdestinationens autorisation ikke var tilstrækkeligt
+etableret. Ingen push, PR, merge eller installation fandt sted. Næste handling kræver
+godkendelse af denne konkrete GitHub-destination til branch/PR/ARM64-CI. Derefter
+skal imageidentitet og live enhedsmatch verificeres før installation/fysisk test.
+Der er ingen installation at rulle tilbage fra denne opgave; det tidligere par er urørt.
+
 
 ### Aktiv beslutning 5. september — Grundtestens skjulte knapper
 
