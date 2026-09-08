@@ -1845,6 +1845,52 @@ class OpenAIRealtimeSession:
             }
         return json.dumps(bounded, ensure_ascii=False, separators=(",", ":"))
 
+    async def _reserve_tool_response_capacity(
+        self,
+        lease: BudgetLease,
+        tokens: int,
+        ws: aiohttp.ClientWebSocketResponse,
+    ) -> bool:
+        """Keep production fail-closed; maintenance eval may await bounded refill.
+
+        This is still BEFORE the completed batch escapes to its executor. The
+        final pre-wire reservation and price check remain independent requirements.
+        """
+        if self.provider_budget.ensure_response_capacity(lease, tokens):
+            return True
+        callback = self.before_response_create
+        if self.budget_role != "eval" or self.budget_lease != lease or callback is None:
+            return False
+        generation = self._connection_generation
+        input_turn = self._manual_turn_lease
+        if self._ws is not ws or bool(getattr(ws, "closed", False)):
+            raise ConnectionError("eval tool capacity owner is closed")
+        # The reader can be suspended here before a queued late rate snapshot is
+        # consumed. Do not infer that it was observed: conservatively refill from
+        # zero, leaving the existing late-anchor and final pre-wire checks intact.
+        if (
+            self._late_rate_anchor_generation == generation
+            and self._late_rate_anchor_response_id is not None
+        ):
+            clamp = self.provider_budget.clamp_unobserved_eval_completion(lease)
+            self._observe_provider(
+                "pre_commit_unobserved_capacity_clamp",
+                response_id=self._late_rate_anchor_response_id,
+                atomic=clamp,
+            )
+        await callback(tokens)
+        if (
+            self._ws is not ws
+            or bool(getattr(ws, "closed", False))
+            or self._connection_generation != generation
+            or self._manual_turn_lease != input_turn
+            or self.budget_role != "eval"
+            or self.budget_lease != lease
+            or self.before_response_create is not callback
+        ):
+            raise ConnectionError("eval tool capacity owner changed while waiting")
+        return self.provider_budget.ensure_response_capacity(lease, tokens)
+
     async def _iter_events(
         self,
         ws: aiohttp.ClientWebSocketResponse | None = None,
@@ -2557,8 +2603,8 @@ class OpenAIRealtimeSession:
                     if (
                         correction_eligible
                         and tool_budget_lease is not None
-                        and not self.provider_budget.ensure_response_capacity(
-                            tool_budget_lease, followup_tokens
+                        and not await self._reserve_tool_response_capacity(
+                            tool_budget_lease, followup_tokens, ws
                         )
                     ):
                         error = (
@@ -2634,8 +2680,8 @@ class OpenAIRealtimeSession:
                 if (
                     staged_calls
                     and tool_budget_lease is not None
-                    and not self.provider_budget.ensure_response_capacity(
-                        tool_budget_lease, followup_tokens
+                    and not await self._reserve_tool_response_capacity(
+                        tool_budget_lease, followup_tokens, ws
                     )
                 ):
                     # Never perform a home/lifecycle action unless its exact generation

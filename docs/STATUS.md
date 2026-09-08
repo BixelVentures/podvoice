@@ -2,6 +2,71 @@
 
 Senest opdateret: 2026-09-08.
 
+## Aktiv lead-beslutning — bounded diagnostisk kapacitetsventning, 8. september 2026
+
+Lead: Codex. Brugeren har godkendt færdiggørelse af Stop .67 samt kapacitetsrettelsen
+oven på publiceret main e067cf9; eksisterende Roborock-adgang forbliver off.
+Observeret i installeret .66 live-fixture: discovery og korrekt cleaning-mode lykkes,
+men efter fem completed responses afviser pre-dispatch-kapacitetsgaten næste batch,
+før den eksisterende diagnostiske pre-wire-refill-ventning nås. Usage er fuldt afstemt;
+ca. 6.427 tokens resterer mod et større konservativt followup-reservekrav. Det er
+en lokal diagnostisk kapacitetsafvisning, ikke provider-429 eller forkert målvalg.
+Kæde: eksklusiv eval-lease → modelresponse → autoritativ usage → staged batch →
+pre-effect reservation → fixture → tool-output ACK → pre-wire reservation → næste
+response → terminal cleanup/lease-release → ny fysisk wake. Produktion følger samme
+sikkerhedsgate, men må ikke få diagnostikkens lange ventning. Nærliggende fejlveje:
+cancel/reconnect under wait, gammel socket/generation/lease, late rate-snapshot,
+missing usage, provider-429, hard deadline/prisloft, schema-correction og silent close.
+Invarianter: lifecycle 10–15, completed-batch-atomik og nul effekt uden kapacitet;
+Thin/VoicePE/Talk-ejerskab, half-duplex og eksisterende Stop/Assist/musik bevares.
+Hypotese: bounded ventning på den eksisterende eval-lease før batchens sikkerhedsgate,
+efterfulgt af eksakt generations-/lease-revalidering og samme atomiske reservation,
+fjerner dette diagnostic-only stop uden at svække produktionens fail-closed-adfærd.
+Ikke-mål: større provider-/prisloft, ny model/prompt/schema, færre værktøjer, retries af
+providerfejl, Roborock-parser/scripts, lyd-/firmware-/lifecycle-tuning.
+Plan: reproducer observeret usage/eventrækkefølge med rigtig provideradapter og
+budgetbog; bevis ventning før effekt, cancel/release/stale-generation og providerfejl,
+uændret produktionsafvisning og begge I/O-adaptere. Uafhængigt adversarial review,
+én frosset releasegate, ny version og exact-head CI; sikker Roborock- og Stop-semantik
+på shippede bits før koordineret korrekt firmwarepar og fysisk gate. Rollback er
+hele kapacitetsdiffet; off/tom allowlist bevares. Kandidaten er endnu IKKE testklar.
+
+Implementeret diagnostic-only kandidat 1.13.68: eksisterende refill-callback før
+pre-commit-kapacitetsafvisning, kun ved utilstrækkelig eval-reservation; ukendt sent
+rate-snapshot clamps konservativt, samme socket/generation/input/lease/hook revalideres
+efter await og samme atomiske gate afgør frigivelse. Eligible schema correction følger
+samme grænse. Pre-wire-clamp/pacing, collectorens pricecheck og Usage-regnskab bevares.
+En ny regression er rød mod .67 og grøn mod rettelsen med typed authoritative usage.
+Cases dækker cancel, deadline, release/replaced lease, socket/close/generation/input,
+duplicate done og ingen wait ved ikke-completed/missing usage; en sammensat case
+fortsætter gennem ægte tool-output item-ACK til præcis én matching næste response.
+Første fast-gate ramte lokale portrettigheder; dette er testmiljø, ikke runtimefejl.
+Genkørsel med testportadgang bestod 1.524 cases; én versionsidentitetstest ramte
+versionsskiftet efter import under denne ikke-frosne fast-kørsel. Frisk kontrol af
+versionskontrakt og alle 18 nye kapacitetscases er 24/24 grøn. Ingen runtimeændring
+på grund af miljø-/metadatafejl. Ruff/format og mypy44 er grønne.
+Uafhængigt årsagsreview godkendte det afgrænsede eksperiment og krævede, at fuld
+produktionsevne IKKE udledes af eval. Den eksisterende produktionsgate kan stadig
+afvise lange kæder ved lav kapacitet. Fysisk aktivering kræver måling på det faktiske
+kommando-/værktøjssnapshot; hvis den reproducerer kapacitetsfejl, kræver produktionens
+ejergrænse en separat begrundet rettelse. Ingen ændring af firmware, prompt, værktøjer,
+Thin eller VoicePE/Talk i dette diff. .67 Stop-gates er stadig pending på samme par.
+
+Uafhængigt Ultra diff-freeze-review `/root/capacity_freeze_review`: P0=0/P1=0,
+GO til frosset releasegate, exact-head grøn CI og default-off diagnostisk installation.
+Revieweren bestod 599 eksisterende tests samt sammensatte adversarial probes for sent
+rate-snapshot, terminal 429 uden retry og prisloft under pre-commit-ventning uden effekt.
+Tre ekstra probes som permanente tests er en ikke-blokerende P2-opfølgning.
+Review er ikke godkendelse af fysisk Stop eller produktions-Roborock.
+Den eksisterende fulde sikre preflight indeholder Stop-kandidatens 30 nye scenarier;
+den køres under uændrede hårde budgetter uden ny UI/testvej eller automatisk genforsøg.
+Runtime/version/tests fryses nu til én samlet releasegate.
+
+Frosset releasegate bestået én gang: 1.193 unit + 332 integration = 1.525 tests,
+ruff/format, mypy44 og single-domain scope grøn; samlet 42,7 s. Ingen ændring i
+runtime/version/tests under eller efter gaten. Exact-head CI, publiceret image,
+installation, live preflight og fysisk gate er endnu ikke resultater.
+
 ## Aktiv lead-beslutning — Stop-kontekst v2, 8. september 2026
 
 Lead: Codex. Bruger har godkendt hele planen: modelsemantik under lytning uden
@@ -107,7 +172,7 @@ build2026-09-08 15:57:07+0200. Alle 10 genererede komponent-C++/headerfiler matc
 Compile-only OTA SHA256 823f0f394ece0b50f829fcb41c80b278cf22889d3fe73df19bca5f3a53664672;
 dummy-testcredentials, ingen installation. Produktionsdiff fryses nu til releasegate.
 
-<!-- candidate-scope-coupling
+<!-- historical-stop-coupling (merged as e067cf9; not this candidate's scope approval)
 {
   "version": 1,
   "base_tip": "6360104ce22a5d96a8ec562764e4b4e9fd5ce6bf",
