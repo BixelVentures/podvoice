@@ -194,8 +194,12 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         or record["version"] != 1
         or record["base_tip"] != base_tip
         or record["merge_base"] != report.base
-        or record["domains"] != ["physical_output", "rearm"]
-        or report.domains != ("physical_output", "rearm")
+        or record["domains"] != list(report.domains)
+        or report.domains
+        not in {
+            ("physical_output", "rearm"),
+            ("ha_tools", "realtime_semantics"),
+        }
         or not any((root / path).is_file() for path in report.test_files)
         or not isinstance(record["reviewer"], str)
         or not record["reviewer"].strip()
@@ -205,7 +209,9 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         != production_fingerprint(root, base_tip, report.base, report.production_files)
     ):
         return failed
-    return replace(report, passed=True, reason="exact reviewed stop/drain/rearm coupling")
+    return replace(
+        report, passed=True, reason="exact reviewed coupling: " + ", ".join(report.domains)
+    )
 
 
 def _unique_record(pairs):

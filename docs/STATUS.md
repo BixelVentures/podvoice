@@ -36,6 +36,34 @@ Status: ikke releasegodkendt. Live SafeEval på kandidatens installerede schema/
 samt fysisk golden chain/10 af 10 afventer. Kandidaten er ikke fysisk
 testklar eller installeret. Eksisterende fysisk baseline ændres ikke.
 
+Brugeren autoriserer nu merge og udgivelse. Scopefejlen løses i toolingens eksisterende
+fingerprint-bundne reviewkontrakt: det præcise par ha_tools/realtime_semantics kan
+godkendes uafhængigt, uden at fjerne registrerede risikodomæner. Hele det effektive
+produktionstræ og base bindes stadig til reviewet; ændrede bytes ugyldiggør det.
+Regressioner skal bevise afvisning uden review samt ved stale bytes/base/domæner/tests.
+Ingen yderligere runtimeændring. Ny tooling-kandidat kræver review og frosset gate.
+
+Toolingreview godkendt af /root/scope_review: P0=0/P1=0, 16/16 scopetests grønne.
+Revieweren har uafhængigt beregnet nedenstående fingerprint. Den nye frosne releasegate
+er grøn (28,8 s): scope, Ruff/format, mypy, unit og integration. Tidligere rød gate er
+afløst af dette resultat; kun dokumenteret resultattekst ændres efter gaten.
+Kandidaten er klar til autoriseret publicering, ikke fysisk featuregodkendt.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "1707b03ef94d5346a09d9fc4266a02d92aaddd2b",
+  "merge_base": "1707b03ef94d5346a09d9fc4266a02d92aaddd2b",
+  "domains": [
+    "ha_tools",
+    "realtime_semantics"
+  ],
+  "fingerprint": "e8ad1b66c5b1fc7a97e98ddd7499b275e86d85388270e32b5b98475d4262039c",
+  "reviewer": "/root/scope_review",
+  "rationale": "Confirmed-action semantics require matching prompt, tool description and SafeEval fixtures. Production dispatch and lifecycle owners are unchanged; full effective production tree independently verified."
+}
+-->
+
 ## Stop efter Hey Chat — 8. september 2026
 
 Brugeren har betinget stop-merge af, at Hey Chat først er merged. GitHub bekræfter

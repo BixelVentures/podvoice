@@ -21,7 +21,7 @@ LOUNGE_WINDOW
   → opfølgning fortsætter i samme session → THINKING → AI_SPEAKING → LOUNGE_WINDOW
   → Realtime signalerer end_conversation, eller fire sekunders stilhed udløber
 CLOSING
-  → højst ét kort farvel eller stille lukning
+  → højst én kort sand kvittering, ét kort farvel eller stille lukning
   → præcis én teardown → exact korreleret firmware-rearm
 IDLE
 ```

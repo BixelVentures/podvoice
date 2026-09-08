@@ -110,7 +110,7 @@ def test_candidate_scope_allows_process_only_change():
     assert report.domains == ()
 
 
-def _coupled_repo(tmp_path):
+def _coupled_repo(tmp_path, domains=("physical_output", "rearm")):
     import json
     import subprocess
 
@@ -130,7 +130,11 @@ def _coupled_repo(tmp_path):
     git("add", ".")
     git("commit", "-qm", "base")
     base = git("rev-parse", "HEAD")
-    source.write_text("playback = 1\nrearm = 1\n")
+    source.write_text(
+        "MCP end_conversation\n"
+        if domains == ("ha_tools", "realtime_semantics")
+        else "playback = 1\nrearm = 1\n"
+    )
     git("add", ".")
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests/test_device.py").write_text("def test_device(): pass\n")
@@ -140,7 +144,7 @@ def _coupled_repo(tmp_path):
         "version": 1,
         "base_tip": base,
         "merge_base": base,
-        "domains": ["physical_output", "rearm"],
+        "domains": list(domains),
         "fingerprint": production_fingerprint(tmp_path, base, base, report.production_files),
         "reviewer": "independent-reviewer",
         "rationale": "Stop must drain playback before the same teardown rearms.",
@@ -238,3 +242,22 @@ def test_reviewed_coupling_hashes_unchanged_baseline_even_with_hidden_index_flag
         hidden.write_text("baseline\n")
         git("update-index", "--no-" + flag, "esphome/other.h")
         assert inspect_repository(tmp_path, base).passed
+
+
+def test_semantic_tool_coupling_requires_exact_review(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    source, base, git, record, write = _coupled_repo(tmp_path, ("ha_tools", "realtime_semantics"))
+    assert inspect_repository(tmp_path, base).passed
+    write({**record, "domains": ["physical_output", "rearm"]})
+    assert not inspect_repository(tmp_path, base).passed
+    write(record)
+    original = source.read_text()
+    source.write_text(original + "changed = True\n")
+    assert not inspect_repository(tmp_path, base).passed
+    source.write_text(original)
+    assert inspect_repository(tmp_path, base).passed
+    git("commit", "--allow-empty", "-qm", "new base")
+    assert not inspect_repository(tmp_path, "HEAD").passed
+    (tmp_path / "tests/test_device.py").unlink()
+    assert not inspect_repository(tmp_path, base).passed
