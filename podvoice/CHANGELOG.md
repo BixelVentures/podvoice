@@ -4,6 +4,18 @@
 - Forkert mål afvises fortsat uden automatisk rettelse eller genbrug af engangstoken.
 - Samme sikre live-test; ingen ændring af Assist, Spotify, prompt, firmware eller samtalemotor. Roborock er fortsat slået fra som standard og ikke fysisk godkendt.
 
+## 1.13.67
+
+- Voice PE Stop remains warm and is eligible only during assistant thinking, tool
+  waits, speech and audio tail; listening stays under Realtime semantic control.
+- Model-selected silent conversation close discards pending reply audio after the
+  exact tool-output acknowledgement. No local phrase matching for media commands.
+- Stop context is bound to a firmware conversation nonce, generation and worker
+  acknowledgement, with stale-event and cleanup protection across the next wake.
+- Requires the paired Voice PE firmware `podvoice_build_11367_stop2`; an older
+  firmware/add-on pair is rejected. Live semantic and physical acceptance remain
+  pending; the compiled test binary with dummy credentials is not installable.
+
 ## 1.13.65 — Eksperimentel Roborock-enhedsstyring (default off)
 
 - Tilføjer to afgrænsede værktøjer til opslag og præcise rengøringshandlinger via HA.

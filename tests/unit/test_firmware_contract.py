@@ -50,7 +50,7 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "continuous_rearm_v1" in overlay
     assert "physical_rearm_audio_progress_v1" in overlay
     assert "correlated_reset_rearm_v2" in overlay
-    assert "podvoice_build_stop_context_v2" in overlay
+    assert "podvoice_build_11367_stop2" in overlay
     assert "podvoice_playback_events_v1" in overlay
     assert "action: podvoice_reply_play" in overlay
     assert "action: podvoice_reply_cancel" in overlay
@@ -167,16 +167,34 @@ def test_center_button_never_starts_stock_assist():
 
 
 def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
-    import re
+    import hashlib
 
-    external = OVERLAY.read_text().split("external_components:", 1)[1]
-    source = external.split("components: [podvoice_reply, mixer, resampler, speaker_source]", 1)[0]
-    assert "type: local" not in source
-    assert "type: git" in source
-    assert "url: https://github.com/BixelVentures/podvoice" in source
-    assert "path: esphome/components" in source
-    assert re.search(r"ref: [0-9a-f]{40}\n", source)
-    assert "ref: 305b51059dc0c7391b95896f359a6c7f64548f16" in source
+    external = (
+        OVERLAY.read_text().split("external_components:", 1)[1].split("\npodvoice_audio:", 1)[0]
+    )
+    active = "\n".join(line for line in external.splitlines() if not line.lstrip().startswith("#"))
+    assert "type: local" not in active
+    stop_source = active.split("components: [podvoice_reply, micro_wake_word]", 1)[0]
+    assert "type: git" in stop_source
+    assert "url: https://github.com/BixelVentures/podvoice" in stop_source
+    assert "path: esphome/components" in stop_source
+    assert "ref: baf41b9522cc65f3dcbd315ea237f318a6869ed1" in stop_source
+    observers = active.split("components: [mixer, resampler, speaker_source]", 1)[0]
+    assert "ref: 305b51059dc0c7391b95896f359a6c7f64548f16" in observers
+    files = sorted(
+        p
+        for name in ("micro_wake_word", "podvoice_reply")
+        for p in (ROOT / "esphome/components" / name).rglob("*")
+        if p.is_file() and "__pycache__" not in p.parts
+    )
+    assert len(files) == 14
+    manifest = "".join(
+        str(p.relative_to(ROOT)) + "\0" + hashlib.sha256(p.read_bytes()).hexdigest() + "\n"
+        for p in files
+    )
+    assert hashlib.sha256(manifest.encode()).hexdigest() == (
+        "8409fc77758a899ed5086510db85683f7f16bb7e5e5605a76ccedf3a99d8eec4"
+    )
 
 
 def test_output_fence_uses_one_ordered_mixer_callback():

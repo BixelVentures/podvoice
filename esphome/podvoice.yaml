@@ -291,7 +291,7 @@ event:
         continuous_rearm_v1,
         physical_rearm_audio_progress_v1,
         correlated_reset_rearm_v2,
-        podvoice_build_stop_context_v2,
+        podvoice_build_11367_stop2,
         podvoice_playback_events_v1,
         correlated_local_stop_v1,
         correlated_stop_context_v2,
@@ -340,10 +340,14 @@ text_sensor:
 #   package refs (the update ritual).
 #
 external_components:
-  # Development candidate only. Replace with the reviewed immutable source
-  # commit before distribution; no release/installation from this local path.
-  - source: { type: local, path: components }
+  # Reviewed Stop inference and reply owner; immutable source-only revision.
+  - source:
+      type: git
+      url: https://github.com/BixelVentures/podvoice
+      ref: baf41b9522cc65f3dcbd315ea237f318a6869ed1
+      path: esphome/components
     components: [podvoice_reply, micro_wake_word]
+    refresh: 0s
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
@@ -396,8 +400,7 @@ podvoice_audio:
   # the add-on's separate preconnect buffer while the provider socket opens.
   ring_ms: 1500
 
-# Candidate-local observer components. The final reviewed source commit is pinned
-# before distribution; no add-on or firmware installation is authorized here.
+# Correlated Stop and physical announcement owner from the reviewed source pin.
 podvoice_reply:
   id: pv_reply
   player: external_media_player

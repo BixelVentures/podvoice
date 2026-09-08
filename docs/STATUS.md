@@ -90,6 +90,35 @@ Main er integreret med bevaret Roborock-kode og begge beslutningshistorikker.
 Mergeforberedelsen kræver nyt review af det effektive diff og frosset releasegate.
 Dette ændrer ikke fysisk gate-status; Stop-v2 er endnu ikke installeret eller bevist.
 
+Scope-precheck klassificerer Stop-kæden som audio_input, ha_tools, physical_output,
+realtime_semantics og rearm. Den eksisterende reviewkontrakt accepterer kun to
+historiske par og afviser derfor den eksplicit bestilte fuldkæde. Tooling udvides med
+præcis denne femtuple under uændrede krav om uafhængigt review og fingerprint af hele
+det effektive produktionstræ/base. Regressioner skal fortsat afvise intet review,
+ændret kilde/base/domæne og manglende test. Ingen domæne eller invariant fjernes.
+Denne toolingændring indgår i det uafhængige slutreview før frysning/releasegate.
+
+Slutreview mod main6360104: /root/stop_field_review giver GO til frosset releasegate,
+P0/P1=0. Reviewer har selv verificeret 86 effektive produktionsfiler og nedenstående
+fingerprint. Alle 16 eksisterende semantiske scenarier samt Roborock-kontrakten er
+bevaret. Scope-regressioner (17) og Roborock-integration (10) består. Firmware bygger
+nu fra den publicerede pinbaf41b9: ESPHome2026.6.2, 16,04 s, config0xeb4c6bdb,
+build2026-09-08 15:57:07+0200. Alle 10 genererede komponent-C++/headerfiler matcher.
+Compile-only OTA SHA256 823f0f394ece0b50f829fcb41c80b278cf22889d3fe73df19bca5f3a53664672;
+dummy-testcredentials, ingen installation. Produktionsdiff fryses nu til releasegate.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "6360104ce22a5d96a8ec562764e4b4e9fd5ce6bf",
+  "merge_base": "6360104ce22a5d96a8ec562764e4b4e9fd5ce6bf",
+  "domains": ["audio_input", "ha_tools", "physical_output", "realtime_semantics", "rearm"],
+  "fingerprint": "7d2bd66ef187021ea650bf7425535bd4a3208d0c8ee992c416a2bf4b1385f987",
+  "reviewer": "/root/stop_field_review",
+  "rationale": "The requested Stop contract couples warm firmware detection, assistant-turn admission, physical cancellation and rearm with model-owned silent closure during listening; current Roborock behavior is preserved."
+}
+-->
+
 ## Aktiv lead-beslutning — præcist handlingsmål, 8. september 2026
 
 Lead: Codex. 1.13.65 er merget, publiceret og installeret som godkendt diagnostik,
