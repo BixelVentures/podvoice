@@ -6,7 +6,8 @@ import json
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
-from esphome.components import micro_wake_word, speaker, text_sensor
+from esphome import automation
+from esphome.components import micro_wake_word, speaker, switch, text_sensor
 from esphome.components.mixer.speaker import MixerSpeaker, SourceSpeaker
 from esphome.components.resampler.speaker import ResamplerSpeaker
 from esphome.components.speaker_source.media_player import SpeakerSourceMediaPlayer
@@ -24,11 +25,15 @@ _FIELDS = {
     "output": speaker.Speaker,
     "status": text_sensor.TextSensor,
     "stop_model": micro_wake_word.WakeWordModel,
+    "detector": micro_wake_word.MicroWakeWord,
+    "context_status": text_sensor.TextSensor,
+    "mute_switch": switch.Switch,
 }
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(PodVoiceReply),
         **{cv.Required(key): cv.use_id(typ) for key, typ in _FIELDS.items()},
+        cv.Optional("on_timer_stop"): automation.validate_automation(single=True),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -38,6 +43,8 @@ async def to_code(config):
     await cg.register_component(var, config)
     for key in _FIELDS:
         cg.add(getattr(var, "set_" + key)(await cg.get_variable(config[key])))
+    if "on_timer_stop" in config:
+        await automation.build_automation(var.get_timer_stop_trigger(), [], config["on_timer_stop"])
 
 
 def _validate_artifacts(config):
