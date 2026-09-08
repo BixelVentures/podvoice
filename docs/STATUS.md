@@ -107,6 +107,33 @@ Næste arbejde er fokuseret sideeffektfri live SafeEval med de to faktiske værk
 enabled-feature svar/playback/lifecycle-bevis, browserprøve og derefter de fysiske
 Qrevo-/musik-/latensgates. Den eksisterende kørende installation er urørt.
 
+### Mergeforberedelse — 8. september 2026
+
+Brugeren beder om at gøre klar til merge. Frisk fetch bekræfter stadig main `c85eca5`;
+den rene kandidat `5c3d5a0` er én commit foran. Ingen installation eller aktivering.
+Kandidatversion ændres samlet til 1.13.65 i manifest, package og projektmetadata,
+så en senere main-publicering ikke forsøger at genbruge den immutable 1.13.64-version.
+Funktionskode og reviewet device_control-modul bevares byteidentisk. Changelog skal
+beskrive funktionen som eksperimentel/default-off, ikke som fysisk leveret.
+Samme kausale kæde, invarianter og rollback-grænse som ovenfor gælder; ingen ny
+samtale- eller enhedsadfærd. Plan: afgrænset review af versions-/artifact-deltaet,
+én frosset lokal gate og kladde-PR med exact-head CI/ARM64-build. Merge forbliver
+blokeret af fokuseret live SafeEval og enabled-feature reply/playback/lifecycle-
+evidens; browser- og fysisk aktiveringsgate arves ikke fra eksisterende tests.
+
+Afgrænset metadatareview `/root/merge_metadata_review` godkender versionskonsistens,
+uændrede funktionsbytes og korrekt immutable-tag-adfærd til lokal gate/kladde-PR.
+Ny frosset lokal gate på 1.13.65 er grøn (28,6 s): scope, Ruff/format, mypy,
+1107 unit- og 313 integrationtests. Kun resultattekst ændres efter gaten.
+Kandidaten er klargjort til remote CI/review som kladde; dette er ikke merge-,
+installations- eller aktiveringsgodkendelse. De nævnte live-/lifecycle-gates mangler.
+
+Push til den eksisterende origin `https://github.com/BixelVentures/podvoice.git`
+blev afvist før eksekvering af automatisk sikkerhedsreview: mergeforberedelse blev
+ikke vurderet som specifik tilladelse til at eksportere kandidatkode/metadata til
+destinationen. Ingen remote branch, PR eller CI blev oprettet. Lokalt commit/handover
+kan afsluttes; push og kladde-PR afventer brugerens eksplicitte uploadgodkendelse.
+
 ## Aktiv lead-beslutning — afsluttet handling, 8. september 2026
 
 Lead: Codex; separat kandidat fra main 1707b03. Brugeren bekræfter Texas Sun virker,
