@@ -1,3 +1,19 @@
+## 1.13.66 — Præcist mål for Roborock-indstillinger (default off)
+
+- Præciserer kun handlingsværktøjets målfelt: indstillinger bruger deres select-ID, mens sugning og start bruger robot-ID'et.
+- Forkert mål afvises fortsat uden automatisk rettelse eller genbrug af engangstoken.
+- Samme sikre live-test; ingen ændring af Assist, Spotify, prompt, firmware eller samtalemotor. Roborock er fortsat slået fra som standard og ikke fysisk godkendt.
+
+## 1.13.65 — Eksperimentel Roborock-enhedsstyring (default off)
+
+- Tilføjer to afgrænsede værktøjer til opslag og præcise rengøringshandlinger via HA.
+- Kræver eksplicit tilladte robot-/rengøringsentiteter og valgt-kort-entiteten, der kun læses.
+- Kontrollerer aktuelle kort, segmenter, valgmuligheder og tidligere indstillinger før start.
+- Engangskald og terminal startjournal beskytter mod gentagelser og uvis afsendelse.
+- Assist, Spotify, standardprompt, firmware og samtalemotor er uændrede.
+- Ikke fysisk godkendt. Fokuseret stemme-/samtaletest og fysisk Roborock-prøve kræves
+  før aktivering; HA's accept er ikke bevis for udført rengøring eller to passager.
+
 ## 1.13.63
 
 - Tilføjer firmwarelokalt “stop” under svar: afbryd lyd og luk samtalen stille.

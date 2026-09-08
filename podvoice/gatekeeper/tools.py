@@ -27,6 +27,14 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from . import constants as C
+from .device_control import (
+    GET_CAPABILITIES,
+    CapabilityError,
+    DeviceControl,
+)
+from .device_control import (
+    TOOL_NAMES as DEVICE_TOOL_NAMES,
+)
 from .execution_policy import ExecutionContext, ExecutionPolicy, Risk
 from .mcp_client import HomeAssistantMCP, McpError
 from .tool_wire import compact_json_size, realtime_function_tool, realtime_tools_wire_size
@@ -238,6 +246,7 @@ class ToolRouter:
         execution_policy: ExecutionPolicy | None = None,
     ) -> None:
         self._mcp = mcp
+        self._device_control = DeviceControl(client, supervisor_token)
         self._token = supervisor_token
         self._client = client
         self._hub = hub
@@ -602,7 +611,11 @@ class ToolRouter:
             "endpoint": snap.endpoint,
             "api_id": snap.api_id,
             "server_info": dict(snap.server_info),
-            "schema_sha256": snap.schema_sha256,
+            "schema_sha256": (
+                self.declaration_schema_sha256()
+                if self._device_control.available
+                else snap.schema_sha256
+            ),
             "pending_tools": sorted(snap.pending_names),
             "role_conflicts": list(snap.role_conflicts),
             "last_error": snap.last_error,
@@ -669,10 +682,19 @@ class ToolRouter:
         return ok
 
     # ------------------------------------------------------------------ declarations
+    def configure_device_control(self, settings: dict) -> None:
+        self._device_control.configure(
+            settings.get("extended_device_control", False),
+            settings.get("device_control_entities", []),
+        )
+
     def declarations(self) -> list[dict]:
-        return self._compose_declarations(
-            self._discovery.mcp_tools,
-            self._discovery.podconnect_services,
+        return (
+            self._compose_declarations(
+                self._discovery.mcp_tools,
+                self._discovery.podconnect_services,
+            )
+            + self._device_control.declarations()
         )
 
     @staticmethod
@@ -839,6 +861,14 @@ class ToolRouter:
             result = {"ok": False, "error_kind": "bad_args", "error": f"unknown tool {name}"}
             self._log_tool(name, result, dispatch_args)
             return result
+        if name in DEVICE_TOOL_NAMES:
+            return await self._dispatch_device(
+                name,
+                dispatch_args,
+                declaration,
+                execution_context,
+                approval_token,
+            )
         if declaration:
             prepared = await self._prepare_execution(name, dispatch_args)
             if prepared.error is not None:
@@ -872,6 +902,68 @@ class ToolRouter:
                 "error": "the service took too long to respond",
             }
         self._log_tool(name, result, dispatch_args)
+        return result
+
+    async def _dispatch_device(
+        self,
+        name: str,
+        args: dict,
+        declaration: dict,
+        context: ExecutionContext | None,
+        approval_token: str | None,
+    ) -> dict:
+        """Same commit-facing router/policy; one deadline for ALL reads and send."""
+        sending = False
+        try:
+            if context is None or not context.valid:
+                raise CapabilityError("Enhedsværktøjer kræver en aktuel samtaletur")
+            owner = (context.session_id, context.turn_id)
+            async with asyncio.timeout(C.TOOL_TIMEOUT_S):
+                if name == GET_CAPABILITIES:
+                    denied = self.execution_policy.authorize(
+                        name,
+                        args,
+                        description=declaration["description"],
+                        context=context,
+                        approval_token=approval_token,
+                        trusted_risk=Risk.READ_ONLY,
+                    )
+                    result = (
+                        denied
+                        if denied is not None
+                        else await self._device_control.capabilities(args, owner)
+                    )
+                else:
+                    prepared = await self._device_control.prepare(args, owner)
+                    canonical = {"action": prepared.action, **prepared.data}
+                    denied = self.execution_policy.authorize(
+                        name,
+                        canonical,
+                        description=declaration["description"],
+                        context=context,
+                        approval_token=approval_token,
+                        trusted_risk=Risk.LOW_RISK,
+                    )
+                    if denied is not None:
+                        result = denied
+                    else:
+                        sending = True
+                        result = await self._device_control.execute(prepared)
+        except CapabilityError as exc:
+            result = {"ok": False, "error_kind": "device_capability", "error": str(exc)}
+        except Exception:
+            result = {
+                "ok": False,
+                "error_kind": "device_outcome_unknown" if sending else "device_unavailable",
+                "error": "HA-handlingens udfald er ukendt; gentag ikke"
+                if sending
+                else "Enhedsopslaget fejlede; ingen handling sendt",
+            }
+        if not result.get("ok"):
+            result["hint"] = (
+                "Stop denne handlingssekvens. Tidligere ændrede indstillinger kan stadig gælde."
+            )
+        self._log_tool(name, result, {k: v for k, v in args.items() if k != "capability_token"})
         return result
 
     async def _dispatch_canonical_batch(

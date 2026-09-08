@@ -89,6 +89,13 @@ aktuelle tur.
   fulde sessionschema-hash og importeres aldrig dynamisk; PodVoice har ingen direkte
   Spotify-provider.
 - PodConnect Control/HA ejer Spotify-søgning og musikstyring.
+- Den valgfrie enhedsadapter tilføjer præcis `ha_get_device_capabilities` og
+  `ha_execute_device_action` gennem samme ToolRouter/policy. Default off giver ingen
+  ekstra declarations eller HA-opslag. Kun eksplicit tilladte Roborock-entiteter,
+  friske registeridentiteter, aktuelle lovlige indstillinger og det aktive kort kan
+  danne en kortlivet engangscapability. Roborock valgt-kort læses, men kan ikke ændres.
+  Realtime vælger og rækkefølger handlinger; adapteren har ingen taleparser, HA-script
+  eller ny samtalemotor. HA's cachede metadata og service-ACK er ikke fysisk bevis.
 - PodConnect Speakers ejer fysisk HomePod-afspilning og attention/ducking.
 - Hjemmets søgeagent ejer aktuel webviden.
 
