@@ -369,6 +369,8 @@
       <button id="eval_protocol_owner" class="ghost">Test sikker Realtime-svarstyring</button>
       <button id="eval_golden" class="ghost">Test golden-chain-semantik 5×</button>
       <button id="eval_close" class="ghost">Test samtaleafslutning (8 ture)</button>
+      <button id="eval_device" class="ghost">Test Roborock — simuleret robot</button>
+      <p class="sub">Roborock-testen starter ikke din støvsuger og aktiverer ikke enhedsstyring. Den afprøver AI'ens rækkefølge og fejlhåndtering med sikre testdata. Fysisk afprøvning mangler stadig. Samtaler er midlertidigt blokeret under testen; samlet prisloft $5.</p>
       <button id="eval_replay" class="ghost">Genafspil seneste OpenAI-lyd 3×</button>
       <button id="eval_numeric_ab" class="ghost">Sammenlign numerisk opfølgning: tekst ↔ lyd 5×</button>
       <p class="sub" style="margin:8px 0 0">Golden-chain-testen kører matematik → opfølgning → tid → ugedag → afslutning i samme session, fem friske gange. Den korte afslutningstest kører præcis 5 scenarier og 8 ture. A/B-testen kræver et frisk, eksakt lydtrace af den kendte numeriske opfølgning og sammenligner fem tekstsessioner med fem lydsessioner. Hårdt samlet prisloft: $5. Ingen eksterne effekter.</p>
@@ -1268,6 +1270,7 @@ setInterval(function () {
   var protocolOwnerButton = document.getElementById("eval_protocol_owner");
   var goldenButton = document.getElementById("eval_golden");
   var closeButton = document.getElementById("eval_close");
+  var deviceButton = document.getElementById("eval_device");
   var replayButton = document.getElementById("eval_replay");
   var numericAbButton = document.getElementById("eval_numeric_ab");
   var box = document.getElementById("eval_result");
@@ -1280,9 +1283,9 @@ setInterval(function () {
   ];
   var goldenScenarioIds = ["arithmetic-followup-observed"];
   var pollGeneration = 0;
-  if (!button || !protocolOwnerButton || !goldenButton || !closeButton || !replayButton || !numericAbButton || !box) return;
+  if (!button || !protocolOwnerButton || !goldenButton || !closeButton || !deviceButton || !replayButton || !numericAbButton || !box) return;
   function setButtonsDisabled(disabled) {
-    button.disabled = disabled; goldenButton.disabled = disabled; protocolOwnerButton.disabled = disabled; closeButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
+    button.disabled = disabled; goldenButton.disabled = disabled; protocolOwnerButton.disabled = disabled; closeButton.disabled = disabled; deviceButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
   }
   function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function semanticAudioAbPassed(data) {
@@ -1392,7 +1395,7 @@ setInterval(function () {
     var releasePassed = hasReleaseTruth && data.release_preflight_passed === true &&
       selectedOk && profileComplete && coverageComplete;
     var targeted = hasReleaseTruth && !profileComplete;
-    var headline = !hasReleaseTruth ? "✕ RAPPORT MANGLER RELEASE-KONTRAKT" :
+    var headline = data.kind === "device-control" ? (data.candidate_contract_passed === true ? "✓ SIMULERET ROBOROCK-TEST BESTÅET" : "✕ SIMULERET ROBOROCK-TEST IKKE BESTÅET") : !hasReleaseTruth ? "✕ RAPPORT MANGLER RELEASE-KONTRAKT" :
       targeted ? (selectedOk ? "✓ MÅLRETTET DIAGNOSE BESTÅET – IKKE FULD PREFLIGHT" : "✕ MÅLRETTET DIAGNOSE IKKE BESTÅET") :
       (releasePassed ? "✓ MASKINEL PREFLIGHT BESTÅET" : "✕ MASKINEL PREFLIGHT IKKE BESTÅET");
     // Only the complete release profile may receive the panel's green success style.
@@ -1402,6 +1405,7 @@ setInterval(function () {
     head.appendChild(document.createTextNode((data.results || []).length + " scenarier · " + (data.model || "ukendt model") + " · " + promptLabel));
     box.appendChild(head);
     box.appendChild(ee("div", "sub", "Udvalgte scenarier: " + (selectedOk ? "bestået" : "ikke bestået") + " · Fuld profil valgt: " + (profileComplete ? "ja" : "nej") + " · Dækning gennemført: " + (coverageComplete ? "ja" : "nej") + " · Release-preflight: " + (releasePassed ? "bestået" : "ikke bestået")));
+    if (data.kind === "device-control") box.appendChild(ee("div", "sub", "Kun AI'ens brug af simulerede værktøjer er testet. Ingen HA-handlinger sendt, ingen aktivering. Fysisk robot- og Voice PE-test samt kontrol af det aktiverede værktøjssnapshot mangler stadig."));
     if (targeted) box.appendChild(ee("div", "sub", "Denne delkørsel er kun diagnose og erstatter ikke den fulde release-preflight."));
     if (!hasReleaseTruth) box.appendChild(ee("div", "sub", "Rapporten kan ikke bruges som releasebevis, fordi de eksplicitte statusfelter mangler."));
     box.appendChild(ee("div", "sub", "Semantisk profil testet: " + ((data.semantic_profile_covered || []).join(", ") || "ingen")));
@@ -1482,6 +1486,9 @@ setInterval(function () {
   };
   closeButton.onclick = function () {
     return startLiveEval(closeScenarioIds);
+  };
+  deviceButton.onclick = function () {
+    return startLiveEval(["device-control"], 1);
   };
   replayButton.onclick = async function () {
     var generation = ++pollGeneration;

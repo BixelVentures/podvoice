@@ -492,7 +492,9 @@ async def run(cfg: Config) -> None:
     if cfg.openai_api_key:
         from .eval_harness import LiveEvalService
 
-        live_eval_service = LiveEvalService()
+        live_eval_service = LiveEvalService(
+            production_tool_snapshot=lambda: tools.declarations() if tools is not None else []
+        )
 
         async def live_eval(
             *,

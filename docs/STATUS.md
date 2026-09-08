@@ -167,6 +167,60 @@ Diagnostik-først-installation er en anden rækkefølge end den registrerede rel
 og kræver brugerens specifikke godkendelse; alternativet er en isoleret stagingvej.
 Ingen merge, installation eller aktivering udføres før den afklaring.
 
+### Godkendt diagnostik-først — 8. september 2026
+
+Brugeren har efter forklaringen af den simulerede robot godkendt "ja gør alt det".
+Rækkefølgen ændres eksplicit: review og maskinelle gates → merge/installér med
+enhedsstyring fortsat off → isoleret live fixture-test → først derefter fysisk canary.
+Dette godkender diagnostikinstallation, ikke allerede bevist Roborock-funktion.
+Observation: det eksisterende SafeEval afviser de nye værktøjer og har kun tre
+normale response-edges per tur. Hypotese: et separat, eksplicit valgt Roborock-profile
+med server-ejede fixtures og ni reserverede edges kan prøve hele indstillingskæden
+uden HA-trafik eller ændring af standardprofilet. Ingen nye scripts i HA eller taleparser.
+Samme kæde og invarianter som ovenfor; diagnostiklåsen tages før kandidat-snapshot
+og providerforbindelse, og alle fejl/cancellation frigiver den. Faktisk off-snapshot,
+hypotetisk enabled-snapshot, fixturehash og artifactidentitet må ikke sammenblandes.
+Plan: success/max/extreme/repeat, ukendt start uden retry og tvetydigt rum uden start;
+afvis udeklarerede og ikke-fixturerede kald; normal evaluering og musikvej uændret.
+Regressionskrav: baseline-paritet, eksklusiv lease, cancellation, faste budgetter,
+token-/actionrækkefølge, artifact-/schemaidentitet og sand UI-resultattekst.
+Rollback: off bevares; fjern kun det valgfrie evalprofile ved diagnosefejl. Ingen
+ukendt robotstart kan blive gjort kendt ved genstart. Fysisk gate er stadig ikke bestået.
+
+Implementeret valgfrit `device-control`-profile med tre scenarier/fire ture: discovery
+og max/extreme/køkken×2, ukendt start uden retry, tvetydigt rum uden handling. Ingen
+produktionsindstillinger aktiveres; alle kald bliver i eksakte syntetiske fixtures.
+Hele faktisk off-katalog suppleres med præcis kandidatmodulets to deklarationer.
+Diagnostiklås tages før snapshot; faktisk/kandidat providerhash og rå routerhash
+registreres separat sammen med modul-, fixture- og runtime-artifact-identitet.
+Normal SafeEval beholder sine fire reserverede edges og sit uændrede corpus.
+Det nye profile reserverer ni token-edges, men afregner autoritativ usage per response
+og kontrollerer hver næste worst-case $1-edge mod det samme samlede $5-loft.
+Review fandt manglende svar-orakler og en prisgrænse ved fortsættelse efter fejlet
+discovery. Rettet kun i fixture-profilet: tomme/falske succesbeskeder afvises, og en
+bedømt fejl stopper scenariet før næste brugerinput. Dermed holdes forhistorisk lyd
+inden for den eksisterende konservative prisberegnings 12.288 audio-tokens.
+Mode skal vælges først; fan og vaskeintensitet må derefter bytte rækkefølge via to
+eksakte tokenkæder. Begge kæder ender i præcis én start med køkkensegment 16/repeat 2.
+Browserprøven med lokalt mock-resultat bekræfter den nye testknap og tydelig tekst om
+simuleret robot/ingen aktivering; dette er UI-bevis, ikke en kørt live modeltest.
+
+Uafhængigt repair-review: P0=0/P1=0, 28 nye regressioner bestået; GO til én frosset
+lokal releasegate og derefter grøn CI/merge/install med enhedsstyring off og tom allowlist.
+Resterende P2: svar-orakler er begrænsede heuristikker og kan acceptere et blandet
+ukendt-/succesudsagn. Før aktivering skal lead manuelt gennemgå de bevarede faktiske
+live svar: ukendt må ikke påstå start eller afslutning, tvetydighed skal reelt afklares.
+`candidate_contract_passed` alene åbner aldrig aktivering eller fysisk canary.
+Et tidligere fast-gateforsøg blev ugyldigt, fordi diffet ændredes under kørslen;
+det tæller ikke som en frosset kandidatgodkendelse.
+
+Frosset lokal releasegate bestået mod frisk origin/main c85eca5: Ruff/format,
+mypy (44 kildefiler), scope ha_tools, 1.135 unit- og 315 integrationtests.
+Første start blev afvist før kørsel af en sideløbende gates fælles lås; efter dens
+afslutning kørte denne gate én gang til grønt. Ingen produktionsændring under gaten.
+Næste nødvendige bevis er CI/ARM64 på det præcise nye commit; live fixture og fysisk
+Roborock/Voice PE er stadig ikke kørt eller godkendt.
+
 ## Aktiv lead-beslutning — afsluttet handling, 8. september 2026
 
 Lead: Codex; separat kandidat fra main 1707b03. Brugeren bekræfter Texas Sun virker,
