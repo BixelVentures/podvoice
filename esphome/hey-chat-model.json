@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/TaterTotterson/Tater-Wake-Words",
+  "commit": "b2408bb19b2ec4194878c76bc3c13df70fb863c3",
+  "directory": "microWakeWordsV6",
+  "manifest": "hey_chat.esphome.json",
+  "manifest_sha256": "9ecaf5186b1aabab0821df22e144e12c5107f7f563e631b24c8d400e4457a2bb",
+  "model": "hey_chat.tflite",
+  "model_sha256": "a7d568e2dda22a69eb9d7b02a9aad83f4abe97bc495f6ffc238a5fd8ff205bae",
+  "probability_cutoff": 0.95,
+  "sliding_window_size": 5,
+  "feature_step_size": 10,
+  "tensor_arena_size": 30000
+}

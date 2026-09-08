@@ -28,6 +28,7 @@ from collections.abc import AsyncIterator, Callable, Coroutine
 from typing import Any, ClassVar
 
 from . import constants as C
+from .wake_words import WAKE_WORDS
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +37,8 @@ log = logging.getLogger(__name__)
 # session.updated hand-off. The provider uses the same 12 s bound, so neither stage
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
-EXPECTED_FIRMWARE_BUILD = "podvoice_build_11346"
+EXPECTED_FIRMWARE_BUILD = "podvoice_build_11362_heychat1"
+_WAKE_WORD_ACK_TIMEOUT_S = 3.0
 
 # --- Firmware contract ----------------------------------------------------------
 # Everything the add-on ASSUMES the flashed firmware provides, verified on EVERY
@@ -192,6 +194,12 @@ class VoicePELink:
         self.mic_channel: int | None = None
         self.mic_gain: int | None = None
         self.wake_word: str | None = None  # re-asserted on every connect
+        self._wake_word_ack_key: int | None = None
+        self._wake_word_token: str | None = None
+        self._wake_word_waiter: asyncio.Event | None = None
+        self.confirmed_wake_word: str | None = None
+        self._state_subscription_token: object | None = None
+        self._wake_admitted = False
 
     async def start(self) -> None:
         """Build the client and start the reconnect loop (owns the connection)."""
@@ -486,14 +494,28 @@ class VoicePELink:
         client = self._client if client is None else client
         if not self._generation_is_current(generation, client):
             return
+        self._wake_admitted = False
+        subscription_token = object()
+        self._state_subscription_token = subscription_token
+        rearm_before_admission = self._last_rearm_token
+        pending_wake: object | None = None
+
+        def admission_current() -> bool:
+            return (
+                self._generation_is_current(generation, client)
+                and self._state_subscription_token is subscription_token
+            )
+
         # VERIFY: device_info() coroutine name/shape.
         info = await client.device_info()
+        if not admission_current():
+            return
         # Resolve the wake-gate services + LED-ring light + mute key from the device
         # catalog FIRST — subscribe_states fires an immediate full state dump, so the
         # entity keys must already be cached or that first dump can't be routed (the
         # LED/mute key would still be None). Resolve before subscribing.
         await self._resolve_entities()
-        if not self._generation_is_current(generation, client):
+        if not admission_current():
             return
         self._verify_contract(info)
         if not self.contract.get("ok", False):
@@ -523,8 +545,27 @@ class VoicePELink:
             return deliver()
 
         def handle_state(state: object) -> None:
-            if self._generation_is_current(generation, client):
-                self._on_state(state)
+            nonlocal pending_wake
+            if (
+                not self._generation_is_current(generation, client)
+                or self._state_subscription_token is not subscription_token
+            ):
+                return
+            event = getattr(state, "event_type", None) or getattr(state, "event", None)
+            if event in ("wake_okay_nabu", "wake") and not self._wake_admitted:
+                # Firmware can ACK rearm and detect the next wake in one receive
+                # batch, before the awaiting admission coroutine resumes. Preserve
+                # only that post-boundary wake; a pre-rearm latch is deliberately
+                # discarded by the reconnect rearm. Never cut its same-breath audio.
+                if (
+                    self.confirmed_wake_word == self.wake_word
+                    and self._last_rearm_token is not None
+                    and self._last_rearm_token != rearm_before_admission
+                    and pending_wake is None
+                ):
+                    pending_wake = state
+                return
+            self._on_state(state)
 
         self._unsub_va = client.subscribe_voice_assistant(
             handle_start=handle_start,
@@ -534,17 +575,17 @@ class VoicePELink:
         # VERIFY: subscribe_states(callback) -> unsubscribe callable.
         self._unsub_states = client.subscribe_states(handle_state)
         await self.apply_mic_tuning()  # survives puck reboots and add-on restarts
-        if not self._generation_is_current(generation, client):
+        if not admission_current():
             return
         await self.apply_wake_word()  # ditto: the SETTING is the truth, not RAM
-        if not self._generation_is_current(generation, client):
+        if not admission_current():
             return
         # Reassert/rearm only after identity, firmware and settings have all passed.
         if self.on_reconnect is not None:
             result = self.on_reconnect()
             if asyncio.iscoroutine(result):
                 await result
-        if not self._generation_is_current(generation, client):
+        if not admission_current():
             return
         self._remember_ip()
         self._recovery_attempt = 0
@@ -552,7 +593,10 @@ class VoicePELink:
         recovery = self._recovery_task
         if recovery is not None and recovery is not asyncio.current_task():
             recovery.cancel()
+        self._wake_admitted = True
         self._set_link(True)
+        if pending_wake is not None and admission_current():
+            self._on_state(pending_wake)
 
     async def _resolve_entities(self) -> None:
         """Cache the podvoice_stream_* user services + the LED-ring light key.
@@ -566,6 +610,8 @@ class VoicePELink:
         self._mute_key = None
         self._event_key = None
         self._rearm_ack_key = None
+        self._wake_word_ack_key = None
+        self.confirmed_wake_word = None
         self.supports_direct = False
         self.supports_same_breath = False
         self.supports_wake_audio_boundary = False
@@ -615,6 +661,15 @@ class VoicePELink:
                 None,
             )
             self._rearm_ack_key = getattr(rearm_ack, "key", None) if rearm_ack else None
+            wake_ack = next(
+                (
+                    e
+                    for e in text_sensors
+                    if getattr(e, "object_id", "") == "podvoice_wake_word_ack"
+                ),
+                None,
+            )
+            self._wake_word_ack_key = getattr(wake_ack, "key", None)
             # Does this firmware have the 2b direct path? Ask the DEVICE, not a setting.
             events = [e for e in (entities or []) if type(e).__name__ == "EventInfo"]
             podvoice_event = next(
@@ -704,6 +759,9 @@ class VoicePELink:
             "missing_capabilities": missing_capabilities,
             "firmware_build": self.firmware_build,
             "firmware_builds": self.firmware_builds,
+            "wake_word_supported": self._wake_word_ack_key is not None
+            and "podvoice_set_wake_word" in self._user_services,
+            "wake_word_confirmed": None,
         }
         if ok:
             log.info(
@@ -769,9 +827,34 @@ class VoicePELink:
         reboot, and nobody notices until 'Okay Nabu' quietly answers again."""
         if not self.wake_word:
             return
-        if not await self._call_service("podvoice_set_wake_word", {"name": str(self.wake_word)}):
-            raise RuntimeError("Voice PE wake word could not be applied")
-        log.info("voicepe %s: wake word applied (%s)", self.host, self.wake_word)
+        self.confirmed_wake_word = None
+        if self.wake_word not in WAKE_WORDS or self._wake_word_ack_key is None:
+            raise RuntimeError("Opdatér Voice PE-firmware")
+        # A random per-command nonce rejects retained state, including after process
+        # restart. Native callbacks additionally enforce connection generation.
+        token = secrets.token_hex(16)
+        waiter = asyncio.Event()
+        self._wake_word_token = token
+        self._wake_word_waiter = waiter
+        self._publish_wake_word()
+        try:
+            if not await self._call_service(
+                "podvoice_set_wake_word", {"name": self.wake_word, "token": token}
+            ):
+                raise RuntimeError("Voice PE wake word could not be sent")
+            await asyncio.wait_for(waiter.wait(), timeout=_WAKE_WORD_ACK_TIMEOUT_S)
+            if self.confirmed_wake_word != self.wake_word:
+                raise RuntimeError("Kan ikke bekræfte vækkeord")
+        finally:
+            if self._wake_word_token == token:
+                self._wake_word_token = None
+                self._wake_word_waiter = None
+        log.info("voicepe %s: firmware confirmed wake word (%s)", self.host, self.wake_word)
+
+    def _publish_wake_word(self) -> None:
+        self.contract["wake_word_confirmed"] = self.confirmed_wake_word
+        if self.on_contract is not None:
+            self._run_cb(self.on_contract, dict(self.contract))
 
     async def _call_service(self, name: str, args: dict | None = None) -> bool:
         """Invoke a podvoice_* user-defined service. Best-effort (swallow on
@@ -878,7 +961,15 @@ class VoicePELink:
         self, expected_disconnect: bool = False
     ) -> None:  # VERIFY: cb signature
         self._api_audio_ready = False
+        self._state_subscription_token = None
+        self._wake_admitted = False
         self._announcing = False
+        self.confirmed_wake_word = None
+        self._wake_word_token = None
+        if self._wake_word_waiter is not None:
+            self._wake_word_waiter.set()
+            self._wake_word_waiter = None
+        self._publish_wake_word()
         if self._direct_prepare_waiter is not None:
             self._direct_prepare_waiter.set()
             self._direct_prepare_waiter = None
@@ -1052,6 +1143,18 @@ class VoicePELink:
                 self._run_cb(self.on_media_state, False)
         elif explicit_playback and event_type == "podvoice_playback_fault":
             self._announcing = False
+        if key == self._wake_word_ack_key and tname == "TextSensorState":
+            token, separator, model = str(getattr(state, "state", "")).partition(":")
+            if (
+                separator
+                and token == self._wake_word_token
+                and self._wake_word_waiter is not None
+                and model in WAKE_WORDS
+                and model == self.wake_word
+            ):
+                self.confirmed_wake_word = model
+                self._publish_wake_word()
+                self._wake_word_waiter.set()
         if key == self._rearm_ack_key and tname == "TextSensorState":
             ack = str(getattr(state, "state", ""))
             token_text, separator, outcome = ack.partition(":")

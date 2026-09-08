@@ -16,6 +16,7 @@ import pathlib
 
 from . import constants as C
 from .prompt import SYSTEM_PROMPT_DA
+from .wake_words import DEFAULT_WAKE_WORD, WAKE_WORDS, load_wake_word
 
 _LOG = logging.getLogger("podvoice.settings")
 
@@ -160,6 +161,7 @@ TUNING_KEYS: frozenset[str] = frozenset(
 # Panel-editable fields and their defaults. The OpenAI API key is intentionally
 # NOT here (it's the one add-on option).
 DEFAULTS: dict = {
+    "wake_word": DEFAULT_WAKE_WORD,
     "settings_version": SETTINGS_VERSION,
     "full_duplex": False,  # half-duplex (continued conversation) is the shipped mode; True is
     # the experimental open-mic duplex opt-in (Phase 1.4 test matrix gates promotion)
@@ -268,6 +270,7 @@ def load_settings(path: pathlib.Path | None = None) -> dict:
     # full-duplex puck path. Talk opts into browser duplex in its own adapter wiring;
     # this persisted value is exclusively the physical Voice PE configuration.
     data["engine"] = "thin"
+    data["wake_word"] = load_wake_word(data.get("wake_word"))
     data["speaker_path"] = "announce"
     data["full_duplex"] = False
     return data
@@ -293,6 +296,8 @@ def _coerce(key: str, value, template) -> object:
 
     Persisting an unvalidated value used to crash-loop the whole add-on at next boot
     (int("loud") in config loading) — one bad panel POST bricked the assistant."""
+    if key == "wake_word" and (not isinstance(value, str) or value not in WAKE_WORDS):
+        raise ValueError("wake_word: vælg Okay Nabu, Hey Jarvis, Hey Mycroft eller Hey Chat")
     if isinstance(template, bool):
         if isinstance(value, bool):
             return value
