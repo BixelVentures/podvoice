@@ -106,12 +106,14 @@ api:
     - action: podvoice_set_wake_word
       variables:
         name: string
+        token: string
       then:
         - lambda: |-
             const bool nabu    = (name == "okay_nabu");
             const bool jarvis  = (name == "hey_jarvis");
             const bool mycroft = (name == "hey_mycroft");
-            if (!nabu && !jarvis && !mycroft) {
+            const bool chat    = (name == "hey_chat");
+            if (!nabu && !jarvis && !mycroft && !chat) {
               ESP_LOGW("podvoice", "unknown wake word '%s' — keeping the current one",
                        name.c_str());
               return;
@@ -119,6 +121,15 @@ api:
             nabu    ? id(okay_nabu).enable()   : id(okay_nabu).disable();
             jarvis  ? id(hey_jarvis).enable()  : id(hey_jarvis).disable();
             mycroft ? id(hey_mycroft).enable() : id(hey_mycroft).disable();
+            chat    ? id(hey_chat).enable()    : id(hey_chat).disable();
+            // Read the actual flags, not just the requested name. Stop remains
+            // independently owned and is deliberately excluded from this count.
+            const int enabled = id(okay_nabu).is_enabled() + id(hey_jarvis).is_enabled()
+                              + id(hey_mycroft).is_enabled() + id(hey_chat).is_enabled();
+            const std::string active = id(okay_nabu).is_enabled() ? "okay_nabu"
+                : id(hey_jarvis).is_enabled() ? "hey_jarvis"
+                : id(hey_mycroft).is_enabled() ? "hey_mycroft" : "hey_chat";
+            id(podvoice_wake_word_ack).publish_state(token + ":" + (enabled == 1 ? active : "fault"));
             ESP_LOGI("podvoice", "wake word set to %s", name.c_str());
 
 # PodVoice's first reliable channel uses the upstream external_media_player only for
@@ -243,17 +254,8 @@ script:
                 id: podvoice_rearm_ack
                 state: !lambda |-
                   return std::to_string(token) + ":fault";
-# --- Phase 2: custom wake-word model (docs/wake-word.md) -----------------------------
-# When the custom-trained microWakeWord model is ready, uncomment to load it. NOTE on
-# package-merge semantics: LISTS are appended, so this ADDS the model alongside the
-# stock okay_nabu (both wake words active — fine for side-by-side wake validation). GATE before flashing:
-# `esphome config podvoice.yaml` and check the rendered micro_wake_word.models list;
-# fully REPLACING okay_nabu needs the upstream entry removed (verify !remove behaviour
-# on the pinned ESPHome — !extend/!remove on single-instance components has burned us).
-# micro_wake_word:
-#   models:
-#     - model: https://github.com/BixelVentures/podvoice/releases/download/wake-v1/podvoice_wake.json
-#       id: podvoice_wake
+# Wake models are owned by the vendored base, not an appended overlay list.
+# See docs/wake-word.md and hey-chat-model.json for the pinned Hey Chat model.
 
 # Redirect on-device wake-word + center single-press to a PodVoice event the add-on
 # subscribes to, instead of starting the HA Assist pipeline.
@@ -280,7 +282,7 @@ event:
         continuous_rearm_v1,
         physical_rearm_audio_progress_v1,
         correlated_reset_rearm_v2,
-        podvoice_build_11348_stop1,
+        podvoice_build_11363_stop1,
         podvoice_playback_events_v1,
         correlated_local_stop_v1,
         podvoice_playback_started,
@@ -295,6 +297,10 @@ text_sensor:
   - platform: template
     name: "PodVoice Reply Status"
     id: podvoice_reply_status
+    entity_category: diagnostic
+  - platform: template
+    id: podvoice_wake_word_ack
+    name: "PodVoice wake word ACK"
     entity_category: diagnostic
   - platform: template
     id: podvoice_rearm_ack

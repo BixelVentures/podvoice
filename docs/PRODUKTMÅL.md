@@ -165,6 +165,16 @@ add-on-kandidat skal genbruge den allerede godkendte firmware:
 Godkendelse kræver 10/10 lifecycle. Taleindhold kan derefter tunes separat; en død wake
 eller falsk lukning er en arkitekturfejl og stopper testen.
 
+## Hey Chat — fysisk featuregate (endnu ikke bevist)
+
+Samme versionsbundne add-on/firmware-par skal først bestå frisk golden chain og
+10/10 ubrudte lifecycle-cyklusser. Derefter 40 wakes med naturlig dansk udtale:
+10 ved hver kombination af 1/3 meter og stille rum/baggrundstale. Mindst 38/40
+samlet og mindst 9/10 i hver kombination. Spørgsmålet i samme åndedrag må ikke
+klippes. Kræv nul selvaktiveringer under 50 assistantsvar og nul falske wakes
+i to timers dokumenteret baggrundslyd. Gem afstand, lydforhold, version og trace.
+Model-readback eller en grøn softwaretest er ikke akustisk bevis.
+
 ## Udviklingsprioritet 1 — oplevet fysisk svartid
 
 Hastighedsarbejdet starter først efter golden chain og 10/10 fysisk lifecycle på samme

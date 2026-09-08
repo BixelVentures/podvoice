@@ -2,6 +2,21 @@
 
 Senest opdateret: 2026-09-08.
 
+## Stop efter Hey Chat — 8. september 2026
+
+Brugeren har betinget stop-merge af, at Hey Chat først er merged. GitHub bekræfter
+PR #32 merged 2026-09-08 09:25:45 UTC; ny main er `fe6c471` (1.13.62).
+Lead: Codex. Kandidat 1.13.63 kombinerer de to firmwarekontrakter med markør
+`podvoice_build_11363_stop1`. Hey Chats settings-ACK, abonnementsgeneration og
+wake-admission bevares; Stop beholder sin særskilte playback-/timer-ejer.
+Kausal kontrol: modelvalg/readback → orphan-stop/drain → korreleret rearm → pending
+wake-admission → svar → Stop → én teardown/rearm → næste Hey Chat. Test skal bevise,
+at stop-/playback-events stadig behandles under wake-admission, men stale callbacks
+ikke kan afbryde næste forbindelse. Ingen gain/model-cutoff/Realtime-tuning.
+Komponent-pin 305b510 er uændret, men den samlede firmware får Hey Chat-modellen og
+skal kompileres igen. Integration, uafhængigt review, ny fingerprint og releasegate
+kræves mod denne main. Ingen installation eller fysisk bevis er autoriseret/udført.
+
 ## Merge-kandidat 8. september 2026
 
 Brugeren har nu autoriseret push og merge; installation er fortsat ikke autoriseret.
@@ -35,21 +50,6 @@ installation eller fysisk afprøvning er gennemført. Automatisk godkendelsesrev
 igen GitHub-push: det kræver eksplicit kode-/destinationsgodkendelse ud over “Merge
 gerne”. Remote package-fetch og merge er derfor fortsat blokeret, installation er
 ikke autoriseret. Rollback er hele 1.13.62-deltaet. Ingen ny fysisk funktion er bevist.
-
-<!-- candidate-scope-coupling
-{
-  "version": 1,
-  "base_tip": "21c97fec67f3cb52cdc5111469fe6965ddc24365",
-  "merge_base": "21c97fec67f3cb52cdc5111469fe6965ddc24365",
-  "domains": [
-    "physical_output",
-    "rearm"
-  ],
-  "fingerprint": "22e87918e9c862d0826af36e941f5e19ac8029e44cde91da4e0a3456322f57fe",
-  "reviewer": "/root/stop_merge_review",
-  "rationale": "One user-requested local stop must drain its owned playback before the same teardown can rearm; splitting these owners would allow old audio or premature wake."
-}
--->
 
 ## Isoleret stop-word-kandidat — 5. september 2026
 
@@ -120,6 +120,103 @@ live i denne opgave; nedenstående auguststatus er historisk, ikke frisk verific
   **ikke fysisk testklar**; remote package-fetch og alle fysiske gates er åbne.
 
 ## Aktiv lead-beslutning
+
+### Aktiv beslutning 8. september — Hey Chat-kandidat (ikke testklar)
+
+- **Lead:** Codex. Kandidatgrundlag er main `21c97fec67f3cb52cdc5111469fe6965ddc24365`
+  (add-on 1.13.61 / firmware `podvoice_build_11346`) i `/private/tmp/podvoice-hey-chat`.
+  Det ændrede practical-bassi-workspace og dets stop-/lydarbejde holdes urørt.
+- **Observeret fejl:** UI tilbyder wake_word, men settings.DEFAULTS mangler feltet;
+  save_settings ignorerer derfor valget. Firmware har kun tre almindelige modeller,
+  og VoicePELink logger afsendt modelvalg som anvendt uden firmware-readback.
+- **Hypotese:** Delt validering, en pinned fjerde model og korreleret firmware-readback
+  kan bevare det gemte valg gennem genstart uden at foregive fysisk genkendelse.
+- **Kæde/races:** Gem → config → native reconnect → modelvalg/readback → fysisk wake →
+  eksisterende mic-latch/ThinSession → svar/opfølgning → teardown/rearm → næste wake.
+  Initial state replay, delayed ACK efter reconnect, disconnect og gammel firmware
+  må aldrig blive aktiveringsbevis. Stopmodellen beholder sin nuværende ejer.
+- **Invarianter/ikke-mål:** Én firmware-wakevej, én ThinSession, half-duplex og
+  lifecycle-invariant 10 (aktuel generations sandhed). Ingen prompt-, VAD-, gain-,
+  følsomheds-, Assist-, stop- eller lydændringer. Brugerens eksplicitte featureplan
+  afgrænser dette arbejde; ingen påstand om fysisk kvalitet.
+- **Gates/rollback:** Settings/API, firmwaremodel/hash/render/compile, korreleret
+  reconnect-readback, Thin/Talk/stopregressioner og browser mobil/desktop; fast,
+  uafhængigt adversarial review og én release efter freeze. Hele Hey Chat-diffet
+  rulles tilbage som ét add-on/firmware-par til ovenstående grundlag ved regression.
+  Frisk golden chain, 10/10 lifecycle og Hey Chat-akustikgate er endnu IKKE kørt.
+
+**Stop-the-line under review:** Uafhængig reviewer reproducerede en wake via
+subscribe_states, mens settings-ACK stadig afventedes og link ikke var admitted.
+Efterfølgende disconnect kunne derfor mangle Thin-linklost-kanten. Hypotesen udvides
+kun ved adapterens adgangsgrænse: en ny wake må først leveres efter settings-ACK og
+reconnect/rearm; eksisterende playback/teardown-events må stadig behandles. Hvert
+state-abonnement får egen identitet, også ved reconnect på samme native klient, så
+gamle callbacks ikke kan krydse næste forbindelse. Regression kræver pending-ACK wake,
+disconnect/timeout, frisk admission og næste wake. Ingen fysisk test eller release
+før fundet er løst og reviewet igen. Review fandt også stale browser-readback ved
+mistet backend; visningen skal degraderes uden at vente på nyt room-snapshot.
+
+**Anden reviewkant:** At afvise alle wakes før async admission er færdig kan tabe
+en fysisk wake umiddelbart efter den eksakte rearm-ACK i samme native receive-batch.
+Firmwaren har da allerede åbnet næste latch og mic. Den samlede grænse præciseres:
+wakes før settings-ACK/rearm kasseres; højst én wake efter netop denne forbindelses
+matching rearm-ACK beholdes indtil admission lykkes, og tabes ved disconnect/fejl.
+Test skal injicere rearm-ACK → wake uden event-loop-yield, samt disconnect før
+admission afsluttes. Lydkøen og audio-generation-grænsen må ikke ændres.
+
+**Implementeret/foreløbigt verificeret:** Fire valgmuligheder, delt settings/config-
+validering, pinned model, nonce-bundet readback, abonnementsspecifik stale-afvisning
+og separat gemt/bekræftet panelstatus. De to reviewraces har permanente regressioner;
+samlet målrettet suite er grøn. Bred `scripts/dev fast` bestod 42,8 s før den sidste
+admissionrettelse; endeligt releasebevis skal dække det frosne diff. Browser med
+shippede settings-markup/controller og API-fixtures bestod gem/genstart/400-fejl,
+gammel/offline firmware, mistet backend og synligt fokus ved 320/390/1440 px.
+Dette er ikke fuld HA-ingress/HA-app eller fysisk Voice PE-test.
+
+ESPHome 2026.6.2 config og compile bestod (129,77 s). Buildrapport: statisk RAM
+76.312/327.680 bytes (23,3 %), flash 3.046.475/8.126.464 (37,5 %). Runtime heap,
+PSRAM og genkendelse er ikke målt. Reviewer kontrollerede de faktisk cachede
+manifest-/TFLite-bytes mod registrerede SHA-256 og den genererede C++-modelliste:
+fire almindelige modeller plus intern Stop; Hey Chat default disabled, cutoff
+242/255, vindue 5, arena 30000. Manifestets feature-step er 10.
+
+**Installationsblokering:** Kompileringen brugte en eksplicit compile-only testnøgle
+i ignoreret secrets.yaml; disse binærer må IKKE flashes. Et reelt par kræver enhedens
+korrekte eksisterende navn/Noise-nøgle, add-on-image og artifactidentitet. Lokal Docker-
+daemon er ikke startet, så et add-on-image er endnu ikke bygget. Main blev genverificeret
+som `21c97fec`; ingen push/merge, installation, golden chain, fysisk 10/10 eller
+Hey Chat-akustikgate er udført. Kandidaten er fortsat ikke fysisk testklar.
+
+**Review/freeze:** Uafhængig adversarial reviewer har genkontrolleret begge
+admissionrettelser og stale UI; 27 fokuserede regressioner blev kørt uafhængigt.
+Ingen uløste P0/P1 i det aktuelle diff. Produktionsdiffet fryses nu til én lokal
+releasegate. Installations-/fysiske gates ovenfor forbliver åbne uanset resultatet.
+
+**Releasegate:** Den ene frosne lokale release bestod på 27,7 s: candidate-scope,
+Ruff/format, mypy, unit 17,71 s og integration 27,35 s. Ingen SafeEval, da prompt,
+schema og Realtime-semantik er urørt. Ingen manuel gategenkørsel efter freeze.
+Den eksisterende canonical `esphome/secrets.yaml` er siden fundet lokalt og bruges
+nu uden nøgleoutput til et separat firmwarebuild; den første testnøgle-binær
+erstattes og leveres ikke. Eksakt CI/ARM64-image og fysisk verification mangler.
+
+**Lokalt handoff:** Implementationscommit `4ef2dec` på `codex/hey-chat` i
+`/private/tmp/podvoice-hey-chat`; addon-version 1.13.62, firmwaremarkør
+`podvoice_build_11363_stop1`. Firmwarebuild med den eksisterende canonical
+Noise-konfiguration bestod på 16,43 s (statisk RAM 76.312 bytes, flash 3.046.547).
+Det er endnu ikke live-verificeret, at den lokale nøgle/navnekonfiguration matcher
+den aktuelt startede enhed. Secrets og binærer er ignorerede og må ikke pushes.
+
+- OTA SHA-256: `bfdda9c7dd248ec8bf5a8a17cdcbf07ef67cb5a7deee9e9979dd6ca6dfe265a3`.
+- Factory SHA-256: `4bbaa82362fa3b599fa6329190b9ec4e0c9ad8958ec8739baac4ce1654849ff1`.
+- Add-on source-context SHA-256: `26ddbe312516c9ec7b23001900db506fb652ef3bf5d2d58066944c55c145e52b`.
+
+Push til `https://github.com/BixelVentures/podvoice.git` blev afvist af automatisk
+sikkerhedsreview, fordi eksportdestinationens autorisation ikke var tilstrækkeligt
+etableret. Ingen push, PR, merge eller installation fandt sted. Næste handling kræver
+godkendelse af denne konkrete GitHub-destination til branch/PR/ARM64-CI. Derefter
+skal imageidentitet og live enhedsmatch verificeres før installation/fysisk test.
+Der er ingen installation at rulle tilbage fra denne opgave; det tidligere par er urørt.
+
 
 ### Aktiv beslutning 5. september — Grundtestens skjulte knapper
 

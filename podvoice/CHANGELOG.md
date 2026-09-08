@@ -1,4 +1,4 @@
-## 1.13.62
+## 1.13.63
 
 - Tilføjer firmwarelokalt “stop” under svar: afbryd lyd og luk samtalen stille.
 - Kræver den tilhørende stop-firmware; gamle firmwarebits afvises af kontrakten.
@@ -6,6 +6,13 @@
 - Fysisk dansk stopgenkendelse, stoplatency og lifecycle afventer afprøvning.
 
 # Changelog
+
+## 1.13.62 — Hey Chat-kandidat
+
+- Tilføjer Hey Chat som fjerde vækkeord med Gem og genstart; retter lagringen.
+- Kræver parret Voice PE-firmware `podvoice_build_11362_heychat1` med pinned model.
+  Panelet adskiller gemt valg fra enhedens korrelerede readback.
+- Ingen ændring af prompt, VAD, gain eller Stop. Fysisk genkendelse er ikke bevist.
 
 ## 1.13.61 — Grundtesten viser kun de aktuelle knapper
 

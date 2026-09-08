@@ -434,6 +434,12 @@ class StatusHub:
         self.register_room(room)
         self._rooms[room]["connected"] = bool(ok)
 
+    def set_wake_word(self, room: str, *, supported: bool, confirmed: str | None) -> None:
+        """Device readback only; neither a saved setting nor physical wake proof."""
+        self.register_room(room)
+        self._rooms[room]["wake_word_supported"] = supported
+        self._rooms[room]["wake_word_confirmed"] = confirmed
+
     def set_latency(self, room: str, ms: float | None) -> None:
         self.register_room(room)
         self._rooms[room]["last_latency_ms"] = None if ms is None else round(ms)

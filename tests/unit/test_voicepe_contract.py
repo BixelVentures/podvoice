@@ -34,7 +34,7 @@ FULL_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11348_stop1",
+    "podvoice_build_11363_stop1",
     "podvoice_playback_events_v1",
     "correlated_local_stop_v1",
 ]
@@ -43,7 +43,7 @@ REARM_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11348_stop1",
+    "podvoice_build_11363_stop1",
 ]
 
 
@@ -107,6 +107,7 @@ async def test_contract_ok_with_full_firmware(caplog):
             LightInfo("led_ring", 9),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -172,6 +173,7 @@ async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build():
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, wrong_build),
         ],
     )
@@ -182,7 +184,7 @@ async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build():
 
     assert report["ok"] is False
     assert report["firmware_build"] == "podvoice_build_11342"
-    assert report["missing_capabilities"] == ["podvoice_build_11348_stop1"]
+    assert report["missing_capabilities"] == ["podvoice_build_11363_stop1"]
 
 
 async def test_contract_rejects_multiple_firmware_build_markers():
@@ -193,6 +195,7 @@ async def test_contract_rejects_multiple_firmware_build_markers():
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, capabilities),
         ],
     )
@@ -203,8 +206,8 @@ async def test_contract_rejects_multiple_firmware_build_markers():
 
     assert report["ok"] is False
     assert report["firmware_build"] is None
-    assert report["firmware_builds"] == ["podvoice_build_11342", "podvoice_build_11348_stop1"]
-    assert report["missing_capabilities"] == ["podvoice_build_11348_stop1"]
+    assert report["firmware_builds"] == ["podvoice_build_11342", "podvoice_build_11363_stop1"]
+    assert report["missing_capabilities"] == ["podvoice_build_11363_stop1"]
 
 
 async def test_contract_mismatch_is_loud_and_reported(caplog):
@@ -267,7 +270,13 @@ class _ConnectableClient(_StubClient):
         return lambda: None
 
     def subscribe_states(self, cb):
+        self.state_callback = cb
         return lambda: None
+
+    async def execute_service(self, svc, args):
+        await super().execute_service(svc, args)
+        if svc.name == "podvoice_set_wake_word":
+            self.state_callback(TextSensorState(f"{args['token']}:{args['name']}", key=42))
 
 
 async def test_link_state_is_truthful(caplog):
@@ -281,6 +290,7 @@ async def test_link_state_is_truthful(caplog):
             LightInfo("led_ring", 9),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -300,6 +310,7 @@ async def test_full_admission_cancels_queued_same_generation_recovery():
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -501,6 +512,7 @@ async def test_stale_cached_ip_rotates_to_native_discovery_and_survives_next_dhc
                     MediaPlayerInfo("external_media_player", 7),
                     TextSensorInfo("podvoice_rearm_ack", 4),
                     TextSensorInfo("podvoice_reply_status", 5),
+                    TextSensorInfo("podvoice_wake_word_ack", 42),
                     EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
                 ],
                 [
@@ -520,10 +532,13 @@ async def test_stale_cached_ip_rotates_to_native_discovery_and_survives_next_dhc
 
         def subscribe_states(self, callback):
             subscriptions.append((self.address, "states"))
+            self.state_callback = callback
             return lambda: events.append(f"unsub-states:{self.address}")
 
         async def execute_service(self, service, args):
             service_calls.append((service.name, dict(args)))
+            if service.name == "podvoice_set_wake_word":
+                self.state_callback(TextSensorState(f"{args['token']}:{args['name']}", key=42))
 
     class FakeReconnect:
         def __init__(self, **kwargs):
@@ -589,7 +604,7 @@ async def test_stale_cached_ip_rotates_to_native_discovery_and_survives_next_dhc
     assert service_calls == [
         ("podvoice_set_mic_channel", {"channel": 1}),
         ("podvoice_set_mic_gain", {"gain": 7}),
-        ("podvoice_set_wake_word", {"name": "hey_jarvis"}),
+        ("podvoice_set_wake_word", {"name": "hey_jarvis", "token": service_calls[-1][1]["token"]}),
     ]
     reconnect_admission_release.set()
     await admitted
@@ -912,7 +927,7 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "continuous_rearm_v1",
         "physical_rearm_audio_progress_v1",
         "correlated_reset_rearm_v2",
-        "podvoice_build_11348_stop1",
+        "podvoice_build_11363_stop1",
         "podvoice_playback_events_v1",
         "correlated_local_stop_v1",
     ]
@@ -1004,6 +1019,7 @@ async def test_rearm_calls_the_dedicated_firmware_service():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1023,6 +1039,7 @@ async def test_rearm_recovery_is_degraded_not_physical_proof():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1045,6 +1062,7 @@ async def test_rearm_epoch_drops_scheduled_old_audio_and_keeps_immediate_new_aud
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -1082,6 +1100,7 @@ async def test_audio_boundary_drops_delayed_native_callback_and_keeps_next_gener
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -1107,6 +1126,7 @@ async def test_reconnect_makes_scheduled_old_callback_inert_and_keeps_new_audio(
         MediaPlayerInfo("external_media_player", 7),
         TextSensorInfo("podvoice_rearm_ack", 4),
         TextSensorInfo("podvoice_reply_status", 5),
+        TextSensorInfo("podvoice_wake_word_ack", 42),
         EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
     ]
     old_client = _ConnectableClient(FULL_SERVICES, entities)
@@ -1137,6 +1157,7 @@ async def test_fault_and_wrong_rearm_ack_never_advance_audio_epoch():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1158,6 +1179,7 @@ async def test_rearm_boundary_drain_failure_fails_closed():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1182,6 +1204,7 @@ async def test_rearm_fault_fails_immediately():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1201,6 +1224,7 @@ async def test_rearm_is_single_flight_and_ack_cannot_cross_calls():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1224,6 +1248,7 @@ async def test_late_rearm_ack_cannot_settle_the_next_token():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1250,6 +1275,7 @@ async def test_disconnect_settles_pending_rearm_and_late_ack_is_ignored():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
     )
@@ -1285,6 +1311,7 @@ async def test_reply_is_armed_before_the_media_command():
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -1423,6 +1450,7 @@ async def test_wake_word_is_reasserted_on_every_connect():
             LightInfo("led_ring", 9),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
@@ -1432,3 +1460,100 @@ async def test_wake_word_is_reasserted_on_every_connect():
     assert client.executed.count("podvoice_set_wake_word") == 1
     await link._on_connect()  # e.g. after a reboot
     assert client.executed.count("podvoice_set_wake_word") == 2
+
+
+@pytest.mark.parametrize("disconnect", [False, True])
+async def test_pending_wake_ack_cannot_admit_wake_or_old_subscription(monkeypatch, disconnect):
+    from gatekeeper import voicepe
+
+    monkeypatch.setattr(voicepe, "_WAKE_WORD_ACK_TIMEOUT_S", 0.02)
+    client = _ConnectableClient(
+        [*FULL_SERVICES, "podvoice_set_wake_word"],
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+        ],
+    )
+    client.execute_service = lambda svc, args: _StubClient.execute_service(client, svc, args)
+    link = _link(client)
+    link.wake_word = "hey_chat"
+    delivered = []
+    link.on_event = lambda room, event: delivered.append(event)
+    wake = SimpleNamespace(key=3, event_type="wake_okay_nabu")
+    admission = asyncio.create_task(link._on_connect())
+    await asyncio.sleep(0)
+    old_callback = client.state_callback
+    old_token = client.executed_args[-1]["token"]
+    old_callback(wake)
+    assert delivered == []
+    if disconnect:
+        await link._on_disconnect()
+    with pytest.raises((RuntimeError, TimeoutError)):
+        await admission
+    delivered.clear()
+    # Reconnect on the SAME native client: client identity/generation alone is
+    # insufficient to reject the previous socket's queued subscription callback.
+    admission = asyncio.create_task(link._on_connect())
+    await asyncio.sleep(0)
+    token = client.executed_args[-1]["token"]
+    old_callback(TextSensorState(f"{token}:hey_chat", key=42))
+    client.state_callback(TextSensorState(f"{old_token}:hey_chat", key=42))
+    assert link.confirmed_wake_word is None
+    assert not admission.done()
+    client.state_callback(TextSensorState(f"{token}:hey_chat", key=42))
+    await admission
+    delivered.clear()
+    old_callback(wake)
+    assert delivered == []
+    client.state_callback(wake)
+    assert delivered == [wake]
+
+
+@pytest.mark.parametrize("disconnect", [False, True])
+async def test_admission_preserves_only_post_rearm_wake_in_same_batch(disconnect):
+    client = _ConnectableClient(
+        [*FULL_SERVICES, "podvoice_set_wake_word"],
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+        ],
+    )
+    link = _link(client)
+    link.wake_word = "hey_chat"
+    delivered = []
+    link.on_event = lambda room, event: delivered.append(event)
+    wake = SimpleNamespace(key=3, event_type="wake_okay_nabu")
+    rearm_sent = asyncio.Event()
+    original_execute = client.execute_service
+
+    async def execute(svc, args):
+        await original_execute(svc, args)
+        if svc.name == "podvoice_rearm_wake_word":
+            rearm_sent.set()
+
+    client.execute_service = execute
+    link.on_reconnect = link.rearm_wake_word
+    admission = asyncio.create_task(link._on_connect())
+    await rearm_sent.wait()
+    token = client.executed_args[-1]["token"]
+    delivered.clear()
+    client.state_callback(wake)  # preceding the boundary: never admitted
+    assert delivered == []
+    client.state_callback(TextSensorState(f"{token}:recovered", key=4))
+    client.state_callback(wake)  # same receive batch: no yield between ACK and wake
+    client.state_callback(wake)  # duplicate is coalesced
+    assert wake not in delivered
+    if disconnect:
+        await link._on_disconnect()
+    try:
+        await admission
+    except RuntimeError:
+        assert disconnect
+    assert delivered.count(wake) == (0 if disconnect else 1)
+    assert link._link_up is (not disconnect)

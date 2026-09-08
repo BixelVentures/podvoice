@@ -13,6 +13,7 @@ import pathlib
 from dataclasses import dataclass
 
 from . import constants as C
+from .wake_words import load_wake_word
 
 OPTIONS_PATH = pathlib.Path("/data/options.json")
 
@@ -145,14 +146,7 @@ def from_options(opts: dict) -> Config:
         # Cost control: both floored so a stray saved 0 can't strobe sessions open/shut.
         mic_channel=1 if _int(opts, "mic_channel", 1) else 0,
         mic_gain=min(max(_int(opts, "mic_gain", 16), 1), 64),
-        # Only the three models the upstream firmware actually carries. An unknown
-        # name would be a silent no-op on the device, so it never leaves here.
-        wake_word=(
-            str(opts.get("wake_word", "okay_nabu") or "okay_nabu")
-            if str(opts.get("wake_word", "okay_nabu") or "okay_nabu")
-            in ("okay_nabu", "hey_jarvis", "hey_mycroft")
-            else "okay_nabu"
-        ),
+        wake_word=load_wake_word(opts.get("wake_word")),
         idle_timeout_s=max(_int(opts, "idle_timeout_s", 4), 3),
         max_session_min=min(max(_int(opts, "max_session_min", 15), 1), 55),
         # One production engine. Keeping a saved legacy value must never resurrect the
