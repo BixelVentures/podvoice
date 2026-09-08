@@ -323,7 +323,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 7a81707e8b722fcd4e50203f0f47f6f0117e2725
+      ref: 305b51059dc0c7391b95896f359a6c7f64548f16
       path: esphome/components
     components: [podvoice_reply, mixer, resampler, speaker_source]
     refresh: 0s

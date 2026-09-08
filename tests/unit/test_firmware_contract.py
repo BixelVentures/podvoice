@@ -174,7 +174,7 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
     assert "url: https://github.com/BixelVentures/podvoice" in source
     assert "path: esphome/components" in source
     assert re.search(r"ref: [0-9a-f]{40}\n", source)
-    assert "ref: 7a81707e8b722fcd4e50203f0f47f6f0117e2725" in source
+    assert "ref: 305b51059dc0c7391b95896f359a6c7f64548f16" in source
 
 
 def test_output_fence_uses_one_ordered_mixer_callback():

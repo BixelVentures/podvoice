@@ -21,11 +21,35 @@ separate owner-callback talte de samme frames. Snapshot mellem callbackene kunne
 kvittere med 50 frames tilbage. Rettelse: mixer-ejet consumed-tæller øges før pending
 reduceres; owner læser depth før denne tæller. Regression injicerer begge mellemtrin,
 counter-wrap og terminal drain. Ændret firmware kræver nyt source-pin og nyt build.
-Begge findings er rettet og målrettede regressioner grønne. Ny firmwarekompilering og
-integreret releasegate afventer freeze-review. Automatisk godkendelsesreview afviste
+Begge findings er rettet og målrettede regressioner grønne. Ny komponent-pin: `305b51059dc0c7391b95896f359a6c7f64548f16`.
+Nyt adversarial review er afsluttet: P0=0/P1=0; source freeze er godkendt.
+Rettet ESP32-build er grønt (99,10 s); alle 10 kompilerede C++-filer matcher 305b510.
+Første integrerede releaseforsøg blev stoppet af den nye scope-gate (output+rearm),
+som annullerede testjobs. Processen er rettet med en reviewbundet undtagelse i STATUS,
+ikke en runtime-workaround: 15 scope-regressioner er grønne, og uafhængig reviewer har
+verificeret fingerprintet over alle 71 effektive produktionsfiler. Tooling-review:
+P0=0/P1=0. Den korrigerede releasegate er grøn på frosset diff (27,9 s): 1029 unit- og 298
+integrationtests, Ruff/format, mypy og eksakt reviewbundet scope. Kun resultattekst er
+ændret bagefter. Ingen exact-commit CI/ARM64-publicering, remote firmware-fetch,
+installation eller fysisk afprøvning er gennemført. Automatisk godkendelsesreview afviste
 igen GitHub-push: det kræver eksplicit kode-/destinationsgodkendelse ud over “Merge
 gerne”. Remote package-fetch og merge er derfor fortsat blokeret, installation er
 ikke autoriseret. Rollback er hele 1.13.62-deltaet. Ingen ny fysisk funktion er bevist.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "21c97fec67f3cb52cdc5111469fe6965ddc24365",
+  "merge_base": "21c97fec67f3cb52cdc5111469fe6965ddc24365",
+  "domains": [
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "22e87918e9c862d0826af36e941f5e19ac8029e44cde91da4e0a3456322f57fe",
+  "reviewer": "/root/stop_merge_review",
+  "rationale": "One user-requested local stop must drain its owned playback before the same teardown can rearm; splitting these owners would allow old audio or premature wake."
+}
+-->
 
 ## Isoleret stop-word-kandidat — 5. september 2026
 

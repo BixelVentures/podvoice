@@ -45,6 +45,17 @@ python3 scripts/candidate_scope.py --base <forrige-fysiske-kandidat>
 
 Kommandoen fejler, hvis samme delta blander fx rearm, fysisk output/volume, Realtime,
 audio-input eller HA-værktøjer, eller hvis produktionskode mangler en ændret regression.
+En samlet, eksplicit bestilt stop→drain→rearm-feature kan kræve netop `physical_output`
+og `rearm`. Lead må kun registrere den kobling efter uafhængigt review i en enkelt
+`candidate-scope-coupling` JSON-kommentar i aktiv `docs/STATUS.md`: schema-version,
+eksakt base-tip/merge-base, de to domæner, reviewer, kausal begrundelse og SHA-256 af
+hele den effektive produktionsfilmanifest (inklusive tilføjelser, sletninger, bytes,
+executable-bit og symlink-target). Revieweren skal kontrollere fingerprintet selv.
+Defaultafvisningen bevares; ændrede bits/base, manglende regression eller ugyldig/dobbelt
+post fejler lukket. Posten er en auditerbar reviewattestation, ikke kryptografisk
+identitetsbevis. Den skal fjernes i næste kandidat og giver ingen fysisk godkendelse.
+Releaseværktøjet fastholder sin eksakte diff-base; frisk PR/main-kontrol ved merge er
+stadig nødvendig. Der findes intet generelt skip-flag eller frit domænevalg.
 Version, changelog og release-metadata tæller ikke som et selvstændigt produktionsdomæne.
 Sammenlign med den umiddelbart forrige fysiske kandidat, ikke en gammel `main`, så hver
 installeret kandidat har præcis ét kausalt delta.
