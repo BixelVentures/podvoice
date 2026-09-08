@@ -64,7 +64,15 @@ _DECLARATIONS = [
             "type": "object",
             "properties": {
                 "capability_token": {"type": "string"},
-                "entity_id": {"type": "string"},
+                "entity_id": {
+                    "type": "string",
+                    "description": (
+                        "Target of this specific action. For select.select_option, copy the "
+                        "selected entry's data.controls[].entity_id (a select ID), not data.entity_id. "
+                        "For vacuum.set_fan_speed or vacuum.send_command, use data.entity_id "
+                        "(the vacuum ID)."
+                    ),
+                },
                 "action": {
                     "type": "string",
                     "enum": ["vacuum.set_fan_speed", "select.select_option", "vacuum.send_command"],

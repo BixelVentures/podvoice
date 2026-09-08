@@ -2,6 +2,42 @@
 
 Senest opdateret: 2026-09-08.
 
+## Aktiv lead-beslutning — præcist handlingsmål, 8. september 2026
+
+Lead: Codex. 1.13.65 er merget, publiceret og installeret som godkendt diagnostik,
+med udvidet enhedsstyring off/tom allowlist. Frosset releasegate og exact-head CI
+bestået; dette er ikke enabled/fysisk godkendelse. Den første rigtige fixturetest
+fejlede efter discovery: modellen valgte select.select_option/vacuum-ID i stedet for
+det returnerede controls[].entity_id. Nul fixtureeffekter; modellen rapporterede sandt
+afvisning og undlod retry/start/close. Ukendt- og tvetydighedsscenarier blev ikke kørt.
+Kandidaten er IKKE testklar til aktivering. Ingen rigtig robotkommando er sendt.
+Direkte evidens: retained live-resultat og uafhængig reproduktion i production Rig;
+forkert select-mål og efterfølgende genbrug af token giver begge afvisning/nul writes.
+Kæde: brugerinput → GET vacuum → controls/option-resultat → modelvalgt EXEC-mål →
+engangstoken/target-validering → afvisning → sand fejlbesked → åben dialog/normal
+teardown ved afslutning → næste wake. Ingen ændring af disse mekaniske ejergrænser.
+Berørte invarianter: Realtime ejer valg; HA ejer præcise ID'er; server autoriserer
+uden target-inference; lifecycle 10–15 og eksisterende Assist/musik bevares.
+Falsificerbar hypotese: en beskrivelse på EXEC.entity_id, der skelner control-ID fra
+vacuum-ID, får modellen til at vælge korrekt mål i det uændrede live-fixture.
+Ikke-mål: routing, fejl-retry, afslutning, prompt, firmware, lyd, budget og fixtures.
+Plan: én feltbeskrivelse; permanent forkert-domæne-regression med consumed token og
+nul writes, schema/off-paritet og uændret fuldkæde på begge adaptere; uafhængigt
+review, én frosset releasegate og ny isoleret live-test. Rollback: feltbeskrivelsen;
+off bevares indtil live/manual-reply-review, schema-match og fysisk canary er bestået.
+
+Implementeret kandidat 1.13.66: kun EXEC.entity_id-feltets beskrivelse er præciseret;
+dispatch, validering, fixtures, prompt og lifecycle er byteuændrede. Fire nye cases:
+feltkontrakt samt select-på-vacuum og begge vacuum-handlinger på select, alle med
+genbrugt token og nul writes. 81 fokuserede unit- og 10 integrationtests bestået.
+Fire lokale socketcases krævede korrekt testserver-tilladelse; ingen runtimepatch.
+Uafhængigt review: ingen nye findings, GO til frosset gate og derefter grøn CI/off-
+diagnostikinstallation. Revieweren genkørte selv ni regressionscases inkl. begge
+adapteres lifecycle-kæde. Live-forbedring er endnu ikke påvist; aktivering er NO.
+Frosset releasegate mod 7d25bea bestået: Ruff/format, mypy 44 filer, scopekontrol,
+1.139 unit- og 315 integrationtests. Ingen ændringer under kørslen. Exact-head CI og
+ny ARM64-publicering skal stadig bestå, før denne kandidat installeres til live-test.
+
 ## Aktiv lead-beslutning — afgrænset enhedsstyring, 8. september 2026
 
 Lead: Codex. Brugeren har godkendt planen og implementering på frisk main `c85eca5`

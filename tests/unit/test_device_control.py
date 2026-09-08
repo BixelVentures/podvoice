@@ -177,6 +177,40 @@ async def test_list_is_explicit_allowlist_without_ha_reads(rig):
     assert not rig.reads
 
 
+async def test_action_target_description_distinguishes_control_from_vacuum(rig):
+    declaration = next(d for d in rig.router.declarations() if d["name"] == EXECUTE_ACTION)
+    description = declaration["parameters"]["properties"]["entity_id"]["description"]
+    assert "select.select_option" in description
+    assert "data.controls[].entity_id" in description
+    assert "not data.entity_id" in description
+    assert "vacuum.set_fan_speed" in description and "vacuum.send_command" in description
+
+
+@pytest.mark.parametrize(
+    "action,wrong_target,right_target,arguments",
+    [
+        ("select.select_option", ROBOT, MODE, {"option": "vacuum_and_mop"}),
+        ("vacuum.set_fan_speed", MODE, ROBOT, {"fan_speed": "max"}),
+        (
+            "vacuum.send_command",
+            MODE,
+            ROBOT,
+            {"command": "app_segment_clean", "segments": [16], "repeat": 2},
+        ),
+    ],
+)
+async def test_wrong_action_target_consumes_token_without_inference_or_writes(
+    rig, action, wrong_target, right_target, arguments
+):
+    token = (await rig.read())["capability_token"]
+    result = await rig.act(token, action, wrong_target, arguments)
+    assert result["ok"] is False
+    assert result["error_kind"] == "device_capability"
+    replay = await rig.act(token, action, right_target, arguments)
+    assert replay["ok"] is False
+    assert not rig.writes
+
+
 async def test_full_sequence_uses_confirmed_options_and_one_exact_repeat_command(rig):
     result = await rig.read()
     assert result["ok"]

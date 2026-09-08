@@ -1,3 +1,9 @@
+## 1.13.66 — Præcist mål for Roborock-indstillinger (default off)
+
+- Præciserer kun handlingsværktøjets målfelt: indstillinger bruger deres select-ID, mens sugning og start bruger robot-ID'et.
+- Forkert mål afvises fortsat uden automatisk rettelse eller genbrug af engangstoken.
+- Samme sikre live-test; ingen ændring af Assist, Spotify, prompt, firmware eller samtalemotor. Roborock er fortsat slået fra som standard og ikke fysisk godkendt.
+
 ## 1.13.65 — Eksperimentel Roborock-enhedsstyring (default off)
 
 - Tilføjer to afgrænsede værktøjer til opslag og præcise rengøringshandlinger via HA.
