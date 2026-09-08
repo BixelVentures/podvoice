@@ -12,7 +12,7 @@ En grøn deltest må aldrig tilsidesætte en invariant her.
 | Én wake → én kanal/session, mic-gate, playback, teardown og rearm | `ThinSession` |
 | Sprogforståelse, turforståelse, semantisk afslutningsintention og værktøjsvalg | OpenAI Realtime |
 | Endelig autorisation af højrisiko-/sideeffektende handlinger | server-side execution policy; aldrig prompten alene |
-| Live-data og handlinger for tid, hjem, musik, web, vejr og senere timere | Home Assistant; klassificeret MCP API-id `assist`, med den eksisterende statiske `podconnect.*` HA-serviceadapter kun til private musikdata |
+| Live-data og handlinger for tid, hjem, musik, web, vejr og senere timere | Home Assistant; klassificeret MCP API-id `assist`, statisk `podconnect.*` HA-serviceadapter til private musikdata og den eksplicit opt-in, entity-afgrænsede enhedsadapter |
 | Start/slut på fysisk svarlyd | firmware-events fra PodVoice-announcement-kæden |
 
 Stock Home Assistant Assist må ikke starte eller eje en PodVoice-samtale. Et værktøj må

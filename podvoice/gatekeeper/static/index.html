@@ -369,6 +369,8 @@
       <button id="eval_protocol_owner" class="ghost">Test sikker Realtime-svarstyring</button>
       <button id="eval_golden" class="ghost">Test golden-chain-semantik 5×</button>
       <button id="eval_close" class="ghost">Test samtaleafslutning (8 ture)</button>
+      <button id="eval_device" class="ghost">Test Roborock — simuleret robot</button>
+      <p class="sub">Roborock-testen starter ikke din støvsuger og aktiverer ikke enhedsstyring. Den afprøver AI'ens rækkefølge og fejlhåndtering med sikre testdata. Fysisk afprøvning mangler stadig. Samtaler er midlertidigt blokeret under testen; samlet prisloft $5.</p>
       <button id="eval_replay" class="ghost">Genafspil seneste OpenAI-lyd 3×</button>
       <button id="eval_numeric_ab" class="ghost">Sammenlign numerisk opfølgning: tekst ↔ lyd 5×</button>
       <p class="sub" style="margin:8px 0 0">Golden-chain-testen kører matematik → opfølgning → tid → ugedag → afslutning i samme session, fem friske gange. Den korte afslutningstest kører præcis 5 scenarier og 8 ture. A/B-testen kræver et frisk, eksakt lydtrace af den kendte numeriske opfølgning og sammenligner fem tekstsessioner med fem lydsessioner. Hårdt samlet prisloft: $5. Ingen eksterne effekter.</p>
@@ -556,6 +558,11 @@
           <label for="s_ha_mcp_token">HA MCP token</label>
           <input id="s_ha_mcp_token" type="password" autocomplete="off" placeholder="(blank = the add-on's own token)">
           <span></span><span id="s_ha_mcp_token_hint" class="sub" style="display:none;font-size:.76rem">Gemt — skriv for at erstatte.</span>
+          <label for="s_extended_device_control">Udvidet enhedsstyring</label>
+          <input id="s_extended_device_control" type="checkbox" aria-describedby="s_device_control_help">
+          <label for="s_device_control_entities">Tilladte Roborock-entiteter</label>
+          <textarea id="s_device_control_entities" rows="5" spellcheck="false" aria-describedby="s_device_control_help" placeholder="vacuum.…&#10;select.…"></textarea>
+          <span></span><p id="s_device_control_help" class="sub">Eksperimentel, slået fra som standard. Angiv én entitet pr. linje: robotten, rengøringsindstillingerne og valgt kort (læses kun). Højst 12. Kræver Supervisor-adgang. Tilføjer kun to værktøjer fra næste samtale; Assist og Spotify bevares. Gem deaktivering for straks at blokere nye handlinger. En startet rengøring stoppes ikke. Fysisk Roborock-test afventer.</p>
         </div>
         <p class="sub" style="margin:2px 0 0">PodConnect is what dims the music. The MCP fields are only for setups where the Supervisor proxy can't reach HA's MCP server — then point the URL at <code>http://&lt;ha&gt;:8123/api/mcp</code> with a long-lived access token. You normally never change these.</p>
 
@@ -1263,6 +1270,7 @@ setInterval(function () {
   var protocolOwnerButton = document.getElementById("eval_protocol_owner");
   var goldenButton = document.getElementById("eval_golden");
   var closeButton = document.getElementById("eval_close");
+  var deviceButton = document.getElementById("eval_device");
   var replayButton = document.getElementById("eval_replay");
   var numericAbButton = document.getElementById("eval_numeric_ab");
   var box = document.getElementById("eval_result");
@@ -1275,9 +1283,9 @@ setInterval(function () {
   ];
   var goldenScenarioIds = ["arithmetic-followup-observed"];
   var pollGeneration = 0;
-  if (!button || !protocolOwnerButton || !goldenButton || !closeButton || !replayButton || !numericAbButton || !box) return;
+  if (!button || !protocolOwnerButton || !goldenButton || !closeButton || !deviceButton || !replayButton || !numericAbButton || !box) return;
   function setButtonsDisabled(disabled) {
-    button.disabled = disabled; goldenButton.disabled = disabled; protocolOwnerButton.disabled = disabled; closeButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
+    button.disabled = disabled; goldenButton.disabled = disabled; protocolOwnerButton.disabled = disabled; closeButton.disabled = disabled; deviceButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
   }
   function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function semanticAudioAbPassed(data) {
@@ -1387,7 +1395,7 @@ setInterval(function () {
     var releasePassed = hasReleaseTruth && data.release_preflight_passed === true &&
       selectedOk && profileComplete && coverageComplete;
     var targeted = hasReleaseTruth && !profileComplete;
-    var headline = !hasReleaseTruth ? "✕ RAPPORT MANGLER RELEASE-KONTRAKT" :
+    var headline = data.kind === "device-control" ? (data.candidate_contract_passed === true ? "✓ SIMULERET ROBOROCK-TEST BESTÅET" : "✕ SIMULERET ROBOROCK-TEST IKKE BESTÅET") : !hasReleaseTruth ? "✕ RAPPORT MANGLER RELEASE-KONTRAKT" :
       targeted ? (selectedOk ? "✓ MÅLRETTET DIAGNOSE BESTÅET – IKKE FULD PREFLIGHT" : "✕ MÅLRETTET DIAGNOSE IKKE BESTÅET") :
       (releasePassed ? "✓ MASKINEL PREFLIGHT BESTÅET" : "✕ MASKINEL PREFLIGHT IKKE BESTÅET");
     // Only the complete release profile may receive the panel's green success style.
@@ -1397,6 +1405,7 @@ setInterval(function () {
     head.appendChild(document.createTextNode((data.results || []).length + " scenarier · " + (data.model || "ukendt model") + " · " + promptLabel));
     box.appendChild(head);
     box.appendChild(ee("div", "sub", "Udvalgte scenarier: " + (selectedOk ? "bestået" : "ikke bestået") + " · Fuld profil valgt: " + (profileComplete ? "ja" : "nej") + " · Dækning gennemført: " + (coverageComplete ? "ja" : "nej") + " · Release-preflight: " + (releasePassed ? "bestået" : "ikke bestået")));
+    if (data.kind === "device-control") box.appendChild(ee("div", "sub", "Kun AI'ens brug af simulerede værktøjer er testet. Ingen HA-handlinger sendt, ingen aktivering. Fysisk robot- og Voice PE-test samt kontrol af det aktiverede værktøjssnapshot mangler stadig."));
     if (targeted) box.appendChild(ee("div", "sub", "Denne delkørsel er kun diagnose og erstatter ikke den fulde release-preflight."));
     if (!hasReleaseTruth) box.appendChild(ee("div", "sub", "Rapporten kan ikke bruges som releasebevis, fordi de eksplicitte statusfelter mangler."));
     box.appendChild(ee("div", "sub", "Semantisk profil testet: " + ((data.semantic_profile_covered || []).join(", ") || "ingen")));
@@ -1477,6 +1486,9 @@ setInterval(function () {
   };
   closeButton.onclick = function () {
     return startLiveEval(closeScenarioIds);
+  };
+  deviceButton.onclick = function () {
+    return startLiveEval(["device-control"], 1);
   };
   replayButton.onclick = async function () {
     var generation = ++pollGeneration;
@@ -1945,7 +1957,8 @@ setInterval(function () {
     "openai_turn", "openai_threshold", "openai_prefix_ms", "openai_silence_ms", "openai_eagerness",
     "mic_channel", "mic_gain", "openai_noise",
     "duck_level", "system_prompt", "panel_lan_open",
-    "podconnect_base_url", "podconnect_token", "ha_mcp_url", "ha_mcp_token"];
+    "podconnect_base_url", "podconnect_token", "ha_mcp_url", "ha_mcp_token",
+    "extended_device_control", "device_control_entities"];
   var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1, mic_channel: 1, mic_gain: 1,
               openai_threshold: 1, openai_prefix_ms: 1, openai_silence_ms: 1 };
   var settingsDirty = false;
@@ -1960,10 +1973,12 @@ setInterval(function () {
   }
   function setVal(id, v) {
     var e = f(id); if (!e) return;
+    if (id === "device_control_entities") { e.value = Array.isArray(v) ? v.join("\n") : ""; return; }
     if (e.type === "checkbox") e.checked = !!v; else e.value = (v == null ? "" : v);
   }
   function getVal(id) {
     var e = f(id); if (!e) return undefined;
+    if (id === "device_control_entities") return e.value.split(/\r?\n/).map(function (v) { return v.trim(); }).filter(Boolean);
     if (e.type === "checkbox") return e.checked;
     if (NUM[id]) { var n = parseFloat(e.value); return isNaN(n) ? undefined : n; }
     return e.value;

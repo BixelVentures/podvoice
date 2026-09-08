@@ -15,6 +15,7 @@ import os
 import pathlib
 
 from . import constants as C
+from .device_control import validate_entities
 from .prompt import SYSTEM_PROMPT_DA
 from .wake_words import DEFAULT_WAKE_WORD, WAKE_WORDS, load_wake_word
 
@@ -163,6 +164,8 @@ TUNING_KEYS: frozenset[str] = frozenset(
 # Panel-editable fields and their defaults. The OpenAI API key is intentionally
 # NOT here (it's the one add-on option).
 DEFAULTS: dict = {
+    "extended_device_control": False,
+    "device_control_entities": [],
     "wake_word": DEFAULT_WAKE_WORD,
     "settings_version": SETTINGS_VERSION,
     "full_duplex": False,  # half-duplex (continued conversation) is the shipped mode; True is
@@ -298,6 +301,8 @@ def _coerce(key: str, value, template) -> object:
 
     Persisting an unvalidated value used to crash-loop the whole add-on at next boot
     (int("loud") in config loading) — one bad panel POST bricked the assistant."""
+    if key == "device_control_entities":
+        return list(validate_entities(value))
     if key == "wake_word" and (not isinstance(value, str) or value not in WAKE_WORDS):
         raise ValueError("wake_word: vælg Okay Nabu, Hey Jarvis, Hey Mycroft eller Hey Chat")
     if isinstance(template, bool):

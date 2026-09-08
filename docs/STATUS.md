@@ -2,6 +2,225 @@
 
 Senest opdateret: 2026-09-08.
 
+## Aktiv lead-beslutning — afgrænset enhedsstyring, 8. september 2026
+
+Lead: Codex. Brugeren har godkendt planen og implementering på frisk main `c85eca5`
+(1.13.64). Separat usynkroniseret worktree; eksisterende dirty workspace bevares.
+Observation: Assist-kataloget giver ikke modellen Roborocks komplette kombination af
+indstillinger, segmenter og gentagelser. Direkte evidens er ToolRouters statiske
+Assist-admission og HA 2026.9.0 Roborock-kilde: get_maps, cleaning-selects og
+app_segment_clean. Ingen frisk fysisk Qrevo-test foreligger.
+Hypotese: to bounded HA-værktøjer med on-demand capabilities og præcis validering
+giver Realtime de manglende handlinger uden ændring i samtalemotor eller musikvej.
+Kæde: wake/input → Realtime completed/commit → eksisterende ToolRouter-policy →
+friske HA-metadata/indstillinger → én tilladt handling → resultat → Realtime-svar →
+playback → teardown/rearm → næste wake. Cancellation, stale schema/config/kort,
+duplikater, uvis HA-start og fejl mellem indstillinger/start skal afvises sikkert.
+Berørt kontrakt: HA ejer live-data/handlinger; server ejer autorisation; lifecycle
+10–15 (korrelation, commit, sideeffekter og budget) bevares. Den eksisterende statiske
+HA-serviceadapter udvides eksplicit; Assist erstattes ikke. Ikke-mål: firmware, lyd,
+VAD, gain, timeouts, lokal taleparser, HA-scripts, HA-MCP-installation og nye
+adminhandlinger/adgangsrettigheder.
+Plan: default off, eksplicit entity-allowlist, to statiske schemas højst 6 KiB,
+friske lovlige værdier og aktivt Roborock-kort før start; ingen automatisk retry.
+Regressioner: off-paritet, præcis +2 tools, rå service-/target-injektion, forkert
+integration/device/select, ændret kort/options, disable under read, timeout og fejl;
+eksisterende Thin/Talk commit/lifecycle samt lys/Spotify. SafeEval uden HA-sideeffekter,
+uafhængigt adversarial review og frosset releasegate kræves før publicering.
+Rollback: slå funktionen fra (nye handlinger afvises straks), eller fjern hele
+kandidatdiffet. En allerede afsendt robotopgave stoppes ikke af toggle/rollback.
+Status: implementering startet; ikke testklar, udgivet, installeret eller fysisk bevist.
+Fysisk golden chain, 10/10, to køkkenpassager og før/efter musik-/lyslatens afventer.
+
+Første lokale kandidat: default-off settings og to schema-deklarationer, on-demand
+read-only registry (`config/entity_registry/get_entries`), state og `roborock.get_maps`.
+Kun cleaning_mode/mop_mode/mop_intensity på samme tilladte Roborock-device kan ændres;
+selected_map skal også tillades og læses kun. Engangscapabilities bindes til præcis
+session/tur/config-generation, registeridentitet og kort. Hver indstilling læses tilbage,
+og tidligere bekræftede værdier kontrolleres før næste handling. Start er ét præcist
+`app_segment_clean` med segmentliste og repeat, aldrig et ekstra Assist-startkald.
+HA-ACK markeres eksplicit som ikke-fysisk bevis. Ingen runtime/prompt/firmware-tuning.
+
+Frisk upstream-kontrakt er kontrolleret mod HA 2026.9.0:
+[Roborock vacuum](https://github.com/home-assistant/core/blob/2026.9.0/homeassistant/components/roborock/vacuum.py),
+[cleaning/map selects](https://github.com/home-assistant/core/blob/2026.9.0/homeassistant/components/roborock/select.py),
+[entity registry](https://github.com/home-assistant/core/blob/2026.9.0/homeassistant/components/config/entity_registry.py).
+Dette er kildeverifikation, ikke verification af installeret HA-version eller Qrevo.
+
+Testforløb: første brede kørsel kunne ikke åbne localhost i sandbox; ingen runtime-
+workaround. Den efterfølgende kørsel fandt kolliderende unit-/integration-filnavne;
+integrationstesten fik særskilt navn. Korrigeret `scripts/dev fast --base origin/main`
+er grøn på kandidatens samlede testsuite, Ruff/format og mypy (52,5 s). 41 nye unit-
+cases og 8 sammensatte cases dækker de to værktøjer, registerprotokol, identitet/kort,
+engangskald, disable/cancellation/timeout, indstillingsreadback, eksisterende Assist/
+Spotify-kald uden ekstra opslag samt Thin/Talk commit og replay. Scope er kun ha_tools.
+Fast-tiden overskrider toolingmålet og er ikke latency-evidens for produktet.
+
+Resterende arbejde før aktivering: uafhængigt review, fokuseret sideeffektfri live
+Realtime-eval med den udvidede kontrakt, browserbetjening og fysisk Qrevo-verifikation.
+Det eksisterende SafeEval-profile indeholder endnu ikke disse to fixture-kontrakter;
+et grønt gammelt profile kan derfor ikke godkende denne feature. Ingen installation,
+fysisk funktion, robot-repeat eller uændret fysisk musik-/lyslatens er bevist.
+
+Review fandt tre konkrete kandidatfejl før fysisk test: Supervisor-WebSocket skal
+bruge `/core/websocket`, ikke `/core/api/websocket`; et nyt capability-opslag kunne
+omgå engangstoken efter samme turs start/timeout; og vacuum-/select-states var læst før
+et afventet kortopslag. Kandidaten er ikke testklar. Rettelser begrænses til den
+dokumenterede endpointgrænse, en terminal startgrænse per robot/tur (uvis start blokerer
+også næste tur), og sidste aktuelle state-/indstillingskontrol efter metadataopslag.
+Regressioner skal injicere præcis disse rækkefølger. Assist og lifecycle ændres ikke.
+
+Rettet: Supervisor-ruten er fastlåst i kode/protokoltest; terminaljournalen gemmer
+hver robot/session/tur og kan ikke overskrives af et andet rums samtale. Ukendt start
+blokerer også senere ture. Sidste kontrol er ét serverbygget, read-only HA-template
+med kun validerede præcise IDs, efter alle metadataopslag og før policy/afsendelse.
+HA-state er stadig cachede enhedsdata, ikke en atomisk lås på den fysiske robot.
+Journalen er bounded og proceslokal; en add-on-genstart beviser ikke, at en tidligere
+uvis robotopgave ikke blev startet. Ingen automatisk retry implementeres.
+HA's `/template` kræver eksisterende administratorautorisation; adapteren genbruger
+samme Supervisor-adgang som ToolRouters nuværende area-opslag og tildeler ingen nye
+rettigheder. Modellen kan hverken vælge templatekode eller adminhandlinger. Manglende
+adgang giver et fejlet opslag uden robotkommando.
+
+Review fandt også, at store capability-resultater kunne miste token/rum i providerens
+2048-byte-beskæring. Hele svaret må nu være højst 1800 bytes før token udstedes; større
+opslag giver en eksplicit fejl, ikke en falsk anvendelig succes. Regressionen bruger
+den rigtige provider-serializer. Sidste template-timeout klassificeres som opslag uden
+afsendelse; service-timeout klassificeres særskilt som uvis handling.
+57 målrettede unit-/integrationcases er grønne efter rettelserne (0,35 s), inklusive
+to ejere A→B→A, friskt opslag efter timeout og stateændring under kortopslag. Det
+oprindelige review var NO-GO; reparationsreview afventer. Ingen releasegate er kørt.
+
+Afsluttende reparationsreview fra `/root/device_control_review`: P0=0/P1=0 i det
+reparerede scope; otte repair-regressioner genkørt uafhængigt. Reviewer godkender kun
+lokal kandidathandover og én frosset lokal releasegate. Reviewet module-SHA256 er
+`7bf95573e1c877bba7192c28e3056f0884e771f0b15b9883b6b976fedc63262e`.
+Den ene efterfølgende `scripts/dev release --base origin/main` er grøn (29,0 s):
+ha_tools-scope, Ruff/format, mypy, 1107 unit- og 313 integrationtests. Kun denne
+resultattekst ændres efter gaten; runtime forbliver frosset. Tidligere NO-GO-findings
+er afløst af reparationsreviewet, ikke bortforklaret af tests.
+
+Handover: første lokale implementering er klar på `codex/bounded-device-control`,
+baseret på main c85eca5/1.13.64. **Ikke klar til aktivering eller fysisk test endnu.**
+Ingen publicering, versionbump, installation eller konfigurationsændring i hjemmet.
+Næste arbejde er fokuseret sideeffektfri live SafeEval med de to faktiske værktøjer,
+enabled-feature svar/playback/lifecycle-bevis, browserprøve og derefter de fysiske
+Qrevo-/musik-/latensgates. Den eksisterende kørende installation er urørt.
+
+### Mergeforberedelse — 8. september 2026
+
+Brugeren beder om at gøre klar til merge. Frisk fetch bekræfter stadig main `c85eca5`;
+den rene kandidat `5c3d5a0` er én commit foran. Ingen installation eller aktivering.
+Kandidatversion ændres samlet til 1.13.65 i manifest, package og projektmetadata,
+så en senere main-publicering ikke forsøger at genbruge den immutable 1.13.64-version.
+Funktionskode og reviewet device_control-modul bevares byteidentisk. Changelog skal
+beskrive funktionen som eksperimentel/default-off, ikke som fysisk leveret.
+Samme kausale kæde, invarianter og rollback-grænse som ovenfor gælder; ingen ny
+samtale- eller enhedsadfærd. Plan: afgrænset review af versions-/artifact-deltaet,
+én frosset lokal gate og kladde-PR med exact-head CI/ARM64-build. Merge forbliver
+blokeret af fokuseret live SafeEval og enabled-feature reply/playback/lifecycle-
+evidens; browser- og fysisk aktiveringsgate arves ikke fra eksisterende tests.
+
+Afgrænset metadatareview `/root/merge_metadata_review` godkender versionskonsistens,
+uændrede funktionsbytes og korrekt immutable-tag-adfærd til lokal gate/kladde-PR.
+Ny frosset lokal gate på 1.13.65 er grøn (28,6 s): scope, Ruff/format, mypy,
+1107 unit- og 313 integrationtests. Kun resultattekst ændres efter gaten.
+Kandidaten er klargjort til remote CI/review som kladde; dette er ikke merge-,
+installations- eller aktiveringsgodkendelse. De nævnte live-/lifecycle-gates mangler.
+
+Push til den eksisterende origin `https://github.com/BixelVentures/podvoice.git`
+blev afvist før eksekvering af automatisk sikkerhedsreview: mergeforberedelse blev
+ikke vurderet som specifik tilladelse til at eksportere kandidatkode/metadata til
+destinationen. Ingen remote branch, PR eller CI blev oprettet. Lokalt commit/handover
+kan afsluttes; push og kladde-PR afventer brugerens eksplicitte uploadgodkendelse.
+
+### Autoriseret levering — 8. september 2026
+
+Brugerens "Yes skub skub helt til add on" autoriserer nu push, merge og installation,
+men ophæver ikke testkrav. Branch er skubbet og kladde-PR #36 oprettet. ARM64-build
+bestod på b60fdfe; CI fandt en testantagelse, ikke en observeret runtimefejl:
+`issued_at=0` er ikke udløbet på en runner med monotonic-uptime under 120 sekunder.
+Rettelsen begrænses til relativ alder i testen. Ingen timeout eller runtime ændres.
+Enabled-feature integrationen udvides med kvittering/playback, modelstyret lukning,
+én teardown/rearm og ny wake med afvist gammel capability på både Voice PE og Talk.
+Dette er deterministisk adapterbevis, ikke fysisk lyd-/robotbevis. Kandidaten er
+fortsat ikke merge-/aktiveringsklar; fokuseret live SafeEval og browsergate mangler.
+
+Resultat: 59 målrettede cases bestod. `/root/device_control_review` finder ingen
+konkret blocker i det test-only delta og bekræfter bevisgrænsen (FakeVoicePELink,
+rigtig BrowserLink/ThinSession, ikke fysisk Voice PE). `fast` er grøn på hele
+testsuiten (51,8 s); langsom samlet kørsel ændrer ingen runtimehypotese.
+Chrome-browserprøve på loopback med kandidatens uændrede web/settings-kode og
+sideeffektfri HA-fixture bekræfter default-off, linjevis entity-liste, gemt tilvalg
+med præcis to værktøjer, gemt fravalg med straks nul ekstra værktøjer uden genstart,
+og afvisning af `light.not_allowed`. Fixturet sendte nul HA-handlinger.
+Live HA-panelet er læst og viser fortsat v1.13.64; hjemmets indstillinger er urørt.
+
+Frosset gate efter test-only reparation er grøn (28,6 s), 1107 unit- og 315
+integrationtests. Runtime og add-on-context er uændret fra b60fdfe.
+Reviewers leveringsafgørelse er NO under den nuværende eksplicitte før-merge-gate:
+default-off beviser ikke den manglende fokuserede live SafeEval. Et isoleret,
+server-ejet fixture-profile kan teste de to kandidatdeklarationer under den
+eksisterende diagnostiklås uden at aktivere HA-handlinger. Dette er endnu ikke
+implementeret. Ingen nye SSH-/administratorrettigheder er nødvendige som udgangspunkt.
+Diagnostik-først-installation er en anden rækkefølge end den registrerede releaseplan
+og kræver brugerens specifikke godkendelse; alternativet er en isoleret stagingvej.
+Ingen merge, installation eller aktivering udføres før den afklaring.
+
+### Godkendt diagnostik-først — 8. september 2026
+
+Brugeren har efter forklaringen af den simulerede robot godkendt "ja gør alt det".
+Rækkefølgen ændres eksplicit: review og maskinelle gates → merge/installér med
+enhedsstyring fortsat off → isoleret live fixture-test → først derefter fysisk canary.
+Dette godkender diagnostikinstallation, ikke allerede bevist Roborock-funktion.
+Observation: det eksisterende SafeEval afviser de nye værktøjer og har kun tre
+normale response-edges per tur. Hypotese: et separat, eksplicit valgt Roborock-profile
+med server-ejede fixtures og ni reserverede edges kan prøve hele indstillingskæden
+uden HA-trafik eller ændring af standardprofilet. Ingen nye scripts i HA eller taleparser.
+Samme kæde og invarianter som ovenfor; diagnostiklåsen tages før kandidat-snapshot
+og providerforbindelse, og alle fejl/cancellation frigiver den. Faktisk off-snapshot,
+hypotetisk enabled-snapshot, fixturehash og artifactidentitet må ikke sammenblandes.
+Plan: success/max/extreme/repeat, ukendt start uden retry og tvetydigt rum uden start;
+afvis udeklarerede og ikke-fixturerede kald; normal evaluering og musikvej uændret.
+Regressionskrav: baseline-paritet, eksklusiv lease, cancellation, faste budgetter,
+token-/actionrækkefølge, artifact-/schemaidentitet og sand UI-resultattekst.
+Rollback: off bevares; fjern kun det valgfrie evalprofile ved diagnosefejl. Ingen
+ukendt robotstart kan blive gjort kendt ved genstart. Fysisk gate er stadig ikke bestået.
+
+Implementeret valgfrit `device-control`-profile med tre scenarier/fire ture: discovery
+og max/extreme/køkken×2, ukendt start uden retry, tvetydigt rum uden handling. Ingen
+produktionsindstillinger aktiveres; alle kald bliver i eksakte syntetiske fixtures.
+Hele faktisk off-katalog suppleres med præcis kandidatmodulets to deklarationer.
+Diagnostiklås tages før snapshot; faktisk/kandidat providerhash og rå routerhash
+registreres separat sammen med modul-, fixture- og runtime-artifact-identitet.
+Normal SafeEval beholder sine fire reserverede edges og sit uændrede corpus.
+Det nye profile reserverer ni token-edges, men afregner autoritativ usage per response
+og kontrollerer hver næste worst-case $1-edge mod det samme samlede $5-loft.
+Review fandt manglende svar-orakler og en prisgrænse ved fortsættelse efter fejlet
+discovery. Rettet kun i fixture-profilet: tomme/falske succesbeskeder afvises, og en
+bedømt fejl stopper scenariet før næste brugerinput. Dermed holdes forhistorisk lyd
+inden for den eksisterende konservative prisberegnings 12.288 audio-tokens.
+Mode skal vælges først; fan og vaskeintensitet må derefter bytte rækkefølge via to
+eksakte tokenkæder. Begge kæder ender i præcis én start med køkkensegment 16/repeat 2.
+Browserprøven med lokalt mock-resultat bekræfter den nye testknap og tydelig tekst om
+simuleret robot/ingen aktivering; dette er UI-bevis, ikke en kørt live modeltest.
+
+Uafhængigt repair-review: P0=0/P1=0, 28 nye regressioner bestået; GO til én frosset
+lokal releasegate og derefter grøn CI/merge/install med enhedsstyring off og tom allowlist.
+Resterende P2: svar-orakler er begrænsede heuristikker og kan acceptere et blandet
+ukendt-/succesudsagn. Før aktivering skal lead manuelt gennemgå de bevarede faktiske
+live svar: ukendt må ikke påstå start eller afslutning, tvetydighed skal reelt afklares.
+`candidate_contract_passed` alene åbner aldrig aktivering eller fysisk canary.
+Et tidligere fast-gateforsøg blev ugyldigt, fordi diffet ændredes under kørslen;
+det tæller ikke som en frosset kandidatgodkendelse.
+
+Frosset lokal releasegate bestået mod frisk origin/main c85eca5: Ruff/format,
+mypy (44 kildefiler), scope ha_tools, 1.135 unit- og 315 integrationtests.
+Første start blev afvist før kørsel af en sideløbende gates fælles lås; efter dens
+afslutning kørte denne gate én gang til grønt. Ingen produktionsændring under gaten.
+Næste nødvendige bevis er CI/ARM64 på det præcise nye commit; live fixture og fysisk
+Roborock/Voice PE er stadig ikke kørt eller godkendt.
+
 ## Aktiv lead-beslutning — afsluttet handling, 8. september 2026
 
 Lead: Codex; separat kandidat fra main 1707b03. Brugeren bekræfter Texas Sun virker,
@@ -49,7 +268,7 @@ er grøn (28,8 s): scope, Ruff/format, mypy, unit og integration. Tidligere rød
 afløst af dette resultat; kun dokumenteret resultattekst ændres efter gaten.
 Kandidaten er klar til autoriseret publicering, ikke fysisk featuregodkendt.
 
-<!-- candidate-scope-coupling
+<!-- archived-action-close-coupling
 {
   "version": 1,
   "base_tip": "1707b03ef94d5346a09d9fc4266a02d92aaddd2b",

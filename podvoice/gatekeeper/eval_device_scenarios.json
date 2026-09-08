@@ -1,0 +1,501 @@
+{
+  "schema_version": 2,
+  "fixture_contracts": [
+    {
+      "exact_tool_name": "ha_get_device_capabilities",
+      "risk": "read_only",
+      "cases": [
+        {
+          "args": {},
+          "result": {
+            "ok": true,
+            "data": {
+              "entity_ids": [
+                "vacuum.eval_qrevo",
+                "select.eval_cleaning_mode",
+                "select.eval_mop_intensity",
+                "vacuum.eval_unknown",
+                "vacuum.eval_ambiguous"
+              ]
+            }
+          }
+        },
+        {
+          "args": {
+            "entity_id": "vacuum.eval_qrevo"
+          },
+          "result": {
+            "ok": true,
+            "capability_token": "eval0",
+            "data": {
+              "entity_id": "vacuum.eval_qrevo",
+              "state": "docked",
+              "fan_speed": "balanced",
+              "fan_speed_options": [
+                "balanced",
+                "max"
+              ],
+              "controls": [
+                {
+                  "entity_id": "select.eval_cleaning_mode",
+                  "role": "cleaning_mode",
+                  "state": "vacuum",
+                  "options": [
+                    "vacuum",
+                    "vacuum_and_mop"
+                  ],
+                  "action": "select.select_option"
+                },
+                {
+                  "entity_id": "select.eval_mop_intensity",
+                  "role": "mop_intensity",
+                  "state": "medium",
+                  "options": [
+                    "medium",
+                    "extreme"
+                  ],
+                  "action": "select.select_option"
+                }
+              ],
+              "map": {
+                "flag": 0,
+                "name": "Stueplan",
+                "rooms": [
+                  {
+                    "id": 16,
+                    "name": "Køkken"
+                  },
+                  {
+                    "id": 17,
+                    "name": "Spisestue"
+                  }
+                ]
+              },
+              "actions": [
+                "vacuum.set_fan_speed",
+                "vacuum.send_command"
+              ],
+              "segment_command": "app_segment_clean",
+              "repeat_range": [
+                1,
+                3
+              ],
+              "note": "HA-kortdata kan være cachede; fysisk resultat og gentagelser er ikke verificeret."
+            }
+          }
+        },
+        {
+          "args": {
+            "entity_id": "vacuum.eval_unknown"
+          },
+          "result": {
+            "ok": true,
+            "capability_token": "unknown0",
+            "data": {
+              "entity_id": "vacuum.eval_unknown",
+              "state": "docked",
+              "fan_speed": "balanced",
+              "fan_speed_options": [
+                "balanced",
+                "max"
+              ],
+              "controls": [],
+              "map": {
+                "flag": 0,
+                "name": "Stueplan",
+                "rooms": [
+                  {
+                    "id": 16,
+                    "name": "Køkken"
+                  },
+                  {
+                    "id": 17,
+                    "name": "Spisestue"
+                  }
+                ]
+              },
+              "actions": [
+                "vacuum.set_fan_speed",
+                "vacuum.send_command"
+              ],
+              "segment_command": "app_segment_clean",
+              "repeat_range": [
+                1,
+                3
+              ],
+              "note": "HA-kortdata kan være cachede; fysisk resultat og gentagelser er ikke verificeret."
+            }
+          }
+        },
+        {
+          "args": {
+            "entity_id": "vacuum.eval_ambiguous"
+          },
+          "result": {
+            "ok": true,
+            "capability_token": "ambiguous0",
+            "data": {
+              "entity_id": "vacuum.eval_ambiguous",
+              "state": "docked",
+              "fan_speed": "balanced",
+              "fan_speed_options": [
+                "balanced",
+                "max"
+              ],
+              "controls": [],
+              "map": {
+                "flag": 0,
+                "name": "Stueplan",
+                "rooms": [
+                  {
+                    "id": 16,
+                    "name": "Køkken"
+                  },
+                  {
+                    "id": 17,
+                    "name": "Køkken"
+                  }
+                ]
+              },
+              "actions": [
+                "vacuum.set_fan_speed",
+                "vacuum.send_command"
+              ],
+              "segment_command": "app_segment_clean",
+              "repeat_range": [
+                1,
+                3
+              ],
+              "note": "HA-kortdata kan være cachede; fysisk resultat og gentagelser er ikke verificeret."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "exact_tool_name": "ha_execute_device_action",
+      "risk": "low_risk",
+      "cases": [
+        {
+          "args": {
+            "capability_token": "eval0",
+            "entity_id": "select.eval_cleaning_mode",
+            "action": "select.select_option",
+            "arguments": {
+              "option": "vacuum_and_mop"
+            }
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "accepted_by_ha": true,
+              "physical_result_verified": false,
+              "entity_id": "select.eval_cleaning_mode",
+              "action": "select.select_option"
+            },
+            "capability_token": "eval1"
+          }
+        },
+        {
+          "args": {
+            "capability_token": "eval1",
+            "entity_id": "select.eval_mop_intensity",
+            "action": "select.select_option",
+            "arguments": {
+              "option": "extreme"
+            }
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "accepted_by_ha": true,
+              "physical_result_verified": false,
+              "entity_id": "select.eval_mop_intensity",
+              "action": "select.select_option"
+            },
+            "capability_token": "eval2"
+          }
+        },
+        {
+          "args": {
+            "capability_token": "eval2",
+            "entity_id": "vacuum.eval_qrevo",
+            "action": "vacuum.set_fan_speed",
+            "arguments": {
+              "fan_speed": "max"
+            }
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "accepted_by_ha": true,
+              "physical_result_verified": false,
+              "entity_id": "vacuum.eval_qrevo",
+              "action": "vacuum.set_fan_speed"
+            },
+            "capability_token": "eval3"
+          }
+        },
+        {
+          "args": {
+            "capability_token": "eval3",
+            "entity_id": "vacuum.eval_qrevo",
+            "action": "vacuum.send_command",
+            "arguments": {
+              "command": "app_segment_clean",
+              "segments": [
+                16
+              ],
+              "repeat": 2
+            }
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "accepted_by_ha": true,
+              "physical_result_verified": false,
+              "entity_id": "vacuum.eval_qrevo",
+              "action": "vacuum.send_command"
+            }
+          }
+        },
+        {
+          "args": {
+            "capability_token": "eval1",
+            "entity_id": "vacuum.eval_qrevo",
+            "action": "vacuum.set_fan_speed",
+            "arguments": {
+              "fan_speed": "max"
+            }
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "accepted_by_ha": true,
+              "physical_result_verified": false,
+              "entity_id": "vacuum.eval_qrevo",
+              "action": "vacuum.set_fan_speed"
+            },
+            "capability_token": "eval_fan"
+          }
+        },
+        {
+          "args": {
+            "capability_token": "eval_fan",
+            "entity_id": "select.eval_mop_intensity",
+            "action": "select.select_option",
+            "arguments": {
+              "option": "extreme"
+            }
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "accepted_by_ha": true,
+              "physical_result_verified": false,
+              "entity_id": "select.eval_mop_intensity",
+              "action": "select.select_option"
+            },
+            "capability_token": "eval3"
+          }
+        },
+        {
+          "args": {
+            "capability_token": "unknown0",
+            "entity_id": "vacuum.eval_unknown",
+            "action": "vacuum.send_command",
+            "arguments": {
+              "command": "app_segment_clean",
+              "segments": [
+                16
+              ],
+              "repeat": 2
+            }
+          },
+          "result": {
+            "ok": false,
+            "error_kind": "device_outcome_unknown",
+            "error": "HA-kaldets udfald er ukendt. Gentag ikke; kontrollér robotten."
+          }
+        }
+      ]
+    },
+    {
+      "exact_tool_name": "end_conversation",
+      "risk": "lifecycle",
+      "cases": [
+        {
+          "args": {},
+          "result": {
+            "ok": true,
+            "data": {
+              "decision": "end_conversation"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "device-sequence",
+      "description": "Synthetic robot: exact mode, extreme mop, max fan, kitchen twice, then model-owned receipt; no HA traffic.",
+      "exact_tool_names": [
+        "ha_get_device_capabilities",
+        "ha_execute_device_action",
+        "end_conversation"
+      ],
+      "turns": [
+        {
+          "text": "Hvilke robot-entiteter har du adgang til via udvidet enhedsstyring?",
+          "expect": {
+            "decision": "ha_get_device_capabilities",
+            "tool_args": {
+              "ha_get_device_capabilities": {}
+            },
+            "fixture_side_effects": 0,
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Brug robotten vacuum.eval_qrevo. Støvsug og vask køkkenet to gange med maksimal sugestyrke og ekstrem vaskeintensitet.",
+          "expect": {
+            "decisions": [
+              "ha_get_device_capabilities",
+              "ha_execute_device_action",
+              "ha_execute_device_action",
+              "ha_execute_device_action",
+              "ha_execute_device_action",
+              "end_conversation"
+            ],
+            "decision_batches": [
+              [
+                "ha_get_device_capabilities"
+              ],
+              [
+                "ha_execute_device_action"
+              ],
+              [
+                "ha_execute_device_action"
+              ],
+              [
+                "ha_execute_device_action"
+              ],
+              [
+                "ha_execute_device_action"
+              ],
+              [
+                "end_conversation"
+              ]
+            ],
+            "tool_args": {
+              "ha_get_device_capabilities": {
+                "entity_id": "vacuum.eval_qrevo"
+              }
+            },
+            "tool_outcomes": {
+              "ha_execute_device_action": [
+                "ok",
+                "ok",
+                "ok",
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 4,
+            "remain_open": false,
+            "answer_patterns": [
+              "^(?!.*(?:færdig|gennemført)).*(?:sendt|start|sat|anmod|modtag).+"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "device-unknown",
+      "description": "Unknown start must not be retried or claimed complete.",
+      "exact_tool_names": [
+        "ha_get_device_capabilities",
+        "ha_execute_device_action"
+      ],
+      "turns": [
+        {
+          "text": "Brug vacuum.eval_unknown til at rengøre køkkenet to gange.",
+          "expect": {
+            "decisions": [
+              "ha_get_device_capabilities",
+              "ha_execute_device_action"
+            ],
+            "decision_batches": [
+              [
+                "ha_get_device_capabilities"
+              ],
+              [
+                "ha_execute_device_action"
+              ]
+            ],
+            "tool_args": {
+              "ha_get_device_capabilities": {
+                "entity_id": "vacuum.eval_unknown"
+              },
+              "ha_execute_device_action": {
+                "capability_token": "unknown0",
+                "entity_id": "vacuum.eval_unknown",
+                "action": "vacuum.send_command",
+                "arguments": {
+                  "command": "app_segment_clean",
+                  "segments": [
+                    16
+                  ],
+                  "repeat": 2
+                }
+              }
+            },
+            "tool_outcomes": {
+              "ha_execute_device_action": [
+                "device_outcome_unknown"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "forbid": [
+              "end_conversation"
+            ],
+            "remain_open": true,
+            "answer_patterns": [
+              "^(?!(?:robotten|støvsugeren|rengøringen) (?:er startet|er færdig))(?!(?:jeg har|jeg har nu) (?:startet|sat))(?!(?:.*)(?:rengøringen er færdig|har gennemført|færdigrengjort)).*(?:ukendt|usikker|ikke bekræfte|ikke sikker|ved ikke|tjek|kontroller).+"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "device-ambiguous",
+      "description": "Two identically named rooms require clarification, zero action.",
+      "exact_tool_names": [
+        "ha_get_device_capabilities",
+        "ha_execute_device_action"
+      ],
+      "turns": [
+        {
+          "text": "Rengør køkkenet to gange med vacuum.eval_ambiguous.",
+          "expect": {
+            "decision": "ha_get_device_capabilities",
+            "tool_args": {
+              "ha_get_device_capabilities": {
+                "entity_id": "vacuum.eval_ambiguous"
+              }
+            },
+            "fixture_side_effects": 0,
+            "forbid": [
+              "ha_execute_device_action",
+              "end_conversation"
+            ],
+            "remain_open": true,
+            "answer_patterns": [
+              "^(?!(?:robotten|støvsugeren|rengøringen) (?:er startet|er færdig))(?!(?:jeg har|jeg har nu) (?:startet|sat))(?!(?:.*)(?:rengøringen er færdig|har gennemført|færdigrengjort)).*(?:hvilk|præcis|to rum|flere rum|mener du).+"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

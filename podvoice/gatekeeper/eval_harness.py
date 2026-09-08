@@ -305,6 +305,10 @@ def _protocol_owner_vad_config(
 # tool loops remain capped at three unless the typed correction edge was observed.
 MAX_EVAL_NORMAL_RESPONSE_EDGES_PER_TURN = 3
 MAX_EVAL_RESPONSE_EDGES_PER_TURN = 4
+# Explicit optional fixture profile only; the ordinary corpus retains its limits.
+DEVICE_EVAL_PROFILE = "device-control"
+DEVICE_EVAL_RESPONSE_EDGES = 9
+DEVICE_EVAL_PATH = pathlib.Path(__file__).with_name("eval_device_scenarios.json")
 MAX_LIVE_EVAL_PROMPT_BYTES = 32 * 1024
 _LOG = logging.getLogger(__name__)
 
@@ -1171,6 +1175,23 @@ class EvalBudget:
         if self.cost_usd > self.max_cost_usd:
             raise RuntimeError("eval cost budget exhausted")
 
+    def reserve_device_turn(self) -> None:
+        """Reserve all nine token edges; price is guarded before EACH response.
+
+        Nine worst-case dollars cannot fit the unchanged $5 cap. Unlike the short
+        baseline profile, this fixture-only chain records authoritative usage per
+        response and stops before any next $1 edge could cross the cap.
+        """
+        extra = (DEVICE_EVAL_RESPONSE_EDGES - 1) * MAX_OUTPUT_TOKENS
+        if self.reserved_tokens + extra + MAX_OUTPUT_TOKENS > self.max_reserved_tokens:
+            raise RuntimeError("eval response-token reservation budget exhausted")
+        self.reserve(1)
+        self.reserved_tokens += extra
+
+    def require_next_device_response(self) -> None:
+        if self.cost_usd + self.worst_response_cost_usd > self.max_cost_usd:
+            raise RuntimeError("budget_exhausted · next response could exceed the hard USD cap")
+
 
 class SafeEvalTools:
     """Production-shaped declarations and policy with no external clients.
@@ -1245,6 +1266,9 @@ class SafeEvalTools:
             else {str(item.get("name")) for item in self._declarations if item.get("name")}
         )
         self._fixture_contracts = dict(fixture_contracts or {})
+        self._device_fixture_token: str | None = None
+        self._device_fixture_terminal = False
+        self._device_fixture_reads: set[str] = set()
 
     @staticmethod
     def _safe_declarations() -> list[dict[str, Any]]:
@@ -1322,6 +1346,7 @@ class SafeEvalTools:
 
     def finish_turn(self) -> None:
         self._active_turn_id = None
+        self._device_fixture_token = None
 
     def _challenge(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         if self._active_turn_id is None:
@@ -1423,6 +1448,33 @@ class SafeEvalTools:
             fixture_result = next(case.result for case in contract.cases if case.args == args)
             self.fixture_side_effects += int(fixture_result.get("ok") is True)
             return json.loads(json.dumps(fixture_result))
+        if (
+            name in {"ha_get_device_capabilities", "ha_execute_device_action"}
+            and contract is not None
+        ):
+            # Exact synthetic fixtures only. Never construct a router/client or fall
+            # through to production dispatch, even for an unknown or repeated call.
+            fixture_result = next(case.result for case in contract.cases if case.args == args)
+            if name == "ha_get_device_capabilities":
+                entity = args.get("entity_id")
+                if entity:
+                    if entity in self._device_fixture_reads or self._device_fixture_terminal:
+                        return {"ok": False, "error_kind": "eval_fixture_replay"}
+                    self._device_fixture_reads.add(entity)
+                    self._device_fixture_token = fixture_result.get("capability_token")
+            else:
+                if (
+                    self._device_fixture_terminal
+                    or self._active_turn_id is None
+                    or args.get("capability_token") != self._device_fixture_token
+                ):
+                    return {"ok": False, "error_kind": "eval_fixture_sequence"}
+                self._device_fixture_token = None  # consume before returning a next token
+                if args.get("action") == "vacuum.send_command":
+                    self._device_fixture_terminal = True
+                self.fixture_side_effects += int(fixture_result.get("ok") is True)
+                self._device_fixture_token = fixture_result.get("capability_token")
+            return json.loads(json.dumps(fixture_result))
         result = self._RESULTS.get(name)
         if result is None:
             return {
@@ -1476,12 +1528,14 @@ def _scenario_manifest_sha256() -> str:
 def _admit_eval_tools(
     scenarios: list[EvalScenario] | tuple[EvalScenario, ...],
     declarations: list[dict[str, Any]] | None,
+    *,
+    fixture_path: pathlib.Path = SCENARIOS_PATH,
 ) -> EvalToolAdmission:
     """Build one exact, schema-valid, side-effect-free capability set before a socket."""
     if declarations is None:
         raise ValueError("production tool snapshot is missing")
     required = {name for scenario in scenarios for name in scenario.exact_tool_names}
-    contracts = load_fixture_contracts()
+    contracts = load_fixture_contracts(fixture_path)
     missing_contracts = sorted(required.difference(contracts))
     if missing_contracts:
         raise ValueError(f"missing canonical eval fixture contracts: {missing_contracts}")
@@ -1605,17 +1659,26 @@ async def run_scenario(
     run_id: str,
     budget: EvalBudget,
     turn_timeout_s: float = LIVE_EVAL_TURN_TIMEOUT_S,
+    response_edges: int = MAX_EVAL_RESPONSE_EDGES_PER_TURN,
 ) -> ScenarioResult:
     session_id = ""
     results: list[TurnResult] = []
     try:
         # Reserve the first bounded turn before opening a provider socket.  A hard
         # price/token stop therefore has zero provider traffic and zero fixture effect.
-        budget.reserve(MAX_EVAL_RESPONSE_EDGES_PER_TURN)
+        if response_edges == DEVICE_EVAL_RESPONSE_EDGES:
+            if getattr(driver, "_cost_budget", None) is not budget:
+                raise ValueError("device profile requires per-response budget ownership")
+            budget.reserve_device_turn()
+        else:
+            budget.reserve(response_edges)
         session_id = await driver.open(run_id=run_id, scenario_id=scenario.id)
         for index, turn in enumerate(scenario.turns, start=1):
             if index > 1:
-                budget.reserve(MAX_EVAL_RESPONSE_EDGES_PER_TURN)
+                if response_edges == DEVICE_EVAL_RESPONSE_EDGES:
+                    budget.reserve_device_turn()
+                else:
+                    budget.reserve(response_edges)
             turn_id = f"{scenario.id}-{index}-{uuid.uuid4().hex[:8]}"
             failure_message: str | None
             try:
@@ -1714,9 +1777,19 @@ async def run_scenario(
                     failure_message,
                     ScenarioResult(scenario.id, False, session_id, results),
                 )
-            budget.record(observed.usage)
+            if response_edges != DEVICE_EVAL_RESPONSE_EDGES:
+                budget.record(observed.usage)
             findings = grade_turn(turn.expect, observed)
             results.append(TurnResult(turn_id, turn.text, not findings, observed, findings))
+            if findings and response_edges == DEVICE_EVAL_RESPONSE_EDGES:
+                # A successful discovery is <=3 outputs (one lookup, optional
+                # correction, final). Never carry a failed long loop into turn two:
+                # 3 + 9 bounded outputs preserves the <=12,288 audio-token context
+                # assumption behind the unchanged $1 prospective response bound.
+                raise ScenarioExecutionError(
+                    "prompt_or_tool_contract_failure · device fixture finding",
+                    ScenarioResult(scenario.id, False, session_id, results),
+                )
             if not observed.remain_open:
                 break
     finally:
@@ -1759,7 +1832,19 @@ class LiveRealtimeDriver:
         capacity_monotonic=time.monotonic,
         capacity_deadline: float | None = None,
         capacity_wait_observer=None,
+        response_edges: int = MAX_EVAL_RESPONSE_EDGES_PER_TURN,
+        cost_budget: EvalBudget | None = None,
     ) -> None:
+        if type(response_edges) is not int or response_edges not in (
+            MAX_EVAL_RESPONSE_EDGES_PER_TURN,
+            DEVICE_EVAL_RESPONSE_EDGES,
+        ):
+            raise ValueError("invalid bounded eval response profile")
+        self._max_response_edges = response_edges
+        if (response_edges == DEVICE_EVAL_RESPONSE_EDGES) != (cost_budget is not None):
+            raise ValueError("device profile requires an exclusive per-response cost guard")
+        self._cost_budget = cost_budget
+        self._cost_response_ids: set[str] = set()
         self.api_key = api_key
         self.model = model
         self.voice = voice
@@ -1854,6 +1939,8 @@ class LiveRealtimeDriver:
         This runs before the semantic turn timeout while the key-global diagnostic
         owner keeps Voice PE and Talk in explicit maintenance mode.
         """
+        if self._cost_budget is not None:
+            self._cost_budget.require_next_device_response()
         lease = self.budget_lease
         if lease is None:
             return
@@ -2158,9 +2245,7 @@ class LiveRealtimeDriver:
                     observed.error = "missing, stale, or mismatched tool commit edge"
                     observed.response_status = "failed"
                     break
-                allowed_edges = MAX_EVAL_NORMAL_RESPONSE_EDGES_PER_TURN + min(
-                    observed.schema_corrections, 1
-                )
+                allowed_edges = self._max_response_edges - 1 + min(observed.schema_corrections, 1)
                 if response_edges >= allowed_edges:
                     observed.error = "eval model response-edge limit exhausted before final answer"
                     observed.response_status = "failed"
@@ -2175,7 +2260,7 @@ class LiveRealtimeDriver:
             elif isinstance(event, ToolSchemaCorrection):
                 response_edges += 1
                 observed.schema_corrections += 1
-                if response_edges >= MAX_EVAL_RESPONSE_EDGES_PER_TURN:
+                if response_edges >= self._max_response_edges:
                     observed.error = "eval model response-edge limit exhausted before final answer"
                     observed.response_status = "failed"
                     break
@@ -2223,6 +2308,13 @@ class LiveRealtimeDriver:
                     elif unbound_first_audio_ms is None:
                         unbound_first_audio_ms = first_audio_ms
             elif isinstance(event, Usage):
+                if self._cost_budget is not None:
+                    if not event.response_id or event.response_id in self._cost_response_ids:
+                        raise RuntimeError(
+                            "provider_usage_unknown · missing or duplicate response usage"
+                        )
+                    self._cost_response_ids.add(event.response_id)
+                    self._cost_budget.record(asdict(event))
                 observed.response_usage.append(asdict(event))
                 usage = Usage(
                     **{
@@ -2886,6 +2978,7 @@ class LiveEvalService:
         production_headroom: int = 0,
         max_run_s: float | None = None,
         provider_budget: ProviderBudgetCoordinator = PROVIDER_BUDGET,
+        production_tool_snapshot=None,
     ) -> None:
         self._lock = asyncio.Lock()
         self._sleep = sleep
@@ -2896,6 +2989,7 @@ class LiveEvalService:
         self._next_scenario_reserve = next_scenario_reserve
         self._production_headroom = production_headroom
         self._provider_budget = provider_budget
+        self._production_tool_snapshot = production_tool_snapshot
         self._max_run_s = float(max_run_s or _full_profile_deadline_s())
         self._job: asyncio.Task[None] | None = None
         self._active_run_id: str | None = None
@@ -2971,9 +3065,14 @@ class LiveEvalService:
                 "status": "invalid",
                 "error": "Scenarie-gentagelser skal være et heltal fra en til fem.",
             }
-        known = {scenario.id for scenario in load_scenarios()}
+        device_profile = scenario_ids == {DEVICE_EVAL_PROFILE}
+        known = {scenario.id for scenario in load_scenarios()} | {DEVICE_EVAL_PROFILE}
         unknown = (scenario_ids or set()).difference(known)
-        if scenario_ids is not None and (not scenario_ids or unknown):
+        if scenario_ids is not None and (
+            not scenario_ids
+            or unknown
+            or (DEVICE_EVAL_PROFILE in scenario_ids and not device_profile)
+        ):
             return {
                 "ok": False,
                 "status": "invalid",
@@ -2981,10 +3080,11 @@ class LiveEvalService:
             }
         run_id = self._new_run_id()
         self._active_run_id = run_id
-        self._active_kind = "preflight"
+        self._active_kind = DEVICE_EVAL_PROFILE if device_profile else "preflight"
         self._started_at = time.time()
         self._job = asyncio.create_task(
             self._run_background(
+                operation=DEVICE_EVAL_PROFILE if device_profile else "scenarios",
                 run_id=run_id,
                 api_key=api_key,
                 scenario_ids=scenario_ids,
@@ -3177,6 +3277,8 @@ class LiveEvalService:
         try:
             if operation == PROTOCOL_OWNER_PROBE_KIND:
                 report = await self.run_protocol_owner(**kwargs)
+            elif operation == DEVICE_EVAL_PROFILE:
+                report = await self.run_device_control(**kwargs)
             elif operation == "replay":
                 report = await self.run_replay(**kwargs)
             else:
@@ -3200,6 +3302,9 @@ class LiveEvalService:
                     "run_id": run_id,
                     "error": "Live-evalueringen blev afbrudt, da add-on stoppede.",
                 }
+            if operation == DEVICE_EVAL_PROFILE:
+                report["kind"] = DEVICE_EVAL_PROFILE
+                report["candidate_contract_passed"] = False
             self._retain_report(
                 report,
                 kwargs=kwargs,
@@ -3233,6 +3338,9 @@ class LiveEvalService:
                 }
         finally:
             if "report" in locals() and run_id not in self._reports_by_run_id:
+                if operation == DEVICE_EVAL_PROFILE:
+                    report["kind"] = DEVICE_EVAL_PROFILE
+                    report.setdefault("candidate_contract_passed", False)
                 self._retain_report(
                     report,
                     kwargs=kwargs,
@@ -3283,12 +3391,90 @@ class LiveEvalService:
             self._last_full_candidate_identity = candidate_identity
         elif (
             retained.get("kind")
-            not in {"audio-replay", "semantic-audio-ab", PROTOCOL_OWNER_PROBE_KIND}
+            not in {
+                "audio-replay",
+                "semantic-audio-ab",
+                PROTOCOL_OWNER_PROBE_KIND,
+                DEVICE_EVAL_PROFILE,
+            }
             and self._last_full_candidate_identity is not None
             and candidate_identity != self._last_full_candidate_identity
         ):
             self._last_full_report = None
             self._last_full_candidate_identity = None
+
+    async def run_device_control(self, **kwargs: Any) -> dict[str, Any]:
+        """Candidate-enabled schema, exclusively synthetic dispatch, no live enable."""
+        from . import device_control
+        from .tools import ToolRouter
+
+        if self._production_tool_snapshot is None or self._lock.locked():
+            return {
+                "ok": False,
+                "status": "blocked",
+                "kind": DEVICE_EVAL_PROFILE,
+                "run_id": kwargs.get("run_id"),
+                "error": "Production snapshot unavailable or eval busy",
+            }
+        lease = self._provider_budget.diagnostic_started(kwargs["api_key"])
+        try:
+            # Snapshot only after production admission is excluded. Do not mutate
+            # settings, ToolRouter, MCP admission, or the actual live tool catalog.
+            production = json.loads(json.dumps(self._production_tool_snapshot()))
+            candidate = json.loads(json.dumps(production))
+            canonical = json.loads(json.dumps(device_control._DECLARATIONS))
+            for declaration in canonical:
+                rows = [row for row in candidate if row.get("name") == declaration["name"]]
+                if rows and rows != [declaration]:
+                    raise ValueError("candidate device schema collision")
+                if not rows:
+                    candidate.append(declaration)
+            artifact_kind, artifact_hash = runtime_artifact_identity()
+            module_bytes = await asyncio.to_thread(pathlib.Path(device_control.__file__).read_bytes)
+            kwargs.pop("scenario_ids", None)
+            kwargs["tool_declarations"] = candidate
+            result = await self.run(**kwargs, _device_fixture=True, _diagnostic_lease=lease)
+            expected_turns = {
+                scenario.id: len(scenario.turns) for scenario in load_scenarios(DEVICE_EVAL_PATH)
+            }
+            results = result.get("results", [])
+            complete = sorted(row.get("scenario_id", "") for row in results) == sorted(
+                list(expected_turns) * kwargs.get("repeats", 1)
+            ) and all(
+                row.get("scenario_id") in expected_turns
+                and len(row.get("turns", [])) == expected_turns[row["scenario_id"]]
+                and row.get("passed") is True
+                for row in results
+            )
+            result.update(
+                {
+                    "kind": DEVICE_EVAL_PROFILE,
+                    "candidate_contract_passed": complete
+                    and result.get("status") == "complete"
+                    and result.get("selected_ok") is True,
+                    "production_tool_schema_sha256": _schema_sha256(
+                        SafeEvalTools(production).declarations()
+                    ),
+                    "candidate_enabled_tool_schema_sha256": _schema_sha256(
+                        SafeEvalTools(candidate).declarations()
+                    ),
+                    "production_router_schema_sha256": ToolRouter._schema_sha256_for_declarations(
+                        production
+                    ),
+                    "candidate_router_schema_sha256": ToolRouter._schema_sha256_for_declarations(
+                        candidate
+                    ),
+                    "device_module_sha256": hashlib.sha256(module_bytes).hexdigest(),
+                    "artifact_kind": artifact_kind,
+                    "artifact_sha256": artifact_hash,
+                    "configuration_source": "server-owned synthetic candidate; production settings unchanged",
+                    "physical_result_verified": False,
+                    "activation_requires_enabled_snapshot_match": True,
+                }
+            )
+            return result
+        finally:
+            self._provider_budget.release(lease)
 
     async def run_protocol_owner(
         self,
@@ -4189,6 +4375,8 @@ class LiveEvalService:
         instructions: str = SYSTEM_PROMPT_DA,
         tool_declarations: list[dict[str, Any]] | None = None,
         run_id: str | None = None,
+        _device_fixture: bool = False,
+        _diagnostic_lease: BudgetLease | None = None,
     ) -> dict[str, Any]:
         if self._lock.locked():
             return {
@@ -4222,9 +4410,13 @@ class LiveEvalService:
                     "results": [],
                     "deadline_s": self._max_run_s,
                 }
+            fixture_path = DEVICE_EVAL_PATH if _device_fixture else SCENARIOS_PATH
+            edge_limit = (
+                DEVICE_EVAL_RESPONSE_EDGES if _device_fixture else MAX_EVAL_RESPONSE_EDGES_PER_TURN
+            )
             selected = [
                 scenario
-                for scenario in load_scenarios()
+                for scenario in load_scenarios(fixture_path)
                 if scenario_ids is None or scenario.id in scenario_ids
             ]
             if not selected:
@@ -4234,7 +4426,9 @@ class LiveEvalService:
                     "error": "Ingen kendte eval-scenarier blev valgt.",
                 }
             try:
-                admission = _admit_eval_tools(selected, tool_declarations)
+                admission = _admit_eval_tools(
+                    selected, tool_declarations, fixture_path=fixture_path
+                )
             except (ValueError, ProviderConfigurationError) as exc:
                 return {
                     "ok": False,
@@ -4248,7 +4442,7 @@ class LiveEvalService:
                     "deadline_s": self._max_run_s,
                 }
             selected_turns = repeats * sum(len(scenario.turns) for scenario in selected)
-            response_edges = selected_turns * MAX_EVAL_RESPONSE_EDGES_PER_TURN
+            response_edges = selected_turns * edge_limit
             budget = EvalBudget(
                 max_turns=selected_turns,
                 max_reserved_tokens=response_edges * MAX_OUTPUT_TOKENS,
@@ -4262,7 +4456,7 @@ class LiveEvalService:
             production_declarations = SafeEvalTools(tool_declarations).declarations()
             eval_declarations = admission.declarations
             full_profile_declarations = _admit_eval_tools(
-                load_scenarios(), tool_declarations
+                load_scenarios(fixture_path), tool_declarations, fixture_path=fixture_path
             ).declarations
             prompt_metadata = {
                 "prompt_source": "default" if prompt_is_default else "custom",
@@ -4272,12 +4466,16 @@ class LiveEvalService:
                 "full_profile_tool_schema_sha256": _schema_sha256(full_profile_declarations),
                 "production_tool_schema_sha256": _schema_sha256(production_declarations),
                 "reserved_tool_schema_sha256": _schema_sha256(RESERVED_DECLARATIONS),
-                "tool_schema_profile": "production-plus-safe-sensitive-fixture",
+                "tool_schema_profile": "candidate-device-fixture-only"
+                if _device_fixture
+                else "production-plus-safe-sensitive-fixture",
                 "eval_room_context_profile": SAFE_EVAL_ROOM_CONTEXT_PROFILE,
                 "eval_room_context_sha256": hashlib.sha256(
                     SAFE_EVAL_ROOM_CONTEXT.encode()
                 ).hexdigest(),
-                "scenario_manifest_sha256": _scenario_manifest_sha256(),
+                "scenario_manifest_sha256": hashlib.sha256(fixture_path.read_bytes()).hexdigest()
+                if _device_fixture
+                else _scenario_manifest_sha256(),
                 **_capability_metadata(admission, selected),
             }
             results: list[ScenarioResult] = []
@@ -4285,7 +4483,9 @@ class LiveEvalService:
             token_window_used = 0
             run_deadline = self._monotonic() + self._max_run_s
             try:
-                diagnostic_lease = self._provider_budget.diagnostic_started(api_key)
+                diagnostic_lease = _diagnostic_lease or self._provider_budget.diagnostic_started(
+                    api_key
+                )
             except ProviderBudgetUnavailable as exc:
                 return {
                     "ok": False,
@@ -4340,11 +4540,21 @@ class LiveEvalService:
                                     "rate_limit_wait_s",
                                     budget.rate_limit_wait_s + seconds,
                                 ),
+                                response_edges=edge_limit,
+                                cost_budget=budget if _device_fixture else None,
                             )
                             try:
                                 results.append(
                                     await run_scenario(
-                                        driver, scenario, run_id=run_id, budget=budget
+                                        driver,
+                                        scenario,
+                                        run_id=run_id,
+                                        budget=budget,
+                                        **(
+                                            {"response_edges": edge_limit}
+                                            if _device_fixture
+                                            else {}
+                                        ),
                                     )
                                 )
                             except ScenarioExecutionError as exc:
@@ -4395,7 +4605,8 @@ class LiveEvalService:
                     "deadline_s": self._max_run_s,
                 }
             finally:
-                self._provider_budget.release(diagnostic_lease)
+                if _diagnostic_lease is None:
+                    self._provider_budget.release(diagnostic_lease)
             selected_ok = all(result.passed for result in results)
             profile_complete = bool(prompt_metadata["profile_complete"])
             coverage_complete = bool(prompt_metadata["coverage_complete"])
