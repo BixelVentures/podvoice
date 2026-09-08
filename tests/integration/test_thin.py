@@ -5578,6 +5578,7 @@ async def test_hey_chat_admission_drains_orphan_then_preserves_wake_and_rejects_
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
@@ -5591,7 +5592,16 @@ async def test_hey_chat_admission_drains_orphan_then_preserves_wake_and_rejects_
     async def execute(svc, args):
         await _StubClient.execute_service(client, svc, args)
         calls[svc.name] = args
+        if svc.name == "podvoice_stop_context":
+            client.state_callback(
+                TextSensorState(
+                    f"{args['session']}:{args['generation']}:{'armed' if args['enabled'] else 'disabled'}",
+                    key=43,
+                )
+            )
         if automatic:
+            if svc.name == "podvoice_set_wake_word":
+                client.state_callback(TextSensorState("0" * 32 + ":0:idle", key=43))
             outcome = {
                 "podvoice_set_wake_word": (42, "hey_chat"),
                 "podvoice_reply_cancel": (5, "stopped"),
@@ -5613,6 +5623,7 @@ async def test_hey_chat_admission_drains_orphan_then_preserves_wake_and_rejects_
         await _wait_until(lambda: "podvoice_set_wake_word" in calls)
         old_callback = client.state_callback
         old_callback(TextSensorState(orphan + ":started", key=5))
+        old_callback(TextSensorState(orphan + ":3:armed", key=43))
         old_callback(wake)
         assert brain.connect_count == 0
         assert "podvoice_reply_cancel" not in calls
@@ -5629,6 +5640,7 @@ async def test_hey_chat_admission_drains_orphan_then_preserves_wake_and_rejects_
         await _wait_until(lambda: "podvoice_rearm_wake_word" in calls)
         token = calls["podvoice_rearm_wake_word"]["token"]
         old_callback(TextSensorState(str(token) + ":recovered", key=4))
+        old_callback(TextSensorState("c" * 32 + ":0:disabled", key=43))
         old_callback(wake)
         old_callback(wake)
         frame = _frame()
@@ -5639,13 +5651,23 @@ async def test_hey_chat_admission_drains_orphan_then_preserves_wake_and_rejects_
         automatic = True
         await session.stop()
         await link._on_connect()  # fresh native subscription, real orphan cleanup again
+        client.state_callback(TextSensorState("d" * 32 + ":0:disabled", key=43))
         client.state_callback(wake)
         await _wait_until(lambda: brain.connect_count == 2)
+        brain.emit(UserSpeechStopped())
+        await _wait_until(lambda: link._stop_armed)
         lease = session._arm_playback_lease(item_id="next", kind="reply")
         await session._play_reply_url(lease)
         client.state_callback(TextSensorState(link._reply_token + ":started", key=5))
         old_callback(TextSensorState(link._reply_token + ":stopped_word", key=5))
         assert session._active and not session._transport_closing
+        old_callback(
+            TextSensorState(f"{link._stop_session}:{link._stop_generation}:stopped", key=43)
+        )
+        assert not session._transport_closing
+        client.state_callback(
+            TextSensorState(f"{link._stop_session}:{link._stop_generation}:stopped", key=43)
+        )
         client.state_callback(TextSensorState(link._reply_token + ":stopped_word", key=5))
         await session._close_task
         assert not session._active
@@ -5718,5 +5740,425 @@ async def test_confirmed_action_then_model_close_plays_receipt_before_single_tea
         assert len(attention.release_calls) == 1
         if surface == "voicepe":
             assert link.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.parametrize("direct_ack", [True, False])
+async def test_model_selected_silent_end_waits_for_ack_and_never_speaks(direct_ack):
+    class SilentBrain(LiveFake):
+        async def send_tool_results(self, results):
+            self.sent_tool_results.append(results)
+            return direct_ack
+
+    brain = SilentBrain()
+    session, attention, voicepe = _build(brain)
+    voicepe.supports_playback_events = True
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "quiet",
+                "end_conversation",
+                {"silent": True},
+                batch_id="quiet-decision",
+                index=0,
+                size=1,
+            ),
+        )
+        await asyncio.sleep(0.02)
+        assert not brain.sent_tool_results  # No action before completed response edge.
+        brain.emit(ToolRoundComplete(response_id="quiet-decision"))
+        await _wait_until(lambda: bool(brain.sent_tool_results))
+        assert brain.sent_tool_results[0][0]["suppress_response"] is True
+        if not direct_ack:
+            assert session._active
+            brain.emit(SilentToolComplete(call_ids=("wrong",)))
+            await asyncio.sleep(0.02)
+            assert session._active
+            brain.emit(SilentToolComplete(call_ids=("quiet",)))
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert not voicepe.announced_urls
+        assert len(attention.release_calls) == 1
+        assert voicepe.rearm_calls == 1
+        assert session._trace_reason == "model-close-silent"
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.parametrize(
+    "args", [{"silent": "true"}, {"silent": 1}, {"silent": None}, {"unknown": True}]
+)
+async def test_invalid_silent_end_arguments_cannot_close(args):
+    brain = LiveFake()
+    session, _, _ = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            _batched_call(
+                "bad", "end_conversation", args, batch_id="bad-decision", index=0, size=1
+            ),
+            ToolRoundComplete(response_id="bad-decision"),
+        )
+        await _wait_until(lambda: bool(brain.sent_tool_results))
+        assert brain.sent_tool_results[0][0]["response"]["ok"] is False
+        assert session._active and not session._ending_conversation
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.parametrize("surface", ["voicepe", "talk"])
+async def test_real_provider_silent_end_discards_preamble_and_requires_exact_ack(surface):
+    wire = _AdapterQueueWS()
+    brain = OpenAIRealtimeSession(
+        api_key="test", manual_input_response=True, interrupt_response=False
+    )
+
+    async def connect_without_network():
+        brain._connection_generation += 1
+        brain._configured = True
+        brain._configured_event.set()
+        brain._ws = wire
+
+    brain.connect = connect_without_network
+    browser_messages = []
+    if surface == "talk":
+        session, attention, device, browser_messages, _ = _build_talk_session(brain)
+    else:
+        session, attention, device = _build(brain)
+
+    def creates():
+        return [event for event in wire.sent if event["type"] == "response.create"]
+
+    def outputs():
+        return [
+            event
+            for event in wire.sent
+            if event["type"] == "conversation.item.create"
+            and event["item"]["type"] == "function_call_output"
+        ]
+
+    await session.start()
+    try:
+        await session.wake()
+        await wire.emit(
+            {"type": "input_audio_buffer.speech_started", "item_id": "u1"},
+            {"type": "input_audio_buffer.speech_stopped", "item_id": "u1"},
+            {"type": "input_audio_buffer.committed", "item_id": "u1"},
+            {
+                "type": "conversation.item.added",
+                "item": {"id": "u1", "type": "message", "role": "user"},
+            },
+        )
+        await _wait_until(lambda: len(creates()) == 1)
+        await wire.emit(
+            {
+                "type": "response.created",
+                "response": {"id": "r1", "metadata": creates()[0]["response"]["metadata"]},
+            },
+            {
+                "type": "response.output_audio.delta",
+                "response_id": "r1",
+                "item_id": "preamble",
+                "delta": base64.b64encode(_frame()).decode(),
+            },
+            {
+                "type": "response.output_audio_transcript.delta",
+                "response_id": "r1",
+                "item_id": "preamble",
+                "delta": "Jeg vil lige sige",
+            },
+            {
+                "type": "response.function_call_arguments.done",
+                "response_id": "r1",
+                "call_id": "quiet",
+                "name": "end_conversation",
+                "arguments": '{"silent":true}',
+            },
+            {
+                "type": "response.output_audio.delta",
+                "response_id": "r1",
+                "item_id": "late",
+                "delta": base64.b64encode(_frame()).decode(),
+            },
+            {"type": "response.done", "response": {"id": "r1", "status": "completed"}},
+        )
+        await _wait_until(lambda: bool(outputs()))
+        output = outputs()[0]["item"]
+        assert json.loads(output["output"])["ok"] is True
+        await wire.emit(
+            {"type": "conversation.item.added", "item": {**output, "id": "wrong-id"}},
+        )
+        await asyncio.sleep(0.02)
+        assert session._active and not session._transport_closing
+        assert len(creates()) == 1
+        await wire.emit({"type": "conversation.item.added", "item": output})
+        await _wait_until(lambda: len(attention.release_calls) == 1)
+        assert session._trace_reason == "model-close-silent"
+        assert len(creates()) == 1
+        assert not any(event.get("type") == "play" for event in browser_messages)
+        if surface == "voicepe":
+            await _wait_until(lambda: device.rearm_calls == 1)
+            assert not device.announced_urls
+    finally:
+        await session.aclose()
+
+
+class _ContextDevice(FakeVoicePELink):
+    """Fake acoustic I/O with the actual native Stop-control adapter."""
+
+    supports_stop_context = True
+    supports_local_stop = True
+    supports_playback_ids = True
+    supports_playback_events = True
+
+    def __init__(self):
+        from gatekeeper.voicepe import VoicePELink
+
+        super().__init__(room=ROOM)
+        self.control = VoicePELink("test.local", "test", room=ROOM)
+        self.control.supports_stop_context = True
+        self.control._reply_status_key = 42
+        self.control._client = SimpleNamespace()
+        self.controls = []
+        self.hold_disable = False
+        self.control._call_service = self._service
+        self.new_nonce("a")
+
+    @property
+    def _stop_session(self):
+        return self.control._stop_session
+
+    @property
+    def _stop_generation(self):
+        return self.control._stop_generation
+
+    def accepts_stop_fault(self, event):
+        return self.control.accepts_stop_fault(event)
+
+    def new_nonce(self, letter):
+        self.control._on_stop_context(f"{letter * 32}:0:disabled")
+
+    async def _service(self, name, args=None):
+        if name == "podvoice_stop_context":
+            self.controls.append(dict(args))
+            if not args["enabled"] and self.hold_disable:
+                return True
+            self.ack(args)
+        elif name == "podvoice_reply_play":
+            self.announced_urls.append(args["url"])
+        elif name == "podvoice_reply_cancel":
+            self.control._on_reply_status(args["token"] + ":stopped")
+        return True
+
+    def ack(self, args):
+        outcome = (
+            "armed"
+            if args["enabled"]
+            else "cancelled"
+            if self.control._stop_cancelled
+            else "disabled"
+        )
+        self.control._on_stop_context(f"{args['session']}:{args['generation']}:{outcome}")
+
+    async def set_stop_context(self, enabled, *, closing=False):
+        if closing:
+            self.hold_disable = False
+        return await self.control.set_stop_context(enabled, closing=closing)
+
+    async def play_url(self, url, *, playback_id=None):
+        await self.control.play_url(url, playback_id=playback_id)
+
+    async def stop_playback(self, *, playback_id=None):
+        return await self.control.stop_playback(playback_id=playback_id)
+
+    async def rearm_wake_word(self):
+        result = await super().rearm_wake_word()
+        self.control._reset_stop_context()
+        return result
+
+
+@pytest.mark.parametrize("phase", ["thinking", "tool-wait", "speaking", "tail"])
+async def test_context_stop_cancels_assistant_phase_and_rearms_once(phase):
+    brain = LiveFake()
+    device = _ContextDevice()
+    session, attention, _ = _build(brain, device=device)
+    dispatched = []
+    tool_started = asyncio.Event()
+
+    async def dispatch(name, args):
+        dispatched.append(name)
+        tool_started.set()
+        await asyncio.Event().wait()
+
+    session.tools.dispatch = dispatch
+    await session.start()
+    device.control.on_event = session._on_device_event
+    try:
+        await session.wake()
+        assert not device.control._stop_armed
+        brain.emit(UserSpeechStopped())
+        await _wait_until(lambda: device.control._stop_armed)
+        token, generation = device._stop_session, device._stop_generation
+        if phase == "tool-wait":
+            brain.emit(ToolCall("pending", "HassMediaPause", {}))
+            await asyncio.wait_for(tool_started.wait(), 1)
+        elif phase in ("speaking", "tail"):
+            brain.emit(AudioChunk(_frame(), item_id="reply"), TurnComplete())
+            await _wait_until(lambda: bool(device.announced_urls))
+            device.control._on_reply_status(device.control._reply_token + ":started")
+            if phase == "tail":
+                device.control._on_reply_status(device.control._reply_token + ":finished")
+        device.control._on_stop_context(f"{token}:{generation}:stopped")
+        assert session._transport_closing  # synchronous barrier before future tool/audio
+        brain.emit(ToolCall("too-late", "HassTurnOn", {}), AudioChunk(_frame()), TurnComplete())
+        await session._close_task
+        assert dispatched == (["HassMediaPause"] if phase == "tool-wait" else [])
+        assert len(device.announced_urls) == (1 if phase in ("speaking", "tail") else 0)
+        assert len(attention.release_calls) == 1
+        assert device.rearm_calls == 1
+        device.new_nonce("b")
+        await session.wake()
+        device.control._on_stop_context(f"{token}:{generation}:stopped")
+        assert session._active and not session._transport_closing
+    finally:
+        await session.aclose()
+
+
+async def test_followup_mic_stays_closed_until_current_disable_ack():
+    device = _ContextDevice()
+    brain = LiveFake()
+    session, _, _ = _build(brain, device=device)
+    await session.start()
+    device.control.on_event = session._on_device_event
+    try:
+        await session.wake()
+        brain.emit(UserSpeechStopped())
+        await _wait_until(lambda: device.control._stop_armed)
+        device.hold_disable = True
+        session._enter_followup()
+        await _wait_until(lambda: len(device.controls) == 3)
+        assert session.sm.state is State.THINKING
+        old = device.controls[0]
+        device.ack(old)
+        await asyncio.sleep(0)
+        assert session.sm.state is State.THINKING
+        device.ack(device.controls[-1])
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+        # A full utterance is still passed to Realtime during listening.
+        pcm = _frame(amplitude=3210)
+        device.feed([pcm])
+        await _wait_until(lambda: bool(brain.sent_audio))
+        assert brain.sent_audio[-1] == pcm
+        assert not device.control._stop_armed
+    finally:
+        await session.aclose()
+
+
+async def test_stop_winning_followup_disable_race_never_opens_microphone():
+    device = _ContextDevice()
+    brain = LiveFake()
+    session, attention, _ = _build(brain, device=device)
+    await session.start()
+    device.control.on_event = session._on_device_event
+    try:
+        await session.wake()
+        brain.emit(UserSpeechStopped())
+        await _wait_until(lambda: device.control._stop_armed)
+        device.hold_disable = True
+        session._enter_followup()
+        await _wait_until(lambda: len(device.controls) == 3)
+        command = device.controls[-1]
+        # Firmware accepted the old armed event just before seeing the disable;
+        # its newer ACK is cancelled, never disabled, even if old Stop delivery lags.
+        device.control._on_stop_context(f"{command['session']}:{command['generation']}:cancelled")
+        device.feed([_frame(amplitude=3210)])
+        await _wait_until(lambda: session._transport_closing)
+        assert session.sm.state is not State.LOUNGE_WINDOW
+        assert not brain.sent_audio
+        await session._close_task
+        assert len(attention.release_calls) == 1 and device.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+async def test_missing_followup_disable_ack_closes_without_opening_microphone():
+    device = _ContextDevice()
+    brain = LiveFake()
+    session, _, _ = _build(brain, device=device)
+    await session.start()
+    device.control.on_event = session._on_device_event
+    try:
+        await session.wake()
+        brain.emit(UserSpeechStopped())
+        await _wait_until(lambda: device.control._stop_armed)
+        device.hold_disable = True
+        session._enter_followup()
+        await _wait_until(lambda: len(device.controls) == 3)
+        device.feed([_frame(amplitude=3210)])
+        await asyncio.wait_for(
+            asyncio.gather(session._stop_context_task, return_exceptions=True), 5
+        )
+        assert session._transport_closing
+        assert session.sm.state is not State.LOUNGE_WINDOW
+        assert not brain.sent_audio and not device.announced_urls
+        await session._close_task
+        assert device.rearm_calls == 1  # only after the cleanup disable is confirmed
+    finally:
+        await session.aclose()
+
+
+async def test_idle_fault_callback_cannot_cross_rearm_and_next_wake():
+    device = _ContextDevice()
+    brain = LiveFake()
+    session, _, _ = _build(brain, device=device)
+    await session.start()
+    held = []
+    device.control._reset_stop_context()
+    device.control.on_event = lambda room, event: held.append((room, event))
+    try:
+        device.control._on_stop_context(f"{'0' * 32}:0:fault")
+        assert len(held) == 1 and device.control.accepts_stop_fault(held[0][1])
+        device.control._on_stop_context(f"{'0' * 32}:0:idle")
+        await session._teardown(release_music=True)
+        device.new_nonce("b")
+        await session.wake()
+        session._on_device_event(*held[0])
+        assert session._active and not session._transport_closing
+        assert not session._teardown_incomplete
+        device.control._on_stop_context(f"{'0' * 32}:0:fault")
+        assert len(held) == 1  # raw retained idle fault is also inert during a session
+    finally:
+        await session.aclose()
+
+
+async def test_sleeping_idle_cleanup_retry_cannot_stop_a_new_session(monkeypatch):
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "REARM_RETRY_DELAYS_S", (0.15,))
+    device = _ContextDevice()
+    brain = LiveFake()
+    session, _, _ = _build(brain, device=device)
+    await session.start()
+    device.control.on_event = session._on_device_event
+    device.control._reset_stop_context()
+    try:
+        device.control._on_stop_context(f"{'0' * 32}:0:fault")
+        retry = session._teardown_retry_task
+        assert retry is not None
+        await asyncio.sleep(0)  # retry is now sleeping
+        device.control._on_stop_context(f"{'0' * 32}:0:idle")
+        await session._teardown(release_music=True)  # independent reconnect cleanup wins
+        device.new_nonce("c")
+        await session.wake()
+        control_count = len(device.controls)
+        rearm_count = device.rearm_calls
+        await asyncio.wait_for(retry, 2)
+        assert session._active and not session._transport_closing
+        assert len(device.controls) == control_count and device.rearm_calls == rearm_count
     finally:
         await session.aclose()

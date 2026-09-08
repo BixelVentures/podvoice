@@ -83,7 +83,8 @@ async def test_cancel_without_reply_is_correlated_and_no_send_is_not_success():
     assert not await device.stop_playback()
 
 
-def test_shipped_firmware_state_arbitrates_late_play_finish_and_stop(tmp_path):
+@pytest.mark.parametrize("harness", ["stop_reply_test.cpp", "stop_context_test.cpp"])
+def test_shipped_firmware_state_arbitrates_late_play_finish_and_stop(tmp_path, harness):
     import shutil
     import subprocess
     from pathlib import Path
@@ -101,7 +102,7 @@ def test_shipped_firmware_state_arbitrates_late_play_finish_and_stop(tmp_path):
             "-Werror",
             "-I",
             str(root / "esphome/components/podvoice_reply"),
-            str(root / "tests/firmware/stop_reply_test.cpp"),
+            str(root / "tests/firmware" / harness),
             "-o",
             str(binary),
         ],
@@ -110,7 +111,8 @@ def test_shipped_firmware_state_arbitrates_late_play_finish_and_stop(tmp_path):
     subprocess.run([str(binary)], check=True)
 
 
-def test_shipped_firmware_waits_for_producer_mixer_and_output_fence(tmp_path):
+@pytest.mark.parametrize("harness", ["stop_pipeline_test.cpp", "stop_idle_recovery_test.cpp"])
+def test_shipped_firmware_waits_for_producer_mixer_and_output_fence(tmp_path, harness):
     import shutil
     import subprocess
     from pathlib import Path
@@ -119,10 +121,12 @@ def test_shipped_firmware_waits_for_producer_mixer_and_output_fence(tmp_path):
     include = tmp_path / "include"
     for name in (
         "core/component.h",
+        "core/helpers.h",
         "components/speaker_source/speaker_source_media_player.h",
         "components/mixer/speaker/mixer_speaker.h",
         "components/resampler/speaker/resampler_speaker.h",
-        "components/micro_wake_word/streaming_model.h",
+        "components/micro_wake_word/micro_wake_word.h",
+        "components/switch/switch.h",
         "components/text_sensor/text_sensor.h",
     ):
         path = include / "esphome" / name
@@ -138,13 +142,20 @@ def test_shipped_firmware_waits_for_producer_mixer_and_output_fence(tmp_path):
             "-Wall",
             "-Wextra",
             "-Werror",
+            *(
+                ["-DPODVOICE_TEST_REAL_STOP_GATE"]
+                if harness == "stop_idle_recovery_test.cpp"
+                else []
+            ),
             "-I",
             str(include),
             "-I",
             str(root / "tests/firmware"),
             "-I",
             str(root / "esphome/components/podvoice_reply"),
-            str(root / "tests/firmware/stop_pipeline_test.cpp"),
+            "-I",
+            str(root / "esphome/components/micro_wake_word"),
+            str(root / "tests/firmware" / harness),
             "-o",
             str(binary),
         ],

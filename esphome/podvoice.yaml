@@ -75,8 +75,17 @@ api:
       variables:
         token: string
         url: string
+        session: string
+        generation: int
       then:
-        - lambda: "id(pv_reply).play(token, url);"
+        - lambda: "id(pv_reply).play(token, url, session, generation);"
+    - action: podvoice_stop_context
+      variables:
+        session: string
+        generation: int
+        enabled: bool
+      then:
+        - lambda: "id(pv_reply).set_stop_context(session, generation, enabled);"
     - action: podvoice_reply_cancel
       variables:
         token: string
@@ -228,7 +237,7 @@ script:
                   and:
                     - micro_wake_word.is_running:
                     - lambda: |-
-                        return static_cast<uint32_t>(id(pv_audio).frames_written()
+                        return id(pv_reply).ready_after_restart() && static_cast<uint32_t>(id(pv_audio).frames_written()
                                  - id(podvoice_rearm_frame_marker)) >= 4;
                 timeout: 3s
             - if:
@@ -236,7 +245,7 @@ script:
                   and:
                     - micro_wake_word.is_running:
                     - lambda: |-
-                        return static_cast<uint32_t>(id(pv_audio).frames_written()
+                        return id(pv_reply).ready_after_restart() && static_cast<uint32_t>(id(pv_audio).frames_written()
                                  - id(podvoice_rearm_frame_marker)) >= 4;
                 then:
                   - lambda: "id(pv_reply).rearmed(); id(podvoice_conversation_active) = false;"
@@ -282,9 +291,10 @@ event:
         continuous_rearm_v1,
         physical_rearm_audio_progress_v1,
         correlated_reset_rearm_v2,
-        podvoice_build_11363_stop1,
+        podvoice_build_11367_stop2,
         podvoice_playback_events_v1,
         correlated_local_stop_v1,
+        correlated_stop_context_v2,
         podvoice_playback_started,
         podvoice_playback_finished,
         podvoice_playback_fault,
@@ -294,6 +304,10 @@ event:
 # can carry the full monotonic service token, so delayed/replayed ACK N cannot settle
 # waiter N+1. It is diagnostic transport state, never user-facing readiness truth.
 text_sensor:
+  - platform: template
+    name: "PodVoice Stop Context"
+    id: podvoice_stop_context
+    entity_category: diagnostic
   - platform: template
     name: "PodVoice Reply Status"
     id: podvoice_reply_status
@@ -326,12 +340,20 @@ text_sensor:
 #   package refs (the update ritual).
 #
 external_components:
+  # Reviewed Stop inference and reply owner; immutable source-only revision.
+  - source:
+      type: git
+      url: https://github.com/BixelVentures/podvoice
+      ref: baf41b9522cc65f3dcbd315ea237f318a6869ed1
+      path: esphome/components
+    components: [podvoice_reply, micro_wake_word]
+    refresh: 0s
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
       ref: 305b51059dc0c7391b95896f359a6c7f64548f16
       path: esphome/components
-    components: [podvoice_reply, mixer, resampler, speaker_source]
+    components: [mixer, resampler, speaker_source]
     refresh: 0s
   # GIT (default — so you only need THIS one file in ESPHome; the component is fetched
   # automatically from the PodVoice repo under esphome/components/podvoice_audio/).
@@ -378,8 +400,7 @@ podvoice_audio:
   # the add-on's separate preconnect buffer while the provider socket opens.
   ring_ms: 1500
 
-# Candidate-local observer components. The final reviewed source commit is pinned
-# before distribution; no add-on or firmware installation is authorized here.
+# Correlated Stop and physical announcement owner from the reviewed source pin.
 podvoice_reply:
   id: pv_reply
   player: external_media_player
@@ -389,3 +410,8 @@ podvoice_reply:
   output: i2s_audio_speaker
   status: podvoice_reply_status
   stop_model: stop
+  detector: mww
+  context_status: podvoice_stop_context
+  mute_switch: master_mute_switch
+  on_timer_stop:
+    - switch.turn_off: timer_ringing

@@ -3,9 +3,20 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#ifdef PODVOICE_TEST_REAL_STOP_GATE
+#include "stop_gate.h"
+#endif
 namespace esphome {
 inline uint32_t now_ms = 0;
 inline uint32_t millis() { return now_ms; }
+inline uint32_t random_uint32() { static uint32_t n = 0; return ++n; }
+template<class... Ts> class Trigger { public: int fires=0; void trigger(Ts...) { ++fires; } };
+namespace switch_ { class Switch { public:
+  bool state=false;
+  std::function<void(bool)> cb;
+  void add_on_state_callback(std::function<void(bool)> f) { cb=f; }
+  void publish(bool value) { state=value; if (cb) cb(value); }
+}; }
 class Component { public: virtual void setup() {} virtual void loop() {} virtual ~Component() = default; };
 namespace speaker {
 class Speaker {
@@ -49,5 +60,29 @@ namespace text_sensor { class TextSensor { public: std::vector<std::string> valu
 }; }
 namespace micro_wake_word { class WakeWordModel { public: bool enabled=false;
   bool is_enabled() const { return enabled; } void enable() { enabled=true; } void disable() { enabled=false; }
+}; }
+namespace micro_wake_word { class MicroWakeWord { public:
+  uint32_t command=0;
+  bool fault=false;
+  std::function<void(uint32_t)> callback;
+#ifdef PODVOICE_TEST_REAL_STOP_GATE
+  StopGate gate;
+  MicroWakeWord() { gate.worker_start(); }
+  void request_stop_context(uint32_t value) { command=value; gate.request(value); }
+  uint32_t stop_context_ack() const { return gate.acknowledged(); }
+  bool stop_context_fault() const { return gate.faulted(); }
+  void frame() {
+    gate.begin_write(); gate.end_write(160); gate.consume(160);
+    gate.observe(true, true, 480);
+  }
+  void deliver(uint32_t value) { if (gate.accepts(value)) callback(value); }
+#else
+  void request_stop_context(uint32_t value) { command=value; }
+  uint32_t stop_context_ack() const { return command; }
+  bool stop_context_fault() const { return fault; }
+  void deliver(uint32_t value) { if (value == command && (value & 1) && !fault) callback(value); }
+#endif
+  void set_stop_model(WakeWordModel *m) { m->enable(); }
+  void add_on_stop_detected_callback(std::function<void(uint32_t)> f) { callback=f; }
 }; }
 }

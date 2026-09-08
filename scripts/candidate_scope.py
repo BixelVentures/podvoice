@@ -199,6 +199,10 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         not in {
             ("physical_output", "rearm"),
             ("ha_tools", "realtime_semantics"),
+            # The approved Stop contract spans warm firmware inference, listening
+            # admission, physical silence/rearm and model-owned semantic closure.
+            # This tuple still needs the exact independent whole-tree review below.
+            ("audio_input", "ha_tools", "physical_output", "realtime_semantics", "rearm"),
         }
         or not any((root / path).is_file() for path in report.test_files)
         or not isinstance(record["reviewer"], str)

@@ -34,7 +34,7 @@
     {
       "exact_tool_name": "end_conversation",
       "risk": "lifecycle",
-      "cases": [{"args": {}, "result": {"ok": true, "data": {"decision": "end_conversation"}}}]
+      "cases": [{"args": {}, "result": {"ok": true, "data": {"decision": "end_conversation"}}}, {"args": {"silent": true}, "result": {"ok": true, "data": {"decision": "end_conversation"}}}, {"args": {"silent": false}, "result": {"ok": true, "data": {"decision": "end_conversation"}}}]
     },
     {
       "exact_tool_name": "approve_action",
@@ -562,6 +562,987 @@
             "fixture_side_effects": 0,
             "remain_open": true,
             "answer_patterns": ["\\b(?:ikke|utilgængelig|offline|fejl)\\b"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-interrupt-01",
+      "description": "Stop context: interrupt; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Forklar kort, hvorfor himlen er blå; jeg vil spørge videre bagefter.",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Stop.",
+          "expect": {
+            "decision": "end_conversation",
+            "tool_args": {
+              "end_conversation": {
+                "silent": true
+              }
+            },
+            "tool_outcomes": {
+              "end_conversation": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": false,
+            "silent_end": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-interrupt-02",
+      "description": "Stop context: interrupt; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Ikke mere forklaring. Vær helt stille nu.",
+          "expect": {
+            "decision": "end_conversation",
+            "tool_args": {
+              "end_conversation": {
+                "silent": true
+              }
+            },
+            "tool_outcomes": {
+              "end_conversation": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": false,
+            "silent_end": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-interrupt-03",
+      "description": "Stop context: interrupt; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Lad os lukke samtalen uden et farvel.",
+          "expect": {
+            "decision": "end_conversation",
+            "tool_args": {
+              "end_conversation": {
+                "silent": true
+              }
+            },
+            "tool_outcomes": {
+              "end_conversation": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": false,
+            "silent_end": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-interrupt-04",
+      "description": "Stop context: interrupt; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Jeg har brug for ro, så afslut vores snak uden at svare.",
+          "expect": {
+            "decision": "end_conversation",
+            "tool_args": {
+              "end_conversation": {
+                "silent": true
+              }
+            },
+            "tool_outcomes": {
+              "end_conversation": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": false,
+            "silent_end": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-interrupt-05",
+      "description": "Stop context: interrupt; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Fortæl kort om nordlys, så følger jeg op.",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Glem mit spørgsmål og sig ikke mere.",
+          "expect": {
+            "decision": "end_conversation",
+            "tool_args": {
+              "end_conversation": {
+                "silent": true
+              }
+            },
+            "tool_outcomes": {
+              "end_conversation": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": false,
+            "silent_end": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-interrupt-06",
+      "description": "Stop context: interrupt; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Du behøver ikke svare. Vi stopper her.",
+          "expect": {
+            "decision": "end_conversation",
+            "tool_args": {
+              "end_conversation": {
+                "silent": true
+              }
+            },
+            "tool_outcomes": {
+              "end_conversation": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": false,
+            "silent_end": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-interrupt-07",
+      "description": "Stop context: interrupt; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Det var nok fra dig. Ingen flere ord, tak.",
+          "expect": {
+            "decision": "end_conversation",
+            "tool_args": {
+              "end_conversation": {
+                "silent": true
+              }
+            },
+            "tool_outcomes": {
+              "end_conversation": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": false,
+            "silent_end": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-interrupt-08",
+      "description": "Stop context: interrupt; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Jeg ønsker ikke at fortsætte denne samtale. Vær stille.",
+          "expect": {
+            "decision": "end_conversation",
+            "tool_args": {
+              "end_conversation": {
+                "silent": true
+              }
+            },
+            "tool_outcomes": {
+              "end_conversation": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": false,
+            "silent_end": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-interrupt-09",
+      "description": "Stop context: interrupt; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Lad musikken være; det er dig, jeg vil have til at tie stille.",
+          "expect": {
+            "decision": "end_conversation",
+            "tool_args": {
+              "end_conversation": {
+                "silent": true
+              }
+            },
+            "tool_outcomes": {
+              "end_conversation": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": false,
+            "silent_end": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-interrupt-10",
+      "description": "Stop context: interrupt; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Afbryd din forklaring og luk samtalen lydløst.",
+          "expect": {
+            "decision": "end_conversation",
+            "tool_args": {
+              "end_conversation": {
+                "silent": true
+              }
+            },
+            "tool_outcomes": {
+              "end_conversation": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": false,
+            "silent_end": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-media-01",
+      "description": "Stop context: media; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Stop musikken i stuen, tak.",
+          "expect": {
+            "tool_args": {
+              "HassMediaPause": {
+                "area": "stue"
+              }
+            },
+            "tool_outcomes": {
+              "HassMediaPause": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 1,
+            "remain_open": false,
+            "silent_end": false,
+            "decisions": [
+              "HassMediaPause",
+              "end_conversation"
+            ],
+            "decision_batches": [
+              [
+                "HassMediaPause"
+              ],
+              [
+                "end_conversation"
+              ]
+            ],
+            "answer_any": [
+              "pause",
+              "stoppet",
+              "standset"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-media-02",
+      "description": "Stop context: media; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Sæt det, der spiller i stuen, på pause.",
+          "expect": {
+            "tool_args": {
+              "HassMediaPause": {
+                "area": "stue"
+              }
+            },
+            "tool_outcomes": {
+              "HassMediaPause": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 1,
+            "remain_open": false,
+            "silent_end": false,
+            "decisions": [
+              "HassMediaPause",
+              "end_conversation"
+            ],
+            "decision_batches": [
+              [
+                "HassMediaPause"
+              ],
+              [
+                "end_conversation"
+              ]
+            ],
+            "answer_any": [
+              "pause",
+              "stoppet",
+              "standset"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-media-03",
+      "description": "Stop context: media; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Der skal være stille fra anlægget i stuen; sæt det på pause.",
+          "expect": {
+            "tool_args": {
+              "HassMediaPause": {
+                "area": "stue"
+              }
+            },
+            "tool_outcomes": {
+              "HassMediaPause": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 1,
+            "remain_open": false,
+            "silent_end": false,
+            "decisions": [
+              "HassMediaPause",
+              "end_conversation"
+            ],
+            "decision_batches": [
+              [
+                "HassMediaPause"
+              ],
+              [
+                "end_conversation"
+              ]
+            ],
+            "answer_any": [
+              "pause",
+              "stoppet",
+              "standset"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-media-04",
+      "description": "Stop context: media; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Vil du standse afspilningen i stuen?",
+          "expect": {
+            "tool_args": {
+              "HassMediaPause": {
+                "area": "stue"
+              }
+            },
+            "tool_outcomes": {
+              "HassMediaPause": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 1,
+            "remain_open": false,
+            "silent_end": false,
+            "decisions": [
+              "HassMediaPause",
+              "end_conversation"
+            ],
+            "decision_batches": [
+              [
+                "HassMediaPause"
+              ],
+              [
+                "end_conversation"
+              ]
+            ],
+            "answer_any": [
+              "pause",
+              "stoppet",
+              "standset"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-media-05",
+      "description": "Stop context: media; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Jeg vil ikke stoppe samtalen, men sæt musikken i stuen på pause, og spørg hvad jeg vil høre bagefter.",
+          "expect": {
+            "tool_args": {
+              "HassMediaPause": {
+                "area": "stue"
+              }
+            },
+            "tool_outcomes": {
+              "HassMediaPause": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 1,
+            "remain_open": true,
+            "silent_end": false,
+            "decision": "HassMediaPause",
+            "forbid": [
+              "end_conversation"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-media-06",
+      "description": "Stop context: media; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Stop musikken i stuen, og hjælp mig med at vælge næste sang.",
+          "expect": {
+            "tool_args": {
+              "HassMediaPause": {
+                "area": "stue"
+              }
+            },
+            "tool_outcomes": {
+              "HassMediaPause": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 1,
+            "remain_open": true,
+            "silent_end": false,
+            "decision": "HassMediaPause",
+            "forbid": [
+              "end_conversation"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-media-07",
+      "description": "Stop context: media; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Lad os tale videre, når du har sat musikken i stuen på pause.",
+          "expect": {
+            "tool_args": {
+              "HassMediaPause": {
+                "area": "stue"
+              }
+            },
+            "tool_outcomes": {
+              "HassMediaPause": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 1,
+            "remain_open": true,
+            "silent_end": false,
+            "decision": "HassMediaPause",
+            "forbid": [
+              "end_conversation"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-media-08",
+      "description": "Stop context: media; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Hold en pause med musikken i stuen; spørg mig derefter om noget andet.",
+          "expect": {
+            "tool_args": {
+              "HassMediaPause": {
+                "area": "stue"
+              }
+            },
+            "tool_outcomes": {
+              "HassMediaPause": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 1,
+            "remain_open": true,
+            "silent_end": false,
+            "decision": "HassMediaPause",
+            "forbid": [
+              "end_conversation"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-media-09",
+      "description": "Stop context: media; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Stop ikke musikken i stuen. Fortæl mig blot, hvad en pauseknap gør.",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "HassMediaPause",
+              "end_conversation"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "silent_end": false,
+            "answer_any": [
+              "pause",
+              "afspil"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-media-10",
+      "description": "Stop context: media; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Vil du stoppe musikken på kontoret?",
+          "expect": {
+            "decision": "HassMediaPause",
+            "forbid": [
+              "end_conversation"
+            ],
+            "tool_args": {
+              "HassMediaPause": {
+                "area": "kontor"
+              }
+            },
+            "tool_outcomes": {
+              "HassMediaPause": [
+                "device_unavailable"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "silent_end": false,
+            "answer_any": [
+              "ikke",
+              "utilgængelig",
+              "forbindelse"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-correction-01",
+      "description": "Stop context: correction; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Stop med at tale engelsk. Forklar nordlys på dansk.",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "silent_end": false,
+            "answer_any": [
+              "nordlys",
+              "sol"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-correction-02",
+      "description": "Stop context: correction; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Stop, jeg mente syv gange otte. Hvad giver det?",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "silent_end": false,
+            "answer_any": [
+              "56",
+              "seksoghalvtreds"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-correction-03",
+      "description": "Stop context: correction; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Forklar kort om nordlys, og lad os tale videre bagefter.",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Du skal ikke stoppe. Fortæl kort videre om emnet.",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "silent_end": false,
+            "answer_any": [
+              "nordlys",
+              "sol",
+              "partikl"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-correction-04",
+      "description": "Stop context: correction; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Lad være med at afslutte samtalen; hvad er to plus tre?",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "silent_end": false,
+            "answer_any": [
+              "5",
+              "fem"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-correction-05",
+      "description": "Stop context: correction; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Drop den lange forklaring og giv mig bare resultatet af ni gange ni.",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "silent_end": false,
+            "answer_any": [
+              "81",
+              "enogfirs"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-correction-06",
+      "description": "Stop context: correction; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Ikke mere engelsk; hvad hedder en bicycle på dansk?",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "silent_end": false,
+            "answer_any": [
+              "cykel"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-correction-07",
+      "description": "Stop context: correction; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Vent, jeg retter mit spørgsmål: hvad er fem plus seks?",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "silent_end": false,
+            "answer_any": [
+              "11",
+              "elleve"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-correction-08",
+      "description": "Stop context: correction; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Stop med at bruge svære ord. Forklar tyngdekraft til et barn.",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "silent_end": false,
+            "answer_any": [
+              "jord",
+              "træk",
+              "fald"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-correction-09",
+      "description": "Stop context: correction; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Husk, at emnet er nordlys; jeg spørger ind til det bagefter.",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Vi er ikke færdige. Hvad var det emne, jeg nævnte?",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "silent_end": false,
+            "answer_any": [
+              "nordlys"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "stop-context-correction-10",
+      "description": "Stop context: correction; model interpretation with safe fixture effects only.",
+      "exact_tool_names": [
+        "end_conversation",
+        "HassMediaPause"
+      ],
+      "turns": [
+        {
+          "text": "Når jeg siger stop her, citerer jeg ordet. Hvad betyder det på engelsk?",
+          "expect": {
+            "direct_answer": true,
+            "forbid": [
+              "end_conversation",
+              "HassMediaPause"
+            ],
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "silent_end": false,
+            "answer_any": [
+              "stop",
+              "standse",
+              "ophør"
+            ]
           }
         }
       ]

@@ -133,6 +133,8 @@ def _coupled_repo(tmp_path, domains=("physical_output", "rearm")):
     source.write_text(
         "MCP end_conversation\n"
         if domains == ("ha_tools", "realtime_semantics")
+        else "mic_gate MCP playback response.done rearm\n"
+        if len(domains) == 5
         else "playback = 1\nrearm = 1\n"
     )
     git("add", ".")
@@ -259,5 +261,33 @@ def test_semantic_tool_coupling_requires_exact_review(tmp_path):
     assert inspect_repository(tmp_path, base).passed
     git("commit", "--allow-empty", "-qm", "new base")
     assert not inspect_repository(tmp_path, "HEAD").passed
+    (tmp_path / "tests/test_device.py").unlink()
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_stop_whole_chain_requires_exact_review_and_preserves_fail_closed_guards(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    domains = ("audio_input", "ha_tools", "physical_output", "realtime_semantics", "rearm")
+    source, base, _git, record, write = _coupled_repo(tmp_path, domains)
+    assert inspect_repository(tmp_path, base).domains == domains
+    (tmp_path / "docs/STATUS.md").unlink()
+    assert not inspect_repository(tmp_path, base).passed  # no automatic five-domain exemption
+    write(record)
+    for key, value in (
+        ("fingerprint", "stale"),
+        ("base_tip", "old"),
+        ("merge_base", "old"),
+        ("domains", list(domains[:-1])),
+        ("reviewer", ""),
+    ):
+        write({**record, key: value})
+        assert not inspect_repository(tmp_path, base).passed
+    write(record)
+    original = source.read_text()
+    source.write_text(original + "changed = True\n")
+    assert not inspect_repository(tmp_path, base).passed
+    source.write_text(original)
+    assert inspect_repository(tmp_path, base).passed
     (tmp_path / "tests/test_device.py").unlink()
     assert not inspect_repository(tmp_path, base).passed

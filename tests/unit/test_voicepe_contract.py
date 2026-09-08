@@ -24,6 +24,7 @@ FULL_SERVICES = [
     "podvoice_rearm_wake_word",
     "podvoice_reply_play",
     "podvoice_reply_cancel",
+    "podvoice_stop_context",
 ]
 FULL_CAPABILITIES = [
     "podvoice_channel_v1",
@@ -34,16 +35,17 @@ FULL_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11363_stop1",
+    "podvoice_build_11367_stop2",
     "podvoice_playback_events_v1",
     "correlated_local_stop_v1",
+    "correlated_stop_context_v2",
 ]
 REARM_CAPABILITIES = [
     "physical_rearm_ack_v1",
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11363_stop1",
+    "podvoice_build_11367_stop2",
 ]
 
 
@@ -107,6 +109,7 @@ async def test_contract_ok_with_full_firmware(caplog):
             LightInfo("led_ring", 9),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
@@ -173,6 +176,7 @@ async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build():
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, wrong_build),
         ],
@@ -184,7 +188,7 @@ async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build():
 
     assert report["ok"] is False
     assert report["firmware_build"] == "podvoice_build_11342"
-    assert report["missing_capabilities"] == ["podvoice_build_11363_stop1"]
+    assert report["missing_capabilities"] == ["podvoice_build_11367_stop2"]
 
 
 async def test_contract_rejects_multiple_firmware_build_markers():
@@ -195,6 +199,7 @@ async def test_contract_rejects_multiple_firmware_build_markers():
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, capabilities),
         ],
@@ -206,8 +211,8 @@ async def test_contract_rejects_multiple_firmware_build_markers():
 
     assert report["ok"] is False
     assert report["firmware_build"] is None
-    assert report["firmware_builds"] == ["podvoice_build_11342", "podvoice_build_11363_stop1"]
-    assert report["missing_capabilities"] == ["podvoice_build_11363_stop1"]
+    assert report["firmware_builds"] == ["podvoice_build_11342", "podvoice_build_11367_stop2"]
+    assert report["missing_capabilities"] == ["podvoice_build_11367_stop2"]
 
 
 async def test_contract_mismatch_is_loud_and_reported(caplog):
@@ -223,6 +228,7 @@ async def test_contract_mismatch_is_loud_and_reported(caplog):
         "podvoice_rearm_wake_word",
         "podvoice_reply_cancel",
         "podvoice_reply_play",
+        "podvoice_stop_context",
         "podvoice_stream_start",
     ]
     assert "media_player" in report["missing_entities"]
@@ -290,6 +296,7 @@ async def test_link_state_is_truthful(caplog):
             LightInfo("led_ring", 9),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
@@ -310,6 +317,7 @@ async def test_full_admission_cancels_queued_same_generation_recovery():
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
@@ -512,6 +520,7 @@ async def test_stale_cached_ip_rotates_to_native_discovery_and_survives_next_dhc
                     MediaPlayerInfo("external_media_player", 7),
                     TextSensorInfo("podvoice_rearm_ack", 4),
                     TextSensorInfo("podvoice_reply_status", 5),
+                    TextSensorInfo("podvoice_stop_context", 43),
                     TextSensorInfo("podvoice_wake_word_ack", 42),
                     EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
                 ],
@@ -927,9 +936,10 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "continuous_rearm_v1",
         "physical_rearm_audio_progress_v1",
         "correlated_reset_rearm_v2",
-        "podvoice_build_11363_stop1",
+        "podvoice_build_11367_stop2",
         "podvoice_playback_events_v1",
         "correlated_local_stop_v1",
+        "correlated_stop_context_v2",
     ]
     assert link.supports_same_breath is False
 
@@ -1019,6 +1029,7 @@ async def test_rearm_calls_the_dedicated_firmware_service():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
@@ -1039,6 +1050,7 @@ async def test_rearm_recovery_is_degraded_not_physical_proof():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
@@ -1062,6 +1074,7 @@ async def test_rearm_epoch_drops_scheduled_old_audio_and_keeps_immediate_new_aud
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
@@ -1100,6 +1113,7 @@ async def test_audio_boundary_drops_delayed_native_callback_and_keeps_next_gener
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
@@ -1126,6 +1140,7 @@ async def test_reconnect_makes_scheduled_old_callback_inert_and_keeps_new_audio(
         MediaPlayerInfo("external_media_player", 7),
         TextSensorInfo("podvoice_rearm_ack", 4),
         TextSensorInfo("podvoice_reply_status", 5),
+        TextSensorInfo("podvoice_stop_context", 43),
         TextSensorInfo("podvoice_wake_word_ack", 42),
         EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
     ]
@@ -1157,6 +1172,7 @@ async def test_fault_and_wrong_rearm_ack_never_advance_audio_epoch():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
@@ -1179,6 +1195,7 @@ async def test_rearm_boundary_drain_failure_fails_closed():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
@@ -1204,6 +1221,7 @@ async def test_rearm_fault_fails_immediately():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
@@ -1224,6 +1242,7 @@ async def test_rearm_is_single_flight_and_ack_cannot_cross_calls():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
@@ -1248,6 +1267,7 @@ async def test_late_rearm_ack_cannot_settle_the_next_token():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
@@ -1275,6 +1295,7 @@ async def test_disconnect_settles_pending_rearm_and_late_ack_is_ignored():
         [
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, REARM_CAPABILITIES),
         ],
@@ -1311,16 +1332,30 @@ async def test_reply_is_armed_before_the_media_command():
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
     )
     link = _link(client)
     await link._resolve_entities()
+    link._on_stop_context("a" * 32 + ":0:disabled")
+    arm = asyncio.create_task(link.set_stop_context(True))
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    assert link._stop_expected is not None
+    link._on_stop_context("a" * 32 + ":1:armed")
+    assert await arm
     await link.play_url("http://podvoice.local/reply/r0.flac")
-    assert client.executed == ["podvoice_reply_play"]
+    assert client.executed == ["podvoice_stop_context", "podvoice_reply_play"]
     assert client.executed_args == [
-        {"token": link._reply_token, "url": "http://podvoice.local/reply/r0.flac"}
+        {"session": "a" * 32, "generation": 1, "enabled": True},
+        {
+            "token": link._reply_token,
+            "url": "http://podvoice.local/reply/r0.flac",
+            "session": "a" * 32,
+            "generation": 1,
+        },
     ]
 
 
@@ -1450,6 +1485,7 @@ async def test_wake_word_is_reasserted_on_every_connect():
             LightInfo("led_ring", 9),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
@@ -1473,6 +1509,7 @@ async def test_pending_wake_ack_cannot_admit_wake_or_old_subscription(monkeypatc
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],
@@ -1520,6 +1557,7 @@ async def test_admission_preserves_only_post_rearm_wake_in_same_batch(disconnect
             MediaPlayerInfo("external_media_player", 7),
             TextSensorInfo("podvoice_rearm_ack", 4),
             TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
             TextSensorInfo("podvoice_wake_word_ack", 42),
             EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
         ],

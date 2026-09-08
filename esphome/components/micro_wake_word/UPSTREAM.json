@@ -1,0 +1,13 @@
+{
+  "version": "2026.6.2",
+  "source": "https://github.com/esphome/esphome/tree/2026.6.2/esphome/components/micro_wake_word",
+  "sha256": {
+    "__init__.py": "397f520da8bc6db3d3ab6062779a01e11bacb07961f158789d80c368213f3c3b",
+    "automation.h": "2a3dc26044ad37bf1d9cf5a7e8b0d3261c2c3b73493a1db23b25867aa32129e2",
+    "micro_wake_word.cpp": "75aad356bbd4c91aeb91668f1bec02772404127571f3ae95467de26b423a569b",
+    "micro_wake_word.h": "7980ee14e442308582eb7c44cf25e6f58376fb8d2cd3dc739a9a847113f4d896",
+    "preprocessor_settings.h": "683b3ecca1a10bd778f883a2465b4cd073e6674afddfc7ba66cd8c16acabf6eb",
+    "streaming_model.cpp": "5065aacb9f9faf332fbf5c01566f39be50f57958d4cc7dcf30de27112660326d",
+    "streaming_model.h": "a82107d24c6284a631b89e53dc85e855c905e111b5fd68e0ac33fbe3f125f6e5"
+  }
+}

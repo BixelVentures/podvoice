@@ -53,6 +53,7 @@ from .thin import (
     APPROVE_ACTION_DECLARATION,
     END_CONVERSATION_DECLARATION,
     WAIT_FOR_USER_DECLARATION,
+    ThinSession,
 )
 from .voice import (
     AudioChunk,
@@ -365,6 +366,7 @@ class TurnExpectation:
     tool_outcomes: dict[str, tuple[str, ...]] = field(default_factory=dict)
     fixture_side_effects: int | None = None
     remain_open: bool = True
+    silent_end: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -434,6 +436,7 @@ class TurnObservation:
     response_status: str = "completed"
     error: str | None = None
     remain_open: bool = True
+    silent_end: bool = False
     elapsed_ms: int | None = None
     first_audio_ms: int | None = None
     diagnostic_transcript: str = ""
@@ -800,6 +803,8 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                 raise ValueError(f"{scenario_id}: numeric_support must contain integers")
             if numeric_support and numeric_result is None:
                 raise ValueError(f"{scenario_id}: numeric_support requires numeric_result")
+            if expected.get("silent_end") is not None and type(expected["silent_end"]) is not bool:
+                raise ValueError(f"{scenario_id}: silent_end must be boolean")
             raw_tool_args = expected.get("tool_args") or {}
             raw_tool_args_any = expected.get("tool_args_any") or {}
             if not isinstance(raw_tool_args, dict) or not isinstance(raw_tool_args_any, dict):
@@ -842,6 +847,7 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                         },
                         fixture_side_effects=expected.get("fixture_side_effects"),
                         remain_open=bool(expected.get("remain_open", True)),
+                        silent_end=expected.get("silent_end"),
                     ),
                 )
             )
@@ -1086,6 +1092,13 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
                 "wrong-lifecycle",
                 f"Forventede remain_open={expect.remain_open}, fik {observed.remain_open}.",
             )
+        )
+    if expect.silent_end is not None and (
+        observed.silent_end is not expect.silent_end
+        or (expect.silent_end and (observed.answer or observed.first_audio_ms is not None))
+    ):
+        findings.append(
+            Finding("wrong-silent-end", "Stille afslutning var ikke bekræftet uden svarlyd.")
         )
     return findings
 
@@ -2090,7 +2103,7 @@ class LiveRealtimeDriver:
         self,
         calls: list[ToolCall],
         observed: TurnObservation,
-    ) -> None:
+    ) -> tuple[tuple[str, ...], bool]:
         """Execute one completed provider batch with the safe production ordering rules."""
         session = self.session
         if session is None:
@@ -2115,13 +2128,19 @@ class LiveRealtimeDriver:
         # approve_action represents the whole confirmation turn. A sibling call makes
         # the boundary ambiguous, so no member of the batch may have a fixture effect.
         approval_mixed = len(calls) != 1 and any(call.name == "approve_action" for call in calls)
+        silent_mixed = len(calls) != 1 and any(
+            call.name == "end_conversation" and call.args.get("silent") is True for call in calls
+        )
         responses: list[dict[str, Any]] = []
-        if approval_mixed:
+        result: dict[str, Any]
+        if approval_mixed or silent_mixed:
             for call in calls:
                 result = {
                     "ok": False,
-                    "error_kind": "approval_denied",
-                    "error": "approve_action must be the only tool in its completed response",
+                    "error_kind": "invalid_lifecycle_batch" if silent_mixed else "approval_denied",
+                    "error": "silent end_conversation must be the only call in its response"
+                    if silent_mixed
+                    else "approve_action must be the only tool in its completed response",
                 }
                 observed.tool_results.setdefault(call.name, []).append(result)
                 responses.append({"id": call.id, "name": call.name, "response": result})
@@ -2138,7 +2157,9 @@ class LiveRealtimeDriver:
             for call in calls:
                 suppress = False
                 if call.name == "end_conversation":
-                    if needs_confirmation:
+                    if not ThinSession._valid_end_args(call.args):
+                        result = {"ok": False, "error_kind": "invalid_arguments"}
+                    elif needs_confirmation:
                         result = {
                             "ok": False,
                             "error_kind": "close_blocked_pending_confirmation",
@@ -2146,7 +2167,9 @@ class LiveRealtimeDriver:
                         }
                     else:
                         result = {"ok": True, "data": {"decision": call.name}}
-                        observed.remain_open = False
+                        suppress = call.args.get("silent") is True
+                        if not suppress:
+                            observed.remain_open = False
                 elif call.name == "wait_for_user":
                     result = {"ok": True, "data": {"decision": call.name}}
                     suppress = True
@@ -2161,8 +2184,10 @@ class LiveRealtimeDriver:
                         "suppress_response": suppress,
                     }
                 )
-        await session.send_tool_results(responses)
+        completed = await session.send_tool_results(responses)
         observed.fixture_side_effects = self.tools.fixture_side_effects
+        silent_ids = tuple(item["id"] for item in responses if item.get("suppress_response"))
+        return silent_ids, completed is True
 
     async def _collect_turn(
         self,
@@ -2184,6 +2209,8 @@ class LiveRealtimeDriver:
         tool_round_seen = False
         response_edges = 0
         pending_batches: dict[str, dict[int, ToolCall]] = {}
+        pending_silent: tuple[str, ...] = ()
+        pending_silent_end = False
         capacity_credit_at_start = self._capacity_wait_credit_s
         semantic_deadline = (
             self._capacity_monotonic() + semantic_timeout_s
@@ -2250,13 +2277,23 @@ class LiveRealtimeDriver:
                     observed.error = "eval model response-edge limit exhausted before final answer"
                     observed.response_status = "failed"
                     break
-                await self._dispatch_tool_batch(list(committed_batch.values()), observed)
+                pending_silent, silent_completed = await self._dispatch_tool_batch(
+                    list(committed_batch.values()), observed
+                )
+                pending_silent_end = bool(pending_silent) and any(
+                    call.name == "end_conversation" for call in committed_batch.values()
+                )
                 pending_batches.pop(response_id, None)
                 tool_round_seen = True
                 output.clear()
                 output_by_response.clear()
                 first_audio_by_response.clear()
                 unbound_first_audio_ms = None
+                if silent_completed and pending_silent:
+                    if pending_silent_end:
+                        observed.silent_end = True
+                        observed.remain_open = False
+                    break
             elif isinstance(event, ToolSchemaCorrection):
                 response_edges += 1
                 observed.schema_corrections += 1
@@ -2331,6 +2368,20 @@ class LiveRealtimeDriver:
                     observed.error = "tool batch completed without its exact commit edge"
                     observed.response_status = "failed"
                     break
+                if not pending_silent or tuple(sorted(event.call_ids)) != tuple(
+                    sorted(pending_silent)
+                ):
+                    continue  # stale or unrelated output acknowledgement cannot close this turn
+                # Unlike discarded pre-tool preamble, any newly emitted output
+                # after the committed silent decision must be visible to the oracle.
+                output.extend(text for parts in output_by_response.values() for text in parts)
+                audio_times = list(first_audio_by_response.values())
+                if unbound_first_audio_ms is not None:
+                    audio_times.append(unbound_first_audio_ms)
+                observed.first_audio_ms = min(audio_times) if audio_times else None
+                if pending_silent_end:
+                    observed.silent_end = True
+                    observed.remain_open = False
                 break
             elif isinstance(event, TurnComplete):
                 response_edges += 1

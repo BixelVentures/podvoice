@@ -62,6 +62,8 @@ SETTINGS_VERSION = 11
 # never matches and is always kept.
 LEGACY_PROMPT_HASHES = frozenset(
     {
+        # v9: stock prompt receives model-selected silent interruption.
+        "08403d40be0f4d1bac6f36438928de8329bec35d02b6673b23a9b1fbddaa4481",
         # v8: saved stock prompt must receive semantic task completion.
         "10fd196068e204abcef635aca12bf34c7d74a3a0df79109328536e439f960cd0",
         # 1.13.59 default: direct connected Spotify music access.

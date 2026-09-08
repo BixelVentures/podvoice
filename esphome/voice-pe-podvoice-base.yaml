@@ -1672,18 +1672,6 @@ micro_wake_word:
         condition:
           and:
             - switch.is_off: master_mute_switch
-            - lambda: 'return wake_word == "Stop";'
-        then:
-          - lambda: "id(pv_reply).local_stop();"
-          - if:
-              condition:
-                switch.is_on: timer_ringing
-              then:
-                - switch.turn_off: timer_ringing
-    - if:
-        condition:
-          and:
-            - switch.is_off: master_mute_switch
             - lambda: 'return !id(podvoice_conversation_active) && wake_word != "Stop";'
         then:
           - if:
@@ -1692,14 +1680,18 @@ micro_wake_word:
               then:
                 - switch.turn_off: timer_ringing
               else:
-                - lambda: "id(podvoice_conversation_active) = true;"
+                - lambda: "id(podvoice_conversation_active) = id(pv_reply).begin_conversation();"
                 # This is the only wake boundary. It drops the local rolling audio
                 # containing "Okay Nabu" before any byte is forwarded to Realtime.
                 # Later API start calls are keepalives and must never trim live speech.
-                - lambda: "id(pv_audio).begin_conversation();"
-                - event.trigger:
-                    id: podvoice_event
-                    event_type: wake_okay_nabu
+                - if:
+                    condition:
+                      lambda: "return id(podvoice_conversation_active);"
+                    then:
+                      - lambda: "id(pv_audio).begin_conversation();"
+                      - event.trigger:
+                          id: podvoice_event
+                          event_type: wake_okay_nabu
 
 select:
   - platform: template
