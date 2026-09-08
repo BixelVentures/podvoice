@@ -26,13 +26,14 @@ import base64
 import hashlib
 import json
 import logging
+import math
 import re
 import time
 import uuid
 from collections import deque
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, NoReturn
 
 import aiohttp
 from jsonschema import Draft202012Validator, FormatChecker
@@ -51,6 +52,7 @@ from .provider_budget import (
 from .tool_wire import realtime_function_tool
 from .voice import (
     AudioChunk,
+    InputQuarantineResolved,
     InputTranscript,
     Interrupted,
     OutputTranscript,
@@ -68,9 +70,21 @@ from .voice import (
 
 _LOG = logging.getLogger("podvoice.openai")
 
+DEFAULT_REASONING_EFFORT = "medium"
+
 _CLIENT_ITEM_ID_MAX_LENGTH = 32
 _CLIENT_ITEM_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _PROTOCOL_HISTORY_MAX = 4096
+_PROVIDER_TRACE_LABEL_MAX = 96
+_PROVIDER_TRACE_ITEMS_MAX = 16
+_QUARANTINE_AUDIO_FRAME_MS = 20
+_QUARANTINE_SERVER_VAD_MARGIN_MS = 250
+_QUARANTINE_SEMANTIC_VAD_MAX_S = {
+    "high": 2.0,
+    "auto": 4.0,
+    "medium": 4.0,
+    "low": 8.0,
+}
 _SCHEMA_CORRECTION_FORBIDDEN_TOOLS = frozenset(
     {"end_conversation", "wait_for_user", "approve_action", "EvalUnlockDoor"}
 )
@@ -113,12 +127,94 @@ class _PendingItemCreate:
     future: asyncio.Future
 
 
+@dataclass
+class _ManualInputSpan:
+    """One server-VAD span awaiting an explicit local disposition.
+
+    PodVoice never manually commits an active VAD span: the official exception would
+    break the start/stop item-id relationship without ending the detector.  A rejected
+    span instead receives bounded internal silence and remains here until its natural
+    stop, committed item, item-added edge and exact delete ACK all agree.
+    """
+
+    start_item_id: str
+    generation: int
+    stop_item_id: str | None = None
+    stop_seen: bool = False
+    disposition: str | None = None  # accepted | quarantined
+    turn_id: int | None = None
+    response_requested: bool = False
+    watchdog_event_id: str | None = None
+    quarantine_silence_task: asyncio.Task[None] | None = field(default=None, repr=False)
+    quarantine_silence_frames: int = 0
+    quarantine_silence_observed: bool = False
+    quarantine_silence_finished: bool = False
+    committed_item_ids: set[str] = field(default_factory=set)
+    added_item_ids: set[str] = field(default_factory=set)
+    delete_requested_item_ids: set[str] = field(default_factory=set)
+    deleted_item_ids: set[str] = field(default_factory=set)
+
+
 def _safe_client_item_id(item_id: str | None) -> str:
     """Return a deterministic id accepted by the Realtime item API."""
     raw = str(item_id or uuid.uuid4().hex)
     if 0 < len(raw) <= _CLIENT_ITEM_ID_MAX_LENGTH and _CLIENT_ITEM_ID_RE.fullmatch(raw):
         return raw
     return f"pv_{hashlib.sha256(raw.encode()).hexdigest()[:29]}"
+
+
+def _canonical_metadata_uint(value: object) -> int | None:
+    """Parse one exact non-negative decimal carried in Realtime metadata.
+
+    Realtime metadata values are strings.  Accepting Python integers here would
+    hide an invalid outbound contract in tests; accepting signs, whitespace or
+    leading zeroes would make the echoed ownership tuple ambiguous.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    if value != "0" and value.startswith("0"):
+        return None
+    if any(character < "0" or character > "9" for character in value):
+        return None
+    return int(value)
+
+
+def _bounded_provider_label(value: object) -> str | None:
+    """Retain correlation labels without copying arbitrary provider content."""
+    if not isinstance(value, str) or not value:
+        return None
+    return value[:_PROVIDER_TRACE_LABEL_MAX]
+
+
+def _bounded_provider_index(value: object) -> int | None:
+    """Accept only a small non-negative protocol index in diagnostic output."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if 0 <= value <= _PROTOCOL_HISTORY_MAX else None
+
+
+def _provider_item_observation(item: object) -> dict[str, str | None]:
+    """Return the bounded, content-free fields needed to reconstruct item ancestry."""
+    row = item if isinstance(item, dict) else {}
+    return {
+        "item_id": _bounded_provider_label(row.get("id")),
+        "item_type": _bounded_provider_label(row.get("type")),
+        "role": _bounded_provider_label(row.get("role")),
+        "status": _bounded_provider_label(row.get("status")),
+        "call_id": _bounded_provider_label(row.get("call_id")),
+    }
+
+
+def _provider_output_observation(response: object) -> tuple[list[dict[str, str | None]], int]:
+    """Summarize a bounded response output list without transcript, audio, or arguments."""
+    row = response if isinstance(response, dict) else {}
+    output = row.get("output")
+    if not isinstance(output, list):
+        return [], 0
+    return (
+        [_provider_item_observation(item) for item in output[:_PROVIDER_TRACE_ITEMS_MAX]],
+        max(0, len(output) - _PROVIDER_TRACE_ITEMS_MAX),
+    )
 
 
 def _strict_json_object(raw: str) -> dict:
@@ -167,7 +263,7 @@ PRECONNECT_AUDIO_MAX_S = 12.0
 # server reserves output capacity when each response is created, so a short
 # tool/farewell round could request ~5.5k TPM despite producing one spoken word.
 # PodVoice's contract is at most two short spoken sentences; 1024 leaves ample
-# room for low-effort reasoning + tool JSON while cutting the reservation by 75%.
+# room for configured reasoning + tool JSON while cutting the reservation by 75%.
 MAX_OUTPUT_TOKENS = 1024
 # A completed function-call response is not safe to execute unless the same socket
 # generation still owns enough capacity for the entire conversation context repeated
@@ -238,9 +334,10 @@ class OpenAIRealtimeSession:
     before_response_create: Callable[[int | None], Awaitable[None]] | None = field(
         default=None, repr=False, kw_only=True
     )
-    # Eval-only bounded provenance sink. Production leaves this unset, so tracing
-    # cannot alter physical latency or lifecycle. Payloads are constructed from
-    # numeric provider/budget fields and opaque response/request ids only.
+    # Passive bounded provenance sink. Normal production sessions leave it unset;
+    # ThinSession installs it temporarily only for an explicitly armed one-shot
+    # physical trace, then restores the prior value on every close path. Payloads
+    # contain numeric fields and opaque response/request/item identifiers only.
     provider_observer: Callable[[dict[str, Any]], None] | None = field(default=None, repr=False)
     voice: str = DEFAULT_VOICE
     instructions: str = ""  # empty -> built-in SYSTEM_PROMPT_DA
@@ -254,6 +351,7 @@ class OpenAIRealtimeSession:
     # no-resampling tool understood everything.
     input_rate: int = C.INPUT_RATE
     tool_declarations: list[dict] | None = None
+    podvoice_tool_declaration_hashes: dict[str, str] = field(default_factory=dict, repr=False)
     language: str = "da"
     # Turn detection: a PRESET (conservative/responsive) or "custom" via the raw knobs.
     # conservative = server_vad tuned hard-to-interrupt, so residual echo past the XMOS
@@ -269,6 +367,10 @@ class OpenAIRealtimeSession:
     # cancel an answer whose physical playback has not even begun. Talk/browser AEC
     # explicitly enables it as the separate full-duplex proving surface.
     interrupt_response: bool = True
+    # Production audio sessions opt into one local response owner. VAD still emits
+    # speech/commit events, but no provider response exists until Thin accepts the
+    # exact committed item and this adapter sends a correlated response.create.
+    manual_input_response: bool = False
     # Most recent provider error, retained until the next fresh socket.  This is
     # observability only: Thin still owns the exact same close/rearm mechanics.
     last_error: str | None = field(default=None, init=False)
@@ -382,6 +484,10 @@ class OpenAIRealtimeSession:
     # Realtime emits both speech_stopped and committed for the same VAD turn.  The
     # engine needs one boundary, not two state transitions/latency samples.
     _speech_stop_emitted: bool = field(default=False, init=False, repr=False)
+    _manual_input_span: _ManualInputSpan | None = field(default=None, init=False, repr=False)
+    # One root lease follows the accepted user item through every tool/result child
+    # response. It is replaced only by the next accepted user turn or fresh socket.
+    _manual_turn_lease: tuple[str, int, int] | None = field(default=None, init=False, repr=False)
 
     def _turn_detection(self) -> dict | None:
         """Build the turn_detection block from the preset (or the custom knobs).
@@ -406,7 +512,7 @@ class OpenAIRealtimeSession:
             return {
                 "type": "semantic_vad",
                 "eagerness": "auto",
-                "create_response": True,
+                "create_response": not self.manual_input_response,
                 "interrupt_response": self.interrupt_response,
             }
         # custom — raw knobs
@@ -416,7 +522,7 @@ class OpenAIRealtimeSession:
             return {
                 "type": "semantic_vad",
                 "eagerness": self.eagerness or "auto",
-                "create_response": True,
+                "create_response": not self.manual_input_response,
                 "interrupt_response": self.interrupt_response,
             }
         return self._server_vad(
@@ -431,7 +537,7 @@ class OpenAIRealtimeSession:
             "threshold": threshold,
             "prefix_padding_ms": prefix_ms,
             "silence_duration_ms": silence_ms,
-            "create_response": True,
+            "create_response": not self.manual_input_response,
             "interrupt_response": self.interrupt_response,
         }
         # idle_timeout_ms is DELIBERATELY NOT SENT (ARKITEKTUR.md, modprøve A3):
@@ -511,9 +617,11 @@ class OpenAIRealtimeSession:
             "type": "realtime",  # speech-to-speech (vs "transcription")
             "output_modalities": ["audio"],
             "max_output_tokens": MAX_OUTPUT_TOKENS,
-            # OpenAI recommends low as the production voice-agent starting point:
-            # responsive, while retaining basic reasoning and tool selection.
-            "reasoning": {"effort": "low"},
+            # One physical v1.13.56 trace misrouted diagnostic arithmetic to get_time
+            # and continued after a 697 ms turn whose actual meaning is unresolved.
+            # Medium is only the single A/B candidate delta: language, tool choice and
+            # semantic close still belong entirely to Realtime.
+            "reasoning": {"effort": DEFAULT_REASONING_EFFORT},
             # Realtime answers ordinary turns directly in one response and calls a tool
             # only when the user's intent actually needs one. Semantic close remains the
             # reserved end_conversation tool; transport never infers it from transcript.
@@ -578,6 +686,8 @@ class OpenAIRealtimeSession:
         self._operation_event_ids.clear()
         self._rate_limits.clear()
         self._speech_stop_emitted = False
+        self._clear_manual_input_span("session_replaced")
+        self._manual_turn_lease = None
         self._resampler = (
             None
             if self.input_rate == OPENAI_RATE
@@ -761,13 +871,20 @@ class OpenAIRealtimeSession:
             downward_only=downward_only,
         )
 
-    def _arm_ack_watchdog(self, event_id: str, label: str) -> None:
+    def _arm_ack_watchdog(
+        self,
+        event_id: str,
+        label: str,
+        *,
+        timeout_s: float | None = None,
+    ) -> None:
         generation = self._connection_generation
         ws = self._ws
+        effective_timeout_s = C.CONNECT_TIMEOUT_S if timeout_s is None else timeout_s
 
         async def watch() -> None:
             try:
-                await asyncio.sleep(C.CONNECT_TIMEOUT_S)
+                await asyncio.sleep(effective_timeout_s)
                 if generation != self._connection_generation or ws is None or ws is not self._ws:
                     return
                 response_request = self._response_create_event_ids.pop(event_id, None)
@@ -802,7 +919,7 @@ class OpenAIRealtimeSession:
         self._ack_watchdogs.clear()
 
     async def clear_input_audio(self) -> None:
-        """Reset a half-open provider VAD buffer at a half-duplex answer boundary."""
+        """Clear only uncommitted bytes; this is not a VAD-span cancellation ACK."""
         self._preconnect_audio.clear()
         self._preconnect_audio_bytes = 0
         self._speech_stop_emitted = False
@@ -820,6 +937,325 @@ class OpenAIRealtimeSession:
             except BaseException:
                 self._operation_event_ids.pop(event_id, None)
                 raise
+
+    async def _manual_protocol_error(
+        self,
+        message: str,
+        *,
+        ws: aiohttp.ClientWebSocketResponse | None = None,
+    ) -> NoReturn:
+        """Close the exact socket whose conversation history became unknowable."""
+        self.last_error = f"manual input protocol: {message}"
+        _LOG.error("%s; closing provider session", self.last_error)
+        target = ws or self._ws
+        if target is not None and not bool(getattr(target, "closed", False)):
+            await target.close()
+        raise ConnectionError(self.last_error)
+
+    def _manual_span_for(self, item_id: str, generation: int) -> _ManualInputSpan | None:
+        span = self._manual_input_span
+        if span is None or span.generation != generation:
+            return None
+        if item_id in {span.start_item_id, span.stop_item_id}:
+            return span
+        return None
+
+    def _quarantine_silence_limit_s(self) -> float:
+        """Return a bounded silence tail that can finish the configured VAD."""
+        turn_detection = self._turn_detection()
+        if not isinstance(turn_detection, dict):
+            return 0.0
+        if turn_detection.get("type") == "server_vad":
+            silence_ms = min(
+                10_000,
+                max(100, int(turn_detection.get("silence_duration_ms") or 500)),
+            )
+            return (silence_ms + _QUARANTINE_SERVER_VAD_MARGIN_MS) / 1000.0
+        eagerness = str(turn_detection.get("eagerness") or "auto")
+        return _QUARANTINE_SEMANTIC_VAD_MAX_S.get(eagerness, 4.0) + (
+            _QUARANTINE_SERVER_VAD_MARGIN_MS / 1000.0
+        )
+
+    def _finish_quarantine_silence(self, span: _ManualInputSpan, reason: str) -> None:
+        """Stop one provider-local silence drain and publish bounded provenance."""
+        task = span.quarantine_silence_task
+        span.quarantine_silence_task = None
+        if task is not None and task is not asyncio.current_task() and not task.done():
+            task.cancel()
+        if not span.quarantine_silence_observed or span.quarantine_silence_finished:
+            return
+        span.quarantine_silence_finished = True
+        if self.provider_observer is not None:
+            self._observe_provider(
+                "quarantine_silence_stopped",
+                root_item_id=span.start_item_id,
+                generation=span.generation,
+                reason=reason,
+                frames=span.quarantine_silence_frames,
+                audio_ms=span.quarantine_silence_frames * _QUARANTINE_AUDIO_FRAME_MS,
+            )
+
+    async def _await_quarantine_silence_stopped(self, span: _ManualInputSpan, reason: str) -> None:
+        """Join the exact silence drain before its terminal VAD edge can advance."""
+        task = span.quarantine_silence_task
+        if task is not None and task is not asyncio.current_task():
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        self._finish_quarantine_silence(span, reason)
+
+    def _clear_manual_input_span(self, reason: str) -> None:
+        span = self._manual_input_span
+        if span is None:
+            return
+        self._finish_quarantine_silence(span, reason)
+        self._manual_input_span = None
+
+    def _start_quarantine_silence(self, span: _ManualInputSpan) -> None:
+        """Pace zero PCM until the still-active provider VAD emits its stop edge."""
+        if span.quarantine_silence_task is not None or span.stop_seen:
+            return
+        silence_limit_s = self._quarantine_silence_limit_s()
+        if silence_limit_s <= 0:
+            return
+        frame_samples = max(1, self.input_rate * _QUARANTINE_AUDIO_FRAME_MS // 1000)
+        zero_frame = bytes(frame_samples * C.SAMPLE_WIDTH)
+        max_frames = math.ceil(silence_limit_s * 1000 / _QUARANTINE_AUDIO_FRAME_MS)
+        generation = span.generation
+        ws = self._ws
+
+        async def drain() -> None:
+            reason = "limit_exhausted"
+            span.quarantine_silence_observed = True
+            if self.provider_observer is not None:
+                self._observe_provider(
+                    "quarantine_silence_started",
+                    root_item_id=span.start_item_id,
+                    generation=generation,
+                )
+            try:
+                for _ in range(max_frames):
+                    if span is not self._manual_input_span:
+                        reason = "span_replaced"
+                        return
+                    if span.stop_seen:
+                        reason = "speech_stopped"
+                        return
+                    if (
+                        generation != self._connection_generation
+                        or ws is None
+                        or ws is not self._ws
+                        or bool(getattr(ws, "closed", False))
+                    ):
+                        reason = "session_closed"
+                        return
+                    async with self._audio_send_lock:
+                        if span is not self._manual_input_span or span.stop_seen:
+                            reason = "speech_stopped" if span.stop_seen else "span_replaced"
+                            return
+                        await self._send_audio_now(zero_frame)
+                    span.quarantine_silence_frames += 1
+                    await asyncio.sleep(_QUARANTINE_AUDIO_FRAME_MS / 1000.0)
+            except asyncio.CancelledError:
+                reason = "speech_stopped" if span.stop_seen else "cancelled"
+                raise
+            except Exception as exc:
+                reason = "send_failed"
+                self.last_error = f"manual input protocol: quarantine silence failed: {exc}"
+                _LOG.error("%s; closing provider session", self.last_error)
+                if ws is not None and not bool(getattr(ws, "closed", False)):
+                    await ws.close()
+            finally:
+                self._finish_quarantine_silence(span, reason)
+
+        span.quarantine_silence_task = asyncio.create_task(
+            drain(), name="openai-quarantine-silence"
+        )
+
+    def _arm_input_span_watchdog(self, span: _ManualInputSpan) -> None:
+        """Bound an accepted/quarantined span until its authoritative end edge."""
+        if span.watchdog_event_id is not None:
+            return
+        event_id = f"watch_input_{uuid.uuid4().hex[:20]}"
+        span.watchdog_event_id = event_id
+        self._operation_event_ids[event_id] = ("input.turn", span.start_item_id)
+        timeout_s = C.CONNECT_TIMEOUT_S
+        if span.disposition == "quarantined" and not span.stop_seen:
+            timeout_s += self._quarantine_silence_limit_s()
+        self._arm_ack_watchdog(event_id, "input.turn", timeout_s=timeout_s)
+
+    def _resolve_input_span_watchdog(self, span: _ManualInputSpan) -> None:
+        event_id = span.watchdog_event_id
+        if event_id is None:
+            return
+        span.watchdog_event_id = None
+        self._operation_event_ids.pop(event_id, None)
+        self._resolve_ack_watchdog(event_id)
+
+    async def accept_input_turn(self, item_id: str, turn_id: int, generation: int) -> None:
+        """Register one accepted VAD turn; ACK events trigger its sole response."""
+        if not self.manual_input_response:
+            await self._manual_protocol_error("accept_input_turn used without manual response mode")
+        if generation != self._connection_generation:
+            await self._manual_protocol_error(
+                f"accepted stale generation {generation}, current {self._connection_generation}"
+            )
+        if not item_id or isinstance(turn_id, bool) or not isinstance(turn_id, int) or turn_id < 0:
+            await self._manual_protocol_error("accepted turn omitted exact item_id/turn_id")
+        span = self._manual_span_for(item_id, generation)
+        if span is None:
+            await self._manual_protocol_error(f"accepted unknown VAD item {item_id}")
+        assert span is not None
+        if span.disposition is not None:
+            if (
+                span.disposition == "accepted"
+                and span.turn_id == turn_id
+                and not span.response_requested
+            ):
+                await self._maybe_request_accepted_response(span)
+                return
+            await self._manual_protocol_error(
+                f"VAD item {item_id} received conflicting disposition {span.disposition}"
+            )
+        if span.stop_item_id is not None and item_id != span.stop_item_id:
+            await self._manual_protocol_error(
+                f"accepted item {item_id} did not match stopped item {span.stop_item_id}"
+            )
+        span.disposition = "accepted"
+        span.turn_id = turn_id
+        self._arm_input_span_watchdog(span)
+        await self._maybe_request_accepted_response(span)
+
+    async def _maybe_request_accepted_response(self, span: _ManualInputSpan) -> None:
+        if span is not self._manual_input_span or span.disposition != "accepted":
+            return
+        item_id = span.stop_item_id
+        if (
+            span.response_requested
+            or self._active_response
+            or self._pending_response_creates
+            or not span.stop_seen
+            or not item_id
+            or item_id not in span.committed_item_ids
+            or item_id not in span.added_item_ids
+            or span.turn_id is None
+        ):
+            return
+        span.response_requested = True
+        input_turn = (span.start_item_id, span.turn_id, span.generation)
+        self._manual_turn_lease = input_turn
+        if self.provider_observer is not None:
+            self._observe_provider(
+                "accepted_input_turn",
+                root_item_id=span.start_item_id,
+                committed_item_id=item_id,
+                turn_id=span.turn_id,
+                generation=span.generation,
+            )
+        try:
+            await self._send_response_create(
+                purpose="turn",
+                input_turn=input_turn,
+            )
+        except Exception:
+            span.response_requested = False
+            ws = self._ws
+            if ws is not None and not bool(getattr(ws, "closed", False)):
+                await ws.close()
+            raise
+        self._resolve_input_span_watchdog(span)
+        self._clear_manual_input_span("accepted_response_requested")
+
+    async def quarantine_input_turn(self, item_id: str, generation: int) -> None:
+        """Finish a rejected active VAD span, then delete its exact natural item."""
+        if not self.manual_input_response:
+            await self._manual_protocol_error(
+                "quarantine_input_turn used without manual response mode"
+            )
+        if generation != self._connection_generation:
+            await self._manual_protocol_error(
+                f"quarantined stale generation {generation}, current {self._connection_generation}"
+            )
+        if not item_id:
+            await self._manual_protocol_error("quarantine omitted exact speech_started item_id")
+        span = self._manual_span_for(item_id, generation)
+        if span is None:
+            await self._manual_protocol_error(f"quarantined unknown VAD item {item_id}")
+        assert span is not None
+        if span.disposition is not None:
+            if span.disposition == "quarantined" and span.start_item_id == item_id:
+                return
+            await self._manual_protocol_error(
+                f"VAD item {item_id} received conflicting disposition {span.disposition}"
+            )
+        ws = self._ws
+        if ws is None or bool(getattr(ws, "closed", False)):
+            await self._manual_protocol_error("socket closed before quarantine commit")
+        span.disposition = "quarantined"
+        self._arm_input_span_watchdog(span)
+        if span.stop_seen:
+            await self._delete_quarantined_items(span)
+            return
+        # A manual commit does not terminate the provider's active VAD detector. It
+        # also breaks the documented start/stop item-id relationship and can split
+        # one rejected span into two conversation items. Keep the physical mic closed
+        # and pace bounded provider-local zero PCM instead; create_response=false
+        # makes the normal VAD stop safe, and its one natural item can then be deleted
+        # with exact correlation before Thin reopens the follow-up gate.
+        self._start_quarantine_silence(span)
+
+    async def _delete_quarantined_items(self, span: _ManualInputSpan) -> None:
+        if span.disposition != "quarantined":
+            return
+        ws = self._ws
+        if ws is None or bool(getattr(ws, "closed", False)):
+            await self._manual_protocol_error("socket closed before quarantine delete")
+        ready = span.committed_item_ids & span.added_item_ids
+        for item_id in sorted(ready - span.delete_requested_item_ids):
+            event_id = f"evt_delete_{uuid.uuid4().hex[:21]}"
+            span.delete_requested_item_ids.add(item_id)
+            self._operation_event_ids[event_id] = ("conversation.item.delete", item_id)
+            try:
+                assert ws is not None
+                await ws.send_json(
+                    {
+                        "type": "conversation.item.delete",
+                        "event_id": event_id,
+                        "item_id": item_id,
+                    }
+                )
+                self._arm_ack_watchdog(event_id, "conversation.item.delete")
+            except BaseException:
+                self._operation_event_ids.pop(event_id, None)
+                span.delete_requested_item_ids.discard(item_id)
+                raise
+
+    def _maybe_resolve_quarantine(self, span: _ManualInputSpan) -> InputQuarantineResolved | None:
+        if span is not self._manual_input_span or span.disposition != "quarantined":
+            return None
+        stop_item_id = span.stop_item_id
+        if (
+            not span.stop_seen
+            or not stop_item_id
+            or stop_item_id != span.start_item_id
+            or span.committed_item_ids != {stop_item_id}
+            or span.added_item_ids != {stop_item_id}
+            or span.deleted_item_ids != {stop_item_id}
+        ):
+            return None
+        if self.provider_observer is not None:
+            self._observe_provider(
+                "rejected_input_quarantined",
+                root_item_id=span.start_item_id,
+                generation=span.generation,
+                committed_item_count=len(span.committed_item_ids),
+            )
+        self._resolve_input_span_watchdog(span)
+        self._clear_manual_input_span("quarantine_resolved")
+        return InputQuarantineResolved(
+            item_id=span.start_item_id,
+            generation=span.generation,
+        )
 
     def _buffer_preconnect_audio(self, pcm: bytes) -> None:
         if not pcm:
@@ -899,10 +1335,27 @@ class OpenAIRealtimeSession:
         *,
         purpose: str = "turn",
         source_call_id: str | None = None,
+        input_turn: tuple[str, int, int] | None = None,
     ) -> str:
         """Send one correlated response request without blocking the event reader."""
         if self._ws is None or bool(getattr(self._ws, "closed", False)):
             raise ConnectionError("OpenAI realtime socket closed before response creation")
+        if self.manual_input_response:
+            if input_turn is None or input_turn != self._manual_turn_lease:
+                await self._manual_protocol_error("response.create escaped accepted root turn")
+            owner_root_item_id, owner_turn_id, owner_generation = input_turn
+            if (
+                not owner_root_item_id
+                or isinstance(owner_turn_id, bool)
+                or not isinstance(owner_turn_id, int)
+                or owner_turn_id < 0
+                or isinstance(owner_generation, bool)
+                or not isinstance(owner_generation, int)
+                or owner_generation < 0
+            ):
+                await self._manual_protocol_error("response.create owner tuple was not canonical")
+            if self._active_response or self._pending_response_creates:
+                await self._manual_protocol_error("parallel response.create attempted")
         requested_capacity = self._next_response_capacity_tokens
         if (
             self.budget_role == "eval"
@@ -938,18 +1391,30 @@ class OpenAIRealtimeSession:
         response_payload = dict(response or {})
         metadata = dict(response_payload.get("metadata") or {})
         metadata["podvoice_request_id"] = request_id
+        if input_turn is not None:
+            metadata["podvoice_root_item_id"] = input_turn[0]
+            metadata["podvoice_turn_id"] = str(input_turn[1])
+            metadata["podvoice_generation"] = str(input_turn[2])
         response_payload["metadata"] = metadata
         payload["response"] = response_payload
         self._response_create_event_ids[event_id] = request_id
         self._pending_response_creates.add(request_id)
         self._response_request_purposes[request_id] = purpose
         self._response_request_sources[request_id] = source_call_id
+        root_item_id, input_turn_id, input_generation = (
+            input_turn if input_turn is not None else (None, None, None)
+        )
         if self.provider_observer is not None:
             self._observe_provider(
                 "response_create_pre_wire",
                 request_id=request_id,
                 event_id=event_id,
                 capacity_target=requested_capacity,
+                purpose=purpose,
+                source_call_id=source_call_id,
+                root_item_id=root_item_id,
+                turn_id=input_turn_id,
+                generation=input_generation,
             )
         try:
             await self._ws.send_json(payload)
@@ -964,12 +1429,23 @@ class OpenAIRealtimeSession:
                 "response_create_sent",
                 request_id=request_id,
                 event_id=event_id,
+                purpose=purpose,
+                source_call_id=source_call_id,
+                root_item_id=root_item_id,
+                turn_id=input_turn_id,
+                generation=input_generation,
             )
         self._next_response_capacity_tokens = None
         self._arm_ack_watchdog(event_id, "response.create")
         return request_id
 
-    async def send_text(self, text: str, *, item_id: str | None = None) -> None:
+    async def send_text(
+        self,
+        text: str,
+        *,
+        item_id: str | None = None,
+        turn_id: int | None = None,
+    ) -> None:
         if self._ws is None:
             raise ConnectionError("OpenAI realtime socket is not connected")
         # connect() has opened the socket, but session.updated is the provider's actual
@@ -984,6 +1460,10 @@ class OpenAIRealtimeSession:
             raise ConnectionError("OpenAI realtime socket closed before text submission")
         self._schema_correction_used = False
         iid = _safe_client_item_id(item_id)
+        if self.manual_input_response and (
+            isinstance(turn_id, bool) or not isinstance(turn_id, int) or turn_id < 0
+        ):
+            await self._manual_protocol_error("typed turn omitted exact turn_id")
         pending = self._register_item_create(item_id=iid, item_type="message")
         create_event_id = pending.event_id
         try:
@@ -1003,7 +1483,21 @@ class OpenAIRealtimeSession:
         except BaseException:
             self._forget_item_create(pending)
             raise
-        await self._send_response_create()
+        input_turn: tuple[str, int, int] | None = None
+        if self.manual_input_response:
+            assert turn_id is not None
+            input_turn = (iid, turn_id, self._connection_generation)
+            self._manual_turn_lease = input_turn
+            if self.provider_observer is not None:
+                self._observe_provider(
+                    "accepted_input_turn",
+                    root_item_id=iid,
+                    committed_item_id=iid,
+                    turn_id=turn_id,
+                    generation=self._connection_generation,
+                    input_kind="text",
+                )
+        await self._send_response_create(input_turn=input_turn)
 
     async def send_tool_results(self, results: list) -> bool:
         if self._ws is None:
@@ -1138,6 +1632,8 @@ class OpenAIRealtimeSession:
                 self._response_request_sources.clear()
                 self._response_sources.clear()
                 self._operation_event_ids.clear()
+                self._clear_manual_input_span("stream_ended")
+                self._manual_turn_lease = None
                 self._active_response = False
                 self._pending_create = False
                 self._tool_result_response_required = False
@@ -1378,18 +1874,22 @@ class OpenAIRealtimeSession:
             except (json.JSONDecodeError, ValueError):
                 continue
             t = ev.get("type")
+            if (
+                self.manual_input_response
+                and isinstance(t, str)
+                and t.startswith("response.")
+                and t != "response.created"
+            ):
+                event_response_id = _rid(ev)
+                if (
+                    event_response_id == "?"
+                    or not self._active_response
+                    or event_response_id != cur_rid
+                ):
+                    await self._manual_protocol_error(
+                        f"unowned {t} for response {event_response_id}", ws=ws
+                    )
             if t == "response.created":
-                self._late_rate_anchor_generation = None
-                self._late_rate_anchor_response_id = None
-                self._active_response = True
-                cur_rid = _rid(ev)
-                if pending_response_rate_observations:
-                    if cur_rid != "?":
-                        response_rate_observations[cur_rid] = (
-                            response_rate_observations.get(cur_rid, 0)
-                            + pending_response_rate_observations
-                        )
-                    pending_response_rate_observations = 0
                 response = ev.get("response") or {}
                 metadata = response.get("metadata") if isinstance(response, dict) else None
                 request_id = (
@@ -1397,8 +1897,54 @@ class OpenAIRealtimeSession:
                     if isinstance(metadata, dict)
                     else ""
                 )
+                response_id = _rid(ev)
+                root_item_id = (
+                    str(metadata.get("podvoice_root_item_id") or "") or None
+                    if isinstance(metadata, dict)
+                    else None
+                )
+                input_turn_id = _canonical_metadata_uint(
+                    metadata.get("podvoice_turn_id") if isinstance(metadata, dict) else None
+                )
+                input_generation = _canonical_metadata_uint(
+                    metadata.get("podvoice_generation") if isinstance(metadata, dict) else None
+                )
+                observed_turn = (root_item_id, input_turn_id, input_generation)
                 pending_before = len(self._pending_response_creates)
                 request_id_matched = request_id in self._pending_response_creates
+                if self.manual_input_response and (
+                    response_id == "?"
+                    or not request_id_matched
+                    or self._active_response
+                    or response_id in self._terminal_responses
+                    or observed_turn != self._manual_turn_lease
+                ):
+                    reason = (
+                        "missing response id"
+                        if response_id == "?"
+                        else "unmatched response request"
+                        if not request_id_matched
+                        else "second active response"
+                        if self._active_response
+                        else "mismatched accepted root turn"
+                        if observed_turn != self._manual_turn_lease
+                        else "reused response id"
+                    )
+                    await self._manual_protocol_error(
+                        f"{reason}: response={response_id} request={request_id or '?'}",
+                        ws=ws,
+                    )
+                self._late_rate_anchor_generation = None
+                self._late_rate_anchor_response_id = None
+                self._active_response = True
+                cur_rid = response_id
+                if pending_response_rate_observations:
+                    if cur_rid != "?":
+                        response_rate_observations[cur_rid] = (
+                            response_rate_observations.get(cur_rid, 0)
+                            + pending_response_rate_observations
+                        )
+                    pending_response_rate_observations = 0
                 purpose = self._response_request_purposes.pop(request_id, "turn")
                 source_call_id = self._response_request_sources.pop(request_id, None)
                 if request_id_matched:
@@ -1419,12 +1965,21 @@ class OpenAIRealtimeSession:
                 if self.provider_observer is not None:
                     self._observe_provider(
                         "response_created",
-                        response_id=cur_rid or "?",
-                        request_id=request_id,
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        response_id=_bounded_provider_label(cur_rid) or "?",
+                        conversation_id=_bounded_provider_label(
+                            response.get("conversation_id") if isinstance(response, dict) else None
+                        ),
+                        request_id=_bounded_provider_label(request_id) or "",
                         request_id_matched=request_id_matched,
                         pending_before=pending_before,
                         pending_after=len(self._pending_response_creates),
                         generation=generation,
+                        purpose=purpose,
+                        source_call_id=source_call_id,
+                        root_item_id=root_item_id,
+                        turn_id=input_turn_id,
+                        input_generation=input_generation,
                     )
                 if request_id_matched and cur_rid not in (None, "?"):
                     self._response_purposes[cur_rid] = purpose
@@ -1434,6 +1989,9 @@ class OpenAIRealtimeSession:
                         purpose=purpose,
                         generation=generation,
                         source_call_id=source_call_id,
+                        request_id=request_id,
+                        root_item_id=root_item_id,
+                        turn_id=input_turn_id,
                     )
             elif t == "response.output_audio.delta":  # VERIFY: GA event name
                 d = ev.get("delta")
@@ -1457,7 +2015,12 @@ class OpenAIRealtimeSession:
                         generation=generation,
                     )
             elif t == "response.output_audio_transcript.delta":
-                yield OutputTranscript(ev.get("delta", ""))
+                transcript_rid = _rid(ev)
+                yield OutputTranscript(
+                    ev.get("delta", ""),
+                    response_id=None if transcript_rid == "?" else transcript_rid,
+                    generation=generation,
+                )
             elif t == "conversation.item.input_audio_transcription.completed":
                 # ONLY the completed (final) transcript drives the displayed line. We used to
                 # ALSO emit on '.delta', but the console renders one bubble per event (no
@@ -1476,6 +2039,15 @@ class OpenAIRealtimeSession:
                 pending = self._pending_item_creates.get(item_id)
                 item_type = str(item.get("type") or "")
                 call_id = str(item.get("call_id") or "")
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "conversation_item_added",
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        provider_event_type=t,
+                        previous_item_id=_bounded_provider_label(ev.get("previous_item_id")),
+                        generation=generation,
+                        **_provider_item_observation(item),
+                    )
                 if (
                     pending is not None
                     and item_type == pending.item_type
@@ -1495,10 +2067,52 @@ class OpenAIRealtimeSession:
                     )
                 elif item_id:
                     _LOG.debug("ignoring uncorrelated %s id=%s", t, item_id)
+                if self.manual_input_response and pending is None and item_type == "message":
+                    role = str(item.get("role") or "")
+                    span = self._manual_input_span
+                    looks_like_active_audio = bool(
+                        span is not None
+                        and item_id
+                        and (
+                            role == "user"
+                            or item_id in span.committed_item_ids
+                            or item_id in {span.start_item_id, span.stop_item_id}
+                        )
+                    )
+                    if looks_like_active_audio:
+                        assert span is not None
+                        span.added_item_ids.add(item_id)
+                        if span.disposition == "quarantined":
+                            await self._delete_quarantined_items(span)
+                        elif span.disposition == "accepted":
+                            await self._maybe_request_accepted_response(span)
+                    elif role == "user":
+                        await self._manual_protocol_error(
+                            f"unowned user conversation item {item_id or '?'}", ws=ws
+                        )
             elif t == "response.function_call_arguments.done":
                 self._stage_tool_call(ev, cur_rid)
+            elif t == "response.output_item.added":
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "response_output_item_added",
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        response_id=_bounded_provider_label(ev.get("response_id")),
+                        output_index=_bounded_provider_index(ev.get("output_index")),
+                        generation=generation,
+                        **_provider_item_observation(ev.get("item")),
+                    )
             elif t == "response.output_item.done":
                 item = ev.get("item") or {}
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "response_output_item_done",
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        response_id=_bounded_provider_label(ev.get("response_id")),
+                        output_index=_bounded_provider_index(ev.get("output_index")),
+                        generation=generation,
+                        **_provider_item_observation(item),
+                    )
                 if item.get("type") == "function_call":
                     self._stage_tool_call(
                         {
@@ -1510,13 +2124,36 @@ class OpenAIRealtimeSession:
                         cur_rid,
                     )
             elif t == "input_audio_buffer.speech_started":
+                speech_item_id = str(ev.get("item_id") or "")
+                speech_generation = (
+                    generation if generation is not None else self._connection_generation
+                )
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "input_audio_buffer_speech_started",
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        item_id=_bounded_provider_label(speech_item_id),
+                        generation=speech_generation,
+                    )
+                if self.manual_input_response:
+                    if not speech_item_id:
+                        await self._manual_protocol_error("speech_started omitted item_id", ws=ws)
+                    if self._manual_input_span is not None:
+                        await self._manual_protocol_error(
+                            "speech_started arrived before prior input span resolved", ws=ws
+                        )
+                    self._manual_input_span = _ManualInputSpan(
+                        start_item_id=speech_item_id,
+                        generation=speech_generation,
+                    )
                 # Full-duplex Talk treats every speech edge as an interruption even
                 # after generation has outrun physical playback.  Half-duplex Voice PE
                 # must never cancel here: Thin clears the crossed VAD buffer and keeps
                 # the response authoritative until the physical playback gate closes.
                 if self.interrupt_response and self._active_response:
                     _LOG.info("turn: barge-in (speech_started) over active response")
-                    self._active_response = False
+                    if not self.manual_input_response:
+                        self._active_response = False
                     self._pending_create = False
                     self._tool_result_response_required = False
                     self._force_no_tools_followup = False
@@ -1527,18 +2164,70 @@ class OpenAIRealtimeSession:
                     self._outstanding_tool_calls.clear()
                 self._speech_stop_emitted = False
                 if self.interrupt_response:
-                    yield Interrupted()
+                    yield Interrupted(
+                        item_id=speech_item_id or None,
+                        generation=speech_generation,
+                    )
                 else:
-                    yield UserSpeechStarted()
+                    yield UserSpeechStarted(
+                        item_id=speech_item_id or None,
+                        generation=speech_generation,
+                    )
             elif t == "input_audio_buffer.speech_stopped":
                 # The user finished their turn — arm the TTFR watchdog from HERE (the
                 # model should now reply within WATCHDOG_MS). Arming at wake/gate-open
                 # would count the user's own speaking time as latency and abort every
                 # turn before a reply is even possible.
-                if not self._speech_stop_emitted:
+                speech_item_id = str(ev.get("item_id") or "")
+                speech_generation = (
+                    generation if generation is not None else self._connection_generation
+                )
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "input_audio_buffer_speech_stopped",
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        item_id=_bounded_provider_label(speech_item_id),
+                        generation=speech_generation,
+                    )
+                if self.manual_input_response:
+                    span = self._manual_input_span
+                    if span is None or span.generation != speech_generation:
+                        await self._manual_protocol_error(
+                            f"speech_stopped for unknown item {speech_item_id or '?'}", ws=ws
+                        )
+                    assert span is not None
+                    if not speech_item_id:
+                        await self._manual_protocol_error("speech_stopped omitted item_id", ws=ws)
+                    if span.stop_seen:
+                        await self._manual_protocol_error(
+                            f"duplicate speech_stopped for {speech_item_id}", ws=ws
+                        )
+                    if speech_item_id != span.start_item_id:
+                        await self._manual_protocol_error(
+                            "speech_stopped item changed without a manual commit",
+                            ws=ws,
+                        )
+                    span.stop_seen = True
+                    span.stop_item_id = speech_item_id
+                    await self._await_quarantine_silence_stopped(span, "speech_stopped")
                     self._schema_correction_used = False
                     self._speech_stop_emitted = True
-                    yield UserSpeechStopped()
+                    yield UserSpeechStopped(
+                        item_id=speech_item_id,
+                        generation=speech_generation,
+                    )
+                    if span.disposition == "quarantined":
+                        await self._delete_quarantined_items(span)
+                        resolved = self._maybe_resolve_quarantine(span)
+                        if resolved is not None:
+                            yield resolved
+                elif not self._speech_stop_emitted:
+                    self._schema_correction_used = False
+                    self._speech_stop_emitted = True
+                    yield UserSpeechStopped(
+                        item_id=speech_item_id or None,
+                        generation=speech_generation,
+                    )
             elif t == "input_audio_buffer.timeout_triggered":
                 # Can only fire if idle_timeout_ms were sent — which we never do.
                 # If it EVER appears, the server is about to generate an unsolicited
@@ -1573,16 +2262,90 @@ class OpenAIRealtimeSession:
                     self._resolve_ack_watchdog(pending_event_id)
                 elif item_id:
                     _LOG.debug("ignoring stale conversation.item.truncated id=%s", item_id)
+            elif t == "conversation.item.deleted":
+                item_id = str(ev.get("item_id") or "")
+                pending_event_id = next(
+                    (
+                        pending_event_id
+                        for pending_event_id, (kind, subject) in self._operation_event_ids.items()
+                        if kind == "conversation.item.delete" and subject == item_id
+                    ),
+                    None,
+                )
+                if pending_event_id is None:
+                    if self.manual_input_response:
+                        await self._manual_protocol_error(
+                            f"uncorrelated conversation.item.deleted {item_id or '?'}",
+                            ws=ws,
+                        )
+                    continue
+                self._operation_event_ids.pop(pending_event_id, None)
+                self._resolve_ack_watchdog(pending_event_id)
+                span = self._manual_input_span
+                if (
+                    span is None
+                    or span.disposition != "quarantined"
+                    or item_id not in span.delete_requested_item_ids
+                ):
+                    await self._manual_protocol_error(
+                        f"delete ACK escaped active quarantine for {item_id or '?'}", ws=ws
+                    )
+                span.deleted_item_ids.add(item_id)
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "conversation_item_deleted",
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        item_id=_bounded_provider_label(item_id),
+                        root_item_id=span.start_item_id,
+                        generation=span.generation,
+                        purpose="quarantine",
+                    )
+                resolved = self._maybe_resolve_quarantine(span)
+                if resolved is not None:
+                    yield resolved
             elif t == "input_audio_buffer.committed":
-                # Belt-and-suspenders fallback for manual commits/providers that do
-                # not emit speech_stopped.  For normal VAD this is the SAME boundary,
-                # so never publish it twice.
-                if not self._speech_stop_emitted:
+                if self.provider_observer is not None:
+                    self._observe_provider(
+                        "input_audio_buffer_committed",
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        item_id=_bounded_provider_label(ev.get("item_id")),
+                        previous_item_id=_bounded_provider_label(ev.get("previous_item_id")),
+                        generation=generation,
+                    )
+                committed_item_id = str(ev.get("item_id") or "")
+                if self.manual_input_response:
+                    span = self._manual_input_span
+                    if span is None or not committed_item_id:
+                        await self._manual_protocol_error(
+                            f"commit escaped active VAD span: {committed_item_id or '?'}",
+                            ws=ws,
+                        )
+                    assert span is not None
+                    span.committed_item_ids.add(committed_item_id)
+                    if span.disposition == "quarantined":
+                        await self._delete_quarantined_items(span)
+                    elif span.disposition == "accepted":
+                        await self._maybe_request_accepted_response(span)
+                # Belt-and-suspenders fallback for legacy/manual-buffer providers.
+                # Strict manual-response mode requires the real VAD stop edge because
+                # a forced quarantine commit may happen while speech is still active.
+                elif not self._speech_stop_emitted:
                     self._schema_correction_used = False
                     self._speech_stop_emitted = True
-                    yield UserSpeechStopped()
+                    yield UserSpeechStopped(
+                        item_id=committed_item_id or None,
+                        generation=(
+                            generation if generation is not None else self._connection_generation
+                        ),
+                    )
             elif t == "response.done":
                 rid, status = _rid(ev), _rstatus(ev)
+                if self.manual_input_response:
+                    if cur_rid != rid:
+                        await self._manual_protocol_error(
+                            f"response.done {rid} did not match active response {cur_rid or '?'}",
+                            ws=ws,
+                        )
                 response = ev.get("response") or {}
                 metadata = response.get("metadata") if isinstance(response, dict) else None
                 request_id = (
@@ -1623,6 +2386,13 @@ class OpenAIRealtimeSession:
                 provider_reservation_observed = rate_observation_count > 0
                 pending_response_rate_observations = 0
                 cur_rid = None
+                pending_input_span = self._manual_input_span
+                if (
+                    self.manual_input_response
+                    and pending_input_span is not None
+                    and pending_input_span.disposition == "accepted"
+                ):
+                    await self._maybe_request_accepted_response(pending_input_span)
                 last_done_response_id = rid
                 last_done_status = status
                 last_done_at = time.monotonic() if self.provider_observer is not None else None
@@ -1694,10 +2464,20 @@ class OpenAIRealtimeSession:
                 else:
                     usage_observation = {"reason": "usage_missing_or_invalid"}
                 if self.provider_observer is not None:
+                    observed_output, observed_output_truncated = _provider_output_observation(
+                        response
+                    )
                     self._observe_provider(
                         "response_done",
-                        response_id=rid,
+                        event_id=_bounded_provider_label(ev.get("event_id")),
+                        response_id=_bounded_provider_label(rid) or "?",
+                        conversation_id=_bounded_provider_label(
+                            response.get("conversation_id") if isinstance(response, dict) else None
+                        ),
                         status=status,
+                        output_items=observed_output,
+                        output_items_truncated=observed_output_truncated,
+                        generation=generation,
                         provider_rate_observed=provider_reservation_observed,
                         rate_observation_count=rate_observation_count,
                         usage=(
@@ -1723,6 +2503,25 @@ class OpenAIRealtimeSession:
                 if usage is not None:
                     yield usage
                 staged_invalid = self._invalid_tool_responses.pop(rid, None)
+                if self.budget_role == "eval" and not eval_usage_valid:
+                    # A failed/cancelled response can still consume billable tokens.
+                    # Eval may not admit another edge under a hard USD cap when any
+                    # terminal response omitted authoritative usage.
+                    self._cancelled_tool_calls.update(staged_calls)
+                    usage_error = (
+                        "provider_usage_unknown · live eval response usage was missing or invalid"
+                    )
+                    self.last_error = usage_error
+                    yield TurnComplete(
+                        status="failed",
+                        error=usage_error,
+                        response_id=rid,
+                        generation=generation,
+                        purpose=response_purpose,
+                        source_call_id=response_source_call_id,
+                        provider_rate_observed=provider_reservation_observed,
+                    )
+                    continue
                 if status != "completed":
                     # A failed/cancelled function-call response is not permission to
                     # manufacture either a spoken result or a silent success. Cancel
@@ -1735,22 +2534,6 @@ class OpenAIRealtimeSession:
                     )
                     yield TurnComplete(
                         status=effective_status,
-                        error=error,
-                        response_id=rid,
-                        generation=generation,
-                        purpose=response_purpose,
-                        source_call_id=response_source_call_id,
-                        provider_rate_observed=provider_reservation_observed,
-                    )
-                    continue
-                if self.budget_role == "eval" and not eval_usage_valid:
-                    self._cancelled_tool_calls.update(staged_calls)
-                    error = (
-                        "provider_usage_unknown · live eval response usage was missing or invalid"
-                    )
-                    self.last_error = error
-                    yield TurnComplete(
-                        status="failed",
                         error=error,
                         response_id=rid,
                         generation=generation,
@@ -1814,6 +2597,7 @@ class OpenAIRealtimeSession:
                                 "constraint": staged_invalid.correction_constraint,
                             },
                             response_id=rid,
+                            generation=generation,
                         )
                         continue
                     yield TurnComplete(
@@ -1894,8 +2678,9 @@ class OpenAIRealtimeSession:
                             batch_id=rid,
                             batch_index=index,
                             batch_size=len(calls),
+                            generation=generation,
                         )
-                    yield ToolRoundComplete(response_id=rid)
+                    yield ToolRoundComplete(response_id=rid, generation=generation)
                     # The consumer has processed the edge before execution resumes
                     # here. A result that raced ahead was held by send_tool_results.
                     self._tool_round_edge_pending = False
@@ -1905,7 +2690,11 @@ class OpenAIRealtimeSession:
                             self._next_response_capacity_tokens = None
                             call_ids = tuple(sorted(self._silent_tool_call_ids))
                             self._silent_tool_call_ids.clear()
-                            yield SilentToolComplete(call_ids=call_ids)
+                            yield SilentToolComplete(
+                                call_ids=call_ids,
+                                response_id=rid,
+                                generation=generation,
+                            )
                         else:
                             self._tool_result_response_required = False
                             self._silent_tool_call_ids.clear()
@@ -1929,7 +2718,11 @@ class OpenAIRealtimeSession:
                         )
                         call_ids = tuple(sorted(self._silent_tool_call_ids))
                         self._silent_tool_call_ids.clear()
-                        yield SilentToolComplete(call_ids=call_ids)
+                        yield SilentToolComplete(
+                            call_ids=call_ids,
+                            response_id=rid,
+                            generation=generation,
+                        )
                         continue
                     self._tool_result_response_required = False
                     self._silent_tool_call_ids.clear()
@@ -1945,7 +2738,7 @@ class OpenAIRealtimeSession:
                     # answer's TurnComplete was mistaken for another tool decision and
                     # its fully generated PCM stayed forever in the held announce
                     # buffer (physical 1.13.0 follow-up failure, 2026-08-14 12:00).
-                    yield ToolRoundComplete(response_id=rid)
+                    yield ToolRoundComplete(response_id=rid, generation=generation)
                     continue
                 if self._pending_create and self._outstanding_tool_calls:
                     _LOG.info(
@@ -2172,6 +2965,8 @@ class OpenAIRealtimeSession:
                         f"OpenAI rejected {kind}{f' for {subject}' if subject else ''}: {message}"
                     )
                     _LOG.warning("openai rejected correlated %s: %s", kind, err)
+                    if self.manual_input_response and kind == "conversation.item.delete":
+                        await self._manual_protocol_error(operation_failure, ws=ws)
                     yield TurnComplete(status="failed", error=operation_failure)
                     continue
                 _LOG.warning("openai realtime error: %s", err)
@@ -2185,10 +2980,14 @@ class OpenAIRealtimeSession:
         tool_choice = "none" if semantic_end else "auto"
         self._force_no_tools_followup = False
         self._semantic_end_source_call_id = None
+        input_turn = self._manual_turn_lease if self.manual_input_response else None
+        if self.manual_input_response and input_turn is None:
+            await self._manual_protocol_error("child response omitted accepted root turn")
         await self._send_response_create(
             {"tool_choice": tool_choice},
             purpose="semantic_end" if semantic_end else "tool_result",
             source_call_id=source_call_id,
+            input_turn=input_turn,
         )
 
     @staticmethod
@@ -2303,6 +3102,8 @@ class OpenAIRealtimeSession:
         self._response_request_sources.clear()
         self._response_sources.clear()
         self._operation_event_ids.clear()
+        self._clear_manual_input_span("session_closed")
+        self._manual_turn_lease = None
         self._preconnect_audio.clear()
         self._preconnect_audio_bytes = 0
         self._staged_tool_calls.clear()
@@ -2348,6 +3149,7 @@ def make_session(
     input_rate: int = C.INPUT_RATE,
     noise: str | None = None,
     interrupt_response: bool = True,
+    manual_input_response: bool = False,
 ) -> OpenAIRealtimeSession:
     """Build the one voice brain from a Config (the old multi-provider factory).
 
@@ -2375,5 +3177,6 @@ def make_session(
         eagerness=cfg.openai_eagerness,
         noise=cfg.openai_noise if noise is None else noise,
         interrupt_response=interrupt_response,
+        manual_input_response=manual_input_response,
         idle_timeout_s=getattr(cfg, "idle_timeout_s", 25),
     )

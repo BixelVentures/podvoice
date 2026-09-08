@@ -20,6 +20,7 @@ from gatekeeper.eval_harness import (
     ScenarioResult,
     TurnExpectation,
     TurnObservation,
+    TurnResult,
     grade_turn,
     load_scenarios,
     match_scenario_turn,
@@ -87,6 +88,9 @@ def _audio_source_provenance(
     effective_prompt = instructions.strip()
     is_default = effective_prompt == eval_harness.SYSTEM_PROMPT_DA.strip()
     return {
+        "source_podvoice_version": eval_harness.__version__,
+        "source_artifact_identity_kind": eval_harness.runtime_artifact_identity()[0],
+        "source_artifact_sha256": eval_harness.runtime_artifact_identity()[1],
         "source_tool_schema_sha256": eval_harness._schema_sha256(admitted),
         "source_model": model,
         "source_prompt_source": "default" if is_default else "custom",
@@ -96,6 +100,8 @@ def _audio_source_provenance(
         "source_room_context_sha256": eval_harness.hashlib.sha256(
             room_context.encode()
         ).hexdigest(),
+        "source_turn_preset": eval_harness.LIVE_EVAL_TURN_PRESET,
+        "source_openai_noise": eval_harness.LIVE_EVAL_OPENAI_NOISE,
     }
 
 
@@ -117,8 +123,17 @@ def test_core_scenarios_are_valid_and_cover_context_tools_and_close():
     }
     assert any(len(s.turns) > 1 for s in scenarios)
     decisions = {turn.expect.decision for scenario in scenarios for turn in scenario.turns}
-    assert {"end_conversation", "get_time"} <= decisions
+    assert {"end_conversation", "GetDateTime"} <= decisions
     assert any(turn.expect.direct_answer for scenario in scenarios for turn in scenario.turns)
+
+
+def test_every_scenario_utterance_has_one_exact_replay_match():
+    for scenario in load_scenarios():
+        for turn_index, turn in enumerate(scenario.turns):
+            matched = match_scenario_turn(turn.text)
+            assert matched is not None, turn.text
+            assert matched[0].id == scenario.id
+            assert matched[1] == turn_index
 
 
 def test_every_scenario_tool_name_has_one_explicit_canonical_fixture_contract():
@@ -138,8 +153,8 @@ def test_tool_admission_filters_injected_production_tools_without_substring_alia
     declarations.extend(
         [
             {
-                "name": "get_time_alias",
-                "description": "must never satisfy exact get_time",
+                "name": "GetDateTimeAlias",
+                "description": "must never satisfy exact GetDateTime",
                 "parameters": {"type": "object"},
             },
             {
@@ -152,10 +167,10 @@ def test_tool_admission_filters_injected_production_tools_without_substring_alia
 
     admission = eval_harness._admit_eval_tools([scenario], declarations)
 
-    assert {"get_time", "google_web_sogning", "InjectedProductionMutation"} <= {
+    assert {"GetDateTime", "google_web_sogning", "InjectedProductionMutation"} <= {
         row["name"] for row in admission.declarations
     }
-    assert set(admission.contracts) == {"get_time", "google_web_sogning"}
+    assert set(admission.contracts) == {"GetDateTime", "google_web_sogning"}
 
 
 def test_eval_only_sensitive_schema_does_not_mutate_production_snapshot_or_hash():
@@ -196,17 +211,17 @@ async def test_invalid_tool_admission_is_structured_and_precedes_budget_or_socke
         declarations = None
     assert declarations is None or isinstance(declarations, list)
     if declarations is None:
-        get_time = web = {}
+        date_time = web = {}
     else:
-        get_time = next(row for row in declarations if row["name"] == "get_time")
+        date_time = next(row for row in declarations if row["name"] == "GetDateTime")
         web = next(row for row in declarations if row["name"] == "google_web_sogning")
     if failure == "duplicate":
         assert declarations is not None
-        declarations.append(json.loads(json.dumps(get_time)))
+        declarations.append(json.loads(json.dumps(date_time)))
     elif failure == "alias_only":
         declarations = [
             {**json.loads(json.dumps(web)), "name": "google_web_sogning_alias"},
-            get_time,
+            date_time,
         ]
     elif failure == "remote_ref":
         web["parameters"] = {"$ref": "https://example.invalid/schema.json"}
@@ -291,6 +306,44 @@ def test_audio_replay_matches_only_an_exact_known_eval_utterance():
     assert historical_followup is not None
     assert historical_followup[0].id == "arithmetic-followup"
     assert historical_followup[1] == 1
+
+
+def test_golden_semantic_scenario_is_one_exact_five_turn_chain():
+    scenario = next(row for row in load_scenarios() if row.id == "arithmetic-followup-observed")
+
+    assert [turn.text for turn in scenario.turns] == [
+        "Hvad er tolv gange syv?",
+        "Læg seks til.",
+        "Hvad er klokken lige nu?",
+        "Og hvilken ugedag er det lige nu?",
+        "Tak, det var alt for denne test.",
+    ]
+    assert [turn.expect.decision for turn in scenario.turns] == [
+        None,
+        None,
+        "GetDateTime",
+        "GetDateTime",
+        "end_conversation",
+    ]
+    assert [turn.expect.direct_answer for turn in scenario.turns] == [
+        True,
+        True,
+        False,
+        False,
+        False,
+    ]
+    assert [turn.expect.numeric_result for turn in scenario.turns] == [84, 90, None, None, None]
+    assert scenario.turns[0].expect.numeric_support == (7, 12)
+    assert scenario.turns[1].expect.numeric_support == (6, 84)
+    assert scenario.turns[2].expect.tool_args == {"GetDateTime": {}}
+    assert scenario.turns[3].expect.tool_args == {"GetDateTime": {}}
+    assert [turn.expect.remain_open for turn in scenario.turns] == [
+        True,
+        True,
+        True,
+        True,
+        False,
+    ]
 
 
 def test_semantic_close_selective_profile_preserves_all_independent_controls():
@@ -484,29 +537,64 @@ def test_oracle_requires_exact_decision_answer_and_lifecycle():
     }
 
 
+@pytest.mark.parametrize(
+    ("expected", "support", "answer", "passed"),
+    [
+        (84, (7, 12), "Fireogfirs.", True),
+        (84, (7, 12), "Tolv gange syv er 84.", True),
+        (90, (6, 84), "84 plus 6 giver halvfems.", True),
+        (84, (7, 12), "Svaret er 184.", False),
+        (90, (6, 84), "Så er det 190.", False),
+        (84, (7, 12), "Det er ikke 84.", False),
+        (90, (6, 84), "90, nej, 91.", False),
+        (84, (7, 12), "84 eller 85.", False),
+        (90, (6, 84), "Halvfems, men måske enoghalvfems.", False),
+    ],
+)
+def test_numeric_result_oracle_rejects_substrings_negation_and_conflicts(
+    expected, support, answer, passed
+):
+    expectation = TurnExpectation(
+        direct_answer=True,
+        answer_any=(str(expected), "fireogfirs" if expected == 84 else "halvfems"),
+        numeric_result=expected,
+        numeric_support=support,
+    )
+
+    findings = grade_turn(
+        expectation,
+        TurnObservation("turn", "session", answer=answer),
+    )
+
+    assert (not findings) is passed
+    if not passed:
+        assert "numeric-result-mismatch" in {finding.code for finding in findings}
+
+
 def test_oracle_requires_the_model_selected_temporal_field():
     expected = TurnExpectation(
-        decision="get_time",
-        tool_args={"get_time": {"fields": ["weekday"]}},
+        decision="GetDateTime",
+        tool_args={"GetDateTime": {}},
         answer_any=("mandag",),
     )
     good = TurnObservation(
         turn_id="t",
         session_id="s",
-        decisions=["get_time"],
-        tool_args={"get_time": [{"fields": ["weekday"]}]},
+        decisions=["GetDateTime"],
+        tool_args={"GetDateTime": [{}]},
         answer="I dag er det mandag.",
     )
     assert grade_turn(expected, good) == []
 
-    wrong_field = TurnObservation(
+    wrong_tool = TurnObservation(
         turn_id="t",
         session_id="s",
-        decisions=["get_time"],
-        tool_args={"get_time": [{"fields": ["week_number"]}]},
+        decisions=["HassGetCurrentTime"],
+        tool_args={"HassGetCurrentTime": [{}]},
         answer="Det er uge 34.",
     )
-    assert {finding.code for finding in grade_turn(expected, wrong_field)} == {
+    assert {finding.code for finding in grade_turn(expected, wrong_tool)} == {
+        "wrong-decision",
         "wrong-tool-args",
         "answer-missing-any",
     }
@@ -520,13 +608,17 @@ async def test_safe_eval_router_never_dispatches_unknown_tools():
     assert "continue_conversation" not in {
         declaration["name"] for declaration in tools.declarations()
     }
-    weekday = await tools.dispatch("get_time", {"fields": ["weekday"]})
+    weekday = await tools.dispatch("GetDateTime", {})
     assert weekday == {
         "ok": True,
-        "summary": "I dag er det mandag.",
-        "data": {"requested_fields": ["weekday"], "weekday": "mandag"},
+        "data": {
+            "date": "2026-08-17",
+            "time": "14:00",
+            "weekday": "mandag",
+            "week_number": 34,
+        },
     }
-    assert (await tools.dispatch("get_time", {}))["error_kind"] == "bad_args"
+    assert (await tools.dispatch("GetDateTime", {"field": "time"}))["error_kind"] == "bad_args"
     refused = await tools.dispatch("unlock_front_door", {"entity": "lock.front"})
     assert refused == {
         "ok": False,
@@ -1368,7 +1460,11 @@ async def test_audio_submit_collects_diagnostic_transcript_after_turn_complete()
     driver.session_id = "audio-session"
     driver.is_open = True
     driver.events.put_nowait(
-        eval_harness.TurnComplete(status="completed", response_id="audio-response")
+        eval_harness.TurnComplete(
+            status="completed",
+            response_id="audio-response",
+            generation=7,
+        )
     )
 
     async def late_transcript():
@@ -1384,6 +1480,8 @@ async def test_audio_submit_collects_diagnostic_transcript_after_turn_complete()
     await transcript_task
 
     assert observed.diagnostic_transcript == "Hvad er klokken?"
+    assert observed.response_id == "audio-response"
+    assert observed.generation == 7
 
 
 async def test_runner_uses_one_session_and_event_driven_driver_results():
@@ -1424,6 +1522,9 @@ async def test_observed_arithmetic_followup_end_call_is_a_deterministic_red_regr
     assert [turn.text for turn in scenario.turns] == [
         "Hvad er tolv gange syv?",
         "Læg seks til.",
+        "Hvad er klokken lige nu?",
+        "Og hvilken ugedag er det lige nu?",
+        "Tak, det var alt for denne test.",
     ]
 
     class ObservedFieldFailure:
@@ -1478,8 +1579,75 @@ async def test_observed_arithmetic_followup_end_call_is_a_deterministic_red_regr
     assert {finding.code for finding in result.turns[1].findings} == {
         "wrong-decision",
         "answer-missing-any",
+        "numeric-result-mismatch",
         "wrong-lifecycle",
     }
+
+
+async def test_golden_semantic_runner_keeps_all_five_turns_in_one_session():
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
+
+    class GoldenDriver:
+        def __init__(self):
+            self.opened = 0
+            self.calls = 0
+            self.closed = 0
+
+        async def open(self, *, run_id, scenario_id):
+            assert run_id == "golden" and scenario_id == scenario.id
+            self.opened += 1
+            return "one-provider-session"
+
+        async def submit_text(self, *, turn_id, text):
+            index = self.calls
+            self.calls += 1
+            observations = (
+                TurnObservation(
+                    turn_id=turn_id,
+                    session_id="one-provider-session",
+                    answer="Fireogfirs.",
+                ),
+                TurnObservation(
+                    turn_id=turn_id,
+                    session_id="one-provider-session",
+                    answer="Halvfems.",
+                ),
+                TurnObservation(
+                    turn_id=turn_id,
+                    session_id="one-provider-session",
+                    decisions=["GetDateTime"],
+                    tool_args={"GetDateTime": [{}]},
+                    answer="Klokken er fjorten.",
+                ),
+                TurnObservation(
+                    turn_id=turn_id,
+                    session_id="one-provider-session",
+                    decisions=["GetDateTime"],
+                    tool_args={"GetDateTime": [{}]},
+                    answer="I dag er det mandag.",
+                ),
+                TurnObservation(
+                    turn_id=turn_id,
+                    session_id="one-provider-session",
+                    decisions=["end_conversation"],
+                    answer="",
+                    remain_open=False,
+                ),
+            )
+            assert text == scenario.turns[index].text
+            return observations[index]
+
+        async def close(self):
+            self.closed += 1
+
+    driver = GoldenDriver()
+    result = await run_scenario(driver, scenario, run_id="golden", budget=EvalBudget())
+
+    assert result.passed is True
+    assert driver.opened == 1
+    assert driver.calls == 5
+    assert driver.closed == 1
+    assert {turn.observation.session_id for turn in result.turns} == {"one-provider-session"}
 
 
 async def test_runner_timeout_is_a_failure_not_a_retry():
@@ -1607,6 +1775,55 @@ async def test_timeout_preserves_active_bounded_trace_and_usage():
     assert partial.provider_trace[0]["kind"] == "response_created"
 
 
+def test_late_audio_transcript_trace_attach_preserves_completed_response_ancestry():
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    observed = TurnObservation(turn_id="audio", session_id="session")
+    driver._record_provider_trace({"kind": "response_created", "response_id": "r2"})
+    driver._record_provider_trace({"kind": "response_done", "response_id": "r2"})
+
+    driver._attach_provider_trace(observed)
+    driver._record_provider_trace({"kind": "late_input_transcript", "item_id": "u2"})
+    driver._attach_provider_trace(observed)
+
+    assert [row["kind"] for row in observed.provider_trace] == [
+        "response_created",
+        "response_done",
+        "late_input_transcript",
+    ]
+
+
+@pytest.mark.parametrize("submission_kind", ["typed", "audio"])
+async def test_live_collect_binds_text_and_audio_to_terminal_response(monkeypatch, submission_kind):
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session_id = "session"
+    driver.session = object()  # type: ignore[assignment]
+    clock = iter((1.0, 2.0))
+    monkeypatch.setattr(eval_harness.time, "monotonic", lambda: next(clock, 3.0))
+    if submission_kind == "audio":
+        driver.events.put_nowait(eval_harness.InputTranscript("Læg seks til."))
+    driver.events.put_nowait(
+        eval_harness.OutputTranscript("Fireogfirs.", response_id="stale", generation=1)
+    )
+    driver.events.put_nowait(eval_harness.AudioChunk(b"stale", response_id="stale", generation=1))
+    driver.events.put_nowait(
+        eval_harness.OutputTranscript("Halvfems.", response_id="current", generation=2)
+    )
+    driver.events.put_nowait(
+        eval_harness.AudioChunk(b"current", response_id="current", generation=2)
+    )
+    driver.events.put_nowait(
+        eval_harness.TurnComplete(status="completed", response_id="current", generation=2)
+    )
+
+    observed = await driver._collect_turn(turn_id="turn", started=0.0)
+
+    assert observed.answer == "Halvfems."
+    assert "Fireogfirs" not in observed.answer
+    assert observed.first_audio_ms == 2_000
+    assert observed.response_id == "current"
+    assert observed.generation == 2
+
+
 @pytest.mark.parametrize("failure_stage", ["capacity_before_wire", "transport_after_pre_wire"])
 async def test_generic_pre_response_failures_preserve_partial_trace(failure_stage):
     scenario = load_scenarios()[0]
@@ -1708,7 +1925,7 @@ async def test_live_service_persists_partial_scenario_and_trace_budget_mismatch(
             error="rate_limit_exceeded · 429",
             fixture_side_effects=2,
             tool_results={
-                "get_time": [
+                "GetDateTime": [
                     {"ok": True, "data": {"iso": "2026-08-23T12:00:00+02:00"}},
                     {"ok": True, "data": {"iso": "2026-08-23T12:00:01+02:00"}},
                 ]
@@ -2554,9 +2771,9 @@ def test_default_deadline_mechanically_covers_full_tier_one_profile():
     service = LiveEvalService(provider_budget=_known_provider_budget())
 
     assert sessions == 12
-    assert turns == 20
+    assert turns == 23
     assert service._max_run_s == required
-    assert 88 * 60 < service._max_run_s < 89 * 60
+    assert 101 * 60 < service._max_run_s < 102 * 60
 
 
 async def test_local_soft_window_wait_also_rolls_provider_without_double_wait(monkeypatch):
@@ -2631,9 +2848,9 @@ async def test_full_twelve_session_profile_accepts_measured_14_5k_each(monkeypat
     assert report["ok"] is True, report.get("error")
     assert calls == 12
     assert report["budget"]["actual_tokens"] == 174_000
-    assert report["budget"]["max_actual_tokens"] == 1_200_000
+    assert report["budget"]["max_actual_tokens"] == 1_380_000
     assert report["budget"]["max_cost_usd"] == pytest.approx(5.0)
-    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(80.0)
+    assert report["budget"]["mechanical_max_cost_usd"] == pytest.approx(92.0)
     assert report["deadline_s"] > report["budget"]["rate_limit_wait_s"]
 
 
@@ -3054,6 +3271,66 @@ def test_live_service_rejects_mixed_known_and_unknown_scenarios():
     assert service.status()["status"] == "idle"
 
 
+@pytest.mark.parametrize("repeats", [0, 6, True, 1.5, "5"])
+def test_live_service_start_rejects_unbounded_or_non_integer_repeats(repeats):
+    service = LiveEvalService(provider_budget=_known_provider_budget())
+
+    report = service.start(
+        api_key="secret",
+        scenario_ids={"arithmetic-followup-observed"},
+        repeats=repeats,
+        tool_declarations=_production_snapshot(),
+    )
+
+    assert report["status"] == "invalid"
+    assert service.status()["status"] == "idle"
+
+
+@pytest.mark.parametrize("repeats", [0, 6, True, 1.5, "5"])
+async def test_live_service_run_rejects_unbounded_or_non_integer_repeats(repeats):
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run(
+        api_key="secret",
+        scenario_ids={"arithmetic-followup-observed"},
+        repeats=repeats,
+        tool_declarations=_production_snapshot(),
+    )
+
+    assert report["status"] == "invalid"
+
+
+async def test_live_service_runs_five_fresh_golden_sessions(monkeypatch):
+    drivers: list[object] = []
+    seen_sessions: list[str] = []
+
+    class FakeDriver:
+        def __init__(self, *args, **kwargs):
+            drivers.append(self)
+
+    async def fake_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
+        assert scenario.id == "arithmetic-followup-observed"
+        session_id = f"golden-session-{len(seen_sessions) + 1}"
+        seen_sessions.append(session_id)
+        return ScenarioResult(scenario.id, True, session_id, [])
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", FakeDriver)
+    monkeypatch.setattr(eval_harness, "run_scenario", fake_run)
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run(
+        api_key="secret",
+        scenario_ids={"arithmetic-followup-observed"},
+        repeats=5,
+        tool_declarations=_production_snapshot(),
+    )
+
+    assert report["status"] == "complete"
+    assert report["selected_ok"] is True
+    assert report["repeats_requested"] == 5
+    assert report["repeats_completed"] == 5
+    assert report["budget"]["max_turns"] == 25
+    assert len(drivers) == 5
+    assert len({id(driver) for driver in drivers}) == 5
+    assert seen_sessions == [f"golden-session-{index}" for index in range(1, 6)]
+
+
 async def test_live_service_whole_job_timeout_is_retained_as_failure(monkeypatch):
     async def hung_run(driver, scenario, *, run_id, budget, turn_timeout_s=20.0):
         await asyncio.Event().wait()
@@ -3077,7 +3354,7 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
 
     class FakeDriver:
         def __init__(self, *args, tool_declarations=None, **kwargs):
-            assert tool_declarations[0]["name"] == "get_time"
+            assert tool_declarations[0]["name"] == "GetDateTime"
 
         async def open(self, *, run_id, scenario_id):
             session_id = f"{run_id}:{scenario_id}:{len(opened)}"
@@ -3089,8 +3366,8 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
             return TurnObservation(
                 turn_id=turn_id,
                 session_id=opened[-1],
-                decisions=["get_time"],
-                tool_args={"get_time": [{"fields": ["time"]}]},
+                decisions=["GetDateTime"],
+                tool_args={"GetDateTime": [{}]},
                 answer="Klokken er fjorten.",
                 usage={"input_text_tokens": 100},
             )
@@ -3101,8 +3378,8 @@ async def test_audio_replay_runs_text_control_and_exact_pcm_in_fresh_safe_sessio
             return TurnObservation(
                 turn_id=turn_id,
                 session_id=opened[-1],
-                decisions=["get_time"],
-                tool_args={"get_time": [{"fields": ["time"]}]},
+                decisions=["GetDateTime"],
+                tool_args={"GetDateTime": [{}]},
                 answer="Klokken er fjorten.",
                 diagnostic_transcript="Hvad er klokken?",
                 usage={"input_text_tokens": 100},
@@ -3272,6 +3549,646 @@ async def test_contextual_audio_replay_seeds_prior_turns_in_every_fresh_session(
         assert inputs[0][2] == "Hvad er tolv gange syv?"
 
 
+def _numeric_followup_provider_trace(
+    session_id: str,
+    response_id: str,
+    *,
+    target: bool,
+    audio: bool = False,
+    output_item_first: bool = True,
+) -> list[dict]:
+    suffix = hashlib.sha256(session_id.encode()).hexdigest()[:12]
+    conversation_id = f"conversation-{suffix}"
+    user_one = f"user-one-{suffix}"
+    assistant_one = f"assistant-one-{suffix}"
+    user_two = f"user-two-{suffix}"
+    generation = 1
+
+    def assistant_start_events(assistant_id: str, previous_item_id: str) -> list[dict]:
+        assistant_item = {
+            "kind": "conversation_item_added",
+            "provider_event_type": "conversation.item.added",
+            "item_id": assistant_id,
+            "item_type": "message",
+            "role": "assistant",
+            "previous_item_id": previous_item_id,
+            "generation": generation,
+        }
+        output_item = {
+            "kind": "response_output_item_added",
+            "response_id": response_id,
+            "item_id": assistant_id,
+            "item_type": "message",
+            "role": "assistant",
+            "status": "in_progress",
+            "generation": generation,
+        }
+        return [output_item, assistant_item] if output_item_first else [assistant_item, output_item]
+
+    if target:
+        trace = []
+        if audio:
+            trace.append(
+                {
+                    "kind": "input_audio_buffer_committed",
+                    "item_id": user_two,
+                    "previous_item_id": assistant_one,
+                    "generation": generation,
+                }
+            )
+        trace.extend(
+            [
+                {
+                    "kind": "conversation_item_added",
+                    "provider_event_type": "conversation.item.added",
+                    "item_id": user_two,
+                    "item_type": "message",
+                    "role": "user",
+                    "previous_item_id": assistant_one,
+                    "generation": generation,
+                },
+                {
+                    "kind": "response_created",
+                    "response_id": response_id,
+                    "conversation_id": conversation_id,
+                    "request_id_matched": not audio,
+                    "generation": generation,
+                },
+                *assistant_start_events(f"assistant-two-{suffix}", user_two),
+                {
+                    "kind": "response_output_item_done",
+                    "response_id": response_id,
+                    "item_id": f"assistant-two-{suffix}",
+                    "item_type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "generation": generation,
+                },
+                {
+                    "kind": "response_done",
+                    "response_id": response_id,
+                    "conversation_id": conversation_id,
+                    "status": "completed",
+                    "output_items": [
+                        {
+                            "item_id": f"assistant-two-{suffix}",
+                            "item_type": "message",
+                            "role": "assistant",
+                            "status": "completed",
+                        }
+                    ],
+                    "output_items_truncated": 0,
+                    "generation": generation,
+                },
+            ]
+        )
+        return trace
+    return [
+        {
+            "kind": "conversation_item_added",
+            "provider_event_type": "conversation.item.added",
+            "item_id": user_one,
+            "item_type": "message",
+            "role": "user",
+            "previous_item_id": None,
+            "generation": generation,
+        },
+        {
+            "kind": "response_created",
+            "response_id": response_id,
+            "conversation_id": conversation_id,
+            "request_id_matched": True,
+            "generation": generation,
+        },
+        *assistant_start_events(assistant_one, user_one),
+        {
+            "kind": "response_output_item_done",
+            "response_id": response_id,
+            "item_id": assistant_one,
+            "item_type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "generation": generation,
+        },
+        {
+            "kind": "response_done",
+            "response_id": response_id,
+            "conversation_id": conversation_id,
+            "status": "completed",
+            "output_items": [
+                {
+                    "item_id": assistant_one,
+                    "item_type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                }
+            ],
+            "output_items_truncated": 0,
+            "generation": generation,
+        },
+    ]
+
+
+@pytest.mark.parametrize("audio_target", [False, True])
+@pytest.mark.parametrize("output_item_first", [False, True])
+def test_numeric_followup_provider_item_chain_oracle_accepts_only_exact_ancestry(
+    audio_target, output_item_first
+):
+    session_id = "run:scenario:session"
+    seed = TurnResult(
+        "seed",
+        "Hvad er tolv gange syv?",
+        True,
+        TurnObservation(
+            "seed",
+            session_id,
+            response_id="response-seed",
+            generation=1,
+            provider_trace=_numeric_followup_provider_trace(
+                session_id,
+                "response-seed",
+                target=False,
+                output_item_first=output_item_first,
+            ),
+        ),
+        [],
+    )
+    target_trace = _numeric_followup_provider_trace(
+        session_id,
+        "response-target",
+        target=True,
+        audio=audio_target,
+        output_item_first=output_item_first,
+    )
+    target = TurnResult(
+        "target",
+        "Læg seks til.",
+        True,
+        TurnObservation(
+            "target",
+            session_id,
+            response_id="response-target",
+            generation=1,
+            provider_trace=target_trace,
+        ),
+        [],
+    )
+
+    assert (
+        eval_harness._provider_item_chain_findings(
+            seed,
+            target,
+            audio_target=audio_target,
+        )
+        == []
+    )
+    next(row for row in target_trace if row["kind"] == "conversation_item_added")[
+        "previous_item_id"
+    ] = "stale-assistant"
+    findings = eval_harness._provider_item_chain_findings(
+        seed,
+        target,
+        audio_target=audio_target,
+    )
+    assert [finding.code for finding in findings] == ["provider-item-chain-broken"]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "seed-request-unmatched",
+        "target-request-unmatched",
+        "target-done-missing",
+        "target-done-out-of-order",
+        "target-output-added-after-output-done",
+        "target-assistant-added-after-output-done",
+        "target-response-mismatch",
+        "target-generation-mismatch",
+    ],
+)
+def test_numeric_followup_provider_item_chain_fails_closed_on_incomplete_binding(mutation):
+    session_id = "run:scenario:session"
+    seed_trace = _numeric_followup_provider_trace(
+        session_id,
+        "response-seed",
+        target=False,
+    )
+    target_trace = _numeric_followup_provider_trace(
+        session_id,
+        "response-target",
+        target=True,
+    )
+    target_response_id = "response-target"
+    target_generation = 1
+    if mutation == "seed-request-unmatched":
+        next(row for row in seed_trace if row["kind"] == "response_created")[
+            "request_id_matched"
+        ] = False
+    elif mutation == "target-request-unmatched":
+        next(row for row in target_trace if row["kind"] == "response_created")[
+            "request_id_matched"
+        ] = False
+    elif mutation == "target-done-missing":
+        target_trace[:] = [row for row in target_trace if row["kind"] != "response_done"]
+    elif mutation == "target-done-out-of-order":
+        done = next(row for row in target_trace if row["kind"] == "response_done")
+        target_trace.remove(done)
+        target_trace.insert(2, done)
+    elif mutation == "target-output-added-after-output-done":
+        added = next(row for row in target_trace if row["kind"] == "response_output_item_added")
+        target_trace.remove(added)
+        output_done_index = next(
+            index
+            for index, row in enumerate(target_trace)
+            if row["kind"] == "response_output_item_done"
+        )
+        target_trace.insert(output_done_index + 1, added)
+    elif mutation == "target-assistant-added-after-output-done":
+        assistant = next(
+            row
+            for row in target_trace
+            if row["kind"] == "conversation_item_added" and row.get("role") == "assistant"
+        )
+        target_trace.remove(assistant)
+        output_done_index = next(
+            index
+            for index, row in enumerate(target_trace)
+            if row["kind"] == "response_output_item_done"
+        )
+        target_trace.insert(output_done_index + 1, assistant)
+    elif mutation == "target-response-mismatch":
+        target_response_id = "stale-response"
+    elif mutation == "target-generation-mismatch":
+        target_generation = 2
+
+    seed = TurnResult(
+        "seed",
+        "Hvad er tolv gange syv?",
+        True,
+        TurnObservation(
+            "seed",
+            session_id,
+            response_id="response-seed",
+            generation=1,
+            provider_trace=seed_trace,
+        ),
+        [],
+    )
+    target = TurnResult(
+        "target",
+        "Læg seks til.",
+        True,
+        TurnObservation(
+            "target",
+            session_id,
+            response_id=target_response_id,
+            generation=target_generation,
+            provider_trace=target_trace,
+        ),
+        [],
+    )
+
+    findings = eval_harness._provider_item_chain_findings(
+        seed,
+        target,
+        audio_target=False,
+    )
+
+    assert [finding.code for finding in findings] == ["provider-item-chain-broken"]
+
+
+@pytest.mark.parametrize(
+    "injected",
+    [
+        {
+            "kind": "response_done",
+            "response_id": "stale-response",
+            "conversation_id": "stale-conversation",
+            "status": "completed",
+            "generation": 1,
+            "output_items": [],
+            "output_items_truncated": 0,
+        },
+        {
+            "kind": "duplicate_response_done",
+            "response_id": "response-target",
+            "status": "completed",
+            "generation": 1,
+        },
+        {
+            "kind": "conversation_item_added",
+            "provider_event_type": "conversation.item.added",
+            "item_id": "tool-item",
+            "item_type": "function_call",
+            "role": "assistant",
+            "previous_item_id": "user-two",
+            "generation": 1,
+        },
+        {
+            "kind": "response_output_item_done",
+            "response_id": "response-target",
+            "item_id": "tool-item",
+            "item_type": "function_call",
+            "role": "assistant",
+            "status": "completed",
+            "generation": 1,
+        },
+    ],
+)
+def test_numeric_followup_provider_item_chain_rejects_extra_response_or_tool_item(injected):
+    session_id = "run:scenario:session"
+    seed = TurnResult(
+        "seed",
+        "Hvad er tolv gange syv?",
+        True,
+        TurnObservation(
+            "seed",
+            session_id,
+            response_id="response-seed",
+            generation=1,
+            provider_trace=_numeric_followup_provider_trace(
+                session_id, "response-seed", target=False
+            ),
+        ),
+        [],
+    )
+    target_trace = _numeric_followup_provider_trace(session_id, "response-target", target=True)
+    target_trace.insert(-1, dict(injected))
+    target = TurnResult(
+        "target",
+        "Læg seks til.",
+        True,
+        TurnObservation(
+            "target",
+            session_id,
+            response_id="response-target",
+            generation=1,
+            provider_trace=target_trace,
+        ),
+        [],
+    )
+
+    findings = eval_harness._provider_item_chain_findings(seed, target, audio_target=False)
+
+    assert [finding.code for finding in findings] == ["provider-item-chain-broken"]
+
+
+async def test_numeric_followup_ab_runs_symmetric_five_by_five_without_answer_leakage(
+    monkeypatch,
+):
+    monkeypatch.setattr(eval_harness, "runtime_artifact_identity", lambda: ("rootfs-v1", "a" * 64))
+    opened: list[str] = []
+    submitted: list[tuple[str, str, str]] = []
+    response_ids: list[str] = []
+    pcm = b"\x04\x00" * 24_000
+
+    class AbDriver:
+        def __init__(self, *args, instructions="", room_context="", **kwargs):
+            assert "84" not in instructions and "90" not in instructions
+            assert "84" not in room_context and "90" not in room_context
+            self.session_id = ""
+
+        async def open(self, *, run_id, scenario_id):
+            self.session_id = f"{run_id}:{scenario_id}:{len(opened)}"
+            opened.append(self.session_id)
+            return self.session_id
+
+        async def prepare_response_capacity(self):
+            return None
+
+        def observation(self, turn_id, *, answer, transcript="", target=False, audio=False):
+            response_id = f"response-{len(response_ids) + 1}"
+            response_ids.append(response_id)
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id=self.session_id,
+                answer=answer,
+                diagnostic_transcript=transcript,
+                usage={"provider_total_tokens": 100, "input_text_tokens": 100},
+                response_id=response_id,
+                generation=1,
+                provider_trace=_numeric_followup_provider_trace(
+                    self.session_id,
+                    response_id,
+                    target=target,
+                    audio=audio,
+                ),
+            )
+
+        async def submit_text(self, *, turn_id, text):
+            submitted.append((self.session_id, "text", text))
+            answer = "Fireogfirs." if text == "Hvad er tolv gange syv?" else "Halvfems."
+            return self.observation(
+                turn_id,
+                answer=answer,
+                target=text == "Læg seks til.",
+            )
+
+        async def submit_audio(self, *, turn_id, pcm: bytes, rate: int):
+            assert rate == 24_000
+            submitted.append((self.session_id, "audio", hashlib.sha256(pcm).hexdigest()))
+            return self.observation(
+                turn_id,
+                answer="Halvfems.",
+                transcript="Læg seks til.",
+                target=True,
+                audio=True,
+            )
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", AbDriver)
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
+    fixture = AudioReplayFixture(
+        trace_id="trace-numeric-ab",
+        turn_index=1,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Læg seks til.",
+        exact_sample_offsets=True,
+        **_audio_source_provenance(scenario),
+    )
+
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=1,
+        repeats=5,
+        text_repeats=5,
+        mode="numeric-followup-ab",
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+
+    assert report["ok"] is True
+    assert report["kind"] == "semantic-audio-ab"
+    assert report["classification"] == "semantic-audio-consistent"
+    assert report["decision"] == "GO_TO_PHYSICAL_CANARY"
+    assert report["trace"]["provenance_match"] is True
+    assert len(opened) == 10 == len(set(opened))
+    assert len(response_ids) == 20 == len(set(response_ids))
+    assert report["budget"]["max_cost_usd"] == 5.0
+    assert report["budget"]["max_turns"] == 20
+    assert report["budget"]["turns"] == 20
+    assert report["text_repeats_completed"] == 5
+    assert report["audio_repeats_completed"] == 5
+    assert report["transcription_budget"]["audio_seconds"] == pytest.approx(5.0)
+    for index, session_id in enumerate(opened):
+        inputs = [item for item in submitted if item[0] == session_id]
+        assert inputs[0][1:] == ("text", "Hvad er tolv gange syv?")
+        if index < 5:
+            assert inputs[1][1:] == ("text", "Læg seks til.")
+        else:
+            assert inputs[1][1] == "audio"
+            assert inputs[1][2] == fixture.sha256
+    assert [item[2] for item in submitted if item[1] == "text"] == [
+        value for _ in range(5) for value in ("Hvad er tolv gange syv?", "Læg seks til.")
+    ] + ["Hvad er tolv gange syv?"] * 5
+
+
+@pytest.mark.parametrize(
+    ("text_passes", "audio_passes", "classification", "decision"),
+    [
+        (0, 5, "text-contract-failure", "NO_GO"),
+        (2, 5, "text-model-nondeterminism", "NO_GO"),
+        (5, 0, "audio-specific-failure", "NO_GO"),
+        (5, 2, "audio-model-nondeterminism", "NO_GO"),
+        (5, 5, "semantic-audio-consistent", "GO_TO_PHYSICAL_CANARY"),
+    ],
+)
+async def test_numeric_followup_ab_classifies_both_arms(
+    monkeypatch, text_passes, audio_passes, classification, decision
+):
+    monkeypatch.setattr(eval_harness, "runtime_artifact_identity", lambda: ("rootfs-v1", "a" * 64))
+    text_targets = 0
+    audio_targets = 0
+    pcm = b"\x05\x00" * 24_000
+
+    class ClassificationDriver:
+        def __init__(self, *args, **kwargs):
+            self.session_id = ""
+
+        async def open(self, *, run_id, scenario_id):
+            self.session_id = f"{run_id}:{scenario_id}:{id(self)}"
+            return self.session_id
+
+        async def prepare_response_capacity(self):
+            return None
+
+        async def submit_text(self, *, turn_id, text):
+            nonlocal text_targets
+            if text == "Hvad er tolv gange syv?":
+                answer = "Fireogfirs."
+            else:
+                text_targets += 1
+                answer = "Halvfems." if text_targets <= text_passes else "Forkert."
+            response_id = f"response-{self.session_id}-{text_targets}"
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id=self.session_id,
+                answer=answer,
+                usage={"provider_total_tokens": 10, "input_text_tokens": 10},
+                response_id=response_id,
+                generation=1,
+                provider_trace=_numeric_followup_provider_trace(
+                    self.session_id,
+                    response_id,
+                    target=text != "Hvad er tolv gange syv?",
+                ),
+            )
+
+        async def submit_audio(self, *, turn_id, pcm, rate):
+            nonlocal audio_targets
+            audio_targets += 1
+            response_id = f"response-{self.session_id}-audio-{audio_targets}"
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id=self.session_id,
+                answer="Halvfems." if audio_targets <= audio_passes else "Forkert.",
+                diagnostic_transcript="Læg seks til.",
+                usage={"provider_total_tokens": 10, "input_audio_tokens": 10},
+                response_id=response_id,
+                generation=1,
+                provider_trace=_numeric_followup_provider_trace(
+                    self.session_id,
+                    response_id,
+                    target=True,
+                    audio=True,
+                ),
+            )
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ClassificationDriver)
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
+    fixture = AudioReplayFixture(
+        trace_id="trace-classification",
+        turn_index=1,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Læg seks til.",
+        exact_sample_offsets=True,
+        **_audio_source_provenance(scenario),
+    )
+
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=1,
+        repeats=5,
+        text_repeats=5,
+        mode="numeric-followup-ab",
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+
+    assert report["classification"] == classification
+    assert report["decision"] == decision
+    assert report["ok"] is (decision == "GO_TO_PHYSICAL_CANARY")
+
+
+@pytest.mark.parametrize("text_repeats", [0, 6, True, 1.5, "5"])
+async def test_audio_replay_rejects_invalid_text_repeat_count_before_provider(
+    monkeypatch, text_repeats
+):
+    class ForbiddenDriver:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("invalid text repeat count must not reach provider")
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ForbiddenDriver)
+    pcm = b"\x00\x00" * 24_000
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
+    fixture = AudioReplayFixture(
+        trace_id="trace-invalid-text-count",
+        turn_index=0,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Hvad er klokken?",
+        exact_sample_offsets=True,
+        **_audio_source_provenance(scenario),
+    )
+
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=0,
+        repeats=1,
+        text_repeats=text_repeats,
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+
+    assert report["status"] == "invalid"
+
+
 async def test_contextual_audio_replay_cannot_go_green_when_seed_turn_fails(monkeypatch):
     opened: list[str] = []
     target_calls = 0
@@ -3425,6 +4342,64 @@ async def test_audio_replay_refuses_a_proven_different_source_tool_schema(monkey
     assert report["budget"]["turns"] == 0
 
 
+async def test_audio_replay_stops_after_first_provider_usage_unknown(monkeypatch):
+    opened = 0
+
+    class UnknownUsageDriver:
+        def __init__(self, *args, **kwargs):
+            self.session_id = ""
+
+        async def open(self, *, run_id, scenario_id):
+            nonlocal opened
+            opened += 1
+            self.session_id = f"unknown-{opened}"
+            return self.session_id
+
+        async def prepare_response_capacity(self):
+            return None
+
+        async def submit_text(self, *, turn_id, text):
+            return TurnObservation(
+                turn_id=turn_id,
+                session_id=self.session_id,
+                accepted=False,
+                response_status="failed",
+                error="provider_usage_unknown · missing response usage",
+            )
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", UnknownUsageDriver)
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
+    pcm = b"\x00\x00" * 24_000
+    fixture = AudioReplayFixture(
+        trace_id="trace-usage-unknown",
+        turn_index=0,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Hvad er klokken?",
+        exact_sample_offsets=True,
+        **_audio_source_provenance(scenario),
+    )
+
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=0,
+        repeats=3,
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+
+    assert report["classification"] == "provider-usage-unknown"
+    assert report["decision"] == "BLOCKED"
+    assert opened == 1
+    assert report["budget"]["turns"] == 1
+
+
 async def test_audio_replay_refuses_trace_without_complete_source_provenance(monkeypatch):
     class ForbiddenDriver:
         def __init__(self, *args, **kwargs):
@@ -3456,12 +4431,17 @@ async def test_audio_replay_refuses_trace_without_complete_source_provenance(mon
     assert report["ok"] is False
     assert report["classification"] == "trace-provenance-missing"
     assert report["trace"]["missing_provenance"] == [
+        "artifact_identity_kind",
+        "artifact_sha256",
         "model",
+        "openai_noise",
+        "podvoice_version",
         "prompt_sha256",
         "prompt_source",
         "prompt_version",
         "room_context_sha256",
         "tool_schema_sha256",
+        "turn_preset",
     ]
     assert report["budget"]["turns"] == 0
 
@@ -3477,6 +4457,9 @@ async def test_audio_replay_refuses_source_prompt_model_or_room_context_mismatch
     provenance = _audio_source_provenance(scenario, room_context="Evalrum")
     provenance.update(
         {
+            "source_podvoice_version": "1.13.50",
+            "source_artifact_identity_kind": "rootfs-v0",
+            "source_artifact_sha256": "0" * 64,
             "source_model": "gpt-realtime-other",
             "source_prompt_source": "custom",
             "source_prompt_version": 999,
@@ -3510,12 +4493,98 @@ async def test_audio_replay_refuses_source_prompt_model_or_room_context_mismatch
     assert report["ok"] is False
     assert report["classification"] == "trace-provenance-mismatch"
     assert report["trace"]["provenance_mismatches"] == [
+        "artifact_identity_kind",
+        "artifact_sha256",
         "model",
+        "podvoice_version",
         "prompt_sha256",
         "prompt_source",
         "prompt_version",
         "room_context_sha256",
     ]
+    assert report["budget"]["turns"] == 0
+
+
+@pytest.mark.parametrize(
+    ("source_field", "value", "expected"),
+    [
+        ("source_turn_preset", "conservative", "turn_preset"),
+        ("source_openai_noise", "near_field", "openai_noise"),
+    ],
+)
+async def test_audio_replay_refuses_provider_input_config_mismatch_before_connect(
+    monkeypatch, source_field, value, expected
+):
+    class ForbiddenDriver:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("provider input config mismatch must precede provider connect")
+
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ForbiddenDriver)
+    scenario = next(item for item in load_scenarios() if item.id == "time-followup")
+    provenance = _audio_source_provenance(scenario)
+    provenance[source_field] = value
+    pcm = b"\x00\x00" * 24_000
+    fixture = AudioReplayFixture(
+        trace_id=f"trace-{expected}-mismatch",
+        turn_index=0,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Hvad er klokken?",
+        exact_sample_offsets=True,
+        **provenance,
+    )
+
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=0,
+        repeats=1,
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+
+    assert report["classification"] == "trace-provenance-mismatch"
+    assert report["trace"]["provenance_mismatches"] == [expected]
+    assert report["budget"]["turns"] == 0
+
+
+async def test_numeric_followup_ab_requires_built_rootfs_identity_before_connect(monkeypatch):
+    class ForbiddenDriver:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("numeric A/B fallback identity must not reach provider")
+
+    fallback_identity = ("source-fallback-v1", "a" * 64)
+    monkeypatch.setattr(eval_harness, "runtime_artifact_identity", lambda: fallback_identity)
+    monkeypatch.setattr(eval_harness, "LiveRealtimeDriver", ForbiddenDriver)
+    scenario = next(item for item in load_scenarios() if item.id == "arithmetic-followup-observed")
+    pcm = b"\x00\x00" * 24_000
+    fixture = AudioReplayFixture(
+        trace_id="trace-fallback-identity",
+        turn_index=1,
+        pcm=pcm,
+        rate=24_000,
+        duration_ms=1_000,
+        sha256=hashlib.sha256(pcm).hexdigest(),
+        diagnostic_transcript="Læg seks til.",
+        exact_sample_offsets=True,
+        **_audio_source_provenance(scenario),
+    )
+
+    report = await LiveEvalService(provider_budget=_known_provider_budget()).run_replay(
+        api_key="secret",
+        fixture=fixture,
+        scenario=scenario,
+        turn_index=1,
+        repeats=5,
+        text_repeats=5,
+        mode="numeric-followup-ab",
+        tool_declarations=SafeEvalTools().declarations(),
+    )
+
+    assert report["classification"] == "trace-provenance-mismatch"
+    assert report["trace"]["provenance_mismatches"] == ["artifact_identity_kind"]
     assert report["budget"]["turns"] == 0
 
 
@@ -3577,8 +4646,8 @@ async def test_audio_trial_requires_exact_nonempty_diagnostic_transcript(
             return TurnObservation(
                 turn_id=turn_id,
                 session_id=self.session_id,
-                decisions=["get_time"],
-                tool_args={"get_time": [{"fields": ["time"]}]},
+                decisions=["GetDateTime"],
+                tool_args={"GetDateTime": [{}]},
                 answer="Klokken er fjorten.",
                 usage={"input_text_tokens": 100},
             )
@@ -3587,8 +4656,8 @@ async def test_audio_trial_requires_exact_nonempty_diagnostic_transcript(
             return TurnObservation(
                 turn_id=turn_id,
                 session_id=self.session_id,
-                decisions=["get_time"],
-                tool_args={"get_time": [{"fields": ["time"]}]},
+                decisions=["GetDateTime"],
+                tool_args={"GetDateTime": [{}]},
                 answer="Klokken er fjorten.",
                 diagnostic_transcript=diagnostic_transcript,
                 usage={"input_audio_tokens": 100},

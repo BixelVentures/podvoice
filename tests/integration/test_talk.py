@@ -24,9 +24,12 @@ from gatekeeper.voice import (
     AudioChunk,
     Idle,
     InputTranscript,
+    Interrupted,
     OutputTranscript,
     ToolCall,
+    ToolRoundComplete,
     TurnComplete,
+    UserSpeechStopped,
 )
 
 REPLY_URL = f"reply/{TALK_ROOM}.flac?t=tok"
@@ -214,6 +217,36 @@ async def test_model_closure_and_idle_close_reach_the_browser():
         await session.aclose()
 
 
+async def test_talk_open_speech_survives_idle_deadline_until_matching_stop(monkeypatch):
+    """Talk maps provider speech_started to Interrupted; the shared Thin lifecycle
+    must still distinguish an open browser-mic turn from idle room silence."""
+    from gatekeeper import thin as thin_mod
+
+    monkeypatch.setattr(thin_mod, "HEARTBEAT_S", 0.02)
+    gemini = LiveFake()
+    session, link, _wire, _attention = _build(gemini)
+    session.full_duplex = True
+    session.idle_timeout_s = 0.06
+    await session.start()
+    try:
+        link.fire_wake()
+        await _wait_until(lambda: session.sm.state is State.LISTENING)
+        deadline = session._idle_deadline
+        assert deadline is not None
+
+        gemini.emit(Interrupted())
+        await asyncio.sleep(0.15)
+        assert asyncio.get_running_loop().time() >= deadline
+        assert session._active is True
+        assert session.sm.state is State.LISTENING
+
+        gemini.emit(UserSpeechStopped())
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+        assert session._active is True
+    finally:
+        await session.aclose()
+
+
 async def test_tool_calls_are_visible_in_the_tab():
     """A tool call carries the REAL result shape the browser renders.
 
@@ -226,11 +259,22 @@ async def test_tool_calls_are_visible_in_the_tab():
     try:
         link.fire_wake()
         await _wait_until(lambda: session.sm.state is State.LISTENING)
-        gemini.emit(ToolCall("c1", "get_time", {}))
+        gemini.emit(
+            ToolCall(
+                "c1",
+                "GetDateTime",
+                {},
+                response_id="time-response",
+                batch_id="time-response",
+            ),
+            ToolRoundComplete(response_id="time-response"),
+        )
         await _wait_until(lambda: len(gemini.sent_tool_results) >= 1)
         await _wait_until(lambda: len(wire.of("tool")) == 1)
-        assert wire.of("tool")[0]["result"] == {"ok": True, "tool": "get_time"}
-        await _wait_until(lambda: any("get_time" in m.get("text", "") for m in wire.of("activity")))
+        assert wire.of("tool")[0]["result"] == {"ok": True, "tool": "GetDateTime"}
+        await _wait_until(
+            lambda: any("GetDateTime" in m.get("text", "") for m in wire.of("activity"))
+        )
     finally:
         await session.aclose()
 
@@ -247,9 +291,17 @@ async def test_async_input_transcript_hides_unheard_tool_preamble():
         gemini.emit(OutputTranscript("Det tjekker"))
         gemini.emit(InputTranscript("Hvordan gik det AGF i går?"))
         gemini.emit(OutputTranscript(" jeg."))
-        gemini.emit(ToolCall("c1", "get_time", {}))
+        gemini.emit(
+            ToolCall(
+                "c1",
+                "GetDateTime",
+                {},
+                response_id="lookup-response",
+                batch_id="lookup-response",
+            ),
+            ToolRoundComplete(response_id="lookup-response"),
+        )
         await _wait_until(lambda: len(wire.of("tool")) == 1)
-        gemini.emit(TurnComplete())
         await _wait_until(lambda: len(gemini.sent_tool_results) == 1)
         gemini.emit(OutputTranscript("AGF tabte to-en."), TurnComplete())
         await _wait_until(lambda: len(wire.of("transcript")) == 2)

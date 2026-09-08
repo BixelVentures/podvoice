@@ -1,4 +1,159 @@
+## 1.13.62
+
+- Tilføjer firmwarelokalt “stop” under svar: afbryd lyd og luk samtalen stille.
+- Kræver den tilhørende stop-firmware; gamle firmwarebits afvises af kontrakten.
+- Korrelér playback/cancel/drain og blokér sen lyd samt wake under reconnect-cleanup.
+- Fysisk dansk stopgenkendelse, stoplatency og lifecycle afventer afprøvning.
+
 # Changelog
+
+## 1.13.61 — Grundtesten viser kun de aktuelle knapper
+
+- Retter en CSS-fejl, hvor slutkontrollens wake-knapper var synlige allerede under
+  første samtale. Skjulte bedømmelsesrækker er nu faktisk skjulte.
+- Bygger videre på 1.13.60. Ingen ændring af samtalemotor, prompt, værktøjer, lyd,
+  firmware, timeout eller rearm i denne opdatering. Fysisk 10/10 er ikke bevist af
+  denne panelrettelse.
+
+## 1.13.59 — startup-identiteten viser den faktiske reasoning
+
+- Bevarer Kandidat A og dens faktiske `reasoning.effort: medium` uændret, men bruger
+  nu samme konstante værdi i både Realtime-sessionen og startup-identiteten. Dermed
+  kan den installerede log ikke længere fejlagtigt rapportere `low`, mens provideren
+  modtager `medium`.
+- Retter v1.13.58-changeloggens forkerte reasoning-beskrivelse. Værktøjsskema, prompt,
+  firmware, lyd, lifecycle, timeout, teardown og rearm er uændrede.
+
+## 1.13.58 — Home Assistant er eneste live-domænesandhed
+
+- Fjerner PodVoices lokale `get_time` og de lokale model-synlige timere. Tid og dato
+  kommer nu kun fra HA `GetDateTime`; HA-timere kommer i en senere, isoleret kandidat.
+- Binder MCP til LLM API-id `assist`. Kun eksplicit klassificerede HA-værktøjer kommer
+  ind i nye Realtime-sessioner; ukendte navne vises som afventende i readiness.
+- Bevarer v1.13.57's `reasoning: medium`. Model, promptens øvrige adfærd, firmware,
+  gain, VAD, lydtransport, half-duplex, playback, timeout, teardown og rearm er
+  uændrede. Den publicerede startup-identitet skrev fejlagtigt `low`; det rettes i
+  v1.13.59 uden at ændre den faktiske Realtime-session.
+- Kandidaten er NO-GO indtil SafeEval, fysisk Golden Chain og 10/10 er bevist på det
+  samme installerede artifact.
+
+## 1.13.57 — Realtime får mere plads til korrekt fysisk semantik
+
+- Skifter kun `gpt-realtime-2.1` fra `reasoning.effort: low` til `medium`. Den friske
+  v1.13.56-trace `20260904T104120-439` oprettede en ny conversation, men routede
+  “Hvad 12 gange syv?” til `get_time`, hørte opfølgningen som “Læs sjette” og svarede
+  videre efter en 697 ms lydtur med tomt diagnostisk transcript og uafklaret faktisk
+  betydning. Medium er den ene falsificerbare kandidat til
+  bedre lydfortolkning, værktøjsvalg og efterlevelse af uklar-input-reglen.
+- Ingen ændring af prompt, værktøjsskema, gain, VAD, støjreduktion, firmware,
+  lydtransport, playback, timeout, teardown eller rearm. Kandidaten er NO-GO, indtil
+  live semantik, fysisk Golden Chain og 10/10 er bevist på samme artifact.
+
+## 1.13.56 — Grundtesten måler den rigtige 5+5-lifecycle
+
+- De ti fysiske samtaler skifter nu mellem fem varierede Realtime-afslutninger og fem
+  ægte firesekunders stilhedstimeouts. Kort model-farvel og stille model-close er begge
+  gyldige; testfraserne bruges aldrig som lokal runtime-routing.
+- Et menneskeligt “Korrekt” kan kun godkendes, når den samme fysiske session viser to
+  svar, den forventede close-ejer, præcis én teardown og korreleret rearm. Første fejl
+  stopper runden, og kun eksakt 10/10 kan blive grøn.
+- Samtale 2–10 beviser den foregående rearm med en frisk provider-generation. Efter
+  samtale 10 kræves én separat fysisk wake/svar-kontrol med samme fulde lokale
+  lyd-/provider-/playback-orakel, før panelet viser godkendt.
+- Grundtesten ejer selv den lokale recorder under hele runden, frigiver låse ved
+  afbrudte mobilrequests og beholder 12 traces, så alle ti samtaler og slutkontrollen
+  kan efterprøves. Første machine-invalid trace stopper fail-closed.
+- Firmware, lydtransport, VAD, prompt, model og samtaleruntime er uændrede; den eneste
+  `ThinSession`-ændring er passiv wake- og artifact-provenance i det lokale trace.
+
+## 1.13.55 — afvist provider-VAD afsluttes før næste opfølgning
+
+- Fjerner manuel commit som falsk terminal for en VAD-start, der krydser den lukkede
+  half-duplex-gate. Adapteren holder den fysiske mic lukket og sender kun bounded
+  nul-PCM, indtil provideren leverer den naturlige, matching `speech_stopped`.
+- Først matching stop, commit, user-item og eksakt delete-ACK opløser karantænen. En
+  manglende, fremmed, duplicate eller uordnet kant lukker sessionen fail-closed og kan
+  ikke blive næste opfølgning eller skabe et ghost-svar.
+- Den installerbare sideeffektfrie protokolprobe måler også adapterens interne nul-PCM
+  i sit prisloft. Firmware, gain, VAD-konfiguration, prompt, model, reasoning, schema,
+  værktøjer, playback, timeout, teardown og rearm er uændrede.
+
+## 1.13.54 — sikker protokolprobe kan startes fra panelet
+
+- Tilføjer én synlig panelknap til den allerede afgrænsede, ingress-beskyttede
+  Realtime-svarstyringsprobe. Klikket sender kun den eksakte `$5`-bekræftelse og
+  genbruger panelets eksisterende eval-lås, statuspolling og resultatvisning.
+- Panelet skelner tydeligt mellem bestået providerprotokol og fysisk Golden Chain;
+  proben kan aldrig markere canary eller 10/10 som bestået.
+- `ThinSession`, Realtime-adapter, VAD, lyd, firmware, prompt, model, reasoning,
+  værktøjer, playback, timeout, teardown og rearm er uændrede.
+
+## 1.13.53 — kun den accepterede fysiske tur må skabe et svar
+
+- Realtime-VAD bevares, men automatisk `response.create` slås fra. Først et matching
+  fysisk accepteret stop, committed user-item og item-ACK må udløse præcis ét
+  klientkorreleret svar i den eksisterende session.
+- En VAD-spændvidde, der krydser den lukkede half-duplex-gate, sættes i karantæne. Dens
+  eksakte committed item slettes med korreleret ACK, før opfølgningsvinduet kan åbne;
+  ukendt eller ufuldstændig oprydning lukker sessionen fail-closed.
+- Ukorrelerede, duplicate eller stale providerresponses lukkes, før lyd, transcript
+  eller værktøjskald kan nå ThinSession. Talk-audio bruger samme response-ejer, mens
+  typed Talk beholder sin eksisterende item-ACK-vej.
+- Firmware, gain, VAD-type/eagerness, lydtransport, prompt, model, reasoning, schema,
+  playback, firesekunders timeout, teardown og rearm er uændrede.
+
+## 1.13.52 — aktiv brugertale kan ikke fejllukkes som stilhed
+
+- Idle-timeout gælder kun i de to åbne lyttestates og kan aldrig vinde, mens den
+  aktuelle provider-VAD-tur står mellem accepteret `speech_started` og matching
+  `speech_stopped`.
+- Talk og Voice PE deler samme mekaniske taleaktivitet, og state/reset følger fortsat
+  den ene eksisterende `ThinSession` uden en ny lifecycle- eller timeoutmotor.
+- Den eksisterende heartbeat kontrollerer den armerede stilhedsdeadline hvert 250 ms,
+  så fire sekunder ikke længere kvantiseres af et femsekunders tick.
+- Trace-oraklet følger det shippede `speech_started` og afviser idle-close inde i et
+  åbent start→stop-interval. Firmware, gain, VAD, lyd, prompt, model, reasoning,
+  værktøjer, playback, teardown og rearm er uændrede.
+
+## 1.13.51 — native Realtime-kontekst og lyd bliver målbar
+
+- Registrerer passivt providerens conversation-, item-, response- og ancestry-id'er,
+  så samme lokale socket ikke længere forveksles med bevis for samme serverkontekst.
+  Observeren ændrer ingen udgående Realtime-events og gemmer ikke nyt taleindhold.
+- Samler tekstkontroller og exact 24 kHz PCM-replay i én sideeffektfri A/B-gate med
+  exact rootfs-runtime-/prompt-/schema-/room-provenance og ét hårdt samlet prisloft på
+  $5. Ukendt provider-usage stopper fail-closed og kan aldrig fremstå som gratis.
+- Panelet får én målrettet numerisk opfølgningsgate med fem tekst- og fem lydforsøg.
+  Resultatet klassificerer context-, text-, audio- og nondeterminismefejl i stedet for
+  at udløse endnu en symptompatch.
+- Dette er en add-on-only diagnostikkandidat. Firmware, prompt, model, reasoning, gain,
+  VAD, lydtransport, værktøjsskema, playback, timeout, teardown og rearm er uændrede.
+
+## 1.13.50 — timer-værktøjer konkurrerer ikke med matematik
+
+- Præciserer kun de tre eksisterende timerdeklarationer: de må vælges ved en klar
+  timerhensigt, aldrig som svar på matematik eller en opfølgning til et andet emne.
+- Den fysiske v1.13.49-trace hørte både “Hvad er tolv gange syv?” og “Læg seks til.”
+  korrekt i samme Realtime-session, men kaldte `list_timers` på opfølgningen. Derfor er
+  dette et afgrænset Realtime-schema-delta; der tilføjes ingen lokal routing.
+- Tilføjer en sideeffektfri målrettet gate: fem friske sessioner med fem ture i hver
+  samt positive lokale set/list/cancel-timer-fixtures. Hele produktionsschemaet er
+  synligt for modellen, mens ingen rigtig timer-, hjem- eller musikhandling kan køres.
+- Firmware, prompt, model, reasoning, gain, VAD, lydtransport, playback, timeout,
+  teardown og rearm er uændrede.
+
+## 1.13.49 — én enkel lydgrænse mellem fysiske ture
+
+- Bevarer den virkende firmware-, Realtime-, værktøjs- og playback-vej uændret, men
+  gør de fem eksisterende lifecycle-states til den eneste half-duplex mic-gate.
+- Tilføjer én synkron audio-generation-grænse ved gyldigt `speech_stopped`, efter
+  korreleret fysisk playback-slut + ekkohale og ved korreleret rearm-ACK. Forsinkede
+  native callbacks fra den forrige tur kan dermed ikke blive næste brugerytring.
+- Validerer playback-lease og samtale-generation før ekkohalen må klippe køen, så en
+  gammel task aldrig kan fjerne same-breath-lyd fra et nyt wake.
+- Logger mic-gate, audio-generation og korrelation uden lokal sprog-, matematik- eller
+  afslutningslogik. Standardvinduet for en fysisk opfølgning er fire sekunder.
+- Add-on-only: Voice PE-firmware, gain, VAD, kanal, prompt og reasoning er uændrede.
 
 ## 1.13.48 — gammel mikrofondata kan ikke krydse rearm-grænsen
 

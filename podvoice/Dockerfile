@@ -4,8 +4,11 @@
 ARG BUILD_FROM=ghcr.io/home-assistant/aarch64-base-python:3.12-alpine3.21
 FROM ${BUILD_FROM}
 
+ARG PODVOICE_GIT_SHA=unknown
+
 ENV LANG=C.UTF-8 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PODVOICE_GIT_SHA=${PODVOICE_GIT_SHA}
 
 WORKDIR /app
 
@@ -21,5 +24,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY gatekeeper/ ./gatekeeper/
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
+# Bind every physical trace to the actual completed image payload, including the
+# base image, Python runtime, installed wheels and FLAC binary. Volatile runtime
+# mounts are excluded by the deterministic builder.
+RUN python -m gatekeeper.build_identity --write /app/runtime-artifact.sha256
 
 CMD ["/run.sh"]

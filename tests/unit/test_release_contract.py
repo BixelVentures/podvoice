@@ -43,7 +43,7 @@ def test_status_defines_one_honest_milestone_vocabulary() -> None:
     agents = (ROOT / "AGENTS.md").read_text()
 
     assert "v1.13.11 er PodVoices første fysisk virkende" in status
-    assert "aktuelt fysisk bevis er 1/10" in status
+    assert "daværende fysisk bevis er 1/10" in status
     assert "v1.13.12 er truth-hardening" in status
     assert "Første virkende version" in agents
     assert "Lifecycle release-godkendt" in agents

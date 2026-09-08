@@ -16,6 +16,24 @@ Systemet skal give korte korrekte danske svar, bruge HA/MCP, PodConnect, musik, 
 web og timere korrekt og fejle hørligt. Det må aldrig lukke på almindelig tale, svare
 på sin egen højttaler eller blive dødt efter få samtaler.
 
+## Bindende lifecycle-mål
+
+```text
+wake → LISTENING → THINKING → AI_SPEAKING → LOUNGE_WINDOW
+     → opfølgning i samme session (gentag efter behov)
+     → Realtime end_conversation eller fire sekunders timeout
+     → CLOSING → én teardown → én rearm → IDLE → nyt wake
+```
+
+`CLOSING` er en transaktionsfase, ikke en ekstra runtime-`State`. De fem eksisterende
+stateværdier er fortsat den eneste mic-gate.
+
+Voice PE sender kun mic-lyd i `LISTENING` og `LOUNGE_WINDOW`. Realtime ejer sprog,
+matematik, kontekst, værktøjsvalg og semantisk close. PodVoice må kun eje mic-gate,
+dispatch, playback, timeout, teardown og rearm. Terminalresponsen er højst ét kort
+farvel; ingen lyd eller fejlet lyd lukker stille. Ingen lokal keywordliste må afgøre
+betydning.
+
 ## Release-gate 1 — arkitektur
 
 - Renderet firmware: 1 wake-trigger, 0 stock `voice_assistant.start`.
@@ -23,6 +41,12 @@ på sin egen højttaler eller blive dødt efter få samtaler.
 - Den fysiske wake-grænse kasserer al pre-wake-lyd lokalt. Realtime må aldrig modtage
   selve wakefrasen; al lyd efter detektionen bevares under provider-opkoblingen.
 - Dobbelt wake mens sessionen allerede er åben opretter ikke en ny session.
+- Voice PE beholder VAD, men bruger `interrupt_response: false` og
+  `create_response: false`. Kun et accepteret fysisk stop med matching committed
+  provider-item må udløse præcis ét korreleret `response.create`.
+- En crossed VAD-start under lukket mic-gate skal give nul response, nul tool-call og nul
+  playback. Dens eksakte item skal være slettet og ACK'et før opfølgningsgaten åbner;
+  ukendt cleanup lukker fail-closed.
 - Realtime har ét provider-neutralt `end_conversation`-signal til en tydelig semantisk
   afslutningshensigt. Signalet må ikke selv lukke transporten eller gå gennem HA/MCP.
 - Realtime bruger automatisk værktøjsvalg: et almindeligt spørgsmål besvares direkte i
@@ -57,17 +81,53 @@ På præcis kandidatens bits skal følgende være grønt, før brugeren bedes ta
 - hele unit-/integrationstesten, typecheck, formattering og add-on-build;
 - fælles `ThinSession`-regressioner for duplicate/busy/offline/closing, provider-tab,
   tool-ordering, semantisk close, én teardown og én rearm;
+- sammensat regression for accepteret tur → commit → matched response-request samt
+  crossed start → bounded nul-PCM med fysisk mic lukket → natural matching
+  `speech_stopped` → exact commit/item/delete-ACK → frisk opfølgning i samme session;
+  manuel commit som VAD-terminal og ethvert auto-/ukorreleret response- eller tool-event
+  skal fejle;
 - rigtig Talk-WebSocket med hello/lease/input-ACK, ordnede events og korreleret playback;
-- sikker live Realtime-preflight for direkte svar, opfølgning, tid, web og varieret
-  semantisk lukning uden HA/MCP/PodConnect-sideeffekter;
+- den bounded live-gate, som matcher kandidatens ændrede ejergrænse: en response-owner-
+  ændring kræver den sideeffektfrie commit/delete/ACK-protokolprobe; ændret prompt,
+  schema, værktøjer, model, reasoning eller audiosemantik kræver den fokuserede
+  semantiske preflight uden HA/MCP/PodConnect-sideeffekter;
 - trace-replay, der afviser manglende/dobbelte/omvendte wake-, provider-, playback-,
-  close-, capture- og rearm-events.
+  close-, capture- og rearm-events samt faldende audio-generation, providerlyd under
+  lukket mic-gate og opfølgning før fysisk playback-finish plus ekkohale;
 - rå providerpermutationer for completed/cancelled/failed/incomplete, schema/ACK-fejl,
   multi-call atomik, approval replay/expiry og rate-limit før sideeffekt.
 
 Live-preflight bruger et hårdt turn-, token-, pris- og timeoutloft. Et korrekt tekstsvar
 uden korrekt beslutning, session eller lifecycle er en fejl. Maskingaten kan stoppe en
 kandidat, men aldrig erstatte den efterfølgende fysiske Voice PE-gate.
+
+For en kandidat, der ændrer native audiosemantik eller mic-/turn-kontrakten på en måde,
+som kan påvirke semantik, er den fokuserede live-gate den sideeffektfrie sekvens
+`math → math-opfølgning → time → weekday-opfølgning → semantic close`, fem gange på
+samme sessionskontrakt. Kun tidsturene må bruge HA `GetDateTime`; matematik og opfølgning skal
+besvares direkte. En ren response-owner-/ACK-ændring kører først den smallere officielle
+protokolprobe og genkører kun den semantiske 5×-gate ved ændret semantikscope eller ny
+ren fysisk evidens for en semantikfejl. Samlet prisloft er $5, uden budgetprobe og uden
+hjem-, musik- eller timerhandlinger. En bred SafeEval køres ikke igen, medmindre prompt,
+schema, værktøjer eller Realtime-semantik faktisk er ændret.
+
+### Lifecycle-confidence 97/100
+
+97/100 er engineering confidence, ikke en garanti for alle rum og providerudfald:
+
+| Område | Point | Obligatorisk bevis |
+|---|---:|---|
+| Én session og korrekt turkronologi | 20 | Alle maskinelle og fysiske kæder grønne |
+| Half-duplex og audio-isolation | 20 | Ingen providerlyd under lukket gate; race-regression grøn |
+| Realtime-semantik og værktøjsvalg | 15 | Fokuseret live-gate 5/5 |
+| Playback, teardown og rearm | 20 | Præcis én af hver; næste wake virker |
+| Stale/duplicate/out-of-order-sikkerhed | 10 | Alle relevante permutationer fail-closed |
+| Artifact-, trace- og review-sandhed | 7 | Samme bits, komplet trace, P0/P1=0 |
+| Fysisk ubrudt gate | 5 | Golden chain plus 10/10 fysisk |
+| **Samlet** | **97** | **Alle kategorier er obligatoriske** |
+
+De sidste tre point kræver den senere funktionsmatrix og syvdøgns soak. En kandidat må
+ikke kaldes 97/100 alene på CI, Talk, live-eval eller én fysisk samtale.
 
 ## Release-gate 2 — automatisk lifecycle
 
@@ -86,7 +146,9 @@ Krav: 10/10, ingen ekstra sessioner, ingen stock RUN_END og ingen kontrol-announ
 
 ## Release-gate 3 — fysisk Voice PE
 
-Flash kandidaten og kør 10 ubrudte samtaler på skrivebordet:
+Installér kandidatens exact add-on-artifact og kør 10 ubrudte samtaler på skrivebordet.
+Flash kun Voice PE, hvis kandidatdiffet faktisk ændrer firmwarekontrakten; en ren
+add-on-kandidat skal genbruge den allerede godkendte firmware:
 
 - Sig wake og spørgsmål i samme naturlige åndedrag; ingen kunstig pause.
 - Lydbevisets første input skal være spørgsmålet, ikke “Okay Nabu”, et fragment af
@@ -178,9 +240,11 @@ Ved én regression slås funktionen fra uden ændring af den låste latency-base
 ## Udviklingsprioritet 3 — automatisk HA/MCP-recovery
 
 Et fejlet eller timeoutet `tools/list` må aldrig kræve manuel genindlæsning eller
-add-on-genstart. PodVoice skal oprette MCP-sessionen på ny med hurtig backoff (ca. 1,
-2, 5, 10 og 30 sekunder, derefter højst ét forsøg pr. minut), fortsætte samtalen, lokal
-tid og lokale timere imens og atomisk genaktivere HA-afhængige evner, når HA svarer.
+add-on-genstart. PodVoice skal oprette MCP-forbindelsen på ny med hurtig backoff (ca. 1,
+2, 5, 10 og 30 sekunder, derefter højst ét forsøg pr. minut), lade direkte Realtime-
+dialog og matematik fortsætte og atomisk genaktivere HA-afhængige evner i den næste
+session, når HA svarer. Tid, vejr, web, musik, hjem og timere må ikke falde tilbage til
+en konkurrerende lokal sandhed.
 Et værktøj fortsætter kun under udfaldet, hvis det har en faktisk uafhængig, rask
 adapter. I den nuværende topologi er `google_web_sogning`, HassMedia og PodConnects
 data-services HA-/Supervisor-afhængige; de skal derfor vises ærligt som midlertidigt

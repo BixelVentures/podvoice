@@ -89,11 +89,6 @@ class ApprovedCall:
 _DESTRUCTIVE = {"delete", "erase", "destroy", "remove", "wipe", "purge", "clear", "reset"}
 _EXTERNAL_COMMUNICATION = {"notify", "send", "sms", "email", "telephone", "call"}
 _PURCHASE = {"purchase", "buy", "order", "checkout", "payment", "pay"}
-_PRIVATE_DISCLOSURE_TOOLS = {
-    "podconnect_recently_played",
-    "podconnect_top_tracks",
-    "podconnect_liked",
-}
 _ACCESS_TARGETS = {"door", "dør", "gate", "port", "garage", "lås", "lock", "access"}
 _TARGET_KEYS = (
     "entity_id",
@@ -113,21 +108,18 @@ _SAFE_TEMP_C = (17.0, 24.0)
 # inferred from substrings ("play" in "display", for example).  New reversible tools
 # must be added through reviewed exact metadata rather than silently becoming trusted.
 _EXPLICIT_READ_ONLY = {
+    "GetDateTime",
     "GetLiveContext",
     "HassGetState",
     "HassClimateGetTemperature",
-    "HassGetCurrentDate",
-    "HassGetCurrentTime",
     "HassGetWeather",
-    "HassTimerStatus",
-    "get_time",
-    "list_timers",
     "google_web_sogning",
     "weather_forecast",
+    "podconnect_recently_played",
+    "podconnect_top_tracks",
+    "podconnect_liked",
 }
 _EXPLICIT_LOW_RISK = {
-    "set_timer",
-    "cancel_timer",
     "HassLightSet",
     "HassMediaSearchAndPlay",
     "HassMediaPause",
@@ -226,8 +218,6 @@ def assess_tool(
         return Assessment(Risk.HIGH_RISK, "external_communication", target)
     if words & _PURCHASE:
         return Assessment(Risk.HIGH_RISK, "purchase_or_payment", target)
-    if name in _PRIVATE_DISCLOSURE_TOOLS:
-        return Assessment(Risk.HIGH_RISK, "private_account_disclosure", target)
     if "disarm" in action or ("alarm" in action and _contains(action, ("off", "disable"))):
         return Assessment(Risk.HIGH_RISK, "alarm_disarm", target)
     if words & {"unlock", "unlatch"}:

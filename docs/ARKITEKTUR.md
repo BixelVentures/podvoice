@@ -7,14 +7,27 @@
 ## Den eneste produktionsvej
 
 ```text
-Voice PE hører “Okay Nabu”
-  → firmware åbner podvoice_audio og udsender ét wake-event
-  → PodVoice åbner præcis én OpenAI Realtime-session
-  → al tale, værktøjer, svar og opfølgninger bliver i samme session
-  → Realtime fortolker en tydelig afslutningshensigt og signalerer den til PodVoice
-  → fysisk svarslut, timeout eller fejl lukker session og mikrofon præcis én gang
-  → Voice PE er straks tilbage i wakeword
+IDLE
+  → Voice PE hører fysisk “Okay Nabu” og udsender ét wake-event
+LISTENING
+  → PodVoice åbner præcis én OpenAI Realtime-session og streamer brugertalen
+  → Realtime speech_stopped
+THINKING
+  → Realtime svarer direkte eller bruger nødvendige værktøjer
+  → firmware melder fysisk playback_started
+AI_SPEAKING
+  → firmware melder playback_finished; PodVoice venter kort ekkohale
+LOUNGE_WINDOW
+  → opfølgning fortsætter i samme session → THINKING → AI_SPEAKING → LOUNGE_WINDOW
+  → Realtime signalerer end_conversation, eller fire sekunders stilhed udløber
+CLOSING
+  → højst ét kort farvel eller stille lukning
+  → præcis én teardown → exact korreleret firmware-rearm
+IDLE
 ```
+
+`CLOSING` er den ene close-transaktion, ikke en konkurrerende eller sjette
+runtime-`State`.
 
 Home Assistant Assist deltager ikke i samtalen. ESPHomes `voice_assistant`-protokol
 må kun fungere som lavniveau-abonnementet, der bærer mikrofonbytes over native API;
@@ -26,9 +39,13 @@ der startes aldrig et HA Assist-run eller en HA pipeline.
 De deler:
 
 - Realtime-session, model, prompt og værktøjer;
-- turn detection, half-duplex-ekkoport og follow-up-kontekst;
+- tur-/response-ejerskab og follow-up-kontekst;
 - Realtime-ejet hensigtsfortolkning samt transport-ejet udførelse, timeout og fejlteardown;
-- tilstandene lytter, tænker, taler og idle.
+- de fem states `IDLE`, `LISTENING`, `THINKING`, `AI_SPEAKING` og `LOUNGE_WINDOW`.
+
+Den fysiske half-duplex-ekkoport gælder kun Voice PE. Talk er den eksplicitte
+full-duplex-browseradapter med browser-AEC; den deler ejerskab og lifecycle, men er ikke
+fysisk bevis for puckens mic-gate.
 
 Kun adapteren er forskellig:
 
@@ -59,13 +76,28 @@ aktuelle tur.
 
 ## Ejerskab
 
-- Voice PE ejer wakeword, mikrofonport, LED og assistentens stemme.
-- PodVoice ejer samtalens transport og lifecycle.
+- Voice PE-firmware ejer wakeword, conversation-latch, fysisk mic-forward,
+  playback-start/slut/fault og korreleret rearm-bevis.
+- PodVoice/`ThinSession` ejer samtalens transport, state-ejet mic-gate, LED-kommando,
+  værktøjsdispatch, timeout, teardown og rearm-anmodning.
 - OpenAI Realtime ejer forståelse, svar og valg af eksponerede værktøjer.
-- HA MCP ejer adgang til eksponerede hjemmeenheder og HA-værktøjer.
+- Home Assistant ejer alle live-data og handlinger. Det eksplicitte MCP API-id
+  `assist` leverer `GetDateTime` for tid/dato, `google_web_sogning` for web, én
+  weather-vej, musik/hjem/støvsuger og senere HA-backed timere.
+- Den eksisterende statiske `podconnect.*` HA-serviceadapter leverer kun private
+  musikdata, som Assist ikke eksponerer. Navnene er lokalt allowlistede, indgår i det
+  fulde sessionschema-hash og importeres aldrig dynamisk; PodVoice har ingen direkte
+  Spotify-provider.
 - PodConnect Control/HA ejer Spotify-søgning og musikstyring.
 - PodConnect Speakers ejer fysisk HomePod-afspilning og attention/ducking.
 - Hjemmets søgeagent ejer aktuel webviden.
+
+`ToolRouter` validerer først hele HA-siden og publicerer derefter atomisk kun statisk
+klassificerede navne. Nye navne bliver stående som `pending_tools`; de bliver aldrig
+modelværktøjer på baggrund af navn eller beskrivelse alene. `HassGetWeather` foretrækkes
+over `weather_forecast`, hvis begge findes. Et sessionsschema kopieres ved sessionstart
+og ændres ikke under opfølgninger; en genfundet HA-side gælder først næste session.
+PodVoice har ingen lokal `get_time` og ingen model-synlig in-memory timer.
 
 Ingen HA-, web-, musik- eller hjemmeværktøjer må åbne eller lukke Realtime-sessionen.
 Realtime svarer direkte i én respons, når intet værktøj er nødvendigt, og bruger kun et
@@ -88,9 +120,10 @@ Lukning har to adskilte ejere:
   samtalen er slut, udsender modellen det interne `end_conversation`-signal. Det gælder
   naturlige formuleringer på tværs af ordvalg og sprog; PodVoice matcher ingen fraser,
   keywords eller dokumenterede ASR-fejl.
-- **PodVoice ejer mekanikken.** Signalet bindes til den konkrete tur, det korte
-  afslutningssvar afspilles, og først fysisk playback-finish må udløse én atomisk
-  teardown af Realtime, mikrofon, ducking og wake-lås.
+- **PodVoice ejer mekanikken.** Signalet bindes til den konkrete tur. Hvis Realtime har
+  leveret kort, korreleret svarlyd, afspilles den, og dens fysiske playback-finish
+  afventes; hvis der ikke er svarlyd, eller den fejler, lukkes stille. Begge veje ender i
+  præcis én atomisk teardown af Realtime, mikrofon, ducking og wake-lås.
 - Uklart input skal få Realtime til at spørge kort igen. Et løst “tak”, ord inde i en
   opgave, deltransskriptioner og et signal fra en gammel tur må aldrig lukke.
 - Et eksplicit hardware-stop, timeout og tekniske fejl er transport-sikkerhed og kan
@@ -98,16 +131,55 @@ Lukning har to adskilte ejere:
 
 ## Half-duplex først
 
-Mens pucken afspiller et svar, sendes dens mikrofon ikke videre til OpenAI. Det er den
-pålidelige første version: ingen selvsvar og ingen falske afbrydelser fra højttaleren.
-Opfølgningen fortsætter i samme session, så half-duplex betyder ikke én kommando pr.
-wake. Fuld duplex er en separat senere gate. Den isolerede stop-word-kandidat bruger en
-lokal firmwaremodel som transport-stopknap: token+URL optages atomisk, lokal detektion
-stopper announcement og udsender et korreleret event. `ThinSession` forsegler nye
-provider-/tool-publiceringer synkront og lukker uden farvel. Firmware ejer den samlede
-producer → resampler → mixer-reference → fysisk output-callback-fence. `stopped_word`
-er aldrig normal svarslut og må ikke åbne opfølgning. Næste wake kræver fuld teardown.
-Se den særskilte gate i produktmål; funktionen er endnu ikke fysisk bevist.
+`State` er den eneste gate for Voice PE-lyd til Realtime:
+
+| State | Mic til Realtime | LED |
+|---|---|---|
+| `IDLE` | lukket | slukket efter bevist teardown |
+| `LISTENING` | åben | klar cyan |
+| `THINKING` | lukket | amber |
+| `AI_SPEAKING` | lukket | grøn fra fysisk playback-start |
+| `LOUNGE_WINDOW` | åben | dæmpet cyan |
+
+Den native callback fanger sin audio-generation synkront. `VoicePELink` må kun øge
+generationen og dræne køen ved gyldigt `speech_stopped`, efter current playback-finish
+plus ekkohale og ved korreleret rearm-ACK. En delayed callback fra tur A kan derfor ikke
+blive opfølgning B. Der skæres aldrig ved wake, så same-breath-prefix bevares.
+
+Tidslinjen binder hele kæden som `session_id → provider_generation → turn_id →
+audio_generation → response/tool → playback_id → close_id → rearm_token`, så et
+tilfældigt korrekt svar aldrig kan skjule forkert input eller forkert ejer.
+
+Half-duplex betyder ikke én kommando pr. wake: Realtime-socketten holdes åben og
+konteksten bevares gennem opfølgninger. Fuld duplex er en separat senere gate; lokalt stop har sin egen gate.
+
+Dette er den bindende målkontrakt; `docs/STATUS.md` afgør, om de installerede bits har
+bevist den. Voice PE beholder providerens VAD, men ikke providerens automatiske
+response-ejerskab.
+Sessionen bruger `interrupt_response: false` og `create_response: false`. Et accepteret
+fysisk `speech_stopped` lukker mic-gaten; når samme generations user-item er committed,
+tillader `ThinSession` præcis én respons. Provideradapteren sender det korrelerede
+`response.create` med unikt request-id og samme
+`(root_item_id, turn_id, provider_generation)`; alle afledte tool-/schema-/close-
+responses arver samme lease. Turn og generation serialiseres som kanoniske decimale
+strenge i providerens metadata. Denne klientevent er kun en mekanisk tilladelse til
+inference. Realtime ejer stadig forståelse, værktøjsvalg, svar og `end_conversation`.
+
+En provider-VAD-start, der ankommer efter mic-gaten er lukket, er en crossed span og må
+ikke blive næste tur. Den holdes i karantæne, må skabe nul response/tool/playback og skal
+afsluttes med bounded, adapter-ejet nul-PCM, mens den fysiske mic-gate forbliver lukket.
+Provideren skal derefter levere den naturlige, matching `speech_stopped`; først matching
+commit, item-added og eksakt delete-ACK udgør hele cleanup-beviset og må åbne
+`LOUNGE_WINDOW`. Manuel commit og `input_audio_buffer.clear` er aldrig VAD-terminaler.
+Hvis stop-/commit-/delete-kontrakten ikke afsluttes bounded og eksakt, lukkes sessionen
+fail-closed og Voice PE rearmes; ingen gammel VAD-spændvidde genbruges.
+
+Den lokale stop-kandidat bruger microWakeWord-modellen `Stop` under eget playback.
+Token+URL optages atomisk; detektion stopper announcement og sender et korreleret event.
+ThinSession lukker stille via samme close-owner. Firmware kræver producer-quiescence,
+stoppet resampler, frigivet mixer-reference og output-consumed-frame fence før ACK.
+`stopped_word` åbner aldrig opfølgning; næste wake kræver fuld teardown og rearm.
+Den særskilte stop-gate i produktmål er endnu ikke fysisk bestået.
 
 ## Firmwarekontrakten
 
@@ -122,7 +194,14 @@ Godkendt firmware skal statisk og i renderet konfiguration have:
 - nul `voice_assistant.start`;
 - præcis ét `wake_okay_nabu`-event;
 - `podvoice_channel_v1` og `same_breath_v1`;
-- mikrofonstart ved den lokale wakekant, uden wake-chime eller 300 ms forsinkelse.
+- mikrofonstart ved den lokale wakekant, uden wake-chime eller 300 ms forsinkelse;
+- korreleret reset/rearm med frisk mic-fremdrift før `recovered`;
+- korrelerede `podvoice_playback_started`, `podvoice_playback_finished` og fault-events;
+- publiceret `led_ring`, som add-onen kan styre uden at gøre LED til lifecycle-bevis.
+
+En add-on-only ændring må genbruge denne ABI og kræver ingen flash. Ændres ESPHome,
+build-marker, services, capability-listen eller light-entity-kontrakten, er kandidaten
+ikke længere add-on-only og skal bygge, flashes og bestå firmwaregaten på ny.
 
 ## Maskinelle bevislag
 

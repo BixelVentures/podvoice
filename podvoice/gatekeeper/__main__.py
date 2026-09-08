@@ -9,14 +9,17 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import logging
+import os
 import secrets
 import signal
 import socket
+from typing import Any
 
 import httpx
 
-from . import __version__
+from . import __version__, runtime_artifact_identity
 from . import constants as C
 from .config import Config, RoomMap, load_config
 from .console import console_factory, list_models
@@ -25,9 +28,10 @@ from .heartbeat import Heartbeat
 from .history import History
 from .hub import StatusHub
 from .mcp_client import HomeAssistantMCP
-from .openai_realtime import OPENAI_RATE, make_session
+from .openai_realtime import DEFAULT_MODEL, DEFAULT_REASONING_EFFORT, OPENAI_RATE, make_session
 from .playback import Playback
 from .podconnect import AttentionClient
+from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 from .reply import ReplyBus
 from .settings import DEFAULTS as SETTINGS_DEFAULTS
 from .settings import load_settings, masked, save_settings
@@ -108,6 +112,30 @@ def _room_speaker_name(room_id: str) -> str:
     return _ROOM_NAMES.get(room_id, "")
 
 
+def _start_protocol_owner_eval(
+    service: Any,
+    cfg: Config,
+    *,
+    max_cost_usd: Any,
+) -> dict[str, Any]:
+    """Forward the exact active physical Realtime configuration into the probe."""
+    from .openai_realtime import MINI_MODEL
+
+    return service.start_protocol_owner(
+        api_key=cfg.openai_api_key,
+        max_cost_usd=max_cost_usd,
+        model=MINI_MODEL if cfg.force_mini else cfg.openai_model,
+        voice=cfg.openai_voice,
+        turn_preset=cfg.turn_preset,
+        openai_turn=cfg.openai_turn,
+        openai_threshold=cfg.openai_threshold,
+        openai_prefix_ms=cfg.openai_prefix_ms,
+        openai_silence_ms=cfg.openai_silence_ms,
+        openai_eagerness=cfg.openai_eagerness,
+        openai_noise=cfg.openai_noise,
+    )
+
+
 def _build_session(
     cfg: Config,
     room: RoomMap,
@@ -140,6 +168,8 @@ def _build_session(
         # cancel an answer while PodVoice is closing the physical mic gate. The Talk
         # surface below opts into true interruption separately.
         interrupt_response=False,
+        # ThinSession is the sole response owner for every accepted physical turn.
+        manual_input_response=True,
     )
     voicepe = VoicePELink(room.voicepe_host, psk, room=room.room)
     voicepe.mic_channel = cfg.mic_channel
@@ -284,15 +314,12 @@ async def run(cfg: Config) -> None:
     if not speech.available:
         _LOG.info("no OpenAI key for speech — fixed lines (errors/timer) play a tone")
 
-        # Kitchen timers ring on the Voice PE via each room's reply path, in the assistant's
-        # voice. The closure reads `sessions` late (the dict is filled a few lines below).
-
+    # Kept mechanically unchanged while local timers are absent from the model schema.
+    # Candidate C will replace this dormant in-memory owner with HA-backed timers.
     async def _timer_ring(label: str) -> None:
         from . import audio as audio_mod
         from . import constants as CC
 
-        # Say WHICH timer rang ("Din pasta-timer er færdig!") — synthesized per label
-        # in the assistant's voice and cached; the generic line is the fallback.
         text = f"Din {label}-timer er færdig!" if label and label != "timer" else CC.TIMER_DONE
         spoken = await speech.say(text) or await speech.say(CC.TIMER_DONE)
         tone = audio_mod.error_tone(CC.OUTPUT_RATE) * 2
@@ -300,9 +327,8 @@ async def run(cfg: Config) -> None:
             bus, url = getattr(s, "reply_bus", None), getattr(s, "reply_url", None)
             if bus is None or not url:
                 continue
-            if not getattr(s, "_active", False):  # conversation already ducks
+            if not getattr(s, "_active", False):
                 with contextlib.suppress(Exception):
-                    # Short TTL: PodConnect auto-restores the music ~5s later.
                     await s.attention.engage(s.room, 20, 5000)
             bus.clear(s.room)
             bus.start(s.room)
@@ -314,16 +340,17 @@ async def run(cfg: Config) -> None:
                 hub.activity(s.room, f"⏰ Timer færdig: {label}")
 
     timers = TimerManager(_timer_ring)
-    _LOG.info("timers: in-memory (an add-on restart clears running timers)")
+
     # Home control = HA's own MCP server on the LAN. Default: the Supervisor proxy
     # with the token the add-on already holds; Settings can point directly at
-    # http://<ha>:8123/api/mcp with a long-lived token for non-supervised setups.
-    mcp_url = cfg.ha_mcp_url or f"{C.SUPERVISOR_CORE_API}/mcp"
+    # http://<ha>:8123/api/mcp/assist with a long-lived token for non-supervised setups.
+    mcp_url = cfg.ha_mcp_url or f"{C.SUPERVISOR_CORE_API}/mcp/assist"
+    if mcp_url.rstrip("/").endswith("/mcp"):
+        # Migrate the former generic endpoint setting to the explicit HA LLM API.
+        mcp_url = f"{mcp_url.rstrip('/')}/assist"
     mcp_token = cfg.ha_mcp_token or cfg.supervisor_token
     mcp = HomeAssistantMCP(mcp_url, mcp_token, ha_client) if mcp_token else None
-    tools = ToolRouter(
-        mcp, supervisor_token=cfg.supervisor_token, client=ha_client, timers=timers, hub=hub
-    )
+    tools = ToolRouter(mcp, supervisor_token=cfg.supervisor_token, client=ha_client, hub=hub)
     if attention is not None:
         # Room names power the model's default speaker (see _build_session): without
         # them every media call fails with HA's "multiple targets".
@@ -334,6 +361,22 @@ async def run(cfg: Config) -> None:
                     _ROOM_NAMES[rid] = str(r.get("name") or rid)
             _LOG.info("podconnect rooms: %s", _ROOM_NAMES or "none")
     await tools.start()  # fetch the MCP tool list BEFORE sessions copy declarations
+    artifact_kind, artifact_sha = runtime_artifact_identity()
+    discovery = tools.discovery_status()
+    _LOG.info(
+        "startup identity version=%s git_sha=%s artifact=%s:%s model=%s effort=%s "
+        "prompt=v%s:%s tool_schema=%s mcp_api=%s",
+        __version__,
+        os.environ.get("PODVOICE_GIT_SHA", "unknown"),
+        artifact_kind,
+        artifact_sha,
+        DEFAULT_MODEL,
+        DEFAULT_REASONING_EFFORT,
+        PROMPT_VERSION,
+        hashlib.sha256(SYSTEM_PROMPT_DA.strip().encode()).hexdigest(),
+        discovery.get("schema_sha256") or "unavailable",
+        discovery.get("api_id") or "unavailable",
+    )
 
     async def _probe_loop() -> None:
         # Healthy discovery is re-proved periodically. A connection-shaped failure
@@ -351,7 +394,7 @@ async def run(cfg: Config) -> None:
     if mcp is None:
         _LOG.warning(
             "no SUPERVISOR_TOKEN and no ha_mcp_token — home control disabled "
-            "(clock + timers still work)"
+            "(live time, weather, web, music and home actions are unavailable)"
         )
         # Cost telemetry: every response's token usage -> /data + two HA cost sensors.
     usage = UsageMeter(cfg.supervisor_token, ha_client)
@@ -408,6 +451,7 @@ async def run(cfg: Config) -> None:
             input_rate=OPENAI_RATE,
             noise="far_field",
             interrupt_response=True,
+            manual_input_response=True,
         )
         link = BrowserLink(send_json, send_bytes)
         # RELATIVE url: the browser resolves it against the panel page, so it works
@@ -451,12 +495,21 @@ async def run(cfg: Config) -> None:
             fixture=None,
             scenario=None,
             turn_index=0,
-            repeats=3,
+            repeats=None,
+            text_repeats=None,
+            mode=None,
+            max_cost_usd=None,
         ):
             from .openai_realtime import MINI_MODEL
 
             if action == "status":
                 return live_eval_service.status(run_id)
+            if action == "protocol-owner":
+                return _start_protocol_owner_eval(
+                    live_eval_service,
+                    cfg,
+                    max_cost_usd=max_cost_usd,
+                )
             declarations = tools.declarations() if tools is not None else []
             if action == "replay":
                 return live_eval_service.start_replay(
@@ -464,7 +517,9 @@ async def run(cfg: Config) -> None:
                     fixture=fixture,
                     scenario=scenario,
                     turn_index=turn_index,
-                    repeats=repeats,
+                    repeats=3 if repeats is None else repeats,
+                    text_repeats=1 if text_repeats is None else text_repeats,
+                    mode=mode,
                     model=MINI_MODEL if cfg.force_mini else cfg.openai_model,
                     voice=cfg.openai_voice,
                     instructions=cfg.system_prompt,
@@ -475,6 +530,7 @@ async def run(cfg: Config) -> None:
             return live_eval_service.start(
                 api_key=cfg.openai_api_key,
                 scenario_ids=scenario_ids,
+                repeats=1 if repeats is None else repeats,
                 model=MINI_MODEL if cfg.force_mini else cfg.openai_model,
                 voice=cfg.openai_voice,
                 instructions=cfg.system_prompt,

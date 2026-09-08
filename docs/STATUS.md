@@ -1,6 +1,31 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-08-26.
+Senest opdateret: 2026-09-08.
+
+## Merge-kandidat 8. september 2026
+
+Brugeren har nu autoriseret push og merge; installation er fortsat ikke autoriseret.
+Lead: Codex. Stop-deltaet genanvendes på main `21c97fe` (1.13.61), uden at genindføre
+snapshot-baselinens ældre provider-, audio- eller dokumentationskontrakter.
+Kandidat: 1.13.62. Hele kæden og stop-gates nedenfor gælder stadig. Nyere main tilføjer
+playback-id til cancel-adapteren; korrelerede cancel-kald skal afvise et fremmed id.
+Review fandt yderligere en ejerfejl: manglende playback-start førte til retry, som den
+nye adapter korrekt afviste, men Thin lod exception slippe ud uden close. Hypotese:
+én admission på token-adapteren og ejet exception→close bevarer bounded teardown.
+Regression: rigtig adapter med manglende start/sendfejl samt sen started efter lukning;
+stale cancel må ikke stoppe aktuel lyd; stop/teardown/rearm og modsatte
+Talk-overflade skal bestå mod denne main. Ny uafhængig review og én releasegate på
+integreret diff kræves. Firmwarekilde-pin er uændret; remote fetch valideres efter push.
+Review beviste også tidlig drain-ACK: mixerens callback reducerede pending før den
+separate owner-callback talte de samme frames. Snapshot mellem callbackene kunne
+kvittere med 50 frames tilbage. Rettelse: mixer-ejet consumed-tæller øges før pending
+reduceres; owner læser depth før denne tæller. Regression injicerer begge mellemtrin,
+counter-wrap og terminal drain. Ændret firmware kræver nyt source-pin og nyt build.
+Begge findings er rettet og målrettede regressioner grønne. Ny firmwarekompilering og
+integreret releasegate afventer freeze-review. Automatisk godkendelsesreview afviste
+igen GitHub-push: det kræver eksplicit kode-/destinationsgodkendelse ud over “Merge
+gerne”. Remote package-fetch og merge er derfor fortsat blokeret, installation er
+ikke autoriseret. Rollback er hele 1.13.62-deltaet. Ingen ny fysisk funktion er bevist.
 
 ## Isoleret stop-word-kandidat — 5. september 2026
 
@@ -72,24 +97,759 @@ live i denne opgave; nedenstående auguststatus er historisk, ikke frisk verific
 
 ## Aktiv lead-beslutning
 
+### Aktiv beslutning 5. september — Grundtestens skjulte knapper
+
+- **Observeret fejl:** På installeret 1.13.59 var grundtest-run
+  `82da65389ccb86aa487f7f87` startet, current_index 0, ingen resultater. En frisk
+  ingress-side viste korrekt talepapir, men også slutkontrollens wake-knapper.
+  `.crow { display:flex }` overstyrer browserens standardregel for `hidden`.
+- **Hypotese og kæde:** API-run → eksisterende render/hidden → CSS → synlige
+  bedømmelsesknapper. En scoped CSS-regel skal skjule kun grundtestens skjulte
+  action-rækker. Reload skal genfinde serverens run uden at starte eller bedømme det.
+- **Scope:** 1.13.61 bygger på main 27f2ea2 (1.13.60); kun panelvisning ændres.
+  Runtime, prompt, tools, firmware, lyd, timeout og teardown/rearm er urørte.
+  UI må ikke foregive fysisk godkendelse eller ændre lifecycle.
+- **Bevisplan:** rød→grøn hidden-regression; rigtig browser med ikke-startet,
+  igangværende, sidste wake, bestået og fejlet run samt reload; uafhængigt review,
+  én releasegate og CI/image. Rollback er denne CSS-regel. Fysisk 10/10 er
+  fortsat ikke bevist; paneltesten er ikke Voice PE-evidens.
+
+**Implementeret og reviewet:** Kun én scoped CSS-regel ændrer produktadfærd.
+Den nye unit-regression fejlede før rettelsen; browserkontrollen bestod alle fem
+tilstande ved 320/1440 px både frisk og efter reload, uden writes eller JS-fejl.
+Den kører de shippede CSS/markup/controller-dele isoleret, ikke fuld HA-ingress.
+Uafhængigt adversarial review: P0=0/P1=0. Ruff, format og mypy bestod; lokal
+fast-pytest blev ugyldiggjort af sandboxens forbud mod loopback-bind, ikke en
+observeret produktfejl. Release køres med tilladt lokal testserver. Diff er frosset;
+Lokal release bestod på 27,0 s: unit 16,68 s, integration 26,75 s, Ruff/format,
+mypy og kandidat-scope grønne. Ingen separat lifecycle eller SafeEval: samtale-
+og Realtime-kontrakten er uændret mod main. CI/image og installeret panel-smoke
+mangler endnu.
+
+
+### Aktiv beslutning 5. september — tilsluttet Spotify-konto og musikhandling
+
+- **Brugerbeslutning:** Brugeren har eksplicit bedt om at fjerne den ekstra
+  stemmegodkendelse for sin allerede tilsluttede Spotify-konto. Kun de tre
+  statiske PodConnect-musiklæsninger klassificeres read-only. Spotify OAuth
+  håndhæves stadig af HA; andre private data og risikohandlinger er uændrede.
+- **Evidens på installeret v1.13.59:** 09:41 personlig musik bad om gentagen
+  godkendelse og endte stale; 10:15 recently_played lykkedes efter approve_action.
+  14:43–14:44 korrekt transskriberet afspilningsønske gav kun forslag og ingen tools.
+  14:45 søgte HassMediaSearchAndPlay bogstaveligt efter kunstneren “Musik”.
+- **Hypotese:** musik-kontrakten skelner utilstrækkeligt mellem afspilning,
+  anbefaling og datalæsning. Ekstra lokal musikgodkendelse er eksplicit fravalgt af
+  brugeren; dette er ikke en generel ophævelse af serverautorisation.
+- **Kæde og invarianter:** fysisk input → Realtime med samme tools → completed
+  tool commit → HA-musikdata → HA-play → svar → fysisk finish → teardown/rearm.
+  Realtime beholder semantik; øvrige følsomme handlinger beholder eksakt engangs-
+  godkendelse, næste-tur-grænse og TTL. Ingen model-, lyd-, firmware-, VAD- eller
+  lifecycleændring. Ingen direkte Spotify-klient i PodVoice.
+- **Faktisk kandidat 1.13.60:** tre eksakte Spotify-læsninger tillades direkte;
+  prompten kræver musikhandling og fortsættelse efter datalæsning og undgår
+  bogstavelig søgning på generisk “musik”. Tidligere gemt 1.13.59-standardprompt
+  migreres via eksakt hash; brugerdefinerede prompts bevares.
+- **Regressioner:** alle tre data-services gennem rigtig ToolRouter/HA REST-mock;
+  private øvrige tools/lookalikes/destruktive beskrivelser er stadig beskyttet;
+  eksakt gammel prompt migreres, custom prompt bevares. Aliasrettelsen leveres
+  separat i PodConnect Speakers 0.26.1.
+- **Gates og rollback:** målrettede tests bestået; samlet lokal releasegate bestået (unit/integration, mypy, Ruff).
+  Uafhængigt review krævede promptmigration (nu implementeret). CI/ARM64,
+  sideeffektfri semantisk prøve og fysisk musik/Connect-prøve mangler stadig.
+  Isoleret add-on-delta kan rulles tilbage uden firmwareflash.
+  Status: ikke installeret og endnu ikke fysisk verificeret.
+
+### Aktiv beslutning 4. september — HA er eneste live-domænesandhed
+
+- **Observeret fejl og stærkeste direkte evidens:** Den publicerede main-kandidat
+  v1.13.57 (`cbd335f`) skiftede alene Realtime-reasoning til `medium`, men den seneste
+  armerede fysiske kæde valgte fortsat det lokale `get_time` på ren matematik. Den
+  samme friske session havde korrekt wake-, audio-, playback-, timeout-, teardown- og
+  rearm-korrelation. `tools.py` eksponerer samtidig både lokal `get_time`, lokale
+  in-memory-timere og HA's `GetDateTime`; den nuværende admission fjerner kun identiske
+  navne og kan derfor sende semantisk overlappende ejere til modellen. Den konkrete
+  årsagshypotese er, at blandet værktøjsejerskab gør et live-domæneværktøj til en
+  konkurrerende forklaring på almindelig tale. Hypotesen falsificeres, hvis samme rene
+  provider-PCM fortsat vælger HA `GetDateTime`, efter at lokale dubletter er væk.
+- **Hele berørte kæde og invarianter:** Voice PE-lyd → én frisk Realtime-session →
+  immutable tool-schema → modelbeslutning → completed, response-bundet dispatch →
+  playback → samme follow-up-session → semantisk close eller fire sekunders reel
+  stilhed → én teardown/rearm → frisk næste wake. HA er eneste ejer af tid, vejr, web,
+  musik, hjem og senere timer; Realtime ejer betydning og værktøjsvalg; PodVoice ejer
+  kun schema-admission, autorisation, dispatch og lifecyclemekanik. Ukendte eller
+  semantisk konfliktende HA-værktøjer må aldrig glide automatisk ind i en ny session.
+- **Én kandidat og eksplicitte ikke-mål:** v1.13.58 fjerner lokal `get_time` og lokale
+  timere fra det model-synlige schema, accepterer kun en statisk klassificeret
+  HA-værktøjsflade med `GetDateTime` og `google_web_sogning` som eneejere og binder den
+  superviserede MCP-klient til `/api/mcp/assist`. Den samme kandidat gør kun det lokale
+  test-/buildflow hurtigere uden produktionsadfærd. Firmware, LED, gain, VAD,
+  audioformat, half-duplex, FLAC-playback, audio-boundaries, firesekunders-timeout,
+  teardown, rearm og model er frosne. Reasoning fastholdes på aktuelle `main`-
+  indstilling `medium`; Kandidat A ændrer derfor ikke modeltuning samtidig med
+  værktøjsejerskabet.
+  Vejrkonfiguration og HA-backed timere er efterfølgende separate kandidater.
+  Den eksisterende statiske `podconnect.*` HA-serviceadapter til private musikdata
+  bevares uændret; den er HA-ejet, allowlistet og indgår i det effektive schema-hash,
+  men er ikke et dynamisk MCP-værktøj.
+- **Regressioner, sammensatte gates og rollback:** Tool-inventory skal vise præcis én
+  ejer for tid og web, ingen lokale timer, ingen ukendte modelværktøjer og et eksakt
+  API-id/schema-hash. Matematik og numerisk opfølgning skal være direkte svar i samme
+  session; kun tid må kalde `GetDateTime`; web må kun kalde `google_web_sogning`;
+  HA-tab skal fail-closed uden stale dispatch. Completed/cancelled/stale batch-, Talk-
+  og ThinSession-kontrakter genkøres. Derefter én sideeffektfri, prisbegrænset live-gate,
+  exact-commit CI/ARM64 og én fysisk Golden Chain før 10/10. Hvis ren lyd stadig vælger
+  `GetDateTime`, rulles der ikke videre med fraserouting; næste og eneste afgrænsede
+  diagnose er en identisk-PCM-modelsammenligning. Hele tool-deltaet kan rulles tilbage
+  uden firmwareflash.
+
+- **Faktisk implementering og lokal status:** Kandidat A er implementeret som
+  v1.13.58. Lokal `get_time` og model-synlige in-memory-timere er fjernet;
+  `GetDateTime` og `google_web_sogning` har hver én HA-ejer via det eksakte
+  `/api/mcp/assist`-endpoint. Sessionens værktøjsskema er immutable, og stale,
+  dublerede, ufuldstændige eller ikke-committede tool-batches udfører ingen handling.
+  Talk og Voice PE deler fortsat samme `ThinSession`-kontrakt. Reasoning er tilbageført
+  til `medium`, så kandidaten ikke blander modeltuning ind i tool-deltaet.
+  Candidate-scope består som ét domæne (`ha_tools`); kontrollen klassificerer nu kun
+  de faktisk ændrede tekstfragmenter, så et uændret `end_conversation` på samme
+  JSON-linje ikke giver en falsk semantikændring. Ruff, formattering, mypy,
+  tool-/eval-/scope-tests, hele Thin-integrationen og de reelle konsol-WebSocket-tests
+  er grønne. Den samlede releasekørsel fandt to forældede Talk-fixtures, der stadig
+  brugte lokal `get_time` uden provider-commit; de er migreret til den samme
+  committede `GetDateTime`-batch som produktionskontrakten, og hele den berørte
+  integrationpakke er derefter grøn. Det adversariale review fandt P0=0; dets to
+  P1-observationer er lukket:
+  adapterpariteten er grøn, og candidate-scope håndhæves nu også af `release` mod den
+  frosne merge-base. Den lokale releasegate er dermed grøn som én samlet, uændret
+  kandidat efter den målrettede integrationgenkørsel. Exact-commit CI/ARM64,
+  installation, SafeEval og fysisk Golden Chain mangler stadig og må ikke foregives
+  som bestået.
+
+- **Installeret artifact og identitetskorrektion:** v1.13.58 blev publiceret og
+  installeret som git `b32b0958827e58f00f937e4a10b7b53a9e0d3311`. Startup beviste
+  MCP API-id `assist`, 17 klassificerede HA-værktøjer uden konflikt og en gyldig
+  Voice PE-firmwarekontrakt. Realtime-koden sendte `reasoning.effort: medium`, men
+  startup-identiteten og changeloggen rapporterede fejlagtigt `low`. v1.13.59 retter
+  kun denne observerbarheds-/dokumentationsfejl ved at dele én reasoning-konstant;
+  provider-wire, værktøjer, prompt, audio og lifecycle er uændrede. SafeEval og fysisk
+  Golden Chain afventer det korrigerede installerede artifact.
+
+### Aktiv beslutning 4. september — fysisk semantik fejlede på frisk v1.13.56-session
+
+- **Observeret fejl og stærkeste direkte evidens:** Den armerede fysiske trace
+  `20260904T104120-439` kørte installeret add-on v1.13.56, rootfs
+  `b35e4449ab9d2537fae324f4a40910d92c808e48679b3fa4471a11212ba84908`, Prompt V7,
+  schema `f712a7c5e2a9` og firmware `podvoice_build_11346`. Wake oprettede den friske
+  provider-conversation `conv_EKJm56rcQEKDZ4iMzSQRe`; gammelt sessionsindhold er
+  derfor afkræftet for denne trace. Alligevel kaldte første tur `get_time` på det diagnostiske input
+  “Hvad 12 gange syv?”, opfølgningen blev diagnosticeret som “Læs sjette”, og en tredje
+  697 ms lydtur fik tomt transcript men et nyt kontekstbaseret svar. Samtalen lukkede
+  korrekt ved `idle-fallback` med én teardown og én rearm. Numerisk replay blev
+  fail-closed før providerbrug, fordi den diagnostiske tekst ikke matchede den kendte
+  sikre eval-ytring.
+- **Kæde, invarianter og falsificerbar hypotese:** fysisk wake → frisk Realtime-session
+  → tre accepterede provider-VAD-ture i samme conversation → forkert semantik/tool →
+  korrekt timeout/teardown/rearm. Realtime skal fortsat eje sprog, matematik,
+  værktøjsvalg og uklar tale; PodVoice må ikke indføre transcript-veto, frase-routing
+  eller lokal matematik. Hypotesen er, at `reasoning.effort: low` er utilstrækkeligt
+  robust til den fysiske danske lyd med fuldt produktionsschema. Det er ikke bevist af
+  én fejlende trace, fordi samme low-konfiguration tidligere har bestået. `medium` er
+  derfor kun en A/B-kandidat, der falsificeres, hvis den ikke forbedrer korrekt direkte
+  matematik, opfølgning og uklar-input-adfærd uden at ændre ownergrænsen.
+- **Én kandidat og ikke-mål:** v1.13.57 ændrer kun Realtime reasoning fra `low` til
+  `medium`. Prompt, schema, model, gain, VAD, noise reduction, turn cue, ekkohale,
+  firmware, lydtransport, playback, firesekunders timeout, teardown og rearm er frosne.
+  Den tredje lydtur kan være brugerens afslutning eller fysisk restlyd; uden segmentets
+  gennemlytning må den ikke bruges til en timingpatch.
+- **Regressioner, gates og rollback:** statisk wirekontrakt og fuld releasegate skal
+  være grønne; uafhængigt adversarial review skal have P0=0/P1=0. Den igangsatte
+  sideeffektfrie low-test forbliver diagnostik og må ikke blokere lokal udvikling ved
+  lang rate-limit-ventetid. En installation af v1.13.57 må kun ske som diagnostisk
+  kandidat, fordi HA-add-onen ejer Realtime-nøglen; ingen fysisk produkttest må starte,
+  før kandidatens sideeffektfrie Golden-semantikgate på medium er 5/5 under $5-loftet.
+  Derefter én armeret fysisk kæde: 12 x 7 → 84, “Læg seks til” → 90, semantisk
+  close, én teardown/rearm og næste wake. Kun samme artifact kan derefter gå til 10/10.
+  Rollback er hele reasoning-deltaet, hvis medium ikke forbedrer korrektheden eller øger
+  median provider-first-audio mere end 300 ms.
+
 **Beslutningsejer:** Lead Voice/Reliability Engineer. **Fysisk baseline:** v1.13.11.
-**Installeret software:** PodVoice add-on v1.13.47 fra exact main
-`eef3b6ddd30fa8aa61664571c54e967365eeee1b` kører på HA Green, og Voice PE er
-OTA-flashet med den HA-byggede v1.13.46-produktionsfirmware fra exact main
-`ff10cc3e93eebdb9b84fb88240338b0be5a38aea`. Automatisk native-API-reconnect,
-firmwarekontrakt, mic channel 1/gain 16 og `okay_nabu` er fysisk observeret. Installation
-må ikke overskrive den fortsat afviste golden-chain-status.
-**Aktuel gate:** v1.13.47 er **NO-GO**. Den fjernede den falske 15.000-token-afvisning,
-startede korrekt og genfandt Voice PE samt 19 HA/MCP-værktøjer, men den fysiske trace
-`20260826T145627-246` beviser lyd fra en tidligere samtale i den nye generation og et
-efterfølgende falsk `end_conversation`. Kandidaten er ikke golden og må ikke gå til
-10/10.
+**Installeret kandidat:** add-onen rapporterer v1.13.56 med runtime-rootfs
+`b35e4449ab9d2537fae324f4a40910d92c808e48679b3fa4471a11212ba84908`.
+Den armerede v1.13.56-trace `20260904T104120-439` er NO-GO for fysisk semantik som
+beskrevet ovenfor. Den tidligere v1.13.55-trace `20260902T141043-607` bestod én Golden
+Chain: 12 × 7 gav 84, “Læg seks til” gav 90 i samme provider-conversation og generation,
+og “Tak, det var alt” gav præcis ét `end_conversation`, én teardown og én rearm.
+Den efterfølgende tekst/lyd-sammenligning `eval-1788351114-20fddc` gav korrekt 90 uden
+værktøj i 5/5 tekstkontroller og 5/5 replay af den eksakte provider-PCM. Rapportens
+samlede NO-GO er dog ikke gyldig som provider-kædedom: oraklet kræver en indbyrdes
+rækkefølge mellem to sideordnede start-events, som alle ti liveforsøg og den armerede
+trace leverede modsat. Den separate diagnostiske ASR skrev samtidig “Klik seks til” i
+5/5 lydforsøg. Device-/provider-sammenligningen viser efterfølgende, at hele signalet
+nåede providerinputtet uforvansket; afvigelsen tilhører derfor den separate
+diagnose-ASR og er ikke en Voice PE-transport- eller runtime-semantikfejl. Den bevares
+synligt som en konservativ diagnostisk afvigelse. **Aktuel fysisk gate:** v1.13.56
+Golden Chain **0/1**; ubrudte lifecycle-cyklusser **0/10**. Den tidligere v1.13.55-
+succes arves ikke af kandidaten.
 
-**Aktiv udviklingskandidat:** næste add-on-only kandidat lukker kun den observerede
-cross-session-audiorace oven på installeret v1.13.47. Voice PE-firmwaren forbliver
-v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
+**Forrige diagnostiske kandidat:** v1.13.57 ændrede kun Realtime reasoning fra `low`
+til `medium`. Den er ikke en bevist rettelse og har ingen aktiv kandidatstatus efter
+beslutningen ovenfor. Firmware, gain, VAD, fysisk lydtransport, playback,
+firesekunders timeout, teardown og rearm forbliver frosne i v1.13.58.
 
-### Aktiv beslutning 26. august — sen gammel mic-frame krydsede næste wake
+### Aktiv beslutning 2. september — Grundtesten skal måle den bindende 5+5-gate
+
+- **Observeret fejl og stærkeste direkte evidens:** Panelets nuværende Grundtest beder
+  om `Farvel` i alle ti samtaler, kræver tre input- og tre outputtranscripts samt blot
+  en vilkårlig senere `IDLE`, og kan samlet bestå med 9/10 korrekte. Den måler derfor
+  hverken de fem bindende firesekunders-timeouts, stille model-close eller den faktiske
+  close-/teardown-/rearm-kæde i `docs/PRODUKTMÅL.md`.
+- **Kæde, invarianter og hypotese:** Testbeviset skal følge det automatisk optagede,
+  lokale device-/provider-/speaker-trace fra ét fysisk wake gennem to accepterede ture
+  og deres provider-ejede svar/playback til enten én modelsemantisk close eller præcis
+  `idle-fallback`, efterfulgt af én teardown og én korreleret rearm. Næste fysiske wake
+  skal binde den lukkede trace til præcis den næste session og provider-generation.
+  Hypotesen er alene, at Grundtestens UI og evaluator er forældede; produktionsruntime
+  udførte den seneste armerede Golden Chain korrekt og må ikke ændres for at rette
+  acceptværktøjet.
+- **Mindste plan og eksplicitte ikke-mål:** De ti eksisterende to-turs-samtaler får fem
+  varierede semantiske afslutninger og fem eksplicitte stilhedsforløb. Serveren måler
+  den forventede close-type, accepterede fysiske ture, playback-finish, close-id,
+  teardown og rearm i samme session; transcript bruges kun som synligt diagnosebevis.
+  Kun 10/10 med præcis 5/5 i hver close-type kan bestå. Ingen ændring af `ThinSession`,
+  Realtime-wire, prompt, schema, model, reasoning, VAD, firesekunders-timeout,
+  firmware, gain, lydtransport, playback, teardown eller rearm er mål.
+- **Regressioner, gates og rollback:** Bevis både kort og stille model-close samt
+  `idle-fallback`; krydsede close-typer, ekstra tale under timeout, manglende/dobbelt
+  close, manglende teardown/rearm, fremmed session og 9/10 skal afvises. Kør fokuseret
+  web-/paneltest, lifecycle-gaten, uafhængigt adversarial review og én `release` på
+  frosset diff. Hvis evaluatorens observering selv ændrer runtime eller en forkert
+  close-type kan blive grøn, rulles hele Groundtest-deltaet tilbage.
+- **Faktisk ændring og foreløbig status for v1.13.56:** Grundtesten armerer selv ét
+  lokalt lydbevis for hver af de ti samtaler og for den afsluttende wake-kontrol. Det
+  eksisterende strenge `TraceOracle` kontrollerer fysisk wake, accepteret lyd,
+  provider-ejet response, playback, close, teardown, audio-boundary og rearm; en lille
+  wrapper kontrollerer præcis 5 semantiske closes, 5 firesekunders timeouts og eksakt
+  generation-/tokenkobling mellem samtalerne. Første fejl stopper runden, manuelle
+  lydknapper kan ikke overtage recorderen, og afbrudte mobilrequests frigiver deres
+  claim. De seneste 12 traces beholdes lokalt, så hele runden plus slutkontrollen kan
+  efterprøves. `ThinSession` har kun fået passiv wake-/artifact-provenance i tracen;
+  udgående Realtime-wire og produktadfærd er uændrede. Første adversarial review fandt
+  tre falsk-grønne bevisveje: manglende generationsfelter, manglende komplet
+  providerrespons og manglende speaker-spor. Alle tre er nu fail-closed og dækket af
+  konkrete mutationer. En fjerde mutation kræver desuden konkret og ens
+  audio-generation på slut-wake, wake-gate og forrige rearm. Den fokuserede gate er
+  27/27 grøn, `scripts/dev fast` gennemførte formattering, Ruff, mypy og den valgte
+  fulde testsuite på 43,8 sekunder, og den fulde lokale releasegate bestod på 43,7
+  sekunder. Frozen Ultra-re-review er **GO med P0=0/P1=0** og bekræfter ingen ændring af
+  Realtime-wire, prompt, VAD eller firmwareadfærd. Exact-commit CI/ARM64, installation
+  og den fysiske 10/10 mangler fortsat. Fysisk status er derfor stadig Golden Chain 1/1
+  og ubrudte lifecycle-cyklusser 0/10 på v1.13.55.
+
+### Aktiv beslutning 2. september — eval-oraklet må afspejle providerens partielle orden
+
+- **Observeret fejl og stærkeste direkte evidens:** Alle 5/5 tekst- og 5/5 lydsessioner
+  har eksakte, sammenhængende conversation-, generation-, user-, assistant- og
+  response-id'er samt completed-status. Den faktiske rækkefølge er konsekvent
+  `user added → response.created → response.output_item.added → assistant item added →
+  response.output_item.done → response.done`. Oraklet kræver fejlagtigt de to
+  sideordnede item-start-events i omvendt rækkefølge og mærker derfor alle ti som
+  `provider-item-chain-broken`. Den fokuserede fysiske lydsammenligning placerer
+  opfølgningssegmentet fra providerfilens 4,45–5,45 s ved devicefilens 13,09–14,09 s
+  med normaliseret korrelation 1,000 efter den kendte 16→24 kHz-konvertering. Det
+  beviser, at transporten ikke forvanskede opfølgningen; det afgør ikke alene den
+  separate ASR's ordvalg.
+- **Kæde, invarianter og falsificerbar hypotese:** Beviset skal fortsat kræve
+  `U1 → R1 → A1 → done → U2 → R2 → A2 → done` i samme conversation og generation,
+  med eksakt ancestry, item-/response-id, rolle, type, status og nul ekstra response-
+  eller tool-items. Hypotesen er kun, at `conversation.item.added` for assistant-itemet
+  og `response.output_item.added` er to start-observationer uden dokumenteret indbyrdes
+  totalorden; begge skal ligge efter `response.created` og før
+  `response.output_item.done`. Den diagnostiske transcript-afvigelse er en separat
+  inputbevisakse og må hverken omskrives til “Læg”, bruges til runtime-routing eller
+  fejlagtigt klassificeres som tekst-/promptkontraktfejl.
+- **Mindste plan og eksplicitte ikke-mål:** Ret kun evaluatorens eventorden og dens
+  testfixture til den faktisk observerede rækkefølge. Bevar transcript-afvigelsen
+  synlig og fail-closed, indtil den kan klassificeres med den bevarede lyd; ingen betalt
+  provider-genkørsel er nødvendig for eventorden. Ingen ændring af `ThinSession`,
+  Realtime-wire, prompt, tool-schema, model, reasoning, Voice PE, firmware, gain, VAD,
+  resampling, playback, timeout, teardown eller rearm er mål.
+- **Planlagte regressioner, gates og rollback:** Bevis begge lovlige rækkefølger af de
+  to start-events. Afvis stadig manglende, stale, duplicate eller ekstra events samt
+  enhver start-event før `response.created` eller efter `response.output_item.done`.
+  Kør den fokuserede oracle-suite og `scripts/dev fast`; en uafhængig reviewer skal
+  kontrollere, at ingen ID-, ancestry-, conversation-, generation- eller done-kant er
+  svækket. Hvis en ugyldig mutation bliver grøn, rulles evaluatorændringen tilbage.
+  Produktionsartifact v1.13.55 ændres eller geninstalleres ikke af denne
+  evaluatorrettelse; næste produktbevis er 10/10 ubrudte fysiske cyklusser på samme
+  installerede bits.
+- **Faktisk evaluator-delta og resultater:** Oraklet kræver nu
+  `user < response.created < begge item-start-events < output-item.done < response.done`
+  uden at opfinde en indbyrdes orden mellem de to start-events. Den faktisk observerede
+  orden var rød før rettelsen og er grøn bagefter; begge lovlige ordener består for
+  både tekst- og lydtarget, mens hver start-event efter `output-item.done` fortsat
+  afvises. Den fokuserede chain-suite er grøn **16/16**, og den samlede
+  `scripts/dev fast --base origin/main` er grøn på **42,6 s** med Ruff,
+  formatteringskontrol, mypy, hele pytest-suiten og diff-check. Uafhængigt afsluttende
+  review fandt **P0=0, P1=0 og P2=0**. Ingen runtime-, prompt-, schema-, audio-, VAD-,
+  firmware- eller lifecyclefil er ændret. Den ene autoritative
+  `scripts/dev release --base origin/main` er grøn på **42,9 s**. Rettelsen er alene
+  kilde-/evalværktøj; den installerede v1.13.55 skal ikke erstattes for dette delta.
+
+### Aktiv beslutning 1. september — afvist VAD skal være terminal før næste mic-open
+
+- **Observeret fejl og stærkeste direkte evidens:** Den installerede exact-v1.13.54-
+  protokolprobe åbnede én `gpt-realtime-2.1`-session og fuldførte bootstrapresponsen. Efter
+  forced commit, user-item og delete-ACK publicerede adapteren karantænen som opløst uden
+  en terminal `speech_stopped`. Probe-fase 2 sendte derefter frisk PCM ind i providerens
+  fortsat aktive VAD-spændvidde; derfor kom ingen ny `speech_started`. Efter den
+  konfigurerede stilhed kom en legitim sen stopkant, men adapteren havde allerede
+  slettet sin span og lukkede kl. 16:08:10 med `speech_stopped for unknown item`.
+  Changed-ID er dokumenteret tilladt efter manuel commit, men live-start-ID'et blev ikke
+  bevaret, så den eksakte ID-relation foregives ikke. De
+  4,669 sekunder fra den forced-committede inputtransskription til fejlen matcher
+  semantic-VAD plus probens friske stilhed. Proben stoppede korrekt som
+  `provider-or-protocol-failure`; Golden Chain og 10/10 blev ikke åbnet.
+- **Kæde, invarianter og falsificerbar hypotese:** crossed fysisk/provider-input under
+  lukket answer-gate → nul response/tool/playback → provider-VAD skal bringes til én
+  autoritativ terminal stopkant → hvert resulterende user-item skal slettes med eksakt
+  ACK → først derefter må samme sessions `LOUNGE_WINDOW` åbne. OpenAIs officielle
+  kontrakt siger, at manuel commit under aktiv VAD bryder start-/stop-item-id-ligheden;
+  den siger ikke, at selve stopkanten kan foregives afsluttet. Hypotesen er derfor, at
+  den eksisterende forced-commit-specialcase pensionerer spanen for tidligt og lader
+  næste fysiske lyd blive dens hale.
+- **Mindste plan og ikke-mål:** Erstat den falske forced-commit-terminal med én bounded,
+  indholdsneutral nul-PCM-drænvej, mens den eksisterende fysiske state-gate er lukket.
+  Provideren skal selv levere natural `speech_stopped`/commit/item; det eksakte afviste
+  item slettes og ACKes, før karantænen opløses. Nul-PCM er protokolmekanik og må aldrig
+  indeholde Voice PE-frames, skabe response/tool/playback eller åbne en ekstra session.
+  Manglende terminal stop/commit/delete-ACK lukker samme session bounded fail-closed.
+  Ingen firmware-, gain-, VAD-type/eagerness-, prompt-, model-, reasoning-, schema-,
+  værktøjs-, playback-, timeout-, teardown-, rearm- eller lokal semantikændring er mål.
+- **Planlagte regressioner, gates og rollback:** Den eksakte live-rækkefølge skal være
+  rød før rettelsen og grøn bagefter: crossed start → nuldræn → natural stop → matching
+  commit/item/delete-ACK → frisk start/stop i samme generation → præcis én korreleret
+  response. Dæk stop før/efter commit, duplicate/stale/out-of-order events, manglende
+  stop, fresh PCM før resolution, reconnect, Talk-paritet og trace-sandhed. Kør `fast`,
+  relevant sammensat lifecycle, ét afsluttende `release` og uafhængigt adversarial
+  review. Derefter ét PR/merge/install og én ny eksplicit prisgodkendt live-probe. Hvis
+  natural terminal cleanup ikke kan bevises på rigtig provider uden fysisk mic-læk eller
+  en ekstra session, rulles deltaet tilbage og crossed span lukker fail-closed; der
+  tilføjes ingen ny timing-, gain-, prompt- eller fraseroutingpatch.
+- **Faktisk kandidatdelta og lokale resultater:** v1.13.55 sender ikke længere manuel
+  commit på en afvist aktiv VAD. Adapteren sender kun 20 ms nulrammer op til den
+  konfigurationsafledte grænse og joiner den eksakte drain-task ved natural
+  `speech_stopped`, før stop, item-sletning eller næste tur kan fortsætte. Manglende
+  terminalkant, fremmed ID, duplicate stop/delete-ACK eller uordnet cleanup lukker
+  fail-closed; duplicate matching commit/item er idempotente og kan ikke opløse
+  karantænen tidligt.
+  Proben tæller alle faktiske providerbytes, inklusive intern nul-PCM, og reserverer
+  samme silence-bound i både karantæne- og friskfasen. Semantic VAD-grænserne er
+  `high=2,25 s`, `auto/medium=4,25 s` og `low=8,25 s`; low-regressionen beviser 413
+  20-ms-frames per fase og samlet 24,52 s maksimal providerlyd. En blokeret-send-
+  regression beviser, at ingen append kan fuldføres efter stopbarrieren. Den målrettede
+  owner/probe/adapter/lifecycle-suite er grøn **78/78**; ACK-watchdoggens tre tidligere
+  fixed-sleep-tests er event-baserede og grønne **90/90** over 30 gentagelser. Den
+  samlede `scripts/dev fast --base origin/main` er grøn på **43,2 s** med Ruff,
+  format-check, mypy, hele pytest-suiten og diff-check. Firmware, gain, fysisk
+  lydtransport, VAD-konfiguration, prompt, model, reasoning, schema, værktøjer,
+  playback, timeout, teardown og rearm er fortsat byte-/adfærdsmæssigt uden for deltaet.
+  Uafhængigt afsluttende Ultra-review fandt **P0=0, P1=0, P2=1** og gav GO til
+  merge/install samt én ny prisgodkendt live-probe. Det ene P2 er kun diagnostisk:
+  den fysiske trace gemmer allerede lokal karantæne, commit/delete, provider-PCM og
+  offsets, men ikke de fire nye rå VAD-/nuldrænlabels. Det ændrer ingen gate og kan
+  tilføjes i en senere ren observabilitetsrelease; v1.13.55 må ikke udvides for det.
+  Den ene autoritative `scripts/dev release --base origin/main` er grøn på **43,0 s**
+  med Ruff, format-check, mypy, hele pytest-suiten og diff-check. Exact-commit-CI,
+  ARM64-image, merge, installation og den nye live-probe mangler fortsat.
+
+### Aktiv beslutning 1. september — proben skal kunne startes uden browseromgåelse
+
+- **Observeret fejl og stærkeste direkte evidens:** Den installerede v1.13.53 har den
+  maskintestede, ingress-begrænsede `POST /api/eval/protocol-owner`, men panelet har
+  ingen synlig kontrol, som kan sende den kanoniske prisbekræftelse. Efter brugerens
+  eksplicitte `$5`-godkendelse afviste browserens URL-sikkerhed en scriptnavigation;
+  proben blev derfor ikke startet, og intet API-budget blev brugt. Direkte LAN-adgang
+  gav korrekt 403 og er ikke en tilladt triggervej.
+- **Kæde, invarianter og hypotese:** bruger ser fast prisloft → eksplicit klik → præcis
+  `application/json`-body `{"max_cost_usd":5}` gennem HA-ingress → eksisterende
+  ingress-/framingkontrol → eksisterende eval-lock og højst én probe → eksisterende
+  statuspoll. Hypotesen er alene, at en synlig knap over den allerede testede route
+  lukker workflow-hullet. Browserbeskyttelse, ingresskrav, canonical body og
+  sideeffektfri probe skal bevares.
+- **Ikke-mål:** ingen ændring af `ThinSession`, Realtime-adapter, VAD, lyd, firmware,
+  prompt, model, reasoning, schema, værktøjer, playback, timeout, teardown, rearm eller
+  budgetberegning. Ingen skjult automatisk probe og ingen genbrug af en tidligere
+  godkendelse.
+- **Faktisk UI-delta og regressioner:** Panelet har præcis én synlig
+  `Test sikker Realtime-svarstyring`-knap. Et fysisk klik låser alle evalknapper, sender
+  den eksakte kanoniske body og genbruger den eksisterende `run_id`-poller samt
+  generationssikre oplåsning. GO-visningen kræver exact
+  `complete/ok/GO_TO_RELEASE_GATE/protocol-owner-proven`; alt andet vises som blokeret
+  og siger fortsat, at fysisk Golden Chain og 10/10 mangler. Start→poll-integration,
+  canonical body/content-type, single-trigger, busy, disabled-state og fail-closed
+  rendering er grønne. Panel+probe er **66/66**, fokuseret web er **19/19**, og leadens
+  fokustest er **21/21**. `scripts/dev fast --base origin/main` er grøn på **42,6 s**
+  med Ruff, format-check, mypy, hele pytest-suiten og diff-check. Uafhængigt review af
+  kode/UI fandt **P0=0, P1=0 og P2=0**; et efterfølgende dokumentreview fandt to P1-
+  statusmodsigelser, som denne opdatering lukker uden produktionskodeændring. Første
+  `release`-forsøg afslørede derefter en eksisterende test-race: `IDLE` publiceres
+  bevidst før teardownens asynkrone attention-release og rearm, mens tre nye response-
+  close-tests brugte `IDLE` som fuld slutbetingelse. Ingen runtime blev ændret; de tre
+  tests venter nu også på eksakt rearm og bevarer assertions om præcis én release og én
+  rearm. Den oprindelige måltest er grøn **50/50** i separate processer, og de tre
+  naboer er grønne **60/60**; Ruff og format-check er grønne.
+- **Releasegate, installeret resultat og rollback:** Den autoritative `release` var grøn
+  på **42,4 s**. UI-deltaet blev merged som exact main
+  `a026e9431b9efb801e3951fea5feae5103cf827b`; CI/ARM64-image blev grøn, og v1.13.54
+  blev installeret. Det eksplicitte fysiske klik nåede den korrekte ingress-route med
+  entydig framing og startede præcis én probe, så UI-scope er bevist. Proben fandt
+  derefter en separat runtime-protokolfejl og stoppede blokeret; den åbner derfor ikke
+  den fysiske canary. Hvis knappen kan starte uden et nyt fysisk klik, eller ingress-
+  framing afviger, rulles UI-deltaet tilbage. Golden Chain og 10/10 er fortsat **0/1**
+  og **0/10** og arves aldrig fra v1.13.53.
+
+### Aktiv beslutning 1. september — kun accepteret fysisk tur må skabe providerrespons
+
+- **Observeret fejl og stærkeste direkte evidens:** I exact v1.13.52-trace
+  `20260901T101334-410` kom en ny provider-`speech_started` under `THINKING`. Thin
+  registrerede `half_duplex_input_discarded` og sendte `input_audio_buffer.clear`, men
+  providerens VAD-spændvidde forblev aktiv gennem fysisk playback. Efter mic-gaten igen
+  åbnede, voksede provider-PCM-offsettet, og den forsinkede stop/commit-kant oprettede
+  et nyt user-item og en automatisk respons med `get_time`. Der fandtes ingen ny
+  accepteret lokal `speech_started`. Samme conversation og item-ancestry var intakte;
+  dette er provider-turn-ejerskab, ikke mistet kontekst, audio-generation-replay,
+  heartbeat, teardown eller rearm.
+- **Hele berørte kæde og nærliggende races:** accepteret fysisk start → stop → provider-
+  commit/user-item → ét svar → fysisk playback → ekkohale → åbent opfølgningsvindue.
+  En start over den lukkede answer-gate skal derimod karantæneres, afsluttes og få sit
+  eksakte item fjernet, før opfølgningen åbner. Nærliggende fejlveje er delayed/duplicate/
+  stale start, stop, commit og delete-ACK; providerrespons uden lokalt request-id;
+  tool-call fra en afvist respons; timeout eller semantic close under karantæne;
+  reconnect og Talk/full-duplex-paritet.
+- **Berørte invarianter, hypotese og ikke-mål:** én wake ejer én session; kun en
+  accepteret tur må eje respons og værktøjer; Voice PE er half-duplex; Realtime ejer
+  fortsat sprog, kontekst, værktøjsvalg og semantisk close; fire sekunders reel stilhed
+  ejer kun mekanisk close. Den falsificerbare hypotese er, at
+  `create_response: true` gør provideren til en konkurrerende response-owner, mens
+  `input_audio_buffer.clear` fejlagtigt blev behandlet som VAD-reset. Ingen firmware-,
+  gain-, VAD-type/eagerness-, prompt-, model-, reasoning-, schema-, playback-, timeout-,
+  teardown-, rearm- eller lokal semantikændring er mål.
+- **Faktisk implementeret kandidatdelta:** Voice PE beholder semantic VAD, men bruger
+  `create_response: false` og `interrupt_response: false`. Providerens item-id,
+  generation og commit bindes til den fysiske talespændvidde. Kun et accepteret stop
+  efter matching commit må sende præcis ét korreleret `response.create`. En crossed
+  start må aldrig svare eller kalde værktøjer; dens aktive buffer afsluttes, det eksakte
+  item slettes med korreleret ACK, og opfølgningsgaten forbliver lukket indtil
+  karantænen er tom. Én bounded input-span-ledger ejer commit-/item-/delete-ACK;
+  `ThinSession` accepterer eller afviser turen, mens provideradapteren alene sender
+  wire-eventet. Initiale og efterfølgende tool-/schema-/close-responses arver samme
+  `(root_item_id, turn_id, provider_generation)` og et unikt request-id; numerisk
+  metadata serialiseres som kanoniske decimale strenge efter providerkontrakten.
+  Ukorreleret providerrespons, child-event eller cleanup-fejl lukker fail-closed. Talk
+  beholder sin eksplicitte full-duplex-kontrakt og bruger samme response-owner-kontrakt.
+- **Historiske lokale regressioner og review:** v1.13.53-regressionen kørte den rigtige
+  OpenAI-adapter gennem `ThinSession`, men kodificerede den nu live-modbeviste antagelse,
+  at forced commit + item + delete-ACK kunne afslutte VAD uden `speech_stopped`. Den var
+  derfor grøn uden at bevise providerens terminale VAD-tilstand. v1.13.55 erstatter
+  denne test med crossed start → bounded nuldræn → natural matching stop → eksakt
+  commit/item/delete-ACK → frisk accepteret tur i samme generation → præcis én ny
+  `response.create`, uden ghost tool eller playback.
+  Dertil er accepted/rejected ownership, typed Talk, child/tool-responses, stale,
+  duplicate, out-of-order, reconnect, timeout mod semantic close og trace-oraklet
+  modtestet. Adversarial review fandt først P1-huller for forged response-start, stale
+  child-events samt den officielle no-`speech_stopped`- og string-metadata-kontrakt;
+  exact request/root/turn/generation-validering og regressioner lukkede hullerne. Den
+  samlede provider-owner-/oracle-/probe-/Thin-suite er grøn **286/286**. Den skjulte
+  ingress-rutes sikkerheds- og panelkontrakt er grøn **19/19**, og den isolerede
+  protokolprobe er grøn **41/41**. Proben videresender og hasher den effektive aktive
+  VAD-/noise-konfiguration, afviser ukendte eller uprissatte modeller før lock/socket
+  og kan højst optage to lokalt budgetgodkendte responses under det faste $5-loft.
+  `scripts/dev fast --base origin/main` er grøn på 41,9 s med Ruff, format-check,
+  mypy, hele pytest-suiten og diff-check. Den smallere `lifecycle`-wrapper henviste som
+  designet til `release`, fordi diffet også rører release-/dokumentationsflader; det er
+  ikke en produkt- eller testfejl. Uafhængigt afsluttende Ultra-review af det frosne
+  diff fandt **P0=0, P1=0 og P2=0**.
+- **Live-resultat og resterende maskinelle gates:** Proben blev kørt på installeret
+  v1.13.54 som `eval-1788271680-65640a`, brugte 171 tokens og estimeret `$0.009`, og
+  stoppede ved en legitim sen `speech_stopped`, efter at den gamle regression allerede
+  havde erklæret karantænen opløst. Resultatet er **NO-GO** og modbeviser manual commit
+  som terminal. v1.13.55 skal derfor bevise `crossed start → bounded nuldræn → natural
+  matching stop → exact item/delete-ACK → nul response → frisk tur i samme session →
+  explicit response.create` mod rigtig provider. Den frosne v1.13.53-kandidat bestod den ene
+  autoritative `scripts/dev release --base origin/main` på **42,5 s** med Ruff,
+  format-check, mypy, hele pytest-suiten og diff-check. Den blev merged som exact main
+  `3f548a222f487868552f5f2b7eba8047dcef0cda`; exact-commit-CI og ARM64-add-on-build
+  blev grønne, og v1.13.53 blev installeret og startede med Voice PE samt HA/MCP.
+  Proben kunne ikke startes legitimt fra det installerede panel, fordi triggerknappen
+  manglede; derfor er v1.13.53 stadig **ikke provider- eller fysisk testklar** og
+  supersedes kun af den UI-only v1.13.54. Den fokuserede semantiske 5×-preflight er
+  ikke en erstatning for protokolproben og genkøres kun, hvis semantikscope eller ny
+  ren fysisk evidens kræver den.
+- **Fysisk gate og rollback:** Der køres ingen flere fysiske gentagelser på v1.13.52
+  eller v1.13.54. Exact v1.13.55-artifact skal efter grøn installeret protokolprobe
+  først bestå én
+  armeret golden chain: 12 × 7 → 84;
+  “Læg seks til” → 90 i samme session; “Tak, det var alt” → ét model-close; én teardown,
+  én rearm og næste wake med frisk provider-generation. Derefter kræves 10/10 ubrudte
+  cyklusser, fem med semantisk close og fem med fire sekunders reel stilhed. Hvis den
+  officielle commit/delete-sekvens ikke kan bevises stabilt, må der ikke tilføjes
+  timing-, gain- eller fraseplastre; crossed input skal i stedet lukke sessionen
+  fail-closed. Den meget korte første tur med arabisk diagnosticering forbliver en
+  separat ukendt wake-/audio-boundary-observation, som kræver gennemlytning af device-
+  og providerlyd før enhver lyd- eller firmwareændring. Aktuel fysisk status for den
+  aktive exact v1.13.54-kandidat er canary **0/1** og ubrudte cyklusser **0/10**; intet
+  fysisk resultat arves fra v1.13.53.
+
+### Historisk beslutning 1. september — idle-timeout må aldrig vinde over aktiv brugertale
+
+- **Observeret fejl og stærkeste direkte evidens:** Trace `20260901T092200-847` åbnede
+  opfølgningsgaten ved 7.253 ms, modtog et accepteret provider-`speech_started` ved
+  8.098 ms og modtog intet `speech_stopped`/commit. Ved 13.127 ms lukkede ThinSession
+  som `idle-fallback`; de 5.029 ms fra start til close matcher næste
+  `HEARTBEAT_S=5.0`-tick. Teardown og korreleret rearm gennemførte rent. Dette beviser
+  lokal timeoutfejl, men ikke hvorfor provider-VAD manglede stopkanten.
+- **Hele kæden og nærliggende fejlveje:** fysisk followup-PCM → åben state-ejet mic-gate
+  → provider-VAD-start → fortsat samme Realtime-session → enten matching VAD-stop og
+  svar eller bounded fejl/close → teardown → rearm. Nærliggende races er start lige før
+  idle-deadline, langsom `THINKING`/værktøjsrunde, half-duplex-input der straks ryddes,
+  Talk/full-duplex `Interrupted`, duplicate/stale stop og teardown uden stopkant.
+- **Berørte invarianter og falsificerbar hypotese:** Fire sekunders timeout betyder
+  ubrudt stilhed i `LISTENING`/`LOUNGE_WINDOW`. Hypotesen er, at den eksisterende
+  heartbeat forveksler “ingen ny provider-event” med stilhed, fordi den ikke gemmer en
+  accepteret aktiv talespændvidde og ikke afgrænser idle-close til lyttestates. Et
+  current start→stop-interval skal derfor overleve idle-deadlinen, mens ren stilhed
+  fortsat lukker og den eksisterende max-session stadig er hård ydergrænse.
+- **Ikke-mål:** ingen firmware-, gain-, VAD-, audio-, prompt-, model-, reasoning-,
+  schema-, værktøjs-, playback-, teardown- eller rearmændring; ingen ny timer- eller
+  lifecyclemotor og ingen lokal semantik.
+- **Planlagte regressioner og gates:** reproducer fysisk
+  `LOUNGE_WINDOW → speech_started → idle-deadline → speech_stopped`, deadline-racet,
+  ren stilhed, langsom `THINKING`/værktøjsrunde, answer-gate-clear, Talk-paritet og
+  reset ved wake/teardown. Trace-oraklet skal forstå det shippede `speech_started` og
+  afvise close inde i et åbent start→stop-interval. Kør målrettet test, `fast`, én
+  `lifecycle`, uafhængigt adversarial review og én `release`; ingen SafeEval, fordi
+  Realtime-semantikken er uændret.
+- **Rollback- og fysisk gate:** enhver ændring uden for timeout-owner/oracle/test/docs,
+  enhver idle-close under aktiv tale eller manglende ren-stilhed-close stopper hele
+  kandidaten. Efter exact-commit CI og installation kræves én frisk fysisk canary;
+  først derefter må den tidligere 5+5-klassifikation eller 10/10 åbnes igen.
+- **Faktisk v1.13.52-delta:** ThinSession gemmer én accepteret provider-VAD-spændvidde
+  som mekanisk faktum, separat fra de fem produktstates. Talestart fjerner den aktuelle
+  idle-deadline; matching stop rydder faktummet synkront efter Voice PE's mic-send-lock
+  og går til `THINKING`. Idle-close kræver fortsat `LISTENING`/`LOUNGE_WINDOW`, ingen
+  aktiv tale og en uændret udløbet deadline, som kun armeres ved wake, aktiv re-wake og
+  fysisk followup-open. Provider-metadata kan ikke flytte den. Heartbeat-poll er 250 ms,
+  så firesekundersvinduet har en bounded tolerance uden en ny timer. Trace-oraklet
+  normaliserer shippet `speech_started` og afviser kun `idle-fallback` inde i åben tale;
+  max-duration og explicit stop/error forbliver autoritative closere.
+- **Faktiske fokuserede resultater og review:** Den eksakte feltsekvens, første tur,
+  deadline-race bag mic-lock, ren stilhed, langsom THINKING/værktøjsrunde, provider-
+  metadata, delayed/discarded start, max-session, Talk-paritet, 10 simulerede cyklusser
+  og field-canary/oracle er grønne. Den uafhængige reviewer fandt først et P1-oraclehul,
+  hvor legitime sikkerhedsclosere blev afvist; det er rettet med modtests. Refrosset
+  slutreview er GO med P0=0, P1=0 og P2=0; reviewerens 242 fokuserede tests, Ruff,
+  format, mypy og diff-check er grønne. `scripts/dev lifecycle` er korrekt ikke
+  anvendelig på det samlede release-metadata-scope. Den stærkere autoritative
+  `scripts/dev release --base origin/main` er grøn på 37,8 sekunder med Ruff, format,
+  mypy, hele pytest-suiten og diff-check.
+- **Efterfølgende fysisk status:** v1.13.52 blev siden merged, exact-main-bygget og
+  installeret som dokumenteret øverst. Den fysiske trace `20260901T101334-410` gjorde
+  kandidaten NO-GO på den senere response-owner-fejl og supersedede derfor denne
+  historiske lokale godkendelse. Ingen bestået gate arves af v1.13.53.
+
+### Historisk beslutning 30. august — bevis native Realtime-kontekst mod audiosemantik
+
+- **Observeret fejl og stærkeste direkte evidens:** I den armerede trace
+  `20260828T152317-683` svarede én provider-generation først 84 på tolv gange syv. På
+  “Læg seks til.” henviste Realtime selv til 84, men fortolkede samtidig lydens seks som
+  tres/uklart. En senere ikke-armeret prøve transskriberede diagnostisk “Med tallet seks
+  oveni.”, mens Realtime svarede på “lyd 6”. Begge forløb brugte én lokal session; close,
+  teardown og korreleret rearm var rene. Den diagnostiske transskription og Realtime-
+  modellens direkte audioforståelse er separate processer og må ikke sidestilles.
+- **Hele kæden og nærliggende fejlveje:** fysisk Voice PE-PCM → audio-generation →
+  provider-user-item → response/conversation → assistant-item → fysisk playback →
+  opfølgnings-user-item i samme provider-conversation. Nærliggende alternativer er
+  forkert artifact/provenance, manglende provider-item-ancestry, schema-/promptkonflikt,
+  native audiosemantik eller modelnondeterminisme. Mic-gate og stale transport åbnes kun
+  igen, hvis en korreleret PCM-/generationstrace direkte placerer fejlen dér.
+- **Berørte invarianter, hypotese og ikke-mål:** Realtime ejer fortsat sprog, matematik,
+  kontekst og værktøjsvalg; PodVoice observerer kun mekanikken. Hypotesen er, at
+  provider-konteksten består, mens den native model ikke stabilt fortolker den korte
+  danske lyd. Ingen transcript-first vej, lokal semantik, frase-/matematikrouting,
+  conversation-history replay, firmware-, gain-, VAD-, prompt-, reasoning-, schema-,
+  lifecycle-, playback-, timeout- eller rearmændring er mål for denne kandidat.
+- **Planlagte regressioner og sammensatte gates:** Observer alle provider-user- og
+  assistant-items med conversation-, item-, response-, previous-item- og generation-id
+  uden at ændre udgående wire eller gemme nyt indhold. Udvid exact PCM-replay med 1–5
+  tekstkontroller og 1–5 audioforsøg under ét $5-loft, exact provenance og nul eksterne
+  effekter. Dæk korrekt/brudt `U1 -> A1 -> U2`, duplicate/out-of-order/stale events,
+  tool-items, Talk/typed og Voice PE/audio samt observer on/off-wireidentitet.
+- **Stop og rollback:** En provenancefejl er BLOCKED, ikke produktevidens. Først en frisk
+  exact trace og tekst/PCM-klassifikation må vælge næste ene adfærdsdelta. Enhver wire-,
+  ACK-, dispatch-, latency-, playback- eller lifecycleændring fra observabiliteten
+  ruller hele v1.13.51-deltaet tilbage. HA Green var 30. august ikke tilgængelig fra
+  udviklingsmaskinen via Nabu Casa eller `homeassistant.local`, så live A/B og fysisk
+  canary står åbne og må ikke foregives som resultater.
+- **Faktisk v1.13.51-delta:** Providerobserveren er content-free, bounded og kun
+  installeret i den ene eksplicit armerede samtale; den gendannes på normal teardown,
+  connect-fejl og cancellation. Fysisk trace får version samt `rootfs-v1`-fingerprint,
+  som bygges over den færdige runtime-rootfs inklusive base-runtime, installerede
+  pakker, FLAC, modes og symlinks, men ikke foregiver at være en OCI-manifestdigest.
+  Numerisk A/B kræver matching `rootfs-v1`, model, Prompt V7/hash, fuldt schemahash,
+  room-context, turn-preset og OpenAI-noise før nogen providersocket åbnes. Begge ture
+  kræver en komplet ordnet `U1 -> A1 -> U2 -> A2`-kæde med exact response/generation;
+  tekst kræver request-ACK, lyd kræver audio-commit. Taloraklet afviser blandt andet
+  184 som 84, 190 som 90, negation og modstridende tal. Sent transcript bevarer den
+  allerede bundne ancestry; outputtekst og første lyd bindes til den afsluttede
+  response; ukendt provider-usage stopper hele replayet fail-closed. Panelet kan kun
+  vise grøn ved provenance-match og samtlige 5+5 beståede forsøg. Dockerfile er den
+  eneste ændring uden for add-onens diagnostikkode: den skriver rootfs-fingerprintet
+  ved build. Firmware og al frossen produktionsadfærd ovenfor er uændret.
+- **Faktiske lokale resultater og review:** Den endelige målrettede suite har **509/509**
+  grønne tests for evaluator, providerprotokol, audio trace, rootfs-identitet, Thin,
+  Talk/panel og web. Ruff, formattering, mypy over 42 source-filer og diff-check er
+  grønne. Første adversarial review fandt fire P1-huller i diagnosticeringen: sent
+  transcript overskrev trace, ukendt usage kunne se gratis ud, modeloutput manglede
+  responsebinding, og preset/noise manglede i provenance. Alle fire er rettet med
+  falsificerende regressioner. Det første helt uafhængige slutreview fandt derefter to
+  yderligere P1-huller: ekstra stale/duplicate/function-items kunne ligge ved siden af
+  den forventede providerkæde, og en fejlet/cancelled eval-response uden usage kunne
+  passere den normale terminalgren. Oraklet kræver nu den eksakte direkte-svarsekvens,
+  og alle eval-terminalstatusser stopper på ukendt usage; de fire nye falsifikationer er
+  grønne uden at ændre production-terminaladfærd. En tidligere fuld fast-gate på 1.094
+  tests blev grøn på
+  40,3 sekunder, men blev efterfulgt af disse rettelser og tæller derfor ikke som den
+  endelige releasegate. Det endelige uafhængige review af det refrosne diff gav
+  **GO med P0=0, P1=0 og P2=0**. Derefter bestod præcis én autoritativ
+  `scripts/dev release --base origin/main`: Ruff, formattering, mypy og **1.113/1.113**
+  tests grønne på **40,0 sekunder**. Exact-commit CI og ARM64-build står fortsat åbne.
+- **Præcis kandidat- og fysisk status:** v1.13.51 er lokalt releasegodkendt, men endnu
+  **ikke exact-commit-CI-godkendt, installeret, live-klassificeret eller fysisk golden**.
+  Der findes endnu ingen frisk `rootfs-v1`-bundet Voice PE-trace, ingen betalt 5+5 A/B,
+  ingen fysisk canary og ingen 10/10. HA Green er fortsat den eksterne grænse. Næste
+  tilladte rækkefølge er PR/CI/ARM64 → én installation → frisk armeret trace → den
+  sideeffektfrie 5+5-klassifikation. Først et
+  `GO_TO_PHYSICAL_CANARY` åbner canary; alt andet stopper uden symptompatch.
+
+### Historisk beslutning 28. august — timer-schema må ikke konkurrere med matematik
+
+- **Observeret fejl og stærkeste direkte evidens:** Første tur blev transskriberet som
+  “Hvad er tolv gange syv?”, svaret direkte uden værktøj og afspillet fysisk med
+  `speech-stop -> audible = 1447 ms`. Opfølgningen blev korrekt transskriberet som
+  “Læg seks til.” i samme provider-session, men modellen valgte `list_timers`; den
+  ekstra værktøjsrunde gjorde `speech-stop -> audible = 3883 ms`. “Slut.” gav præcis ét
+  `end_conversation`, én teardown og en korreleret rearm-ACK. Der blev ikke observeret
+  et efterfølgende wake, så rearm-kontinuitet er fortsat ubevist.
+- **Hele kæden og årsagsgrænsen:** Fysisk lyd → providertransskription → Realtime-
+  kontekst → værktøjsvalg → værktøjsresultat → ekstra modelrespons → fysisk playback.
+  Lydgrænsen leverede `[A, B]` som planlagt; fejlen opstod først ved Realtime-
+  værktøjsvalget. Den oplevede “gamle samtale” må derfor ikke bruges som evidens for
+  stale audio i denne trace.
+- **Berørte invarianter og falsificerbar hypotese:** Realtime ejer fortsat matematik,
+  opfølgning og værktøjsvalg. Timer-værktøjer må kun vælges ved en klar timerhensigt.
+  Hypotesen er, at de brede beskrivelser af `set_timer`, `list_timers` og
+  `cancel_timer` lader en kort numerisk opfølgning konkurrere med timerdomænet, selv om
+  standardprompten allerede kræver direkte matematik uden værktøj.
+- **Eksplicitte ikke-mål:** ingen lokal frase-, transcript- eller matematikrouting;
+  ingen firmware-, gain-, VAD-, state-, mic-gate-, playback-, timeout-, teardown-,
+  rearm-, HA/MCP- eller promptændring.
+- **Planlagte regressioner, gates og rollback:** Præcisér kun timerdeklarationernes
+  anvendelsesgrænse og test schemaet statisk. Kør derefter den eksisterende
+  sideeffektfrie Realtime-sekvens mod hele produktionsværktøjskassen fem gange; kun den
+  eksplicitte tidstur må kalde `get_time`, og ingen matematiktur må kalde timer- eller
+  andre domæneværktøjer. Hårdt samlet prisloft er $5. En ulovlig tool-selection stopper
+  kandidaten uden fysisk test. Rollback er hele schema-deltaet ved timerregression eller
+  manglende forbedring; der må ikke tilføjes lokal semantik som plaster.
+- **Faktisk v1.13.50-delta og lokal gate:** Kun beskrivelserne af `set_timer`,
+  `list_timers` og `cancel_timer` er præciseret med den samme model-ejede grænse:
+  seneste klare hensigt skal være en timerhandling; matematik og opfølgning til et
+  ikke-timeremne er eksplicit uden for værktøjets formål. Standardprompten, dispatch og
+  al mekanik er byteuændret. Den statiske schema-regression samt hele den hurtige gate
+  med Ruff, formattering, mypy og fuldt testset er grøn på 38,9 sekunder.
+- **Maskinel kandidatstatus:** Den fokuserede diagnose er nu én femturs-session med
+  matematik → opfølgning → tid → ugedag → modelafslutning og kan køre fem friske
+  sessioner under én samlet $5-grænse uden budgetprobe eller eksterne effekter. Tre
+  positive timer-fixtures beviser samtidig `set_timer`, `list_timers` og `cancel_timer`
+  mod de faktiske produktionsdeklarationer. Fast-gaten er grøn på 39,4 sekunder.
+  Uafhængigt adversarial review genkørte den grøn på 38,7 sekunder og gav GO med
+  P0=0/P1=0.
+- **Resterende stop før installation/fysisk test:** Én releasegate på dette frosne diff,
+  build/CI og installation mangler. Derefter skal den sideeffektfrie live-gate være 5/5
+  på de installerede bits. Live-rapporten skal samtidig bevise den aktive prompt-
+  identitet; en ukendt eller utilsigtet brugerdefineret prompt stopper kandidaten i
+  stedet for at blive skjult af schemaændringen. Først derefter åbnes én fysisk canary;
+  v1.13.50 er endnu ikke fysisk golden.
+
+### Afsluttet beslutning 26. august — én state-ejet mic-gate per Realtime-tur
+
+- **Observeret fejl og stærkeste direkte evidens:** Den armerede fysiske trace
+  `20260826T154813-263` modtog først “Hvad er tolv gange syv?”, men Realtime valgte
+  `get_time(fields=["weekday"])` og svarede “Det er onsdag”. Efter fysisk playback og
+  echo-gate blev næste tur transskriberet som præcis samme matematikspørgsmål og gentog
+  samme forkerte værktøjsrunde. Loggen viser til sidst én idle-teardown, to kørammer
+  drænet ved rearm og en korreleret `recovered`-ACK. Lifecycle kom hjem; input-/tur-
+  sandheden gjorde ikke.
+- **Hele berørte kæde og nærliggende races:** fysisk audio-callback A kan være planlagt,
+  men endnu ikke afviklet, når providerens `speech_stopped` afslutter tur A. Den
+  eksisterende v1.13.48-generation skærer kun ved rearm og kan derfor ikke afvise en
+  forsinket A-callback, der krydser THINKING/playback/echo-halen inden for samme
+  Realtime-session. Den modsatte fejl er at skære ved wake og klippe same-breath-prefix,
+  eller at åbne før fysisk playback-finish og sende højttalerekko som brugerlyd.
+- **Berørte invarianter og falsificerbar hypotese:** Én wake ejer én Realtime-session;
+  `State.LISTENING`/`LOUNGE_WINDOW` er de eneste fysiske mic-åbne states; alle øvrige
+  states er mic-lukkede; hver forsinket callback fra en lukket audio-generation er
+  inert; opfølgningen bevarer samme provider-generation. Hypotesen er, at én synkron
+  audio-boundary ved `speech_stopped`, én ny boundary lige før opfølgningsgaten åbner og
+  den eksisterende rearm-boundary giver providerinput `[A, B]` i stedet for `[A, A]`.
+- **Eksplicitte ikke-mål:** ingen firmware-, gain-, VAD-, prompt-, reasoning-, tool-,
+  playback-, HA/MCP-, Talk-semantik- eller lokal frase-/transcriptændring. Realtime ejer
+  fortsat matematik, værktøjsvalg og `end_conversation`. Den fejlagtige `get_time` må
+  ikke patches lokalt, før ren transport er bevist.
+- **Bindende firesekunders produktkrav:** Planen ændrer samtidig den gemte/default
+  opfølgnings-timeout fra otte til fire sekunder og UI-minimum fra fem til tre. Det er
+  en eksplicit produktbeslutning, ikke en forklaring på stale-audio-fejlen og ikke en
+  modelbeslutning. Regressionen skal bevise default/config/UI-værdien samt mekanisk
+  close efter fire sekunders fysisk stilhed; den fysiske canary skal stadig nå en normal
+  opfølgning inden for vinduet. Hvis den eksakte kandidat klipper en rettidig
+  opfølgning, er kandidaten NO-GO og boundary-deltaet må ikke bortforklare timingfejlen.
+- **Planlagte regressioner, gates og rollback:** Registreret native callback A skal
+  kunne forsinkes over `speech_stopped` og blive afvist; callbacks under playback skal
+  afvises efter opfølgningsboundary; umiddelbar frisk B efter åbning skal bevares én
+  gang. Dæk queue-full, reconnect, duplicate playback-finish, samtidig timeout/close og
+  Talk-paritet. Kør fokussuite, 30/30 sammensat lifecycle, fuld releasegate, uafhængigt
+  adversarial review og én exact fysisk canary. Rollback er hele mic-/audio-boundary-
+  deltaet ved klippet same-breath, død opfølgning, ekstra provider-session, LED/state-
+  divergens eller teardown/rearm-regression. En gentaget stale/replay-fejl stopper
+  videre symptompatching og udløser særskilt plan for at erstatte kun Thin-
+  orkestreringen.
+- **Faktisk v1.13.49-delta:** `VoicePELink.cut_audio_boundary(reason)` øger den allerede
+  eksisterende callback-generation synkront og dræner køen. `ThinSession` bruger de fem
+  eksisterende states som eneste Voice PE-mic-gate og skærer kun på første gyldige
+  `speech_stopped`, efter current playback-lease/epoch er valideret ved ekkohalens slut,
+  og gennem den eksisterende korrelerede rearm-ACK. En gammel ekkohale-task valideres
+  før den må røre køen. Wake skærer aldrig. LED følger samme kæde; ufuldstændig fysisk
+  teardown forbliver rød i stedet for falsk mørk readiness. Ingen `esphome/**`, firmware-
+  ABI, gain, VAD, kanal, prompt, reasoning eller værktøjskontrakt er ændret.
+- **Maskinelle resultater på den frosne kandidat:** Den eksakte callback
+  A→boundary→B-regression, blocked provider-send ved speech-stop, samme-session
+  math/follow-up-isolation, gammel echo-tail efter nyt wake, Talk A→B stop/truncate-
+  races, Talk-transportfejl, LED/reconnect/fault, målrettet v10→v11-timeoutmigration,
+  firmwarekontrakt og fail-closed trace-oracle er grønne. Hele releasegaten med Ruff,
+  formattering, mypy og fuldt unit-/integrationstestsæt bestod på 38,8 sekunder.
+  Uafhængigt adversarial lifecycle-review og separat firmware/LED/single-truth-review
+  gav begge **GO med P0=0 og P1=0**. Exact-commit CI og ARM64-image står fortsat åbne
+  efter commit; dette er maskinel testklarhed, ikke fysisk godkendelse.
+- **Fysisk status:** **IKKE TESTET**. v1.13.49 er ikke golden, ikke 10/10 og ikke
+  97/100, før exact artifact er installeret og den bindende canary plus ubrudte fysiske
+  cyklusser er gennemført.
+
+## Historisk evidens- og beslutningslog — udelukkende baggrund
+
+Alt nedenfor bevares som årsags-, regressions- og rollback-evidens. Historiske ord som
+“skal”, versionsplaner og kandidater er ikke længere aktive beslutninger og må aldrig
+tilsidesætte den aktuelle v1.13.51-beslutning ovenfor, `docs/INVARIANTER.md`,
+`docs/PRODUKTMÅL.md` eller `docs/ARKITEKTUR.md`.
+
+### Historisk beslutning 26. august — sen gammel mic-frame krydsede næste wake
 
 - **Observeret fejl og stærkeste direkte evidens:** På installeret exact v1.13.47 sagde
   brugeren “Okay Nabu, hvad er tolv gange syv?”. Tracens første provider-VAD-turn varede
@@ -139,7 +899,7 @@ v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
   rearm og næste wake. Audio, der først dekodes efter ACK, kan kun afvises eller
   bekræftes af denne fysiske trace.
 
-### Aktiv installationsbeslutning — selvstændig ESPHome-kilde
+### Historisk installationsbeslutning — selvstændig ESPHome-kilde
 
 - **Observeret fejl og stærkeste evidens:** HA's ESPHome Builder kan hente
   `esphome/podvoice.yaml` fra GitHub, men den shippede `external_components`-blok peger
@@ -159,7 +919,7 @@ v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
   `esphome/components/podvoice_audio`; diffet må kun ændre kildeleveringen, og en
   uafhængig reviewer skal kontrollere repo-layout, refresh/ref og rekursion. Rollback er
   hele kildeændringen ved ændret renderet firmware eller manglende komponent.
-- **Aktuelt resultat:** en helt ny ESPHome 2026.6.2-workdir renderer den pinnede Git-
+- **Historisk resultat:** en helt ny ESPHome 2026.6.2-workdir renderer den pinnede Git-
   komponent grønt, og den statiske regression afviser igen en aktiv lokal kilde.
   Uafhængigt adversarial review bekræfter ESPHomes `esphome/components`-opslag, ingen
   rekursion og korrekt komponentafgrænsning; den oprindelige mutable `main`-reference
@@ -197,7 +957,7 @@ v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
   og den eksakte tredje teardown→reset→detector-eventkæde; gain, VAD, prompt og værktøjs-
   semantik må ikke tunes for at maskere dem.
 
-### Aktiv beslutning 26. august — bevar v1.13.43-adfærd og stop blandede kandidater
+### Historisk beslutning 26. august — bevar v1.13.43-adfærd og stop blandede kandidater
 
 - **Beslutningsejer og eksakt baseline:** Lead Voice/Reliability Engineer. Den sidste
   kodebaseline før v1.13.44's private playback er v1.13.43 commit
@@ -294,7 +1054,7 @@ v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
   rearm-kandidat; når golden chain, rearm og auto-connect er bevist på samme bits,
   etableres 1.14-linjen og 10/10 ubrudte fysiske cyklusser køres.
 
-### Aktiv beslutning 26. august — næste wake blev falsk afvist af fast 15k-reservation
+### Historisk beslutning 26. august — næste wake blev falsk afvist af fast 15k-reservation
 
 - **Observeret fejl og stærkeste direkte evidens:** Den installerede exact v1.13.46-
   kæde gennemførte fem Realtime-responskanter i samme session. Providertranscriptet
@@ -357,7 +1117,7 @@ v1.13.46; wake, gain, VAD, playback, prompt og værktøjsskema er frosne.
   `podvoice_build_11346` forbliver eksakt firmwarekontrakt. Først en grøn fuld gate,
   exact image/install og den ovenfor definerede fysiske canary kan flytte status.
 
-### Aktiv beslutningspost — provider-tail og fysisk playback-korrelation
+### Historisk beslutningspost — provider-tail og fysisk playback-korrelation
 
 - **Observeret fejl og stærkeste evidens:** en deterministisk reproduktion af
   `response.done(r) → response.created(r) → audio.delta(r) → response.done(r)` gav
@@ -445,7 +1205,7 @@ auxiliary playback før Realtime-admission, og manglende stop afviser wake.
   releasebevis; exact-SHA CI/ARM64 er nu grøn, mens installerbar bitidentitet fortsat
   mangler.
 
-### Aktiv feltbeslutning 25. august — minimal Realtime-lifecycle uden overfit
+### Historisk feltbeslutning 25. august — minimal Realtime-lifecycle uden overfit
 
 **Observeret på installeret v1.13.41 kl. 13.28–13.29.** Voice PE åbnede én
 Realtime-session. `get_time` lykkedes. Realtime modtog den korrekte transskription
@@ -533,7 +1293,7 @@ speakerlyd samt hele eventrækkefølgen.
   firmwarebevis eller degraderes ærligt, og den observerede ACK-uden-ny-wake-kæde skal
   være en regression. Ingen gain-, VAD-, prompt- eller semantikændring er indiceret af
   denne fejl.
-- **Aktiv rearm-korrektionsgrænse:** hele kæden er afsluttet fysisk playback →
+- **Historisk rearm-korrektionsgrænse:** hele kæden er afsluttet fysisk playback →
   `podvoice_stream_stop` → provider/attention-close → én firmware-rearm → næste
   detektion → én ny session. Berørte invarianter er exactly-once teardown/rearm,
   firmwareejet fysisk wake og sand readiness. Den minimale plan er at fjerne den
@@ -611,7 +1371,7 @@ speakerlyd samt hele eventrækkefølgen.
   golden-label/release, indtil den installerede buildmarkør, fysisk playback-finish,
   teardown/reset og den næste wake→provider-session er bevist på samme kandidat.
 
-### Aktiv feltbeslutning 25. august — falsk semantisk close på matematisk opfølgning
+### Historisk feltbeslutning 25. august — falsk semantisk close på matematisk opfølgning
 
 **Observeret på installeret v1.13.39 kl. 11.42.** Voice PE åbnede én
 Realtime-session. Første tur brugte `get_time`; næste tur “Hvad er tolv gange syv?”
@@ -650,7 +1410,7 @@ derfor intet eksakt provider-PCM fra feltfejlen, som må foregives matchet eller
   HA/MCP-ændring. Hvis lydreplay ikke reproducerer årsagen, stoppes prompt/tool-
   ændringen; v1.13.39 forbliver installeret som diagnostisk, men ikke testgodkendt.
 
-**Aktiv minimal produktbeslutning.** Der findes direkte fysisk eventevidens for samme
+**Historisk minimal produktbeslutning.** Der findes direkte fysisk eventevidens for samme
 session, de to korrekte svar, det efterfølgende committed `end_conversation`-kald,
 farvel-playback, teardown og rearm samt den separate diagnostiske transskription “Læg
 seks til.”. Der findes **ikke** eksakt provider-PCM for target-turnen, fordi audio-trace
@@ -718,7 +1478,7 @@ manifest-/admission-/oracle-/context-gate er **11/11** grøn på 0,47 s; Ruff ch
 grøn på 0,01 s, mypy for `eval_harness.py` var grøn på 0,30 s, og `diff --check` er ren.
 Den genåbner endnu ingen fysisk gate.
 
-### Aktiv feltbeslutning 25. august — Voice PE strandet på cachet DHCP-adresse
+### Historisk feltbeslutning 25. august — Voice PE strandet på cachet DHCP-adresse
 
 **Observeret på installeret v1.13.38 efter strømudfald og HA Green-genstart.** Voice PE
 stod sandt offline i PodVoice, og ESPHome Builder viste først `No status`. PodVoice-loggen
@@ -1355,7 +2115,7 @@ V6-live-preflight på de præcise byggede bits; fysisk golden chain følger før
 
 ### Feltstop 22. august — v1.13.29 havde en unødvendig separat providerprobe
 
-**Observeret fejl og aktiv lead-beslutning.** Den installerede v1.13.29 afsluttede
+**Observeret fejl og daværende lead-beslutning.** Den installerede v1.13.29 afsluttede
 preflight før semantisk eval, fordi en ekstra throwaway Response ikke modtog den
 forventede `rate_limits.updated`. Feltsekvensen var `session.updated` →
 `response.created` → samme `response.done(completed)` uden en logget gyldig rate-event.
@@ -1391,7 +2151,7 @@ Det falsificerer rate-telemetri som obligatorisk cold-admission-autoritet.
 
 ### Feltstop 22. august — v1.13.28 live-preflight og HA-readiness
 
-**Dette er observerede resultater og aktiv beslutning før rettelse.** Der må ikke køres
+**Dette er observerede resultater og daværende beslutning før rettelse.** Der må ikke køres
 flere blinde preflight-genforsøg eller fysisk golden chain på v1.13.28.
 
 - Første sikre providerbudget-probe sluttede som
@@ -1470,7 +2230,7 @@ flere blinde preflight-genforsøg eller fysisk golden chain på v1.13.28.
   eval success/fejl/timeout/cancel/add-on-stop frigiver låsen; næste wake virker; ingen
   HA/MCP/PodConnect-sideeffekt; UI viser aldrig fysisk klar under diagnostik.
 
-#### Aktiv recovery-beslutning — HA/MCP efter Supervisor-start
+#### Historisk recovery-beslutning — HA/MCP efter Supervisor-start
 
 - **Årsagen er nu feltbekræftet:** Den uændrede installerede v1.13.28 genvandt selv
   forbindelsen ved det gamle ti-minutters probeinterval. Loggen viser 502-svar kl.
@@ -1557,7 +2317,7 @@ VAD, transcription, rate limits, costs og GPT-Realtime-2.1. Tre uafhængige revi
 samlet af lead. **Auditten udvider stop-the-line fra replay til runtime-værktøjssikkerhed.**
 Ingen runtimekode, prompt, lyd, VAD eller firmware blev ændret under auditten.
 
-### Aktiv udviklingsbeslutning — providerfinalitet og serverautorisation
+### Historisk udviklingsbeslutning — providerfinalitet og serverautorisation
 
 **Beslutning taget før releasegodkendelse; nedenstående er krav og hypoteser, ikke
 opnåede resultater.** Kandidaten forbliver stop-the-line og må ikke installeres som
@@ -1850,7 +2610,7 @@ reproducerbar releaseevidens: add-on-image, live Prompt V6-eval og fysisk Voice 
 Audio-replay/proveniens er fortsat et separat uløst diagnosespor. Promptens almindelige
 adfærd, gain, VAD, firmware og playback må fortsat ikke ændres for at maskere det.
 
-## Aktuel feltstatus 21. august
+## Historisk feltstatus 21. august
 
 Den installerede v1.13.25 registrerede efter en manuel Voice PE-genstart en rigtig
 fysisk wake kl. 09.57.53. Realtime-socketen nåede `provider_connected` efter 1.341 ms,
@@ -1942,7 +2702,7 @@ stabil ord-/intentgenkendelse. Den må aldrig bruges som lydkvalitetsbaseline al
 |---|---|
 | Én fysisk golden chain | **Bestået på v1.13.11** |
 | Automatisk lifecycle-gate, 10/10 | Bestået i tests; skal altid genkøres på kandidat |
-| Fysisk Voice PE-gate, 10/10 ubrudt | **Mangler; aktuelt fysisk bevis er 1/10** |
+| Fysisk Voice PE-gate, 10/10 ubrudt | **Mangler; daværende fysisk bevis er 1/10** |
 | Svartid p90 ≤ 2,5 s | Ikke bevist; de seneste ture ligger omtrent 2,3–2,9 s |
 | Fuld funktionsmatrix | Ikke godkendt |
 | 7 døgn + Gemini/Alexa-benchmark | Ikke gennemført |

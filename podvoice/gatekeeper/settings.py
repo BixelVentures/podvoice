@@ -49,7 +49,10 @@ def _resolve(path: pathlib.Path | None) -> pathlib.Path:
 # v10: two gain-16 traces proved usable audio but server_vad split a natural follow-up
 # into an empty micro-turn plus the real question.  OpenAI's semantic VAD is designed
 # to wait for semantic completion; auto eagerness keeps the latency/continuity balance.
-SETTINGS_VERSION = 10
+# v11: the binding four-second physical follow-up window must also land on an upgraded
+# installation. Only idle_timeout_s is reset for a v10 file; all other proven tuning
+# survives this targeted lifecycle migration.
+SETTINGS_VERSION = 11
 
 # sha256 of RETIRED default system prompts. A saved prompt matching one of these is
 # just a persisted copy of an old default (the panel saves every field on Save) —
@@ -57,6 +60,8 @@ SETTINGS_VERSION = 10
 # never matches and is always kept.
 LEGACY_PROMPT_HASHES = frozenset(
     {
+        # 1.13.59 default: direct connected Spotify music access.
+        "5320c5569570b35ad41570d0ffc1038830b418dde384ed815c3cd0ff752a4d5b",
         # pre-MCP default (referenced list_home/list_services/home_call) — retired 0.91
         "38e4311b176b5f3696516e36c5d3c38ee4b23294f84753860c01e7a03991619b",
         "0f96cf58ee764eb07fb0d98618ce592e17fea22d92bc1b44fff8d3b79f964ae4",
@@ -178,7 +183,7 @@ DEFAULTS: dict = {
     # worse again. These are the source of truth.
     "mic_channel": 1,  # 1 = AEC/NS without AGC, 0 = the full processed channel
     "mic_gain": 16,  # physically measured desk baseline; re-asserted on every connect
-    "idle_timeout_s": 8,  # close the conversation after this much user silence (owner-tunable 3+)
+    "idle_timeout_s": 4,  # close the conversation after this much user silence (owner-tunable 3+)
     "max_session_min": 15,  # hard ceiling on one conversation (cost control)
     "engine": "thin",  # canonical one-session PodVoice lifecycle
     # the model owns the conversation — turn-taking, barge-in, idle — via server VAD)
@@ -218,8 +223,12 @@ def load_settings(path: pathlib.Path | None = None) -> dict:
     try:
         if src.exists():
             saved = json.loads(src.read_text())
-            if int(saved.get("settings_version") or 1) < SETTINGS_VERSION:
-                stale = sorted(k for k in saved if k in TUNING_KEYS)
+            saved_version = int(saved.get("settings_version") or 1)
+            if saved_version < SETTINGS_VERSION:
+                migration_keys = (
+                    frozenset({"idle_timeout_s"}) if saved_version == 10 else TUNING_KEYS
+                )
+                stale = sorted(k for k in saved if k in migration_keys)
                 if stale:
                     _LOG.info(
                         "settings v%s -> v%s: resetting stale tuning to defaults: %s",
@@ -227,7 +236,7 @@ def load_settings(path: pathlib.Path | None = None) -> dict:
                         SETTINGS_VERSION,
                         ", ".join(stale),
                     )
-                saved = {k: v for k, v in saved.items() if k not in TUNING_KEYS}
+                saved = {k: v for k, v in saved.items() if k not in migration_keys}
                 saved["settings_version"] = SETTINGS_VERSION
                 with contextlib.suppress(Exception):  # migration write-back is best-effort
                     src.write_text(json.dumps(saved, indent=2))

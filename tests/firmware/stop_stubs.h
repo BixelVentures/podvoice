@@ -38,7 +38,11 @@ namespace resampler { class ResamplerSpeaker { public: bool quiet=true; int stop
 }; }
 namespace mixer_speaker {
 class SourceSpeaker { public: bool quiet=true; bool podvoice_quiescent() const { return quiet; } };
-class MixerSpeaker { public: uint32_t pending=0; uint32_t get_frames_in_pipeline() const { return pending; } };
+class MixerSpeaker { public:
+  uint32_t pending=0, consumed=0;
+  uint32_t get_frames_in_pipeline() const { return pending; }
+  uint32_t podvoice_consumed_frames() const { return consumed; }
+};
 }
 namespace text_sensor { class TextSensor { public: std::vector<std::string> values;
   void publish_state(const std::string &v) { values.push_back(v); }

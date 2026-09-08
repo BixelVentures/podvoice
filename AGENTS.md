@@ -33,11 +33,28 @@ og `release` præcis én gang efter diff-freeze og det review, ændringen kræve
 artifact. SafeEval/preflight må kun tilføjes, når ændringen berører prompt, schema,
 værktøjer eller Realtime-semantik.
 
+`fast` cacher kun stabile preflightdele og kører Ruff, format, mypy og fokuseret pytest
+parallelt med isolerede caches; der må ikke tilføjes en separat collection-pass. Målene
+er varm ≤8 s, kold ≤15 s og release ≤45 s. Brug lav intelligens til afgrænsede test-/
+docsreviews; brug Ultra én gang ved diff-freeze for højrisiko ejerskab, stale events,
+sideeffekter og artifact-sandhed — aldrig som standard i hvert loop.
+
 En timeout, sandboxfejl eller flaky test er ikke produktevidens og må ikke udløse en
 runtime-patch. Isolér årsagen én gang; ret workflowet eller testens observerede
 slutbetingelse separat, og genkør kun den gate, som fejlen faktisk ugyldiggjorde. Hvis
 samme procesforsinkelse gentager sig, er næste handling en permanent tooling-regression,
 ikke endnu en manuel workaround.
+
+En sendt provider-control-event er aldrig i sig selv bevis for sin påståede effekt.
+Ved `clear`, `commit`, `delete`, `cancel`, `truncate` og `response.create` skal
+regressionen fortsætte gennem de efterfølgende korrelerede serverevents og bevise den
+tilstand, som runtime bygger videre på. En fake, der kun tæller outbound-kaldet, kan
+ikke godkende ejergrænsen.
+
+Manuel `input_audio_buffer.commit` er aldrig bevis for, at en aktiv provider-VAD er
+terminal. En afvist spændvidde må først frigive næste mic-open efter natural matching
+`speech_stopped`, commit/item og eksakt delete-ACK; manglende terminalkant skal lukke
+samme session bounded fail-closed.
 
 ## Den eneste produktionsretning
 
@@ -54,6 +71,55 @@ Classic (`orchestrator.py`, `state.py`, `gatekeeper.py`, `watchdog.py`) og direc
 karantæneret legacy/regressionskode. De må ikke importeres af add-on-builderen, aktiveres
 af settings eller udvikles som parallel produktionsvej. En ændring dér skal enten fjerne
 legacy eller bevare en historisk regression; den må ikke introducere ny produktlogik.
+
+## Bindende samtaleloop
+
+Al runtime-, firmware-, test- og UI-udvikling skal bevare præcis denne ene kæde:
+
+```text
+IDLE
+  → fysisk “Okay Nabu”
+LISTENING
+  → speech_stopped
+THINKING
+  → fysisk playback_started
+AI_SPEAKING
+  → fysisk playback_finished + ekkohale
+LOUNGE_WINDOW
+  → opfølgning i samme Realtime-session → THINKING → AI_SPEAKING → LOUNGE_WINDOW
+  → Realtime end_conversation eller fire sekunders fysisk stilhed
+CLOSING
+  → præcis én teardown → korreleret firmware-rearm
+IDLE
+```
+
+`CLOSING` er navnet på den ene close-transaction, ikke en sjette `State`; de eneste
+runtime-stateværdier er fortsat de fem produktstates.
+
+Fire sekunders timeout betyder ubrudt fysisk stilhed i en åben lyttefase. En accepteret
+`speech_started` annullerer straks idle-deadlinen indtil matching `speech_stopped`;
+idle-close må atomisk genkontrollere, at state fortsat er `LISTENING` eller
+`LOUNGE_WINDOW`, og at ingen brugertale er aktiv. Timeout må aldrig lukke i `THINKING`,
+`AI_SPEAKING`, en værktøjsrunde eller et åbent start→stop-interval. Regressionen skal
+krydse den virkelige deadline med begge VAD-kanter, ikke springe direkte til stop.
+
+`State` er den eneste half-duplex mic-gate for Voice PE: kun `LISTENING` og
+`LOUNGE_WINDOW` må sende fysisk lyd til Realtime. Talk kan være full-duplex gennem samme
+`ThinSession`, men beviser ikke puckens lydvej. Én synkron audio-generation-grænse må
+kun skæres ved første gyldige `speech_stopped`, efter den aktuelle playback-leases
+fysiske finish plus ekkohale, og ved exact korreleret rearm-ACK. Der skæres aldrig ved
+wake, fordi same-breath-prefix skal bevares.
+
+LED er feedback på samme kæde, ikke en anden state machine: bright cyan ved
+`LISTENING`, amber ved `THINKING`, green først ved fysisk `playback_started`, dim cyan
+ved `LOUNGE_WINDOW` og slukket efter fuld teardown. Fejlet fysisk stop/rearm skal vises
+som fault, ikke falsk mørk readiness. Firmware ejer wake-latch, mic-forward,
+playback-events og rearm-bevis; add-onen sender kun LED-kommandoen for den aktuelle
+`ThinSession`-state.
+
+Enhver løsning med ny session per tur, lokal frase-/matematik-/semantikmotor,
+obligatorisk fortsættelsesværktøj, parallel runtime, wake-cut, timer-ejet turafslutning
+eller uobserveret firmware/gain/VAD/prompt-tuning er modstridende og må ikke merges.
 
 ## Ord med præcis betydning
 

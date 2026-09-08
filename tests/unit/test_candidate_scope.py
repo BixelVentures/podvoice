@@ -42,6 +42,64 @@ def test_candidate_scope_does_not_treat_cross_domain_comment_as_runtime_scope():
     assert report.domains == ("physical_output",)
 
 
+def test_candidate_scope_ignores_diff_headers_and_unchanged_context():
+    report = classify_candidate(
+        ["podvoice/gatekeeper/prompt.py", "tests/unit/test_prompt_contract.py"],
+        "diff --git a/podvoice/gatekeeper/prompt.py b/podvoice/gatekeeper/prompt.py\n"
+        "--- a/podvoice/gatekeeper/prompt.py\n"
+        "+++ b/podvoice/gatekeeper/prompt.py\n"
+        " unchanged realtime playback context\n"
+        "- use local get_time\n"
+        "+ use Home Assistant GetDateTime via MCP\n",
+    )
+
+    assert report.passed
+    assert report.domains == ("ha_tools",)
+
+
+def test_candidate_scope_ignores_unchanged_semantic_tool_on_replaced_json_line():
+    report = classify_candidate(
+        [
+            "podvoice/gatekeeper/eval_scenarios.json",
+            "tests/unit/test_eval_harness.py",
+        ],
+        '- "exact_tool_names": ["get_time", "end_conversation"]\n'
+        '+ "exact_tool_names": ["GetDateTime", "end_conversation"]\n',
+    )
+
+    assert report.passed
+    assert report.domains == ("unclassified_runtime",)
+
+
+def test_candidate_scope_treats_prompt_routing_and_dispatch_as_ha_tools():
+    report = classify_candidate(
+        [
+            "podvoice/gatekeeper/prompt.py",
+            "podvoice/gatekeeper/tools.py",
+            "tests/unit/test_tools_mcp.py",
+        ],
+        "+ Use Home Assistant MCP GetDateTime in the prompt\n"
+        "+ async def dispatch_tool_call(): pass\n",
+    )
+
+    assert report.passed
+    assert report.domains == ("ha_tools",)
+
+
+def test_candidate_scope_never_hides_response_owner_change_inside_ha_tools():
+    report = classify_candidate(
+        [
+            "podvoice/gatekeeper/tools.py",
+            "podvoice/gatekeeper/openai_realtime.py",
+            "tests/unit/test_provider_response_owner.py",
+        ],
+        "+ MCP admission change\n+ send response.created and response.done with a new owner\n",
+    )
+
+    assert not report.passed
+    assert report.domains == ("ha_tools", "realtime_semantics")
+
+
 def test_candidate_scope_allows_process_only_change():
     report = classify_candidate(
         ["scripts/candidate_scope.py", "tests/unit/test_candidate_scope.py"],

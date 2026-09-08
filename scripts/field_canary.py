@@ -29,7 +29,15 @@ def score_canary(trace: dict, *, volume_check: str) -> tuple[bool, list[str]]:
     if volume_check != "pass":
         problems.append(f"volume_control: physical dial check is {volume_check}")
     events = trace.get("events") if isinstance(trace.get("events"), list) else []
-    names = [event.get("event") for event in events if isinstance(event, dict)]
+    names = [
+        (
+            "speech_started_or_interrupted"
+            if event.get("event") == "speech_started"
+            else event.get("event")
+        )
+        for event in events
+        if isinstance(event, dict)
+    ]
     speech_stops = [index for index, name in enumerate(names) if name == "speech_stopped"]
     speech_starts = [
         index for index, name in enumerate(names) if name == "speech_started_or_interrupted"

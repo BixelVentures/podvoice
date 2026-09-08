@@ -51,7 +51,7 @@ class Config:
     mic_channel: int = 1  # device mic tap, re-asserted on every connect
     mic_gain: int = 16  # measured desk baseline, re-asserted on every connect
     wake_word: str = "okay_nabu"  # device wake model, re-asserted on every connect
-    idle_timeout_s: int = 8  # close the conversation after this much user silence
+    idle_timeout_s: int = 4  # close the conversation after this much user silence
     max_session_min: int = 15  # hard ceiling on one conversation (provider caps at 60)
     engine: str = "thin"  # canonical PodVoice lifecycle; classic is legacy only
     reply_streaming: bool = False  # stream the reply FLAC while it generates (experimental)
@@ -153,7 +153,7 @@ def from_options(opts: dict) -> Config:
             in ("okay_nabu", "hey_jarvis", "hey_mycroft")
             else "okay_nabu"
         ),
-        idle_timeout_s=max(_int(opts, "idle_timeout_s", 8), 3),
+        idle_timeout_s=max(_int(opts, "idle_timeout_s", 4), 3),
         max_session_min=min(max(_int(opts, "max_session_min", 15), 1), 55),
         # One production engine. Keeping a saved legacy value must never resurrect the
         # parallel classic lifecycle after an upgrade.

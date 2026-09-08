@@ -179,3 +179,15 @@ async def test_disconnect_releases_stop_waiter_as_failure():
     await asyncio.sleep(0)
     await device._on_disconnect()
     assert await pending is False
+
+
+async def test_cancel_for_old_playback_cannot_stop_current_reply():
+    device = link()
+    await device.play_url("http://reply", playback_id="current")
+    device._call_service.reset_mock()
+    assert not await device.stop_playback(playback_id="old")
+    device._call_service.assert_not_called()
+    pending = asyncio.create_task(device.stop_playback(playback_id="current"))
+    await asyncio.sleep(0)
+    status(device, device._reply_token, "stopped")
+    assert await pending

@@ -350,6 +350,9 @@ void MixerSpeaker::setup() {
 
   // Register callback to track frames in the output pipeline
   this->output_speaker_->add_audio_output_callback([this](uint32_t new_frames, int64_t write_timestamp) {
+    // Publish consumption BEFORE reducing depth. A depth-before-count observer
+    // can then overestimate the remaining fence, but never acknowledge early.
+    this->podvoice_consumed_frames_.fetch_add(new_frames, std::memory_order_release);
     atomic_subtract_clamped(this->frames_in_pipeline_, new_frames);
   });
 

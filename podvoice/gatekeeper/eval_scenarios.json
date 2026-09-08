@@ -2,12 +2,10 @@
   "schema_version": 2,
   "fixture_contracts": [
     {
-      "exact_tool_name": "get_time",
+      "exact_tool_name": "GetDateTime",
       "risk": "read_only",
       "cases": [
-        {"args": {"fields": ["time"]}, "result": {"ok": true, "data": {"time": "14:00"}}},
-        {"args": {"fields": ["weekday"]}, "result": {"ok": true, "data": {"weekday": "mandag"}}},
-        {"args": {"fields": ["week_number"]}, "result": {"ok": true, "data": {"week_number": 34}}}
+        {"args": {}, "result": {"ok": true, "data": {"date": "2026-08-17", "time": "14:00", "weekday": "mandag", "week_number": 34}}}
       ]
     },
     {
@@ -51,10 +49,12 @@
       "exact_tool_names": [],
       "turns": [
         {
-          "text": "Hvad er tolv gange syv?",
+          "text": "Hvad er syv gange tolv?",
           "expect": {
             "direct_answer": true,
             "answer_any": ["84", "fireogfirs"],
+            "numeric_result": 84,
+            "numeric_support": [7, 12],
             "remain_open": true
           }
         },
@@ -63,6 +63,8 @@
           "expect": {
             "direct_answer": true,
             "answer_any": ["90", "halvfems"],
+            "numeric_result": 90,
+            "numeric_support": [6, 84],
             "remain_open": true
           }
         }
@@ -70,14 +72,16 @@
     },
     {
       "id": "arithmetic-followup-observed",
-      "description": "Independent text diagnostic for the observed Danish wording; it does not claim audio equivalence.",
-      "exact_tool_names": [],
+      "description": "One-session semantic golden chain using the observed Danish wording; it does not claim audio equivalence.",
+      "exact_tool_names": ["GetDateTime", "end_conversation"],
       "turns": [
         {
           "text": "Hvad er tolv gange syv?",
           "expect": {
             "direct_answer": true,
             "answer_any": ["84", "fireogfirs"],
+            "numeric_result": 84,
+            "numeric_support": [7, 12],
             "remain_open": true
           }
         },
@@ -86,7 +90,35 @@
           "expect": {
             "direct_answer": true,
             "answer_any": ["90", "halvfems"],
+            "numeric_result": 90,
+            "numeric_support": [6, 84],
             "remain_open": true
+          }
+        },
+        {
+          "text": "Hvad er klokken lige nu?",
+          "expect": {
+            "decision": "GetDateTime",
+            "tool_args": {"GetDateTime": {}},
+            "answer_any": ["fjorten", "14"],
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Og hvilken ugedag er det lige nu?",
+          "expect": {
+            "decision": "GetDateTime",
+            "tool_args": {"GetDateTime": {}},
+            "answer_any": ["mandag"],
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Tak, det var alt for denne test.",
+          "expect": {
+            "decision": "end_conversation",
+            "answer_any": [],
+            "remain_open": false
           }
         }
       ]
@@ -94,13 +126,13 @@
     {
       "id": "time-followup",
       "description": "A current fact uses the safe clock tool and context survives.",
-      "exact_tool_names": ["get_time"],
+      "exact_tool_names": ["GetDateTime"],
       "turns": [
         {
           "text": "Hvad er klokken?",
           "expect": {
-            "decision": "get_time",
-            "tool_args": {"get_time": {"fields": ["time"]}},
+            "decision": "GetDateTime",
+            "tool_args": {"GetDateTime": {}},
             "answer_any": ["fjorten", "14"],
             "remain_open": true
           }
@@ -108,8 +140,8 @@
         {
           "text": "Og hvilken ugedag er det?",
           "expect": {
-            "decision": "get_time",
-            "tool_args": {"get_time": {"fields": ["weekday"]}},
+            "decision": "GetDateTime",
+            "tool_args": {"GetDateTime": {}},
             "answer_any": ["mandag"],
             "remain_open": true
           }
@@ -117,8 +149,8 @@
         {
           "text": "Og hvilket ugenummer er det?",
           "expect": {
-            "decision": "get_time",
-            "tool_args": {"get_time": {"fields": ["week_number"]}},
+            "decision": "GetDateTime",
+            "tool_args": {"GetDateTime": {}},
             "answer_any": ["34", "fireogtredive"],
             "remain_open": true
           }
@@ -213,7 +245,7 @@
     {
       "id": "web-routing",
       "description": "A current sports result routes to web and uses only its fixture.",
-      "exact_tool_names": ["google_web_sogning", "get_time"],
+      "exact_tool_names": ["google_web_sogning", "GetDateTime"],
       "turns": [
         {
           "text": "Hvordan gik FCK i deres seneste kamp?",
@@ -231,7 +263,7 @@
               ]
             },
             "tool_outcomes": {"google_web_sogning": ["ok"]},
-            "forbid": ["get_time"],
+            "forbid": ["GetDateTime"],
             "remain_open": true
           }
         }

@@ -175,3 +175,17 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
     assert "path: esphome/components" in source
     assert re.search(r"ref: [0-9a-f]{40}\n", source)
     assert "ref: 7a81707e8b722fcd4e50203f0f47f6f0117e2725" in source
+
+
+def test_output_fence_uses_one_ordered_mixer_callback():
+    source = (ROOT / "esphome/components/mixer/speaker/mixer_speaker.cpp").read_text()
+    callback = source.split("void MixerSpeaker::setup()", 1)[1].split(
+        "void MixerSpeaker::loop()", 1
+    )[0]
+    assert callback.index("podvoice_consumed_frames_.fetch_add") < callback.index(
+        "atomic_subtract_clamped(this->frames_in_pipeline_"
+    )
+    owner = (ROOT / "esphome/components/podvoice_reply/podvoice_reply.h").read_text()
+    assert "add_audio_output_callback" not in owner
+    assert "output_frames_" not in owner
+    assert "fence_anchor_ = mixer_->podvoice_consumed_frames()" in owner

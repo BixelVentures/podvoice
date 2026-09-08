@@ -2,7 +2,31 @@ import json
 import os
 import wave
 
-from gatekeeper.audio_trace import AudioTraceRecorder
+import pytest
+
+from gatekeeper import runtime_artifact_identity, runtime_artifact_sha256
+from gatekeeper.audio_trace import (
+    PROVIDER_TRACE_BYTES_MAX,
+    PROVIDER_TRACE_EVENTS_MAX,
+    PROVIDER_TRACE_STRING_MAX,
+    AudioTraceRecorder,
+)
+
+
+def test_runtime_artifact_identity_is_deterministic_and_bounded():
+    first = runtime_artifact_sha256()
+    second = runtime_artifact_sha256()
+
+    assert first == second
+    assert len(first) == 64
+    assert set(first) <= set("0123456789abcdef")
+    assert runtime_artifact_identity() == ("source-fallback-v1", first)
+
+
+def test_unarmed_trace_never_evaluates_metadata_factory(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+
+    assert recorder.begin("r0", lambda: (_ for _ in ()).throw(AssertionError)) is False
 
 
 def test_one_shot_trace_saves_input_provider_and_speaker_boundaries(tmp_path):
@@ -168,6 +192,113 @@ def test_trace_is_bounded_and_rejects_unsafe_artifact_names(tmp_path):
     assert recorder.artifact(manifest["id"], "other") is None
 
 
+def test_provider_trace_string_overflow_emits_one_marker_and_stops_growth(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    assert recorder.begin("r0") is True
+
+    recorder.provider_event(
+        "provider_response_done",
+        response_id="r-1",
+        status="x" * (PROVIDER_TRACE_STRING_MAX + 1),
+    )
+    after_marker = list(recorder._events)
+    for index in range(1000):
+        recorder.provider_event("provider_response_done", response_id=f"r-{index}")
+
+    assert recorder._events == after_marker
+    markers = [row for row in recorder._events if row["event"] == "provider_trace_truncated"]
+    assert len(markers) == 1
+    assert markers[0]["reason"] == "string_limit"
+    assert markers[0]["field"] == "status"
+
+
+def test_provider_trace_string_cap_is_utf8_bytes_not_codepoints(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    assert recorder.begin("r0") is True
+
+    recorder.provider_event(
+        "provider_response_done",
+        response_id="🙂" * (PROVIDER_TRACE_STRING_MAX // 4 + 1),
+    )
+
+    assert recorder._events[-1]["event"] == "provider_trace_truncated"
+    assert recorder._events[-1]["reason"] == "string_limit"
+
+
+def test_provider_trace_has_strict_event_and_canonical_byte_caps(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    assert recorder.begin("r0") is True
+
+    for index in range(PROVIDER_TRACE_EVENTS_MAX * 2):
+        recorder.provider_event(
+            "provider_response_done",
+            response_id=f"response-{index}",
+            status="completed",
+            generation=index,
+        )
+
+    provider_rows = [row for row in recorder._events if row["event"].startswith("provider_")]
+    encoded_bytes = len(
+        json.dumps(provider_rows, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    )
+    assert len(provider_rows) == PROVIDER_TRACE_EVENTS_MAX
+    assert encoded_bytes <= PROVIDER_TRACE_BYTES_MAX
+    assert sum(row["event"] == "provider_trace_truncated" for row in provider_rows) == 1
+    assert provider_rows[-1]["event"] == "provider_trace_truncated"
+
+
+def test_provider_trace_byte_cap_truncates_before_event_cap(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    assert recorder.begin("r0") is True
+    wide = "x" * PROVIDER_TRACE_STRING_MAX
+
+    for index in range(PROVIDER_TRACE_EVENTS_MAX):
+        recorder.provider_event(
+            "provider_response_done",
+            event_id=f"event-{index}",
+            response_id=wide,
+            conversation_id=wide,
+            request_id=wide,
+            provider_event_type=wide,
+            previous_item_id=wide,
+            item_id=wide,
+            item_type=wide,
+            role=wide,
+            status=wide,
+            call_id=wide,
+        )
+
+    provider_rows = [row for row in recorder._events if row["event"].startswith("provider_")]
+    encoded_bytes = len(
+        json.dumps(provider_rows, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    )
+    assert len(provider_rows) < PROVIDER_TRACE_EVENTS_MAX
+    assert encoded_bytes <= PROVIDER_TRACE_BYTES_MAX
+    assert provider_rows[-1]["event"] == "provider_trace_truncated"
+    assert provider_rows[-1]["reason"] == "event_or_byte_limit"
+
+
+def test_truncated_provider_trace_cannot_be_replayed(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    assert recorder.begin("r0") is True
+    recorder.audio("provider", b"\x00\x00" * 4800, 24000)
+    recorder.event("speech_started")
+    recorder.event("speech_stopped")
+    recorder.provider_event(
+        "provider_response_done",
+        response_id="x" * (PROVIDER_TRACE_STRING_MAX + 1),
+    )
+    manifest = recorder.finish("test")
+
+    with pytest.raises(ValueError, match="providertrace blev afkortet"):
+        recorder.replay_turn(manifest["id"])
+
+
 def test_event_detail_may_be_named_name(tmp_path):
     """Tool events carry a name detail; tracing it must never kill the provider reader."""
     recorder = AudioTraceRecorder(tmp_path)
@@ -195,6 +326,11 @@ def test_trace_events_capture_exact_provider_sample_offsets_and_replay_a_turn(tm
                 "prompt_version": 6,
                 "prompt_sha256": "b" * 64,
                 "room_context_sha256": "c" * 64,
+                "podvoice_version": "1.13.51",
+                "artifact_identity_kind": "rootfs-v1",
+                "artifact_sha256": runtime_artifact_sha256(),
+                "turn_preset": "responsive",
+                "openai_noise": "off",
             },
         )
         is True
@@ -224,6 +360,11 @@ def test_trace_events_capture_exact_provider_sample_offsets_and_replay_a_turn(tm
     assert fixture["source_prompt_version_present"] is True
     assert fixture["source_prompt_sha256"] == "b" * 64
     assert fixture["source_room_context_sha256"] == "c" * 64
+    assert fixture["source_podvoice_version"] == "1.13.51"
+    assert fixture["source_artifact_identity_kind"] == "rootfs-v1"
+    assert fixture["source_artifact_sha256"] == runtime_artifact_sha256()
+    assert fixture["source_turn_preset"] == "responsive"
+    assert fixture["source_openai_noise"] == "off"
     assert fixture["duration_ms"] == 300
     assert fixture["begin_sample"] == 0
     assert fixture["end_sample"] == 7200
@@ -260,6 +401,11 @@ def test_old_trace_fallback_only_allows_first_turn_before_playback(tmp_path):
     assert fixture["source_prompt_version_present"] is False
     assert fixture["source_prompt_sha256"] is None
     assert fixture["source_room_context_sha256"] is None
+    assert fixture["source_podvoice_version"] is None
+    assert fixture["source_artifact_identity_kind"] is None
+    assert fixture["source_artifact_sha256"] is None
+    assert fixture["source_turn_preset"] is None
+    assert fixture["source_openai_noise"] is None
     assert fixture["duration_ms"] == 2400
 
     raw = json.loads((tmp_path / f"{trace_id}.json").read_text())

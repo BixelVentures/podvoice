@@ -177,6 +177,7 @@ class VoicePELink:
         # then advance monotonically inside that epoch.
         self._rearm_token = secrets.randbits(30)
         self._rearm_expected_token: int | None = None
+        self._last_rearm_token: int | None = None
         # same_breath firmware emits its explicit event at the local wake edge and the
         # stock VA reports the same physical wake again through handle_start ~300 ms
         # later.  Remember the first edge so the latter remains an ACK/fallback rather
@@ -1021,6 +1022,36 @@ class VoicePELink:
                 break
         return n
 
+    @property
+    def audio_generation(self) -> int:
+        """Current device-audio generation used to reject delayed callbacks."""
+        return self._audio_epoch
+
+    @property
+    def rearm_token(self) -> int | None:
+        """Last exact firmware token that completed with ``recovered``."""
+        return self._last_rearm_token
+
+    def cut_audio_boundary(self, reason: str) -> tuple[int, int]:
+        """Synchronously close one audio generation and discard its queued tail.
+
+        ``aioesphomeapi`` invokes the native audio callback synchronously but schedules
+        the returned coroutine. Advancing the generation before draining therefore
+        makes already-captured callbacks inert even when they run after this method.
+        The caller owns *when* a boundary is authoritative; this primitive owns only
+        the mechanical generation cut.
+        """
+        self._audio_epoch += 1
+        dropped = self.drain_mic()
+        log.debug(
+            "voicepe %s: audio boundary cut reason=%s generation=%d dropped=%d",
+            self.host,
+            reason,
+            self._audio_epoch,
+            dropped,
+        )
+        return self._audio_epoch, dropped
+
     def pcm_frames(self) -> AsyncIterator[bytes]:
         """Async-iterate raw 16 kHz PCM frames as they arrive."""
 
@@ -1078,9 +1109,8 @@ class VoicePELink:
                         # This synchronous state callback is the exact cross-generation
                         # barrier. Advance before waking Thin; already-scheduled audio
                         # tasks retain their old epoch and will fail closed when run.
-                        self._audio_epoch += 1
                         try:
-                            stale = self.drain_mic()
+                            _generation, stale = self.cut_audio_boundary("rearm-ack")
                         except Exception:
                             log.exception(
                                 "voicepe %s: mic boundary drain failed after rearm ACK",
@@ -1088,6 +1118,7 @@ class VoicePELink:
                             )
                             outcome = "fault"
                         else:
+                            self._last_rearm_token = int(token_text)
                             if stale:
                                 log.info(
                                     "voicepe %s: cleared %d queued mic frames at rearm boundary",
@@ -1321,9 +1352,11 @@ class VoicePELink:
             "podvoice_stop_word_enable" if on else "podvoice_stop_word_disable"
         )
 
-    async def stop_playback(self) -> bool:
+    async def stop_playback(self, *, playback_id: str | None = None) -> bool:
         """True only for a correlated firmware drain ACK; send success is insufficient."""
         async with self._reply_stop_lock:
+            if playback_id is not None and playback_id != self._reply_id:
+                return False
             if self._client is None or self._reply_status_key is None:
                 return False
             if self._reply_id is None and self._orphan_reply_token:

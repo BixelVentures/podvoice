@@ -148,6 +148,10 @@ class MixerSpeaker : public Component {
 
   speaker::Speaker *get_output_speaker() const { return this->output_speaker_; }
 
+  // Monotonic output count is published before the matching pending-depth decrement.
+  uint32_t podvoice_consumed_frames() const {
+    return this->podvoice_consumed_frames_.load(std::memory_order_acquire);
+  }
   /// @brief Returns the current number of frames in the output pipeline (written but not yet played)
   uint32_t get_frames_in_pipeline() const { return this->frames_in_pipeline_.load(std::memory_order_acquire); }
 
@@ -168,6 +172,7 @@ class MixerSpeaker : public Component {
 
   optional<audio::AudioStreamInfo> audio_stream_info_;
 
+  std::atomic<uint32_t> podvoice_consumed_frames_{0};
   std::atomic<uint32_t> frames_in_pipeline_{0};  // Frames written to output but not yet played
   uint32_t all_stopped_since_ms_{0};             // Debounce transient all-stopped windows before stopping task
 };

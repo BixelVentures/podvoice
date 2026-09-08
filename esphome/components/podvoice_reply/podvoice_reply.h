@@ -6,7 +6,6 @@
 #include "esphome/components/resampler/speaker/resampler_speaker.h"
 #include "esphome/components/micro_wake_word/streaming_model.h"
 #include "esphome/components/text_sensor/text_sensor.h"
-#include <atomic>
 
 namespace esphome::podvoice_reply {
 class PodVoiceReply : public Component {
@@ -19,9 +18,6 @@ class PodVoiceReply : public Component {
   void set_status(text_sensor::TextSensor *v) { status_ = v; }
   void set_stop_model(micro_wake_word::WakeWordModel *v) { stop_model_ = v; }
   void setup() override {
-    output_->add_audio_output_callback([this](uint32_t frames, int64_t) {
-      output_frames_.fetch_add(frames, std::memory_order_release);
-    });
     update_model_();
   }
   void play(const std::string &token, const std::string &url) {
@@ -68,10 +64,10 @@ class PodVoiceReply : public Component {
     if (!fence_armed_) {
       // Snapshot depth BEFORE counter: conservative if an output callback races.
       fence_frames_ = mixer_->get_frames_in_pipeline();
-      fence_anchor_ = output_frames_.load(std::memory_order_acquire);
+      fence_anchor_ = mixer_->podvoice_consumed_frames();
       fence_armed_ = true;
     }
-    const bool advanced = static_cast<uint32_t>(output_frames_.load(std::memory_order_acquire) - fence_anchor_) >= fence_frames_;
+    const bool advanced = static_cast<uint32_t>(mixer_->podvoice_consumed_frames() - fence_anchor_) >= fence_frames_;
     // No new announcement reference exists. A stopped sink with zero pipeline
     // depth also proves drain when a conservative snapshot outlasted final audio.
     const bool empty = output_->is_stopped() && mixer_->get_frames_in_pipeline() == 0;
@@ -103,7 +99,6 @@ class PodVoiceReply : public Component {
   speaker::Speaker *output_;
   text_sensor::TextSensor *status_;
   micro_wake_word::WakeWordModel *stop_model_;
-  std::atomic<uint32_t> output_frames_{0};
   uint32_t fence_frames_{0}, fence_anchor_{0}, drain_started_{0};
   bool fence_armed_{false}, producer_stopped_{false}, timer_required_{false};
 };

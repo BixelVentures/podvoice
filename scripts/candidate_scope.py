@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import re
 import subprocess
@@ -36,8 +37,9 @@ _DOMAIN_PATTERNS = {
         re.IGNORECASE,
     ),
     "physical_output": re.compile(
-        r"playback|reply_player|reply_play|announcement|resampler|mixer|speaker|flac|"
-        r"volume|rotary|encoder|dial|mute|unmute",
+        r"playback|reply_player|reply_play|announcement|resampler|mixer|speaker_path|"
+        r"play_(?:url|pcm)|flac|set_volume|volume_call|rotary|encoder|\bdial\b|"
+        r"\bmute\b|\bunmute\b",
         re.IGNORECASE,
     ),
     "audio_input": re.compile(
@@ -45,7 +47,8 @@ _DOMAIN_PATTERNS = {
         re.IGNORECASE,
     ),
     "realtime_semantics": re.compile(
-        r"openai|realtime|response\.(?:created|done)|semantic|prompt|tool_call|transcript",
+        r"response\.(?:created|done)|ResponseStarted|TurnComplete|InputTranscript|"
+        r"OutputTranscript|reasoning|semantic_vad|end_conversation|wait_for_user",
         re.IGNORECASE,
     ),
     "ha_tools": re.compile(
@@ -67,13 +70,27 @@ def classify_candidate(changes: Sequence[str], production_diff: str) -> Candidat
     # Comments explain adjacent invariants and routinely name other domains. They are
     # evidence for reviewers, not executable scope; classifying them made a volume-only
     # change look semantic merely because its comment said "gain semantics".
-    code_lines: list[str] = []
+    # Classify the text that actually changed, not unchanged words carried on a
+    # replaced line. Example: replacing ``get_time`` with ``GetDateTime`` must not
+    # classify the unchanged sibling ``end_conversation`` as a semantic change.
+    removed: list[str] = []
+    added: list[str] = []
     for line in production_diff.splitlines():
-        body = line[1:] if line.startswith(("+", "-")) else line
-        if body.lstrip().startswith(("#", "//")):
+        if line.startswith("---") or line.startswith("+++"):
             continue
-        code_lines.append(body)
-    production_code = "\n".join(code_lines)
+        if line.startswith("-"):
+            removed.append(line[1:])
+        elif line.startswith("+"):
+            added.append(line[1:])
+    old_code = "\n".join(line for line in removed if not line.lstrip().startswith(("#", "//")))
+    new_code = "\n".join(line for line in added if not line.lstrip().startswith(("#", "//")))
+    changed_fragments: list[str] = []
+    matcher = difflib.SequenceMatcher(a=old_code, b=new_code, autojunk=False)
+    for tag, old_start, old_end, new_start, new_end in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        changed_fragments.extend((old_code[old_start:old_end], new_code[new_start:new_end]))
+    production_code = "\n".join(changed_fragments)
     domains = {
         name for name, pattern in _DOMAIN_PATTERNS.items() if pattern.search(production_code)
     }
