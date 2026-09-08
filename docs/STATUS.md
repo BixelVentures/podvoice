@@ -16,6 +16,33 @@ ikke kan afbryde næste forbindelse. Ingen gain/model-cutoff/Realtime-tuning.
 Komponent-pin 305b510 er uændret, men den samlede firmware får Hey Chat-modellen og
 skal kompileres igen. Integration, uafhængigt review, ny fingerprint og releasegate
 kræves mod denne main. Ingen installation eller fysisk bevis er autoriseret/udført.
+Sammensat regression med rigtig adapter/Thin er grøn: tilbageholdt wakevalg-ACK →
+orphan stop/drain → rearm-ACK+wake i samme batch → bevaret PCM → nyt abonnement,
+hvor gammelt token-gyldigt stop er inert. Uafhængigt review: P0=0/P1=0; reviewer har
+verificeret den nye fingerprint over alle 73 effektive produktionsfiler. Kombineret
+firmware kompilerer (26,12 s), genereret main.cpp indeholder Hey Chat, begge ACK/status-
+kanaler og 11363-markøren. Alle 10 komponent-C++-filer matcher pin305b510 byte for byte.
+Første fast-forsøg blev afbrudt pga. Hey Chats nye fixture uden reply-status-felt;
+fixture er nu tilpasset, uden runtime-workaround. Den frosne releasegate er grøn
+(28,6 s): 1354 tests, Ruff/format, mypy og exact-coupling-scope. Kun denne
+resultattekst er ændret efter gaten. Ingen fjern-CI eller fysisk funktion er bevist.
+GitHub-main er frisk bekræftet som fe6c471. Automatisk review afviste fortsat push,
+fordi eksplicit publicering af kode til GitHub-destinationen ikke var godkendt.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "fe6c471e9bfaf4031bbeb8709fc6f23a3299286f",
+  "merge_base": "fe6c471e9bfaf4031bbeb8709fc6f23a3299286f",
+  "domains": [
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "b61a027a3600c08341b65e4787ec8177ee043b42865aed7a96ac5af199779ae9",
+  "reviewer": "/root/stop_merge_review",
+  "rationale": "The requested local stop drains its owned playback before the same teardown rearms; Hey Chat admission from base is preserved."
+}
+-->
 
 ## Merge-kandidat 8. september 2026
 
