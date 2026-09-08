@@ -119,6 +119,12 @@ dummy-testcredentials, ingen installation. Produktionsdiff fryses nu til release
 }
 -->
 
+Frosset releasegate på 26d10af mod6360104: grøn på42,3 s. Exact-coupling-scope,
+Ruff/format, mypy44filer,1175unit og332integration =1507tests består. Produktionsdiff
+var uændret under gate; kun denne resultattekst tilføjes bagefter. Kandidaten går nu
+til ét PR-flow med exact-head CI/ARM64 før den autoriserede merge. Live semantisk og
+fysisk gate er fortsat pending, og ingen Stop-v2-firmware er installeret.
+
 ## Aktiv lead-beslutning — præcist handlingsmål, 8. september 2026
 
 Lead: Codex. 1.13.65 er merget, publiceret og installeret som godkendt diagnostik,
