@@ -556,6 +556,11 @@
           <label for="s_ha_mcp_token">HA MCP token</label>
           <input id="s_ha_mcp_token" type="password" autocomplete="off" placeholder="(blank = the add-on's own token)">
           <span></span><span id="s_ha_mcp_token_hint" class="sub" style="display:none;font-size:.76rem">Gemt — skriv for at erstatte.</span>
+          <label for="s_extended_device_control">Udvidet enhedsstyring</label>
+          <input id="s_extended_device_control" type="checkbox" aria-describedby="s_device_control_help">
+          <label for="s_device_control_entities">Tilladte Roborock-entiteter</label>
+          <textarea id="s_device_control_entities" rows="5" spellcheck="false" aria-describedby="s_device_control_help" placeholder="vacuum.…&#10;select.…"></textarea>
+          <span></span><p id="s_device_control_help" class="sub">Eksperimentel, slået fra som standard. Angiv én entitet pr. linje: robotten, rengøringsindstillingerne og valgt kort (læses kun). Højst 12. Kræver Supervisor-adgang. Tilføjer kun to værktøjer fra næste samtale; Assist og Spotify bevares. Gem deaktivering for straks at blokere nye handlinger. En startet rengøring stoppes ikke. Fysisk Roborock-test afventer.</p>
         </div>
         <p class="sub" style="margin:2px 0 0">PodConnect is what dims the music. The MCP fields are only for setups where the Supervisor proxy can't reach HA's MCP server — then point the URL at <code>http://&lt;ha&gt;:8123/api/mcp</code> with a long-lived access token. You normally never change these.</p>
 
@@ -1945,7 +1950,8 @@ setInterval(function () {
     "openai_turn", "openai_threshold", "openai_prefix_ms", "openai_silence_ms", "openai_eagerness",
     "mic_channel", "mic_gain", "openai_noise",
     "duck_level", "system_prompt", "panel_lan_open",
-    "podconnect_base_url", "podconnect_token", "ha_mcp_url", "ha_mcp_token"];
+    "podconnect_base_url", "podconnect_token", "ha_mcp_url", "ha_mcp_token",
+    "extended_device_control", "device_control_entities"];
   var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1, mic_channel: 1, mic_gain: 1,
               openai_threshold: 1, openai_prefix_ms: 1, openai_silence_ms: 1 };
   var settingsDirty = false;
@@ -1960,10 +1966,12 @@ setInterval(function () {
   }
   function setVal(id, v) {
     var e = f(id); if (!e) return;
+    if (id === "device_control_entities") { e.value = Array.isArray(v) ? v.join("\n") : ""; return; }
     if (e.type === "checkbox") e.checked = !!v; else e.value = (v == null ? "" : v);
   }
   function getVal(id) {
     var e = f(id); if (!e) return undefined;
+    if (id === "device_control_entities") return e.value.split(/\r?\n/).map(function (v) { return v.trim(); }).filter(Boolean);
     if (e.type === "checkbox") return e.checked;
     if (NUM[id]) { var n = parseFloat(e.value); return isNaN(n) ? undefined : n; }
     return e.value;

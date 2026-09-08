@@ -351,6 +351,13 @@ async def run(cfg: Config) -> None:
     mcp_token = cfg.ha_mcp_token or cfg.supervisor_token
     mcp = HomeAssistantMCP(mcp_url, mcp_token, ha_client) if mcp_token else None
     tools = ToolRouter(mcp, supervisor_token=cfg.supervisor_token, client=ha_client, hub=hub)
+    tools.configure_device_control(load_settings())
+
+    def save_runtime_settings(values: dict) -> dict:
+        saved = save_settings(values)
+        tools.configure_device_control(saved)
+        return saved
+
     if attention is not None:
         # Room names power the model's default speaker (see _build_session): without
         # them every media call fails with HA's "multiple targets".
@@ -547,7 +554,7 @@ async def run(cfg: Config) -> None:
             **masked(load_settings()),  # tokens/PSK never leave the box in cleartext
             "system_prompt_default": SETTINGS_DEFAULTS["system_prompt"],
         },
-        settings_set=save_settings,
+        settings_set=save_runtime_settings,
         on_restart=lambda: _restart_addon(cfg.supervisor_token),
         diag=diag,
         tools=tools,

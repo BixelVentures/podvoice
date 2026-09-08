@@ -2,6 +2,111 @@
 
 Senest opdateret: 2026-09-08.
 
+## Aktiv lead-beslutning — afgrænset enhedsstyring, 8. september 2026
+
+Lead: Codex. Brugeren har godkendt planen og implementering på frisk main `c85eca5`
+(1.13.64). Separat usynkroniseret worktree; eksisterende dirty workspace bevares.
+Observation: Assist-kataloget giver ikke modellen Roborocks komplette kombination af
+indstillinger, segmenter og gentagelser. Direkte evidens er ToolRouters statiske
+Assist-admission og HA 2026.9.0 Roborock-kilde: get_maps, cleaning-selects og
+app_segment_clean. Ingen frisk fysisk Qrevo-test foreligger.
+Hypotese: to bounded HA-værktøjer med on-demand capabilities og præcis validering
+giver Realtime de manglende handlinger uden ændring i samtalemotor eller musikvej.
+Kæde: wake/input → Realtime completed/commit → eksisterende ToolRouter-policy →
+friske HA-metadata/indstillinger → én tilladt handling → resultat → Realtime-svar →
+playback → teardown/rearm → næste wake. Cancellation, stale schema/config/kort,
+duplikater, uvis HA-start og fejl mellem indstillinger/start skal afvises sikkert.
+Berørt kontrakt: HA ejer live-data/handlinger; server ejer autorisation; lifecycle
+10–15 (korrelation, commit, sideeffekter og budget) bevares. Den eksisterende statiske
+HA-serviceadapter udvides eksplicit; Assist erstattes ikke. Ikke-mål: firmware, lyd,
+VAD, gain, timeouts, lokal taleparser, HA-scripts, HA-MCP-installation og nye
+adminhandlinger/adgangsrettigheder.
+Plan: default off, eksplicit entity-allowlist, to statiske schemas højst 6 KiB,
+friske lovlige værdier og aktivt Roborock-kort før start; ingen automatisk retry.
+Regressioner: off-paritet, præcis +2 tools, rå service-/target-injektion, forkert
+integration/device/select, ændret kort/options, disable under read, timeout og fejl;
+eksisterende Thin/Talk commit/lifecycle samt lys/Spotify. SafeEval uden HA-sideeffekter,
+uafhængigt adversarial review og frosset releasegate kræves før publicering.
+Rollback: slå funktionen fra (nye handlinger afvises straks), eller fjern hele
+kandidatdiffet. En allerede afsendt robotopgave stoppes ikke af toggle/rollback.
+Status: implementering startet; ikke testklar, udgivet, installeret eller fysisk bevist.
+Fysisk golden chain, 10/10, to køkkenpassager og før/efter musik-/lyslatens afventer.
+
+Første lokale kandidat: default-off settings og to schema-deklarationer, on-demand
+read-only registry (`config/entity_registry/get_entries`), state og `roborock.get_maps`.
+Kun cleaning_mode/mop_mode/mop_intensity på samme tilladte Roborock-device kan ændres;
+selected_map skal også tillades og læses kun. Engangscapabilities bindes til præcis
+session/tur/config-generation, registeridentitet og kort. Hver indstilling læses tilbage,
+og tidligere bekræftede værdier kontrolleres før næste handling. Start er ét præcist
+`app_segment_clean` med segmentliste og repeat, aldrig et ekstra Assist-startkald.
+HA-ACK markeres eksplicit som ikke-fysisk bevis. Ingen runtime/prompt/firmware-tuning.
+
+Frisk upstream-kontrakt er kontrolleret mod HA 2026.9.0:
+[Roborock vacuum](https://github.com/home-assistant/core/blob/2026.9.0/homeassistant/components/roborock/vacuum.py),
+[cleaning/map selects](https://github.com/home-assistant/core/blob/2026.9.0/homeassistant/components/roborock/select.py),
+[entity registry](https://github.com/home-assistant/core/blob/2026.9.0/homeassistant/components/config/entity_registry.py).
+Dette er kildeverifikation, ikke verification af installeret HA-version eller Qrevo.
+
+Testforløb: første brede kørsel kunne ikke åbne localhost i sandbox; ingen runtime-
+workaround. Den efterfølgende kørsel fandt kolliderende unit-/integration-filnavne;
+integrationstesten fik særskilt navn. Korrigeret `scripts/dev fast --base origin/main`
+er grøn på kandidatens samlede testsuite, Ruff/format og mypy (52,5 s). 41 nye unit-
+cases og 8 sammensatte cases dækker de to værktøjer, registerprotokol, identitet/kort,
+engangskald, disable/cancellation/timeout, indstillingsreadback, eksisterende Assist/
+Spotify-kald uden ekstra opslag samt Thin/Talk commit og replay. Scope er kun ha_tools.
+Fast-tiden overskrider toolingmålet og er ikke latency-evidens for produktet.
+
+Resterende arbejde før aktivering: uafhængigt review, fokuseret sideeffektfri live
+Realtime-eval med den udvidede kontrakt, browserbetjening og fysisk Qrevo-verifikation.
+Det eksisterende SafeEval-profile indeholder endnu ikke disse to fixture-kontrakter;
+et grønt gammelt profile kan derfor ikke godkende denne feature. Ingen installation,
+fysisk funktion, robot-repeat eller uændret fysisk musik-/lyslatens er bevist.
+
+Review fandt tre konkrete kandidatfejl før fysisk test: Supervisor-WebSocket skal
+bruge `/core/websocket`, ikke `/core/api/websocket`; et nyt capability-opslag kunne
+omgå engangstoken efter samme turs start/timeout; og vacuum-/select-states var læst før
+et afventet kortopslag. Kandidaten er ikke testklar. Rettelser begrænses til den
+dokumenterede endpointgrænse, en terminal startgrænse per robot/tur (uvis start blokerer
+også næste tur), og sidste aktuelle state-/indstillingskontrol efter metadataopslag.
+Regressioner skal injicere præcis disse rækkefølger. Assist og lifecycle ændres ikke.
+
+Rettet: Supervisor-ruten er fastlåst i kode/protokoltest; terminaljournalen gemmer
+hver robot/session/tur og kan ikke overskrives af et andet rums samtale. Ukendt start
+blokerer også senere ture. Sidste kontrol er ét serverbygget, read-only HA-template
+med kun validerede præcise IDs, efter alle metadataopslag og før policy/afsendelse.
+HA-state er stadig cachede enhedsdata, ikke en atomisk lås på den fysiske robot.
+Journalen er bounded og proceslokal; en add-on-genstart beviser ikke, at en tidligere
+uvis robotopgave ikke blev startet. Ingen automatisk retry implementeres.
+HA's `/template` kræver eksisterende administratorautorisation; adapteren genbruger
+samme Supervisor-adgang som ToolRouters nuværende area-opslag og tildeler ingen nye
+rettigheder. Modellen kan hverken vælge templatekode eller adminhandlinger. Manglende
+adgang giver et fejlet opslag uden robotkommando.
+
+Review fandt også, at store capability-resultater kunne miste token/rum i providerens
+2048-byte-beskæring. Hele svaret må nu være højst 1800 bytes før token udstedes; større
+opslag giver en eksplicit fejl, ikke en falsk anvendelig succes. Regressionen bruger
+den rigtige provider-serializer. Sidste template-timeout klassificeres som opslag uden
+afsendelse; service-timeout klassificeres særskilt som uvis handling.
+57 målrettede unit-/integrationcases er grønne efter rettelserne (0,35 s), inklusive
+to ejere A→B→A, friskt opslag efter timeout og stateændring under kortopslag. Det
+oprindelige review var NO-GO; reparationsreview afventer. Ingen releasegate er kørt.
+
+Afsluttende reparationsreview fra `/root/device_control_review`: P0=0/P1=0 i det
+reparerede scope; otte repair-regressioner genkørt uafhængigt. Reviewer godkender kun
+lokal kandidathandover og én frosset lokal releasegate. Reviewet module-SHA256 er
+`7bf95573e1c877bba7192c28e3056f0884e771f0b15b9883b6b976fedc63262e`.
+Den ene efterfølgende `scripts/dev release --base origin/main` er grøn (29,0 s):
+ha_tools-scope, Ruff/format, mypy, 1107 unit- og 313 integrationtests. Kun denne
+resultattekst ændres efter gaten; runtime forbliver frosset. Tidligere NO-GO-findings
+er afløst af reparationsreviewet, ikke bortforklaret af tests.
+
+Handover: første lokale implementering er klar på `codex/bounded-device-control`,
+baseret på main c85eca5/1.13.64. **Ikke klar til aktivering eller fysisk test endnu.**
+Ingen publicering, versionbump, installation eller konfigurationsændring i hjemmet.
+Næste arbejde er fokuseret sideeffektfri live SafeEval med de to faktiske værktøjer,
+enabled-feature svar/playback/lifecycle-bevis, browserprøve og derefter de fysiske
+Qrevo-/musik-/latensgates. Den eksisterende kørende installation er urørt.
+
 ## Aktiv lead-beslutning — afsluttet handling, 8. september 2026
 
 Lead: Codex; separat kandidat fra main 1707b03. Brugeren bekræfter Texas Sun virker,
@@ -49,7 +154,7 @@ er grøn (28,8 s): scope, Ruff/format, mypy, unit og integration. Tidligere rød
 afløst af dette resultat; kun dokumenteret resultattekst ændres efter gaten.
 Kandidaten er klar til autoriseret publicering, ikke fysisk featuregodkendt.
 
-<!-- candidate-scope-coupling
+<!-- archived-action-close-coupling
 {
   "version": 1,
   "base_tip": "1707b03ef94d5346a09d9fc4266a02d92aaddd2b",
