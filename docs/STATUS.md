@@ -29,6 +29,33 @@ resultattekst er ændret efter gaten. Ingen fjern-CI eller fysisk funktion er be
 GitHub-main er frisk bekræftet som fe6c471. Automatisk review afviste fortsat push,
 fordi eksplicit publicering af kode til GitHub-destinationen ikke var godkendt.
 
+### Publicering og installation — 8. september 2026
+
+Brugerens “godt go ahead... fuld arbejde” autoriserede publicering, merge og installation.
+PR #33 er merged 09:53:40 UTC som `202b48b87614ec4fdc364f0aae85d12bcd45401a`.
+PR-CI og main-CI/run34212512316 er grønne. Udgivet ARM64-image 1.13.63 har digest
+`sha256:f523ef190453cc86f43233fd1fab8f40084544077004087dc6ea25221dea429b`.
+Remote firmware-konfiguration validerede efter publicering af source-pin305b510.
+
+Frisk manuel HA-backup “Før PodVoice 1.13.63 Hey Chat og Stop”, 44,01 MB, er
+verificeret på Dette system. Den eksisterende API-nøgle autentificerede den enhed,
+PodVoice allerede er konfigureret til; dens identitet blev verificeret før OTA.
+Ingen USB-enhed blev brugt. Add-on blev opdateret fra 1.13.61 til 1.13.63 med yderligere
+opdateringsbackup; Home Assistant bekræfter installeret 1.13.63.
+
+Firmware blev bygget fra kandidatens produktions-YAML med remote komponent-pin og
+enhedens eksisterende nøgle. Build 16,33 s, config_hash `0xc8e5abad`, bygget
+11:57:31 +0200; OTA SHA-256
+`110800acff643c450070a1a84757906c364032cdc44131eb732b1b91e55e273a`.
+OTA lykkedes; samme MAC genforbandt med ESPHome2026.6.2 og samme buildtid. Native API
+annoncerer reply_play/cancel, set_wake_word, Reply Status og wake word ACK.
+PodVoice-panelet viser 1.13.63 og forbundet Voice PE. Hey Chat blev gemt, og panelet
+viste korreleret “Bekræftet af enheden: Hey Chat”. Genstartens UI viste HTTP502, men frisk sideindlæsning bekræftede live1.13.63,
+forbundet Voice PE og gemt/bekræftet Hey Chat efter genstart. Hjem-panelets
+vejledning siger stadig Okay Nabu; dette er en observeret UI-rest, ikke modelreadback.
+Ingen akustisk wake/stop-gate,
+stoplatency, golden chain eller 10/10 er endnu bevist på dette artifactpar.
+
 <!-- candidate-scope-coupling
 {
   "version": 1,
