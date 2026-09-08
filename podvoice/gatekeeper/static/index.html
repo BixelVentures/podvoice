@@ -443,17 +443,19 @@
       <p class="sub" style="margin:2px 0 8px">De indstillinger du normalt bruger. PodVoice påfører den fysisk målte Voice PE-baseline ved hver forbindelse: kanal 1 med XMOS AEC/IC/NS uden AGC, gain 16 og intet ekstra provider-støjfilter.</p>
       <div class="setgrid">
         <label for="s_wake_word">Vækkeord</label>
-        <select id="s_wake_word">
+        <select id="s_wake_word" aria-describedby="s_wake_word_hint s_wake_word_status">
           <option value="okay_nabu">Okay Nabu</option>
           <option value="hey_jarvis">Hey Jarvis</option>
           <option value="hey_mycroft">Hey Mycroft</option>
+          <option value="hey_chat">Hey Chat</option>
         </select>
         <label for="s_idle_timeout_s">Luk efter stilhed (sek.)</label>
         <input id="s_idle_timeout_s" type="number" min="3" max="120">
         <label for="s_duck_level">Musik mens Nabu lytter (%)</label>
         <input id="s_duck_level" type="number" min="0" max="100">
       </div>
-      <p class="sub" style="margin:2px 0 0">Vækkeordet sendes til pucken ved hver forbindelse og overlever derfor strømsvigt. Et nyt vækkeord skal trænes og flashes. <b>0&nbsp;%</b> slukker musikken helt, mens Nabu lytter.</p>
+      <p id="s_wake_word_hint" class="sub">Hey Chat kræver opdateret Voice PE-firmware. Når modellen er installeret, kan du skifte vækkeord med Gem og genstart.</p>
+      <div id="s_wake_word_status" class="sub" role="status" aria-live="polite"></div>
 
       <div class="exsub" style="margin-top:18px">Enheder &mdash; sættes én gang</div>
       <p class="sub" style="margin:2px 0 8px">Hvert rum forbinder én Voice PE med det PodConnect-rum, den står i, så den rigtige musik dæmpes.</p>
@@ -773,7 +775,29 @@ function roomCard(rm) {
   return box;
 }
 
+var savedWakeWord = null;
+var wakeStatusAvailable = false;
+function renderWakeWordStatus() {
+  var target = document.getElementById("s_wake_word_status");
+  if (!target) return;
+  var names = {okay_nabu:"Okay Nabu", hey_jarvis:"Hey Jarvis", hey_mycroft:"Hey Mycroft", hey_chat:"Hey Chat"};
+  var lines = ["Gemt valg (alle enheder): " + (names[savedWakeWord] || "Ikke hentet")];
+  Object.keys(rooms).forEach(function (id) {
+    var rm = rooms[id];
+    var fresh = wakeStatusAvailable && lastObservedMs && Date.now() - lastObservedMs <= 10000;
+    var message = !fresh ? "Kan ikke bekræfte vækkeord"
+      : rm.wake_word_supported === false ? "Opdatér Voice PE-firmware"
+      : !rm.connected ? "Kan ikke bekræfte vækkeord"
+      : names[rm.wake_word_confirmed] ? "Bekræftet af enheden: " + names[rm.wake_word_confirmed]
+      : "Kan ikke bekræfte vækkeord";
+    lines.push(id + ": " + message);
+  });
+  var value = lines.join(" · ");
+  if (target.textContent !== value) target.textContent = value;
+}
+
 function renderRooms() {
+  renderWakeWordStatus();
   var ids = Object.keys(rooms);
   var has = ids.length > 0;
   // Rooms + Room-transcript are hardware-only; hide them until a room exists
@@ -859,6 +883,7 @@ function renderLifecycle(list) {
 
 function applyStatus(data) {
   if (!data) return;
+  wakeStatusAvailable = true;
   lastObservedMs = Date.now();
   lastStatus = data;
   rooms = {};
@@ -943,8 +968,11 @@ async function poll() {
   try {
     var r = await fetch("api/status", { cache: "no-store" });
     if (r.ok) applyStatus(await r.json());
+    else throw new Error("Status unavailable");
   } catch (e) {
     connected = false;
+    wakeStatusAvailable = false;
+    renderWakeWordStatus();
     renderSub(lastStatus);
     var svc = document.getElementById("svc");
     if (svc) svc.setAttribute("aria-label", "Status kunne ikke opdateres; viste data kan være forældede");
@@ -955,7 +983,7 @@ function openStream() {
   var es;
   try { es = new EventSource("api/events"); } catch (e) { return; }
   es.onopen = function () { connected = true; renderSub(lastStatus); };
-  es.onerror = function () { connected = false; renderSub(lastStatus); };
+  es.onerror = function () { connected = false; wakeStatusAvailable = false; renderSub(lastStatus); renderWakeWordStatus(); };
   es.onmessage = function (m) { try { applyEvent(JSON.parse(m.data)); } catch (e) {} };
 }
 
@@ -966,6 +994,7 @@ setInterval(poll, 3000);
 setInterval(function () {
   if (lastObservedMs && Date.now() - lastObservedMs > 10000) {
     connected = false; renderSub(lastStatus);
+    renderWakeWordStatus();
     var svc = document.getElementById("svc");
     if (svc && !svc.querySelector(".stale")) svc.appendChild(el("span", "pill pill-down stale", "Status: forældet"));
   }
@@ -2023,6 +2052,8 @@ setInterval(function () {
       var nofail = function (u) { return fetch(u, { cache: "no-store" }).then(function (r) { return r.json(); }).catch(function () { return {}; }); };
       var jobs = await Promise.all([nofail("api/settings"), nofail("api/podconnect/rooms")]);
       var s = jobs[0];
+      savedWakeWord = s.wake_word || null;
+      renderWakeWordStatus();
       pcRooms = jobs[1].rooms || [];
       promptDefault = s.system_prompt_default || promptDefault;
       FIELDS.forEach(function (id) { if (id in s) setVal(id, s[id]); });
@@ -2073,6 +2104,8 @@ setInterval(function () {
       return;
     }
     if (j.settings) updateSecretHints(j.settings);   // freshly saved secrets get the hint
+    savedWakeWord = j.settings ? j.settings.wake_word : body.wake_word;
+    renderWakeWordStatus();
     settingsDirty = false;
     if (!restart) { setSaveStatus("Gemt — genstart add-on'en for at anvende ændringerne"); return; }
     setSaveStatus("Gemt — genstarter…");

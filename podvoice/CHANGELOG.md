@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.13.62 — Hey Chat-kandidat
+
+- Tilføjer Hey Chat som fjerde vækkeord med Gem og genstart; retter lagringen.
+- Kræver parret Voice PE-firmware `podvoice_build_11362_heychat1` med pinned model.
+  Panelet adskiller gemt valg fra enhedens korrelerede readback.
+- Ingen ændring af prompt, VAD, gain eller Stop. Fysisk genkendelse er ikke bevist.
+
 ## 1.13.61 — Grundtesten viser kun de aktuelle knapper
 
 - Retter en CSS-fejl, hvor slutkontrollens wake-knapper var synlige allerede under

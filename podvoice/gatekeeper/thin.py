@@ -3729,6 +3729,11 @@ class ThinSession:
         at a glance instead of surfacing as a mystery field-test failure."""
         if self.hub is None:
             return
+        self.hub.set_wake_word(
+            self.room,
+            supported=bool(contract.get("wake_word_supported")),
+            confirmed=contract.get("wake_word_confirmed"),
+        )
         ok = bool(contract.get("ok", True))
         readiness = getattr(self.voicepe, "wake_readiness", "unknown")
         status = (

@@ -1683,6 +1683,8 @@ micro_wake_word:
       id: hey_jarvis
     - model: hey_mycroft
       id: hey_mycroft
+    - model: https://raw.githubusercontent.com/TaterTotterson/Tater-Wake-Words/b2408bb19b2ec4194878c76bc3c13df70fb863c3/microWakeWordsV6/hey_chat.esphome.json
+      id: hey_chat
     - model: https://github.com/kahrendt/microWakeWord/releases/download/stop/stop.json
       id: stop
       internal: true
