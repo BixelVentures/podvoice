@@ -420,6 +420,7 @@ class ThinSession:
         self._mic_send_lock = asyncio.Lock()
         self._rearm_retry_task: asyncio.Task | None = None
         self._teardown_retry_task: asyncio.Task | None = None
+        self._teardown_retry_wakeup = asyncio.Event()
         self._rearm_retry_attempt = 0
         self._teardown_incomplete = False
         self._device_stream_fault = False
@@ -1036,9 +1037,8 @@ class ThinSession:
             deadline=close_deadline,
             reserve_s=rearm_reserve,
         )
-        if error_kind is not None and not self._stop_error_speech.is_set():
-            self._invalidate_playback_lease("error-speech")
-            self._device_playing = False
+        error_speech_attempted = False
+        if error_kind is not None:
             self._trace_event("failure", kind=error_kind)
             if self.hub is not None:
                 self.hub.activity(self.room, "⚠️ Fejl — lukker samtalen")
@@ -1046,14 +1046,29 @@ class ThinSession:
             # Once teardown/rearm completes, IDLE must be dark; a persistent red ring
             # made a healthy rearmed puck look permanently wedged in the room.
             self._set_led(State.IDLE, error=True)
-            await self._teardown_step(
-                "error-speech",
-                self._speak_error(error_kind),
-                deadline=close_deadline,
-                timeout_s=TEARDOWN_ERROR_SPEECH_TIMEOUT_S,
-                reserve_s=rearm_reserve,
+            error_speech_attempted = (
+                silence_complete
+                and error_kind != "device"
+                and reason.startswith("error:")
+                and not self._stop_error_speech.is_set()
+                and not self._teardown_retry_wakeup.is_set()
             )
-        if error_kind is not None:
+            if error_speech_attempted:
+                self._invalidate_playback_lease("error-speech")
+                self._device_playing = False
+                await self._teardown_step(
+                    "error-speech",
+                    self._speak_error(error_kind),
+                    deadline=close_deadline,
+                    timeout_s=TEARDOWN_ERROR_SPEECH_TIMEOUT_S,
+                    reserve_s=rearm_reserve,
+                )
+            else:
+                # A failed output path cannot report its own failure audibly. Do
+                # not spend the provider/mic cleanup budget awaiting an impossible
+                # oneshot, or replace a reply whose physical stop is still unknown.
+                self._trace_event("error_speech_skipped", kind=error_kind)
+        if error_speech_attempted:
             # Error speech created a NEW physical playback after the first stop.
             # It needs its own ACK, including spoken stop during the error clip.
             silence_complete, _ = await self._teardown_step(
@@ -1278,6 +1293,7 @@ class ThinSession:
             attention_complete = attention_ok
         teardown_complete = (
             silence_complete
+            and not self._teardown_retry_wakeup.is_set()
             and stream_complete
             and provider_complete
             and stop_context_complete
@@ -1318,7 +1334,14 @@ class ThinSession:
                 deadline=teardown_deadline,
                 timeout_s=TEARDOWN_REARM_TIMEOUT_S,
             )
-            if not rearm_ok:
+            if self._teardown_retry_wakeup.is_set():
+                # Reconnect can happen during the final ACK, after the earlier
+                # cleanup check. Its owner must obtain fresh physical silence.
+                teardown_complete = False
+                self._teardown_incomplete = True
+                self._set_led(State.IDLE, error=True)
+                self._schedule_teardown_retry(release_music=release_music, silence_complete=False)
+            elif not rearm_ok:
                 self._set_led(State.IDLE, error=True)
                 self._schedule_rearm_retry()
         elif not teardown_complete and not self._closing:
@@ -1358,7 +1381,15 @@ class ThinSession:
             while current():
                 delay = REARM_RETRY_DELAYS_S[min(attempt, len(REARM_RETRY_DELAYS_S) - 1)]
                 attempt += 1
-                await asyncio.sleep(delay)
+                try:
+                    await asyncio.wait_for(self._teardown_retry_wakeup.wait(), timeout=delay)
+                except TimeoutError:
+                    pass
+                if self._teardown_retry_wakeup.is_set():
+                    # A fresh native subscription is a new physical evidence
+                    # boundary, never proof that the old reply is now silent.
+                    physical_silence_complete = False
+                    self._teardown_retry_wakeup.clear()
                 # The existing teardown lock also gates wake. Hold it across both
                 # silence and cleanup, then recheck after lock/sleep boundaries:
                 # another recovery may have completed while this retry slept.
@@ -2833,6 +2864,7 @@ class ThinSession:
             lease.kind == "oneshot"
             and self._trace_reason.startswith("error:")
             and not self._stop_error_speech.is_set()
+            and not self._teardown_retry_wakeup.is_set()
         ):
             return
         if getattr(self.voicepe, "supports_playback_ids", False):
@@ -3987,8 +4019,16 @@ class ThinSession:
             )
 
     async def _reassert_device(self) -> None:
-        if self._close_task is not None and not self._close_task.done():
-            return  # the close transaction exclusively owns final stop+rearm
+        cleanup_owned = (self._close_task is not None and not self._close_task.done()) or (
+            self._teardown_retry_task is not None and not self._teardown_retry_task.done()
+        )
+        if self._teardown_incomplete or cleanup_owned:
+            # Wake the existing owner even if it is sleeping at the 60 s backoff.
+            # The flag also invalidates silence obtained before this reconnect.
+            self._teardown_incomplete = True
+            self._teardown_retry_wakeup.set()
+        if cleanup_owned:
+            return  # the existing cleanup owner exclusively owns final stop+rearm
         if self._teardown_incomplete:
             self._schedule_teardown_retry(release_music=True, silence_complete=False)
             return  # reconnect may never bypass the full close owner and open the latch
@@ -4069,6 +4109,8 @@ class ThinSession:
         """Reopen the firmware latch without confusing recovery with proof."""
         generation_before = getattr(self.voicepe, "audio_generation", None)
         outcome = await self.voicepe.rearm_wake_word()
+        if self._teardown_retry_wakeup.is_set():
+            raise RuntimeError("wake-rearm invalidated by native reconnect; fresh silence required")
         if outcome != "recovered":
             raise RuntimeError(f"ugyldig wake-rearm-kvittering: {outcome!r}")
         generation_after = getattr(self.voicepe, "audio_generation", None)
@@ -4221,6 +4263,8 @@ class ThinSession:
         ONE emitter for every sound the add-on makes. When the cues had their own copy of
         the announce sequence, adding a path meant remembering to wire each of them —
         and the ones that were forgotten simply went silent with no error anywhere."""
+        if self._transport_closing and self._teardown_retry_wakeup.is_set():
+            return False
         if self._use_direct():
             if not await self.voicepe.begin_direct_reply():
                 return False

@@ -3657,6 +3657,10 @@ async def test_reconnect_during_link_loss_teardown_cannot_double_rearm():
         close_task = session._close_task
         assert close_task is not None
         await close_task
+        # The new connection invalidates the earlier silence proof; the same
+        # cleanup owner must obtain a fresh stop before it can rearm once.
+        await _wait_until(lambda: voicepe.rearm_calls == 1)
+        assert voicepe.stop_playback_calls == 2
         assert voicepe.rearm_calls == 1
         await session.wake()
         assert session._active is True
@@ -5451,6 +5455,277 @@ async def test_orphan_stop_without_ack_is_bounded_and_retries_without_rearm(monk
         assert not session._teardown_incomplete
     finally:
         ack.set()
+        await session.aclose()
+
+
+async def test_missing_playback_and_silence_ack_preserves_cleanup_budget(monkeypatch):
+    from gatekeeper.voicepe import VoicePELink
+
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.02)
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_TOTAL_TIMEOUT_S", 0.12)
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_REARM_TIMEOUT_S", 0.06)
+    monkeypatch.setattr("gatekeeper.thin.FIXED_PLAYBACK_START_TIMEOUT_S", 0.02)
+    monkeypatch.setattr("gatekeeper.thin.REARM_RETRY_DELAYS_S", (60.0,))
+    brain = LiveFake()
+    hub = StatusHub()
+    session, attention, device = _build(brain, hub=hub, speech=CachedSpeech(_frame()))
+    link = VoicePELink("test.local", "key", room=ROOM)
+    link._client = SimpleNamespace()
+    link._reply_status_key = 42
+    calls = []
+    acknowledge = False
+
+    async def service(name, args=None):
+        calls.append((name, args))
+        if acknowledge and name == "podvoice_reply_cancel":
+            link._on_reply_status(args["token"] + ":stopped")
+        return True
+
+    link._call_service = service
+    device.supports_local_stop = True
+    device.supports_playback_ids = True
+    device.play_url = link.play_url
+    device.stop_playback = link.stop_playback
+    link.on_media_state = session._on_media_state
+    await session.start()
+    try:
+        await session.wake()
+        lease = session._arm_playback_lease(item_id="reply", kind="reply")
+        await session._announce_with_retry(lease, retry_after_s=0.01)
+        await session._close_task
+        events = hub.snapshot()["timeline_activity"]
+        assert [e["kind"] for e in events if e["event"] == "playback_requested"] == ["reply"]
+        assert brain.closed and not device.streaming
+        assert len(attention.release_calls) == 1
+        assert [name for name, _args in calls] == ["podvoice_reply_play", "podvoice_reply_cancel"]
+        assert session._teardown_incomplete and device.rearm_calls == 0
+        assert not any(e.get("reason") == "total-deadline" for e in events)
+        await session.wake()
+        assert brain.connect_count == 1  # unknown physical drain cannot open another session
+    finally:
+        acknowledge = True
+        await session.aclose()
+
+
+async def test_reconnect_wakes_existing_teardown_backoff_and_requires_fresh_ack(monkeypatch):
+    from gatekeeper.voicepe import VoicePELink
+
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.05)
+    monkeypatch.setattr("gatekeeper.thin.REARM_RETRY_DELAYS_S", (60.0,))
+    brain = LiveFake()
+    session, _attention, device = _build(brain)
+    link = VoicePELink("test.local", "key", room=ROOM)
+    link._client = SimpleNamespace()
+    link._reply_status_key = 42
+    cancels = []
+    acknowledge = False
+
+    async def service(name, args=None):
+        if name == "podvoice_reply_cancel":
+            cancels.append(args["token"])
+            if acknowledge:
+                link._on_reply_status(args["token"] + ":stopped")
+        return True
+
+    link._call_service = service
+    device.stop_playback = link.stop_playback
+    await session.start()
+    try:
+        await session.wake()
+        await session.stop(reason="playback-fault")
+        retry = session._teardown_retry_task
+        assert retry is not None and device.rearm_calls == 0
+        await asyncio.sleep(0)  # retry is waiting in the real 60-second backoff
+        await session._reassert_device()
+        await session._reassert_device()  # duplicate reconnect must not create another owner
+        assert session._teardown_retry_task is retry
+        await _wait_until(lambda: len(cancels) == 2, max_wait=0.3)
+        link._on_reply_status("a" * 32 + ":stopped")
+        await asyncio.sleep(0)
+        assert device.rearm_calls == 0
+        next_wake = asyncio.create_task(session.wake())
+        await asyncio.sleep(0)
+        assert brain.connect_count == 1
+        link._on_reply_status(cancels[-1] + ":stopped")
+        await _wait_until(lambda: device.rearm_calls == 1, max_wait=0.3)
+        assert not session._teardown_incomplete
+        await next_wake
+        link._on_reply_status(cancels[0] + ":started")
+        assert brain.connect_count == 2 and session._active
+        assert not session._device_playing
+    finally:
+        acknowledge = True
+        await session.aclose()
+
+
+@pytest.mark.parametrize("during_retry", [False, True])
+@pytest.mark.parametrize("rearm_outcome", ["recovered", "disconnected"])
+async def test_reconnect_during_rearm_keeps_full_cleanup_owner(
+    monkeypatch, during_retry, rearm_outcome
+):
+    from aioesphomeapi import TextSensorState
+
+    from gatekeeper.voicepe import VoicePELink
+
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.05)
+    monkeypatch.setattr("gatekeeper.thin.REARM_RETRY_DELAYS_S", (60.0,))
+    brain = LiveFake()
+    hub = StatusHub()
+    session, _attention, device = _build(brain, hub=hub)
+    link = VoicePELink("test.local", "key", room=ROOM)
+    link._client = SimpleNamespace()
+    link._reply_status_key = 42
+    link._rearm_ack_key = 43
+    link.supports_physical_rearm_ack = True
+    link.supports_continuous_rearm = True
+    link.supports_rearm_audio_progress = True
+    link.supports_correlated_reset_rearm = True
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    cancels = []
+    rearms = []
+    fresh_ack_required = False
+
+    async def service(name, args=None):
+        if name == "podvoice_reply_cancel":
+            cancels.append(args["token"])
+            if not fresh_ack_required and not (during_retry and len(cancels) == 1):
+                link._on_reply_status(args["token"] + ":stopped")
+        elif name == "podvoice_rearm_wake_word":
+            rearms.append(args["token"])
+            if len(rearms) == 1:
+                entered.set()
+                await release.wait()
+            link._on_state(TextSensorState(key=43, state=f"{args['token']}:recovered"))
+        return True
+
+    link._call_service = service
+    device.stop_playback = link.stop_playback
+    device.rearm_wake_word = link.rearm_wake_word
+    await session.start()
+    closing = None
+    next_wake = None
+    try:
+        await session.wake()
+        closing = asyncio.create_task(session.stop(reason="playback-fault"))
+        if during_retry:
+            await closing
+            await session._reassert_device()  # wake the existing failed-stop retry
+        await asyncio.wait_for(entered.wait(), timeout=0.5)
+        retry_owner = session._teardown_retry_task
+        before_reconnect = len(cancels)
+        fresh_ack_required = True
+        if rearm_outcome == "disconnected":
+            await link._on_disconnect()
+        await session._reassert_device()
+        await session._reassert_device()
+        assert session._teardown_incomplete  # seal wake synchronously, even during rearm
+        if during_retry:
+            assert session._teardown_retry_task is retry_owner
+        release.set()
+        await closing
+        await _wait_until(lambda: len(cancels) == before_reconnect + 1, max_wait=0.3)
+        assert session._rearm_retry_task is None
+        assert len(rearms) == 1
+        assert not any(
+            e["event"] == "wake_rearm_recovered" for e in hub.snapshot()["timeline_activity"]
+        )
+        next_wake = asyncio.create_task(session.wake())
+        link._on_reply_status(cancels[0] + ":stopped")  # stale physical proof
+        await asyncio.sleep(0)
+        assert brain.connect_count == 1 and session._teardown_incomplete
+        link._on_reply_status(cancels[-1] + ":stopped")
+        await asyncio.wait_for(next_wake, timeout=0.5)
+        assert len(rearms) == 2 and brain.connect_count == 2
+        assert session._active and not session._teardown_retry_wakeup.is_set()
+        assert not session._teardown_incomplete
+        link._on_reply_status(cancels[0] + ":started")
+        assert not session._device_playing
+    finally:
+        fresh_ack_required = False
+        release.set()
+        if closing is not None:
+            await closing
+        if next_wake is not None and not next_wake.done():
+            next_wake.cancel()
+            await asyncio.gather(next_wake, return_exceptions=True)
+        await session.aclose()
+
+
+@pytest.mark.parametrize("shutdown", [False, True])
+async def test_reconnect_during_fresh_drain_cannot_reuse_old_ack(monkeypatch, shutdown):
+    from gatekeeper.voicepe import VoicePELink
+
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.05)
+    monkeypatch.setattr("gatekeeper.thin.REARM_RETRY_DELAYS_S", (60.0,))
+    brain = LiveFake()
+    session, _attention, device = _build(brain)
+    link = VoicePELink("test.local", "key", room=ROOM)
+    link._client = SimpleNamespace()
+    link._reply_status_key = 42
+    cancels = []
+    acknowledge = False
+
+    async def service(name, args=None):
+        if name == "podvoice_reply_cancel":
+            cancels.append(args["token"])
+            if acknowledge:
+                link._on_reply_status(args["token"] + ":stopped")
+        return True
+
+    link._call_service = service
+    device.stop_playback = link.stop_playback
+    await session.start()
+    try:
+        await session.wake()
+        await session.stop(reason="playback-fault")
+        retry = session._teardown_retry_task
+        await session._reassert_device()
+        await _wait_until(lambda: len(cancels) == 2, max_wait=0.3)
+        await link._on_disconnect()  # resets the real adapter's cached silence
+        await session._reassert_device()  # new connection while that stop is awaited
+        await session._reassert_device()  # duplicate cannot create another owner
+        assert session._teardown_retry_task is retry
+        if shutdown:
+            await session.aclose()
+            await _wait_until(lambda: retry.done())
+            link._on_reply_status(cancels[-1] + ":stopped")
+            await session._reassert_device()
+            await session.wake()
+            assert device.rearm_calls == 0 and brain.connect_count == 1
+            return
+        await _wait_until(lambda: len(cancels) == 3, max_wait=0.3)
+        assert session._teardown_incomplete and device.rearm_calls == 0
+        link._on_reply_status(cancels[-1] + ":stopped")
+        await _wait_until(lambda: device.rearm_calls == 1, max_wait=0.3)
+        await session.wake()
+        assert brain.connect_count == 2 and not session._teardown_retry_wakeup.is_set()
+    finally:
+        acknowledge = True
+        await session.aclose()
+
+
+async def test_reconnect_before_error_task_starts_skips_new_output(monkeypatch):
+    monkeypatch.setattr("gatekeeper.thin.REARM_RETRY_DELAYS_S", (60.0,))
+    brain = LiveFake()
+    session, _attention, device = _build(brain, speech=CachedSpeech(_frame()))
+    original = session._speak_error
+
+    async def reconnect_before_speech(kind):
+        await session._reassert_device()
+        await original(kind)
+
+    session._speak_error = reconnect_before_speech
+    await session.start()
+    try:
+        await session.wake()
+        await session._fail("connection")
+        await _wait_until(lambda: not session._teardown_incomplete)
+        assert not device.announced_urls
+        assert brain.closed and not device.streaming
+        assert device.rearm_calls == 1
+        assert not session._teardown_retry_wakeup.is_set()
+    finally:
         await session.aclose()
 
 

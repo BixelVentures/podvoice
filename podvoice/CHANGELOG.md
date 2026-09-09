@@ -1,3 +1,10 @@
+## 1.13.70 — Genopretning efter manglende lydkvittering
+
+- Bevarer oprydningstiden, når den fejlede lydvej ikke kan afspille en fejlbesked.
+- En genoprettet forbindelse vækker den eksisterende oprydning straks; frisk fysisk stopkvittering kræves stadig før næste wake. Gamle rearm-kvitteringer må ikke åbne en ny samtale.
+- Retter dokumenterede genopretningsfejl, men forklarer ikke den oprindelige sporadiske afspilningsfejl. Fysisk stabilitet er endnu ikke godkendt.
+- Ingen ændring af firmware, stemme, mikrofon, værktøjer eller adgang. Roborock forbliver off som standard.
+
 ## 1.13.69 — Sand kvittering og afslutning efter accepteret start
 
 - Præciserer AI'ens generelle afslutningsregel: alle indstillinger og selve starten skal være accepteret; den fysiske proces behøver ikke være færdig. Kvitteringen må kun hævde det bekræftede niveau.
