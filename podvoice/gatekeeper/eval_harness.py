@@ -310,6 +310,8 @@ MAX_EVAL_RESPONSE_EDGES_PER_TURN = 4
 DEVICE_EVAL_PROFILE = "device-control"
 DEVICE_EVAL_RESPONSE_EDGES = 9
 DEVICE_EVAL_PATH = pathlib.Path(__file__).with_name("eval_device_scenarios.json")
+DATA_EVAL_PROFILE = "data-selection"
+DATA_EVAL_PATH = pathlib.Path(__file__).with_name("eval_data_scenarios.json")
 MAX_LIVE_EVAL_PROMPT_BYTES = 32 * 1024
 _LOG = logging.getLogger(__name__)
 
@@ -1461,6 +1463,16 @@ class SafeEvalTools:
             fixture_result = next(case.result for case in contract.cases if case.args == args)
             self.fixture_side_effects += int(fixture_result.get("ok") is True)
             return json.loads(json.dumps(fixture_result))
+        if (
+            name in {"podconnect_recently_played", "podconnect_top_tracks", "podconnect_liked"}
+            and contract is not None
+        ):
+            # Fixed synthetic source data through the same selector as production;
+            # never instantiate HA clients or call the production router in eval.
+            from .data_result import data_limit, select_track_result
+
+            fixture_result = next(case.result for case in contract.cases if case.args == args)
+            return select_track_result(fixture_result.get("data"), data_limit(args))
         if (
             name in {"ha_get_device_capabilities", "ha_execute_device_action"}
             and contract is not None
@@ -3117,12 +3129,17 @@ class LiveEvalService:
                 "error": "Scenarie-gentagelser skal være et heltal fra en til fem.",
             }
         device_profile = scenario_ids == {DEVICE_EVAL_PROFILE}
-        known = {scenario.id for scenario in load_scenarios()} | {DEVICE_EVAL_PROFILE}
+        data_profile = scenario_ids == {DATA_EVAL_PROFILE}
+        known = {scenario.id for scenario in load_scenarios()} | {
+            DEVICE_EVAL_PROFILE,
+            DATA_EVAL_PROFILE,
+        }
         unknown = (scenario_ids or set()).difference(known)
         if scenario_ids is not None and (
             not scenario_ids
             or unknown
             or (DEVICE_EVAL_PROFILE in scenario_ids and not device_profile)
+            or (DATA_EVAL_PROFILE in scenario_ids and not data_profile)
         ):
             return {
                 "ok": False,
@@ -3131,11 +3148,17 @@ class LiveEvalService:
             }
         run_id = self._new_run_id()
         self._active_run_id = run_id
-        self._active_kind = DEVICE_EVAL_PROFILE if device_profile else "preflight"
+        self._active_kind = (
+            DEVICE_EVAL_PROFILE
+            if device_profile
+            else DATA_EVAL_PROFILE
+            if data_profile
+            else "preflight"
+        )
         self._started_at = time.time()
         self._job = asyncio.create_task(
             self._run_background(
-                operation=DEVICE_EVAL_PROFILE if device_profile else "scenarios",
+                operation=self._active_kind if device_profile or data_profile else "scenarios",
                 run_id=run_id,
                 api_key=api_key,
                 scenario_ids=scenario_ids,
@@ -3330,6 +3353,11 @@ class LiveEvalService:
                 report = await self.run_protocol_owner(**kwargs)
             elif operation == DEVICE_EVAL_PROFILE:
                 report = await self.run_device_control(**kwargs)
+            elif operation == DATA_EVAL_PROFILE:
+                kwargs["scenario_ids"] = None
+                report = await self.run(**kwargs, _data_fixture=True)
+                report["kind"] = DATA_EVAL_PROFILE
+                report["physical_result_verified"] = False
             elif operation == "replay":
                 report = await self.run_replay(**kwargs)
             else:
@@ -3356,6 +3384,9 @@ class LiveEvalService:
             if operation == DEVICE_EVAL_PROFILE:
                 report["kind"] = DEVICE_EVAL_PROFILE
                 report["candidate_contract_passed"] = False
+            if operation == DATA_EVAL_PROFILE:
+                report["kind"] = DATA_EVAL_PROFILE
+                report["physical_result_verified"] = False
             self._retain_report(
                 report,
                 kwargs=kwargs,
@@ -3389,6 +3420,9 @@ class LiveEvalService:
                 }
         finally:
             if "report" in locals() and run_id not in self._reports_by_run_id:
+                if operation == DATA_EVAL_PROFILE:
+                    report["kind"] = DATA_EVAL_PROFILE
+                    report["physical_result_verified"] = False
                 if operation == DEVICE_EVAL_PROFILE:
                     report["kind"] = DEVICE_EVAL_PROFILE
                     report.setdefault("candidate_contract_passed", False)
@@ -3422,11 +3456,14 @@ class LiveEvalService:
                 str(kwargs.get("instructions") or SYSTEM_PROMPT_DA).strip().encode()
             ).hexdigest(),
             "full_profile_tool_schema_sha256": retained.get("full_profile_tool_schema_sha256"),
-            "production_tool_schema_sha256": retained.get("production_tool_schema_sha256"),
-            "reserved_tool_schema_sha256": retained.get("reserved_tool_schema_sha256"),
+            "production_tool_schema_sha256": retained.get("production_tool_schema_sha256")
+            or _schema_sha256(SafeEvalTools(kwargs.get("tool_declarations")).declarations()),
+            "reserved_tool_schema_sha256": retained.get("reserved_tool_schema_sha256")
+            or _schema_sha256(RESERVED_DECLARATIONS),
             "tool_schema_profile": retained.get("tool_schema_profile"),
             "eval_room_context_profile": retained.get("eval_room_context_profile"),
-            "eval_room_context_sha256": retained.get("eval_room_context_sha256"),
+            "eval_room_context_sha256": retained.get("eval_room_context_sha256")
+            or hashlib.sha256(SAFE_EVAL_ROOM_CONTEXT.encode()).hexdigest(),
             "scenario_manifest_sha256": retained.get("scenario_manifest_sha256")
             or _scenario_manifest_sha256(),
         }
@@ -3434,12 +3471,34 @@ class LiveEvalService:
             json.dumps(identity_payload, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
         retained["candidate_identity_sha256"] = candidate_identity
+        # A data-only manifest is a different test, not a different production
+        # contract. Still invalidate old full evidence if model/prompt/schema changed.
+        production_identity = {
+            key: identity_payload[key]
+            for key in (
+                "model",
+                "voice",
+                "prompt_sha256",
+                "production_tool_schema_sha256",
+                "reserved_tool_schema_sha256",
+                "eval_room_context_sha256",
+            )
+        }
+        retained["production_identity_sha256"] = hashlib.sha256(
+            json.dumps(production_identity, sort_keys=True).encode()
+        ).hexdigest()
         self._reports_by_run_id[run_id] = retained
         while len(self._reports_by_run_id) > MAX_RETAINED_EVAL_REPORTS:
             self._reports_by_run_id.pop(next(iter(self._reports_by_run_id)))
         if requested_full_profile:
             self._last_full_report = retained
             self._last_full_candidate_identity = candidate_identity
+        elif retained.get("kind") == DATA_EVAL_PROFILE:
+            if self._last_full_report is not None and retained[
+                "production_identity_sha256"
+            ] != self._last_full_report.get("production_identity_sha256"):
+                self._last_full_report = None
+                self._last_full_candidate_identity = None
         elif (
             retained.get("kind")
             not in {
@@ -4427,6 +4486,7 @@ class LiveEvalService:
         tool_declarations: list[dict[str, Any]] | None = None,
         run_id: str | None = None,
         _device_fixture: bool = False,
+        _data_fixture: bool = False,
         _diagnostic_lease: BudgetLease | None = None,
     ) -> dict[str, Any]:
         if self._lock.locked():
@@ -4461,7 +4521,13 @@ class LiveEvalService:
                     "results": [],
                     "deadline_s": self._max_run_s,
                 }
-            fixture_path = DEVICE_EVAL_PATH if _device_fixture else SCENARIOS_PATH
+            fixture_path = (
+                DEVICE_EVAL_PATH
+                if _device_fixture
+                else DATA_EVAL_PATH
+                if _data_fixture
+                else SCENARIOS_PATH
+            )
             edge_limit = (
                 DEVICE_EVAL_RESPONSE_EDGES if _device_fixture else MAX_EVAL_RESPONSE_EDGES_PER_TURN
             )
@@ -4524,9 +4590,7 @@ class LiveEvalService:
                 "eval_room_context_sha256": hashlib.sha256(
                     SAFE_EVAL_ROOM_CONTEXT.encode()
                 ).hexdigest(),
-                "scenario_manifest_sha256": hashlib.sha256(fixture_path.read_bytes()).hexdigest()
-                if _device_fixture
-                else _scenario_manifest_sha256(),
+                "scenario_manifest_sha256": hashlib.sha256(fixture_path.read_bytes()).hexdigest(),
                 **_capability_metadata(admission, selected),
             }
             results: list[ScenarioResult] = []

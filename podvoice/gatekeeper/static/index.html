@@ -370,6 +370,7 @@
       <button id="eval_golden" class="ghost">Test golden-chain-semantik 5×</button>
       <button id="eval_close" class="ghost">Test samtaleafslutning (8 ture)</button>
       <button id="eval_device" class="ghost">Test Roborock — simuleret robot</button>
+      <button id="eval_data" class="ghost">Test dataudvalg — sikre testdata</button>
       <p class="sub">Roborock-testen starter ikke din støvsuger og aktiverer ikke enhedsstyring. Den afprøver AI'ens rækkefølge og fejlhåndtering med sikre testdata. Fysisk afprøvning mangler stadig. Samtaler er midlertidigt blokeret under testen; samlet prisloft $5.</p>
       <button id="eval_replay" class="ghost">Genafspil seneste OpenAI-lyd 3×</button>
       <button id="eval_numeric_ab" class="ghost">Sammenlign numerisk opfølgning: tekst ↔ lyd 5×</button>
@@ -1271,6 +1272,7 @@ setInterval(function () {
   var goldenButton = document.getElementById("eval_golden");
   var closeButton = document.getElementById("eval_close");
   var deviceButton = document.getElementById("eval_device");
+  var dataButton = document.getElementById("eval_data");
   var replayButton = document.getElementById("eval_replay");
   var numericAbButton = document.getElementById("eval_numeric_ab");
   var box = document.getElementById("eval_result");
@@ -1283,9 +1285,9 @@ setInterval(function () {
   ];
   var goldenScenarioIds = ["arithmetic-followup-observed"];
   var pollGeneration = 0;
-  if (!button || !protocolOwnerButton || !goldenButton || !closeButton || !deviceButton || !replayButton || !numericAbButton || !box) return;
+  if (!button || !protocolOwnerButton || !goldenButton || !closeButton || !deviceButton || !dataButton || !replayButton || !numericAbButton || !box) return;
   function setButtonsDisabled(disabled) {
-    button.disabled = disabled; goldenButton.disabled = disabled; protocolOwnerButton.disabled = disabled; closeButton.disabled = disabled; deviceButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
+    button.disabled = disabled; goldenButton.disabled = disabled; protocolOwnerButton.disabled = disabled; closeButton.disabled = disabled; deviceButton.disabled = disabled; dataButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
   }
   function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function semanticAudioAbPassed(data) {
@@ -1489,6 +1491,9 @@ setInterval(function () {
   };
   deviceButton.onclick = function () {
     return startLiveEval(["device-control"], 1);
+  };
+  dataButton.onclick = function () {
+    return startLiveEval(["data-selection"], 1);
   };
   replayButton.onclick = async function () {
     var generation = ++pollGeneration;

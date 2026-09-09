@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from itertools import pairwise
 from typing import Any
 
+from .data_result import tool_result_size as _size
+
 # Below the unchanged provider envelope limit; a composed wire test guards this.
 WEATHER_RESULT_BYTES = 1_800
-
-
-def _size(value: dict) -> int:
-    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
 
 
 def compact_weather_result(name: str, response: dict) -> dict:

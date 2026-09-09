@@ -3,9 +3,9 @@
 from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
-def test_v13_is_prioritized_and_model_owned():
+def test_v14_is_prioritized_and_model_owned():
     prompt = SYSTEM_PROMPT_DA.lower()
-    assert PROMPT_VERSION == 13
+    assert PROMPT_VERSION == 14
     assert "kald approve_action med præcis dette challenge_id" in prompt
     assert "gentag aldrig det oprindelige handlingsværktøj" in prompt
     assert "# prioritet" in prompt
@@ -25,6 +25,16 @@ def test_unclear_audio_and_background_have_different_safe_outcomes():
     assert "det forstod jeg ikke helt. sig det lige igen?" in prompt
     assert "kald ingen handlingsværktøjer" in prompt
     assert "må du ikke gætte" in prompt
+
+
+def test_data_selection_is_generic_and_limitations_only_matter_when_relevant():
+    prompt = SYSTEM_PROMPT_DA.lower()
+    assert "brug kun deklarerede filtre" in prompt
+    assert "et tilstrækkeligt resultat kræver ikke flere opslag" in prompt
+    assert "nævn kun begrænsninger, hvis de påvirker svaret" in prompt
+    assert "et udsnit beviser ikke samlede antal eller fuld historik" in prompt
+    assert "oplæs ikke intern afkortningsmetadata" in prompt
+    assert "limit=" not in prompt  # parameter guidance belongs to the tool
 
 
 def test_tool_routing_is_capability_grounded_and_relevant():

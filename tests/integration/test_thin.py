@@ -916,7 +916,16 @@ async def test_missing_playback_start_retries_same_lease_then_closes(monkeypatch
     import gatekeeper.thin as thin_mod
 
     monkeypatch.setattr(thin_mod, "ANNOUNCE_START_TIMEOUT_S", 0.02)
-    brain = LiveFake()
+    close_entered = asyncio.Event()
+    allow_close = asyncio.Event()
+
+    class DelayedCloseBrain(LiveFake):
+        async def close(self) -> None:
+            close_entered.set()
+            await allow_close.wait()
+            await super().close()
+
+    brain = DelayedCloseBrain()
     session, _attention, voicepe = _build(brain)
     await session.start()
     try:
@@ -924,12 +933,21 @@ async def test_missing_playback_start_retries_same_lease_then_closes(monkeypatch
         brain.emit(AudioChunk(_frame(), item_id="answer"), TurnComplete())
         await _wait_until(lambda: len(voicepe.announced_urls) == 2)
         await _wait_until(lambda: session.sm.state is State.IDLE)
+        await asyncio.wait_for(close_entered.wait(), 1.5)
+        # IDLE is published before the asynchronous teardown finishes. Force this
+        # ordering instead of assuming a scheduler tick proves provider closure.
+        assert brain.closed is False
+        close_task = session._close_task
+        assert close_task is not None
+        allow_close.set()
+        await asyncio.wait_for(asyncio.shield(close_task), 1.5)
         # The first two are the same owned reply. A later third URL may be the
         # separately owned audible error line from the clean-close path.
         assert voicepe.announced_urls[:2] == [REPLY_URL, REPLY_URL]
         assert brain.connect_count == 1
         assert brain.closed is True
     finally:
+        allow_close.set()
         await session.aclose()
 
 
