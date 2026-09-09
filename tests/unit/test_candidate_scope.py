@@ -1,6 +1,25 @@
 from scripts.candidate_scope import classify_candidate
 
 
+def test_weather_timestamp_continuity_is_not_wake_rearm_scope():
+    report = classify_candidate(
+        ["podvoice/gatekeeper/weather_result.py", "tests/unit/test_weather_result.py"],
+        '+ "coverage": "Only listed timestamps; continuity is not implied."\n'
+        "+ Home Assistant MCP\n+ response.done\n",
+    )
+    assert report.domains == ("ha_tools", "realtime_semantics")
+    assert not report.passed  # The actual coupling still requires exact review.
+
+
+def test_detector_continuity_still_requires_rearm_review():
+    paths = ["esphome/components/podvoice_audio/audio.h", "tests/unit/test_firmware_contract.py"]
+    diff = "+ podvoice_detector_continuity_proven = true;\n"
+    assert classify_candidate(paths, diff).domains == ("rearm",)
+    mixed = classify_candidate(paths, diff + "+ playback_started();\n")
+    assert mixed.domains == ("physical_output", "rearm")
+    assert not mixed.passed
+
+
 def test_candidate_scope_rejects_rearm_and_playback_in_one_candidate():
     report = classify_candidate(
         ["esphome/podvoice.yaml", "tests/unit/test_firmware_contract.py"],

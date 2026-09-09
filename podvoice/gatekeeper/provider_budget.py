@@ -521,6 +521,26 @@ class ProviderBudgetCoordinator:
                 "authoritative": bucket.authoritative,
             }
 
+    def production_retry_after(self, lease: BudgetLease, tokens: int) -> float | None:
+        """Advisory refill for an exact live production lease, never permission.
+
+        No caller may queue initial wake admission through this method. Completed
+        tool chains must revalidate their owner and atomically reserve after waiting.
+        """
+        now = self._monotonic()
+        with self._lock:
+            bucket = self._buckets.get(lease.bucket_id)
+            if bucket is None or lease.role != "production":
+                return None
+            self._roll_window(bucket, now)
+            owned = bucket.production.get(lease.lease_id)
+            if owned is None or tokens <= 0 or bucket.refill_per_s <= 0:
+                return None
+            other = self._reserved(bucket) - owned
+            if tokens > bucket.limit - other:
+                return None  # Impossible targets must not wait forever.
+            return max(0.0, (tokens - (bucket.remaining - other)) / bucket.refill_per_s)
+
     def response_retry_after(self, lease: BudgetLease, tokens: int | None = None) -> float | None:
         """Return the exact active eval lease's next bounded reset delay.
 

@@ -3,9 +3,9 @@
 from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
-def test_v11_is_prioritized_and_model_owned():
+def test_v13_is_prioritized_and_model_owned():
     prompt = SYSTEM_PROMPT_DA.lower()
-    assert PROMPT_VERSION == 11
+    assert PROMPT_VERSION == 13
     assert "kald approve_action med præcis dette challenge_id" in prompt
     assert "gentag aldrig det oprindelige handlingsværktøj" in prompt
     assert "# prioritet" in prompt
@@ -49,6 +49,28 @@ def test_sensitive_actions_and_semantic_close_are_explicit():
     assert "mens handlingen afventer brugerens godkendelse eller et værktøjsresultat" in prompt
     assert "højst ét kort dansk farvel, eller afslut uden ord" in prompt
     assert "brug ingen flere værktøjer" in prompt
+
+
+def test_receipt_preserves_source_without_promoting_service_acceptance_to_device_proof():
+    prompt = SYSTEM_PROMPT_DA.lower()
+    assert "en tjenestes accept er ikke enhedens egen kvittering" in prompt
+    assert "anmodningen er sendt via home assistant" in prompt
+    assert "enheden har accepteret, er startet eller er færdig" in prompt
+    assert "det kræver særskilt bevis fra resultatet" in prompt
+    assert "usikkerhedssætning gør ikke en sådan påstand sand" in prompt
+
+
+def test_weather_fallback_covers_failed_or_partial_data_without_location_leakage():
+    prompt = SYSTEM_PROMPT_DA.lower()
+    assert "fejler opslaget" in prompt
+    assert "mangler resultatet brugbare data for perioden" in prompt
+    assert "uden ekstra websøgning" in prompt
+    assert "allerede kendt by eller et kendt område" in prompt
+    assert "ellers spørg om stedet" in prompt
+    assert "send ikke hjemmets adresse eller præcise koordinater til web" in prompt
+    assert "opfind ingen prognose" in prompt
+    assert "afkortet prognose dækker kun de viste perioder" in prompt
+    assert "betyder ikke tørt vejr eller nul nedbør" in prompt
 
 
 def test_direct_answers_need_no_lifecycle_tool_round():

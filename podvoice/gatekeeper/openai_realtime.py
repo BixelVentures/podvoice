@@ -315,6 +315,23 @@ def _rerror(ev: dict) -> str | None:
 
 
 @dataclass
+class _ProductionToolAdmission:
+    response_id: str
+    generation: int
+    ws: aiohttp.ClientWebSocketResponse
+    root: tuple[str, int, int]
+    lease: BudgetLease
+    tokens: int
+    call_ids: frozenset[str]
+    admitted: bool = False
+
+
+# Conservative total root-turn safety ceiling, not a latency claim. All child
+# batches and post-output rechecks share it; no wait can extend a capability TTL.
+PRODUCTION_TOOL_CHAIN_DEADLINE_S = 30.0
+
+
+@dataclass
 class OpenAIRealtimeSession:
     """One OpenAI Realtime WebSocket. Satisfies voice.VoiceSession."""
 
@@ -334,6 +351,18 @@ class OpenAIRealtimeSession:
     before_response_create: Callable[[int | None], Awaitable[None]] | None = field(
         default=None, repr=False, kw_only=True
     )
+    capacity_monotonic: Callable[[], float] = field(
+        default=time.monotonic, repr=False, kw_only=True
+    )
+    capacity_sleep: Callable[[float], Awaitable[None]] = field(
+        default=asyncio.sleep, repr=False, kw_only=True
+    )
+    _production_admission: _ProductionToolAdmission | None = field(
+        default=None, init=False, repr=False
+    )
+    _capacity_root: tuple[str, int, int] | None = field(default=None, init=False, repr=False)
+    _capacity_deadline: float = field(default=0.0, init=False, repr=False)
+    _capacity_reader_task: asyncio.Task | None = field(default=None, init=False, repr=False)
     # Passive bounded provenance sink. Normal production sessions leave it unset;
     # ThinSession installs it temporarily only for an explicitly armed one-shot
     # physical trace, then restores the prior value on every close path. Payloads
@@ -645,6 +674,7 @@ class OpenAIRealtimeSession:
         return {"type": "session.update", "session": session}
 
     async def connect(self) -> None:
+        self._reset_production_capacity()
         # Reusing a session object replaces the prior socket generation. Release its
         # process-wide capacity before registering the new generation; a delayed old
         # reader/finally then sees an idempotent no-op and cannot release the new lease.
@@ -1357,6 +1387,21 @@ class OpenAIRealtimeSession:
             if self._active_response or self._pending_response_creates:
                 await self._manual_protocol_error("parallel response.create attempted")
         requested_capacity = self._next_response_capacity_tokens
+        if self.budget_role == "production":
+            if purpose == "turn":
+                if input_turn != self._capacity_root:
+                    self._capacity_root = input_turn
+                    self._capacity_deadline = (
+                        self.capacity_monotonic() + PRODUCTION_TOOL_CHAIN_DEADLINE_S
+                    )
+                    self._production_admission = None
+            elif purpose in ("tool_result", "semantic_end"):
+                obligation = self._production_admission
+                if obligation is None or not obligation.admitted:
+                    raise ProviderBudgetUnavailable(
+                        "rate_limit_capacity · unadmitted child response"
+                    )
+                await self._wait_production_capacity(obligation)
         if (
             self.budget_role == "eval"
             and self.budget_lease is not None
@@ -1371,7 +1416,7 @@ class OpenAIRealtimeSession:
                     atomic=clamp,
                 )
         try:
-            if self.before_response_create is not None:
+            if self.before_response_create is not None and self.budget_role != "production":
                 # Keep the one-shot late snapshot seam open while a bounded capacity
                 # wait is actually suspended. Its mandatory final recheck then sees
                 # the newest downward anchor. An admitted callback returns without an
@@ -1502,6 +1547,21 @@ class OpenAIRealtimeSession:
     async def send_tool_results(self, results: list) -> bool:
         if self._ws is None:
             return False
+        obligation: _ProductionToolAdmission | None = None
+        if self.budget_role == "production":
+            obligation = self._production_admission
+            if obligation is None or not obligation.admitted:
+                raise ProviderBudgetUnavailable(
+                    "rate_limit_capacity · output before batch admission"
+                )
+            self._check_production_admission(obligation)
+            ids = [str(result.get("id") or "") for result in results]
+            if (
+                len(ids) != len(set(ids))
+                or frozenset(ids) != obligation.call_ids
+                or not set(ids) <= self._outstanding_tool_calls
+            ):
+                raise ProviderBudgetUnavailable("rate_limit_capacity · output batch mismatch")
         submissions: list[tuple[dict, str, _PendingItemCreate]] = []
         for r in results:
             call_id = str(r.get("id") or "")
@@ -1524,10 +1584,13 @@ class OpenAIRealtimeSession:
         if not submissions:
             return False
 
+        waiters: list[asyncio.Task] = []
         try:
             # Register the full sibling batch before the first send. A very fast ACK
             # can therefore never make the first call look like the whole batch.
             for _result, output, pending in submissions:
+                if obligation is not None:
+                    self._check_production_admission(obligation)
                 await self._ws.send_json(
                     {
                         "event_id": pending.event_id,
@@ -1540,6 +1603,8 @@ class OpenAIRealtimeSession:
                         },
                     }
                 )
+                if obligation is not None:
+                    self._check_production_admission(obligation)
             waiters = [
                 asyncio.create_task(
                     self._await_item_create(pending, f"tool output {pending.call_id}")
@@ -1556,7 +1621,12 @@ class OpenAIRealtimeSession:
                 await asyncio.gather(*pending_waiters, return_exceptions=True)
                 raise failure
             await asyncio.gather(*pending_waiters)
+            if obligation is not None:
+                self._check_production_admission(obligation)
         except BaseException:
+            for waiter in waiters:
+                waiter.cancel()
+            await asyncio.gather(*waiters, return_exceptions=True)
             for _result, _output, pending in submissions:
                 self._forget_item_create(pending)
             raise
@@ -1619,6 +1689,7 @@ class OpenAIRealtimeSession:
         finally:
             self.provider_budget.release(self._budget_production_leases.pop(generation, None))
             if generation == self._connection_generation and ws is self._ws:
+                self._reset_production_capacity()
                 # On any exit (incl. a socket drop mid-response) don't carry stale state
                 # into the next socket, or tools could fire a spurious response.create.
                 self._configured = False
@@ -1845,6 +1916,75 @@ class OpenAIRealtimeSession:
             }
         return json.dumps(bounded, ensure_ascii=False, separators=(",", ":"))
 
+    def _reset_production_capacity(self) -> None:
+        self._production_admission = None
+        self._capacity_root = None
+        self._capacity_deadline = 0.0
+        self._capacity_reader_task = None
+
+    def _check_production_admission(self, obligation: _ProductionToolAdmission) -> None:
+        if (
+            self.budget_role != "production"
+            or self._production_admission is not obligation
+            or self._connection_generation != obligation.generation
+            or self._ws is not obligation.ws
+            or bool(getattr(obligation.ws, "closed", False))
+            or self._manual_turn_lease != obligation.root
+            or self._capacity_root != obligation.root
+            or self._budget_production_leases.get(obligation.generation) != obligation.lease
+            or self._terminal_responses.get(obligation.response_id) != "completed"
+            or bool(obligation.call_ids & self._cancelled_tool_calls)
+            or self._deliberate_close
+        ):
+            raise ProviderBudgetUnavailable("rate_limit_capacity · stale production batch owner")
+        if self.capacity_monotonic() >= self._capacity_deadline:
+            raise ProviderBudgetUnavailable("rate_limit_capacity · tool chain deadline exceeded")
+
+    async def _wait_production_capacity(self, obligation: _ProductionToolAdmission) -> None:
+        # Waiting in the provider reader would hide rate changes/errors. Production
+        # callers must remain in Thin's existing synchronously cancellable tool task.
+        if asyncio.current_task() is self._capacity_reader_task:
+            raise ProviderBudgetUnavailable("rate_limit_capacity · admission attempted in reader")
+        while True:
+            self._check_production_admission(obligation)
+            if self.provider_budget.ensure_response_capacity(obligation.lease, obligation.tokens):
+                return  # No await between this atomic reservation and caller recheck.
+            delay = self.provider_budget.production_retry_after(obligation.lease, obligation.tokens)
+            remaining = self._capacity_deadline - self.capacity_monotonic()
+            if delay is None or delay < 0 or delay >= remaining:
+                raise ProviderBudgetUnavailable(
+                    "rate_limit_capacity · refill exceeds tool deadline"
+                )
+            if delay == 0:
+                continue  # Refill crossed the threshold between the locked samples.
+            self._observe_provider(
+                "production_capacity_wait",
+                response_id=obligation.response_id,
+                generation=obligation.generation,
+                target_tokens=obligation.tokens,
+                wait_s=delay,
+                deadline_remaining_s=remaining,
+            )
+            await self.capacity_sleep(delay)
+            # Loop revalidates socket/root/lease/deadline and all intervening rate
+            # observations. Cancellation is intentionally not caught or shielded.
+
+    async def admit_tool_batch(self, response_id: str, generation: int | None) -> None:
+        obligation = self._production_admission
+        if (
+            obligation is None
+            or obligation.admitted
+            or obligation.response_id != response_id
+            or obligation.generation != generation
+            or obligation.call_ids != frozenset(self._outstanding_tool_calls)
+        ):
+            raise ProviderBudgetUnavailable("rate_limit_capacity · missing or replayed batch")
+        await self._wait_production_capacity(obligation)
+        self._check_production_admission(obligation)
+        if obligation.admitted:
+            raise ProviderBudgetUnavailable("rate_limit_capacity · concurrent batch admission")
+        obligation.admitted = True
+
     async def _reserve_tool_response_capacity(
         self,
         lease: BudgetLease,
@@ -1899,6 +2039,8 @@ class OpenAIRealtimeSession:
     ) -> AsyncIterator[VoiceEvent]:
         ws = ws or self._ws
         assert ws is not None
+        if self.budget_role == "production":
+            self._capacity_reader_task = asyncio.current_task()
         # Per-stream turn tracking (diagnostics for cross-wired answers): the id of the
         # response currently being created, and the id we last logged as "speaking".
         cur_rid: str | None = None
@@ -2470,7 +2612,7 @@ class OpenAIRealtimeSession:
                     max(
                         TOOL_FOLLOWUP_MINIMUM_RESERVE,
                         usage.provider_total_tokens
-                        + MAX_TOOL_RESULT_TOKENS
+                        + MAX_TOOL_RESULT_TOKENS * max(1, len(staged_calls))
                         + MAX_OUTPUT_TOKENS
                         + TOOL_FOLLOWUP_PROTOCOL_MARGIN,
                     )
@@ -2588,6 +2730,33 @@ class OpenAIRealtimeSession:
                         provider_rate_observed=provider_reservation_observed,
                     )
                     continue
+                if (
+                    self.budget_role == "production"
+                    and (staged_calls or staged_invalid)
+                    and not budgeted_usage_valid
+                ):
+                    self._cancelled_tool_calls.update(staged_calls)
+                    error = "rate_limit_capacity · missing or invalid authoritative usage"
+                    self.last_error = error
+                    yield TurnComplete(
+                        status="failed", error=error, response_id=rid, generation=generation
+                    )
+                    continue
+                if self.budget_role == "production" and (staged_calls or staged_invalid):
+                    if (
+                        production_lease is None
+                        or generation is None
+                        or self._manual_turn_lease is None
+                        or self._manual_turn_lease != self._capacity_root
+                        or self.capacity_monotonic() >= self._capacity_deadline
+                    ):
+                        self._cancelled_tool_calls.update(staged_calls)
+                        error = "rate_limit_capacity · tool result response has no live root owner"
+                        self.last_error = error
+                        yield TurnComplete(
+                            status="failed", error=error, response_id=rid, generation=generation
+                        )
+                        continue
                 if staged_invalid is not None:
                     # A completed response containing a malformed/undeclared tool call
                     # is still unsafe. Surface a failed turn and execute none of the
@@ -2599,6 +2768,17 @@ class OpenAIRealtimeSession:
                         and not self._schema_correction_used
                         and staged_invalid.name not in _SCHEMA_CORRECTION_FORBIDDEN_TOOLS
                         and status == "completed"
+                        and budgeted_usage_valid
+                        and (
+                            self.budget_role != "production"
+                            or (
+                                production_lease is not None
+                                and generation is not None
+                                and self._manual_turn_lease is not None
+                                and self._manual_turn_lease == self._capacity_root
+                                and self.capacity_monotonic() < self._capacity_deadline
+                            )
+                        )
                     )
                     if (
                         correction_eligible
@@ -2623,6 +2803,21 @@ class OpenAIRealtimeSession:
                         )
                         continue
                     if correction_eligible:
+                        if self.budget_role == "production":
+                            assert generation is not None and production_lease is not None
+                            assert self._manual_turn_lease is not None
+                            # This correction has no device effects; its existing
+                            # immediate reservation succeeded above. No reader wait.
+                            self._production_admission = _ProductionToolAdmission(
+                                rid,
+                                generation,
+                                ws,
+                                self._manual_turn_lease,
+                                production_lease,
+                                followup_tokens,
+                                frozenset({staged_invalid.call_id}),
+                                admitted=True,
+                            )
                         self._schema_correction_used = True
                         self._remember_tool_call_id(staged_invalid.call_id)
                         self._outstanding_tool_calls.add(staged_invalid.call_id)
@@ -2680,6 +2875,7 @@ class OpenAIRealtimeSession:
                 if (
                     staged_calls
                     and tool_budget_lease is not None
+                    and self.budget_role != "production"
                     and not await self._reserve_tool_response_capacity(
                         tool_budget_lease, followup_tokens, ws
                     )
@@ -2703,6 +2899,32 @@ class OpenAIRealtimeSession:
                     )
                     continue
                 if staged_calls:
+                    if self.budget_role == "production":
+                        root = self._manual_turn_lease
+                        if (
+                            production_lease is None
+                            or generation is None
+                            or root is None
+                            or root != self._capacity_root
+                            or self._capacity_deadline <= self.capacity_monotonic()
+                        ):
+                            self._cancelled_tool_calls.update(staged_calls)
+                            yield TurnComplete(
+                                status="failed",
+                                error="rate_limit_capacity · missing live production root owner",
+                                response_id=rid,
+                                generation=generation,
+                            )
+                            continue
+                        self._production_admission = _ProductionToolAdmission(
+                            rid,
+                            generation,
+                            ws,
+                            root,
+                            production_lease,
+                            followup_tokens,
+                            frozenset(staged_calls),
+                        )
                     # Atomic batch gate: register every id before yielding the first
                     # call. A fast first tool result must never create the follow-up
                     # response while a later sibling is still undispatched.
@@ -2726,7 +2948,11 @@ class OpenAIRealtimeSession:
                             batch_size=len(calls),
                             generation=generation,
                         )
-                    yield ToolRoundComplete(response_id=rid, generation=generation)
+                    yield ToolRoundComplete(
+                        response_id=rid,
+                        generation=generation,
+                        requires_capacity_admission=self.budget_role == "production",
+                    )
                     # The consumer has processed the edge before execution resumes
                     # here. A result that raced ahead was held by send_tool_results.
                     self._tool_round_edge_pending = False
@@ -3135,6 +3361,7 @@ class OpenAIRealtimeSession:
         _LOG.info("truncated item %s at %dms (heard position)", item_id, audio_end_ms)
 
     async def close(self) -> None:
+        self._reset_production_capacity()
         self._deliberate_close = True
         self._connection_generation += 1
         self._configured = False

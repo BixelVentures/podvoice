@@ -251,6 +251,9 @@ class _ToolBatch:
     started: bool = False
     task_started: bool = False
     submitting: bool = False
+    requires_capacity_admission: bool = False
+    capacity_admitted: bool = False
+    provider_generation: int | None = None
 
 
 @dataclass
@@ -1967,6 +1970,8 @@ class ThinSession:
                 )
                 return
             for batch in pending_batches:
+                batch.requires_capacity_admission = ev.requires_capacity_admission
+                batch.provider_generation = ev.generation
                 batch.round_complete = True
                 self._maybe_start_batch_task(batch)
                 await self._submit_tool_batch_if_ready(batch)
@@ -1993,7 +1998,14 @@ class ThinSession:
                 # erased. Preserve exactly that heard transcript; the correction is
                 # still side-effect-free and its next response remains in this turn.
                 self._flush_transcript("out")
-            self._spawn(self._submit_schema_correction(ev), "thin-schema-correction")
+            task = self._spawn(self._submit_schema_correction(ev), "thin-schema-correction")
+            self._tool_tasks[ev.call_id] = task
+
+            def untrack_correction(done: asyncio.Task) -> None:
+                if self._tool_tasks.get(ev.call_id) is done:
+                    self._tool_tasks.pop(ev.call_id, None)
+
+            task.add_done_callback(untrack_correction)
         elif isinstance(ev, SilentToolComplete):
             for call_id in ev.call_ids:
                 self._complete_silent_wait_turn(call_id)
@@ -3054,7 +3066,7 @@ class ThinSession:
             or not batch.round_complete
             or batch.task_started
             or len(batch.calls) != batch.size
-            or len(batch.results) == batch.size
+            or (len(batch.results) == batch.size and not batch.requires_capacity_admission)
             or self._tool_batches.get(batch.batch_id) is not batch
         ):
             return
@@ -3236,8 +3248,17 @@ class ThinSession:
 
     async def _submit_schema_correction(self, correction: ToolSchemaCorrection) -> None:
         """Return a provider-authored schema error without touching a tool adapter."""
+        epoch, turn = self._epoch, self._closure_turn
         async with self._tool_lock:
             try:
+                if (
+                    self._epoch != epoch
+                    or self._closure_turn is not turn
+                    or not self._active
+                    or self._transport_closing
+                    or (turn is not None and turn.superseded)
+                ):
+                    return
                 await self.brain.send_tool_results(
                     [
                         {
@@ -3250,14 +3271,52 @@ class ThinSession:
             except Exception as exc:
                 _LOG.warning("thin: schema correction submission failed: %s", exc)
                 self._trace_event("tool_schema_correction_failed")
-                if self._active:
+                if (
+                    self._active
+                    and self._epoch == epoch
+                    and self._closure_turn is turn
+                    and not self._transport_closing
+                    and (turn is None or not turn.superseded)
+                ):
                     self._request_close("error:connection", error_kind="connection")
 
     async def _run_tool_batch(self, batch: _ToolBatch) -> None:
+        epoch = self._epoch
+
+        def current() -> bool:
+            return (
+                self._epoch == epoch
+                and self._closure_turn is batch.turn
+                and not batch.turn.superseded
+                and self._tool_batches.get(batch.batch_id) is batch
+                and self._active
+                and not self._transport_closing
+            )
+
+        if not current():
+            return
+        if batch.requires_capacity_admission:
+            try:
+                # Mandatory marked contract, never a getattr/no-op fallback. Keep
+                # the provider reader runnable while this cancellable task waits.
+                await self.brain.admit_tool_batch(batch.batch_id, batch.provider_generation)
+            except Exception as exc:
+                _LOG.warning("thin: tool batch capacity admission failed: %s", exc)
+                self._trace_event("tool_capacity_failed", batch_id=batch.batch_id)
+                if current():
+                    self._request_close("error:connection", error_kind="connection")
+                return
+            if not current():
+                return
+            batch.capacity_admitted = True
         for index in range(batch.size):
+            if not current():
+                return
+            if index in batch.results:
+                continue  # Rejected siblings still consume the same admission.
             tc = batch.calls[index]
             result = await self._execute_tool(tc, batch.turn, approval_completed_gated=True)
-            if self._tool_batches.get(batch.batch_id) is not batch or not self._active:
+            if not current():
                 self._trace_event("tool_result_stale", name=tc.name, call_id=tc.id)
                 return
             batch.results[index] = result
@@ -3270,7 +3329,12 @@ class ThinSession:
             or not batch.round_complete
             or len(batch.calls) != batch.size
             or len(batch.results) != batch.size
+            or (batch.requires_capacity_admission and not batch.capacity_admitted)
             or self._tool_batches.get(batch.batch_id) is not batch
+            or self._closure_turn is not batch.turn
+            or batch.turn.superseded
+            or not self._active
+            or self._transport_closing
         ):
             return
         batch.submitting = True
@@ -3315,13 +3379,28 @@ class ThinSession:
             if call.name == END_CONVERSATION_TOOL and result.get("ok") and batch.turn.silent_end:
                 item["suppress_response"] = True
             tool_results.append(item)
+        submission_epoch = self._epoch
         async with self._tool_lock:
             try:
+                if (
+                    submission_epoch != self._epoch
+                    or self._closure_turn is not batch.turn
+                    or batch.turn.superseded
+                    or not self._active
+                    or self._transport_closing
+                ):
+                    return
                 silent_complete = await self.brain.send_tool_results(tool_results)
             except Exception as exc:
                 _LOG.warning("thin: submitting tool batch %s failed: %s", batch.batch_id, exc)
                 self._trace_event("tool_result_submit_failed", batch_id=batch.batch_id)
-                if self._active:
+                if (
+                    self._active
+                    and self._epoch == submission_epoch
+                    and self._closure_turn is batch.turn
+                    and not batch.turn.superseded
+                    and not self._transport_closing
+                ):
                     self._request_close("error:connection", error_kind="connection")
                 return
         if silent_complete is True:

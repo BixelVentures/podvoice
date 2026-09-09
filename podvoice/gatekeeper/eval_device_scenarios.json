@@ -404,7 +404,7 @@
             "fixture_side_effects": 4,
             "remain_open": false,
             "answer_patterns": [
-              "^(?!.*(?:færdig|gennemført)).*(?:sendt|start|sat|anmod|modtag).+"
+              "(?s)^(?!.*(?:robotten|støvsugeren|enheden) (?:har (?:nu )?(?:accepteret|modtaget)|er (?:nu )?(?:startet|i gang|færdig)|(?:vasker|støvsuger|kører) nu))(?!.*(?:jeg har (?:startet|gennemført)|rengøringen er (?:startet|færdig|gennemført))).*(?:sendt|(?:home assistant|\\bha\\b) har (?:accepteret|modtaget)).*"
             ]
           }
         }
@@ -560,7 +560,7 @@
             "fixture_side_effects": 4,
             "remain_open": true,
             "answer_patterns": [
-              "^(?!.*(?:færdig|gennemført)).*(?:sendt|start|sat|anmod|modtag).+"
+              "(?s)^(?!.*(?:robotten|støvsugeren|enheden) (?:har (?:nu )?(?:accepteret|modtaget)|er (?:nu )?(?:startet|i gang|færdig)|(?:vasker|støvsuger|kører) nu))(?!.*(?:jeg har (?:startet|gennemført)|rengøringen er (?:startet|færdig|gennemført))).*(?:sendt|(?:home assistant|\\bha\\b) har (?:accepteret|modtaget)).*"
             ],
             "forbid": [
               "end_conversation"

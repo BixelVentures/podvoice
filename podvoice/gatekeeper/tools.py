@@ -38,6 +38,7 @@ from .device_control import (
 from .execution_policy import ExecutionContext, ExecutionPolicy, Risk
 from .mcp_client import HomeAssistantMCP, McpError
 from .tool_wire import compact_json_size, realtime_function_tool, realtime_tools_wire_size
+from .weather_result import compact_weather_result
 
 log = logging.getLogger("podvoice.tools")
 
@@ -1427,7 +1428,7 @@ class ToolRouter:
             if name not in self._discovery.mcp_names:
                 return {"ok": False, "error_kind": "bad_args", "error": f"unknown tool {name}"}
             result = await self._mcp.call_tool(name, args or {})
-            return _mcp_result_to_contract(result)
+            return compact_weather_result(name, _mcp_result_to_contract(result))
         except McpError as e:
             if e.connection_shaped:
                 self._record_discovery_failure(e)

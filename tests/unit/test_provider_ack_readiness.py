@@ -1977,10 +1977,14 @@ async def test_underfunded_production_owner_releases_no_external_or_semantic_pro
     assert ledger.release(lease) is True
 
 
-async def test_current_partial_generation_top_up_releases_exactly_one_proposal():
+async def test_current_partial_generation_top_up_requires_explicit_root_and_admission():
     ledger, session = _partial_production_session(5_000, [_area_tool_declaration()])
     lease = session._budget_production_leases[1]
     ws = _QueueWS()
+    session._ws = ws
+    session._manual_turn_lease = ("funded-root", 1, 1)
+    session._capacity_root = session._manual_turn_lease
+    session._capacity_deadline = session.capacity_monotonic() + 30
     await ws.emit({"type": "response.created", "response": {"id": "funded-tool"}})
     await ws.emit(
         {
@@ -2014,6 +2018,10 @@ async def test_current_partial_generation_top_up_releases_exactly_one_proposal()
     events = [event async for event in session._iter_events(ws, generation=1)]
     assert [event.name for event in events if isinstance(event, ToolCall)] == ["HassTurnOn"]
     assert sum(isinstance(event, ToolRoundComplete) for event in events) == 1
+    assert next(
+        event for event in events if isinstance(event, ToolRoundComplete)
+    ).requires_capacity_admission
+    await asyncio.create_task(session.admit_tool_batch("funded-tool", 1))
     assert not any(isinstance(event, TurnComplete) and event.status == "failed" for event in events)
     assert ledger.snapshot("secret", "model")["reserved_tokens"] == 6_000
     assert ledger.release(lease) is True
@@ -2089,7 +2097,7 @@ async def test_completed_tool_proposal_cannot_escape_without_owned_followup_capa
     assert failed.error and error_fragment in failed.error
 
 
-async def test_same_generation_direct_then_two_tool_rounds_keep_spoken_result_capacity():
+async def test_same_generation_without_root_cannot_authorize_home_or_close_from_usage_alone():
     ledger = ProviderBudgetCoordinator()
     ledger.update_rate_limits(
         "secret",
@@ -2182,13 +2190,13 @@ async def test_same_generation_direct_then_two_tool_rounds_keep_spoken_result_ca
     await ws.incoming.put(None)
 
     events = [event async for event in session._iter_events(ws, generation=1)]
-    assert [event.name for event in events if isinstance(event, ToolCall)] == [
-        "HassTurnOn",
-        "end_conversation",
+    assert not any(isinstance(event, (ToolCall, ToolRoundComplete)) for event in events)
+    failures = [
+        event for event in events if isinstance(event, TurnComplete) and event.status == "failed"
     ]
-    assert sum(isinstance(event, ToolRoundComplete) for event in events) == 2
-    assert not any(isinstance(event, TurnComplete) and event.status == "failed" for event in events)
-    assert ledger.has_capacity(lease, 6_000) is True
+    assert len(failures) == 2
+    assert all("no live root owner" in event.error for event in failures)
+    assert ledger.release(lease)
 
 
 async def test_exclusive_eval_response_may_complete_at_remaining_fourteen_thousand():

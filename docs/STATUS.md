@@ -1,5 +1,211 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — samlet 1.13.71: kapacitet, kvittering og vejr
+
+<!-- candidate-scope-coupling
+{"version":1,"base_tip":"4640ea9113464d8b18c03c0f7a3f8efc073bbb59","merge_base":"4640ea9113464d8b18c03c0f7a3f8efc073bbb59","domains":["ha_tools","realtime_semantics"],"fingerprint":"c116fcf6541cf523e50b45762102f402904985f25a18a41c149a0c73fffd71d9","reviewer":"production_capacity_cause","rationale":"Completed HA batch admission, bounded weather output and truthful receipt share one exact provider ACK and child-response contract. Independent composition review and permanent real-ledger regression preserve ownership, Stop cancellation, output bounds and receipt source. No firmware/rearm change."}
+-->
+
+Brugeren har eksplicit bestilt én samlet build, installation og sikker prøve før
+sin fysiske test. Lead: Codex. Denne post erstatter tidligere scope-/installations-
+HOLD nedenfor: gammel .70 skal ikke bestå 10/10 før en diagnosticeringskandidat
+installeres. Installation er ikke fysisk godkendelse.
+
+Direkte evidens: .70 kasserer stor HA-vejrprognose ved providerens 2048-bytegrænse;
+den sikre robot-eval viste en kvittering stærkere end HA-service-ACK; den dokumenterede
+lange værktøjskæde kræver mere end ét lokalt kapacitetsvindue. Hypotese: de tre
+separat reviewede ejerrettelser kan samles uden at ændre tool-listen eller genafspille
+handlinger. Kandidaten samler receipt a2d7771, weather 2dbbaeb og capacity 1eb0d74.
+
+Kæde: fysisk wake/input → Thin-tur → Realtime completed batch → generationsbundet
+kapacitetsadmission → eksisterende HA-policy/dispatch → kilde-/coverage-bevarende
+resultat → exact ACK → kapacitetskontrol → sand modelkvittering → fysisk playback →
+én teardown/rearm → næste wake. Invarianter: én ejer, 2048-bytegrænse, autoritativ
+usage, ingen sideeffekt før admission, ingen stale/sibling/ACK efter Stop eller ny tur,
+samme kontrakt for Voice PE og Talk. Resultatformat og længere prompt må ikke skjule
+kapacitetsfejl. Ikke-mål: firmware, gain/VAD, model, musikrouting, ekstra værktøjer,
+HA-scripts eller bredere robotadgang. Roborock forbliver OFF med tom allowlist.
+
+Planlagte gates: kompositionstest, uafhængigt adversarial freeze-review og én samlet
+releasegate; exact-head CI og main-artifact; backup og én add-on-installation med
+uændret Stop2-firmware; fokuseret sideeffektfri live-eval og read-only vejrkontrol.
+Først derefter brugerens golden chain/10 fysiske cyklusser og senere robotprøve.
+Rollback er hele add-on-kandidaten til backup/.70, ikke skjult delvis rollback.
+Lokation: HA-hjemmets koordinater matcher Met.no; bykontekst til web skal verificeres
+separat og må ikke indeholde eller sende privat adresse/koordinater til websøgning.
+Samling implementeret: alle syv kapacitetsfiler er byteidentiske med det separat
+reviewede 1eb0d74-diff; kvittering og vejr er bevaret fra 2dbbaeb/a2d7771. Version
+1.13.71 i alle tre felter; standardprompt v13 migrerer også installeret stock-v11.
+Fast: 1619 tests, Ruff/format og mypy45 bestod. Uafhængigt kompositionsreview:
+P0=0/P1=0/P2=0, 124 fokuserede checks og 8 Thin-checks bestod. Samlet rigtig
+provider-/ledgerregression bevarede kvitteringsflags og 13 vejrrækker under 2048
+bytes gennem exact ACK og sen kapacitetsnedjustering; ét child-kald, ingen replay.
+Dette er kontrolleret testtid, ikke livekapacitet eller fysisk latency. Ingen ny
+artifact, installation eller fysisk godkendelse på dette tidspunkt.
+
+Releasekontrollen stoppede før pytest på en tooling-fejl: scope-regexen klassificerede
+vejrets "continuity is not implied" som wake/rearm. Ingen firmware- eller rearmkode
+er ændret. Årsagsgrænsen er classifieren, ikke runtime: afgræns continuity-match til
+wake-/detektor-/mikrofonkontinuitet og behold de øvrige rearm-signaler; tilføj
+positiv/negativ tooling-regression. HA/Realtime-kompositionen skal stadig have den
+eksisterende eksakte, fingerprint-bundne uafhængige reviewpost. Den standsede gate
+beviser ikke unit/integration; de afbrudte dele skal gennemføres efter tooling-review.
+Classifier-only rettelse og 19 regressioner bestod; reviewer bekræftede den eneste
+falske rearm-trigger og den afgrænsede rettelse. Ingen ny coupling-type eller bred
+undtagelse er tilføjet. Kun den eksisterende eksakte HA/Realtime-reviewkontrakt bruges.
+
+Samlet frozen releasegate bestod: 1270 unit + 352 integration = 1622 tests,
+Ruff/format 116 filer, mypy45 og exact-reviewed candidate-scope. 39,2 s. Første
+forsøg var afbrudt før pytest af den ovenfor dokumenterede classifier-fejl; kun
+tooling blev rettet før den gennemførte gate. Kandidatens produktionsfingerprint
+er uændret. Exact-head CI, main-image, installation og live/fysisk bevis udestår.
+
+Publication forsøgt, men afvist før GitHub-tree-write af sikkerhedskontrollen: den
+kræver eksplicit brugeraccept af de 25 ændrede kode/test/version/STATUS-filer til
+det offentlige BixelVentures/podvoice. Ingen remote branch, PR, build eller ny
+installation er oprettet. Separat afvist HA-ændring: kun eksisterende weather-
+værktøjs beskrivelse skulle angive brugerens by; dialogen blev annulleret og gammel
+beskrivelse genlæst uændret. Begge konkrete godkendelser er nu spurgt brugeren.
+Lokal releasecommit før denne statusnote: 57f0266c617e0c9cf44e5c07994a5404ca2bcdf5,
+tree 32c8689c8a3df24d8b7b67b4d796dac5b1dbadad. Installation er stadig .70.
+
+Brugeren har nu eksplicit godkendt udgivelsen/uploaden og installationen. Bytilføjelsen
+er IKKE godkendt: HA's eksisterende hjemmeplacering og den faktiske overførsel af
+lokation til MCP/Realtime undersøges read-only. Ingen ændring af HA-værktøjet.
+
+## Aktiv lead-beslutning — brugbare vejrdata og web-reservevej
+
+Lead: Codex. Brugeren har bedt om at færdiggøre vejr og en oversigt over restarbejde.
+Frisk Talk-prøve på installeret .70 kaldte weather_forecast med succes, men svaret
+oplyste, at prognosen var afkortet. UI-resultatet indeholder en rigtig hourly-
+prognose fra HA/Met.no. Providerens uændrede grænse på 2048 UTF-8-bytes erstatter
+for store resultater med data.truncated=true uden prognose. Hypotese: en bounded,
+tabsbevidst formatkonvertering af netop dette dokumenterede read-only-resultat
+bevarer brugbare perioder under eksisterende wiregrænse. Grænsen må ikke hæves.
+
+Kæde: stemme/Talk-input → Realtime-værktøjsvalg → eksisterende schema/policy → MCP
+weather_forecast → resultatkontrakt → bounded provider-output → eksakt output-ACK →
+modelrespons → fysisk playback/drain → model-close/teardown/rearm → næste wake.
+Invarianter: model-ejet semantik, sand kilde/coverage, autorisation, 2048-bytebudget,
+completed batch/ACK, én ejer i Thin og begge adaptere. Naboer: forkert eller tom
+prognose, manglende tid/enheder, partial data, MCP-fejl, ukendt lokation, stale
+callbacks og resultater fra musik/andre domæner. Ikke-mål: større kvote, nyt tool,
+nye HA-scripts, mere adgang, ændret musikrouting, gain/VAD/firmware/lifecycle.
+
+Plan: komprimér kun kendt success/result/forecast-envelope til navngivne kolonner
+med uændrede værdier og explicit antal/coverage. Ukendte/malformed resultater må
+ikke omfortolkes; fejl må ikke blive succes. Bevar de eksisterende bytes ved små
+resultater og alle andre tools. Afkortning skal ske ved hele rækker med synlig
+udeladelse, aldrig som falsk komplet prognose. Modellens vejrfallback præciseres
+for fejl, manglende eller ubrugelige data, kun med kendt by/område og deklareret web;
+ingen hjemmeadresse/koordinater skal søges eller sendes til web.
+
+Regressioner: observeret store payload gennem router og faktisk provider-bounding;
+bevarede værdier/kilde/tidszone/enheder, tom/malformed/error, lang unicode, delvis
+coverage og uændret andre domæner. Sikker eval skal dække HA først, HA-fejl→web,
+ukendt sted→spørg, manglende web→ærlig fejl, succes uden fallback. Begge adaptere,
+uafhængigt adversarial review og én frossen releasegate før offentlig kandidat.
+Rollback hele vejrdiffet; ingen live-installation under den åbne fysiske .70-gate.
+Denne branch bygger på lokal .71-kvitteringskandidat; den er ikke en installeret
+baseline. Ingen påstand om færdigt vejr eller gennemført fysisk vejropgave.
+
+Implementeret lokalt: weather_result.py pakker kun den observerede succesform.
+Alle beholdte målinger, kilden, enheder og tidsstempler bevares; højst 1800 UTF-8-
+bytes før uændret 2048-byte providergrænse. Udeladte perioder er mærket; ugyldige,
+naive eller usorterede tider omfortolkes ikke. Huller i serien lover ikke kontinuitet.
+Prompt v13 tillader fallback ved manglende/fejlede/ubrugelige vejrdata, kræver kendt
+by/område og forbyder adresse/koordinater til web. Stock-v12-migration er eksakt;
+egne prompts bevares. Ingen versionsrelease er tildelt denne ufærdige kandidat.
+
+123 målrettede checks bestod, inkl. rigtig MCP-klient/router → den shippede
+provider-boundingfunktion, anden-tool-paritet, migration, fejl/unicode/tid/coverage.
+Baseline i regressionen bliver faktisk til data.truncated=true; kandidaten bevarer
+prognosedata. To tidlige fixturefejl (manglende MCP tools-capability og ikke-eksisterende
+router-cleanupmetode) blev rettet i testen, ikke runtime. Ruff og mypy45 bestod.
+Uafhængigt weather_contract_review: P0=0/P1=0. P2 om tidsvalidering og falsk kontinuitet
+blev rettet med fire permanente cases; reviewer har genlæst. Reviewer bestod 40
+første checks samt eksisterende Thin-/Talk-integration. GO kun lokal freeze og
+sikker semantisk eval, ikke merge eller installation. Mekanisk scope-check PASS
+som unclassified_runtime; menneskeligt review afgrænser dette som HA-resultat-/
+promptkontrakt, ikke ny lifecycle. Ingen classifier-workaround blev skrevet.
+
+Separat live Talk-prøve på stadig installeret .70: eksplicit webopslag om Aarhus
+kaldte google_web_sogning og fik et kort vejrresultat tilbage. Det indeholdt dato
+og prognosetekst, men ingen kilde-URL. Det beviser kald/resultat, ikke selvstændigt
+verificeret meteorologisk korrekthed eller automatisk failover. Begge værktøjer
+går gennem samme HA/MCP-forbindelse; web er ikke backup for tab af selve forbindelsen.
+Ingen ny fysisk samtale, robotaktivering eller firmwareændring under vejrarbejdet.
+
+Åbent før release: sikre livekontraster for HA først, HA-fejl→web, ukendt sted→spørg,
+manglende/fejlet backup→ærlig fejl og partial coverage. Dernæst én frossen releasegate,
+exact-head CI/artifact og fysisk godkendelse. .70-lytte-/afslutningsprøve, 10/10,
+Roborock-produktionskapacitet og manglende timeradapter er fortsat særskilte huller.
+
+Samlet lokal udviklingskontrol bestod: 1.591 tests, Ruff/format og mypy45. 71,6 s;
+fuld suite blev valgt konservativt, fordi det nye testsnit endnu ikke var tracked.
+Første start stoppede ved lintkrav om itertools.pairwise; den mekaniske rettelse
+ændrede ikke sammenligningen eller reviewets tidskontrakt. Ingen releasegate,
+publicering, installation eller semantisk livegodkendelse er foretaget.
+
+## Aktiv lead-beslutning — kvitteringskilde på recovery-baseline, 1.13.71
+
+Lead: Codex. Den isolerede prompt-/evalrettelse overføres til main
+4640ea9113464d8b18c03c0f7a3f8efc073bbb59 (installeret 1.13.70).
+Observeret: sikker .69-eval gennemførte fire syntetiske rengøringshandlinger og
+model-close, men tilskrev robotten en accept, som kun Home Assistant havde givet.
+accepted_by_ha=true og physical_result_verified=false beviser ikke fysisk start.
+Det gamle svarfilter kunne samtidig afvise sand HA-accept. Ingen robot blev startet.
+
+Kæde: wake/mic → Realtime → kapabiliteter → indstillinger/start → servicekvittering →
+output-ACK → model-close → kvitteringslyd → fysisk drain → teardown/rearm → ny wake.
+Invarianter: Realtime ejer semantik, sand fysisk evidens, half-duplex 3–7,
+lifecycle 10–15, completed-batch-atomik og output-ACK. Hypotese: én generisk regel
+om kildebevaring retter overfortolkningen uden at ændre start-/dialogkontrakten.
+Nærliggende fejlveje: delvis accept, ukendt udfald, fejlagtigt mål, ønsket dialog,
+duplicate/stale-events, kapacitetsafslag og lyd-/cleanupfejl. Ikke-mål: flere tools,
+lokal taleparser, Assist/Spotify-routing, budget/provider, lyd eller firmware.
+
+Kun tidligere reviewede prompt v12, eksakt stock-v11-migration og parrede
+eval-regressioner overføres; brugerdefineret prompt bevares. Versionen bliver .71,
+så recovery .70 ikke overskrives. Den tidligere uafhængige reviewer fandt P0=0/P1=0;
+80 prompt/migration/eval/adaptercases og 21 ACK/Stop/stale/Assist/musikcases bestod.
+Regex er kun et begrænset regressionsfilter; live-svar skal vurderes manuelt.
+
+Plan: verificér byteidentitet af tidligere reviewede produkt-/testfiler, kontrollér
+samspil med ny recovery-base, uafhængig releasegrænsevurdering, én frosset releasegate
+og derefter relevante sikre livekontraster på faktisk installerede bits.
+Rollback: hele .71-diffet tilbage til .70; aldrig cherry-pick mellem ejergrænser.
+Fysisk .70-gate er endnu åben. Denne post autoriserer lokal klargøring, ikke en
+påstand om fysisk godkendelse eller tilladelse til at omgå installationsgaten.
+Roborock er verificeret OFF med tom allowlist efter .70-installation. Kapacitet er
+en særskilt uløst produktionsgate; den løses ikke af en sandere kvittering.
+
+1.13.70-installation er læst tilbage fra HA og add-onens egen startup-identitet:
+main 4640ea9113464d8b18c03c0f7a3f8efc073bbb59, rootfs-v1
+9808e95495d0627e47e85b155563f8076bc2f1c07c33e6acd5218d30d02ec670.
+MCP Assist og Voice PE er forbundet, Stop2-kontrakt OK, Hey Chat bekræftet.
+Prompt v11 og tool-schema er uændret. Ingen firmwareflash; backup valgt ved update.
+Én lokal samtaleoptagelse er armeret til brugerens næste eksplicitte prøve.
+
+Overførsel gennemført: de seks tracked produkt-/testdiffs matcher det tidligere
+reviewede diff eksakt; stock-v11-fixture SHA-256 er uændret
+1b93a66b8a2bdb80313df32293ab3011956bc7a32c76f9b0aed2ce920fb32764.
+Version/changelog er nu .71. Frisk målrettet kontrol: 95/95 prompt-, migration-,
+eval- og versionscases bestod; diff-check og single-domain ha_tools bestod.
+Produkt- og testdiff er frosset. Ingen ny runtime-logik er skrevet eller udgivet.
+Uafhængig releasegrænsevurdering receipt_source_freeze_review: P0=0/P1=0,
+GO til én lokal releasegate. Syv kilde-/test-/fixturefiler er byteidentiske med
+tidligere review; .70-recoveryblobs er intakte; ingen konflikt med den nye base.
+Tracked diff SHA-256 uden STATUS:
+2248925c2cb1345cbfe2de6d345c2cbf8f7313b10ef4ba3529028ca5daf4cd9b.
+Den ene frosne releasegate er nu grøn: 1.232 unit og 341 integration, i alt 1.573;
+Ruff/format, mypy44 og scope bestod. Wrapper 39,1 s med parallelle testtrin;
+ingen genkørsel eller produktionspatch. Lav fri disk (49,8 GiB / 10,8 %) var en
+workflow-advarsel, ikke produktfejl. Exact-commit CI/ARM64-image er ikke kørt endnu.
+Merge/installation forbliver HOLD: behold installeret .70 til frisk golden chain
+og 10/10 fysisk lifecycle efter PRODUKTMÅL linje 165. Ingen live-eval må afbryde
+den ventende fysiske observation. Seneste trace er fortsat .69, ikke .70-bevis.
+
 ## Aktiv lead-beslutning — recovery-release 1.13.70
 
 Lead: Codex. Brugeren har autoriseret den afgrænsede add-on-release og installation.

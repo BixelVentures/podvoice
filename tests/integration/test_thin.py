@@ -48,6 +48,316 @@ ROOM = "kitchen"
 REPLY_URL = f"http://gatekeeper.test:8098/reply/{ROOM}.flac"
 
 
+@pytest.mark.parametrize("surface", ["voicepe", "talk"])
+@pytest.mark.parametrize("outcome", ["complete", "stop", "superseded"])
+async def test_production_capacity_admission_is_cancellable_and_keeps_real_reader_alive(
+    surface, outcome
+):
+    from gatekeeper.provider_budget import ProviderBudgetCoordinator
+
+    clock = [0.0]
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    wire = _AdapterQueueWS()
+    waiting, resume = asyncio.Event(), asyncio.Event()
+    calls = []
+
+    async def sleep(_delay):
+        waiting.set()
+        await resume.wait()
+        clock[0] = 20.0
+
+    brain = OpenAIRealtimeSession(
+        api_key="test",
+        model="model",
+        budget_role="production",
+        provider_budget=ledger,
+        manual_input_response=True,
+        interrupt_response=surface == "talk",
+        capacity_monotonic=lambda: clock[0],
+        capacity_sleep=sleep,
+    )
+
+    async def connect_without_network():
+        brain._connection_generation += 1
+        brain._configured = True
+        brain._configured_event.set()
+        brain._ws = wire
+        lease = ledger.production_started("test", "model")
+        brain._budget_production_leases[brain._connection_generation] = lease
+        ledger.account_usage("test", "model", 27004, lease=lease)
+
+    brain.connect = connect_without_network
+    if surface == "talk":
+        session, attention, _device, _, _ = _build_talk_session(brain)
+    else:
+        session, attention, _device = _build(brain)
+
+    class Tools(FakeTools):
+        async def dispatch(self, name, args, **kwargs):
+            calls.append((name, args))
+            return {"ok": True, "summary": "Accepted by fixture only"}
+
+    session.tools = Tools()
+    declarations = [
+        {
+            "name": "set_level",
+            "parameters": {
+                "type": "object",
+                "properties": {"level": {"type": "integer"}},
+                "required": ["level"],
+                "additionalProperties": False,
+            },
+        }
+    ]
+    # _build sets the router declarations when starting; this test router exposes
+    # the exact schema of the raw completed provider response below.
+    session.tools.declarations = lambda: declarations
+
+    def creates():
+        return [row for row in wire.sent if row["type"] == "response.create"]
+
+    def outputs():
+        return [
+            row
+            for row in wire.sent
+            if row["type"] == "conversation.item.create"
+            and row["item"]["type"] == "function_call_output"
+        ]
+
+    await session.start()
+    try:
+        await session.wake()
+        # The same real acceptance handshake as the shipped Voice PE/Talk adapter.
+        await wire.emit(
+            {"type": "input_audio_buffer.speech_started", "item_id": "u-cap"},
+            {"type": "input_audio_buffer.speech_stopped", "item_id": "u-cap"},
+            {"type": "input_audio_buffer.committed", "item_id": "u-cap"},
+            {
+                "type": "conversation.item.added",
+                "item": {"id": "u-cap", "type": "message", "role": "user"},
+            },
+        )
+        await _wait_until(lambda: len(creates()) == 1)
+        deadline = brain._capacity_deadline
+        await wire.emit(
+            {
+                "type": "response.created",
+                "response": {"id": "r-cap", "metadata": creates()[0]["response"]["metadata"]},
+            },
+            {
+                "type": "response.function_call_arguments.done",
+                "response_id": "r-cap",
+                "call_id": "c-cap",
+                "name": "set_level",
+                "arguments": '{"level":2}',
+            },
+            {
+                "type": "response.done",
+                "response": {
+                    "id": "r-cap",
+                    "status": "completed",
+                    "usage": {
+                        "total_tokens": 6569,
+                        "input_tokens": 6519,
+                        "output_tokens": 50,
+                        "input_token_details": {"text_tokens": 6519},
+                        "output_token_details": {"text_tokens": 50},
+                    },
+                },
+            },
+        )
+        await asyncio.wait_for(waiting.wait(), 1)
+        assert calls == [] and outputs() == []
+        await wire.emit(
+            {
+                "type": "rate_limits.updated",
+                "event_id": "late-cap",
+                "rate_limits": [
+                    {"name": "tokens", "limit": 40000, "remaining": 0, "reset_seconds": 60}
+                ],
+            }
+        )
+        await _wait_until(lambda: "tokens" in brain._rate_limits)
+        assert session._reader is not None and not session._reader.done()
+        if outcome == "stop":
+            closing = session._request_close("stop")
+            resume.set()  # Capacity becomes available at the exact stop barrier.
+            await closing
+            assert calls == [] and outputs() == []
+            assert len(attention.release_calls) == 1
+        elif outcome == "superseded":
+            old_turn = session._closure_turn
+            if surface == "talk":
+                await wire.emit({"type": "input_audio_buffer.speech_started", "item_id": "u-new"})
+                await _wait_until(lambda: session._closure_turn is not old_turn)
+                assert brain._manual_turn_lease == brain._capacity_root
+            else:
+                old_turn.superseded = True
+            # Root equality alone must not permit execution after a Thin turn change.
+            resume.set()
+            await _wait_until(lambda: not session._tool_tasks)
+            assert calls == [] and outputs() == []
+            assert session._active and not session._transport_closing
+        else:
+            resume.set()
+            await _wait_until(lambda: len(outputs()) == 1)
+            assert calls == [("set_level", {"level": 2})]
+            assert len(creates()) == 1
+            await wire.emit({"type": "conversation.item.added", "item": outputs()[0]["item"]})
+            await _wait_until(lambda: len(creates()) == 2)
+            assert creates()[1]["response"]["metadata"]["podvoice_root_item_id"] == "u-cap"
+            assert brain._capacity_deadline == deadline
+            assert not session._transport_closing
+            assert calls == [("set_level", {"level": 2})]
+    finally:
+        resume.set()
+        await session.aclose()
+
+
+async def test_talk_new_speech_during_first_admitted_sibling_cannot_execute_second():
+    brain = LiveFake()
+    session, _attention, _device, _, _ = _build_talk_session(brain)
+    first_started, finish_first = asyncio.Event(), asyncio.Event()
+    levels = []
+
+    async def admit(response_id, generation):
+        assert response_id == "siblings" and generation is None
+
+    brain.admit_tool_batch = admit
+
+    class Tools(FakeTools):
+        async def dispatch(self, name, args, **kwargs):
+            levels.append(args["level"])
+            first_started.set()
+            await finish_first.wait()
+            return {"ok": True}
+
+    session.tools = Tools()
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            ToolCall(
+                "first",
+                "set_level",
+                {"level": 0},
+                response_id="siblings",
+                batch_id="siblings",
+                batch_index=0,
+                batch_size=2,
+            ),
+            ToolCall(
+                "second",
+                "set_level",
+                {"level": 1},
+                response_id="siblings",
+                batch_id="siblings",
+                batch_index=1,
+                batch_size=2,
+            ),
+            ToolRoundComplete("siblings", requires_capacity_admission=True),
+        )
+        await asyncio.wait_for(first_started.wait(), 1)
+        old_turn = session._closure_turn
+        brain.emit(Interrupted())  # Real Thin normal speech-start path, before stop.
+        await _wait_until(lambda: session._closure_turn is not old_turn)
+        finish_first.set()
+        await _wait_until(lambda: not session._tool_tasks)
+        assert levels == [0]
+        assert brain.sent_tool_results == []
+        assert session._active and not session._transport_closing
+    finally:
+        finish_first.set()
+        await session.aclose()
+
+
+@pytest.mark.parametrize("surface", ["voicepe", "talk"])
+async def test_stop_cancels_schema_result_wait_at_synchronous_close_barrier(surface):
+    waiting, resume = asyncio.Event(), asyncio.Event()
+
+    class WaitingBrain(LiveFake):
+        async def send_tool_results(self, results):
+            waiting.set()
+            await resume.wait()
+            self.sent_tool_results.append(results)
+            return False
+
+    brain = WaitingBrain()
+    if surface == "talk":
+        session, attention, _device, _, _ = _build_talk_session(brain)
+    else:
+        session, attention, _device = _build(brain)
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(), ToolSchemaCorrection("correction", "HassTurnOn", {"ok": False})
+        )
+        await asyncio.wait_for(waiting.wait(), 1)
+        assert "correction" in session._tool_tasks
+        closing = session._request_close("stop")
+        resume.set()
+        await closing
+        assert brain.sent_tool_results == []
+        assert len(attention.release_calls) == 1
+    finally:
+        resume.set()
+        await session.aclose()
+
+
+@pytest.mark.parametrize("kind", ["rejected", "silent"])
+async def test_precomputed_and_silent_batches_cannot_skip_marked_admission(kind):
+    brain = LiveFake()
+    session, _attention, _device = _build(brain)
+    admitting, release = asyncio.Event(), asyncio.Event()
+
+    async def admit(response_id, generation):
+        assert response_id == "special"
+        admitting.set()
+        await release.wait()
+
+    brain.admit_tool_batch = admit
+    size = 2 if kind == "rejected" else 1
+    calls = [
+        ToolCall(
+            "wait", "wait_for_user", {}, response_id="special", batch_id="special", batch_size=size
+        )
+    ]
+    if kind == "rejected":
+        calls.append(
+            ToolCall(
+                "normal",
+                "HassTurnOn",
+                {},
+                response_id="special",
+                batch_id="special",
+                batch_size=2,
+                batch_index=1,
+            )
+        )
+    await session.start()
+    try:
+        await session.wake()
+        brain.emit(
+            UserSpeechStopped(),
+            *calls,
+            ToolRoundComplete("special", requires_capacity_admission=True),
+        )
+        await asyncio.wait_for(admitting.wait(), 1)
+        assert brain.sent_tool_results == []
+        release.set()
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        results = brain.sent_tool_results[0]
+        if kind == "rejected":
+            assert all(r["response"]["error_kind"] == "invalid_lifecycle_batch" for r in results)
+        else:
+            assert results[0]["suppress_response"] is True
+    finally:
+        release.set()
+        await session.aclose()
+
+
 def _frame(amplitude: int = 2000, n_samples: int = 2400) -> bytes:
     return array.array("h", [amplitude] * n_samples).tobytes()
 
