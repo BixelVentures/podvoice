@@ -1,5 +1,23 @@
 # PodVoice-status — én aktuel sandhed
 
+## Udgivelsesværktøj — valgfri cache blokerer PR42
+
+Lead Codex, 2026-09-09: CI34341280596 på f79f03b har grøn lint/test og
+færdig ARM64-image/push, men står fortsat i GHA-cacheeksport efter cirka 20 minutter.
+Dette beviser en procesforsinkelse, ikke en runtimefejl eller en bestemt ekstern
+cacheårsag. Hypotese: fjernelse af cacheeksport fra begge kritiske build/publish-
+trin fjerner denne observerede blokering uden at svække imagekontrollen.
+Reviewer production_capacity_cause har godkendt denne afgrænsning før implementering.
+
+Kæde: reviewed source → PR-tests/build → main-tests/publish → backup/installation
+→ uændret Voice PE/Talk-kæde → fysisk test. Invarianter: obligatoriske build/push-
+fejl, immutable version, eksakt SHA/artifact og ingen fysisk godkendelse fra CI.
+Ingen runtime-, firmware-, prompt- eller HA-ændring; cache-import beholdes.
+Plan: permanent workflowregression, uafhængigt eksakt diff-review, nyt head-CI.
+Kun den derefter forældede præcise CI-kørsel må annulleres; ingen manuel genkørsel
+eller accept af dens image-push som grøn release. Rollback: behold installeret .70
+hvis nyt CI/main-artifact ikke består. Fysisk status er fortsat uændret/ikke godkendt.
+
 ## Aktiv lead-beslutning — samlet 1.13.71: kapacitet, kvittering og vejr
 
 <!-- candidate-scope-coupling
