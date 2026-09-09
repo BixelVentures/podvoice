@@ -1,3 +1,11 @@
+## 1.13.71 — Kapacitet, vejr og sand kvittering
+
+- AI'en må ikke gøre Home Assistants accept til en påstand om, at robotten selv har accepteret eller startet. Den fysiske udførelse kræver særskilt bevis.
+- Lange værktøjskæder kan vente afgrænset på kapacitet før handlinger og resultatsvar, uden automatisk genforsøg eller gentagelse af handlinger. Stop og nye ture annullerer gammelt arbejde.
+- Store HA-vejrprognoser bevarer målinger, enheder og kilde under den eksisterende svargrænse. Udeladte perioder vises tydeligt; web kan bruges gennem HA ved manglende brugbare data og kendt by.
+- Standardprompt v13 samler vejr- og kvitteringsregler; egne prompts bevares. Ingen nye værktøjer, ændret Spotify-styring, firmware eller højere forbrugsloft.
+- Indeholder genopretningsrettelsen fra 1.13.70. Roborock forbliver slået fra under installation og sikre tests; fysisk godkendelse er en separat gate.
+
 ## 1.13.70 — Genopretning efter manglende lydkvittering
 
 - Bevarer oprydningstiden, når den fejlede lydvej ikke kan afspille en fejlbesked.

@@ -108,6 +108,9 @@ class ToolRoundComplete:
 
     response_id: str | None = None
     generation: int | None = None
+    # A completed proposal is not execution permission. The executor must await
+    # the exact provider-owned obligation outside the event reader before effects.
+    requires_capacity_admission: bool = False
 
 
 @dataclass
@@ -290,6 +293,10 @@ class VoiceSession(Protocol):
 
     async def send_tool_results(self, results: list) -> bool | None:
         """Submit outputs; True means a pure silent round completed immediately."""
+        ...
+
+    async def admit_tool_batch(self, response_id: str, generation: int | None) -> None:
+        """Consume the marked batch's exact capacity obligation or fail closed."""
         ...
 
     def events(self) -> AsyncIterator[VoiceEvent]: ...

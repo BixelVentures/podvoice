@@ -65,7 +65,7 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     assert "build-${{ steps.artifact.outputs.context_sha }}" in build
     assert "ghcr.io/bixelventures/aarch64-addon-podvoice:" in build
     assert "cache-from: type=gha,scope=podvoice-aarch64" in build
-    assert "cache-to: type=gha,mode=max,scope=podvoice-aarch64" in build
+    assert "cache-to:" not in build
     assert "needs: lint-test" in publish
     assert "github.event_name == 'push'" in publish
     assert "Publish exact tested main image" in publish
@@ -80,6 +80,27 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     assert "steps.publish.outputs.digest" in publish
     manifest = (Path(__file__).parents[2] / "podvoice" / "config.yaml").read_text()
     assert "image: ghcr.io/bixelventures/{arch}-addon-podvoice" in manifest
+
+
+def test_ci_optional_cache_cannot_hold_required_image_publication_open():
+    workflow = (Path(__file__).parents[2] / ".github" / "workflows" / "ci.yml").read_text()
+    build, publish = workflow.split("  build-addon:\n", maxsplit=1)[1].split(
+        "  publish-addon:\n", maxsplit=1
+    )
+    for job in (build, publish):
+        assert "cache-from: type=gha,scope=podvoice-aarch64" in job
+        assert "cache-to:" not in job
+        assert "continue-on-error" not in job
+        assert "|| true" not in job
+        assert "platforms: linux/arm64" in job
+        assert "docker/login-action@v3" in job
+        assert "docker/build-push-action@v6" in job
+    fork_guard = "github.event.pull_request.head.repo.full_name == github.repository"
+    assert build.count(fork_guard) == 2
+    assert "needs: lint-test" in publish
+    assert "push: true" in publish
+    assert "Refuse an existing release version" in publish
+    assert "Record published digest" in publish
 
 
 def test_dev_cycle_has_no_redundant_pytest_collection_pass():

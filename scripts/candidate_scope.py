@@ -35,7 +35,8 @@ _IGNORED_PRODUCTION_FILES = {
 }
 _DOMAIN_PATTERNS = {
     "rearm": re.compile(
-        r"rearm|wake[_ -]?latch|wake[_ -]?detector|micro_wake_word|continuity|next_wake",
+        r"rearm|wake[_ -]?latch|wake[_ -]?detector|micro_wake_word|"
+        r"(?:wake|detector|mic|microphone)[_ -]?continuity|next_wake",
         re.IGNORECASE,
     ),
     "physical_output": re.compile(

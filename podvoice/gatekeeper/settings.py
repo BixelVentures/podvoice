@@ -62,6 +62,10 @@ SETTINGS_VERSION = 11
 # never matches and is always kept.
 LEGACY_PROMPT_HASHES = frozenset(
     {
+        # v12: add weather failure fallback while preserving custom prompts.
+        "39996a1d72e77a4c074332a2d31519674cff36ec2ede84e2e88bc0c8548a6bff",
+        # v11: preserve the service receipt source, without changing custom prompts.
+        "d9fcace7b724edde099aa706839f07a2e6eb560e3505d0d7189f7c9f3da3b1da",
         # v10: clarify accepted start versus physical completion, without changing custom prompts.
         "265cc6c2220c212ddcc9d902c124c702da40411137a734532b4a5ed4b5c34a6c",
         # v9: stock prompt receives model-selected silent interruption.
