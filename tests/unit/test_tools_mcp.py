@@ -1190,6 +1190,7 @@ async def test_podconnect_control_data_services_are_real_conditional_tools(servi
         assert f"podconnect_{service}" in names
         result = await router.dispatch(f"podconnect_{service}", {})
     assert call.called
+    assert result.pop("selection")["size_limited"] is False
     assert result == {
         "ok": True,
         "data": {

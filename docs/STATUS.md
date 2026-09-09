@@ -1,5 +1,165 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — relevante data, 9. september 2026
+
+Lead: Codex. Bruger har godkendt implementering af den afgrænsede datakontrakt.
+Baseline er main20c0e92, installeret 1.13.71 ifølge den seneste verificerede
+installation i arbejdsfladens status. Ingen ny fysisk godkendelse arves.
+Feltforløb r0:1788954796343794092: spørgsmålet om seneste Spotify-sang gav et
+succesfuldt recently_played-kald med 22 poster / 2195 UTF-8-bytes. Den shippede
+2048-byte-grænse erstattede listen med data.truncated; modellen kunne ikke svare.
+Private sangdata kopieres ikke til repo. Syntetiske data skal reproducere grænsen.
+
+Hypotese: modelvalgt limit plus formatbevidst resultatvalg før providergrænsen
+bevarer det efterspurgte svar uden nye værktøjer eller obligatoriske modelrunder.
+Kæde: fysisk wake/input → Thin-tur → Realtime vælger deklarerede argumenter →
+completed batch/policy → uændret HA-kald → validering/udvalg/bytegrænse → output-ACK
+→ model vurderer dækning → fysisk svar → opfølgning/close → teardown/rearm/ny wake.
+Nabofejl: malformed/tomt resultat, unsupported filtre, stale schema, timeout,
+Stop/ny tur under dispatch, kildebegrænsninger og kvitteringer må ikke omfortolkes.
+Invarianter: Realtime ejer semantik; HA ejer data; lifecycle 10–15, immutable
+sessionschema, completed-batch/policy/ACK, sand kilde/dækning og uændret 2048 bytes.
+
+Kortlægning: tre statiske podconnect.*-services returnerer tracks(name,artist,uri),
+ingen argumenter i den eksisterende HA-adapter. Lokal kildekode fjerner gentagelser
+og tidspunkter fra recently_played; et udsnit er ikke komplet afspilningshistorik.
+Der tilføjes kun lokal limit(1–50, default5) til de tre eksisterende declarations.
+weather_forecast har den observerede success/result/forecast-form med datetime,
+kilde/enheder og eksisterende 1800-byte-kompaktering; behold periodedækningen.
+GetDateTime, HA-state/weather og google_web_sogning bruger det aktuelle MCP-schema
+uændret: ingen nye parametre, tidsstempler, datofiltre eller dækning opfindes.
+Ukendte/små former passerer; store ukendte former forbliver eksplicit begrænsede.
+
+Ikke-mål: PodConnect-opdatering, scripts, flere værktøjer, fuld historik, pagination,
+cache, nye AI-kald, højere kvoter, firmware/VAD/lifecycle eller Roborock-aktivering.
+Mekanisk filtrering er deterministisk; ingen tekstmatching må vælge brugerens hensigt.
+Planlagte gates: store/små/tomme/malformed/Unicode-resultater gennem rigtig router
+og provider-output, schema/stock-promptmigration, kilde/URI-bevarelse, HA-paritet,
+kvitterings-/kapacitets-/Thin-/Talk-regressioner og fokuseret sikker semantisk eval.
+Uafhængigt review før exact-diff releasegate, derefter CI/artifact, backup og én
+installation. Før fysisk test kræves kandidatens maskinelle gate; golden/10af10
+og næste wake kan aldrig udledes af unit-tests. Rollback er hele add-on-diffet
+til den verificerede .71-backup; robot forbliver OFF. Status: implementering starter.
+
+Første udviklingskontrol: fuld testudvælgelse, Ruff/format og mypy46 bestod (73,3s).
+Dette er hverken frozen releasegate eller semantisk/fysisk bevis. Reviewer fandt
+to kausalt nærliggende huller: den gamle fallback kan overskride2048bytes med
+500fire-byte-tegn i summary (2074bytes), og ny track-validering skjuler eksplicit
+kildefejl som malformed. Scope præciseret før rettelse: bevar eksplicit source-error
+uændret inde i en fejlenvelope uden listefiltrering; begræns kun den eksisterende
+fallback-summary efter faktisk UTF-8-envelope, ikke højere budget. Ingen ændring
+af action-, admission- eller replay-ejerskab. Permanente regressioner kræves.
+
+Implementeret kandidat1.13.72/prompt14: fælles resultat-encoding/bytegrænse,
+tre modelvalgte lokale limit-parametre, hele tracks med selection-metadata,
+eksakt stock-v13-migration med custom-preservation og generisk dataprincip.
+Hele kildens liste valideres konservativt; malformed post også uden for limit
+afviser resultatet. Ingen selektiv skipping, ny dedup eller infereret historik.
+Eksplicit kildefejl bevares i en fejlenvelope; hvis datakilden selv skjuler en fejl
+som tracks:[], kan denne adapter ikke genskabe årsagen. PodConnect ændres ikke.
+Sikker opt-in data-selection-profil har seks scenarier/syv ture og samme shippede
+selector på syntetiske kildeposter. Kun tre read-navne er admitted; øvrige tools
+afvises uden HA-client. Eksisterende full/device-profiler er separate. Testfanen
+får én knap til profilen; den ændrer ingen produktionsadgang eller lifecycle.
+
+Måling mod main: tre musiktools før/efter; deklarationswire831→1700bytes (+869),
+prompt14214→14841UTF8bytes (+627). Syntetisk22posters kilde2363bytes bliver343bytes
+ved limit1 eller767ved limit5; ét uændret HA-servicekald, ingen automatisk ekstra
+AI-runde. Målrettede checks bestod inklusive faktisk provider-output→eksakt ACK
+→præcis én korreleret resultatsrespons. Seneste full-fast: alle tests, Ruff/format13
+og mypy46 PASS,72.2s. Ingen fysisk godkendelse kan udledes af disse checks.
+
+Releasekontrollen er BLOKERET: den maskinlæsbare scope-coupling-post fra .71
+har gammel base/fingerprint og gælder ikke denne kandidat. Sikkerhedskontrollen
+afviste at arkivere den gamle markør uden eksplicit brugeraccept. Hele markøren
+og JSON står derfor urørt; ingen classifierændring, workaround eller releasegate
+er udført. Endeligt uafhængigt review fortsætter; derefter kræves brugerens accept
+af kun historikmarkeringen, før den nye kandidat kan kontrolleres normalt.
+Sikker live-eval kræver kandidatens installerede bits og autentificeret Testfane;
+den kan ikke bevises på gammel .71. Installation, live- og fysisk test udestår.
+
+Freeze-review fandt to eval-only P2 før godkendelse: manifestets forbid-felt
+forbyder toolnavne, ikke svartekst, så falsk afkortning og opdigtet historik kunne
+bestå; og data-profilens separate manifest ugyldiggjorde tidligere fuld preflight
+på samme produktionskontrakt. Hypotese: brug eksisterende answer_patterns med
+parrede sand/falsk-regressioner; adskil evalmanifest fra produktionsidentitet ved
+retention af dataprofilen, men invalidér stadig reel model/prompt/schemaændring.
+Ingen produktionsprompt eller taleparser ændres for at tilfredsstille testoraklet.
+Release forbliver blokeret både af review og den uændrede gamle scope-post.
+
+Brugeren har efterfølgende forhåndsgodkendt merge og installation, betinget af
+normale grønne gates; den særskilte accept af gammel .71-historikmarkør er spurgt
+og afventer. Ingen release eller installation er udført. Sidste full-fast bestod
+71,2s før den seneste terminal-path-rettelse, så det er ikke den frosne gate.
+Reviewet fandt også, at data-eval cancelled/early-blocked manglede samme
+produktionsidentitet og kunne fjerne tidligere full-preflight. Rettelsen sætter
+profilidentitet før retention og beregner manglende hashes fra run-snapshot og
+samme konstanter som successmetadata. Målrettede terminalregressioner genkontrolleres.
+
+Svarmønstre i den syntetiske profil er kun mekanisk regressionskontrol, ikke
+en fuldstændig semantisk dommer. Reviewet reproducerede resterende falske
+positiver med omskrevne opdigtede datoer/antal. Ingen yderligere fraseliste eller
+lokal semantikparser tilføjes: alle syv faktiske live-eval-svar, argumenter og
+resultater SKAL gennemgås for sandhed/dækning før semantisk GO. En grøn automatisk
+profil alene åbner ikke denne gate, og den erstatter aldrig fysisk Voice PE-bevis.
+Sideløbende latencyarbejde holdes i separat .71-clone; det må ikke blandes ind i
+denne kandidat eller måles hen over en installation uden ny artifactidentitet.
+
+Uafhængigt freeze-review relevant_data_freeze_review: teknisk GO, P0=0/P1=0,
+55 data/provider/adapterchecks og 30 aktuelle evalchecks PASS. Begge terminal-
+retentionfund er lukket; stock-v13-fixture/hash byteverificeret. Eneste resterende
+P2 er det dokumenterede begrænsede svarorakel, med obligatorisk manuel livekontrol.
+Base/merge-base20c0e92a468a8a7390b5baa91df6f43ac4770116;
+production_fingerprint c19bdd2084775ff03a5c3644d089e3bfb29cb11cf09d55d2d5368177a5b706fb.
+GO gælder én normal releasegate, grøn exact-artifact CI og diagnostisk installation;
+ikke semantik, fysisk Stop, golden chain eller 10/10. Den gamle couplingmarkør
+er stadig urørt og releasekontrollen stadig HOLD indtil særskilt accept.
+
+Sidste fast-forsøg havde grønne pytest/Ruff/format/mypy, men blev korrekt
+kasseret af workflowet, fordi lead skrev reviewresultatet i STATUS under kørslen.
+Det er en ændret dokumentations-scope under gate, ikke en observeret produktfejl.
+Ingen runtimepatch begrundes af dette. Nu fryses også STATUS under den afgrænsede
+fast-genkontrol; ingen yderligere filændringer før den returnerer.
+
+Den frosne fast-genkontrol stoppede på eksisterende
+test_missing_playback_start_retries_same_lease_then_closes: testen ventede kun
+State.IDLE og assertede derefter brain.closed. Direkte kode viser IDLE sættes
+før await stop-streaming/provider-close; IDLE er ikke teardown-bevis. Thin-runtime
+er uændret mod basen. Kandidaten holdes indtil en isoleret testrettelse injicerer
+forsinket provider-close og venter på den faktiske close-transaktions afslutning.
+Ingen runtime-/timeoutændring; denne observerede slutbetingelse reviewes separat.
+
+Isoleret testrettelse bestod 1/1 og Ruff/format; uafhængigt genreview gav GO,
+ingen nye P0/P1/P2. Testen beviser IDLE før forsinket provider-close og afventer
+derefter den faktiske close-task; oprindelige slutassertions bevares. Produktions-
+fingerprint er uændret c19bdd2084775ff03a5c3644d089e3bfb29cb11cf09d55d2d5368177a5b706fb.
+Tidligere teknisk review gælder fortsat. Den fulde frosne releasegate mangler
+stadig og må først køres efter accept af gammel .71-historikmarkering. Ingen merge,
+ny artifact, backup, installation eller fysisk verifikation er udført i denne omgang.
+
+Brugeren har nu eksplicit godkendt historikmarkeringen af netop .71-reviewposten.
+Kun dens HTML-markør ændres til historical-reviewed-coupling; JSON og bevis bevares.
+Classifier og adgangskrav er uændrede. Main er frisk verificeret på20c0e92.
+Kode og dokumentation fryses nu til én samlet releasegate på det reviewede diff.
+
+Frosset releasegate PASS39,0s: scope, Ruff/format119, mypy46, alle unit- og
+integrationstests. Ingen filer blev ændret under gaten. Denne efterfølgende
+dokumentation ændrer ikke runtime-fingerprint. Exact-head CI/ARM64-artifact,
+backup/installation, alle syv semantiske evalsvar og fysisk prøve udestår.
+
+PR43/head3140420: ARM64 build PASS, lint/type/format PASS, CI34378328856
+pytest FAIL i eksisterende schema-correction-close-test. Den ventede _active=false
+og antog attention-release færdig; Thin sætter _active=false før de asynkrone
+teardowntrin. Samme fejlklasse som den tidligere IDLE-test, ikke nye runtimebits.
+Merge/installation HOLD. Permanent testregression skal injicere forsinket
+attention-release og afvente close-task, uden at svække 1-release-assertionen.
+Kun den berørte test/CI-gate ugyldiggøres; ingen manuel genkørsel af rødt head.
+
+Isoleret schema-correction-test rettet og 2/2 lokale teardownregressioner PASS,
+Ruff/format PASS. Uafhængigt review1/1 PASS, ingen nye findings; samme produktions-
+fingerprint. Ny test/docs-only commit udløser normal CI på nyt head. Runtimegate
+og review er uændrede; merge kræver fortsat grøn CI på præcis det nye head.
+
 ## Udgivelsesværktøj — valgfri cache blokerer PR42
 
 Lead Codex, 2026-09-09: CI34341280596 på f79f03b har grøn lint/test og
@@ -20,7 +180,7 @@ hvis nyt CI/main-artifact ikke består. Fysisk status er fortsat uændret/ikke g
 
 ## Aktiv lead-beslutning — samlet 1.13.71: kapacitet, kvittering og vejr
 
-<!-- candidate-scope-coupling
+<!-- historical-reviewed-coupling
 {"version":1,"base_tip":"4640ea9113464d8b18c03c0f7a3f8efc073bbb59","merge_base":"4640ea9113464d8b18c03c0f7a3f8efc073bbb59","domains":["ha_tools","realtime_semantics"],"fingerprint":"c116fcf6541cf523e50b45762102f402904985f25a18a41c149a0c73fffd71d9","reviewer":"production_capacity_cause","rationale":"Completed HA batch admission, bounded weather output and truthful receipt share one exact provider ACK and child-response contract. Independent composition review and permanent real-ledger regression preserve ownership, Stop cancellation, output bounds and receipt source. No firmware/rearm change."}
 -->
 

@@ -62,6 +62,8 @@ SETTINGS_VERSION = 11
 # never matches and is always kept.
 LEGACY_PROMPT_HASHES = frozenset(
     {
+        # v13: relevant bounded data; never replace a customized prompt.
+        "52f7bd861395f56f4ade37d17147ec087efcff71812ef9e3216f3c16f7f16526",
         # v12: add weather failure fallback while preserving custom prompts.
         "39996a1d72e77a4c074332a2d31519674cff36ec2ede84e2e88bc0c8548a6bff",
         # v11: preserve the service receipt source, without changing custom prompts.

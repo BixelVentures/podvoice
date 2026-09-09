@@ -27,6 +27,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
 from . import constants as C
+from .data_result import data_limit, select_track_result
 from .device_control import (
     GET_CAPABILITIES,
     CapabilityError,
@@ -102,18 +103,21 @@ _PODCONNECT_DATA_TOOLS = {
     "podconnect_recently_played": (
         "recently_played",
         "Fetch the signed-in user's recently played Spotify tracks, newest first. "
-        "Use this for 'what was the last song I played/heard?' and listening history. "
-        "Returns {tracks:[{name,artist,uri}]}; this is private Spotify data, never use web instead.",
+        "Use limit=1 for the latest song, or the requested count. "
+        "Returns tracks(name,artist,uri) in source order. Source removes repeat plays and "
+        "timestamps: cannot answer dates or play counts. Private data; never use web instead.",
     ),
     "podconnect_top_tracks": (
         "top_tracks",
-        "Fetch the signed-in user's Spotify top tracks. Returns "
-        "{tracks:[{name,artist,uri}]}; this is private Spotify library data.",
+        "Fetch the signed-in user's Spotify top-track sample in source rank order. "
+        "Choose the needed limit. Returns tracks(name,artist,uri), not a complete library "
+        "or play counts. Private data; never use web instead.",
     ),
     "podconnect_liked": (
         "liked",
-        "Fetch the signed-in user's Spotify Liked Songs. Returns "
-        "{tracks:[{name,artist,uri}]}; this is private Spotify library data.",
+        "Fetch a sample of the signed-in user's Spotify Liked Songs in source order. "
+        "Choose the needed limit. Returns tracks(name,artist,uri), not the full library "
+        "or listening history. Private data; never use web instead.",
     ),
 }
 
@@ -710,7 +714,20 @@ class ToolRouter:
                     {
                         "name": tool_name,
                         "description": description,
-                        "parameters": {"type": "object", "properties": {}},
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "limit": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 50,
+                                    "default": 5,
+                                    "description": "Maximum tracks needed (default 5); 1 for latest. "
+                                    "Selects from the existing source sample; no pagination.",
+                                },
+                            },
+                            "additionalProperties": False,
+                        },
                     }
                 )
         local_names = {d["name"] for d in decls}
@@ -1416,7 +1433,11 @@ class ToolRouter:
     async def _dispatch(self, name: str, args: dict) -> dict:
         try:
             if name in _PODCONNECT_DATA_TOOLS:
-                return await self._podconnect_data(name)
+                try:
+                    limit = data_limit(args)
+                except ValueError as exc:
+                    return {"ok": False, "error_kind": "bad_args", "error": str(exc)}
+                return await self._podconnect_data(name, limit)
             if self._mcp is None:
                 return {
                     "ok": False,
@@ -1442,7 +1463,7 @@ class ToolRouter:
         except Exception as e:  # broad on purpose — never leave the model waiting
             return {"ok": False, "error_kind": "internal", "error": str(e)}
 
-    async def _podconnect_data(self, tool_name: str) -> dict:
+    async def _podconnect_data(self, tool_name: str, limit: int) -> dict:
         """Call one documented PodConnect Control response service through HA."""
         service_name = _PODCONNECT_DATA_TOOLS[tool_name][0]
         if service_name not in self._discovery.podconnect_services:
@@ -1467,13 +1488,8 @@ class ToolRouter:
         )
         response.raise_for_status()
         payload = response.json()
-        data = payload.get("service_response", {}) if isinstance(payload, dict) else {}
-        tracks = data.get("tracks") if isinstance(data, dict) else None
-        return {
-            "ok": True,
-            "data": data,
-            **({"empty": True} if isinstance(tracks, list) and not tracks else {}),
-        }
+        data = payload.get("service_response") if isinstance(payload, dict) else None
+        return select_track_result(data, limit)
 
     def _log_tool(self, name: str, result: dict, args: dict | None = None) -> None:
         """One bounded evidence line per tool: query plus the contract GPT received."""
@@ -1483,7 +1499,15 @@ class ToolRouter:
                     "args": args or {},
                     "result": {
                         key: result.get(key)
-                        for key in ("ok", "empty", "summary", "data", "error_kind", "error")
+                        for key in (
+                            "ok",
+                            "empty",
+                            "summary",
+                            "data",
+                            "selection",
+                            "error_kind",
+                            "error",
+                        )
                         if key in result
                     },
                 },

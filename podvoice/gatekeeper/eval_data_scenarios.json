@@ -1,0 +1,1693 @@
+{
+  "schema_version": 2,
+  "fixture_contracts": [
+    {
+      "exact_tool_name": "podconnect_recently_played",
+      "risk": "read_only",
+      "cases": [
+        {
+          "args": {},
+          "result": {
+            "ok": true,
+            "data": {
+              "tracks": [
+                {
+                  "name": "Nordlys",
+                  "artist": "Testorkestret",
+                  "uri": "spotify:track:synthetic0000000000000000000000"
+                },
+                {
+                  "name": "Morgenro",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000001"
+                },
+                {
+                  "name": "Sommerregn",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000002"
+                },
+                {
+                  "name": "Aftenlys",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000003"
+                },
+                {
+                  "name": "Havblik",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000004"
+                },
+                {
+                  "name": "Prøvesang 6",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000005"
+                },
+                {
+                  "name": "Prøvesang 7",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000006"
+                },
+                {
+                  "name": "Prøvesang 8",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000007"
+                },
+                {
+                  "name": "Prøvesang 9",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000008"
+                },
+                {
+                  "name": "Prøvesang 10",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000009"
+                },
+                {
+                  "name": "Prøvesang 11",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000010"
+                },
+                {
+                  "name": "Prøvesang 12",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000011"
+                },
+                {
+                  "name": "Prøvesang 13",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000012"
+                },
+                {
+                  "name": "Prøvesang 14",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000013"
+                },
+                {
+                  "name": "Prøvesang 15",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000014"
+                },
+                {
+                  "name": "Prøvesang 16",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000015"
+                },
+                {
+                  "name": "Prøvesang 17",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000016"
+                },
+                {
+                  "name": "Prøvesang 18",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000017"
+                },
+                {
+                  "name": "Prøvesang 19",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000018"
+                },
+                {
+                  "name": "Prøvesang 20",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000019"
+                },
+                {
+                  "name": "Prøvesang 21",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000020"
+                },
+                {
+                  "name": "Prøvesang 22",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000021"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "args": {
+            "limit": 1
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "tracks": [
+                {
+                  "name": "Nordlys",
+                  "artist": "Testorkestret",
+                  "uri": "spotify:track:synthetic0000000000000000000000"
+                },
+                {
+                  "name": "Morgenro",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000001"
+                },
+                {
+                  "name": "Sommerregn",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000002"
+                },
+                {
+                  "name": "Aftenlys",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000003"
+                },
+                {
+                  "name": "Havblik",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000004"
+                },
+                {
+                  "name": "Prøvesang 6",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000005"
+                },
+                {
+                  "name": "Prøvesang 7",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000006"
+                },
+                {
+                  "name": "Prøvesang 8",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000007"
+                },
+                {
+                  "name": "Prøvesang 9",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000008"
+                },
+                {
+                  "name": "Prøvesang 10",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000009"
+                },
+                {
+                  "name": "Prøvesang 11",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000010"
+                },
+                {
+                  "name": "Prøvesang 12",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000011"
+                },
+                {
+                  "name": "Prøvesang 13",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000012"
+                },
+                {
+                  "name": "Prøvesang 14",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000013"
+                },
+                {
+                  "name": "Prøvesang 15",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000014"
+                },
+                {
+                  "name": "Prøvesang 16",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000015"
+                },
+                {
+                  "name": "Prøvesang 17",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000016"
+                },
+                {
+                  "name": "Prøvesang 18",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000017"
+                },
+                {
+                  "name": "Prøvesang 19",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000018"
+                },
+                {
+                  "name": "Prøvesang 20",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000019"
+                },
+                {
+                  "name": "Prøvesang 21",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000020"
+                },
+                {
+                  "name": "Prøvesang 22",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000021"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "args": {
+            "limit": 5
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "tracks": [
+                {
+                  "name": "Nordlys",
+                  "artist": "Testorkestret",
+                  "uri": "spotify:track:synthetic0000000000000000000000"
+                },
+                {
+                  "name": "Morgenro",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000001"
+                },
+                {
+                  "name": "Sommerregn",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000002"
+                },
+                {
+                  "name": "Aftenlys",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000003"
+                },
+                {
+                  "name": "Havblik",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000004"
+                },
+                {
+                  "name": "Prøvesang 6",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000005"
+                },
+                {
+                  "name": "Prøvesang 7",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000006"
+                },
+                {
+                  "name": "Prøvesang 8",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000007"
+                },
+                {
+                  "name": "Prøvesang 9",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000008"
+                },
+                {
+                  "name": "Prøvesang 10",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000009"
+                },
+                {
+                  "name": "Prøvesang 11",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000010"
+                },
+                {
+                  "name": "Prøvesang 12",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000011"
+                },
+                {
+                  "name": "Prøvesang 13",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000012"
+                },
+                {
+                  "name": "Prøvesang 14",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000013"
+                },
+                {
+                  "name": "Prøvesang 15",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000014"
+                },
+                {
+                  "name": "Prøvesang 16",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000015"
+                },
+                {
+                  "name": "Prøvesang 17",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000016"
+                },
+                {
+                  "name": "Prøvesang 18",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000017"
+                },
+                {
+                  "name": "Prøvesang 19",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000018"
+                },
+                {
+                  "name": "Prøvesang 20",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000019"
+                },
+                {
+                  "name": "Prøvesang 21",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000020"
+                },
+                {
+                  "name": "Prøvesang 22",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000021"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "args": {
+            "limit": 50
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "tracks": [
+                {
+                  "name": "Nordlys",
+                  "artist": "Testorkestret",
+                  "uri": "spotify:track:synthetic0000000000000000000000"
+                },
+                {
+                  "name": "Morgenro",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000001"
+                },
+                {
+                  "name": "Sommerregn",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000002"
+                },
+                {
+                  "name": "Aftenlys",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000003"
+                },
+                {
+                  "name": "Havblik",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000004"
+                },
+                {
+                  "name": "Prøvesang 6",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000005"
+                },
+                {
+                  "name": "Prøvesang 7",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000006"
+                },
+                {
+                  "name": "Prøvesang 8",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000007"
+                },
+                {
+                  "name": "Prøvesang 9",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000008"
+                },
+                {
+                  "name": "Prøvesang 10",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000009"
+                },
+                {
+                  "name": "Prøvesang 11",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000010"
+                },
+                {
+                  "name": "Prøvesang 12",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000011"
+                },
+                {
+                  "name": "Prøvesang 13",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000012"
+                },
+                {
+                  "name": "Prøvesang 14",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000013"
+                },
+                {
+                  "name": "Prøvesang 15",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000014"
+                },
+                {
+                  "name": "Prøvesang 16",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000015"
+                },
+                {
+                  "name": "Prøvesang 17",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000016"
+                },
+                {
+                  "name": "Prøvesang 18",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000017"
+                },
+                {
+                  "name": "Prøvesang 19",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000018"
+                },
+                {
+                  "name": "Prøvesang 20",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000019"
+                },
+                {
+                  "name": "Prøvesang 21",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000020"
+                },
+                {
+                  "name": "Prøvesang 22",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000021"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "exact_tool_name": "podconnect_top_tracks",
+      "risk": "read_only",
+      "cases": [
+        {
+          "args": {},
+          "result": {
+            "ok": true,
+            "data": {
+              "tracks": [
+                {
+                  "name": "Nordlys",
+                  "artist": "Testorkestret",
+                  "uri": "spotify:track:synthetic0000000000000000000000"
+                },
+                {
+                  "name": "Morgenro",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000001"
+                },
+                {
+                  "name": "Sommerregn",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000002"
+                },
+                {
+                  "name": "Aftenlys",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000003"
+                },
+                {
+                  "name": "Havblik",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000004"
+                },
+                {
+                  "name": "Prøvesang 6",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000005"
+                },
+                {
+                  "name": "Prøvesang 7",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000006"
+                },
+                {
+                  "name": "Prøvesang 8",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000007"
+                },
+                {
+                  "name": "Prøvesang 9",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000008"
+                },
+                {
+                  "name": "Prøvesang 10",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000009"
+                },
+                {
+                  "name": "Prøvesang 11",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000010"
+                },
+                {
+                  "name": "Prøvesang 12",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000011"
+                },
+                {
+                  "name": "Prøvesang 13",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000012"
+                },
+                {
+                  "name": "Prøvesang 14",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000013"
+                },
+                {
+                  "name": "Prøvesang 15",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000014"
+                },
+                {
+                  "name": "Prøvesang 16",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000015"
+                },
+                {
+                  "name": "Prøvesang 17",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000016"
+                },
+                {
+                  "name": "Prøvesang 18",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000017"
+                },
+                {
+                  "name": "Prøvesang 19",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000018"
+                },
+                {
+                  "name": "Prøvesang 20",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000019"
+                },
+                {
+                  "name": "Prøvesang 21",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000020"
+                },
+                {
+                  "name": "Prøvesang 22",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000021"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "args": {
+            "limit": 1
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "tracks": [
+                {
+                  "name": "Nordlys",
+                  "artist": "Testorkestret",
+                  "uri": "spotify:track:synthetic0000000000000000000000"
+                },
+                {
+                  "name": "Morgenro",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000001"
+                },
+                {
+                  "name": "Sommerregn",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000002"
+                },
+                {
+                  "name": "Aftenlys",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000003"
+                },
+                {
+                  "name": "Havblik",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000004"
+                },
+                {
+                  "name": "Prøvesang 6",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000005"
+                },
+                {
+                  "name": "Prøvesang 7",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000006"
+                },
+                {
+                  "name": "Prøvesang 8",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000007"
+                },
+                {
+                  "name": "Prøvesang 9",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000008"
+                },
+                {
+                  "name": "Prøvesang 10",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000009"
+                },
+                {
+                  "name": "Prøvesang 11",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000010"
+                },
+                {
+                  "name": "Prøvesang 12",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000011"
+                },
+                {
+                  "name": "Prøvesang 13",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000012"
+                },
+                {
+                  "name": "Prøvesang 14",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000013"
+                },
+                {
+                  "name": "Prøvesang 15",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000014"
+                },
+                {
+                  "name": "Prøvesang 16",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000015"
+                },
+                {
+                  "name": "Prøvesang 17",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000016"
+                },
+                {
+                  "name": "Prøvesang 18",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000017"
+                },
+                {
+                  "name": "Prøvesang 19",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000018"
+                },
+                {
+                  "name": "Prøvesang 20",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000019"
+                },
+                {
+                  "name": "Prøvesang 21",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000020"
+                },
+                {
+                  "name": "Prøvesang 22",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000021"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "args": {
+            "limit": 5
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "tracks": [
+                {
+                  "name": "Nordlys",
+                  "artist": "Testorkestret",
+                  "uri": "spotify:track:synthetic0000000000000000000000"
+                },
+                {
+                  "name": "Morgenro",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000001"
+                },
+                {
+                  "name": "Sommerregn",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000002"
+                },
+                {
+                  "name": "Aftenlys",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000003"
+                },
+                {
+                  "name": "Havblik",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000004"
+                },
+                {
+                  "name": "Prøvesang 6",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000005"
+                },
+                {
+                  "name": "Prøvesang 7",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000006"
+                },
+                {
+                  "name": "Prøvesang 8",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000007"
+                },
+                {
+                  "name": "Prøvesang 9",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000008"
+                },
+                {
+                  "name": "Prøvesang 10",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000009"
+                },
+                {
+                  "name": "Prøvesang 11",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000010"
+                },
+                {
+                  "name": "Prøvesang 12",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000011"
+                },
+                {
+                  "name": "Prøvesang 13",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000012"
+                },
+                {
+                  "name": "Prøvesang 14",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000013"
+                },
+                {
+                  "name": "Prøvesang 15",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000014"
+                },
+                {
+                  "name": "Prøvesang 16",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000015"
+                },
+                {
+                  "name": "Prøvesang 17",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000016"
+                },
+                {
+                  "name": "Prøvesang 18",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000017"
+                },
+                {
+                  "name": "Prøvesang 19",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000018"
+                },
+                {
+                  "name": "Prøvesang 20",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000019"
+                },
+                {
+                  "name": "Prøvesang 21",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000020"
+                },
+                {
+                  "name": "Prøvesang 22",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000021"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "args": {
+            "limit": 50
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "tracks": [
+                {
+                  "name": "Nordlys",
+                  "artist": "Testorkestret",
+                  "uri": "spotify:track:synthetic0000000000000000000000"
+                },
+                {
+                  "name": "Morgenro",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000001"
+                },
+                {
+                  "name": "Sommerregn",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000002"
+                },
+                {
+                  "name": "Aftenlys",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000003"
+                },
+                {
+                  "name": "Havblik",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000004"
+                },
+                {
+                  "name": "Prøvesang 6",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000005"
+                },
+                {
+                  "name": "Prøvesang 7",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000006"
+                },
+                {
+                  "name": "Prøvesang 8",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000007"
+                },
+                {
+                  "name": "Prøvesang 9",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000008"
+                },
+                {
+                  "name": "Prøvesang 10",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000009"
+                },
+                {
+                  "name": "Prøvesang 11",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000010"
+                },
+                {
+                  "name": "Prøvesang 12",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000011"
+                },
+                {
+                  "name": "Prøvesang 13",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000012"
+                },
+                {
+                  "name": "Prøvesang 14",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000013"
+                },
+                {
+                  "name": "Prøvesang 15",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000014"
+                },
+                {
+                  "name": "Prøvesang 16",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000015"
+                },
+                {
+                  "name": "Prøvesang 17",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000016"
+                },
+                {
+                  "name": "Prøvesang 18",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000017"
+                },
+                {
+                  "name": "Prøvesang 19",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000018"
+                },
+                {
+                  "name": "Prøvesang 20",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000019"
+                },
+                {
+                  "name": "Prøvesang 21",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000020"
+                },
+                {
+                  "name": "Prøvesang 22",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000021"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "exact_tool_name": "podconnect_liked",
+      "risk": "read_only",
+      "cases": [
+        {
+          "args": {},
+          "result": {
+            "ok": true,
+            "data": {
+              "tracks": [
+                {
+                  "name": "Nordlys",
+                  "artist": "Testorkestret",
+                  "uri": "spotify:track:synthetic0000000000000000000000"
+                },
+                {
+                  "name": "Morgenro",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000001"
+                },
+                {
+                  "name": "Sommerregn",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000002"
+                },
+                {
+                  "name": "Aftenlys",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000003"
+                },
+                {
+                  "name": "Havblik",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000004"
+                },
+                {
+                  "name": "Prøvesang 6",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000005"
+                },
+                {
+                  "name": "Prøvesang 7",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000006"
+                },
+                {
+                  "name": "Prøvesang 8",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000007"
+                },
+                {
+                  "name": "Prøvesang 9",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000008"
+                },
+                {
+                  "name": "Prøvesang 10",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000009"
+                },
+                {
+                  "name": "Prøvesang 11",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000010"
+                },
+                {
+                  "name": "Prøvesang 12",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000011"
+                },
+                {
+                  "name": "Prøvesang 13",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000012"
+                },
+                {
+                  "name": "Prøvesang 14",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000013"
+                },
+                {
+                  "name": "Prøvesang 15",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000014"
+                },
+                {
+                  "name": "Prøvesang 16",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000015"
+                },
+                {
+                  "name": "Prøvesang 17",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000016"
+                },
+                {
+                  "name": "Prøvesang 18",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000017"
+                },
+                {
+                  "name": "Prøvesang 19",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000018"
+                },
+                {
+                  "name": "Prøvesang 20",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000019"
+                },
+                {
+                  "name": "Prøvesang 21",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000020"
+                },
+                {
+                  "name": "Prøvesang 22",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000021"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "args": {
+            "limit": 1
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "tracks": [
+                {
+                  "name": "Nordlys",
+                  "artist": "Testorkestret",
+                  "uri": "spotify:track:synthetic0000000000000000000000"
+                },
+                {
+                  "name": "Morgenro",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000001"
+                },
+                {
+                  "name": "Sommerregn",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000002"
+                },
+                {
+                  "name": "Aftenlys",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000003"
+                },
+                {
+                  "name": "Havblik",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000004"
+                },
+                {
+                  "name": "Prøvesang 6",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000005"
+                },
+                {
+                  "name": "Prøvesang 7",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000006"
+                },
+                {
+                  "name": "Prøvesang 8",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000007"
+                },
+                {
+                  "name": "Prøvesang 9",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000008"
+                },
+                {
+                  "name": "Prøvesang 10",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000009"
+                },
+                {
+                  "name": "Prøvesang 11",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000010"
+                },
+                {
+                  "name": "Prøvesang 12",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000011"
+                },
+                {
+                  "name": "Prøvesang 13",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000012"
+                },
+                {
+                  "name": "Prøvesang 14",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000013"
+                },
+                {
+                  "name": "Prøvesang 15",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000014"
+                },
+                {
+                  "name": "Prøvesang 16",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000015"
+                },
+                {
+                  "name": "Prøvesang 17",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000016"
+                },
+                {
+                  "name": "Prøvesang 18",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000017"
+                },
+                {
+                  "name": "Prøvesang 19",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000018"
+                },
+                {
+                  "name": "Prøvesang 20",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000019"
+                },
+                {
+                  "name": "Prøvesang 21",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000020"
+                },
+                {
+                  "name": "Prøvesang 22",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000021"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "args": {
+            "limit": 5
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "tracks": [
+                {
+                  "name": "Nordlys",
+                  "artist": "Testorkestret",
+                  "uri": "spotify:track:synthetic0000000000000000000000"
+                },
+                {
+                  "name": "Morgenro",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000001"
+                },
+                {
+                  "name": "Sommerregn",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000002"
+                },
+                {
+                  "name": "Aftenlys",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000003"
+                },
+                {
+                  "name": "Havblik",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000004"
+                },
+                {
+                  "name": "Prøvesang 6",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000005"
+                },
+                {
+                  "name": "Prøvesang 7",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000006"
+                },
+                {
+                  "name": "Prøvesang 8",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000007"
+                },
+                {
+                  "name": "Prøvesang 9",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000008"
+                },
+                {
+                  "name": "Prøvesang 10",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000009"
+                },
+                {
+                  "name": "Prøvesang 11",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000010"
+                },
+                {
+                  "name": "Prøvesang 12",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000011"
+                },
+                {
+                  "name": "Prøvesang 13",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000012"
+                },
+                {
+                  "name": "Prøvesang 14",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000013"
+                },
+                {
+                  "name": "Prøvesang 15",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000014"
+                },
+                {
+                  "name": "Prøvesang 16",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000015"
+                },
+                {
+                  "name": "Prøvesang 17",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000016"
+                },
+                {
+                  "name": "Prøvesang 18",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000017"
+                },
+                {
+                  "name": "Prøvesang 19",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000018"
+                },
+                {
+                  "name": "Prøvesang 20",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000019"
+                },
+                {
+                  "name": "Prøvesang 21",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000020"
+                },
+                {
+                  "name": "Prøvesang 22",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000021"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "args": {
+            "limit": 50
+          },
+          "result": {
+            "ok": true,
+            "data": {
+              "tracks": [
+                {
+                  "name": "Nordlys",
+                  "artist": "Testorkestret",
+                  "uri": "spotify:track:synthetic0000000000000000000000"
+                },
+                {
+                  "name": "Morgenro",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000001"
+                },
+                {
+                  "name": "Sommerregn",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000002"
+                },
+                {
+                  "name": "Aftenlys",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000003"
+                },
+                {
+                  "name": "Havblik",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000004"
+                },
+                {
+                  "name": "Prøvesang 6",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000005"
+                },
+                {
+                  "name": "Prøvesang 7",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000006"
+                },
+                {
+                  "name": "Prøvesang 8",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000007"
+                },
+                {
+                  "name": "Prøvesang 9",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000008"
+                },
+                {
+                  "name": "Prøvesang 10",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000009"
+                },
+                {
+                  "name": "Prøvesang 11",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000010"
+                },
+                {
+                  "name": "Prøvesang 12",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000011"
+                },
+                {
+                  "name": "Prøvesang 13",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000012"
+                },
+                {
+                  "name": "Prøvesang 14",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000013"
+                },
+                {
+                  "name": "Prøvesang 15",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000014"
+                },
+                {
+                  "name": "Prøvesang 16",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000015"
+                },
+                {
+                  "name": "Prøvesang 17",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000016"
+                },
+                {
+                  "name": "Prøvesang 18",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000017"
+                },
+                {
+                  "name": "Prøvesang 19",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000018"
+                },
+                {
+                  "name": "Prøvesang 20",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000019"
+                },
+                {
+                  "name": "Prøvesang 21",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000020"
+                },
+                {
+                  "name": "Prøvesang 22",
+                  "artist": "Prøvekunstner",
+                  "uri": "spotify:track:synthetic0000000000000000000021"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "data-latest",
+      "description": "Latest means limit 1, not the full sample; artist follow-up requires no fetch.",
+      "exact_tool_names": [
+        "podconnect_recently_played"
+      ],
+      "turns": [
+        {
+          "text": "Hvad var min seneste sang på Spotify?",
+          "expect": {
+            "allowed_decisions": [
+              "podconnect_recently_played"
+            ],
+            "tool_args": {
+              "podconnect_recently_played": {
+                "limit": 1
+              }
+            },
+            "tool_outcomes": {
+              "podconnect_recently_played": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "answer_all": [
+              "Nordlys",
+              "Testorkestret"
+            ],
+            "answer_patterns": [
+              "^(?!.*(?:afkort|truncat|for stor|begra nset)).*$"
+            ]
+          }
+        },
+        {
+          "text": "Hvem var kunstneren?",
+          "expect": {
+            "direct_answer": true,
+            "answer_any": [
+              "Testorkestret"
+            ],
+            "remain_open": true,
+            "fixture_side_effects": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": "data-five",
+      "description": "Model selects exactly five existing recent tracks.",
+      "exact_tool_names": [
+        "podconnect_recently_played"
+      ],
+      "turns": [
+        {
+          "text": "Hvad er mine fem seneste forskellige sange på Spotify?",
+          "expect": {
+            "allowed_decisions": [
+              "podconnect_recently_played"
+            ],
+            "tool_args": {
+              "podconnect_recently_played": {
+                "limit": 5
+              }
+            },
+            "tool_outcomes": {
+              "podconnect_recently_played": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "answer_all": [
+              "Nordlys",
+              "Morgenro",
+              "Sommerregn",
+              "Aftenlys",
+              "Havblik"
+            ],
+            "answer_patterns": [
+              "^(?!.*(?:afkort|truncat|for stor|begra nset)).*$"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "data-top",
+      "description": "Top tracks uses the same local selection contract.",
+      "exact_tool_names": [
+        "podconnect_top_tracks"
+      ],
+      "turns": [
+        {
+          "text": "Nævn mine fem topnumre på Spotify.",
+          "expect": {
+            "allowed_decisions": [
+              "podconnect_top_tracks"
+            ],
+            "tool_args": {
+              "podconnect_top_tracks": {
+                "limit": 5
+              }
+            },
+            "tool_outcomes": {
+              "podconnect_top_tracks": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "answer_all": [
+              "Nordlys",
+              "Morgenro",
+              "Sommerregn",
+              "Aftenlys",
+              "Havblik"
+            ],
+            "answer_patterns": [
+              "^(?!.*(?:afkort|truncat|for stor|begra nset)).*$"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "data-liked",
+      "description": "Liked tracks uses the same local selection contract.",
+      "exact_tool_names": [
+        "podconnect_liked"
+      ],
+      "turns": [
+        {
+          "text": "Nævn fem af mine likede sange på Spotify.",
+          "expect": {
+            "allowed_decisions": [
+              "podconnect_liked"
+            ],
+            "tool_args": {
+              "podconnect_liked": {
+                "limit": 5
+              }
+            },
+            "tool_outcomes": {
+              "podconnect_liked": [
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 0,
+            "remain_open": true,
+            "answer_all": [
+              "Nordlys",
+              "Morgenro",
+              "Sommerregn",
+              "Aftenlys",
+              "Havblik"
+            ],
+            "answer_patterns": [
+              "^(?!.*(?:afkort|truncat|for stor|begra nset)).*$"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "data-no-timestamps",
+      "description": "Timestamp-free data cannot establish yesterday's history.",
+      "exact_tool_names": [
+        "podconnect_recently_played"
+      ],
+      "turns": [
+        {
+          "text": "Kan du se præcis hvilke Spotify-sange jeg afspillede i går?",
+          "expect": {
+            "allowed_decisions": [
+              "podconnect_recently_played"
+            ],
+            "allow_direct": true,
+            "remain_open": true,
+            "fixture_side_effects": 0,
+            "answer_patterns": [
+              "^(?!.*(?:i ga r (?:afspillede|hørte|lyttede) du|du (?:afspillede|hørte) .*i ga r))(?=.*(?:kan (?:jeg )?ikke|ikke (?:se|afgøre|oplyse)|mangler|uden))(?=.*(?:tid|dato|historik|i ga r)).*$"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "data-no-play-counts",
+      "description": "Deduplicated source cannot prove counts of repeat plays.",
+      "exact_tool_names": [
+        "podconnect_recently_played"
+      ],
+      "turns": [
+        {
+          "text": "Kan du se præcis hvor mange gange jeg har afspillet Nordlys på Spotify?",
+          "expect": {
+            "allowed_decisions": [
+              "podconnect_recently_played"
+            ],
+            "allow_direct": true,
+            "remain_open": true,
+            "fixture_side_effects": 0,
+            "answer_patterns": [
+              "^(?!.*\\b\\d+\\b)(?!.*\\b(?:en|to|tre|fire|fem|seks|syv|otte|ni|ti|elleve|tolv|tyve|tredive|fyrre|halvtreds|[a-z]*og[a-z]+) gange\\b)(?=.*(?:kan (?:jeg )?ikke|ikke (?:se|afgøre|oplyse)|mangler|uden))(?=.*(?:gange|antal|optæll|gentag)).*$"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

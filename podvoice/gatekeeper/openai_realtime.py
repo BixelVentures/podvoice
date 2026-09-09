@@ -42,6 +42,7 @@ from referencing.exceptions import Unresolvable
 
 from . import constants as C
 from .audio import StreamResampler, resample_pcm16
+from .data_result import MAX_TOOL_RESULT_BYTES, tool_result_json
 from .prompt import SYSTEM_PROMPT_DA
 from .provider_budget import (
     PROVIDER_BUDGET,
@@ -269,7 +270,6 @@ MAX_OUTPUT_TOKENS = 1024
 # generation still owns enough capacity for the entire conversation context repeated
 # into the result/farewell response, its bounded tool output, and the next output.
 TOOL_FOLLOWUP_MINIMUM_RESERVE = 6_000
-MAX_TOOL_RESULT_BYTES = 2_048
 MAX_TOOL_RESULT_TOKENS = MAX_TOOL_RESULT_BYTES  # worst-case one UTF-8 byte per token
 TOOL_FOLLOWUP_PROTOCOL_MARGIN = 512
 
@@ -1882,11 +1882,7 @@ class OpenAIRealtimeSession:
     @staticmethod
     def _bounded_tool_output(response: object) -> str:
         """Bound provider context while preserving truthful mutation acknowledgements."""
-        output = (
-            response
-            if isinstance(response, str)
-            else json.dumps(response, ensure_ascii=False, separators=(",", ":"))
-        )
+        output = tool_result_json(response)
         if len(output.encode("utf-8")) <= MAX_TOOL_RESULT_BYTES:
             return output
         if isinstance(response, dict):
@@ -1914,7 +1910,19 @@ class OpenAIRealtimeSession:
                 "error_kind": "result_too_large",
                 "error": "Værktøjsresultatet var for stort til en sikker stemmerespons.",
             }
-        return json.dumps(bounded, ensure_ascii=False, separators=(",", ":"))
+        output = tool_result_json(bounded)
+        # A character cap is not a UTF-8 byte cap (e.g. emoji in a source summary).
+        # Only the already-lossy fallback summary is shortened, never result fields.
+        fallback_summary = bounded.get("summary")
+        while (
+            len(output.encode("utf-8")) > MAX_TOOL_RESULT_BYTES
+            and isinstance(fallback_summary, str)
+            and fallback_summary
+        ):
+            fallback_summary = fallback_summary[:-1]
+            bounded["summary"] = fallback_summary
+            output = tool_result_json(bounded)
+        return output
 
     def _reset_production_capacity(self) -> None:
         self._production_admission = None

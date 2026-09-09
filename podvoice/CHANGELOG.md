@@ -1,3 +1,10 @@
+## 1.13.72 — Relevant dataudvalg
+
+- Realtime kan vælge antal i de tre eksisterende musikopslag; PodVoice filtrerer det eksisterende HA-udsnit før AI'en modtager det. Seneste sang kræver én post, ikke hele listen.
+- Hele sangposter og afspilnings-ID'er bevares under den uændrede 2048-byte-grænse. Resultater skelner mellem ønsket udvalg, flere poster i udsnittet og faktisk tab på grund af plads.
+- Standardprompt v14 bruger eksisterende filtre på tværs af dataområder og omtaler kun begrænsninger, når de påvirker svaret. Gemte standardprompts migreres; egne prompts bevares.
+- Ingen fuld historik, nye datakilder, HA-scripts, værktøjer, højere kvoter eller ændringer i firmware og Roborock-adgang. En særskilt sikker datatest bruger simulerede kildedata og er ikke fysisk godkendelse.
+
 ## 1.13.71 — Kapacitet, vejr og sand kvittering
 
 - AI'en må ikke gøre Home Assistants accept til en påstand om, at robotten selv har accepteret eller startet. Den fysiske udførelse kræver særskilt bevis.
