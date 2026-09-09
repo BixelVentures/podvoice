@@ -1073,13 +1073,23 @@ async def test_schema_correction_is_returned_without_dispatching_tool_adapter():
         await session.aclose()
 
 
-async def test_schema_correction_submission_failure_closes_and_releases_once():
+async def test_schema_correction_submission_failure_closes_and_releases_once(monkeypatch):
     class BrokenCorrectionBrain(LiveFake):
         async def send_tool_results(self, results: list) -> None:
             raise ConnectionError("correction ACK failed")
 
     brain = BrokenCorrectionBrain()
     session, attention, _voicepe = _build(brain)
+    release_entered = asyncio.Event()
+    allow_release = asyncio.Event()
+    original_release = attention.release
+
+    async def delayed_release(room):
+        release_entered.set()
+        await allow_release.wait()
+        return await original_release(room)
+
+    monkeypatch.setattr(attention, "release", delayed_release)
     await session.start()
     try:
         await session.wake()
@@ -1092,9 +1102,17 @@ async def test_schema_correction_submission_failure_closes_and_releases_once():
             )
         )
         await _wait_until(lambda: session._active is False, max_wait=3.0)
+        await asyncio.wait_for(release_entered.wait(), 1.5)
+        # Inactive/IDLE is not the end of the asynchronous close transaction.
+        assert len(attention.release_calls) == 0
+        close_task = session._close_task
+        assert close_task is not None
+        allow_release.set()
+        await asyncio.wait_for(asyncio.shield(close_task), 1.5)
         assert session.sm.state is State.IDLE
         assert len(attention.release_calls) == 1
     finally:
+        allow_release.set()
         await session.aclose()
 
 

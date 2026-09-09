@@ -147,6 +147,19 @@ integrationstests. Ingen filer blev ændret under gaten. Denne efterfølgende
 dokumentation ændrer ikke runtime-fingerprint. Exact-head CI/ARM64-artifact,
 backup/installation, alle syv semantiske evalsvar og fysisk prøve udestår.
 
+PR43/head3140420: ARM64 build PASS, lint/type/format PASS, CI34378328856
+pytest FAIL i eksisterende schema-correction-close-test. Den ventede _active=false
+og antog attention-release færdig; Thin sætter _active=false før de asynkrone
+teardowntrin. Samme fejlklasse som den tidligere IDLE-test, ikke nye runtimebits.
+Merge/installation HOLD. Permanent testregression skal injicere forsinket
+attention-release og afvente close-task, uden at svække 1-release-assertionen.
+Kun den berørte test/CI-gate ugyldiggøres; ingen manuel genkørsel af rødt head.
+
+Isoleret schema-correction-test rettet og 2/2 lokale teardownregressioner PASS,
+Ruff/format PASS. Uafhængigt review1/1 PASS, ingen nye findings; samme produktions-
+fingerprint. Ny test/docs-only commit udløser normal CI på nyt head. Runtimegate
+og review er uændrede; merge kræver fortsat grøn CI på præcis det nye head.
+
 ## Udgivelsesværktøj — valgfri cache blokerer PR42
 
 Lead Codex, 2026-09-09: CI34341280596 på f79f03b har grøn lint/test og
