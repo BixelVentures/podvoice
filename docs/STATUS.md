@@ -1,5 +1,63 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — recovery-release 1.13.70
+
+Lead: Codex. Brugeren har autoriseret den afgrænsede add-on-release og installation.
+Observeret fejlklasse: manglende playback-start/stopkvittering blev efterfulgt af et
+umuligt fejllydforsøg, som brugte cleanupbudgettet; native reconnect vækkede ikke en
+sovende cleanup-retry. Første manglende fetch/playback er stadig uforklaret. Denne
+release retter kun de dokumenterede genopretningsfejl og lover ikke fysisk stabilitet.
+
+Kæde: wake → mic/provider → reply-request → manglende fetch/start → close-barriere →
+korreleret stop → mic/provider/Stop-context/attention-cleanup → reconnect → samme
+teardown-owner → frisk fysisk silence → rearm → næste wake. Invarianter: half-duplex
+2–7, lifecycle 6–7 og 9–13; én close-owner, generationsbundet bevis og nul rearm før
+fuld cleanup. Hypotese: spring umulig fejllyd over og væk samme retry-owner ved
+reconnect, uden at lade gammel silence eller rearm-ACK krydse forbindelsesgrænsen.
+Ikke-mål: forklare første no-fetch uden evidens, ændre prompt, værktøjer, firmware,
+gain, VAD, timeouts eller HA-adgang. Roborock forbliver off; recovery er ikke flagstyret.
+
+Implementeret: bevar cleanupbudget; reconnect forsegler wake synkront, ugyldiggør
+gammelt silence-bevis og vækker samme cleanup-owner. Reviewets reconnect-under-rearm
+P1 er rettet for både original close og fuld retry, failed/late ACK og shutdown.
+Gamle ACK må ikke publicere readiness; frisk fysisk stopkvittering kræves. Modsatte
+Talk-overflade og eksisterende Stop/musik/fejlkontrakter er kontrolleret.
+De to oprindelige regressioner var røde mod base og grønne efter rettelsen.
+
+Uafhængigt Ultra-runtime-review: P0=0/P1=0; 95 udvalgte Thin/Talk/native-checks og
+særskilt real VoicePELink-probe med gammel ACK, blokeret wake og frisk drain bestod.
+Reviewede blobs: runtime bf24d41e0ebc94ff6a1a760df932807dc69f39fa;
+test 129c46a41bd81c747d9d82b13c6ab8e3d8ab0357. De er uændrede.
+Én lokal releasegate: 1.197 unit bestået; integration ramte sandboxens socket-
+rettighed. Kun integrationsdelen blev genkørt med lokal portadgang: 341 bestået.
+Samlet 1.538 tests, Ruff/format, mypy44 og single-domain rearm. Ingen runtimepatch
+eller fuld wrapper-genkørsel efter miljøfejlen. Ingen SafeEval ved uændret semantik.
+
+Releaseversion 1.13.70 ændrer kun de tre versionsfelter og changelog oven på de
+reviewede bits. Frisk versionskontrakt 6/6 og scope rearm bestået; hele produktsuiten
+gentages ikke for metadata alene. Uafhængig releasegrænse-review afgør GO til
+exact-head CI og diagnostisk installation med backup efter PRODUKTMÅL gate 3.
+Rollback er hele recovery-diffet. Ingen cherry-pick af separat prompt-/kapacitetsarbejde.
+En frisk prøve på den gamle installerede version bestod svar og afslutning efter
+genstart; det erstatter ikke denne kandidats egne fysiske tests. Kandidaten er ikke
+fysisk godkendt, golden chain og 10/10 er åbne. Ny fysisk fejl stopper testforløbet.
+
+Uafhængigt releasegrænse-review recovery_release_boundary: GO, P0=0/P1=0 til
+exact-head CI og derefter backed-up add-on-only diagnostisk installation. Reviewer
+genbekræftede uændrede blobs, scope, diff-check og runtime artifact-identitet 1/1.
+Dette er ikke fysisk recovery-/stabilitetsgodkendelse eller en no-fetch-rettelse.
+
+Publicering forsøgt via den eksisterende GitHub-forbindelse, men automatisk review
+afviste upload af kandidatens syv filer med krav om eksplicit payload-/destinations-
+godkendelse. Ingen tree/commit/PR blev oprettet; ingen workaround anvendes.
+Den verificerede origin er BixelVentures/podvoice. Lokal kandidat og gatebevis
+bevares; publicering og installation afventer denne konkrete godkendelse.
+
+Brugeren har efterfølgende udtrykkeligt godkendt publicering af kode, tests og
+versions-/statusfiler til BixelVentures/podvoice samt videre merge og installation.
+Ingen nøgler eller lydoptagelser medtages. Destinationsblokeringen genprøves med
+denne godkendelse; ingen påstand om publiceret release før faktisk kvittering.
+
 Senest opdateret: 2026-09-09.
 
 ## Aktiv lead-beslutning — accepteret start er ikke fysisk færdig, 9. september 2026
