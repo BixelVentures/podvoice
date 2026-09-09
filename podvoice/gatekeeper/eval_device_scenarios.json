@@ -496,6 +496,78 @@
           }
         }
       ]
+    },
+    {
+      "id": "device-accepted-dialogue",
+      "description": "The same accepted start must stay open when the user explicitly wants further dialogue; no physical completion claim.",
+      "exact_tool_names": [
+        "ha_get_device_capabilities",
+        "ha_execute_device_action",
+        "end_conversation"
+      ],
+      "turns": [
+        {
+          "text": "Hvilke robot-entiteter har du adgang til via udvidet enhedsstyring?",
+          "expect": {
+            "decision": "ha_get_device_capabilities",
+            "tool_args": {
+              "ha_get_device_capabilities": {}
+            },
+            "fixture_side_effects": 0,
+            "remain_open": true
+          }
+        },
+        {
+          "text": "Brug robotten vacuum.eval_qrevo. Støvsug og vask køkkenet to gange med maksimal sugestyrke og ekstrem vaskeintensitet. Bliv i samtalen bagefter, så jeg kan vælge næste opgave.",
+          "expect": {
+            "decisions": [
+              "ha_get_device_capabilities",
+              "ha_execute_device_action",
+              "ha_execute_device_action",
+              "ha_execute_device_action",
+              "ha_execute_device_action"
+            ],
+            "decision_batches": [
+              [
+                "ha_get_device_capabilities"
+              ],
+              [
+                "ha_execute_device_action"
+              ],
+              [
+                "ha_execute_device_action"
+              ],
+              [
+                "ha_execute_device_action"
+              ],
+              [
+                "ha_execute_device_action"
+              ]
+            ],
+            "tool_args": {
+              "ha_get_device_capabilities": {
+                "entity_id": "vacuum.eval_qrevo"
+              }
+            },
+            "tool_outcomes": {
+              "ha_execute_device_action": [
+                "ok",
+                "ok",
+                "ok",
+                "ok"
+              ]
+            },
+            "fixture_side_effects": 4,
+            "remain_open": true,
+            "answer_patterns": [
+              "^(?!.*(?:færdig|gennemført)).*(?:sendt|start|sat|anmod|modtag).+"
+            ],
+            "forbid": [
+              "end_conversation"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

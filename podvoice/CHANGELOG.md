@@ -1,3 +1,9 @@
+## 1.13.69 — Sand kvittering og afslutning efter accepteret start
+
+- Præciserer AI'ens generelle afslutningsregel: alle indstillinger og selve starten skal være accepteret; den fysiske proces behøver ikke være færdig. Kvitteringen må kun hævde det bekræftede niveau.
+- Samtalen forbliver åben ved ønsket videre dialog, manglende godkendelse, ukendt udfald eller uafklarede mål. Afslutning vælges fortsat af Realtime, aldrig af lokale fraser eller succesflag.
+- Gemte standardprompts opgraderes; egne prompts bevares. Ingen nye værktøjer, ændret Assist-/Spotify-routing eller ny firmware. Roborock er stadig off som standard; live- og fysisk godkendelse er separate gates.
+
 ## 1.13.68 — Bounded kapacitetsventning i sikker AI-test
 
 - Den isolerede AI-test kan vente på kapacitet før næste værktøjsrunde. Den kontrollerer samme forbindelse, generation og reservation igen før frigivelse.

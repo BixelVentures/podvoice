@@ -286,6 +286,42 @@ def test_accepted_job_reply_is_not_physical_completion():
     )
 
 
+def test_observed_accepted_start_without_model_close_is_a_regression():
+    """1.13.68: all four accepted commands and a truthful receipt, but no close."""
+    expect = ev.load_scenarios(ev.DEVICE_EVAL_PATH)[0].turns[1].expect
+    observed = matching_observation(
+        expect,
+        "Jeg har sat den til at støvsuge og vaske køkkenet to gange med maksimal "
+        "sugestyrke og ekstrem vaskeintensitet. Home Assistant har accepteret "
+        "kommandoerne, men det fysiske resultat er ikke verificeret.",
+    )
+    observed.decisions.pop()
+    observed.decision_batches.pop()
+    observed.remain_open = True
+    codes = {finding.code for finding in ev.grade_turn(expect, observed)}
+    assert "wrong-lifecycle" in codes
+    assert "answer-pattern-mismatch" not in codes
+
+
+def test_identical_accepted_start_does_not_override_requested_dialogue():
+    scenarios = ev.load_scenarios(ev.DEVICE_EVAL_PATH)
+    positive = scenarios[0].turns[1]
+    negative = next(s for s in scenarios if s.id == "device-accepted-dialogue").turns[1]
+    assert negative.text.startswith(positive.text)
+    assert negative.expect.fixture_side_effects == positive.expect.fixture_side_effects == 4
+    assert negative.expect.tool_outcomes == positive.expect.tool_outcomes
+    observed = matching_observation(
+        negative.expect, "Rengøringsopgaven er sendt til støvsugeren. Hvad vil du vælge nu?"
+    )
+    assert not ev.grade_turn(negative.expect, observed)
+    observed.decisions.append("end_conversation")
+    observed.decision_batches.append(["end_conversation"])
+    observed.remain_open = False
+    assert "wrong-lifecycle" in {
+        finding.code for finding in ev.grade_turn(negative.expect, observed)
+    }
+
+
 async def test_failed_discovery_never_spends_another_turn_or_carries_extra_audio_context():
     budget = ev.EvalBudget(max_turns=2, max_reserved_tokens=100_000)
 

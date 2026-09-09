@@ -155,9 +155,16 @@ END_CONVERSATION_DECLARATION = {
         "domain tool, inspect its result in a later response, then call this tool alone; "
         "never batch it with the action whose success is not yet known. After closing, "
         "give one brief truthful action receipt without an extra farewell or invitation. "
+        "For a request to START an operation, confirmed acceptance of all required "
+        "settings AND the start fulfills that request; do not wait for the physical "
+        "process to finish. accepted_by_ha=true with physical_result_verified=false "
+        "proves acceptance only, not physical start or completion: receipt only that "
+        "confirmed acceptance. Settings alone are insufficient. Acceptance alone does "
+        "not fulfill a request for actual completion, status or further dialogue; "
+        "address the remaining request or limitation and keep open. "
         "Do not infer completion from a media-stop word, politeness, an ordinary answer "
         "or lookup. Keep open for dialogue, clarification, correction, pending approval "
-        "or failed actions; explicit user intent to end still applies. Call at most once. When the user wants to interrupt this conversation and have silence, set silent=true and produce no speech. Interpret the full intent; stopping a named object is not itself a request for silence. Do not hide an action receipt or error with silent mode."
+        "or failed actions, including unknown outcomes; explicit user intent to end still applies. Call at most once. When the user wants to interrupt this conversation and have silence, set silent=true and produce no speech. Interpret the full intent; stopping a named object is not itself a request for silence. Do not hide an action receipt or error with silent mode."
     ),
     "parameters": {
         "type": "object",

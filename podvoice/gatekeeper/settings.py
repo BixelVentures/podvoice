@@ -62,6 +62,8 @@ SETTINGS_VERSION = 11
 # never matches and is always kept.
 LEGACY_PROMPT_HASHES = frozenset(
     {
+        # v10: clarify accepted start versus physical completion, without changing custom prompts.
+        "265cc6c2220c212ddcc9d902c124c702da40411137a734532b4a5ed4b5c34a6c",
         # v9: stock prompt receives model-selected silent interruption.
         "08403d40be0f4d1bac6f36438928de8329bec35d02b6673b23a9b1fbddaa4481",
         # v8: saved stock prompt must receive semantic task completion.
