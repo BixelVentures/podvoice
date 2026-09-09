@@ -3,9 +3,9 @@
 from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
-def test_v10_is_prioritized_and_model_owned():
+def test_v11_is_prioritized_and_model_owned():
     prompt = SYSTEM_PROMPT_DA.lower()
-    assert PROMPT_VERSION == 10
+    assert PROMPT_VERSION == 11
     assert "kald approve_action med præcis dette challenge_id" in prompt
     assert "gentag aldrig det oprindelige handlingsværktøj" in prompt
     assert "# prioritet" in prompt
@@ -46,7 +46,7 @@ def test_sensitive_actions_and_semantic_close_are_explicit():
     assert "kald end_conversation præcis én gang" in prompt
     assert "brug ingen fraseliste" in prompt
     assert "kald opgaven før end_conversation" in prompt
-    assert "mens opgaven afventer bekræftelse, skal samtalen forblive åben" in prompt
+    assert "mens handlingen afventer brugerens godkendelse eller et værktøjsresultat" in prompt
     assert "højst ét kort dansk farvel, eller afslut uden ord" in prompt
     assert "brug ingen flere værktøjer" in prompt
 
@@ -58,3 +58,20 @@ def test_direct_answers_need_no_lifecycle_tool_round():
     assert "samtalen fortsætter gennem naturlige opfølgninger" in prompt
     assert "bevar senest bekræftede emne, mål og værktøjsresultat som aktiv kontekst" in prompt
     assert "continue_conversation" not in prompt
+
+
+def test_accepted_start_contract_matches_close_tool_without_physical_success_claim():
+    from gatekeeper.thin import END_CONVERSATION_DECLARATION
+
+    prompt = SYSTEM_PROMPT_DA.lower()
+    description = END_CONVERSATION_DECLARATION["description"].lower()
+    for field in ("accepted_by_ha=true", "physical_result_verified=false"):
+        assert field in prompt and field in description
+    assert "indstillinger uden accepteret start er ikke nok" in prompt
+    assert "settings alone are insufficient" in description
+    assert "vent ikke på, at den fysiske proces bliver færdig" in prompt
+    assert "do not wait for the physical process to finish" in description
+    assert "status, faktisk færdiggørelse eller videre dialog" in prompt
+    assert "actual completion, status or further dialogue" in description
+    assert "ukendt udfald" in prompt and "unknown outcomes" in description
+    assert "roborock" not in description

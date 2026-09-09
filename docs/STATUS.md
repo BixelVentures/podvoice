@@ -1,6 +1,70 @@
 # PodVoice-status — én aktuel sandhed
 
-Senest opdateret: 2026-09-08.
+Senest opdateret: 2026-09-09.
+
+## Aktiv lead-beslutning — accepteret start er ikke fysisk færdig, 9. september 2026
+
+Lead: Codex. Bruger har bedt om rettelse af den observerede afslutningsfejl.
+Installeret 1.13.68 gennemførte i sikker Realtime-eval alle fire syntetiske
+rengøringshandlinger og kvitterede sandt for HA-accept, men kaldte ikke
+end_conversation. Ingen fysisk robot blev startet. Default prompt v10 og
+afslutningsværktøjet kræver en fuldt udført handling, mens startresultatet korrekt
+kun beviser accepted_by_ha=true og physical_result_verified=false.
+Hypotese: kontrakten er tvetydig om forskellen mellem brugerens startanmodning og
+den efterfølgende fysiske proces; en generisk præcisering i prompt og værktøjets
+beskrivelse kan lukke efter accepteret start uden at påstå fysisk færdiggørelse.
+Dette er en falsificerbar hypotese, ikke bevist årsag: samme sikre sekvens skal
+afslutte efter resultatet; ønsket dialog, ukendt udfald og tvetydige mål skal stadig
+forblive åbne. Et nyt modelafslag stopper kandidaten, ikke en blind genkørsel.
+
+Kæde: fysisk wake/mic → Realtime-hensigt → kapabilitetsopslag → sekventielle
+bekræftede indstillinger → accepteret start → tool-output ACK → modelvalgt separat
+end_conversation → sand kvittering → fysisk playback/drain → teardown/rearm → ny
+wake. Nærliggende fejlveje: kun delvist accepteret opgave, ukendt start, ventende
+brugerbekræftelse, ønsket status/opfølgning, duplicate/stale tool-events, cancel og
+kapacitetsafvisning før close. Invarianter: Realtime ejer semantik; half-duplex 3–7,
+lifecycle 10–15, completed-batch-atomik, tool-output ACK og sand fysisk evidens.
+Ikke-mål: lokal auto-close eller fraseliste, nye værktøjer, større pris-/kapacitetsloft,
+Assist-/Spotify-routing, HA-adgang, lyd, firmware eller lifecycle-mekanik.
+
+Plan: præcisér kun den generiske semantiske kontrakt; migrér uændret gemt v10-prompt,
+men bevar brugerdefinerede prompts. Fasthold den observerede fejl som eval-regression,
+tilføj accepteret start med ønsket videre dialog og kontrollér begge I/O-adaptere.
+Målrettede tests, fast, uafhængigt Ultra-review ved diff-freeze og én releasegate;
+grøn exact-head CI og add-on-only installation med Roborock OFF. Sikker enhedstest
+og afslutningskontraster på installerede bits før aktivering. Rollback: hele dette
+prompt-/beskrivelsesdiff; eksisterende firmware og øvrige indstillinger bevares.
+Kandidaten er IKKE testklar; fysisk golden chain, Stop og 10/10 er fortsat pending.
+
+Implementeret kandidat 1.13.69: prompt v11 og afslutningsbeskrivelse skelner mellem
+accepteret start og fysisk færdiggørelse; ingen runtime-mekanik er ændret. Eksakt
+stock-v10 migreres, tilpasset prompt bevares. Den eksisterende live-fixture fastholder
+fire accepterede handlinger før separat model-close; en ny kontrast gentager samme
+handlinger med udtrykkeligt ønsket videre dialog og forbyder close. Den observerede
+.68-kvittering uden close er en permanent rød eval-orakel-regression. Begge adaptere
+beviser, at HA-accept ikke selv lukker, men at model-close følger den eksisterende
+kvitterings-/playback-/rearm-kæde og gammel token ikke kan genafspilles ved næste wake.
+Målrettet kontrol 64/64 grøn; fast bestod alle 1.529 tests, Ruff/format og mypy44.
+Fast valgte hele testsuiten på grund af changelog-scope og tog 73,3 s, ikke den ønskede
+korte udviklingscyklus. Den først valgte gamle tmp-venv manglede pyvenv.cfg; skift til
+eksisterende intakt ekstern Python 3.12-venv løste miljøet uden produktionsændringer.
+Uafhængigt diff-freeze-review og efterfølgende én releasegate afventes. Ingen ny
+live-/fysisk evidens, HA-aktivering eller firmwareændring.
+
+Uafhængigt Ultra-review accepted_start_freeze_review: P0=0/P1=0, GO til frosset
+releasegate, exact-head grøn CI og default-OFF diagnostisk installation. Revieweren
+bestod 60 kontrakt-/migration-/eval-/adaptercases og 24 særskilte provider-ACK-,
+stale-, approval- og Thin/Talk-cases. Årsagen er fortsat en hypotese; det korrelerede
+provider-spor beviser en completed ren tekst/lydrespons efter accepteret start uden
+function-call, ikke en mistet close i collectoren. Ikke-blokerende P2: eksisterende
+svarregex kan acceptere en ubekræftet fysisk startpåstand. Derfor skal de faktiske
+live-kvitteringer læses manuelt; en grøn regex er hverken sandheds- eller fysisk
+aktiveringsbevis. Hele runtime/version/test-diffet er nu frosset til én releasegate.
+
+Frosset releasegate bestået én gang: 1.197 unit + 332 integration = 1.529 tests,
+Ruff/format, mypy44 og single-domain realtime_semantics grøn; samlet 42,6 s.
+Ingen runtime/version/tests er ændret efter review eller under gaten. CI, publiceret
+image, installation og sikker live-test afventes; fysisk status er uændret.
 
 ## Aktiv lead-beslutning — bounded diagnostisk kapacitetsventning, 8. september 2026
 

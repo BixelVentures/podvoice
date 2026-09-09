@@ -183,6 +183,9 @@ async def test_robot_receipt_closes_once_and_next_wake_cannot_replay(surface):
         assert result["ok"] and result["data"]["accepted_by_ha"]
         assert result["data"]["physical_result_verified"] is False
         assert len(rig.writes) == 1
+        # Acceptance is data, not a local close trigger. Only the model owns closure.
+        assert session._active and not session._ending_conversation
+        assert not attention.release_calls
         brain.emit(
             _batched_call("close", "end_conversation", {}, batch_id="close", index=0, size=1),
             ToolRoundComplete(response_id="close"),
