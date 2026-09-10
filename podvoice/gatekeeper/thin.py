@@ -58,6 +58,8 @@ _PHYSICAL_PROVIDER_TRACE_KINDS = frozenset(
         "response_output_item_added",
         "response_output_item_done",
         "input_audio_buffer_committed",
+        "input_audio_buffer_speech_started",
+        "input_audio_buffer_speech_stopped",
         "accepted_input_turn",
         "rejected_input_quarantined",
         "conversation_item_deleted",
@@ -88,6 +90,8 @@ _PHYSICAL_PROVIDER_TRACE_FIELDS = (
     "status",
     "call_id",
     "output_index",
+    "audio_start_ms",
+    "audio_end_ms",
     "generation",
 )
 

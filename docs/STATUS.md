@@ -1,5 +1,51 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — leverbar første-input-diagnostik på .74
+
+Lead: Codex, 10/9. Installeret baseline er .74/main6f64cc2 med Stop2-firmware.
+Et nyt fysisk pauseforsøg viser første accepterede lydsegment, afvist næste input
+og en generisk velkomst. Almindelig tidslinje findes, men lokal optagelse var ikke
+armed; tidligere udviklede provider-audiooffsets blev aldrig installeret.
+Hypotese: første segment indeholder wake-rest; lyd og providerens egne offsets skal
+kunne falsificere den. Eventmodtagelsestid kan ikke bruges som akustisk grænse under
+hurtig drænning af preconnect-bufferen. Dette ændringssæt retter diagnosedækningen,
+ikke den endnu uafklarede akustiske årsag.
+
+Kæde/naboer: firmware-wake/lydbuffer → native/preconnect → providerens speech-event
+→ passiv observer → armed manifest sammen med device/provider/speaker-WAV →
+Thin accept/quarantine → playback → teardown/rearm → næste wake. Diagnostikken
+må aldrig styre nogen af disse beslutninger eller krydse provider-generationer.
+Invarianter: én Thin-ejer, half-duplex-kontrakt, lifecycle6–11 og sand evidens.
+Scope: flyt den eksisterende bounded offset-patch til .74; vis eksplicit optagelse
+slået fra versus næste samtale versus optager, samt dato/version for tidligere lyd.
+Ingen ændring af wakefølsomhed, firmware, lyd, VAD, prompt, timeouts eller armingpolitik.
+Optagelse er fortsat lokal og én samtale per aktivering, højst60s, seneste12 traces.
+
+Planlagte gates: rå speech-events gennem observer og armed manifest, ugyldige/
+manglende offsets, stale generation, uarmeret paritet, Voice PE/Thin/Talk og .74-
+genforbindelse; synlig panelstatus kontrolleres. Uafhængigt review før én frossen
+releasegate, derefter exact-head CI/main-artifact, backup og installation.
+SafeEval er ikke relevant: ingen prompt/schema/Realtime-semantik ændres.
+Rollback: .74 add-on, samme Stop2-firmware. Kandidat .75 er endnu ikke udgivet,
+installeret eller fysisk afprøvet. Lydoptagelse skal aktiveres og verificeres EFTER
+installation, før brugeren bedes gentage forsøget; en lokal test er ikke den kontrol.
+
+Implementeret: eksisterende bounded audiooffsets og observerallowlist porteret til
+.74, versionsmetadata .75. Full fast PASS74.4s: hele pytest-sættet74.04s,
+Ruff/format og mypy46. Ingen ændring af .74 VoicePELink eller firmware.
+CUA har kørt den faktiske index.html uændret via lokal HTTP med syntetiske API-data:
+off + tidligere trace viser slået fra og optagelsesdato/.70-version; armed viser
+næste samtale og genstartsnulstilling; active viser optager/højst60s; API-fejl viser
+ukendt og deaktiverer arming. Dette er panelverifikation, ikke fysisk lydbevis.
+Uafhængigt Ultra-review GO, P0/P1/P2=0: 37 fokuserede regressioner samt60
+baseline-sammenligninger på duplicate/unknown/malformed events og observerfejl på
+Voice PE/Talk bestod. Rå provider-events nåede faktisk Thin-observer og gemt manifest.
+ReviewdiffSHA256 cf5f95faa31e89c458bd670b8d7e9835c73df3584d24e16337cf10c25fc65454.
+Frossen releasegate PASS39.2s: unit35.93s, integration38.91s, candidate-scope,
+Ruff/format og mypy46 grønne. Ingen produktionsændringer efter review/freeze.
+Kandidaten afventer eksplicit godkendelse til offentlig publicering, exact-commit
+CI/ARM64-image og installation. Ingen publicering eller installation udført.
+
 ## Aktiv lead-beslutning — genforbindelse efter strømtab, 10. september 2026
 
 Lead: Codex. Bruger kræver automatisk tilbagekomst efter gentagne strøm-/netudfald.

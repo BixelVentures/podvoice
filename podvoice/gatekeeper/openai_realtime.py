@@ -194,6 +194,17 @@ def _bounded_provider_index(value: object) -> int | None:
     return value if 0 <= value <= _PROTOCOL_HISTORY_MAX else None
 
 
+def _bounded_provider_audio_ms(value: object) -> int | None:
+    """Keep optional wire audio offsets separate from event receipt time.
+
+    This diagnostic bound is not a turn-duration or session limit. Invalid or
+    absent values remain unknown; they never affect VAD or response ownership.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if 0 <= value <= 2**31 - 1 else None
+
+
 def _provider_item_observation(item: object) -> dict[str, str | None]:
     """Return the bounded, content-free fields needed to reconstruct item ancestry."""
     row = item if isinstance(item, dict) else {}
@@ -2327,6 +2338,7 @@ class OpenAIRealtimeSession:
                 if self.provider_observer is not None:
                     self._observe_provider(
                         "input_audio_buffer_speech_started",
+                        audio_start_ms=_bounded_provider_audio_ms(ev.get("audio_start_ms")),
                         event_id=_bounded_provider_label(ev.get("event_id")),
                         item_id=_bounded_provider_label(speech_item_id),
                         generation=speech_generation,
@@ -2381,6 +2393,7 @@ class OpenAIRealtimeSession:
                 if self.provider_observer is not None:
                     self._observe_provider(
                         "input_audio_buffer_speech_stopped",
+                        audio_end_ms=_bounded_provider_audio_ms(ev.get("audio_end_ms")),
                         event_id=_bounded_provider_label(ev.get("event_id")),
                         item_id=_bounded_provider_label(speech_item_id),
                         generation=speech_generation,

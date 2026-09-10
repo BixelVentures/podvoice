@@ -639,6 +639,19 @@ async def test_armed_physical_trace_records_content_free_provider_item_ancestry(
         assert callable(brain.provider_observer)
         assert brain.observer_at_connect is brain.provider_observer
         private = "must-not-enter-physical-trace"
+        for kind, field, offset in [
+            ("started", "audio_start_ms", 1200),
+            ("stopped", "audio_end_ms", 3600),
+        ]:
+            brain.provider_observer(
+                {
+                    "kind": f"input_audio_buffer_speech_{kind}",
+                    field: offset,
+                    "item_id": "user-one",
+                    "generation": 1,
+                    "content": private,
+                }
+            )
         brain.provider_observer(
             {
                 "kind": "conversation_item_added",
@@ -690,6 +703,12 @@ async def test_armed_physical_trace_records_content_free_provider_item_ancestry(
     assert brain.provider_observer is None
     latest = recorder.snapshot()["latest"]
     events = latest["events"]
+    speech = [
+        row for row in events if row["event"].startswith("provider_input_audio_buffer_speech_")
+    ]
+    assert speech[0]["audio_start_ms"] == 1200
+    assert speech[1]["audio_end_ms"] == 3600
+    assert all(row["item_id"] == "user-one" and row["generation"] == 1 for row in speech)
     added = next(row for row in events if row["event"] == "provider_conversation_item_added")
     created = next(row for row in events if row["event"] == "provider_response_created")
     accepted = next(row for row in events if row["event"] == "provider_accepted_input_turn")

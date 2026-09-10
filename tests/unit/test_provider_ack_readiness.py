@@ -18,6 +18,7 @@ from gatekeeper.openai_realtime import (
 from gatekeeper.provider_budget import ProviderBudgetCoordinator, ProviderBudgetUnavailable
 from gatekeeper.voice import (
     AudioChunk,
+    Interrupted,
     OutputTranscript,
     ResponseStarted,
     ToolCall,
@@ -25,6 +26,8 @@ from gatekeeper.voice import (
     ToolSchemaCorrection,
     TurnComplete,
     Usage,
+    UserSpeechStarted,
+    UserSpeechStopped,
 )
 
 
@@ -1727,6 +1730,118 @@ async def test_provider_observer_does_not_change_response_create_wire_or_capacit
     ]
     for session in sessions:
         session._cancel_ack_watchdogs()
+
+
+@pytest.mark.parametrize("manual", [True, False], ids=["voice-pe", "talk"])
+@pytest.mark.parametrize(
+    ("offset", "expected"),
+    [
+        (0, 0),
+        (1800, 1800),
+        (2**31 - 1, 2**31 - 1),
+        (None, None),
+        (True, None),
+        (-1, None),
+        (1.5, None),
+        ("1800", None),
+        (2**31, None),
+        ({}, None),
+    ],
+)
+async def test_queued_speech_offsets_are_diagnostic_only(manual, offset, expected):
+    trace: list[dict] = []
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        provider_observer=trace.append,
+        manual_input_response=manual,
+        interrupt_response=not manual,
+    )
+    session._connection_generation = 7
+    ws = _QueueWS()
+    # Both edges are queued before consumption, as when buffered wake audio drains.
+    # Wire offsets must survive independently of the near-simultaneous receipt.
+    for edge, field in [("started", "audio_start_ms"), ("stopped", "audio_end_ms")]:
+        row = {"type": f"input_audio_buffer.speech_{edge}", "item_id": "first-input"}
+        if offset is not None:
+            row[field] = offset
+        await ws.emit(row)
+    await ws.incoming.put(None)
+    events = [event async for event in session._iter_events(ws, generation=7)]
+    start_type = UserSpeechStarted if manual else Interrupted
+    assert events == [
+        start_type(item_id="first-input", generation=7),
+        UserSpeechStopped(item_id="first-input", generation=7),
+    ]
+    assert trace[0]["audio_start_ms"] == expected
+    assert trace[1]["audio_end_ms"] == expected
+    assert all(row["generation"] == 7 and row["item_id"] == "first-input" for row in trace)
+    assert ws.sent == []
+
+
+@pytest.mark.parametrize("manual", [True, False], ids=["voice-pe", "talk"])
+@pytest.mark.parametrize("sink", ["record", "absent", "broken"])
+async def test_audio_offsets_preserve_speech_edges_without_working_observer(manual, sink):
+    trace: list[dict] = []
+
+    def observe(row):
+        if sink == "broken":
+            raise RuntimeError("diagnostic sink failed")
+        trace.append(row)
+
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        provider_observer=None if sink == "absent" else observe,
+        manual_input_response=manual,
+        interrupt_response=not manual,
+    )
+    session._connection_generation = 7
+    ws = _QueueWS()
+    await ws.emit(
+        {"type": "input_audio_buffer.speech_started", "item_id": "first", "audio_start_ms": 1200}
+    )
+    await ws.emit(
+        {"type": "input_audio_buffer.speech_stopped", "item_id": "first", "audio_end_ms": 3600}
+    )
+    await ws.incoming.put(None)
+    start_type = UserSpeechStarted if manual else Interrupted
+    assert [event async for event in session._iter_events(ws, generation=7)] == [
+        start_type(item_id="first", generation=7),
+        UserSpeechStopped(item_id="first", generation=7),
+    ]
+    assert ws.sent == []
+    if sink == "record":
+        assert trace[0]["audio_start_ms"] == 1200
+        assert trace[1]["audio_end_ms"] == 3600
+    else:
+        assert trace == []
+
+
+@pytest.mark.parametrize("manual", [True, False], ids=["voice-pe", "talk"])
+async def test_late_speech_offsets_cannot_cross_provider_generation(manual):
+    trace: list[dict] = []
+    session = OpenAIRealtimeSession(
+        api_key="secret",
+        provider_observer=trace.append,
+        manual_input_response=manual,
+        interrupt_response=not manual,
+    )
+    session._connection_generation = 7
+    ws = _QueueWS()
+    stream = session._iter_events(ws, generation=7)
+    await ws.emit(
+        {"type": "input_audio_buffer.speech_started", "item_id": "old", "audio_start_ms": 1200}
+    )
+    start_type = UserSpeechStarted if manual else Interrupted
+    assert await anext(stream) == start_type(item_id="old", generation=7)
+    observed = list(trace)
+    session._connection_generation = 8
+    await ws.emit(
+        {"type": "input_audio_buffer.speech_stopped", "item_id": "old", "audio_end_ms": 3600}
+    )
+    await ws.incoming.put(None)
+    assert [event async for event in stream] == []
+    assert trace == observed
+    assert ws.sent == []
 
 
 async def test_provider_observer_records_bounded_content_free_item_ancestry():
