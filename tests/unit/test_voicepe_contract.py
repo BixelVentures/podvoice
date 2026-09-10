@@ -629,16 +629,22 @@ async def test_stale_cached_ip_rotates_to_native_discovery_and_survives_next_dhc
     assert len(reconnects) == 2
     assert len(subscriptions) == 2
 
-    await reconnects[1].kwargs["on_disconnect"](False)
-    assert states == [True, False]
-    discovered[0] = "192.168.86.200"
-    await reconnects[1].kwargs["on_connect_error"](SocketAPIError("refused"))
-    recovery = link._recovery_task
-    assert recovery is not None
-    await recovery
-    await reconnects[2].kwargs["on_connect"]()
-    assert states == [True, False, True]
-    assert _json.loads(cache.read_text())["pv.local"] == "192.168.86.200"
+    for cycle in range(9):
+        old = reconnects[-1]
+        await old.kwargs["on_disconnect"](False)
+        discovered[0] = f"192.168.86.{200 + cycle}"
+        await old.kwargs["on_connect_error"](SocketAPIError("refused"))
+        recovery = link._recovery_task
+        assert recovery is not None
+        await recovery
+        await reconnects[-1].kwargs["on_connect"]()
+        assert states == [True] + [False, True] * (cycle + 1)
+        assert _json.loads(cache.read_text())["pv.local"] == discovered[0]
+        # A late old disconnect after each successful new admission stays inert.
+        await old.kwargs["on_disconnect"](False)
+        assert states[-1] is True
+    assert events.count("physical-reconnect-rearm") == 10
+    await link.aclose()
 
 
 def test_native_resolver_addrinfo_shape_yields_numeric_candidate():
@@ -1135,7 +1141,8 @@ async def test_audio_boundary_drops_delayed_native_callback_and_keeps_next_gener
     assert await link._audio_q.get() == b"callback-b"
 
 
-async def test_reconnect_makes_scheduled_old_callback_inert_and_keeps_new_audio():
+@pytest.mark.parametrize("same_client", [False, True])
+async def test_reconnect_makes_scheduled_old_callback_inert_and_keeps_new_audio(same_client):
     entities = [
         MediaPlayerInfo("external_media_player", 7),
         TextSensorInfo("podvoice_rearm_ack", 4),
@@ -1149,17 +1156,24 @@ async def test_reconnect_makes_scheduled_old_callback_inert_and_keeps_new_audio(
     link._connection_generation = 1
     await link._on_connect(generation=1, client=old_client)
     delayed_a = old_client.va_handlers["handle_audio"](b"old-generation")
+    old_handlers = old_client.va_handlers
+    old_state = old_client.state_callback
+    await link._on_disconnect(False)
 
-    new_client = _ConnectableClient(FULL_SERVICES, entities)
-    link._connection_generation = 2
+    new_client = old_client if same_client else _ConnectableClient(FULL_SERVICES, entities)
+    generation = 1 if same_client else 2
+    link._connection_generation = generation
     link._client = new_client
-    await link._on_connect(generation=2, client=new_client)
+    await link._on_connect(generation=generation, client=new_client)
     task = asyncio.create_task(link.rearm_wake_word())
     await asyncio.sleep(0)
     link._on_state(TextSensorState("0:recovered"))
     immediate_b = new_client.va_handlers["handle_audio"](b"new-generation")
 
     await delayed_a
+    await old_handlers["handle_audio"](b"late-old-subscription")
+    await old_handlers["handle_stop"]()
+    old_state(TextSensorState("stale:fault", key=5))
     await immediate_b
     assert await task == "recovered"
     assert link._audio_q.qsize() == 1

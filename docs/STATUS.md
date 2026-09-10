@@ -1,5 +1,85 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — genforbindelse efter strømtab, 10. september 2026
+
+Lead: Codex. Bruger kræver automatisk tilbagekomst efter gentagne strøm-/netudfald.
+Baseline main12e96da, installeret1.13.72/rootfs757c96aee65c552b4e951901085f90d56e4d9fa77174b047f38bad2de128719d,
+firmwareStop2 uændret. Felt09:14–09:17: native handshake lykkes, efterfulgt straks
+af expected disconnect, gentaget ca.5s på både IPv4/IPv6. Direkte diagnostic status
+svarer korrekt, men produktionslink er offline, diagnostic_active=false. Ingen
+genstart udført; den initiale exception er endnu ikke indsamlet.
+
+Falsificerbar hypotese: rotation invaliderer gammel connection-generation før
+unsubscribe/stop; en exception efter denne grænse efterlader gammel reconnect-ejer
+aktiv, men alle dens callbacks stale. Hvert handshake bliver derfor afbrudt lokalt.
+Test skal reproducere hele denne kæde, ikke kun kontrollere et disconnect-kald.
+Kæde/naboer: strømtab → native disconnect → Thin close/mic/playback/duck-release →
+adresseopslag → gammel ejer stoppet → identitet/firmware/settings/subscriptions →
+korreleret fysisk rearm → readiness → næste wake. Overlappende admission/discovery,
+sen audio/state/wake-callback, stop-timeout, gentagne fejl og aclose/start indgår.
+Invarianter: én VoicePELink, én Thin close-owner; lifecycle6–7/10–15; stale events
+inert; ingen falsk readiness eller genudførelse af hjemmehandlinger. Nul ændring af
+Realtime-semantik, prompt, værktøjer, gain/VAD, firmware eller Roborock-aktivering.
+
+Plan: permanent kausal regression med pinned native-bibliotek hvor muligt;
+mindste ejerrettelse med vedvarende bounded-backoff recovery og bevaring af gamle
+ejere indtil stop er bekræftet; Thin/Talk og tidligere feltregressioner; uafhængigt
+adversarial review før én frozen releasegate. Ingen SafeEval ved rent adapterfix.
+Rollback: hele add-on-kandidaten til eksisterende1.13.72, uden firmware/configændring;
+den baseline har denne feltfejl og kaldes ikke stabil. Backup kræves før installation.
+Fysisk gate: endnu ikke testklar; kræver frisk golden chain og gentagne power/network
+recovery-prøver plus 10/10 lifecycle på samme artifact. Permanent hardware-/net-/
+auth-fejl skal være sandt offline, aldrig skjules med falsk ready.
+
+Udviklingsbevis: pinned APIClient45.3.1 VA-unsubscribe er kørt med gammel subscription
+og ny endnu-ikke-handshaket APIConnection; den ægte send_message rejser
+ConnectionNotEstablishedAPIError. Baseline fejler fire permanente regressioner:
+unsubscribe, rotation (med/uden gentagne stopfejl) og shutdown. Den fulde download
+af feltloggen blev blokeret af organisationens browserpolitik; ingen omgåelse.
+Derfor er den oprindelige feltexception fortsat ukendt, selv om den reproducerede
+kodefejl forklarer den observerede femsekunders-loop præcist.
+
+Rettelse: begge unsub-handles detach'es før best-effort callback; pensioneret native
+ejer bevares indtil stop+disconnect lykkes. Recovery fortsætter med eksisterende
+capped backoff også efter >3 cleanupfejl eller fejlet replacement-start. Shutdown
+overtager samme ejer; initial start-fejl/cancel bevarer ejeren og blokerer en ny
+generation indtil cleanup. Adapteren propagerer terminal cleanupfejl, men Thin's
+allerede eksisterende shutdown-wrapper undertrykker den; ingen ny UI-påstand.
+VA-audio/start/stop bruger nu samme subscription-token som state-callbacks, også
+ved ny socket på samme APIClient; ingen ny audio-cut eller ændret mic-gate.
+
+Målrettet fast PASS76checks/9.3s inkl. Ruff/format og mypy46. Efterfølgende adapter-
+checks PASS inkl.10 gentagne adresse-/admissioncyklusser og samme-klient stale audio.
+Hele Thin+Talk-integrationssættet PASS. Første brede fast-forsøg var ugyldigt pga.
+sandboxens afvisning af localhost-binding, ikke en produktfejl; genkontrol kørte
+med localhost-tilladelse. Branch er rebaseret på samme aktuelle main12e96da;
+historisk datarelease-dokumentation bevaret. Ingen produktionskontrakt udenfor
+VoicePELink ændret. Foreløbigt uafhængigt review fandt initial-start orphan/P1,
+som er rettet med fejl- og cancellation-regressioner; endeligt review afventer.
+
+Ingen ny version reserveret, merge/installation/flash eller fysisk prøve udført.
+Parallel HeyChat-opgave planlægger .73 og firmwareændring; deling af status mellem
+opgaver er blokeret af sikkerhedskontrollen og afventer brugerens eksplicitte accept.
+Kandidaterne må ikke blandes eller installeres oven i hinanden uden afstemning.
+Fuld frozen releasegate afventer endeligt review og samlet leveringsafgrænsning;
+den installerede .72 er stadig rollback/reference, ikke bevist stabil.
+
+Endeligt uafhængigt Ultra-review reconnect_freeze_review: GO til én frozen
+releasegate, P0/P1/P2=0. Runtime SHA256
+12fc5d1bba0353cae664473ac2ca26c9d2ceb7831f29dcdd7be33689007165d9.
+Pinned native stop/cancellation og begge adapters nabogrænser er reviewet.
+Diffet fryses nu uden yderligere ændringer under den fulde lokale gate.
+Versionsnummer/CI-artifact og installationsafstemning er stadig HOLD; grønt lokalt
+runtime-diff må ikke publiceres under den allerede eksisterende .72-version.
+
+Frosset lokal releasegate PASS39.0s: hele unit-sættet34.48s, hele integration-
+sættet38.70s, Ruff/format120, mypy46 og kandidat-scope (kun VoicePELink-runtime).
+Ingen filer ændret under gaten. Ingen SafeEval nødvendig for dette mekaniske scope.
+Kode/review/lokal gate er grønne; merge, ny releaseidentitet, exact-head CI/ARM64,
+backup/installation og fysisk strøm-af/på + golden/10af10 er IKKE gennemført.
+Installationshold skyldes endnu ikke godkendt koordinering med wakeword-opgaven,
+ikke en resterende kendt finding i det reviewede genforbindelsesdiff.
+
 ## Aktiv lead-beslutning — relevante data, 9. september 2026
 
 Lead: Codex. Bruger har godkendt implementering af den afgrænsede datakontrakt.
@@ -159,6 +239,41 @@ Isoleret schema-correction-test rettet og 2/2 lokale teardownregressioner PASS,
 Ruff/format PASS. Uafhængigt review1/1 PASS, ingen nye findings; samme produktions-
 fingerprint. Ny test/docs-only commit udløser normal CI på nyt head. Runtimegate
 og review er uændrede; merge kræver fortsat grøn CI på præcis det nye head.
+
+Levering 9/9: PR43 head edfb3927bd4ffb55616ea105c021cdbcb89ec51a bestod
+CI34378887653 og blev squash-merged som12e96da1f1005ed973e5ebe34add78fbadedb501.
+Main CI34379247222 er grøn inklusive publish-addon. Publiceret1.13.72-image:
+sha256:1671b4467f9260474ff559a8df570b5207f121b114f1a92eccbb2bfc5597d839.
+Krypteret lokal backup a47820c4 er oprettet18:51 og indhold verificeret:
+kun PodVoice1.13.71,14.21MB. Restore er ikke afprøvet. .71 er rollback-målet.
+Installation afventer kort koordineret hold til sideløbende wake-optagelse;
+ingen .72-installation, live-eval eller fysisk godkendelse er endnu udført.
+
+19:04: én opdatering til1.13.72 udført, HA viser Kører og ny startup bekræfter
+git12e96da1f1005ed973e5ebe34add78fbadedb501,
+rootfs-v1:757c96aee65c552b4e951901085f90d56e4d9fa77174b047f38bad2de128719d,
+promptv14:0df6f944c580d1380ea8159480595d88be55a2114e66ad1c01d946e3d49b24b9,
+schema899d3940bbfb480c8af62a991365afc47b0b742d51dd4e541bd1d8c7b7826367.
+Modelgpt-realtime-2.1/medium, firmwareStop2, kanal1/gain16 og HeyChat uændret.
+MCP18+PodConnect3, firmwarekontrakt OK, fysisk wake efter restart afventer.
+HA's ekstra automatiske pre-update-backup blev bevaret slået til. Ingen restore.
+Sikker dataprofil eval-1788973551-3bc570 startet én gang; resultat afventer.
+
+19:10 samme run terminal COMPLETE, selected_ok=true:6/6scenarier,7/7ture.
+Lead har manuelt læst alle faktiske svar, argumenter og resultater: seneste
+Nordlys/Testorkestret medlimit1/én hel URI; kunstneropfølgning uden nyt tool;
+seneste5/top5/liked5 medlimit5 og korrekt kilderækkefølge, alle uden irrelevant
+afkortning. Dato-/playcount-spørgsmål forklarer manglende tidsstempler/tællinger
+uden opdigtede tal og uden unødvendigt opslag. Fire fixture-reads, nul effekter,
+11providerresponses, nul schema-corrections;76170tokens,$0.2606128.
+212.401s kapacitetspause i den isolerede evalrolle; ingen production-latencypåstand.
+Fokuseret datasemantik GO. Rapportens ok=false/profile_complete=false og
+release_preflight_passed=false er korrekt: separat dataprofil, ikke fuld preflight.
+physical_result_verified=false. URI-afspilning via fysisk opfølgning, faktisk
+vejr/web/hjem-svar på .72 og golden/10af10 er fortsat ikke fysisk bevist.
+Efter eval: fresh status1.13.72, diagnostic_active=false, r0IDLE/forbundet,
+ducked=false/level100, MCP/PodConnectup,21tools. OpenAI/VoicePE står degraded
+uden frisk fysisk produktionssamtale; eval alene gør ikke fysisk readiness grøn.
 
 ## Udgivelsesværktøj — valgfri cache blokerer PR42
 
