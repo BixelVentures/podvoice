@@ -1,3 +1,10 @@
+## 1.13.74 — Genforbindelse efter strøm- og netudfald
+
+- En fejl ved afmelding af den gamle forbindelse må ikke længere efterlade Voice PE i en endeløs forbind/luk-løkke.
+- Oprydning beholder ansvaret for den gamle forbindelse og prøver igen med pauser, også efter gentagne stopfejl. En ny forbindelse starter først, når den gamle er stoppet.
+- Fejl og afbrydelse under opstart og nedlukning taber ikke forbindelsesejeren. Gamle lyd- og tilstandshændelser kan ikke krydse den nye forbindelse.
+- Bevarer eksisterende firmware, wakeord, mikrofonindstillinger, AI, musik, vejr og Roborock-adgang. Fysisk tilbagekomst efter strømtab og stabilitet kræver særskilt afprøvning.
+
 ## 1.13.72 — Relevant dataudvalg
 
 - Realtime kan vælge antal i de tre eksisterende musikopslag; PodVoice filtrerer det eksisterende HA-udsnit før AI'en modtager det. Seneste sang kræver én post, ikke hele listen.

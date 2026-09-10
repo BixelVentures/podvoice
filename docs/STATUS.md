@@ -80,6 +80,16 @@ backup/installation og fysisk strøm-af/på + golden/10af10 er IKKE gennemført.
 Installationshold skyldes endnu ikke godkendt koordinering med wakeword-opgaven,
 ikke en resterende kendt finding i det reviewede genforbindelsesdiff.
 
+10/9 installationsbesked: brugeren har eksplicit godkendt installation. Frisk
+origin/main er stadig12e96da, ingen åbne PR'er, den parallelle lokale wakeword-task
+er idle. Statusdeling blev fortsat afvist; ingen blokeret deling omgås. .73 er
+reserveret af den separate firmwarekandidat, derfor bruges .74 til denne rene
+add-on-rettelse på uændret Stop2-firmware. Ingen firmwareflash eller anden kandidats
+ændringer medtages. Kun tre versionsautoriteter og changelog ændres efter den grønne
+runtimegate; særskilt metadatareview/versionstest efterfølges af normal exact-head
+PR-CI og main-publish. Runtime SHA ovenfor skal forblive identisk. Backup af aktuelt
+installeret .72 kræves før én .74-installation; fysisk bevis registreres særskilt.
+
 ## Aktiv lead-beslutning — relevante data, 9. september 2026
 
 Lead: Codex. Bruger har godkendt implementering af den afgrænsede datakontrakt.
