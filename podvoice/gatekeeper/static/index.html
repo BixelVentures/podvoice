@@ -1025,16 +1025,17 @@ setInterval(function () {
   }
   function render(data) {
     box.innerHTML = "";
-    if (!data || data.ok === false) { if (numericPreview) numericPreview.textContent = "Numerisk A/B: lydbevis er ikke tilgængeligt."; box.appendChild(te("div", "empty", (data && data.error) || "Lydbevis er ikke tilgængeligt.")); return; }
+    if (!data || data.ok === false) { arm.disabled = true; cancel.hidden = true; if (numericPreview) numericPreview.textContent = "Numerisk A/B: lydbevis er ikke tilgængeligt."; box.appendChild(te("div", "empty", "Optagelsesstatus ukendt. " + ((data && data.error) || "Lydbevis er ikke tilgængeligt."))); return; }
     if (data.active) {
-      box.appendChild(te("div", "line out", "Optager samtalen i " + data.active.room + " — sig sætningen naturligt og afslut med “farvel”."));
+      box.appendChild(te("div", "line out", "Optager nu i " + data.active.room + " — kun denne samtale, højst " + data.max_seconds + " sekunder."));
       arm.disabled = true; cancel.hidden = true; return;
     }
     if (data.armed_room) {
-      box.appendChild(te("div", "line out", "Klar i " + data.armed_room + ". Den næste “Okay Nabu …”-samtale bliver optaget én gang."));
+      box.appendChild(te("div", "line out", "Næste samtale optages i " + data.armed_room + ". Sig dit valgte vækkeord. Aktiveringen bortfalder ved genstart."));
       arm.disabled = true; cancel.hidden = false; return;
     }
     arm.disabled = false; cancel.hidden = true;
+    box.appendChild(te("div", "empty", "Lydoptagelse slået fra. Historik og tidslinje gemmes stadig, men uden lyd. Aktivér igen før næste lydprøve."));
     if (!data.latest) {
       if (numericPreview) numericPreview.textContent = "Numerisk A/B: intet lydbevis indlæst endnu.";
       box.appendChild(te("div", "empty", "Ingen lydoptagelse endnu.")); return;
@@ -1045,6 +1046,7 @@ setInterval(function () {
     if (numericPreview) numericPreview.textContent = "Numerisk A/B-kandidat før start: trace " + latest.id + " · målturn 1 · PodVoice " + (metadata.podvoice_version || "mangler") + " · rootfs " + String(metadata.artifact_sha256 || "mangler").slice(0, 12) + " · prompt " + String(metadata.prompt_sha256 || "mangler").slice(0, 12) + " · schema " + String(providerContract.tool_schema_sha256 || "mangler").slice(0, 12) + " · rum " + String(metadata.room_context_sha256 || "mangler").slice(0, 12) + " · samlet prisloft $5.";
     var line = te("div", "line out");
     line.appendChild(te("div", "who", "Seneste lydbevis · " + latest.room));
+    line.appendChild(te("div", "sub", "Optaget " + new Date(latest.started_at * 1000).toLocaleString("da-DK") + " · PodVoice " + (metadata.podvoice_version || "ukendt version")));
     line.appendChild(te("div", "sub", stageText("Voice PE", stages.device)));
     line.appendChild(te("div", "sub", stageText("Sendt til OpenAI", stages.provider)));
     line.appendChild(te("div", "sub", stageText("Sendt til højttaler", stages.speaker)));

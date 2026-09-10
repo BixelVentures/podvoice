@@ -1,3 +1,10 @@
+## 1.13.75 — Første-input-diagnostik og tydelig optagelsesstatus
+
+- Gemmer Realtime-providerens gyldige start-/slutpositioner for tale i en aktiveret lokal lydoptagelse. Positionerne kan sammenholdes med device-, provider- og svarlyd; hændelsernes modtagelsestid er en separat måling.
+- Panelet viser tydeligt, om lydoptagelse er slået fra, venter på næste samtale eller optager. Gamle lydbeviser viser dato og PodVoice-version.
+- Optagelse skal aktiveres for hver samtale og igen efter genstart. Højst 60 sekunder per samtale og de seneste 12 lydbeviser beholdes lokalt.
+- Bevarer genforbindelsesrettelsen fra 1.13.74. Ingen ændring af firmware, følsomhed, VAD, prompt eller samtaleadfærd; dette er diagnostik, ikke en rettelse af for tidlige svar.
+
 ## 1.13.74 — Genforbindelse efter strøm- og netudfald
 
 - En fejl ved afmelding af den gamle forbindelse må ikke længere efterlade Voice PE i en endeløs forbind/luk-løkke.
