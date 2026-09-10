@@ -90,6 +90,18 @@ runtimegate; særskilt metadatareview/versionstest efterfølges af normal exact-
 PR-CI og main-publish. Runtime SHA ovenfor skal forblive identisk. Backup af aktuelt
 installeret .72 kræves før én .74-installation; fysisk bevis registreres særskilt.
 
+Metadatareview GO og6/6 release-contract-tests PASS; versionscommit cac7911 oven på
+reviewet runtime1671e21. Push er BLOKERET af sikkerhedskontrollen, også efter frisk
+verifikation af origin=https://github.com/BixelVentures/podvoice.git, PUBLIC,
+viewerPermission=ADMIN og main12e96da som installeret .72-baseline. Kontrollen kræver
+eksplicit brugeraccept af publicering af rettelsens kildekode og releasenoter til
+netop dette offentlige repository. Ingen alternativ push/API/omgåelse anvendes.
+Derfor ingen PR/CI/main-artifact eller .74-installation endnu; .72 er urørt.
+
+Brugeren har nu eksplicit godkendt publicering af rettelsens kildekode og
+releasenoter i det offentlige BixelVentures/podvoice-repository. Normal PR-CI,
+merge/publish og backup/installation fortsætter; ingen firmwareændring medtages.
+
 ## Aktiv lead-beslutning — relevante data, 9. september 2026
 
 Lead: Codex. Bruger har godkendt implementering af den afgrænsede datakontrakt.
