@@ -92,6 +92,9 @@ class VoicePELink:
             )
         self._client: Any = None  # APIClient, built lazily in start()
         self._reconnect: Any = None  # ReconnectLogic
+        # Retain the retired owner until BOTH native stop and disconnect succeeded.
+        # A transient cleanup failure must not orphan a still-running reconnect loop.
+        self._retiring: tuple[Any, Any] | None = None
         self._connection_generation = 0
         self._current_target = host
         self._recovery_task: asyncio.Task[None] | None = None
@@ -254,8 +257,20 @@ class VoicePELink:
         async with self._lifecycle_lock:
             if self._started:
                 return
+            await self._finish_retiring_generation()
             self._closed = False
-            await self._start_connection_generation(target)
+            try:
+                await self._start_connection_generation(target)
+            except BaseException:
+                # Initial allocation has the same ownership boundary as rotation.
+                # Preserve it even on cancellation, before the caller can retry start.
+                self._connection_generation += 1
+                self._retiring = (self._reconnect, self._client)
+                self._reconnect = self._client = None
+                self._unsubscribe_native_api()
+                self._closed = True
+                self._set_link(False)
+                raise
             self._started = True
 
     async def _start_connection_generation(self, target: str) -> None:
@@ -386,27 +401,45 @@ class VoicePELink:
                 or token != self._recovery_token
             ):
                 return
-            old_reconnect = self._reconnect
-            old_client = self._client
             await self._on_disconnect(expected_disconnect=False)
             self._connection_generation += 1  # stale callbacks become inert before awaits
+            self._retiring = (self._reconnect, self._client)
+            self._reconnect = self._client = None
             self._unsubscribe_native_api()
-            self._reconnect = None
-            self._client = None
-            await self._stop_connection_generation(old_reconnect, old_client)
-            if self._closed:
-                return
-            log.warning(
-                "voicepe %s: rotating stale address %s -> %s",
-                self.host,
-                self._current_target,
-                target,
-            )
-            await self._start_connection_generation(target)
+            while not self._closed:
+                try:
+                    await self._finish_retiring_generation()
+                    log.warning(
+                        "voicepe %s: rotating stale address %s -> %s",
+                        self.host,
+                        self._current_target,
+                        target,
+                    )
+                    await self._start_connection_generation(target)
+                    return
+                except Exception as error:
+                    if self._retiring is None:
+                        # Even a partially started replacement still has one owner.
+                        self._connection_generation += 1
+                        self._retiring = (self._reconnect, self._client)
+                        self._reconnect = self._client = None
+                        self._unsubscribe_native_api()
+                    log.warning("voicepe %s recovery incomplete; retrying: %s", self.host, error)
+                    await asyncio.sleep(
+                        self._RECOVERY_BACKOFF_S[
+                            min(self._recovery_attempt, len(self._RECOVERY_BACKOFF_S) - 1)
+                        ]
+                    )
+                    self._recovery_attempt += 1
+
+    async def _finish_retiring_generation(self) -> None:
+        if self._retiring is not None:
+            await self._stop_connection_generation(*self._retiring)
+            self._retiring = None
 
     @staticmethod
     async def _stop_connection_generation(reconnect: Any, client: Any) -> None:
-        last_error: BaseException | None = None
+        last_error: Exception | None = None
         for attempt in range(3):
             stop_ok = reconnect is None
             disconnect_ok = client is None
@@ -414,13 +447,13 @@ class VoicePELink:
                 if reconnect is not None:
                     await asyncio.wait_for(reconnect.stop(), timeout=5.0)
                     stop_ok = True
-            except BaseException as error:
+            except Exception as error:
                 last_error = error
             try:
                 if client is not None:
                     await asyncio.wait_for(client.disconnect(force=True), timeout=5.0)
                     disconnect_ok = True
-            except BaseException as error:
+            except Exception as error:
                 last_error = error
             if stop_ok and disconnect_ok:
                 return
@@ -550,12 +583,12 @@ class VoicePELink:
         # VERIFY: subscribe_voice_assistant signature. Passing a non-None
         # handle_audio auto-sets VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO (no flags arg).
         async def handle_start(*args: Any, **kwargs: Any) -> int | None:
-            if not self._generation_is_current(generation, client):
+            if not admission_current():
                 return 0
             return await self._handle_start(*args, **kwargs)
 
         async def handle_stop(*args: Any, **kwargs: Any) -> None:
-            if self._generation_is_current(generation, client):
+            if admission_current():
                 await self._handle_stop(*args, **kwargs)
 
         def handle_audio(data: bytes, data2: bytes | None = None) -> Coroutine[Any, Any, None]:
@@ -565,7 +598,7 @@ class VoicePELink:
             audio_epoch = self._audio_epoch
 
             async def deliver() -> None:
-                if self._generation_is_current(generation, client):
+                if admission_current():
                     await self._handle_audio(data, data2, audio_epoch=audio_epoch)
 
             return deliver()
@@ -1057,12 +1090,16 @@ class VoicePELink:
             self._run_cb(self.on_link, connected)
 
     def _unsubscribe_native_api(self) -> None:
-        if self._unsub_va is not None:
-            self._unsub_va()
-            self._unsub_va = None
-        if self._unsub_states is not None:
-            self._unsub_states()
-            self._unsub_states = None
+        # Native VA unsubscribe can send on a newly handshaking connection and raise.
+        # Detach first, attempt each handle once, and always proceed to native stop.
+        callbacks = (self._unsub_va, self._unsub_states)
+        self._unsub_va = self._unsub_states = None
+        for unsubscribe in callbacks:
+            if unsubscribe is not None:
+                try:
+                    unsubscribe()
+                except Exception as error:
+                    log.warning("voicepe %s native unsubscribe failed: %s", self.host, error)
 
     async def _handle_start(self, *args: Any, **kwargs: Any) -> int | None:
         # This callback exists for the native API subscription and legacy diagnosis.
@@ -1727,17 +1764,17 @@ class VoicePELink:
             self._started = False
             self._connection_generation += 1
             self._recovery_token += 1
+            if self._retiring is None:
+                self._retiring = (self._reconnect, self._client)
+            self._reconnect = self._client = None
+            self._unsubscribe_native_api()
+            self._set_link(False)
             recovery = self._recovery_task
             self._recovery_task = None
             if recovery is not None:
                 recovery.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await recovery
-            self._unsubscribe_native_api()
-            reconnect, self._reconnect = self._reconnect, None
-            client, self._client = self._client, None
-            with contextlib.suppress(Exception):
-                await self._stop_connection_generation(reconnect, client)
             pending = [task for task in self._pending if task is not asyncio.current_task()]
             for task in pending:
                 task.cancel()
@@ -1745,3 +1782,6 @@ class VoicePELink:
                 await asyncio.gather(*pending, return_exceptions=True)
             self._pending.clear()
             self._set_link(False)
+            # Bounded shutdown; retain the owner and propagate failure if cleanup
+            # cannot finish. A subsequent start/close must finish it before reuse.
+            await self._finish_retiring_generation()
