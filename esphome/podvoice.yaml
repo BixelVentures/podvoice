@@ -291,7 +291,7 @@ event:
         continuous_rearm_v1,
         physical_rearm_audio_progress_v1,
         correlated_reset_rearm_v2,
-        podvoice_build_11367_stop2,
+        podvoice_build_11376_heychat1,
         podvoice_playback_events_v1,
         correlated_local_stop_v1,
         correlated_stop_context_v2,

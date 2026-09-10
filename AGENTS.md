@@ -39,6 +39,11 @@ er varm ≤8 s, kold ≤15 s og release ≤45 s. Brug lav intelligens til afgræ
 docsreviews; brug Ultra én gang ved diff-freeze for højrisiko ejerskab, stale events,
 sideeffekter og artifact-sandhed — aldrig som standard i hvert loop.
 
+Før firmwarebuild kontrolleres både ESPHome-venv og eksisterende PlatformIO-penv med
+`python scripts/check_firmware_env.py <esphome-venv> <platformio-penv> --uv-cache <platformio-core>/.cache/uv`.
+Manglende pyvenv.cfg, dist-info/METADATA eller cachearkivets WHEEL kræver et rent buildmiljø; genkør ikke
+ESPHome mod samme beskadigede miljø, hvor upstream skjuler installerens stderr.
+
 En timeout, sandboxfejl eller flaky test er ikke produktevidens og må ikke udløse en
 runtime-patch. Isolér årsagen én gang; ret workflowet eller testens observerede
 slutbetingelse separat, og genkør kun den gate, som fejlen faktisk ugyldiggjorde. Hvis
