@@ -639,6 +639,18 @@ async def test_armed_physical_trace_records_content_free_provider_item_ancestry(
         assert callable(brain.provider_observer)
         assert brain.observer_at_connect is brain.provider_observer
         private = "must-not-enter-physical-trace"
+        for delay in (3.837, 13.657):
+            brain.provider_observer(
+                {
+                    "kind": "production_capacity_wait",
+                    "response_id": "response-one",
+                    "generation": 1,
+                    "target_tokens": 11189,
+                    "wait_s": delay,
+                    "deadline_remaining_s": 30.0,
+                    "content": private,
+                }
+            )
         for kind, field, offset in [
             ("started", "audio_start_ms", 1200),
             ("stopped", "audio_end_ms", 3600),
@@ -703,6 +715,10 @@ async def test_armed_physical_trace_records_content_free_provider_item_ancestry(
     assert brain.provider_observer is None
     latest = recorder.snapshot()["latest"]
     events = latest["events"]
+    waits = [row for row in events if row["event"] == "provider_production_capacity_wait"]
+    assert [row["wait_s"] for row in waits] == [3.837, 13.657]
+    assert all(row["target_tokens"] == 11189 and row["generation"] == 1 for row in waits)
+    assert all(row["session_id"] and row["deadline_remaining_s"] == 30.0 for row in waits)
     speech = [
         row for row in events if row["event"].startswith("provider_input_audio_buffer_speech_")
     ]

@@ -81,6 +81,42 @@ Endelig frossen gate efter compilerettelsen: PASS40.4s (Ruff/format, mypy47,
 candidate-scope, unit/integration). Komponentpins og18fil-integritet består.
 19 gennemgåede filer er lokalt klar; offentliggørelse og installation kræver
 brugerens eksplicitte .78-godkendelse efter automatisk afvisning. Ingen ny fysisk prøve.
+## Aktiv lead-beslutning — Roborock bruger HA-områder, 11/9
+
+Lead Codex. Bruger godkendte implementering af rumkobling, forkert værktøjsvalg og
+diagnose af ventetid. Isoleret clone /private/tmp/podvoice-roborock-ha-areas,
+branch codex/roborock-ha-areas på main52b1e5e (.77). Ingen ændring af den separate
+.78 wake-kandidat, firmware, gain, VAD, scripts eller eksisterende Assist/Spotify.
+
+Direkte .77-runtimebevis: session r0:1789121515721818489. Første spørgsmål blev
+fragmenteret efter uønsket velkomst. HassVacuumStart blev foreslået på et rumspørgsmål,
+men needs_confirmation blokerede start. Efter brugerrettelse gav to capabilities-
+opslag rå engelske Roborock-navne uden HA-kobling. Speech-stop→fysisk svar24265ms;
+opslagenes registrerede udførelse4ms/241ms, med ca.3.84s/13.66s før udførelse.
+Kæden sluttede rent med teardown/rearm. Dette er fejlbevis, ikke robotgodkendelse;
+ingen robotstart observeret. Kapacitetsventen er en hypotese, ikke endnu bevist årsag.
+
+Kæde: wake/input→Realtime-intention→completed batch/admission→read-only HA registry,
+aktuelt kort og rumkobling→modelvalg→servervalidering→HA-kald→sand kvittering→fysisk
+playback→close/rearm→næste wake. Invarianter: Realtime ejer semantik; server ejer
+eksakt mål/autorisation, enkeltudførelse og stale-grænser; én Thin/Talk/Voice PE-kæde;
+kapacitetsgrænser og2048-byte-resultat bevares. Ingen lokale tale-/navnegætteregler.
+
+Hypotese: extended snapshot springer options.vacuum.area_mapping og HA-områderegister
+over; den eksisterende engelske værktøjsnote forstærker fejlen. Verificér live mapping
+og installeret HA-kontrakt; forbind HA-area-ID/navn/alias til ALLE kortbundne segmenter.
+Revalider mapping/kort ved handling, afvis tvetydig/stale mapping. Entydig robot kan
+opslås direkte uden modelrunde til liste. Kortlæg pacing før evt. særskilt rettelse;
+ingen budgetforøgelse eller fjernelse af kvitteringsreservation.
+
+Planlagte tests: flere segmenter per område, flere kort med genbrugte segmentnumre,
+ændrede/slettede mappings, manglende områder, Unicode/aliaser, fulde poster indenfor
+bytegrænse, offline/timeout, replay/generation og settings→start-kæde. Semantisk sikker
+eval for rumspørgsmål, negation, fragment/korrektion og start; nul sideeffekter i eval.
+Målrettede adaptertests→fast→uafhængigt adversarial review→frossen releasegate + bounded
+SafeEval. Fysisk test afventer maskinel gate og forklaret inputkæde; ingen ny fysisk
+godkendelse. Rollback: præcis tidligere installeret artifact/config, eller separat
+disable af udvidelsen; ingen af dem arver stabilitetsbevis. Release/install resterer.
 
 ## Aktiv lead-beslutning — .76 fejler ved pause, nu med gemt lyd
 

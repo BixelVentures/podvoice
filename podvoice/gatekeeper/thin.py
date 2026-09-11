@@ -67,9 +67,13 @@ _PHYSICAL_PROVIDER_TRACE_KINDS = frozenset(
         "response_create_sent",
         "response_done",
         "duplicate_response_done",
+        "production_capacity_wait",
     }
 )
 _PHYSICAL_PROVIDER_TRACE_FIELDS = (
+    "target_tokens",
+    "wait_s",
+    "deadline_remaining_s",
     "event_id",
     "response_id",
     "conversation_id",
