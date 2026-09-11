@@ -56,7 +56,7 @@ bool PodVoiceAudio::begin_conversation(micro_wake_word::WakeAudioPosition bounda
   size_t retained = 0;
   const bool claimed = this->wake_detector_->claim_wake_audio(boundary, [this, boundary, &produced, &retained]() {
     std::lock_guard<std::mutex> lock(this->audio_mutex_);
-    if (this->ring_buffer_ == nullptr || !boundary.valid || this->boundary_consumed_ ||
+    if (this->capture_held_ || this->ring_buffer_ == nullptr || !boundary.valid || this->boundary_consumed_ ||
         boundary.epoch != this->audio_epoch_ || boundary.sample <= this->epoch_start_sample_ ||
         boundary.sample > this->produced_samples_)
       return false;
@@ -90,6 +90,9 @@ bool PodVoiceAudio::begin_conversation(micro_wake_word::WakeAudioPosition bounda
 void PodVoiceAudio::start_streaming() {
   // Idempotent enable/keepalive. Never reset here: the add-on calls this again while
   // the session is live, and doing so would cut words out of an active utterance.
+  std::lock_guard<std::mutex> lock(this->audio_mutex_);
+  if (this->capture_held_)
+    return;
   this->user_enabled_ = true;
   this->last_keepalive_ms_ = millis();
 }
@@ -99,10 +102,76 @@ void PodVoiceAudio::stop_streaming() {
   this->epoch_start_sample_ = this->produced_samples_;
   this->boundary_consumed_ = false;
   this->user_enabled_ = false;
+  this->capture_token_ = 0;
+  this->capture_client_ = nullptr;
   // A completed conversation must never leak its tail into the next wake's pre-roll.
   // From the next mic callback onward the ring starts building a fresh local window.
   if (this->ring_buffer_ != nullptr)
     this->ring_buffer_->reset();
+}
+
+bool PodVoiceAudio::hold_capture(uint32_t token) {
+#ifdef USE_VOICE_ASSISTANT
+  auto *va = voice_assistant::global_voice_assistant;
+  auto *client = va != nullptr ? va->get_api_connection() : nullptr;
+  std::lock_guard<std::mutex> lock(this->audio_mutex_);
+  if (token == 0 || token > 0x7FFFFFFF || client == nullptr || this->ring_buffer_ == nullptr)
+    return false;
+  if (this->capture_held_)
+    return token == this->capture_token_ && client == this->capture_client_;
+  if (!this->user_enabled_ || token <= this->capture_last_token_)
+    return false;
+  this->capture_held_ = true;
+  this->capture_token_ = this->capture_last_token_ = token;
+  this->capture_client_ = client;
+  this->user_enabled_ = false;
+  ++this->audio_epoch_;
+  this->epoch_start_sample_ = this->produced_samples_;
+  this->boundary_consumed_ = false;
+  if (this->ring_buffer_ != nullptr)
+    this->ring_buffer_->reset();
+  return true;
+#else
+  return false;
+#endif
+}
+
+bool PodVoiceAudio::resume_capture(uint32_t token) {
+#ifdef USE_VOICE_ASSISTANT
+  auto *va = voice_assistant::global_voice_assistant;
+  auto *client = va != nullptr ? va->get_api_connection() : nullptr;
+  std::lock_guard<std::mutex> lock(this->audio_mutex_);
+  if (!this->capture_held_ || token == 0 || token != this->capture_token_ ||
+      client == nullptr || client != this->capture_client_)
+    return false;
+  if (this->ring_buffer_ != nullptr)
+    this->ring_buffer_->reset();
+  ++this->audio_epoch_;
+  this->epoch_start_sample_ = this->produced_samples_;
+  this->capture_held_ = false;
+  this->capture_token_ = 0;
+  this->user_enabled_ = true;
+  this->last_keepalive_ms_ = millis();
+  return true;
+#else
+  return false;
+#endif
+}
+
+void PodVoiceAudio::reset_capture_barrier() {
+  std::lock_guard<std::mutex> lock(this->audio_mutex_);
+  if (!this->capture_held_)
+    return;  // Ordinary OFF/rearm timing remains unchanged when no hold existed.
+  ++this->audio_epoch_;
+  this->epoch_start_sample_ = this->produced_samples_;
+  this->boundary_consumed_ = false;
+  this->user_enabled_ = false;
+  this->capture_token_ = 0;
+  this->capture_client_ = nullptr;
+  if (this->ring_buffer_ != nullptr)
+    this->ring_buffer_->reset();
+  this->capture_held_ = false;
+  // Keep the retired-token high-water mark: late hold/resume cannot become a new action.
 }
 
 void PodVoiceAudio::set_mic_gain(int gain) {
@@ -161,6 +230,13 @@ void PodVoiceAudio::setup() {
       return;
     }
     const size_t frames = data.size() / frame_bytes;
+    if (this->capture_held_) {
+      // The shared MWW sample clock must still advance; only forwarded PCM is dropped.
+      this->produced_samples_ += frames;
+      this->frames_written_.fetch_add(1, std::memory_order_relaxed);
+      this->ring_buffer_->reset();
+      return;
+    }
     // Process the ENTIRE callback; a large source chunk must not truncate the
     // shared clock or the beginning of a question at the scratch-buffer limit.
     const size_t batch_frames = std::min<size_t>(MONO_SCRATCH_SAMPLES,
@@ -221,6 +297,10 @@ void PodVoiceAudio::loop() {
 
   voice_assistant::VoiceAssistant *va = voice_assistant::global_voice_assistant;
   api::APIConnection *client = (va != nullptr) ? va->get_api_connection() : nullptr;
+  if (this->capture_client_ != nullptr && client != this->capture_client_) {
+    // Disconnect retires the pending resume. Only normal rearm may release its hold.
+    this->stop_streaming();
+  }
 
   const bool connected = (client != nullptr) && this->user_enabled_;
 

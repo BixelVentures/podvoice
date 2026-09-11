@@ -2,6 +2,54 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Capture hold/resume har nu uafhængigt Astra HIGH scoped GO (grace_review),69tests
+(65native/host +4C++harness) består. Den præcise unsubscribe/samme-pointer-race er
+rettet og genprøvet uden mellemliggende loop; ingen åbne P0/P1/P2 på denne grænse.
+Source fryses separat til et verificerbart komponentref; dette er ikke release.
+
+Forudsætninger under implementering/review: SDK/prompt95tests består også ved leadens
+uafhængige genkørsel; normal default/custom prompt er uændret når flag er OFF. Native
+barriere64tests og4C++harness består. Adversarial review fandt VA unsubscribe/resubscribe
+på samme pointer uden loop kunne genbruge token: den vendorede VA-disconnect-handler
+kalder nu stop_streaming synkront, med C++-regression og faktisk YAML-kontraktstest.
+Talk-review fandt peer lukket før provider session.closed; hold ændres til mic-held
+med primary/DC bevaret indtil officiel finalisering. Sammenkobling i Thin pågår.
+Den nye firmware er ikke repinnet/provisioneret: sourcefreeze, manifest og særskilt
+Alpha-buildidentitet skal opdateres før artifact-gate; ingen gamle bit-claims arves.
+
+Næste implementering: frisk provider-generation til stemmegodkendelse inden for
+samme Thin-samtale, brugerautoriseret Alpha-paritet. Observeret mangel: Live-dispatch
+returnerer confirmation-unavailable; den gamle unwired timestamp-ledger kan ikke
+bruges, da protokolprøverne ikke leverer den nødvendige nye delegation/ask-anchor.
+Kodegennemgang på begge I/O-adaptere viser eksisterende stop/start kun rydder host/
+ring et øjeblik; passive callbacks og et allerede dequeued pump-frame kan krydse
+providergrænsen. Hypotese: tokenbundet firmware hold→ordnet held-ACK→frisk provider
+→matching resume, plus cancel/join af gammel pump/send, udelukker gammel forwardet
+lyd uden at ændre native PCM-format. Hold blokerer også keepalive/start/begin;
+ACK skærer host-epoch synkront før waiter vågner. Samme native forbindelse kræves.
+Dette er forwarding/callback-grænse, ikke påstand om ADC-flush eller hørt spørgsmål.
+
+Berørt kæde: fysisk capture/ring/native queue → VoicePELink → Thin pump → SDK-
+generation → completed tool/admission → serverholdt engangsforslag → provider-
+rotation/fresh input → confirm_live/exakt ApprovedCall → eksisterende dispatchguard
+→ playback/Stop/teardown/rearm/næste wake. Thin beholder history/epoch/attention;
+rotation er ikke wake/teardown. Gammel usage bevares før SDK reconnect. Talk bruger
+frisk peer med eksplicit bevaret mic-intent og ingen mic-permission for typed-only.
+Eksisterende approval-mode=live, original expiry og serverholdt args-hash genbruges;
+ingen modelleverede erstatningsargs, gamle ja-fragmenter eller lokal taleparser.
+
+Invarianter: én Thin-ejer, én native adapter, firmware mic/rearm-ejer, eksklusiv
+completed tool-admission, Stop/privacy, generationsisolation, OFF uændret og ingen
+fabrikeret turn/audio-done. Ikke-mål: ny transport, gain/VAD-tuning, ADC-proveniens,
+nyt ledgerlag eller fysisk accept fra tests. Regressioner: hold/start/keepalive,
+gammel token/ACK/reconnect, PCM før ACK leveret senere, allerede dequeued send,
+Stop i alle awaits, ny generation, typed-only/mic-intent, expiry/replay/mixed batch
+og guard efter awaited target-preparation. Host C++ + begge adaptere + Thin/shared
+policy, uafhængigt Astra HIGH review, derefter fast/semantisk live-gate på frosne
+bits. Firmware-kildepin skal matche faktisk bygget komponent før provisionering.
+Rollback: Alpha OFF og hele provider-rotation/hold-diffet; ingen installation før
+sammensatte gates. Kandidaten er ikke fysisk testklar.
+
 Terminalreceipt-diffet har uafhængigt Astra HIGH scoped GO (grace_review):110 tests
 (78 SDK +32 Thin) består. Tre reproducerede races er rettet: nyt backendarbejde
 invaliderer gammel close permanent; correction før waiterstart annullerer receipt

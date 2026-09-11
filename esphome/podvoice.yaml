@@ -28,6 +28,14 @@ packages:
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
+  on_boot:
+    - priority: -100
+      then:
+        - text_sensor.template.publish:
+            id: podvoice_capture_status
+            state: !lambda |-
+              const auto high_water = std::to_string(id(pv_audio).capture_high_water());
+              return high_water + ":idle:" + high_water;
 
 # --- PodVoice overrides (kept tiny so upstream updates re-merge cheaply) -------------
 
@@ -47,6 +55,27 @@ api:
     - action: podvoice_stream_stop
       then:
         - lambda: "id(pv_audio).stop_streaming();"
+    # ACK is sent on the native connection after old PCM, while the hold stays latched.
+    - action: podvoice_capture_hold
+      variables:
+        token: int
+      then:
+        - text_sensor.template.publish:
+            id: podvoice_capture_status
+            state: !lambda |-
+              const bool held = id(pv_audio).hold_capture(token);
+              return std::to_string(token) + (held ? ":held:" : ":fault:") +
+                     std::to_string(id(pv_audio).capture_high_water());
+    - action: podvoice_capture_resume
+      variables:
+        token: int
+      then:
+        - text_sensor.template.publish:
+            id: podvoice_capture_status
+            state: !lambda |-
+              const bool resumed = id(pv_audio).resume_capture(token);
+              return std::to_string(token) + (resumed ? ":resumed:" : ":fault:") +
+                     std::to_string(id(pv_audio).capture_high_water());
     # One wake opens one conversation. A teardown always performs one bounded detector
     # reset before reopening the single-use latch. The previous continuity shortcut
     # could report green from a sticky prior-wake flag plus passive mic callbacks while
@@ -249,7 +278,7 @@ script:
                         return id(pv_reply).ready_after_restart() && static_cast<uint32_t>(id(pv_audio).frames_written()
                                  - id(podvoice_rearm_frame_marker)) >= 4;
                 then:
-                  - lambda: "id(pv_reply).rearmed(); id(podvoice_conversation_active) = false;"
+                  - lambda: "id(pv_audio).reset_capture_barrier(); id(pv_reply).rearmed(); id(podvoice_conversation_active) = false;"
                   - text_sensor.template.publish:
                       id: podvoice_rearm_ack
                       state: !lambda |-
@@ -287,6 +316,7 @@ event:
         podvoice_channel_v1,
         same_breath_v1,
         wake_audio_boundary_v1,
+        live_capture_hold_v1,
         deterministic_rearm_v1,
         physical_rearm_ack_v1,
         continuous_rearm_v1,
@@ -305,6 +335,10 @@ event:
 # can carry the full monotonic service token, so delayed/replayed ACK N cannot settle
 # waiter N+1. It is diagnostic transport state, never user-facing readiness truth.
 text_sensor:
+  - platform: template
+    id: podvoice_capture_status
+    name: "PodVoice Capture Status"
+    entity_category: diagnostic
   - platform: template
     name: "PodVoice Stop Context"
     id: podvoice_stop_context

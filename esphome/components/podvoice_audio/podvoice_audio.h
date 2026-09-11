@@ -55,6 +55,9 @@
 #include <vector>
 
 namespace esphome {
+namespace api {
+class APIConnection;
+}
 namespace podvoice_audio {
 
 class PodVoiceAudio : public Component {
@@ -92,6 +95,12 @@ class PodVoiceAudio : public Component {
   bool begin_conversation(micro_wake_word::WakeAudioPosition boundary);
   void start_streaming();
   void stop_streaming();
+  // Provider replacement holds forwarding without stopping the shared physical mic.
+  // Tokens increase strictly within a boot; an exact held retry is idempotent.
+  bool hold_capture(uint32_t token);
+  bool resume_capture(uint32_t token);
+  uint32_t capture_high_water() const { return this->capture_last_token_; }  // Main/API task only.
+  void reset_capture_barrier();  // Only successful existing wake rearm releases a stopped hold.
 
   // --- RUNTIME audio tuning (no reflash) -------------------------------------
   // Which XMOS channel we tap and how much digital gain we apply are the two
@@ -130,6 +139,10 @@ class PodVoiceAudio : public Component {
   uint64_t epoch_start_sample_{0};
   uint32_t audio_epoch_{1};
   bool boundary_consumed_{false};
+  bool capture_held_{false};
+  uint32_t capture_token_{0};
+  uint32_t capture_last_token_{0};
+  api::APIConnection *capture_client_{nullptr};
   // DEFAULT = 1 (raw), on evidence, not taste:
   //  * HA core (assist_satellite.py) switches STT to channel 1 whenever the engine
   //    reports prefers_auto_gain_enabled=False AND prefers_noise_reduction_enabled=
