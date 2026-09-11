@@ -2,6 +2,55 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Efter prototypefjernelse består24 releasekontrakt/live-policy/execution-guard-tests
+og git diff --check. Identitetsændringen har27 målrettede tests og uafhængigt review;
+lokal firmwarecompile er bestået som beskrevet nedenfor. Dette er et lokalt
+software-/buildcheckpoint; det nye semantiske evalscript er et separat ufrosset diff.
+
+Lokal firmwarecompile faktisk bestået: proces18707 exit0, ESPHome2026.6.2,
+101.80s; marker11382_livewav2 findes i den genererede binær. 13 C++/headerfiler
+fra de tre pinned komponenter er byteidentiske mellem reviewet input og compilerens
+src-tree; alle18 inputfiler matcher det tidligere manifest. OTA-binær3057344bytes,
+SHA256 b2aefe0fdcf79af3f9974525e56482aa8cfa35994bf59d8e52cf631a0eab75a8.
+Buildrapport ligger i /private/tmp/podvoice-live-alpha-build-02/compile-report.json.
+Eksplicit dummy-PSK og lokale source-overrides; remote-fetch/provisionering/install
+og fysisk gate er IKKE bevist. CUA viser nu låst Mac; HA/API-testvindue afventer
+adgang, men intet produktionsstop eller API-kald er udført i dette trin.
+
+Mindst nødvendig kode — lead-beslutning og uafhængigt læsereview: Den gamle
+live_confirmation.py timestamp-ledger har kun sin isolerede test som importør;
+SDK/Thin bruger nu execution_policy.confirm_live og frisk provider-generation.
+Beholdt prototype øger artifactoverfladen uden funktion. Fjern modulet og den ene
+isolerede test (714 linjer), bevar historisk evidens og alle aktive policy/SDK/Thin-
+regressioner. Hypotese: ingen aktiv import/eksport/schema/buildreference ændres;
+Docker kopierer mindre kode. Invarianter er én autorisationsvej, uændret runtime-
+ejer og eksakt artifact. grace_review har verificeret import-/buildergrænsen.
+Stage begge sletninger før gate: selector-only-prøve viser ellers at dev-tooling
+vælger den slettede test; staged deletion vælger eksisterende fuld testsuite.
+Rollback er de to filer; ingen fysisk accept eller release arves.
+
+Firmwareidentitet har uafhængigt Astra HIGH scoped GO og27 firmware/native tests
+bestået. Push til origin blev afvist af automatisk godkendelseskontrol med krav
+om specifik destinations-/publiceringsgodkendelse. Intet upload blev udført;
+spørgsmål er sendt til brugeren. Arbejdet fortsætter med lokal dummy-PSK compile
+på byteidentiske lokale komponentkilder, som ikke beviser remote-pinned fetch
+eller provisioneret artifact. Disse to gates afventer fortsat separat bevis.
+
+Præcis firmwarekandidat — aktiv lead-beslutning: Alpha-overlay og host accepterer
+stadig den ældre prototypeidentitet podvoice_build_11379_livewav1, selv om capture
+hold/resume og disconnect-fence siden er ændret. Hypotese: en ny specifik marker
+podvoice_build_11382_livewav2 binder denne Alpha-kandidat til hostens forventning,
+så den gamle prototype ikke kan bestå kontrakten under den nye identitet.
+Berørt kæde: kildepinned ESPHome-build → annonceret firmwaremarker → VoicePELink
+kontrakt → Alpha-admission → capture/playback/rearm. Invarianter er eksakt artifact-
+identitet, OFF-kontrakten og ingen arvet fysisk accept. Ændringen er kun de to
+Alpha-markerværdier og en gammel-marker regression; ingen audio-/VAD-/gain-tuning.
+Komponentkilden forbliver b56a08a6d31044f7507b178961ac74f731474253 med verificeret
+18-fil manifest. Før build skal denne commit være hentbar på den faktiske Git-URL.
+Første compile bruger eksplicit dummy PSK og er ikke den provisionerede installations-
+artifact. Kræver uafhængigt review, firmwarekontrakt og frisk ESPHome compile.
+Rollback er hele Alpha-kandidaten; ingen firmwareflash i dette trin.
+
 Kontekstcheckpoint efter P2: regressionen fejlede med assistent før bruger på
 urettet kode og består nu gennem rigtig SDK-eventkø. 71 Thin+History-tests og Ruff
 består efter timestamp-rettelsen. Uafhængigt Astra HIGH genreview giver scoped

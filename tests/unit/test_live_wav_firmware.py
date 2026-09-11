@@ -32,6 +32,7 @@ def entities(capabilities):
         (EXPECTED_FIRMWARE_BUILD, False, True),
         (LIVE_FIRMWARE_BUILD, True, True),
         (LIVE_FIRMWARE_BUILD, False, False),
+        ("podvoice_build_11379_livewav1", True, False),
         ("podvoice_build_unknown", True, False),
     ],
 )
