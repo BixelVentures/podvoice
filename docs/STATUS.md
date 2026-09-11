@@ -88,6 +88,66 @@ diagnose af ventetid. Isoleret clone /private/tmp/podvoice-roborock-ha-areas,
 branch codex/roborock-ha-areas på main52b1e5e (.77). Ingen ændring af den separate
 .78 wake-kandidat, firmware, gain, VAD, scripts eller eksisterende Assist/Spotify.
 
+Frisk HA UI: Core2026.8.2. Otte HA-områder på Stueplan, ni segmenter; Kitchen21 og
+Dining room22 deler Køkkenalrum Stueplan. Balcony19/24 er ikke koblet. 1.Sal har
+separate koblinger. Intet gemt/omdøbt eller startet i HA under kontrollen. Officiel
+2026.8.2-kilde bekræfter get_entries.options.vacuum.area_mapping og kortbundne IDs
+mapFlag_segment; area_registry/list leverer områdenavne/aliaser.
+Implementeret HA-area-ID som modelmål, server-ejet ekspansion til alle segmenter,
+navne/aliaser i bounded snapshot og afvisning af stale/partiel/cross-map kobling.
+Entydig robot læses uden ekstra liste/modelrunde; ingen nye værktøjer eller budgetlofter.
+Private segmentgrupper bevares i capability, ikke gentaget i modelresultatet.
+
+Uafhængigt årsagsreview fandt ikke dobbeltreservation. Ca17.49s ligger før udførelsen,
+men pacingårsagen kræver næste måling. Allerede eksisterende production_capacity_wait
+og scalarfelter føjes kun til armet fysisk trace; ingen ændret pacingmekanik.
+Reviewer robot_area_freeze_review reproducerede P1: sidste area-read lå efter state-
+kontrol og kunne skjule kortskift/busy. Metadata flyttes før det sidste samlede state-
+snapshot; fire regressioner injicerer map/busy under begge metadataawaits. Kandidaten
+er IKKE testklar, indtil rettelsen er uafhængigt genkontrolleret og gates består.
+
+Målrettet166-testsæt bestod før sidste reviewrettelse. Første brede fast havde
+localhost-sandboxfejl og en testfixture-rækkefølgefejl (nye scenarier indsat før gamle
+indeks); ingen produktpatch for miljøfejlen. Fixture-orden rettet; følgende fulde
+pytest bestod, men fast-gaten afviste korrekt ændret scope under kørsel: resultatet
+er kasseret. Ny gate køres først på stabilt diff. Rebase37c1b12 ovenpå frigivet
+.78/main4e5d22c bevarer hele PR48; kun STATUS-konflikt, begge beslutningsposter bevaret.
+Bruger godkendte installation når gates tillader. Ingen robotrelease eller installation
+udført her endnu; fysisk godkendelse, SafeEval og endeligt review står åbne.
+
+Bruger har nu eksplicit godkendt diagnostik-først: efter grønt review/kodegate må
+.79 installeres med extended_device_control=false, derefter sideeffektfri HA-hostet
+device-control-eval under providerlåsen. Kun bestået eval og gennemgåede svar kan
+genåbne udvidelsen til fysisk prøve. Tidligere true/fem tilladte entiteter gemmes;
+listen bevares ved midlertidigt fravalg. Ingen API-nøgle flyttes til lokal clone.
+Reviewets anden P1: finalregistry kunne vise ændret robot-/control-identitet uden
+afvisning. Samme relevante-gruppe/identitet bruges nu både i snapshot og sidste
+metadata-kontrol; seks kausale mutationstests består. Første P1s fire tests består.
+84 robot-unitcases er grønne efter rettelserne; det er stadig ikke releasegate.
+P2: gamle ekstra handlingsfelter fjernet fra evalfixtures, så de matcher den nye
+produktionskontrakt. Syntetiske testområder har anonymiserede børneværelsesnavne.
+Reviewers live-shape-probe med tre faktiske control-ID/formater og syntetiske HA-ID'er
+er1456UTF8bytes og bevares af providerens rigtige serializer; faktiske aliasmængder
+afventer live readback. Maks1800 for capability/envelope2048 bevares.
+
+Endeligt uafhængigt review robot_area_freeze_review: GO til freeze/gates,
+ingen åbne P0/P1/P2. Sidste P2 lukkes med closure-/sessionsguard på traceobserveren:
+en gemt gammel callback kan ikke skrive ventetid ind i næste armede samtale;
+original sink bevares, pacing/lifecycle er uændret. Permanent A→close/rearm→B-test
+og reviewerens oprindelige reproduktion består. Uafhængigt147 device/eval-tests,
+11 registry/Voice/Talk-tests og12 Thin capacity/observer-tests består. Runtime-
+diffhash e4b54f9e71f447b387d4629bed04f45dc9b9192a0282fcb02ba6f47b9bc35f8d.
+Dette er teknisk review, ikke SafeEval eller fysisk accept. .79 beholder .78-firmware.
+Installation må ikke afbryde den separate armede .78-wakeprøve; vindue afventer.
+Stabil fast PASS81.6s, efterfulgt af én frossen releasegate PASS43.2s:
+Ruff/format126, mypy47, exact reviewed coupling samt unit/integration er grønne.
+Ingen produktionsændring mellem review, fast og release. CI/ARM64-mainartifact,
+diagnostisk installation, live SafeEval og fysisk acceptance resterer.
+
+<!-- candidate-scope-coupling
+{"version":1,"base_tip":"4e5d22c4409e0fd9b7a3497454bef83752e23655","merge_base":"4e5d22c4409e0fd9b7a3497454bef83752e23655","domains":["ha_tools","realtime_semantics"],"fingerprint":"502b2af1a713839ec35cb658fec18c26fa6c189726eb02a56a9a33f9f4dd7715","reviewer":"robot_area_freeze_review","rationale":"One HA-area tool contract with matching Realtime eval fixtures and passive session-bound capacity trace; independently reviewed identity/map races, Voice/Talk dispatch and stale callbacks. No pacing, firmware or lifecycle behavior change."}
+-->
+
 Direkte .77-runtimebevis: session r0:1789121515721818489. Første spørgsmål blev
 fragmenteret efter uønsket velkomst. HassVacuumStart blev foreslået på et rumspørgsmål,
 men needs_confirmation blokerede start. Efter brugerrettelse gav to capabilities-

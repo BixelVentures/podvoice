@@ -774,6 +774,37 @@ async def test_unarmed_physical_session_never_installs_provider_observer(tmp_pat
     assert brain.provider_observer is None
 
 
+async def test_old_capacity_observer_cannot_write_into_next_armed_conversation(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    brain = LiveFake()
+    brain.provider_observer = None
+    session, _attention, _link = _build(brain, audio_trace=recorder)
+    recorder.arm(ROOM)
+    await session.start()
+    try:
+        await session.wake()
+        old = brain.provider_observer
+        assert callable(old)
+        session._request_close("test-close")
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        old({"kind": "production_capacity_wait", "response_id": "old-before-wake", "wait_s": 99})
+        recorder.arm(ROOM)
+        await session.wake()
+        assert brain.provider_observer is not old
+        old({"kind": "production_capacity_wait", "response_id": "old-after-wake", "wait_s": 99})
+        brain.provider_observer(
+            {"kind": "production_capacity_wait", "response_id": "current", "wait_s": 1}
+        )
+    finally:
+        await session.aclose()
+    waits = [
+        e
+        for e in recorder.snapshot()["latest"]["events"]
+        if e["event"] == "provider_production_capacity_wait"
+    ]
+    assert [e["response_id"] for e in waits] == ["current"]
+
+
 async def test_armed_provider_observer_chains_and_restores_existing_sink(tmp_path):
     recorder = AudioTraceRecorder(tmp_path)
     observed: list[dict] = []

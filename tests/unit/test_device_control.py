@@ -277,6 +277,60 @@ async def test_mapping_change_during_metadata_read_is_rejected(rig):
     assert not (await rig.act(token))["ok"] and not rig.writes
 
 
+@pytest.mark.parametrize("read", ["_registry", "_areas"])
+@pytest.mark.parametrize("change", ["map", "busy"])
+async def test_state_change_during_final_mapping_reads_cannot_cross_dispatch(rig, read, change):
+    token = (await rig.read())["capability_token"]
+    calls = 0
+
+    async def mutate():
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            if change == "map":
+                rig.states[MAP]["state"] = "Upstairs"
+            else:
+                rig.states[ROBOT]["state"] = "cleaning"
+        return copy.deepcopy(rig.registry if read == "_registry" else rig.areas)
+
+    setattr(rig.router._device_control, read, AsyncMock(side_effect=mutate))
+    result = await rig.act(
+        token,
+        "vacuum.send_command",
+        arguments={
+            "command": "app_segment_clean",
+            "area_ids": ["kitchen"],
+            "repeat": 2,
+        },
+    )
+    assert calls == 2
+    assert not result["ok"] and not rig.writes
+
+
+@pytest.mark.parametrize(
+    "entity,field,value",
+    [
+        (ROBOT, "device_id", "replacement"),
+        (ROBOT, "unique_id", "replacement"),
+        (ROBOT, "platform", "template"),
+        (ROBOT, "disabled_by", "user"),
+        (MODE, "device_id", "other-robot"),
+        (MODE, "disabled_by", "user"),
+    ],
+)
+async def test_identity_change_during_metadata_read_cannot_cross_dispatch(
+    rig, entity, field, value
+):
+    token = (await rig.read())["capability_token"]
+
+    async def change():
+        rig.registry[entity][field] = value
+
+    rig.maps_hook = change
+    result = await rig.act(token, "select.select_option", entity=MODE, arguments={"option": "mop"})
+    assert not result["ok"] and not rig.writes
+
+
 @pytest.mark.parametrize(
     "mapping",
     [
@@ -328,12 +382,12 @@ async def test_legacy_segment_target_cannot_clean_half_of_an_ha_area(rig):
 async def test_eight_observed_ground_floor_areas_fit_without_losing_ids(rig):
     # UI-observed names/groups on .77, synthetic 26-character HA IDs.
     groups = [
-        ("Frida's Værelse Stueplan", [16]),
+        ("Barn A's Værelse Stueplan", [16]),
         ("Entré Stueplan", [17]),
         ("Gang Stueplan", [18]),
         ("Soveværelse Stueplan", [20]),
         ("Køkkenalrum Stueplan", [21, 22]),
-        ("Svend's Værelse Stueplan", [23]),
+        ("Barn B's Værelse Stueplan", [23]),
         ("Badeværelse Stueplan", [25]),
         ("Bryggers Stueplan", [26]),
     ]

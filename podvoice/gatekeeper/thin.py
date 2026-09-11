@@ -3864,13 +3864,19 @@ class ThinSession:
         ):
             return
         original = self.brain.provider_observer
+        trace_session = self._history_session
 
         def observe_provider(event: dict) -> None:
             try:
                 if original is not None:
                     original(event)
             finally:
-                self._trace_provider_event(event)
+                if (
+                    self._provider_trace_observer_installed
+                    and self.brain.provider_observer is observe_provider
+                    and self._history_session == trace_session
+                ):
+                    self._trace_provider_event(event)
 
         self._provider_trace_observer_original = original
         self.brain.provider_observer = observe_provider

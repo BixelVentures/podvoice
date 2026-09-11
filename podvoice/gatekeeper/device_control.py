@@ -325,13 +325,7 @@ class DeviceControl:
             raise CapabilityError("Aktuelle valgmuligheder mangler")
         return value
 
-    async def _snapshot(
-        self, vacuum: str, generation: int, owner: tuple[str, str]
-    ) -> tuple[Capability, dict]:
-        self._check(generation)
-        if vacuum not in self._entities or not vacuum.startswith("vacuum."):
-            raise CapabilityError("Vælg én eksplicit tilladt vacuum-entitet")
-        registry = await self._registry()
+    def _relevant_entries(self, vacuum: str, registry: dict[str, dict]) -> dict[str, dict]:
         entry = registry.get(vacuum)
         if (
             not isinstance(entry, dict)
@@ -352,6 +346,27 @@ class DeviceControl:
                 and other.get("translation_key") in _CLEANING_SELECTS | {"selected_map"}
             ):
                 relevant[entity_id] = other
+        return relevant
+
+    def _device_identity(self, entries: dict[str, dict]) -> str:
+        return self._hash(
+            {
+                k: {
+                    field: v.get(field)
+                    for field in ("platform", "device_id", "unique_id", "translation_key")
+                }
+                for k, v in entries.items()
+            }
+        )
+
+    async def _snapshot(
+        self, vacuum: str, generation: int, owner: tuple[str, str]
+    ) -> tuple[Capability, dict]:
+        self._check(generation)
+        if vacuum not in self._entities or not vacuum.startswith("vacuum."):
+            raise CapabilityError("Vælg én eksplicit tilladt vacuum-entitet")
+        relevant = self._relevant_entries(vacuum, await self._registry())
+        entry = relevant[vacuum]
         states = {entity_id: await self._state(entity_id) for entity_id in relevant}
         robot = states[vacuum]
         if robot["state"] not in {"idle", "docked"}:
@@ -414,15 +429,7 @@ class DeviceControl:
             time.monotonic(),
             owner,
             vacuum,
-            self._hash(
-                {
-                    k: {
-                        field: v.get(field)
-                        for field in ("platform", "device_id", "unique_id", "translation_key")
-                    }
-                    for k, v in relevant.items()
-                }
-            ),
+            self._device_identity(relevant),
             self._hash({"map": active[0], "map_entity": map_selects[0], "areas": areas}),
             map_selects[0],
             active_name,
@@ -603,6 +610,19 @@ class DeviceControl:
                 + literal
                 + ', "options")}'
             )
+        # Resolve metadata first; the joint state sample below must remain the
+        # LAST I/O before dispatch so map/robot changes during these reads fail.
+        registry = await self._registry()
+        if self._device_identity(self._relevant_entries(cap.vacuum, registry)) != cap.identity:
+            raise CapabilityError(
+                "Robottens identitet eller kontroller ændredes; ingen handling sendt"
+            )
+        entry = registry.get(cap.vacuum)
+        if (
+            not isinstance(entry, dict)
+            or self._mapping_identity(entry, await self._areas()) != cap.mapping_identity
+        ):
+            raise CapabilityError("HA-rumkoblingen ændredes; ingen handling sendt")
         current = await self._json(
             "POST", "template", {"template": "{{ {" + ", ".join(fields) + "} | tojson }}"}
         )
@@ -632,15 +652,6 @@ class DeviceControl:
             "fan_speed"
         ] not in self._options(current[cap.vacuum].get("fan_speed_list")):
             raise CapabilityError("Sugestyrker ændredes under opslaget")
-        # Re-read the persisted join after metadata/state I/O. A changed mapping
-        # must not turn a previously selected HA area into a different target.
-        registry = await self._registry()
-        entry = registry.get(cap.vacuum)
-        if (
-            not isinstance(entry, dict)
-            or self._mapping_identity(entry, await self._areas()) != cap.mapping_identity
-        ):
-            raise CapabilityError("HA-rumkoblingen ændredes; ingen handling sendt")
         self._check(cap.generation)
 
     async def execute(self, prepared: PreparedAction) -> dict:
