@@ -45,6 +45,8 @@
 #include "esphome/core/helpers.h"
 
 #include "esphome/components/microphone/microphone_source.h"
+#include "esphome/components/micro_wake_word/micro_wake_word.h"
+#include <mutex>
 #include "esphome/components/ring_buffer/ring_buffer.h"
 
 #include <atomic>
@@ -72,22 +74,22 @@ class PodVoiceAudio : public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  // Run drain after API/voice_assistant components so global_voice_assistant is
-  // populated before our first loop(). LATE keeps us out of the audio-setup path.
-  float get_setup_priority() const override { return setup_priority::LATE; }
+  // Register the passive clock tap BEFORE MWW on the same raw microphone.
+  float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION + 1.0f; }
+  void set_wake_detector(micro_wake_word::MicroWakeWord *detector) { this->wake_detector_ = detector; }
+  micro_wake_word::WakeAudioPosition audio_position();
 
   // --- control (WAKE-GATED) --------------------------------------------------
   // The device boots with forwarding OFF (privacy default). PodVoice turns it ON
   // on wake (IDLE->LISTENING) and OFF on every return to IDLE (closure / grace
   // expiry / error), via the podvoice_stream_start/stop native-API services.
-  // begin_conversation() is the one physical wake boundary. It retains only a short
-  // inference-latency bridge so same-breath speech is not clipped, while discarding
-  // the older audio containing the wake phrase.
+  // begin_conversation() consumes the detector sample boundary once. Samples
+  // after it survive callback/inference backlog; no callback-relative time cut.
   // start_streaming() doubles as the dead-man KEEPALIVE: PodVoice re-asserts it
   // periodically while a session is active; if those stop arriving for SAFETY_MS
   // (PodVoice crashed / half-open socket) loop() force-stops so the mic can NEVER
   // be left streaming. Defined in the .cpp (need millis()).
-  void begin_conversation();
+  bool begin_conversation(micro_wake_word::WakeAudioPosition boundary);
   void start_streaming();
   void stop_streaming();
 
@@ -122,6 +124,12 @@ class PodVoiceAudio : public Component {
 
   // The passive tap. Created in codegen; we only register the callback.
   microphone::MicrophoneSource *mic_source_{nullptr};
+  micro_wake_word::MicroWakeWord *wake_detector_{nullptr};
+  std::mutex audio_mutex_;
+  uint64_t produced_samples_{0};
+  uint64_t epoch_start_sample_{0};
+  uint32_t audio_epoch_{1};
+  bool boundary_consumed_{false};
   // DEFAULT = 1 (raw), on evidence, not taste:
   //  * HA core (assist_satellite.py) switches STT to channel 1 whenever the engine
   //    reports prefers_auto_gain_enabled=False AND prefers_noise_reduction_enabled=
@@ -145,8 +153,8 @@ class PodVoiceAudio : public Component {
 
   // Fixed-size PSRAM ring buffer (EXTERNAL_FIRST). Single producer (audio task,
   // overwriting write()) / single consumer (main task, read()). No held item is
-  // ever outstanding, so the bytebuf's internal spinlock is sufficient — no
-  // application-level mutex needed.
+  // ever outstanding. audio_mutex_ serializes write/overwrite, cursor, trim and
+  // drain; inference and network sends never hold it.
   std::unique_ptr<ring_buffer::RingBuffer> ring_buffer_;
 
   // Scratch buffer the drain read()s into before handing to send_message().

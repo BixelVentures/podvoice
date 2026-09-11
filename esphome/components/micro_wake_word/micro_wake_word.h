@@ -5,8 +5,10 @@
 #include "preprocessor_settings.h"
 #include "streaming_model.h"
 #include "stop_gate.h"
+#include "wake_audio_clock.h"
 
 #include "esphome/components/microphone/microphone_source.h"
+#include "esphome/components/audio/audio_transfer_buffer.h"
 #include "esphome/components/ring_buffer/ring_buffer.h"
 
 #include "esphome/core/automation.h"
@@ -66,6 +68,15 @@ class MicroWakeWord : public Component
   Trigger<std::string> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
 
   void add_wake_word_model(WakeWordModel *model);
+  void set_wake_audio_clock(std::function<WakeAudioPosition()> clock) { this->wake_audio_source_ = std::move(clock); }
+  // Short atomic claim: callback may only trim the local PCM ring, never send
+  // events/network or run inference. Lock order is detector clock -> PV ring.
+  bool claim_wake_audio(WakeAudioPosition position, const std::function<bool()> &claim) {
+    std::lock_guard<std::mutex> lock(this->wake_audio_clock_.mutex);
+    return this->wake_audio_clock_.accepts(position) && claim();
+  }
+  WakeAudioPosition wake_audio_position() const { return this->delivered_wake_audio_; }
+
 
   void set_stop_model(WakeWordModel *model) { this->stop_model_ = model; model->enable(); }
   void request_stop_context(uint32_t command) { this->stop_gate_.request(command); }
@@ -94,10 +105,15 @@ class MicroWakeWord : public Component
   std::vector<WakeWordModel *> wake_word_models_;
   WakeWordModel *stop_model_{nullptr};
   StopGate stop_gate_;
+  WakeAudioClock wake_audio_clock_;
+  std::function<WakeAudioPosition()> wake_audio_source_;
+  WakeAudioPosition feature_wake_audio_, delivered_wake_audio_;
+
   CallbackManager<void(uint32_t)> stop_detected_callback_;
   struct QueuedDetection {
     DetectionEvent event;
     uint32_t stop_command{0};
+    WakeAudioPosition audio;
   };
 
 #ifdef USE_MICRO_WAKE_WORD_VAD
@@ -126,6 +142,7 @@ class MicroWakeWord : public Component
 
   StaticTask inference_task_;
 
+  void reset_audio_source_(audio::RingBufferAudioSource &source);
   static void inference_task(void *params);
 
   /// @brief Suspends the inference task

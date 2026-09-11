@@ -44,36 +44,47 @@ static const uint32_t STAT_LOG_INTERVAL_MS = 10000;
 // jitter so it never cuts a live conversation/grace short. // VERIFY on hardware.
 static const uint32_t SAFETY_MS = 25000;
 
-// Preserve only the short inference-latency bridge between the wake model's
-// acoustic decision and its callback. Field evidence: 0 ms clipped "Hvad", while
-// the former 1500 ms replayed the complete wake phrase.
-static const uint32_t WAKE_BRIDGE_MS = 320;
+micro_wake_word::WakeAudioPosition PodVoiceAudio::audio_position() {
+  std::lock_guard<std::mutex> lock(this->audio_mutex_);
+  return {this->produced_samples_, this->audio_epoch_, 0, this->ring_buffer_ != nullptr};
+}
 
-// --- WAKE-GATED control (also the dead-man keepalive) ---
-void PodVoiceAudio::begin_conversation() {
-  // The rolling ring exists only so the passive tap never blocks the audio task.
-  // It is NOT conversation audio: before this exact edge it contains the wake word,
-  // room noise and possibly media. Replaying all of it makes Realtime interpret
-  // "Okay Nabu" as the request, while discarding all of it clips same-breath speech.
-  // Keep only the newest 320 ms and discard the older prefix non-blockingly.
+bool PodVoiceAudio::begin_conversation(micro_wake_word::WakeAudioPosition boundary) {
+  if (this->wake_detector_ == nullptr)
+    return false;
+  uint64_t produced = 0;
   size_t retained = 0;
-  if (this->ring_buffer_ != nullptr) {
-    const size_t keep_bytes = static_cast<size_t>(WAKE_BRIDGE_MS) * this->sample_rate_ * sizeof(int16_t) / 1000;
+  const bool claimed = this->wake_detector_->claim_wake_audio(boundary, [this, boundary, &produced, &retained]() {
+    std::lock_guard<std::mutex> lock(this->audio_mutex_);
+    if (this->ring_buffer_ == nullptr || !boundary.valid || this->boundary_consumed_ ||
+        boundary.epoch != this->audio_epoch_ || boundary.sample <= this->epoch_start_sample_ ||
+        boundary.sample > this->produced_samples_)
+      return false;
     const size_t available = this->ring_buffer_->available();
-    size_t discard = available > keep_bytes ? available - keep_bytes : 0;
+    const uint64_t oldest = this->produced_samples_ - available / sizeof(int16_t);
+    // An overflow can remove post-detection speech; never silently accept that cut.
+    if (boundary.sample < oldest)
+      return false;
+    size_t discard = (boundary.sample - oldest) * sizeof(int16_t);
     while (discard > 0) {
-      const size_t chunk = discard < this->drain_buffer_.size() ? discard : this->drain_buffer_.size();
+      const size_t chunk = std::min(discard, this->drain_buffer_.size());
       const size_t got = this->ring_buffer_->read(this->drain_buffer_.data(), chunk, 0);
-      if (got == 0)
-        break;
+      if (got != chunk)
+        return false;
       discard -= got;
     }
-    retained = this->ring_buffer_->available();
-  }
-  this->user_enabled_ = true;
-  this->last_keepalive_ms_ = millis();
-  ESP_LOGI(TAG, "Conversation audio boundary opened — retained %u bytes (%u ms max)",
-           (unsigned) retained, (unsigned) WAKE_BRIDGE_MS);
+    this->boundary_consumed_ = true;
+    this->user_enabled_ = true;
+    this->last_keepalive_ms_ = millis();
+    produced = this->produced_samples_;
+    retained = this->ring_buffer_->available() / sizeof(int16_t);
+    return true;
+  });
+  if (claimed)
+    ESP_LOGI(TAG, "Wake sample boundary: epoch=%u run=%u detector=%llu produced=%llu retained=%u samples",
+             (unsigned) boundary.epoch, (unsigned) boundary.detector_run,
+             (unsigned long long) boundary.sample, (unsigned long long) produced, (unsigned) retained);
+  return claimed;
 }
 
 void PodVoiceAudio::start_streaming() {
@@ -83,6 +94,10 @@ void PodVoiceAudio::start_streaming() {
   this->last_keepalive_ms_ = millis();
 }
 void PodVoiceAudio::stop_streaming() {
+  std::lock_guard<std::mutex> lock(this->audio_mutex_);
+  ++this->audio_epoch_;
+  this->epoch_start_sample_ = this->produced_samples_;
+  this->boundary_consumed_ = false;
   this->user_enabled_ = false;
   // A completed conversation must never leak its tail into the next wake's pre-roll.
   // From the next mic callback onward the ring starts building a fresh local window.
@@ -102,11 +117,13 @@ void PodVoiceAudio::keepalive() { this->last_keepalive_ms_ = millis(); }
 void PodVoiceAudio::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PodVoice audio shim...");
 
-  if (this->mic_source_ == nullptr) {
-    ESP_LOGE(TAG, "No microphone source configured");
+  if (this->mic_source_ == nullptr || this->wake_detector_ == nullptr) {
+    ESP_LOGE(TAG, "Missing microphone source or wake detector");
     this->mark_failed();
     return;
   }
+
+  this->stereo_in_ = this->mic_source_->get_audio_stream_info().get_channels() == 2;
 
   // Fixed-size PSRAM ring buffer. bytes = ring_ms * sample_rate * 2 (16-bit) / 1000.
   // create() defaults to EXTERNAL_FIRST (PSRAM, falling back to internal only if
@@ -131,33 +148,44 @@ void PodVoiceAudio::setup() {
   // main task. It must not block: copy bytes into the ring buffer and return.
   // The MicrophoneSource is passive, so this only fires while micro_wake_word
   // already has i2s_mics running — i.e. continuously, for free.
+  this->wake_detector_->set_wake_audio_clock([this]() { return this->audio_position(); });
   this->mic_source_->add_data_callback([this](const std::vector<uint8_t> &data) {
     if (data.empty() || this->ring_buffer_ == nullptr)
       return;
-    // We subscribe to BOTH XMOS channels and de-interleave here, so the channel
-    // choice is a runtime service instead of a firmware rebuild. The source hands
-    // us interleaved 16-bit stereo: [ch0][ch1][ch0][ch1]...
-    const uint8_t *src = data.data();
-    size_t n_bytes = data.size();
-    if (this->stereo_in_ && n_bytes >= 4) {
-      const size_t frames = n_bytes / 4;  // 2 ch * 2 bytes
-      int16_t *out = this->mono_scratch_;
-      const int16_t *in = reinterpret_cast<const int16_t *>(src);
-      const size_t off = (this->channel_ == 1) ? 1 : 0;
-      const size_t max_frames = MONO_SCRATCH_SAMPLES;
-      const size_t take = frames < max_frames ? frames : max_frames;
-      for (size_t i = 0; i < take; i++)
-        out[i] = in[i * 2 + off];
-      src = reinterpret_cast<const uint8_t *>(out);
-      n_bytes = take * 2;
+    std::lock_guard<std::mutex> lock(this->audio_mutex_);
+    const size_t frame_bytes = this->stereo_in_ ? 4 : 2;
+    if (data.size() % frame_bytes != 0) {
+      ++this->audio_epoch_;
+      this->epoch_start_sample_ = this->produced_samples_;
+      this->ring_buffer_->reset();
+      return;
     }
-    // Overwriting write(): if the buffer is too full, it discards the OLDEST
-    // bytes to make room and writes the new frame in full. For a continuous
-    // stream that's the right policy (newest audio is most relevant). We only
-    // detect+count the overwrite event here; the NEW frame is never dropped.
-    if (this->ring_buffer_->free() < n_bytes)
-      this->overwrite_events_++;
-    this->ring_buffer_->write((const void *) src, n_bytes);
+    const size_t frames = data.size() / frame_bytes;
+    // Process the ENTIRE callback; a large source chunk must not truncate the
+    // shared clock or the beginning of a question at the scratch-buffer limit.
+    const size_t batch_frames = std::min(MONO_SCRATCH_SAMPLES,
+                                        static_cast<size_t>(this->ring_ms_) * this->sample_rate_ / 1000);
+    for (size_t first = 0; first < frames; first += batch_frames) {
+      const size_t take = std::min(frames - first, batch_frames);
+      const int16_t *input = reinterpret_cast<const int16_t *>(data.data());
+      for (size_t i = 0; i < take; ++i)
+        this->mono_scratch_[i] = input[(first + i) * (this->stereo_in_ ? 2 : 1) +
+                                      (this->stereo_in_ && this->channel_ == 1 ? 1 : 0)];
+      const size_t n_bytes = take * sizeof(int16_t);
+      if (this->ring_buffer_->free() < n_bytes)
+        this->overwrite_events_++;
+      if (this->ring_buffer_->write(this->mono_scratch_, n_bytes) != n_bytes) {
+        // A partial write cannot be described by the contiguous sample clock.
+        // Preserve the physical cursor but reject every marker at/before this gap.
+        this->produced_samples_ += frames;
+        ++this->audio_epoch_;
+        this->epoch_start_sample_ = this->produced_samples_;
+        this->ring_buffer_->reset();
+        this->frames_written_.fetch_add(1, std::memory_order_relaxed);
+        return;
+      }
+    }
+    this->produced_samples_ += frames;
     this->frames_written_.fetch_add(1, std::memory_order_relaxed);
   });
 
@@ -210,8 +238,8 @@ void PodVoiceAudio::loop() {
     // No subscribed PodVoice connection: discard continuously. With a subscriber but
     // the privacy gate closed, the ring may roll locally, but begin_conversation()
     // atomically discards it at wake. No pre-wake byte is ever conversation input.
-    if (client == nullptr && this->ring_buffer_ != nullptr &&
-        this->ring_buffer_->available() > 0) {
+    if (client == nullptr && this->ring_buffer_ != nullptr) {
+      std::lock_guard<std::mutex> lock(this->audio_mutex_);
       this->ring_buffer_->reset();
     }
     return;
@@ -246,7 +274,11 @@ bool PodVoiceAudio::drain_once_() {
   // ATOMIC receive+return into our pre-allocated scratch buffer. read() holds NO
   // outstanding item (unlike receive_acquire), so it is safe against the audio
   // task's overwriting write()/discard. ticks_to_wait=0 => non-blocking.
-  const size_t length = this->ring_buffer_->read(this->drain_buffer_.data(), MAX_DRAIN_PER_LOOP, /*ticks_to_wait=*/0);
+  size_t length;
+  {
+    std::lock_guard<std::mutex> lock(this->audio_mutex_);
+    length = this->ring_buffer_->read(this->drain_buffer_.data(), MAX_DRAIN_PER_LOOP, 0);
+  }
   if (length == 0)
     return false;
 
