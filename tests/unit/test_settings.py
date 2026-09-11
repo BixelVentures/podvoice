@@ -253,7 +253,7 @@ def test_speaker_path_defaults_to_the_proven_announce_path():
     assert from_options({"speaker_path": "direct"}).speaker_path == "announce"
 
 
-@pytest.mark.parametrize("version", [8, 9, 10, 11, 12, 13])
+@pytest.mark.parametrize("version", [8, 9, 10, 11, 12, 13, 14])
 def test_saved_stock_prompt_migrates_but_custom_prompt_survives(tmp_path, version):
     from pathlib import Path
 

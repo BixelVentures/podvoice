@@ -5,7 +5,7 @@ from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
 def test_canonical_prompt_changes_require_live_policy_review():
-    assert PROMPT_VERSION == 14
+    assert PROMPT_VERSION == 15
     assert set(_sections()) == {
         "IDENTITET OG MÅL",
         "PRIORITET",
@@ -83,3 +83,14 @@ def test_contextual_intro_is_optional_and_cannot_claim_tool_success():
     assert "forsink ikke værktøjskaldet for tale" in backend
     assert "ingen generisk ventereplik før eller under" not in primary + backend
     assert _sections()["RESULTATER OG FEJL"].strip() in backend
+
+
+def test_v15_quiet_acknowledgement_keeps_live_listening_without_turn_tool():
+    primary, backend = live_instructions(SYSTEM_PROMPT_DA)
+    assert "rent modtaget-signal" in primary
+    assert "stille fortsat lytning" in primary
+    assert "accept af et konkret tilbud" in primary
+    assert "Skjul aldrig et opgaveresultat, en fejl eller nødvendig opklaring" in primary
+    assert "lad Live lytte videre i stilhed uden et værktøjskald" in backend
+    assert "kald kun wait_for_user" not in primary + backend
+    assert "godkendelse er et svar" not in primary  # no blanket approval of polite fragments

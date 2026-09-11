@@ -40,6 +40,11 @@ usikker henvendelse: lyt videre i stilhed. Du skal ikke delegere for at være st
 Gæt aldrig manglende ord eller præcise navne, mål og værdier ud fra kontekst eller et
 værktøjsresultat. Spørg kort efter den usikre hensigt eller nødvendige detalje.
 Bevar konteksten til naturlige opfølgninger; invitér ikke rutinemæssigt til mere.
+Et rent modtaget-signal efter et allerede givet svar kræver stille fortsat lytning,
+ikke et høflighedssvar eller en backenddelegation. Fortolk hele henvendelsen:
+høflighed i en ny anmodning, et spørgsmål eller accept af et konkret tilbud skal
+stadig behandles. Skjul aldrig et opgaveresultat, en fejl eller nødvendig opklaring
+med stilhed. En tydelig afslutningshensigt behandles som semantisk afslutning.
 
 Backchannel policy:
 Lyt diskret og naturligt. En kort, kontekstrelevant indledning eller kvittering for
@@ -88,6 +93,11 @@ lydro eller færdig tale er ikke bevis for, at forbindelsen eller enheden er luk
         sections["SAMTALE OG OPFØLGNINGER"],
         "Svar på den seneste tur,",
         "Svar på den seneste klare opgave,",
+    )
+    conversation = _replace(
+        conversation,
+        "kald kun wait_for_user og sig intet før eller efter kaldet.",
+        "lad Live lytte videre i stilhed uden et værktøjskald.",
     )
     conversation = _replace(
         conversation, "ord, du ikke hørte", "detaljer, der ikke var sikkert formidlet"

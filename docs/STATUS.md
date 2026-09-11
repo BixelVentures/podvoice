@@ -2,6 +2,47 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Næste aktive ændring: Live-bekræftelser. Observeret blocker er, at den nuværende
+Alpha afviser bl.a. vacuum/mute/relativvolumen, fordi provider ikke har OFF's komplette
+næste-brugertur. Hypotese: samme managed backend kan vurdere et serverfastholdt,
+uforanderligt udsnit af faktisk input/output og frigive samme eksisterende one-shot-
+policy uden at opfinde en tur. Kæde: canonical challenge → genereret præcist forslag
+→ senere faktisk bekræftelsesinput → reserveret review_pending_action → evidence-token
+→ senere completed eksklusiv approve_action → uændret target/schema/policy og final-
+send guard → resultat/tale → close/rearm. OFF confirm/begin_turn forbliver uændrede.
+
+Plan: én aktiv Live-challenge; eksplicit mode på serverens ExecutionContext afviser
+cross-mode. Review returnerer kun token, når hele nødvendige materialet passer i
+2048-byte værktøjsresultatet. Ingen skjult afkortning. Token binder session/generation,
+challenge/argumenthash, immutable fragmentreferencer, observeret revision, udløb og
+SDK's modtagne response-created highwater. En godkendende respons skal være modtaget
+EFTER tokenudstedelsen, ikke bare behandlet senere fra køen. Valgte outputfragmenter
+skal være efter challenge-registrering; voice-input skal tidsmæssigt følge det fulde
+valgte forslag. Typed input mærkes eksplicit som tekst med lokal modtagelsesrækkefølge,
+ikke et opdigtet provider-tidsstempel. Hele efterfølgende input skal indgå; modellen
+må ikke vælge kun “ja” og skjule et allerede observeret “nej”. Nyt input/ændret forslag,
+Stop, udløb eller anden generation afviser token og senere sends. Nyt input alene
+annullerer ikke betydningen af selve forslaget. Semantik afgøres af modellen; ingen
+lokal liste over godkendelsesord. Outputtekst beviser generering, ikke hørt lyd;
+Alpha lover aktuelt observeret samtykke, ikke en komplet fremtidig ytring.
+
+Regressioner: korrekt release, forkert mål/evidence, overlap/for tidligt eller sent
+forsinket ja, ja…nej, nye fragmenter under target/MCP-await, tokenreplay, cross-mode,
+expiry, ændret schema, Stop og en allerede kølagt response-created før reviewtoken.
+Sen fejlkontrol må ikke genafspille en allerede sendt handling. Fysisk og semantisk
+API-eval samt Astra HIGH's endelige adversarial review kræves før aktivering/release.
+Rollbackgrænse er Alpha OFF; der ændres ingen risikoklassifikation eller TTL.
+
+Aktivt Alpha-goal er nu oprettet på brugerens udtrykkelige ordre: fortsæt til den
+samlede on/off-Alpha, ikke kun delmilepæle. Lokal prototype5bba274 er udgangspunkt;
+main34fb8c8 (.81) indarbejdes nu. Git-diff viser v15 stille-tak plus eval-/versions-
+ændringer; ingen ny firmware eller mic-/playbackmekanik. Begge beslutningshistorikker
+bevares. OFF får præcis main's v15. Alpha tilpasser samme produktregel: et rent
+modtaget-signal efter svar giver stille fortsat lytning; høflighed i spørgsmål,
+anmodning eller godkendelse skal stadig forstås. Live behøver ikke et wait-værktøj
+for at lytte i stilhed. Regression sammenholder v15-kilderegler og begge prompts.
+Der arves ingen fysisk eller Alpha-semantisk gate ved baselineopdateringen.
+
 Aktiv implementeringsbeslutning efter brugerens fortsæt-besked: testvinduet hos
 .80 begrænser kun eksterne prøver. Alpha-kode fortsætter i isoleret clone. Én lead,
 Astra SDK/audio som implementører, Astra HIGH som uafhængig reviewer. Observeret
@@ -364,6 +405,138 @@ for Alpha. Kandidaten er ikke fysisk testklar. Ingen produktionsdiff.
 Researchleverance ligger i den lokale Codex-visualiseringsmappe gpt-live-alpha med
 undersoegelse.md, index.html, begge reproduktionsscripts og rå JSON-resultater.
 
+## Aktiv lead-beslutning — rent tak uden verbal kvittering .80
+
+11/9 Lead Codex. Brugeren bestiller promptændring, test og installation. Direkte
+feltobservation på installeret .78: trace 20260911T130736-240 viser spørgsmål om
+klokken, korrekt opslag/svar, dernæst transskriptet “Tak.” og faktisk afspillet
+“Selv tak. Sig bare til, hvis du mangler noget andet.” Ingen semantisk lukning;
+normal idle-close/rearm fulgte. Dette er en unødvendig verbal kvittering, ikke en
+fejl hvor tak ikke blev hørt. Baseline for kode er offentlig .79 main778f5bd.
+
+Kæde: firmwarewake/mic → provider turforståelse → prompt/deklaration → reserveret
+wait_for_user → korreleret silent-tool-ACK → eksisterende followup-mic → næste
+spørgsmål/svar eller fysisk idle → teardown/rearm → ny wake. Hypotese: promptv14
+forbyder wait_for_user ved al henvendt tale; den sammenhængende løsning er at tillade
+et rent, afsluttet modtaget-signal uden ny anmodning som semantisk stille venten.
+Ingen lokal fraseregel. “Ja tak” til et tilbud/godkendelse og tak med et spørgsmål
+skal stadig behandles. Uklar henvendt tale kræver opklaring. Opgaver og fejl skal
+stadig kvitteres sandt. Et rent tak lukker ikke automatisk samtalen.
+
+Invarianter: Realtime ejer betydning, én ThinSession/half-duplex-kæde, eksklusivt
+wait-signal, korreleret ACK og uændret generation/mic/playback/teardown/rearm.
+Kontrakten for wait udvides i prompt, deklaration og autoritative dokumenter;
+ingen runtime-mekanik, firmware, VAD, gain, timeout eller robotændring.
+
+Planlagte regressioner: prompt/deklarationsparitet og promptmigration; ingen tale
+ved stille venten (også audio uden transskript); næste meningsfulde tur besvares;
+wait-ACK-fejl/stale ACK, idle-close og begge I/O-adaptere bevares. En afgrænset sikker
+Realtime-profil afprøver ren tak, opfølgning, høflig handling, ja tak og uklar tale
+med syntetisk dispatch. Kandidatens semantik må ikke arve .79-robot-evalueringen.
+Uafhængigt adversarial review efter diff-freeze, fast og én releasegate, grøn CI.
+Ingen lokal API-nøgle: live semantik testes på HA efter diagnostic-first installation,
+med sand særskilt status indtil evalueringen består. Roborock HA ejer det aktuelle
+live-vindue; ingen installation/live-test før det frigives. Rollback til .79 ved
+regression. Fysisk rent-tak/opfølgning og ny wake er særskilt ubevist efter software-
+gates. Før test er profilen fastlagt til 5 scenarier/12 ture: klokkeslæt → tak → ugedag →
+høfligt regnespørgsmål → mange tak → udtrykkelig stille lukning; ja tak til præcis
+godkendelse; høflig lyshandling; uklar rummål-henvendelse; ærlig fejl → tak.
+Oracle kræver nul tekst/lyd ved alle tre rene kvitteringer, også før tool-kaldet.
+Faktisk ændring: promptv15, parret wait-deklaration, kun stock-v14-migration og
+kontraktdokumenter. Separat opt-in quiet-thanks-fixture/panelknap bevarer gamle
+preflight- og replaycases. Ingen produktionsmekanik ændret. 35 målrettede prompt/
+migrations-/adaptertests og fast PASS78.8s. Første fast blev ugyldiggjort af lokal
+sandbox-bind-begrænsning og fixture-isolationsfejl; ingen runtimepatch fulgte dem.
+Uafhængigt review fandt et eval-oraclehul: synkront tool-ACK kunne overhale allerede
+kølagt svarlyd. Eval driver lægger nu ACK i samme FIFO og behandler output først;
+59 målrettede checks består (inklusive pre/postcommit og direkte/forsinket ACK).
+Roborock-opgaven har frigivet live-vinduet. .79 robot-eval fejlede et dobbelt opslag;
+extended_device_control skal fortsat være OFF. .80 arver ingen robotgodkendelse.
+Andet reviewfund var for svag fejl-oracle: en succesfrase med ordet fejl bestod.
+Den nye profils fejlsvar kræver nu faktisk fejlbetydning og afviser kendte falske
+succesudsagn; syv positive/negative kontrastcases beskytter dette. Reviewer tilføjede
+rå-wire-regression med den faktiske OpenAI-adapter: output før præcis result-ACK
+bliver observeret og kan ikke give falsk grønt. Samlet seneste målrettede gate25PASS.
+Live-profilen beviser ikke alle former for afklippet lyd eller tak under ventende
+opgave/godkendelse; disse uændrede regler dækkes kun af eksisterende øvrige tests.
+Ingen fuld præflight, fysisk golden chain eller 10/10 kan udledes af denne profil.
+Live Alpha har også frigivet sit vindue efter genstart af .79; ingen samtidige prøver.
+Uafhængig reviewer quiet_thanks_080_review: GO til diagnostic-first release/install,
+uløste P0/P1/P2=0. Reviewer kørte24 quiet/wire-tests PASS og diff-check. Diff fryses
+nu. Første releaseforsøg stoppede før tests på .79s forældede coupling-record;
+reviewposten er nu bundet til .80s faktiske produktionstræ. Endelig releasegate
+PASS43.6s: Ruff/format127, mypy47, præcis coupling-record samt unit/integration.
+Ingen runtimeændring efter freeze. Publicering, installation, kandidatens liveeval
+og fysisk prøve resterer.
+
+
+Kandidatcommit acc3e38700323cc79d99e2de98b231ea0c23955e, 20 gennemgåede filer.
+Push blev afvist af automatisk godkendelseskontrol: offentlig .80-egress kræver
+specifik brugerbekræftelse; tidligere .76-godkendelse blev ikke accepteret. Ingen
+push, PR, CI eller installation udført. .79 er fortsat installeret. Kandidaten er
+lokalt færdig, men ikke live-evalueret/testklar til fysisk acceptance. Afventer kun
+bekræftelse af offentliggørelsen for at fortsætte den allerede bestilte installation.
+Brugeren svarede derefter “Godkend alt”. Kandidat acc3e387 er publiceret som PR50;
+GitHub CI34597589202 bestod. PR50 er squash-merget til main
+4fd401645cd1c99e41935ab615d82e6b48803dad; mainCI34597873047 bestod inklusiv
+publicering af den præcist testede ARM64-image. HA viser nu installeret1.13.80
+(backup af .79 valgt før opdateringen), og panelet rapporterer samme version.
+Native r0 er IDLE/connected med bekræftet hey_chat; MCP og PodConnect up.
+Den aktive gemte prompt indeholder v15s stille-tak-regel; modellen er fortsat
+gpt-realtime-2.1, og extended_device_control er visuelt verificeret OFF.
+Quiet-thanks liveeval eval-1789129433-fad789 er startet én gang på HA; resultat
+afventes. Ingen fysisk .80-samtale, golden chain eller10/10 endnu.
+Startup-log verificerer git_sha4fd401645cd1c99e41935ab615d82e6b48803dad,
+rootfs-v1:537fde31f6996919ceeea184d06d8f905f457405b1f52fe6686037c7ae2382dd,
+promptv15:9f18bc2bdeafd28b30c5d6022adcf152975dce7cbcd920d2c5cc03d0331056c9,
+effortmedium. Testen nåede bekræftelsesscenariet og approve_action omkring14:26;
+det er fremdrift, ikke en PASS. Browserforbindelsen forsvandt derefter (CUA-timeout,
+Chrome ikke længere tilgængelig i browserlisten). Samlet live-resultat kan derfor
+ikke aflæses endnu. Ingen genkørsel eller runtimepatch. Den afgrænsede HA-test ejer
+fortsat sin diagnostiklås indtil terminal status; .80 er installeret, men kandidatens
+semantiske PASS og fysiske acceptance er ikke bevist.
+
+
+Genoptaget11/9: terminal liveeval eval-1789129433-fad789 er gennemført12ture,
+10PASS/2FAIL, pris$0.2500792. Alle3 rene tak giver eksklusivt wait_for_user,
+output_emitted=false,0audiotokens og remain_open=true. Hele6tur-opfølgningen PASS.
+To fejl: exact challenge-id vælges korrekt ved Ja tak, men30s servergodkendelse
+udløber under evalens kapacitetsventen (approval_denied; ærlig fejl,0effekter).
+Fejlcasen kræver kontor, selv om testkonteksten definerer stue som eneste rum;
+modellen afklarer derfor legitimt i stedet for at ramme device_unavailable.
+Kandidaten er IKKE fysisk testklar: fuld valgt semantisk gate er rød.
+
+Lead-hypotese til eval-only korrektion: testopsætningen modsiger egne positive
+forudsætninger; promptens nye tak-regel har derimod direkte3/3livebevis. Berørt kæde:
+syntetisk kontekst → modelvalg → fixture-policy/kapacitetsventen → sandt resultat →
+stilhed/opfølgning. Produktionens godkendelsesgrænse,30sTTL, model, prompt, firmware,
+lyd, VAD, Thin, Talk og fysisk rearm må ikke ændres. Plan: kendt stue som utilgængeligt
+mediemål i denne isolerede profil; målrettet Ja tak-kontrast til et almindeligt tilbud
+uden adgangshandling. Eksisterende særskilte approval/expiry-regressioner bevares;
+denne profil må ikke længere påstå positiv livegodkendelse af adgangshandlinger.
+Reviewer vurderer afgrænsningen før implementering. Regressioner skal bevise kendt
+mål→fejl, ja tak→meningsfuldt svar uden wait, samme produktionsprompt og uændret
+approvalpolicy. Frossen releasegate og én ny installation kun for testrettelsen;
+rollbackgrænse .80, hvis diagnostik eller produktionsidentitet ændres utilsigtet.
+
+.81 er nu implementeret som7filers test-/versions-/dokumentationsdelta fra main4fd4016.
+Uafhængig reviewer quiet_thanks_080_review GO,32målrettede checksPASS, ingen åbne
+findings. Prompt/deklaration/harness/ExecutionPolicy/defaultmanifest byteuændrede.
+Ny regression efterligner de målte ventetider og beviser korrekt30s-expiry med0effekter
+samt kontrol uden ventetid med1fixtureeffekt. Tilbuds-oraklet accepterer naturlige
+spørgevarianter, men afviser generisk tilbud, tidlig handling og tavst ja-tak-svar.
+Stue-fejlfixturet er entydigt; gammel standardmedie-fixture er separat bevaret.
+Den gamle .80-coupling-record er historiseret, da .81 kun har ét klassificeret domæne.
+.80s tredje stille tak fulgte en opklaring, ikke den tilsigtede enhedsfejl; dette er
+præcis den manglende dækning, .81 skal måle. Frosset diff; endelig releasegate PASS42.2s (Ruff/format127,mypy47,
+kandidatscope,unit/integration). Fast-testene bestod, men resultatet blev kasseret,
+fordi reviewerens sidste oraclepræcisering flyttede diffet under kørslen. Den fulde
+releasegate tester de endelige bits. Ingen produktionsændring efter freeze.
+Publicering af7gennemgåede .81filer blev afvist af automatisk godkendelseskontrol,
+som kræver eksplicit godkendelse til det præcise offentlige payload. Ingen push,
+PR eller .81installation udført; .80 er fortsat installeret. Afventer bekræftelse.
+
+
 ## Aktiv lead-beslutning — præcis wake-samplegrænse .78
 
 11/9 Lead Codex. Brugeren kræver både sammenhængende “Hey Chat, hvad er klokken”
@@ -508,8 +681,8 @@ Ruff/format126, mypy47, exact reviewed coupling samt unit/integration er grønne
 Ingen produktionsændring mellem review, fast og release. CI/ARM64-mainartifact,
 diagnostisk installation, live SafeEval og fysisk acceptance resterer.
 
-<!-- candidate-scope-coupling
-{"version":1,"base_tip":"4e5d22c4409e0fd9b7a3497454bef83752e23655","merge_base":"4e5d22c4409e0fd9b7a3497454bef83752e23655","domains":["ha_tools","realtime_semantics"],"fingerprint":"502b2af1a713839ec35cb658fec18c26fa6c189726eb02a56a9a33f9f4dd7715","reviewer":"robot_area_freeze_review","rationale":"One HA-area tool contract with matching Realtime eval fixtures and passive session-bound capacity trace; independently reviewed identity/map races, Voice/Talk dispatch and stale callbacks. No pacing, firmware or lifecycle behavior change."}
+<!-- historical-080-coupling
+{"version":1,"base_tip":"778f5bd8b578a5b9830e8f7840161c29985af1de","merge_base":"778f5bd8b578a5b9830e8f7840161c29985af1de","domains":["ha_tools","realtime_semantics"],"fingerprint":"9057adf48e7355586afc2c2f0d89091032c7c5d306c84ca705dba663805e5d8f","reviewer":"quiet_thanks_080_review","rationale":"One model-owned silent acknowledgement contract: matched prompt/declaration and stock migration, isolated synthetic semantic gate and both-adapter regressions. Actual provider wire verifies output before synchronous ACK; no production lifecycle, audio, firmware or robot-control change."}
 -->
 
 Direkte .77-runtimebevis: session r0:1789121515721818489. Første spørgsmål blev

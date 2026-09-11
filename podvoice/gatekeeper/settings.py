@@ -62,6 +62,8 @@ SETTINGS_VERSION = 11
 # never matches and is always kept.
 LEGACY_PROMPT_HASHES = frozenset(
     {
+        # v14: quiet acknowledgement uses the existing silent wait, preserving custom prompts.
+        "0df6f944c580d1380ea8159480595d88be55a2114e66ad1c01d946e3d49b24b9",
         # v13: relevant bounded data; never replace a customized prompt.
         "52f7bd861395f56f4ade37d17147ec087efcff71812ef9e3216f3c16f7f16526",
         # v12: add weather failure fallback while preserving custom prompts.
