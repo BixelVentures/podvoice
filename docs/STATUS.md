@@ -1,5 +1,66 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — virksom Hey Chat-følsomhed oven på .75
+
+Lead Codex,10/9. Bruger ønsker følsomhedsrettelsen leveret før næste fysiske prøve.
+Baseline er installeret .75/maincb6e96b med Stop2; diagnostik og genforbindelse bevares.
+Direkte kildebevis: den gemte sensitivity-selector ændrer kun de tre andre modeller;
+Hey Chat fastholdes på manifest242/255, selv ved gemt Moderate. Tidligere native
+readback viste Moderate. Rummets genkendelsesrate og modelscorefordeling er ukendt.
+Hypotese: korrekt wiring giver Moderate230/255 og dermed flere accepterede score-
+vinduer. Det beviser ikke bedre genkendelse i køkkenet eller løsning af pausefejlen.
+
+Hele kæden: selector restore/apply → modelscore/cutoff og cooldown → firmware wake/
+latch/320ms-prefix → native/preconnect → Realtime/Thin accept/quarantine → playback/
+Stop → close/rearm → næste wake. Lavere cutoff kan flytte detektionstidspunkt og
+påvirke cooldown; derfor skal både pause og sammenhængende tale prøves efter levering.
+Invarianter: firmware ejer wake, én Thin/VoicePELink, half-duplex og lifecycle6–11,
+korreleret Stop/rearm, sand artifact- og optagelsesstatus. Ingen ændring af mic-gain,
+VAD, vindue, wake-model, 320ms-buffer, prompt, providersemantik eller LED/tidsfrister.
+
+Plan: port den afgrænsede selector242/230/217 og faktisk getter-log fra lokal .73 til
+.75; giv firmware og add-on én ny eksakt parmarkør11376heychat1. Bevar tilbagevalg
+Slight242. Permanente actual-lambda- og firmwarekontraktregressioner, detectorens
+cooldown/disable/rearm-review, fælles Thin/Talk, .74-recovery og .75-manifestregressioner.
+Fast, config/compile, uafhængigt Ultra-review ved freeze og én samlet releasegate.
+Ingen SafeEval: ingen ændring af Realtime-/audiosemantik. Fysisk resultat er ukendt.
+
+Før installation kræves frisk .75-backup og verificeret Stop2-rollbackbinary samt
+målidentitet/nøgle uden secret-output. Opdater add-on/firmware som par; add-on holdes
+stoppet under mismatch. Efter installation verificeres native markør, valgt Hey Chat,
+faktisk cutoff230 fra getter-log, forbindelse og frisk arming. Ved falske wakes bruges
+Slight242; ved lifecyclefejl tilbagerulles begge til .75/Stop2, uden at kalde rollback
+fysisk stabil. Offentlig publicering af denne firmwarekandidat er endnu ikke godkendt;
+den tidligere .75-godkendelse dækkede diagnostikfilerne. Ingen installation udført.
+
+Implementeret .76-port: fuld fast PASS83.4s; første sandboxkørsel blev afvist ved
+lokal socket-oprettelse og er ikke produktevidens. Korrekt tilladt testkørsel grøn.
+ESPHome2026.6.2 compile PASS107.41s/config0x35047002/build20:34:00+0200;
+RAM76088/23.2%, flash3051607/37.6%. Esptool5.3.0 bekræfter checksum og imagehash.
+Ny firmware SHA256f4030c0bd769c55eb316f2282ac10dbe7db362098ad50877ee8abd4ca67a06c6.
+Generated Noise-key matcher tidligere productionbuild (kun boolsk sammenligning).
+En kendt tilbageførbar Stop2-binary ligger under /private/tmp/podvoice-stop-word,
+SHA256823f0f394ece0b50f829fcb41c80b278cf22889d3fe73df19bca5f3a53664672.
+Den anderledes /private/tmp/podvoice-stop-rollback indeholder Stop1 og må ikke bruges.
+
+Gentagen buildcachefejl var manglende WHEEL/METADATA i uv-arkiver. Den færdige compile
+og imagevalidering er grønne; ingen runtimepatch. Precheck udvidet med --uv-cache og
+permanent manglende-WHEEL-regression. Den beskadigede cache er bevaret som
+uv.incomplete-20260910-heychat076; ny cache samt venv/penv-precheck er grønne.
+Der genbygges ikke blot for en efterfølgende cacheadvarsel; buildbits er valideret.
+
+Uafhængigt Ultra-review GO, P0/P1/P2=0. Reviewer kørte109 kontrakt/selector/recovery-
+checks,232 Thin/Talk-integrationer,22 provider-offset/capture,27 Stop-checks og begge
+firmwaremiljøtests samt1320 genkompilerede detectorchecks mod genereret kilde. Model-
+og komponentbytes samt ny OTA og gammel Stop2-rollback er uafhængigt verificeret.
+Staged reviewdiff SHA25618516909de6cd9e63308ce5311e1903248ab6e1a9abdb6751f86838b3c27da7b;
+productiondiff39ab805ccc3fab6dbdca68ff3757ba7d63050f6cc7e3ee0e9713409d37900b52.
+Ingen fysisk forbedring eller lifecycle-godkendelse udledes. Frossen releasegate
+PASS39.4s inklusive hele unit/integration, Ruff/format, mypy og candidate-scope.
+Kandidaten er lokalt færdigbygget og gennemgået; afventer eksplicit offentlig
+publicering, exact-head CI/main-image og parret installation. Ingen brugerprøve
+bestilles før det installerede par og lydoptagelsen er verificeret.
+
 ## Aktiv lead-beslutning — leverbar første-input-diagnostik på .74
 
 Lead: Codex, 10/9. Installeret baseline er .74/main6f64cc2 med Stop2-firmware.

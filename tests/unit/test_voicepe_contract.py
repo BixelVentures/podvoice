@@ -35,7 +35,7 @@ FULL_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11367_stop2",
+    "podvoice_build_11376_heychat1",
     "podvoice_playback_events_v1",
     "correlated_local_stop_v1",
     "correlated_stop_context_v2",
@@ -45,7 +45,7 @@ REARM_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11367_stop2",
+    "podvoice_build_11376_heychat1",
 ]
 
 
@@ -164,12 +164,13 @@ async def test_stop_playback_fails_closed_without_physical_media_target():
     assert await link.stop_playback() is False
 
 
-async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build():
+@pytest.mark.parametrize("wrong_marker", ["podvoice_build_11342", "podvoice_build_11367_stop2"])
+async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build(wrong_marker):
     wrong_build = [
         capability
         for capability in FULL_CAPABILITIES
         if not capability.startswith("podvoice_build_")
-    ] + ["podvoice_build_11342"]
+    ] + [wrong_marker]
     client = _StubClient(
         FULL_SERVICES,
         [
@@ -187,8 +188,8 @@ async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build():
     report = link._verify_contract()
 
     assert report["ok"] is False
-    assert report["firmware_build"] == "podvoice_build_11342"
-    assert report["missing_capabilities"] == ["podvoice_build_11367_stop2"]
+    assert report["firmware_build"] == wrong_marker
+    assert report["missing_capabilities"] == ["podvoice_build_11376_heychat1"]
 
 
 async def test_contract_rejects_multiple_firmware_build_markers():
@@ -211,8 +212,8 @@ async def test_contract_rejects_multiple_firmware_build_markers():
 
     assert report["ok"] is False
     assert report["firmware_build"] is None
-    assert report["firmware_builds"] == ["podvoice_build_11342", "podvoice_build_11367_stop2"]
-    assert report["missing_capabilities"] == ["podvoice_build_11367_stop2"]
+    assert report["firmware_builds"] == ["podvoice_build_11342", "podvoice_build_11376_heychat1"]
+    assert report["missing_capabilities"] == ["podvoice_build_11376_heychat1"]
 
 
 async def test_contract_mismatch_is_loud_and_reported(caplog):
@@ -942,7 +943,7 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "continuous_rearm_v1",
         "physical_rearm_audio_progress_v1",
         "correlated_reset_rearm_v2",
-        "podvoice_build_11367_stop2",
+        "podvoice_build_11376_heychat1",
         "podvoice_playback_events_v1",
         "correlated_local_stop_v1",
         "correlated_stop_context_v2",

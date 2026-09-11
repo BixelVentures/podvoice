@@ -1,3 +1,10 @@
+## 1.13.76 — Hey Chat følger det valgte følsomhedsniveau
+
+- Retter firmware-selectorens manglende Hey Chat-kobling: Slightly bruger242/255 (modellens hidtidige standard), Moderate230/255 og Very217/255. Enhedens eksisterende gemte valg bevares.
+- Logger den faktisk anvendte Hey Chat-tærskel, så installationen kan kontrolleres. Lavere tærskel kan også give flere falske aktiveringer; Slightly gendanner den hidtidige tærskel.
+- Kræver parret firmware `podvoice_build_11376_heychat1`. Bevarer diagnostikken fra .75 og genforbindelsen fra .74.
+- Ingen ændring af mikrofonforstærkning, VAD, model, talebuffer eller samtaleadfærd. Bedre fysisk genkendelse og pausefejlen skal stadig afprøves med lydbevis.
+
 ## 1.13.75 — Første-input-diagnostik og tydelig optagelsesstatus
 
 - Gemmer Realtime-providerens gyldige start-/slutpositioner for tale i en aktiveret lokal lydoptagelse. Positionerne kan sammenholdes med device-, provider- og svarlyd; hændelsernes modtagelsestid er en separat måling.
