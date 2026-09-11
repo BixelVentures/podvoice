@@ -167,15 +167,6 @@
             "area": "stue"
           },
           "result": {
-            "ok": true,
-            "summary": "Musikken er sat på pause."
-          }
-        },
-        {
-          "args": {
-            "area": "kontor"
-          },
-          "result": {
             "ok": false,
             "error_kind": "device_unavailable",
             "error": "Afspilleren er utilgængelig."
@@ -265,57 +256,57 @@
       ]
     },
     {
-      "id": "quiet-thanks-confirmation",
-      "description": "Quiet acknowledgement contrast: A sensitive proposal has no effect; only the exact next-turn approval executes its server-held challenge once.",
+      "id": "quiet-thanks-offer",
+      "description": "A concrete low-risk offer is answered with Ja tak; this is ordinary conversational acceptance, not server-held sensitive-action approval.",
       "exact_tool_names": [
-        "EvalUnlockDoor",
-        "approve_action",
+        "HassTurnOn",
         "end_conversation"
       ],
       "turns": [
         {
-          "text": "Lås hoveddøren op.",
+          "text": "Spørg mig, om jeg vil have lyset tændt i stuen. Vent på mit svar.",
           "expect": {
-            "decision": "EvalUnlockDoor",
-            "tool_args": {
-              "EvalUnlockDoor": {
-                "name": "hoveddøren"
-              }
-            },
-            "tool_outcomes": {
-              "EvalUnlockDoor": [
-                "needs_confirmation"
-              ]
-            },
+            "direct_answer": true,
             "fixture_side_effects": 0,
-            "remain_open": true
+            "remain_open": true,
+            "answer_patterns": [
+              "(?:vil du|skal jeg|ønsker du).*?(?:lys|tænd).*stue"
+            ]
           }
         },
         {
           "text": "Ja tak.",
           "expect": {
+            "decisions": [
+              "HassTurnOn",
+              "end_conversation"
+            ],
+            "decision_batches": [
+              [
+                "HassTurnOn"
+              ],
+              [
+                "end_conversation"
+              ]
+            ],
+            "tool_args": {
+              "HassTurnOn": {
+                "area": "stue",
+                "domain": [
+                  "light"
+                ]
+              }
+            },
             "tool_outcomes": {
-              "approve_action": [
-                "approved_action"
+              "HassTurnOn": [
+                "ok"
               ],
               "end_conversation": [
                 "ok"
               ]
             },
             "fixture_side_effects": 1,
-            "remain_open": false,
-            "decisions": [
-              "approve_action",
-              "end_conversation"
-            ],
-            "decision_batches": [
-              [
-                "approve_action"
-              ],
-              [
-                "end_conversation"
-              ]
-            ]
+            "remain_open": false
           }
         }
       ]
@@ -394,7 +385,7 @@
     },
     {
       "id": "quiet-thanks-error",
-      "description": "Quiet acknowledgement contrast: Model-owned action completion versus continuing dialogue; fixed local media result only.",
+      "description": "A known stue media target returns an honest unavailable error, followed by a silent acknowledgement.",
       "exact_tool_names": [
         "HassMediaPause",
         "end_conversation",
@@ -402,7 +393,7 @@
       ],
       "turns": [
         {
-          "text": "Stop musikken på kontoret.",
+          "text": "Stop musikken i stuen.",
           "expect": {
             "decision": "HassMediaPause",
             "forbid": [
@@ -410,7 +401,7 @@
             ],
             "tool_args": {
               "HassMediaPause": {
-                "area": "kontor"
+                "area": "stue"
               }
             },
             "tool_outcomes": {
