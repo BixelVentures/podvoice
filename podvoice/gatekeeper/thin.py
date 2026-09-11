@@ -384,6 +384,7 @@ class ThinSession:
         self.live_audio = live_audio
         self.live_reply_url = live_reply_url
         self.live_alpha = False
+        self._live_webrtc = False
         self._live_stream = None
         self._live_output_bytes = 0
         self._live_input_revision = 0
@@ -644,10 +645,15 @@ class ThinSession:
             return
         self.live_alpha = live_mode
         self.brain = self.live_brain if self.live_alpha else self._realtime_brain
+        self._live_webrtc = self.live_alpha and bool(
+            getattr(self.voicepe, "supports_live_webrtc", False)
+        )
         if self.live_alpha and (
-            self.brain is None or self.live_audio is None or not self.live_reply_url
+            self.brain is None
+            or (not self._live_webrtc and (self.live_audio is None or not self.live_reply_url))
         ):
             self.live_alpha = False
+            self._live_webrtc = False
             self.brain = self._realtime_brain
             raise RuntimeError("Live Alpha integration is unavailable")
         self._live_stream = None
@@ -678,6 +684,7 @@ class ThinSession:
         opening_epoch = self._epoch
         opening_brain = self.brain
         opening_live = self.live_alpha
+        opening_webrtc = self._live_webrtc
 
         def opening_is_current() -> bool:
             return self._active and not self._transport_closing and self._epoch == opening_epoch
@@ -764,18 +771,23 @@ class ThinSession:
         self._idle_deadline = self._conv_started + self.idle_timeout_s
         self._local_stop_armed = False
         if self.live_alpha:
-            if not getattr(self.voicepe, "supports_live_wav", False):
+            if not opening_webrtc and not getattr(self.voicepe, "supports_live_wav", False):
                 self._trace_event("live_capability_missing")
                 self._request_close("live-firmware-unavailable", error_kind="device")
                 return
-            self._live_stream = self.live_audio.open(self._history_session, sample_rate=24000)
+            if not opening_webrtc:
+                self._live_stream = self.live_audio.open(self._history_session, sample_rate=24000)
             self._idle_deadline = None
         if not await self._set_local_stop(self.live_alpha):
             return
-        self.sm.state = State.LISTENING
-        self._trace_event("mic_gate_opened", state=State.LISTENING.name, reason="wake")
-        self._set_led(State.LISTENING)  # instantly — before the WS connect
-        self._hub_state("LISTENING", "👋 Vågnede — samtalen er åben")
+        self.sm.state = State.THINKING if opening_webrtc else State.LISTENING
+        if opening_webrtc:
+            self._set_led(State.THINKING)
+            self._hub_state("THINKING", "Forbinder Live-browseren")
+        else:
+            self._trace_event("mic_gate_opened", state=State.LISTENING.name, reason="wake")
+            self._set_led(State.LISTENING)
+            self._hub_state("LISTENING", "👋 Vågnede — samtalen er åben")
         # Duck for the WHOLE conversation (no per-turn pumping — one calm level).
         self.heartbeat.start(self.room, self.duck_level, C.TTL_LISTENING_MS)
         if self.hub is not None:
@@ -785,7 +797,7 @@ class ThinSession:
         # the local wake edge, before its cue; the frames already queued now contain
         # the user's first words.  The queue is instead cleaned after every teardown,
         # once forwarding has stopped, so old-tail audio cannot cross conversations.
-        if hasattr(self.voicepe, "start_streaming"):
+        if not opening_webrtc and hasattr(self.voicepe, "start_streaming"):
             stream_started = await self.voicepe.start_streaming()
             if opening_live and not opening_is_current():
                 return
@@ -858,7 +870,28 @@ class ThinSession:
             self._install_provider_trace_observer()
         previous_provider_generation = getattr(self.brain, "_connection_generation", None)
         try:
-            await asyncio.wait_for(opening_brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
+            if opening_live and not opening_is_current():
+                return
+            async with asyncio.timeout(C.CONNECT_TIMEOUT_S):
+                if opening_webrtc:
+                    offer, answer = await self.voicepe.prepare_live_transport()
+                    if not opening_is_current():
+                        return
+                    opening_brain.prepare_webrtc(offer, answer)
+                await opening_brain.connect()
+                if opening_live and not opening_is_current():
+                    return
+                if opening_webrtc:
+                    await self.voicepe.wait_live_started()
+                    if not opening_is_current():
+                        return
+                    if not await self.voicepe.start_streaming():
+                        raise RuntimeError("browser_live_mic_gate_failed")
+                    if not opening_is_current():
+                        return
+                    self.sm.state = State.LISTENING
+                    self._hub_state("LISTENING", "Live-browseren er klar")
+                    self._trace_event("live_browser_primary_started")
         except asyncio.CancelledError:
             self._restore_provider_trace_observer()
             raise
@@ -909,7 +942,7 @@ class ThinSession:
             if not self.live_alpha:
                 self._spawn(self._speak_home_unreachable(), "thin-home-warn")
         self._reader = self._spawn(self._read_events(), "thin-reader")
-        self._pump = self._spawn(self._pump_mic(), "thin-pump")
+        self._pump = None if opening_webrtc else self._spawn(self._pump_mic(), "thin-pump")
         self._beat = self._spawn(self._heartbeat(), "thin-beat")
         self._keepalive = self._spawn(self._keepalive_mic(), "thin-keepalive")
 
@@ -1110,6 +1143,8 @@ class ThinSession:
         # Synchronous barrier: an ACK wait must not leave reader/tool publication
         # alive for another event-loop turn after the user pressed/spoke stop.
         self._transport_closing = True
+        if self._live_webrtc:
+            self.voicepe.invalidate_live_handshake()
         if self._live_stream is not None:
             self._live_stream.cancel("conversation-close")
         self._ending_conversation = True
@@ -1745,6 +1780,7 @@ class ThinSession:
             LiveSessionReady,
             LiveToolBatch,
             LiveTranscript,
+            LiveTransportReady,
             LiveUsage,
         )
 
@@ -1756,7 +1792,12 @@ class ThinSession:
             return
         if isinstance(ev, LiveSessionReady):
             self._trace_event("live_session_ready", provider_session_id=ev.session_id)
+        elif isinstance(ev, LiveTransportReady):
+            self._trace_event("live_sideband_ready", provider_session_id=ev.session_id)
         elif isinstance(ev, LiveAudioChunk):
+            if self._live_webrtc:
+                self._request_close("live-duplicate-audio-path", error_kind="connection")
+                return
             if ev.sample_rate != 24000 or self._live_stream is None:
                 self._request_close("live-audio-contract", error_kind="connection")
                 return
@@ -1826,6 +1867,9 @@ class ThinSession:
         elif isinstance(ev, LiveSessionClosed):
             self._record_live_usage()
             self._live_provider_closed.set()
+            if self._live_webrtc:
+                self._trace_event("live_browser_drain_unconfirmed")
+                await self.voicepe.note_live_finalized()
             if self._live_stream is not None:
                 self._live_stream.finish()
             if not self._live_finalizing:
@@ -1999,6 +2043,9 @@ class ThinSession:
             self._live_finalizing = True
             await self.brain.request_close()
             await asyncio.wait_for(self._live_provider_closed.wait(), 15.0)
+            if self._live_webrtc:
+                self._request_close("live-browser-drain-unconfirmed")
+                return  # No WAV lease is not evidence of a drained WebRTC speaker.
             if self._live_stream is not None:
                 self._live_stream.finish()
             lease = self._playback_lease
@@ -4837,6 +4884,8 @@ class ThinSession:
         ONE emitter for every sound the add-on makes. When the cues had their own copy of
         the announce sequence, adding a path meant remembering to wire each of them —
         and the ones that were forgotten simply went silent with no error anywhere."""
+        if self._live_webrtc:
+            return False  # WebRTC has one browser media sink; no fallback PCM/WAV injection.
         if self._transport_closing and self._teardown_retry_wakeup.is_set():
             return False
         if self._use_direct():

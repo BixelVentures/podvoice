@@ -87,6 +87,7 @@ async def test_stop_preempts_running_command_fences_queue_and_keeps_media_receiv
             calls.append("aclose")
 
     link = BrowserLink(wire.send_json, wire.send_bytes)
+    link.supports_live_webrtc = False  # This fixture exercises the existing WS transport.
     link.media_state = lambda *args: media.append(args)
     task = asyncio.create_task(run_talk(wire, Session(), link))
     try:
@@ -134,6 +135,7 @@ async def test_real_thin_alpha_stop_cancels_blocked_sdk_startup_before_late_rele
     wire, entered, cancelled = Wire(), asyncio.Event(), asyncio.Event()
     release = asyncio.Event()
     link = BrowserLink(wire.send_json, wire.send_bytes)
+    link.supports_live_webrtc = False  # This fixture exercises the existing WS transport.
     session, _, _, _, _ = build(device=link)
 
     class BlockedSDK(SDK):
@@ -231,6 +233,7 @@ async def test_failed_close_remains_fenced_without_blocking_socket_errors():
             calls.append("aclose")
 
     link = BrowserLink(wire.send_json, wire.send_bytes)
+    link.supports_live_webrtc = False  # This fixture exercises the existing WS transport.
     task = asyncio.create_task(run_talk(wire, Session(), link))
     wire.send("stop", command_id="stop")
     await until(lambda: wire.result("stop") is not None)
@@ -248,6 +251,7 @@ async def test_failed_close_remains_fenced_without_blocking_socket_errors():
 async def test_disconnect_closes_real_thin_before_joining_cancel_resistant_typed_send(stop_first):
     wire = Wire()
     link = BrowserLink(wire.send_json, wire.send_bytes)
+    link.supports_live_webrtc = False  # This fixture exercises the existing WS transport.
     session, sdk, _, _, _ = build(device=link)
     entered, cancelled, released_by_cleanup = (asyncio.Event() for _ in range(3))
 
@@ -301,6 +305,7 @@ async def test_disconnect_fences_real_thin_shielded_wake_before_late_sdk_start(
     wire = Wire()
     entered, cancelled, release = (asyncio.Event() for _ in range(3))
     link = BrowserLink(wire.send_json, wire.send_bytes)
+    link.supports_live_webrtc = False  # This fixture exercises the existing WS transport.
     session, _, _, _, _ = build(device=link)
 
     class StartupSDK(SDK):

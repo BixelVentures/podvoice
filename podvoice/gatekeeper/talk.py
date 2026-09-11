@@ -24,9 +24,11 @@ import asyncio
 import contextlib
 import json
 import logging
+import secrets
 import time
 import uuid
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any
 
 from aiohttp import WSMsgType
@@ -123,6 +125,18 @@ class TalkConnection:
         return self.ws.__aiter__()
 
 
+@dataclass
+class _LiveHandshake:
+    attempt_id: str
+    offer: asyncio.Future
+    started: asyncio.Future
+    stopped: asyncio.Future
+    provider_session_id: str | None = None
+    generation: int | None = None
+    valid: bool = True
+    provider_finalized: bool = False
+
+
 class BrowserLink:
     """The browser as a Voice PE: same contract surface ThinSession drives.
 
@@ -145,6 +159,9 @@ class BrowserLink:
         # Native Chrome audio verified with the exact non-seekable Live WAV route.
         # This is browser transport capability, never physical Voice PE evidence.
         self.supports_live_wav = True
+        self.supports_live_webrtc = True
+        self._live_handshake: _LiveHandshake | None = None
+        self._socket_closed = False
         # Callbacks the engine wires (same names as VoicePELink).
         self.on_wake: Any = None
         self.on_media_state: Any = None
@@ -160,6 +177,131 @@ class BrowserLink:
         self._playback_id: str | None = None
         self._playback_phase = "idle"
 
+    async def prepare_live_transport(self):
+        if self._live_handshake is not None or self._socket_closed:
+            raise RuntimeError("browser_live_transport_still_owned")
+        loop = asyncio.get_running_loop()
+        handshake = _LiveHandshake(
+            secrets.token_urlsafe(24),
+            loop.create_future(),
+            loop.create_future(),
+            loop.create_future(),
+        )
+        self._live_handshake = handshake
+        if not await self._safe_json(
+            {"type": "live_offer_request", "attempt_id": handshake.attempt_id}
+        ):
+            raise RuntimeError("browser_live_offer_send_failed")
+        offer = await handshake.offer
+        self._require_live(handshake)
+
+        async def answer(session_id: str, sdp: str, generation: int) -> None:
+            self._require_live(handshake)
+            if handshake.provider_session_id is not None:
+                raise RuntimeError("browser_live_answer_already_issued")
+            handshake.provider_session_id, handshake.generation = session_id, generation
+            if not await self._safe_json(
+                {"type": "live_answer", "sdp": sdp, **self._live_identity(handshake)}
+            ):
+                raise RuntimeError("browser_live_answer_send_failed")
+            self._require_live(handshake)
+
+        return offer, answer
+
+    def _require_live(self, handshake: _LiveHandshake) -> None:
+        if self._live_handshake is not handshake or not handshake.valid or self._socket_closed:
+            raise RuntimeError("browser_live_handshake_superseded")
+
+    @staticmethod
+    def _live_identity(handshake: _LiveHandshake) -> dict:
+        return {
+            "attempt_id": handshake.attempt_id,
+            "provider_session_id": handshake.provider_session_id,
+            "generation": handshake.generation,
+        }
+
+    async def wait_live_started(self) -> None:
+        handshake = self._live_handshake
+        if handshake is None:
+            raise RuntimeError("browser_live_handshake_missing")
+        await handshake.started
+        self._require_live(handshake)
+
+    def invalidate_live_handshake(self) -> None:
+        handshake = self._live_handshake
+        if handshake is not None:
+            handshake.valid = False
+            for future in (handshake.offer, handshake.started):
+                if not future.done():
+                    future.cancel()
+
+    def live_socket_closed(self) -> None:
+        self._socket_closed = True
+        self.invalidate_live_handshake()
+        if self._live_handshake is not None and not self._live_handshake.stopped.done():
+            self._live_handshake.stopped.set_result(False)
+
+    def receive_live(self, data: dict) -> bool:
+        """Return True only for a matching browser fault; never accept stale peer events."""
+        handshake = self._live_handshake
+        if handshake is None or data.get("attempt_id") != handshake.attempt_id:
+            return False
+        kind = data.get("type")
+        if kind == "live_stopped":
+            if (
+                not handshake.valid
+                and data.get("tracks_stopped") is True
+                and data.get("peer_closed") is True
+                and data.get("provider_session_id") == handshake.provider_session_id
+                and type(data.get("generation")) is type(handshake.generation)
+                and data.get("generation") == handshake.generation
+            ):
+                if not handshake.stopped.done():
+                    handshake.stopped.set_result(True)
+            return False
+        if not handshake.valid:
+            return False
+        if kind == "live_fault":
+            self.invalidate_live_handshake()
+            return True
+        if kind == "live_offer":
+            offer = data.get("sdp")
+            if (
+                handshake.offer.done()
+                or not isinstance(offer, str)
+                or not offer.startswith("v=0")
+                or len(offer.encode()) > 65536
+            ):
+                self.invalidate_live_handshake()
+                return True
+            handshake.offer.set_result(offer)
+        elif kind == "live_started":
+            event = data.get("event")
+            if (
+                handshake.provider_session_id is not None
+                and type(data.get("generation")) is int
+                and data.get("generation") == handshake.generation
+                and data.get("provider_session_id") == handshake.provider_session_id
+                and isinstance(event, dict)
+                and event.get("type") == "session.started"
+                and isinstance(event.get("session"), dict)
+                and event["session"].get("id") == handshake.provider_session_id
+            ):
+                if not handshake.started.done():
+                    handshake.started.set_result(None)
+        return False
+
+    async def note_live_finalized(self) -> None:
+        if self._live_handshake is not None:
+            self._live_handshake.provider_finalized = True
+            await self._safe_json(
+                {
+                    "type": "live_finalized",
+                    "drain_confirmed": False,
+                    **self._live_identity(self._live_handshake),
+                }
+            )
+
     # ---------------------------------------------------------------- lifecycle
     async def start(self) -> None:  # the socket IS the connection
         return None
@@ -170,6 +312,8 @@ class BrowserLink:
     # ---------------------------------------------------------------- mic path
     def feed(self, data: bytes) -> None:
         """One binary WS frame of 16 kHz PCM from the browser mic."""
+        if self._live_handshake is not None:
+            return  # WebRTC owns this attempt's media; never forward a duplicate PCM path.
         if not self._streaming:
             return  # gate CLOSED — same privacy truth as the puck's mic-forward
         self.frames_in += 1
@@ -198,6 +342,16 @@ class BrowserLink:
     async def start_streaming(self) -> bool:
         if self._streaming:
             return True  # keepalive re-assert — nothing to tell the browser
+        if self._live_handshake is not None:
+            handshake = self._live_handshake
+            self._require_live(handshake)
+            if not handshake.started.done() or handshake.started.cancelled():
+                return False
+            sent = await self._safe_json({"type": "live_ready", **self._live_identity(handshake)})
+            if not sent:
+                return False
+            self._streaming = True
+            return True
         self._streaming = True
         await self._safe_json({"type": "mic", "on": True})
         return True
@@ -221,6 +375,23 @@ class BrowserLink:
 
     async def stop_playback(self, *, playback_id: str | None = None) -> bool:
         """Stop exactly the reply owned by the caller, never a newer browser reply."""
+        handshake = self._live_handshake
+        if handshake is not None:
+            self.invalidate_live_handshake()
+            if self._socket_closed:
+                if handshake.provider_finalized:
+                    self._live_handshake = None
+                    return True  # Official finalized-session cleanup; audible drain stays unknown.
+                return False  # Explicit Stop cannot claim an ACK on a lost socket.
+            if not await self._safe_json({"type": "live_stop", **self._live_identity(handshake)}):
+                return False
+            if handshake.provider_finalized:
+                self._live_handshake = None
+                return True  # Do not invent a decoder/drain ACK prerequisite after session.closed.
+            stopped = await asyncio.shield(handshake.stopped)
+            if stopped and self._live_handshake is handshake:
+                self._live_handshake = None
+            return bool(stopped)
         owned_id = playback_id or self._playback_id
         sent = await self._safe_json(
             {
@@ -520,6 +691,18 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
             if succeeded:
                 stopping = False
 
+    def begin_stop(command_id: str) -> None:
+        nonlocal command_epoch, stopping, stop_task
+        if command_id not in stop_commands:
+            stop_commands.append(command_id)
+        if stop_task is None or stop_task.done():
+            command_epoch += 1
+            stopping = True
+            interrupted = running
+            if interrupted is not None:
+                interrupted.cancel()
+            stop_task = asyncio.create_task(perform_stop(interrupted), name="talk-stop")
+
     worker = asyncio.create_task(command_worker(), name="talk-command-worker")
     try:
         async for msg in ws:
@@ -539,15 +722,10 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                     if data["command_id"] in stop_receipts:
                         await receipt(data["command_id"], **stop_receipts[data["command_id"]])
                         continue
-                    if data["command_id"] not in stop_commands:
-                        stop_commands.append(data["command_id"])
-                    if stop_task is None or stop_task.done():
-                        command_epoch += 1  # Fence queued work before yielding to any await.
-                        stopping = True
-                        interrupted = running
-                        if interrupted is not None:
-                            interrupted.cancel()
-                        stop_task = asyncio.create_task(perform_stop(interrupted), name="talk-stop")
+                    begin_stop(data["command_id"])
+                elif kind in {"live_offer", "live_started", "live_stopped", "live_fault"}:
+                    if link.receive_live(data):
+                        begin_stop("live-fault-" + uuid.uuid4().hex)
                 elif kind in ("wake", "text"):
                     commands.put_nowait((command_epoch, data, stopping))
                 elif kind == "media":
@@ -574,6 +752,8 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
     finally:
         command_epoch += 1
         stopping = True
+        if link is not None:
+            link.live_socket_closed()
         commands.put_nowait(None)
         worker.cancel()
         # Invoke the existing Thin close owner before joining a cancelled command:

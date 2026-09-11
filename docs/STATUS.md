@@ -2,6 +2,49 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Talk WebRTC-wiring har nu uafhængigt Astra HIGH scoped GO uden åbne P0/P1/P2 på
+Thin dabd0a4d / Talk03b2cbcd / UI230c4b57. Reviewer gentog106 tests og kørte den
+faktiske browserkode med ekstra Stop-races: pending getUserMedia, sen remoteanswer,
+gammel datachannel/ontrack og ny peer. Mikrofon forbliver gated før live_ready;
+sideband alene åbner ikke readiness. OFF og nul dobbelt media består. GO gælder
+software og næste bounded rigtig Talk-prøve; sekssekunders-grace og fysisk/akustisk
+oplevelse er fortsat ikke accepteret. Dette checkpoint fryses nu til samlet fast.
+
+Backend-first developer-prøven1fa1d10f er afsluttet med proces0 og korrekt protokol:
+én delegation ved3000ms, ét eksklusivt terminalværktøj/resultat, én faktisk completed
+continuation, så close/closed. Finalusage15.0s, backend1070+1134tokens. MEN forventet
+farvel mangler i outputtranscriptet: kun ét6-byte fragment ved3200–3400ms, ikke match
+til den kendte farvelsætning. Capture/providerlyd er gemt, ikke fysisk gennemlyttet.
+Dette er protokolbevis, IKKE bestået farvel-UX. Evidence: leverancens
+api-proof/farewell-backend-03 og samme /private/tmp-kildemappe. .82 er genstartet og
+Kører verificeret. Uafhængigt lyd-/eventreview pågår før konkret næste korrektion.
+Talk-wiring er frosset til uafhængig review med106 targeted tests, Ruff/mypy/JSsyntax
+bestået; samme source er endnu ikke samlet fast/release-/fysisk godkendt.
+
+Det afsluttede Astra HIGH lifecycle-review anbefaler én konkret backend-first kandidat:
+accepter end-intent under eksisterende input/generation/Stop-guards; færdiggør resultat
+og nødvendig continuation; close; bevar media/readers til closed og finalusage; cleanup.
+For WebRTC er officiel cleanup efter closed en gyldig implementering, selv om fysisk
+dræn ikke er bevist. Fravær af ekstra browserdræn-ACK må ikke alene skabe en runtime-
+fejl; telemetry skal stadig sige drain unconfirmed. Voice PE kræver derimod stream-EOF
+og den eksakte fysiske playback-lease færdig. Rejektionskriterier for kandidaten:
+manglende/klippet farvel i faktisk capture, tabte handlingsresultater, tidligt annulleret
+continuation, ny input der ikke afbryder pending close, fejl i Stop/finalusage/stale.
+Dette præciserer nedenstående midlertidige unconfirmed-slutvej; ingen fysisk gate er bestået.
+
+Astra HIGH lifecycle-review har korrigeret en for stærk implementeringsforudsætning:
+der kræves ikke et ekstra deterministisk spoken-finish-event for at implementere
+den officielle close-protokol. Det kommende developer-forsøg erstatter den afviste
+farvel-før-delegation-rute: backend modtager end-intent, completed eksklusiv terminal-
+stub får resultat, den krævede Responses-continuation afsluttes, så session.close →
+session.closed/finalusage → adaptercleanup. Naturligt farvel styres i Live/backend-
+resultatprompt; faktisk lyd må bagefter afvise afklippet/manglende farvel. Backend-
+completion er aldrig audio.done. Ingen ny timer som tale-bevis, ingen lokale fraser.
+Samme syntetiske fixture, muted capture, tids-/værktøjsgrænser og credentialhåndtering.
+Kun developer-probe og regressioner ændres nu; normal probe bevares, tidligere kilder
+og fejlede prøver er frosset. Review før API. Runtimeændring følger først efter bevis;
+Voice PE's fysiske playback-events kræves fortsat ved den fysiske releasegate.
+
 Den kontrollerede policy-prøve c84ed4c2 er nu afsluttet og AFVIST på samme terminal-
 gate. Begge14 fragmenters hashes matcher igen kendt input og hele farvelsætningen;
 nul delegation/backend. Finalusage28.0s og session.closed modtaget; deadline-close,

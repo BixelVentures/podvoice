@@ -798,7 +798,7 @@ def test_farewell_config_contains_only_harmless_terminal_tool_and_default_is_unc
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("invalid", [None, "siblings", "parallel", "failed"])
-async def test_farewell_requires_completed_exclusive_batch_and_never_continues(invalid):
+async def test_farewell_requires_completed_exclusive_batch_before_one_continuation(invalid):
     probe, conn = Probe(farewell_trial=True), connection()
     await probe.handle(created(), conn)
     await probe.handle(call(name=probe_module.FAREWELL_TOOL), conn)
@@ -815,22 +815,82 @@ async def test_farewell_requires_completed_exclusive_batch_and_never_continues(i
         with pytest.raises(ProbeError):
             await probe.handle(final, conn)
         conn.response.item.create.assert_not_awaited()
+        conn.response.create.assert_not_awaited()
         assert not probe.terminal_requested.is_set()
     else:
         await probe.handle(final, conn)
         conn.response.item.create.assert_awaited_once()
+        assert not probe.terminal_requested.is_set()
+        conn.response.create.assert_awaited_once()
+        await probe.handle(created("r2"), conn)
+        assert not probe.terminal_requested.is_set()
+        await probe.handle(terminal(response_id="r2"), conn)
         assert probe.terminal_requested.is_set()
+        assert probe.backend_usage == [{"total_tokens": 7}, {"total_tokens": 7}]
         assert not probe.report()["semantic_farewell_verified"]
-    conn.response.create.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_farewell_terminal_wakes_existing_close_owner_and_retains_final_pcm(monkeypatch):
+@pytest.mark.parametrize("invalid", ["extra_call", "failed", "incomplete", "duplicate", "foreign"])
+async def test_farewell_continuation_rejects_new_work_or_invalid_terminal(invalid):
+    probe, conn = Probe(farewell_trial=True), connection()
+    for event in [created(), call(name=probe_module.FAREWELL_TOOL), terminal()]:
+        await probe.handle(event, conn)
+    if invalid in {"duplicate", "foreign"}:
+        event = created("r" if invalid == "duplicate" else "r2")
+        if invalid == "foreign":
+            event["delegation_id"] = "other"
+    else:
+        await probe.handle(created("r2"), conn)
+        event = (
+            call(name=probe_module.FAREWELL_TOOL, call_id="extra")
+            if invalid == "extra_call"
+            else terminal("response." + invalid, response_id="r2")
+        )
+    with pytest.raises(ProbeError):
+        await probe.handle(event, conn)
+    assert not probe.terminal_requested.is_set()
+    conn.response.item.create.assert_awaited_once()
+    conn.response.create.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["tool_output", "continuation_send", "continuation_terminal"])
+async def test_farewell_stop_fences_each_continuation_boundary(phase):
+    probe, conn = Probe(farewell_trial=True), connection()
+
+    async def stop(**_):
+        probe.closing = True
+
+    if phase == "tool_output":
+        conn.response.item.create.side_effect = stop
+    elif phase == "continuation_send":
+        conn.response.create.side_effect = stop
+    for event in [created(), call(name=probe_module.FAREWELL_TOOL), terminal()]:
+        await probe.handle(event, conn)
+    if phase != "tool_output":
+        await probe.handle(created("r2"), conn)
+        probe.closing = True
+        await probe.handle(terminal(response_id="r2"), conn)
+        assert len(probe.backend_usage) == 2
+    assert not probe.terminal_requested.is_set()
+    conn.response.item.create.assert_awaited_once()
+    assert conn.response.create.await_count == (phase != "tool_output")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "scenario", ["complete", "deadline_during_send", "deadline_awaiting_terminal"]
+)
+async def test_farewell_continuation_or_deadline_closes_and_retains_final_pcm(
+    monkeypatch, scenario
+):
     import io
     import json
 
     probe, conn = Probe(timeline=io.StringIO(), farewell_trial=True), connection()
     incoming, written = asyncio.Queue(), bytearray()
+    release_send = asyncio.Event()
 
     async def emit(payload):
         await incoming.put(SimpleNamespace(model_dump=lambda: payload))
@@ -849,9 +909,22 @@ async def test_farewell_terminal_wakes_existing_close_owner_and_retains_final_pc
             await emit(event)
 
     async def close():
-        assert probe.terminal_requested.is_set()
+        assert probe.terminal_requested.is_set() == (scenario == "complete")
+        if scenario != "complete":
+            release_send.set()
+            await emit(terminal(response_id="r2"))
         await emit({"type": "session.output_audio.delta", "delta": "AQACAA=="})
         await emit({"type": "session.closed", "usage": {"seconds": 1}})
+
+    async def continue_backend(**_):
+        assert not probe.terminal_requested.is_set()
+        await emit(created("r2"))
+        if scenario == "deadline_during_send":
+            await release_send.wait()
+        elif scenario == "complete":
+            await emit(terminal(response_id="r2"))
+
+    conn.response.create.side_effect = continue_backend
 
     class Stream:
         session = SimpleNamespace(
@@ -876,15 +949,20 @@ async def test_farewell_terminal_wakes_existing_close_owner_and_retains_final_pc
     monkeypatch.setattr(probe_module.sys, "stdin", SimpleNamespace(fileno=lambda: 0))
     monkeypatch.setattr(probe_module.sys, "stdout", SimpleNamespace(fileno=lambda: 1))
     stream = Stream()
-    await asyncio.wait_for(probe_module.run(stream, probe, 0.2, close_timeout=0.03), 0.3)
+    await asyncio.wait_for(probe_module.run(stream, probe, 0.02, close_timeout=0.03), 0.3)
     assert written == b"\x01\x00\x02\x00"
     stream.session.close.assert_awaited_once()
-    conn.response.create.assert_not_awaited()
+    conn.response.create.assert_awaited_once()
+    assert probe.backend_usage == [{"total_tokens": 7}, {"total_tokens": 7}]
     names = [json.loads(row)["source_event"] for row in probe.timeline.getvalue().splitlines()]
-    assert "application.duration.expired" not in names
-    assert names.index("application.farewell_terminal_requested") < names.index(
-        "session.close.request"
-    )
+    if scenario == "complete":
+        assert "application.duration.expired" not in names
+        assert names.index("application.farewell_terminal_requested") < names.index(
+            "session.close.request"
+        )
+    else:
+        assert "application.duration.expired" in names
+        assert "application.farewell_terminal_requested" not in names
     assert names.index("session.close.request") < names.index("session.output_audio.delta")
     assert names.index("session.closed") < names.index("output.pipe.queue_drained")
 

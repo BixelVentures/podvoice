@@ -20,8 +20,8 @@ This stub does not select semantic end actions, so no model-end boundary is synt
 --instruction-probe appends one fixed harmless instruction eight seconds after readiness.
 An instructions.appended receipt does not prove the model followed it or caused later speech.
 --farewell-trial replaces the status tool with one harmless terminal stub, submits its
-completed exclusive result without continuation, then wakes the existing close owner.
-Its goodbye-before-delegation prompt is a hypothesis, not a speech-completion guarantee.
+completed exclusive result and waits for one managed continuation before requesting close.
+Backend completion is not a primary speech-completion guarantee.
 Requires an isolated Python 3.12 environment with openai[realtime] supporting Live.
 Source: https://developers.openai.com/api/docs/guides/voice-websockets?api=live
 Tools: https://developers.openai.com/api/docs/guides/live-delegation
@@ -96,18 +96,17 @@ def session_config(*, farewell_trial: bool = False) -> dict[str, Any]:
             "- Afslutning af prøven: Backend kan lukke denne isolerede session.\n\n"
             "Delegate to the backend when:\n"
             "- Brugeren siger, at det var alt, eller beder om at afslutte samtalen. "
-            "Sig først præcis: "
-            + FAREWELL_TEXT
-            + " Færdiggør hele denne sætning, FØR du delegerer afslutningen til backend. "
-            "Delegér derefter kun beskeden om at afslutte prøven.\n\n"
+            "Delegér afslutningen til backend, FØR du siger farvel. "
+            "Når backend har bekræftet afslutningen, sig præcis: " + FAREWELL_TEXT + "\n\n"
             "Do not delegate to the backend when:\n"
             "- Brugeren endnu ikke har afsluttet samtalen.\n\n"
             "Udfør ingen anden opgave."
         )
         backend = config["delegation"]["responses"]
         backend["instructions"] = (
-            "Ved den delegerede afslutning: kald kun finish_farewell_probe med {}. "
-            "Primærmodellen skal allerede have sagt farvel. Generér ikke et nyt farvel."
+            "Ved den delegerede afslutning: kald kun finish_farewell_probe med {} én gang. "
+            "Efter værktøjets resultat: bekræft afslutningen uden flere værktøjskald, "
+            "og bed primærmodellen sige præcis: " + FAREWELL_TEXT
         )
         backend["tools"] = [
             {
@@ -140,6 +139,7 @@ class Probe:
     def __init__(self, *, timeline: TextIO | None = None, farewell_trial: bool = False) -> None:
         self.farewell_trial = farewell_trial
         self.terminal_requested = asyncio.Event()
+        self.farewell_response: tuple[str, str] | None = None
         self.timeline = timeline
         self.sequence = 0
         self.timeline_failed = False
@@ -299,6 +299,15 @@ class Probe:
             response_id = event["response"]["id"]
             if delegation in self.responses:
                 raise ProbeError("overlapping_response")
+            if self.farewell_trial and self.farewell_response is not None:
+                previous_delegation, previous_response = self.farewell_response
+                if (
+                    delegation != previous_delegation
+                    or response_id == previous_response
+                    or self.terminal_requested.is_set()
+                    or self.counts["backend_continuations_requested"] != 1
+                ):
+                    raise ProbeError("unexpected_farewell_continuation")
             self.responses[delegation] = {"id": response_id, "calls": []}
         elif kind == "response.output_item.done":
             if self.closing:
@@ -306,6 +315,8 @@ class Probe:
             item = event["item"]
             if item.get("type") != "function_call":
                 return
+            if self.farewell_trial and self.farewell_response is not None:
+                raise ProbeError("extra_farewell_call")
             state = self.responses.get(delegation)
             if state is None:
                 raise ProbeError("orphan_function_call")
@@ -336,8 +347,16 @@ class Probe:
             if self.closing:
                 return  # Preserve terminal accounting, but never resume work during close.
             if self.farewell_trial:
+                if self.farewell_response is not None:
+                    if state["calls"] or self.responses or self.terminal_requested.is_set():
+                        raise ProbeError("nonexclusive_farewell_continuation")
+                    self.counts["backend_continuations_completed"] += 1
+                    self.trace("application.farewell_terminal_requested", **refs)
+                    self.terminal_requested.set()
+                    return
                 if len(state["calls"]) != 1 or self.responses or self.terminal_requested.is_set():
                     raise ProbeError("nonexclusive_farewell_terminal")
+                self.farewell_response = (delegation, state["id"])
                 call_id = state["calls"][0]
                 refs = self.correlations({"call_id": call_id})
                 self.trace("response.item.create.request", **refs)
@@ -352,9 +371,14 @@ class Probe:
                 self.trace("response.item.create.return", **refs)
                 self.counts["stub_results_submitted"] += 1
                 if not self.closing:
-                    self.trace("application.farewell_terminal_requested", **refs)
-                    self.terminal_requested.set()
-                return  # Intentionally end this session without resuming backend work.
+                    kwargs = {"event_id": "probe_" + uuid.uuid4().hex} if self.timeline else {}
+                    refs = self.correlations(kwargs)
+                    self.trace("response.create.request", **refs)
+                    async with asyncio.timeout(15):
+                        await connection.response.create(**kwargs)
+                    self.trace("response.create.return", **refs)
+                    self.counts["backend_continuations_requested"] += 1
+                return
             # Live's terminal response.output is intentionally empty. Use collected items.
             for call_id in state["calls"]:
                 if self.closing:
@@ -396,7 +420,7 @@ class Probe:
                 farewell_trial=True,
                 terminal_requested=self.terminal_requested.is_set(),
                 semantic_farewell_verified=False,
-                continuation_intentionally_omitted=self.terminal_requested.is_set(),
+                backend_continuation_completed=self.terminal_requested.is_set(),
             )
         return report
 
@@ -661,7 +685,7 @@ def main() -> int:
     parser.add_argument(
         "--farewell-trial",
         action="store_true",
-        help="One harmless terminal stub; no backend continuation",
+        help="One harmless terminal stub followed by one managed backend continuation",
     )
     args = parser.parse_args()
     if not 1 <= args.seconds <= 120:

@@ -18,6 +18,7 @@ async def test_browser_live_wav_capability_allows_wake_and_stop_then_new_identit
         pass
 
     link = BrowserLink(send_json, send_bytes)
+    link.supports_live_webrtc = False  # Historical WAV adapter regression.
     session, sdk, _, _, _ = build(device=link)
     await session.start()
     try:

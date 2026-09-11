@@ -1612,7 +1612,7 @@ setInterval(function () {
   var pendingText = Object.create(null);
   function providerName() { return "assistenten"; }
   var playCtx = null, outRate = 24000, nextStart = 0, halted = false;
-  var capCtx = null, capStream = null, capNode = null, micOn = false;
+  var capCtx = null, capStream = null, capNode = null, micOn = false, micRequestSerial = 0;
   var stopBtn = document.getElementById("cstop");
 
   function el(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
@@ -1629,7 +1629,7 @@ setInterval(function () {
   window.addEventListener("podvoice-diagnostic", function (event) {
     diagnosticActive = !!(event.detail && event.detail.active);
     if (diagnosticActive) {
-      micStop(); micBtn.disabled = true; sendBtn.disabled = true;
+      closeLivePeer(); micStop(); micBtn.disabled = true; sendBtn.disabled = true;
       setState("systemtest", "pill-degraded");
     } else if (wsReady) {
       micBtn.disabled = false; sendBtn.disabled = false; setState("online", "pill-up");
@@ -1715,6 +1715,7 @@ setInterval(function () {
   // next user turn (the model finishes server-side; we just go silent).
   function stopSpeaking() {
     halted = true;
+    closeLivePeer();
     stopReply(true);
     if (playCtx) { try { playCtx.close(); } catch (e) {} playCtx = null; }
     nextStart = 0; endTurn();
@@ -1757,6 +1758,7 @@ setInterval(function () {
   // of truth lives in the Settings tab. This kills the footgun where a casual Talk-tab
   // click silently changed the default the Voice PE rooms use after the next restart.
   function reconnect() {
+    closeLivePeer();
     if (ws) { ws._intentional = true; try { ws.close(); } catch (e) {} }
     connect();
   }
@@ -1789,8 +1791,132 @@ setInterval(function () {
     try { old.pause(); old.removeAttribute("src"); old.load(); } catch (e) {}
     if (report) sendJson({ type: "media", state: "fault", playback_id: playbackId });
   }
+  // ---- Live WebRTC: one peer for one server-issued attempt ----
+  var livePeer = null, retiredLiveAttempts = [];
+  function liveCurrent(p) { return !!p && livePeer === p && !halted && p.socketGeneration === socketGeneration && p.sock === ws; }
+  function liveIdentity(p) { return { attempt_id:p.attempt_id, provider_session_id:p.provider_session_id, generation:p.generation }; }
+  function liveMatches(p, ev) {
+    return p && p.attempt_id === ev.attempt_id && p.connection_id === ev.connection_id &&
+      p.provider_session_id === ev.provider_session_id && p.generation === ev.generation;
+  }
+  function liveFault(p) {
+    if (!liveCurrent(p)) return;
+    sendJson(Object.assign({type:"live_fault"}, liveIdentity(p)));
+    closeLivePeer();
+    micHint.textContent = "Live-browserforbindelsen kunne ikke fortsætte. Start en ny samtale.";
+  }
+  function closeLivePeer() {
+    micRequestSerial += 1;
+    var p = livePeer; if (!p) return;
+    livePeer = null; // Fence every callback before touching asynchronous resources.
+    retiredLiveAttempts.push(p.attempt_id);
+    if (retiredLiveAttempts.length > 128) retiredLiveAttempts.shift();
+    if (p.cancelIce) p.cancelIce();
+    if (p.source) { try { p.source.stop(); p.source.disconnect(); } catch (_) {} }
+    if (p.input) p.input.getTracks().forEach(function (t) { t.stop(); });
+    if (p.pendingInput) p.pendingInput.getTracks().forEach(function (t) { t.stop(); });
+    if (p.audio) { try { p.audio.pause(); p.audio.srcObject = null; } catch (_) {} }
+    if (p.pc) { try { p.pc.close(); } catch (_) {} }
+    if (capStream === p.input) micStop();
+  }
+  function liveStopped(ev) {
+    sendJson({type:"live_stopped", attempt_id:ev.attempt_id, provider_session_id:ev.provider_session_id || null,
+      generation:ev.generation == null ? null : ev.generation, tracks_stopped:true, peer_closed:true});
+  }
+  async function openLivePeer(ev) {
+    if (typeof ev.attempt_id !== "string" || typeof ev.connection_id !== "string") return;
+    if (halted) { retiredLiveAttempts.push(ev.attempt_id); liveStopped(ev); return; }
+    if (retiredLiveAttempts.indexOf(ev.attempt_id) !== -1) return;
+    if (livePeer && livePeer.attempt_id === ev.attempt_id) return;
+    closeLivePeer();
+    var p = {attempt_id:ev.attempt_id, connection_id:ev.connection_id, provider_session_id:null,
+      generation:null, socketGeneration:socketGeneration, sock:ws, pc:null, input:null, source:null, audio:null};
+    livePeer = p;
+    try {
+      if (typeof RTCPeerConnection !== "function") throw new Error("webrtc unavailable");
+      p.pc = new RTCPeerConnection();
+      // Detach the legacy PCM path without discarding an already authorized mic.
+      if (capNode) { capNode.onaudioprocess = null; capNode.disconnect(); capNode = null; }
+      if (capCtx) { capCtx.close(); capCtx = null; }
+      if (capStream) {
+        p.input = capStream; p.microphone = true;
+      } else {
+        ensurePlay(); if (!playCtx) throw new Error("audio clock unavailable");
+        var destination = playCtx.createMediaStreamDestination();
+        p.source = playCtx.createBufferSource();
+        p.source.buffer = playCtx.createBuffer(1, Math.max(1, Math.round(playCtx.sampleRate * 0.02)), playCtx.sampleRate);
+        p.source.loop = true; p.source.connect(destination); p.source.start();
+        p.input = destination.stream; p.microphone = false;
+      }
+      p.input.getAudioTracks().forEach(function (track) { track.enabled = !p.microphone; p.sender = p.pc.addTrack(track, p.input); });
+      p.pc.ontrack = function (event) {
+        if (!liveCurrent(p)) return;
+        if (p.audio) { liveFault(p); return; }
+        var a = new Audio(); p.audio = a; a.autoplay = true;
+        a.srcObject = event.streams[0] || new MediaStream([event.track]);
+        a.onerror = function () { liveFault(p); };
+        a.play().catch(function () { liveFault(p); });
+      };
+      p.pc.onconnectionstatechange = function () {
+        if (p.pc.connectionState === "failed" || p.pc.connectionState === "disconnected" || p.pc.connectionState === "closed") liveFault(p);
+      };
+      var dc = p.pc.createDataChannel("oai-events");
+      dc.onclose = function () { liveFault(p); };
+      dc.onmessage = function (message) {
+        if (!liveCurrent(p)) return;
+        var event; try { event = JSON.parse(message.data); } catch (_) { liveFault(p); return; }
+        if (event.type === "session.started") {
+          if (!event.session || event.session.id !== p.provider_session_id || p.generation == null) { liveFault(p); return; }
+          sendJson(Object.assign({type:"live_started", event:{type:"session.started", session:{id:event.session.id}}}, liveIdentity(p)));
+        } else if (event.type === "error") liveFault(p);
+        // session.closed is provider finalization, never browser media-drain proof.
+      };
+      var offer = await p.pc.createOffer(); if (!liveCurrent(p)) return;
+      await p.pc.setLocalDescription(offer); if (!liveCurrent(p)) return;
+      if (p.pc.iceGatheringState !== "complete") await new Promise(function (resolve, reject) {
+        var timer = setTimeout(function () { reject(new Error("ice timeout")); }, 15000);
+        p.cancelIce = function () { clearTimeout(timer); resolve(); };
+        p.pc.onicegatheringstatechange = function () { if (p.pc.iceGatheringState === "complete") { clearTimeout(timer); resolve(); } };
+      });
+      if (!liveCurrent(p)) return;
+      sendJson({type:"live_offer", attempt_id:p.attempt_id, sdp:p.pc.localDescription.sdp});
+    } catch (_) { liveFault(p); }
+  }
+  async function answerLivePeer(ev) {
+    var p = livePeer;
+    if (!liveCurrent(p) || p.attempt_id !== ev.attempt_id || p.connection_id !== ev.connection_id) return;
+    if (p.provider_session_id !== null || typeof ev.provider_session_id !== "string" || !Number.isInteger(ev.generation) || typeof ev.sdp !== "string") { liveFault(p); return; }
+    p.provider_session_id = ev.provider_session_id; p.generation = ev.generation;
+    try { await p.pc.setRemoteDescription({type:"answer", sdp:ev.sdp}); }
+    catch (_) { liveFault(p); }
+  }
+  function handleLiveMessage(ev) {
+    if (ev.type === "live_offer_request") { openLivePeer(ev); return true; }
+    if (ev.type === "live_answer") { answerLivePeer(ev); return true; }
+    if (ev.type === "live_stop") {
+      if (livePeer && livePeer.attempt_id === ev.attempt_id && livePeer.connection_id === ev.connection_id) { halted = true; closeLivePeer(); }
+      if (retiredLiveAttempts.indexOf(ev.attempt_id) !== -1) liveStopped(ev);
+      return true;
+    }
+    if (ev.type === "live_ready") {
+      var p = livePeer;
+      if (liveCurrent(p) && liveMatches(p, ev)) {
+        p.ready = true;
+        p.input.getAudioTracks().forEach(function (t) { t.enabled = true; });
+        micHint.textContent = p.microphone ? "Live-samtalen lytter." : "Live er klar til tekst. Mikrofonen er ikke åbnet.";
+      }
+      return true;
+    }
+    if (ev.type === "live_finalized") {
+      if (liveMatches(livePeer, ev)) logLine("out", "system", "Live-samtalen er afsluttet.");
+      return true;
+    }
+    return false;
+  }
+  // ---- End Live WebRTC ----
+
   function sendJson(o) { if (wsReady && ws) { try { ws.send(JSON.stringify(o)); } catch (e) {} } }
-  function sendWake() { ensurePlay(); sendJson({ type: "wake" }); }
+  function sendWake() { halted = false; ensurePlay(); sendJson({ type: "wake" }); }
   function ledColor(ev) {
     var c = ev.on ? "rgb(" + (ev.rgb || [0,1,1]).map(function (v) { return Math.round(v * 255); }).join(",") + ")" : "transparent";
     micBtn.style.boxShadow = ev.on ? "0 0 0 3px " + c : "none";
@@ -1814,17 +1940,18 @@ setInterval(function () {
     sock.onopen = function () { if (generation !== socketGeneration) return; setState("forbinder…", "pill-degraded"); };
     sock.onclose = function () {
       if (generation !== socketGeneration) return;
-      wsReady = false; micBtn.disabled = true; micStop(); stopReply(false); setState("offline", "pill-down");
+      wsReady = false; micBtn.disabled = true; closeLivePeer(); micStop(); stopReply(false); setState("offline", "pill-down");
       sendBtn.disabled = true;
       if (leaseTimer) { clearInterval(leaseTimer); leaseTimer = null; }
       if (sock._intentional) return;
       reconnectTimer = setTimeout(function () { if (generation === socketGeneration) connect(); }, 2500);
     };
-    sock.onerror = function () { if (generation !== socketGeneration) return; micBtn.disabled = true; micStop(); stopReply(false); setState("offline", "pill-down"); };
+    sock.onerror = function () { if (generation !== socketGeneration) return; micBtn.disabled = true; closeLivePeer(); micStop(); stopReply(false); setState("offline", "pill-down"); };
     sock.onmessage = function (m) {
       if (generation !== socketGeneration || sock !== ws) return;
-      if (typeof m.data !== "string") { if (!halted) playPcm(m.data); return; }
+      if (typeof m.data !== "string") { if (!halted && !livePeer) playPcm(m.data); return; }
       var ev; try { ev = JSON.parse(m.data); } catch (e) { return; }
+      if (handleLiveMessage(ev)) return;
       if (ev.type === "hello" && ev.protocol === 2 && ev.rate) {
         outRate = ev.rate; wsReady = true; lastPong = Date.now();
         micBtn.disabled = diagnosticActive; sendBtn.disabled = diagnosticActive;
@@ -1854,7 +1981,7 @@ setInterval(function () {
         }
       }
       else if (ev.type === "transcript") streamT(ev.dir === "in" ? "in" : "out", ev.text);
-      else if (ev.type === "play") { halted = false; playReply(ev.url, ev.playback_id); }
+      else if (ev.type === "play") { if (livePeer) return; halted = false; playReply(ev.url, ev.playback_id); }
       else if (ev.type === "stop_playback") {
         if (!ev.playback_id || ev.playback_id === currentPlaybackId) { stopReply(false); endTurn(); }
       }
@@ -1911,9 +2038,11 @@ setInterval(function () {
     return out;
   }
   async function micStart() {
+    var micSocket = socketGeneration, micRequest = ++micRequestSerial, obtained;
+    halted = false;
     micHint.textContent = "Beder om adgang til mikrofonen…";
     try {
-      capStream = await navigator.mediaDevices.getUserMedia({ audio: {
+      obtained = await navigator.mediaDevices.getUserMedia({ audio: {
         channelCount: 1,
         sampleRate: { ideal: 24000 },
         echoCancellation: true,
@@ -1932,6 +2061,26 @@ setInterval(function () {
       else micHint.textContent = "Mikrofonen er blokeret. På iPhone: Indstillinger → Apps → Home Assistant → Mikrofon.";
       setState("blokeret", "pill-down");
       return false;
+    }
+    if (halted || micSocket !== socketGeneration || micRequest !== micRequestSerial) {
+      obtained.getTracks().forEach(function (t) { t.stop(); }); return false;
+    }
+    capStream = obtained;
+    if (liveCurrent(livePeer)) {
+      var p = livePeer, oldInput = p.input, track = obtained.getAudioTracks()[0];
+      p.pendingInput = obtained;
+      try {
+        track.enabled = false;
+        await p.sender.replaceTrack(track);
+        if (!liveCurrent(p) || micRequest !== micRequestSerial) { obtained.getTracks().forEach(function (t) { t.stop(); }); return false; }
+        if (p.source) { p.source.stop(); p.source.disconnect(); p.source = null; }
+        oldInput.getTracks().forEach(function (t) { t.stop(); });
+        p.input = obtained; p.pendingInput = null; p.microphone = true; track.enabled = !!p.ready;
+        micOn = true; micBtn.classList.add("live"); micBtn.textContent = "■";
+        micBtn.setAttribute("aria-pressed", "true"); micBtn.setAttribute("aria-label", "Mikrofon aktiv; væk Nabu igen");
+        micHint.textContent = "Live-samtalen lytter.";
+        return true;
+      } catch (_) { obtained.getTracks().forEach(function (t) { t.stop(); }); liveFault(p); return false; }
     }
     try {
     halted = false; ensurePlay();
@@ -1972,6 +2121,7 @@ setInterval(function () {
     }
   }
   function micStop() {
+    micRequestSerial += 1;
     micOn = false; micBtn.classList.remove("live"); micBtn.textContent = "🎤";
     micBtn.setAttribute("aria-pressed", "false"); micBtn.setAttribute("aria-label", "Start mikrofon");
     if (capNode) { try { capNode.disconnect(); } catch (e) {} capNode = null; }
@@ -1992,8 +2142,8 @@ setInterval(function () {
     micHint.textContent = "Mikrofon kræver HTTPS. Du kan stadig skrive og få svar læst op.";
   }
 
-  window.addEventListener("pagehide", micStop);
-  window.addEventListener("beforeunload", micStop);
+  window.addEventListener("pagehide", function () { closeLivePeer(); micStop(); });
+  window.addEventListener("beforeunload", function () { closeLivePeer(); micStop(); });
   document.addEventListener("visibilitychange", function () {
     if (document.visibilityState !== "visible" || !ws) return;
     // Mobile browsers throttle background timers. Never trust the old green state on

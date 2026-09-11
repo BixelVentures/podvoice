@@ -298,7 +298,7 @@ vm.runInNewContext(script,context);
     assert result.returncode == 0, result.stderr
 
 
-async def test_farewell_sideband_keeps_reflected_tail_and_closes_without_backend_continuation(
+async def test_farewell_sideband_keeps_reflected_tail_and_closes_after_backend_continuation(
     tmp_path,
 ):
     import io
@@ -339,6 +339,21 @@ async def test_farewell_sideband_keeps_reflected_tail_and_closes_without_backend
         await sdk.incoming.put(json.dumps({"type": "session.closed", "usage": {"seconds": 2}}))
 
     sdk.connection.session.close = close_with_tail
+
+    async def continue_backend(**_):
+        assert not probe.probe.terminal_requested.is_set()
+        for event in [
+            {"type": "response.created", "response": {"id": "r2"}},
+            {
+                "type": "response.completed",
+                "response": {"id": "r2", "status": "completed", "usage": {"total_tokens": 2}},
+            },
+        ]:
+            await sdk.incoming.put(
+                json.dumps({"type": "response.event", "delegation_id": "d", "event": event})
+            )
+
+    sdk.connection.response.create.side_effect = continue_backend
     for event in [
         {"type": "response.created", "response": {"id": "r"}},
         {
@@ -363,7 +378,8 @@ async def test_farewell_sideband_keeps_reflected_tail_and_closes_without_backend
     assert provider_audio.getvalue() == b"\x01\x00\x02\x00"
     assert probe.closed.is_set() and probe.probe.terminal_requested.is_set()
     sdk.connection.response.item.create.assert_awaited_once()
-    sdk.connection.response.create.assert_not_awaited()
+    sdk.connection.response.create.assert_awaited_once()
+    assert probe.probe.backend_usage == [{"total_tokens": 1}, {"total_tokens": 2}]
     assert [x[0] for x in sdk.sent].count("session.close") == 1
     rows = [json.loads(row) for row in timeline.getvalue().splitlines()]
     pcm = next(row for row in rows if row["source_event"] == "session.output_audio.delta")
