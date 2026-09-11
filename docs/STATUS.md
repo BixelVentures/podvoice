@@ -1,5 +1,173 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
+
+Implementering startet på brugerens godkendelse 11/9. Lead er denne tråds Codex;
+Astra medium arbejder på afgrænsede SDK-/lydopgaver, Astra high er uafhængig auditor.
+Første ændring er et isoleret developer-probeprogram og dets regressioner; ingen
+setting eller produktionsvej aktiveres. Officiel SDK mangler i eksisterende testvenv;
+brug en separat usynkroniseret Python3.12-venv og registrér den installerede version.
+
+Aktiv falsificerbar hypotese: den officielle Live-SDK og Responses delegation kan
+føre en dansk, løbende lydsamtale med ét ufarligt værktøj, korrekt correlated
+completed-response-dispatch og afgrænset close uden gamle Realtime-turevents.
+Kæde: paced testinput → SDK/start/readiness → Live audio/delegation → valideret
+stub-resultat → kontinuerlig testoutput → close/final event. Probeoutput er ikke
+puck- eller rumbevis. Ingen HA-klient eller produktionssideeffekt tilsluttes proben.
+Test stale/duplicate/malformed/failed response, ordnet audio, backpressure,
+input-EOF versus session-close, fejl og deadlines. Rollback er at fjerne den isolerede
+probe; OFF/runtime/firmware skal have nul adfærdsændring i denne leverance.
+Uafhængig audit sker mod faktisk diff; fysisk kandidatstatus forbliver ikke testklar.
+
+SDK3.13.0 er installeret i separat /private/tmp/podvoice-live-sdk-venv og dens
+AsyncOpenAI.live.connect er verificeret lokalt. Ingen API-nøgle findes i testmiljøets
+environment; adgangsvej er efterspurgt uden at bede om nøglens værdi.
+Supplerende off-device-hypotese: officiel micro_decoder WAV-codec kan muligvis
+bære kontinuerlig PCM over den eksisterende HTTP-announcement/mixer uden ny encoder.
+Prøv præcis pinned decoder med fragmenteret/ukendt længde/EOF; et FFmpeg-resultat
+alene tæller ikke. Ingen firmware-/runtimeændring før kompatibilitetsresultat.
+
+Astra-high arkitekturaudit: managed Responses understøtter completed-batch og
+skrevet user-input. Tilpas manglende standalone-resultat-ACK til sand pending/error-
+status. Fuld paritet er endnu blokeret af uprøvet næste-brugertursgodkendelse,
+opgaverevision ved rettelser, separat Live-/backend-budget og semantisk farvel til
+fysisk dræn. Ingen transcriptfragment/delegation må opfindes som brugertur. Den
+ufarlige probe kan fortsætte; auditten er ikke runtimegodkendelse.
+
+Styrende brugerpræcisering: standardintegration og mindst mulig egen vedligeholdt
+kode. Officiel Live-SDK og dokumenteret delegation først; eksisterende funktioner
+bevares, men Alpha skal ikke efterligne gamle Realtime-turregler. WebSocket er den
+officielle servervej, WebRTC browservejen. Lokal FLAC/PCM/WebRTC vælges efter egnethed
+og samlet vedligeholdelse; specialencoder er ikke længere automatisk første build.
+
+Lead: Codex. Brugerens nye scope er dyb undersøgelse af tre transportveje og en
+on/off-Alpha med samme aktuelt tilgængelige funktioner som den brugbare løsning.
+Seneste præcisering: OFF er fortsat half-duplex; ON skal sigte efter full duplex
+under aktiv Live-samtale. Undersøgelsen er ikke en aktivering af det gamle flag.
+Det tillader en eksplicit eksperimentel Live-politik; det er ikke godkendelse af
+en ny stabil baseline eller af quarantined Classic/direct-PCM. OFF skal vælge den
+eksisterende vej fra næste samtale. Én ThinSession og én fysisk mic-/playbackejer.
+
+Tidligere researchbaseline: main70a623a08e2dfb29328c9f391105deb30920924c (.76).
+Implementeringsclone er nu fast-forwardet til main778f5bd8b578a5b9830e8f7840161c29985af1de
+(.79), efter brugerens besked om forestående .79-installation. Frisk HA-info viste
+.78 kørende; .79 er kildegrundlag, ikke verificeret installeret af denne tråd. Clone
+/private/tmp/podvoice-live-alpha-research. Den gamle arbejdsmappe og .71-eksperimentet
+er ikke implementeringsgrundlag. Denne undersøgelse ændrer ikke installeret enhed.
+
+Direkte evidens: aktuelle officielle Live-dokumenter mangler spoken-response-done,
+Realtime speech_stopped/commit og output-item-identitet i primær audio. Nuværende
+Thin kræver netop disse ejergrænser. Hele kæden der skal redesignafklares: wake og
+privacy → native mic og buffer → Live-input/clock → delegation/autorisation →
+stream/mixer/DAC → fysisk dræn/ekko → follow-up, semantisk close og næste wake.
+Invarianter: én runtimeejer, fysisk half-duplex for OFF, session-/generationisolation,
+værktøjsautorisation og senere bekræftelse, én teardown/rearm, sand playback/evidens.
+Realtime-specifikke ACK-/turnregler kan ikke opfyldes ved opdigtede Live-events.
+En ny Alpha-kontrakt skal bevises og opdatere autoritative dokumenter før runtime.
+
+Hypotese: en frameleverende FLAC-encoder kan fjerne væsentlig lokal opsamling og
+bevare mixeren; fysisk streamgrænse er separat og endnu uløst. Tre undersøgte veje:
+1 FLAC-streaming, 2 ny lokal PCM-kilde i samme mixer, 3 direkte WebRTC med server-
+broker/sideband. Full duplex er nu et eksplicit Alpha-mål. Ikke-mål: skjult
+duplex i OFF, VAD-/gain-/wake-tuning, fjernelse af
+tools, skjult fallback/replay eller en setting uden fungerende backend.
+
+Faktisk research: 8 CLI-forsøg og 4 libFLAC-forsøg, syntetisk 24kHz PCM i 20ms
+realtidspakker; alle 12 fulde roundtrips var byteidentiske. Lokal macOS FLAC1.5.0,
+ikke shippet ARM64 eller puck. CLI med releaseargumenter gav første post-metadata-
+lydbytes efter441ms(støj)/1121ms(tone). Kun960-sampleblok gav261–269/946–965ms.
+libFLAC callback med4096blok gav første komplette frame180–183ms;960blok61.6–62.3ms.
+Metoderne har forskellige leverings-/metadataegenskaber og isolerer ikke én buffer.
+Resultatet afviser FLAC-formatet som påvist nødvendig transportudskiftning; ingen
+måling beviser akustisk latency eller den samlede målopfyldelse.
+
+Uafhængigt adversarial review fra latency_review: vej1 kun første transportforsøg,
+ikke fuld Alpha-testklarhed. Alvorlige fælles åbne spørgsmål er kontinuerlig mic-/godkendelsesgrænse,
+gyldig senere approve_action, tool-output uden standalone ACK, farvel/dræn, typed
+Talk og separat Live-/Responsesusage. Disse er indarbejdet i researchleverancen.
+Reviewer har ikke godkendt runtime eller fysisk test. Historisk voice.py-docstring
+om uændret interface ved GPT-Live er ikke migrationsautoritet.
+Afsluttende review af rapport/HTML: ingen P0/P1. Præcisering indarbejdet: approve_action
+kræver umiddelbart næste brugertur; mellemliggende input/ændring/udløb/teardown aflyser.
+
+Gældende implementeringsplan efter brugerens best-practice-præcisering:
+1. Officiel Live-SDK/quickstart med dansk, ufarligt værktøj, afbrydelse og afslutning.
+   Afklar adgang, delegation, godkendelser, typed Talk, usage og close i samme prøve.
+2. Fysisk dobbelttale og valg af ét egnet lokalt lydled efter vedligeholdelse og målte
+   krav. FLAC er kandidat, ikke forhåndskrav; fysisk prøve kan ske uafhængigt af trin1.
+3. Tilslut fuld funktionsparitet under ThinSession, kontinuerlig Alpha-input og fælles
+   værktøjsautorisation. Skriv eksplicitte Alpha-regler i autoritative docs før runtime;
+   gamle Realtime-eventkrav må ikke opfindes som Live-kontrakt.
+4. Én setting OFF/ON fra næste samtale, gemt versus aktiv status og samme firmware.
+5. Sammensatte regressioner, uafhængigt review, passende software-/firmwaregates,
+   præcis installation og frisk fysisk golden chain plus10/10. Kontroller også OFF.
+6. OFF/ON/direkte Live-reference:40enkle+20toolture, rumlyd og fejl med i opgørelsen;
+   fjern kun målte ekstra ventetider, med relevante fysiske gates per tuning.
+Første implementeringsleverance er trin1, ikke en ny FLAC-encoder. Den gennemgåede
+encoderhypotese ovenfor er tidligere research og bestemmer ikke transportvalget.
+Detaljeret brugerplan ligger i researchleverancens alpha-plan.md. Denne post er
+fortsat den eneste aktive beslutningslog. Trin1 har implementeret off-device-probe;
+rigtig Live-API-prøve og den samlede Alpha mangler fortsat.
+Full-parity Alpha kræver alle eksisterende funktioner tilsluttet, uafhængigt review
+og relevante software/protokol/fysiske adgangsgates. Baselineparitet må inventeres:
+.76 har dormant TimerManager, ikke bevis for admitted stemmetimere.
+Rollbackgrænse: OFF fra næste samtale; Stop kan afslutte aktiv Alpha; ingen ny
+session må genafspille en allerede udført handling. Samme firmware skal bevare OFF.
+
+Ny full-duplex-research: XMOS v1.3.1/1a1df7c og præcis ESPHome-komponent
+772f2b9 er gennemgået. Separate I2S-input/output; XMOS læser digital speakerreference
+og kører AEC. ESPHome sætter kanal1=NS (XMOS alene har defaultAEC); aktiv I2C-stage
+og dobbelttalekvalitet er ikke fysisk verificeret. Ekstern HomePod er ikke denne
+speakerreference. Full duplex kræver ikke WebRTC eller udskiftning af FLAC.
+
+Uafhængigt genreview fra latency_review: gammelt full_duplex-flag er ingen genvej.
+Det er blokeret i settings/factory, fjerner lokal Stop-context, aktiverer ikke
+providerinterrupt, har600ms barge-debounce og en stop-ACK/taleslut-race. Echo-tail
+skærer stadig mic-generation og kan tabe dobbelttale. Realtime-truncate kan ikke
+opfindes i Live. Med det nye mål bortfalder behovet for per-svar mic-genåbning;
+farvel/dræn, autorisation og én teardown/rearm består. Ingen runtime er godkendt.
+Før implementering skal Alpha-kontrakten optages i autoritative dokumenter; den
+fysiske produktionskontrakt er ikke ændret af research. Detaljer/prøvematrix ligger
+i researchleverancens full-duplex.md; samme lead-post er fortsat beslutningslog.
+
+Faktisk første kodeleverance: scripts/live_alpha_probe.py, isoleret fra add-onen,
+med officiel OpenAI-SDK3.13.0, dansk probe-prompt, ufarligt get_probe_status,
+20ms-paced PCM, markeret EOF-stilhed, bounded startup/close, ingen reconnect,
+completed-batch-staging, særskilt forbrug og max256 backend-outputtokens per response.
+Der er ingen dollarbudgetgaranti eller fysisk drain i proben. Reproduktion står i
+scripts/LIVE_ALPHA_PROBE.md; dependency er kun scripts/requirements-live-alpha.txt.
+
+22 regressionsprøver i tests/unit/test_live_alpha_probe.py består og opdages af den
+normale releasegate. Astra HIGH fandt og fik rettet overset backendusage under close,
+ignoreret nested backend error og continuation efter Stop under awaited result-send.
+Uafhængig genprøve og frossen audit: PASS, ingen uløste P0/P1/P2 for proben.
+ScriptSHA256cd8dd5a36b3c2cbf14c602adccc2c2ed8f7555e07b1e41cd5b60bdc5a627d132;
+testSHA2560044fb0f72a304b88c221767b8271bebc77ec11dbbe0c4ed8e45b731a2d9e8a2.
+Fast på .79-kilde, isoleret Python3.12-venv: PASS81.7s med alle tests valgt samt
+Ruff/format. Første forsøg stoppede før test pga manglende lokal origin/main-ref;
+ref er hentet korrekt. Mellemkørsel havde grønne tests men forkastet scope pga audit-
+rettelser under kørsel; kun det efterfølgende frosne resultat tæller. Ingen runtime-
+eller firmwareændring og ingen release/installationsgate kørt for den fulde Alpha.
+
+Standard-WAV-hostprøve: pinned micro-decoder0.2.0 og micro-wav0.1.0, verificeret50
+kildefiler,8cases/16streams. Fragmenteret PCM16mono16/24kHz, ukendt længde0xFFFFFFFF,
+lyd før EOF, EOF og stop/genstart giver forventet PCM. Zero-length-header giver nul
+lyd som negativ kontrol. Astra-high verificerede sourcechecksums og de16PCM-resultater.
+Det begrunder standard-WAV som kandidat uden specialencoder; ESPHTTP, firmware,
+mixer/DAC, dobbelttale og farvel er ikke fysisk bevist. Reproduktion/evidens er i
+/private/tmp/podvoice-live-wav-probe og kopieret til researchleverancens wav-proof.
+
+Næste nødvendige eksterne adgang: eksisterende godkendt API-konfiguration til den
+rigtige bounded Live-prøve. OPENAI_API_KEY findes ikke i testmiljøet, og ingen
+nøgleværdi er efterspurgt eller udskrevet. Bruger er spurgt om placering/adgangsvej.
+Isoleret dansk syntetisk PCM-fixture er forberedt; ingen privat rumlyd sendt.
+
+Status: første isolated probe implementeret og softwareauditeret; research og offlineforsøg afsluttet. Ingen Live-API-/kontoadgangsprøve,
+runtimeimplementering, setting, releasegate, installation, golden chain eller10/10
+for Alpha. Kandidaten er ikke fysisk testklar. Ingen produktionsdiff.
+Researchleverance ligger i den lokale Codex-visualiseringsmappe gpt-live-alpha med
+undersoegelse.md, index.html, begge reproduktionsscripts og rå JSON-resultater.
+
 ## Aktiv lead-beslutning — præcis wake-samplegrænse .78
 
 11/9 Lead Codex. Brugeren kræver både sammenhængende “Hey Chat, hvad er klokken”
