@@ -171,6 +171,32 @@
             "error_kind": "device_unavailable",
             "error": "Afspilleren er utilgængelig."
           }
+        },
+        {
+          "args": {
+            "area": "stue",
+            "domain": [
+              "media_player"
+            ]
+          },
+          "result": {
+            "ok": false,
+            "error_kind": "device_unavailable",
+            "error": "Afspilleren er utilgængelig."
+          }
+        },
+        {
+          "args": {
+            "area": "stue",
+            "device_class": [
+              "speaker"
+            ]
+          },
+          "result": {
+            "ok": false,
+            "error_kind": "device_unavailable",
+            "error": "Afspilleren er utilgængelig."
+          }
         }
       ]
     }
@@ -399,11 +425,6 @@
             "forbid": [
               "end_conversation"
             ],
-            "tool_args": {
-              "HassMediaPause": {
-                "area": "stue"
-              }
-            },
             "tool_outcomes": {
               "HassMediaPause": [
                 "device_unavailable"
@@ -413,7 +434,26 @@
             "remain_open": true,
             "answer_patterns": [
               "^(?!.*\\b(?:musikken er (?:stoppet|sat pa pause)|jeg har (?:stoppet|sat)|sat pa pause uden)\\b).*\\b(?:(?:kan|kunne|blev|er) ikke|utilgængelig|offline|fejl ved)\\b"
-            ]
+            ],
+            "tool_args_any": {
+              "HassMediaPause": [
+                {
+                  "area": "stue"
+                },
+                {
+                  "area": "stue",
+                  "domain": [
+                    "media_player"
+                  ]
+                },
+                {
+                  "area": "stue",
+                  "device_class": [
+                    "speaker"
+                  ]
+                }
+              ]
+            }
           }
         },
         {

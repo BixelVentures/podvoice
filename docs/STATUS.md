@@ -31,7 +31,9 @@ Transport-, tids- og playback-bevis står derfor stadig åbent.
 
 Installeret baseline er observeret i HA som1.13.82. Frisk origin/mainf880c68 har kun
 eval-fixture/test-, versions- og statusændringer siden34fb8c8; runtime/prompt/firmware
-er uændret i git-diff. Den er endnu ikke flettet ind i Alpha. Ingen fysisk gate arves.
+er uændret i git-diff. Den er efterfølgende flettet ind i Alpha uden konflikt;249
+målrettede eval-harness/Live-prompt-tests bestod på sammenfletningen. Ingen fysisk
+gate arves. Alpha-review og fysiske krav er uændret åbne.
 
 Samlet lokal fast-gate på379c220 plus nedenstående arbejdsdiff mod origin/mainf880c68
 bestod på81.0s: hele valgte tests-træ, Ruff/format35 filer og mypy51 kildefiler. Det
@@ -580,6 +582,47 @@ releasegate tester de endelige bits. Ingen produktionsændring efter freeze.
 Publicering af7gennemgåede .81filer blev afvist af automatisk godkendelseskontrol,
 som kræver eksplicit godkendelse til det præcise offentlige payload. Ingen push,
 PR eller .81installation udført; .80 er fortsat installeret. Afventer bekræftelse.
+
+Brugeren godkendte eksplicit .81offentliggørelse/installation/test med “JA!”.
+7filer publiceret som80a82484256bbb86b5e8b01a94929ddb43b046b5, PR51.
+PRCI34600695018PASS inklusivARM64; squashmain34fb8c8b816801f4836c6fc21b69389970f4e218.
+MainCI34600921751PASS inklusivpublicering afpræcis testetimage.
+HAupdate til.81 er startet med sikkerhedskopi af.80 valgt; resultat ogliveprofilafventes.
+
+.81installation bekræftet iHA ogstartup14:54:32: git34fb8c8b816801f4836c6fc21b69389970f4e218,
+rootfs-v1:aec9819357afbc65316f5013d4e30898a464dc8fae2f7b98514390d29c8fdd66,
+promptv15:9f18bc2bdeafd28b30c5d6022adcf152975dce7cbcd920d2c5cc03d0331056c9,
+modelgpt-realtime-2.1/medium. HeyChatgemt, nativeforbundet, MCP/PodConnectverificeret,
+extended_device_controlOFF visueltbekræftet. Ingenfirmwareændring.
+Revideretquiet-thanks eval-1789131341-8e301e startetén gang; resultat afventes.
+
+.81liveeval eval-1789131341-8e301e er terminal11/12PASS,$0.221228. Alle3tak er
+stille/open,6tur-opfølgningPASS,ja-tak-tilbudPASS,høflighandlingPASS,uklarhedPASS.
+Sidste fejl: HassMediaPause area=stue+domain=[media_player] blev schema-valideret,
+men afvist af fixturet; et efterfølgende kald med device_class=[speaker] blev også
+afvisteval_fixture_args_mismatch. Modellen gav en ærlig fejl og ventede stille vedtak.
+Ingendevice_unavailable-case blev endnu udløst; samletgatefortsatRØD,ikkefysisk testklar.
+
+Lead.82test-onlyhypotese: den eksakte lokale fixtureargs-list er smallere enddet
+alleredevaliderede shippedeHA-schema. Kæde: model→produktionsschemavalidering→fixture-
+argsmatch→fejlresultat→sandtsvar→stille kvittering; produktionsdispatch/Thin/firmware
+ogpromptv15måikkepatches. Retkunprofilens tilladteheledicts til3direkteverificerede
+former (areaalene,area+domain,area+device_class), allemedsammeutilgængelighedsfejl.
+Ingennormalisering/wildcards/ukendtefelter. Oraclekræverstadigpræcisétkald,0effekter,
+ærligfejl/open. Regressioner: alle3former, forkertmål/domæne/klasse,ekstrafelter,
+tom-/multiliste ogdobbeltekald; standardfixturesuændrede. Liveadmissionvaliderer
+allecasesmodaktueltHAschemaførproviderforbrug. Kombinerededomæne+klassefelter er
+ikkeobserveret ogtilføjesikke. .82nummerkoordineretfritmedrobotopgaven. Rollback.81;
+review,énfrossengate,konkretpubliceringstilladelse,installation oglivePASSafventes.
+
+.82uafhængigreviewGO quiet_thanks_080_review,45målrettedePASS,ingenP0/P1/P2.
+FastPASS79.4s. Alle3formerog10negativevarianter/dubletterafprøvet;
+prompt/Thin/harness/policy/settings/defaultmanifest/panel/firmwarebyteuændrede.
+Diffetfrosset;releasegatePASS41.3s(Ruff/format127,mypy47,scope,unit/integration).
+.81diagnostiklåsfrigivet,nativeIDLE/connectedhey_chat.
+.82har7gennemgåedefiler. Offentligpush blevafvist afautomatiskgodkendelseskontrol,
+somkræverspecifik.82payloadgodkendelse; .81godkendelsenaccepteresikke.
+Ingen.82commit/push/installationudført. RevideretlivePASSogfysiskacceptanceresterer.
 
 
 ## Aktiv lead-beslutning — præcis wake-samplegrænse .78
