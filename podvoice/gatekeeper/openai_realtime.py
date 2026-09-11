@@ -42,7 +42,7 @@ from referencing.exceptions import Unresolvable
 
 from . import constants as C
 from .audio import StreamResampler, resample_pcm16
-from .data_result import MAX_TOOL_RESULT_BYTES, tool_result_json
+from .data_result import MAX_TOOL_RESULT_BYTES, bounded_tool_output
 from .prompt import SYSTEM_PROMPT_DA
 from .provider_budget import (
     PROVIDER_BUDGET,
@@ -1890,50 +1890,7 @@ class OpenAIRealtimeSession:
         self._terminal_responses[response_id] = status
         return True
 
-    @staticmethod
-    def _bounded_tool_output(response: object) -> str:
-        """Bound provider context while preserving truthful mutation acknowledgements."""
-        output = tool_result_json(response)
-        if len(output.encode("utf-8")) <= MAX_TOOL_RESULT_BYTES:
-            return output
-        if isinstance(response, dict):
-            summary = response.get("summary")
-            if response.get("ok") is True:
-                bounded = {
-                    "ok": True,
-                    "summary": (
-                        summary.strip()[:500]
-                        if isinstance(summary, str) and summary.strip()
-                        else "Værktøjet gennemførte forespørgslen, men detaljerne var for store."
-                    ),
-                    "data": {"truncated": True},
-                    "result_truncated": True,
-                }
-            else:
-                bounded = {
-                    "ok": False,
-                    "error_kind": "result_too_large",
-                    "error": "Værktøjsresultatet var for stort til en sikker stemmerespons.",
-                }
-        else:
-            bounded = {
-                "ok": False,
-                "error_kind": "result_too_large",
-                "error": "Værktøjsresultatet var for stort til en sikker stemmerespons.",
-            }
-        output = tool_result_json(bounded)
-        # A character cap is not a UTF-8 byte cap (e.g. emoji in a source summary).
-        # Only the already-lossy fallback summary is shortened, never result fields.
-        fallback_summary = bounded.get("summary")
-        while (
-            len(output.encode("utf-8")) > MAX_TOOL_RESULT_BYTES
-            and isinstance(fallback_summary, str)
-            and fallback_summary
-        ):
-            fallback_summary = fallback_summary[:-1]
-            bounded["summary"] = fallback_summary
-            output = tool_result_json(bounded)
-        return output
+    _bounded_tool_output = staticmethod(bounded_tool_output)
 
     def _reset_production_capacity(self) -> None:
         self._production_admission = None

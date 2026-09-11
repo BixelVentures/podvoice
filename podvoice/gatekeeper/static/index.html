@@ -486,6 +486,16 @@
         <p class="sub" style="margin:2px 0 0">Det Nabu må styre, vælges i <b>Home Assistant</b>: Indstillinger → Stemmeassistenter → <i>Eksponér</i>. Listen i HA er den eneste sandhedskilde. Integrationen “Model Context Protocol Server” skal være aktiveret.</p>
       </section>
 
+      <section class="expose">
+        <h2>GPT-Live Alpha</h2>
+        <div class="setgrid">
+          <label for="s_live_alpha">GPT-Live Alpha til/fra</label>
+          <input id="s_live_alpha" type="checkbox" aria-describedby="s_live_alpha_help">
+        </div>
+        <p id="s_live_alpha_help" class="sub">Eksperimentel. Gem for at vælge Live fra næste samtale i Voice PE og Tal; en igangværende samtale beholder sit valg. Fra bruger Realtime. Alpha bruger marin og sin egen backend; Realtime-modelvalgene nedenfor gælder kun, når Alpha er fra. Fuld funktion og fysisk lyd er endnu ikke godkendt.</p>
+        <p id="s_live_alpha_active" class="sub" role="status"></p>
+      </section>
+
       <details class="adv" style="margin-top:18px">
         <summary>Avanceret</summary>
 
@@ -1827,6 +1837,10 @@ setInterval(function () {
           if (ev.status === "accepted") {
             endTurn(); logLine("in", "you", pending.text);
             if (input.value.trim() === pending.text) input.value = "";
+          } else if (ev.status === "submitted") {
+            endTurn(); logLine("in", "you", pending.text);
+            logLine("out", "system", "Sendt til Live; ingen separat modtagelseskvittering");
+            if (input.value.trim() === pending.text) input.value = "";
           } else {
             input.value = pending.text;
             logLine("out", "system", ev.message || "Beskeden blev ikke sendt. Prøv igen.");
@@ -1996,7 +2010,7 @@ setInterval(function () {
 "use strict";
 // ---- Settings page (saved to the add-on's /data; HA Configuration holds only keys) ----
 (function () {
-  var FIELDS = ["engine", "openai_model", "openai_voice", "voicepe_noise_psk",
+  var FIELDS = ["live_alpha", "engine", "openai_model", "openai_voice", "voicepe_noise_psk",
     "turn_preset", "wake_word", "idle_timeout_s", "max_session_min", "force_mini",
     "openai_turn", "openai_threshold", "openai_prefix_ms", "openai_silence_ms", "openai_eagerness",
     "mic_channel", "mic_gain", "openai_noise",
@@ -2011,7 +2025,7 @@ setInterval(function () {
     var forced = !!(f("force_mini") && f("force_mini").checked);
     if (f("openai_model")) f("openai_model").disabled = forced;
     var effective = document.getElementById("s_model_effective");
-    if (effective) effective.textContent = forced ? "Effektiv model: GPT Realtime 2.1 mini (tvunget)" : "Effektiv model: " + (f("openai_model") ? f("openai_model").value : "serverens standard");
+    if (effective) effective.textContent = forced ? "Realtime-model efter genstart: GPT Realtime 2.1 mini (tvunget)" : "Realtime-model efter genstart: " + (f("openai_model") ? f("openai_model").value : "serverens standard");
     var custom = document.getElementById("s_custom_turn");
     if (custom) custom.hidden = !f("turn_preset") || f("turn_preset").value !== "custom";
   }
@@ -2111,6 +2125,11 @@ setInterval(function () {
       var nofail = function (u) { return fetch(u, { cache: "no-store" }).then(function (r) { return r.json(); }).catch(function () { return {}; }); };
       var jobs = await Promise.all([nofail("api/settings"), nofail("api/podconnect/rooms")]);
       var s = jobs[0];
+      var activeAlpha = document.getElementById("s_live_alpha_active");
+      var activeRooms = s.live_alpha_active || {};
+      activeAlpha.textContent = "Ved seneste hentning: " + (Object.keys(activeRooms).map(function (room) {
+        return room + ": " + (activeRooms[room] === null ? "ingen aktiv samtale" : activeRooms[room] ? "Live Alpha" : "Realtime");
+      }).join(" · ") || "ingen aktive rum") + ".";
       savedWakeWord = s.wake_word || null;
       renderWakeWordStatus();
       pcRooms = jobs[1].rooms || [];
@@ -2166,7 +2185,7 @@ setInterval(function () {
     savedWakeWord = j.settings ? j.settings.wake_word : body.wake_word;
     renderWakeWordStatus();
     settingsDirty = false;
-    if (!restart) { setSaveStatus("Gemt — genstart add-on'en for at anvende ændringerne"); return; }
+    if (!restart) { setSaveStatus("Gemt — Alpha-valget gælder fra næste samtale. Øvrige ændringer kan kræve genstart."); return; }
     setSaveStatus("Gemt — genstarter…");
     try {
       var rr = await fetch("api/restart", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });

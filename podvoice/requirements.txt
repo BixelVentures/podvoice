@@ -6,3 +6,6 @@ aiohttp==3.14.3   # HA Ingress panel + OpenAI Realtime WebSocket
 jsonschema==4.26.0  # full Draft 2020-12 validation for advertised Realtime tools
 # NB: soxr/numpy deliberately NOT added — no musllinux wheels for the Alpine base
 # image, so they'd break the add-on build. audio.StreamResampler is pure-Python.
+
+# GPT-Live Alpha: imported lazily; OFF opens no SDK connection.
+openai[realtime]==3.13.0

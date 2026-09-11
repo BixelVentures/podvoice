@@ -21,13 +21,13 @@ import secrets
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from . import __version__, runtime_artifact_identity
 from . import audio as audio_mod
 from . import constants as C
 from .events import Event, EventType, State
-from .execution_policy import ExecutionContext
+from .execution_policy import ExecutionContext, Risk, assess_tool
 from .led import led_command_for
 from .playout import PlayoutClock
 from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
@@ -49,6 +49,10 @@ from .voice import (
     UserSpeechStopped,
 )
 
+if TYPE_CHECKING:
+    from .openai_live import LiveToolBatch
+
+LIVE_CLOSE_GRACE_S = 6.0
 MAX_TYPED_TEXT_CHARS = 2000
 MAX_TALK_COMMAND_ID_CHARS = 128
 _PHYSICAL_PROVIDER_TRACE_KINDS = frozenset(
@@ -360,11 +364,29 @@ class ThinSession:
         idle_timeout_s: float = IDLE_FALLBACK_S,
         max_session_s: float = MAX_CONVERSATION_S,
         audio_trace=None,  # one-shot local diagnostic recorder (physical Voice PE only)
+        live_brain=None,
+        live_enabled=None,
+        live_audio=None,
+        live_reply_url: str | None = None,
     ) -> None:
         self.room = room
         self.attention = attention
         self.heartbeat = heartbeat
         self.brain = brain
+        self._realtime_brain = brain
+        self.live_brain = live_brain
+        self.live_enabled = live_enabled
+        self.live_audio = live_audio
+        self.live_reply_url = live_reply_url
+        self.live_alpha = False
+        self._live_stream = None
+        self._live_output_bytes = 0
+        self._live_input_revision = 0
+        self._live_backend_revisions: dict[str, int] = {}
+        self._live_usage_seconds = 0.0
+        self._live_provider_closed = asyncio.Event()
+        self._live_finalizing = False
+        self._live_opening_task: asyncio.Task | None = None
         self.voicepe = voicepe
         self.playback = playback  # sim/console fallback sink only
         self.tools = tools
@@ -559,6 +581,32 @@ class ThinSession:
 
     # ------------------------------------------------------------- conversation
     async def wake(self, rearm_attempt_id: str | None = None) -> None:
+        """Snapshot mode once; an Alpha opening belongs to the same close owner."""
+        selected_live = bool(self.live_enabled and self.live_enabled())
+        if selected_live and (self._teardown_incomplete or self._closing):
+            self._trace_event("wake_rejected_incomplete_teardown")
+            if self.audio_trace is not None:
+                self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
+            return
+        if self._active or not selected_live:
+            await self._wake(rearm_attempt_id, live_mode=selected_live)
+            return
+        task = self._live_opening_task
+        if task is None or task.done():
+            task = asyncio.create_task(
+                self._wake(rearm_attempt_id, live_mode=selected_live), name="thin-live-opening"
+            )
+            self._live_opening_task = task
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            if not task.cancelled():
+                raise
+        finally:
+            if self._live_opening_task is task and task.done():
+                self._live_opening_task = None
+
+    async def _wake(self, rearm_attempt_id: str | None = None, *, live_mode: bool) -> None:
         """Open ONE conversation: duck, stream mic, connect the brain. Idempotent."""
         if self._teardown_lock.locked():
             # A teardown is mid-flight: its remaining awaits (stop_streaming, brain
@@ -585,6 +633,21 @@ class ThinSession:
             if self.audio_trace is not None:
                 self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
             return
+        self.live_alpha = live_mode
+        self.brain = self.live_brain if self.live_alpha else self._realtime_brain
+        if self.live_alpha and (
+            self.brain is None or self.live_audio is None or not self.live_reply_url
+        ):
+            self.live_alpha = False
+            self.brain = self._realtime_brain
+            raise RuntimeError("Live Alpha integration is unavailable")
+        self._live_stream = None
+        self._live_output_bytes = 0
+        self._live_input_revision = 0
+        self._live_backend_revisions.clear()
+        self._live_usage_seconds = 0.0
+        self._live_provider_closed.clear()
+        self._live_finalizing = False
         if self.audio_trace is not None and rearm_attempt_id is not None:
             self.audio_trace.note_next_wake(self.room, rearm_attempt_id)
         elif self.audio_trace is not None:
@@ -603,6 +666,13 @@ class ThinSession:
         )
         self._conv_started = time.monotonic()
         self._epoch = self._conv_started  # identity for tasks armed by THIS conversation
+        opening_epoch = self._epoch
+        opening_brain = self.brain
+        opening_live = self.live_alpha
+
+        def opening_is_current() -> bool:
+            return self._active and not self._transport_closing and self._epoch == opening_epoch
+
         self._history_session = f"{self.room}:{time.time_ns()}"
         self._stop_sent_t = None
         self._stop_sent_epoch = None
@@ -684,7 +754,14 @@ class ThinSession:
         self._last_activity = self._conv_started
         self._idle_deadline = self._conv_started + self.idle_timeout_s
         self._local_stop_armed = False
-        if not await self._set_local_stop(False):
+        if self.live_alpha:
+            if not getattr(self.voicepe, "supports_live_wav", False):
+                self._trace_event("live_capability_missing")
+                self._request_close("live-firmware-unavailable", error_kind="device")
+                return
+            self._live_stream = self.live_audio.open(self._history_session, sample_rate=24000)
+            self._idle_deadline = None
+        if not await self._set_local_stop(self.live_alpha):
             return
         self.sm.state = State.LISTENING
         self._trace_event("mic_gate_opened", state=State.LISTENING.name, reason="wake")
@@ -701,6 +778,8 @@ class ThinSession:
         # once forwarding has stopped, so old-tail audio cannot cross conversations.
         if hasattr(self.voicepe, "start_streaming"):
             stream_started = await self.voicepe.start_streaming()
+            if opening_live and not opening_is_current():
+                return
             if stream_started is False:
                 if self.audio_trace is not None:
                     self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
@@ -770,11 +849,13 @@ class ThinSession:
             self._install_provider_trace_observer()
         previous_provider_generation = getattr(self.brain, "_connection_generation", None)
         try:
-            await asyncio.wait_for(self.brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
+            await asyncio.wait_for(opening_brain.connect(), timeout=C.CONNECT_TIMEOUT_S)
         except asyncio.CancelledError:
             self._restore_provider_trace_observer()
             raise
         except Exception as e:
+            if opening_live and not opening_is_current():
+                return
             if self.audio_trace is not None:
                 self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
             _LOG.warning("thin: provider connect failed: %s", e)
@@ -787,6 +868,10 @@ class ThinSession:
                     source="aktiv Realtime-session",
                 )
             await self._fail("diagnostic" if diagnostic_busy else "connection")
+            return
+        if opening_live and not opening_is_current():
+            # The close owner joins this opening before provider cleanup/rearm.
+            # A late startup must never close a subsequently reused adapter.
             return
         self._trace_event("provider_connected")
         if self.audio_trace is not None and rearm_attempt_id is not None:
@@ -812,7 +897,8 @@ class ThinSession:
             # Honest at the door (modprøve A2/F2): home control is provably down —
             # say it ONCE, keep the conversation open (chat/lookup still works).
             self._hub_state("LISTENING", "⚠️ Hjemmestyring nede — samtalen fortsætter")
-            self._spawn(self._speak_home_unreachable(), "thin-home-warn")
+            if not self.live_alpha:
+                self._spawn(self._speak_home_unreachable(), "thin-home-warn")
         self._reader = self._spawn(self._read_events(), "thin-reader")
         self._pump = self._spawn(self._pump_mic(), "thin-pump")
         self._beat = self._spawn(self._heartbeat(), "thin-beat")
@@ -854,6 +940,10 @@ class ThinSession:
                 "code": "invalid_command_id",
                 "message": "Besked-id'et er ugyldigt; genindlæs Talk og prøv igen.",
             }
+        if (self._active and self.live_alpha) or (
+            not self._active and self.live_enabled and self.live_enabled()
+        ):
+            return await self._submit_live_text(cleaned, cid)
         cached = self._text_receipts.get(cid)
         if cached is not None:
             return dict(cached)
@@ -871,6 +961,13 @@ class ThinSession:
             if not self._active:
                 return self._remember_text_receipt(
                     cid, "rejected", "unavailable", "Nabu kunne ikke åbne samtalen."
+                )
+            if self.live_alpha:
+                return self._remember_text_receipt(
+                    cid,
+                    "rejected",
+                    "mode_changed",
+                    "Samtaletypen blev ændret; send beskeden igen.",
                 )
             if self._ending_conversation or (
                 self._close_task is not None and not self._close_task.done()
@@ -1004,9 +1101,12 @@ class ThinSession:
         # Synchronous barrier: an ACK wait must not leave reader/tool publication
         # alive for another event-loop turn after the user pressed/spoke stop.
         self._transport_closing = True
+        if self._live_stream is not None:
+            self._live_stream.cancel("conversation-close")
         self._ending_conversation = True
         current = asyncio.current_task()
         for task in (
+            self._live_opening_task,
             self._reader,
             self._pump,
             self._beat,
@@ -1103,7 +1203,7 @@ class ThinSession:
         reason = f"error:{kind}"
         self._trace_reason = reason
         task = self._request_close(reason, error_kind=kind)
-        if task is not None:
+        if task is not None and asyncio.current_task() is not self._live_opening_task:
             await asyncio.shield(task)
 
     async def _teardown(
@@ -1159,6 +1259,23 @@ class ThinSession:
             self._trace_event("teardown_step_failed", step=label)
         return False, None
 
+    async def _settle_live_opening(self) -> None:
+        """Join a cancelled startup before device stop/provider close and rearm.
+
+        The caller bounds this wait. Its timeout must not abandon physical cleanup
+        or admit a new generation while cancellation-resistant startup is pending.
+        """
+        opening = self._live_opening_task
+        if opening is None or opening is asyncio.current_task():
+            return
+        try:
+            await asyncio.shield(opening)
+        except asyncio.CancelledError:
+            if not opening.cancelled():
+                raise
+        except Exception:
+            self._trace_event("live_opening_failed_during_close")
+
     async def _teardown_locked(
         self, *, release_music: bool, deadline: float, silence_complete: bool
     ) -> None:
@@ -1172,7 +1289,8 @@ class ThinSession:
         transcription_seconds = self._transcription_audio_seconds
         self._transcription_audio_seconds = 0.0
         if (
-            transcription_seconds > 0
+            not self.live_alpha
+            and transcription_seconds > 0
             and self.usage is not None
             and hasattr(self.usage, "add_transcription_seconds")
         ):
@@ -1243,6 +1361,14 @@ class ThinSession:
         if self.reply_bus is not None:
             self.reply_bus.end(self.room)
         stream_complete = True
+        opening_complete = True
+        if self.live_alpha:
+            opening_complete, _ = await self._teardown_step(
+                "live-opening-settle",
+                self._settle_live_opening(),
+                deadline=teardown_deadline,
+                reserve_s=rearm_reserve,
+            )
         if hasattr(self.voicepe, "stop_streaming"):
             stream_ok, stream_stopped = await self._teardown_step(
                 "stop-streaming",
@@ -1271,8 +1397,12 @@ class ThinSession:
             deadline=teardown_deadline,
             reserve_s=rearm_reserve,
         )
+        if self.live_alpha:
+            self._record_live_usage()
         stop_context_complete = True
-        if not self.full_duplex and getattr(self.voicepe, "supports_stop_context", False):
+        if (self.live_alpha or not self.full_duplex) and getattr(
+            self.voicepe, "supports_stop_context", False
+        ):
             context_ok, context_disabled = await self._teardown_step(
                 "stop-context-disable",
                 self.voicepe.set_stop_context(False, closing=True),
@@ -1307,6 +1437,7 @@ class ThinSession:
             and not self._teardown_retry_wakeup.is_set()
             and stream_complete
             and provider_complete
+            and opening_complete
             and stop_context_complete
             and heartbeat_complete
             and attention_complete
@@ -1451,7 +1582,7 @@ class ThinSession:
                     continue  # drain quietly; stream stop is in flight
                 if self.audio_trace is not None:
                     self.audio_trace.audio("device", frame, C.INPUT_RATE)
-                if not self.full_duplex and self.sm.state not in (
+                if not (self.full_duplex or self.live_alpha) and self.sm.state not in (
                     State.LISTENING,
                     State.LOUNGE_WINDOW,
                 ):
@@ -1461,7 +1592,9 @@ class ThinSession:
                     self._gate_dropped += 1
                     continue
                 try:
-                    if self.full_duplex:
+                    if self.full_duplex or self.live_alpha:
+                        if self._transport_closing or self._live_finalizing:
+                            continue
                         await self.brain.send_audio(frame)
                     else:
                         async with self._mic_send_lock:
@@ -1500,7 +1633,10 @@ class ThinSession:
     async def _read_events(self) -> None:
         try:
             async for ev in self.brain.events():
-                await self._on_event(ev)
+                if self.live_alpha:
+                    await self._on_live_event(ev)
+                else:
+                    await self._on_event(ev)
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -1549,9 +1685,12 @@ class ThinSession:
             await asyncio.sleep(HEARTBEAT_S)
             if not self._active:
                 continue
-            dead = (self._reader is None or self._reader.done()) or (
-                self._pump is None or self._pump.done()
+            expected_live_reader_end = (
+                self.live_alpha and self._live_finalizing and self._live_provider_closed.is_set()
             )
+            dead = (
+                not expected_live_reader_end and (self._reader is None or self._reader.done())
+            ) or (self._pump is None or self._pump.done())
             if dead:
                 _LOG.warning("thin: audio pipeline died while active — failing over")
                 await self._fail("connection")
@@ -1560,6 +1699,9 @@ class ThinSession:
             # transcripts and usage are not physical room activity and cannot move its
             # deadline. A matching speech start invalidates it until the turn stops.
             now = time.monotonic()
+            if self.live_alpha and self._live_stream is not None and self._live_stream.cancelled:
+                self._request_close("live-output-cancelled", error_kind="device")
+                return
             # _speaking means "the model is generating" — generation finishes long
             # before the device stops PLAYING, so closing on it alone truncated long
             # replies mid-sentence. Use the device's own playback truth, bounded.
@@ -1583,6 +1725,324 @@ class ThinSession:
                 _LOG.info("thin: conversation hit the max duration — closing politely")
                 await self.stop(reason="max_duration")
                 return
+
+    async def _on_live_event(self, ev: object) -> None:
+        """Continuous Live facts; none of these creates a Realtime voice turn."""
+        from .openai_live import (
+            LiveAudioChunk,
+            LiveBackendComplete,
+            LiveBackendStarted,
+            LiveSessionClosed,
+            LiveSessionReady,
+            LiveToolBatch,
+            LiveTranscript,
+            LiveUsage,
+        )
+
+        if (
+            not self._active
+            or self._transport_closing
+            or getattr(ev, "generation", None) != self.brain._connection_generation
+        ):
+            return
+        if isinstance(ev, LiveSessionReady):
+            self._trace_event("live_session_ready", provider_session_id=ev.session_id)
+        elif isinstance(ev, LiveAudioChunk):
+            if ev.sample_rate != 24000 or self._live_stream is None:
+                self._request_close("live-audio-contract", error_kind="connection")
+                return
+            try:
+                self._live_stream.append(ev.pcm)
+            except (ValueError, RuntimeError, BufferError):
+                self._request_close("live-output-overflow", error_kind="device")
+                return
+            self._live_output_bytes += len(ev.pcm)
+            if self._playback_lease is None and self._live_output_bytes >= 3840:
+                lease = self._arm_playback_lease(item_id=self._live_stream.id, kind="live")
+                if lease is None:
+                    self._request_close("live-playback-overlap", error_kind="device")
+                    return
+                lease.watchdog = self._spawn(self._start_live_playback(lease), "live-playback")
+        elif isinstance(ev, LiveTranscript):
+            if ev.direction == "in":
+                self._live_input_revision += 1
+                self._last_user_utterance = ev.text
+                # Fragments remain diagnostic evidence, never a complete user turn.
+                self._trace_event(
+                    "live_input_fragment",
+                    start_ms=ev.start_ms,
+                    end_ms=ev.end_ms,
+                    input_revision=self._live_input_revision,
+                )
+                if (
+                    self._goodbye is not None
+                    and not self._goodbye.done()
+                    and not self._live_finalizing
+                ):
+                    self._goodbye.cancel()
+                    self._goodbye = None
+                    self._ending_conversation = False
+            if self.hub is not None:
+                self.hub.transcript(
+                    self.room, ev.direction, ev.text, session=self._history_session or None
+                )
+        elif isinstance(ev, LiveBackendStarted):
+            self._live_backend_revisions[ev.response_id] = self._live_input_revision
+            self._trace_event(
+                "live_backend_started", response_id=ev.response_id, delegation_id=ev.delegation_id
+            )
+        elif isinstance(ev, LiveBackendComplete):
+            self._record_live_usage()
+            self._trace_event(
+                "live_backend_complete",
+                response_id=ev.response_id,
+                delegation_id=ev.delegation_id,
+                status=ev.status,
+                usage=ev.usage,
+            )
+            if ev.status != "completed":
+                self._request_close("live-backend-failed", error_kind="connection")
+        elif isinstance(ev, LiveUsage):
+            self._live_usage_seconds = ev.seconds
+            self._record_live_usage()
+            self._trace_event("live_usage", seconds=ev.seconds, final=ev.final)
+        elif isinstance(ev, LiveToolBatch):
+            if ev.response_id in self._committed_tool_batch_ids:
+                self._request_close("live-batch-replay", error_kind="connection")
+                return
+            self._committed_tool_batch_ids.add(ev.response_id)
+            epoch = self._epoch
+            task = self._spawn(self._run_live_batch(ev, epoch), "live-tool-batch")
+            self._tool_tasks[ev.response_id] = task
+        elif isinstance(ev, LiveSessionClosed):
+            self._record_live_usage()
+            self._live_provider_closed.set()
+            if self._live_stream is not None:
+                self._live_stream.finish()
+            if not self._live_finalizing:
+                self._request_close("live-provider-closed", error_kind="connection")
+
+    def _record_live_usage(self) -> None:
+        """Record exact provider counters, including unknown finalization on Stop."""
+        if self.usage is None or not hasattr(self.brain, "usage_snapshot"):
+            return
+        snapshot = self.brain.usage_snapshot()
+        identity = {
+            "session_id": snapshot["session_id"],
+            "generation": snapshot["generation"],
+            "room": self.room,
+        }
+        self.usage.add_live_seconds(
+            snapshot["voice_seconds"],
+            **identity,
+            model=snapshot["model"],
+            final=snapshot["voice_final"],
+            backend_complete=snapshot["backend_usage_complete"],
+        )
+        for response in snapshot["backend_responses"]:
+            self.usage.add_live_backend_usage(
+                response["response_id"],
+                response["usage"],
+                **identity,
+                model=snapshot["backend_model"],
+            )
+
+    async def _start_live_playback(self, lease: _PlaybackLease) -> None:
+        try:
+            if not await self._set_local_stop(True) or not self._lease_is_current(lease):
+                return
+            stream = self._live_stream
+            if stream is None:
+                return
+            url = self.live_reply_url.format(stream_id=stream.id)
+            await self.voicepe.play_url(url, playback_id=lease.playback_id)
+            await asyncio.wait_for(self._playback_started.wait(), ANNOUNCE_START_TIMEOUT_S)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            if self._lease_is_current(lease):
+                self._request_close("live-playback-start-failed", error_kind="device")
+
+    async def _run_live_batch(self, batch: LiveToolBatch, epoch: float) -> None:
+        """Execute a completed provider batch under the existing server policy."""
+        revision = self._live_backend_revisions.get(batch.response_id)
+
+        def current() -> bool:
+            return (
+                self._active
+                and self.live_alpha
+                and not self._transport_closing
+                and not self._live_finalizing
+                and self._epoch == epoch
+                and batch.generation == self.brain._connection_generation
+            )
+
+        def failure(kind: str, message: str) -> dict:
+            return {"ok": False, "error_kind": kind, "error": message}
+
+        if not current():
+            return
+        try:
+            async with self._tool_lock:
+                if not current():
+                    return
+                await self.brain.admit_tool_batch(batch.response_id, batch.generation)
+                if not current():
+                    return
+                names = [call.name for call in batch.calls]
+                exclusive = {END_CONVERSATION_TOOL, WAIT_FOR_USER_TOOL, APPROVE_ACTION_TOOL}
+                invalid_batch = len(names) > 1 and bool(exclusive.intersection(names))
+                results = []
+                semantic_end = None
+                for call in batch.calls:
+                    read_only = assess_tool(call.name, call.args).risk is Risk.READ_ONLY
+                    if not current():
+                        return
+                    if invalid_batch:
+                        result = failure(
+                            "invalid_lifecycle_batch", "Lifecycle decisions must be exclusive."
+                        )
+                    elif not read_only and (
+                        revision is None or revision != self._live_input_revision
+                    ):
+                        result = failure(
+                            "stale_input_revision",
+                            "New input arrived; reconsider the current request before any action.",
+                        )
+                    elif call.name == APPROVE_ACTION_TOOL:
+                        result = failure(
+                            "live_confirmation_unavailable",
+                            "Voice confirmation is not enabled in this Alpha candidate. Do not ask for a confirmation that cannot execute.",
+                        )
+                    elif call.name == END_CONVERSATION_TOOL:
+                        result = (
+                            {"ok": True, "data": {"decision": END_CONVERSATION_TOOL}}
+                            if self._valid_end_args(call.args)
+                            else failure("invalid_arguments", "Invalid end arguments.")
+                        )
+                        if result["ok"]:
+                            semantic_end = call
+                    elif call.name == WAIT_FOR_USER_TOOL:
+                        result = {"ok": True, "data": {"decision": WAIT_FOR_USER_TOOL}}
+                    elif self.tools is None or call.name not in self._tool_declaration_hashes:
+                        result = failure("stale_schema", "Tool was not declared for this session.")
+                    else:
+                        # This is a backend work identity, explicitly NOT a speech-end turn.
+                        context = ExecutionContext(
+                            self._history_session, f"live:{batch.response_id}"
+                        )
+                        result = await self.tools.dispatch(
+                            call.name,
+                            call.args,
+                            execution_context=context,
+                            expected_declaration_sha256=self._tool_declaration_hashes[call.name],
+                            execution_guard=lambda read_only=read_only: (
+                                current()
+                                and (read_only or revision == self._live_input_revision)
+                                and self.brain.tool_batch_is_admitted(
+                                    batch.response_id, batch.generation
+                                )
+                            ),
+                        )
+                        if result.get("needs_confirmation"):
+                            result = failure(
+                                "live_confirmation_unavailable",
+                                "This action requires confirmation, which is not yet available in this Alpha. No action was executed. Do not ask the user to say yes.",
+                            )
+                            self.tools.execution_policy.clear_session(self._history_session)
+                    if self.hub is not None:
+                        self.hub.incr("tool_calls")
+                        self.hub.incr("tool_ok" if result.get("ok") else "tool_error")
+                        self.hub.tool_call(self.room, call.name, result, call.args)
+                    results.append({"id": call.id, "name": call.name, "response": result})
+                    if not current():
+                        return  # Never replay an action whose result became unavailable.
+                await self.brain.send_tool_results(
+                    batch.response_id, results, generation=batch.generation
+                )
+                if semantic_end is not None and current() and revision == self._live_input_revision:
+                    if semantic_end.args.get("silent") is True:
+                        self._request_close("model-close-silent")
+                    else:
+                        self._ending_conversation = True
+                        self._goodbye = self._spawn(
+                            self._finish_live_conversation(epoch), "live-goodbye"
+                        )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            if current():
+                self._request_close("live-tool-failed", error_kind="connection")
+        finally:
+            self._tool_tasks.pop(batch.response_id, None)
+            self._live_backend_revisions.pop(batch.response_id, None)
+
+    async def _finish_live_conversation(self, epoch: float) -> None:
+        """Bounded Alpha grace, then provider finalization and exact physical drain.
+
+        Six seconds is an experimental grace policy, never a provider audio-done fact.
+        New observed user input can cancel grace; Stop can cancel every phase.
+        """
+        try:
+            await asyncio.sleep(LIVE_CLOSE_GRACE_S)
+            if not self._active or self._epoch != epoch or self._transport_closing:
+                return
+            self._live_finalizing = True
+            await self.brain.request_close()
+            await asyncio.wait_for(self._live_provider_closed.wait(), 15.0)
+            if self._live_stream is not None:
+                self._live_stream.finish()
+            lease = self._playback_lease
+            if lease is not None:
+                await asyncio.wait_for(self._playback_finished.wait(), 5.0)
+                if lease is not self._playback_lease or lease.phase != "finished":
+                    raise RuntimeError("live drain identity changed")
+            elif self._live_output_bytes:
+                raise RuntimeError("live audio never acquired playback")
+            self._request_close("model-close")
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            if self._active and self._epoch == epoch:
+                self._request_close("live-drain-failed", error_kind="device")
+
+    async def _submit_live_text(self, text: str, command_id: str) -> dict:
+        """Thin accepts the command; Live exposes no separate item-accepted ACK."""
+        async with self._text_input_lock:
+            cached = self._text_receipts.get(command_id)
+            if cached is not None:
+                return dict(cached)
+            if not self._active:
+                await self.wake()
+            if not self.live_alpha:
+                return self._remember_text_receipt(
+                    command_id,
+                    "rejected",
+                    "mode_changed",
+                    "Samtaletypen blev ændret; send beskeden igen.",
+                )
+            if not self._active or self._transport_closing or self._ending_conversation:
+                return self._remember_text_receipt(
+                    command_id, "rejected", "closing", "Samtalen er ikke tilgængelig."
+                )
+            self._live_input_revision += 1
+            try:
+                await self.brain.send_text(text, command_id=command_id)
+            except Exception:
+                self._request_close("live-text-failed", error_kind="connection")
+                return self._remember_text_receipt(
+                    command_id,
+                    "rejected",
+                    "provider_unavailable",
+                    "Live kunne ikke modtage beskeden.",
+                )
+            return self._remember_text_receipt(
+                command_id,
+                "submitted",
+                "submitted",
+                "Sendt til Live; ingen separat modtagelseskvittering.",
+                session_id=self._history_session,
+            )
 
     # ------------------------------------------------------------- provider events
     def _manual_input_response_enabled(self) -> bool:
@@ -3602,7 +4062,10 @@ class ThinSession:
                     if (
                         getattr(state, "stop_session", None) != self.voicepe._stop_session
                         or getattr(state, "stop_generation", None) != self.voicepe._stop_generation
-                        or self.sm.state not in (State.THINKING, State.AI_SPEAKING)
+                        or (
+                            not self.live_alpha
+                            and self.sm.state not in (State.THINKING, State.AI_SPEAKING)
+                        )
                     ):
                         return
                 else:
@@ -3727,6 +4190,13 @@ class ThinSession:
                 item_id=lease.item_id,
                 turn_cue=self._turn_cue_appended,
             )
+            if lease.kind == "live":
+                self._device_playing = False
+                self._playback_finished.set()
+                self._playback_t0 = None
+                if not self._live_finalizing:
+                    self._request_close("live-unexpected-playback-finish", error_kind="device")
+                return
             was_speaking = self._speaking
             # On buffered announce, generation has already completed before physical
             # playback starts, so `_speaking` is normally false.  Compare the elapsed
@@ -3953,7 +4423,9 @@ class ThinSession:
         self._idle_deadline = self._last_activity + self.idle_timeout_s
 
     async def _set_local_stop(self, enabled: bool) -> bool:
-        if self.full_duplex or not getattr(self.voicepe, "supports_stop_context", False):
+        if (self.full_duplex and not self.live_alpha) or not getattr(
+            self.voicepe, "supports_stop_context", False
+        ):
             return True
         epoch = self._epoch
         ok = await self.voicepe.set_stop_context(enabled)

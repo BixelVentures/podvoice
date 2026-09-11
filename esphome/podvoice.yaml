@@ -15,6 +15,7 @@
 substitutions:
   name: podvoice-pe
   friendly_name: PodVoice PE
+  podvoice_build_marker: podvoice_build_11378_wakeboundary1
   # The hardware base is vendored from upstream 26.6.0 with an auditable two-block
   # delta: wake word and center button emit PodVoice events and never start HA Assist.
 
@@ -291,7 +292,7 @@ event:
         continuous_rearm_v1,
         physical_rearm_audio_progress_v1,
         correlated_reset_rearm_v2,
-        podvoice_build_11378_wakeboundary1,
+        "${podvoice_build_marker}",
         podvoice_playback_events_v1,
         correlated_local_stop_v1,
         correlated_stop_context_v2,

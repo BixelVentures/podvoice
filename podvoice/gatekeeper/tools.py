@@ -18,6 +18,7 @@ import json
 import logging
 import math
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -835,6 +836,7 @@ class ToolRouter:
         execution_context: ExecutionContext | None = None,
         approval_token: str | None = None,
         expected_declaration_sha256: str | None = None,
+        execution_guard: Callable[[], bool] | None = None,
     ) -> dict:
         # One lease spans schema verification, target resolution, policy and the
         # physical MCP send. Discovery cannot replace a same-name contract between
@@ -846,6 +848,7 @@ class ToolRouter:
                 execution_context=execution_context,
                 approval_token=approval_token,
                 expected_declaration_sha256=expected_declaration_sha256,
+                execution_guard=execution_guard,
             )
 
     async def _dispatch_locked(
@@ -856,7 +859,10 @@ class ToolRouter:
         execution_context: ExecutionContext | None = None,
         approval_token: str | None = None,
         expected_declaration_sha256: str | None = None,
+        execution_guard: Callable[[], bool] | None = None,
     ) -> dict:
+        if execution_guard is not None and not execution_guard():
+            return self._stale_execution()
         current_declarations = self.declarations()
         declaration = next((item for item in current_declarations if item.get("name") == name), {})
         current_declaration_sha256 = (
@@ -886,12 +892,15 @@ class ToolRouter:
                 declaration,
                 execution_context,
                 approval_token,
+                execution_guard=execution_guard,
             )
         if declaration:
             prepared = await self._prepare_execution(name, dispatch_args)
             if prepared.error is not None:
                 self._log_tool(name, prepared.error, dispatch_args)
                 return prepared.error
+            if execution_guard is not None and not execution_guard():
+                return self._stale_execution()
             dispatch_args = prepared.args
             authorization_calls = prepared.batch_args or (dispatch_args,)
             for call_args in authorization_calls:
@@ -907,11 +916,18 @@ class ToolRouter:
                     self._log_tool(name, denied, call_args)
                     return denied
             if prepared.batch_args:
-                return await self._dispatch_canonical_batch(name, prepared.batch_args)
+                return await self._dispatch_canonical_batch(
+                    name, prepared.batch_args, execution_guard=execution_guard
+                )
         # Hard time-bound so a slow/wedged HA can never hang the conversational turn.
         try:
             result = await asyncio.wait_for(
-                self._dispatch(name, dispatch_args), timeout=C.TOOL_TIMEOUT_S
+                self._dispatch(
+                    name,
+                    dispatch_args,
+                    **({"execution_guard": execution_guard} if execution_guard is not None else {}),
+                ),
+                timeout=C.TOOL_TIMEOUT_S,
             )
         except TimeoutError:
             result = {
@@ -929,6 +945,7 @@ class ToolRouter:
         declaration: dict,
         context: ExecutionContext | None,
         approval_token: str | None,
+        execution_guard: Callable[[], bool] | None = None,
     ) -> dict:
         """Same commit-facing router/policy; one deadline for ALL reads and send."""
         sending = False
@@ -965,6 +982,8 @@ class ToolRouter:
                     if denied is not None:
                         result = denied
                     else:
+                        if execution_guard is not None and not execution_guard():
+                            return self._stale_execution()
                         sending = True
                         result = await self._device_control.execute(prepared)
         except CapabilityError as exc:
@@ -985,7 +1004,11 @@ class ToolRouter:
         return result
 
     async def _dispatch_canonical_batch(
-        self, name: str, calls: tuple[dict[str, Any], ...]
+        self,
+        name: str,
+        calls: tuple[dict[str, Any], ...],
+        *,
+        execution_guard: Callable[[], bool] | None = None,
     ) -> dict[str, Any]:
         """Execute a bounded room request as individually pinned HA intent calls."""
         results: list[dict[str, Any]] = []
@@ -996,7 +1019,19 @@ class ToolRouter:
             async with asyncio.timeout(C.TOOL_TIMEOUT_S):
                 for call_args in calls:
                     active_args = call_args
-                    result = await self._dispatch(name, call_args)
+                    if execution_guard is not None and not execution_guard():
+                        result = self._stale_execution()
+                        results.append({"target": call_args["name"], "result": result})
+                        break
+                    result = await self._dispatch(
+                        name,
+                        call_args,
+                        **(
+                            {"execution_guard": execution_guard}
+                            if execution_guard is not None
+                            else {}
+                        ),
+                    )
                     self._log_tool(name, result, call_args)
                     results.append({"target": call_args["name"], "result": result})
                     active_args = None
@@ -1430,7 +1465,17 @@ class ToolRouter:
                 mapping.setdefault(value.strip().casefold(), []).append(entity)
         return {key: tuple(value) for key, value in mapping.items()}
 
-    async def _dispatch(self, name: str, args: dict) -> dict:
+    @staticmethod
+    def _stale_execution() -> dict:
+        return {
+            "ok": False,
+            "error_kind": "stale_execution",
+            "error": "The session or input changed before execution; no further action was sent.",
+        }
+
+    async def _dispatch(
+        self, name: str, args: dict, *, execution_guard: Callable[[], bool] | None = None
+    ) -> dict:
         try:
             if name in _PODCONNECT_DATA_TOOLS:
                 try:
@@ -1448,7 +1493,13 @@ class ToolRouter:
                 await self._refresh(force=True)  # a reload may have added the tool
             if name not in self._discovery.mcp_names:
                 return {"ok": False, "error_kind": "bad_args", "error": f"unknown tool {name}"}
-            result = await self._mcp.call_tool(name, args or {})
+            if execution_guard is not None and not execution_guard():
+                return self._stale_execution()
+            result = await self._mcp.call_tool(
+                name,
+                args or {},
+                **({"execution_guard": execution_guard} if execution_guard is not None else {}),
+            )
             return compact_weather_result(name, _mcp_result_to_contract(result))
         except McpError as e:
             if e.connection_shaped:

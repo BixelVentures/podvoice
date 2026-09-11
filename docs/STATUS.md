@@ -2,6 +2,129 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Aktiv implementeringsbeslutning efter brugerens fortsæt-besked: testvinduet hos
+.80 begrænser kun eksterne prøver. Alpha-kode fortsætter i isoleret clone. Én lead,
+Astra SDK/audio som implementører, Astra HIGH som uafhængig reviewer. Observeret
+API-kompatibilitet fra prøve2 retfærdiggør nu adapterintegration; ingen latency- eller
+fysisk funktionspåstand. Falsificerbar hypotese: en eksplicit kontinuerlig Live-
+protokol under samme ThinSession kan føre input → completed toolbatch → streaming →
+én close/rearm uden at ændre OFF's Realtime/FLAC-eventkæde.
+
+Kæde og invariantscope: wake/privacy/native mic → sessiongeneration og Live-inputclock
+→ delegation/responsebatch + uændret ToolRouter/policy → session-WAV/HTTP → tokeniseret
+announcement/mixer → korreleret fysisk finish → én teardown/rearm/næste wake. Tests
+skal injicere stale generation, duplicate/out-of-order batch, for sen append/fetch,
+output overflow/disconnect, Stop under tool/send/close, mic efter close, manglende
+fysisk finish og modsatte Talk-adapter. Ingen lokalsemantik, legacydirectPCM, gain,
+VAD, wake eller OFF-tuning. Output clock følger providerens PCM; ingen lokalt opfundne
+silencepakker i output. HTTP queue tom er ikke EOF. Providerclose er ikke DAC-finish.
+
+Implementeringsgrænser: openai_live.py ejer kun officiel SDK/wire, typed Live-events,
+24k output/inputformat og16→24k inputresampling, completed atomisk batch og særskilt
+backend-/sekundusage. live_audio.py + separat beskyttet HTTP-route ejer kun bounded
+sessionstream. Thin ejer input, dispatch, playbacklease og close. Samme settingsflag
+snapshot vælges ved næste wake; ingen hot-swap. Standard WAV-codec aktiveres eksplicit
+som firmwarefeature før fysisk ON-test, FLAC/mixerforbindelser bevares.
+
+Alpha-voice-approval er et særskilt åbent delkrav: nuværende policy kræver bekræftelse
+for blandt andet vacuum, relativ volumen og mute. De må IKKE klassificeres ned for
+at få parity. Før den nye godkendelseskontrakt er testet, må Alpha returnere eksplicit
+unavailable-confirmation og udføre nul effekter, ikke bede om et virkningsløst ja.
+Det er en implementeringsmellemtilstand og en reel full-parity-gate, ikke en færdig
+Alpha. Core udvikles videre imens. Forslag til senere godkendelse er eksakt server-
+challenge + postproposal source-tidsinterval + immutable evidence-review + completed
+semantisk beslutning + atomisk generation/revision/expiry/once check. Den gamle
+next-turn-garanti må ikke påstås for Live. Godkendelse åbnes først efter sen-rettelse-
+regressioner og uafhængigt review. UI-click er kun alternativ, ikke voice-parity.
+
+Graceful close bliver en udtrykkelig Alpha-policy: efter modelsemantisk completed
+close-intent gives bounded mulighed for terminalt svar; målte grænser er ikke
+provider audio.done. Accepter slutlyd indtil session.closed, forsegl den aktuelle
+HTTPstream og kræv dens fysiske finish før rearm. Stop/mute/fejl kasserer derimod
+queued/incomingaudio og bruger eksisterende stopfence. Kandidaten er ikke fysisk
+testklar før sammensatte gates, review og alle Alpha-paritykrav er opfyldt. Rollback:
+OFF fra næste samtale, Stop afslutter aktiv ON, ingen replay af sideeffekter.
+
+Adversarial review under integration fandt tre konkrete ejergrænser: ON skal
+admitteres på eksplicit WAV-capability før providerforbindelsen; ny inputrevision
+under ToolRouter's awaited targetforberedelse skal kontrolleres igen umiddelbart
+før HA/MCP-dispatch og hvert batchmål; en afsluttet Live-reader efter session.closed
+må ikke udløse heartbeatfejl midt i fysisk dræn. Mindste rettelser er Alpha-only
+capability admission, valgfri server-ejet execution_guard ført til final send efter
+MCP-initialize og et eksplicit forventet reader-slutvilkår under graceful close.
+OFF har ingen guard og uændret transport. Regressioner skal holde target-read og
+initialize blokeret, ændre revision/Stop, frigive og bevise nul efterfølgende sends.
+
+Næste reviewfangst: SDK-context entry kan afslutte efter Stop, hvis close kun ser
+efter allerede oprettet connection. Adapterens connect-operation skal derfor være
+lukbar fra første await, med generationsfence og oprydning af en sent erhvervet
+context. Thin ejer tilsvarende en separat Alpha-openingtask, som close annullerer
+og afventer før fysisk stop/rearm; sent start_streaming/connect må ikke starte
+reader/pump i en afsluttet eller ny samtale. OFF's åbning ændres ikke.
+Talk-browserprøven observerede Chrome Range: bytes=0- og416/decoderfejl. Den præcise
+initial-range må behandles som200 nonseekable hel stream; andre ranges afvises stadig,
+uden falsk Content-Range eller genbrug af forbrugt sessionstream.
+Forbrug tilføjes som særskilt Live-sekund/backendtoken-ledger med dedup; eksisterende
+OFF-regnskab bevares og ukendt pris må ikke vises som gratis. Prisgrundlag verificeres
+på officielle kilder; ændringen påvirker ikke samtalens semantik.
+
+Live-native UX-review på brugerens præcisering: Live ejer overlap, lytterreaktioner,
+rettelser og taletiming; backendarbejde lever videre under en taleafbrydelse. En rå
+inputfragmentrevision er IKKE en semantisk opgaverevision. Produktets eksisterende
+præcise read-only-kontrakter må derfor færdiggøre og returnere deres parameterbundne
+resultat efter ny tale; ukendte/ændrende handlinger beholder konservativ final-send-
+revision og Stop/generation/budgetgrænse. Ingen lokal frasegenkendelse. Regression:
+"mm" under opslag giver resultat, Stop under samme opslag giver ingen ny dispatch;
+rettelser vurderes af backend mod det returnerede resultat og dets oprindelige opgave.
+Primær-/backendprompts tilpasses hver for sig til Live med uændrede produkt- og
+handlingsregler. Den nuværende sekssekunders farvel-grace er en ufærdig prototype,
+ikke accepteret brugeroplevelse; ingen ny lydtærskel fastlægges uden en defineret
+optaget sammenligning. Kort outputro efter semantisk lukning er en mulig målepolicy,
+ikke provider audio.done. Voice-approval er fortsat en fuld parity-gate.
+
+Lokalt Chrome-forsøg på eksakt WAV-route har bevist muted streaming før EOF,
+Stop/HTTP-disconnect med afvist sen append efter ca.197ms og afspilning af ny
+streamidentitet. BrowserLink kan nu udtrykkeligt modtage denne codec. Første playback
+var ca.4,75s efter første PCM i forsøget; det er en observeret browserbegrænsning og
+IKKE snappy Talk-bevis. WebRTC er fortsat officiel browseranbefaling; browserens
+native Live-rute må vurderes særskilt uden at bruge Talk som fysisk puck-bevis.
+Firmwareoverlay compiler, men den genererede binær har dummy-PSK og er ikke en
+provisioneret installationskandidat. Runtime/setting er nu lokalt implementeret,
+ucommittet og ufrossen; intet herfra er installeret, ingen Alpha golden/10/10.
+Historiske "endnu ikke implementeret" nedenfor beskriver tidligere probemilepæle.
+
+Det afgrænsede integrationsreview er efter rettelser bestået: 19 Thin-regressioner
+for én modesnapshot, skift under typed admission, Stop før første lyd, sent mic-start,
+teardowntimeout/retry, stale generation, læseopslag under lytterreaktion, sidesend-
+revision, fysisk dræn og endeligt forbrug. Astra HIGH reproducerede de afgørende
+races. Syv yderligere tests bruger den reelle ToolRouter/MCP mod HTTP-testtransport:
+revision/Stop efter targetforberedelse og initialize giver nul efterfølgende kald;
+revocation efter første mål sender ikke de resterende mål. Tolv lokale HTTP-tests
+består med loopback aktiveret. Sandboxens afviste bind er miljøfejl, ikke lydfejl.
+
+Firmware-/AEC-kæden er nu kodegennemgået: native mic-forwarding afhænger af wake-
+privacy og subscription, ikke announcement-state; XMOS-reference og AEC/IC/NS findes
+i den kompilerede vej. Ingen fysisk double-talk-forståelse er bevist. Før accept
+sammenlignes kendte danske brugerord alene og under egen tale, output-only residualt
+ekko og ekstern musik, med synkroniseret device/provider/output/rumlyd. Backlog,
+drops, gain/clipping, Stop/mute og næste wake registreres særskilt. Mikrofon åben er
+ikke bevis for forståelse. En kontinuerlig afspilningslease er heller ikke bevis for
+kontinuerlig tale; Alpha LED/UI skal vurderes mod dette før produktaccept.
+
+Lokal integrationsmilepæl: scripts/dev fast --base origin/main bestod på det samlede
+aktuelle runtime-diff i80,7s: hele valgte tests-træ, Ruff/format27ændrede Pythonfiler
+og mypy50kilder. Den første fulde kørsel fandt kun paneltestens gamle ordlyd for
+Realtime-model; den forsætlige mere præcise label er nu dækket af kontrakttesten.
+Den delte gate-lås blev respekteret, mens en anden release kørte. Ingen runtime-
+ændring blev foretaget på grund af sandboxens netværksafvisning.
+Astra HIGH's afgrænsede Thin- og promptreview har nul resterende P0/P1/P2 i deres
+reviewede scope. Prompten tillader valgfri relevant indledning, fjerner gammel
+per-tur/talesekvensstyring og lader backend kontrollere frisk værktøjstilgængelighed.
+Forbrugsregnskabet bevarer final voice-sekunder og særskilt backendusage efter Stop;
+ukendte beløb/finalisering vises som ukendte, ikke gratis. Dette er IKKE samlet
+releasegodkendelse. Releasegate er ikke kørt, .80/v15-alignment og fuld Alpha-paritet
+mangler, og der er ingen installation eller fysisk golden/10/10 for denne kandidat.
+
 Seneste resultat: anden API-prøve med hashverificeret dansk syntetisk fixture
 bestod den afgrænsede SDK-/managed-delegation-kæde. source_input_bytes123834,
 synthetic_silence_bytes1195206, input_bytes_sent1319040. Én completed-valideret

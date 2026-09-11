@@ -25,6 +25,7 @@ from . import __version__, runtime_artifact_identity
 from .console import run_console
 from .events import Event, EventType
 from .hub import StatusHub
+from .live_audio import LiveAudioError, LiveAudioStreams, live_wav_header
 from .reply import encode_flac, flac_stream_args, wav_header
 from .trace_oracle import TraceOracle
 
@@ -32,6 +33,7 @@ _LOG = logging.getLogger("podvoice.web")
 
 _STATIC = Path(__file__).parent / "static"
 DEFAULT_PORT = 8098
+LIVE_HTTP_WRITE_TIMEOUT_S = 5.0  # Transport stall boundary, not an audio pacing delay.
 _LOCAL_TOOL_NAMES: set[str] = set()
 _WEB_TOOL_HINTS = ("search", "søg", "web", "google", "nyheder", "news", "sport")
 _WEATHER_TOOL_HINTS = ("vejr", "weather", "forecast", "udsigt", "temperatur", "temperature")
@@ -358,6 +360,7 @@ TOOLS: web.AppKey = web.AppKey("tools")
 PC_ROOMS: web.AppKey = web.AppKey("pc_rooms")
 HISTORY: web.AppKey = web.AppKey("history")
 REPLY: web.AppKey = web.AppKey("reply")
+LIVE_AUDIO: web.AppKey = web.AppKey("live_audio")
 AUDIO_TRACE: web.AppKey = web.AppKey("audio_trace")
 LIVE_EVAL: web.AppKey = web.AppKey("live_eval")
 AUDIO_ANALYSIS: web.AppKey = web.AppKey("audio_analysis")
@@ -382,6 +385,7 @@ def create_app(
     audio_analysis=None,
     diagnostic_status=None,
     reply_bus=None,
+    live_audio: LiveAudioStreams | None = None,
     reply_token: str | None = None,
     locked: bool = False,
 ) -> web.Application:
@@ -418,6 +422,13 @@ def create_app(
         app.on_cleanup.append(close_audio_analysis)
     app[DIAGNOSTIC_STATUS] = diagnostic_status
     app[REPLY] = reply_bus
+    app[LIVE_AUDIO] = live_audio
+    if live_audio is not None:
+
+        async def close_live_audio(app):
+            app[LIVE_AUDIO].close()
+
+        app.on_shutdown.append(close_live_audio)
     app.add_routes(
         [
             web.get("/", _index),
@@ -450,6 +461,7 @@ def create_app(
             web.get("/api/history", _history),
             web.post("/api/history/clear", _history_clear),
             web.get("/reply/{room}", _reply),
+            web.get("/reply/live/{stream_id}.wav", _live_audio, allow_head=False),
             web.post("/api/restart", _restart),
             web.get("/api/voicepe/status", _diag_status),
             web.post("/api/voicepe/s1", _diag_s1),
@@ -791,6 +803,76 @@ async def _pc_rooms(request: web.Request) -> web.Response:
         return web.json_response({"rooms": await fn()})
     except Exception as e:
         return web.json_response({"rooms": [], "error": str(e)})
+
+
+async def _live_audio(request: web.Request) -> web.StreamResponse:
+    """Exact session PCM over HTTP; no encoder, gap fill, or response inference."""
+    streams = request.app[LIVE_AUDIO]
+    if streams is None:
+        raise web.HTTPServiceUnavailable()
+    # Chrome media elements request bytes=0- even for a fresh non-seekable stream.
+    # Ignore only that initial full-resource range; never seek/replay a live identity.
+    if request.headers.get("Range") not in (None, "bytes=0-"):
+        raise web.HTTPRequestRangeNotSatisfiable()
+    try:
+        stream = streams.claim(request.match_info["stream_id"])
+    except KeyError:
+        raise web.HTTPNotFound() from None
+    except LiveAudioError:
+        raise web.HTTPConflict() from None
+    response = web.StreamResponse(
+        headers={"Content-Type": "audio/wav", "Cache-Control": "no-store", "Accept-Ranges": "none"}
+    )
+    response.enable_chunked_encoding()
+    complete = False
+    owner = asyncio.current_task()
+
+    async def abort_on_cancel() -> None:
+        await stream.wait_cancelled()
+        if request.transport is not None:
+            request.transport.close()
+        if owner is not None:
+            owner.cancel()
+
+    cancellation = asyncio.create_task(abort_on_cancel(), name="live-http-cancel")
+    try:
+        async with asyncio.timeout(LIVE_HTTP_WRITE_TIMEOUT_S):
+            await response.prepare(request)
+            await response.write(live_wav_header(stream.sample_rate))
+        while True:
+            # aiohttp does not necessarily cancel a handler on peer disconnect.
+            # Observe it even when no provider PCM arrives; never manufacture audio.
+            if request.transport is None or request.transport.is_closing():
+                stream.cancel("http_disconnect")
+                break
+            try:
+                async with asyncio.timeout(0.25):
+                    pcm = await stream.next_chunk()
+            except TimeoutError:
+                continue
+            if pcm is None:
+                async with asyncio.timeout(LIVE_HTTP_WRITE_TIMEOUT_S):
+                    await response.write_eof()
+                complete = True
+                break
+            async with asyncio.timeout(LIVE_HTTP_WRITE_TIMEOUT_S):
+                await response.write(pcm)
+    except TimeoutError:
+        stream.cancel("http_write_timeout")
+    except asyncio.CancelledError:
+        stream.cancel("http_cancelled")
+        raise
+    except (ConnectionError, LiveAudioError):
+        stream.cancel("http_disconnect")
+    finally:
+        cancellation.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await cancellation
+        if not complete:
+            stream.cancel("http_incomplete")
+            if request.transport is not None:
+                request.transport.close()
+    return response
 
 
 async def _reply(request: web.Request) -> web.StreamResponse:

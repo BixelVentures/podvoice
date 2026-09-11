@@ -426,7 +426,7 @@ def test_effective_model_and_custom_turn_controls_are_explicit():
     html = PANEL.read_text()
 
     assert 'id="s_model_effective"' in html
-    assert "Effektiv model: GPT Realtime 2.1 mini (tvunget)" in html
+    assert "Realtime-model efter genstart: GPT Realtime 2.1 mini (tvunget)" in html
     assert 'id="s_custom_turn"' in html
     for field in (
         "openai_turn",

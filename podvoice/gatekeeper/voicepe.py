@@ -39,6 +39,7 @@ log = logging.getLogger(__name__)
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
 EXPECTED_FIRMWARE_BUILD = "podvoice_build_11378_wakeboundary1"
+LIVE_FIRMWARE_BUILD = "podvoice_build_11379_livewav1"
 _WAKE_WORD_ACK_TIMEOUT_S = 3.0
 
 # --- Firmware contract ----------------------------------------------------------
@@ -142,6 +143,7 @@ class VoicePELink:
         self.supports_playback_ids = True
         self.supports_local_stop = False
         self.supports_stop_context = False
+        self.supports_live_wav = False
         self._stop_context_key: int | None = None
         self._stop_session: str | None = None
         self._stop_generation = 0
@@ -672,6 +674,7 @@ class VoicePELink:
         self._reply_status_key = None
         self.supports_local_stop = False
         self.supports_stop_context = False
+        self.supports_live_wav = False
         self._stop_context_key = None
         self._reset_stop_context()
         self._wake_word_ack_key = None
@@ -770,6 +773,9 @@ class VoicePELink:
             self.supports_playback_events = "podvoice_playback_events_v1" in advertised
             self.supports_local_stop = "correlated_local_stop_v1" in advertised
             self.supports_stop_context = "correlated_stop_context_v2" in advertised
+            self.supports_live_wav = "podvoice_live_wav_v1" in (
+                getattr(podvoice_event, "event_types", None) or []
+            )
             self.supports_direct = (
                 "direct_speaker_v3" in advertised
                 and "podvoice_direct_prepare" in self._user_services
@@ -819,7 +825,10 @@ class VoicePELink:
             missing_capabilities.append("physical_rearm_audio_progress_v1")
         if not self.supports_correlated_reset_rearm:
             missing_capabilities.append("correlated_reset_rearm_v2")
-        if self.firmware_build != EXPECTED_FIRMWARE_BUILD:
+        if self.firmware_build == LIVE_FIRMWARE_BUILD:
+            if not self.supports_live_wav:
+                missing_capabilities.append("podvoice_live_wav_v1")
+        elif self.firmware_build != EXPECTED_FIRMWARE_BUILD:
             missing_capabilities.append(EXPECTED_FIRMWARE_BUILD)
         if not self.supports_playback_events:
             missing_capabilities.append("podvoice_playback_events_v1")
@@ -844,6 +853,7 @@ class VoicePELink:
             "missing_entities": missing_entities,
             "missing_capabilities": missing_capabilities,
             "firmware_build": self.firmware_build,
+            "supports_live_wav": self.supports_live_wav,
             "firmware_builds": self.firmware_builds,
             "wake_word_supported": self._wake_word_ack_key is not None
             and "podvoice_set_wake_word" in self._user_services,

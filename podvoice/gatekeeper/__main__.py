@@ -27,6 +27,7 @@ from .diag import check_status, resolve_target, run_s1, run_s2
 from .heartbeat import Heartbeat
 from .history import History
 from .hub import StatusHub
+from .live_audio import LiveAudioStreams
 from .mcp_client import HomeAssistantMCP
 from .openai_realtime import DEFAULT_MODEL, DEFAULT_REASONING_EFFORT, OPENAI_RATE, make_session
 from .playback import Playback
@@ -136,6 +137,29 @@ def _start_protocol_owner_eval(
     )
 
 
+def _live_alpha_enabled() -> bool:
+    """Thin reads this once at wake; a saved toggle never swaps an active brain."""
+    return load_settings().get("live_alpha") is True
+
+
+def _make_live_brain(
+    cfg: Config, declarations: list[dict], *, room_context="", input_rate=C.INPUT_RATE
+):
+    from .live_prompt import live_instructions
+    from .openai_live import OpenAILiveSession
+
+    # Construction does not import the SDK or open a connection while Alpha is OFF.
+    instructions, backend_instructions = live_instructions(cfg.system_prompt)
+    return OpenAILiveSession(
+        api_key=cfg.openai_api_key,
+        instructions=instructions,
+        backend_instructions=backend_instructions,
+        room_context=room_context,
+        input_rate=input_rate,
+        tool_declarations=declarations,
+    )
+
+
 def _build_session(
     cfg: Config,
     room: RoomMap,
@@ -147,6 +171,7 @@ def _build_session(
     speech: Speech | None = None,
     usage: UsageMeter | None = None,
     audio_trace=None,
+    live_audio: LiveAudioStreams | None = None,
 ):
     psk = room.voicepe_noise_psk or cfg.voicepe_noise_psk
     declarations = tools.declarations() if tools is not None else []
@@ -183,14 +208,22 @@ def _build_session(
     # ?t=<per-boot token>: /reply is exempt from the ingress lock (the device fetches it
     # over the LAN), so the token is what keeps reply audio from being fetchable by anyone.
     reply_url = f"http://{_host_ip_for(room.voicepe_host)}:{DEFAULT_PORT}/reply/{room.room}.flac"
+    live_reply_url = (
+        f"http://{_host_ip_for(room.voicepe_host)}:{DEFAULT_PORT}/reply/live/{{stream_id}}.wav"
+    )
     if reply_token:
         reply_url += f"?t={reply_token}"
+        live_reply_url += f"?t={reply_token}"
 
     return ThinSession(
         room=room.room,
         attention=attention,
         heartbeat=Heartbeat(attention, period_ms=cfg.heartbeat_ms),
         brain=brain,
+        live_brain=_make_live_brain(cfg, declarations, room_context=room_ctx),
+        live_enabled=_live_alpha_enabled,
+        live_audio=live_audio,
+        live_reply_url=live_reply_url,
         voicepe=voicepe,
         playback=Playback(sink=voicepe.play_pcm),
         tools=tools,
@@ -287,6 +320,7 @@ async def run(cfg: Config) -> None:
     # Privacy-safe evidence: disabled until the owner arms exactly one conversation
     # from the ingress panel; local files are bounded and rotated automatically.
     audio_trace = AudioTraceRecorder()
+    live_audio = LiveAudioStreams()
     reply_bus = ReplyBus()  # AI-reply audio -> /reply/<room>.flac -> device media_player announce
     # Per-boot token protecting /reply/* (the one route exempt from the ingress lock,
     # because the device fetches it over the LAN).
@@ -417,6 +451,7 @@ async def run(cfg: Config) -> None:
             speech,
             usage,
             audio_trace,
+            live_audio=live_audio,
         )
         for r in cfg.rooms
     }
@@ -471,6 +506,13 @@ async def run(cfg: Config) -> None:
             attention=_NoAttention(),
             heartbeat=Heartbeat(_NoAttention(), period_ms=cfg.heartbeat_ms),  # type: ignore[arg-type]
             brain=brain,
+            live_brain=_make_live_brain(
+                cfg, tools.declarations() if tools is not None else [], input_rate=OPENAI_RATE
+            ),
+            live_enabled=_live_alpha_enabled,
+            live_audio=live_audio,
+            live_reply_url="reply/live/{stream_id}.wav"
+            + (f"?t={reply_token}" if reply_token else ""),
             voicepe=link,
             playback=Playback(sink=link.play_pcm),
             tools=tools,
@@ -558,6 +600,10 @@ async def run(cfg: Config) -> None:
         settings_get=lambda: {
             **masked(load_settings()),  # tokens/PSK never leave the box in cleartext
             "system_prompt_default": SETTINGS_DEFAULTS["system_prompt"],
+            "live_alpha_active": {
+                room: bool(session.live_alpha) if session._active else None
+                for room, session in sessions.items()
+            },
         },
         settings_set=save_runtime_settings,
         on_restart=lambda: _restart_addon(cfg.supervisor_token),
@@ -575,6 +621,7 @@ async def run(cfg: Config) -> None:
         ),
         reply_bus=reply_bus,
         reply_token=reply_token,
+        live_audio=live_audio,
         # Lock the panel to ingress/loopback when running under HA (Supervisor token
         # present) unless the owner explicitly re-opened LAN access in Settings.
         locked=bool(cfg.supervisor_token) and not cfg.panel_lan_open,

@@ -141,6 +141,9 @@ class BrowserLink:
         self.supports_same_breath = True
         self.supports_direct = False
         self.supports_playback_ids = True
+        # Native Chrome audio verified with the exact non-seekable Live WAV route.
+        # This is browser transport capability, never physical Voice PE evidence.
+        self.supports_live_wav = True
         # Callbacks the engine wires (same names as VoicePELink).
         self.on_wake: Any = None
         self.on_media_state: Any = None

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -221,8 +222,12 @@ class HomeAssistantMCP:
             cursor = next_cursor
         raise McpError("MCP tools/list: pagination exceeded 10 pages", connection_shaped=True)
 
-    async def call_tool(self, name: str, arguments: dict) -> dict:
+    async def call_tool(
+        self, name: str, arguments: dict, *, execution_guard: Callable[[], bool] | None = None
+    ) -> dict:
         """Invoke one tool; returns the raw MCP result ({content, isError, ...})."""
         if not self.initialized:
             await self.initialize()
+        if execution_guard is not None and not execution_guard():
+            raise McpError("stale_execution: session or input changed before tools/call")
         return await self._rpc("tools/call", {"name": name, "arguments": arguments or {}})
