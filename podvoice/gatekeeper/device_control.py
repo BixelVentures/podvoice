@@ -35,7 +35,9 @@ _DECLARATIONS = [
     {
         "name": GET_CAPABILITIES,
         "description": (
-            "Read available HA cleaning areas and extended controls. Without entity_id, "
+            "Read available HA cleaning areas and extended controls. With a known exact "
+            "vacuum entity_id, call directly for that ID without listing devices first. "
+            "Without entity_id, "
             "read the sole permitted vacuum directly, or list vacuum IDs if ambiguous. "
             "Use for questions about cleanable rooms and advanced vacuum requests. "
             "An information question is NOT permission to start cleaning. "
@@ -46,7 +48,15 @@ _DECLARATIONS = [
         ),
         "parameters": {
             "type": "object",
-            "properties": {"entity_id": {"type": "string"}},
+            "properties": {
+                "entity_id": {
+                    "type": "string",
+                    "description": (
+                        "Exact vacuum ID supplied by the user or established by tool results. "
+                        "Omit only when unknown; never infer an ID from a room or device name."
+                    ),
+                }
+            },
             "additionalProperties": False,
         },
     },

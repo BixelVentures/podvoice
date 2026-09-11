@@ -201,6 +201,15 @@ async def test_multiple_vacuums_list_only_permitted_vacuums_without_reads(rig):
     assert not rig.reads
 
 
+async def test_explicit_vacuum_with_multiple_permitted_targets_needs_no_discovery(rig):
+    rig.configure(entities=[ROBOT, "vacuum.other", MAP])
+    result = await rig.read()
+    assert result["ok"] and result["data"]["entity_id"] == ROBOT
+    assert result["data"]["map"]["areas"][0]["name"] == "Køkkenalrum"
+    assert "entity_ids" not in result["data"]
+    assert not rig.writes
+
+
 async def test_ha_area_expands_all_segments_once_on_active_map(rig):
     rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"] = {
         "kitchen": ["0_16", "0_17"],

@@ -1,5 +1,50 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — direkte robotopslag uden overflødig discovery
+
+11/9 Lead Codex, efter brugerens ønske om videre arbejde. .79 live SafeEval
+eval-1789126001-bff797: eksplicit vacuum.eval_qrevo gav capabilities {} efterfulgt
+af capabilities med entity_id. Korrekt dansk rumliste og nul fixture-sideeffekter,
+men exact-one-call-gaten fejlede; 37956ms omfatter provider/pacing, ikke fysisk
+svartid. Fire forudgående scenarier bestod, korrektionsscenariet blev ikke kørt.
+Robotudvidelsen forbliver OFF. Parallel opgave ejer .81-release og live-vindue.
+
+Kæde: fysisk wake/mic → accepteret Thin-tur → Realtime læser deklaration og vælger
+argumenter → completed batch/pacing → read-only, servervalideret capability →
+modelgrundet svar → fysisk playback → opfølgning/close → teardown/rearm → ny wake.
+Begge nabogrænser er uændrede: modelinput før valg, validering/resultat efter valg.
+Hypotese: deklarationen lærer no-ID-discovery, men mangler prioritet for et eksplicit
+kendt ID. En præcis parameterinstruktion kan fjerne det første opslag uden at
+fortolke tale lokalt. Falsifikation: samme sikre live-scenarie bruger stadig to kald.
+Ingen påstand om, at hele ventetiden skyldes discovery.
+
+Invarianter: Realtime ejer semantik; ingen gættede ID'er, nye værktøjer, hævede
+budgetter, runtime-/firmware-/VAD-/lifecycleændringer eller svækket oracle. Bevar
+ukendt robots discovery, tvetydighed, serverallowlist, stale/duplicate/timeout-
+afvisning og sand HA-kvittering. Ændring afgrænses til eksisterende tool-beskrivelse.
+Regressioner: reproducer to read-only-kald + korrekt svar som fejl; ét direkte kald
+som bestået, forkert mål/start som fejl; direkte eksplicit mål med flere tilladte
+robotter; no-ID single/multi-path og detached Voice/Talk/fixture-schema.
+Målrettede tests → fast → uafhængigt adversarial review → på samlet frisk base én
+frossen releasegate. Live robotprofil og fysisk prøve kræves før aktivering/accept.
+Rollback er at kassere denne isolerede beskrivelsesændring og bevare installeret
+version/config; ingen ny installation eller fysisk godkendelse i denne post endnu.
+Gammel dev-clone fejlede fetch på manglende git-blob; frisk usynkroniseret clone
+/private/tmp/podvoice-robot-direct-lookup på .80/main4fd4016 bruges uden at ændre
+Documents-workspace eller den gamle lokale leveringslog. Rebase til .81 før release.
+
+Faktisk ændring: kun GET-værktøjets beskrivelse og entity_id-parameterbeskrivelse;
+to værktøjer før/efter, serialiserede deklarationer2223→2472UTF8bytes (+249).
+Systemprompt, parametervalidation, runtime, budget og obligatoriske kald er uændrede.
+152 målrettede tests PASS; fast på stabilt diff PASS1.6s med Ruff/format, mypy47 og
+169 fokuserede tests. Uafhængigt robot_lookup_causal_review: GO til integration/
+freeze, P0/P1/P2=0,152 unit+11 integration PASS. Reviewdiff SHA256
+513bce2bdb34234d9e8ef11bc7db8ea78fa099dbf8f11a37e520afb2ef3aff91.
+Ingen releasegate/liveeval/installation udført for rettelsen. No-ID sole-robot-
+natursprog er ikke dækket af den eksplicitte multi-robot-livefixture og skal prøves
+fysisk; den mekaniske sole-robot-vej er dækket lokalt. Review ændrer ikke .79's
+fejlede robotgate eller giver fysisk accept.
+
 ## Aktiv lead-beslutning — rent tak uden verbal kvittering .80
 
 11/9 Lead Codex. Brugeren bestiller promptændring, test og installation. Direkte
