@@ -440,7 +440,8 @@ def test_cli_finalized_session_is_failed_when_source_is_empty(monkeypatch, capsy
 
         yield SimpleNamespace(live=SimpleNamespace(connect=connect))
 
-    async def finalized_run(connection, probe, duration):
+    async def finalized_run(connection, probe, duration, *, instruction_probe=False):
+        assert not instruction_probe
         probe.started.set()
         probe.finalized.set()
         probe.voice_usage = {"seconds": 27}
@@ -608,3 +609,174 @@ async def test_closing_audio_backpressure_is_explicit_failure_not_silent_discard
         await probe.handle(pcm, conn)
     assert probe.counts["output_bytes_received"] == 2 * (probe.audio.maxsize + 1)
     assert probe.counts["audio_events_discarded_during_close"] == 0
+
+
+@pytest.mark.asyncio
+async def test_instruction_probe_uses_real_sdk_shape_and_only_observed_receipts(monkeypatch):
+    import hashlib
+    import io
+    import json
+
+    pytest.importorskip("openai.resources.live.live")
+    from openai.resources.live.live import AsyncLiveSessionInstructionsResource
+
+    monkeypatch.setattr(probe_module, "INSTRUCTION_PROBE_DELAY_S", 0)
+    sink = io.StringIO()
+    probe = Probe(timeline=sink)
+    probe.started.set()
+    wire = SimpleNamespace(send=AsyncMock())
+    conn = SimpleNamespace(
+        session=SimpleNamespace(instructions=AsyncLiveSessionInstructionsResource(wire))
+    )
+    await probe_module.append_instruction_probe(conn, probe, asyncio.Event())
+    wire.send.assert_awaited_once()
+    sent = wire.send.call_args.args[0]
+    assert sent["type"] == "session.instructions.append"
+    assert sent["content"] == probe_module.INSTRUCTION_PROBE_TEXT
+    assert sent["delegation_id"] is None
+    assert sent["event_id"].startswith("instruction_probe_")
+    rows = [json.loads(line) for line in sink.getvalue().splitlines()]
+    assert [row["source_event"] for row in rows] == [
+        "session.instructions.append.request",
+        "session.instructions.append.return",
+    ]
+    await probe.handle(
+        {
+            "type": "session.instructions.appended",
+            "event_id": "actual_provider_receipt",
+            "client_event_id": sent["event_id"],
+            "start_ms": 8001,
+            "end_ms": 8001,
+            "content": "private text must never be copied",
+        },
+        conn,
+    )
+    receipt = json.loads(sink.getvalue().splitlines()[-1])
+    assert receipt["source_event"] == "session.instructions.appended"
+    assert receipt["client_event_id_sha256"] == rows[0]["event_id_sha256"]
+    assert receipt["start_ms"] == receipt["end_ms"] == 8001
+    assert rows[0]["text_sha256"] == hashlib.sha256(sent["content"].encode()).hexdigest()
+    assert sent["content"] not in sink.getvalue() and sent["event_id"] not in sink.getvalue()
+    assert "private text" not in sink.getvalue()
+    assert [
+        t["name"] for t in probe_module.session_config()["delegation"]["responses"]["tools"]
+    ] == ["get_probe_status"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "kind", ["session.input_transcript.delta", "session.output_transcript.delta"]
+)
+async def test_transcript_timeline_preserves_valid_offsets_and_hashes_utf8_without_text(kind):
+    import hashlib
+    import io
+    import json
+
+    sink, text = io.StringIO(), "Følsom tekst med æøå"
+    probe, conn = Probe(timeline=sink), connection()
+    await probe.handle(
+        {
+            "type": kind,
+            "start_ms": 4,
+            "end_ms": 29,
+            "delta": text,
+            "event_id": "private-id",
+            "client_event_id": "private-command",
+        },
+        conn,
+    )
+    first = json.loads(sink.getvalue().splitlines()[0])
+    assert first["text_sha256"] == hashlib.sha256(text.encode()).hexdigest()
+    assert first["text_bytes"] == len(text.encode())
+    assert (first["start_ms"], first["end_ms"]) == (4, 29)
+    for start, end in [(True, 4), (0, False), (-1, 4), (5, 4), ("0", 2), (0, float("inf"))]:
+        await probe.handle({"type": kind, "start_ms": start, "end_ms": end, "delta": text}, conn)
+        row = json.loads(sink.getvalue().splitlines()[-1])
+        assert "start_ms" not in row and "end_ms" not in row
+    assert text not in sink.getvalue() and "private-id" not in sink.getvalue()
+    assert "private-command" not in sink.getvalue()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "scenario", ["success", "default", "stop_sleep", "deadline_sleep", "stop_send", "timeout_send"]
+)
+async def test_optional_instruction_lifetime_preserves_session_and_closes_pending_send(
+    monkeypatch, scenario
+):
+    import io
+    import json
+
+    sink, events = io.StringIO(), asyncio.Queue()
+    probe = Probe(timeline=sink)
+    callbacks, append_calls, input_ticks = [], [], []
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(loop, "add_signal_handler", lambda _, callback: callbacks.append(callback))
+    monkeypatch.setattr(loop, "remove_signal_handler", lambda _: None)
+    monkeypatch.setattr(
+        probe_module, "INSTRUCTION_PROBE_DELAY_S", 0.5 if scenario.endswith("sleep") else 0.002
+    )
+    monkeypatch.setattr(probe_module, "INSTRUCTION_PROBE_TIMEOUT_S", 0.005)
+    monkeypatch.setattr(probe_module.sys, "stdin", SimpleNamespace(fileno=lambda: 0))
+    monkeypatch.setattr(probe_module.sys, "stdout", SimpleNamespace(fileno=lambda: 1))
+
+    async def input_running(*_):
+        if scenario == "stop_sleep":
+            callbacks[0]()
+        while True:
+            input_ticks.append(bool(append_calls))
+            await asyncio.sleep(0.001)
+
+    async def output_running(*_):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(probe_module, "send_audio", input_running)
+    monkeypatch.setattr(probe_module, "output_audio", output_running)
+
+    class Connection:
+        async def emit(self, payload):
+            await events.put(SimpleNamespace(model_dump=lambda: payload))
+
+        async def start(self, **_):
+            await self.emit({"type": "session.started"})
+
+        async def close(self):
+            await self.emit({"type": "session.closed", "usage": {"seconds": 1}})
+
+        async def append(self, **kwargs):
+            assert probe.started.is_set() and not probe.closing
+            append_calls.append(kwargs)
+            if scenario == "stop_send":
+                callbacks[0]()
+            if scenario in {"stop_send", "timeout_send"}:
+                await asyncio.Event().wait()
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            return await events.get()
+
+    conn = Connection()
+    conn.session = SimpleNamespace(
+        start=conn.start, close=conn.close, instructions=SimpleNamespace(append=conn.append)
+    )
+    operation = probe_module.run(
+        conn, probe, duration=0.03, close_timeout=0.03, instruction_probe=scenario != "default"
+    )
+    if scenario == "timeout_send":
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(operation, 0.5)
+    else:
+        await asyncio.wait_for(operation, 0.5)
+    assert probe.finalized.is_set() and probe.closing
+    names = [json.loads(row)["source_event"] for row in sink.getvalue().splitlines()]
+    assert len(append_calls) == (1 if scenario in {"success", "stop_send", "timeout_send"} else 0)
+    assert "session.instructions.appended" not in names  # Never fabricate provider acceptance.
+    if scenario == "success":
+        assert names.index("session.instructions.append.return") < names.index(
+            "application.duration.expired"
+        )
+        assert input_ticks.count(True) > 1  # Input remains running after successful append.
+    if scenario in {"stop_send", "timeout_send"}:
+        assert "session.instructions.append.return" not in names

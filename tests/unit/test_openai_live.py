@@ -700,3 +700,323 @@ async def test_backend_receive_highwater_precedes_queued_delivery_and_resets_on_
     assert fresh.created_index == 1
     assert fresh.generation == 2
     await session.close()
+
+
+class WebRTCSDK(SDK):
+    def __init__(self):
+        super().__init__()
+        self.client.live.create = AsyncMock(side_effect=self.create)
+        self.client.live.sideband = SimpleNamespace(connect=self.connect)
+        self.session.update = AsyncMock()
+
+    async def create(self, **_):
+        return SimpleNamespace(
+            session=SimpleNamespace(id="session_live"),
+            transport=SimpleNamespace(sdp="v=0\r\nanswer"),
+        )
+
+    async def recv_bytes(self):
+        import json
+
+        return json.dumps(await self.incoming.get()).encode()
+
+    async def acknowledge(self, *, session_id="session_live", command_id=None):
+        await self.incoming.put(
+            {
+                "type": "session.updated",
+                "session": {"id": session_id},
+                "client_event_id": command_id or self.session.update.call_args.kwargs["event_id"],
+            }
+        )
+
+
+def webrtc_provider(callback=None):
+    sdk = WebRTCSDK()
+    if callback is None:
+
+        async def acknowledge(*_):
+            await sdk.acknowledge()
+
+        callback = AsyncMock(side_effect=acknowledge)
+    session, _, budget = provider(webrtc_offer="v=0\r\noffer", on_webrtc_answer=callback)
+    session.client_factory = sdk.factory
+    return session, sdk, budget
+
+
+@pytest.mark.asyncio
+async def test_webrtc_exact_create_sideband_answer_before_snapshot_and_no_synthetic_started():
+    from gatekeeper.openai_live import LiveTransportReady
+
+    session, sdk, budget = webrtc_provider()
+    await session.connect()
+    assert session.transport == "webrtc"
+    assert not session.provider_session_started
+    assert isinstance(session._queue.get_nowait(), LiveTransportReady)
+    assert session._queue.empty()
+    sdk.session.start.assert_not_called()
+    sdk.session.update.assert_awaited_once()
+    assert sdk.session.update.call_args.kwargs["session"] == {}
+    assert sdk.connection_options == {
+        "session_id": "session_live",
+        "max_retries": 0,
+        "graceful_close": True,
+        "max_queue_size": 65536,
+    }
+    config = sdk.client.live.create.call_args.kwargs["session"]
+    assert "format" not in config["audio"]
+    assert config["audio"]["output"] == {"voice": "marin"}
+    assert config["client"]["data_channel"] == {
+        "allowed_client_events": [],
+        "allowed_server_events": [
+            {"type": kind} for kind in ("session.started", "session.closed", "error")
+        ],
+    }
+    session.on_webrtc_answer.assert_awaited_once_with("session_live", "v=0\r\nanswer", 1)
+    await session._handle({"type": "session.started", "session": {"id": "session_live"}}, 1)
+    assert session.provider_session_started
+    assert isinstance(session._queue.get_nowait(), LiveSessionReady)
+    await session._handle({"type": "session.output_audio.delta", "delta": "AAA="}, 1)
+    assert session._queue.empty()  # No WAV/PCM duplicate playback.
+    with pytest.raises(LiveProtocolError, match="media_owned_by_browser"):
+        await session.send_audio(b"\0\0")
+    sdk.session.input_audio.append.assert_not_called()
+    result = await session.send_text("fixed test", command_id="typed")
+    assert result["status"] == "submitted"
+    await session.close()
+    assert session.final_usage_seconds == 5
+    assert sdk.released
+    assert not budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mismatch", ["session", "correlation"])
+async def test_webrtc_snapshot_requires_exact_identity_and_correlation(mismatch):
+    session, sdk, budget = webrtc_provider()
+
+    async def answer(*_):
+        await sdk.acknowledge(
+            session_id="wrong" if mismatch == "session" else "session_live",
+            command_id="wrong" if mismatch == "correlation" else None,
+        )
+
+    session.on_webrtc_answer = answer
+    with pytest.raises((LiveProtocolError, TimeoutError)):
+        await session.connect()
+    assert sdk.released and session._connection is None
+    assert not budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["create", "attach", "update", "answer"])
+async def test_webrtc_stop_retains_late_startup_ownership_and_never_publishes_late_answer(phase):
+    session, sdk, budget = webrtc_provider()
+    entered, cancelled, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    original_create = sdk.create
+
+    async def blocked():
+        entered.set()
+        try:
+            await release.wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            await release.wait()
+
+    if phase == "create":
+
+        async def create(**kwargs):
+            await blocked()
+            return await original_create(**kwargs)
+
+        sdk.client.live.create.side_effect = create
+    elif phase == "attach":
+
+        class Manager:
+            async def __aenter__(self):
+                await blocked()
+                return sdk
+
+            async def __aexit__(self, *_):
+                sdk.released = True
+
+        sdk.client.live.sideband.connect = lambda **_: Manager()
+    elif phase == "update":
+
+        async def update(**_):
+            await blocked()
+
+        sdk.session.update.side_effect = update
+    else:
+
+        async def answer(*_):
+            await blocked()
+
+        session.on_webrtc_answer = AsyncMock(side_effect=answer)
+
+    startup = asyncio.create_task(session.connect())
+    await entered.wait()
+    closing = asyncio.create_task(session.close())
+    await cancelled.wait()
+    assert not closing.done()
+    with pytest.raises(LiveProtocolError, match="already_owned"):
+        await session.connect()
+    release.set()
+    await closing
+    assert startup.done()
+    await asyncio.gather(startup, return_exceptions=True)
+    assert session._startup_task is None and session._connection is None
+    assert sdk.released
+    sdk.session.close.assert_awaited_once()
+    sdk.session.start.assert_not_called()
+    if phase != "answer":
+        session.on_webrtc_answer.assert_not_called()
+    assert session.final_usage_seconds == 5
+    assert not budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+
+
+@pytest.mark.asyncio
+async def test_webrtc_close_from_answer_callback_does_not_wait_for_readiness():
+    session, sdk, _ = webrtc_provider()
+
+    async def answer(*_):
+        await session.request_close()
+
+    session.on_webrtc_answer = answer
+    with pytest.raises(LiveProtocolError, match="not_accepting"):
+        await session.connect()
+    assert sdk.released and session._connection is None
+    sdk.session.close.assert_awaited_once()
+
+
+def test_webrtc_requires_bounded_offer_and_paired_callback():
+    for kwargs in (
+        {"webrtc_offer": "v=0"},
+        {"on_webrtc_answer": AsyncMock()},
+        {"webrtc_offer": "garbage", "on_webrtc_answer": AsyncMock()},
+        {"webrtc_offer": "v=0" + "x" * 65536, "on_webrtc_answer": AsyncMock()},
+    ):
+        with pytest.raises(ValueError):
+            provider(**kwargs)
+
+
+@pytest.mark.asyncio
+async def test_webrtc_preparation_new_generation_and_stale_snapshot_cannot_cross_boundary():
+    from gatekeeper.openai_live import LiveTransportReady
+
+    session, sdk, _ = webrtc_provider()
+    await session.connect()
+    first_id = session._attachment_event_id
+    first_offer = session.webrtc_offer
+    with pytest.raises(LiveProtocolError, match="while_owned"):
+        session.prepare_webrtc("v=0\r\nnew", AsyncMock())
+    await session.close()
+    with pytest.raises(LiveProtocolError, match="offer_reused"):
+        await session.connect()
+    second = WebRTCSDK()
+    session.client_factory = second.factory
+
+    async def answer(*_):
+        await second.acknowledge(command_id=first_id)  # Prior snapshot cannot ready generation 2.
+        await session._handle({"type": "session.started", "session": {"id": "wrong"}}, 1)
+        await asyncio.sleep(0)
+        assert not session._ready.done()
+        assert not session.provider_session_started
+        await second.acknowledge()
+
+    session.prepare_webrtc("v=0\r\nnew", answer)
+    await session.connect()
+    event = session._queue.get_nowait()
+    assert isinstance(event, LiveTransportReady) and event.generation == 2
+    await session.close()
+    with pytest.raises(LiveProtocolError, match="offer_reused"):
+        session.prepare_webrtc(first_offer, answer)
+    assert sdk.client.live.create.await_count == second.client.live.create.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_webrtc_uses_existing_tool_batch_admission_result_and_final_usage():
+    session, sdk, _ = webrtc_provider()
+    await session.connect()
+    await stage(session)
+    await session.admit_tool_batch("r1", 1)
+    await session.send_tool_results("r1", [{"id": "c1", "response": {"ok": True}}], generation=1)
+    sdk.response.item.create.assert_awaited_once()
+    sdk.response.create.assert_awaited_once()
+    await session.close()
+    snapshot = session.usage_snapshot()
+    assert snapshot["voice_final"] and snapshot["voice_seconds"] == 5
+    assert snapshot["backend_responses"][0]["usage"]["total_tokens"] == 30
+
+
+@pytest.mark.asyncio
+async def test_webrtc_invalid_answer_after_create_keeps_remote_close_ownership():
+    session, sdk, budget = webrtc_provider()
+    sdk.client.live.create.side_effect = None
+    sdk.client.live.create.return_value = SimpleNamespace(
+        session=SimpleNamespace(id="session_live")
+    )
+    with pytest.raises(LiveProtocolError, match="invalid_live_webrtc_answer"):
+        await session.connect()
+    sdk.session.close.assert_awaited_once()
+    session.on_webrtc_answer.assert_not_called()
+    assert sdk.released and session.final_usage_seconds == 5
+    assert not budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+
+
+@pytest.mark.asyncio
+async def test_cached_default_ws_brain_can_prepare_webrtc_without_network():
+    session, sdk, _ = provider()
+    assert session.transport == "websocket"
+    session.prepare_webrtc("v=0\r\noffer", AsyncMock())
+    assert session.transport == "webrtc"
+    assert not sdk.factory_calls
+    with pytest.raises(AttributeError):
+        session.webrtc_offer = "v=0\r\nchanged"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["provider_error", "wrong_startup_snapshot"])
+async def test_webrtc_receiver_failure_still_explicitly_closes_primary_once(failure):
+    session, sdk, budget = webrtc_provider()
+    if failure == "wrong_startup_snapshot":
+
+        async def answer(*_):
+            await sdk.acknowledge(session_id="foreign")
+
+        session.on_webrtc_answer = answer
+        with pytest.raises(LiveProtocolError, match="attachment_identity"):
+            await session.connect()
+    else:
+        await session.connect()
+        await sdk.incoming.put({"type": "error", "error": {"message": "private server error"}})
+        await asyncio.wait_for(session._closed.wait(), 0.2)
+        with pytest.raises(LiveProtocolError, match="provider_error"):
+            await session.close()
+    sdk.session.close.assert_awaited_once()
+    assert sdk.released and session._connection is None
+    assert not budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+    assert session.final_usage_seconds is None
+    assert not session.usage_snapshot()["voice_final"]
+    await session.request_close()
+    await session.close()
+    sdk.session.close.assert_awaited_once()
+
+    # Failed generation's queued terminal/error cannot affect a fresh prepared peer.
+    second = WebRTCSDK()
+    session.client_factory = second.factory
+
+    async def next_answer(*_):
+        await second.acknowledge()
+
+    session.prepare_webrtc("v=0\r\nnext-generation", next_answer)
+    await session.connect()
+    await session._handle({"type": "error"}, 1)
+    await session._handle(
+        {"type": "session.closed", "usage": {"seconds": 99}, "reason": "close_requested"}, 1
+    )
+    assert session.last_error is None and session.final_usage_seconds is None
+    second.session.close.assert_not_called()
+    await session.request_close()
+    await session.close()
+    await session.close()
+    second.session.close.assert_awaited_once()
+    assert session.final_usage_seconds == 5

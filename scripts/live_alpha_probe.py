@@ -17,6 +17,8 @@ fails the probe after the close timeout, and received-versus-written byte totals
 partial retention. No transcript text or arbitrary provider payload is in the timeline.
 Source EOF SHA256 covers the exact bytes read; stopped-before-EOF hashes only that prefix.
 This stub does not select semantic end actions, so no model-end boundary is synthesized.
+--instruction-probe appends one fixed harmless instruction eight seconds after readiness.
+An instructions.appended receipt does not prove the model followed it or caused later speech.
 Requires an isolated Python 3.12 environment with openai[realtime] supporting Live.
 Source: https://developers.openai.com/api/docs/guides/voice-websockets?api=live
 Tools: https://developers.openai.com/api/docs/guides/live-delegation
@@ -42,6 +44,9 @@ from typing import Any, TextIO
 
 FRAME_BYTES = 960
 FRAME_SECONDS = 0.02
+INSTRUCTION_PROBE_DELAY_S = 8.0
+INSTRUCTION_PROBE_TIMEOUT_S = 15.0
+INSTRUCTION_PROBE_TEXT = "Spørg nu: Vil du starte prøvehandlingen? Udfør ingen handling."
 
 
 def session_config() -> dict[str, Any]:
@@ -152,6 +157,21 @@ class Probe:
         kind = event.get("type")
         if kind in {"error", "session.started", "session.closed", "session.usage.updated"}:
             self.trace(kind, **self.correlations(event))
+        if self.timeline is not None and kind in {
+            "session.input_transcript.delta",
+            "session.output_transcript.delta",
+            "session.instructions.appended",
+        }:
+            fields = self.correlations(event)
+            start, end = event.get("start_ms"), event.get("end_ms")
+            if type(start) is int and type(end) is int and 0 <= start <= end:
+                fields.update(start_ms=start, end_ms=end)
+            if kind != "session.instructions.appended" and isinstance(event.get("delta"), str):
+                encoded = event["delta"].encode()
+                fields.update(
+                    text_sha256=hashlib.sha256(encoded).hexdigest(), text_bytes=len(encoded)
+                )
+            self.trace(kind, **fields)
         if kind == "session.delegation.created":
             offset = event.get("offset_ms")
             fields = self.correlations(event)
@@ -390,7 +410,36 @@ async def output_audio(probe: Probe, fd: int) -> None:
         probe.audio.task_done()
 
 
-async def run(connection: Any, probe: Probe, duration: float, close_timeout: float = 15) -> None:
+async def append_instruction_probe(connection: Any, probe: Probe, stop: asyncio.Event) -> None:
+    """One opt-in SDK command; its completion is not a session or audio terminal."""
+    await asyncio.sleep(INSTRUCTION_PROBE_DELAY_S)
+    if stop.is_set() or probe.closing or probe.finalized.is_set() or not probe.started.is_set():
+        return
+    event_id = "instruction_probe_" + uuid.uuid4().hex
+    refs = probe.correlations({"event_id": event_id})
+    content = INSTRUCTION_PROBE_TEXT.encode()
+    probe.trace(
+        "session.instructions.append.request",
+        **refs,
+        text_sha256=hashlib.sha256(content).hexdigest(),
+        text_bytes=len(content),
+        delegation_id=None,
+    )
+    async with asyncio.timeout(INSTRUCTION_PROBE_TIMEOUT_S):
+        await connection.session.instructions.append(
+            content=INSTRUCTION_PROBE_TEXT, delegation_id=None, event_id=event_id
+        )
+    probe.trace("session.instructions.append.return", **refs)
+
+
+async def run(
+    connection: Any,
+    probe: Probe,
+    duration: float,
+    close_timeout: float = 15,
+    *,
+    instruction_probe: bool = False,
+) -> None:
     async def receive() -> None:
         async for event in connection:
             await probe.handle(event.model_dump(), connection)
@@ -443,13 +492,30 @@ async def run(connection: Any, probe: Probe, duration: float, close_timeout: flo
                 asyncio.create_task(stop.wait()),
             ]
         )
-        done, _ = await asyncio.wait(
-            [receiver, *tasks[2:]], timeout=duration, return_when=asyncio.FIRST_COMPLETED
-        )
-        if not done:
-            probe.trace("application.duration.expired")
-        for task in done:
-            await task
+        watched = {receiver, *tasks[2:]}
+        instruction_task = None
+        if instruction_probe:
+            instruction_task = asyncio.create_task(
+                append_instruction_probe(connection, probe, stop)
+            )
+            tasks.append(instruction_task)
+            watched.add(instruction_task)
+        deadline = loop.time() + duration
+        while True:
+            done, _ = await asyncio.wait(
+                watched, timeout=max(0, deadline - loop.time()), return_when=asyncio.FIRST_COMPLETED
+            )
+            if not done:
+                probe.trace("application.duration.expired")
+                break
+            for task in done:
+                await task
+            if instruction_task in done:
+                # Successful SDK return leaves input/output and the original deadline active.
+                watched.remove(instruction_task)
+                done.remove(instruction_task)
+            if done:
+                break
     finally:
         probe.closing = True
         probe.trace("application.close.begin")
@@ -500,6 +566,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seconds", type=float, default=60, help="Session bound, 1-120 seconds")
     parser.add_argument("--timeline", help="New private JSONL file for monotonic event metadata")
+    parser.add_argument(
+        "--instruction-probe",
+        action="store_true",
+        help="Append one fixed harmless proposal instruction eight seconds after readiness",
+    )
     args = parser.parse_args()
     if not 1 <= args.seconds <= 120:
         parser.error("--seconds must be between 1 and 120")
@@ -529,7 +600,12 @@ def main() -> int:
                     async with client.live.connect(
                         max_retries=0, max_queue_size=65536
                     ) as connection:
-                        await run(connection, probe, args.seconds)
+                        await run(
+                            connection,
+                            probe,
+                            args.seconds,
+                            instruction_probe=args.instruction_probe,
+                        )
 
         asyncio.run(connect())
         if probe.timeline_failed:

@@ -11,10 +11,11 @@ import asyncio
 import base64
 import binascii
 import copy
+import hashlib
 import json
 import math
 import uuid
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -34,6 +35,14 @@ from .voice import ToolCall
 
 @dataclass(frozen=True)
 class LiveSessionReady:
+    session_id: str
+    generation: int
+
+
+@dataclass(frozen=True)
+class LiveTransportReady:
+    """Authenticated sideband snapshot; does not assert browser session start or media."""
+
     session_id: str
     generation: int
 
@@ -98,6 +107,7 @@ class LiveSessionClosed:
 
 LiveEvent = (
     LiveSessionReady
+    | LiveTransportReady
     | LiveAudioChunk
     | LiveTranscript
     | LiveBackendStarted
@@ -162,9 +172,28 @@ class OpenAILiveSession:
         provider_budget: ProviderBudgetCoordinator = PROVIDER_BUDGET,
         client_factory: Callable[..., Any] | None = None,
         timeout_s: float = 15,
+        webrtc_offer: str | None = None,
+        on_webrtc_answer: Callable[[str, str, int], Awaitable[None]] | None = None,
     ) -> None:
         if input_rate not in (16000, 24000) or timeout_s <= 0:
             raise ValueError("invalid Live audio rate or deadline")
+        if (webrtc_offer is None) != (on_webrtc_answer is None):
+            raise ValueError("WebRTC offer and answer callback must be supplied together")
+        if webrtc_offer is not None and (
+            not isinstance(webrtc_offer, str)
+            or not webrtc_offer.startswith("v=0")
+            or len(webrtc_offer.encode()) > 65536
+            or not callable(on_webrtc_answer)
+        ):
+            raise ValueError("invalid WebRTC offer or callback")
+        self._webrtc_offer_consumed = False
+        self._used_webrtc_offers: set[str] = set()
+        self._webrtc_offer = webrtc_offer
+        self.on_webrtc_answer = on_webrtc_answer
+        self.provider_session_started = False
+        self._attachment_event_id: str | None = None
+        self._webrtc_session_id: str | None = None
+        self._webrtc_close_sent = False
         self.api_key = api_key
         self.tool_declarations = copy.deepcopy(tool_declarations)
         self.podvoice_tool_declaration_hashes: dict[str, str] = {}
@@ -211,6 +240,43 @@ class OpenAILiveSession:
         self._usage_voice_seconds: float | None = None
         self._usage_backend: dict[str, dict | None] = {}
 
+    @property
+    def webrtc_offer(self) -> str | None:
+        return self._webrtc_offer
+
+    @property
+    def transport(self) -> str:
+        return "webrtc" if self.webrtc_offer is not None else "websocket"
+
+    def prepare_webrtc(
+        self, offer: str, on_answer: Callable[[str, str, int], Awaitable[None]]
+    ) -> None:
+        """Stage one fresh browser offer only after the previous generation released.
+
+        The caller owns browser-start validation and media lifecycle. Preparing an
+        offer performs no SDK calls and never changes an active generation.
+        """
+        if (
+            self._startup_task is not None
+            or self._connection is not None
+            or self._reader is not None
+            or self._lease is not None
+            or not self._close_requested
+        ):
+            raise LiveProtocolError("live_webrtc_preparation_while_owned")
+        if (
+            not isinstance(offer, str)
+            or not offer.startswith("v=0")
+            or len(offer.encode()) > 65536
+            or not callable(on_answer)
+        ):
+            raise ValueError("invalid WebRTC offer or callback")
+        if hashlib.sha256(offer.encode()).hexdigest() in self._used_webrtc_offers:
+            raise LiveProtocolError("live_webrtc_offer_reused")
+        self._webrtc_offer = offer
+        self.on_webrtc_answer = on_answer
+        self._webrtc_offer_consumed = False
+
     def _configuration(self) -> dict:
         validators: dict[str, Draft202012Validator] = {}
         wire = []
@@ -238,7 +304,7 @@ class OpenAILiveSession:
             validators[name] = Draft202012Validator(schema, format_checker=FormatChecker())
             wire.append({**realtime_function_tool(declaration), "strict": False})
         self._validators = validators
-        return {
+        configuration: dict[str, Any] = {
             "model": self.model,
             "instructions": self.instructions,
             "audio": {
@@ -260,6 +326,18 @@ class OpenAILiveSession:
             },
         }
 
+        if self.transport == "webrtc":
+            del configuration["audio"]["format"]
+            configuration["client"] = {
+                "data_channel": {
+                    "allowed_client_events": [],
+                    "allowed_server_events": [
+                        {"type": kind} for kind in ("session.started", "session.closed", "error")
+                    ],
+                }
+            }
+        return configuration
+
     async def connect(self) -> None:
         if self._startup_task is not None:
             raise LiveProtocolError("live_startup_already_owned")
@@ -274,12 +352,24 @@ class OpenAILiveSession:
     async def _connect(self) -> None:
         if self._connection is not None or self._reader is not None:
             raise LiveProtocolError("live_session_already_connected")
+        if self.transport == "webrtc" and self._webrtc_offer_consumed:
+            raise LiveProtocolError("live_webrtc_offer_reused")
         configuration = self._configuration()
+        if self.transport == "webrtc":
+            if len(self._used_webrtc_offers) >= 512:
+                raise LiveProtocolError("live_webrtc_offer_limit")
+            assert self.webrtc_offer is not None
+            self._used_webrtc_offers.add(hashlib.sha256(self.webrtc_offer.encode()).hexdigest())
+            self._webrtc_offer_consumed = True
         # Diagnostic ownership is key-global even though token accounting is backend-specific.
         self._lease = self.provider_budget.production_started(self.api_key, self.backend_model)
         self._connection_generation += 1
         generation = self._connection_generation
         self.backend_sequence = 0
+        self.provider_session_started = False
+        self._webrtc_session_id = None
+        self._webrtc_close_sent = False
+        self._attachment_event_id = None
         self._queue = asyncio.Queue(maxsize=128)
         self._closed = asyncio.Event()
         self._ready = asyncio.get_running_loop().create_future()
@@ -304,15 +394,58 @@ class OpenAILiveSession:
 
                 factory = AsyncOpenAI
             self._client = factory(api_key=self.api_key, max_retries=0, timeout=self.timeout_s)
-            self._manager = self._client.live.connect(max_retries=0, max_queue_size=65536)
-            async with asyncio.timeout(self.timeout_s):
+            async with asyncio.timeout(self.timeout_s) as startup_deadline:
+                if self.transport == "webrtc":
+                    result = await self._client.live.create(
+                        session=configuration,
+                        transport={"type": "webrtc", "sdp": self.webrtc_offer},
+                    )
+                    session_id = result.session.id
+                    if not isinstance(session_id, str) or not session_id:
+                        raise LiveProtocolError("invalid_live_webrtc_session")
+                    self._webrtc_session_id = session_id
+                    self._usage_session_id = session_id
+                    answer = getattr(getattr(result, "transport", None), "sdp", None)
+                    # Even a cancellation-resistant create must leave an owned close path.
+                    self._manager = self._client.live.sideband.connect(
+                        session_id=session_id,
+                        max_retries=0,
+                        graceful_close=True,
+                        max_queue_size=65536,
+                    )
+                else:
+                    self._manager = self._client.live.connect(max_retries=0, max_queue_size=65536)
                 connection = await self._manager.__aenter__()
+                if self.transport == "webrtc":
+                    self._connection = connection
+                    self._reader = asyncio.create_task(self._receive(connection, generation))
                 if self._close_requested or generation != self._connection_generation:
                     raise LiveProtocolError("live_startup_superseded")
-                self._connection = connection
-                self._reader = asyncio.create_task(self._receive(self._connection, generation))
-                await self._connection.session.start(session=configuration)
+                if self.transport == "webrtc" and startup_deadline.expired():
+                    raise LiveProtocolError("live_startup_deadline_expired")
+                if self.transport == "webrtc":
+                    if (
+                        not isinstance(answer, str)
+                        or not answer.startswith("v=0")
+                        or len(answer.encode()) > 65536
+                    ):
+                        raise LiveProtocolError("invalid_live_webrtc_answer")
+                    self._attachment_event_id = "attach_" + uuid.uuid4().hex
+                    await connection.session.update(session={}, event_id=self._attachment_event_id)
+                    self._active(generation)
+                    if startup_deadline.expired():
+                        raise LiveProtocolError("live_startup_deadline_expired")
+                    assert self.on_webrtc_answer is not None
+                    await self.on_webrtc_answer(session_id, answer, generation)
+                    self._active(generation)
+                    if startup_deadline.expired():
+                        raise LiveProtocolError("live_startup_deadline_expired")
+                else:
+                    self._connection = connection
+                    self._reader = asyncio.create_task(self._receive(connection, generation))
+                    await connection.session.start(session=configuration)
                 await self._ready
+                self._active(generation)
         except BaseException:
             await self._release()
             raise
@@ -335,11 +468,20 @@ class OpenAILiveSession:
             raise LiveProtocolError("live_event_backpressure") from exc
 
     async def _receive(self, connection: Any, generation: int) -> None:
+        async def incoming() -> AsyncIterator[dict]:
+            if self.transport == "webrtc":
+                while True:
+                    # Official sideband raw receiver includes events omitted by its typed union.
+                    yield json.loads(await connection.recv_bytes())
+            else:
+                async for event in connection:
+                    yield event.model_dump()
+
         try:
-            async for event in connection:
+            async for event in incoming():
                 if generation != self._connection_generation or connection is not self._connection:
                     return
-                await self._handle(event.model_dump(), generation)
+                await self._handle(event, generation)
                 if self._closed.is_set():
                     return
             raise LiveProtocolError("live_socket_without_finalization")
@@ -372,20 +514,43 @@ class OpenAILiveSession:
         if generation != self._connection_generation or self._closed.is_set():
             return
         kind = event.get("type")
-        if kind not in {"session.started", "error"} and (
-            self._ready is None or not self._ready.done()
+        if (
+            self.transport == "websocket"
+            and kind not in {"session.started", "error"}
+            and (self._ready is None or not self._ready.done())
         ):
             raise LiveProtocolError("live_event_before_readiness")
         if kind == "error":
             raise LiveProtocolError("live_provider_error")
         if kind == "session.started":
-            if self._ready is None or self._ready.done() or self._close_requested:
-                raise LiveProtocolError("unexpected_live_session_started")
             session_id = event["session"]["id"]
+            if self.transport == "webrtc":
+                if session_id != self._webrtc_session_id or self.provider_session_started:
+                    raise LiveProtocolError("unexpected_live_session_started")
+            elif self._ready is None or self._ready.done() or self._close_requested:
+                raise LiveProtocolError("unexpected_live_session_started")
+            self.provider_session_started = True
             self._usage_session_id = session_id
             self._emit(LiveSessionReady(session_id, generation))
+            if self.transport == "websocket":
+                assert self._ready is not None
+                self._ready.set_result(None)
+        elif kind == "session.updated" and self.transport == "webrtc":
+            if (
+                self._attachment_event_id is None
+                or event.get("client_event_id") != self._attachment_event_id
+            ):
+                return
+            if event.get("session", {}).get("id") != self._webrtc_session_id:
+                raise LiveProtocolError("live_attachment_identity_mismatch")
+            if self._close_requested or self._ready is None or self._ready.done():
+                return
+            assert self._webrtc_session_id is not None
+            self._emit(LiveTransportReady(self._webrtc_session_id, generation))
             self._ready.set_result(None)
         elif kind == "session.output_audio.delta":
+            if self.transport == "webrtc":
+                return  # Browser WebRTC owns media; sideband reflection is never a second sink.
             try:
                 pcm = base64.b64decode(event["delta"], validate=True)
             except (KeyError, ValueError, TypeError, binascii.Error) as exc:
@@ -612,6 +777,8 @@ class OpenAILiveSession:
         }
 
     async def send_audio(self, pcm: bytes) -> None:
+        if self.transport == "webrtc":
+            raise LiveProtocolError("live_webrtc_media_owned_by_browser")
         generation = self._connection_generation
         if len(pcm) % 2:
             raise LiveProtocolError("incomplete_input_pcm_sample")
@@ -783,6 +950,8 @@ class OpenAILiveSession:
         self._close_requested = True  # Synchronize before any await; freezes new work.
         if self._connection is not None:
             async with asyncio.timeout(self.timeout_s):
+                if self.transport == "webrtc":
+                    self._webrtc_close_sent = True
                 await self._connection.session.close()
 
     async def events(self) -> AsyncIterator[LiveEvent]:
@@ -816,6 +985,28 @@ class OpenAILiveSession:
 
     async def _release(self) -> None:
         self._close_requested = True
+        if (
+            self.transport == "webrtc"
+            and self._connection is not None
+            and self.final_usage_seconds is None
+        ):
+            # _closed also means receiver failure, not provider finalization. A
+            # separate WebRTC primary still needs an explicit session.close;
+            # closing the sideband socket alone does not close that session.
+            # If the reader ended, retain unknown final usage after this attempt.
+            try:
+                async with asyncio.timeout(self.timeout_s):
+                    if not self._webrtc_close_sent:
+                        self._webrtc_close_sent = True
+                        await self._connection.session.close()
+                    await self._closed.wait()
+            except Exception:
+                self.last_error = self.last_error or "live_startup_finalization_missing"
+        if self._ready is not None:
+            if self._ready.done() and not self._ready.cancelled():
+                self._ready.exception()  # Account for startup failures before its first await.
+            elif not self._ready.done():
+                self._ready.cancel()
         if self._reader is not None:
             self._reader.cancel()
             await asyncio.gather(self._reader, return_exceptions=True)

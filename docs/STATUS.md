@@ -2,6 +2,71 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Samlet fast-gate kørte alle valgte tests til100% på81.52s, Ruff/format og mypy51
+sources bestod, men wrapperen afviste resultatet fordi lead ændrede STATUS under
+kørslen. Resultatet tæller ikke som samlet gate. Filer fryses før én gentagelse;
+ingen runtimeændring udledes af denne workflowfejl. Gentagelsen på frosne filer
+bestod: fast79.4s, hele valgte testscope100%, Ruff/format og mypy51 sources. Det
+er softwarebevis, ikke release-/installations-/fysisk godkendelse. Adapteren har separat Astra
+HIGH GO efter rettelse af close ved receiverfejl; Talk-wiring er endnu ikke lavet.
+
+Ny direkte evidens afviser ordinary-continuation-hypotesen for godkendelsesankeret:
+den afsluttede SDK-prøve i /private/tmp/podvoice-live-ws-measurement-01/evidence
+(sourcea1ea1d99) viste én delegation ved source3000ms. Frisk response.create gav
+en ny respons under SAMME delegation, uden ny delegation.created eller client-id-
+korrelation på response.created. Astra HIGH har uafhængigt kontrolleret det. Det
+gamle offset må aldrig genbruges til frisk samtykke; ledger/wiring forbliver lukket.
+Den efterfølgende instructions.append-prøve er også afsluttet: source283f23e9,
+/private/tmp/podvoice-live-instruction-probe-01/evidence. Det friske event-id
+korrelerede kun til ACK ved estimeret7200–7400ms;17 output-transcriptfragmenter
+havde intet client_event_id, inklusive4 fragmenter og195 PCM-events efter ACK.
+Uafhængigt Astra HIGH-review afviser denne konkrete korrelationsvej, ikke enhver
+mulig Live-konfiguration. Finalusage26.0s, backend907+962 tokens,1279680 modtagne
+og skrevne outputbytes; session.closed og procesexit0. Ingen fysisk lyd er bevist.
+.82 er efter tredje autoriserede prøve igen bekræftet Kører i HA.
+
+Målet er nu verificeret ACTIVE efter brugerens genstart. Næste afgrænsede designreview
+undersøger en frisk Live-generation bundet til den eksakte challenge, inklusive om
+den faktisk beviser spørgsmål-før-svar og ikke blot challenge-før-input. Det er en
+uafklaret hypotese med mulig ekstra latenstid, ikke implementeringsgodkendelse.
+Der tilføjes ingen alternativ samtalemotor eller lokale godkendelsesfraser for at
+omgå denne grænse; stemmegodkendelses-wiring forbliver inaktiv.
+
+SDK-prøven sluttede grønt med27.0s, backend904+966 tokens, source123834 bytes og
+1292160 modtagne = skrevne outputbytes inklusive terminallyd. Output-WAV og3312
+ordnede tidslinjeevents er bevaret. Dette er første måling uden tab af terminal-PCM,
+men ikke semantisk farvel- eller højttalerbevis. .82 er efterfølgende startet igen
+og “Kører” bekræftet i HA. Begge pause/genstarter fulgte brugerens udtrykkelige ja.
+
+Næste runtime-afgrænsning efter virkelig WebRTC-protokolprøve: udvid kun den
+eksisterende OpenAILiveSession med officiel create/sideband/SDP-vej til Alpha Talk.
+Samme Thin ejer fortsat budget, generation, værktøjer og close; ingen ekstra motor.
+OFF og Voice PE's WS-transport ændres ikke. Kæde: bounded browseroffer → SDKcreate
+→ samme-session sideband → answer sendt før ventet readiness → faktisk matching
+session.updated + browser-start → eksisterende typed/backend-policy → Stop/close.
+Nøgle bliver på serveren, frontend har ingen providercommand-tilladelser. Stop under
+create/attach/SDP/readiness skal bevare ejerskab til sen ressource og afvise stale
+generation. Der må ikke fabrikeres session.started, audio.done eller fysisk finish.
+Først isoleret adapterkode og regressioner; Talk-tilkobling kræver separat sammensat
+review og en ærlig løsning på terminal media-dræn. Ingen WAV-dobbeltlyd på WebRTC.
+
+Første rigtige WebRTC/sideband-prøve er afsluttet (frosset source90d1f254/importeec62553,
+evidence-api-01 i /private/tmp/podvoice-live-webrtc-reviewed-01). Præcis én session;
+create → sideband attach → SDP answer → korreleret session.updated → primary started
+→ typed submit → completed stub/result/continuation → session.closed blev observeret.
+Forbrug28.0s, backend845+902 tokens, ingen manglende terminaler; lokale tracks og proces
+blev lukket. Output var muted og syntetisk fixture startet: dette er transportbevis,
+ikke hørt svar, dansk forståelse, mikrofoninputparitet eller fysisk latency/dræn.
+Klikværktøjet meldte timeout efter at Start-knappen blev disabled; den samme faktisk
+startede session blev observeret færdig, aldrig genstartet pga. observationstimeout.
+.82 blev kort stoppet med brugerens eksplicitte tilladelse og er efter prøven
+bekræftet “Kører” igen i HA UI. Ingen Alpha-installation fandt sted.
+
+Brugeren har nu udtrykkeligt godkendt begge afventende punkter: kort pause/genstart
+af PodVoice til den isolerede API-prøve og den beskrevne Live-stemmegodkendelsesvej
+først efter bestået protokolprøve og review. Tilladelsesblokeringerne nedenfor er
+dermed afløst af dette ja. Ingen teknisk eller fysisk gate er afløst af tilladelsen.
+
 Seneste eksterne kontrol efter brugerens “klar”: Chrome virker igen, og den
 eksisterende API-konfiguration blev overført én gang i hukommelsen til den frosne
 WebRTC-prøve. Ingen session-create blev startet. Automatisk godkendelseskontrol
