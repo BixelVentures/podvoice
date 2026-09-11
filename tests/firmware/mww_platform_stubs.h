@@ -11,6 +11,7 @@
 #include <deque>
 #include <sys/types.h>
 
+#define ESP_LOGI(...) ((void)0)
 #define ESP_LOGCONFIG(...) ((void)0)
 #define ESP_LOGE(...) ((void)0)
 #define ESP_LOGD(...) ((void)0)
@@ -82,6 +83,7 @@ struct ESPPreferenceObject {
 struct Preferences {
   template<class T> ESPPreferenceObject make_preference(uint32_t) { return {}; }
 };
+inline uint32_t millis() { return 100; }
 inline Preferences preferences;
 inline Preferences *global_preferences = &preferences;
 inline uint32_t fnv1_hash(const std::string &) { return 1; }
@@ -118,6 +120,8 @@ struct FrontendState {};
 struct FrontendOutput { size_t size; uint16_t *values; };
 inline bool FrontendPopulateState(FrontendConfig *, FrontendState *, int) { return true; }
 inline void FrontendFreeStateContents(FrontendState *) {}
+inline int frontend_resets=0;
+inline void FrontendReset(FrontendState *) { ++frontend_resets; }
 inline FrontendOutput FrontendProcessSamples(FrontendState *, const int16_t *, size_t n, size_t *consumed) {
   *consumed=n; return {0,nullptr};
 }
@@ -149,6 +153,7 @@ struct StaticTask {
 struct TestApp { void wake_loop_threadsafe() {} };
 inline TestApp App;
 struct AudioStreamInfo {
+  int channels{1}; int get_channels() const { return channels; }
   size_t frames_to_bytes(size_t n) const { return n*2; }
   size_t ms_to_bytes(size_t n) const { return n*32; }
   int get_sample_rate() const { return 16000; }
@@ -157,23 +162,60 @@ namespace microphone {
 struct MicrophoneSource {
   AudioStreamInfo info;
   const AudioStreamInfo &get_audio_stream_info() { return info; }
-  void add_data_callback(std::function<void(const std::vector<uint8_t> &)>) {}
+  std::vector<std::function<void(const std::vector<uint8_t> &)>> callbacks;
+  void add_data_callback(std::function<void(const std::vector<uint8_t> &)> cb) { callbacks.push_back(cb); }
+  void emit(const std::vector<uint8_t> &data) { for(auto &cb:callbacks) cb(data); }
+  void set_gain_factor(int) {}
   void start() {} void stop() {}
 };
 }
 namespace ring_buffer {
 struct RingBuffer {
-  static std::shared_ptr<RingBuffer> create(size_t) { return std::make_shared<RingBuffer>(); }
-  size_t write_without_replacement(const uint8_t *, size_t n, int, bool) { return n; }
+  enum class MemoryPreference { EXTERNAL_FIRST };
+  size_t capacity; bool short_next{false}; std::deque<uint8_t> bytes;
+  explicit RingBuffer(size_t n): capacity(n) {}
+  static std::unique_ptr<RingBuffer> create(size_t n, MemoryPreference = MemoryPreference::EXTERNAL_FIRST) {
+    return std::make_unique<RingBuffer>(n);
+  }
+  size_t available() const { return bytes.size(); }
+  size_t free() const { return capacity-bytes.size(); }
+  void reset() { bytes.clear(); }
+  size_t read(void *out, size_t n, int) {
+    n=std::min(n,bytes.size()); auto p=static_cast<uint8_t *>(out);
+    for(size_t i=0;i<n;++i) { p[i]=bytes.front(); bytes.pop_front(); } return n;
+  }
+  size_t write(const void *in, size_t n) {
+    auto p=static_cast<const uint8_t *>(in);
+    size_t discard=n>free()?std::min(n-free(),bytes.size()):0;
+    while(discard--) bytes.pop_front();
+    n=std::min(n,free()); if(short_next) { short_next=false; n/=2; }
+    for(size_t i=0;i<n;++i) bytes.push_back(p[i]); return n;
+  }
+  size_t write_without_replacement(const uint8_t *in, size_t n, int, bool) {
+    if(n>free()) return 0; return write(in,n);
+  }
 };
 }
 namespace audio {
 struct RingBufferAudioSource {
-  static std::unique_ptr<RingBufferAudioSource> create(std::shared_ptr<ring_buffer::RingBuffer>, size_t, uint8_t) {
-    return std::make_unique<RingBufferAudioSource>();
+  std::shared_ptr<ring_buffer::RingBuffer> ring;
+  static std::unique_ptr<RingBufferAudioSource> create(std::shared_ptr<ring_buffer::RingBuffer> ring, size_t, uint8_t) {
+    auto source=std::make_unique<RingBufferAudioSource>(); source->ring=ring; return source;
   }
-  void clear_buffered_data() {} void fill(uint32_t, bool) {} void consume(size_t) {}
+  void clear_buffered_data() { ring->reset(); } void fill(uint32_t, bool) {} void consume(size_t) {}
   size_t available() const { return 0; } uint8_t *data() { return nullptr; }
 };
 }
+}
+
+namespace esphome::api {
+struct VoiceAssistantAudio { const uint8_t *data{}; uint16_t data_len{}; bool end{}; };
+struct APIConnection {
+  std::vector<uint8_t> pcm;
+  bool send_message(const VoiceAssistantAudio &msg) { pcm.insert(pcm.end(), msg.data, msg.data+msg.data_len); return true; }
+};
+}
+namespace esphome::voice_assistant {
+struct VoiceAssistant { api::APIConnection *client{}; api::APIConnection *get_api_connection() { return client; } };
+inline VoiceAssistant *global_voice_assistant{};
 }

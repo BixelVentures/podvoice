@@ -46,13 +46,18 @@
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
+from esphome.components import (  # noqa: F401  (DEPENDENCIES)
+    micro_wake_word,
+    microphone,
+    voice_assistant,
+)
 from esphome.const import CONF_ID, CONF_MICROPHONE
-from esphome.components import microphone, voice_assistant  # noqa: F401  (DEPENDENCIES)
 
 # api pulls in global_api_server / APIConnection symbols + defines USE_API;
 # voice_assistant provides global_voice_assistant + defines USE_VOICE_ASSISTANT
 # (which is the ifdef guarding the VoiceAssistantAudio message we emit).
-DEPENDENCIES = ["microphone", "api", "voice_assistant"]
+DEPENDENCIES = ["microphone", "micro_wake_word", "api", "voice_assistant"]
 AUTO_LOAD = ["ring_buffer"]
 CODEOWNERS = ["@BixelVentures"]
 
@@ -68,6 +73,7 @@ SAMPLE_RATE = 16000
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(PodVoiceAudio),
+        cv.Required("wake_detector"): cv.use_id(micro_wake_word.MicroWakeWord),
         # The microphone tap. microphone_source_schema() is itself wrapped in
         # maybe_conf(CONF_MICROPHONE, ...), so nesting it once under CONF_MICROPHONE
         # yields the canonical `microphone:` sub-block (short form `microphone: i2s_mics`
@@ -103,6 +109,18 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+def _validate_shared_microphone(config):
+    full = fv.full_config.get()
+    detector_path = full.get_path_for_id(config["wake_detector"])[:-1]
+    detector = full.get_config_for_path(detector_path)
+    if config[CONF_MICROPHONE][CONF_MICROPHONE] != detector[CONF_MICROPHONE][CONF_MICROPHONE]:
+        raise cv.Invalid("podvoice_audio and wake_detector must tap the same physical microphone")
+    # Callback registration order is part of the shared-frame clock contract.
+    if "setup_priority" in config or "setup_priority" in detector:
+        raise cv.Invalid("podvoice_audio/wake_detector setup_priority cannot be overridden")
+    return config
+
+
 # Mirror voice_assistant's FINAL_VALIDATE pattern (voice_assistant/__init__.py:188).
 # final_validate_microphone_source_schema returns a validator that calls
 # audio.final_validate_audio_schema(...), which needs the final-validation context.
@@ -113,6 +131,7 @@ CONFIG_SCHEMA = cv.Schema(
 # VERIFY (hardware/config): Voice PE i2s_mics actually reports 16 kHz to
 # final-validate through the XMOS path (else this raises at config time, by design).
 FINAL_VALIDATE_SCHEMA = cv.All(
+    _validate_shared_microphone,
     cv.Schema(
         {
             cv.Required(CONF_MICROPHONE): microphone.final_validate_microphone_source_schema(
@@ -126,6 +145,8 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    detector = await cg.get_variable(config["wake_detector"])
+    cg.add(var.set_wake_detector(detector))
     cg.add(var.set_default_channel(config["default_channel"]))
     await cg.register_component(var, config)
 
@@ -133,9 +154,7 @@ async def to_code(config):
     # is already running (micro_wake_word owns lifecycle). This is the whole trick.
     # microphone_source_to_code reads gain_factor/channels/bits off config[CONF_MICROPHONE]
     # itself and wires them via the MicrophoneSource ctor + add_channel().
-    mic_source = await microphone.microphone_source_to_code(
-        config[CONF_MICROPHONE], passive=True
-    )
+    mic_source = await microphone.microphone_source_to_code(config[CONF_MICROPHONE], passive=True)
     cg.add(var.set_microphone_source(mic_source))
 
     cg.add(var.set_ring_ms(config[CONF_RING_MS]))

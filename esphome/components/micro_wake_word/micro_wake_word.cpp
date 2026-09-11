@@ -118,6 +118,9 @@ void MicroWakeWord::setup() {
       // Producer-only write: never touches consumer state. If the buffer is full, ask the inference task
       // to drain it - reset() is a consumer operation and must run on the inference task's thread.
       // Disable partial writes so audio chunks are either fully accepted or rejected and handled below.
+      // PV's passive callback precedes this callback on the same raw mic chunk.
+      const auto end = this->wake_audio_source_ ? this->wake_audio_source_() : WakeAudioPosition{};
+      std::lock_guard<std::mutex> lock(this->wake_audio_clock_.mutex);
       this->stop_gate_.begin_write();
       const size_t written = temp_ring_buffer->write_without_replacement(data.data(), data.size(), 0, false);
       if (written == 0) {
@@ -126,6 +129,11 @@ void MicroWakeWord::setup() {
                            EventGroupBits::WARNING_FULL_RING_BUFFER | EventGroupBits::COMMAND_RESET_RING_BUFFER);
       }
       this->stop_gate_.end_write(written / sizeof(int16_t));
+      if (this->wake_audio_source_ &&
+          !this->wake_audio_clock_.append(end, data.size() / sizeof(int16_t), written == data.size())) {
+        this->stop_gate_.invalidate();
+        xEventGroupSetBits(this->event_group_, EventGroupBits::COMMAND_RESET_RING_BUFFER);
+      }
     }
   });
 
@@ -144,9 +152,33 @@ void MicroWakeWord::on_ota_global_state(ota::OTAState state, float progress, uin
 }
 #endif
 
+void MicroWakeWord::reset_audio_source_(audio::RingBufferAudioSource &source) {
+  // Any gap which resets shared feature history faults the current Stop context.
+  // Recovery cannot silently restore an armed context; teardown/rearm owns that.
+  this->stop_gate_.invalidate();
+  {
+    std::lock_guard<std::mutex> lock(this->wake_audio_clock_.mutex);
+    source.clear_buffered_data();
+    this->wake_audio_clock_.restart();
+    xEventGroupClearBits(this->event_group_, EventGroupBits::COMMAND_RESET_RING_BUFFER);
+  }
+  // No producer lock across frontend/model work. Existing cooldown suppresses
+  // detections carried by pre-gap model state until fresh history is available.
+  FrontendReset(&this->frontend_state_);
+  for (auto *model : this->wake_word_models_)
+    model->reset_probabilities();
+#ifdef USE_MICRO_WAKE_WORD_VAD
+  this->vad_model_->reset_probabilities();
+#endif
+}
+
 void MicroWakeWord::inference_task(void *params) {
   MicroWakeWord *this_mww = (MicroWakeWord *) params;
   this_mww->stop_gate_.worker_start();
+  {
+    std::lock_guard<std::mutex> lock(this_mww->wake_audio_clock_.mutex);
+    this_mww->wake_audio_clock_.restart();
+  }
 
   xEventGroupSetBits(this_mww->event_group_, EventGroupBits::TASK_STARTING);
 
@@ -183,8 +215,7 @@ void MicroWakeWord::inference_task(void *params) {
       while (!(xEventGroupGetBits(this_mww->event_group_) & (COMMAND_STOP | ERROR_BITS))) {
         if (xEventGroupGetBits(this_mww->event_group_) & EventGroupBits::COMMAND_RESET_RING_BUFFER) {
           // Producer asked us to drain; run the consumer-side reset from this thread.
-          audio_source->clear_buffered_data();
-          xEventGroupClearBits(this_mww->event_group_, EventGroupBits::COMMAND_RESET_RING_BUFFER);
+          this_mww->reset_audio_source_(*audio_source);
         }
 
         audio_source->fill(pdMS_TO_TICKS(DATA_TIMEOUT_MS), false);
@@ -201,6 +232,10 @@ void MicroWakeWord::inference_task(void *params) {
               this_mww->generate_features_(audio_data, samples_available, features_buffer, &processed_samples);
           audio_source->consume(processed_samples * sizeof(int16_t));
           this_mww->stop_gate_.consume(processed_samples);
+          {
+            std::lock_guard<std::mutex> lock(this_mww->wake_audio_clock_.mutex);
+            this_mww->feature_wake_audio_ = this_mww->wake_audio_clock_.consume(processed_samples);
+          }
 
           if (feature_generated) {
             if (!this_mww->update_model_probabilities_(features_buffer)) {
@@ -347,7 +382,14 @@ void MicroWakeWord::loop() {
           ESP_LOGD(TAG, "Detected '%s' with sliding average probability is %.2f and max probability is %.2f",
                    detection_event.wake_word->c_str(), (detection_event.average_probability / uint8_to_float_divisor),
                    (detection_event.max_probability / uint8_to_float_divisor));
+          if (this->wake_audio_source_) {
+            std::lock_guard<std::mutex> lock(this->wake_audio_clock_.mutex);
+            if (!this->wake_audio_clock_.accepts(queued.audio))
+              continue;
+          }
+          this->delivered_wake_audio_ = queued.audio;
           this->wake_word_detected_trigger_.trigger(*detection_event.wake_word);
+          this->delivered_wake_audio_ = {};
           if (this->stop_after_detection_) {
             this->stop();
           }
@@ -471,7 +513,7 @@ void MicroWakeWord::process_probabilities_() {
 #ifdef USE_MICRO_WAKE_WORD_VAD
         if (vad_state.detected) {
 #endif
-          QueuedDetection queued{wake_word_state, 0};
+          QueuedDetection queued{wake_word_state, 0, this->feature_wake_audio_};
           xQueueSend(this->detection_queue_, &queued, portMAX_DELAY);
 
           // Wake main loop immediately to process wake word detection
@@ -481,7 +523,7 @@ void MicroWakeWord::process_probabilities_() {
 #ifdef USE_MICRO_WAKE_WORD_VAD
         } else {
           wake_word_state.blocked_by_vad = true;
-          QueuedDetection queued{wake_word_state, 0};
+          QueuedDetection queued{wake_word_state, 0, this->feature_wake_audio_};
           xQueueSend(this->detection_queue_, &queued, portMAX_DELAY);
         }
 #endif

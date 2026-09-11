@@ -1,5 +1,87 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — præcis wake-samplegrænse .78
+
+11/9 Lead Codex. Brugeren kræver både sammenhængende “Hey Chat, hvad er klokken”
+og “Hey Chat” → pause/cyan → samme spørgsmål. .77 er installeret fra main52b1e5e;
+serveranalysen af .76trace20260911T092402-321 er gennemført. Første provider-item
+0–640ms indeholder en allerede-devicebåret energihale:99.95% energi første160ms,
+RMS320–640ms3.95. Spørgsmålet kommer senere; mic-close/quarantine afskærer det efter
+at halen har udløst velkomst. Halesemantik er ukendt; transskript er ikke bevis.
+
+Kæde: fælles fysisk mic-chunk → PV-sampleclock/rolling ring → MWW-kø/feature-consume →
+detektionskø → firmwarelatch/mic → native/preconnect → første provider-item → Thin
+accept → playback → teardown/rearm → ny wake. Mindst begge sider af mistænkt grænse
+indgår. Invarianter: firmware ejer wake; én Thin/mic-gate; Realtime ejer semantik;
+post-detectionlyd bevares, ingen wakeprefix som brugerinput; stale generationsgrænser;
+Talk uændret. Ingen gain/VAD/prompt/sensitivity/delay/fraseregler eller ny runtimevej.
+
+Hypotese: fast320ms callback-relative replay genindfører lyd før den faktiske
+behandlede detektorposition. En korreleret sampleposition fra samme rå mic-chunk,
+båret uændret gennem MWW-detektionen, kan kassere den gamle prefix og bevare alle
+senere samples trods inference-/main-loopkø. Producer-snapshot ved inference er
+udtrykkeligt afvist af uafhængigt årsagsreview: det kan være foran/bag modelinput.
+
+Plan før implementering: PV passiv callback publicerer fælles producerposition før
+MWW-callback fra samme mic-chunk; konfigurationen binder begge til samme fysiske mic
+og rate. MWW mapper faktisk consumed-featureposition til denne clock. Separate
+cursorer/generationer og kontrolleret bufferreset beskytter overflow/restart. Markør
+følger queued detection; firmware bruger den én gang og logfører produced, consumed,
+callback og retained. Ingen forkortelse ved senere start/keepalive. Forkert/stale/
+utilgængelig mapping fejler lukket. Den faktiske model kan stadig detektere sent;
+det skal måles fysisk, ikke antages væk.
+
+Regressioner: faktisk PCM-ring under pause+initialhale, direkte tale og korte spørgsmål;
+forsinket callback/backlog, begge callbackrækkefølger (forkert mapping afvises), wrap/
+overflow, samtidige producenter, dublet, keepalive, stale detection efter teardown/rearm.
+Test shippede/genererede komponenter og native/preconnect/Thin/Talk-feltregressioner.
+Uafhængigt adversarial review før én frossen releasegate og firmwarecompile. Release/
+installation dokumenteres særskilt. Rollback .77 med .76firmware; ingen ny kandidat
+arver fysisk godkendelse. Parret fysisk pause/same-breath og lifecycle kræves efter
+installation. Lokal implementering og 75 målrettede tests består; fuld releasegate,
+publicering, installation og fysisk bevis er endnu ikke gennemført.
+
+Uafhængigt review fandt check→trim-race, gammel feature over PVepoch og skjult Stop-
+blindperiode ved mappingtab. Atomisk claim med MWW→PV-låserækkefølge, streng PVepoch-
+floor og eksplicit Stop-fault ved shared-frontend-reset er implementeret. Actual
+worker-reset-regression bevarer fault og remapper frisk input; normal mic-close
+bevarer Stop/frontend. C++-harness kompilerer begge faktiske komponenter med platform-/
+modelstubs og PCM-ring. Det beviser mekanikken, ikke modellens akustiske detektionstid.
+ESPHome2026.6.2-konfiguration med lokale kandidatkomponenter består; actual final-
+validator afviser forkert fysisk mic og begge priorityoverrides. App sorterer setup
+faldende, PV101 før MWW100, MicrophoneSource registrerer direkte på samme callbackliste.
+Lokal pre-P2 firmwarecompile bestod116.6s; det er ikke det endelige artifact.
+Sourcefreeze-review: P0/P1/P2=0, uafhængigt4/4 C++harness PASS. Reviewer
+pause_076_causal_review; seks komponentfiler samletSHA
+1d87411a1afdd635e10006a0960f9bde1bcf36d5899c9452195f6b4be2336dcb.
+Kilden er lokalcommit61da40c0885e07641a334636f5f2548288ed84f1; begge ændrede
+komponentpakker er pinnet dertil. Partial-write og min64ms-ring er dækket.
+Whole-diff review: GO til frossen releasegate, P0/P1/P2=0. Reviewer har uafhængigt
+kørt4 C++harnesses og12 firmwarekontrakter; tidligere69/70 havde kun én forældet
+pin-assertion, som nu er rettet. Sourcecommit blev formatteret (Pythonimport),
+uden C++-/runtimeændring. Fast PASS77.2s, efter normale formatteringsrettelser og
+opdatering af den gamle testref. Scope er én ejergrænse: rearm. Ingen ændring af
+prompt/schema/Realtime-semantik, så ingen SafeEval. Frossen releasegate PASS40.4s: Ruff/format, mypy47, candidate-scope,
+unit og integration. Ingen manuel CI-genkørsel. Main er frisk verificeret52b1e5e.
+Offentlig kilde/image, endeligt pinned firmwarebuild, installation og fysisk bevis resterer.
+
+Sidste faktiske ESP32-compile fandt std::min-typekonflikt på32bit. Én eksplicit
+<size_t>-templateparameter rettede den uden semantisk ændring; særskilt review
+P0/P1/P2=0. Lokal endelig firmwarecompile PASS16.75s, ESPHome2026.6.2,
+config_hash0xd5520ca2, build11/9 12:14:30. Fem genererede C++/headerfiler er
+byteidentiske med source61da40c0885e07641a334636f5f2548288ed84f1; main har ny marker og wake-claimwiring.
+OTA3054064bytes SHA256dc897525790339ea17974dabfa280995c327ffdb244497e73a43b51eca0aad71.
+Firmware bruger lokale komponenter svarende til de kommende immutable pins;
+remote-pin-build kan først verificeres efter offentliggørelse. Ingen OTA udført.
+Den tidligere releasegate40.4s er superseded af denne compilerettelse; sidste diff
+fryses nu til ny gate. Automatisk review afviste publicering, fordi tidligere
+eksplicit approval dækkede .77, ikke19filerne i .78. Ingen publicering/PR/install.
+
+Endelig frossen gate efter compilerettelsen: PASS40.4s (Ruff/format, mypy47,
+candidate-scope, unit/integration). Komponentpins og18fil-integritet består.
+19 gennemgåede filer er lokalt klar; offentliggørelse og installation kræver
+brugerens eksplicitte .78-godkendelse efter automatisk afvisning. Ingen ny fysisk prøve.
+
 ## Aktiv lead-beslutning — .76 fejler ved pause, nu med gemt lyd
 
 Lead Codex,11/9. Brugerens præcisering: Hey Chat blev hørt; brugeren ventede,
@@ -99,7 +181,7 @@ for eksakt uafhængigt review er udvidet snævert til de fem analyse-/paneloverf
 Thin, adaptere og firmware afvises fortsat selv med en ny gyldig reviewhash.
 42 scope-/analysetests bestod før sidste ekstra web-only-negativkontrol.
 
-<!-- candidate-scope-coupling
+<!-- historical .77 scope record
 {
   "version": 1,
   "base_tip": "70a623a08e2dfb29328c9f391105deb30920924c",
