@@ -2,6 +2,53 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Lokal nøgle-handoff har nu scoped GO efter uafhængige Python3.12.13 socket-tests:
+partial body0.253s og tricklede headers0.329s, ingen accepteret nøgle. Reviewer
+verificerede finally-close og global admissionalarm. Endelig helperhash
+3bb2d7801432300ead1509b43bf25ead4c2c9291fa6cf9bd0af5593bf9bb4ccc afviger fra
+reviewet helper kun ved opdateret, reviewet evaluatorpin; begge sourceguards består.
+Leadens validate-only på de otte Sara-fixtures består uden providerforbindelse.
+Software og den første afgrænsede prøve er nu konkret klargjort. Videre provider-
+og installationsbevis kræver ulåst Mac til eksisterende HA-konfiguration/testvindue;
+remote-publicering kræver svar på den allerede sendte destinationsgodkendelse.
+Ingen faktisk API-evaluering, upload, release, installation eller fysisk gate i dette
+checkpoint. Målet er ikke opnået, og ingen releasegate startes før semantisk bevis.
+
+Syntetisk API-evaluator har nu uafhængigt Astra HIGH scoped GO på script
+2ce13fa93374375361568d5353373421fedf7ed8ba2a19fb4c5f810784b5d988 og tests
+d6dfd6a75dae5bf87623997068480d252073c633cf4fbe7c6fdd8ddadf7ac62a.
+Alle42 offline tests består; reviewer reproducerer gammelt/overlappende output som
+UNKNOWN og gyldigt senere output som OBSERVED_PASS. Eksakt startup-SEED-kontrol,
+2-connect cap, ægte Thin/SDK/policy og afgrænset cleanup er reviewet. GO gælder én
+afgrænset syntetisk prøve, ikke faktisk samtykkesemantik eller fysisk funktion.
+De otte syntetiske Sara-fixtures er valideret; ingen provider er kaldt endnu.
+Nøgle-handoff har fået global admission-deadline og bounded socketreads; ufuldstændig
+body/tricklede headers lukker i lokale tests uden accepteret nøgle. Den endelige
+reviewede evaluatorhash er nu pinned i handoff; endeligt handoff-review afventes.
+
+Eval-genreview:33 offline tests består efter de første to rettelser, men uafhængigt
+review reproducerer stadig forsinket gammelt output: spørgsmål på providerinterval
+8000–10000ms efterfulgt af senere modtaget output fra2000–3000ms gav falsk PASS.
+Kontekstcasen er derfor fortsat HOLD. Bedømmelsen skal bruge samme generation og
+providerens egne intervaller; ingen omregning til hosttid. Manglende/overlappende
+interval giver UNKNOWN. Startup-SEED-kontrollen er nu verificeret korrekt.
+Den eksisterende engangs-loopback-nøgleoverførsel er klargjort til én positiv
+60s/2-sessioners prøve i /private/tmp/podvoice-live-confirmation-handoff-01.py;
+den er ikke startet. 50 runtime-Pythonfiler og evaluatorens hash kontrolleres både
+før handoff og før childstart. Sourceguard mismatch-test består; særskilt review
+pågår. API-vindue og faktisk prøve afventer fortsat ulåst Mac. Ingen nøgle er læst,
+intet produktionsstop og intet API-kald er udført i dette trin.
+
+Samlet fast77163 på runtimecheckpoint5e49a9c plus første frosne evalscript består:
+Ruff/format43filer, mypy50sources, hele pytest88.94s, samlet89.3s. Dette beviser ikke
+at evaluatorens verdict er korrekt. Uafhængigt review reproducerer to falske PASS:
+mørkegrøn før followup kan tælle som svar efter followup; gammelt-ja cases kan
+PASS uden bevis for at SEED var i generation2 startup input. Derfor HOLD på
+evaluator fc78786a6d36eaadca8aa7063581be69791867104ae98090e29177c619ba51fb,
+ingen faktisk API-prøve. Owner retter kun de to bedømmelsesgrænser efter fuld gate
+blev terminal. 26 offline tests og manifestvalidering er ikke semantisk accept.
+Ingen ny runtimefejl er udledt af disse testværktøjsfejl.
+
 Efter prototypefjernelse består24 releasekontrakt/live-policy/execution-guard-tests
 og git diff --check. Identitetsændringen har27 målrettede tests og uafhængigt review;
 lokal firmwarecompile er bestået som beskrevet nedenfor. Dette er et lokalt
