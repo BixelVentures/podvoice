@@ -137,6 +137,18 @@ class _Batch:
     reserved_tokens: int = 0
 
 
+@dataclass
+class _TerminalReceipt:
+    response_id: str
+    delegation_id: str
+    generation: int
+    future: asyncio.Future[bool]
+    submitted: bool = False
+    command_id: str | None = None
+    continuation_id: str | None = None
+    completed: bool = False
+
+
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict:
     result = {}
     for key, value in pairs:
@@ -233,6 +245,7 @@ class OpenAILiveSession:
         self._continuation_pending = False
         self._continuation_inflight = False
         self._text_continuation_id: str | None = None
+        self._terminal_receipt: _TerminalReceipt | None = None
         self._validators: dict[str, Draft202012Validator] = {}
         self._resampler = StreamResampler(input_rate, 24000)
         self.final_usage_seconds: float | None = None
@@ -363,6 +376,7 @@ class OpenAILiveSession:
             self._webrtc_offer_consumed = True
         # Diagnostic ownership is key-global even though token accounting is backend-specific.
         self._lease = self.provider_budget.production_started(self.api_key, self.backend_model)
+        self._cancel_terminal_receipt()
         self._connection_generation += 1
         generation = self._connection_generation
         self.backend_sequence = 0
@@ -516,6 +530,7 @@ class OpenAILiveSession:
             self._queue.put_nowait(failure)
         finally:
             if generation == self._connection_generation:
+                self._cancel_terminal_receipt()
                 self._closed.set()
 
     async def _handle(self, event: dict, generation: int) -> None:
@@ -529,6 +544,7 @@ class OpenAILiveSession:
         ):
             raise LiveProtocolError("live_event_before_readiness")
         if kind == "error":
+            self._cancel_terminal_receipt()
             raise LiveProtocolError("live_provider_error")
         if kind == "session.started":
             session_id = event["session"]["id"]
@@ -597,6 +613,7 @@ class OpenAILiveSession:
             self._usage_voice_seconds = float(seconds)
             self._emit(LiveUsage(float(seconds), final, generation))
             if final:
+                self._cancel_terminal_receipt()
                 self.final_usage_seconds = float(seconds)
                 self._close_requested = True
                 self._emit(
@@ -613,10 +630,15 @@ class OpenAILiveSession:
             if waiter is not None and not waiter.done():
                 waiter.set_result(None)
         elif kind == "response.event":
-            self._backend(event, generation)
-            if self._continuation_pending and not self._close_requested:
-                async with self._send_lock:
-                    await self._continue_backend(generation)
+            try:
+                self._backend(event, generation)
+                if self._continuation_pending and not self._close_requested:
+                    async with self._send_lock:
+                        await self._continue_backend(generation)
+                self._settle_terminal_receipt()
+            except BaseException:
+                self._cancel_terminal_receipt()
+                raise
 
     @staticmethod
     def _usage(value: Any) -> dict | None:
@@ -665,7 +687,31 @@ class OpenAILiveSession:
                 raise LiveProtocolError("duplicate_or_overlapping_live_response")
             if len(self._seen_responses) >= 512:
                 raise LiveProtocolError("live_response_limit")
-            self._continuation_inflight = False
+            receipt = self._terminal_receipt
+            if receipt is not None and receipt.future.done():
+                receipt.completed = False  # New work permanently retires a settled end intent.
+            waiting = receipt is not None and not receipt.future.done()
+            awaiting_created = (
+                waiting
+                and receipt is not None
+                and receipt.command_id is not None
+                and receipt.continuation_id is None
+            )
+            if waiting and receipt is not None and delegation == receipt.delegation_id:
+                if receipt.command_id is None or receipt.continuation_id is not None:
+                    # Work started before our result continuation, or an additional
+                    # response reopened this delegation. Neither settles the intent.
+                    receipt.future.set_result(False)
+                else:
+                    correlated = envelope.get("client_event_id")
+                    if correlated is not None and correlated != receipt.command_id:
+                        raise LiveProtocolError("live_terminal_continuation_mismatch")
+                    receipt.continuation_id = response_id
+            # A foreign delegation is not the response requested for this receipt.
+            if not awaiting_created or (
+                receipt is not None and delegation == receipt.delegation_id
+            ):
+                self._continuation_inflight = False
             self._seen_responses.add(response_id)
             self._responses[delegation] = _Response(response_id, [])
             self.backend_sequence += 1
@@ -710,6 +756,17 @@ class OpenAILiveSession:
         self._emit(LiveBackendComplete(delegation, state.id, status, usage, generation))
         if status != "completed":
             raise LiveProtocolError("live_backend_not_completed")
+        receipt = self._terminal_receipt
+        if (
+            receipt is not None
+            and not receipt.future.done()
+            and receipt.continuation_id == state.id
+            and receipt.delegation_id == delegation
+        ):
+            if state.calls:
+                receipt.future.set_result(False)
+            else:
+                receipt.completed = True
         if self._close_requested or not state.calls:
             return
         if usage is None:
@@ -876,9 +933,12 @@ class OpenAILiveSession:
         )
         return self.provider_budget.has_capacity(self._lease, aggregate)
 
-    async def send_tool_results(
-        self, response_id: str, results: list[dict], *, generation: int
-    ) -> None:
+    def create_terminal_receipt(self, response_id: str, *, generation: int) -> asyncio.Future[bool]:
+        """Observe required backend settlement, never primary speech completion.
+
+        Register before sending this admitted batch's results. The caller waits
+        outside its tool lock and may cancel the receipt when new input arrives.
+        """
         self._active(generation)
         batch = self._batches.get(response_id)
         if (
@@ -886,26 +946,96 @@ class OpenAILiveSession:
             or batch.event.generation != generation
             or not batch.admitted
             or batch.submitting
+            or (self._terminal_receipt is not None and not self._terminal_receipt.future.done())
         ):
-            raise LiveProtocolError("unadmitted_live_results")
-        ids = [call.id for call in batch.event.calls]
-        if [result.get("id") for result in results] != ids:
-            raise LiveProtocolError("live_result_batch_mismatch")
-        outputs = [bounded_tool_output(result.get("response")) for result in results]
-        if any(len(output.encode("utf-8")) > self.result_byte_limit for output in outputs):
-            raise LiveProtocolError("live_result_too_large")
-        batch.submitting = True
-        async with self._send_lock:
-            async with asyncio.timeout(self.timeout_s):
-                for call_id, output in zip(ids, outputs, strict=True):
-                    connection = self._active(generation)
-                    await connection.response.item.create(
-                        item={"type": "function_call_output", "call_id": call_id, "output": output}
-                    )
-                self._active(generation)
-                self._batches.pop(response_id, None)
-                self._continuation_pending = True
-                await self._continue_backend(generation)
+            raise LiveProtocolError("unadmitted_live_terminal_receipt")
+        future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+        self._terminal_receipt = _TerminalReceipt(
+            response_id, batch.event.delegation_id, generation, future
+        )
+        return future
+
+    def terminal_receipt_current(self, future: asyncio.Future[bool]) -> bool:
+        """A settled end intent remains valid only until new backend work starts."""
+        receipt = self._terminal_receipt
+        return bool(
+            receipt is not None
+            and receipt.future is future
+            and future.done()
+            and not future.cancelled()
+            and future.result() is True
+            and receipt.completed
+            and receipt.generation == self._connection_generation
+            and not self._close_requested
+            and not self._closed.is_set()
+            and not self._responses
+            and not self._batches
+            and not self._continuation_pending
+            and not self._continuation_inflight
+        )
+
+    def _cancel_terminal_receipt(self) -> None:
+        receipt, self._terminal_receipt = self._terminal_receipt, None
+        if receipt is not None and not receipt.future.done():
+            receipt.future.cancel()
+
+    def _settle_terminal_receipt(self) -> None:
+        receipt = self._terminal_receipt
+        if (
+            receipt is not None
+            and not receipt.future.done()
+            and receipt.completed
+            and receipt.generation == self._connection_generation
+            and not self._close_requested
+            and not self._closed.is_set()
+            and not self._responses
+            and not self._batches
+            and not self._continuation_pending
+            and not self._continuation_inflight
+        ):
+            receipt.future.set_result(True)
+
+    async def send_tool_results(
+        self, response_id: str, results: list[dict], *, generation: int
+    ) -> None:
+        self._active(generation)
+        try:
+            batch = self._batches.get(response_id)
+            if (
+                batch is None
+                or batch.event.generation != generation
+                or not batch.admitted
+                or batch.submitting
+            ):
+                raise LiveProtocolError("unadmitted_live_results")
+            ids = [call.id for call in batch.event.calls]
+            if [result.get("id") for result in results] != ids:
+                raise LiveProtocolError("live_result_batch_mismatch")
+            outputs = [bounded_tool_output(result.get("response")) for result in results]
+            if any(len(output.encode("utf-8")) > self.result_byte_limit for output in outputs):
+                raise LiveProtocolError("live_result_too_large")
+            batch.submitting = True
+            async with self._send_lock:
+                async with asyncio.timeout(self.timeout_s):
+                    for call_id, output in zip(ids, outputs, strict=True):
+                        connection = self._active(generation)
+                        await connection.response.item.create(
+                            item={
+                                "type": "function_call_output",
+                                "call_id": call_id,
+                                "output": output,
+                            }
+                        )
+                    self._active(generation)
+                    self._batches.pop(response_id, None)
+                    receipt = self._terminal_receipt
+                    if receipt is not None and receipt.response_id == response_id:
+                        receipt.submitted = True
+                    self._continuation_pending = True
+                    await self._continue_backend(generation)
+        except BaseException:
+            self._cancel_terminal_receipt()
+            raise
 
     async def _continue_backend(self, generation: int) -> None:
         """Called under the send lock; never continue before every required result."""
@@ -918,6 +1048,15 @@ class OpenAILiveSession:
             return
         connection = self._active(generation)
         event_id = self._text_continuation_id
+        receipt = self._terminal_receipt
+        if (
+            receipt is not None
+            and not receipt.future.done()
+            and receipt.submitted
+            and receipt.command_id is None
+        ):
+            event_id = event_id or f"terminal_{uuid.uuid4().hex}"
+            receipt.command_id = event_id
         self._continuation_pending = False
         self._continuation_inflight = True
         self._text_continuation_id = None
@@ -944,6 +1083,7 @@ class OpenAILiveSession:
             self._append_waiters.pop(event_id, None)
 
     async def request_close(self) -> None:
+        self._cancel_terminal_receipt()
         startup = self._startup_task
         if startup is not None and startup is not asyncio.current_task() and not startup.done():
             self._close_requested = True
@@ -992,6 +1132,7 @@ class OpenAILiveSession:
                 # A cancellation-resistant startup retains ownership until its own cleanup.
 
     async def _release(self) -> None:
+        self._cancel_terminal_receipt()
         self._close_requested = True
         if (
             self.transport == "webrtc"

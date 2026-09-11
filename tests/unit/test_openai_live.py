@@ -1020,3 +1020,297 @@ async def test_webrtc_receiver_failure_still_explicitly_closes_primary_once(fail
     await session.close()
     second.session.close.assert_awaited_once()
     assert session.final_usage_seconds == 5
+
+
+async def terminal_receipt(session):
+    await stage(session)
+    generation = session._connection_generation
+    await session.admit_tool_batch("r1", generation)
+    return session.create_terminal_receipt("r1", generation=generation)
+
+
+async def submit_terminal_results(session):
+    await session.send_tool_results(
+        "r1",
+        [{"id": "c1", "response": {"ok": True}}],
+        generation=session._connection_generation,
+    )
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_waits_for_actual_matching_zero_call_continuation():
+    session, sdk, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    await submit_terminal_results(session)
+    assert not receipt.done()  # SDK write completion is not backend completion.
+    command = sdk.response.create.await_args.kwargs["event_id"]
+    event = created("r2")
+    event["client_event_id"] = command
+    await session._handle(event, 1)
+    assert not receipt.done()
+    await session._handle(terminal("r2"), 1)
+    assert await receipt is True
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_retains_completion_before_result_sender_returns():
+    session, sdk, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+
+    async def complete_during_write(**_):
+        await session._handle(created("r2"), 1)
+        await session._handle(terminal("r2"), 1)
+
+    sdk.response.create.side_effect = complete_during_write
+    await submit_terminal_results(session)
+    assert await receipt is True  # Missing optional client_event_id is not a made-up ACK.
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_foreign_response_cannot_consume_continuation_expectation():
+    session, _, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    await submit_terminal_results(session)
+    await session._handle(created("foreign", "d2"), 1)
+    await session._handle(terminal("foreign", delegation="d2"), 1)
+    assert session._continuation_inflight
+    assert not receipt.done()
+    await session._handle(created("r2"), 1)
+    await session._handle(terminal("r2"), 1)
+    assert await receipt is True
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_waits_for_other_known_backend_work():
+    session, _, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    await submit_terminal_results(session)
+    await session._handle(created("r2"), 1)
+    await session._handle(created("foreign", "d2"), 1)
+    await session._handle(terminal("r2"), 1)
+    assert not receipt.done()
+    await session._handle(terminal("foreign", delegation="d2"), 1)
+    assert await receipt is True
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_further_tools_abandon_closure_without_blocking_dispatch():
+    session, sdk, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    await submit_terminal_results(session)
+    await session._handle(created("r2"), 1)
+    await session._handle(call("c2"), 1)
+    await session._handle(terminal("r2"), 1)
+    assert await receipt is False
+    assert "r2" in session._batches
+    await session.admit_tool_batch("r2", 1)
+    await session.send_tool_results("r2", [{"id": "c2", "response": {}}], generation=1)
+    assert sdk.response.create.await_count == 2
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_is_not_armed_until_all_required_results_are_submitted():
+    session, sdk, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    await session._handle(created("foreign", "d2"), 1)
+    await session._handle(call("c2", delegation="d2"), 1)
+    await session._handle(terminal("foreign", delegation="d2"), 1)
+    await submit_terminal_results(session)
+    sdk.response.create.assert_not_called()
+    assert not receipt.done()
+    await session.admit_tool_batch("foreign", 1)
+    await session.send_tool_results("foreign", [{"id": "c2", "response": {}}], generation=1)
+    sdk.response.create.assert_awaited_once()
+    await session._handle(created("r2"), 1)
+    await session._handle(terminal("r2"), 1)
+    assert await receipt is True
+    await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_event", [created("r1"), terminal("r1"), created("r2")])
+async def test_terminal_receipt_replay_or_mismatched_command_cannot_settle(bad_event):
+    session, _, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    await submit_terminal_results(session)
+    bad_event["client_event_id"] = "unrelated-command"
+    with pytest.raises(LiveProtocolError):
+        await session._handle(bad_event, 1)
+    assert receipt.cancelled()
+    await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["failed", "incomplete"])
+async def test_terminal_receipt_failed_continuation_cancels(status):
+    session, _, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    await submit_terminal_results(session)
+    await session._handle(created("r2"), 1)
+    with pytest.raises(LiveProtocolError, match="live_backend_not_completed"):
+        await session._handle(terminal("r2", status=status), 1)
+    assert receipt.cancelled()
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_stop_and_restart_reject_late_generation():
+    session, _, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    await submit_terminal_results(session)
+    await session.request_close()
+    assert receipt.cancelled()
+    await session.close()
+    await session.connect()
+    fresh = await terminal_receipt(session)
+    await submit_terminal_results(session)
+    await session._handle(created("r2"), 1)
+    await session._handle(terminal("r2"), 1)
+    assert not fresh.done()
+    await session._handle(created("r2"), 2)
+    await session._handle(terminal("r2"), 2)
+    assert await fresh is True
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_caller_cancellation_does_not_cancel_backend_work():
+    session, _, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    await submit_terminal_results(session)
+    receipt.cancel()
+    await session._handle(created("r2"), 1)
+    await session._handle(call("c2"), 1)
+    await session._handle(terminal("r2"), 1)
+    assert receipt.cancelled()
+    assert "r2" in session._batches
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_submission_failure_cancels_waiter():
+    session, sdk, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    sdk.response.item.create.side_effect = OSError("fake write failure")
+    with pytest.raises(OSError):
+        await submit_terminal_results(session)
+    assert receipt.cancelled()
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_registration_requires_admitted_unsubmitted_unique_batch():
+    session, _, _ = provider()
+    await session.connect()
+    await stage(session)
+    with pytest.raises(LiveProtocolError, match="unadmitted"):
+        session.create_terminal_receipt("r1", generation=1)
+    await session.admit_tool_batch("r1", 1)
+    receipt = session.create_terminal_receipt("r1", generation=1)
+    with pytest.raises(LiveProtocolError, match="unadmitted"):
+        session.create_terminal_receipt("r1", generation=1)
+    await submit_terminal_results(session)
+    receipt.cancel()
+    with pytest.raises(LiveProtocolError, match="unadmitted"):
+        session.create_terminal_receipt("r1", generation=1)
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_webrtc_uses_same_backend_settlement_contract():
+    session, _, _ = webrtc_provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    await submit_terminal_results(session)
+    await session._handle(created("r2"), 1)
+    await session._handle(terminal("r2"), 1)
+    assert await receipt is True
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_stop_cancels_waiter_while_result_write_is_blocked():
+    session, sdk, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def blocked_write(**_):
+        entered.set()
+        await release.wait()
+
+    sdk.response.item.create.side_effect = blocked_write
+    sender = asyncio.create_task(submit_terminal_results(session))
+    await entered.wait()
+    await session.request_close()
+    assert receipt.cancelled()
+    release.set()
+    with pytest.raises(LiveProtocolError):
+        await sender
+    sdk.response.create.assert_not_called()
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_receiver_failure_cancels_waiter():
+    session, sdk, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    await submit_terminal_results(session)
+    await sdk.incoming.put(None)
+    await asyncio.wait_for(session._closed.wait(), 0.2)
+    assert receipt.cancelled()
+    with pytest.raises(LiveProtocolError):
+        await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_invalid_results_cancel_only_current_generation():
+    session, _, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    with pytest.raises(LiveProtocolError):
+        await session.send_tool_results("r1", [], generation=0)
+    assert not receipt.done()
+    with pytest.raises(LiveProtocolError, match="batch_mismatch"):
+        await session.send_tool_results("r1", [], generation=1)
+    assert receipt.cancelled()
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_waits_through_foreign_tools_and_their_required_continuation():
+    session, sdk, _ = provider()
+    await session.connect()
+    receipt = await terminal_receipt(session)
+    await submit_terminal_results(session)
+    await session._handle(created("r2"), 1)
+    await session._handle(created("foreign", "d2"), 1)
+    await session._handle(call("c2", delegation="d2"), 1)
+    await session._handle(terminal("foreign", delegation="d2"), 1)
+    await session._handle(terminal("r2"), 1)
+    assert not receipt.done()
+    await session.admit_tool_batch("foreign", 1)
+    await session.send_tool_results("foreign", [{"id": "c2", "response": {}}], generation=1)
+    assert sdk.response.create.await_count == 2
+    assert not receipt.done()
+    await session._handle(created("foreign_next", "d2"), 1)
+    await session._handle(terminal("foreign_next", delegation="d2"), 1)
+    assert await receipt is True
+    await session.close()

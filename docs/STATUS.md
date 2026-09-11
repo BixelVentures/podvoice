@@ -2,6 +2,62 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Terminalreceipt-diffet har uafhængigt Astra HIGH scoped GO (grace_review):110 tests
+(78 SDK +32 Thin) består. Tre reproducerede races er rettet: nyt backendarbejde
+invaliderer gammel close permanent; correction før waiterstart annullerer receipt
+synkront; gammel waiter/callback må ikke ændre ny ejers ending-state eller receipt.
+Reviewede sourcehashes: SDK b97bb4ffe519c646c8dee5f35283082fe45d39ae237a9ede48d8a4c21c7367e9,
+Thin f48ed33474322a0768af6082d15874f5e1c6994c46a46877aa7dd97b3c55165b.
+Samlet fast14942 består Ruff/format/mypy; pytest blev ugyldiggjort af sandbox
+socket.bind PermissionError, isoleret med én aiohttp-test. Genkørsel80961 med
+loopback-adgang har én gammel Talk-testfejl (direkte internt funktionskald uden
+receipt). Testen går nu gennem faktisk SDK backend-end/result/continuation og
+alle4 Talk WebRTC-tests består. Ingen runtimepatch afledt af miljø/testfejlene.
+Samlet fast83849 på det frosne diff består: Ruff/format38filer, mypy51sources,
+hele tests-træet83.63s, samlet84.1s. Release/install/fysisk gate stadig ikke bestået. Grace er fortsat eksplicit heuristik og stemmegodkendelse mangler.
+
+Den forberedte 4s-prøve evidence-api-01 udløb før browserens Start: kun prepared/cleanup,
+0 bytes provider/browserlyd og ingen API-session. Proces74052 er terminal. Næste
+browserkontrol møder låst Mac; ingen Alpha-installation eller produktionsstop er
+udført i denne prøve. Softwarearbejdet fortsætter; dette er ikke en providerfejl.
+
+Næste runtimekorrektion retter den observerede backend-grænse før farvel. Direkte
+kodebevis: Thin starter grace efter send_tool_results-return; LiveBackendComplete
+emitteres før klassifikation af function-items; enhver response.created rydder den
+nuværende globale continuation-inflight. Ingen af disse er et korreleret settlement.
+Adapteren får én generation/batch/delegation-bundet terminalreceipt registreret før
+resultatskrivning, bundet først når faktisk continuation udsendes og dens nye respons
+observeres. Den afsluttes kun efter korrekt completed nul-call respons og intet
+udestående krævet arbejde. Flere toolcalls opgiver natural-close, men må dispatches.
+Thin venter uden tool-lock og bevarer inputrevision/epoch/Stop-grænser. Stemmeinput
+og accepteret typed correction afbryder pending settlement/grace; silent-end venter
+samme backend men uden talegrace. Tests: sen/foreign/duplicate respons, completion
+før write-return, flere toolcalls, typed/voice correction, Stop→ny wake→sen completion.
+Ingen output-done-claim. Graceværdien optimeres først fra den separate lydprøve.
+Adversarial review reproducerer ny backend under grace: gammel close ville lukke
+med pending response. Derfor invaliderer adapterens næste response.created permanent
+det afsluttede intent; Thin genkontrollerer efter settlement og før close. Regression
+skal dække både pending og allerede færdigt nyt arbejde samt køet event.
+Rollback er receipt/Thin-ending-diffet; uafhængig anden reviewer før accept.
+
+Uafhængigt API-review af backend-first-prøven finder3.35ms fra sidste backend-
+completion til close-request; sidste output-PCM ligger før completion. Kun output-
+transcriptet3200–3400ms ligger før første tool-completion. Protokol består, farvel-UX
+fejler: øjeblikkelig close giver ikke den primære stemme en brugbar mulighed for
+farvel. Mindste næste developer-kandidat bevarer prompt/tool/continuation og tillader
+4.0s eksplicit eksperimentel, annullerbar ending-grace EFTER completed continuation,
+med I/O åbent. Ingen tale-færdig-claim, ingen stilhedsdetektor/ny LLM/prompttuning.
+Derefter samme officielle close/closed og cleanup; samlet30s bound bevares. Grace
+skal afbrydes af Stop og må ikke skjule manglende farvel i capture. Valget4.0s er en
+prøveværdi for levedygtighed, endnu ikke målt optimum eller runtimegodkendelse.
+
+Samlet fast på f293e65: Ruff/format38filer og mypy51sources består; pytest82.14s
+har én fejl i gammel string-kontrakt test_panel_contract.py:169, som kræver direkte
+pagehide→micStop. Shippet handler lukker nu også Live-peer før micStop. Dette er
+observeret forældet testforventning, ikke grund til runtimepatch. Testen opdateres
+med faktisk side-/socketcleanup og relevant browseradfærd; genkørsel skal dække den
+invaliderede pytest-gate. Checkpoint er endnu ikke samlet grønt.
+
 Talk WebRTC-wiring har nu uafhængigt Astra HIGH scoped GO uden åbne P0/P1/P2 på
 Thin dabd0a4d / Talk03b2cbcd / UI230c4b57. Reviewer gentog106 tests og kørte den
 faktiske browserkode med ekstra Stop-races: pending getUserMedia, sen remoteanswer,

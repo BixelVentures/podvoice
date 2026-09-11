@@ -4,8 +4,8 @@ import asyncio
 
 import pytest
 from test_talk_stop import Wire
-from test_thin_live import build, until
-from unit.test_openai_live import WebRTCSDK
+from test_thin_live import build, emit, until
+from unit.test_openai_live import WebRTCSDK, call, created, terminal
 
 from gatekeeper.talk import BrowserLink, run_talk
 
@@ -151,7 +151,10 @@ async def test_typed_first_websocket_off_and_automatic_close_is_not_false_media_
         assert wire.result("typed-first")["status"] == "submitted"
         monkeypatch.setattr(thin_module, "LIVE_CLOSE_GRACE_S", 0)
         wire.stop_ack = False  # Official session.closed cleanup does not require a drain ACK.
-        await session._finish_live_conversation(session._epoch)
+        response_count = wire.sdk.response.create.await_count
+        await emit(wire.sdk, created(), call(name="end_conversation", arguments="{}"), terminal())
+        await until(lambda: wire.sdk.response.create.await_count == response_count + 1)
+        await emit(wire.sdk, created("r2"), terminal("r2"))
         await until(lambda: not session._active)
         assert session._trace_reason == "live-browser-drain-unconfirmed"
         assert any(

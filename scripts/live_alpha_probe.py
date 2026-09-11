@@ -20,7 +20,8 @@ This stub does not select semantic end actions, so no model-end boundary is synt
 --instruction-probe appends one fixed harmless instruction eight seconds after readiness.
 An instructions.appended receipt does not prove the model followed it or caused later speech.
 --farewell-trial replaces the status tool with one harmless terminal stub, submits its
-completed exclusive result and waits for one managed continuation before requesting close.
+completed exclusive result and waits for one managed continuation plus a cancellable
+four-second heuristic grace before requesting close. Fresh observed input invalidates it.
 Backend completion is not a primary speech-completion guarantee.
 Requires an isolated Python 3.12 environment with openai[realtime] supporting Live.
 Source: https://developers.openai.com/api/docs/guides/voice-websockets?api=live
@@ -53,6 +54,7 @@ INSTRUCTION_PROBE_TIMEOUT_S = 15.0
 INSTRUCTION_PROBE_TEXT = "Spørg nu: Vil du starte prøvehandlingen? Udfør ingen handling."
 FAREWELL_TEXT = "Farvel, og tak for den hyggelige snak."
 FAREWELL_TOOL = "finish_farewell_probe"
+FAREWELL_GRACE_S = 4.0
 
 
 def session_config(*, farewell_trial: bool = False) -> dict[str, Any]:
@@ -140,6 +142,9 @@ class Probe:
         self.farewell_trial = farewell_trial
         self.terminal_requested = asyncio.Event()
         self.farewell_response: tuple[str, str] | None = None
+        self.farewell_invalidated = asyncio.Event()
+        self.farewell_close_generation = 0
+        self.farewell_grace_elapsed = False
         self.timeline = timeline
         self.sequence = 0
         self.timeline_failed = False
@@ -194,6 +199,8 @@ class Probe:
         if self.finalized.is_set():
             return  # A completed socket generation can never affect a later probe.
         kind = event.get("type")
+        if kind == "session.input_transcript.delta" and event.get("delta"):
+            self.invalidate_farewell_grace("observed_input_transcript")
         if kind in {"error", "session.started", "session.closed", "session.usage.updated"}:
             self.trace(kind, **self.correlations(event))
         if self.timeline is not None and kind in {
@@ -421,8 +428,22 @@ class Probe:
                 terminal_requested=self.terminal_requested.is_set(),
                 semantic_farewell_verified=False,
                 backend_continuation_completed=self.terminal_requested.is_set(),
+                heuristic_grace_seconds=FAREWELL_GRACE_S,
+                heuristic_grace_elapsed=self.farewell_grace_elapsed,
+                natural_close_invalidated=self.farewell_invalidated.is_set(),
             )
         return report
+
+    def invalidate_farewell_grace(self, reason: str) -> None:
+        if (
+            self.farewell_trial
+            and self.terminal_requested.is_set()
+            and not self.farewell_invalidated.is_set()
+        ):
+            self.farewell_close_generation += 1
+            self.farewell_grace_elapsed = False
+            self.farewell_invalidated.set()
+            self.trace("application.farewell_grace.invalidated", reason=reason)
 
     def require_farewell_finalization(self) -> None:
         seconds = self.voice_usage.get("seconds")
@@ -535,6 +556,32 @@ async def append_instruction_probe(connection: Any, probe: Probe, stop: asyncio.
     probe.trace("session.instructions.append.return", **refs)
 
 
+async def wait_farewell_grace(probe: Probe) -> bool:
+    """A heuristic timer owned by the runner, never a provider or speech-done event."""
+    await probe.terminal_requested.wait()
+    generation = probe.farewell_close_generation
+    if probe.closing or probe.finalized.is_set() or probe.farewell_invalidated.is_set():
+        return False
+    probe.trace("application.farewell_grace.started", seconds=FAREWELL_GRACE_S)
+    try:
+        await asyncio.wait_for(probe.farewell_invalidated.wait(), FAREWELL_GRACE_S)
+        return False
+    except TimeoutError:
+        if (
+            generation != probe.farewell_close_generation
+            or probe.closing
+            or probe.finalized.is_set()
+            or probe.farewell_invalidated.is_set()
+        ):
+            return False
+        probe.farewell_grace_elapsed = True
+        probe.trace("application.farewell_grace.elapsed", speech_completion_proven=False)
+        return True
+    except asyncio.CancelledError:
+        probe.trace("application.farewell_grace.cancelled")
+        raise
+
+
 async def run(
     connection: Any,
     probe: Probe,
@@ -600,8 +647,9 @@ async def run(
             ]
         )
         watched = {receiver, *tasks[2:]}
+        terminal_task = None
         if probe.farewell_trial:
-            terminal_task = asyncio.create_task(probe.terminal_requested.wait())
+            terminal_task = asyncio.create_task(wait_farewell_grace(probe))
             tasks.append(terminal_task)
             watched.add(terminal_task)
         instruction_task = None
@@ -625,6 +673,11 @@ async def run(
                 # Successful SDK return leaves input/output and the original deadline active.
                 watched.remove(instruction_task)
                 done.remove(instruction_task)
+            if terminal_task in done and (
+                not terminal_task.result() or not probe.farewell_grace_elapsed
+            ):
+                watched.remove(terminal_task)
+                done.remove(terminal_task)
             if done:
                 break
     finally:

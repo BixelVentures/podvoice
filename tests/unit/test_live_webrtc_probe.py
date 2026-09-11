@@ -298,12 +298,16 @@ vm.runInNewContext(script,context);
     assert result.returncode == 0, result.stderr
 
 
-async def test_farewell_sideband_keeps_reflected_tail_and_closes_after_backend_continuation(
+@pytest.mark.parametrize("scenario", ["natural", "stop", "input", "stale", "deadline"])
+async def test_farewell_sideband_keeps_reflected_tail_during_owned_cancellable_grace(
     tmp_path,
+    monkeypatch,
+    scenario,
 ):
     import io
 
     sdk = SDK()
+    monkeypatch.setitem(M.wait_farewell_grace.__globals__, "FAREWELL_GRACE_S", 0.02)
     timeline, provider_audio = io.StringIO(), io.BytesIO()
     probe = M.WebRTCProbe(
         "fake-key",
@@ -315,6 +319,17 @@ async def test_farewell_sideband_keeps_reflected_tail_and_closes_after_backend_c
         provider_audio=provider_audio,
         browser_audio=io.BytesIO(),
     )
+    grace_started, audio_written = asyncio.Event(), asyncio.Event()
+    original_trace = probe.probe.trace
+
+    def trace(kind, **fields):
+        original_trace(kind, **fields)
+        if kind == "application.farewell_grace.started":
+            grace_started.set()
+        elif kind == "session.output_audio.delta":
+            audio_written.set()
+
+    monkeypatch.setattr(probe.probe, "trace", trace)
     await probe.create("offer")
     await probe.ready("live_test")
     sdk.connection.response.item.create.assert_not_awaited()
@@ -374,17 +389,54 @@ async def test_farewell_sideband_keeps_reflected_tail_and_closes_after_backend_c
         await sdk.incoming.put(
             json.dumps({"type": "response.event", "delegation_id": "d", "event": event})
         )
+    await asyncio.wait_for(grace_started.wait(), 0.5)
+    await sdk.incoming.put(
+        json.dumps(
+            {
+                "type": "session.output_audio.delta",
+                "delta": "AwAEAA==",
+                "start_ms": 10,
+                "end_ms": 11,
+            }
+        )
+    )
+    await asyncio.wait_for(audio_written.wait(), 0.5)
+    assert not any(x[0] == "session.close" for x in sdk.sent)
+    if scenario == "stop":
+        await probe.stop()
+    elif scenario == "deadline":
+        monkeypatch.setattr(M, "MAX_SESSION_S", 0)
+        await probe.expire()
+    elif scenario == "input":
+        await sdk.incoming.put(
+            json.dumps({"type": "session.input_transcript.delta", "delta": "private new input"})
+        )
+        await asyncio.wait_for(probe.farewell_grace_task, 0.5)
+        assert not probe.stop_started
+        assert not any(x[0] == "session.close" for x in sdk.sent)
+        await probe.stop()
+    elif scenario == "stale":
+        probe.session_id = "fresh-session-identity"
+        await asyncio.wait_for(probe.farewell_grace_task, 0.5)
+        assert not probe.stop_started
+        assert not any(x[0] == "session.close" for x in sdk.sent)
+        probe.session_id = "live_test"
+        await probe.stop()
     await asyncio.wait_for(probe.done.wait(), 1)
-    assert provider_audio.getvalue() == b"\x01\x00\x02\x00"
+    assert provider_audio.getvalue() == b"\x03\x00\x04\x00\x01\x00\x02\x00"
     assert probe.closed.is_set() and probe.probe.terminal_requested.is_set()
     sdk.connection.response.item.create.assert_awaited_once()
     sdk.connection.response.create.assert_awaited_once()
     assert probe.probe.backend_usage == [{"total_tokens": 1}, {"total_tokens": 2}]
     assert [x[0] for x in sdk.sent].count("session.close") == 1
     rows = [json.loads(row) for row in timeline.getvalue().splitlines()]
-    pcm = next(row for row in rows if row["source_event"] == "session.output_audio.delta")
+    pcm = [row for row in rows if row["source_event"] == "session.output_audio.delta"][-1]
     assert pcm["start_ms"] == 20 and pcm["end_ms"] == 21
     assert "fake-key" not in timeline.getvalue()
+    assert "private new input" not in timeline.getvalue()
+    assert any(r["kind"] == "farewell_grace_close_requested" for r in probe.records) == (
+        scenario == "natural"
+    )
 
 
 @pytest.mark.parametrize("payload", [b"webm-fixture", b"", b"x" * (M.MAX_CAPTURE_BYTES + 1)])

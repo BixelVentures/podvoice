@@ -389,6 +389,7 @@ class ThinSession:
         self._live_output_bytes = 0
         self._live_input_revision = 0
         self._live_backend_revisions: dict[str, int] = {}
+        self._live_end_receipt: asyncio.Future[bool] | None = None
         self._live_usage_seconds = 0.0
         self._live_provider_closed = asyncio.Event()
         self._live_finalizing = False
@@ -1824,14 +1825,7 @@ class ThinSession:
                     end_ms=ev.end_ms,
                     input_revision=self._live_input_revision,
                 )
-                if (
-                    self._goodbye is not None
-                    and not self._goodbye.done()
-                    and not self._live_finalizing
-                ):
-                    self._goodbye.cancel()
-                    self._goodbye = None
-                    self._ending_conversation = False
+                self._cancel_live_end()
             if self.hub is not None:
                 self.hub.transcript(
                     self.room, ev.direction, ev.text, session=self._history_session or None
@@ -2010,17 +2004,33 @@ class ThinSession:
                     results.append({"id": call.id, "name": call.name, "response": result})
                     if not current():
                         return  # Never replay an action whose result became unavailable.
+                if semantic_end is not None and current() and revision == self._live_input_revision:
+                    self._cancel_live_end()
+                    receipt = self.brain.create_terminal_receipt(
+                        batch.response_id, generation=batch.generation
+                    )
+                    self._live_end_receipt = receipt
+                    self._ending_conversation = True
+                    self._goodbye = self._spawn(
+                        self._await_live_end(
+                            receipt,
+                            epoch,
+                            batch.generation,
+                            revision,
+                            silent=semantic_end.args.get("silent") is True,
+                        ),
+                        "live-goodbye",
+                    )
+
+                    def cancel_receipt(
+                        _: asyncio.Task, owned: asyncio.Future[bool] = receipt
+                    ) -> None:
+                        owned.cancel()
+
+                    self._goodbye.add_done_callback(cancel_receipt)
                 await self.brain.send_tool_results(
                     batch.response_id, results, generation=batch.generation
                 )
-                if semantic_end is not None and current() and revision == self._live_input_revision:
-                    if semantic_end.args.get("silent") is True:
-                        self._request_close("model-close-silent")
-                    else:
-                        self._ending_conversation = True
-                        self._goodbye = self._spawn(
-                            self._finish_live_conversation(epoch), "live-goodbye"
-                        )
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -2030,7 +2040,60 @@ class ThinSession:
             self._tool_tasks.pop(batch.response_id, None)
             self._live_backend_revisions.pop(batch.response_id, None)
 
-    async def _finish_live_conversation(self, epoch: float) -> None:
+    def _cancel_live_end(self) -> None:
+        if self._live_finalizing:
+            return
+        if self._live_end_receipt is not None:
+            self._live_end_receipt.cancel()
+            self._live_end_receipt = None
+        if self._goodbye is not None and not self._goodbye.done():
+            self._goodbye.cancel()
+        self._goodbye = None
+        self._ending_conversation = False
+
+    async def _await_live_end(
+        self,
+        receipt: asyncio.Future[bool],
+        epoch: float,
+        generation: int,
+        revision: int,
+        *,
+        silent: bool,
+    ) -> None:
+        """Wait outside the tool lock for actual required backend settlement."""
+
+        def current() -> bool:
+            return (
+                self._active
+                and self.live_alpha
+                and not self._transport_closing
+                and not self._live_finalizing
+                and self._epoch == epoch
+                and self.brain._connection_generation == generation
+                and self._live_input_revision == revision
+                and self._live_end_receipt is receipt
+            )
+
+        try:
+            settled = await asyncio.wait_for(receipt, self.brain.timeout_s)
+            if not current():
+                return
+            if not settled or not self.brain.terminal_receipt_current(receipt):
+                self._ending_conversation = False
+                return  # Further backend tools remain owned by ordinary dispatch.
+            self._trace_event("live_terminal_backend_settled", provider_generation=generation)
+            if silent:
+                self._request_close("model-close-silent")
+            else:
+                await self._finish_live_conversation(epoch, receipt)
+        except asyncio.CancelledError:
+            receipt.cancel()
+            raise
+        except Exception:
+            if current():
+                self._request_close("live-terminal-settlement-failed", error_kind="connection")
+
+    async def _finish_live_conversation(self, epoch: float, receipt: asyncio.Future[bool]) -> None:
         """Bounded Alpha grace, then provider finalization and exact physical drain.
 
         Six seconds is an experimental grace policy, never a provider audio-done fact.
@@ -2039,6 +2102,11 @@ class ThinSession:
         try:
             await asyncio.sleep(LIVE_CLOSE_GRACE_S)
             if not self._active or self._epoch != epoch or self._transport_closing:
+                return
+            if self._live_end_receipt is not receipt:
+                return
+            if not self.brain.terminal_receipt_current(receipt):
+                self._ending_conversation = False
                 return
             self._live_finalizing = True
             await self.brain.request_close()
@@ -2077,10 +2145,11 @@ class ThinSession:
                     "mode_changed",
                     "Samtaletypen blev ændret; send beskeden igen.",
                 )
-            if not self._active or self._transport_closing or self._ending_conversation:
+            if not self._active or self._transport_closing or self._live_finalizing:
                 return self._remember_text_receipt(
                     command_id, "rejected", "closing", "Samtalen er ikke tilgængelig."
                 )
+            self._cancel_live_end()
             self._live_input_revision += 1
             try:
                 await self.brain.send_text(text, command_id=command_id)

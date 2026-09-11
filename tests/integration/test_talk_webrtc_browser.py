@@ -21,6 +21,16 @@ def test_shipped_browser_peer_identity_stop_late_offer_and_typed_to_mic():
         "async function micStart()"
         + html.split("async function micStart()", 1)[1].split("  if (window.isSecureContext", 1)[0]
     )
+    exit_handlers = "\n".join(
+        line
+        for line in html.split("// ---- In-panel talk console ----", 1)[1]
+        .split("</script>", 1)[0]
+        .splitlines()
+        if line.strip().startswith(
+            ('window.addEventListener("pagehide",', 'window.addEventListener("beforeunload",')
+        )
+    )
+    assert len(exit_handlers.splitlines()) == 2
     harness = r"""
 const assert = require('node:assert/strict');
 let sent = [], peers = [], permissionCalls = 0, replaceGate = null, offerGate = null;
@@ -34,7 +44,8 @@ function ensurePlay(){if(!playCtx)playCtx={sampleRate:24000,createMediaStreamDes
 function sendJson(x){sent.push(x);}
 function logLine(){}
 function setState(){}
-var window={self:{},top:{}};
+var exitCallbacks={};
+var window={self:{},top:{},addEventListener(name,callback){exitCallbacks[name]=callback;}};
 var navigator={mediaDevices:{async getUserMedia(){permissionCalls++;return stream();}}};
 class RTCPeerConnection{
  constructor(){this.iceGatheringState='complete';this.connectionState='new';peers.push(this);}
@@ -85,9 +96,24 @@ function answer(id,gen=1){return {type:'live_answer',attempt_id:id,connection_id
  handleLiveMessage({...answer('replace'),type:'live_stop'});
  assert.equal(pending.readyState,'ended');releaseReplace();assert.equal(await replacing,false);
  assert.equal(livePeer,null);assert.equal(micOn,false);
+ for (const name of ['pagehide','beforeunload']) {
+   halted=false;await openLivePeer(request(name));await answerLivePeer(answer(name));
+   handleLiveMessage({...answer(name),type:'live_ready'});
+   assert.equal(await micStart(),true);
+   let owned=livePeer, microphone=owned.input.getAudioTracks()[0];
+   owned.pc.ontrack({streams:[stream()]});let audio=owned.audio;
+   assert.equal(microphone.readyState,'live');assert.notEqual(owned.pc.connectionState,'closed');
+   exitCallbacks[name](); // Execute the actual shipped page-exit listener.
+   assert.equal(livePeer,null);assert.equal(micOn,false);
+   assert.equal(microphone.readyState,'ended');assert.equal(owned.pc.connectionState,'closed');
+   assert.equal(audio.paused,true);assert.equal(audio.srcObject,null);
+ }
 })().catch(e=>{console.error(e);process.exitCode=1;});
 """
     result = subprocess.run(
-        [node, "-e", harness + helpers + mic + cases], text=True, capture_output=True, timeout=10
+        [node, "-e", harness + helpers + mic + exit_handlers + cases],
+        text=True,
+        capture_output=True,
+        timeout=10,
     )
     assert result.returncode == 0, result.stderr

@@ -26,7 +26,7 @@ import wave
 from pathlib import Path
 
 from aiohttp import web
-from live_alpha_probe import Probe, ProbeError, numeric_usage, session_config
+from live_alpha_probe import Probe, ProbeError, numeric_usage, session_config, wait_farewell_grace
 
 TYPED_TEXT = "Hvad er prøvens status? Svar kort på dansk."
 MAX_SESSION_S = 30
@@ -89,6 +89,7 @@ class WebRTCProbe:
         self.cleanup_started = False
         self.client = self.connection = self.manager = None
         self.reader = self.deadline = self.stop_task = self.startup = None
+        self.farewell_grace_task = None
         self.session_id = None
         self.updated = asyncio.Event()
         self.closed = asyncio.Event()
@@ -263,11 +264,10 @@ class WebRTCProbe:
                             raise ProbeError("stub_call_limit")
                     await self.probe.backend(event, self.connection)
                     self.record("backend_event", event=event["event"]["type"])
-                    if self.probe.terminal_requested.is_set():
-                        self.record(
-                            "farewell_terminal_close_requested", speech_completion_proven=False
+                    if self.probe.terminal_requested.is_set() and self.farewell_grace_task is None:
+                        self.farewell_grace_task = asyncio.create_task(
+                            self.close_after_farewell_grace(self.probe, self.session_id)
                         )
-                        self.request_stop()
                 elif kind in {"session.closed", "session.usage.updated"}:
                     await self.probe.handle(event, self.connection)
                     self.record(kind, usage=numeric_usage(event.get("usage")))
@@ -282,6 +282,20 @@ class WebRTCProbe:
                 code=str(exc) if isinstance(exc, ProbeError) else type(exc).__name__,
                 finalization_confirmed=self.closed.is_set(),
             )
+            self.request_stop()
+
+    async def close_after_farewell_grace(self, probe, session_id):
+        elapsed = await wait_farewell_grace(probe)
+        if (
+            elapsed
+            and probe.farewell_grace_elapsed
+            and self.probe is probe
+            and self.session_id == session_id
+            and not self.admission_closed
+            and not probe.closing
+            and not self.closed.is_set()
+        ):
+            self.record("farewell_grace_close_requested", speech_completion_proven=False)
             self.request_stop()
 
     async def ready(self, session_id):
@@ -330,6 +344,10 @@ class WebRTCProbe:
             return
         self.stop_started = True
         self.probe.closing = True  # Fence before any await, including stalled SDK commands.
+        grace = self.farewell_grace_task
+        if grace is not None and grace is not asyncio.current_task():
+            grace.cancel()
+            await asyncio.gather(grace, return_exceptions=True)
         owners = {
             task
             for task in (self.startup, self.typed_task)

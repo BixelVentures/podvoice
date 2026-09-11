@@ -880,7 +880,15 @@ async def test_farewell_stop_fences_each_continuation_boundary(phase):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "scenario", ["complete", "deadline_during_send", "deadline_awaiting_terminal"]
+    "scenario",
+    [
+        "complete",
+        "deadline_during_send",
+        "deadline_awaiting_terminal",
+        "grace_stop",
+        "grace_input",
+        "grace_deadline",
+    ],
 )
 async def test_farewell_continuation_or_deadline_closes_and_retains_final_pcm(
     monkeypatch, scenario
@@ -890,7 +898,28 @@ async def test_farewell_continuation_or_deadline_closes_and_retains_final_pcm(
 
     probe, conn = Probe(timeline=io.StringIO(), farewell_trial=True), connection()
     incoming, written = asyncio.Queue(), bytearray()
+    grace_started, audio_written = asyncio.Event(), asyncio.Event()
+    original_trace = probe.trace
+
+    def trace(kind, **fields):
+        original_trace(kind, **fields)
+        if kind == "application.farewell_grace.started":
+            grace_started.set()
+        elif kind == "output.pipe.write":
+            audio_written.set()
+
+    monkeypatch.setattr(probe, "trace", trace)
     release_send = asyncio.Event()
+    continued = scenario not in {"deadline_during_send", "deadline_awaiting_terminal"}
+    signals = {}
+    loop = asyncio.get_running_loop()
+    monkeypatch.setattr(
+        loop, "add_signal_handler", lambda signum, callback: signals.setdefault(signum, callback)
+    )
+    monkeypatch.setattr(loop, "remove_signal_handler", lambda _: None)
+    monkeypatch.setattr(
+        probe_module, "FAREWELL_GRACE_S", 0.2 if scenario == "grace_deadline" else 0.01
+    )
 
     async def emit(payload):
         await incoming.put(SimpleNamespace(model_dump=lambda: payload))
@@ -909,8 +938,8 @@ async def test_farewell_continuation_or_deadline_closes_and_retains_final_pcm(
             await emit(event)
 
     async def close():
-        assert probe.terminal_requested.is_set() == (scenario == "complete")
-        if scenario != "complete":
+        assert probe.terminal_requested.is_set() == continued
+        if not continued:
             release_send.set()
             await emit(terminal(response_id="r2"))
         await emit({"type": "session.output_audio.delta", "delta": "AQACAA=="})
@@ -921,7 +950,7 @@ async def test_farewell_continuation_or_deadline_closes_and_retains_final_pcm(
         await emit(created("r2"))
         if scenario == "deadline_during_send":
             await release_send.wait()
-        elif scenario == "complete":
+        elif continued:
             await emit(terminal(response_id="r2"))
 
     conn.response.create.side_effect = continue_backend
@@ -949,8 +978,21 @@ async def test_farewell_continuation_or_deadline_closes_and_retains_final_pcm(
     monkeypatch.setattr(probe_module.sys, "stdin", SimpleNamespace(fileno=lambda: 0))
     monkeypatch.setattr(probe_module.sys, "stdout", SimpleNamespace(fileno=lambda: 1))
     stream = Stream()
-    await asyncio.wait_for(probe_module.run(stream, probe, 0.02, close_timeout=0.03), 0.3)
-    assert written == b"\x01\x00\x02\x00"
+    running = asyncio.create_task(probe_module.run(stream, probe, 0.04, close_timeout=0.03))
+    if scenario.startswith("grace_"):
+        await asyncio.wait_for(grace_started.wait(), 0.2)
+        await emit({"type": "session.output_audio.delta", "delta": "AwAEAA=="})
+        await asyncio.wait_for(audio_written.wait(), 0.2)
+        stream.session.close.assert_not_awaited()  # Receiver and sink work during grace.
+        if scenario == "grace_stop":
+            signals[probe_module.signal.SIGINT]()
+        elif scenario == "grace_input":
+            await emit({"type": "session.input_transcript.delta", "delta": "private new input"})
+    await asyncio.wait_for(running, 0.3)
+    assert (
+        written
+        == (b"\x03\x00\x04\x00" if scenario.startswith("grace_") else b"") + b"\x01\x00\x02\x00"
+    )
     stream.session.close.assert_awaited_once()
     conn.response.create.assert_awaited_once()
     assert probe.backend_usage == [{"total_tokens": 7}, {"total_tokens": 7}]
@@ -960,10 +1002,22 @@ async def test_farewell_continuation_or_deadline_closes_and_retains_final_pcm(
         assert names.index("application.farewell_terminal_requested") < names.index(
             "session.close.request"
         )
+        assert "application.farewell_grace.elapsed" in names
+    elif scenario == "grace_stop":
+        assert "application.duration.expired" not in names
+        assert "application.farewell_grace.cancelled" in names
     else:
         assert "application.duration.expired" in names
-        assert "application.farewell_terminal_requested" not in names
-    assert names.index("session.close.request") < names.index("session.output_audio.delta")
+        if not continued:
+            assert "application.farewell_terminal_requested" not in names
+    if scenario.startswith("grace_"):
+        assert "application.farewell_grace.elapsed" not in names
+    if scenario == "grace_input":
+        assert probe.farewell_invalidated.is_set()
+        assert "private new input" not in probe.timeline.getvalue()
+    assert names.index("session.close.request") < max(
+        i for i, name in enumerate(names) if name == "session.output_audio.delta"
+    )
     assert names.index("session.closed") < names.index("output.pipe.queue_drained")
 
 

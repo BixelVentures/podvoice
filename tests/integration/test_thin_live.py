@@ -10,7 +10,7 @@ from unit.test_openai_live import SDK, call, created, terminal
 
 from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.live_audio import LiveAudioError, LiveAudioStreams
-from gatekeeper.openai_live import LiveAudioChunk, OpenAILiveSession
+from gatekeeper.openai_live import LiveAudioChunk, LiveTranscript, OpenAILiveSession
 from gatekeeper.playback import Playback
 from gatekeeper.provider_budget import ProviderBudgetCoordinator
 from gatekeeper.thin import ThinSession
@@ -208,6 +208,8 @@ async def test_provider_finalization_waits_for_matching_physical_finish(monkeypa
         await until(lambda: session._device_playing)
         lease = session._playback_lease
         await emit(sdk, created(), call(name="end_conversation", arguments="{}"), terminal())
+        await until(lambda: sdk.response.create.await_count == 1)
+        await emit(sdk, created("r2"), terminal("r2"))
         await asyncio.wait_for(session._live_provider_closed.wait(), 1)
         await asyncio.sleep(0.3)  # cross a real heartbeat while reader has completed
         assert session._active and link.rearm_calls == 0
@@ -495,4 +497,292 @@ async def test_wake_during_incomplete_retry_cannot_turn_into_unowned_alpha_start
         assert session._active and session.live_alpha
     finally:
         session._teardown_incomplete = False
+        await session.aclose()
+
+
+async def propose_end(session, sdk, *, silent=False):
+    await emit(
+        sdk,
+        created(),
+        call(name="end_conversation", arguments='{"silent":true}' if silent else "{}"),
+        terminal(),
+    )
+    await until(lambda: sdk.response.create.await_count == 1)
+    return session.brain._terminal_receipt.future
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("silent", [False, True])
+async def test_end_requires_actual_zero_call_continuation_before_grace(monkeypatch, silent):
+    monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 60 if silent else 0.05)
+    session, sdk, _, _, link = build()
+    await session.start()
+    try:
+        await session.wake()
+        receipt = await propose_end(session, sdk, silent=silent)
+        assert sdk.response.item.create.await_count == 1
+        await asyncio.sleep(0.07)  # Result writes alone must not start the grace clock.
+        assert not receipt.done() and sdk.session.close.await_count == 0
+        continuation = created("r2")
+        continuation["client_event_id"] = sdk.response.create.call_args.kwargs["event_id"]
+        await emit(sdk, continuation)
+        await until(lambda: "r2" in session._live_backend_revisions)
+        assert not receipt.done() and sdk.session.close.await_count == 0
+        await emit(sdk, terminal("r2"))
+        await until(receipt.done)
+        assert receipt.result() is True
+        if not silent:
+            assert sdk.session.close.await_count == 0  # Grace starts at settlement.
+        await until(lambda: link.rearm_calls == 1)
+        assert sdk.session.close.await_count == 1 and not session._active
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["settlement", "grace"])
+@pytest.mark.parametrize("source", ["voice", "typed"])
+async def test_correction_cancels_end_during_settlement_or_grace(monkeypatch, phase, source):
+    monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.06)
+    session, sdk, _, _, link = build()
+    await session.start()
+    try:
+        await session.wake()
+        receipt = await propose_end(session, sdk)
+        if phase == "grace":
+            await emit(sdk, created("r2"), terminal("r2"))
+            await until(receipt.done)
+            assert receipt.result() is True
+        if source == "voice":
+            await emit(
+                sdk,
+                {
+                    "type": "session.input_transcript.delta",
+                    "delta": "Vent",
+                    "start_ms": 100,
+                    "end_ms": 300,
+                },
+            )
+            await until(lambda: session._live_input_revision == 1)
+        else:
+            assert (await session.submit_text("Vent", "correction"))["status"] == "submitted"
+        await until(lambda: not session._ending_conversation)
+        if phase == "settlement":
+            assert receipt.cancelled()
+            await emit(sdk, created("r2"), terminal("r2"))
+        await asyncio.sleep(0.09)
+        assert session._active and sdk.session.close.await_count == 0 and link.rearm_calls == 0
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_continuation_with_more_tools_releases_end_and_dispatches():
+    session, sdk, _, tools, _ = build()
+    await session.start()
+    try:
+        await session.wake()
+        receipt = await propose_end(session, sdk)
+        await emit(sdk, created("r2"), call(call_id="c2", arguments="{}"), terminal("r2"))
+        await until(lambda: tools.calls == [("status", {})])
+        await until(lambda: sdk.response.create.await_count == 2)
+        assert receipt.result() is False
+        assert not session._ending_conversation and session._active
+        assert sdk.session.close.await_count == 0
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_stop_during_terminal_wait_rejects_late_completion_after_fresh_wake():
+    session, sdk, _, _, link = build()
+    await session.start()
+    try:
+        await session.wake()
+        brain = session.brain
+        generation = brain._connection_generation
+        receipt = await propose_end(session, sdk)
+        await session.stop()
+        assert receipt.cancelled() and link.rearm_calls == 1
+        fresh = SDK()
+        brain.client_factory = fresh.factory
+        await session.wake()
+        assert session._active and brain._connection_generation != generation
+        # Simulate a callback retained by the retired SDK, not fresh transport input.
+        await brain._handle(created("r2"), generation)
+        await brain._handle(terminal("r2"), generation)
+        await asyncio.sleep(0.02)
+        assert session._active and fresh.session.close.await_count == 0
+        assert link.rearm_calls == 1
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["before_waiter_resumes", "grace"])
+async def test_new_backend_after_terminal_settlement_invalidates_old_close(monkeypatch, phase):
+    monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.06)
+    session, sdk, _, tools, link = build()
+    grace_entered = asyncio.Event()
+    original_finish = session._finish_live_conversation
+
+    async def observe_grace(epoch, receipt):
+        grace_entered.set()
+        await original_finish(epoch, receipt)
+
+    monkeypatch.setattr(session, "_finish_live_conversation", observe_grace)
+    await session.start()
+    try:
+        await session.wake()
+        receipt = await propose_end(session, sdk)
+        original_handle = session.brain._handle
+        race_observed = []
+
+        async def observe_handle(event, generation):
+            if event == created("r3") and phase == "before_waiter_resumes":
+                # The SDK reader drains already-queued messages without yielding:
+                # receipt True, but Thin's awakened waiter has not run yet.
+                race_observed.append(receipt.done() and receipt.result() is True)
+                assert not grace_entered.is_set()
+            await original_handle(event, generation)
+
+        monkeypatch.setattr(session.brain, "_handle", observe_handle)
+        await emit(sdk, created("r2"), terminal("r2"))
+        if phase == "grace":
+            await asyncio.wait_for(grace_entered.wait(), 1)
+        await emit(sdk, created("r3"))
+        await until(lambda: "r3" in session._live_backend_revisions)
+        assert receipt.result() is True
+        if phase == "before_waiter_resumes":
+            assert race_observed == [True]
+        # Cross the old grace deadline while this newer backend is still active.
+        await asyncio.sleep(0.09)
+        assert session._active and sdk.session.close.await_count == 0
+        assert link.rearm_calls == 0 and not session._ending_conversation
+        await emit(sdk, call(call_id="c3", arguments="{}"), terminal("r3"))
+        await until(lambda: tools.calls == [("status", {})])
+        await until(lambda: sdk.response.create.await_count == 2)
+        await emit(sdk, created("r4"), terminal("r4"))
+        await asyncio.sleep(0.09)
+        assert session._active and sdk.session.close.await_count == 0
+        assert link.rearm_calls == 0
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_completed_new_backend_cannot_restore_settled_terminal_receipt(monkeypatch):
+    monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.03)
+    session, sdk, _, _, link = build()
+    await session.start()
+    try:
+        await session.wake()
+        receipt = await propose_end(session, sdk)
+        # All four actual SDK messages are queued before its reader resumes. The
+        # new work is already complete by the time Thin can act on receipt True.
+        await emit(sdk, created("r2"), terminal("r2"), created("r3"), terminal("r3"))
+        await until(lambda: "r3" in session.brain._usage_backend)
+        assert receipt.result() is True
+        assert not session.brain.terminal_receipt_current(receipt)
+        await asyncio.sleep(0.06)
+        assert session._active and sdk.session.close.await_count == 0
+        assert not session._ending_conversation and link.rearm_calls == 0
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_correction_before_goodbye_runs_cancels_only_its_owned_receipt(monkeypatch):
+    monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0)
+    session, sdk, _, _, link = build()
+    waiter_started = []
+    captured = {}
+    original_waiter = session._await_live_end
+    original_send = session.live_brain.send_tool_results
+
+    async def observe_waiter(*args, **kwargs):
+        waiter_started.append(args[0])
+        await original_waiter(*args, **kwargs)
+
+    async def correct_at_result_entry(response_id, results, *, generation):
+        if response_id == "r1":
+            old = session._live_end_receipt
+            old_task = session._goodbye
+            assert not waiter_started and old is not None and not old.done()
+            # Retain the actual installed cleanup callback to replay after a new
+            # owner exists, rather than reconstructing its intended behavior.
+            callbacks = [
+                callback
+                for callback, _ in old_task._callbacks
+                if old in (getattr(callback, "__defaults__", None) or ())
+            ]
+            assert len(callbacks) == 1
+            captured.update(receipt=old, task=old_task, callback=callbacks[0])
+            await session._on_live_event(LiveTranscript("in", "Vent", 100, 300, generation))
+            assert old.cancelled()  # Must be synchronous; waiter never executed.
+            assert not waiter_started and session._live_end_receipt is None
+        await original_send(response_id, results, generation=generation)
+
+    monkeypatch.setattr(session, "_await_live_end", observe_waiter)
+    monkeypatch.setattr(session.live_brain, "send_tool_results", correct_at_result_entry)
+    await session.start()
+    try:
+        await session.wake()
+        await propose_end(session, sdk)
+        await emit(
+            sdk,
+            created("r2"),
+            call(call_id="c2", name="end_conversation", arguments="{}"),
+            terminal("r2"),
+        )
+        await until(lambda: sdk.response.create.await_count == 2)
+        fresh = session._live_end_receipt
+        assert fresh is not None and fresh is not captured["receipt"] and not fresh.done()
+        captured["callback"](captured["task"])
+        assert not fresh.done() and session._live_end_receipt is fresh
+        assert captured["receipt"].cancelled() and captured["receipt"] not in waiter_started
+        await emit(sdk, created("r3"), terminal("r3"))
+        await until(lambda: link.rearm_calls == 1)
+        assert fresh.result() is True and sdk.session.close.await_count == 1
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_fresh_end_during_old_grace_keeps_its_own_intent(monkeypatch):
+    monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.05)
+    session, sdk, _, _, link = build()
+    entered = asyncio.Event()
+    original_finish = session._finish_live_conversation
+
+    async def observe_grace(epoch, receipt):
+        entered.set()
+        await original_finish(epoch, receipt)
+
+    monkeypatch.setattr(session, "_finish_live_conversation", observe_grace)
+    await session.start()
+    try:
+        await session.wake()
+        old = await propose_end(session, sdk)
+        old_task = session._goodbye
+        await emit(sdk, created("r2"), terminal("r2"))
+        await asyncio.wait_for(entered.wait(), 1)
+        assert old.result() is True
+        await emit(
+            sdk,
+            created("r3"),
+            call(call_id="c3", name="end_conversation", arguments="{}"),
+            terminal("r3"),
+        )
+        await until(lambda: sdk.response.create.await_count == 2)
+        fresh = session._live_end_receipt
+        assert fresh is not None and fresh is not old and not fresh.done()
+        await asyncio.sleep(0.08)  # Old grace and its done callbacks have elapsed.
+        assert old_task.done() and session._ending_conversation
+        assert session._live_end_receipt is fresh and not fresh.done()
+        assert session._active and sdk.session.close.await_count == 0
+        await emit(sdk, created("r4"), terminal("r4"))
+        await until(lambda: link.rearm_calls == 1)
+        assert fresh.result() is True and sdk.session.close.await_count == 1
+    finally:
         await session.aclose()
