@@ -2,6 +2,17 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Seneste eksterne kontrol efter brugerens “klar”: Chrome virker igen, og den
+eksisterende API-konfiguration blev overført én gang i hukommelsen til den frosne
+WebRTC-prøve. Ingen session-create blev startet. Automatisk godkendelseskontrol
+afviste Stop af den kørende .82-add-on: browserprøven blev ikke anset som specifik
+autorisation til den korte produktionsafbrydelse. Stop blev ikke udført; HA UI
+bekræftede efterfølgende “Kører”. Den lokale prøveproces udløb uden API-start
+(child returncode1, kun prepared/cleanup i rapporten); nøglereference og prøvetabs er ryddet.
+Browserblokeringen er løst. Næste API-prøve afventer nu udtrykkelig tilladelse til
+pause/genstart for isolation. Den separate HA-stemmegodkendelses-wiring er ligeledes
+fortsat inaktiv og afventer det tidligere beskrevne specifikke ja samt protokolbevis.
+
 Seneste resultat: den UNWIRED ledger-korrektion har uafhængigt Astra HIGH GO
 (source02e1235c,44 tests plus reviewerens egne stale-session/replay/tidsgrænser).
 Den gamle spørgsmål/ja-reproduktion afvises nu uden faktisk anchor og før et senere
