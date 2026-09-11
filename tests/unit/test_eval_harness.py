@@ -4973,10 +4973,23 @@ async def test_quiet_wait_oracle_sees_all_output_and_requires_exclusive_open_tur
         }
 
 
+def _quiet_media_snapshot():
+    """Model the two optional selector fields validated on the installed .81 schema."""
+    declarations = _production_snapshot()
+    media = next(row for row in declarations if row["name"] == "HassMediaPause")
+    media["parameters"]["properties"].update(
+        {
+            "domain": {"type": "array", "items": {"type": "string", "enum": ["media_player"]}},
+            "device_class": {"type": "array", "items": {"type": "string", "enum": ["speaker"]}},
+        }
+    )
+    return declarations
+
+
 async def test_quiet_error_uses_known_room_and_preserves_default_media_fixture():
     scenarios = list(load_scenarios(eval_harness.QUIET_THANKS_EVAL_PATH))
     admission = eval_harness._admit_eval_tools(
-        scenarios, _production_snapshot(), fixture_path=eval_harness.QUIET_THANKS_EVAL_PATH
+        scenarios, _quiet_media_snapshot(), fixture_path=eval_harness.QUIET_THANKS_EVAL_PATH
     )
     tools = SafeEvalTools(
         admission.declarations,
@@ -4987,8 +5000,8 @@ async def test_quiet_error_uses_known_room_and_preserves_default_media_fixture()
     result = await tools.dispatch("HassMediaPause", {"area": "stue"})
     assert result["error_kind"] == "device_unavailable"
     assert tools.fixture_side_effects == 0
-    assert len(admission.contracts["HassMediaPause"].cases) == 1
-    old_admission = eval_harness._admit_eval_tools(list(load_scenarios()), _production_snapshot())
+    assert len(admission.contracts["HassMediaPause"].cases) == 3
+    old_admission = eval_harness._admit_eval_tools(list(load_scenarios()), _quiet_media_snapshot())
     old_tools = SafeEvalTools(
         old_admission.declarations,
         admitted_names=set(old_admission.contracts),
@@ -5033,7 +5046,7 @@ def test_quiet_thanks_profile_admits_actual_reserved_tools_and_twelve_turns():
     assert len(quiet) == 3
     assert all(t.expect.decisions == ("wait_for_user",) for t in quiet)
     admission = eval_harness._admit_eval_tools(
-        scenarios, _production_snapshot(), fixture_path=eval_harness.QUIET_THANKS_EVAL_PATH
+        scenarios, _quiet_media_snapshot(), fixture_path=eval_harness.QUIET_THANKS_EVAL_PATH
     )
     assert (
         next(d for d in admission.declarations if d["name"] == "wait_for_user")
@@ -5055,7 +5068,7 @@ async def test_quiet_profile_is_explicit_and_retains_no_full_or_physical_approva
         == "invalid"
     )
     response = service.start(
-        api_key="fixture", scenario_ids={"quiet-thanks"}, tool_declarations=_production_snapshot()
+        api_key="fixture", scenario_ids={"quiet-thanks"}, tool_declarations=_quiet_media_snapshot()
     )
     await service._job
     assert calls[0]["_quiet_thanks_fixture"] is True
@@ -5136,3 +5149,57 @@ async def test_safe_eval_capacity_waits_can_expire_exact_next_turn_approval(
             "args": {"name": "hoveddøren"},
         }
         assert tools.fixture_side_effects == 1
+
+
+@pytest.mark.parametrize(
+    "args, accepted",
+    [
+        ({"area": "stue"}, True),
+        ({"area": "stue", "domain": ["media_player"]}, True),
+        ({"area": "stue", "device_class": ["speaker"]}, True),
+        ({"area": "kontor"}, False),
+        ({"area": "stue", "domain": ["light"]}, False),
+        ({"area": "stue", "device_class": ["tv"]}, False),
+        ({"area": "stue", "domain": []}, False),
+        ({"area": "stue", "device_class": []}, False),
+        ({"area": "stue", "domain": ["media_player", "light"]}, False),
+        ({"area": "stue", "device_class": ["speaker", "tv"]}, False),
+        ({"area": "stue", "name": "speaker"}, False),
+        ({"area": "stue", "entity_id": "media_player.stue"}, False),
+        ({"area": "stue", "domain": ["media_player"], "device_class": ["speaker"]}, False),
+    ],
+)
+async def test_quiet_media_filter_variants_require_exact_target_and_honest_failure(args, accepted):
+    scenarios = list(load_scenarios(eval_harness.QUIET_THANKS_EVAL_PATH))
+    scenario = next(s for s in scenarios if s.id == "quiet-thanks-error")
+    admission = eval_harness._admit_eval_tools(
+        scenarios, _quiet_media_snapshot(), fixture_path=eval_harness.QUIET_THANKS_EVAL_PATH
+    )
+    tools = SafeEvalTools(
+        admission.declarations,
+        admitted_names=set(admission.contracts),
+        fixture_contracts=admission.contracts,
+    )
+    result = await tools.dispatch("HassMediaPause", args)
+    assert result["error_kind"] == (
+        "device_unavailable" if accepted else "eval_fixture_args_mismatch"
+    )
+    assert tools.fixture_side_effects == 0
+    observed = TurnObservation(
+        turn_id="t",
+        session_id="s",
+        decisions=["HassMediaPause"],
+        tool_args={"HassMediaPause": [args]},
+        tool_results={"HassMediaPause": [result]},
+        answer="Jeg kunne ikke stoppe musikken; afspilleren er utilgængelig.",
+    )
+    assert (not grade_turn(scenario.turns[0].expect, observed)) is accepted
+    if accepted:
+        observed.decisions *= 2
+        observed.tool_args["HassMediaPause"] *= 2
+        observed.tool_results["HassMediaPause"] *= 2
+        assert {finding.code for finding in grade_turn(scenario.turns[0].expect, observed)} >= {
+            "wrong-decision",
+            "wrong-tool-args",
+            "wrong-tool-outcome",
+        }
