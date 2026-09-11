@@ -69,7 +69,12 @@ class LiveConfirmations:
         self._reviews: dict[str, _Review] = {}
         self._proposal: PendingAction | None = None
         self._proposal_after = 0
-        self._proposal_source_floor = 0
+        self._proposal_source_floor: int | None = None
+        self._continuation_event_id: str | None = None
+        self._anchor_identity: tuple[str, str] | None = None
+        self._seen_identities: set[tuple[str, str]] = set()
+        self._identity_capacity_exhausted = False
+        self._command_rejected = False
         self._dropped_through = 0
         self._issued: ReviewedApproval | None = None
 
@@ -77,10 +82,25 @@ class LiveConfirmations:
     def challenge_id(self) -> str | None:
         return self._proposal.challenge_id if self._proposal else None
 
+    @property
+    def continuation_event_id(self) -> str | None:
+        """Ledger-issued command correlation for a future trusted SDK continuation."""
+        return self._continuation_event_id
+
+    def _invalidate_anchor(self) -> None:
+        self._revision += 1
+        self._reviews.clear()
+        self._issued = None
+        self._proposal_source_floor = None
+        self._anchor_identity = None
+
     def clear(self) -> None:
         self._revision += 1
         self._reviews.clear()
         self._proposal = None
+        self._continuation_event_id = None
+        self._invalidate_anchor()
+        # Never forget observed identities within this socket/session generation.
         self._fragments.clear()
         self._dropped_through = self._serial
 
@@ -130,17 +150,100 @@ class LiveConfirmations:
         ):
             self._dropped_through = self._fragments.pop(0).ref
 
-    def register(self, proposal: PendingAction) -> None:
+    def register(self, proposal: PendingAction) -> str:
+        """Issue a fresh command ID; no approval is available until its actual anchor arrives.
+
+        UNWIRED: a trusted caller would send this ID in response.create. Whether Live
+        emits a new correlated delegation for that command remains unproved. Missing
+        correlation must remain unavailable; an observed transcript highwater is not
+        a replacement causal anchor.
+        """
         if (
             proposal.context.approval_mode != "live"
             or proposal.context.session_id != self.session_id
         ):
             raise ValueError("non-Live proposal")
-        self._revision += 1
-        self._reviews.clear()
+        self._invalidate_anchor()
         self._proposal = proposal
         self._proposal_after = self._serial
-        self._proposal_source_floor = max((f.end_ms or 0 for f in self._fragments), default=0)
+        self._continuation_event_id = None
+        self._command_rejected = False
+        if self._identity_capacity_exhausted or len(self._seen_identities) >= 4096:
+            self._identity_capacity_exhausted = True
+            raise ValueError("Live confirmation identity capacity exhausted")
+        command_id = "confirm_" + secrets.token_urlsafe(24)
+        if ("command", command_id) in self._seen_identities:
+            raise ValueError("Live confirmation command collision")
+        self._seen_identities.add(("command", command_id))
+        self._continuation_event_id = command_id
+        return command_id
+
+    def observe_delegation_created(self, event: dict) -> bool:
+        """Observe actual SDK session.delegation.created metadata, never synthesized turns.
+
+        Source offset becomes usable only for one unseen Responses delegation carrying
+        this proposal's exact ledger-issued command ID. Retain even premature/malformed
+        identities so replay or changed correlation cannot manufacture freshness.
+        """
+        if not isinstance(event, dict) or event.get("type") != "session.delegation.created":
+            return False
+        delegation = event.get("delegation")
+        if not isinstance(delegation, dict):
+            delegation = {}
+
+        def identity(value):
+            return value if isinstance(value, str) and value.strip() and len(value) <= 256 else None
+
+        delegation_id = identity(delegation.get("id"))
+        response_id = identity(delegation.get("response_id"))
+        command_id = identity(event.get("client_event_id"))
+        identities = {
+            (kind, value)
+            for kind, value in (
+                ("delegation", delegation_id),
+                ("response", response_id),
+                ("command", command_id),
+            )
+            if value is not None
+        }
+        reused = any(item in self._seen_identities for item in identities if item[0] != "command")
+        if len(self._seen_identities | identities) > 4096:
+            self._identity_capacity_exhausted = True
+        else:
+            self._seen_identities.update(identities)
+        related = (command_id is not None and command_id == self._continuation_event_id) or (
+            self._anchor_identity is not None
+            and (
+                delegation_id == self._anchor_identity[0] or response_id == self._anchor_identity[1]
+            )
+        )
+        if self._identity_capacity_exhausted:
+            self._invalidate_anchor()
+            return False
+        offset = event.get("offset_ms")
+        valid = (
+            self._proposal is not None
+            and command_id is not None
+            and command_id == self._continuation_event_id
+            and delegation_id is not None
+            and response_id is not None
+            and delegation.get("type") == "delegation"
+            and delegation.get("target") == "responses"
+            and type(offset) is int
+            and offset >= 0
+            and not reused
+            and not self._command_rejected
+            and self._anchor_identity is None
+        )
+        if not valid:
+            if related:
+                self._command_rejected = True
+                self._invalidate_anchor()
+            return False
+        self._invalidate_anchor()
+        self._proposal_source_floor = offset
+        self._anchor_identity = (delegation_id, response_id)
+        return True
 
     @staticmethod
     def denied(kind: str) -> dict:
@@ -154,6 +257,8 @@ class LiveConfirmations:
             or proposal.expires_at <= self._clock()
         ):
             return self.denied("approval_unavailable")
+        if self._proposal_source_floor is None or self._identity_capacity_exhausted:
+            return self.denied("confirmation_anchor_unavailable")
         if self._dropped_through > self._proposal_after:
             return self.denied("confirmation_evidence_unavailable")
         fragments = tuple(f for f in self._fragments if f.ref > self._proposal_after)
@@ -196,6 +301,8 @@ class LiveConfirmations:
             review is None
             or review.revision != self._revision
             or self._proposal is not review.proposal
+            or self._proposal_source_floor is None
+            or self._identity_capacity_exhausted
         ):
             return None
         proposal = review.proposal
@@ -251,6 +358,8 @@ class LiveConfirmations:
     def is_current(self, approval: ReviewedApproval) -> bool:
         return (
             approval is self._issued
+            and self._proposal_source_floor is not None
+            and not self._identity_capacity_exhausted
             and self._proposal is not None
             and self._proposal.context.session_id == self.session_id
             and approval.challenge_id == self._proposal.challenge_id

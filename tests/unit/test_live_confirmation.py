@@ -9,7 +9,24 @@ from gatekeeper.execution_policy import ExecutionContext, PendingAction
 from gatekeeper.live_confirmation import LiveConfirmations
 
 
-def build():
+def anchor(ledger, *, offset=250, delegation_id="d-anchor", response_id="r-anchor", **overrides):
+    event = {
+        "type": "session.delegation.created",
+        "event_id": "server-anchor",
+        "client_event_id": ledger.continuation_event_id,
+        "offset_ms": offset,
+        "delegation": {
+            "type": "delegation",
+            "target": "responses",
+            "id": delegation_id,
+            "response_id": response_id,
+        },
+    }
+    event.update(overrides)
+    return ledger.observe_delegation_created(event)
+
+
+def build(*, anchored=True):
     now = [100.0]
     ledger = LiveConfirmations(7, session_id="s1", clock=lambda: now[0])
     pending = PendingAction(
@@ -23,6 +40,8 @@ def build():
     )
     ledger.record("user", "Start robotten", start_ms=0, end_ms=200, event_id="e1")
     ledger.register(pending)
+    if anchored:
+        assert anchor(ledger)
     return ledger, pending, now
 
 
@@ -200,3 +219,126 @@ def test_duplicate_provider_event_is_idempotent_but_conflicting_duplicate_fails(
     assert consume(ledger, result)
     with pytest.raises(ValueError):
         ledger.record("user", "Nej", start_ms=600, end_ms=900, event_id="e3")
+
+
+def test_delayed_old_pair_after_register_has_no_causal_anchor():
+    ledger, _, _ = build(anchored=False)
+    evidence(ledger)  # Late old question [300,500], yes [600,900]; prior floor was 200.
+    assert review(ledger)["error_kind"] == "confirmation_anchor_unavailable"
+    assert (
+        ledger.consume(
+            "c1",
+            "invented",
+            proposal_refs=[2],
+            confirmation_refs=[3],
+            response_id="r4",
+            created_index=4,
+        )
+        is None
+    )
+
+
+def test_actual_anchor_rejects_old_pair_and_accepts_only_new_postanchor_pair():
+    ledger, _, _ = build(anchored=False)
+    assert anchor(ledger, offset=1000)
+    evidence(ledger)
+    assert consume(ledger, review(ledger)) is None
+    ledger.record("assistant", "Vil du starte robotten?", start_ms=1100, end_ms=1400)
+    ledger.record("user", "Ja, start robotten", start_ms=1500, end_ms=1800)
+    approved = consume(ledger, review(ledger), proposal_refs=[4], confirmation_refs=[5])
+    assert approved and ledger.is_current(approved)
+
+
+def test_seen_before_register_cannot_be_recorrelated_after_register_or_clear():
+    ledger, proposal, _ = build(anchored=False)
+    assert not anchor(ledger, client_event_id="unrelated-old-command", offset=1000)
+    ledger.clear()
+    new_id = ledger.register(proposal)
+    assert new_id == ledger.continuation_event_id
+    assert not anchor(ledger, offset=1000)  # Same old delegation and response IDs.
+    evidence(ledger)
+    assert review(ledger)["error_kind"] == "confirmation_anchor_unavailable"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"client_event_id": None},
+        {"client_event_id": "wrong"},
+        {"offset_ms": None},
+        {"offset_ms": True},
+        {"offset_ms": -1},
+        {"offset_ms": 1.5},
+        {"delegation": {"id": "d", "target": "responses", "type": "delegation"}},
+        {"delegation": {"id": "d", "response_id": "r", "target": "client", "type": "delegation"}},
+        {"delegation": None},
+    ],
+)
+def test_missing_mismatched_or_invalid_anchor_is_unavailable(changes):
+    ledger, _, _ = build(anchored=False)
+    assert not anchor(ledger, **changes)
+    evidence(ledger)
+    assert review(ledger)["error_kind"] == "confirmation_anchor_unavailable"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {},
+        {"client_event_id": "changed"},
+        {
+            "delegation": {
+                "id": "d-new",
+                "response_id": "r-anchor",
+                "target": "responses",
+                "type": "delegation",
+            }
+        },
+        {
+            "delegation": {
+                "id": "d-anchor",
+                "response_id": "r-new",
+                "target": "responses",
+                "type": "delegation",
+            }
+        },
+    ],
+)
+def test_reused_anchor_identity_revokes_issued_object_and_cannot_be_repaired(changes):
+    ledger, _, _ = build()
+    evidence(ledger)
+    approved = consume(ledger, review(ledger))
+    assert approved and ledger.is_current(approved)
+    assert not anchor(ledger, **changes)
+    assert not ledger.is_current(approved)
+    assert not anchor(ledger, delegation_id="fresh-d", response_id="fresh-r")
+    assert review(ledger)["error_kind"] == "confirmation_anchor_unavailable"
+
+
+def test_each_registration_issues_its_own_read_only_unpredictable_correlation():
+    ledger, proposal, _ = build(anchored=False)
+    first = ledger.continuation_event_id
+    second = ledger.register(proposal)
+    assert first and second != first and len(second) >= 32
+    with pytest.raises(AttributeError):
+        ledger.continuation_event_id = first
+    assert not anchor(ledger, client_event_id=first)
+    assert anchor(ledger, delegation_id="new-d", response_id="new-r")
+
+
+def test_identity_history_overflow_fails_closed_across_clear():
+    ledger, proposal, _ = build(anchored=False)
+    for index in range(1400):
+        assert not anchor(
+            ledger,
+            delegation_id=f"d{index}",
+            response_id=f"r{index}",
+            client_event_id=f"old-command-{index}",
+        )
+    assert len(ledger._seen_identities) <= 4096
+    assert not anchor(ledger, delegation_id="fresh", response_id="fresh")
+    ledger.clear()
+    with pytest.raises(ValueError, match="capacity"):
+        ledger.register(proposal)
+    assert ledger.continuation_event_id is None
+    assert review(ledger)["error_kind"] == "confirmation_anchor_unavailable"

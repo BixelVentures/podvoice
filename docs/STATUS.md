@@ -2,6 +2,41 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Seneste resultat: den UNWIRED ledger-korrektion har uafhængigt Astra HIGH GO
+(source02e1235c,44 tests plus reviewerens egne stale-session/replay/tidsgrænser).
+Den gamle spørgsmål/ja-reproduktion afvises nu uden faktisk anchor og før et senere
+anchor. P2 exact-object ejerskab er bevaret. Lead kørte også55 ledger/policy-tests
+og typekontrol grønt. Dette lukker den mekaniske reproduktion, ikke hele voice-parity-
+gaten: Live skal stadig bevises at levere den nye eksakt korrelerede delegation.
+Fremtidig wiring skal modtage metadata udelukkende fra den aktuelle SDK-generation,
+observere delegationer fra sessionsstart og aldrig acceptere modelleverede anchors.
+Thin returnerer fortsat confirmation-unavailable; ingen HA-godkendelsesvej er aktiveret.
+
+Alpha-leverancegrænse (ikke release-/installationsstatus):
+
+| Brugeroplevelse | Aktuelt bevis | Mangler før Alpha accepteres |
+| --- | --- | --- |
+| ON/OFF ved siden af nuværende løsning | Lokal setting og sessionsnapshot; OFF følger .82 | Installeret, kontrolleret skift og rollback |
+| Naturlig løbende samtale | SDK-prøve og sammensatte Thin-regressioner | Rigtig input/afbrudt svar/opfølgning med uændret forståelse |
+| Alle nuværende værktøjer | Fælles router; rigtig API kun med ufarlig statusstub | Domæneparitet inkl. friske stemmegodkendelser |
+| Snappy Talk | WAV streamer, men Chrome-start ca.4.75s | Direkte WebRTC-protokolprøve, integration og målt oplevelse |
+| Naturligt farvel | Foreløbig seks sekunders ventepolicy; måleværktøj reviewet | Målte terminalgrænser uden klipning eller unødig venten |
+| Stop, privacy og næste wake | Software-regressioner og browser-WAV Stop-prøve | Samme provisionerede kandidat fysisk golden chain og10/10 |
+| Full duplex på pucken | Firmware compile og AEC/forwarding-kæde undersøgt | Rigtig dobbelttale/ekko, room-audio og latencyfordeling |
+
+Firmware fra compile-prøven indeholder dummy-PSK og er ikke installationsartifact.
+Ingen af tabellens softwarebeviser gør Alpha fysisk testklar.
+
+Næste UNWIRED korrektion af samtykke-P1: ledgeren må ikke udstede reviewgodkendelse
+uden en ny faktisk session.delegation.created efter det serveroprettede proposal.
+Ledgeren genererer et friskt continuation-event-id; kun præcis korrelation, hidtil
+uset delegation og valideret faktisk offset_ms kan åbne source-grænsen. Gamle eller
+genbrugte delegationer, fraværende/mismatched korrelation og ugyldig offset afviser.
+Forsinket gammelt spørgsmål/ja efter lokal register skal afvises både uden anchor og
+før et faktisk senere anchor. Det er en betinget protokolkontrakt: almindelig Live-
+continuation er ikke bevist at levere denne nye korrelerede delegation. Ingen runtime-
+wiring, estimeret append-tid, komplet-tur-garanti eller HA-aktivering tilføjes.
+
 Aktuel stop-the-line for stemmegodkendelsesforslaget: uafhængigt Astra HIGH-review
 reproducerede, at et helt forsinket gammelt spørgsmål og ja kan passere den lokale
 fragmentledger. Seneste modtagne transcript-tid er ikke challenge-oprettelsens
