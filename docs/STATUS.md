@@ -2,6 +2,51 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Aktuel stop-the-line for stemmegodkendelsesforslaget: uafhængigt Astra HIGH-review
+reproducerede, at et helt forsinket gammelt spørgsmål og ja kan passere den lokale
+fragmentledger. Seneste modtagne transcript-tid er ikke challenge-oprettelsens
+kildetid; hypotesen nedenfor er derfor ikke bevist. Ledgeren er UNWIRED og kandidaten
+er ikke testklar. En separat cross-ledger ownership-fejl afgrænses med præcis udstedt
+objektidentitet samt session/challenge/hash, men dette løser ikke gammel samtykke-lyd.
+Ingen router-/Thin-aktivering må følge af grønne ledger-tests.
+
+Automatisk godkendelseskontrol afviste at forbinde denne nye godkendelsesvej til
+HA-handlinger: Alpha-målet blev ikke anset som tilstrækkelig specifik autorisation
+til den ændrede godkendelsesgrænse. Den afviste ToolRouter-ændring blev ikke anvendt.
+Der forsøges ingen indirekte aktivering; øvrig transport- og målearbejde fortsætter.
+Et konkret, selvstændigt reviewet forslag skal først foreligge før brugerafklaring.
+
+Seneste afgrænsede reviewresultater: Astra HIGH har lukket cross-ledger-fejlen;
+forsinket gammel samtykke-lyd er fortsat reproducerbar og åben. 43 målrettede
+ledger/policy/prompt-tests bestod ved reviewerens kontrol. v15 Live-prompttilpasningen
+bestod det strukturelle review; den kan ikke erstatte semantisk provider-eval.
+
+WebRTC-developerprøven har Astra HIGH GO på source90d1f254 efter to Stop-rettelser:
+Stop før første create afviser sen opstart; blokerede typed SDK-sends holder ikke
+shutdown-låsen. 45 offline tests bestod. Præcis reviewed probe + importeret afhængighed
+er frosset i /private/tmp/podvoice-live-webrtc-reviewed-01. Chrome blokerede efterfølgende
+browserstyring med et åbent udvidelsesvindue. Handoff-serveren er stoppet uden modtaget
+nøgle, ingen API-session startet, og midlertidig browserreferencenøgle er ryddet.
+Transport-, tids- og playback-bevis står derfor stadig åbent.
+
+Installeret baseline er observeret i HA som1.13.82. Frisk origin/mainf880c68 har kun
+eval-fixture/test-, versions- og statusændringer siden34fb8c8; runtime/prompt/firmware
+er uændret i git-diff. Den er endnu ikke flettet ind i Alpha. Ingen fysisk gate arves.
+
+Samlet lokal fast-gate på379c220 plus nedenstående arbejdsdiff mod origin/mainf880c68
+bestod på81.0s: hele valgte tests-træ, Ruff/format35 filer og mypy51 kildefiler. Det
+er udviklingsgaten, ikke releasegaten eller fysisk readiness. Uafhængigt Astra HIGH
+godkendte også SDK/policy-diffet med91 tests: nye Live-API'er er stadig inaktive, OFF's
+risiko og næste-tur-binding er bevaret, og SDK-counteren følger faktisk eventmodtagelse.
+
+Måleprøvens valgfrie JSONL-tidslinje og terminal-PCM-dræn har særskilt Astra HIGH GO
+(sourcea1ea1d99,50 offline tests). En blokeret outputpipe fejler bounded uden falsk
+drænbevis. Tidslinjen skelner SDK request/return, faktisk delegation.offset_ms,
+PCM-sampleoffset og pipe-write; ingen kant påstår hørt lyd eller færdigt farvel.
+Næste harmløse protokolmåling skal afprøve, om en frisk response.create-korrelation
+faktisk giver en ny delegation med ny source-position. Genbrugt delegation, manglende
+korrelation og estimeret append-ACK må ikke bruges til at bortforklare samtykke-P1.
+
 Næste aktive ændring: Live-bekræftelser. Observeret blocker er, at den nuværende
 Alpha afviser bl.a. vacuum/mute/relativvolumen, fordi provider ikke har OFF's komplette
 næste-brugertur. Hypotese: samme managed backend kan vurdere et serverfastholdt,

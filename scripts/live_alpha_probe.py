@@ -6,6 +6,17 @@ Input is paced in 20 ms frames; EOF supplies counted synthetic silence until Sto
 Zero source bytes fail input validation even if the session finalizes successfully.
 Source bytes do not prove audible speech, Danish understanding or physical readiness.
 No microphone capture, resampler, AEC, HA calls or reconnect.
+Optional --timeline NEW_PATH writes private ordered JSONL (exclusive creation, mode 0600).
+Clock: host monotonic nanoseconds; generation 1 is this isolated process session.
+Correlation IDs are SHA256 hashes, consistently comparable across request/receipt fields.
+Provider offset_ms remains its own session timeline; no host-clock conversion is inferred.
+Request/return labels mean SDK invocation/return, not a provider acknowledgment.
+Output PCM remains on stdout through session.closed and a bounded pipe-queue drain;
+pipe writes do not prove decoder, speaker, speech or farewell completion. A blocked sink
+fails the probe after the close timeout, and received-versus-written byte totals expose
+partial retention. No transcript text or arbitrary provider payload is in the timeline.
+Source EOF SHA256 covers the exact bytes read; stopped-before-EOF hashes only that prefix.
+This stub does not select semantic end actions, so no model-end boundary is synthesized.
 Requires an isolated Python 3.12 environment with openai[realtime] supporting Live.
 Source: https://developers.openai.com/api/docs/guides/voice-websockets?api=live
 Tools: https://developers.openai.com/api/docs/guides/live-delegation
@@ -18,13 +29,16 @@ import asyncio
 import base64
 import binascii
 import contextlib
+import hashlib
 import importlib.metadata
 import json
 import os
 import signal
 import sys
+import time
+import uuid
 from collections import Counter
-from typing import Any
+from typing import Any, TextIO
 
 FRAME_BYTES = 960
 FRAME_SECONDS = 0.02
@@ -81,7 +95,11 @@ def numeric_usage(value: Any) -> dict[str, Any]:
 
 
 class Probe:
-    def __init__(self) -> None:
+    def __init__(self, *, timeline: TextIO | None = None) -> None:
+        self.timeline = timeline
+        self.sequence = 0
+        self.timeline_failed = False
+        self.source_hash = hashlib.sha256()
         self.started = asyncio.Event()
         self.finalized = asyncio.Event()
         self.closing = False
@@ -92,10 +110,66 @@ class Probe:
         self.backend_usage: list[dict[str, Any]] = []
         self.audio: asyncio.Queue[bytes] = asyncio.Queue(maxsize=100)
 
+    def trace(self, source_event: str, **fields: Any) -> None:
+        """Internal, static labels only; never copy arbitrary provider payloads."""
+        if self.timeline is None or self.timeline_failed:
+            return
+        self.sequence += 1
+        row = {
+            "sequence": self.sequence,
+            "monotonic_ns": time.monotonic_ns(),
+            "generation": 1,
+            "source_event": source_event,
+            **fields,
+        }
+        try:
+            self.timeline.write(json.dumps(row, sort_keys=True) + "\n")
+            self.timeline.flush()
+        except (OSError, ValueError):
+            # A failed diagnostic sink must never interrupt provider cleanup.
+            self.timeline_failed = True
+            self.counts["timeline_write_failures"] += 1
+
+    @staticmethod
+    def correlations(event: dict[str, Any]) -> dict[str, str]:
+        # Hash correlation values: even a malicious ID cannot leak a credential.
+        return {
+            key + "_sha256": hashlib.sha256(value.encode()).hexdigest()
+            for key in (
+                "event_id",
+                "client_event_id",
+                "delegation_id",
+                "response_id",
+                "call_id",
+                "id",
+            )
+            if isinstance((value := event.get(key)), str)
+        }
+
     async def handle(self, event: dict[str, Any], connection: Any) -> None:
         if self.finalized.is_set():
             return  # A completed socket generation can never affect a later probe.
         kind = event.get("type")
+        if kind in {"error", "session.started", "session.closed", "session.usage.updated"}:
+            self.trace(kind, **self.correlations(event))
+        if kind == "session.delegation.created":
+            offset = event.get("offset_ms")
+            fields = self.correlations(event)
+            if type(offset) is int and offset >= 0:
+                fields["offset_ms"] = offset
+            delegation = event.get("delegation")
+            if isinstance(delegation, dict):
+                fields.update(
+                    self.correlations(
+                        {
+                            "delegation_id": delegation.get("id"),
+                            "response_id": delegation.get("response_id"),
+                        }
+                    )
+                )
+                if delegation.get("target") in ("client", "responses"):
+                    fields["target"] = delegation["target"]
+            self.trace("session.delegation.created", **fields)
         if kind == "error":
             raise ProbeError("provider_error")
         if kind == "session.started":
@@ -110,26 +184,53 @@ class Probe:
         elif kind == "session.output_audio.delta":
             if not self.started.is_set():
                 raise ProbeError("audio_before_start")
-            if self.closing:
-                self.counts["audio_events_discarded_during_close"] += 1
-                return
             try:
                 audio = base64.b64decode(event["delta"], validate=True)
             except (KeyError, TypeError, ValueError, binascii.Error) as exc:
                 raise ProbeError("invalid_audio_base64") from exc
             if len(audio) % 2 or len(audio) > 48000:
                 raise ProbeError("invalid_audio_chunk")
+            start = self.counts["output_bytes_received"] // 2
+            self.counts["output_bytes_received"] += len(audio)
+            fields = {
+                "sample_start": start,
+                "sample_end": start + len(audio) // 2,
+                "byte_count": len(audio),
+                "sha256": hashlib.sha256(audio).hexdigest(),
+                "during_close": self.closing,
+                **self.correlations(event),
+            }
             try:
                 self.audio.put_nowait(audio)
             except asyncio.QueueFull as exc:
+                self.trace(
+                    "session.output_audio.delta", disposition="rejected_backpressure", **fields
+                )
                 raise ProbeError("output_backpressure") from exc
-            self.counts["output_bytes_received"] += len(audio)
+            self.trace("session.output_audio.delta", disposition="queued_for_pipe", **fields)
         elif kind == "response.event":
             await self.backend(event, connection)
 
     async def backend(self, envelope: dict[str, Any], connection: Any) -> None:
         event = envelope["event"]
         kind = event["type"]
+        if kind in {
+            "error",
+            "response.created",
+            "response.output_item.done",
+            "response.completed",
+            "response.failed",
+            "response.incomplete",
+        }:
+            refs = self.correlations(envelope)
+            refs.update(self.correlations(event))
+            for key in ("response", "item"):
+                if isinstance(event.get(key), dict):
+                    nested = self.correlations(event[key])
+                    if "id_sha256" in nested:
+                        nested[key + "_id_sha256"] = nested.pop("id_sha256")
+                    refs.update(nested)
+            self.trace("response.event/" + kind, **refs)
         if kind == "error":
             raise ProbeError("backend_error")
         delegation = envelope.get("delegation_id")
@@ -178,6 +279,9 @@ class Probe:
             for call_id in state["calls"]:
                 if self.closing:
                     return
+                self.trace(
+                    "response.item.create.request", **self.correlations({"call_id": call_id})
+                )
                 await connection.response.item.create(
                     item={
                         "type": "function_call_output",
@@ -185,9 +289,14 @@ class Probe:
                         "output": '{"status":"isolated_probe_ok","home_access":false}',
                     }
                 )
+                self.trace("response.item.create.return", **self.correlations({"call_id": call_id}))
                 self.counts["stub_results_submitted"] += 1
             if state["calls"] and not self.closing:
-                await connection.response.create()
+                kwargs = {"event_id": "probe_" + uuid.uuid4().hex} if self.timeline else {}
+                refs = self.correlations(kwargs)
+                self.trace("response.create.request", **refs)
+                await connection.response.create(**kwargs)
+                self.trace("response.create.return", **refs)
                 self.counts["backend_continuations_requested"] += 1
 
     def report(self) -> dict[str, Any]:
@@ -223,12 +332,24 @@ async def send_audio(probe: Probe, connection: Any, fd: int) -> None:
         if not eof:
             await fd_ready(fd)
             chunk = os.read(fd, FRAME_BYTES - len(pending))
+            source_start = probe.counts["source_input_bytes"]
             probe.counts["source_input_bytes"] += len(chunk)
+            probe.source_hash.update(chunk)
+            probe.trace(
+                "input.source.read", byte_start=source_start, byte_end=source_start + len(chunk)
+            )
             if not chunk:
+                probe.trace(
+                    "input.source.eof",
+                    byte_count=probe.counts["source_input_bytes"],
+                    sha256=probe.source_hash.hexdigest(),
+                )
                 if len(pending) % 2:
                     raise ProbeError("partial_pcm_sample_at_eof")
                 eof = True
+                probe.counts["source_eof_observed"] = 1
             pending.extend(chunk)
+        padding = 0
         if eof:
             padding = FRAME_BYTES - len(pending)
             pending.extend(bytes(padding))
@@ -236,10 +357,18 @@ async def send_audio(probe: Probe, connection: Any, fd: int) -> None:
         if len(pending) < FRAME_BYTES:
             continue
         if not probe.closing:
+            offsets = {
+                "sample_start": probe.counts["input_bytes_sent"] // 2,
+                "sample_end": (probe.counts["input_bytes_sent"] + len(pending)) // 2,
+                "source_bytes": len(pending) - padding,
+                "generated_silence_bytes": padding,
+            }
+            probe.trace("session.input_audio.append.request", **offsets)
             await connection.session.input_audio.append(
                 audio=base64.b64encode(pending).decode("ascii")
             )
             probe.counts["input_bytes_sent"] += len(pending)
+            probe.trace("session.input_audio.append.return", **offsets)
         pending.clear()
         # No catch-up burst after a blocked source/send; slower clocks stay observable.
         await asyncio.sleep(FRAME_SECONDS)
@@ -254,8 +383,11 @@ async def output_audio(probe: Probe, fd: int) -> None:
                 written = os.write(fd, audio)
             except BlockingIOError:
                 continue
+            start = probe.counts["output_bytes_written_to_pipe"]
             probe.counts["output_bytes_written_to_pipe"] += written
+            probe.trace("output.pipe.write", byte_start=start, byte_end=start + written)
             audio = audio[written:]
+        probe.audio.task_done()
 
 
 async def run(connection: Any, probe: Probe, duration: float, close_timeout: float = 15) -> None:
@@ -270,12 +402,28 @@ async def run(connection: Any, probe: Probe, duration: float, close_timeout: flo
     loop = asyncio.get_running_loop()
     stop = asyncio.Event()
     tasks: list[asyncio.Task[Any]] = []
+    writer: asyncio.Task[Any] | None = None
+
+    def stopped() -> None:
+        probe.trace("application.stop.signal")
+        stop.set()
+
     for signum in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(signum, stop.set)
+        loop.add_signal_handler(signum, stopped)
     receiver = asyncio.create_task(receive())
     tasks.append(receiver)
     try:
+        probe.trace(
+            "session.start.request",
+            config_sha256=hashlib.sha256(
+                json.dumps(session_config(), sort_keys=True).encode()
+            ).hexdigest(),
+            sample_rate=24000,
+            input_clock="paced_20ms",
+            output_sink="stdout_pcm_pipe",
+        )
         await asyncio.wait_for(connection.session.start(session=session_config()), 15)
+        probe.trace("session.start.return")
         ready = asyncio.create_task(probe.started.wait())
         tasks.append(ready)
         done, _ = await asyncio.wait(
@@ -287,30 +435,59 @@ async def run(connection: Any, probe: Probe, duration: float, close_timeout: flo
         if not ready.done():
             raise ProbeError("startup_timeout")
         print("Session ready; raw PCM24k input/output active", file=sys.stderr)
+        writer = asyncio.create_task(output_audio(probe, sys.stdout.fileno()))
         tasks.extend(
             [
                 asyncio.create_task(send_audio(probe, connection, sys.stdin.fileno())),
-                asyncio.create_task(output_audio(probe, sys.stdout.fileno())),
+                writer,
                 asyncio.create_task(stop.wait()),
             ]
         )
         done, _ = await asyncio.wait(
             [receiver, *tasks[2:]], timeout=duration, return_when=asyncio.FIRST_COMPLETED
         )
+        if not done:
+            probe.trace("application.duration.expired")
         for task in done:
             await task
     finally:
         probe.closing = True
-        # Stop local I/O before close; no claim that buffered audio was physically drained.
-        for task in tasks[1:]:
+        probe.trace("application.close.begin")
+        probe.trace(
+            "input.source.stopped",
+            byte_count=probe.counts["source_input_bytes"],
+            sha256=probe.source_hash.hexdigest(),
+            eof_observed=bool(probe.counts["source_eof_observed"]),
+        )
+        # Stop input, retain terminal PCM and keep its pipe sink alive during finalization.
+        cancelled = [task for task in tasks[1:] if task is not writer]
+        for task in cancelled:
             task.cancel()
-        await asyncio.gather(*tasks[1:], return_exceptions=True)
+        await asyncio.gather(*cancelled, return_exceptions=True)
         try:
             if probe.started.is_set() and not probe.finalized.is_set() and not receiver.done():
                 async with asyncio.timeout(close_timeout):
+                    probe.trace("session.close.request")
                     await connection.session.close()
+                    probe.trace("session.close.return")
                     await receiver
+            if writer is not None:
+                if writer.done():
+                    await writer
+                async with asyncio.timeout(close_timeout):
+                    await probe.audio.join()
+                probe.trace(
+                    "output.pipe.queue_drained",
+                    byte_count=probe.counts["output_bytes_written_to_pipe"],
+                )
         finally:
+            if writer is not None:
+                writer.cancel()
+                await asyncio.gather(writer, return_exceptions=True)
+            probe.trace(
+                "output.pipe.writer_stopped",
+                byte_count=probe.counts["output_bytes_written_to_pipe"],
+            )
             receiver.cancel()
             await asyncio.gather(receiver, return_exceptions=True)
             for signum in (signal.SIGINT, signal.SIGTERM):
@@ -322,6 +499,7 @@ async def run(connection: Any, probe: Probe, duration: float, close_timeout: flo
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seconds", type=float, default=60, help="Session bound, 1-120 seconds")
+    parser.add_argument("--timeline", help="New private JSONL file for monotonic event metadata")
     args = parser.parse_args()
     if not 1 <= args.seconds <= 120:
         parser.error("--seconds must be between 1 and 120")
@@ -329,6 +507,9 @@ def main() -> int:
     report: dict[str, Any] = {"outcome": "failed"}
     original_blocking: dict[int, bool] = {}
     try:
+        if args.timeline:
+            fd = os.open(args.timeline, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            probe.timeline = os.fdopen(fd, "w")
         from openai import AsyncOpenAI
         from openai.types.live.session_config_param import SessionConfigParam  # noqa: F401
 
@@ -351,6 +532,8 @@ def main() -> int:
                         await run(connection, probe, args.seconds)
 
         asyncio.run(connect())
+        if probe.timeline_failed:
+            raise ProbeError("timeline_write_failed")
         if not probe.counts["source_input_bytes"]:
             raise ProbeError("no_source_audio")
         report["outcome"] = "finalized"
@@ -360,6 +543,9 @@ def main() -> int:
         for fd, blocking in original_blocking.items():
             with contextlib.suppress(OSError):
                 os.set_blocking(fd, blocking)
+        if probe.timeline is not None:
+            with contextlib.suppress(OSError):
+                probe.timeline.close()
         report.update(probe.report())
         print(json.dumps(report, ensure_ascii=False), file=sys.stderr)
     return 0 if report["outcome"] == "finalized" else 1

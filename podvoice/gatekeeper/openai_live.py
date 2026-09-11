@@ -52,6 +52,7 @@ class LiveTranscript:
     start_ms: int
     end_ms: int
     generation: int
+    event_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,7 @@ class LiveBackendStarted:
     response_id: str
     generation: int
     client_event_id: str | None = None
+    created_index: int = 0
 
 
 @dataclass(frozen=True)
@@ -181,6 +183,7 @@ class OpenAILiveSession:
         self.audio_observer: Callable[[bytes, int], None] | None = None
         self.provider_observer: Callable[[dict[str, Any]], None] | None = None
         self._connection_generation = 0
+        self.backend_sequence = 0
         self._connection: Any = None
         self._client: Any = None
         self._manager: Any = None
@@ -276,6 +279,7 @@ class OpenAILiveSession:
         self._lease = self.provider_budget.production_started(self.api_key, self.backend_model)
         self._connection_generation += 1
         generation = self._connection_generation
+        self.backend_sequence = 0
         self._queue = asyncio.Queue(maxsize=128)
         self._closed = asyncio.Event()
         self._ready = asyncio.get_running_loop().create_future()
@@ -391,13 +395,25 @@ class OpenAILiveSession:
             # request_close preserves incoming terminal audio for Thin's physical drain.
             self._emit(LiveAudioChunk(pcm, generation))
         elif kind in {"session.input_transcript.delta", "session.output_transcript.delta"}:
+            text, start, end = event.get("delta"), event.get("start_ms"), event.get("end_ms")
+            event_id = event.get("event_id")
+            if (
+                not isinstance(text, str)
+                or type(start) is not int
+                or type(end) is not int
+                or start < 0
+                or end < start
+                or (event_id is not None and (not isinstance(event_id, str) or not event_id))
+            ):
+                raise LiveProtocolError("invalid_live_transcript")
             self._emit(
                 LiveTranscript(
                     "in" if kind.startswith("session.input") else "out",
-                    event["delta"],
-                    event["start_ms"],
-                    event["end_ms"],
+                    text,
+                    start,
+                    end,
                     generation,
+                    event_id,
                 )
             )
         elif kind in {"session.usage.updated", "session.closed"}:
@@ -479,9 +495,14 @@ class OpenAILiveSession:
             self._continuation_inflight = False
             self._seen_responses.add(response_id)
             self._responses[delegation] = _Response(response_id, [])
+            self.backend_sequence += 1
             self._emit(
                 LiveBackendStarted(
-                    delegation, response_id, generation, envelope.get("client_event_id")
+                    delegation,
+                    response_id,
+                    generation,
+                    envelope.get("client_event_id"),
+                    self.backend_sequence,
                 )
             )
             return

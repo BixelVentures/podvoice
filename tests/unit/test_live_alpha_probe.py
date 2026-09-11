@@ -466,3 +466,145 @@ def test_cli_finalized_session_is_failed_when_source_is_empty(monkeypatch, capsy
     finally:
         os.close(read_fd)
         os.close(write_fd)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("signal_stop", [False, True])
+async def test_terminal_pcm_is_written_after_close_request_before_writer_stops(
+    monkeypatch, signal_stop
+):
+    import io
+    import json
+
+    timeline = io.StringIO()
+    probe = Probe(timeline=timeline)
+    events = asyncio.Queue()
+    output = bytearray()
+    pcm = b"\x01\x00\x02\x00"
+    loop = asyncio.get_running_loop()
+    callbacks = []
+    monkeypatch.setattr(loop, "add_signal_handler", lambda _, callback: callbacks.append(callback))
+    monkeypatch.setattr(loop, "remove_signal_handler", lambda _: None)
+    monkeypatch.setattr(probe_module, "fd_ready", AsyncMock())
+    monkeypatch.setattr(
+        probe_module.os, "write", lambda _, audio: output.extend(audio) or len(audio)
+    )
+    monkeypatch.setattr(probe_module.sys, "stdin", SimpleNamespace(fileno=lambda: 0))
+    monkeypatch.setattr(probe_module.sys, "stdout", SimpleNamespace(fileno=lambda: 1))
+
+    async def blocked_input(*_):
+        if signal_stop:
+            callbacks[0]()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(probe_module, "send_audio", blocked_input)
+
+    class Connection:
+        async def emit(self, payload):
+            await events.put(SimpleNamespace(model_dump=lambda: payload))
+
+        async def start(self, **_):
+            await self.emit({"type": "session.started"})
+
+        async def close(self):
+            assert probe.closing
+            await self.emit(
+                {"type": "session.output_audio.delta", "delta": base64.b64encode(pcm).decode()}
+            )
+            await self.emit({"type": "session.closed", "usage": {"seconds": 1}})
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            return await events.get()
+
+    conn = Connection()
+    conn.session = conn
+    await probe_module.run(conn, probe, duration=0.01, close_timeout=0.1)
+    assert bytes(output) == pcm
+    assert (
+        probe.counts["output_bytes_received"] == probe.counts["output_bytes_written_to_pipe"] == 4
+    )
+    rows = [json.loads(line) for line in timeline.getvalue().splitlines()]
+    names = [row["source_event"] for row in rows]
+    assert names.index("application.close.begin") < names.index("session.close.request")
+    assert names.index("session.close.request") < names.index("session.output_audio.delta")
+    assert names.index("session.output_audio.delta") < names.index("session.closed")
+    assert names.index("session.closed") < names.index("output.pipe.queue_drained")
+    assert names.index("output.pipe.queue_drained") < names.index("output.pipe.writer_stopped")
+    trigger = "application.stop.signal" if signal_stop else "application.duration.expired"
+    assert names.index(trigger) < names.index("application.close.begin")
+    audio = rows[names.index("session.output_audio.delta")]
+    assert (audio["sample_start"], audio["sample_end"], audio["during_close"]) == (0, 2, True)
+    assert [row["sequence"] for row in rows] == list(range(1, len(rows) + 1))
+    assert [row["monotonic_ns"] for row in rows] == sorted(row["monotonic_ns"] for row in rows)
+    assert not probe.report()["physical_playback_verified"]
+
+
+@pytest.mark.asyncio
+async def test_timeline_hashes_correlations_and_preserves_actual_delegation_offset():
+    import hashlib
+    import io
+    import json
+
+    timeline = io.StringIO()
+    probe, conn = Probe(timeline=timeline), connection()
+    secret = "sk-private credential and arbitrary provider transcript"
+    await probe.handle(
+        {
+            "type": "session.delegation.created",
+            "offset_ms": 125,
+            "delegation": {"id": secret, "response_id": secret, "target": "responses"},
+            "client_event_id": secret,
+            "transcript": secret,
+            "usage": {secret: 1},
+        },
+        conn,
+    )
+    for invalid in ("secret", True, -1, float("nan"), float("inf")):
+        await probe.handle({"type": "session.delegation.created", "offset_ms": invalid}, conn)
+    await probe.handle(created(), conn)
+    await probe.handle(call(), conn)
+    await probe.handle(terminal(), conn)
+    event_id = conn.response.create.call_args.kwargs["event_id"]
+    await probe.handle(
+        {"type": "session.delegation.created", "client_event_id": event_id, "offset_ms": 800}, conn
+    )
+    data = timeline.getvalue()
+    assert secret not in data
+    assert event_id not in data
+    rows = [json.loads(line) for line in data.splitlines()]
+    assert rows[0]["offset_ms"] == 125
+    assert rows[0]["delegation_id_sha256"] == hashlib.sha256(secret.encode()).hexdigest()
+    assert all("offset_ms" not in row for row in rows[1:6])
+    requested = next(row for row in rows if row["source_event"] == "response.create.request")
+    assert requested["event_id_sha256"] == rows[-1]["client_event_id_sha256"]
+    assert "response.event/response.completed" in [row["source_event"] for row in rows]
+
+
+def test_timeline_sink_failure_does_not_interrupt_cleanup_state():
+    class BrokenSink:
+        def write(self, _):
+            raise OSError("private path or credential")
+
+    probe = Probe(timeline=BrokenSink())
+    probe.trace("application.close.begin")
+    probe.trace("session.close.request")
+    assert probe.timeline_failed
+    assert probe.counts["timeline_write_failures"] == 1
+    assert "private" not in str(probe.report())
+
+
+@pytest.mark.asyncio
+async def test_closing_audio_backpressure_is_explicit_failure_not_silent_discard():
+    probe, conn = Probe(), connection()
+    probe.started.set()
+    probe.closing = True
+    pcm = {"type": "session.output_audio.delta", "delta": "AAA="}
+    for _ in range(probe.audio.maxsize):
+        await probe.handle(pcm, conn)
+    with pytest.raises(ProbeError, match="output_backpressure"):
+        await probe.handle(pcm, conn)
+    assert probe.counts["output_bytes_received"] == 2 * (probe.audio.maxsize + 1)
+    assert probe.counts["audio_events_discarded_during_close"] == 0

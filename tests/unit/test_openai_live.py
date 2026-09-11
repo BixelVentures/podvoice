@@ -615,3 +615,88 @@ async def test_snapshot_retains_missing_backend_terminal_usage_as_unknown():
     snapshot = session.usage_snapshot()
     assert snapshot["backend_responses"] == [{"response_id": "r1", "usage": None}]
     assert not snapshot["backend_usage_complete"]
+
+
+@pytest.mark.asyncio
+async def test_official_transcript_metadata_preserves_event_identity_and_zero_length_range():
+    live_types = pytest.importorskip("openai.types.live")
+    session, _sdk, _ = provider()
+    await session.connect()
+    await anext(session.events())
+    event = live_types.InputTranscriptDeltaEvent(
+        type="session.input_transcript.delta",
+        event_id="provider-event-1",
+        delta="ja",
+        start_ms=20,
+        end_ms=20,
+    )
+    await session._handle(event.model_dump(), 1)
+    fragment = session._queue.get_nowait()
+    assert fragment == LiveTranscript("in", "ja", 20, 20, 1, "provider-event-1")
+    await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("delta", None),
+        ("delta", 7),
+        ("start_ms", -1),
+        ("start_ms", True),
+        ("start_ms", 1.5),
+        ("end_ms", 9),
+        ("end_ms", None),
+        ("end_ms", False),
+        ("event_id", 7),
+        ("event_id", ""),
+    ],
+)
+async def test_invalid_transcript_metadata_never_enters_evidence_queue(field, value):
+    session, _sdk, _ = provider()
+    await session.connect()
+    await anext(session.events())
+    event = {
+        "type": "session.input_transcript.delta",
+        "delta": "ja",
+        "start_ms": 10,
+        "end_ms": 20,
+        "event_id": "event-1",
+        field: value,
+    }
+    with pytest.raises(LiveProtocolError, match="invalid_live_transcript"):
+        await session._handle(event, 1)
+    assert session._queue.empty()
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_backend_receive_highwater_precedes_queued_delivery_and_resets_on_reconnect():
+    session, _sdk, _ = provider()
+    assert session.backend_sequence == 0
+    await session.connect()
+    await anext(session.events())
+    await session._handle(created(), 1)
+    await session._handle(created("r2", "d2"), 1)
+    review_highwater = session.backend_sequence
+    assert review_highwater == 2  # Both provider events received before owner review.
+    first = session._queue.get_nowait()
+    second = session._queue.get_nowait()
+    assert first.created_index == 1
+    assert second.created_index == 2
+    assert first.created_index <= review_highwater
+    assert second.created_index <= review_highwater
+    with pytest.raises(LiveProtocolError, match="duplicate_or_overlapping_live_response"):
+        await session._handle(created("r2", "d2"), 1)
+    assert session.backend_sequence == 2
+    await session.close()
+    await session.connect()
+    await anext(session.events())
+    assert session.backend_sequence == 0
+    await session._handle(created("old", "old"), 1)
+    assert session.backend_sequence == 0
+    await session._handle(created("fresh", "fresh"), 2)
+    fresh = session._queue.get_nowait()
+    assert fresh.created_index == 1
+    assert fresh.generation == 2
+    await session.close()
