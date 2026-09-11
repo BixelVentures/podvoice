@@ -2,6 +2,70 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Den kontrollerede policy-prøve c84ed4c2 er nu afsluttet og AFVIST på samme terminal-
+gate. Begge14 fragmenters hashes matcher igen kendt input og hele farvelsætningen;
+nul delegation/backend. Finalusage28.0s og session.closed modtaget; deadline-close,
+ikke semantisk close. Evidence: /private/tmp/podvoice-live-farewell-policy-02 og
+leverancens api-proof/farewell-policy-02. .82 er genstartet og Kører verificeret.
+Der køres ikke flere varianter af samme farvel-før-delegation-hypotese. Næste review
+undersøger backend-før-farvel med officielle lifecycle-signaler og ærligt mediedræn;
+inget arbitrært grace-interval må beskrives som providerens talefærdig-signal.
+Talk WebRTC-wiring udvikles fortsat under den nedenstående separate ejergrænse.
+
+Næste nødvendige Alpha-implementering er Talk WebRTC-wiring i eksisterende Thin,
+BrowserLink og panel. Direkte kodebevis: adapterens prepare_webrtc findes, men Thin
+allokerer stadig WAV og starter PCM-pump; BrowserLink har ingen SDP-handshake.
+Hypotese: én socket-/attempt-/provider-generation-bundet handshake kan bruge den
+reviewede SDK-adapter og bevare samme Thin close-owner. Kæde: eksplicit Talk input
+→ frisk offer → SDKcreate/sideband → answer → faktisk primary started + sideband-
+snapshot → løbende direkte media → Stop/disconnect → samme teardown → ny peer.
+Invarianter: Thin-ejerskab, OFF-paritet, privacy, ingen dobbeltlyd, stale-afvisning,
+readiness adskilt fra playback. Ingen nye endpoints/SDK-wrappere/samtalemotorer.
+Regressioner: samme rigtige Thin/BrowserLink, forkert/duplikat/sen identitet, Stop
+ved alle opstarts-awaits, typed-first uden micpermission, ny wake og nul WAV/PCM i
+WebRTC. Naturligt farvel er fortsat separat uafklaret: fravær af WAV-lease må IKKE
+blive succesbevis for browserdræn. Indtil policyen er bevist skal denne slutvej
+rapportere dræn ubekræftet. Det er en ufærdig kandidat, ikke reduceret acceptkrav.
+Rollback er disse tre filers transportwiring; Astra HIGH skal reviewe samlet diff.
+
+Uafhængigt Astra HIGH evidence-review bekræfter alle14 transcript-hashmatches og
+nul delegation/backendevents. Close blev anmodet30.023s efter session-create;
+closed kom30.809s efter. Provider-PCM har tre200ms tidsstempelhuller: sammenkædet
+filposition må ikke bruges som sessionsur. Begge lydfiler indeholder ikke-stille
+output, men reviewet har ikke bevist hørt/fysisk farvel. Reviewer støtter kun den
+kontrollerede promptprøve; ingen ekstra transskription eller rå tekstlog er nødvendig.
+
+Promptdiffet er nu implementeret som developer-only og har93 eksisterende probe-
+regressioner samt Ruff/format grønt. Uafhængigt Astra HIGH scoped GO på SHA
+c84ed4c2901f9910efdd139163140e274692311e538451daa26f0dab580b4f0d;
+review verificerede uændret normal config og alle øvrige forsøgsparametre. Frosset
+prøve ligger i /private/tmp/podvoice-live-farewell-policy-02. Ingen ny samlet runtime-
+gate kræves for dette isolerede promptforsøg; faktisk API-resultat udestår stadig.
+
+Næste developer-only hypotese følger den friskt læste officielle live-prompting-guide:
+bevar Delegation policy og dens tre labels, beskriv afslutning som backendkapabilitet
+og giv en konkret delegationsbetingelse. Den fejlede prøve havde fri prosa uden denne
+struktur. Kun prøvens primære prompt ændres; samme kendte farvel, før-delegation-
+rækkefølge, backendstub, lydfixture, transport, close-ejer og 30s grænse bevares.
+Hypotesen er falsificerbar ved fortsat manglende delegation; labels er ingen garanti.
+Ingen runtime- eller OFF-ændring. Review af promptdiff og eksisterende developer-
+regressioner kræves før en ny isoleret API-prøve. Rollback er kun promptdiffet.
+Kilde: https://developers.openai.com/api/docs/guides/live-prompting (11/9).
+
+Den fjerde isolerede API-prøve er afsluttet på a357d52 (WS02667b36/WebRTCb7437f15).
+Resultatet AFVISER den prøvede farvel-før-delegation-kæde: ingen delegation eller
+terminal backendfunktion kom inden prøvens grænse. SHA256-match mod kun de to kendte
+syntetiske fraser rekonstruerer input “ Tak for hjælpen. Det var alt. Farvel” og
+output “ Farvel, og tak for den hyggelige snak.”; alle transcriptfragmenter matcher.
+Det støtter semantisk farveltekst, men beviser ikke lyd i rummet eller efterfølgende
+lukning. Deadline udløste close; session.closed bekræftede 28.0s endeligt voiceforbrug,
+ingen backendforbrug/manglende terminaler. Browsercapture og provider-PCM er bevaret
+under api-proof/farewell-reviewed-01 i leverancen, med transcript-evidence.json.
+Prøven returnerede farewell_trial_evidence_incomplete, ikke succes. .82 er startet
+igen og HA UI viser Kører. Næste årsagsgrænse er primærmodellens delegation efter
+farvel, ikke manglende input eller et påvist FLAC-problem. Uafhængigt evidence-review
+pågår før ny prøve; ingen runtimeændring eller fysisk gate arves af transcriptet.
+
 Farvel-prøvens korrigerede scripts har nu uafhængigt Astra HIGH scoped GO på
 WS02667b36/WebRTCb7437f15:93 tests på1.35s plus direkte late create/attach/update-
 og resistant typed-send-reproduktion. Ingen sen SDP, én remoteclose, ingen uønsket

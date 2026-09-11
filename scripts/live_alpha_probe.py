@@ -90,11 +90,19 @@ def session_config(*, farewell_trial: bool = False) -> dict[str, Any]:
     }
     if farewell_trial:
         config["instructions"] = (
-            "Dette er en isoleret dansk afslutningsprøve uden adgang til hjemmet. "
-            "Når brugeren afslutter samtalen, sig først præcis: "
+            "Dette er en isoleret dansk afslutningsprøve uden adgang til hjemmet.\n\n"
+            "Delegation policy:\n"
+            "Backend tools:\n"
+            "- Afslutning af prøven: Backend kan lukke denne isolerede session.\n\n"
+            "Delegate to the backend when:\n"
+            "- Brugeren siger, at det var alt, eller beder om at afslutte samtalen. "
+            "Sig først præcis: "
             + FAREWELL_TEXT
             + " Færdiggør hele denne sætning, FØR du delegerer afslutningen til backend. "
-            "Delegér derefter kun beskeden om at afslutte prøven. Udfør ingen anden opgave."
+            "Delegér derefter kun beskeden om at afslutte prøven.\n\n"
+            "Do not delegate to the backend when:\n"
+            "- Brugeren endnu ikke har afsluttet samtalen.\n\n"
+            "Udfør ingen anden opgave."
         )
         backend = config["delegation"]["responses"]
         backend["instructions"] = (
