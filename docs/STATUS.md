@@ -62,6 +62,16 @@ Endelig .83-metadatareview robot_lookup_causal_review: GO, P0/P1/P2=0;
 engangstoken-terminologi præciseret. Frossen .83-releasegate PASS45.7s med fulde
 unit/integration, Ruff/format127, mypy47 og candidate-scope. Publicering følger;
 installation/live-gate/aktivering er endnu ikke resultater.
+Efter første grønne PR53-CI34603987929 (lint-test1m41s, ARM64-build1m44s) er .82
+nu offentliggjort som mainf880c682. .83 er rebaset derpå; begge changelogafsnit og
+hele den offentlige .82-fixtureændring bevares. Robotreviewhash er uændret.
+Reviewer genbekræftede GO til ny samlet freeze; tidligere gate er ikke bevis for
+denne nye base. Installationsvinduet afventer igen den anden udgivelse, og Chrome
+blokerer HA-automatisering med et åbent udvidelsesvindue. Brugeren er bedt lukke det.
+Automatisk app-opdatering blev midlertidigt slået OFF før push (tidligere ON);
+gendan efter kontrolleret installation. Robotudvidelsen er OFF, fem entiteter bevaret.
+Samlet frossen .83-på-.82-gate PASS44.5s: Ruff/format127, mypy47, candidate-scope,
+fuld unit/integration. Ny PR-head kræver frisk CI; ingen manuel genkørsel af CI.
 
 ## Aktiv lead-beslutning — rent tak uden verbal kvittering .80
 
