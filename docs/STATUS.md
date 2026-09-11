@@ -65,6 +65,73 @@ Ingen runtimeændring efter freeze. Publicering, installation, kandidatens livee
 og fysisk prøve resterer.
 
 
+Kandidatcommit acc3e38700323cc79d99e2de98b231ea0c23955e, 20 gennemgåede filer.
+Push blev afvist af automatisk godkendelseskontrol: offentlig .80-egress kræver
+specifik brugerbekræftelse; tidligere .76-godkendelse blev ikke accepteret. Ingen
+push, PR, CI eller installation udført. .79 er fortsat installeret. Kandidaten er
+lokalt færdig, men ikke live-evalueret/testklar til fysisk acceptance. Afventer kun
+bekræftelse af offentliggørelsen for at fortsætte den allerede bestilte installation.
+Brugeren svarede derefter “Godkend alt”. Kandidat acc3e387 er publiceret som PR50;
+GitHub CI34597589202 bestod. PR50 er squash-merget til main
+4fd401645cd1c99e41935ab615d82e6b48803dad; mainCI34597873047 bestod inklusiv
+publicering af den præcist testede ARM64-image. HA viser nu installeret1.13.80
+(backup af .79 valgt før opdateringen), og panelet rapporterer samme version.
+Native r0 er IDLE/connected med bekræftet hey_chat; MCP og PodConnect up.
+Den aktive gemte prompt indeholder v15s stille-tak-regel; modellen er fortsat
+gpt-realtime-2.1, og extended_device_control er visuelt verificeret OFF.
+Quiet-thanks liveeval eval-1789129433-fad789 er startet én gang på HA; resultat
+afventes. Ingen fysisk .80-samtale, golden chain eller10/10 endnu.
+Startup-log verificerer git_sha4fd401645cd1c99e41935ab615d82e6b48803dad,
+rootfs-v1:537fde31f6996919ceeea184d06d8f905f457405b1f52fe6686037c7ae2382dd,
+promptv15:9f18bc2bdeafd28b30c5d6022adcf152975dce7cbcd920d2c5cc03d0331056c9,
+effortmedium. Testen nåede bekræftelsesscenariet og approve_action omkring14:26;
+det er fremdrift, ikke en PASS. Browserforbindelsen forsvandt derefter (CUA-timeout,
+Chrome ikke længere tilgængelig i browserlisten). Samlet live-resultat kan derfor
+ikke aflæses endnu. Ingen genkørsel eller runtimepatch. Den afgrænsede HA-test ejer
+fortsat sin diagnostiklås indtil terminal status; .80 er installeret, men kandidatens
+semantiske PASS og fysiske acceptance er ikke bevist.
+
+
+Genoptaget11/9: terminal liveeval eval-1789129433-fad789 er gennemført12ture,
+10PASS/2FAIL, pris$0.2500792. Alle3 rene tak giver eksklusivt wait_for_user,
+output_emitted=false,0audiotokens og remain_open=true. Hele6tur-opfølgningen PASS.
+To fejl: exact challenge-id vælges korrekt ved Ja tak, men30s servergodkendelse
+udløber under evalens kapacitetsventen (approval_denied; ærlig fejl,0effekter).
+Fejlcasen kræver kontor, selv om testkonteksten definerer stue som eneste rum;
+modellen afklarer derfor legitimt i stedet for at ramme device_unavailable.
+Kandidaten er IKKE fysisk testklar: fuld valgt semantisk gate er rød.
+
+Lead-hypotese til eval-only korrektion: testopsætningen modsiger egne positive
+forudsætninger; promptens nye tak-regel har derimod direkte3/3livebevis. Berørt kæde:
+syntetisk kontekst → modelvalg → fixture-policy/kapacitetsventen → sandt resultat →
+stilhed/opfølgning. Produktionens godkendelsesgrænse,30sTTL, model, prompt, firmware,
+lyd, VAD, Thin, Talk og fysisk rearm må ikke ændres. Plan: kendt stue som utilgængeligt
+mediemål i denne isolerede profil; målrettet Ja tak-kontrast til et almindeligt tilbud
+uden adgangshandling. Eksisterende særskilte approval/expiry-regressioner bevares;
+denne profil må ikke længere påstå positiv livegodkendelse af adgangshandlinger.
+Reviewer vurderer afgrænsningen før implementering. Regressioner skal bevise kendt
+mål→fejl, ja tak→meningsfuldt svar uden wait, samme produktionsprompt og uændret
+approvalpolicy. Frossen releasegate og én ny installation kun for testrettelsen;
+rollbackgrænse .80, hvis diagnostik eller produktionsidentitet ændres utilsigtet.
+
+.81 er nu implementeret som7filers test-/versions-/dokumentationsdelta fra main4fd4016.
+Uafhængig reviewer quiet_thanks_080_review GO,32målrettede checksPASS, ingen åbne
+findings. Prompt/deklaration/harness/ExecutionPolicy/defaultmanifest byteuændrede.
+Ny regression efterligner de målte ventetider og beviser korrekt30s-expiry med0effekter
+samt kontrol uden ventetid med1fixtureeffekt. Tilbuds-oraklet accepterer naturlige
+spørgevarianter, men afviser generisk tilbud, tidlig handling og tavst ja-tak-svar.
+Stue-fejlfixturet er entydigt; gammel standardmedie-fixture er separat bevaret.
+Den gamle .80-coupling-record er historiseret, da .81 kun har ét klassificeret domæne.
+.80s tredje stille tak fulgte en opklaring, ikke den tilsigtede enhedsfejl; dette er
+præcis den manglende dækning, .81 skal måle. Frosset diff; endelig releasegate PASS42.2s (Ruff/format127,mypy47,
+kandidatscope,unit/integration). Fast-testene bestod, men resultatet blev kasseret,
+fordi reviewerens sidste oraclepræcisering flyttede diffet under kørslen. Den fulde
+releasegate tester de endelige bits. Ingen produktionsændring efter freeze.
+Publicering af7gennemgåede .81filer blev afvist af automatisk godkendelseskontrol,
+som kræver eksplicit godkendelse til det præcise offentlige payload. Ingen push,
+PR eller .81installation udført; .80 er fortsat installeret. Afventer bekræftelse.
+
+
 ## Aktiv lead-beslutning — præcis wake-samplegrænse .78
 
 11/9 Lead Codex. Brugeren kræver både sammenhængende “Hey Chat, hvad er klokken”
@@ -209,7 +276,7 @@ Ruff/format126, mypy47, exact reviewed coupling samt unit/integration er grønne
 Ingen produktionsændring mellem review, fast og release. CI/ARM64-mainartifact,
 diagnostisk installation, live SafeEval og fysisk acceptance resterer.
 
-<!-- candidate-scope-coupling
+<!-- historical-080-coupling
 {"version":1,"base_tip":"778f5bd8b578a5b9830e8f7840161c29985af1de","merge_base":"778f5bd8b578a5b9830e8f7840161c29985af1de","domains":["ha_tools","realtime_semantics"],"fingerprint":"9057adf48e7355586afc2c2f0d89091032c7c5d306c84ca705dba663805e5d8f","reviewer":"quiet_thanks_080_review","rationale":"One model-owned silent acknowledgement contract: matched prompt/declaration and stock migration, isolated synthetic semantic gate and both-adapter regressions. Actual provider wire verifies output before synchronous ACK; no production lifecycle, audio, firmware or robot-control change."}
 -->
 

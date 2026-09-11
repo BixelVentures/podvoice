@@ -1,3 +1,9 @@
+## 1.13.81 — Sammenhængende testdata til stille tak
+
+- Retter kun den sikre tak-test: “ja tak” besvarer et almindeligt tilbud om lys, og fejlprøven bruger testverdenens kendte rum stue.
+- Bevarer prompt v15 fra .80 og alle produktionsregler, herunder godkendelsers 30 sekunders udløb. Den målrettede test beviser ikke godkendelse af adgangshandlinger.
+- Ingen ændring af firmware, wake, lyd, VAD, samtalemotor eller fysisk timeout. Fysisk afprøvning af stille tak og opfølgning mangler stadig.
+
 ## 1.13.80 — Et rent tak uden verbal kvittering
 
 - Standardprompt v15 bruger stille venten ved et rent tak til et allerede givet svar. Samtalen holdes åben til opfølgning; spørgsmål, handlinger og bekræftelser behandles stadig.
