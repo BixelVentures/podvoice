@@ -1,3 +1,9 @@
+## 1.13.83 — Direkte opslag på kendt Roborock
+
+- Præciserer, at et allerede kendt robot-ID bruges direkte uden et ekstra listeopslag. Ukendt ID bruger fortsat discovery; ingen lokale taleregler eller nye værktøjer.
+- Bevarer HA-rumkobling, sikker målvalidering, engangstokens og prompt v15 fra .81. Ingen firmware-, lyd- eller kapacitetsændring.
+- Regressioner fastholder ét opslag ved kendt mål og afviser forkert mål eller rengøring ved et rumspørgsmål. Robotudvidelsen aktiveres først efter bestået sikker AI-test; fysisk afprøvning er separat.
+
 ## 1.13.82 — Mediefiltre i den sikre tak-test
 
 - Den isolerede fejlprøve accepterer tre præcise, schema-validerede målangivelser for stuen: område alene, med media_player-domæne eller med speaker-klasse.

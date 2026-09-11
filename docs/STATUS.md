@@ -53,6 +53,16 @@ efter freeze. Denne statusopdatering er kun leveringsmetadata; offentlig kode/CI
 artifact, koordineret installation og sikker robotliveeval resterer. .81-opgaven
 ejer fortsat live-vinduet; ingen HA-state er ændret af denne rettelse.
 
+Brugeren har nu eksplicit bestilt push, build, installation og aktivering efter
+sikker test. .83 bruges på offentlig .81-base; separat upubliceret .82-payload
+medtages ikke. Installationsvinduet er frigivet. Kun versionsmetadata/changelog
+tilføjes til den reviewede robotrettelse; rollback er installeret .81 og dens
+backup, robotudvidelse OFF ved fejlet gate. Ingen nye beskeder til anden opgave.
+Endelig .83-metadatareview robot_lookup_causal_review: GO, P0/P1/P2=0;
+engangstoken-terminologi præciseret. Frossen .83-releasegate PASS45.7s med fulde
+unit/integration, Ruff/format127, mypy47 og candidate-scope. Publicering følger;
+installation/live-gate/aktivering er endnu ikke resultater.
+
 ## Aktiv lead-beslutning — rent tak uden verbal kvittering .80
 
 11/9 Lead Codex. Brugeren bestiller promptændring, test og installation. Direkte
