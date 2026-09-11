@@ -142,7 +142,11 @@ def _coupled_repo(tmp_path, domains=("physical_output", "rearm")):
     git("config", "user.name", "Scope Test")
     git("config", "user.email", "scope@example.invalid")
     (tmp_path / "podvoice/gatekeeper").mkdir(parents=True)
-    source = tmp_path / "podvoice/gatekeeper/device.py"
+    source = tmp_path / (
+        "podvoice/gatekeeper/audio_analysis.py"
+        if domains == ("audio_input", "physical_output")
+        else "podvoice/gatekeeper/device.py"
+    )
     source.write_text("")
     (tmp_path / "esphome").mkdir()
     (tmp_path / "esphome/other.h").write_text("baseline\n")
@@ -150,7 +154,9 @@ def _coupled_repo(tmp_path, domains=("physical_output", "rearm")):
     git("commit", "-qm", "base")
     base = git("rev-parse", "HEAD")
     source.write_text(
-        "MCP end_conversation\n"
+        'events = ["speech_started", "playback_started"]\n'
+        if domains == ("audio_input", "physical_output")
+        else "MCP end_conversation\n"
         if domains == ("ha_tools", "realtime_semantics")
         else "mic_gate MCP playback response.done rearm\n"
         if len(domains) == 5
@@ -180,6 +186,57 @@ def _coupled_repo(tmp_path, domains=("physical_output", "rearm")):
     write_record(record)
     assert inspect_repository(tmp_path, base).passed
     return source, base, git, record, write_record
+
+
+def test_audio_analysis_requires_exact_review_and_cannot_include_runtime_paths(tmp_path):
+    from scripts.candidate_scope import inspect_repository, production_fingerprint
+
+    source, base, _git, record, write = _coupled_repo(tmp_path, ("audio_input", "physical_output"))
+    assert inspect_repository(tmp_path, base).passed
+    (tmp_path / "docs/STATUS.md").unlink()
+    assert not inspect_repository(tmp_path, base).passed
+    write(record)
+    original = source.read_text()
+    source.write_text(original + "changed = True\n")
+    assert not inspect_repository(tmp_path, base).passed
+    source.write_text(original)
+    for name in (
+        "podvoice/gatekeeper/thin.py",
+        "podvoice/gatekeeper/voicepe.py",
+        "esphome/audio.cpp",
+    ):
+        extra = tmp_path / name
+        extra.write_text("changed = True\n")
+        report = inspect_repository(tmp_path, base)
+        # Even a freshly signed fingerprint cannot grant this surface exception.
+        write(
+            {
+                **record,
+                "fingerprint": production_fingerprint(
+                    tmp_path, base, base, report.production_files
+                ),
+            }
+        )
+        assert not inspect_repository(tmp_path, base).passed
+        extra.unlink()
+    write(record)
+    assert inspect_repository(tmp_path, base).passed
+
+    # Same event-name tuple in web.py alone does not enter the analyzer exception.
+    source.write_text("")
+    _git("add", "podvoice/gatekeeper/audio_analysis.py")
+    (tmp_path / "podvoice/gatekeeper/web.py").write_text(original)
+    _git("add", "podvoice/gatekeeper/web.py")
+    report = inspect_repository(tmp_path, base)
+    assert report.domains == ("audio_input", "physical_output")
+    assert "podvoice/gatekeeper/audio_analysis.py" not in report.production_files
+    write(
+        {
+            **record,
+            "fingerprint": production_fingerprint(tmp_path, base, base, report.production_files),
+        }
+    )
+    assert not inspect_repository(tmp_path, base).passed
 
 
 def test_exact_reviewed_coupling_binds_effective_staged_and_worktree_bytes(tmp_path):

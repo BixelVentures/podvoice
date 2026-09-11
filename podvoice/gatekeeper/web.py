@@ -360,6 +360,7 @@ HISTORY: web.AppKey = web.AppKey("history")
 REPLY: web.AppKey = web.AppKey("reply")
 AUDIO_TRACE: web.AppKey = web.AppKey("audio_trace")
 LIVE_EVAL: web.AppKey = web.AppKey("live_eval")
+AUDIO_ANALYSIS: web.AppKey = web.AppKey("audio_analysis")
 DIAGNOSTIC_STATUS: web.AppKey = web.AppKey("diagnostic_status")
 
 
@@ -378,6 +379,7 @@ def create_app(
     history=None,
     audio_trace=None,
     live_eval=None,
+    audio_analysis=None,
     diagnostic_status=None,
     reply_bus=None,
     reply_token: str | None = None,
@@ -407,6 +409,13 @@ def create_app(
     app[HISTORY] = history
     app[AUDIO_TRACE] = audio_trace
     app[LIVE_EVAL] = live_eval
+    app[AUDIO_ANALYSIS] = audio_analysis
+    if audio_analysis is not None:
+
+        async def close_audio_analysis(app):
+            await app[AUDIO_ANALYSIS].close()
+
+        app.on_cleanup.append(close_audio_analysis)
     app[DIAGNOSTIC_STATUS] = diagnostic_status
     app[REPLY] = reply_bus
     app.add_routes(
@@ -421,6 +430,8 @@ def create_app(
             web.post("/api/groundtest/result", _groundtest_result),
             web.post("/api/groundtest/final-wake", _groundtest_final_wake),
             web.get("/api/audio-trace", _audio_trace_status),
+            web.get("/api/audio-analysis", _audio_analysis_status),
+            web.post("/api/audio-analysis", _audio_analysis_start),
             web.post("/api/audio-trace/arm", _audio_trace_arm),
             web.post("/api/audio-trace/cancel", _audio_trace_cancel),
             web.get("/api/audio-trace/{trace_id}/{stage}", _audio_trace_artifact),
@@ -2806,6 +2817,47 @@ async def _audio_trace_status(request: web.Request) -> web.Response:
             {"ok": False, "error": "Lydbevis er ikke tilgængeligt"}, status=501
         )
     return web.json_response({"ok": True, **recorder.snapshot()})
+
+
+async def _audio_analysis_status(request: web.Request) -> web.Response:
+    if not _protocol_owner_source_allowed(request.remote):
+        raise web.HTTPForbidden()
+    service = request.app[AUDIO_ANALYSIS]
+    result = service.status() if service is not None else {"status": "unavailable"}
+    return web.json_response(result, headers={"Cache-Control": "no-store"})
+
+
+async def _audio_analysis_start(request: web.Request) -> web.Response:
+    if not _protocol_owner_source_allowed(request.remote):
+        raise web.HTTPForbidden()
+    if request.content_type != "application/json":
+        raise web.HTTPUnsupportedMediaType()
+    service, recorder = request.app[AUDIO_ANALYSIS], request.app[AUDIO_TRACE]
+    if service is None or recorder is None:
+        return web.json_response({"status": "unavailable"}, status=503)
+    if recorder.snapshot().get("active"):
+        return web.json_response({"status": "busy", "error": "En optagelse er i gang."}, status=409)
+    try:
+        async with asyncio.timeout(3):
+            try:
+                raw = await request.content.readexactly(1025)
+            except asyncio.IncompleteReadError as exc:
+                raw = exc.partial
+    except TimeoutError:
+        raise web.HTTPRequestTimeout() from None
+    if len(raw) > 1024:
+        raise web.HTTPRequestEntityTooLarge(max_size=1024, actual_size=len(raw))
+    try:
+        body = json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        raise web.HTTPBadRequest() from None
+    if not isinstance(body, dict) or set(body) != {"trace_id"}:
+        raise web.HTTPBadRequest()
+    result = service.start(body["trace_id"])
+    status = {"running": 202, "busy": 409, "invalid": 400, "unavailable": 503}.get(
+        result["status"], 200
+    )
+    return web.json_response(result, status=status, headers={"Cache-Control": "no-store"})
 
 
 async def _audio_trace_arm(request: web.Request) -> web.Response:

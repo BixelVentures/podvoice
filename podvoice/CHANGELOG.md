@@ -1,3 +1,10 @@
+## 1.13.77 — Analyse af gemt lyd uden browserdownload
+
+- Analyserer starten af en afsluttet optagelse på HA og transskriberer højst tre korte udsnit med OpenAI. Ingen ny lyd optages.
+- Viser første provider-segments præcise lydgrænser og særskilte fortolkninger af mikrofon-/providersporet. Resultater er diagnostik, ikke fysisk bevis.
+- Kun ingress/loopback, én kortvarig diagnose ad gangen, samme providerlås som eksisterende tests, højst 24 sekunders indsendt lyd og 45 sekunders køretid.
+- Bevarer .76-firmware, følsomhed, VAD, prompt, samtaleadfærd og genforbindelse. Velkomstfejlens årsag afventer analyse.
+
 ## 1.13.76 — Hey Chat følger det valgte følsomhedsniveau
 
 - Retter firmware-selectorens manglende Hey Chat-kobling: Slightly bruger242/255 (modellens hidtidige standard), Moderate230/255 og Very217/255. Enhedens eksisterende gemte valg bevares.
