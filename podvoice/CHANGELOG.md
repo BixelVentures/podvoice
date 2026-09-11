@@ -2477,3 +2477,10 @@ Root cause of "home_call ✓ but the assistant still says it can't": a tool-RESU
 
 - Initial release: gatekeeper service, HA add-on packaging, custom Voice PE firmware
   sketch, and the S1/S2 hardware spikes.
+## 1.13.79 — Roborock med Home Assistants rumnavne
+
+- Udvidet robotstyring bruger HA's gemte områdekoblinger og aliaser. Ét område kan indeholde flere robotsegmenter; de sendes samlet med det ønskede antal passager.
+- Et opslag på den eneste tilladte robot behøver ikke længere en separat liste-/modelrunde. Rumspørgsmål er beskrevet som opslag, ikke rengøringsordrer.
+- Ændret områdekobling, robotidentitet eller aktivt kort afviser en gammel handling. Ingen delvis områdestart eller automatisk gentagelse af ukendt udfald.
+- Eksisterende kapacitetsventen kan nu ses i en eksplicit armet fysisk trace. Ingen ændring af budgetlofter eller pacingregler.
+- Bevarer .78-wake-rettelsen og dens firmwarekrav. Robotudvidelsen forbliver eksperimentel; sikker AI-evaluering og fysisk test er separate acceptgates.

@@ -56,6 +56,20 @@ class Rig:
             {"flag": 0, "name": "Ground floor", "rooms": {"16": "Kitchen", "17": "Dining"}},
             {"flag": 1, "name": "Upstairs", "rooms": {"16": "Bedroom"}},
         ]
+        self.registry[ROBOT]["options"] = {
+            "vacuum": {
+                "area_mapping": {
+                    "kitchen": ["0_16"],
+                    "dining": ["0_17"],
+                    "bedroom": ["1_16"],
+                }
+            }
+        }
+        self.areas = [
+            {"area_id": "kitchen", "name": "Køkkenalrum", "aliases": ["Køkken"]},
+            {"area_id": "dining", "name": "Spisestue", "aliases": []},
+            {"area_id": "bedroom", "name": "Soveværelse", "aliases": []},
+        ]
         self.reads = []
         self.writes = []
         self.maps_hook = None
@@ -64,6 +78,9 @@ class Rig:
         self.router = ToolRouter(None, client=self.client, supervisor_token="test-token")
         self.router._device_control._registry = AsyncMock(
             side_effect=lambda: copy.deepcopy(self.registry)
+        )
+        self.router._device_control._areas = AsyncMock(
+            side_effect=lambda: copy.deepcopy(self.areas)
         )
         self.configure()
 
@@ -171,10 +188,219 @@ async def test_off_parity_and_exact_two_bounded_detached_declarations(rig):
     assert not rig.reads
 
 
-async def test_list_is_explicit_allowlist_without_ha_reads(rig):
+async def test_single_vacuum_returns_capabilities_without_extra_model_round(rig):
     result = await rig.router.dispatch(GET_CAPABILITIES, {}, execution_context=CTX)
-    assert result["data"]["entity_ids"] == list(rig.registry)
+    assert result["ok"] and result["data"]["entity_id"] == ROBOT
+    assert result["data"]["map"]["areas"][0]["name"] == "Køkkenalrum"
+
+
+async def test_multiple_vacuums_list_only_permitted_vacuums_without_reads(rig):
+    rig.configure(entities=[ROBOT, "vacuum.other", MAP])
+    result = await rig.router.dispatch(GET_CAPABILITIES, {}, execution_context=CTX)
+    assert result["data"]["entity_ids"] == [ROBOT, "vacuum.other"]
     assert not rig.reads
+
+
+async def test_ha_area_expands_all_segments_once_on_active_map(rig):
+    rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"] = {
+        "kitchen": ["0_16", "0_17"],
+        "bedroom": ["1_16"],
+    }
+    result = await rig.read()
+    assert result["data"]["map"]["areas"] == [
+        {
+            "area_id": "kitchen",
+            "name": "Køkkenalrum",
+            "aliases": ["Køkken"],
+        }
+    ]
+    result = await rig.act(
+        result["capability_token"],
+        "vacuum.send_command",
+        arguments={
+            "command": "app_segment_clean",
+            "area_ids": ["kitchen"],
+            "repeat": 2,
+        },
+    )
+    assert result["ok"], result
+    assert rig.writes == [
+        (
+            "services/vacuum/send_command",
+            {
+                "entity_id": ROBOT,
+                "command": "app_segment_clean",
+                "params": [{"segments": [16, 17], "repeat": 2}],
+            },
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "requested", [[], ["bedroom"], ["Kitchen"], ["kitchen", "kitchen"], [True], "kitchen"]
+)
+async def test_only_exact_active_ha_area_ids_are_action_targets(rig, requested):
+    token = (await rig.read())["capability_token"]
+    result = await rig.act(
+        token,
+        "vacuum.send_command",
+        arguments={
+            "command": "app_segment_clean",
+            "area_ids": requested,
+            "repeat": 2,
+        },
+    )
+    assert not result["ok"] and not rig.writes
+
+
+@pytest.mark.parametrize("change", ["mapping", "area_deleted", "name", "alias"])
+async def test_area_change_between_read_and_action_rejects_stale_target(rig, change):
+    token = (await rig.read())["capability_token"]
+    if change == "mapping":
+        rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"]["kitchen"] = ["0_17"]
+    elif change == "area_deleted":
+        rig.areas.pop(0)
+    elif change == "name":
+        rig.areas[0]["name"] = "Andet rum"
+    else:
+        rig.areas[0]["aliases"] = ["Andet"]
+    assert not (await rig.act(token))["ok"] and not rig.writes
+
+
+async def test_mapping_change_during_metadata_read_is_rejected(rig):
+    token = (await rig.read())["capability_token"]
+
+    async def change():
+        rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"]["kitchen"] = ["0_17"]
+
+    rig.maps_hook = change
+    assert not (await rig.act(token))["ok"] and not rig.writes
+
+
+@pytest.mark.parametrize("read", ["_registry", "_areas"])
+@pytest.mark.parametrize("change", ["map", "busy"])
+async def test_state_change_during_final_mapping_reads_cannot_cross_dispatch(rig, read, change):
+    token = (await rig.read())["capability_token"]
+    calls = 0
+
+    async def mutate():
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            if change == "map":
+                rig.states[MAP]["state"] = "Upstairs"
+            else:
+                rig.states[ROBOT]["state"] = "cleaning"
+        return copy.deepcopy(rig.registry if read == "_registry" else rig.areas)
+
+    setattr(rig.router._device_control, read, AsyncMock(side_effect=mutate))
+    result = await rig.act(
+        token,
+        "vacuum.send_command",
+        arguments={
+            "command": "app_segment_clean",
+            "area_ids": ["kitchen"],
+            "repeat": 2,
+        },
+    )
+    assert calls == 2
+    assert not result["ok"] and not rig.writes
+
+
+@pytest.mark.parametrize(
+    "entity,field,value",
+    [
+        (ROBOT, "device_id", "replacement"),
+        (ROBOT, "unique_id", "replacement"),
+        (ROBOT, "platform", "template"),
+        (ROBOT, "disabled_by", "user"),
+        (MODE, "device_id", "other-robot"),
+        (MODE, "disabled_by", "user"),
+    ],
+)
+async def test_identity_change_during_metadata_read_cannot_cross_dispatch(
+    rig, entity, field, value
+):
+    token = (await rig.read())["capability_token"]
+
+    async def change():
+        rig.registry[entity][field] = value
+
+    rig.maps_hook = change
+    result = await rig.act(token, "select.select_option", entity=MODE, arguments={"option": "mop"})
+    assert not result["ok"] and not rig.writes
+
+
+@pytest.mark.parametrize(
+    "mapping",
+    [
+        {"kitchen": ["0_16", "0_99"]},
+        {"kitchen": ["0_16", "1_16"]},
+        {"kitchen": ["0_16"], "dining": ["0_16"]},
+        {"kitchen": ["0_016"]},
+        {"kitchen": [False]},
+    ],
+)
+async def test_stale_partial_cross_map_and_malformed_mappings_fail_closed(rig, mapping):
+    rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"] = mapping
+    assert not (await rig.read())["ok"] and not rig.writes
+
+
+async def test_missing_mapping_is_not_a_false_empty_map_or_raw_start_permission(rig):
+    rig.registry[ROBOT].pop("options")
+    result = await rig.read()
+    assert result["ok"]
+    assert result["data"]["map"]["areas"] == []
+    assert result["data"]["map"]["unmapped_segments"] == 2
+    result = await rig.act(
+        result["capability_token"],
+        "vacuum.send_command",
+        arguments={
+            "command": "app_segment_clean",
+            "segments": [16],
+            "repeat": 2,
+        },
+    )
+    assert not result["ok"] and not rig.writes
+
+
+async def test_legacy_segment_target_cannot_clean_half_of_an_ha_area(rig):
+    rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"] = {"kitchen": ["0_16", "0_17"]}
+    token = (await rig.read())["capability_token"]
+    result = await rig.act(
+        token,
+        "vacuum.send_command",
+        arguments={
+            "command": "app_segment_clean",
+            "segments": [16],
+            "repeat": 2,
+        },
+    )
+    assert not result["ok"] and not rig.writes
+
+
+async def test_eight_observed_ground_floor_areas_fit_without_losing_ids(rig):
+    # UI-observed names/groups on .77, synthetic 26-character HA IDs.
+    groups = [
+        ("Barn A's Værelse Stueplan", [16]),
+        ("Entré Stueplan", [17]),
+        ("Gang Stueplan", [18]),
+        ("Soveværelse Stueplan", [20]),
+        ("Køkkenalrum Stueplan", [21, 22]),
+        ("Barn B's Værelse Stueplan", [23]),
+        ("Badeværelse Stueplan", [25]),
+        ("Bryggers Stueplan", [26]),
+    ]
+    rig.maps[0]["rooms"] = {str(i): f"Raw room {i}" for i in range(16, 27)}
+    rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"] = {
+        f"area_{i:021d}": [f"0_{s}" for s in segments] for i, (_, segments) in enumerate(groups)
+    }
+    rig.areas = [{"area_id": f"area_{i:021d}", "name": name} for i, (name, _) in enumerate(groups)]
+    result = await rig.read()
+    assert result["ok"], result
+    assert len(result["data"]["map"]["areas"]) == 8
+    assert result["data"]["map"]["unmapped_segments"] == 2
+    assert len(json.dumps(result, ensure_ascii=False, separators=(",", ":")).encode()) <= 1800
 
 
 async def test_action_target_description_distinguishes_control_from_vacuum(rig):
@@ -214,9 +440,13 @@ async def test_wrong_action_target_consumes_token_without_inference_or_writes(
 async def test_full_sequence_uses_confirmed_options_and_one_exact_repeat_command(rig):
     result = await rig.read()
     assert result["ok"]
-    assert result["data"]["map"]["rooms"] == [
-        {"id": 16, "name": "Kitchen"},
-        {"id": 17, "name": "Dining"},
+    assert result["data"]["map"]["areas"] == [
+        {
+            "area_id": "kitchen",
+            "name": "Køkkenalrum",
+            "aliases": ["Køkken"],
+        },
+        {"area_id": "dining", "name": "Spisestue"},
     ]
     for action, entity, arguments in [
         ("select.select_option", MODE, {"option": "vacuum_and_mop"}),
@@ -546,6 +776,12 @@ async def test_provider_serializer_preserves_capability_or_truthfully_rejects_ov
     normal = await rig.read()
     assert json.loads(OpenAIRealtimeSession._bounded_tool_output(normal)) == normal
     rig.maps[0]["rooms"] = {str(i): "Living room and dining area " + str(i) for i in range(32)}
+    rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"] = {
+        f"room_{i}": [f"0_{i}"] for i in range(32)
+    }
+    rig.areas = [
+        {"area_id": f"room_{i}", "name": "Et meget langt områdenavn " + str(i)} for i in range(32)
+    ]
     # A fresh large read must NOT issue a token that the provider would strip.
     before = dict(rig.router._device_control._tickets)
     result = await rig.read()

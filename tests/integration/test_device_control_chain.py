@@ -28,6 +28,41 @@ from gatekeeper.voice import (
 )
 
 
+async def test_area_registry_wire_uses_exact_read_only_api(monkeypatch):
+    rig = Rig()
+    received = []
+
+    async def registry(request):
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        await ws.send_json({"type": "auth_required", "ha_version": "2026.8.2"})
+        received.append(await ws.receive_json())
+        await ws.send_json({"type": "auth_ok"})
+        received.append(await ws.receive_json())
+        await ws.send_json({"id": 1, "type": "result", "success": True, "result": rig.areas})
+        await ws.receive()
+        return ws
+
+    app = web.Application()
+    app.router.add_get("/core/websocket", registry)
+    try:
+        async with TestServer(app) as server:
+            monkeypatch.setattr(
+                device_control,
+                "_SUPERVISOR_WEBSOCKET_URL",
+                str(server.make_url("/core/websocket")).replace("http://", "ws://"),
+            )
+            adapter = rig.router._device_control
+            assert await DeviceControl._areas(adapter) == rig.areas
+        assert received == [
+            {"type": "auth", "access_token": "test-token"},
+            {"type": "config/area_registry/list", "id": 1},
+        ]
+        assert not rig.writes
+    finally:
+        await rig.client.aclose()
+
+
 @pytest.mark.parametrize("failure", [None, "auth", "response_id", "missing_entry"])
 async def test_production_registry_wire_is_bounded_read_only(monkeypatch, failure):
     rig = Rig()
@@ -116,7 +151,7 @@ async def test_exact_robot_action_needs_thin_commit_and_replay_cannot_repeat(sur
             "capability_token": token,
             "entity_id": ROBOT,
             "action": "vacuum.send_command",
-            "arguments": {"command": "app_segment_clean", "segments": [16], "repeat": 2},
+            "arguments": {"command": "app_segment_clean", "area_ids": ["kitchen"], "repeat": 2},
         }
         call = _batched_call("start", EXECUTE_ACTION, args, batch_id="start", index=0, size=1)
         brain.emit(call)
@@ -172,7 +207,7 @@ async def test_robot_receipt_closes_once_and_next_wake_cannot_replay(surface):
             "capability_token": capability["capability_token"],
             "entity_id": ROBOT,
             "action": "vacuum.send_command",
-            "arguments": {"command": "app_segment_clean", "segments": [16], "repeat": 2},
+            "arguments": {"command": "app_segment_clean", "area_ids": ["kitchen"], "repeat": 2},
         }
         brain.emit(
             _batched_call("start", EXECUTE_ACTION, args, batch_id="start", index=0, size=1),
