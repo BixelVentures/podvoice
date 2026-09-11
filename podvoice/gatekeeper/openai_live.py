@@ -419,7 +419,13 @@ class OpenAILiveSession:
                 if self.transport == "webrtc":
                     self._connection = connection
                     self._reader = asyncio.create_task(self._receive(connection, generation))
-                if self._close_requested or generation != self._connection_generation:
+                # An SDK await may suppress cancellation. Thin still owns and joins
+                # this opening before closing the provider; no late start may escape.
+                if (
+                    self._close_requested
+                    or generation != self._connection_generation
+                    or (self._startup_task is not None and self._startup_task.cancelling())
+                ):
                     raise LiveProtocolError("live_startup_superseded")
                 if self.transport == "webrtc" and startup_deadline.expired():
                     raise LiveProtocolError("live_startup_deadline_expired")
@@ -444,6 +450,7 @@ class OpenAILiveSession:
                     self._connection = connection
                     self._reader = asyncio.create_task(self._receive(connection, generation))
                     await connection.session.start(session=configuration)
+                self._active(generation)
                 await self._ready
                 self._active(generation)
         except BaseException:
@@ -454,6 +461,7 @@ class OpenAILiveSession:
         if (
             self._connection is None
             or self._close_requested
+            or (self._startup_task is not None and self._startup_task.cancelling())
             or self._closed.is_set()
             or self.last_error is not None
             or (generation is not None and generation != self._connection_generation)

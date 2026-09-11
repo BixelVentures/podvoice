@@ -36,6 +36,7 @@ log = logging.getLogger("podvoice.talk")
 TALK_ROOM = "talk"
 PROTOCOL_VERSION = 2
 _QUEUE_MAXSIZE = 200  # ~4 s of 20 ms frames, same backpressure policy as the puck link
+_COMMAND_JOIN_DIAGNOSTIC_S = 2.0  # Report stuck cleanup; never abandon its owned task.
 
 
 class TalkConnection:
@@ -430,56 +431,94 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
             "conversation": "idle",
         }
     )
-    commands: asyncio.Queue[dict | None] = asyncio.Queue()
+    commands: asyncio.Queue[tuple[int, dict, bool] | None] = asyncio.Queue()
+    command_epoch = 0
+    running: asyncio.Task | None = None
+    stopping = False
+    stop_task: asyncio.Task | None = None
+    stop_commands: list[str] = []
+    stop_receipts: dict[str, dict] = {}
+
+    async def receipt(correlation_id: str, **result) -> None:
+        with contextlib.suppress(Exception):
+            await ws.send_json({"type": "command_result", **result, "command_id": correlation_id})
+
+    async def execute(data: dict) -> dict:
+        if data["type"] == "wake":
+            await session.wake()
+            active = bool(getattr(session, "_active", False))
+            return {
+                "status": "accepted" if active else "rejected",
+                "code": "accepted" if active else "unavailable",
+            }
+        return await session.submit_text(str(data.get("text") or ""), data["command_id"])
 
     async def command_worker() -> None:
+        nonlocal running
         while True:
-            data = await commands.get()
-            if data is None:
+            queued = await commands.get()
+            if queued is None:
                 return
-            kind = data.get("type")
-            command_id = str(data.get("command_id") or uuid.uuid4().hex)
+            epoch, data, rejected_during_stop = queued
+            command_id = data["command_id"]
+            if epoch != command_epoch or rejected_during_stop or stopping:
+                await receipt(command_id, status="rejected", code="stopped")
+                continue
+            task = asyncio.create_task(execute(data), name="talk-command")
+            running = task
             try:
-                if kind == "wake":
-                    await session.wake()
-                    active = bool(getattr(session, "_active", False))
-                    await ws.send_json(
-                        {
-                            "type": "command_result",
-                            "command_id": command_id,
-                            "status": "accepted" if active else "rejected",
-                            "code": "accepted" if active else "unavailable",
-                        }
-                    )
-                elif kind == "stop":
-                    await session.stop(reason="panel")
-                    await ws.send_json(
-                        {
-                            "type": "command_result",
-                            "command_id": command_id,
-                            "status": "accepted",
-                            "code": "accepted",
-                        }
-                    )
-                elif kind == "text":
-                    receipt = await session.submit_text(str(data.get("text") or ""), command_id)
-                    await ws.send_json(
-                        {"type": "command_result", "command_id": command_id, **receipt}
-                    )
+                result = await task
             except asyncio.CancelledError:
-                raise
+                owner = asyncio.current_task()
+                if owner is not None and owner.cancelling():
+                    raise
+                result = {"status": "rejected", "code": "stopped"}
             except Exception as exc:
-                log.warning("talk command %s failed without killing the socket: %s", kind, exc)
+                log.warning(
+                    "talk command %s failed without killing the socket: %s", data["type"], exc
+                )
+                result = {
+                    "status": "rejected",
+                    "code": "internal_error",
+                    "message": "Kommandoen fejlede; prøv igen.",
+                }
+            finally:
+                if running is task:
+                    running = None
+            # A cancellation-resistant command cannot publish success after Stop.
+            if epoch != command_epoch:
+                result = {"status": "rejected", "code": "stopped"}
+            await receipt(command_id, **result)
+
+    async def perform_stop(interrupted: asyncio.Task | None) -> None:
+        nonlocal stopping
+        succeeded = False
+        try:
+            # Thin owns its cancellation-safe close transaction. Do not wait for
+            # the interrupted command before invoking that owner.
+            await session.stop(reason="panel")
+            if interrupted is not None:
+                await asyncio.gather(interrupted, return_exceptions=True)
+            succeeded = True
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.warning("talk Stop failed without killing the socket: %s", exc)
+        finally:
+            # Failed close remains fenced; it cannot authorize a fresh wake.
+            for command_id in stop_commands:
+                result = {
+                    "status": "accepted" if succeeded else "rejected",
+                    "code": "accepted" if succeeded else "internal_error",
+                }
+                stop_receipts[command_id] = result
+                if len(stop_receipts) > 128:
+                    del stop_receipts[next(iter(stop_receipts))]
                 with contextlib.suppress(Exception):
-                    await ws.send_json(
-                        {
-                            "type": "command_result",
-                            "command_id": command_id,
-                            "status": "rejected",
-                            "code": "internal_error",
-                            "message": "Kommandoen fejlede; prøv igen.",
-                        }
-                    )
+                    await receipt(command_id, **result)
+            stop_commands.clear()
+            if succeeded:
+                stopping = False
 
     worker = asyncio.create_task(command_worker(), name="talk-command-worker")
     try:
@@ -491,9 +530,26 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                     data = json.loads(msg.data)
                 except (json.JSONDecodeError, ValueError):
                     continue
+                if not isinstance(data, dict):
+                    continue
                 kind = data.get("type")
                 if kind in ("wake", "stop", "text"):
-                    commands.put_nowait(data)
+                    data["command_id"] = str(data.get("command_id") or uuid.uuid4().hex)
+                if kind == "stop":
+                    if data["command_id"] in stop_receipts:
+                        await receipt(data["command_id"], **stop_receipts[data["command_id"]])
+                        continue
+                    if data["command_id"] not in stop_commands:
+                        stop_commands.append(data["command_id"])
+                    if stop_task is None or stop_task.done():
+                        command_epoch += 1  # Fence queued work before yielding to any await.
+                        stopping = True
+                        interrupted = running
+                        if interrupted is not None:
+                            interrupted.cancel()
+                        stop_task = asyncio.create_task(perform_stop(interrupted), name="talk-stop")
+                elif kind in ("wake", "text"):
+                    commands.put_nowait((command_epoch, data, stopping))
                 elif kind == "media":
                     playback_id = str(data.get("playback_id")) if data.get("playback_id") else None
                     state = str(data.get("state") or "")
@@ -516,9 +572,25 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
             elif msg.type == WSMsgType.ERROR:
                 break
     finally:
+        command_epoch += 1
+        stopping = True
         commands.put_nowait(None)
         worker.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await worker
-        with contextlib.suppress(Exception):
-            await session.aclose()
+        # Invoke the existing Thin close owner before joining a cancelled command:
+        # its SDK cleanup may be what releases a cancellation-resistant send.
+        closing = asyncio.create_task(session.aclose(), name="talk-session-close")
+        try:
+            await asyncio.shield(closing)
+        except asyncio.CancelledError:
+            await asyncio.shield(closing)
+            raise
+        finally:
+            if stop_task is not None and not stop_task.done():
+                stop_task.cancel()
+            owned = [worker, *([stop_task] if stop_task is not None else [])]
+            _, pending = await asyncio.wait(owned, timeout=_COMMAND_JOIN_DIAGNOSTIC_S)
+            if pending:
+                log.error(
+                    "talk command cleanup still pending after provider close; retaining ownership"
+                )
+            await asyncio.gather(*owned, return_exceptions=True)

@@ -565,7 +565,11 @@ class ThinSession:
             self._teardown_retry_task.cancel()
             self._teardown_retry_task = None
         self._trace_reason = "shutdown"
-        await self._teardown(release_music=True)
+        close_task = self._request_close("shutdown")
+        if close_task is not None:
+            await asyncio.shield(close_task)
+        else:
+            await self._teardown(release_music=True)
         with contextlib.suppress(Exception):
             if hasattr(self.voicepe, "set_light"):
                 await self.voicepe.set_light(False, (0.0, 0.0, 0.0), 0.0)

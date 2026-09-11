@@ -372,8 +372,9 @@ class ExecutionPolicy:
     ) -> ApprovedCall | None:
         """Release the exact proposal after a trusted explicit later-turn signal.
 
-        This does not inspect speech or model text.  The signal must arrive on a later
-        turn in the same session; no current PodVoice transport calls this method.
+        This does not inspect speech or model text. ThinSession's completed approval
+        dispatch reaches this method through ToolRouter. The context must be the
+        immediately next admitted input turn in the same session.
         """
         self._prune()
         if confirmation_context.approval_mode != "turn":

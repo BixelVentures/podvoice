@@ -2,6 +2,74 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Stop/disconnect-diffet har nu uafhængigt Astra HIGH scoped GO uden åbne P0/P1/P2.
+Reviewer kørte322 tests på38.88s inklusive OFF/shared Thin, Talk, Live og SDK; root
+kørte101 kombinerede regressioner grønt. WebRTC late create/attach/update med
+undertrykt cancellation gav ingen sen SDP, én remote/client-close og nul leases.
+Reviewed hashes: Talkb061d65b,Thinb9af8b5e,SDK29653e51,testd5e78a38. En kommando der
+fortsat modsætter sig cancellation efter providercleanup beholdes ejet og logges;
+shutdown påstås ikke bounded i den situation. Samlet fast på næste frosne checkpoint
+udestår; intet release-/installations-/fysisk bevis er tilføjet.
+
+Uafhængigt review fandt desuden P1 i den samme Stop/disconnect-kæde: ved sockettab
+venter run_talk på en annulleret commandworker FØR session.aclose. En virkelig
+Thin/BrowserLink-prøve med cancellation-resistant typed SDK-send holdt derfor
+Thin aktiv uden nogen providerclose, også efter SDK-deadline. Årsagen er inverteret
+cleanup-ejerskab, ikke netværkets varighed. Korrektion inden for samme Talk-diff:
+start den eksisterende Thin shutdown/close før join af commandworker, så resource-
+cleanup kan frigøre SDK-send; behold ejerskab og rapportér uafsluttet cleanup ærligt.
+Regression dækker sockettab under typed send og eksisterende Stop, næste wake og
+forsinkede gamle events. Astra fandt også at direkte Thin.aclose ikke annullerer
+Live-opstart før settle: en sent returneret connection kunne derfor stadig starte.
+Lead retter aclose til at bruge den eksisterende _request_close(shutdown) og afvente
+samme shieldede close-owner; direkte teardown er kun fallback uden aktiv samtale.
+Det bevarer central task-annullering, inputfence og ressourceejerskab for begge I/O.
+Kandidaten forbliver ikke testklar til review er lukket.
+
+Stop-regressionen har nu direkte sammensat modevidens:18/19 targeted består, men
+real Thin+BrowserLink med SDK __aenter__, der ignorerer cancellation, kan sende
+session.start efter Stop. Thin afventer først åbningens retirement, så adapterens
+closeflag er endnu ikke sat. Kandidaten er IKKE testklar. Mindste årsagsrettelse:
+provideropstart skal afvise en faktisk annulleret ejertask efter ethvert SDK-await,
+før start/answer/readiness kan blive accepteret. Det må ikke ændre graceful close
+eller normale responses. Den forsinkede forbindelse skal stadig frigives af samme
+owner. Regressionen bevares; independent review skal kontrollere begge transporters
+sene create/attach og næste wake. Ingen runtimepatch på timeout alene. Root har
+nu tilføjet kontrol af opstartsejerens faktiske cancellation efter attach og i
+kommando-admission før readiness. Den tidligere røde sammensatte regression og
+de77 valgte Talk/Live-adaptertests består. Independent Astra HIGH-review pågår;
+ingen samlet gate eller fysisk status arves af disse deltests.
+
+Separat developer-only næste målehypotese (ingen API-kørsel endnu): Live siger et
+kort genkendeligt farvel FØR delegeret end-intent; completed eksklusiv terminalstub
+returneres uden ny backendcontinuation, derefter officiel graceful close. Bevar
+providerlyd/browser-renderet lyd og faktisk session.closed hver for sig. Dette er
+ikke prompt-/runtimegodkendelse eller bevis for talerækkefølge; normal probeadfærd
+bevares. Ny prøve kræver frozen source og uafhængigt review; ingen HA-handlinger.
+
+Astra HIGH-paritetsaudit korrigerer kravet til stemmegodkendelser: OFF Talk tillader
+full-duplex-afbrydelse og policyen bruger ikke playback-finish eller hørt-spørgsmål
+som autorisation. Den fælles kontrakt er eksakt serverholdt handling, umiddelbart
+næste autoritative input, completed eksklusiv semantisk godkendelse, expiry/once og
+aktuel kontekst. Alpha må derfor ikke blokeres på et ekstra krav om fysisk hørelse.
+Den reelle P1 består: gammelt input må ikke ligne frisk godkendelse. En frisk Live-
+generation er kun en mulig løsning, hvis gammel capture/historik ikke kan krydse
+som nyt input; der opfindes stadig ingen complete-turn-event. Dette erstatter den
+stærkere fysiske-godkendelsesfortolkning, ikke kravene om fysisk afspilning/lifecycle.
+
+Næste aktive årsagsgrænse: Talk Stop under opstart. Direkte kodebevis i run_talk:
+wake/text/stop går gennem samme worker, der afventer session.wake/submit_text.
+En ventende provideropstart holder derfor Stop bag sig. Falsificerbar hypotese:
+Stop skal nå den eksisterende Thin close-owner før opstart fuldføres; pre-Stop
+kølagte kommandoer skal afvises og må ikke genåbne næste generation. Berørte
+invarianter: én close-owner, privacy/Stop, stale input, samme Thin for begge I/O.
+Kæde: browserkommando → kø/opstart → Thin provider/mic/afspilning → Stop → teardown
+→ næste eksplicitte wake. Ingen transport-, prompt-, timer- eller policyændring.
+Regressioner: blokeret wake og typed startup, queued input før Stop, gentaget Stop,
+sockettab under Stop, ny wake samt sen gammel startup. Ret mindste køejer; reviewer
+skal modbevise cancellation/ordering. Rollback er det isolerede Talk-diff; intet
+installeres eller kaldes fysisk bevist af denne softwareændring.
+
 Samlet fast-gate kørte alle valgte tests til100% på81.52s, Ruff/format og mypy51
 sources bestod, men wrapperen afviste resultatet fordi lead ændrede STATUS under
 kørslen. Resultatet tæller ikke som samlet gate. Filer fryses før én gentagelse;
