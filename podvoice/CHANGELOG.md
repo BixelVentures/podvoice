@@ -1,3 +1,9 @@
+## 1.13.82 — Mediefiltre i den sikre tak-test
+
+- Den isolerede fejlprøve accepterer tre præcise, schema-validerede målangivelser for stuen: område alene, med media_player-domæne eller med speaker-klasse.
+- Alle tre returnerer samme simulerede utilgængelighedsfejl. Forkerte mål, ekstra felter og gentagne kald kan stadig ikke bestå.
+- Prompt v15, produktionsruntime, godkendelsesregler og firmware er uændrede. .81 bestod 11/12 modelture, herunder alle tre stille tak; fysisk afprøvning mangler stadig.
+
 ## 1.13.81 — Sammenhængende testdata til stille tak
 
 - Retter kun den sikre tak-test: “ja tak” besvarer et almindeligt tilbud om lys, og fejlprøven bruger testverdenens kendte rum stue.
