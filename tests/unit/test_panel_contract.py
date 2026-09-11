@@ -445,3 +445,13 @@ def test_partial_room_mapping_is_never_silently_discarded():
     assert "if (!valid) return null;" in html
     assert "Udfyld både Voice PE-adresse og PodConnect-rum" in html
     assert "reportValidity()" in html
+
+
+def test_quiet_thanks_button_runs_only_the_twelve_turn_profile_under_existing_lock():
+    html = PANEL.read_text()
+    assert 'id="eval_quiet_thanks"' in html
+    assert 'return startLiveEval(["quiet-thanks"], 1);' in html
+    assert "quietThanksButton.disabled = disabled;" in html
+    manifest = json.loads((PANEL.parents[1] / "eval_quiet_thanks_scenarios.json").read_text())
+    assert sum(len(s["turns"]) for s in manifest["scenarios"]) == 12
+    assert "Test stille tak og opfølgning (12 ture)" in html

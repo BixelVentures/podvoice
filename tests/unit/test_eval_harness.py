@@ -4922,3 +4922,123 @@ async def test_silent_eval_observes_output_after_tool_commit_before_exact_ack(bo
         TurnExpectation(decision="end_conversation", remain_open=False, silent_end=True), observed
     )
     assert "wrong-silent-end" in {f.code for f in findings}
+
+
+@pytest.mark.parametrize("immediate_ack", [False, True])
+@pytest.mark.parametrize("before_commit", [False, True])
+@pytest.mark.parametrize("output_kind", ["none", "text", "audio"])
+async def test_quiet_wait_oracle_sees_all_output_and_requires_exclusive_open_turn(
+    before_commit, output_kind, immediate_ack
+):
+    class FakeSession:
+        async def send_tool_results(self, results):
+            assert results[0]["suppress_response"] is True
+            if immediate_ack and not before_commit:
+                for event in output:
+                    driver.events.put_nowait(event)
+            return immediate_ack
+
+    driver = eval_harness.LiveRealtimeDriver("secret")
+    driver.session = FakeSession()  # type: ignore[assignment]
+    events = [
+        eval_harness.ToolCall("quiet", "wait_for_user", {}, response_id="r", batch_id="r"),
+        eval_harness.ToolRoundComplete(response_id="r"),
+    ]
+    output = (
+        [eval_harness.OutputTranscript("Selv tak.")]
+        if output_kind == "text"
+        else [eval_harness.AudioChunk(b"\x01\x00" * 20)]
+        if output_kind == "audio"
+        else []
+    )
+    events = output + events if before_commit else events + ([] if immediate_ack else output)
+    if not immediate_ack:
+        events.append(eval_harness.SilentToolComplete(call_ids=("quiet",)))
+    for event in events:
+        driver.events.put_nowait(event)
+    observed = await driver._collect_turn(turn_id="t", started=0.0)
+    expect = eval_harness.TurnExpectation(
+        decision="wait_for_user", silent_response=True, fixture_side_effects=0, remain_open=True
+    )
+    findings = eval_harness.grade_turn(expect, observed)
+    assert [finding.code for finding in findings] == (
+        [] if output_kind == "none" else ["unexpected-output"]
+    )
+    if output_kind == "none":
+        observed.decisions.append("end_conversation")
+        observed.remain_open = False
+        assert {finding.code for finding in eval_harness.grade_turn(expect, observed)} == {
+            "wrong-decision",
+            "wrong-lifecycle",
+        }
+
+
+def test_quiet_thanks_profile_admits_actual_reserved_tools_and_twelve_turns():
+    scenarios = list(load_scenarios(eval_harness.QUIET_THANKS_EVAL_PATH))
+    assert len(scenarios) == 5
+    assert sum(len(s.turns) for s in scenarios) == 12
+    quiet = [t for s in scenarios for t in s.turns if t.expect.silent_response]
+    assert len(quiet) == 3
+    assert all(t.expect.decisions == ("wait_for_user",) for t in quiet)
+    admission = eval_harness._admit_eval_tools(
+        scenarios, _production_snapshot(), fixture_path=eval_harness.QUIET_THANKS_EVAL_PATH
+    )
+    assert (
+        next(d for d in admission.declarations if d["name"] == "wait_for_user")
+        == WAIT_FOR_USER_DECLARATION
+    )
+
+
+async def test_quiet_profile_is_explicit_and_retains_no_full_or_physical_approval(monkeypatch):
+    service = eval_harness.LiveEvalService()
+    calls = []
+
+    async def fake_run(**kwargs):
+        calls.append(kwargs)
+        return {"status": "complete", "selected_ok": True, "release_preflight_passed": False}
+
+    monkeypatch.setattr(service, "run", fake_run)
+    assert (
+        service.start(api_key="fixture", scenario_ids={"quiet-thanks", "time-followup"})["status"]
+        == "invalid"
+    )
+    response = service.start(
+        api_key="fixture", scenario_ids={"quiet-thanks"}, tool_declarations=_production_snapshot()
+    )
+    await service._job
+    assert calls[0]["_quiet_thanks_fixture"] is True
+    assert calls[0]["scenario_ids"] is None
+    report = service._reports_by_run_id[response["run_id"]]
+    assert report["kind"] == "quiet-thanks"
+    assert report["physical_result_verified"] is False
+    assert report["release_preflight_passed"] is False
+    assert not any(s.id.startswith("quiet-thanks") for s in load_scenarios())
+
+
+@pytest.mark.parametrize(
+    "answer,passes",
+    [
+        ("Jeg kunne ikke stoppe musikken; afspilleren er utilgængelig.", True),
+        ("Musikken blev ikke sat på pause på kontoret.", True),
+        ("Afspilleren på kontoret er offline.", True),
+        ("Musikken er stoppet uden fejl.", False),
+        ("Musikken er sat på pause, men afspilleren er offline.", False),
+        ("Jeg har stoppet musikken. Det er ikke en fejl.", False),
+        ("Selv tak.", False),
+    ],
+)
+def test_quiet_error_contrast_rejects_success_claims_despite_failure_words(answer, passes):
+    scenario = next(
+        s
+        for s in load_scenarios(eval_harness.QUIET_THANKS_EVAL_PATH)
+        if s.id == "quiet-thanks-error"
+    )
+    observed = eval_harness.TurnObservation(
+        turn_id="t",
+        session_id="s",
+        decisions=["HassMediaPause"],
+        tool_args={"HassMediaPause": [{"area": "kontor"}]},
+        tool_results={"HassMediaPause": [{"ok": False, "error_kind": "device_unavailable"}]},
+        answer=answer,
+    )
+    assert (not eval_harness.grade_turn(scenario.turns[0].expect, observed)) is passes

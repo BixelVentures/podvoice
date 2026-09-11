@@ -109,9 +109,14 @@ PodVoice har ingen lokal `get_time` og ingen model-synlig in-memory timer.
 Ingen HA-, web-, musik- eller hjemmeværktøjer må åbne eller lukke Realtime-sessionen.
 Realtime svarer direkte i én respons, når intet værktøj er nødvendigt, og bruger kun et
 reelt domæneværktøj til en handling eller et opslag. De eneste interne,
-provider-neutrale lifecycle-signaler er `wait_for_user` for ikke-henvendt tale og
+provider-neutrale lifecycle-signaler er `wait_for_user` for ikke-henvendt tale eller et rent modtaget-signal uden ny
+anmodning/afslutningshensigt, og
 `end_conversation` for en klar semantisk afslutning. PodVoice fortolker aldrig brugerens
 ord og ejer kun transportlukningen, så én teardown og én wake-rearm kan garanteres.
+Et rent tak til et allerede givet svar kan derfor mødes med stilhed uden lukning.
+Eksisterende korreleret silent-tool-ACK åbner followup; næste spørgsmål eller normal
+fysisk idle bestemmer fortsættelsen. Høflighed i handlinger, spørgsmål, godkendelser
+og uklar henvendt tale er ikke denne undtagelse. Ingen lokal fraseregel eller ny tilstand.
 
 Der findes intet obligatorisk fortsættelsessignal og ingen tvungen to-respons-vej for et
 direkte svar. Den konstruktion blev afvist efter den fysiske 1.13.22-trace, hvor et

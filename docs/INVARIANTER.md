@@ -100,7 +100,10 @@ Kandidaten er ikke fysisk godkendt, før den særskilte stop-gate er bestået.
    mekanisk uden at foregive en semantisk modelbeslutning.
 3. En almindelig klar brugertur besvares direkte i én Realtime-respons. Kun en handling
    eller et opslag bruger det nødvendige domæneværktøj; `end_conversation` bruges kun
-   til semantisk afslutning, og `wait_for_user` kun til ikke-henvendt tale. De to
+   til semantisk afslutning, og `wait_for_user` kun til ikke-henvendt tale eller et rent modtaget-signal
+   for et allerede givet svar uden ny anmodning eller afslutningshensigt. Realtime
+   afgør betydningen; et rent tak giver stille venten med åben samtale. Spørgsmål,
+   høflige handlinger, tilbud/godkendelser og nødvendig opklaring behandles stadig. De to
    lifecycle-signaler er interne og må aldrig dispatches til HA/MCP. Lokal tekstmatching
    af “farvel”-varianter er ikke afslutningsautoritet.
 4. Realtime konfigureres med automatisk værktøjsvalg. Der findes intet obligatorisk

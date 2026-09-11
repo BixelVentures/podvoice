@@ -310,6 +310,8 @@ MAX_EVAL_RESPONSE_EDGES_PER_TURN = 4
 DEVICE_EVAL_PROFILE = "device-control"
 DEVICE_EVAL_RESPONSE_EDGES = 9
 DEVICE_EVAL_PATH = pathlib.Path(__file__).with_name("eval_device_scenarios.json")
+QUIET_THANKS_EVAL_PROFILE = "quiet-thanks"
+QUIET_THANKS_EVAL_PATH = pathlib.Path(__file__).with_name("eval_quiet_thanks_scenarios.json")
 DATA_EVAL_PROFILE = "data-selection"
 DATA_EVAL_PATH = pathlib.Path(__file__).with_name("eval_data_scenarios.json")
 MAX_LIVE_EVAL_PROMPT_BYTES = 32 * 1024
@@ -369,6 +371,7 @@ class TurnExpectation:
     fixture_side_effects: int | None = None
     remain_open: bool = True
     silent_end: bool | None = None
+    silent_response: bool = False
 
 
 @dataclass(frozen=True)
@@ -439,6 +442,7 @@ class TurnObservation:
     error: str | None = None
     remain_open: bool = True
     silent_end: bool = False
+    output_emitted: bool = False
     elapsed_ms: int | None = None
     first_audio_ms: int | None = None
     diagnostic_transcript: str = ""
@@ -805,6 +809,8 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                 raise ValueError(f"{scenario_id}: numeric_support must contain integers")
             if numeric_support and numeric_result is None:
                 raise ValueError(f"{scenario_id}: numeric_support requires numeric_result")
+            if type(expected.get("silent_response", False)) is not bool:
+                raise ValueError(f"{scenario_id}: silent_response must be boolean")
             if expected.get("silent_end") is not None and type(expected["silent_end"]) is not bool:
                 raise ValueError(f"{scenario_id}: silent_end must be boolean")
             raw_tool_args = expected.get("tool_args") or {}
@@ -850,6 +856,7 @@ def load_scenarios(path: pathlib.Path = SCENARIOS_PATH) -> tuple[EvalScenario, .
                         fixture_side_effects=expected.get("fixture_side_effects"),
                         remain_open=bool(expected.get("remain_open", True)),
                         silent_end=expected.get("silent_end"),
+                        silent_response=expected.get("silent_response", False),
                     ),
                 )
             )
@@ -1102,6 +1109,10 @@ def grade_turn(expect: TurnExpectation, observed: TurnObservation) -> list[Findi
         findings.append(
             Finding("wrong-silent-end", "Stille afslutning var ikke bekræftet uden svarlyd.")
         )
+    if expect.silent_response and (
+        observed.output_emitted or observed.answer or observed.first_audio_ms is not None
+    ):
+        findings.append(Finding("unexpected-output", "Stille venten udsendte tekst eller lyd."))
     return findings
 
 
@@ -2302,10 +2313,9 @@ class LiveRealtimeDriver:
                 first_audio_by_response.clear()
                 unbound_first_audio_ms = None
                 if silent_completed and pending_silent:
-                    if pending_silent_end:
-                        observed.silent_end = True
-                        observed.remain_open = False
-                    break
+                    # A synchronous ACK may arrive while the reader queues output.
+                    # Preserve that FIFO evidence before completing the silent turn.
+                    self.events.put_nowait(SilentToolComplete(call_ids=pending_silent))
             elif isinstance(event, ToolSchemaCorrection):
                 response_edges += 1
                 observed.schema_corrections += 1
@@ -2327,6 +2337,7 @@ class LiveRealtimeDriver:
                 first_audio_by_response.clear()
                 unbound_first_audio_ms = None
             elif isinstance(event, OutputTranscript):
+                observed.output_emitted |= bool(event.text)
                 # The provider emits deltas. Only the result response is authoritative.
                 if tool_round_seen or not observed.decisions:
                     if (
@@ -2344,6 +2355,7 @@ class LiveRealtimeDriver:
             elif isinstance(event, InputTranscript):
                 observed.diagnostic_transcript = event.text
             elif isinstance(event, AudioChunk):
+                observed.output_emitted |= bool(event.pcm)
                 if tool_round_seen or not observed.decisions:
                     first_audio_ms = round((time.monotonic() - started) * 1000)
                     if (
@@ -3130,9 +3142,11 @@ class LiveEvalService:
             }
         device_profile = scenario_ids == {DEVICE_EVAL_PROFILE}
         data_profile = scenario_ids == {DATA_EVAL_PROFILE}
+        quiet_profile = scenario_ids == {QUIET_THANKS_EVAL_PROFILE}
         known = {scenario.id for scenario in load_scenarios()} | {
             DEVICE_EVAL_PROFILE,
             DATA_EVAL_PROFILE,
+            QUIET_THANKS_EVAL_PROFILE,
         }
         unknown = (scenario_ids or set()).difference(known)
         if scenario_ids is not None and (
@@ -3140,6 +3154,7 @@ class LiveEvalService:
             or unknown
             or (DEVICE_EVAL_PROFILE in scenario_ids and not device_profile)
             or (DATA_EVAL_PROFILE in scenario_ids and not data_profile)
+            or (QUIET_THANKS_EVAL_PROFILE in scenario_ids and not quiet_profile)
         ):
             return {
                 "ok": False,
@@ -3153,12 +3168,16 @@ class LiveEvalService:
             if device_profile
             else DATA_EVAL_PROFILE
             if data_profile
+            else QUIET_THANKS_EVAL_PROFILE
+            if quiet_profile
             else "preflight"
         )
         self._started_at = time.time()
         self._job = asyncio.create_task(
             self._run_background(
-                operation=self._active_kind if device_profile or data_profile else "scenarios",
+                operation=self._active_kind
+                if device_profile or data_profile or quiet_profile
+                else "scenarios",
                 run_id=run_id,
                 api_key=api_key,
                 scenario_ids=scenario_ids,
@@ -3353,6 +3372,11 @@ class LiveEvalService:
                 report = await self.run_protocol_owner(**kwargs)
             elif operation == DEVICE_EVAL_PROFILE:
                 report = await self.run_device_control(**kwargs)
+            elif operation == QUIET_THANKS_EVAL_PROFILE:
+                kwargs["scenario_ids"] = None
+                report = await self.run(**kwargs, _quiet_thanks_fixture=True)
+                report["kind"] = QUIET_THANKS_EVAL_PROFILE
+                report["physical_result_verified"] = False
             elif operation == DATA_EVAL_PROFILE:
                 kwargs["scenario_ids"] = None
                 report = await self.run(**kwargs, _data_fixture=True)
@@ -3384,8 +3408,8 @@ class LiveEvalService:
             if operation == DEVICE_EVAL_PROFILE:
                 report["kind"] = DEVICE_EVAL_PROFILE
                 report["candidate_contract_passed"] = False
-            if operation == DATA_EVAL_PROFILE:
-                report["kind"] = DATA_EVAL_PROFILE
+            if operation in {DATA_EVAL_PROFILE, QUIET_THANKS_EVAL_PROFILE}:
+                report["kind"] = operation
                 report["physical_result_verified"] = False
             self._retain_report(
                 report,
@@ -3420,8 +3444,8 @@ class LiveEvalService:
                 }
         finally:
             if "report" in locals() and run_id not in self._reports_by_run_id:
-                if operation == DATA_EVAL_PROFILE:
-                    report["kind"] = DATA_EVAL_PROFILE
+                if operation in {DATA_EVAL_PROFILE, QUIET_THANKS_EVAL_PROFILE}:
+                    report["kind"] = operation
                     report["physical_result_verified"] = False
                 if operation == DEVICE_EVAL_PROFILE:
                     report["kind"] = DEVICE_EVAL_PROFILE
@@ -3493,7 +3517,7 @@ class LiveEvalService:
         if requested_full_profile:
             self._last_full_report = retained
             self._last_full_candidate_identity = candidate_identity
-        elif retained.get("kind") == DATA_EVAL_PROFILE:
+        elif retained.get("kind") in {DATA_EVAL_PROFILE, QUIET_THANKS_EVAL_PROFILE}:
             if self._last_full_report is not None and retained[
                 "production_identity_sha256"
             ] != self._last_full_report.get("production_identity_sha256"):
@@ -4487,6 +4511,7 @@ class LiveEvalService:
         run_id: str | None = None,
         _device_fixture: bool = False,
         _data_fixture: bool = False,
+        _quiet_thanks_fixture: bool = False,
         _diagnostic_lease: BudgetLease | None = None,
     ) -> dict[str, Any]:
         if self._lock.locked():
@@ -4526,6 +4551,8 @@ class LiveEvalService:
                 if _device_fixture
                 else DATA_EVAL_PATH
                 if _data_fixture
+                else QUIET_THANKS_EVAL_PATH
+                if _quiet_thanks_fixture
                 else SCENARIOS_PATH
             )
             edge_limit = (

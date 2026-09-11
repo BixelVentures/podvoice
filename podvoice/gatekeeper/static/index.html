@@ -372,6 +372,7 @@
       <button id="eval_protocol_owner" class="ghost">Test sikker Realtime-svarstyring</button>
       <button id="eval_golden" class="ghost">Test golden-chain-semantik 5×</button>
       <button id="eval_close" class="ghost">Test samtaleafslutning (8 ture)</button>
+      <button id="eval_quiet_thanks" class="ghost">Test stille tak og opfølgning (12 ture)</button>
       <button id="eval_device" class="ghost">Test Roborock — simuleret robot</button>
       <button id="eval_data" class="ghost">Test dataudvalg — sikre testdata</button>
       <p class="sub">Roborock-testen starter ikke din støvsuger og aktiverer ikke enhedsstyring. Den afprøver AI'ens rækkefølge og fejlhåndtering med sikre testdata. Fysisk afprøvning mangler stadig. Samtaler er midlertidigt blokeret under testen; samlet prisloft $5.</p>
@@ -1309,6 +1310,8 @@ setInterval(function () {
   var button = document.getElementById("eval_live");
   var protocolOwnerButton = document.getElementById("eval_protocol_owner");
   var goldenButton = document.getElementById("eval_golden");
+  var quietThanksButton = document.getElementById("eval_quiet_thanks");
+
   var closeButton = document.getElementById("eval_close");
   var deviceButton = document.getElementById("eval_device");
   var dataButton = document.getElementById("eval_data");
@@ -1324,9 +1327,9 @@ setInterval(function () {
   ];
   var goldenScenarioIds = ["arithmetic-followup-observed"];
   var pollGeneration = 0;
-  if (!button || !protocolOwnerButton || !goldenButton || !closeButton || !deviceButton || !dataButton || !replayButton || !numericAbButton || !box) return;
+  if (!button || !protocolOwnerButton || !goldenButton || !closeButton || !quietThanksButton || !deviceButton || !dataButton || !replayButton || !numericAbButton || !box) return;
   function setButtonsDisabled(disabled) {
-    button.disabled = disabled; goldenButton.disabled = disabled; protocolOwnerButton.disabled = disabled; closeButton.disabled = disabled; deviceButton.disabled = disabled; dataButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
+    button.disabled = disabled; goldenButton.disabled = disabled; protocolOwnerButton.disabled = disabled; closeButton.disabled = disabled; quietThanksButton.disabled = disabled; deviceButton.disabled = disabled; dataButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
   }
   function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function semanticAudioAbPassed(data) {
@@ -1524,6 +1527,9 @@ setInterval(function () {
   };
   goldenButton.onclick = function () {
     return startLiveEval(goldenScenarioIds, 5);
+  };
+  quietThanksButton.onclick = function () {
+    return startLiveEval(["quiet-thanks"], 1);
   };
   closeButton.onclick = function () {
     return startLiveEval(closeScenarioIds);
