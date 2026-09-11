@@ -45,6 +45,14 @@ natursprog er ikke dækket af den eksplicitte multi-robot-livefixture og skal pr
 fysisk; den mekaniske sole-robot-vej er dækket lokalt. Review ændrer ikke .79's
 fejlede robotgate eller giver fysisk accept.
 
+Rent rebaset på .81/main34fb8c8b816801f4836c6fc21b69389970f4e218, kandidat
+b6471184ccbd9bd2fc21f5acbf06d3fd06ca570b. Reviewer genbekræftede identisk reviewdiff
+og GO til lokal freeze/gate. Én frossen releasegate PASS41.1s: Ruff/format127,
+mypy47, candidate-scope og fulde unit-/integrationstests. Ingen produktionsændring
+efter freeze. Denne statusopdatering er kun leveringsmetadata; offentlig kode/CI-
+artifact, koordineret installation og sikker robotliveeval resterer. .81-opgaven
+ejer fortsat live-vinduet; ingen HA-state er ændret af denne rettelse.
+
 ## Aktiv lead-beslutning — rent tak uden verbal kvittering .80
 
 11/9 Lead Codex. Brugeren bestiller promptændring, test og installation. Direkte
