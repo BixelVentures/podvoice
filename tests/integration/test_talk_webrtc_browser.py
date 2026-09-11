@@ -33,7 +33,7 @@ def test_shipped_browser_peer_identity_stop_late_offer_and_typed_to_mic():
     assert len(exit_handlers.splitlines()) == 2
     harness = r"""
 const assert = require('node:assert/strict');
-let sent = [], peers = [], permissionCalls = 0, replaceGate = null, offerGate = null;
+let sent = [], peers = [], permissionCalls = 0, replaceGate = null, offerGate = null, permissionGate = null;
 var ws = {}, wsReady = true, socketGeneration = 1, halted = false, capStream = null, capCtx = null, capNode = null,
     playCtx = null, micOn = false, micRequestSerial = 0;
 var micHint = {}, micBtn = {classList:{add(){},remove(){}},setAttribute(){}};
@@ -46,7 +46,7 @@ function logLine(){}
 function setState(){}
 var exitCallbacks={};
 var window={self:{},top:{},addEventListener(name,callback){exitCallbacks[name]=callback;}};
-var navigator={mediaDevices:{async getUserMedia(){permissionCalls++;return stream();}}};
+var navigator={mediaDevices:{async getUserMedia(){permissionCalls++;if(permissionGate)return await permissionGate;return stream();}}};
 class RTCPeerConnection{
  constructor(){this.iceGatheringState='complete';this.connectionState='new';peers.push(this);}
  addTrack(t){this.sender={track:t,async replaceTrack(next){if(replaceGate)await replaceGate;this.track=next;}};return this.sender;}
@@ -96,6 +96,66 @@ function answer(id,gen=1){return {type:'live_answer',attempt_id:id,connection_id
  handleLiveMessage({...answer('replace'),type:'live_stop'});
  assert.equal(pending.readyState,'ended');releaseReplace();assert.equal(await replacing,false);
  assert.equal(livePeer,null);assert.equal(micOn,false);
+ replaceGate=null;
+ halted=false;await openLivePeer(request('typed-hold'));await answerLivePeer(answer('typed-hold'));
+ handleLiveMessage({...answer('typed-hold'),type:'live_ready'});
+ let permissionsBefore=permissionCalls;
+ handleLiveMessage({...answer('typed-hold'),type:'live_hold',rotation_token:'typed-token'});
+ let heldTyped=livePeer, heldDC=heldTyped.pc.dc;
+ assert.equal(heldTyped.held,true);assert.notEqual(heldTyped.pc.connectionState,'closed');
+ assert.equal(heldTyped.input.getAudioTracks()[0].readyState,'ended');
+ assert.equal(pendingLiveRotation.microphone,false);assert.equal(sent.at(-1).type,'live_held');
+ assert.equal(await micStart(),false);assert.equal(permissionCalls,permissionsBefore);
+ heldDC.onmessage({data:JSON.stringify({type:'session.closed',usage:{seconds:3}})});
+ handleLiveMessage({...answer('typed-hold'),type:'live_finalized'});
+ heldDC.onclose(); // Officially finalized transport closure must retain rotation intent.
+ assert.equal(livePeer,heldTyped);assert.equal(heldTyped.pc.dc,heldDC);
+ assert.notEqual(heldTyped.pc.connectionState,'closed');
+ await openLivePeer({...request('typed-fresh'),rotation_token:'typed-token'});
+ assert.equal(heldTyped.pc.connectionState,'closed');
+ assert.equal(permissionCalls,permissionsBefore);assert.equal(livePeer.microphone,false);
+ await answerLivePeer(answer('typed-fresh'));
+ handleLiveMessage({...answer('typed-fresh'),type:'live_ready'});
+ assert.equal(sent.at(-1).type,'live_resumed');assert.equal(sent.at(-1).capture_ready,true);
+ assert.equal(await micStart(),true);
+ let oldPeer=livePeer, oldTrack=oldPeer.input.getAudioTracks()[0];
+ handleLiveMessage({...answer('typed-fresh'),type:'live_hold',rotation_token:'voice-token'});
+ assert.equal(oldTrack.readyState,'ended');assert.equal(oldTrack.enabled,false);
+ assert.equal(livePeer,oldPeer);assert.notEqual(oldPeer.pc.connectionState,'closed');
+ handleLiveMessage({...answer('typed-fresh'),type:'live_ready'});assert.equal(oldTrack.enabled,false);
+ oldPeer.pc.dc.onmessage({data:JSON.stringify({type:'session.closed',usage:{seconds:4}})});
+ handleLiveMessage({...answer('typed-fresh'),type:'live_finalized'});
+ assert.notEqual(oldPeer.pc.connectionState,'closed');
+ assert.equal(pendingLiveRotation.microphone,true);assert.equal(capStream,null);
+ await openLivePeer({...request('voice-fresh'),rotation_token:'voice-token'});
+ assert.equal(oldPeer.pc.connectionState,'closed');
+ let restored=livePeer, newTrack=restored.input.getAudioTracks()[0];
+ assert.equal(permissionCalls,permissionsBefore+2);assert.notEqual(newTrack,oldTrack);
+ assert.equal(newTrack.enabled,false);assert.equal(capNode,null);assert.equal(restored.microphone,true);
+ await answerLivePeer(answer('voice-fresh'));assert.equal(newTrack.enabled,false);
+ oldPeer.pc.dc.onmessage({data:JSON.stringify({type:'session.started',session:{id:'provider-typed-fresh'}})});
+ assert.equal(livePeer,restored);assert.equal(newTrack.enabled,false);
+ handleLiveMessage({...answer('voice-fresh'),type:'live_ready'});
+ assert.equal(newTrack.enabled,true);assert.equal(sent.at(-1).rotation_token,'voice-token');
+ handleLiveMessage({...answer('voice-fresh'),type:'live_hold',rotation_token:'permission-token'});
+ let releasePermission;permissionGate=new Promise(r=>releasePermission=r);
+ let restoring=openLivePeer({...request('permission-fresh'),rotation_token:'permission-token'});
+ await Promise.resolve();await Promise.resolve();
+ handleLiveMessage({...request('permission-fresh'),type:'live_stop'});
+ let lateStream=stream();releasePermission(lateStream);await restoring;permissionGate=null;
+ assert.equal(lateStream.getAudioTracks()[0].readyState,'ended');assert.equal(livePeer,null);
+ assert.equal(pendingLiveRotation,null);
+ assert.equal(sent.some(x=>x.type==='live_offer'&&x.attempt_id==='permission-fresh'),false);
+ halted=false;await openLivePeer({...request('replay-token'),rotation_token:'permission-token'});
+ assert.equal(livePeer,null); // Stop revoked the carry-over permission intent.
+ halted=false;await openLivePeer(request('stop-held'));await answerLivePeer(answer('stop-held'));
+ handleLiveMessage({...answer('stop-held'),type:'live_ready'});assert.equal(await micStart(),true);
+ let stopHeldPeer=livePeer;
+ handleLiveMessage({...answer('stop-held'),type:'live_hold',rotation_token:'stop-held-token'});
+ assert.equal(livePeer,stopHeldPeer);assert.notEqual(stopHeldPeer.pc.connectionState,'closed');
+ handleLiveMessage({...answer('stop-held'),type:'live_stop'});
+ assert.equal(stopHeldPeer.pc.connectionState,'closed');assert.equal(livePeer,null);
+ assert.equal(pendingLiveRotation,null);assert.equal(sent.at(-1).type,'live_stopped');
  for (const name of ['pagehide','beforeunload']) {
    halted=false;await openLivePeer(request(name));await answerLivePeer(answer(name));
    handleLiveMessage({...answer(name),type:'live_ready'});

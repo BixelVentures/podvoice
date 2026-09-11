@@ -1792,7 +1792,7 @@ setInterval(function () {
     if (report) sendJson({ type: "media", state: "fault", playback_id: playbackId });
   }
   // ---- Live WebRTC: one peer for one server-issued attempt ----
-  var livePeer = null, retiredLiveAttempts = [];
+  var livePeer = null, retiredLiveAttempts = [], pendingLiveRotation = null;
   function liveCurrent(p) { return !!p && livePeer === p && !halted && p.socketGeneration === socketGeneration && p.sock === ws; }
   function liveIdentity(p) { return { attempt_id:p.attempt_id, provider_session_id:p.provider_session_id, generation:p.generation }; }
   function liveMatches(p, ev) {
@@ -1800,12 +1800,13 @@ setInterval(function () {
       p.provider_session_id === ev.provider_session_id && p.generation === ev.generation;
   }
   function liveFault(p) {
-    if (!liveCurrent(p)) return;
+    if (!liveCurrent(p) || (p.held && p.providerFinalized)) return;
     sendJson(Object.assign({type:"live_fault"}, liveIdentity(p)));
     closeLivePeer();
     micHint.textContent = "Live-browserforbindelsen kunne ikke fortsætte. Start en ny samtale.";
   }
   function closeLivePeer() {
+    pendingLiveRotation = null;
     micRequestSerial += 1;
     var p = livePeer; if (!p) return;
     livePeer = null; // Fence every callback before touching asynchronous resources.
@@ -1817,19 +1818,24 @@ setInterval(function () {
     if (p.pendingInput) p.pendingInput.getTracks().forEach(function (t) { t.stop(); });
     if (p.audio) { try { p.audio.pause(); p.audio.srcObject = null; } catch (_) {} }
     if (p.pc) { try { p.pc.close(); } catch (_) {} }
-    if (capStream === p.input) micStop();
+    if (capStream === p.input || capStream === p.pendingInput) micStop();
   }
   function liveStopped(ev) {
     sendJson({type:"live_stopped", attempt_id:ev.attempt_id, provider_session_id:ev.provider_session_id || null,
-      generation:ev.generation == null ? null : ev.generation, tracks_stopped:true, peer_closed:true});
+      generation:ev.generation == null ? null : ev.generation, rotation_token:ev.rotation_token || null, tracks_stopped:true, peer_closed:true});
   }
   async function openLivePeer(ev) {
     if (typeof ev.attempt_id !== "string" || typeof ev.connection_id !== "string") return;
     if (halted) { retiredLiveAttempts.push(ev.attempt_id); liveStopped(ev); return; }
     if (retiredLiveAttempts.indexOf(ev.attempt_id) !== -1) return;
     if (livePeer && livePeer.attempt_id === ev.attempt_id) return;
+    var rotation = pendingLiveRotation;
+    if (ev.rotation_token != null && (!rotation || rotation.token !== ev.rotation_token ||
+        rotation.socketGeneration !== socketGeneration || rotation.connection_id !== ev.connection_id)) return;
+    if (rotation && ev.rotation_token !== rotation.token) return;
+    var restoreMic = !!(rotation && rotation.microphone);
     closeLivePeer();
-    var p = {attempt_id:ev.attempt_id, connection_id:ev.connection_id, provider_session_id:null,
+    var p = {rotation_token:ev.rotation_token || null, attempt_id:ev.attempt_id, connection_id:ev.connection_id, provider_session_id:null,
       generation:null, socketGeneration:socketGeneration, sock:ws, pc:null, input:null, source:null, audio:null};
     livePeer = p;
     try {
@@ -1868,9 +1874,13 @@ setInterval(function () {
         if (event.type === "session.started") {
           if (!event.session || event.session.id !== p.provider_session_id || p.generation == null) { liveFault(p); return; }
           sendJson(Object.assign({type:"live_started", event:{type:"session.started", session:{id:event.session.id}}}, liveIdentity(p)));
-        } else if (event.type === "error") liveFault(p);
+        } else if (event.type === "session.closed") p.providerFinalized = true;
+        else if (event.type === "error") liveFault(p);
         // session.closed is provider finalization, never browser media-drain proof.
       };
+      if (restoreMic) {
+        if (!await micStart() || !liveCurrent(p)) { liveFault(p); return; }
+      }
       var offer = await p.pc.createOffer(); if (!liveCurrent(p)) return;
       await p.pc.setLocalDescription(offer); if (!liveCurrent(p)) return;
       if (p.pc.iceGatheringState !== "complete") await new Promise(function (resolve, reject) {
@@ -1893,22 +1903,45 @@ setInterval(function () {
   function handleLiveMessage(ev) {
     if (ev.type === "live_offer_request") { openLivePeer(ev); return true; }
     if (ev.type === "live_answer") { answerLivePeer(ev); return true; }
+    if (ev.type === "live_hold") {
+      var held = livePeer;
+      if (liveCurrent(held) && liveMatches(held, ev) && typeof ev.rotation_token === "string" && ev.rotation_token.length > 0) {
+        if (held.held) return true;
+        var microphone = !!held.microphone;
+        held.held = true; held.ready = false;
+        micRequestSerial += 1;
+        if (held.source) { held.source.stop(); held.source.disconnect(); held.source = null; }
+        held.input.getTracks().forEach(function (t) { t.enabled = false; t.stop(); });
+        if (held.pendingInput) held.pendingInput.getTracks().forEach(function (t) { t.enabled = false; t.stop(); });
+        if (capStream === held.input || capStream === held.pendingInput) micStop();
+        pendingLiveRotation = {token:ev.rotation_token, attempt_id:ev.attempt_id, microphone:microphone,
+          socketGeneration:socketGeneration, connection_id:ev.connection_id};
+        sendJson(Object.assign({type:"live_held", rotation_token:ev.rotation_token, capture_held:true}, liveIdentity(held)));
+      }
+      return true;
+    }
     if (ev.type === "live_stop") {
+      if (pendingLiveRotation && pendingLiveRotation.attempt_id === ev.attempt_id && pendingLiveRotation.connection_id === ev.connection_id) pendingLiveRotation = null;
       if (livePeer && livePeer.attempt_id === ev.attempt_id && livePeer.connection_id === ev.connection_id) { halted = true; closeLivePeer(); }
       if (retiredLiveAttempts.indexOf(ev.attempt_id) !== -1) liveStopped(ev);
       return true;
     }
     if (ev.type === "live_ready") {
       var p = livePeer;
-      if (liveCurrent(p) && liveMatches(p, ev)) {
+      if (liveCurrent(p) && !p.held && liveMatches(p, ev)) {
         p.ready = true;
         p.input.getAudioTracks().forEach(function (t) { t.enabled = true; });
         micHint.textContent = p.microphone ? "Live-samtalen lytter." : "Live er klar til tekst. Mikrofonen er ikke åbnet.";
+        if (p.rotation_token) sendJson(Object.assign({type:"live_resumed", rotation_token:p.rotation_token,
+          capture_ready:p.input.getAudioTracks().every(function (t) { return t.readyState === "live" && t.enabled; })}, liveIdentity(p)));
       }
       return true;
     }
     if (ev.type === "live_finalized") {
-      if (liveMatches(livePeer, ev)) logLine("out", "system", "Live-samtalen er afsluttet.");
+      if (liveMatches(livePeer, ev)) {
+        livePeer.providerFinalized = true;
+        if (!livePeer.held) logLine("out", "system", "Live-samtalen er afsluttet.");
+      }
       return true;
     }
     return false;
@@ -1983,6 +2016,7 @@ setInterval(function () {
       else if (ev.type === "transcript") streamT(ev.dir === "in" ? "in" : "out", ev.text);
       else if (ev.type === "play") { if (livePeer) return; halted = false; playReply(ev.url, ev.playback_id); }
       else if (ev.type === "stop_playback") {
+        pendingLiveRotation = null;
         if (!ev.playback_id || ev.playback_id === currentPlaybackId) { stopReply(false); endTurn(); }
       }
       else if (ev.type === "mic") {
@@ -2038,6 +2072,7 @@ setInterval(function () {
     return out;
   }
   async function micStart() {
+    if (pendingLiveRotation || (livePeer && livePeer.held)) return false;
     var micSocket = socketGeneration, micRequest = ++micRequestSerial, obtained;
     halted = false;
     micHint.textContent = "Beder om adgang til mikrofonen…";
@@ -2121,6 +2156,7 @@ setInterval(function () {
     }
   }
   function micStop() {
+    pendingLiveRotation = null;
     micRequestSerial += 1;
     micOn = false; micBtn.classList.remove("live"); micBtn.textContent = "🎤";
     micBtn.setAttribute("aria-pressed", "false"); micBtn.setAttribute("aria-label", "Start mikrofon");

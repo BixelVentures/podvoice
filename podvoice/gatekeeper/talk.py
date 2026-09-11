@@ -135,6 +135,10 @@ class _LiveHandshake:
     generation: int | None = None
     valid: bool = True
     provider_finalized: bool = False
+    rotation_token: str | None = None
+    resume_requested: bool = False
+    resumed: asyncio.Future | None = None
+    held: asyncio.Future | None = None
 
 
 class BrowserLink:
@@ -162,6 +166,7 @@ class BrowserLink:
         self.supports_live_webrtc = True
         self._live_handshake: _LiveHandshake | None = None
         self._socket_closed = False
+        self._rotation_token: str | None = None
         # Callbacks the engine wires (same names as VoicePELink).
         self.on_wake: Any = None
         self.on_media_state: Any = None
@@ -177,9 +182,72 @@ class BrowserLink:
         self._playback_id: str | None = None
         self._playback_phase = "idle"
 
-    async def prepare_live_transport(self):
-        if self._live_handshake is not None or self._socket_closed:
+    async def hold_live_capture(self) -> str:
+        """Stop capture while retaining the primary for official provider close."""
+        handshake = self._live_handshake
+        if handshake is None:
+            raise RuntimeError("browser_live_handshake_missing")
+        self._require_live(handshake)
+        self.invalidate_live_handshake()
+        self._streaming = False
+        token = secrets.token_urlsafe(24)
+        self._rotation_token = token
+        handshake.held = asyncio.get_running_loop().create_future()
+        if not await self._safe_json(
+            {"type": "live_hold", "rotation_token": token, **self._live_identity(handshake)}
+        ):
+            self._rotation_token = None
+            raise RuntimeError("browser_live_hold_send_failed")
+        held = await asyncio.shield(handshake.held)
+        if (
+            not held
+            or self._socket_closed
+            or self._live_handshake is not handshake
+            or self._rotation_token != token
+        ):
+            raise RuntimeError("browser_live_hold_superseded")
+        return token
+
+    async def resume_live_capture(self, token: str) -> None:
+        """Caller has verified provider readiness; require browser capture ACK too."""
+        handshake = self._live_handshake
+        if (
+            handshake is None
+            or handshake.rotation_token != token
+            or token is None
+            or handshake.resume_requested
+        ):
+            raise RuntimeError("browser_live_rotation_missing")
+        self._require_live(handshake)
+        if not handshake.started.done() or handshake.started.cancelled():
+            raise RuntimeError("browser_live_primary_not_started")
+        handshake.resume_requested = True
+        if not await self._safe_json({"type": "live_ready", **self._live_identity(handshake)}):
+            raise RuntimeError("browser_live_resume_send_failed")
+        assert handshake.resumed is not None
+        await asyncio.shield(handshake.resumed)
+        self._require_live(handshake)
+        self._streaming = True
+
+    async def prepare_live_transport(self, *, rotation_token: str | None = None):
+        if rotation_token != self._rotation_token:
+            raise RuntimeError("browser_live_rotation_superseded")
+        previous = self._live_handshake
+        if self._socket_closed:
             raise RuntimeError("browser_live_transport_still_owned")
+        if rotation_token is not None:
+            if (
+                previous is None
+                or previous.valid
+                or previous.held is None
+                or not previous.held.done()
+                or previous.held.cancelled()
+                or not previous.provider_finalized
+            ):
+                raise RuntimeError("browser_live_rotation_not_finalized")
+        elif previous is not None:
+            raise RuntimeError("browser_live_transport_still_owned")
+        self._rotation_token = None  # One use; Stop invalidates both pending and active ownership.
         loop = asyncio.get_running_loop()
         handshake = _LiveHandshake(
             secrets.token_urlsafe(24),
@@ -187,9 +255,15 @@ class BrowserLink:
             loop.create_future(),
             loop.create_future(),
         )
+        handshake.rotation_token = rotation_token
+        handshake.resumed = loop.create_future()
         self._live_handshake = handshake
         if not await self._safe_json(
-            {"type": "live_offer_request", "attempt_id": handshake.attempt_id}
+            {
+                "type": "live_offer_request",
+                "attempt_id": handshake.attempt_id,
+                "rotation_token": rotation_token,
+            }
         ):
             raise RuntimeError("browser_live_offer_send_failed")
         offer = await handshake.offer
@@ -228,11 +302,12 @@ class BrowserLink:
         self._require_live(handshake)
 
     def invalidate_live_handshake(self) -> None:
+        self._rotation_token = None
         handshake = self._live_handshake
         if handshake is not None:
             handshake.valid = False
-            for future in (handshake.offer, handshake.started):
-                if not future.done():
+            for future in (handshake.offer, handshake.started, handshake.resumed, handshake.held):
+                if future is not None and not future.done():
                     future.cancel()
 
     def live_socket_closed(self) -> None:
@@ -247,9 +322,27 @@ class BrowserLink:
         if handshake is None or data.get("attempt_id") != handshake.attempt_id:
             return False
         kind = data.get("type")
+        if kind == "live_held":
+            if (
+                not handshake.valid
+                and self._rotation_token is not None
+                and data.get("rotation_token") == self._rotation_token
+                and data.get("capture_held") is True
+                and data.get("provider_session_id") == handshake.provider_session_id
+                and type(data.get("generation")) is int
+                and data.get("generation") == handshake.generation
+                and handshake.held is not None
+                and not handshake.held.done()
+            ):
+                handshake.held.set_result(True)
+            return False
         if kind == "live_stopped":
             if (
                 not handshake.valid
+                and (
+                    self._rotation_token is None
+                    or data.get("rotation_token") == self._rotation_token
+                )
                 and data.get("tracks_stopped") is True
                 and data.get("peer_closed") is True
                 and data.get("provider_session_id") == handshake.provider_session_id
@@ -275,6 +368,21 @@ class BrowserLink:
                 self.invalidate_live_handshake()
                 return True
             handshake.offer.set_result(offer)
+        elif kind == "live_resumed":
+            if (
+                handshake.rotation_token is not None
+                and handshake.resume_requested
+                and data.get("rotation_token") == handshake.rotation_token
+                and type(data.get("generation")) is int
+                and data.get("generation") == handshake.generation
+                and data.get("provider_session_id") == handshake.provider_session_id
+                and data.get("capture_ready") is True
+                and handshake.started.done()
+                and not handshake.started.cancelled()
+                and handshake.resumed is not None
+                and not handshake.resumed.done()
+            ):
+                handshake.resumed.set_result(None)
         elif kind == "live_started":
             event = data.get("event")
             if (
@@ -340,11 +448,15 @@ class BrowserLink:
         return n
 
     async def start_streaming(self) -> bool:
+        if self._rotation_token is not None:
+            return False  # Ordinary keepalive cannot reopen a held capture generation.
         if self._streaming:
             return True  # keepalive re-assert — nothing to tell the browser
         if self._live_handshake is not None:
             handshake = self._live_handshake
             self._require_live(handshake)
+            if handshake.rotation_token is not None:
+                return False  # Explicit resume owns the first enable after rotation.
             if not handshake.started.done() or handshake.started.cancelled():
                 return False
             sent = await self._safe_json({"type": "live_ready", **self._live_identity(handshake)})
@@ -375,6 +487,7 @@ class BrowserLink:
 
     async def stop_playback(self, *, playback_id: str | None = None) -> bool:
         """Stop exactly the reply owned by the caller, never a newer browser reply."""
+        self._rotation_token = None
         handshake = self._live_handshake
         if handshake is not None:
             self.invalidate_live_handshake()
@@ -723,7 +836,14 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                         await receipt(data["command_id"], **stop_receipts[data["command_id"]])
                         continue
                     begin_stop(data["command_id"])
-                elif kind in {"live_offer", "live_started", "live_stopped", "live_fault"}:
+                elif kind in {
+                    "live_offer",
+                    "live_started",
+                    "live_stopped",
+                    "live_fault",
+                    "live_resumed",
+                    "live_held",
+                }:
                     if link.receive_live(data):
                         begin_stop("live-fault-" + uuid.uuid4().hex)
                 elif kind in ("wake", "text"):

@@ -23,6 +23,8 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 from .audio import StreamResampler
 from .data_result import MAX_TOOL_RESULT_BYTES, bounded_tool_output
+from .execution_policy import PendingAction
+from .live_prompt import live_confirmation_capable_instructions, live_confirmation_instructions
 from .provider_budget import (
     PROVIDER_BUDGET,
     BudgetLease,
@@ -31,6 +33,10 @@ from .provider_budget import (
 )
 from .tool_wire import realtime_function_tool
 from .voice import ToolCall
+
+LIVE_PRIOR_TEXT_MAX_MESSAGES = 64
+LIVE_PRIOR_TEXT_MAX_BYTES = 6000
+LIVE_PRIOR_TEXT_MESSAGE_OVERHEAD = 32
 
 
 @dataclass(frozen=True)
@@ -80,6 +86,7 @@ class LiveBackendComplete:
     status: str
     usage: dict[str, Any] | None
     generation: int
+    tool_call_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -177,6 +184,7 @@ class OpenAILiveSession:
         tool_declarations: list[dict],
         instructions: str = "",
         backend_instructions: str = "",
+        confirmation_enabled: bool = False,
         room_context: str = "",
         input_rate: int = 16000,
         voice: str = "marin",
@@ -213,7 +221,11 @@ class OpenAILiveSession:
             instructions or "Tal kort og naturligt på dansk. Brug backend til opgaver og opslag."
         )
         self.backend_instructions = backend_instructions
+        # Thin enables this only after its complete capture/rotation capability check.
+        self.confirmation_enabled = confirmation_enabled
         self.room_context = room_context
+        self._next_confirmation: PendingAction | None = None
+        self._next_confirmation_text: tuple[tuple[str, str], ...] = ()
         self.input_rate = input_rate
         self.voice = voice
         self.backend_model = backend_model
@@ -290,7 +302,62 @@ class OpenAILiveSession:
         self.on_webrtc_answer = on_answer
         self._webrtc_offer_consumed = False
 
-    def _configuration(self) -> dict:
+    def prepare_confirmation(
+        self,
+        proposal: PendingAction,
+        *,
+        prior_text: tuple[tuple[str, str], ...] | list[tuple[str, str]] = (),
+    ) -> None:
+        """Stage one server-held proposal for exactly the next connect attempt.
+
+        This does not establish fresh capture or authorize an action. Thin owns
+        those checks and must persist the old generation's usage before reuse.
+        History is limited to 64 user/assistant messages and a 6000-byte budget:
+        UTF-8 role plus UTF-8 text plus 32 bytes per message, not a token count.
+        """
+        if (
+            self._startup_task is not None
+            or self._connection is not None
+            or self._reader is not None
+            or self._lease is not None
+            or not self._close_requested
+            or self._next_confirmation is not None
+        ):
+            raise LiveProtocolError("live_confirmation_preparation_while_owned")
+        if not isinstance(prior_text, (tuple, list)):
+            raise LiveProtocolError("invalid_live_confirmation_history")
+        if len(prior_text) > LIVE_PRIOR_TEXT_MAX_MESSAGES:
+            raise LiveProtocolError("live_confirmation_history_too_large")
+        history = []
+        size = 0
+        for message in prior_text:
+            if not isinstance(message, (tuple, list)) or len(message) != 2:
+                raise LiveProtocolError("invalid_live_confirmation_history")
+            role, text = message
+            if (
+                not isinstance(role, str)
+                or role not in ("user", "assistant")
+                or not isinstance(text, str)
+                or not text.strip()
+            ):
+                raise LiveProtocolError("invalid_live_confirmation_history")
+            size += len(role.encode()) + len(text.encode()) + LIVE_PRIOR_TEXT_MESSAGE_OVERHEAD
+            if size > LIVE_PRIOR_TEXT_MAX_BYTES:
+                raise LiveProtocolError("live_confirmation_history_too_large")
+            history.append((role, text))
+        snapshot = tuple(history)
+        # Validate the immutable payload and exact policy adaptation before staging.
+        live_confirmation_instructions(
+            self.instructions, self.backend_instructions, proposal, has_prior_text=bool(snapshot)
+        )
+        self._next_confirmation = proposal
+        self._next_confirmation_text = snapshot
+
+    def _configuration(
+        self,
+        confirmation: PendingAction | None = None,
+        prior_text: tuple[tuple[str, str], ...] = (),
+    ) -> dict:
         validators: dict[str, Draft202012Validator] = {}
         wire = []
         for declaration in self.tool_declarations:
@@ -317,9 +384,18 @@ class OpenAILiveSession:
             validators[name] = Draft202012Validator(schema, format_checker=FormatChecker())
             wire.append({**realtime_function_tool(declaration), "strict": False})
         self._validators = validators
+        instructions, backend_instructions = self.instructions, self.backend_instructions
+        if confirmation is not None:
+            instructions, backend_instructions = live_confirmation_instructions(
+                instructions, backend_instructions, confirmation, has_prior_text=bool(prior_text)
+            )
+        elif self.confirmation_enabled:
+            instructions, backend_instructions = live_confirmation_capable_instructions(
+                instructions, backend_instructions
+            )
         configuration: dict[str, Any] = {
             "model": self.model,
-            "instructions": self.instructions,
+            "instructions": instructions,
             "audio": {
                 "format": {"type": "audio/pcm", "rate": 24000},
                 "output": {"voice": self.voice},
@@ -329,7 +405,7 @@ class OpenAILiveSession:
                 "responses": {
                     "model": self.backend_model,
                     "instructions": "\n".join(
-                        filter(None, (self.backend_instructions, self.room_context))
+                        filter(None, (backend_instructions, self.room_context))
                     ),
                     "tools": wire,
                     "parallel_tool_calls": False,
@@ -339,6 +415,18 @@ class OpenAILiveSession:
             },
         }
 
+        if confirmation is not None and prior_text:
+            # Official startup-only conversation history; never emit it as fresh input.
+            configuration["input"] = [
+                {
+                    "type": "message",
+                    "role": role,
+                    "content": [
+                        {"type": "input_text" if role == "user" else "output_text", "text": text}
+                    ],
+                }
+                for role, text in prior_text
+            ]
         if self.transport == "webrtc":
             del configuration["audio"]["format"]
             configuration["client"] = {
@@ -356,18 +444,24 @@ class OpenAILiveSession:
             raise LiveProtocolError("live_startup_already_owned")
         owner = asyncio.current_task()
         self._startup_task = owner
+        confirmation, self._next_confirmation = self._next_confirmation, None
+        prior_text, self._next_confirmation_text = self._next_confirmation_text, ()
         try:
-            await self._connect()
+            await self._connect(confirmation, prior_text)
         finally:
             if self._startup_task is owner:
                 self._startup_task = None
 
-    async def _connect(self) -> None:
+    async def _connect(
+        self,
+        confirmation: PendingAction | None = None,
+        prior_text: tuple[tuple[str, str], ...] = (),
+    ) -> None:
         if self._connection is not None or self._reader is not None:
             raise LiveProtocolError("live_session_already_connected")
         if self.transport == "webrtc" and self._webrtc_offer_consumed:
             raise LiveProtocolError("live_webrtc_offer_reused")
-        configuration = self._configuration()
+        configuration = self._configuration(confirmation, prior_text)
         if self.transport == "webrtc":
             if len(self._used_webrtc_offers) >= 512:
                 raise LiveProtocolError("live_webrtc_offer_limit")
@@ -753,7 +847,9 @@ class OpenAILiveSession:
             self.provider_budget.account_usage(
                 self.api_key, self.backend_model, usage["total_tokens"], lease=self._lease
             )
-        self._emit(LiveBackendComplete(delegation, state.id, status, usage, generation))
+        self._emit(
+            LiveBackendComplete(delegation, state.id, status, usage, generation, len(state.calls))
+        )
         if status != "completed":
             raise LiveProtocolError("live_backend_not_completed")
         receipt = self._terminal_receipt
@@ -1083,6 +1179,8 @@ class OpenAILiveSession:
             self._append_waiters.pop(event_id, None)
 
     async def request_close(self) -> None:
+        self._next_confirmation = None
+        self._next_confirmation_text = ()
         self._cancel_terminal_receipt()
         startup = self._startup_task
         if startup is not None and startup is not asyncio.current_task() and not startup.done():
@@ -1115,6 +1213,8 @@ class OpenAILiveSession:
                 return
 
     async def close(self) -> None:
+        self._next_confirmation = None
+        self._next_confirmation_text = ()
         async with self._close_lock:
             if self._connection is None and self._reader is None and self._startup_task is None:
                 return
@@ -1132,6 +1232,8 @@ class OpenAILiveSession:
                 # A cancellation-resistant startup retains ownership until its own cleanup.
 
     async def _release(self) -> None:
+        self._next_confirmation = None
+        self._next_confirmation_text = ()
         self._cancel_terminal_receipt()
         self._close_requested = True
         if (

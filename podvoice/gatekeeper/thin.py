@@ -27,7 +27,7 @@ from . import __version__, runtime_artifact_identity
 from . import audio as audio_mod
 from . import constants as C
 from .events import Event, EventType, State
-from .execution_policy import ExecutionContext, Risk, assess_tool
+from .execution_policy import ExecutionContext, PendingAction, Risk, assess_tool
 from .led import led_command_for
 from .playout import PlayoutClock
 from .prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
@@ -394,6 +394,13 @@ class ThinSession:
         self._live_provider_closed = asyncio.Event()
         self._live_finalizing = False
         self._live_opening_task: asyncio.Task | None = None
+        self._live_rotation_task: asyncio.Task | None = None
+        self._live_rotation_io: tuple[asyncio.Task, ...] = ()
+        self._live_rotating = False
+        self._live_rotation_old_generation: int | None = None
+        self._live_confirmation: PendingAction | None = None
+        self._live_confirmation_generation: int | None = None
+        self._live_confirmation_input_floor = 0
         self.voicepe = voicepe
         self.playback = playback  # sim/console fallback sink only
         self.tools = tools
@@ -660,6 +667,10 @@ class ThinSession:
         self._live_stream = None
         self._live_output_bytes = 0
         self._live_input_revision = 0
+        self._live_rotating = False
+        self._live_rotation_old_generation = None
+        self._live_confirmation = None
+        self._live_confirmation_generation = None
         self._live_backend_revisions.clear()
         self._live_usage_seconds = 0.0
         self._live_provider_closed.clear()
@@ -855,6 +866,8 @@ class ThinSession:
             )
         )
         self.brain.tool_declarations = decls
+        if self.live_alpha:
+            self.brain.confirmation_enabled = self._live_confirmation_supported()
         self._trace_event(
             "provider_contract",
             tool_count=len(decls),
@@ -1152,6 +1165,8 @@ class ThinSession:
         current = asyncio.current_task()
         for task in (
             self._live_opening_task,
+            self._live_rotation_task,
+            *self._live_rotation_io,
             self._reader,
             self._pump,
             self._beat,
@@ -1310,16 +1325,25 @@ class ThinSession:
         The caller bounds this wait. Its timeout must not abandon physical cleanup
         or admit a new generation while cancellation-resistant startup is pending.
         """
-        opening = self._live_opening_task
-        if opening is None or opening is asyncio.current_task():
-            return
-        try:
-            await asyncio.shield(opening)
-        except asyncio.CancelledError:
-            if not opening.cancelled():
-                raise
-        except Exception:
-            self._trace_event("live_opening_failed_during_close")
+        for opening in (self._live_opening_task, self._live_rotation_task):
+            if opening is None or opening is asyncio.current_task():
+                continue
+            try:
+                await asyncio.shield(opening)
+            except asyncio.CancelledError:
+                if not opening.cancelled():
+                    raise
+            except Exception:
+                self._trace_event("live_opening_failed_during_close")
+
+    async def _settle_live_rotation_io(self) -> None:
+        # SDK close may be what releases a cancellation-resistant send. Teardown
+        # therefore joins these owners after provider close, before any rearm.
+        owned = self._live_rotation_io
+        if owned:
+            await asyncio.shield(asyncio.gather(*owned, return_exceptions=True))
+            if self._live_rotation_io == owned:
+                self._live_rotation_io = ()
 
     async def _teardown_locked(
         self, *, release_music: bool, deadline: float, silence_complete: bool
@@ -1442,8 +1466,17 @@ class ThinSession:
             deadline=teardown_deadline,
             reserve_s=rearm_reserve,
         )
+        rotation_io_complete = True
         if self.live_alpha:
             self._record_live_usage()
+            rotation_io_complete, _ = await self._teardown_step(
+                "live-rotation-io-settle",
+                self._settle_live_rotation_io(),
+                deadline=teardown_deadline,
+                reserve_s=rearm_reserve,
+            )
+            self._discard_live_confirmation()
+            self._live_rotating = False
         stop_context_complete = True
         if (self.live_alpha or not self.full_duplex) and getattr(
             self.voicepe, "supports_stop_context", False
@@ -1483,6 +1516,7 @@ class ThinSession:
             and stream_complete
             and provider_complete
             and opening_complete
+            and rotation_io_complete
             and stop_context_complete
             and heartbeat_complete
             and attention_complete
@@ -1621,8 +1655,17 @@ class ThinSession:
         events, and nothing pointed at the dead channel)."""
         sent = 0
         level_acc = 0.0
+        brain = self.brain
+        generation = getattr(brain, "_connection_generation", None)
+        live = self.live_alpha
         try:
             async for frame in self.voicepe.pcm_frames():
+                if live and (
+                    brain is not self.brain
+                    or generation != brain._connection_generation
+                    or self._live_rotating
+                ):
+                    return
                 if not self._active:
                     continue  # drain quietly; stream stop is in flight
                 if self.audio_trace is not None:
@@ -1640,7 +1683,7 @@ class ThinSession:
                     if self.full_duplex or self.live_alpha:
                         if self._transport_closing or self._live_finalizing:
                             continue
-                        await self.brain.send_audio(frame)
+                        await brain.send_audio(frame)
                     else:
                         async with self._mic_send_lock:
                             if not self._active or self.sm.state not in (
@@ -1650,8 +1693,21 @@ class ThinSession:
                                 self._gate_dropped += 1
                                 continue
                             await self.brain.send_audio(frame)
+                    if live and (
+                        self._live_rotating
+                        or self._transport_closing
+                        or brain is not self.brain
+                        or generation != brain._connection_generation
+                    ):
+                        return
                     self._transcription_audio_seconds += len(frame) / (2.0 * C.INPUT_RATE)
                 except Exception as e:
+                    if live and (
+                        self._live_rotating
+                        or self._transport_closing
+                        or generation != brain._connection_generation
+                    ):
+                        return
                     _LOG.warning("thin: provider send failed (%s)", e)
                     await self._fail("connection")
                     return
@@ -1702,14 +1758,34 @@ class ThinSession:
         start — without this keepalive the assistant literally went deaf 25 s into
         every conversation, and Whisper then hallucinated turns ("Tak.", "Skål!")
         from the silence that the model happily acted on (0.78/0.80 field bug)."""
+        brain = self.brain
+        generation = getattr(brain, "_connection_generation", None)
+        live = self.live_alpha
+
+        def stale() -> bool:
+            return live and (
+                self._live_rotating
+                or self._transport_closing
+                or brain is not self.brain
+                or generation != brain._connection_generation
+            )
+
         while self._active:
             await asyncio.sleep(C.STREAM_KEEPALIVE_S)
-            if self._active and hasattr(self.voicepe, "start_streaming"):
+            if stale():
+                return
+            if (
+                self._active
+                and not self._live_rotating
+                and hasattr(self.voicepe, "start_streaming")
+            ):
                 try:
                     stream_started = await self.voicepe.start_streaming()
                 except Exception as exc:
                     _LOG.warning("thin: mic-forward keepalive failed: %s", exc)
                     stream_started = False
+                if stale():
+                    return
                 if stream_started is False and self._active:
                     self._device_stream_fault = True
                     self._trace_event("mic_stream_keepalive_failed")
@@ -1730,12 +1806,15 @@ class ThinSession:
             await asyncio.sleep(HEARTBEAT_S)
             if not self._active:
                 continue
+            if self._live_rotating:
+                continue  # Rotation has its own bounded owner and retains attention.
             expected_live_reader_end = (
                 self.live_alpha and self._live_finalizing and self._live_provider_closed.is_set()
             )
+            pump_required = not (self.live_alpha and self._live_webrtc)
             dead = (
                 not expected_live_reader_end and (self._reader is None or self._reader.done())
-            ) or (self._pump is None or self._pump.done())
+            ) or (pump_required and (self._pump is None or self._pump.done()))
             if dead:
                 _LOG.warning("thin: audio pipeline died while active — failing over")
                 await self._fail("connection")
@@ -1796,6 +1875,8 @@ class ThinSession:
         elif isinstance(ev, LiveTransportReady):
             self._trace_event("live_sideband_ready", provider_session_id=ev.session_id)
         elif isinstance(ev, LiveAudioChunk):
+            if self._live_rotating and ev.generation == self._live_rotation_old_generation:
+                return
             if self._live_webrtc:
                 self._request_close("live-duplicate-audio-path", error_kind="connection")
                 return
@@ -1816,7 +1897,13 @@ class ThinSession:
                 lease.watchdog = self._spawn(self._start_live_playback(lease), "live-playback")
         elif isinstance(ev, LiveTranscript):
             if ev.direction == "in":
+                if not ev.text.strip():
+                    return  # Empty provider fragments are not fresh authorizing input.
+                if self._live_rotating:
+                    return  # Capture transition input cannot authorize the fresh phase.
                 self._live_input_revision += 1
+                if self._live_confirmation_generation is None:
+                    self._cancel_live_confirmation_rotation()
                 self._last_user_utterance = ev.text
                 # Fragments remain diagnostic evidence, never a complete user turn.
                 self._trace_event(
@@ -1846,11 +1933,21 @@ class ThinSession:
             )
             if ev.status != "completed":
                 self._request_close("live-backend-failed", error_kind="connection")
+            elif (
+                ev.tool_call_count == 0
+                and self._live_confirmation_generation == ev.generation
+                and self._live_backend_revisions.get(ev.response_id, 0)
+                > self._live_confirmation_input_floor
+            ):
+                self._discard_live_confirmation()
         elif isinstance(ev, LiveUsage):
             self._live_usage_seconds = ev.seconds
             self._record_live_usage()
             self._trace_event("live_usage", seconds=ev.seconds, final=ev.final)
         elif isinstance(ev, LiveToolBatch):
+            if self._live_rotating and ev.generation != self._live_rotation_old_generation:
+                self._request_close("live-confirmation-before-capture", error_kind="connection")
+                return
             if ev.response_id in self._committed_tool_batch_ids:
                 self._request_close("live-batch-replay", error_kind="connection")
                 return
@@ -1864,9 +1961,9 @@ class ThinSession:
             if self._live_webrtc:
                 self._trace_event("live_browser_drain_unconfirmed")
                 await self.voicepe.note_live_finalized()
-            if self._live_stream is not None:
+            if self._live_stream is not None and not self._live_rotating:
                 self._live_stream.finish()
-            if not self._live_finalizing:
+            if not self._live_finalizing and not self._live_rotating:
                 self._request_close("live-provider-closed", error_kind="connection")
 
     def _record_live_usage(self) -> None:
@@ -1920,6 +2017,7 @@ class ThinSession:
                 and self.live_alpha
                 and not self._transport_closing
                 and not self._live_finalizing
+                and not self._live_rotating
                 and self._epoch == epoch
                 and batch.generation == self.brain._connection_generation
             )
@@ -1941,6 +2039,11 @@ class ThinSession:
                 invalid_batch = len(names) > 1 and bool(exclusive.intersection(names))
                 results = []
                 semantic_end = None
+                proposal = None
+                if self._live_confirmation_generation == batch.generation and (
+                    invalid_batch or names != [APPROVE_ACTION_TOOL]
+                ):
+                    self._discard_live_confirmation()
                 for call in batch.calls:
                     read_only = assess_tool(call.name, call.args).risk is Risk.READ_ONLY
                     if not current():
@@ -1956,11 +2059,10 @@ class ThinSession:
                             "stale_input_revision",
                             "New input arrived; reconsider the current request before any action.",
                         )
+                        if call.name == APPROVE_ACTION_TOOL:
+                            self._discard_live_confirmation()
                     elif call.name == APPROVE_ACTION_TOOL:
-                        result = failure(
-                            "live_confirmation_unavailable",
-                            "Voice confirmation is not enabled in this Alpha candidate. Do not ask for a confirmation that cannot execute.",
-                        )
+                        result = await self._approve_live_proposal(call, batch, revision, current)
                     elif call.name == END_CONVERSATION_TOOL:
                         result = (
                             {"ok": True, "data": {"decision": END_CONVERSATION_TOOL}}
@@ -1976,7 +2078,9 @@ class ThinSession:
                     else:
                         # This is a backend work identity, explicitly NOT a speech-end turn.
                         context = ExecutionContext(
-                            self._history_session, f"live:{batch.response_id}"
+                            self._history_session,
+                            f"live:{batch.generation}:{batch.response_id}",
+                            "live",
                         )
                         result = await self.tools.dispatch(
                             call.name,
@@ -1992,11 +2096,27 @@ class ThinSession:
                             ),
                         )
                         if result.get("needs_confirmation"):
-                            result = failure(
-                                "live_confirmation_unavailable",
-                                "This action requires confirmation, which is not yet available in this Alpha. No action was executed. Do not ask the user to say yes.",
-                            )
-                            self.tools.execution_policy.clear_session(self._history_session)
+                            challenge_id = result.get("approval", {}).get("challenge_id", "")
+                            policy = self.tools.execution_policy
+                            if (
+                                len(batch.calls) == 1
+                                and self._live_confirmation_supported()
+                                and (
+                                    self._live_rotation_task is None
+                                    or self._live_rotation_task.done()
+                                )
+                            ):
+                                proposal = policy.peek_live_challenge(
+                                    challenge_id, session_id=self._history_session
+                                )
+                            if proposal is None:
+                                policy.discard_live_challenge(
+                                    challenge_id, session_id=self._history_session
+                                )
+                                result = failure(
+                                    "live_confirmation_unavailable",
+                                    "Confirmation is unavailable for this request. No action was executed.",
+                                )
                     if self.hub is not None:
                         self.hub.incr("tool_calls")
                         self.hub.incr("tool_ok" if result.get("ok") else "tool_error")
@@ -2004,6 +2124,18 @@ class ThinSession:
                     results.append({"id": call.id, "name": call.name, "response": result})
                     if not current():
                         return  # Never replay an action whose result became unavailable.
+                if proposal is not None and current() and revision == self._live_input_revision:
+                    receipt = self.brain.create_terminal_receipt(
+                        batch.response_id, generation=batch.generation
+                    )
+                    self._live_confirmation = proposal
+                    self._live_rotation_task = self._spawn(
+                        self._rotate_live_confirmation(
+                            proposal, receipt, epoch, batch.generation, revision
+                        ),
+                        "live-confirmation-rotation",
+                    )
+                    self._live_rotation_task.add_done_callback(lambda _: receipt.cancel())
                 if semantic_end is not None and current() and revision == self._live_input_revision:
                     self._cancel_live_end()
                     receipt = self.brain.create_terminal_receipt(
@@ -2039,6 +2171,252 @@ class ThinSession:
         finally:
             self._tool_tasks.pop(batch.response_id, None)
             self._live_backend_revisions.pop(batch.response_id, None)
+
+    def _live_confirmation_supported(self) -> bool:
+        return bool(
+            self.live_alpha
+            and self.tools is not None
+            and hasattr(self.tools, "execution_policy")
+            and (self._live_webrtc or getattr(self.voicepe, "supports_live_capture_hold", False))
+            and callable(getattr(self.voicepe, "hold_live_capture", None))
+            and callable(getattr(self.voicepe, "resume_live_capture", None))
+        )
+
+    def _discard_live_confirmation(self) -> None:
+        proposal, self._live_confirmation = self._live_confirmation, None
+        self._live_confirmation_generation = None
+        if proposal is not None and self.tools is not None:
+            self.tools.execution_policy.discard_live_challenge(
+                proposal.challenge_id, session_id=proposal.context.session_id
+            )
+
+    def _cancel_live_confirmation_rotation(self) -> None:
+        if self._live_rotating:
+            return
+        task = self._live_rotation_task
+        if task is not None and not task.done():
+            task.cancel()
+        self._discard_live_confirmation()
+
+    async def _approve_live_proposal(self, call, batch, revision, current) -> dict:
+        proposal = self._live_confirmation
+
+        def permitted() -> bool:
+            return bool(
+                current()
+                and proposal is not None
+                and self._live_confirmation is proposal
+                and self._live_confirmation_generation == batch.generation
+                and proposal.action in self._tool_declaration_hashes
+                and revision == self._live_input_revision
+                and revision is not None
+                and revision > self._live_confirmation_input_floor
+                and self.brain.tool_batch_is_admitted(batch.response_id, batch.generation)
+            )
+
+        denied = {
+            "ok": False,
+            "error_kind": "approval_denied",
+            "error": "No current fresh confirmation.",
+        }
+        if (
+            not permitted()
+            or proposal is None
+            or call.args.get("challenge_id") != proposal.challenge_id
+            or self.tools.execution_policy.peek_live_challenge(
+                proposal.challenge_id, session_id=self._history_session
+            )
+            != proposal
+        ):
+            self._discard_live_confirmation()
+            return denied
+        context = ExecutionContext(
+            self._history_session, f"live:{batch.generation}:{batch.response_id}", "live"
+        )
+        approved = self.tools.execution_policy.confirm_live(
+            proposal.challenge_id,
+            confirmation_context=context,
+            expected_arguments_sha256=proposal.args_sha256,
+        )
+        if approved is None:
+            self._discard_live_confirmation()
+            return denied
+        try:
+            return await self.tools.dispatch(
+                approved.action,
+                approved.args,
+                execution_context=approved.context,
+                approval_token=approved.token,
+                expected_declaration_sha256=self._tool_declaration_hashes.get(approved.action),
+                execution_guard=permitted,
+            )
+        finally:
+            if self._live_confirmation is proposal:
+                self._discard_live_confirmation()
+
+    async def _rotate_live_confirmation(
+        self,
+        proposal: PendingAction,
+        receipt: asyncio.Future[bool],
+        epoch: float,
+        generation: int,
+        revision: int,
+    ) -> None:
+        """Rotate only the provider/capture generation; Thin/history/attention survive.
+
+        The fresh provider knows the proposal, not the previous conversation.
+        This deliberately does not replay old user assent as approval evidence.
+        """
+        brain = self.brain
+        owner = asyncio.current_task()
+        completed = False
+
+        def check() -> None:
+            if (
+                not self._active
+                or self._transport_closing
+                or self._epoch != epoch
+                or self.brain is not brain
+                or self._live_rotation_task is not owner
+                or (owner is not None and owner.cancelling())
+            ):
+                raise asyncio.CancelledError
+            if (
+                self._live_confirmation is not proposal
+                or self.tools.execution_policy.peek_live_challenge(
+                    proposal.challenge_id, session_id=self._history_session
+                )
+                != proposal
+            ):
+                raise RuntimeError("live confirmation expired or replaced")
+
+        try:
+            async with asyncio.timeout(30.0):
+                settled = await asyncio.wait_for(receipt, brain.timeout_s)
+                check()
+                if (
+                    not settled
+                    or not brain.terminal_receipt_current(receipt)
+                    or self._live_input_revision != revision
+                    or brain._connection_generation != generation
+                ):
+                    return
+                self._cancel_live_end()
+                self._live_rotating = True
+                self._live_rotation_old_generation = generation
+                self._trace_event(
+                    "live_confirmation_rotation_started", provider_generation=generation
+                )
+                self._live_rotation_io = tuple(
+                    task
+                    for task in (self._pump, self._keepalive, self._reader)
+                    if task is not None and task is not owner
+                )
+                for task in (self._pump, self._keepalive):
+                    if task is not None:
+                        task.cancel()
+                token = await self.voicepe.hold_live_capture()
+                check()
+                if not self._live_webrtc:
+                    lease = self._playback_lease
+                    self._invalidate_playback_lease("confirmation-rotation")
+                    if self._live_stream is not None:
+                        self._live_stream.cancel("confirmation-rotation")
+                    if lease is not None:
+                        stopped = await self.voicepe.stop_playback(playback_id=lease.playback_id)
+                        check()
+                        if stopped is False:
+                            raise RuntimeError("old confirmation playback stop unconfirmed")
+                    self._device_playing = False
+                    self._playback_t0 = None
+                await brain.request_close()
+                check()
+                await asyncio.wait_for(self._live_provider_closed.wait(), brain.timeout_s)
+                check()
+                await brain.close()
+                self._record_live_usage()  # connect clears the old snapshot; persist it first.
+                check()
+                await self._settle_live_rotation_io()
+                check()
+                self._reader = self._pump = self._keepalive = None
+                self._live_provider_closed.clear()
+                self._live_output_bytes = 0
+                self._playback_started.clear()
+                self._playback_finished.clear()
+                if not self._live_webrtc:
+                    self._live_stream = self.live_audio.open(
+                        self._history_session, sample_rate=24000
+                    )
+                prior_text = self._live_prior_text()
+                brain.prepare_confirmation(proposal, prior_text=prior_text)
+                if self._live_webrtc:
+                    offer, answer = await self.voicepe.prepare_live_transport(rotation_token=token)
+                    check()
+                    brain.prepare_webrtc(offer, answer)
+                await brain.connect()
+                check()
+                if brain._connection_generation == generation:
+                    raise RuntimeError("confirmation provider generation was not replaced")
+                self._reader = self._spawn(self._read_events(), "thin-reader")
+                if self._live_webrtc:
+                    await self.voicepe.wait_live_started()
+                    check()
+                await self.voicepe.resume_live_capture(token)
+                check()
+                self._live_confirmation_generation = brain._connection_generation
+                self._live_confirmation_input_floor = self._live_input_revision
+                self._live_rotating = False
+                self._live_rotation_old_generation = None
+                self._pump = (
+                    None if self._live_webrtc else self._spawn(self._pump_mic(), "thin-pump")
+                )
+                self._keepalive = self._spawn(self._keepalive_mic(), "thin-keepalive")
+                self._trace_event(
+                    "live_confirmation_ready",
+                    provider_generation=brain._connection_generation,
+                    prior_provider_context_restored=False,
+                    saved_text_messages=len(prior_text),
+                )
+                completed = True
+        except asyncio.CancelledError:
+            receipt.cancel()
+            raise
+        except Exception:
+            if self._active and self._epoch == epoch and not self._transport_closing:
+                self._request_close("live-confirmation-rotation-failed", error_kind="connection")
+        finally:
+            if not completed and self._live_confirmation is proposal:
+                self._discard_live_confirmation()
+
+    def _live_prior_text(self) -> tuple[tuple[str, str], ...]:
+        """Bounded saved-text suffix, never fresh input or complete provider state."""
+        from .openai_live import (
+            LIVE_PRIOR_TEXT_MAX_BYTES,
+            LIVE_PRIOR_TEXT_MAX_MESSAGES,
+            LIVE_PRIOR_TEXT_MESSAGE_OVERHEAD,
+        )
+
+        history = getattr(self.hub, "_history", None)
+        if history is None:
+            return ()
+        records = history.session_text(room=self.room, session=self._history_session)
+        selected: list[tuple[str, str]] = []
+        size = 0
+        for role, text in reversed(records):
+            merge = bool(selected and selected[-1][0] == role)
+            extra = len(text.encode()) + (
+                1 if merge else len(role.encode()) + LIVE_PRIOR_TEXT_MESSAGE_OVERHEAD
+            )
+            if size + extra > LIVE_PRIOR_TEXT_MAX_BYTES or (
+                not merge and len(selected) >= LIVE_PRIOR_TEXT_MAX_MESSAGES
+            ):
+                break  # Keep a contiguous suffix; never cut a fragment's meaning.
+            if merge:
+                selected[-1] = (role, text + "\n" + selected[-1][1])
+            else:
+                selected.append((role, text))
+            size += extra
+        return tuple(reversed(selected))
 
     def _cancel_live_end(self) -> None:
         if self._live_finalizing:
@@ -2149,8 +2527,19 @@ class ThinSession:
                 return self._remember_text_receipt(
                     command_id, "rejected", "closing", "Samtalen er ikke tilgængelig."
                 )
+            if self._live_rotating:
+                return self._remember_text_receipt(
+                    command_id,
+                    "rejected",
+                    "transition",
+                    "Bekræftelsen forbinder; send beskeden igen.",
+                )
             self._cancel_live_end()
+            if self._live_confirmation_generation is None:
+                self._cancel_live_confirmation_rotation()
             self._live_input_revision += 1
+            history_session = self._history_session
+            admitted_at = time.time()
             try:
                 await self.brain.send_text(text, command_id=command_id)
             except Exception:
@@ -2160,6 +2549,10 @@ class ThinSession:
                     "rejected",
                     "provider_unavailable",
                     "Live kunne ikke modtage beskeden.",
+                )
+            if self.hub is not None:
+                self.hub.transcript(
+                    self.room, "in", text, ts=admitted_at, session=history_session or None
                 )
             return self._remember_text_receipt(
                 command_id,

@@ -149,6 +149,25 @@ class History:
         convs.reverse()  # newest first
         return convs[: max(0, limit)]
 
+    def session_text(self, *, room: str, session: str) -> tuple[tuple[str, str], ...]:
+        """Saved text for exactly one explicit conversation, in recorded time order.
+
+        No nearby-session fallback or inferred complete-turn boundary. Live may
+        persist fragments here; callers must retain that distinction.
+        """
+        if not room or not session:
+            return ()
+        roles = {"in": "user", "out": "assistant"}
+        return tuple(
+            (roles[rec["dir"]], rec["text"])
+            for rec in self._records()
+            if rec.get("room") == room
+            and rec.get("session") == session
+            and rec.get("dir") in roles
+            and isinstance(rec.get("text"), str)
+            and rec["text"].strip()
+        )
+
     def rooms(self) -> list[str]:
         """Distinct room ids that have history (for the History tab's room filter)."""
         return sorted({str(r["room"]) for r in self._records() if r.get("room")})

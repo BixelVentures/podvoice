@@ -786,3 +786,644 @@ async def test_fresh_end_during_old_grace_keeps_its_own_intent(monkeypatch):
         assert fresh.result() is True and sdk.session.close.await_count == 1
     finally:
         await session.aclose()
+
+
+class CaptureDevice(Device):
+    supports_live_capture_hold = True
+
+    def __init__(self):
+        super().__init__()
+        self.capture_calls = []
+        self.capture_token = None
+
+    async def hold_live_capture(self):
+        self.streaming = False
+        self.capture_token = 41
+        self.cut_audio_boundary("capture-hold-ack")
+        self.capture_calls.append(("hold", 41))
+        return 41
+
+    async def resume_live_capture(self, token):
+        assert token == self.capture_token
+        self.capture_calls.append(("resume", token))
+        self.streaming = True
+        self.capture_token = None
+
+
+class ApprovalTools(Tools):
+    def __init__(self):
+        super().__init__()
+        from gatekeeper.execution_policy import ExecutionPolicy
+
+        self.execution_policy = ExecutionPolicy()
+        self.preparing = None
+        self.release = None
+
+    def declarations(self):
+        return [
+            {
+                "name": "danger",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"entity_id": {"type": "string"}},
+                    "required": ["entity_id"],
+                    "additionalProperties": False,
+                },
+            }
+        ]
+
+    async def dispatch(
+        self, name, args, *, execution_guard, execution_context, approval_token=None, **kwargs
+    ):
+        assert execution_guard()
+        if approval_token is not None and self.preparing is not None:
+            self.preparing.set()
+            await self.release.wait()
+            if not execution_guard():
+                return {"ok": False, "error_kind": "stale_execution"}
+        denied = self.execution_policy.authorize(
+            name, args, context=execution_context, approval_token=approval_token
+        )
+        if denied is not None:
+            return denied
+        self.calls.append((name, dict(args), execution_context))
+        return {"ok": True}
+
+
+def confirmation_build(*, enabled=True):
+    from gatekeeper.live_prompt import live_instructions
+    from gatekeeper.prompt import SYSTEM_PROMPT_DA
+
+    session, sdk, flag, _, link = build(enabled=enabled, device=CaptureDevice())
+    tools = ApprovalTools()
+    session.tools = tools
+    session.live_brain.instructions, session.live_brain.backend_instructions = live_instructions(
+        SYSTEM_PROMPT_DA
+    )
+    return session, sdk, flag, tools, link
+
+
+async def pending_confirmation(session, sdk):
+    await emit(
+        sdk, created(), call(name="danger", arguments='{"entity_id":"lock.front_door"}'), terminal()
+    )
+    await until(lambda: session._live_confirmation is not None)
+    await until(lambda: sdk.response.create.await_count == 1)
+    return session._live_confirmation
+
+
+async def rotate_confirmation(session, sdk):
+    proposal = await pending_confirmation(session, sdk)
+    await emit(sdk, created("r2"), terminal("r2"))
+    await until(lambda: session._live_confirmation_generation == 2)
+    return proposal
+
+
+async def fresh_confirmation_input(session, sdk, text="Ja, gør det"):
+    revision = session._live_input_revision
+    await emit(
+        sdk,
+        {"type": "session.input_transcript.delta", "delta": text, "start_ms": 100, "end_ms": 200},
+    )
+    await until(lambda: session._live_input_revision > revision)
+
+
+async def approve_proposal(sdk, proposal, response="approval", call_id="approve"):
+    import json
+
+    await emit(
+        sdk,
+        created(response),
+        call(
+            call_id,
+            name="approve_action",
+            arguments=json.dumps({"challenge_id": proposal.challenge_id}),
+        ),
+        terminal(response),
+    )
+
+
+@pytest.mark.asyncio
+async def test_confirmation_rotates_provider_preserving_thin_and_releases_exact_action_once():
+    session, sdk, _, tools, link = confirmation_build()
+    await session.start()
+    try:
+        await session.wake()
+        history, epoch = session._history_session, session._epoch
+        old_stream = session._live_stream
+        proposal = await rotate_confirmation(session, sdk)
+        assert tools.calls == []
+        assert session._history_session == history and session._epoch == epoch
+        assert link.rearm_calls == 0 and session._active
+        assert old_stream.cancelled and session._live_stream is not old_stream
+        assert link.capture_calls == [("hold", 41), ("resume", 41)]
+        assert sdk.session.start.await_count == 2 and sdk.session.close.await_count == 1
+        assert (
+            proposal.challenge_id in sdk.session.start.await_args.kwargs["session"]["instructions"]
+        )
+        await fresh_confirmation_input(session, sdk)
+        await approve_proposal(sdk, proposal)
+        await until(lambda: len(tools.calls) == 1)
+        assert tools.calls[0][:2] == ("danger", {"entity_id": "lock.front_door"})
+        assert tools.calls[0][2].approval_mode == "live"
+        await until(lambda: sdk.response.create.await_count == 2)
+        await emit(sdk, created("post-approval"), terminal("post-approval"))
+        await fresh_confirmation_input(session, sdk)
+        await approve_proposal(sdk, proposal, "replay", "replay-call")
+        await until(lambda: sdk.response.item.create.await_count == 3)
+        assert len(tools.calls) == 1
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "boundary", ["no_input", "wrong_id", "expired", "nonapproval", "mixed", "stale_input"]
+)
+async def test_confirmation_rejects_noncurrent_or_nonexclusive_approval(boundary):
+    from dataclasses import replace
+
+    session, sdk, _, tools, _ = confirmation_build()
+    await session.start()
+    try:
+        await session.wake()
+        proposal = await rotate_confirmation(session, sdk)
+        if boundary != "no_input":
+            await fresh_confirmation_input(session, sdk)
+        if boundary == "expired":
+            tools.execution_policy._clock = lambda: proposal.expires_at + 1
+        if boundary == "wrong_id":
+            proposal = replace(proposal, challenge_id="wrong")
+        if boundary == "nonapproval":
+            await emit(sdk, created("declined"), terminal("declined"))
+            await until(lambda: session._live_confirmation is None)
+        if boundary == "mixed":
+            import json
+
+            await emit(
+                sdk,
+                created("approval"),
+                call(
+                    "approve",
+                    name="approve_action",
+                    arguments=json.dumps({"challenge_id": proposal.challenge_id}),
+                ),
+                call("extra", name="danger", arguments='{"entity_id":"lock.front_door"}'),
+                terminal("approval"),
+            )
+        elif boundary == "stale_input":
+            import json
+
+            await emit(sdk, created("approval"))
+            await until(lambda: "approval" in session._live_backend_revisions)
+            await fresh_confirmation_input(session, sdk, "Nej, stop")
+            await emit(
+                sdk,
+                call(
+                    "approve",
+                    name="approve_action",
+                    arguments=json.dumps({"challenge_id": proposal.challenge_id}),
+                ),
+                terminal("approval"),
+            )
+        else:
+            await approve_proposal(sdk, proposal)
+        await until(lambda: sdk.response.item.create.await_count >= 2)
+        assert tools.calls == []
+        assert session._live_confirmation is None
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("interrupt", ["input", "stop"])
+async def test_confirmation_final_dispatch_guard_survives_target_preparation(interrupt):
+    session, sdk, _, tools, _ = confirmation_build()
+    tools.preparing, tools.release = asyncio.Event(), asyncio.Event()
+    await session.start()
+    try:
+        await session.wake()
+        proposal = await rotate_confirmation(session, sdk)
+        await fresh_confirmation_input(session, sdk)
+        await approve_proposal(sdk, proposal)
+        await asyncio.wait_for(tools.preparing.wait(), 1)
+        if interrupt == "input":
+            await fresh_confirmation_input(session, sdk, "Nej")
+        else:
+            await session.stop()
+        tools.release.set()
+        await asyncio.sleep(0.02)
+        assert tools.calls == []
+    finally:
+        tools.release.set()
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_stop_and_new_input_before_settlement_prevent_confirmation_rotation():
+    for interrupt in ("input", "stop"):
+        session, sdk, _, tools, link = confirmation_build()
+        await session.start()
+        try:
+            await session.wake()
+            await pending_confirmation(session, sdk)
+            if interrupt == "input":
+                await fresh_confirmation_input(session, sdk, "Nej")
+                await emit(sdk, created("r2"), terminal("r2"))
+                await until(lambda session=session: session._live_rotation_task.done())
+            else:
+                await session.stop()
+            assert link.capture_calls == []
+            assert sdk.session.start.await_count == 1
+            assert tools.calls == []
+        finally:
+            await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_confirmation_capability_does_not_change_off_provider_selection():
+    session, sdk, _, _, link = confirmation_build(enabled=False)
+    await session.start()
+    try:
+        await session.wake()
+        assert session.brain is session._realtime_brain
+        assert sdk.session.start.await_count == 0
+        assert link.capture_calls == []
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["hold", "connect", "resume"])
+async def test_stop_owns_cancellation_resistant_confirmation_transition_before_next_wake(
+    phase, monkeypatch
+):
+    session, sdk, _, tools, link = confirmation_build()
+    entered, release = asyncio.Event(), asyncio.Event()
+    original_enter = SDK.__aenter__
+
+    async def resist_cancellation():
+        entered.set()
+        try:
+            await release.wait()
+        except asyncio.CancelledError:
+            await release.wait()
+
+    if phase == "connect":
+
+        async def delayed_enter(self):
+            if self.session.start.await_count == 1:
+                await resist_cancellation()
+            return await original_enter(self)
+
+        monkeypatch.setattr(SDK, "__aenter__", delayed_enter)
+    else:
+        name = "hold_live_capture" if phase == "hold" else "resume_live_capture"
+        original = getattr(link, name)
+
+        async def delayed_capture(*args):
+            await resist_cancellation()
+            return await original(*args)
+
+        setattr(link, name, delayed_capture)
+    await session.start()
+    try:
+        await session.wake()
+        await pending_confirmation(session, sdk)
+        await emit(sdk, created("r2"), terminal("r2"))
+        await asyncio.wait_for(entered.wait(), 1)
+        stopping = asyncio.create_task(session.stop())
+        await until(lambda: session._transport_closing)
+        assert link.rearm_calls == 0
+        release.set()
+        await asyncio.wait_for(stopping, 2)
+        assert session._live_rotation_task.done()
+        assert not session._teardown_incomplete
+        assert not link.streaming
+        assert tools.calls == [] and session._live_confirmation is None
+        assert sdk.session.start.await_count == (2 if phase == "resume" else 1)
+        await session.wake()
+        assert session._active
+        assert session._live_confirmation is None
+    finally:
+        release.set()
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_rotation_closes_sdk_before_joining_old_dequeued_send_and_preserves_usage():
+    from unittest.mock import Mock
+
+    session, sdk, _, _, link = confirmation_build()
+    entered, released = asyncio.Event(), asyncio.Event()
+    usage = Mock()
+    session.usage = usage
+
+    async def resistant_send(**_):
+        entered.set()
+        try:
+            await released.wait()
+        except asyncio.CancelledError:
+            await released.wait()
+
+    sdk.session.input_audio.append.side_effect = resistant_send
+    sdk.client.close.side_effect = released.set
+    await session.start()
+    try:
+        await session.wake()
+        old_generation = session.brain._connection_generation
+        await pending_confirmation(session, sdk)
+        link.feed([b"\x01\x00" * 320])
+        await asyncio.wait_for(entered.wait(), 1)
+        await emit(sdk, created("r2"), terminal("r2"))
+        await until(lambda: session._live_confirmation_generation == 2)
+        assert released.is_set() and not session._live_rotation_io
+        assert sdk.session.input_audio.append.await_count == 1
+        assert session.brain._connection_generation == old_generation + 1
+        assert any(
+            call.kwargs.get("generation") == old_generation and call.kwargs.get("final") is True
+            for call in usage.add_live_seconds.call_args_list
+        )
+        assert session.brain.usage_snapshot()["voice_final"] is False
+    finally:
+        released.set()
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_old_generation_input_and_playback_cannot_cross_confirmation_rotation():
+    session, sdk, _, tools, link = confirmation_build()
+    await session.start()
+    try:
+        await session.wake()
+        generation = session.brain._connection_generation
+        await session._on_live_event(LiveAudioChunk(b"\x01\x00" * 1920, generation))
+        await until(lambda: session._device_playing)
+        old_lease = session._playback_lease
+        proposal = await rotate_confirmation(session, sdk)
+        floor = session._live_input_revision
+        await session._on_live_event(LiveTranscript("in", "ja", 0, 200, generation))
+        session._on_media_state(False, old_lease.playback_id)
+        assert session._live_input_revision == floor
+        await approve_proposal(sdk, proposal)
+        await until(lambda: sdk.response.item.create.await_count == 2)
+        assert tools.calls == []
+        assert link.rearm_calls == 0
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reader_failure", [False, True])
+async def test_real_browser_link_confirmation_holds_capture_until_closed_then_new_peer(
+    reader_failure,
+):
+    from unit.test_openai_live import WebRTCSDK
+
+    from gatekeeper.live_prompt import live_instructions
+    from gatekeeper.prompt import SYSTEM_PROMPT_DA
+    from gatekeeper.talk import BrowserLink
+
+    sdk = WebRTCSDK()
+    messages = []
+    offers = 0
+
+    async def wire(data):
+        nonlocal offers
+        messages.append(dict(data))
+        kind = data["type"]
+        if kind == "live_offer_request":
+            offers += 1
+            if offers == 2:
+                assert sdk.session.close.await_count == 1
+            link.receive_live({**data, "type": "live_offer", "sdp": f"v=0\r\noffer-{offers}"})
+        elif kind == "live_answer":
+            started = {"type": "session.started", "session": {"id": data["provider_session_id"]}}
+            link.receive_live({**data, "type": "live_started", "event": started})
+            await sdk.incoming.put(started)
+            await sdk.acknowledge()
+        elif kind == "live_hold":
+            assert sdk.session.close.await_count == 0
+            link.receive_live({**data, "type": "live_held", "capture_held": True})
+        elif kind == "live_ready" and offers == 2:
+            handshake = link._live_handshake
+            link.receive_live(
+                {
+                    **data,
+                    "type": "live_resumed",
+                    "capture_ready": True,
+                    "rotation_token": handshake.rotation_token,
+                }
+            )
+        elif kind == "live_stop":
+            link.receive_live(
+                {**data, "type": "live_stopped", "tracks_stopped": True, "peer_closed": True}
+            )
+
+    async def no_bytes(_):
+        raise AssertionError("WebRTC does not use the PCM output path")
+
+    link = BrowserLink(wire, no_bytes)
+    session, _, _, _, _ = build(device=link)
+    tools = ApprovalTools()
+    session.tools = tools
+    session.live_brain.client_factory = sdk.factory
+    session.live_brain.instructions, session.live_brain.backend_instructions = live_instructions(
+        SYSTEM_PROMPT_DA
+    )
+    await session.start()
+    try:
+        await session.wake()
+        assert session._live_webrtc
+        from gatekeeper.thin import HEARTBEAT_S
+
+        await asyncio.sleep(HEARTBEAT_S * 1.5)
+        assert session._active and not session._transport_closing
+        history = session._history_session
+        proposal = await rotate_confirmation(session, sdk)
+        await asyncio.sleep(HEARTBEAT_S * 1.5)
+        assert session._active and not session._transport_closing
+        assert session._history_session == history
+        assert offers == 2 and link._streaming
+        assert [message["type"] for message in messages].count("live_hold") == 1
+        assert sdk.client.live.create.await_count == 2
+        assert session._live_stream is None and session._pump is None
+        if reader_failure:
+            session._reader.cancel()
+            await asyncio.gather(session._reader, return_exceptions=True)
+            await until(lambda: session._transport_closing)
+            return
+        await fresh_confirmation_input(session, sdk)
+        await approve_proposal(sdk, proposal)
+        await until(lambda: len(tools.calls) == 1)
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("text, effects", [("", 0), (" \t\r\n", 0), ("Ja, gør det", 1)])
+async def test_confirmation_input_revision_requires_nonempty_provider_text(text, effects):
+    session, sdk, _, tools, _ = confirmation_build()
+    await session.start()
+    try:
+        await session.wake()
+        proposal = await rotate_confirmation(session, sdk)
+        floor = session._live_input_revision
+        await emit(
+            sdk,
+            {
+                "type": "session.input_transcript.delta",
+                "delta": text,
+                "start_ms": 100,
+                "end_ms": 200,
+            },
+        )
+        await approve_proposal(sdk, proposal)
+        await until(lambda: sdk.response.item.create.await_count == 2)
+        assert len(tools.calls) == effects
+        assert session._live_input_revision == floor + bool(effects)
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failed_owner", ["_pump", "_reader"])
+async def test_live_native_heartbeat_still_requires_both_owned_pipeline_tasks(failed_owner):
+    session, _, _, _, _ = build()
+    await session.start()
+    try:
+        await session.wake()
+        task = getattr(session, failed_owner)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        await until(lambda: session._transport_closing)
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_rotation_seeds_only_same_session_text_without_fresh_approval(tmp_path):
+    from gatekeeper.history import History
+    from gatekeeper.hub import StatusHub
+
+    session, sdk, _, tools, _ = confirmation_build()
+    history = History(tmp_path / "history.jsonl")
+    session.hub = StatusHub(history=history)
+    await session.start()
+    try:
+        await session.wake()
+        old_session = session._history_session
+        history.append("kitchen", "in", "foreign yes", session="other")
+        history.append("bedroom", "in", "foreign room", session=old_session)
+        await fresh_confirmation_input(session, sdk, "Min cykel er blå.")
+        await fresh_confirmation_input(session, sdk, "Ja, til det gamle spørgsmål.")
+        revision = session._live_input_revision
+        proposal = await rotate_confirmation(session, sdk)
+        seeded = sdk.session.start.await_args.kwargs["session"]["input"]
+        assert seeded == [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": "Min cykel er blå.\nJa, til det gamle spørgsmål.",
+                    }
+                ],
+            }
+        ]
+        assert session._live_input_revision == revision
+        await approve_proposal(sdk, proposal)
+        await until(lambda: sdk.response.item.create.await_count == 2)
+        assert tools.calls == []  # Historical assent is not a fresh captured input.
+        await session.stop()
+        await until(lambda: not session._active)
+        await session.wake()
+        assert session._history_session != old_session
+        assert "input" not in sdk.session.start.await_args.kwargs["session"]
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_live_typed_text_persists_once_for_rotation_context(tmp_path):
+    from gatekeeper.history import History
+    from gatekeeper.hub import StatusHub
+
+    session, _, _, _, _ = confirmation_build()
+    history = History(tmp_path / "history.jsonl")
+    session.hub = StatusHub(history=history)
+    await session.start()
+    try:
+        await session.wake()
+        first = await session.submit_text("Cyklen er blå", command_id="saved-text")
+        duplicate = await session.submit_text("Cyklen er blå", command_id="saved-text")
+        assert first == duplicate and first["status"] == "submitted"
+        assert history.session_text(room=session.room, session=session._history_session) == (
+            ("user", "Cyklen er blå"),
+        )
+    finally:
+        await session.aclose()
+
+
+def test_live_saved_context_keeps_complete_recent_suffix_within_sdk_limits(tmp_path):
+    from gatekeeper.history import History
+    from gatekeeper.hub import StatusHub
+    from gatekeeper.openai_live import LIVE_PRIOR_TEXT_MAX_BYTES, LIVE_PRIOR_TEXT_MESSAGE_OVERHEAD
+
+    session, _, _, _, _ = build()
+    history = History(tmp_path / "history.jsonl")
+    session.hub = StatusHub(history=history)
+    session._history_session = "bounded"
+    history.append(session.room, "in", "old " * 2000, session="bounded")
+    for index in range(100):
+        history.append(session.room, "in" if index % 2 else "out", str(index), session="bounded")
+    messages = session._live_prior_text()
+    assert len(messages) == 64 and messages[0][1] == "36" and messages[-1][1] == "99"
+    assert (
+        sum(
+            len(role.encode()) + len(text.encode()) + LIVE_PRIOR_TEXT_MESSAGE_OVERHEAD
+            for role, text in messages
+        )
+        <= LIVE_PRIOR_TEXT_MAX_BYTES
+    )
+    history.append(session.room, "in", "æ" * 4000, session="bounded")
+    assert session._live_prior_text() == ()  # Do not cut an oversized record mid-meaning.
+
+
+@pytest.mark.asyncio
+async def test_typed_context_orders_admitted_input_before_reply_during_sdk_send(tmp_path):
+    from gatekeeper.history import History
+    from gatekeeper.hub import StatusHub
+
+    session, sdk, _, _, _ = confirmation_build()
+    history = History(tmp_path / "history.jsonl")
+    session.hub = StatusHub(history=history)
+    await session.start()
+    try:
+        await session.wake()
+
+        async def reply_before_send_returns(**kwargs):
+            await emit(
+                sdk,
+                {
+                    "type": "session.output_transcript.delta",
+                    "delta": "Din cykel er blå.",
+                    "start_ms": 100,
+                    "end_ms": 200,
+                },
+            )
+            await until(
+                lambda: bool(
+                    history.session_text(room=session.room, session=session._history_session)
+                )
+            )
+
+        sdk.response.create.side_effect = reply_before_send_returns
+        receipt = await session.submit_text("Cyklen er blå", command_id="fast-reply")
+        assert receipt["status"] == "submitted"
+        expected = (("user", "Cyklen er blå"), ("assistant", "Din cykel er blå."))
+        assert history.session_text(room=session.room, session=session._history_session) == expected
+        assert session._live_prior_text() == expected
+    finally:
+        await session.aclose()

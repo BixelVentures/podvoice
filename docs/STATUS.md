@@ -2,10 +2,122 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Kontekstcheckpoint efter P2: regressionen fejlede med assistent før bruger på
+urettet kode og består nu gennem rigtig SDK-eventkø. 71 Thin+History-tests og Ruff
+består efter timestamp-rettelsen. Uafhængigt Astra HIGH genreview giver scoped
+composed GO efter16 fokuserede historik-/konteksttests på Thin
+5166395aae345b7b9d8ded11491a8f044ea4ec5fc7b03b9d09ac6955edab586f.
+SDK84a365629c7e1577c4eb4a813ec5ba99b49e8ca74806da341a1df6ece1710377 og
+prompt635f04036dcc1b89d309b32fa23c0862fc2f2735e5d45f118cbc8b3e540e4b8d
+har124 enhedstests samt Ruff/mypy bestået. Ingen resterende deterministisk finding
+på dette reviewscope. Den tidligere hele fast er på diffet før den lille timestamp-
+rettelse; målrettet regression og review dækker rettelsen. Ingen releasegate endnu.
+Næste konkrete gate er isoleret, bounded API-evaluering med rigtig Thin/SDK/policy,
+to providergenerationer højst, syntetiske danske fixtures og kun lokal stubeffekt.
+Nul effekter uden genkendt fixture/proposal/fresh session må ikke kaldes semantisk
+PASS. .82 produktion og tidligere fysisk baseline ændres ikke af dette checkpoint.
+Alpha er stadig ikke installeret eller fysisk godkendt.
+
+Samlet fast på kontekstdiff før nedenstående P2-rettelse: session5879 exit0;
+Ruff/format43filer, mypy51sources, hele pytest84.80s, samlet85.2s. Uafhængigt
+kontekstreview består194 målrettede tests, men reproducerer P2: typed text får
+ankomsttid efter await SDK-send, så hurtigt provider-output kan gemmes før sit
+udløsende spørgsmål. Årsagsgrænse: Thin accepteret tekst → await response.create
+→ samtidig transcript → historiksortering → næste provider startup input.
+Ret kun tidspunktets ejer: fang tidspunkt ved tekst-admission og brug det ved
+vellykket persist sammen med allerede fanget session-id. Ingen falsk provider-ACK
+eller ændret godkendelsesrevision. Regression injicerer output mens SDK-kaldet
+stadig afventer og kræver bruger før assistent i gemt og gendannet tekst.
+Samme-session/ordre/OFF-invarianter berøres; rollback er denne timestamp-rettelse.
+Resultat og uafhængigt genreview afventes, ingen fysisk acceptance arves.
+
+Faktisk P1-resultat: initial/post-rotation Talk-heartbeat og tom/whitespace input
+reproducerede fire fejl før rettelsen. To Thin-betingelser retter de ejergrænser;
+55 Thin-tests, Ruff/format/mypy består. Uafhængigt Astra HIGH genreview har scoped
+GO efter15 fokuserede regressioner på Thin a4f693afc230d4fa629738c1628313474070e1466af2620dd91178bba43154fd.
+Readerfejl og native pumpfejl lukker stadig korrekt. Denne accept omfatter ikke den
+nye kontekstintegration nedenfor eller fysisk alpha.
+
+Kontekstintegrationens første faktiske softwarebevis: History.session_text filtrerer
+præcis room/session, uden fallback til nærliggende samtaler. Thin samler tilstødende
+samme-rolle-fragmenter med newline, beholder en sammenhængende nyeste del inden for
+SDK-bytebudget og skærer aldrig inde i et fragment. Snapshot tages efter gammel
+reader er samlet op og stages én gang; typed text gemmes én gang under oprindelig
+session. Test viser historisk ja i session.input, uændret frisk-inputrevision og nul
+handling uden nyt input; næste wake får ingen gammel startuphistorik. 58 Thin Live
+og12 History-tests består; Ruff og mypy på de to kilder består. Thin hash
+f3b4c913eb6f1a40ae13fe00e29e9ad7c7de1d77015b99d9638095232ee257d7.
+SDK/prompt-ejer færdiggør særskilte tests; samlet review og semantisk API-gate mangler.
+Ingen påstand om bevaret intern provider-state eller fulde toolresultater.
+
+Kontekstkontinuitet gennem godkendelse — aktiv lead-beslutning: Den nye provider
+modtager nu kun det serverholdte forslag; tidligere samtaletekst mangler, så
+opfølgninger kan miste deres referencer. Dette er direkte kodebevis, ikke en
+observeret akustisk fejl. OpenAI Live conversations-guiden, genlæst 11/9, understøtter
+startup session.input med tidligere rolleopdelte tekstbeskeder (128 beskeder/8192
+samlede tokens). Vi vælger denne officielle mekanisme frem for store/fork.
+Hypotese: et immutable snapshot af netop samme Thin-session giver tekstkontinuitet,
+uden at historik kan hæve frisk-input-revisionen. Snapshot mærkes som tidligere
+kontekst i både primary- og backendinstruktioner; forslag og engangsautorisation
+forbliver særskilte serverdata. SDK accepterer højst64 user/assistant-beskeder med
+samlet UTF8(role)+UTF8(text)+32 bytes per besked højst6000; dette er en konservativ
+bytegrænse, ikke en tokenmåling. Default uden historik ændrer ingen prompt/config.
+Kæden er eksisterende transcript/typed input → samtaleejet historik → capture hold
+og gammel provider-finalisering → engangsstaged startup input → frisk capture/input
+→ completed approval → eksisterende exact-args guard → opfølgning/Stop/næste wake.
+Invarianter: samme samtale/room, ingen historisk event som frisk input, ingen replay
+af handlinger, Stop/generationsisolation, én Thin-ejer og OFF uændret. Ikke-mål:
+fuld intern provider-state, ny lagerpolitik, modelbaseret summarizer eller lokal
+fortolkning af ja/nej. Fejl/oversize må ikke lække data til næste connectforsøg.
+Regressioner: forkert room/session, rollebevaring, immutable payload, næste wake,
+Stop/failed connect, typed input, og intet nyt input giver mekanisk nul effekt.
+Semantisk API-gate kræver gammelt ja + nyt nej/forbehold/baggrundstale/rettelse,
+ændret mål samt positivt nyt ja; alle home-tools er stubs. Historik kan ikke alene
+bevise korrekt modelsemantik. Uafhængigt review og faktisk negativ API-evaluering
+kræves før alpha-installation; fysisk gate stadig ikke bestået.
+
+Aktiv afgrænset P1-korrektion efter uafhængig reproduktion: Talk Live WebRTC har
+bevidst ingen Thin PCM-pump, men heartbeat behandler `_pump is None` som fejl og
+lukker den ellers fungerende samtale; fejlen gælder også efter bekræftelsesrotation.
+Separat kan et tomt eller whitespace-only Live-inputfragment øge inputrevisionen,
+så et efterfølgende eksklusivt approve_action kan passere fresh-input-gaten uden
+indhold. Komponenttests var for korte til første heartbeat og prøvede ikke tomt
+providerinput. Dette er kode-/reproduktionsbevis, ikke en ny fysisk observation.
+
+Berørt kæde: browser-peer/native pump → Thin heartbeat/reader → Live inputfragment
+→ fresh-generation/revision → completed approval → policy/dispatch → Stop og næste
+wake. Hypotese: heartbeat kræver pump kun på en pump-ejet transport, mens tomme
+inputfragmenter aldrig flytter autoriserende revision. Begge rettelser ligger i
+Thin; native pumpfejl og alle readerfejl skal stadig lukke sikkert. Berørte krav:
+én samtaleejer, lifecycle/readiness og invariant14's serverautoriserede konkrete
+handling samt generations-/Stop-isolation. Ingen timeout-, VAD-, prompt-, grace-
+eller firmwaretuning; ingen historikimplementering i dette diff. Regressioner:
+faktisk Thin/BrowserLink/SDK før og efter rotation over heartbeatgrænsen, native
+pump- og readerfejl, tomt/whitespace-fragment før approval giver nul effekter, og
+normal frisk input godkender fortsat præcis én handling. Uafhængigt re-review efter
+fokuserede tests; ingen fuld gate, API, release eller installation i denne patch.
+Rollback er de to Thin-betingelser og deres regressionsdiff. Alpha er fortsat ikke
+fysisk eller semantisk accepteret.
+
+Syvende faktiske isolerede API-prøve (4s grace, evidence-api-02) er afsluttet:
+én tool/result/continuation, backendcompleted→close4.004s, officiel closed/finalusage
+15.0s, backend1074+1133tokens. Faste testfrasers SHA256-match viser forventet
+“Farvel, og tak for den hyggelige snak.” ved6000–7800ms efterbackendcompletion;
+men også et tidligt “Farvel.”3400–3800ms førcompletion. Derfor er protokol og
+post-backend-output observeret, men dobbeltfarvel er stadig UX-fejl; ingen akustisk
+eller fysisk accept. Capture460800PCMbytes/156964WebMbytes gemt. .82 blev stoppet
+og efter prøven genstartet, “Kører”1.13.82 bekræftet på HA-screenshot. Ingen Alpha-
+installation. Samme process13980 blev fulgt til exit0 trods click-observationstimeout;
+inget ekstra API-kald. Ingen længere grace vælges; uafhængigt evidensreview pågår.
+
 Capture hold/resume har nu uafhængigt Astra HIGH scoped GO (grace_review),69tests
 (65native/host +4C++harness) består. Den præcise unsubscribe/samme-pointer-race er
 rettet og genprøvet uden mellemliggende loop; ingen åbne P0/P1/P2 på denne grænse.
-Source fryses separat til et verificerbart komponentref; dette er ikke release.
+Source er frosset i b56a08a6d31044f7507b178961ac74f731474253. Overlayets to
+komponentrefs peger nu på den præcise lokale commit;18filers manifest
+25f0c9a87232d3bc043466e36dc87be77d4b95365d51850d176d264a04f098e2 er verificeret,
+12firmwarekontrakttests består. Ref er endnu ikke publiceret/fetchet af et
+rigtigt firmwarebuild; dette er ikke release eller device-bevis.
 
 Forudsætninger under implementering/review: SDK/prompt95tests består også ved leadens
 uafhængige genkørsel; normal default/custom prompt er uændret når flag er OFF. Native
