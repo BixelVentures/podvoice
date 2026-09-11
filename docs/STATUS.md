@@ -54,7 +54,7 @@ Lokal pre-P2 firmwarecompile bestod116.6s; det er ikke det endelige artifact.
 Sourcefreeze-review: P0/P1/P2=0, uafhængigt4/4 C++harness PASS. Reviewer
 pause_076_causal_review; seks komponentfiler samletSHA
 1d87411a1afdd635e10006a0960f9bde1bcf36d5899c9452195f6b4be2336dcb.
-Kilden er lokalcommitcde7945b06f28f544762368689c8638cedffa3a6; begge ændrede
+Kilden er lokalcommit61da40c0885e07641a334636f5f2548288ed84f1; begge ændrede
 komponentpakker er pinnet dertil. Partial-write og min64ms-ring er dækket.
 Whole-diff review: GO til frossen releasegate, P0/P1/P2=0. Reviewer har uafhængigt
 kørt4 C++harnesses og12 firmwarekontrakter; tidligere69/70 havde kun én forældet
@@ -64,6 +64,23 @@ opdatering af den gamle testref. Scope er én ejergrænse: rearm. Ingen ændring
 prompt/schema/Realtime-semantik, så ingen SafeEval. Frossen releasegate PASS40.4s: Ruff/format, mypy47, candidate-scope,
 unit og integration. Ingen manuel CI-genkørsel. Main er frisk verificeret52b1e5e.
 Offentlig kilde/image, endeligt pinned firmwarebuild, installation og fysisk bevis resterer.
+
+Sidste faktiske ESP32-compile fandt std::min-typekonflikt på32bit. Én eksplicit
+<size_t>-templateparameter rettede den uden semantisk ændring; særskilt review
+P0/P1/P2=0. Lokal endelig firmwarecompile PASS16.75s, ESPHome2026.6.2,
+config_hash0xd5520ca2, build11/9 12:14:30. Fem genererede C++/headerfiler er
+byteidentiske med source61da40c0885e07641a334636f5f2548288ed84f1; main har ny marker og wake-claimwiring.
+OTA3054064bytes SHA256dc897525790339ea17974dabfa280995c327ffdb244497e73a43b51eca0aad71.
+Firmware bruger lokale komponenter svarende til de kommende immutable pins;
+remote-pin-build kan først verificeres efter offentliggørelse. Ingen OTA udført.
+Den tidligere releasegate40.4s er superseded af denne compilerettelse; sidste diff
+fryses nu til ny gate. Automatisk review afviste publicering, fordi tidligere
+eksplicit approval dækkede .77, ikke19filerne i .78. Ingen publicering/PR/install.
+
+Endelig frossen gate efter compilerettelsen: PASS40.4s (Ruff/format, mypy47,
+candidate-scope, unit/integration). Komponentpins og18fil-integritet består.
+19 gennemgåede filer er lokalt klar; offentliggørelse og installation kræver
+brugerens eksplicitte .78-godkendelse efter automatisk afvisning. Ingen ny fysisk prøve.
 
 ## Aktiv lead-beslutning — .76 fejler ved pause, nu med gemt lyd
 
