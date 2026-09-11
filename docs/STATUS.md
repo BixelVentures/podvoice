@@ -2,6 +2,40 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Farvel-prøvens korrigerede scripts har nu uafhængigt Astra HIGH scoped GO på
+WS02667b36/WebRTCb7437f15:93 tests på1.35s plus direkte late create/attach/update-
+og resistant typed-send-reproduktion. Ingen sen SDP, én remoteclose, ingen uønsket
+continuation. Capture er autentificeret/bounded; fejlet optagelse og manglende eller
+ikke-endeligt voiceforbrug afviser. Node syntaxcheck af den faktiske browserkode
+består. Initial browserrendering kan komme før onplaying-optagelsen; dette er en
+udtrykkelig måleusikkerhed, ikke bevis for providerklip. Gemte bytes eller closed
+beviser ikke hørt farvel/fysisk dræn. Samlet fast på frosne filer bestod81.7s: alle valgte
+tests100%, Ruff/format36 filer og mypy51 sources. Én kort syntetisk prøve kan nu
+køres i den allerede godkendte isolerede pause. Frisk HA UI viser.82 Kører, R0 klar/standby, native forbundet,
+PodConnect/hjemmestyring verificeret; fysisk wake er endnu uprøvet efter genstart.
+
+Næste sammenhængende godkendelsesrute er nu afgrænset ved read-only Astra HIGH:
+frisk provider-generation for den sjældne følsomme challenge, inden for samme Thin-
+samtale. Der findes ingen eksisterende mid-conversation capture-ACK: stream_stop
+nulstiller firmware-ring, men service-return beviser ikke effekten; fuld rearm har
+uønskede conversation/reply/Stop-bivirkninger. En mulig minimal Alpha-barriere må
+lukke forwarding/keepalive, nulstille ring under eksisterende mutex, observere frisk
+micfremdrift, kassere kontrolvinduet og ACK'e eksakt token mens input fortsat er
+lukket. Adapteren skærer lokal generation synkront ved ACK; kun matching resume
+åbner lyd til den nye provider. Stop/timeout/stale token forbliver lukket. Browseren
+kræver ny capture/peer-generation. Det er captureproveniens, ikke fysisk hørelse.
+Ingen implementering endnu: gammel audio efter ACK, keepalive, speech over grænsen,
+expiry, gammel backend og Stop skal prøves; ingen implicit fornyelse af challenge-TTL.
+
+Developer-farvelprøvens uafhængige review er foreløbig NO-GO: den eksisterende
+WebRTC-probe kan miste ejerskab til en remote session, hvis create returnerer sent
+på trods af Stop/cancellation, fordi den afviser før session-id gemmes. Den normale
+allerede afsluttede API-prøve havde ikke dette forløb; dens observerede transport-
+resultat består, men generelle Stop-claims må ikke arves. Korrektionen beholder
+sen remoteidentitet og cleanup-attach før afvisning og får permanent regression.
+Dette er developer-proben; den tilsvarende runtimeadapter er separat rettet/reviewet.
+Ingen ny API-prøve før reviewer lukker fundet og kontrollerer forbrug/capture-evidens.
+
 Stop/disconnect-diffet har nu uafhængigt Astra HIGH scoped GO uden åbne P0/P1/P2.
 Reviewer kørte322 tests på38.88s inklusive OFF/shared Thin, Talk, Live og SDK; root
 kørte101 kombinerede regressioner grønt. WebRTC late create/attach/update med

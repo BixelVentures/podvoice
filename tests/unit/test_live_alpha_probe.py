@@ -780,3 +780,123 @@ async def test_optional_instruction_lifetime_preserves_session_and_closes_pendin
         assert input_ticks.count(True) > 1  # Input remains running after successful append.
     if scenario in {"stop_send", "timeout_send"}:
         assert "session.instructions.append.return" not in names
+
+
+def test_farewell_config_contains_only_harmless_terminal_tool_and_default_is_unchanged():
+    normal = probe_module.session_config()
+    trial = probe_module.session_config(farewell_trial=True)
+    assert [x["name"] for x in normal["delegation"]["responses"]["tools"]] == ["get_probe_status"]
+    assert [x["name"] for x in trial["delegation"]["responses"]["tools"]] == [
+        probe_module.FAREWELL_TOOL
+    ]
+    assert probe_module.FAREWELL_TEXT in trial["instructions"]
+    assert "FØR" in trial["instructions"]
+    assert not trial["delegation"]["responses"]["parallel_tool_calls"]
+    assert trial["delegation"]["responses"]["max_output_tokens"] == 256
+    assert not Probe().farewell_trial
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid", [None, "siblings", "parallel", "failed"])
+async def test_farewell_requires_completed_exclusive_batch_and_never_continues(invalid):
+    probe, conn = Probe(farewell_trial=True), connection()
+    await probe.handle(created(), conn)
+    await probe.handle(call(name=probe_module.FAREWELL_TOOL), conn)
+    conn.response.item.create.assert_not_awaited()
+    assert not probe.terminal_requested.is_set()
+    if invalid == "siblings":
+        await probe.handle(call(name=probe_module.FAREWELL_TOOL, call_id="second"), conn)
+    elif invalid == "parallel":
+        other = created("r2")
+        other["delegation_id"] = "other"
+        await probe.handle(other, conn)
+    final = terminal("response.failed" if invalid == "failed" else "response.completed")
+    if invalid:
+        with pytest.raises(ProbeError):
+            await probe.handle(final, conn)
+        conn.response.item.create.assert_not_awaited()
+        assert not probe.terminal_requested.is_set()
+    else:
+        await probe.handle(final, conn)
+        conn.response.item.create.assert_awaited_once()
+        assert probe.terminal_requested.is_set()
+        assert not probe.report()["semantic_farewell_verified"]
+    conn.response.create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_farewell_terminal_wakes_existing_close_owner_and_retains_final_pcm(monkeypatch):
+    import io
+    import json
+
+    probe, conn = Probe(timeline=io.StringIO(), farewell_trial=True), connection()
+    incoming, written = asyncio.Queue(), bytearray()
+
+    async def emit(payload):
+        await incoming.put(SimpleNamespace(model_dump=lambda: payload))
+
+    async def start(**kwargs):
+        assert (
+            kwargs["session"]["delegation"]["responses"]["tools"][0]["name"]
+            == probe_module.FAREWELL_TOOL
+        )
+        for event in [
+            {"type": "session.started"},
+            created(),
+            call(name=probe_module.FAREWELL_TOOL),
+            terminal(),
+        ]:
+            await emit(event)
+
+    async def close():
+        assert probe.terminal_requested.is_set()
+        await emit({"type": "session.output_audio.delta", "delta": "AQACAA=="})
+        await emit({"type": "session.closed", "usage": {"seconds": 1}})
+
+    class Stream:
+        session = SimpleNamespace(
+            start=AsyncMock(side_effect=start), close=AsyncMock(side_effect=close)
+        )
+        response = conn.response
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            return await incoming.get()
+
+    async def blocked(*_):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(probe_module, "send_audio", blocked)
+    monkeypatch.setattr(probe_module, "fd_ready", AsyncMock())
+    monkeypatch.setattr(
+        probe_module.os, "write", lambda _, chunk: written.extend(chunk) or len(chunk)
+    )
+    monkeypatch.setattr(probe_module.sys, "stdin", SimpleNamespace(fileno=lambda: 0))
+    monkeypatch.setattr(probe_module.sys, "stdout", SimpleNamespace(fileno=lambda: 1))
+    stream = Stream()
+    await asyncio.wait_for(probe_module.run(stream, probe, 0.2, close_timeout=0.03), 0.3)
+    assert written == b"\x01\x00\x02\x00"
+    stream.session.close.assert_awaited_once()
+    conn.response.create.assert_not_awaited()
+    names = [json.loads(row)["source_event"] for row in probe.timeline.getvalue().splitlines()]
+    assert "application.duration.expired" not in names
+    assert names.index("application.farewell_terminal_requested") < names.index(
+        "session.close.request"
+    )
+    assert names.index("session.close.request") < names.index("session.output_audio.delta")
+    assert names.index("session.closed") < names.index("output.pipe.queue_drained")
+
+
+@pytest.mark.parametrize("seconds", [None, True, {}, float("nan"), float("inf"), -1, 0, 2.5])
+def test_farewell_finalization_requires_terminal_and_finite_final_voice_usage(seconds):
+    probe = Probe(farewell_trial=True)
+    probe.terminal_requested.set()
+    probe.finalized.set()
+    probe.voice_usage = {"seconds": seconds}
+    if type(seconds) in (int, float) and seconds in (0, 2.5):
+        probe.require_farewell_finalization()
+    else:
+        with pytest.raises(ProbeError, match="finalization_incomplete"):
+            probe.require_farewell_finalization()

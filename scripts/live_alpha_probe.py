@@ -19,6 +19,9 @@ Source EOF SHA256 covers the exact bytes read; stopped-before-EOF hashes only th
 This stub does not select semantic end actions, so no model-end boundary is synthesized.
 --instruction-probe appends one fixed harmless instruction eight seconds after readiness.
 An instructions.appended receipt does not prove the model followed it or caused later speech.
+--farewell-trial replaces the status tool with one harmless terminal stub, submits its
+completed exclusive result without continuation, then wakes the existing close owner.
+Its goodbye-before-delegation prompt is a hypothesis, not a speech-completion guarantee.
 Requires an isolated Python 3.12 environment with openai[realtime] supporting Live.
 Source: https://developers.openai.com/api/docs/guides/voice-websockets?api=live
 Tools: https://developers.openai.com/api/docs/guides/live-delegation
@@ -34,6 +37,7 @@ import contextlib
 import hashlib
 import importlib.metadata
 import json
+import math
 import os
 import signal
 import sys
@@ -47,10 +51,12 @@ FRAME_SECONDS = 0.02
 INSTRUCTION_PROBE_DELAY_S = 8.0
 INSTRUCTION_PROBE_TIMEOUT_S = 15.0
 INSTRUCTION_PROBE_TEXT = "Spørg nu: Vil du starte prøvehandlingen? Udfør ingen handling."
+FAREWELL_TEXT = "Farvel, og tak for den hyggelige snak."
+FAREWELL_TOOL = "finish_farewell_probe"
 
 
-def session_config() -> dict[str, Any]:
-    return {
+def session_config(*, farewell_trial: bool = False) -> dict[str, Any]:
+    config = {
         "model": "gpt-live-1",
         "instructions": (
             "Tal kort og naturligt på dansk. Dette er en isoleret lydprøve. "
@@ -82,6 +88,29 @@ def session_config() -> dict[str, Any]:
             },
         },
     }
+    if farewell_trial:
+        config["instructions"] = (
+            "Dette er en isoleret dansk afslutningsprøve uden adgang til hjemmet. "
+            "Når brugeren afslutter samtalen, sig først præcis: "
+            + FAREWELL_TEXT
+            + " Færdiggør hele denne sætning, FØR du delegerer afslutningen til backend. "
+            "Delegér derefter kun beskeden om at afslutte prøven. Udfør ingen anden opgave."
+        )
+        backend = config["delegation"]["responses"]
+        backend["instructions"] = (
+            "Ved den delegerede afslutning: kald kun finish_farewell_probe med {}. "
+            "Primærmodellen skal allerede have sagt farvel. Generér ikke et nyt farvel."
+        )
+        backend["tools"] = [
+            {
+                "type": "function",
+                "name": FAREWELL_TOOL,
+                "description": "Afslut kun denne isolerede prøve; ingen hjem- eller enhedsadgang.",
+                "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+                "strict": True,
+            }
+        ]
+    return config
 
 
 class ProbeError(Exception):
@@ -100,7 +129,9 @@ def numeric_usage(value: Any) -> dict[str, Any]:
 
 
 class Probe:
-    def __init__(self, *, timeline: TextIO | None = None) -> None:
+    def __init__(self, *, timeline: TextIO | None = None, farewell_trial: bool = False) -> None:
+        self.farewell_trial = farewell_trial
+        self.terminal_requested = asyncio.Event()
         self.timeline = timeline
         self.sequence = 0
         self.timeline_failed = False
@@ -274,7 +305,8 @@ class Probe:
             call_id = item.get("call_id")
             if not isinstance(call_id, str) or not call_id or call_id in self.seen_calls:
                 raise ProbeError("invalid_or_duplicate_call")
-            if item.get("name") != "get_probe_status" or item.get("status") != "completed":
+            expected_tool = FAREWELL_TOOL if self.farewell_trial else "get_probe_status"
+            if item.get("name") != expected_tool or item.get("status") != "completed":
                 raise ProbeError("invalid_function_call")
             try:
                 arguments = json.loads(item["arguments"])
@@ -295,6 +327,26 @@ class Probe:
                 raise ProbeError("backend_not_completed")
             if self.closing:
                 return  # Preserve terminal accounting, but never resume work during close.
+            if self.farewell_trial:
+                if len(state["calls"]) != 1 or self.responses or self.terminal_requested.is_set():
+                    raise ProbeError("nonexclusive_farewell_terminal")
+                call_id = state["calls"][0]
+                refs = self.correlations({"call_id": call_id})
+                self.trace("response.item.create.request", **refs)
+                async with asyncio.timeout(15):
+                    await connection.response.item.create(
+                        item={
+                            "type": "function_call_output",
+                            "call_id": call_id,
+                            "output": '{"status":"terminal_probe_submitted","home_access":false}',
+                        }
+                    )
+                self.trace("response.item.create.return", **refs)
+                self.counts["stub_results_submitted"] += 1
+                if not self.closing:
+                    self.trace("application.farewell_terminal_requested", **refs)
+                    self.terminal_requested.set()
+                return  # Intentionally end this session without resuming backend work.
             # Live's terminal response.output is intentionally empty. Use collected items.
             for call_id in state["calls"]:
                 if self.closing:
@@ -320,7 +372,7 @@ class Probe:
                 self.counts["backend_continuations_requested"] += 1
 
     def report(self) -> dict[str, Any]:
-        return {
+        report = {
             "session_started": self.started.is_set(),
             "session_closed_received": self.finalized.is_set(),
             "final_usage_confirmed": self.finalized.is_set() and "seconds" in self.voice_usage,
@@ -331,6 +383,25 @@ class Probe:
             "counters": dict(self.counts),
             "physical_playback_verified": False,
         }
+        if self.farewell_trial:
+            report.update(
+                farewell_trial=True,
+                terminal_requested=self.terminal_requested.is_set(),
+                semantic_farewell_verified=False,
+                continuation_intentionally_omitted=self.terminal_requested.is_set(),
+            )
+        return report
+
+    def require_farewell_finalization(self) -> None:
+        seconds = self.voice_usage.get("seconds")
+        if (
+            not self.terminal_requested.is_set()
+            or not self.finalized.is_set()
+            or type(seconds) not in (int, float)
+            or not math.isfinite(seconds)
+            or seconds < 0
+        ):
+            raise ProbeError("farewell_finalization_incomplete")
 
 
 async def fd_ready(fd: int, *, write: bool = False) -> None:
@@ -440,6 +511,9 @@ async def run(
     *,
     instruction_probe: bool = False,
 ) -> None:
+    if instruction_probe and probe.farewell_trial:
+        raise ProbeError("incompatible_probe_modes")
+
     async def receive() -> None:
         async for event in connection:
             await probe.handle(event.model_dump(), connection)
@@ -462,16 +536,17 @@ async def run(
     receiver = asyncio.create_task(receive())
     tasks.append(receiver)
     try:
+        configuration = session_config(farewell_trial=probe.farewell_trial)
         probe.trace(
             "session.start.request",
             config_sha256=hashlib.sha256(
-                json.dumps(session_config(), sort_keys=True).encode()
+                json.dumps(configuration, sort_keys=True).encode()
             ).hexdigest(),
             sample_rate=24000,
             input_clock="paced_20ms",
             output_sink="stdout_pcm_pipe",
         )
-        await asyncio.wait_for(connection.session.start(session=session_config()), 15)
+        await asyncio.wait_for(connection.session.start(session=configuration), 15)
         probe.trace("session.start.return")
         ready = asyncio.create_task(probe.started.wait())
         tasks.append(ready)
@@ -493,6 +568,10 @@ async def run(
             ]
         )
         watched = {receiver, *tasks[2:]}
+        if probe.farewell_trial:
+            terminal_task = asyncio.create_task(probe.terminal_requested.wait())
+            tasks.append(terminal_task)
+            watched.add(terminal_task)
         instruction_task = None
         if instruction_probe:
             instruction_task = asyncio.create_task(
@@ -571,10 +650,19 @@ def main() -> int:
         action="store_true",
         help="Append one fixed harmless proposal instruction eight seconds after readiness",
     )
+    parser.add_argument(
+        "--farewell-trial",
+        action="store_true",
+        help="One harmless terminal stub; no backend continuation",
+    )
     args = parser.parse_args()
     if not 1 <= args.seconds <= 120:
         parser.error("--seconds must be between 1 and 120")
-    probe = Probe()
+    if args.farewell_trial and (args.instruction_probe or not args.timeline or args.seconds > 30):
+        parser.error(
+            "--farewell-trial requires --timeline, --seconds <= 30, and no --instruction-probe"
+        )
+    probe = Probe(farewell_trial=args.farewell_trial)
     report: dict[str, Any] = {"outcome": "failed"}
     original_blocking: dict[int, bool] = {}
     try:
@@ -612,6 +700,8 @@ def main() -> int:
             raise ProbeError("timeline_write_failed")
         if not probe.counts["source_input_bytes"]:
             raise ProbeError("no_source_audio")
+        if probe.farewell_trial:
+            probe.require_farewell_finalization()
         report["outcome"] = "finalized"
     except Exception as exc:
         report["error"] = str(exc) if isinstance(exc, ProbeError) else type(exc).__name__

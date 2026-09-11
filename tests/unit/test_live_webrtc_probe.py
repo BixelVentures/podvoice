@@ -296,3 +296,320 @@ vm.runInNewContext(script,context);
         timeout=5,
     )
     assert result.returncode == 0, result.stderr
+
+
+async def test_farewell_sideband_keeps_reflected_tail_and_closes_without_backend_continuation(
+    tmp_path,
+):
+    import io
+
+    sdk = SDK()
+    timeline, provider_audio = io.StringIO(), io.BytesIO()
+    probe = M.WebRTCProbe(
+        "fake-key",
+        b"fixture",
+        tmp_path / "report.json",
+        client_factory=sdk.factory,
+        farewell_trial=True,
+        timeline=timeline,
+        provider_audio=provider_audio,
+        browser_audio=io.BytesIO(),
+    )
+    await probe.create("offer")
+    await probe.ready("live_test")
+    sdk.connection.response.item.create.assert_not_awaited()
+    sdk.connection.response.create.assert_not_awaited()
+    assert (
+        sdk.create_calls[0]["session"]["delegation"]["responses"]["tools"][0]["name"]
+        == "finish_farewell_probe"
+    )
+
+    async def close_with_tail():
+        sdk.sent.append(("session.close", {}))
+        await sdk.incoming.put(
+            json.dumps(
+                {
+                    "type": "session.output_audio.delta",
+                    "delta": "AQACAA==",
+                    "start_ms": 20,
+                    "end_ms": 21,
+                }
+            )
+        )
+        await sdk.incoming.put(json.dumps({"type": "session.closed", "usage": {"seconds": 2}}))
+
+    sdk.connection.session.close = close_with_tail
+    for event in [
+        {"type": "response.created", "response": {"id": "r"}},
+        {
+            "type": "response.output_item.done",
+            "item": {
+                "type": "function_call",
+                "name": "finish_farewell_probe",
+                "call_id": "c",
+                "status": "completed",
+                "arguments": "{}",
+            },
+        },
+        {
+            "type": "response.completed",
+            "response": {"id": "r", "status": "completed", "usage": {"total_tokens": 1}},
+        },
+    ]:
+        await sdk.incoming.put(
+            json.dumps({"type": "response.event", "delegation_id": "d", "event": event})
+        )
+    await asyncio.wait_for(probe.done.wait(), 1)
+    assert provider_audio.getvalue() == b"\x01\x00\x02\x00"
+    assert probe.closed.is_set() and probe.probe.terminal_requested.is_set()
+    sdk.connection.response.item.create.assert_awaited_once()
+    sdk.connection.response.create.assert_not_awaited()
+    assert [x[0] for x in sdk.sent].count("session.close") == 1
+    rows = [json.loads(row) for row in timeline.getvalue().splitlines()]
+    pcm = next(row for row in rows if row["source_event"] == "session.output_audio.delta")
+    assert pcm["start_ms"] == 20 and pcm["end_ms"] == 21
+    assert "fake-key" not in timeline.getvalue()
+
+
+@pytest.mark.parametrize("payload", [b"webm-fixture", b"", b"x" * (M.MAX_CAPTURE_BYTES + 1)])
+async def test_browser_capture_upload_is_authenticated_bounded_one_use_and_never_speaker_proof(
+    tmp_path, payload
+):
+    import io
+
+    sdk = SDK()
+    output = io.BytesIO()
+    probe = M.WebRTCProbe(
+        "fake",
+        b"fixture",
+        tmp_path / "report.json",
+        client_factory=sdk.factory,
+        farewell_trial=True,
+        browser_audio=output,
+    )
+    app = M.app_for(probe)
+    handler = next(
+        route.handler for route in app.router.routes() if route.resource.canonical == "/capture"
+    )
+
+    class Content:
+        async def iter_chunked(self, size):
+            for at in range(0, len(payload), size):
+                yield payload[at : at + size]
+
+    request = SimpleNamespace(
+        path="/capture",
+        method="POST",
+        host="127.0.0.1:18799",
+        content_type="audio/webm",
+        headers={"Origin": probe.origin, "X-Probe-Nonce": probe.nonce, "X-Capture-Failed": "false"},
+        content=Content(),
+    )
+    if payload and len(payload) <= M.MAX_CAPTURE_BYTES:
+        assert (await handler(request)).status == 200
+        assert output.getvalue() == payload and probe.capture_saved
+        assert probe.records[-1]["physical_playback_verified"] is False
+    else:
+        with pytest.raises(web.HTTPException):
+            await handler(request)
+        assert not probe.capture_saved
+    assert probe.capture_done.is_set()
+    with pytest.raises(web.HTTPConflict):
+        await handler(request)
+    request.headers["X-Probe-Nonce"] = "wrong"
+    with pytest.raises(web.HTTPForbidden):
+        await handler(request)
+
+
+@pytest.mark.parametrize("phase", ["create", "attach", "update"])
+async def test_stop_retains_late_sdk_owner_until_explicit_remote_close(
+    tmp_path, monkeypatch, phase
+):
+    monkeypatch.setattr(M, "STOP_OWNER_WAIT_S", 0.005)
+    probe, sdk = build(tmp_path)
+    entered, cancelled, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+    async def blocked():
+        entered.set()
+        try:
+            await release.wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            await release.wait()
+
+    if phase == "create":
+        original = sdk.create
+
+        async def delayed(**kwargs):
+            await blocked()
+            return await original(**kwargs)
+
+        sdk.client.live.create = delayed
+    elif phase == "attach":
+
+        async def delayed():
+            await blocked()
+            return sdk.connection
+
+        sdk.manager.__aenter__.side_effect = delayed
+    else:
+        original = sdk.update
+
+        async def delayed(**kwargs):
+            await blocked()
+            return await original(**kwargs)
+
+        sdk.connection.session.update = delayed
+    startup = asyncio.create_task(probe.create("offer"))
+    await entered.wait()
+    stopping = asyncio.create_task(probe.stop())
+    await cancelled.wait()
+    await asyncio.wait_for(stopping, 0.2)
+    assert not probe.done.is_set() and not probe.cleanup_started
+    sdk.client.close.assert_not_awaited()
+    release.set()
+    with pytest.raises(M.ProbeError, match="startup_stopped"):
+        await asyncio.wait_for(startup, 0.3)
+    assert probe.session_id == "live_test" and probe.closed.is_set() and probe.done.is_set()
+    assert [x[0] for x in sdk.sent].count("session.close") == 1
+    assert not any(row["kind"] == "answer_returned" for row in probe.records)
+    sdk.client.close.assert_awaited_once()
+    sdk.manager.__aexit__.assert_awaited_once()
+    sdk.connection.response.create.assert_not_awaited()
+
+
+async def test_stop_closes_attached_sdk_to_unblock_resistant_typed_send(tmp_path, monkeypatch):
+    monkeypatch.setattr(M, "STOP_OWNER_WAIT_S", 0.005)
+    probe, sdk = build(tmp_path)
+    await probe.create("offer")
+    entered, client_closed = asyncio.Event(), asyncio.Event()
+
+    async def resistant_send(**_):
+        entered.set()
+        try:
+            await client_closed.wait()
+        except asyncio.CancelledError:
+            await client_closed.wait()
+
+    sdk.connection.response.item.create.side_effect = resistant_send
+    sdk.client.close.side_effect = client_closed.set
+    typed = asyncio.create_task(probe.ready("live_test"))
+    await entered.wait()
+    await asyncio.wait_for(probe.stop(), 0.2)
+    with pytest.raises(M.ProbeError, match="typed_command_stopped"):
+        await typed
+    assert probe.done.is_set() and probe.closed.is_set()
+    assert probe.typed_task is None and typed.done()
+    sdk.client.close.assert_awaited_once()
+    sdk.manager.__aexit__.assert_awaited_once()
+    sdk.connection.response.create.assert_not_awaited()
+    assert [kind for kind, _ in sdk.sent].count("session.close") == 1
+    await probe.stop()
+    sdk.client.close.assert_awaited_once()
+
+
+async def test_expired_startup_cannot_return_answer_even_if_create_swallows_cancellation(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(M, "STARTUP_S", 0.005)
+    probe, sdk = build(tmp_path)
+    cancelled, release = asyncio.Event(), asyncio.Event()
+    original = sdk.create
+
+    async def delayed(**kwargs):
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            await release.wait()
+        return await original(**kwargs)
+
+    sdk.client.live.create = delayed
+    startup = asyncio.create_task(probe.create("offer"))
+    await asyncio.wait_for(cancelled.wait(), 0.2)
+    release.set()
+    with pytest.raises(M.ProbeError, match="startup_stopped"):
+        await asyncio.wait_for(startup, 0.3)
+    assert probe.done.is_set() and probe.closed.is_set()
+    assert [x[0] for x in sdk.sent].count("session.close") == 1
+    assert not any(row["kind"] == "answer_returned" for row in probe.records)
+
+
+@pytest.mark.parametrize("seconds", [None, True, {}, float("nan"), float("inf"), -1])
+def test_farewell_evidence_rejects_missing_or_invalid_final_usage(tmp_path, seconds):
+    probe, _ = build(tmp_path)
+    probe.probe.terminal_requested.set()
+    probe.closed.set()
+    probe.provider_bytes = 4
+    probe.capture_saved = True
+    probe.probe.voice_usage = {"seconds": seconds}
+    with pytest.raises(M.ProbeError, match="evidence_incomplete"):
+        probe.require_farewell_evidence()
+
+
+async def test_capture_failure_is_sticky_and_blocks_otherwise_saved_trial(tmp_path):
+    probe, _ = build(tmp_path)
+    probe.probe.terminal_requested.set()
+    probe.closed.set()
+    probe.probe.voice_usage = {"seconds": 2}
+    probe.provider_bytes = 4
+    probe.capture_saved = True
+    probe.require_farewell_evidence()
+    handler = next(
+        route.handler
+        for route in M.app_for(probe).router.routes()
+        if route.resource.canonical == "/telemetry"
+    )
+    request = SimpleNamespace(
+        path="/telemetry",
+        method="POST",
+        host="127.0.0.1:18799",
+        headers={"Origin": probe.origin, "X-Probe-Nonce": probe.nonce},
+        json=AsyncMock(return_value={"captureFailed": True}),
+    )
+    await handler(request)
+    request.json.return_value = {"captureFailed": False}
+    await handler(request)
+    assert probe.capture_failed
+    with pytest.raises(M.ProbeError, match="evidence_incomplete"):
+        probe.require_farewell_evidence()
+
+
+@pytest.mark.parametrize(
+    "scenario", ["supported", "already_ended", "unsupported", "recorder_error"]
+)
+def test_embedded_browser_capture_is_muted_and_flushes_final_chunk_or_fails_explicitly(scenario):
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node required for embedded controller regression")
+    script = (
+        M.HTML.replace("const farewell=false;", "const farewell=true;")
+        .split("<script>", 1)[1]
+        .split("</script>", 1)[0]
+    )
+    harness = r"""
+const vm=require('vm'),fs=require('fs'),assert=require('assert');
+const {script,scenario}=JSON.parse(fs.readFileSync(0,'utf8'));
+const nodes={'#start':{},'#stop':{},'#status':{}},posts=[];let current,recorderStops=0;
+class Recorder{static isTypeSupported(){return true;}constructor(){current=this;this.state='inactive';}start(){this.state='recording';}stop(){recorderStops++;this.state='inactive';queueMicrotask(()=>{this.ondataavailable({data:new Blob(['final-audio-tail'])});this.onstop();});}}
+class Audio{constructor(){this.muted=false;}pause(){}captureStream(){return {getAudioTracks:()=>[{}]};}}
+if(scenario==='unsupported')Audio.prototype.captureStream=undefined;
+const context={document:{querySelector:id=>nodes[id]},Audio,MediaRecorder:Recorder,MediaStream:class{constructor(t){this.tracks=t;}},Blob,window:{MediaRecorder:Recorder,addEventListener(){}},setTimeout:(f,ms)=>{const t=setTimeout(f,ms);t.unref();return t;},clearTimeout,clearInterval,fetch:async(path,opts)=>{posts.push({path,opts});return {ok:true,json:async()=>({})};}};
+vm.createContext(context);vm.runInContext(script,context);
+(async()=>{vm.runInContext('startCapture()',context);if(scenario==='unsupported'){await new Promise(setImmediate);assert(posts.some(p=>p.path==='/stop'));assert(posts.some(p=>p.opts?.body?.includes('"captureSupported":false')));assert(!posts.some(p=>p.path==='/capture'));return;}
+ if(scenario==='already_ended'){current.stop();await new Promise(setImmediate);}
+ if(scenario==='recorder_error'){current.ondataavailable({data:new Blob(['partial'])});current.onerror();}
+ await vm.runInContext('cleanup()',context);const capture=posts.filter(p=>p.path==='/capture');if(scenario==='recorder_error'){assert.equal(capture.length,0);assert.equal(vm.runInContext('captureFailed',context),true);return;}assert.equal(capture.length,1);assert.equal(capture[0].opts.headers['X-Capture-Failed'],'false');assert.equal(await capture[0].opts.body.text(),'final-audio-tail');assert.equal(recorderStops,1);assert.equal(vm.runInContext('audio.muted',context),true);assert(posts.some(p=>p.opts?.body?.includes('"captureStopRequested":true')));
+})().catch(e=>{console.error(e);process.exitCode=1;});
+"""
+    result = subprocess.run(
+        [node, "-e", harness],
+        input=json.dumps({"script": script, "scenario": scenario}),
+        text=True,
+        capture_output=True,
+        timeout=5,
+    )
+    assert result.returncode == 0, result.stderr
