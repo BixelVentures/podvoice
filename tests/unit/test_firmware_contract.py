@@ -22,7 +22,11 @@ def test_fresh_ha_package_fetches_podvoice_audio_without_local_copy():
 
     assert "type: git" in external
     assert "url: https://github.com/BixelVentures/podvoice" in external
-    assert "ref: 385b71c4f1d3285f130390d8735849268427add3" in external
+    active = "\n".join(line for line in external.splitlines() if not line.lstrip().startswith("#"))
+    audio_source = next(
+        block for block in active.split("  - source:") if "components: [podvoice_audio]" in block
+    )
+    assert "ref: cde7945b06f28f544762368689c8638cedffa3a6" in audio_source
     assert "path: esphome/components" in external
     assert "refresh: 0s" in external
     assert "\n  - source: { type: local, path: components }" not in external
@@ -36,7 +40,8 @@ def test_firmware_has_one_wake_owner_and_zero_stock_assist_starts():
     assert combined.count("on_wake_word_detected:") == 1
     assert "voice_assistant.start:" not in combined
     assert base.count("event_type: wake_okay_nabu") == 1
-    assert base.count("id(pv_audio).begin_conversation();") == 1
+    assert base.count("id(pv_audio).begin_conversation(boundary)") == 1
+    assert "id(mww).wake_audio_position()" in base
     assert not any(line.startswith("micro_wake_word:") for line in overlay.splitlines())
 
 
@@ -50,7 +55,7 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "continuous_rearm_v1" in overlay
     assert "physical_rearm_audio_progress_v1" in overlay
     assert "correlated_reset_rearm_v2" in overlay
-    assert "podvoice_build_11376_heychat1" in overlay
+    assert "podvoice_build_11378_wakeboundary1" in overlay
     assert "podvoice_playback_events_v1" in overlay
     assert "action: podvoice_reply_play" in overlay
     assert "action: podvoice_reply_cancel" in overlay
@@ -70,19 +75,21 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "direct_speaker_v3" not in overlay
 
 
-def test_wake_boundary_keeps_only_short_bridge_and_keepalive_never_trims_live_speech():
+def test_wake_boundary_uses_detector_position_and_keepalive_never_trims_live_speech():
     """Only physical wake may trim audio; it preserves same-breath word onset."""
     base = BASE.read_text()
     source = (ROOT / "esphome" / "components" / "podvoice_audio" / "podvoice_audio.cpp").read_text()
-    begin = source.split("void PodVoiceAudio::begin_conversation()", 1)[1].split(
+    begin = source.split("bool PodVoiceAudio::begin_conversation(", 1)[1].split(
         "void PodVoiceAudio::start_streaming()", 1
     )[0]
     keepalive = source.split("void PodVoiceAudio::start_streaming()", 1)[1].split(
         "void PodVoiceAudio::stop_streaming()", 1
     )[0]
 
-    assert base.count("id(pv_audio).begin_conversation();") == 1
-    assert "WAKE_BRIDGE_MS" in begin
+    assert base.count("id(pv_audio).begin_conversation(boundary)") == 1
+    assert "id(mww).wake_audio_position()" in base
+    assert "WAKE_BRIDGE_MS" not in source
+    assert "claim_wake_audio" in begin
     assert "ring_buffer_->read" in begin
     assert "ring_buffer_->reset()" not in begin
     assert "ring_buffer_->reset()" not in keepalive
@@ -178,22 +185,23 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
     assert "type: git" in stop_source
     assert "url: https://github.com/BixelVentures/podvoice" in stop_source
     assert "path: esphome/components" in stop_source
-    assert "ref: baf41b9522cc65f3dcbd315ea237f318a6869ed1" in stop_source
+    assert "ref: cde7945b06f28f544762368689c8638cedffa3a6" in stop_source
+    assert active.count("ref: cde7945b06f28f544762368689c8638cedffa3a6") == 2
     observers = active.split("components: [mixer, resampler, speaker_source]", 1)[0]
     assert "ref: 305b51059dc0c7391b95896f359a6c7f64548f16" in observers
     files = sorted(
         p
-        for name in ("micro_wake_word", "podvoice_reply")
+        for name in ("micro_wake_word", "podvoice_reply", "podvoice_audio")
         for p in (ROOT / "esphome/components" / name).rglob("*")
         if p.is_file() and "__pycache__" not in p.parts
     )
-    assert len(files) == 14
+    assert len(files) == 18
     manifest = "".join(
         str(p.relative_to(ROOT)) + "\0" + hashlib.sha256(p.read_bytes()).hexdigest() + "\n"
         for p in files
     )
     assert hashlib.sha256(manifest.encode()).hexdigest() == (
-        "8409fc77758a899ed5086510db85683f7f16bb7e5e5605a76ccedf3a99d8eec4"
+        "aa98ec79df140b455a63fb7970666e717d530941c118e57ef4797daf8dc401c1"
     )
 
 

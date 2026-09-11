@@ -1,3 +1,10 @@
+## 1.13.78 — Wake-grænse følger mikrofonens samples
+
+- Voice PE bruger den præcise behandlede wake-position til at vælge samtalelyd. Senere lyd bevares gennem inference- og callbackkøen, også ved tale direkte efter “Hey Chat”.
+- En wake-markør kan kun åbne mikrofonen én gang. Gamle markører efter stop, reset eller tabt buffer afvises; tabt detektormapping følger den eksisterende Stop-fejl/recoveryvej.
+- Kræver firmware `podvoice_build_11378_wakeboundary1`. Ingen ændring af gain, wake-følsomhed, VAD, prompt eller svartimeouts.
+- Fysisk pause- og same-breath-prøve samt lifecycle er fortsat acceptgates; softwaretests alene beviser ikke køkkenets akustik.
+
 ## 1.13.77 — Analyse af gemt lyd uden browserdownload
 
 - Analyserer starten af en afsluttet optagelse på HA og transskriberer højst tre korte udsnit med OpenAI. Ingen ny lyd optages.

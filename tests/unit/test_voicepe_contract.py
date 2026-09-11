@@ -35,7 +35,7 @@ FULL_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11376_heychat1",
+    "podvoice_build_11378_wakeboundary1",
     "podvoice_playback_events_v1",
     "correlated_local_stop_v1",
     "correlated_stop_context_v2",
@@ -45,7 +45,7 @@ REARM_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11376_heychat1",
+    "podvoice_build_11378_wakeboundary1",
 ]
 
 
@@ -189,7 +189,7 @@ async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build(wrong
 
     assert report["ok"] is False
     assert report["firmware_build"] == wrong_marker
-    assert report["missing_capabilities"] == ["podvoice_build_11376_heychat1"]
+    assert report["missing_capabilities"] == ["podvoice_build_11378_wakeboundary1"]
 
 
 async def test_contract_rejects_multiple_firmware_build_markers():
@@ -212,8 +212,11 @@ async def test_contract_rejects_multiple_firmware_build_markers():
 
     assert report["ok"] is False
     assert report["firmware_build"] is None
-    assert report["firmware_builds"] == ["podvoice_build_11342", "podvoice_build_11376_heychat1"]
-    assert report["missing_capabilities"] == ["podvoice_build_11376_heychat1"]
+    assert report["firmware_builds"] == [
+        "podvoice_build_11342",
+        "podvoice_build_11378_wakeboundary1",
+    ]
+    assert report["missing_capabilities"] == ["podvoice_build_11378_wakeboundary1"]
 
 
 async def test_contract_mismatch_is_loud_and_reported(caplog):
@@ -943,7 +946,7 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "continuous_rearm_v1",
         "physical_rearm_audio_progress_v1",
         "correlated_reset_rearm_v2",
-        "podvoice_build_11376_heychat1",
+        "podvoice_build_11378_wakeboundary1",
         "podvoice_playback_events_v1",
         "correlated_local_stop_v1",
         "correlated_stop_context_v2",
