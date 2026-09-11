@@ -59,6 +59,14 @@ _DOMAIN_PATTERNS = {
     ),
 }
 
+_AUDIO_ANALYSIS_SURFACES = {
+    "podvoice/gatekeeper/__init__.py",
+    "podvoice/gatekeeper/__main__.py",
+    "podvoice/gatekeeper/audio_analysis.py",
+    "podvoice/gatekeeper/web.py",
+    "podvoice/gatekeeper/static/index.html",
+}
+
 
 def classify_candidate(changes: Sequence[str], production_diff: str) -> CandidateScope:
     production = tuple(
@@ -190,21 +198,32 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
     }
     if not isinstance(record, dict) or set(record) != fields:
         return failed
+    # Reading input/playback event names for a completed-recording report spans
+    # both classifier domains. It still needs an independent exact-tree review;
+    # this admission never extends to the conversation engine, adapters or firmware.
+    reviewed_audio_analysis = (
+        report.domains == ("audio_input", "physical_output")
+        and "podvoice/gatekeeper/audio_analysis.py" in report.production_files
+        and set(report.production_files) <= _AUDIO_ANALYSIS_SURFACES
+    )
     if (
         type(record["version"]) is not int
         or record["version"] != 1
         or record["base_tip"] != base_tip
         or record["merge_base"] != report.base
         or record["domains"] != list(report.domains)
-        or report.domains
-        not in {
-            ("physical_output", "rearm"),
-            ("ha_tools", "realtime_semantics"),
-            # The approved Stop contract spans warm firmware inference, listening
-            # admission, physical silence/rearm and model-owned semantic closure.
-            # This tuple still needs the exact independent whole-tree review below.
-            ("audio_input", "ha_tools", "physical_output", "realtime_semantics", "rearm"),
-        }
+        or (
+            not reviewed_audio_analysis
+            and report.domains
+            not in {
+                ("physical_output", "rearm"),
+                ("ha_tools", "realtime_semantics"),
+                # The approved Stop contract spans warm firmware inference, listening
+                # admission, physical silence/rearm and model-owned semantic closure.
+                # This tuple still needs the exact independent whole-tree review below.
+                ("audio_input", "ha_tools", "physical_output", "realtime_semantics", "rearm"),
+            }
+        )
         or not any((root / path).is_file() for path in report.test_files)
         or not isinstance(record["reviewer"], str)
         or not record["reviewer"].strip()

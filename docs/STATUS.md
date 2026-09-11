@@ -1,5 +1,123 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — .76 fejler ved pause, nu med gemt lyd
+
+Lead Codex,11/9. Brugerens præcisering: Hey Chat blev hørt; brugeren ventede,
+og velkomsten begyndte før spørgsmålet. .76/main70a623a/rootfs760a2d5e og
+firmware11376heychat1/Moderate230 er installeret. Denne pauseprøve FEJLER;
+kandidaten er ikke fysisk godkendt eller testklar til videre accept-/børnerunde.
+Følsomhedens installation er bevist, men genkendelsesrate er ikke målt.
+
+Trace20260911T092402-321/sessionr0:1789111442321107169,11/9 kl.09:24:02:
+fysiskwake+1ms,mic+275,provider+2548; first item_EMpu8d4lAH0FH8u6FKcZK
+speech-start modtaget+3509 med audio_start_ms0,stop+3511 med audio_end_ms640.
+Thin accepterer første item og lukker mic+3511; response.create+3649.
+Transskription af første segment: Okay. (diagnostik, ikke akustisk bevis).
+Second item_EMpu9LutzaVOND5HiVkUo starter+3650/audio_start_ms2380 og afvises
+under THINKING; stop+6705/audio_end_ms4219,deleteACK+6843,transkript
+Hvilken dag er det?+7251. Velkomst fysiskstart+6333,finish+11019,followup+11240,
+idle-close+15248,teardown+15522,recovered+15806. Ingen velkomst fra idle-timeout.
+Brugeroplevelsens før-spørgsmål og providerens buffer-/eventure holdes adskilt;
+transskriptets ankomsttid må ikke omsættes til faktisk talestart.
+
+Recorder faktisk gennemført: device249088samples/16kHz/15568ms,
+provider231839samples/24kHz/9660ms,speaker105120samples/24kHz/4380ms.
+Alle tre WAV-links og manifest findes i HA; næste-capture er nu forbrugt/slået fra.
+Browsermanifestet er læst inkl. providerens egne offsets. Lokalt audioexport har
+endnu ikke leveret fil: pageAssets klassificerer WAV som video og afviser MIME;
+anonym direkte API-læsning401 (ingen cookies/nøgler hentet), browserens normale
+gem-dialog gav ingen observeret lokal fil. Downloadoversigtens URL blev blokeret
+af browserpolitik og blev ikke omgået. Lyden er IKKE gennemlyttet endnu.
+
+Kæde og invarianter er fortsat firmware-wake/buffer→native/preconnect→provider-
+segment→Thin accept/gate→quarantine→playback→close/rearm,næste wake;
+firmware ejer wakegrænsen,én Thin,half-duplex,livscyklus1–2/6–11.
+Falsificerbar hypotese: første0–640ms indeholder wake-rest fra bevaret320ms
+bridge eller umiddelbar efterklang. Kun lyd kan skelne dette fra anden lyd eller
+providersegmentering. Uafhængigt årsagsreview igangsat. Ingen ny gain,VAD,prompt,
+timeout,buffer- eller firmwareændring. Næste kodebeslutning kræver forklaring af
+startsegment og spørgsmål samt regression for pause/sammenhængende tale,kort
+spørgsmål,stale generation,Talk,recovery og shippede komponentbytes.
+Uafhængigt årsagsreview: mic-close/quarantine følger den eksisterende half-duplex-
+kontrakt; mistanken ligger før Thin ved wake→prefix. Genereret og repoets
+podvoice_audio.cpp er byteidentiske SHA256
+fef75ce3e898b032e2c9053389086f20a61f8656e36551c046f2b5e63350e122,
+begge WAKE_BRIDGE_MS320. Ingen observeret artifact-mismatch. Provider-WAV indeholder
+også syntetisk nul-PCM under quarantine; audio_end4219 er derfor ikke ren fysisk
+slut på spørgsmålet. Eksisterende firmwaretest er tekstassert; same-breath-integration
+antager, at fixture allerede indeholder spørgsmålet. En grænserettelse skal derfor
+bevises med faktisk PCM-ringtest og kausal pause/same-breath-sekvens.
+11/9, adgangsdiagnose: Google Admin viser ingen særlige downloadbegrænsninger for
+både boxz.dk og mba-brugeren. Brugerleveret politikliste fra samme Chrome-profil
+viser DownloadRestrictions, OnFileDownloadedEnterpriseConnector og øvrige
+downloadregler som Ikke angivet. Ingen Workspace-politik er ændret; årsagen til
+Chromes downloadblokering er fortsat ukendt. .76-artifact-ruten returnerer WAV som
+audio/wav uden særskilt downloadspærring i PodVoice-koden. Direkte afspilning af det
+eksisterende provider-spor blev startet via browserens afspil-knap; efterfølgende
+skærmbillede viser 0:09/0:09. Det beviser afspillerfremdrift, ikke at agenten har hørt
+indholdet. Brugeren er bedt identificere starten af optagelsen; akustisk årsag og
+pausefejl forbliver åbne. Ingen ny optagelse, runtimeændring eller installation.
+Rollback for .76 er fortsat .75/Stop2-parret; .75 havde samme pausefejl og er ikke
+et bevis for en løsning. Ingen automatisk rollback på denne kendte pausefejl.
+
+### Aktiv diagnoseudvidelse — analyser gemt lyd på HA
+
+11/9: Bruger har eksplicit sat mål om hurtigst mulig løsning uden mere manuel
+browser-/lyttehjælp. Lead Codex. Eksisterende WAV ligger fortsat på HA, mens lokal
+download er blokeret; browserafspilning alene giver ikke agenten adgang til lyden.
+Eksisterende replay er begrænset til kendte evalfraser og vælger samples ved event-
+modtagelse, ikke providerens audio_start_ms/audio_end_ms. Den kan derfor ikke bruges
+ukritisk til dette korte første item. Ingen ændring af historisk manifest.
+
+Plan: afgrænset, eksplicit startet analyse af én afsluttet optagelse på serveren.
+Brug item-korrelerede provider-offsets til første segment, beregn niveau/tidsprofil,
+og indhent diagnostisk transskription via samme OpenAI-konto; ingen lydfiler eller
+nøgler udleveres i analyseresultatet. Modelfortolkning er stadig sekundært bevis.
+Analysen må ikke ændre optagelsen, åbne mikrofon, afspille på pucken eller styre hjemmet.
+Én kørsel ad gangen, hårde lyd-/tids-/responsgrænser og ingen automatiske retries;
+værn mod traversal, symlinks, forkert WAV-format, stale item/generation og afbrudt job.
+Invarianter: én Thin/lifecycle-ejer, fysisk gate uændret, privat ingressadgang og
+adskillelse mellem rå lyd, transskript og bevist årsag. Hypotese: serveranalysen kan
+afklare segmentets indhold og energifordeling uden browserdownload.
+Regressioner: provider-offsets versus modtagelsestid, samme item/generation, korrupt
+og for stor fil, netværksfejl/timeout, dubletstart og ingen produktionssideeffekter.
+Uafhængigt review kræves før release. Kandidat .77 er implementeret lokalt i /private/tmp/podvoice-pause-analysis.
+31 målrettede regressions-/HTTP-tests er grønne; fast-gaten bestod på76.8s. Første
+HTTP-testforsøg manglede sandboxens localhost-tilladelse og blev kørt én gang igen
+med den korrekte tilladelse; ingen runtimepatch som følge af miljøfejlen. Uafhængigt
+review har lukket generation-, overlappende item- og stale callback-findings og
+melder P0/P1/P2=0 på det aktuelle diff. Browsertest dækker start, kørende, reload, resultat, fejl og aktiv optagelse ved
+320px/desktop. Første browserfixture manglede UTF-8 og blev rettet til shippet
+tegnsæt; ingen ændring af produktionskode pga. denne testfejl.
+Frossen releasegate PASS39.9s efter uafhængigt review af14filer,
+diffSHA83ed8c21688f49195ea83eb141081e083fb9211d23c355159e014c722a5a316e.
+Ruff/format126filer,mypy47 og hele unit-/integrationssættet grønne.
+Web-only-negativkontrollen består med korrekt staging og eksplicit domæne-/filassert.
+Ingen publicering eller installation endnu. Scopeklassifikatoren ser audio_input og
+physical_output, fordi analysen læser disse eventnavne. Den eksisterende mekanisme
+for eksakt uafhængigt review er udvidet snævert til de fem analyse-/paneloverflader;
+Thin, adaptere og firmware afvises fortsat selv med en ny gyldig reviewhash.
+42 scope-/analysetests bestod før sidste ekstra web-only-negativkontrol.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "70a623a08e2dfb29328c9f391105deb30920924c",
+  "merge_base": "70a623a08e2dfb29328c9f391105deb30920924c",
+  "domains": [
+    "audio_input",
+    "physical_output"
+  ],
+  "fingerprint": "c51fc7444456c8d2ade68db02c90eaa32a2c98ca06d9e1eade2e542db7a5c5a4",
+  "reviewer": "pause_analysis_review independent adversarial review",
+  "rationale": "Read-only completed-recording analysis must name input and playback events to reject ambiguous first-item boundaries. No Thin, Realtime, VoicePE or firmware behavior changes. Exact five-file production surface reviewed with bounded server analysis, shared diagnostic ownership, strict ingress and permanent regression tests."
+}
+-->
+Ingen firmware-/VAD-/gain-/prompt-/Realtime-semantikændring; SafeEval er derfor ikke
+relevant for dette diff. Tilbageførsel er .76 med uændret11376heychat1-firmware.
+Ingen akustisk tuning må baseres alene på et nyt transskript.
+
+
 ## Aktiv lead-beslutning — virksom Hey Chat-følsomhed oven på .75
 
 Lead Codex,10/9. Bruger ønsker følsomhedsrettelsen leveret før næste fysiske prøve.

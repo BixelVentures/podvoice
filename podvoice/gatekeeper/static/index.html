@@ -356,6 +356,9 @@
       <button id="trace_arm">Optag næste samtale</button>
       <button id="trace_cancel" class="ghost" hidden>Annullér</button>
       <div id="trace_status" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
+      <button id="trace_analyse" class="ghost" disabled>Analyser gemt lyd med OpenAI</button>
+      <p class="sub">Sender højst tre korte lydudsnit fra den gemte optagelse til OpenAI til særskilt transskription, højst 24 sekunders lyd i alt. Nabu og Talk er midlertidigt låst under analysen. Der optages ingen ny lyd. Teksten er diagnostik og kan høre forkert.</p>
+      <div id="trace_analysis" class="tx" role="status" aria-live="polite" style="min-height:0"></div>
     </div>
     <div class="section">
       <h2>Seneste samtaletidslinje</h2>
@@ -1017,6 +1020,9 @@ setInterval(function () {
   var cancel = document.getElementById("trace_cancel");
   var box = document.getElementById("trace_status");
   var numericPreview = document.getElementById("eval_numeric_preview");
+  var analyse = document.getElementById("trace_analyse");
+  var analysisBox = document.getElementById("trace_analysis");
+  var latestTrace = null, analysisBusy = false;
   if (!arm || !box) return;
   function te(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
   function stageText(name, stage) {
@@ -1024,6 +1030,8 @@ setInterval(function () {
     return name + ": " + (stage.duration_ms / 1000).toLocaleString("da-DK", {maximumFractionDigits:1}) + " s · RMS " + stage.rms + " · peak " + stage.peak_pct + "% · clipping " + stage.clipped_pct + "%";
   }
   function render(data) {
+    latestTrace = data && !data.active && data.latest ? data.latest.id : null;
+    analyse.disabled = !latestTrace || analysisBusy;
     box.innerHTML = "";
     if (!data || data.ok === false) { arm.disabled = true; cancel.hidden = true; if (numericPreview) numericPreview.textContent = "Numerisk A/B: lydbevis er ikke tilgængeligt."; box.appendChild(te("div", "empty", "Optagelsesstatus ukendt. " + ((data && data.error) || "Lydbevis er ikke tilgængeligt."))); return; }
     if (data.active) {
@@ -1063,6 +1071,35 @@ setInterval(function () {
     try { render(await (await fetch("api/audio-trace", {cache:"no-store"})).json()); }
     catch (e) { render({ok:false,error:"Kunne ikke hente lydbevis."}); }
   }
+  function renderAnalysis(data) {
+    analysisBusy = data.status === "running";
+    analyse.disabled = !latestTrace || analysisBusy;
+    analysisBox.innerHTML = "";
+    if (data.status === "idle" || data.status === "unavailable") return;
+    if (analysisBusy) { analysisBox.textContent = "Analyserer den gemte optagelse. Ingen ny lyd optages."; return; }
+    if (data.status !== "completed") { analysisBox.textContent = data.error || "Analysen blev afbrudt."; return; }
+    analysisBox.appendChild(te("div", "who", "Lydanalyse · " + data.trace_id));
+    analysisBox.appendChild(te("div", "sub", "Første registrerede lydstykke: " + data.audio_start_ms + "–" + data.audio_end_ms + " ms i OpenAI-sporet."));
+    var names = {first_provider_item:"Første lydstykke", provider_context:"Starten af OpenAI-sporet", device_context:"Starten af mikrofonsporet"};
+    (data.segments || []).forEach(function (segment) {
+      analysisBox.appendChild(te("div", "line", (names[segment.name] || segment.name) + ": “" + (segment.transcript || "Ingen tekst genkendt") + "”"));
+    });
+    analysisBox.appendChild(te("div", "sub", data.note));
+  }
+  async function loadAnalysis() {
+    try {
+      var response = await fetch("api/audio-analysis", {cache:"no-store"});
+      if (response.ok) renderAnalysis(await response.json());
+    } catch (e) { /* The completed job stays on the server across a panel reload. */ }
+  }
+  analyse.onclick = async function () {
+    if (!latestTrace || analysisBusy) return;
+    analyse.disabled = true;
+    try {
+      var response = await fetch("api/audio-analysis", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({trace_id:latestTrace})});
+      renderAnalysis(await response.json());
+    } catch (e) { analysisBox.textContent = "Kunne ikke læse analysestatus. Opdater siden; genstart ikke analysen."; }
+  };
   arm.onclick = async function () {
     arm.disabled = true;
     try {
@@ -1074,7 +1111,7 @@ setInterval(function () {
     try { render(await (await fetch("api/audio-trace/cancel", {method:"POST"})).json()); }
     catch (e) { toast("Kunne ikke annullere lydoptagelsen"); }
   };
-  load(); setInterval(load, 2000);
+  load(); loadAnalysis(); setInterval(load, 2000); setInterval(loadAnalysis, 2000);
 })();
 </script>
 

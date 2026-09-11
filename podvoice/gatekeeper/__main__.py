@@ -546,6 +546,9 @@ async def run(cfg: Config) -> None:
                 tool_declarations=declarations,
             )
 
+    from .audio_analysis import AudioAnalysis
+
+    audio_analysis = AudioAnalysis(audio_trace.path, cfg.openai_api_key)
     app = create_app(
         hub,
         sessions,
@@ -563,6 +566,7 @@ async def run(cfg: Config) -> None:
         pc_rooms=(attention.rooms if attention is not None else None),
         history=history,
         audio_trace=audio_trace,
+        audio_analysis=audio_analysis,
         live_eval=live_eval,
         diagnostic_status=(
             (lambda: live_eval_service.diagnostic_active(cfg.openai_api_key))
