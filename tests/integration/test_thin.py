@@ -6849,3 +6849,75 @@ async def test_sleeping_idle_cleanup_retry_cannot_stop_a_new_session(monkeypatch
         assert len(device.controls) == control_count and device.rearm_calls == rearm_count
     finally:
         await session.aclose()
+
+
+@pytest.mark.parametrize("surface", ["voicepe", "talk"])
+async def test_quiet_ack_keeps_context_next_reply_then_close_and_stale_ack_after_wake(surface):
+    brain = LiveFake()
+    sent = []
+    if surface == "talk":
+        session, attention, link, sent, _audio = _build_talk_session(brain)
+    else:
+        session, attention, link = _build(brain)
+        link.supports_playback_events = True
+
+    async def answer(item, text):
+        count = (
+            len([row for row in sent if row.get("type") == "play"])
+            if surface == "talk"
+            else len(link.announced_urls)
+        )
+        brain.emit(
+            UserSpeechStopped(),
+            AudioChunk(_frame(), item_id=item),
+            OutputTranscript(text),
+            TurnComplete(),
+        )
+        if surface == "talk":
+            await _wait_until(
+                lambda: len([row for row in sent if row.get("type") == "play"]) == count + 1
+            )
+            play = [row for row in sent if row.get("type") == "play"][-1]
+            link.media_state(True, play["playback_id"])
+            link.media_state(False, play["playback_id"])
+        else:
+            await _wait_until(lambda: len(link.announced_urls) == count + 1)
+            session._on_media_state(True)
+            session._on_media_state(False)
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+
+    await session.start()
+    try:
+        await session.wake()
+        await answer("time", "Klokken er fjorten.")
+        brain.emit(UserSpeechStopped(), ToolCall("ack", "wait_for_user", {}))
+        await _wait_until(lambda: len(brain.sent_tool_results) == 1)
+        brain.emit(SilentToolComplete(call_ids=("ack",)))
+        await _wait_until(lambda: session.sm.state is State.LOUNGE_WINDOW)
+        assert session._active and not session._ending_conversation
+        assert len(attention.release_calls) == 0
+        if surface == "talk":
+            assert len([row for row in sent if row.get("type") == "play"]) == 1
+        else:
+            assert len(link.announced_urls) == 1
+        await answer("weekday", "Det er mandag.")
+        assert brain.connect_count == 1
+        brain.emit(UserSpeechStopped(), ToolCall("close", "end_conversation", {"silent": True}))
+        await _wait_until(lambda: len(brain.sent_tool_results) == 2)
+        brain.emit(SilentToolComplete(call_ids=("close",)))
+        await _wait_until(lambda: session.sm.state is State.IDLE)
+        assert len(attention.release_calls) == 1
+        if surface == "voicepe":
+            assert link.rearm_calls == 1
+        await session.wake()
+        brain.emit(UserSpeechStopped())
+        await _wait_until(lambda: session.sm.state is State.THINKING)
+        fresh_turn = session._closure_turn
+        brain.emit(SilentToolComplete(call_ids=("ack",)))
+        await asyncio.sleep(0.03)
+        assert session._closure_turn is fresh_turn
+        assert fresh_turn is not None and not fresh_turn.response_done
+        assert session.sm.state is State.THINKING
+        assert brain.connect_count == 2
+    finally:
+        await session.aclose()

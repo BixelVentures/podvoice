@@ -1,3 +1,9 @@
+## 1.13.80 — Et rent tak uden verbal kvittering
+
+- Standardprompt v15 bruger stille venten ved et rent tak til et allerede givet svar. Samtalen holdes åben til opfølgning; spørgsmål, handlinger og bekræftelser behandles stadig.
+- Opdaterer den interne værktøjsbeskrivelse og migrerer kun gemte standardprompts. Egne prompts bevares.
+- Tilføjer en sikker Realtime-test af stilhed og meningsfulde opfølgninger med simulerede handlinger. Ingen firmware- eller timeoutændring.
+
 ## 1.13.78 — Wake-grænse følger mikrofonens samples
 
 - Voice PE bruger den præcise behandlede wake-position til at vælge samtalelyd. Senere lyd bevares gennem inference- og callbackkøen, også ved tale direkte efter “Hey Chat”.

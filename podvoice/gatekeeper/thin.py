@@ -189,8 +189,13 @@ WAIT_FOR_USER_DECLARATION = {
     "name": WAIT_FOR_USER_TOOL,
     "description": (
         "Use only when detected speech is clearly background, directed at someone else, "
-        "or not clearly addressed to the assistant. This is a silent no-op: after the "
-        "tool result, produce no audio or text and wait for the next user turn. Never use "
+        "or not clearly addressed to the assistant, OR when the user merely acknowledges "
+        "an already delivered answer with no new request, question, or clear intent to end. "
+        "A pure thank-you normally calls for this silent wait, not a spoken courtesy reply. "
+        "Interpret the whole turn in context: politeness within a request or question, "
+        "and acceptance of an offer or pending confirmation, require normal handling. "
+        "Never hide a task result or error. This keeps the conversation open. "
+        "Produce no audio or text before or after this call; wait for the next user turn. Never use "
         "it when the user is clearly addressing the assistant but the words are unclear; "
         "ask the user to repeat instead. This tool is exclusive for its turn and must "
         "never be called together with another tool."

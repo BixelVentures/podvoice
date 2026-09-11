@@ -3,9 +3,9 @@
 from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
-def test_v14_is_prioritized_and_model_owned():
+def test_v15_is_prioritized_and_model_owned():
     prompt = SYSTEM_PROMPT_DA.lower()
-    assert PROMPT_VERSION == 14
+    assert PROMPT_VERSION == 15
     assert "kald approve_action med præcis dette challenge_id" in prompt
     assert "gentag aldrig det oprindelige handlingsværktøj" in prompt
     assert "# prioritet" in prompt
@@ -107,3 +107,19 @@ def test_accepted_start_contract_matches_close_tool_without_physical_success_cla
     assert "actual completion, status or further dialogue" in description
     assert "ukendt udfald" in prompt and "unknown outcomes" in description
     assert "roborock" not in description
+
+
+def test_quiet_acknowledgement_and_meaningful_politeness_have_aligned_contracts():
+    from gatekeeper.thin import WAIT_FOR_USER_DECLARATION
+
+    prompt = SYSTEM_PROMPT_DA.lower()
+    description = WAIT_FOR_USER_DECLARATION["description"].lower()
+    assert "rent modtaget-signal" in prompt
+    assert "aldrig wait_for_user, når brugeren tydeligt taler til dig" not in prompt
+    assert "sig intet før eller efter kaldet" in prompt
+    assert "samtalen forbliver åben" in prompt
+    assert "already delivered answer" in description
+    assert "no new request, question, or clear intent to end" in description
+    assert "acceptance of an offer or pending confirmation" in description
+    assert "words are unclear" in description
+    assert "never hide a task result or error" in description
