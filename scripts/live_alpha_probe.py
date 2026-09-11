@@ -3,7 +3,9 @@
 
 Pipe continuous raw mono PCM16/24 kHz into stdin and stdout to a same-format player.
 Input is paced in 20 ms frames; EOF supplies counted synthetic silence until Stop/deadline.
-No microphone capture, resampler, AEC, HA calls, reconnect or physical readiness claim.
+Zero source bytes fail input validation even if the session finalizes successfully.
+Source bytes do not prove audible speech, Danish understanding or physical readiness.
+No microphone capture, resampler, AEC, HA calls or reconnect.
 Requires an isolated Python 3.12 environment with openai[realtime] supporting Live.
 Source: https://developers.openai.com/api/docs/guides/voice-websockets?api=live
 Tools: https://developers.openai.com/api/docs/guides/live-delegation
@@ -83,7 +85,7 @@ class Probe:
         self.started = asyncio.Event()
         self.finalized = asyncio.Event()
         self.closing = False
-        self.counts: Counter[str] = Counter()
+        self.counts: Counter[str] = Counter({"source_input_bytes": 0})
         self.responses: dict[str, dict[str, Any]] = {}
         self.seen_calls: set[str] = set()
         self.voice_usage: dict[str, Any] = {}
@@ -221,6 +223,7 @@ async def send_audio(probe: Probe, connection: Any, fd: int) -> None:
         if not eof:
             await fd_ready(fd)
             chunk = os.read(fd, FRAME_BYTES - len(pending))
+            probe.counts["source_input_bytes"] += len(chunk)
             if not chunk:
                 if len(pending) % 2:
                     raise ProbeError("partial_pcm_sample_at_eof")
@@ -348,6 +351,8 @@ def main() -> int:
                         await run(connection, probe, args.seconds)
 
         asyncio.run(connect())
+        if not probe.counts["source_input_bytes"]:
+            raise ProbeError("no_source_audio")
         report["outcome"] = "finalized"
     except Exception as exc:
         report["error"] = str(exc) if isinstance(exc, ProbeError) else type(exc).__name__

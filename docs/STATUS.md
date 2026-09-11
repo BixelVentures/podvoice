@@ -2,6 +2,80 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Seneste resultat: anden API-prøve med hashverificeret dansk syntetisk fixture
+bestod den afgrænsede SDK-/managed-delegation-kæde. source_input_bytes123834,
+synthetic_silence_bytes1195206, input_bytes_sent1319040. Én completed-valideret
+get_probe_status, ét indsendt stub-resultat og én continuation; to backendterminaler
+med905/965tokens, nul manglende terminal/usage. session.started og session.closed,
+final Live usage27s. Modtaget PCM1286400bytes/26.8s, peak16000/RMS829.13.
+Astra HIGH bekræfter protokolmilepælen uafhængigt. Aggregatet gemmer ikke alle
+response/delegation-id'er og er ikke en standalone tool-result-ACK eller fuld trace.
+Output er endnu ikke gennemlyttet; dansk forståelse, meningsfuldt talt svar,
+afbrydelse, farvel og fysisk afspilning er derfor stadig ikke bevist. To audioevents
+blev kasseret under deadline-close som forventet af Stop-proben, ikke graceful drain.
+
+.79 er efter anden prøve genstartet: frisk status viser Kører/IDLE/native connected,
+MCP/PodConnect up og korreleret rearm-ack; fysisk wake afventer bevis. Intet installeret herfra.
+Provider-vinduet er frigivet til .80-opgaven. Ingen flere liveforsøg uden koordinering.
+Valgt integrationsretning er officiel Live-SDK/WebSocket og managed Responses;
+standard-WAV/PCM gennem eksisterende HTTP-announcement/mixer er lokal lydkandidat
+på baggrund af pinned host-proof. ThinSession bevarer ejerskab, OFF bevarer FLAC.
+Runtime og ON/OFF-setting er endnu ikke implementeret. Før runtime skal Alpha-
+kontrakten for bekræftelser og graceful close være eksplicit og falsificerbar.
+Live mangler komplette inputtur- og spoken-output-done-events; de må ikke opfindes.
+En målt farvel-grace kan være en eksplicit Alpha-politik, aldrig providerbevis;
+alle accepterede slutbytes skal drænes til samme fysiske stream/DAC før rearm.
+Følsomme handlinger må ikke åbnes med falsk næste-tur-bevis. Næste arbejde er review
+af eksisterende prøveoutput og den kontrakt, derefter adapter-/firmwareintegration.
+
+Bruger har nu godkendt, at lead vælger adgangsrute og fortsætter. Valgt rute er
+HA's eksisterende PodVoice-option; nøglen må kun overføres lokalt til den afgrænsede
+probe i hukommelsen, aldrig til chat, repo eller rapport. En kort loopback-only
+engangshandoff med origin/path-validering kan forbinde browserens godkendte
+konfiguration til prøveprocessen. Ingen ny credential eller offentlig endpoint.
+Før netværksprøven kontrolleres idle og installeret version; produktion pauses kort
+for at overholde eksklusiv testadgang og genstartes efter forsøget, også ved fejl.
+Prøven bruger kun syntetisk dansk input og immutable stub, højst30s plus startup/
+close-deadlines, ingen reconnect. Resultat skal vise faktisk start, audio, tool og
+session-close separat; en fejl er ikke tilladelse til blind retry eller runtimepatch.
+
+Faktisk første API-forsøg 11/9: .79 var IDLE og native-forbundet; kort pause,
+én SDK-session og efterfølgende genstart blev gennemført. session.started og
+session.closed kom, final voice usage var27.0s, backendusage tom. Modtaget PCM var
+1315200bytes/27.4s, peak45/RMS1.16 af32768; det beviser ikke tale. Den syntetiske
+inputfixture viste sig at være0bytes. Alle1339200sendte bytes var EOF-padding.
+Forsøget er derfor kun forbindelses-/finaliseringsbevis; dansk, delegation, stub,
+afbrydelse og farvel er IKKE bestået. Probe-exit0 var utilstrækkelig forsøgsvalidering.
+Den lokale første handoff blev afvist før API-kald; same-origin Referrer-Policy og
+en nøglefri POST-test rettede adgangsvejen uden at svække origin/path-kontrollen.
+
+Afgrænset korrektionshypotese: et separat inputkildetæller og fejlet resultat ved
+nul kildebytes forhindrer denne falske prøveaccept. Kæden er fixture → faktisk pipe-
+read → EOF-padding → SDK-session → rapport/exit. Ingen runtime-, lyd- eller provider-
+konfiguration ændres; invarianten er sand evidens og uændret OFF. Regression skal
+bruge rigtige OS-pipes med tomt/ikke-tomt input og bevare final usage ved inputfejl.
+Astra HIGH reviewer dette lille probe-diff separat. Ikke-nul bytes er heller ikke
+bevis for forståelig tale. macOS say gav tom fil under sandbox; én kontrolleret
+kørsel uden sandbox gav123834bytes PCM24k/2.579875s, peak18502/RMS4266.85.
+SHA256c08aa5cad00ddbb0fcda022302a86c22cd28d759d68ec86e69dfdf4b309c0019.
+Fixturekvalitet kræver stadig semantisk kontrol; ingen blind ny API-prøve.
+
+Korrektionsdiffet tæller nu source_input_bytes direkte fra pipe-read og returnerer
+no_source_audio/exit1 ved nul kildebytes, selv om session.closed og final usage findes.
+26 målrettede prøver består. Astra HIGH fandt og fik rettet en P2 i den nye CLI-test:
+optional SDK blev importeret uden skip i normalmiljøet. Uafhængigt genreview PASS,
+0 uløste P0/P1/P2;26pass med SDK og22pass/4skip ved simuleret manglende SDK-import.
+Frossen fast-gate PASS79.2s, alle tests valgt plus ændret Python Ruff/format.
+ScriptSHA256eec62553f5a5fc6b93dff876fbfd96e226dbe52a651de12625462208d15151fb;
+testSHA25634ab41b5fdccde7f35f4343af4ae031200e0714228a14a3412c8a494e867d8db.
+Ingen ny SDK-dependency er tilføjet den shippede add-on.
+
+Efter prøven viser frisk .79-status IDLE/native connected=true, MCP/PodConnect up
+og korreleret rearm-ack; wake afventer fysisk bekræftelse og OpenAI afventer næste
+rigtige Realtime-session. Ingen ny golden/10/10 er bevist. .80-opgaven har nu det
+koordinerede installations-/provider-vindue; Alpha foretager kun offlinearbejde,
+indtil det er frigivet. Ingen credentials er gemt i repo, lyd eller rapport.
+
 Implementering startet på brugerens godkendelse 11/9. Lead er denne tråds Codex;
 Astra medium arbejder på afgrænsede SDK-/lydopgaver, Astra high er uafhængig auditor.
 Første ændring er et isoleret developer-probeprogram og dets regressioner; ingen
@@ -50,8 +124,8 @@ eksisterende vej fra næste samtale. Én ThinSession og én fysisk mic-/playback
 
 Tidligere researchbaseline: main70a623a08e2dfb29328c9f391105deb30920924c (.76).
 Implementeringsclone er nu fast-forwardet til main778f5bd8b578a5b9830e8f7840161c29985af1de
-(.79), efter brugerens besked om forestående .79-installation. Frisk HA-info viste
-.78 kørende; .79 er kildegrundlag, ikke verificeret installeret af denne tråd. Clone
+(.79), efter brugerens besked om forestående .79-installation. Før API-forsøget
+verificerede denne tråd frisk .79 som installeret og kørende. Clone
 /private/tmp/podvoice-live-alpha-research. Den gamle arbejdsmappe og .71-eksperimentet
 er ikke implementeringsgrundlag. Denne undersøgelse ændrer ikke installeret enhed.
 
@@ -157,10 +231,9 @@ Det begrunder standard-WAV som kandidat uden specialencoder; ESPHTTP, firmware,
 mixer/DAC, dobbelttale og farvel er ikke fysisk bevist. Reproduktion/evidens er i
 /private/tmp/podvoice-live-wav-probe og kopieret til researchleverancens wav-proof.
 
-Næste nødvendige eksterne adgang: eksisterende godkendt API-konfiguration til den
-rigtige bounded Live-prøve. OPENAI_API_KEY findes ikke i testmiljøet, og ingen
-nøgleværdi er efterspurgt eller udskrevet. Bruger er spurgt om placering/adgangsvej.
-Isoleret dansk syntetisk PCM-fixture er forberedt; ingen privat rumlyd sendt.
+API-adgang og den afgrænsede completed-delegation-kæde er nu bevist af anden prøve.
+Første fejlbehandlede nul-inputforsøg er bevaret som fejl og permanent regression.
+Den samlede Alpha, samtalekvalitet og fysiske funktion er fortsat ikke bevist.
 
 Status: første isolated probe implementeret og softwareauditeret; research og offlineforsøg afsluttet. Ingen Live-API-/kontoadgangsprøve,
 runtimeimplementering, setting, releasegate, installation, golden chain eller10/10

@@ -25,6 +25,7 @@ through another pipe. A known synthetic Danish fixture is sufficient for the fir
 protocol trial; private room recordings are unnecessary. For example:
 
 ```sh
+set -o pipefail
 cat /absolute/path/input.pcm | /private/tmp/podvoice-live-sdk-venv/bin/python scripts/live_alpha_probe.py --seconds 30 | ffmpeg -f s16le -ar 24000 -ac 1 -i pipe:0 /absolute/path/live-output.wav
 ```
 
@@ -32,6 +33,13 @@ Both stdin and stdout must be pipes. Input is paced in 20 ms frames. EOF adds co
 synthetic silence until the duration limit or SIGINT/SIGTERM, allowing a response to
 arrive after the input file ends. EOF is not treated as a semantic turn boundary.
 The output file records received audio; it does not prove room playback.
+Check the fixture before opening the API session: expected format, nonzero length,
+duration, signal energy and intelligible known speech. Some local speech generators
+can exit successfully while producing an empty file in a restricted environment.
+`source_input_bytes` counts actual pipe reads separately from synthetic padding;
+zero source bytes produces `no_source_audio` and exit1 even when the session closes.
+Nonzero source bytes still do not prove speech or correct understanding. Keep pipeline
+failure propagation enabled, or inspect the probe's own process exit code.
 
 The probe uses `gpt-live-1`, voice `marin` and the official example's inexpensive
 `gpt-5.6-luna` backend. These are probe choices, not a claim of quality parity with

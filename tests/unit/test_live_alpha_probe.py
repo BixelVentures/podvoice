@@ -390,3 +390,79 @@ async def test_stop_during_result_submission_prevents_remaining_work(call_count)
     conn.response.create.assert_not_called()
     assert probe.counts["stub_results_submitted"] == 1
     assert probe.backend_usage == [{"total_tokens": 7}]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source", [b"", b"\x01\x00" * 240])
+async def test_real_pipe_eof_separates_source_bytes_from_synthetic_silence(source):
+    import os
+
+    probe, conn = Probe(), connection()
+    conn.session = SimpleNamespace(input_audio=SimpleNamespace(append=AsyncMock()))
+    read_fd, write_fd = os.pipe()
+    try:
+        os.write(write_fd, source)
+        os.close(write_fd)
+        write_fd = -1
+
+        async def stop_after_frame(**_):
+            probe.closing = True
+
+        conn.session.input_audio.append.side_effect = stop_after_frame
+        await asyncio.wait_for(probe_module.send_audio(probe, conn, read_fd), timeout=1)
+        assert probe.counts["source_input_bytes"] == len(source)
+        assert probe.counts["synthetic_silence_bytes"] == 960 - len(source)
+        assert probe.counts["input_bytes_sent"] == 960
+        payload = base64.b64decode(conn.session.input_audio.append.await_args.kwargs["audio"])
+        assert payload == source + bytes(960 - len(source))
+    finally:
+        os.close(read_fd)
+        if write_fd != -1:
+            os.close(write_fd)
+
+
+@pytest.mark.parametrize("source_bytes", [0, 960])
+def test_cli_finalized_session_is_failed_when_source_is_empty(monkeypatch, capsys, source_bytes):
+    pytest.importorskip("openai.types.live")
+    import json
+    import os
+    from contextlib import asynccontextmanager
+
+    import openai
+
+    read_fd, write_fd = os.pipe()
+
+    @asynccontextmanager
+    async def fake_client(**_):
+        @asynccontextmanager
+        async def connect(**_):
+            yield SimpleNamespace()
+
+        yield SimpleNamespace(live=SimpleNamespace(connect=connect))
+
+    async def finalized_run(connection, probe, duration):
+        probe.started.set()
+        probe.finalized.set()
+        probe.voice_usage = {"seconds": 27}
+        probe.counts["source_input_bytes"] = source_bytes
+        probe.counts["synthetic_silence_bytes"] = 1339200
+        probe.counts["input_bytes_sent"] = 1339200 + source_bytes
+
+    try:
+        monkeypatch.setattr(openai, "AsyncOpenAI", fake_client)
+        monkeypatch.setattr(probe_module, "run", finalized_run)
+        monkeypatch.setattr(sys, "argv", [str(SCRIPT)])
+        monkeypatch.setattr(sys, "stdin", SimpleNamespace(fileno=lambda: read_fd))
+        monkeypatch.setattr(sys, "stdout", SimpleNamespace(fileno=lambda: write_fd))
+        assert probe_module.main() == (0 if source_bytes else 1)
+        report = json.loads(capsys.readouterr().err)
+        assert report["session_started"]
+        assert report["session_closed_received"]
+        assert report["final_usage_confirmed"]
+        assert report["counters"]["source_input_bytes"] == source_bytes
+        assert report["outcome"] == ("finalized" if source_bytes else "failed")
+        if not source_bytes:
+            assert report["error"] == "no_source_audio"
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
