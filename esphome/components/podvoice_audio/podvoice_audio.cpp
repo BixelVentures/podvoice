@@ -163,7 +163,7 @@ void PodVoiceAudio::setup() {
     const size_t frames = data.size() / frame_bytes;
     // Process the ENTIRE callback; a large source chunk must not truncate the
     // shared clock or the beginning of a question at the scratch-buffer limit.
-    const size_t batch_frames = std::min(MONO_SCRATCH_SAMPLES,
+    const size_t batch_frames = std::min<size_t>(MONO_SCRATCH_SAMPLES,
                                         static_cast<size_t>(this->ring_ms_) * this->sample_rate_ / 1000);
     for (size_t first = 0; first < frames; first += batch_frames) {
       const size_t take = std::min(frames - first, batch_frames);
