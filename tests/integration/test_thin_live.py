@@ -1,6 +1,7 @@
 """Live SDK/Thin/stream contract; simulated hardware edges are not physical proof."""
 
 import asyncio
+import json
 
 import pytest
 from fakes.fake_attention import FakeAttention
@@ -1011,6 +1012,372 @@ class ApprovalTools(Tools):
         return {"ok": True}
 
 
+class ReviewTools(ApprovalTools):
+    """Real server policy; only the external action is an in-memory fixture."""
+
+    def __init__(self):
+        super().__init__()
+        self.pause_dispatch = False
+
+    def declarations(self):
+        declaration = super().declarations()[0]
+        return [declaration, {**declaration, "name": "HassLightSet"}]
+
+    async def dispatch(self, name, args, *, execution_guard, **kwargs):
+        if self.pause_dispatch:
+            assert execution_guard()
+            self.preparing.set()
+            await self.release.wait()
+            if not execution_guard():
+                return {"ok": False, "error_kind": "stale_execution"}
+        return await super().dispatch(name, args, execution_guard=execution_guard, **kwargs)
+
+
+async def reconsider_fixture(adapter="native"):
+    from gatekeeper.live_prompt import live_instructions
+    from gatekeeper.prompt import SYSTEM_PROMPT_DA
+
+    if adapter == "talk":
+        from test_talk_webrtc import BrowserWire, finish
+
+        from gatekeeper.talk import BrowserLink, run_talk
+
+        class RotationWire(BrowserWire):
+            rotation_token = None
+
+            async def send_json(self, payload):
+                await super().send_json(payload)
+                identity = {key: value for key, value in payload.items() if key != "type"}
+                if payload["type"] == "live_hold":
+                    self.rotation_token = payload["rotation_token"]
+                    self.send("live_held", **identity, capture_held=True)
+                elif payload["type"] == "live_ready" and self.rotation_token is not None:
+                    identity["rotation_token"] = self.rotation_token
+                    self.send("live_resumed", **identity, capture_ready=True)
+
+        wire = RotationWire()
+        link = BrowserLink(wire.send_json, wire.send_bytes)
+        session, _, _, _, _ = build(device=link)
+        sdk = wire.sdk
+        session.live_brain.client_factory = sdk.factory
+    else:
+        session, sdk, _, _, link = confirmation_build()
+    session.tools = tools = ReviewTools()
+    session.live_brain.instructions, session.live_brain.backend_instructions = live_instructions(
+        SYSTEM_PROMPT_DA
+    )
+    if adapter == "talk":
+        task = asyncio.create_task(run_talk(wire, session, link))
+        wire.send("wake", command_id="review-wake")
+        await until(lambda: wire.result("review-wake") is not None)
+        assert wire.result("review-wake")["status"] == "accepted"
+
+        async def cleanup():
+            await finish(wire, task)
+
+    else:
+        await session.start()
+        await session.wake()
+        cleanup = session.aclose
+    return session, sdk, tools, link, cleanup
+
+
+def result_for(sdk, call_id):
+    for request in sdk.response.item.create.await_args_list:
+        item = request.kwargs["item"]
+        if item.get("call_id") == call_id:
+            return json.loads(item["output"])
+    return None
+
+
+async def stale_review(session, sdk, *, proposal=None, suffix="ren", response="original"):
+    await fresh_confirmation_input(session, sdk, "Ja, " if proposal else "Tænd hoveddø")
+    await emit(sdk, created(response))
+    await until(lambda: response in session._live_backend_revisions)
+    await fresh_confirmation_input(session, sdk, suffix)
+    name = "approve_action" if proposal else "HassLightSet"
+    args = {"challenge_id": proposal.challenge_id} if proposal else {"entity_id": "light.front"}
+    await emit(
+        sdk, call("original-wire", name=name, arguments=json.dumps(args)), terminal(response)
+    )
+    await until(lambda: result_for(sdk, "original-wire") is not None)
+    return result_for(sdk, "original-wire")
+
+
+async def send_review(
+    sdk,
+    token,
+    *,
+    decision="proceed",
+    response="review",
+    call_id="review-wire",
+    delegation="d1",
+    extra=False,
+):
+    events = [
+        created(response, delegation),
+        call(
+            call_id,
+            name="reconsider_action",
+            arguments=json.dumps({"review_token": token, "decision": decision}),
+            delegation=delegation,
+        ),
+    ]
+    if extra:
+        events.append(
+            call(
+                "extra-wire",
+                name="HassLightSet",
+                arguments='{"entity_id":"light.other"}',
+                delegation=delegation,
+            )
+        )
+    await emit(sdk, *events, terminal(response, delegation=delegation))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("adapter", ["native", "talk"])
+async def test_reconsider_split_word_releases_exact_original_once_on_actual_review_wire(adapter):
+    session, sdk, tools, _, cleanup = await reconsider_fixture(adapter)
+    try:
+        result = await stale_review(session, sdk)
+        assert tools.calls == [] and result["ok"] is False
+        review = result["reconsideration"]
+        assert [row["text"] for row in review["evidence"]] == ["ren"]
+        await send_review(sdk, review["review_token"])
+        await until(lambda: result_for(sdk, "review-wire") is not None)
+        assert [(name, args) for name, args, _ in tools.calls] == [
+            ("HassLightSet", {"entity_id": "light.front"})
+        ]
+        assert result_for(sdk, "review-wire")["ok"] is True
+        await send_review(sdk, review["review_token"], response="replay", call_id="replay-wire")
+        await until(lambda: result_for(sdk, "replay-wire") is not None)
+        assert len(tools.calls) == 1
+        assert "reconsideration" not in result_for(sdk, "replay-wire")
+    finally:
+        await cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("adapter", ["native", "talk"])
+@pytest.mark.parametrize("decision", ["proceed", "discard"])
+async def test_reconsider_approval_supplies_full_fresh_period_without_extending_challenge(
+    adapter, decision
+):
+    session, sdk, tools, _, cleanup = await reconsider_fixture(adapter)
+    try:
+        proposal = await rotate_confirmation(session, sdk)
+        suffix = "gør det." if decision == "proceed" else "nej, vent."
+        result = await stale_review(session, sdk, proposal=proposal, suffix=suffix)
+        review = result["reconsideration"]
+        assert [row["text"] for row in review["evidence"]] == ["Ja, ", suffix]
+        assert (
+            tools.execution_policy.peek_live_challenge(
+                proposal.challenge_id, session_id=session._history_session
+            )
+            == proposal
+        )
+        await send_review(sdk, review["review_token"], decision=decision)
+        await until(lambda: result_for(sdk, "review-wire") is not None)
+        assert len(tools.calls) == (1 if decision == "proceed" else 0)
+        if tools.calls:
+            assert tools.calls[0][:2] == ("danger", {"entity_id": "lock.front_door"})
+        assert (
+            tools.execution_policy.peek_live_challenge(
+                proposal.challenge_id, session_id=session._history_session
+            )
+            is None
+        )
+    finally:
+        await cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "fault",
+    ["wrong_token", "mixed", "foreign", "second_response", "stop", "next_generation", "typed"],
+)
+async def test_reconsider_token_retires_on_conflicting_work_and_owner_boundaries(fault):
+    session, sdk, tools, _, cleanup = await reconsider_fixture()
+    try:
+        result = await stale_review(session, sdk)
+        token = result["reconsideration"]["review_token"]
+        original_token = token
+        if fault == "wrong_token":
+            token = "wrong"
+        elif fault == "second_response":
+            received = session.brain.backend_sequence
+            await emit(sdk, created("intervening"), terminal("intervening"))
+            await until(lambda: session.brain.backend_sequence > received)
+        elif fault in {"stop", "next_generation"}:
+            await session.stop()
+            if fault == "next_generation":
+                await session.wake()
+            else:
+                assert not tools.calls
+                return
+        elif fault == "typed":
+            receipt = await session.submit_text("Nej, lad være", command_id="new-typed")
+            assert receipt["status"] == "submitted"
+        await send_review(
+            sdk, token, extra=fault == "mixed", delegation="foreign" if fault == "foreign" else "d1"
+        )
+        await until(
+            lambda: result_for(sdk, "review-wire") is not None or session._transport_closing
+        )
+        assert tools.calls == []
+        if result_for(sdk, "review-wire") is not None:
+            assert "reconsideration" not in result_for(sdk, "review-wire")
+        if fault == "wrong_token" and not session._transport_closing:
+            await send_review(sdk, original_token, response="correct-too-late", call_id="late-wire")
+            await until(lambda: result_for(sdk, "late-wire") is not None)
+            assert tools.calls == []
+    finally:
+        await cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("queued", ["input", "second_response"])
+async def test_reconsider_rejects_sdk_received_correction_even_before_thin_delivery(
+    queued, monkeypatch
+):
+    session, sdk, tools, _, cleanup = await reconsider_fixture()
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = session._on_live_event
+
+    async def hold_review_batch(event):
+        if type(event).__name__ == "LiveToolBatch" and event.response_id == "review":
+            entered.set()
+            await release.wait()
+        await original(event)
+
+    try:
+        result = await stale_review(session, sdk)
+        monkeypatch.setattr(session, "_on_live_event", hold_review_batch)
+        await send_review(sdk, result["reconsideration"]["review_token"])
+        await asyncio.wait_for(entered.wait(), 1)
+        if queued == "input":
+            before = session.brain.input_sequence
+            await emit(
+                sdk,
+                {
+                    "type": "session.input_transcript.delta",
+                    "delta": "Nej",
+                    "start_ms": 300,
+                    "end_ms": 400,
+                },
+            )
+            await until(lambda: session.brain.input_sequence > before)
+        else:
+            before = session.brain.backend_sequence
+            await emit(sdk, created("queued-other"))
+            await until(lambda: session.brain.backend_sequence > before)
+        release.set()
+        await until(
+            lambda: result_for(sdk, "review-wire") is not None or session._transport_closing
+        )
+        assert tools.calls == []
+    finally:
+        release.set()
+        await cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("interrupt", ["typed", "expiry", "stop"])
+async def test_reconsider_final_dispatch_guard_survives_new_input_expiry_and_stop(interrupt):
+    session, sdk, tools, _, cleanup = await reconsider_fixture()
+    tools.preparing, tools.release = asyncio.Event(), asyncio.Event()
+    try:
+        proposal = await rotate_confirmation(session, sdk)
+        result = await stale_review(session, sdk, proposal=proposal, suffix="gør det.")
+        tools.pause_dispatch = True
+        await send_review(sdk, result["reconsideration"]["review_token"])
+        await asyncio.wait_for(tools.preparing.wait(), 1)
+        if interrupt == "typed":
+            receipt = await session.submit_text("Nej", command_id="dispatch-correction")
+            assert receipt["status"] == "submitted"
+        elif interrupt == "expiry":
+            tools.execution_policy._clock = lambda: proposal.expires_at + 1
+        else:
+            await session.stop()
+        tools.release.set()
+        await until(
+            lambda: result_for(sdk, "review-wire") is not None or session._transport_closing
+        )
+        assert tools.calls == []
+    finally:
+        tools.release.set()
+        await cleanup()
+
+
+@pytest.mark.asyncio
+async def test_reconsider_overflow_never_truncates_final_correction_into_a_review():
+    session, sdk, tools, _, cleanup = await reconsider_fixture()
+    try:
+        result = await stale_review(session, sdk, suffix="x" * 2100 + " Nej, lad være.")
+        assert "reconsideration" not in result and tools.calls == []
+    finally:
+        await cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", ["end_conversation", "wait_for_user"])
+async def test_reconsider_lifecycle_result_and_continuation_keep_actual_review_wire(name):
+    session, sdk, tools, link, cleanup = await reconsider_fixture()
+    try:
+        await fresh_confirmation_input(session, sdk, "Tak")
+        await emit(sdk, created("original"))
+        await until(lambda: "original" in session._live_backend_revisions)
+        await fresh_confirmation_input(session, sdk, ", farvel")
+        args = {"silent": True} if name == "end_conversation" else {}
+        await emit(
+            sdk,
+            call("original-wire", name=name, arguments=json.dumps(args)),
+            terminal("original"),
+        )
+        await until(lambda: result_for(sdk, "original-wire") is not None)
+        review = result_for(sdk, "original-wire")["reconsideration"]
+        await send_review(sdk, review["review_token"])
+        await until(lambda: sdk.response.create.await_count == 2)
+        assert result_for(sdk, "review-wire")["ok"] is True
+        assert tools.calls == [] and sdk.session.close.await_count == 0
+        receipt = session._live_end_receipt
+        if name == "end_conversation":
+            assert receipt is not None and not receipt.done()
+        else:
+            assert receipt is None and not session._ending_conversation
+        continuation = created("review-continuation")
+        if name == "end_conversation":
+            continuation["client_event_id"] = sdk.response.create.call_args.kwargs["event_id"]
+        await emit(sdk, continuation, terminal("review-continuation"))
+        if name == "end_conversation":
+            await until(lambda: link.rearm_calls == 1)
+            assert receipt.result() is True and sdk.session.close.await_count == 1
+        else:
+            await until(
+                lambda: (
+                    "review-continuation" in session.brain._seen_responses
+                    and not session.brain._responses
+                )
+            )
+            assert session._active and sdk.session.close.await_count == 0
+    finally:
+        await cleanup()
+
+
+@pytest.mark.asyncio
+async def test_reconsideration_does_not_add_live_tools_or_receipts_to_off_mode():
+    session, sdk, _, _, link = confirmation_build(enabled=False)
+    await session.start()
+    try:
+        await session.wake()
+        assert session.brain is session._realtime_brain
+        assert "reconsider_action" not in session._tool_declaration_hashes
+        assert not sdk.factory_calls and link.capture_calls == []
+    finally:
+        await session.aclose()
+
+
 def confirmation_build(*, enabled=True):
     from gatekeeper.live_prompt import live_instructions
     from gatekeeper.prompt import SYSTEM_PROMPT_DA
@@ -1151,6 +1518,16 @@ async def test_confirmation_rejects_noncurrent_or_nonexclusive_approval(boundary
             await approve_proposal(sdk, proposal)
         await until(lambda: sdk.response.item.create.await_count >= 2)
         assert tools.calls == []
+        if boundary == "stale_input":
+            result = result_for(sdk, "approve")
+            assert session._live_confirmation == proposal
+            assert [row["text"] for row in result["reconsideration"]["evidence"]] == [
+                "Ja, gør det",
+                "Nej, stop",
+            ]
+            await send_review(sdk, result["reconsideration"]["review_token"], decision="discard")
+            await until(lambda: result_for(sdk, "review-wire") is not None)
+            assert tools.calls == []
         assert session._live_confirmation is None
     finally:
         await session.aclose()

@@ -21,6 +21,18 @@ def test_canonical_prompt_changes_require_live_policy_review():
     live_instructions(SYSTEM_PROMPT_DA)
 
 
+def test_reconsideration_is_one_exact_call_and_never_substitutes_for_fresh_assent():
+    primary, backend = live_instructions(SYSTEM_PROMPT_DA)
+    assert "reconsider_action" not in primary  # Backend owns this mechanical tool.
+    assert "ekstra transcriptfragmenter" in backend.lower()
+    assert "fuldende et ord eller rette anmodningen" in backend
+    assert "den eneste call i din afsluttede respons" in backend
+    assert "Indsend ikke en ny handlingskopi eller ændrede argumenter" in backend
+    assert "ja efterfulgt af nej giver aldrig proceed" in backend
+    assert "Et engangs-ID er ikke brugerens accept" in backend
+    assert "Ingen genvurdering må genafspilles" in backend
+
+
 def test_voice_owns_listening_style_and_delegation_backend_owns_product_rules():
     primary, backend = live_instructions(SYSTEM_PROMPT_DA)
     assert _sections()["DANSK TALE"].strip() in primary

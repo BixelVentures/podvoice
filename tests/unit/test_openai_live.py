@@ -634,7 +634,70 @@ async def test_official_transcript_metadata_preserves_event_identity_and_zero_le
     )
     await session._handle(event.model_dump(), 1)
     fragment = session._queue.get_nowait()
-    assert fragment == LiveTranscript("in", "ja", 20, 20, 1, "provider-event-1")
+    assert fragment == LiveTranscript("in", "ja", 20, 20, 1, "provider-event-1", 1)
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_input_receipt_indices_precede_queue_delivery_and_reset_at_connect():
+    session, _sdk, _ = provider()
+    await session.connect()
+    await anext(session.events())
+    for text in ("", "  ", " Ja"):
+        await session._handle(
+            {
+                "type": "session.input_transcript.delta",
+                "delta": text,
+                "start_ms": 0,
+                "end_ms": 100,
+            },
+            1,
+        )
+    assert session.input_sequence == 1  # Nothing above was delivered to Thin.
+    assert session.note_local_input() == 2
+    await session._handle(created(), 1)
+    await session._handle(
+        {
+            "type": "session.input_transcript.delta",
+            "delta": " nej",
+            "start_ms": 100,
+            "end_ms": 200,
+        },
+        1,
+    )
+    events = [session._queue.get_nowait() for _ in range(5)]
+    assert [event.input_index for event in events] == [0, 0, 1, 2, 3]
+    assert isinstance(events[3], LiveBackendStarted)
+    assert events[3].created_index == 1
+    assert session.input_sequence == 3
+    await session.close()
+    await session.connect()
+    assert session.input_sequence == session.backend_sequence == 0
+    await session._handle(
+        {
+            "type": "session.input_transcript.delta",
+            "delta": "stale",
+            "start_ms": 0,
+            "end_ms": 1,
+        },
+        1,
+    )
+    assert session.input_sequence == 0
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_review_isolation_checks_received_foreign_work_before_delivery():
+    session, _sdk, _ = provider()
+    await session.connect()
+    await stage(session)
+    assert not session.review_batch_isolated("r1", 1)
+    await session.admit_tool_batch("r1", 1)
+    assert session.review_batch_isolated("r1", 1)
+    assert not session.review_batch_isolated("r1", 2)
+    await session._handle(created("foreign", "d2"), 1)
+    assert session.backend_sequence == 2
+    assert not session.review_batch_isolated("r1", 1)
     await session.close()
 
 

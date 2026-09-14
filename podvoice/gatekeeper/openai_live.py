@@ -68,6 +68,7 @@ class LiveTranscript:
     end_ms: int
     generation: int
     event_id: str | None = None
+    input_index: int = 0
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,7 @@ class LiveBackendStarted:
     generation: int
     client_event_id: str | None = None
     created_index: int = 0
+    input_index: int = 0
 
 
 @dataclass(frozen=True)
@@ -237,6 +239,7 @@ class OpenAILiveSession:
         self.provider_observer: Callable[[dict[str, Any]], None] | None = None
         self._connection_generation = 0
         self.backend_sequence = 0
+        self.input_sequence = 0
         self._connection: Any = None
         self._client: Any = None
         self._manager: Any = None
@@ -474,6 +477,7 @@ class OpenAILiveSession:
         self._connection_generation += 1
         generation = self._connection_generation
         self.backend_sequence = 0
+        self.input_sequence = 0
         self.provider_session_started = False
         self._webrtc_session_id = None
         self._webrtc_close_sent = False
@@ -689,6 +693,8 @@ class OpenAILiveSession:
                 or (event_id is not None and (not isinstance(event_id, str) or not event_id))
             ):
                 raise LiveProtocolError("invalid_live_transcript")
+            if kind.startswith("session.input") and text.strip():
+                self.input_sequence += 1
             self._emit(
                 LiveTranscript(
                     "in" if kind.startswith("session.input") else "out",
@@ -697,6 +703,7 @@ class OpenAILiveSession:
                     end,
                     generation,
                     event_id,
+                    self.input_sequence,
                 )
             )
         elif kind in {"session.usage.updated", "session.closed"}:
@@ -816,6 +823,7 @@ class OpenAILiveSession:
                     generation,
                     envelope.get("client_event_id"),
                     self.backend_sequence,
+                    self.input_sequence,
                 )
             )
             return
@@ -936,6 +944,26 @@ class OpenAILiveSession:
                 for response_id, usage in backend.items()
             ],
         }
+
+    def note_local_input(self) -> int:
+        """Count Thin's admitted typed input, not a provider turn or acknowledgment."""
+        self._active(self._connection_generation)
+        self.input_sequence += 1
+        return self.input_sequence
+
+    def review_batch_isolated(self, response_id: str, generation: int) -> bool:
+        """Check actual received work, including events not yet delivered to Thin."""
+        return bool(
+            generation == self._connection_generation
+            and not self._close_requested
+            and not self._responses
+            and set(self._batches) == {response_id}
+            and not self._batches[response_id].submitting
+            and self._batches[response_id].admitted
+            and not self._continuation_pending
+            and not self._continuation_inflight
+            and self._text_continuation_id is None
+        )
 
     async def send_audio(self, pcm: bytes) -> None:
         if self.transport == "webrtc":

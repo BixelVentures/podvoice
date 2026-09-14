@@ -2,6 +2,40 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Resultat14/9 — den specifikt godkendte reconsider_action-kontrakt er implementeret
+og har uafhængigt Astra HIGH scoped GO. Frosne runtimehashes: Thin
+b582d80591b7ae550a35a95e2b884b3c2c63f5f874cbfa921c3d51d2cdc204c8; SDK
+c320810eea1bc6a2b0b1b41fd6383dc62548d71dd09b9b9b5bec3a159b2dc28d; prompt
+e4abf9a6aea1cc1bfe39673cbbdf8b81b9bb7b3401300c69875ba9e3d8e9ac39.
+226 Thin/Talk/SDK/prompt-regressioner og115 evaluatorregressioner bestod uafhængigt.
+Fire ekstra in-memory modprøver (native/Talk × queued input/foreign backend under
+approval-dispatch-await) gav nul effekter før Thin-callbacks; de beviser kun dispatch-
+fence, ikke fysisk cleanup. De almindelige sammensatte tests dækker software-teardown.
+Evaluatorhash4f17fad91225e7d3a3302f822b31f01b1a6baa39c4a58609d37e1c9d43aca734;
+ test503f47c6ddbe10958a4c364729e028c8d30761cf282a0207ae9db159fbc5dff1.
+Måleværktøjet kræver nu eksakt oprindelig approval, én leveret uafkortet token/evidens,
+fuldt friskt inputinterval, faktisk SDK-single-flight, rigtige wire-identiteter og
+uændrede modtagelsestællere ved dispatch/effekt. Ingen ekstra Thin-observatør.
+Faktisk modelsemantik, cleanup og fysiske gates er fortsat UBEVIST; endnu ingen API04.
+
+Baseline14/9: HA viser nu1.13.84 Kører; root har alene læst UI. Frisk origin/main
+af0fad6 er .84 og tilføjer direkte kendt Roborock-ID i værktøjsbeskrivelsen samt
+sand passive-receipt eval, versioner/docs/tests. Ingen Thin/SDK/promptændring i upstream.
+Lead integrerer denne baseline efter ovenstående frosne reviewcheckpoint, bevarer begge
+beslutningshistorikker og kræver composed diffkontrol + fast før afgrænset API-prøve.
+Review fandt separat mulig eksisterende Live device-capability-ejerfejl mellem
+backendresponser: capabilityowner bruger response-ID. Read-only reproducer undersøges;
+ingen samtidig runtimepatch og ingen påstand om fuld funktionsparitet. Alpha er ikke
+installations-/fysisk testklar. Ingen releasegate, mainmerge eller installation.
+
+Brugergodkendelse14/9 — efter forklaring af den konkrete genvurdering med engangs-ID
+svarede brugeren “Ja tak.” Det godkender implementering af den nedenstående Live-only
+reconsider_action-kontrakt, inklusive bounded inputevidens/modtagelsestællere og
+uændrede Stop-, policy-, expiry- og engangsgrænser. Den tidligere automatiske afvisning
+er historik; konkret godkendelse er nu modtaget. Implementering, independent diffreview,
+sammensatte regressionsgates og faktisk API-bevis skal stadig udføres. Ingen ny
+installation eller fysisk godkendelse følger af dette ja.
+
 Resultat14/9 — developer-evaluator rettet og uafhængigt godkendt. To falsk-positive
 veje er lukket: effekt før frisk evidens og backendstart før det komplette friske ja.
 En positiv effekt kræver nu faktisk completed eksklusiv approve_action med præcist

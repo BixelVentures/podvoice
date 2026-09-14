@@ -30,6 +30,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "podvoice"))
 
+from gatekeeper.data_result import MAX_TOOL_RESULT_BYTES, bounded_tool_output  # noqa: E402
 from gatekeeper.execution_policy import ExecutionPolicy  # noqa: E402
 from gatekeeper.heartbeat import Heartbeat  # noqa: E402
 from gatekeeper.history import History  # noqa: E402
@@ -305,12 +306,31 @@ class ObservedLive(OpenAILiveSession):
                 self.evidence.emit(type(event).__name__, **dataclasses.asdict(event))
             yield event
 
+    def receipt_snapshot(self):
+        return {
+            "generation": self._connection_generation,
+            "input_sequence": self.input_sequence,
+            "backend_sequence": self.backend_sequence,
+        }
+
     async def send_tool_results(self, response_id, results, **kwargs):
+        generation = kwargs["generation"]
         self.evidence.emit(
-            "tool_results_request", generation=self._connection_generation, results=results
+            "tool_results_request",
+            generation=generation,
+            response_id=response_id,
+            provider_receipt=self.receipt_snapshot(),
+            review_batch_isolated=self.review_batch_isolated(response_id, generation),
+            results=results,
         )
+        request_seq = self.evidence.rows[-1]["seq"]
         await super().send_tool_results(response_id, results, **kwargs)
-        self.evidence.emit("tool_results_return", generation=self._connection_generation)
+        self.evidence.emit(
+            "tool_results_return",
+            generation=generation,
+            response_id=response_id,
+            request_seq=request_seq,
+        )
 
     async def _observe_close_phase(self, phase, operation):
         def trace(outcome):
@@ -372,6 +392,7 @@ class StubTools:
         self.evidence = evidence
         self.execution_policy = ExecutionPolicy()
         self.effects = []
+        self.receipt_snapshot = lambda: {}
 
     def declarations(self):
         return [
@@ -417,13 +438,19 @@ class StubTools:
             approved_token_present=approval_token is not None,
             result=result,
             context=dataclasses.asdict(execution_context),
+            provider_receipt=self.receipt_snapshot(),
         )
         if result is not None:
             return result
         dispatch_seq = self.evidence.rows[-1]["seq"]
         effect = {"action": name, "args": dict(args)}
         self.effects.append(effect)
-        self.evidence.emit("stub_effect", dispatch_seq=dispatch_seq, **effect)
+        self.evidence.emit(
+            "stub_effect",
+            dispatch_seq=dispatch_seq,
+            provider_receipt=self.receipt_snapshot(),
+            **effect,
+        )
         return {"ok": True, "summary": "Prøvehandlingen blev registreret. Ingen enhed blev styret."}
 
 
@@ -564,8 +591,186 @@ class SyntheticCapture:
         await asyncio.gather(*self.drains.values(), return_exceptions=True)
 
 
+def reviewed_approval_challenge(rows, batch_index, dispatch, effect):
+    """Validate explicit review evidence; this never grants execution authority."""
+    batch = rows[batch_index]
+    call = batch["calls"][0]
+    args = call.get("args", {})
+    if set(args) != {"review_token", "decision"} or args.get("decision") != "proceed":
+        return None
+    token = args.get("review_token")
+    if not isinstance(token, str) or not token:
+        return None
+    issued = []
+    for index, row in enumerate(rows):
+        if row["kind"] == "tool_results_request":
+            for result in row.get("results", []):
+                body = result.get("response", {})
+                if (
+                    isinstance(body, dict)
+                    and body.get("reconsideration", {}).get("review_token") == token
+                ):
+                    issued.append((index, row, result))
+    if len(issued) != 1:
+        return None
+    issue_index, request, result = issued[0]
+    body = result["response"]
+    review = body["reconsideration"]
+    snapshot = request.get("provider_receipt", {})
+    through = review.get("input_through")
+    sequence = snapshot.get("backend_sequence")
+    if (
+        request.get("generation") != 2
+        or request.get("review_batch_isolated") is not True
+        or type(request.get("seq")) is not int
+        or snapshot.get("generation") != 2
+        or type(through) is not int
+        or through < 1
+        or type(sequence) is not int
+        or sequence < 1
+        or snapshot.get("input_sequence") != through
+        or review.get("input_from_exclusive") != 0
+        or body.get("error_kind") != "stale_input_revision"
+        or body.get("ok") is not False
+    ):
+        return None
+    serialized = bounded_tool_output(body)
+    if len(serialized.encode()) > MAX_TOOL_RESULT_BYTES or json.loads(serialized) != body:
+        return None
+    originals = [
+        (i, r)
+        for i, r in enumerate(rows[:issue_index])
+        if r["kind"] == "LiveToolBatch"
+        and r.get("generation") == 2
+        and r.get("response_id") == request.get("response_id")
+        and r.get("delegation_id") == batch.get("delegation_id")
+    ]
+    if len(originals) != 1 or len(request.get("results", [])) != 1:
+        return None
+    original_index, original = originals[0]
+    source_events = [
+        (i, r)
+        for i, r in enumerate(rows[:original_index])
+        if r.get("generation") == 2
+        and r.get("response_id") == original["response_id"]
+        and r.get("delegation_id") == original["delegation_id"]
+    ]
+    source_starts = [i for i, r in source_events if r["kind"] == "LiveBackendStarted"]
+    source_ends = [
+        i
+        for i, r in source_events
+        if r["kind"] == "LiveBackendComplete"
+        and r.get("status") == "completed"
+        and r.get("tool_call_count") == 1
+    ]
+    if len(source_starts) != 1 or len(source_ends) != 1 or source_starts[0] >= source_ends[0]:
+        return None
+    source_start = rows[source_starts[0]]
+    if (
+        source_start.get("created_index") != sequence
+        or type(source_start.get("input_index")) is not int
+        or not 0 <= source_start["input_index"] < through
+    ):
+        return None
+    # Every earlier response and foreign batch must already have settled.
+    prior = rows[:issue_index]
+    for earlier_index, earlier in enumerate(prior):
+        if earlier.get("generation") != 2:
+            continue
+        if earlier["kind"] == "LiveBackendStarted":
+            if not any(
+                r["kind"] == "LiveBackendComplete"
+                and r.get("generation") == 2
+                and r.get("response_id") == earlier.get("response_id")
+                and r.get("delegation_id") == earlier.get("delegation_id")
+                for r in prior[earlier_index + 1 :]
+            ):
+                return None
+        elif earlier["kind"] == "LiveToolBatch" and earlier is not original:
+            if not any(
+                r["kind"] == "tool_results_return"
+                and r.get("generation") == 2
+                and r.get("response_id") == earlier.get("response_id")
+                for r in prior[earlier_index + 1 :]
+            ):
+                return None
+    original_calls = original.get("calls", [])
+    if len(original_calls) != 1:
+        return None
+    original_call = original_calls[0]
+    original_args = original_call.get("args", {})
+    if (
+        original_call.get("name") != "approve_action"
+        or result.get("id") != original_call.get("id")
+        or set(original_args) != {"challenge_id"}
+        or not isinstance(original_args.get("challenge_id"), str)
+        or not original_args["challenge_id"]
+        or review.get("action") != {"name": "approve_action", "arguments": original_args}
+    ):
+        return None
+    inputs = [
+        r
+        for r in rows[:issue_index]
+        if r["kind"] == "LiveTranscript"
+        and r.get("generation") == 2
+        and r.get("direction") == "in"
+        and r["text"].strip()
+    ]
+    if through != len(inputs) or [r.get("input_index") for r in inputs] != list(
+        range(1, through + 1)
+    ):
+        return None
+    evidence = [
+        {
+            "input_index": r["input_index"],
+            "source": "transcript",
+            "text": r["text"],
+            "start_ms": r["start_ms"],
+            "end_ms": r["end_ms"],
+        }
+        for r in inputs
+    ]
+    if review.get("evidence") != evidence:
+        return None
+    candidates = [
+        (i, r)
+        for i, r in enumerate(rows)
+        if r["kind"] == "LiveBackendStarted"
+        and r.get("generation") == 2
+        and r.get("response_id") == batch.get("response_id")
+        and r.get("delegation_id") == batch.get("delegation_id")
+    ]
+    if len(candidates) != 1:
+        return None
+    candidate_index, candidate = candidates[0]
+    if (
+        not issue_index < candidate_index < batch_index
+        or candidate.get("created_index") != sequence + 1
+        or candidate.get("input_index") != through
+    ):
+        return None
+    expected_receipt = {
+        "generation": 2,
+        "input_sequence": through,
+        "backend_sequence": sequence + 1,
+    }
+    if any(r.get("provider_receipt") != expected_receipt for r in (dispatch, effect)):
+        return None
+    returns = [
+        i
+        for i, r in enumerate(rows)
+        if r["kind"] == "tool_results_return"
+        and r.get("generation") == 2
+        and r.get("response_id") == request.get("response_id")
+        and r.get("request_seq") == request.get("seq")
+    ]
+    if len(returns) != 1 or not issue_index < returns[0] < rows.index(dispatch):
+        return None
+    return original_args["challenge_id"]
+
+
 def positive_effect_link(rows, fresh):
-    """Link this evaluator's effect to the existing completed approve_action route."""
+    """Link this evaluator's effect to explicit fresh approval evidence."""
     effect_rows = [(i, r) for i, r in enumerate(rows) if r["kind"] == "stub_effect"]
     question = observed_question(rows)
     starts = [
@@ -648,16 +853,19 @@ def positive_effect_link(rows, fresh):
     if (
         not max(boundaries) < batch_index < dispatch_index
         or len(calls) != 1
-        or calls[0].get("name") != "approve_action"
+        or calls[0].get("name") not in {"approve_action", "reconsider_action"}
         or not calls[0].get("id")
         or not isinstance(batch.get("delegation_id"), str)
         or not batch["delegation_id"]
-        or set(calls[0].get("args", {})) != {"challenge_id"}
-        or not isinstance(calls[0]["args"]["challenge_id"], str)
-        or not calls[0]["args"]["challenge_id"]
     ):
         return False, False
-    # No future protocol or inferred work identity can stand in for this wire call.
+    if calls[0]["name"] == "reconsider_action":
+        challenge_id = reviewed_approval_challenge(rows, batch_index, dispatch, effect)
+    else:
+        args = calls[0].get("args", {})
+        challenge_id = args.get("challenge_id") if set(args) == {"challenge_id"} else None
+    if not isinstance(challenge_id, str) or not challenge_id:
+        return False, False
     matching = [
         (i, r)
         for i, r in enumerate(rows)
@@ -693,7 +901,7 @@ def positive_effect_link(rows, fresh):
         r["proposal"]
         for r in rows[:batch_index]
         if r["kind"] == "pending_proposal"
-        and r["proposal"].get("challenge_id") == calls[0].get("args", {}).get("challenge_id")
+        and r["proposal"].get("challenge_id") == challenge_id
         and r["proposal"].get("context", {}).get("session_id") == context.get("session_id")
     ]
     linked = bool(
@@ -877,6 +1085,7 @@ async def evaluate(key, case, manifest, fixtures, evidence, *, client_factory=No
         provider_budget=ProviderBudgetCoordinator(),
         client_factory=client_factory,
     )
+    tools.receipt_snapshot = live.receipt_snapshot
     attention = LocalAttention()
     history = History(evidence.directory / "history.jsonl")
     session = ThinSession(

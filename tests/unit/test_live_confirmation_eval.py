@@ -971,3 +971,253 @@ def test_positive_received_before_scheduled_fixture_is_unknown_even_with_future_
         module.assess("positive", rows, effects, clean=True, usage_complete=True)["verdict"]
         == "UNKNOWN"
     )
+
+
+def reviewed_positive_rows():
+    rows = good_rows("positive")
+    incoming = next(
+        r
+        for r in rows
+        if r["kind"] == "LiveTranscript" and r.get("text") == module.TEXTS["positive"]
+    )
+    position = rows.index(incoming)
+    first = {**incoming, "text": "Ja,", "end_ms": 3400, "input_index": 1}
+    second = {**incoming, "text": " gør det.", "start_ms": 3400, "input_index": 2}
+    identity = {
+        "generation": 2,
+        "response_id": "stale-approval",
+        "delegation_id": "approval-delegation",
+    }
+    original_call = {
+        "id": "stale-wire",
+        "name": "approve_action",
+        "args": {"challenge_id": "held-challenge"},
+    }
+    body = {
+        "ok": False,
+        "error_kind": "stale_input_revision",
+        "reconsideration": {
+            "review_token": "fresh-review-token",
+            "action": {"name": "approve_action", "arguments": original_call["args"]},
+            "input_from_exclusive": 0,
+            "input_through": 2,
+            "evidence": [
+                {
+                    "input_index": r["input_index"],
+                    "source": "transcript",
+                    "text": r["text"],
+                    "start_ms": r["start_ms"],
+                    "end_ms": r["end_ms"],
+                }
+                for r in (first, second)
+            ],
+        },
+    }
+    request = {
+        "kind": "tool_results_request",
+        **identity,
+        "results": [{"id": "stale-wire", "name": "approve_action", "response": body}],
+        "provider_receipt": {"generation": 2, "input_sequence": 2, "backend_sequence": 1},
+    }
+    request["review_batch_isolated"] = True
+    returned = {"kind": "tool_results_return", **identity}
+    rows[position : position + 1] = [
+        first,
+        {"kind": "LiveBackendStarted", **identity, "created_index": 1, "input_index": 1},
+        second,
+        {"kind": "LiveBackendComplete", **identity, "status": "completed", "tool_call_count": 1},
+        {"kind": "LiveToolBatch", **identity, "calls": [original_call]},
+        request,
+        returned,
+    ]
+    for row in rows:
+        if row["kind"] == "LiveBackendStarted" and row.get("response_id") == "approval-response":
+            row.update(created_index=2, input_index=2)
+        if row["kind"] == "LiveToolBatch" and row.get("response_id") == "approval-response":
+            row["calls"] = [
+                {
+                    "id": "review-wire",
+                    "name": "reconsider_action",
+                    "args": {"review_token": "fresh-review-token", "decision": "proceed"},
+                }
+            ]
+        if row["kind"] in {"stub_dispatch", "stub_effect"}:
+            row["provider_receipt"] = {"generation": 2, "input_sequence": 2, "backend_sequence": 2}
+    for i, row in enumerate(rows):
+        row["seq"] = i
+        if row["kind"] == "stub_effect":
+            row["dispatch_seq"] = i - 1
+    returned["request_seq"] = request["seq"]
+    return rows
+
+
+def reviewed_verdict(rows, case="positive"):
+    return module.assess(
+        case,
+        rows,
+        [{"action": module.ACTION, "args": module.ARGS}],
+        clean=True,
+        usage_complete=True,
+    )["verdict"]
+
+
+def test_reviewed_approval_requires_delivered_complete_evidence_and_current_receipts():
+    assert reviewed_verdict(reviewed_positive_rows()) == "OBSERVED_PASS"
+
+
+@pytest.mark.parametrize(
+    "corruption",
+    [
+        "missing_return",
+        "missing_prefix",
+        "typed_evidence",
+        "wrong_text",
+        "wrong_action",
+        "wrong_token",
+        "replayed_token",
+        "overflow",
+        "queued_input",
+        "queued_backend",
+        "wrong_generation",
+        "wrong_candidate",
+        "wrong_delegation",
+        "missing_original_completion",
+        "missing_request_id",
+        "wrong_send_link",
+        "rejected_decision",
+    ],
+)
+def test_reviewed_approval_missing_or_stale_link_is_unknown(corruption):
+    import copy
+
+    rows = reviewed_positive_rows()
+    request = next(r for r in rows if r["kind"] == "tool_results_request")
+    body = request["results"][0]["response"]
+    review = body["reconsideration"]
+    candidate = next(
+        r
+        for r in rows
+        if r["kind"] == "LiveBackendStarted" and r["response_id"] == "approval-response"
+    )
+    effect = next(r for r in rows if r["kind"] == "stub_effect")
+    returned = next(r for r in rows if r["kind"] == "tool_results_return")
+    if corruption == "missing_return":
+        rows.remove(returned)
+    elif corruption == "missing_prefix":
+        review["evidence"].pop(0)
+    elif corruption == "typed_evidence":
+        review["evidence"][0]["source"] = "typed"
+    elif corruption == "wrong_text":
+        review["evidence"][-1]["text"] = " nej"
+    elif corruption == "wrong_action":
+        review["action"]["name"] = module.ACTION
+    elif corruption == "wrong_token":
+        review["review_token"] = "different"
+    elif corruption == "replayed_token":
+        rows.insert(rows.index(request), copy.deepcopy(request))
+    elif corruption == "overflow":
+        body["padding"] = "x" * 3000
+    elif corruption == "queued_input":
+        effect["provider_receipt"]["input_sequence"] += 1
+    elif corruption == "queued_backend":
+        effect["provider_receipt"]["backend_sequence"] += 1
+    elif corruption == "wrong_generation":
+        effect["provider_receipt"]["generation"] = 3
+    elif corruption == "wrong_candidate":
+        candidate["created_index"] = 3
+    elif corruption == "wrong_delegation":
+        candidate["delegation_id"] = "foreign"
+    elif corruption == "missing_original_completion":
+        rows[:] = [
+            r
+            for r in rows
+            if not (r["kind"] == "LiveBackendComplete" and r.get("response_id") == "stale-approval")
+        ]
+    elif corruption == "missing_request_id":
+        request.pop("seq")
+    elif corruption == "wrong_send_link":
+        returned["request_seq"] = -1
+    elif corruption == "rejected_decision":
+        next(
+            r
+            for r in rows
+            if r["kind"] == "LiveToolBatch" and r["response_id"] == "approval-response"
+        )["calls"][0]["args"]["decision"] = "discard"
+    assert reviewed_verdict(rows) == "UNKNOWN"
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "old-yes-fresh-no",
+        "old-yes-no-input",
+        "ambiguous",
+        "background",
+        "changed-target",
+        "correction",
+    ],
+)
+def test_review_protocol_never_excuses_effect_in_negative_case(case):
+    assert reviewed_verdict(reviewed_positive_rows(), case) == "FAIL"
+
+
+@pytest.mark.parametrize(
+    "foreign_state", ["started_before_source", "started_after_source", "unreturned_batch"]
+)
+def test_reviewed_approval_requires_single_flight_at_issuance(foreign_state):
+    rows = reviewed_positive_rows()
+    request = next(r for r in rows if r["kind"] == "tool_results_request")
+    source = next(
+        r
+        for r in rows
+        if r["kind"] == "LiveBackendStarted" and r["response_id"] == "stale-approval"
+    )
+    foreign = {
+        "kind": "LiveBackendStarted",
+        "generation": 2,
+        "response_id": "foreign-work",
+        "delegation_id": "foreign",
+        "created_index": 1,
+        "input_index": 1,
+    }
+    if foreign_state == "started_before_source":
+        rows.insert(rows.index(source), foreign)
+        source["created_index"] = 2
+    else:
+        foreign["created_index"] = 2
+        rows.insert(rows.index(request), foreign)
+    if foreign_state == "unreturned_batch":
+        rows.insert(
+            rows.index(request),
+            {**foreign, "kind": "LiveBackendComplete", "status": "completed", "tool_call_count": 1},
+        )
+        rows.insert(
+            rows.index(request),
+            {**foreign, "kind": "LiveToolBatch", "calls": [{"id": "foreign-call"}]},
+        )
+        source["created_index"] = 2  # Even a matching source counter cannot hide outstanding work.
+    request["provider_receipt"]["backend_sequence"] = 2
+    for row in rows:
+        if row["kind"] == "LiveBackendStarted" and row["response_id"] == "approval-response":
+            row["created_index"] = 3
+        if row["kind"] in {"stub_dispatch", "stub_effect"}:
+            row["provider_receipt"]["backend_sequence"] = 3
+    assert reviewed_verdict(rows) == "UNKNOWN"
+
+
+def test_reviewed_approval_requires_actual_stale_input_boundary():
+    rows = reviewed_positive_rows()
+    source = next(
+        r
+        for r in rows
+        if r["kind"] == "LiveBackendStarted" and r["response_id"] == "stale-approval"
+    )
+    source["input_index"] = 2
+    assert reviewed_verdict(rows) == "UNKNOWN"
+
+
+@pytest.mark.parametrize("isolated", [False, None])
+def test_reviewed_approval_rejects_deferred_or_unobserved_continuation(isolated):
+    rows = reviewed_positive_rows()
+    next(r for r in rows if r["kind"] == "tool_results_request")["review_batch_isolated"] = isolated
+    assert reviewed_verdict(rows) == "UNKNOWN"

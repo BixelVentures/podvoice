@@ -20,12 +20,13 @@ import logging
 import secrets
 import time
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from . import __version__, runtime_artifact_identity
 from . import audio as audio_mod
 from . import constants as C
+from .data_result import MAX_TOOL_RESULT_BYTES, tool_result_size
 from .events import Event, EventType, State
 from .execution_policy import ExecutionContext, PendingAction, Risk, assess_tool
 from .led import led_command_for
@@ -164,6 +165,9 @@ REARM_RETRY_DELAYS_S = (1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
 END_CONVERSATION_TOOL = "end_conversation"
 WAIT_FOR_USER_TOOL = "wait_for_user"
 APPROVE_ACTION_TOOL = "approve_action"
+RECONSIDER_ACTION_TOOL = "reconsider_action"
+LIVE_REVIEW_EVIDENCE_BYTES = 8192
+LIVE_REVIEW_EVIDENCE_ITEMS = 128
 END_CONVERSATION_DECLARATION = {
     "name": END_CONVERSATION_TOOL,
     "description": (
@@ -233,6 +237,45 @@ APPROVE_ACTION_DECLARATION = {
         "additionalProperties": False,
     },
 }
+
+RECONSIDER_ACTION_DECLARATION = {
+    "name": RECONSIDER_ACTION_TOOL,
+    "description": (
+        "Review one exact unexecuted server-held call using the complete supplemental "
+        "input evidence in its reconsideration result. More transcript text may finish "
+        "the request or correct it; judge the meaning, not fragment boundaries. "
+        "Use proceed only if the exact held call remains appropriate; approval still "
+        "requires explicit fresh assent. Otherwise discard. Never supply replacement "
+        "arguments, guess a token, or retry a review. This must be the only tool call."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "review_token": {"type": "string", "minLength": 1},
+            "decision": {"type": "string", "enum": ["proceed", "discard"]},
+        },
+        "required": ["review_token", "decision"],
+        "additionalProperties": False,
+    },
+}
+
+
+@dataclass
+class _LiveReview:
+    """One held call; indices describe local receipt order, never provider turns."""
+
+    token: str
+    name: str
+    arguments_json: str
+    delegation_id: str
+    generation: int
+    revision: int
+    input_index: int
+    backend_index: int
+    expires_at: float
+    approval: PendingAction | None
+    candidate_response: str | None = None
+    consumed: bool = False
 
 
 @dataclass
@@ -395,6 +438,10 @@ class ThinSession:
         self._live_output_bytes = 0
         self._live_input_revision = 0
         self._live_backend_revisions: dict[str, int] = {}
+        self._live_backend_inputs: dict[str, int] = {}
+        self._live_input_evidence: dict[int, dict] = {}
+        self._live_review: _LiveReview | None = None
+        self._live_confirmation_input_index_floor = 0
         self._live_end_receipt: asyncio.Future[bool] | None = None
         self._live_usage_seconds = 0.0
         self._live_provider_closed = asyncio.Event()
@@ -678,6 +725,10 @@ class ThinSession:
         self._live_confirmation = None
         self._live_confirmation_generation = None
         self._live_backend_revisions.clear()
+        self._live_backend_inputs.clear()
+        self._live_input_evidence.clear()
+        self._live_review = None
+        self._live_confirmation_input_index_floor = 0
         self._live_usage_seconds = 0.0
         self._live_provider_closed.clear()
         self._live_finalizing = False
@@ -863,6 +914,8 @@ class ThinSession:
             WAIT_FOR_USER_TOOL,
             APPROVE_ACTION_TOOL,
         }
+        if self.live_alpha:
+            reserved.add(RECONSIDER_ACTION_TOOL)
         decls = [d for d in decls if d.get("name") not in reserved]
         decls.extend(
             (
@@ -871,6 +924,8 @@ class ThinSession:
                 APPROVE_ACTION_DECLARATION,
             )
         )
+        if self.live_alpha:
+            decls.append(RECONSIDER_ACTION_DECLARATION)
         self.brain.tool_declarations = decls
         if self.live_alpha:
             self.brain.confirmation_enabled = self._live_confirmation_supported()
@@ -1163,6 +1218,8 @@ class ThinSession:
         # Synchronous barrier: an ACK wait must not leave reader/tool publication
         # alive for another event-loop turn after the user pressed/spoke stop.
         self._transport_closing = True
+        if self.live_alpha:
+            self._retire_live_review()
         if self._live_webrtc:
             self.voicepe.invalidate_live_handshake()
         if self._live_stream is not None:
@@ -1908,7 +1965,11 @@ class ThinSession:
                     return  # Empty provider fragments are not fresh authorizing input.
                 if self._live_rotating:
                     return  # Capture transition input cannot authorize the fresh phase.
+                self._retire_live_review()
                 self._live_input_revision += 1
+                self._remember_live_input(
+                    ev.input_index, ev.text, "transcript", start_ms=ev.start_ms, end_ms=ev.end_ms
+                )
                 if self._live_confirmation_generation is None:
                     self._cancel_live_confirmation_rotation()
                 self._last_user_utterance = ev.text
@@ -1925,11 +1986,36 @@ class ThinSession:
                     self.room, ev.direction, ev.text, session=self._history_session or None
                 )
         elif isinstance(ev, LiveBackendStarted):
-            self._live_backend_revisions[ev.response_id] = self._live_input_revision
+            review = self._live_review
+            if review is not None:
+                if (
+                    review.candidate_response is None
+                    and not review.consumed
+                    and ev.created_index == self.brain.backend_sequence == review.backend_index + 1
+                    and ev.delegation_id == review.delegation_id
+                    and ev.generation == review.generation
+                    and ev.input_index == self.brain.input_sequence == review.input_index
+                    and time.monotonic() < review.expires_at
+                ):
+                    review.candidate_response = ev.response_id
+                    self._live_backend_revisions[ev.response_id] = review.revision
+                else:
+                    self._retire_live_review()
+                    # This competing response cannot acquire ordinary action authority.
+                    self._live_backend_revisions.pop(ev.response_id, None)
+            else:
+                self._live_backend_revisions[ev.response_id] = self._live_input_revision
+            self._live_backend_inputs[ev.response_id] = ev.input_index
             self._trace_event(
                 "live_backend_started", response_id=ev.response_id, delegation_id=ev.delegation_id
             )
         elif isinstance(ev, LiveBackendComplete):
+            if (
+                self._live_review is not None
+                and ev.response_id == self._live_review.candidate_response
+            ):
+                if ev.status != "completed" or ev.tool_call_count == 0:
+                    self._retire_live_review()
             self._record_live_usage()
             self._trace_event(
                 "live_backend_complete",
@@ -2014,9 +2100,112 @@ class ThinSession:
             if self._lease_is_current(lease):
                 self._request_close("live-playback-start-failed", error_kind="device")
 
+    def _remember_live_input(self, index: int, text: str, source: str, **timestamps: int) -> None:
+        # Keep exact text and receipt order. Missing/evicted indices deny review;
+        # neither timing gaps nor these records imply a complete user utterance.
+        if index <= 0:
+            return
+        self._live_input_evidence[index] = {
+            "input_index": index,
+            "source": source,
+            "text": text,
+            **timestamps,
+        }
+        while self._live_input_evidence and (
+            len(self._live_input_evidence) > LIVE_REVIEW_EVIDENCE_ITEMS
+            or tool_result_size(list(self._live_input_evidence.values()))
+            > LIVE_REVIEW_EVIDENCE_BYTES
+        ):
+            del self._live_input_evidence[min(self._live_input_evidence)]
+
+    def _retire_live_review(self) -> None:
+        review, self._live_review = self._live_review, None
+        if review is None:
+            return
+        if review.candidate_response is not None:
+            self._live_backend_revisions.pop(review.candidate_response, None)
+        if review.approval is not None and self._live_confirmation is review.approval:
+            self._discard_live_confirmation()
+
+    def _live_review_current(self, review: _LiveReview, batch: LiveToolBatch) -> bool:
+        return bool(
+            self._live_review is review
+            and review.generation == batch.generation == self.brain._connection_generation
+            and review.candidate_response == batch.response_id
+            and review.delegation_id == batch.delegation_id
+            and self._live_input_revision == review.revision
+            and self.brain.input_sequence == review.input_index
+            and self.brain.backend_sequence == review.backend_index + 1
+            and time.monotonic() < review.expires_at
+        )
+
+    def _offer_live_review(self, call, batch: LiveToolBatch) -> dict | None:
+        if (
+            self._live_review is not None
+            or len(batch.calls) != 1
+            or call.name == RECONSIDER_ACTION_TOOL
+            or batch.response_id not in self._live_backend_revisions
+            or not self.brain.review_batch_isolated(batch.response_id, batch.generation)
+        ):
+            return None
+        approval = self._live_confirmation if call.name == APPROVE_ACTION_TOOL else None
+        if call.name == APPROVE_ACTION_TOOL and (
+            approval is None
+            or self._live_confirmation_generation != batch.generation
+            or call.args.get("challenge_id") != approval.challenge_id
+            or self.tools.execution_policy.peek_live_challenge(
+                approval.challenge_id, session_id=self._history_session
+            )
+            != approval
+        ):
+            return None
+        lower = (
+            self._live_confirmation_input_index_floor
+            if approval is not None
+            else self._live_backend_inputs.get(batch.response_id)
+        )
+        upper = self.brain.input_sequence
+        if lower is None or upper <= lower or upper - lower > LIVE_REVIEW_EVIDENCE_ITEMS:
+            return None
+        indices = range(lower + 1, upper + 1)
+        if any(index not in self._live_input_evidence for index in indices):
+            return None  # Includes input already received but still queued before Thin.
+        token = secrets.token_urlsafe(24)
+        result = {
+            "ok": False,
+            "error_kind": "stale_input_revision",
+            "error": "Nothing executed. Review the exact held call against the supplied input; "
+            "additional fragments may finish or correct the request. Use reconsider_action once.",
+            "reconsideration": {
+                "review_token": token,
+                "action": {"name": call.name, "arguments": call.args},
+                "input_from_exclusive": lower,
+                "input_through": upper,
+                "evidence": [self._live_input_evidence[index] for index in indices],
+            },
+        }
+        if tool_result_size(result) > MAX_TOOL_RESULT_BYTES:
+            return None  # Never issue a token whose correction evidence would be truncated.
+        self._live_review = _LiveReview(
+            token,
+            call.name,
+            json.dumps(call.args, ensure_ascii=False),
+            batch.delegation_id,
+            batch.generation,
+            self._live_input_revision,
+            upper,
+            self.brain.backend_sequence,
+            min(time.monotonic() + self.brain.timeout_s, approval.expires_at)
+            if approval is not None
+            else time.monotonic() + self.brain.timeout_s,
+            approval,
+        )
+        return result
+
     async def _run_live_batch(self, batch: LiveToolBatch, epoch: float) -> None:
         """Execute a completed provider batch under the existing server policy."""
         revision = self._live_backend_revisions.get(batch.response_id)
+        reviewed: _LiveReview | None = None
 
         def current() -> bool:
             return (
@@ -2032,6 +2221,13 @@ class ThinSession:
         def failure(kind: str, message: str) -> dict:
             return {"ok": False, "error_kind": kind, "error": message}
 
+        def dispatch_current() -> bool:
+            return bool(
+                current()
+                and (reviewed is None or self._live_review_current(reviewed, batch))
+                and self.brain.input_sequence == self._live_backend_inputs.get(batch.response_id)
+            )
+
         if not current():
             return
         try:
@@ -2041,8 +2237,37 @@ class ThinSession:
                 await self.brain.admit_tool_batch(batch.response_id, batch.generation)
                 if not current():
                     return
-                names = [call.name for call in batch.calls]
-                exclusive = {END_CONVERSATION_TOOL, WAIT_FOR_USER_TOOL, APPROVE_ACTION_TOOL}
+                calls = batch.calls
+                names = [call.name for call in calls]
+                review_denial = None
+                pending = self._live_review
+                if pending is not None or RECONSIDER_ACTION_TOOL in names:
+                    if (
+                        pending is not None
+                        and not pending.consumed
+                        and names == [RECONSIDER_ACTION_TOOL]
+                        and self._live_review_current(pending, batch)
+                        and calls[0].args.get("review_token") == pending.token
+                        and calls[0].args.get("decision") == "proceed"
+                    ):
+                        pending.consumed = True
+                        reviewed = pending
+                        revision = pending.revision
+                        calls = (
+                            replace(
+                                calls[0], name=pending.name, args=json.loads(pending.arguments_json)
+                            ),
+                        )
+                        names = [pending.name]
+                    else:
+                        self._retire_live_review()
+                        review_denial = failure("review_declined", "No action was executed.")
+                exclusive = {
+                    END_CONVERSATION_TOOL,
+                    WAIT_FOR_USER_TOOL,
+                    APPROVE_ACTION_TOOL,
+                    RECONSIDER_ACTION_TOOL,
+                }
                 invalid_batch = len(names) > 1 and bool(exclusive.intersection(names))
                 results = []
                 semantic_end = None
@@ -2051,25 +2276,33 @@ class ThinSession:
                     invalid_batch or names != [APPROVE_ACTION_TOOL]
                 ):
                     self._discard_live_confirmation()
-                for call in batch.calls:
+                for wire_call, call in zip(batch.calls, calls, strict=True):
                     read_only = assess_tool(call.name, call.args).risk is Risk.READ_ONLY
                     if not current():
                         return
-                    if invalid_batch:
+                    if review_denial is not None:
+                        result = review_denial
+                    elif invalid_batch:
                         result = failure(
                             "invalid_lifecycle_batch", "Lifecycle decisions must be exclusive."
                         )
                     elif not read_only and (
-                        revision is None or revision != self._live_input_revision
+                        revision is None
+                        or revision != self._live_input_revision
+                        or not dispatch_current()
                     ):
-                        result = failure(
+                        offered = self._offer_live_review(call, batch) if reviewed is None else None
+                        result = offered or failure(
                             "stale_input_revision",
-                            "New input arrived; reconsider the current request before any action.",
+                            "Additional input evidence arrived. Nothing executed; no bounded "
+                            "review is available. Do not replay this call.",
                         )
-                        if call.name == APPROVE_ACTION_TOOL:
+                        if call.name == APPROVE_ACTION_TOOL and offered is None:
                             self._discard_live_confirmation()
                     elif call.name == APPROVE_ACTION_TOOL:
-                        result = await self._approve_live_proposal(call, batch, revision, current)
+                        result = await self._approve_live_proposal(
+                            call, batch, revision, dispatch_current
+                        )
                     elif call.name == END_CONVERSATION_TOOL:
                         result = (
                             {"ok": True, "data": {"decision": END_CONVERSATION_TOOL}}
@@ -2095,7 +2328,7 @@ class ThinSession:
                             execution_context=context,
                             expected_declaration_sha256=self._tool_declaration_hashes[call.name],
                             execution_guard=lambda read_only=read_only: (
-                                current()
+                                (current() if read_only else dispatch_current())
                                 and (read_only or revision == self._live_input_revision)
                                 and self.brain.tool_batch_is_admitted(
                                     batch.response_id, batch.generation
@@ -2128,10 +2361,14 @@ class ThinSession:
                         self.hub.incr("tool_calls")
                         self.hub.incr("tool_ok" if result.get("ok") else "tool_error")
                         self.hub.tool_call(self.room, call.name, result, call.args)
-                    results.append({"id": call.id, "name": call.name, "response": result})
+                    results.append({"id": wire_call.id, "name": wire_call.name, "response": result})
                     if not current():
                         return  # Never replay an action whose result became unavailable.
-                if proposal is not None and current() and revision == self._live_input_revision:
+                if (
+                    proposal is not None
+                    and dispatch_current()
+                    and revision == self._live_input_revision
+                ):
                     receipt = self.brain.create_terminal_receipt(
                         batch.response_id, generation=batch.generation
                     )
@@ -2143,7 +2380,11 @@ class ThinSession:
                         "live-confirmation-rotation",
                     )
                     self._live_rotation_task.add_done_callback(lambda _: receipt.cancel())
-                if semantic_end is not None and current() and revision == self._live_input_revision:
+                if (
+                    semantic_end is not None
+                    and dispatch_current()
+                    and revision == self._live_input_revision
+                ):
                     self._cancel_live_end()
                     receipt = self.brain.create_terminal_receipt(
                         batch.response_id, generation=batch.generation
@@ -2167,6 +2408,10 @@ class ThinSession:
                         owned.cancel()
 
                     self._goodbye.add_done_callback(cancel_receipt)
+                if reviewed is not None and self._live_review is reviewed:
+                    # Release review ownership before its result continuation; it
+                    # cannot become another review or retire a newly created proposal.
+                    self._live_review = None
                 await self.brain.send_tool_results(
                     batch.response_id, results, generation=batch.generation
                 )
@@ -2176,8 +2421,11 @@ class ThinSession:
             if current():
                 self._request_close("live-tool-failed", error_kind="connection")
         finally:
+            if reviewed is not None and self._live_review is reviewed:
+                self._retire_live_review()
             self._tool_tasks.pop(batch.response_id, None)
             self._live_backend_revisions.pop(batch.response_id, None)
+            self._live_backend_inputs.pop(batch.response_id, None)
 
     def _live_confirmation_supported(self) -> bool:
         return bool(
@@ -2364,6 +2612,8 @@ class ThinSession:
                 check()
                 if brain._connection_generation == generation:
                     raise RuntimeError("confirmation provider generation was not replaced")
+                self._live_input_evidence.clear()
+                self._live_backend_inputs.clear()
                 confirmation_generation = brain._connection_generation
                 self._reader = self._spawn(self._read_events(), "thin-reader")
                 if self._live_webrtc:
@@ -2373,6 +2623,7 @@ class ThinSession:
                 check()
                 self._live_confirmation_generation = brain._connection_generation
                 self._live_confirmation_input_floor = self._live_input_revision
+                self._live_confirmation_input_index_floor = brain.input_sequence
                 self._live_rotating = False
                 self._live_rotation_old_generation = None
                 self._pump = (
@@ -2555,12 +2806,15 @@ class ThinSession:
                     "Bekræftelsen forbinder; send beskeden igen.",
                 )
             self._cancel_live_end()
+            self._retire_live_review()
             if self._live_confirmation_generation is None:
                 self._cancel_live_confirmation_rotation()
             self._live_input_revision += 1
             history_session = self._history_session
             admitted_at = time.time()
             try:
+                input_index = self.brain.note_local_input()
+                self._remember_live_input(input_index, text, "typed")
                 await self.brain.send_text(text, command_id=command_id)
             except Exception:
                 self._request_close("live-text-failed", error_kind="connection")
