@@ -2,6 +2,22 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+API09 afsluttet14/9 på cbaac95 med nyt reviewet pre-handler-målepunkt. Helper09
+ændrer alene sourcepin/output fra08, SHA
+63d0a110daa961d706d0d773195c678766ad6b392d53a8bac946edde64373d7d.
+Parent92760 exit0/child2 UNKNOWN. Gen2friskja blev genkendt; ingen effekt/followup,
+clean_shutdown=true/usage_complete=true/runtime_faults=[]. Ny måling viser gen2
+session.delegation.created samt2response.created/2response.completed og efterfølgende
+værktøjshåndtering. Her ankom altså backend-events; fraværet fra08 blev ikke gentaget.
+Primærtale “Ja, jeg kører den” blev efterfulgt af sand afvisningsforklaring om udløbet
+bekræftelse. Fixture blev først sendt38.228s, så supervisorsvarets forsinkelse er igen
+en relevant forklaring; præcis tidsaudit mangler. Ingen runtimepatch udledes heraf.
+Gentagen supervisorsvar-forsinkelse skal løses i testarbejdsgangen før flere sådanne
+positive/kontekstprøver; behold originalTTL og samtlige tidligere resultater. Vi må
+ikke fortsætte uændrede manuelle forsøg, hvor værktøjsrundture bruger acceptvinduet.
+HA.87 verificeretStoppet før/efter, rootStart derefter og friskKører verificeret;
+nøgle/formular ryddet. Ingen installation eller fysisk accept.
+
 SDK pre-handler-måling14/9 er implementeret i evaluator alene og uafhængigt Astra
 HIGH reviewet scopedGO. Script SHA
 cc4f3136c545994feb85fe15cc6bc274372751f15dd722907dffa5a3420e6877,
