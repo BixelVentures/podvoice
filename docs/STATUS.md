@@ -2,6 +2,74 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Resultat14/9 — developer-evaluator rettet og uafhængigt godkendt. To falsk-positive
+veje er lukket: effekt før frisk evidens og backendstart før det komplette friske ja.
+En positiv effekt kræver nu faktisk completed eksklusiv approve_action med præcist
+challenge/session/dispatch/effect-link; backend skal starte efter genkendt ja, og batch
+skal afsluttes efter fixturelevering. Manglende link eller en fremtidig review-protokol
+forbliver UNKNOWN. Nye rettelser før effekt kan ikke skjules af et tidligere ja.
+85 fokuserede tests bestod både hos implementør og uafhængig Astra HIGH reviewer;
+Ruff/format bestod. De nye kausale modprøver var røde før rettelserne. Tidligere prøver
+01/02/03 forbliver UNKNOWN med nul effekter ved offline replay. Frosne hashes:
+script5027ce07b43c66c774599cfda941d4e6622ab858b8b37b32536b8e2d12c90191 og
+ tested3c63e9bf2d752d3da60d7250622266a6d7c1f652227fe4528a5e6589b8e3fe.
+Ingen runtime-, prompt-, firmware- eller APIændring i dette checkpoint. Den nye
+reconsider_action-runtime kræver fortsat den konkrete godkendelse beskrevet nedenfor.
+Produktionsstatus sidst verificeret1.13.82 Kører efter prøve03; alpha ikke installeret,
+ingen releasegate eller fysisk gate bestået. Ingen ny API-prøve startet efter03.
+
+Implementeringsstatus14/9 — genvurderingsprotokollen er IKKE skrevet. Første SDK-
+apply_patch blev afvist af automatic approval review med begrundelsen: ny Live runtime-
+autorisations-/dispatchprotokol og inputejerskabstællere ændrer Realtime-semantik uden
+udtrykkelig brugergodkendelse af netop protokollen eller afsluttet uafhængigt review.
+Uafhængigt Astra HIGH designreview gav conditional GO for implementering og offline
+bevis med de nedenstående ejerskabsvilkår; dette er ikke review af et implementeret diff.
+Ingen retry eller alternativ skrivevej anvendt. Lead skal indhente konkret godkendelse
+før runtimeprotokollen implementeres. Den allerede reviewede cleanup-rettelse og dens
+beståede softwaregate er upåvirket; alpha-gren a944e9b er uploadet, ingen installation.
+
+Separat developer-evaluator-finding14/9: uafhængig replay injicerede en stub_effect før
+frisk spørgsmål/fixture i en ellers positiv trace; assessor returnerede OBSERVED_PASS.
+Det er en falsk-positiv mulighed i prøveværktøjet, ikke bevis for faktisk tidlig handling;
+alle tre faktiske prøver havde nul effekter og UNKNOWN. Ret kun evaluatorens effekt-
+korrelation til frisk fuldt afleveret/genkendt ja, gen2 og faktisk completed godkendelses-
+batch. Tidlig effekt skal være FAIL; manglende binding UNKNOWN. De seks negative cases
+fejler allerede på enhver effekt. Ny runtimeprotokol forbliver blokeret og må ikke
+indføres indirekte gennem denne afgrænsede måleværktøjsrettelse.
+
+Aktiv lead-beslutning14/9 — én Live-only semantisk genvurdering af ekstra input.
+Direkte fejl: prøve03s normale suffix efter backendstart medfører nul-effekt afvisning.
+Rå transcriptfragmenter er ikke semantiske ture; hverken delegation eller valgfri
+client_event_id er et bevist inputvandmærke. Lead vælger en afgrænset reserved tool
+reconsider_action(review_token, decision=proceed|discard), uden handlingsnavn eller
+nye argumenter, gennem samme officielle managed backend. Ingen ekstra model.
+Thin fastholder én eksakt, valideret, endnu uudført handling. Dens zero-effect-resultat
+bærer et nyt engangs-ID og hele det nødvendige observerede inputinterval: supplerende
+fragmenter efter oprindelig backendstart; ved approve_action hele den friske periode
+efter confirmation-floor. Manglende interval eller overskredet eksisterende2048-byte
+resultatgrænse giver afvisning, aldrig trunkering af en mulig rettelse.
+Ejerskab: samme session/generation/delegation, ingen anden udestående respons/batch ved
+udstedelse. Første efterfølgende respons kan være kandidat, men kun eksakt token i
+én completed, eksklusiv review-call giver genvurderingsbeslutningen. Token er bevis for
+adgang til eksplicit leveret data, IKKE fuldført tale eller forståelse af uhørt input.
+Ny faktisk modtaget input, anden/foreign respons, mixed/no-call, Stop, expiry og replay
+retirerer review. SDK's lokale modtagelsestællere kontrolleres ved udstedelse og alle
+post-await effektguards, så endnu ikke behandlede queue-events ikke kan krydse grænsen.
+Berørte invarianter: Thin er ene semantiske runtime-ejer; modellen ejer betydning;
+completed schema/budget-validering, præcise originale argumenter, engangsapproval og
+Stop/mic/playback/teardown/rearm bevares. Godkendelseschallenge fastholdes unconsumed
+kun under én review og uden forlænget TTL; review må ikke gentages. Resultat/terminal-
+receipt bindes til faktisk review-wire-call og respons; eksisterende dispatch bruges.
+Hel kæde: fysisk input→SDK receipt→Thin evidens→completed stale call→zero-effect review-
+resultat→modelbeslutning→policy/dispatch eller discard→playback/farvel→close/rearm/nywake.
+Hypotese: modellen kan skelne almindeligt suffix fra reel rettelse med den leverede
+tekst uden en lokal fraseparser. Regressioner skal modbevise med hoveddø/ren, ja/nej,
+queued input, concurrent/foreign response, replay, overflow med slutafslag, udløb,
+Stop og næste generation samt native/Talk/OFF. Ingen SDK transportomlægning, nye
+hjemmeværktøjsskemaer, VAD/gain/timeouts eller lydændring. Rollback er hele denne
+isolerede review-kontrakt. Uafhængig design- og kodereview, relevante sammensatte tests,
+fast og passende SafeEval før API-prøve. Kandidaten er fortsat IKKE fysisk testklar.
+
 Samlet softwaregate14/9 på frosset checkpoint12e1cd0 er terminal exit0:
 scripts/dev fast --base origin/main, proces72525, Ruff/format43filer, mypy50sources,
 hele pytest93.06s, samlet93.5s. Ingen source/docs ændret under gaten. Dette beviser

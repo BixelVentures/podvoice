@@ -85,7 +85,12 @@ def good_rows(fresh="negative"):
     rows = [
         {
             "kind": "pending_proposal",
-            "proposal": {"action": module.ACTION, "normalized_args": json.dumps(module.ARGS)},
+            "proposal": {
+                "action": module.ACTION,
+                "normalized_args": json.dumps(module.ARGS),
+                "challenge_id": "held-challenge",
+                "context": {"session_id": "test-session"},
+            },
         },
         {
             "kind": "configuration",
@@ -130,7 +135,7 @@ def good_rows(fresh="negative"):
                     "direction": "in",
                     "text": module.TEXTS[fresh],
                 },
-                {"kind": "fixture_finished", "name": fresh},
+                {"kind": "fixture_finished", "name": fresh, "phase": 1},
             ]
         )
     for row in rows:
@@ -138,8 +143,196 @@ def good_rows(fresh="negative"):
         if row["kind"] == "LiveTranscript":
             row.setdefault("start_ms", 3000 if row["generation"] == 2 else 0)
             row.setdefault("end_ms", 4000 if row["generation"] == 2 else 100)
+    if fresh == "positive":
+        rows.extend(
+            [
+                {
+                    "kind": "LiveBackendStarted",
+                    "response_id": "approval-response",
+                    "delegation_id": "approval-delegation",
+                    "generation": 2,
+                },
+                {
+                    "kind": "LiveBackendComplete",
+                    "response_id": "approval-response",
+                    "delegation_id": "approval-delegation",
+                    "generation": 2,
+                    "status": "completed",
+                    "tool_call_count": 1,
+                },
+                {
+                    "kind": "LiveToolBatch",
+                    "response_id": "approval-response",
+                    "delegation_id": "approval-delegation",
+                    "generation": 2,
+                    "calls": [
+                        {
+                            "id": "approval-wire-call",
+                            "name": "approve_action",
+                            "args": {"challenge_id": "held-challenge"},
+                        }
+                    ],
+                },
+                {
+                    "kind": "stub_dispatch",
+                    "action": module.ACTION,
+                    "args": module.ARGS,
+                    "approved_token_present": True,
+                    "result": None,
+                    "context": {
+                        "session_id": "test-session",
+                        "turn_id": "live:2:approval-response",
+                        "approval_mode": "live",
+                    },
+                },
+                {"kind": "stub_effect", "action": module.ACTION, "args": module.ARGS},
+            ]
+        )
     rows.append({"kind": "observation_finished", "elapsed_s": 10})
+    for index, row in enumerate(rows):
+        row["seq"] = index
+        if row["kind"] == "stub_effect":
+            row["dispatch_seq"] = index - 1
     return rows
+
+
+@pytest.mark.parametrize("boundary", ["question", "recognition", "delivery"])
+def test_positive_effect_before_fresh_evidence_is_failure(boundary):
+    rows = good_rows("positive")
+    effect = next(row for row in rows if row["kind"] == "stub_effect")
+    rows.remove(effect)
+    index = next(
+        i
+        for i, row in enumerate(rows)
+        if (boundary == "question" and row.get("text") == module.CONFIRMATION_QUESTION)
+        or (boundary == "recognition" and row.get("text") == module.TEXTS["positive"])
+        or (
+            boundary == "delivery"
+            and row["kind"] == "fixture_finished"
+            and row["name"] == "positive"
+        )
+    )
+    rows.insert(index, effect)
+    assert (
+        module.assess(
+            "positive",
+            rows,
+            [{"action": module.ACTION, "args": module.ARGS}],
+            clean=True,
+            usage_complete=True,
+        )["verdict"]
+        == "FAIL"
+    )
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "missing_effect",
+        "missing_dispatch",
+        "unapproved",
+        "denied",
+        "old_generation",
+        "foreign_response",
+        "foreign_session",
+        "mixed",
+        "reconsider",
+        "wrong_challenge",
+        "missing_completion",
+        "failed_completion",
+        "wrong_dispatch_link",
+        "duplicate_batch",
+        "late_correction",
+        "missing_challenge",
+    ],
+)
+def test_positive_effect_requires_existing_completed_approval_link(damage):
+    rows = good_rows("positive")
+    dispatch = next(row for row in rows if row["kind"] == "stub_dispatch")
+    batch = next(row for row in rows if row["kind"] == "LiveToolBatch")
+    complete = next(row for row in rows if row["kind"] == "LiveBackendComplete")
+    effect = next(row for row in rows if row["kind"] == "stub_effect")
+    if damage == "missing_effect":
+        rows.remove(effect)
+    elif damage == "missing_dispatch":
+        rows.remove(dispatch)
+    elif damage == "unapproved":
+        dispatch["approved_token_present"] = False
+    elif damage == "denied":
+        dispatch["result"] = {"ok": False}
+    elif damage == "old_generation":
+        dispatch["context"]["turn_id"] = "live:1:approval-response"
+    elif damage == "foreign_response":
+        batch["response_id"] = "foreign"
+    elif damage == "foreign_session":
+        dispatch["context"]["session_id"] = "other-session"
+    elif damage == "mixed":
+        batch["calls"] *= 2
+    elif damage == "reconsider":
+        batch["calls"][0]["name"] = "reconsider_action"
+    elif damage == "wrong_challenge":
+        batch["calls"][0]["args"]["challenge_id"] = "other"
+    elif damage == "missing_completion":
+        rows.remove(complete)
+    elif damage == "failed_completion":
+        complete["status"] = "failed"
+    elif damage == "duplicate_batch":
+        rows.insert(rows.index(batch), dict(batch))
+    elif damage == "late_correction":
+        rows.insert(
+            rows.index(dispatch),
+            {
+                "kind": "LiveTranscript",
+                "generation": 2,
+                "direction": "in",
+                "text": " Nej, vent.",
+                "start_ms": 4000,
+                "end_ms": 5000,
+            },
+        )
+    elif damage == "missing_challenge":
+        batch["calls"][0]["args"].clear()
+        rows[0]["proposal"].pop("challenge_id")
+    else:
+        effect["dispatch_seq"] = -1
+    assert (
+        module.assess(
+            "positive",
+            rows,
+            [{"action": module.ACTION, "args": module.ARGS}],
+            clean=True,
+            usage_complete=True,
+        )["verdict"]
+        == "UNKNOWN"
+    )
+
+
+@pytest.mark.parametrize("boundary", ["before_question", "partial_yes", "before_fixture_end"])
+def test_approving_backend_start_requires_preceding_complete_fresh_yes(boundary):
+    rows = good_rows("positive")
+    started = next(row for row in rows if row["kind"] == "LiveBackendStarted")
+    rows.remove(started)
+    fresh = next(row for row in rows if row.get("text") == module.TEXTS["positive"])
+    if boundary == "before_question":
+        rows.insert(0, started)
+    elif boundary == "partial_yes":
+        index = rows.index(fresh)
+        fresh["text"] = "gør det."
+        rows[index:index] = [
+            {**fresh, "text": "Ja, ", "start_ms": 3000, "end_ms": 3500},
+            started,
+        ]
+        fresh["start_ms"] = 3500
+    else:
+        rows.insert(rows.index(fresh) + 1, started)
+    result = module.assess(
+        "positive",
+        rows,
+        [{"action": module.ACTION, "args": module.ARGS}],
+        clean=True,
+        usage_complete=True,
+    )
+    assert result["verdict"] == ("OBSERVED_PASS" if boundary == "before_fixture_end" else "UNKNOWN")
 
 
 @pytest.mark.parametrize(
@@ -360,6 +553,12 @@ async def test_actual_thin_sdk_rotation_stub_path_and_final_usage(
         report, settled = await trial
         assert settled and report["clean_shutdown"]
         assert len(report["effects"]) == expected_effects
+        if expected_effects:
+            assert report["positive_effect_linked"] is True
+            effect_row = next(r for r in evidence.rows if r["kind"] == "stub_effect")
+            dispatch_row = evidence.rows[effect_row["dispatch_seq"]]
+            assert dispatch_row["kind"] == "stub_dispatch"
+            assert dispatch_row["context"]["turn_id"] == "live:2:approve"
         assert report["connect_attempts"] == 2
         assert report["historical_seed_in_fresh_configuration"]
         assert len(report["usage"]) == 2 and report["usage_complete"]

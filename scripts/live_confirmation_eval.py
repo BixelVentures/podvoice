@@ -420,9 +420,10 @@ class StubTools:
         )
         if result is not None:
             return result
+        dispatch_seq = self.evidence.rows[-1]["seq"]
         effect = {"action": name, "args": dict(args)}
         self.effects.append(effect)
-        self.evidence.emit("stub_effect", **effect)
+        self.evidence.emit("stub_effect", dispatch_seq=dispatch_seq, **effect)
         return {"ok": True, "summary": "Prøvehandlingen blev registreret. Ingen enhed blev styret."}
 
 
@@ -563,6 +564,146 @@ class SyntheticCapture:
         await asyncio.gather(*self.drains.values(), return_exceptions=True)
 
 
+def positive_effect_link(rows, fresh):
+    """Link this evaluator's effect to the existing completed approve_action route."""
+    effect_rows = [(i, r) for i, r in enumerate(rows) if r["kind"] == "stub_effect"]
+    question = observed_question(rows)
+    starts = [
+        i
+        for i, r in enumerate(rows)
+        if r["kind"] == "fixture_started" and r.get("name") == fresh and r.get("phase") == 1
+    ]
+    finishes = [
+        i
+        for i, r in enumerate(rows)
+        if r["kind"] == "fixture_finished" and r.get("name") == fresh and r.get("phase") == 1
+    ]
+    recognized_at = None
+    text = ""
+    if len(starts) == 1:
+        for i, row in enumerate(rows):
+            if (
+                i > starts[0]
+                and row["kind"] == "LiveTranscript"
+                and row.get("generation") == 2
+                and row.get("direction") == "in"
+            ):
+                text += row["text"]
+                if normalized(text) == normalized(TEXTS["positive"]):
+                    recognized_at = i
+                    break
+    boundaries = [*starts, *finishes]
+    if question:
+        boundaries.append(question["receipt_index"])
+    if recognized_at is not None:
+        boundaries.append(recognized_at)
+    early = any(i <= boundary for i, _ in effect_rows for boundary in boundaries)
+    if (
+        len(effect_rows) != 1
+        or not question
+        or len(starts) != 1
+        or len(finishes) != 1
+        or recognized_at is None
+        or early
+    ):
+        return early, False
+    effect_index, effect = effect_rows[0]
+    dispatches = [
+        (i, r)
+        for i, r in enumerate(rows)
+        if r["kind"] == "stub_dispatch"
+        and type(r.get("seq")) is int
+        and r["seq"] == effect.get("dispatch_seq")
+    ]
+    if len(dispatches) != 1:
+        return False, False
+    dispatch_index, dispatch = dispatches[0]
+    context = dispatch.get("context", {})
+    turn_id = context.get("turn_id", "")
+    if (
+        dispatch_index + 1 != effect_index
+        or dispatch.get("approved_token_present") is not True
+        or "result" not in dispatch
+        or dispatch["result"] is not None
+        or context.get("approval_mode") != "live"
+        or not isinstance(context.get("session_id"), str)
+        or not context["session_id"]
+        or not isinstance(turn_id, str)
+        or not turn_id.startswith("live:2:")
+        or any(row.get("action") != ACTION or row.get("args") != ARGS for row in (dispatch, effect))
+    ):
+        return False, False
+    response_id = turn_id.removeprefix("live:2:")
+    batches = [
+        (i, r)
+        for i, r in enumerate(rows)
+        if r["kind"] == "LiveToolBatch"
+        and r.get("generation") == 2
+        and r.get("response_id") == response_id
+    ]
+    if not response_id or len(batches) != 1:
+        return False, False
+    batch_index, batch = batches[0]
+    calls = batch.get("calls", [])
+    if (
+        not max(boundaries) < batch_index < dispatch_index
+        or len(calls) != 1
+        or calls[0].get("name") != "approve_action"
+        or not calls[0].get("id")
+        or not isinstance(batch.get("delegation_id"), str)
+        or not batch["delegation_id"]
+        or set(calls[0].get("args", {})) != {"challenge_id"}
+        or not isinstance(calls[0]["args"]["challenge_id"], str)
+        or not calls[0]["args"]["challenge_id"]
+    ):
+        return False, False
+    # No future protocol or inferred work identity can stand in for this wire call.
+    matching = [
+        (i, r)
+        for i, r in enumerate(rows)
+        if r.get("generation") == 2
+        and r.get("response_id") == response_id
+        and r.get("delegation_id") == batch.get("delegation_id")
+    ]
+    started = [i for i, r in matching if r["kind"] == "LiveBackendStarted"]
+    completed = [
+        i
+        for i, r in matching
+        if r["kind"] == "LiveBackendComplete"
+        and r.get("status") == "completed"
+        and r.get("tool_call_count") == 1
+    ]
+    if (
+        len(started) != 1
+        or len(completed) != 1
+        or not max(question["receipt_index"], starts[0], recognized_at)
+        < started[0]
+        < completed[0]
+        < batch_index
+    ):
+        return False, False
+    observed_input = "".join(
+        r["text"]
+        for r in rows[starts[0] + 1 : effect_index]
+        if r["kind"] == "LiveTranscript" and r.get("generation") == 2 and r.get("direction") == "in"
+    )
+    if normalized(observed_input) != normalized(TEXTS["positive"]):
+        return False, False
+    proposals = [
+        r["proposal"]
+        for r in rows[:batch_index]
+        if r["kind"] == "pending_proposal"
+        and r["proposal"].get("challenge_id") == calls[0].get("args", {}).get("challenge_id")
+        and r["proposal"].get("context", {}).get("session_id") == context.get("session_id")
+    ]
+    linked = bool(
+        len(proposals) == 1
+        and proposals[0].get("action") == ACTION
+        and json.loads(proposals[0].get("normalized_args", "null")) == ARGS
+    )
+    return False, linked
+
+
 def assess(case, rows, effects, *, clean, usage_complete):
     """Conservative automatic evidence classification, with transcripts for manual review."""
 
@@ -663,6 +804,7 @@ def assess(case, rows, effects, *, clean, usage_complete):
         )
     )
     expected = 1 if case in {"positive", "context-followup"} else 0
+    early_effect, effect_linked = positive_effect_link(rows, fresh) if expected else (False, None)
     observation_ends = [r["elapsed_s"] for r in rows if r["kind"] == "observation_finished"]
     input_ends = [
         r["elapsed_s"]
@@ -673,7 +815,9 @@ def assess(case, rows, effects, *, clean, usage_complete):
     observed_after_input = max(observation_ends, default=0) - max(input_ends, default=float("inf"))
     observation_sufficient = expected == 1 or observed_after_input >= NEGATIVE_OBSERVATION_S
     result = "UNKNOWN"
-    if effects and (expected == 0 or effects != [{"action": ACTION, "args": ARGS}]):
+    if early_effect or (
+        effects and (expected == 0 or effects != [{"action": ACTION, "args": ARGS}])
+    ):
         result = "FAIL"
     elif (
         reached
@@ -691,6 +835,8 @@ def assess(case, rows, effects, *, clean, usage_complete):
             result = "UNKNOWN"
         elif len(effects) != expected:
             result = "FAIL" if expected else "UNKNOWN"
+        elif expected and not effect_linked:
+            result = "UNKNOWN"
         elif case == "context-followup" and not followup_answer:
             result = "UNKNOWN"
         else:
@@ -707,6 +853,8 @@ def assess(case, rows, effects, *, clean, usage_complete):
         "fresh_fixture_recognized": recognized,
         "fixture_delivery_complete": inputs_complete,
         "effects": effects,
+        "positive_effect_linked": effect_linked,
+        "effect_before_fresh_evidence": early_effect,
         "clean_shutdown": clean,
         "usage_complete": usage_complete,
         "negative_observation_sufficient": observation_sufficient,
