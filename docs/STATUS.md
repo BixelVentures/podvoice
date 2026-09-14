@@ -2,6 +2,17 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Samlet softwaregate14/9 på frosset fdc5503 er terminal exit0: fast54618,
+Ruff/format43filer, mypy50sources, hele pytest108.81s, samlet109.5s. Ingen source/docs
+blev ændret under gaten. Uafhængigt composed Astra-review verificerer .84-samlingen
+og giver scoped GO til én bounded syntetisk API-prøve, ikke installation/fysisk proof.
+Helper04 bevarer nøjagtigt den tidligere reviewede one-use loopback-mekanisme; kun
+sourcepins og ny outputmappe ændret. SHAac3ea4aed4f58a9dfac4d5deb395a0c8c4ce9c953defad5c90cd8f7069950667,
+50runtimefilers manifest55a2ad97b7cc8f46b83e0f32c1f37de2f2a3cc2a89e02451145aeb60460b671d.
+Prøve04 er på registreringstidspunktet endnu ikke startet. Den må kun bruge lokalstub,
+syntetisk fixture, to providerstarts, eksisterende observations-/cleanup-lofter og
+normalproduktion stoppet kort og verificeret genstartet bagefter. Ingen hus-effekter.
+
 Baselineintegration14/9 — .84 er nu sammenført med alphaen. Eneste konflikt var
 den indledende STATUS-log; begge komplette beslutningshistorikker er bevaret i samme
 fil. Runtime-reviewhashes er uændrede; versions-/robotbeskrivelses-/evalændringer kommer
