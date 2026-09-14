@@ -2,6 +2,84 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Router02 uafhængigt scoped GO:52kildehashes matcher3551b87, launcher42228cda...;
+begge modelkald fulgte completed backendresponse, originale routerresultater nåede
+SDKsubmission og completed continuation under samme delegation. Weatheroutput1700bytes
+under grænsen. To input én gang i samme historiksession; én providerstart, fire completed
+backendresponses,56finalvoice-sekunder/30557backendtokens uden usagekonflikt, clean.
+Smal accept: rigtig læseværktøjsbrug for tid/vejr og relevant opfølgning. Intet nyt
+bevis for Stop, naturligt farvel, mikrofon, akustisk dræn, fysisk VoicePE eller ukaldte
+tools. Tokenrevocation/normalHArestore er roots separate faktiske UI-observationer.
+
+Bruger gav konkret accept af midlertidig HA-nøgle. Real-router01/02 udført14/9
+med to navngivne midlertidige tokens, begge efterfølgende tilbagekaldt i HA; root
+verificerede “Du har ingen langlivede adgangstokens endnu.” Normal HA1.13.87 blev
+verificeret Stoppet før hver prøve og Kører efter. Ingen installation/hjemaktion/mic.
+
+Router01: GetLiveContext startupopslag lykkedes, fire aktuelle læsetools fundet,
+men30s prewake udløb før browserinput; nul SDKstarter, clean. Gentagen toolingfejl:
+prøvestartfrist er nu120s, initialhard200s, parent300s;60s aktiv observation,
+højst2SDKstarter og15s cleanup/postwake80shard uændret. Uafhængigt review GO på
+launcher42228cda.../handoff0c2fd73a...; ingen runtime- eller semantikændring.
+HA-navnefelt og Talk-tekstfelt krævede faktisk inputtast efter fill før validering;
+første router02 klik viste kun kladde. Efter almindeligt tastetryk blev input afleveret.
+
+Router02: én rigtig SDKstart, to modelvalgte læsekald via shipped Thin/ToolRouter/MCP:
+GetDateTime35.512s→ok36.104s og weather_forecast37.264s→ok37.488s; begge resultater
+sendt tilbage til Live. RootChrome så svar15.43/skyer/11–19grader/79procentregn/blæst
+og efterfølgende “Skal jeg tage regntøj med så?”→“Hmm. Ja, det vil være en god idé.”
+Rigtig HAdata:15:42:58; næste dag11.2–19.5°C,78.9procentregn,24.1km/h vind.
+Ingen præcis avrundings-/latensaccept; browsertranscript er ikke lydoptagelse.
+Trialcleanup89.667s, clean96.238s; ingen faults, én generation,56voice-sekunder,
+fire backendresponses. RootAfslut kom efter prøvens deadline og beviser IKKE Stop.
+Helper59710terminal0. Originale reports/source/events plus særskilt rootobservation
+arkiveret i api-proof/talk-router-01 og02. Uafhængig resultat-/kildeaudit afventer.
+Alle prøvefaner lukket; nøgler ikke gemt i filer eller output. Fuld toolparitet,
+stemmegodkendelser, robot-owner, installation og fysisk10/10/duplex/latens stadig åbent.
+
+Goal-kontrol14/9 efter ARM64-genbyg: forrige fortsættelse var konkret fremdrift
+(nyt image og verificeret sourceidentitet). Denne fortsættelse fandt ingen ny
+brugeraccept af midlertidig HA-kontoadgang. Prøven og review er klar; build er terminal.
+Næste prioriterede real-router-prøve afventer fortsat samme eksplicitte svar. Ingen
+ny kørsel, nøgle eller installation; ikke endnu tre fortsættelser uden fremdrift.
+
+Lokalt ARM64-image genbygget på3551b87 med den reviewede Talk-visningsrettelse:
+build42229 terminal0; tag podvoice-live-alpha:3551b87, imageconfig
+ a21c12c2e1924e1a08309ab1705169c13739a162095fae0bc9e603b5b5bf16f1,
+manifest00175212e8e74b17e9ef60f4b1b1477dd5233c962b9a2b79d9ad1fc78186fa05.
+Netværksisoleret containerimport terminal0: faktisk aarch64/OpenAI3.13.0; alle50
+runtimekilder matcher54ec7559bd10c1fb7ff86cb39f64671bbfd8059c789ef0bb0996b7b231330839;
+PODVOICE_GIT_SHA matcher hele3551b87. Runtimeartifact
+ a0db9e46979d683f82c5264ccba00efaa9f73128e1d360721e9ce100a303e564.
+Frisk Docker-inspect af ældre tag673f02c gav lokalt image-idb20812b..., derfor bruges
+ældre summary-identitet ikke som aktuel reference. Ny buildmetadata er bevaret.
+Ingen runtimeændring, releasegate, publicering, HA-stop, installation eller fysisk
+accept udført i denne fortsættelse. Midlertidig HA-token-godkendelse afventer stadig.
+
+Real-router-prøven er forberedt, endnu ikke kørt. Uafhængigt review fandt to fejl i
+prøveværktøjet: vars() på slots-baseret ExecutionContext ville stoppe modelkald før
+routeren, og den ydre 90s watchdog kunne afkorte den tilladte observation/cleanup.
+Root rettede kun diagnostik til de tre eksplicitte contextfelter og ydre watchdog til
+200s (uden ændring af launcherens 60s observation, to SDK-starts eller cleanupgrænser).
+Startupens GetLiveContext går gennem samme læseallowlist og logges som startup;
+dette må aldrig tælle som modelvalgt værktøjsbrug. Launcher sha1185f97f6eea0c5fecfce1a0b27a6249507f9aa742fdb14a32b8aaa82d4e1455.
+Dobbelt engangshandoff er klargjort med OPENAI_API_KEY og HA_ACCESS_TOKEN alene i
+proceshukommelse; syntax valideret, ingen server/API startet. Uafhængig Astra-review af begge rettelser gav GO; handoff sha
+4b3555246e23816dcf56bb8367ec0665d186ce2b652a28eafef388ff38436bdb.
+Særskilt accept af oprettelse af midlertidigt HA-token afventer. Runtime uændret.
+
+Real-router-adgang14/9: frisk HAprofil/Sikkerhed viser ingen langlivede adgangstokens;
+UI beskriver nye tokens som gyldige10år. Eksisterende browserlogin er ikke en læsbar
+scriptcredential, og ingen token udtrækkes fra browserstorage. Ingen token oprettet.
+Forbered afgrænset lokal Talk+HomeAssistantMCP+ToolRouter-prøve, kun aktuelle læsetools
+(GetDateTime/GetLiveContext/HassGetState/HassGetWeather/weather_forecast/google_web_sogning),
+med både deklarationsfilter og dispatchallowlist før rigtig router. Ingen hjemaktioner,
+mikrofon eller permanent produktkodeændring. OpenAI/HAcredentials kun privat engangs-
+handoff/proceshukommelse;2providerstarts/60s+15scleanup+5shard. Nyt HA-token skal navngives
+entydigt som midlertidigt og straks tilbagekaldes i samme prøve efter cleanup.
+Særskilt brugeraccept kræves før denne nye kontoadgang oprettes; kodeforberedelse og
+review kan fortsætte uden credential. Normal PodVoice er ikke stoppet til forberedelsen.
+
 API18 uafhængigt scoped PASS for changed-target-nonexecution:7artifact-/9source-/
 8fixturehashes matcher,50runtimefilers manifest54ec7559... og begge komplette
 resamplinger eksakte. Begge fixtures én gang, ellers stilhed; label/challenge/session/
