@@ -2,6 +2,23 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+API10 uafhængigt Astra-review afsluttet: scoped PASS for syntetisk positiv godkendelse
+og kontekstopfølgning. Alle7artifacts,9kildehashes,50runtimefiler,8fixtures og begge
+fulde produktionsresamplinger matcher55c1c3f. Frisk fuldt ja32.020s før backend32.075s;
+eksklusiv completed approve_action33.757s gav én effekt5.874s før oprindeligt udløb.
+“Mørkegrøn.” kommer efter hele farvespørgsmålet og matcher seed. Begge sessioner
+lukker rent, ingen faults;49voice-sekunder/38764backendtokens. reconsider_action blev
+ikke brugt, og negative cases/installation/fysisk proof er fortsat åbne.
+
+Provisionering14/9: ren native device_info/list_entities-kontrol autentificerede med
+canonical lokal nøgle mod den UI-konfigurerede podvoice-pe-0a7e7a.local. Returneret
+MAC20:F8:3B:0A:7E:7A, navn podvoice-pe-0a7e7a, ESPHome2026.6.2 og eksisterende
+marker11378_wakeboundary1. Ingen servicekald, lyd eller indstillingsændring.
+Start separat provisioneret compile i privat /private/tmp/podvoice-live-alpha-provisioned-01
+med uændrede remote pins og eksisterende secrets uden nøgleoutput. ESPHome wake-venv,
+PlatformIO penv og IDF5.5.4-venv er verificeret af reviewer. Dette bygger kun en artifact;
+ingen upload/flash og ingen fysisk alpha-readiness. Resultat afventer terminal build.
+
 Integration6794e20 med installeret1.13.87 bestod fast74760: exit0, samlet100.2s,
 pytest99.61s, Ruff/format43filer og mypy50sources PASS. Uafhængigt Astra scoped GO:
 alle otte berørte non-STATUSfiler matcher be4c5e8, Thin/SDK/Liveprompt uændrede,
