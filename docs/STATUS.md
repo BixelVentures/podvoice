@@ -2,6 +2,25 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+API10 afsluttet14/9 på55c1c3f: original evaluator OBSERVED_PASS for context-followup;
+præcis én lokal prøveeffekt, frisk ja, begge sessioner lukket, ingen runtimefejl.
+Supervisorlabel kom9.784s efter spørgsmålets sidste tekstfragment mod16.663s i09;
+den nye terminal reducerede forsinkelsen i denne prøve, men gjorde den ikke øjeblikkelig.
+Svarsporet indeholder “Mørkegrøn.” efter farveopfølgningen; uafhængigt semantisk og
+artifact-review afventer. Dette er syntetisk rigtig API, ikke fysisk eller browserbevis.
+Normal HA1.13.87 var Stoppet før prøven og er bagefter frisk verificeret Kører;
+ingen alpha installeret, engangsfane lukket og nøglevariabel ryddet.
+
+Aktiv integrationsbeslutning14/9: Den installerede OFF-baseline er1.13.87/be4c5e8,
+mens alpha er baseret på1.13.85/43430eb. Integrér de to allerede frigivne main-commits
+9a93375/be4c5e8 uden ny runtimepolitik, så alpha ikke tilbageruller nuværende adfærd.
+Diffet er robot-toolbeskrivelser, eksisterende evalforventninger, version og status;
+Thin/Live/lyd/firmware/approval-owner ændres ikke. Den separat afviste alpha-robot-
+capability-owner-rettelse indgår ikke. Berørte kontrakter: OFF-paritet, eksakt mål og
+samme serverejede autorisation. Hypotese: ren main-integration bevarer disse kontrakter;
+kontrollér merge-diff og relevante eksisterende tool/alpha-tests. Rollback er merge-
+commit; ingen installation eller fysisk godkendelse følger af integrationen.
+
 Aktiv tooling-beslutning14/9 — gentagne forsinkede supervisorlabels skal fjernes ved
 én vedvarende reviewterminal startet før API-prøven. Eksisterende evaluatorscript får
 separat --review-question DIR uden API-/nøgle-/fixturestart. Den viser præcis ét
