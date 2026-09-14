@@ -2,6 +2,23 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+API07 uafhængig semantisk delvurdering14/9: “prøvehandling” versus “prøvehandlingen”
+ændrer hverken den anmodede handling eller målet hoveddøren. Én direkte godkendelse
+med én præcist bundet effekt er dermed manuelt semantisk konsistent; automatisk
+UNKNOWN bevares, og reconsideration er ikke afprøvet. Gen1levering er eksakt fuld
+resampling; gen2provider-input er et eksakt præfiks med alle ja-ytringens samples,
+men mangler32.640 efterfølgende resamplede nulbytes (~0.680s stilhed). Den fulde
+sourcefil må derfor ikke kaldes identisk med hele providerfilen; closegrænsen audit-
+kontrolleres særskilt. Modelens end_conversation efter vellykket tool-resultat er i
+overensstemmelse med nuværende promptkontrakt for afsluttet selvstændig handling,
+ikke i sig selv en ny closefejl. Ingen fysisk-/stabilitets-/fuldUX-gate arves.
+Forberedt næste afgrænsede diagnostic: eksisterende context-followup-case på samme
+frosne kode. Efter frisk ja og lokalstub-effekt sendes det deklarerede opfølgende
+spørgsmål om tidligere oplyst cykelfarve; målet er kontekst og fortsat samtale under
+resultat/closeforløb. Helper08 ændrer kun case/output fra07, SHA
+b38235feaec507bce5a26348cc182afdd082766b979d9657d5f81b99ce1f5601.
+Den er endnu ikke startet, og der er ingen samtidig runtime/timing/promptændring.
+
 API07 afsluttet14/9 på samme frosne runtime/evaluator som05/06, HEAD32ea489 kun docs.
 Parent12871 exit0/child2, automatisk UNKNOWN. Gen1transcript “Kør prøvehandling for
 hoveddøren” afviger fra exactfixture “Kør prøvehandlingen for hoveddøren.”; derfor
