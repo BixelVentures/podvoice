@@ -2,6 +2,31 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Queued-input-korrektion frosset14/9:24runtimeindsættelser/4sletninger i SDK/Thin.
+Inputindex følger faktisk response.created→batch→terminalreceipt; nyt ikke-tomt
+SDK-/typedinput invaliderer kun slutintention, ikke krævet backendresultat/continuation.
+Rotation revaliderer efter hold og stopawait; allerede holdt capture afvikles gennem
+eksisterende ejede teardown ved invalidation. Ingen ny after-close-acceptpolicy.
+242SDK/Thin/TalkStop/TalkWebRTC-regressioner PASS9.05s inkl.18nye kausale cases,
+Ruff/format/mypy2sources PASS. RuntimehashSDK49b59a6dcc079f7caf458b9d324be199380c2b1321980db62e07510a4be08317,
+Thin2f8fc093582586487ab7bcec1207c765c243a25e46f3d65ee0c1df22e338733e.
+Ultra scoped GO på ovenstående eksakte hashes: oprindelig P1 lukket. Seks oprindelige
+queue-adversaries afviser staleclose/rotation; native+Talk posthold og native poststop
+ender bounded uden ny provider/handling eller incomplete teardown. Ingen øvrig
+konkret P0/P1/P2-finding etableret. Samlet fast81773 afventer terminalresultat.
+Ingen installationsklarhed før disse resultater og resterende gates.
+
+API11 uafhængigt scoped PASS mod frosseta2367af:7artifacts/9kildehashes/50runtimefiler,
+8fixtures og begge komplette produktionsresamplinger matcher. Historisk “Ja, gør det.”
+fandtes i faktisk gen2prior_text; frisk fuldt nej33.083s før oprindeligt udløb39.119s.
+Svar “Okay, det gør jeg ikke.” sluttede34.267s, med26.921s videre observation efter
+fuldt nej. Nul effekter og ingen gen2SDKbackend-envelope;49voice-sekunder/14142tokens,
+begge managers/HTTP-resources lukket. Dette validerer kun oldyes/freshno på før-fix-bits.
+Queued-input-rettelsen ligger nu i SDK/Thin (24indsættelser/4sletninger), men mangler
+regressionsresultat og reviewerens slutkontrol. Providerresultater fortsætter, mens kun
+den forældede afslutningsintention afvises; efter hold/stop bruges eksisterende teardown.
+Bygget add-on-image02c1ecd indeholder ikke rettelsen og må ikke installeres som fix.
+
 STOP-THE-LINE14/9 — Ultra-review reproducerer queued-input race i terminalreceipt.
 SDK har modtaget ny ikke-tom brugerrettelse (input_sequence1), mens Thin endnu har
 revision0; terminal_receipt_current forbliver true, og grace kan sende session.close

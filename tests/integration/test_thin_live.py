@@ -730,7 +730,7 @@ async def test_correction_cancels_end_during_settlement_or_grace(monkeypatch, ph
             assert (await session.submit_text("Vent", "correction"))["status"] == "submitted"
         await until(lambda: not session._ending_conversation)
         if phase == "settlement":
-            assert receipt.cancelled()
+            assert receipt.cancelled() or receipt.result() is False
             await emit(sdk, created("r2"), terminal("r2"))
         await asyncio.sleep(0.09)
         assert session._active and sdk.session.close.await_count == 0 and link.rearm_calls == 0
@@ -2148,3 +2148,111 @@ async def test_confirmation_start_instruction_failure_closes_owned_session(failu
         assert sdk.session.start.await_count == 2 and sdk.session.close.await_count == 2
     finally:
         await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("adapter", ["native", "talk"])
+@pytest.mark.parametrize("phase", ["grace", "silent", "rotation"])
+async def test_sdk_queued_correction_retires_terminal_before_thin_delivery(
+    monkeypatch, adapter, phase
+):
+    monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.05)
+    if phase == "rotation":
+        session, sdk, _, link, cleanup = await reconsider_fixture(adapter)
+    else:
+        session, sdk, link, cleanup = await live_teardown_fixture(adapter)
+    delivered, release = asyncio.Event(), asyncio.Event()
+    original = session._on_live_event
+
+    async def delay_input(event):
+        if isinstance(event, LiveTranscript) and event.direction == "in":
+            delivered.set()
+            await release.wait()
+        await original(event)
+
+    monkeypatch.setattr(session, "_on_live_event", delay_input)
+    try:
+        if phase == "rotation":
+            await pending_confirmation(session, sdk)
+            receipt = session.brain._terminal_receipt.future
+        else:
+            receipt = await propose_end(session, sdk, silent=phase == "silent")
+        if phase == "grace":
+            await emit(sdk, created("r2"), terminal("r2"))
+            await until(lambda: receipt.done())
+            assert receipt.result() is True
+        await emit(
+            sdk,
+            {
+                "type": "session.input_transcript.delta",
+                "delta": "Vent, nej",
+                "start_ms": 100,
+                "end_ms": 300,
+            },
+        )
+        await asyncio.wait_for(delivered.wait(), 1)
+        assert session.brain.input_sequence == 1 and session._live_input_revision == 0
+        if phase != "grace":
+            await emit(sdk, created("r2"), terminal("r2"))
+        owner = session._live_rotation_task if phase == "rotation" else session._goodbye
+        await asyncio.wait_for(asyncio.shield(owner), 1)
+        assert not session.brain.terminal_receipt_current(receipt)
+        assert session._active and not session._live_rotating
+        assert sdk.session.close.await_count == 0
+        assert len(sdk.factory_calls) == 1
+        assert session._live_confirmation is None
+        assert not getattr(link, "capture_calls", [])
+    finally:
+        release.set()
+        await cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "adapter,phase", [("native", "hold"), ("talk", "hold"), ("native", "playback_stop")]
+)
+async def test_correction_during_rotation_capture_await_uses_owned_teardown(
+    monkeypatch, adapter, phase
+):
+    session, sdk, tools, link, cleanup = await reconsider_fixture(adapter)
+    entered, release = asyncio.Event(), asyncio.Event()
+    method = "hold_live_capture" if phase == "hold" else "stop_playback"
+    original = getattr(link, method)
+
+    async def paused(*args, **kwargs):
+        entered.set()
+        await release.wait()
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(link, method, paused)
+    try:
+        if phase == "playback_stop":
+            await session._on_live_event(LiveAudioChunk(b"\0" * 3840, 1))
+            await until(lambda: session._playback_lease is not None)
+        await pending_confirmation(session, sdk)
+        await emit(sdk, created("r2"), terminal("r2"))
+        await asyncio.wait_for(entered.wait(), 1)
+        await emit(
+            sdk,
+            {
+                "type": "session.input_transcript.delta",
+                "delta": "Nej, lad være",
+                "start_ms": 100,
+                "end_ms": 300,
+            },
+        )
+        await until(lambda: session.brain.input_sequence == 1)
+        assert session._live_input_revision == 0  # Transition input is not fresh approval.
+        release.set()
+        await until(lambda: session._transport_closing)
+        await asyncio.wait_for(asyncio.shield(session._close_task), 2)
+        assert len(sdk.factory_calls) == 1  # No stale proposal in a new provider.
+        assert tools.calls == [] and session._live_confirmation is None
+        assert not session._teardown_incomplete and not (
+            link._streaming if adapter == "talk" else link.streaming
+        )
+        assert session._live_rotation_task.done()
+        assert not session._live_rotation_io
+    finally:
+        release.set()
+        await cleanup()

@@ -135,12 +135,14 @@ class LiveProtocolError(ConnectionError):
 class _Response:
     id: str
     calls: list[dict[str, Any]]
+    input_index: int
 
 
 @dataclass
 class _Batch:
     event: LiveToolBatch
     usage: dict[str, Any]
+    input_index: int
     admitted: bool = False
     submitting: bool = False
     reserved_tokens: int = 0
@@ -152,6 +154,7 @@ class _TerminalReceipt:
     delegation_id: str
     generation: int
     future: asyncio.Future[bool]
+    input_index: int
     submitted: bool = False
     command_id: str | None = None
     continuation_id: str | None = None
@@ -695,6 +698,7 @@ class OpenAILiveSession:
                 raise LiveProtocolError("invalid_live_transcript")
             if kind.startswith("session.input") and text.strip():
                 self.input_sequence += 1
+                self._settle_terminal_receipt()
             self._emit(
                 LiveTranscript(
                     "in" if kind.startswith("session.input") else "out",
@@ -814,7 +818,7 @@ class OpenAILiveSession:
             ):
                 self._continuation_inflight = False
             self._seen_responses.add(response_id)
-            self._responses[delegation] = _Response(response_id, [])
+            self._responses[delegation] = _Response(response_id, [], self.input_sequence)
             self.backend_sequence += 1
             self._emit(
                 LiveBackendStarted(
@@ -918,7 +922,7 @@ class OpenAILiveSession:
             )
         self._seen_calls.update(batch_ids)
         batch = LiveToolBatch(tuple(calls), delegation, state.id, generation)
-        self._batches[state.id] = _Batch(batch, usage)
+        self._batches[state.id] = _Batch(batch, usage, state.input_index)
         self._emit(batch)
 
     def usage_snapshot(self) -> dict:
@@ -949,6 +953,7 @@ class OpenAILiveSession:
         """Count Thin's admitted typed input, not a provider turn or acknowledgment."""
         self._active(self._connection_generation)
         self.input_sequence += 1
+        self._settle_terminal_receipt()
         return self.input_sequence
 
     def review_batch_isolated(self, response_id: str, generation: int) -> bool:
@@ -1075,12 +1080,15 @@ class OpenAILiveSession:
             raise LiveProtocolError("unadmitted_live_terminal_receipt")
         future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
         self._terminal_receipt = _TerminalReceipt(
-            response_id, batch.event.delegation_id, generation, future
+            response_id, batch.event.delegation_id, generation, future, batch.input_index
         )
+        # The intent belongs to the actual backend's input boundary, not the
+        # later registration time after tool awaits or delayed Thin delivery.
+        self._settle_terminal_receipt()
         return future
 
     def terminal_receipt_current(self, future: asyncio.Future[bool]) -> bool:
-        """A settled end intent remains valid only until new backend work starts."""
+        """A settled intent expires on SDK-observed input or new backend work."""
         receipt = self._terminal_receipt
         return bool(
             receipt is not None
@@ -1089,6 +1097,7 @@ class OpenAILiveSession:
             and not future.cancelled()
             and future.result() is True
             and receipt.completed
+            and receipt.input_index == self.input_sequence
             and receipt.generation == self._connection_generation
             and not self._close_requested
             and not self._closed.is_set()
@@ -1105,6 +1114,11 @@ class OpenAILiveSession:
 
     def _settle_terminal_receipt(self) -> None:
         receipt = self._terminal_receipt
+        if receipt is not None and receipt.input_index != self.input_sequence:
+            receipt.completed = False
+            if not receipt.future.done():
+                receipt.future.set_result(False)
+            return  # Keep required backend work running; only retire the intent.
         if (
             receipt is not None
             and not receipt.future.done()

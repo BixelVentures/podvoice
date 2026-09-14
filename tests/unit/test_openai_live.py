@@ -1661,3 +1661,75 @@ async def test_failed_or_stopped_history_attempt_cannot_leak_to_ordinary_start(t
     await session.connect()
     assert latest_startup_configuration(sdk, transport) == baseline
     await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["before_registration", "result_write", "pending", "settled"])
+@pytest.mark.parametrize("source", ["transcript", "typed"])
+async def test_terminal_receipt_uses_backend_input_boundary_before_thin_delivery(phase, source):
+    session, sdk, _ = provider()
+    await session.connect()
+
+    async def correction(**_):
+        if source == "typed":
+            session.note_local_input()
+        else:
+            await session._handle(
+                {
+                    "type": "session.input_transcript.delta",
+                    "delta": "Vent, nej",
+                    "start_ms": 100,
+                    "end_ms": 300,
+                },
+                1,
+            )
+
+    try:
+        await stage(session)
+        await session.admit_tool_batch("r1", 1)
+        if phase == "before_registration":
+            await correction()
+        receipt = session.create_terminal_receipt("r1", generation=1)
+        if phase == "result_write":
+            sdk.response.item.create.side_effect = correction
+        await submit_terminal_results(session)
+        if phase == "pending":
+            await correction()
+        await session._handle(created("r2"), 1)
+        await session._handle(terminal("r2"), 1)
+        if phase == "settled":
+            assert receipt.result() is True and session.terminal_receipt_current(receipt)
+            await correction()
+        assert session.input_sequence == 1
+        assert not session.terminal_receipt_current(receipt)
+        # Input retires only lifecycle intent, never the owed output/continuation.
+        assert sdk.response.item.create.await_count == sdk.response.create.await_count == 1
+        assert not session._responses and not session._batches
+        assert sdk.session.close.await_count == 0 and session.last_error is None
+    finally:
+        await session.close()
+
+
+@pytest.mark.asyncio
+async def test_terminal_receipt_accepts_input_before_owning_response_and_ignores_empty_deltas():
+    session, _, _ = provider()
+    await session.connect()
+    try:
+        session.note_local_input()
+        receipt = await terminal_receipt(session)
+        await submit_terminal_results(session)
+        await session._handle(
+            {
+                "type": "session.input_transcript.delta",
+                "delta": "  ",
+                "start_ms": 100,
+                "end_ms": 200,
+            },
+            1,
+        )
+        await session._handle(created("r2"), 1)
+        await session._handle(terminal("r2"), 1)
+        assert receipt.result() is True and session.terminal_receipt_current(receipt)
+        assert session.input_sequence == 1
+    finally:
+        await session.close()

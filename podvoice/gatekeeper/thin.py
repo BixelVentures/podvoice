@@ -2572,6 +2572,10 @@ class ThinSession:
                         task.cancel()
                 token = await self.voicepe.hold_live_capture()
                 check()
+                if not brain.terminal_receipt_current(receipt):
+                    # Capture is already held. Abort through the existing owned
+                    # teardown, rather than opening a fresh confirmation provider.
+                    raise RuntimeError("live confirmation superseded during capture hold")
                 if not self._live_webrtc:
                     lease = self._playback_lease
                     self._invalidate_playback_lease("confirmation-rotation")
@@ -2584,6 +2588,8 @@ class ThinSession:
                             raise RuntimeError("old confirmation playback stop unconfirmed")
                     self._device_playing = False
                     self._playback_t0 = None
+                if not brain.terminal_receipt_current(receipt):
+                    raise RuntimeError("live confirmation superseded before provider close")
                 await brain.request_close()
                 check()
                 await asyncio.wait_for(self._live_provider_closed.wait(), brain.timeout_s)
