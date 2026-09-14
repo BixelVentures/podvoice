@@ -2,6 +2,16 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+API14 gennemført efter brugerens eksplicitte “prøv igen, ja tak herfra” til kort
+Stop/Start. Sourcef8c7470 med korrigeret runtime9de953122b3c8c9e1f8fc58ce90a4d7d1232ec5845db98e13ca340fb66d2e2e4.
+Helper14/43278 terminal0, evaluator2/UNKNOWN: åbningstranscript slutter “hoveddø”,
+opening_recognizedfalse. Frisk fuld correction “Ja, nej, vent, gør det ikke” registreret;
+output “Jeg stopper det og gør det ikke.Okay, den bliver ikke kørt.”. Nul effekter,
+begge sessioner clean, ingen runtimefaults. OriginalUNKNOWN bevaret; uafhængig lyd-/
+artifact-/semantisk grænseverifikation afventer. Normal HA1.13.87 frisk Stoppet før,
+rootStart efter og Kører bagefter; handoff lukket og nøglevariabel ryddet. Ingen
+installation eller fysisk proof. Den tidligere Stop-tilladelsesblokering er nu løst.
+
 API13 forberedelse14/9: browser/HA-adgang tilbage; frisk helper13 for correction.
 Automatisk godkendelsesreview afviste HA Stop med begrundelsen manglende konkret
 autorisation til at afbryde normal PodVoice. Ingen Stop/API-submit blev udført.
