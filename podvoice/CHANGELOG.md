@@ -1,3 +1,12 @@
+## 1.13.86 — Sand kvittering uden bestemt disclaimer
+
+- Den sikre robotprøve tillader neutral anmodningsaccept uden at kræve én bestemt
+  formulering om fysisk usikkerhed. Falsk robotaccept, fysisk start og påstået
+  fysisk bekræftelse afvises fortsat af målrettede regressioner.
+- Kun testkontrakt og versionsmetadata ændres. Ingen ændring af AI-prompt,
+  værktøjer, runtime, lyd eller firmware. Fuld sikker prøve og konkret review af
+  svarene kræves stadig før robotaktivering; fysisk afprøvning er separat.
+
 ## 1.13.85 — HA-rumnavne og samlet sikker robotprøve
 
 - Rumopslag bruger HA-navne og aliaser i tale. Navnekollisioner uden brugbar
