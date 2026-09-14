@@ -2,6 +2,14 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Fast49279 på fast2f6346e terminalexit0: samlet97.9s, pytest97.24s,
+Ruff/format43filer og mypy50sources PASS. Ingen scopeændring under denne gate.
+Queued-input-P1 er dermed rettet, uafhængigt reviewet og samlet softwarekontrolleret.
+Lokalt image673f02c indeholder præcis samme runtime; firmware uændret fra provisioneret
+byg. Fortsat åbent: resterende semantisk godkendelsesmatrix/reconsideration og domæne-
+paritet, faktisk Talk, releasegate/CI-installationsartifact og fysisk accept. Ingen
+påstand om at denne softwaregate beviser installation eller fysisk 10/10.
+
 Fast81773 terminalexit2: pytest110.18s uden testfejl, men scopeguard afviste resultatet,
 fordi lead committede673f02c efter gatestart. Dette er lead/workflowfejl, ikke runtime-
 fejl eller godkendt samlet gate. Gentag kun den ugyldiggjorte fast på fast commit uden
