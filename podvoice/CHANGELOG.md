@@ -1,3 +1,20 @@
+## 1.13.87 — Direkte opslag på brugerens eksakte robotmål
+
+- Præciserer, at et eksplicit mål fra den aktuelle forespørgsel bruges i første
+  robotopslag. Opslaget validerer selv tilladelsen; der kræves ikke først en liste.
+  Rettelser/negation og afviste mål må ikke erstattes af en anden robot.
+- Ingen lokal talefortolkning, nye værktøjer, runtime-, lyd- eller budgetændring.
+  Den komplette sikre robotprofil skal stadig bestå før aktivering.
+
+## 1.13.86 — Sand kvittering uden bestemt disclaimer
+
+- Den sikre robotprøve tillader neutral anmodningsaccept uden at kræve én bestemt
+  formulering om fysisk usikkerhed. Falsk robotaccept, fysisk start og påstået
+  fysisk bekræftelse afvises fortsat af målrettede regressioner.
+- Kun testkontrakt og versionsmetadata ændres. Ingen ændring af AI-prompt,
+  værktøjer, runtime, lyd eller firmware. Fuld sikker prøve og konkret review af
+  svarene kræves stadig før robotaktivering; fysisk afprøvning er separat.
+
 ## 1.13.85 — HA-rumnavne og samlet sikker robotprøve
 
 - Rumopslag bruger HA-navne og aliaser i tale. Navnekollisioner uden brugbar

@@ -1634,6 +1634,108 @@ runtimeimplementering, setting, releasegate, installation, golden chain eller10/
 for Alpha. Kandidaten er ikke fysisk testklar. Ingen produktionsdiff.
 Researchleverance ligger i den lokale Codex-visualiseringsmappe gpt-live-alpha med
 undersoegelse.md, index.html, begge reproduktionsscripts og rå JSON-resultater.
+
+## Aktiv lead-beslutning — .87 eksplicit mål og ejerskab af læsevalidering
+
+.86 eval-1789379823-ff9989: rumspørgsmålet med eksakt vacuum.eval_qrevo gav GET{}
+før GET med det angivne ID, nul handlinger og korrekt rumliste, men 40.2s. Tidligere
+"known exact"-præcisering garanterer altså ikke direkte opslag. Uafhængigt review
+klassificerer dette som reel overflødig discovery, ikke forkert svarbedømmelse.
+Årsagen er en hypotese: modellen kan fortolke "known" som tidligere verificeret.
+Kodebevis: GET kontrollerer allowlist før register/stateadgang; discovery er ikke
+nødvendig for at validere et brugerangivet mål. Kæde: input→Realtime vælger mål→GET
+validerer→capabilityresultat→tale→opfølgning/close/rearm. Kun beskrivelsen ved valget
+ændres; read-only-validering før og resultatform efter, handlinger og begge I/O-
+adapteres lifecycle bevares. Realtime ejer semantik, inklusive negation/målrettelse.
+Erstat første GET-sætninger og parametertekst med én regel: brug den aktuelle
+forespørgsels eksplicitte mål direkte; GET validerer tilladelsen. Brugerens nuværende
+mål går før tidligere værktøjskontekst. Kopiér ikke blot første nævnte ID og udled
+aldrig ID fra naturlige navne. Intet ekstra værktøj, taleparser, budget- eller
+runtimeindgreb. Eksakt afvist mål må ikke falde tilbage til anden robot.
+Regressioner: tilladt eksplicit mål med flere robotter; afvist ID før HA-læsning og
+uden fallback/handling; ukendt mål/sole-robot uændret; samme sikre 6-scenarieprofil
+bevarer exact-one-call. Fokuserede tests→fast→review→frossen gate→grøn .87→backup/
+installation→komplet frisk profil og konkret svarreview. Rollback .86 OFF.
+Stopregel: gentages dobbelt-discovery på denne præciserede kontrakt, stopper yderligere
+beskrivelsestuning. Nyt løsningsprincip kræver særskilt beslutning, ikke endnu en
+blind releasecyklus. Ingen aktivering eller fysisk accept arves fra tidligere runs.
+
+Faktisk ændring: kun GET-beskrivelsens to tekstfelter;271 målrettede tests PASS,
+fast PASS87.0s med fulde tests, Ruff/format og mypy47. Uafhængigt review
+robot_83_result_review GO, ingen uløste P0/P1/P2. ReviewdiffSHA256
+595e61c6e265a9c3f5208b6facb032ff744067bd9751e51f571a2b2ae508d2ce.
+To værktøjer,2774→3257UTF8bytes (+483); fixture, systemprompt, runtime og lifecycle
+uændrede. Tests beviser afvist ID uden HA-læsning/handling/token/fallback, ikke AI'ens
+negationsforståelse. Hele diffet inklusive status fryses nu til releasegaten.
+
+Frossen .87-releasegate PASS44.2s: fulde unit/integration, Ruff/format127, mypy47,
+candidate-scope. Ingen filer ændret under gaten. Offentlig CI/artifact og frisk
+installeret liveprofil mangler fortsat; denne linje er leveringsmetadata.
+
+## Aktiv lead-beslutning — .86 sand anmodningsaccept uden obligatorisk frase
+
+.85 liveeval-1789378753-072362 viser korrekt GET+fire handlinger+modelclose og
+eksplicit ubekræftet fysisk udfald, men svaret afvises af testens positive krav om
+præcis "den fysiske udførelse er ikke bekræftet". Uafhængigt årsagsreview bekræfter
+falsk negativ: en accepteret ANMODNING er ikke en påstand om robotaccept/fysisk start.
+Hele kæden fysisk input→Thin→Realtime→capability/handling→HA-accept→modelsvar→
+playback/close/rearm er uændret; fejlen ligger alene i efterfølgende fixturebedømmelse.
+Nabogrænser: eksakte argumenter, rækkefølge, single-use, ukendt udfald og lifecycle
+bevares. Hypotese: testens acceptkilde, ikke én disclaimer-ordstilling, skal afgøre
+om neutral anmodningsaccept kan passere. Sendt/HA-accept har allerede intet krav om
+en bestemt disclaimer. Fjern kun det ekstra krav på passiv anmodningsaccept og
+afvis positivt påstået fysisk bekræftelse særskilt, så gamle negative tests fortsat
+afvises af den rigtige årsag. Intet runtime-, prompt-, tool-, firmware- eller
+kapacitetsindgreb og ingen ny taleparser. Alle live-svar kræver fortsat manuelt
+semantisk review; regexer er afgrænsede regressionsfiltre, ikke en sandhedsdommer.
+Plan: observeret svar plus varierede og korte sande kvitteringer; kontraster med
+negation, forkert acceptkilde, positiv fysisk bekræftelse og sen falsk påstand.
+Fokuseret regression→fast→uafhængigt review→én frossen gate→grøn .86-pakke→backup
+og én installation→komplet frisk sikker profil. Tidligere fejl arver ikke PASS.
+Aktivering kræver fuld profil og schemaidentitet. Rollback er installeret .85 OFF;
+ingen fysisk godkendelse uden frisk Voice PE-/robotbevis.
+
+Faktisk .86-diff: kun to kvitteringsforventninger, 182 målrettede evaltests PASS.
+Fast PASS79.9s med fuld testsuite, Ruff/format og mypy47. Uafhængigt review
+robot_83_result_review: GO, ingen uløste P0/P1/P2. ReviewdiffSHA256
+2e4e9f412093a874ecce072c19e92bbe3d0fec4fbb2ce671764f3f464c60353d.
+Alle strukturerede fixtures, øvrige scenarier, tool-schema/prompt/runtime/lifecycle
+er uændrede. .85-svaret og korte kvitteringer passerer; falske kilder/fysisk bevis,
+negation og sene modsigelser afvises. Diff inklusive status fryses nu til én gate.
+
+Frossen .86-releasegate PASS42.0s med fulde unit/integration, Ruff/format127,
+mypy47 og candidate-scope. Ingen ændringer under gaten; kun dette leveringsresultat
+tilføjet bagefter. Publicering, installation og fuld frisk robotprofil resterer.
+
+PR56 headfed2470a17d7a9b7ad627c0d173c15568ca7bfe5: CI34829879343
+lint-test1m43s/ARM64-build2m9s PASS. Squashmerged til main
+9a93375c3d64a02e64baddd835232310660265ad. Frisk lokal krypteret manuel backup
+14/9 kl.11.49,14.04MB, indhold PodVoice1.13.85 verificeret. Automatisk app-
+opdatering midlertidigt OFF; gendannes efter kontrolleret installation.
+
+MainCI34830100108 PASS. Publiceret .86-image
+sha256:6dfee7568b1ab167517277a49129c9dc9d08272665d7904bda45dfd1e4e75813.
+Opdateringsdialog verificeret .85→.86 med backup ON; installation startet.
+
+Kl.11.56.12 installeret .86 verificeret: git9a93375c3d64a02e64baddd835232310660265ad,
+rootfs-v1:b27d8ddd27eb74ea6abcd98a5c3a6e598d35eb988834e3c4a7c69e65725580a5.
+Promptv15/OFF-router uændret; MCP og VoicePE192.168.86.245 forbundet, HeyChat
+firmwarebekræftet. Auto-opdatering gendannet ON. Frisk fuld sikker robotprofil
+eval-1789379823-ff9989 startet én gang; fuldt resultat og semantisk review afventes.
+
+.86-liveprofil FAIL efter 7/8 ture: device-sequence, unknown, ambiguous og
+accepted-dialogue PASS. Alle seks svar i disse scenarier læst; anmodningskvittering,
+ukendt udfald uden retry og navnekonflikt uden rå ID'er er korrekte. Room-question
+fejler alene exact-one-call: "Hvilke rum kan Roborock vacuum.eval_qrevo rengøre?"
+gav GET{} efterfulgt af GET{entity_id:vacuum.eval_qrevo}. Korrekt svar "Køkken og
+Spisestue", nul effekter, åben dialog, men 40187ms og et overflødigt modelopslag.
+Room-correction blev ikke kørt. 198543tokens,$0.3878112,339.78s kapacitetsventen.
+Tidligere direkte-opslagshypotese er dermed ikke tilstrækkeligt bevist. Robotstyring
+forbliver OFF, ingen fysisk accept. Nyt uafhængigt årsagsreview før kode: skeln
+udtrykkeligt mellem et brugerangivet eksakt ID og et allerede verificeret ID;
+GET ejer selv læsevalideringen, så discovery bør ikke bruges til at validere det.
+Ingen blind genkørsel eller svækkelse af exact-one-call-gaten.
+
 ## Aktiv lead-beslutning — .85 samlet rumafklaring og robot-svarbedømmelse
 
 14/9 brugeren bestiller fuld rettelse/udgivelse/installation efter .84. Evidens:
@@ -1681,6 +1783,33 @@ Frossen samlet .85-releasegate PASS41.7s: Ruff/format127, mypy47,
 candidate-scope og fulde unit-/integrationstests. Ingen filer blev ændret under
 gaten. Publicering/installation og den komplette sikre liveprofil resterer;
 denne efterfølgende statuslinje er leveringsmetadata, ikke fysisk godkendelse.
+
+PR55 head44207d31a820bd10f81d5c429147dabd12266c3f: CI34828249643
+lint-test1m41s og ARM64-build2m7s PASS. Squashmerged til offentlig main
+43430eb95c98f6062f3728b19469b250dd220129. MainCI34828494938 PASS;
+publiceret .85-image sha256:a2ce4588e7026d47dfe7ce32a8546da39ec0a69055c9fe34fd9e5c7b0f71483c.
+Frisk manuel lokal krypteret backup 14/9 kl.11.33, "Custom backup 2026.8.2",
+14.04MB, indhold PodVoice1.13.84 verificeret. Opdateringsdialog .84→.85 med
+backup ON godkendt. Installation er startet; runtimeidentitet/livegate afventes.
+
+Kl.11.38.22 installeret .85 verificeret i startup: git43430eb95c98f6062f3728b19469b250dd220129,
+rootfs-v1:e01d1f796b4f9571a5e02f490293816a795d4036be989c648a22f8f72ab9a0e2.
+Promptv15 og OFF-router508001010df295576e6bd63f02594c9a6ab514da702c729049929aed30e90e23
+uændret; MCPassist og VoicePE192.168.86.245 forbundet. Automatisk opdatering
+gendannet ON. Komplet sikker robotprofil eval-1789378753-072362 startet én gang;
+aktivering afventer hele resultatet. Ingen fysisk robotstart eller golden chain endnu.
+
+Liveeval-1789378753-072362 FAIL efter 2/8 ture, kun answer-pattern-mismatch i
+device-sequence tur2. GET+fire handlinger+end, eksakte argumenter, single-use,
+fire syntetiske effekter og modelclose PASS. Svaret var: "Anmodningen er accepteret,
+og robotten er sat til at støvsuge og vaske køkkenet to gange med maksimal sugestyrke
+og ekstrem vaskeintensitet. Det er ikke bekræftet, om den fysisk er startet eller
+blevet færdig endnu." 72355tokens, $0.119988,95.42s kapacitetsventen. Ingen reel
+robotstart. Installeret .85 er ikke robot-testgodkendt; udvidelsen forbliver OFF.
+Årsagsreview åbnet før mere kode: den positive kvitteringsregel kræver én bestemt
+ordstilling om fysisk ubekræftelse, selv om svaret udtrykkeligt angiver den samme
+usikkerhed. Gentagne synonymlapper er ikke en robust bedømmelsesstrategi. Undersøg
+acceptkilden og sandhedskontrakten frem for endnu en forventet svarfrase.
 
 ## Aktiv lead-beslutning — direkte robotopslag uden overflødig discovery
 

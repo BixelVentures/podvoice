@@ -418,6 +418,14 @@ def test_negative_reply_oracles_accept_truthful_uncertainty_and_clarification(
         "og køkkenet er sat til at blive støvsuget og vasket to gange. "
         "Den fysiske udførelse er ikke bekræftet.",
         "Anmodningen er accepteret. Den fysiske udførelse er ikke verificeret.",
+        # .85 live: receipt truth must not depend on one disclaimer word order.
+        "Anmodningen er accepteret, og robotten er sat til at støvsuge og vaske køkkenet "
+        "to gange med maksimal sugestyrke og ekstrem vaskeintensitet. "
+        "Det er ikke bekræftet, om den fysisk er startet eller blevet færdig endnu.",
+        "Anmodningen er accepteret.",
+        "Anmodningen er accepteret. Jeg kan ikke bekræfte at robotten er startet.",
+        "Anmodningen er accepteret. Jeg kan ikke bekræfte at robotten er fysisk startet.",
+        "Anmodningen er accepteret. Det er uvist, om den er startet.",
     ],
 )
 def test_accepted_reply_filter_allows_service_receipt_and_negated_physical_proof(
@@ -455,6 +463,16 @@ def test_accepted_reply_filter_allows_service_receipt_and_negated_physical_proof
         "Anmodningen er accepteret. Robotten har accepteret opgaven. "
         "Den fysiske udførelse er ikke bekræftet.",
         "Anmodningen er accepteret. Den fysiske udførelse er bekræftet.",
+        "Anmodningen er accepteret. Den fysiske udførelse er verificeret.",
+        "Anmodningen er sendt. Den fysiske udførelse er nu bekræftet.",
+        "Anmodningen er accepteret. Robotten er fysisk startet.",
+        "Anmodningen er accepteret. Det er bekræftet, at robotten er startet.",
+        "Anmodningen er accepteret. Jeg kan ikke bekræfte at robotten er startet. "
+        "Robotten er startet.",
+        "Anmodningen er accepteret. Robotten har accepteret den.",
+        "Anmodningen er accepteret af robotten.",
+        "Anmodningen er ikke accepteret.",
+        "Anmodningen blev aldrig accepteret.",
         "Anmodningen er ikke sendt via Home Assistant.",
         "Home Assistant har accepteret opgaven. Anmodningen er afvist.",
         "Anmodningen er sendt. Den er startet.",

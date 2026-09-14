@@ -396,7 +396,7 @@
             "fixture_side_effects": 4,
             "remain_open": false,
             "answer_patterns": [
-              "(?s)^(?!(?:.*)(?:\\b(?<!om )(?<!ikke bekræfte at )(?:robotten|støvsugeren|enheden|rengøringen|den|køkken(?:et)?) er (?:nu )?(?:startet|i gang|færdig|rengjort)|(?:robotten|støvsugeren|enheden) har (?:nu )?(?:accepteret|modtaget)|(?:robotten|støvsugeren|enheden) (?:vasker|støvsuger|kører) nu|jeg har (?:nu )?(?:startet|gennemført)|jeg starter (?!ikke\\b)|rengøringen er gennemført|færdigrengjort))(?!.*accepteret.* af (?:robotten|støvsugeren|enheden))(?!.*(?:(?:ikke|aldrig) (?:sendt|accepteret)|kunne ikke sende|anmodningen (?:er|blev) afvist)).*(?:sendt|(?:home assistant|\\bha\\b) har (?:accepteret|modtaget)|anmodningen er accepteret.*den fysiske udfør(?:else|sel) er ikke (?:bekræftet|verificeret)).*"
+              "(?s)^(?!(?:.*)(?:\\b(?<!om )(?<!ikke bekræfte at )(?:robotten|støvsugeren|enheden|rengøringen|den|køkken(?:et)?) er (?:nu )?(?:fysisk )?(?:startet|i gang|færdig|rengjort)|(?:robotten|støvsugeren|enheden) har (?:nu )?(?:accepteret|modtaget)|(?:robotten|støvsugeren|enheden) (?:vasker|støvsuger|kører) nu|jeg har (?:nu )?(?:startet|gennemført)|jeg starter (?!ikke\\b)|rengøringen er gennemført|færdigrengjort))(?!.*accepteret.* af (?:robotten|støvsugeren|enheden))(?!.*(?:(?:ikke|aldrig) (?:sendt|accepteret)|kunne ikke sende|anmodningen (?:er|blev) afvist))(?!.*den fysiske udfør(?:else|sel) er (?:nu )?(?:bekræftet|verificeret)).*(?:sendt|(?:home assistant|\\bha\\b) har (?:accepteret|modtaget)|anmodningen er accepteret).*"
             ]
           }
         }
@@ -563,7 +563,7 @@
             "fixture_side_effects": 4,
             "remain_open": true,
             "answer_patterns": [
-              "(?s)^(?!(?:.*)(?:\\b(?<!om )(?<!ikke bekræfte at )(?:robotten|støvsugeren|enheden|rengøringen|den|køkken(?:et)?) er (?:nu )?(?:startet|i gang|færdig|rengjort)|(?:robotten|støvsugeren|enheden) har (?:nu )?(?:accepteret|modtaget)|(?:robotten|støvsugeren|enheden) (?:vasker|støvsuger|kører) nu|jeg har (?:nu )?(?:startet|gennemført)|jeg starter (?!ikke\\b)|rengøringen er gennemført|færdigrengjort))(?!.*accepteret.* af (?:robotten|støvsugeren|enheden))(?!.*(?:(?:ikke|aldrig) (?:sendt|accepteret)|kunne ikke sende|anmodningen (?:er|blev) afvist)).*(?:sendt|(?:home assistant|\\bha\\b) har (?:accepteret|modtaget)|anmodningen er accepteret.*den fysiske udfør(?:else|sel) er ikke (?:bekræftet|verificeret)).*"
+              "(?s)^(?!(?:.*)(?:\\b(?<!om )(?<!ikke bekræfte at )(?:robotten|støvsugeren|enheden|rengøringen|den|køkken(?:et)?) er (?:nu )?(?:fysisk )?(?:startet|i gang|færdig|rengjort)|(?:robotten|støvsugeren|enheden) har (?:nu )?(?:accepteret|modtaget)|(?:robotten|støvsugeren|enheden) (?:vasker|støvsuger|kører) nu|jeg har (?:nu )?(?:startet|gennemført)|jeg starter (?!ikke\\b)|rengøringen er gennemført|færdigrengjort))(?!.*accepteret.* af (?:robotten|støvsugeren|enheden))(?!.*(?:(?:ikke|aldrig) (?:sendt|accepteret)|kunne ikke sende|anmodningen (?:er|blev) afvist))(?!.*den fysiske udfør(?:else|sel) er (?:nu )?(?:bekræftet|verificeret)).*(?:sendt|(?:home assistant|\\bha\\b) har (?:accepteret|modtaget)|anmodningen er accepteret).*"
             ],
             "forbid": [
               "end_conversation"
