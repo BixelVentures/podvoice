@@ -2,6 +2,15 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Fast81773 terminalexit2: pytest110.18s uden testfejl, men scopeguard afviste resultatet,
+fordi lead committede673f02c efter gatestart. Dette er lead/workflowfejl, ikke runtime-
+fejl eller godkendt samlet gate. Gentag kun den ugyldiggjorte fast på fast commit uden
+ændringer/commits under løbet. Ingen runtimepatch på baggrund af dette resultat.
+Genbyg5554 afsluttetexit0: lokalt ARM64image podvoice-live-alpha:673f02c.
+Netværksisoleret import94173exit0; SDK/Thinhashes matcher reviewet og runtimeartifact er
+6d34a7c418471fd3d3603ee0c137c389127b656cdbcb0d8fbdcf734aacd90110.
+Ingen release eller installation udført.
+
 Queued-input-korrektion frosset14/9:24runtimeindsættelser/4sletninger i SDK/Thin.
 Inputindex følger faktisk response.created→batch→terminalreceipt; nyt ikke-tomt
 SDK-/typedinput invaliderer kun slutintention, ikke krævet backendresultat/continuation.
