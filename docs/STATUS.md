@@ -2,6 +2,20 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Installationsforberedelse14/9: Brugeren gentog “godkendt fra mig” under arbejdet med
+installationsparret; fortsæt mod installation efter gates. Ingen fysisk accept arves.
+Lokalt ARM64 Dockerbuild23523 fra02c1ecd afsluttet exit0; tag podvoice-live-alpha:02c1ecd,
+imageconfig52d84ce956ae9141d5c49662c98c1bd0551b64178ebbcc241be9e9fb51457656.
+Netværksisoleret container90045 exit0 importerer Thin/Live/Talk/web/officiel Live SDK
+på aarch64. Runtime-artifact8e57356903e91599157e407db88d6f7d1d0a349fa49dc2a949ae1523d2cf8b13.
+Ingen Dockerfile/dependencypatch nødvendig. Dette er lokalt image, ikke publiceret release.
+Provisioneret firmware fik uafhængigt Astra scoped GO: tre YAML,21kompilerede filer,
+rene eksakte remotepins, decoder0.2.0/WAV0.1.0/IDF5.5.4, WAV enabled samt gyldig OTA-
+checksum/validationhash. Canonical key matcher genereret kode/binær; eksisterende nøgle
+matcher også repoets eksempel, så der påstås ikke ny unik/private nøgle. Ingen rotation.
+Én Ultra adversarial gennemgang af frosset produktionsdiff er startet før releasegate.
+Negativ godkendelsesmatrix, reconsideration, rigtig Talk og fysiske gates er stadig åbne.
+
 Provisioneret firmwarecompile64809 afsluttet exit0 på source7875114. Uændrede remote
 pins blev brugt;13genererede C++/headerfiler matcher reviewede kilder, alpha-marker
 11382_livewav2 findes i main.cpp. OTA3057424bytes,
