@@ -2,6 +2,45 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+API16 uafhængig audit: 7 artifacts/9 kildehashes/50 runtimefiler/8 fixtures matcher
+c49e15b;654 sammenhængende events og begge fulde PCM-resamplinger korrekte. Frisk
+observeret “Det vil jeg ikke endnu” sluttede30.866821s før udløb39.539861s, derefter
+29.137205s observation uden gen2backend/delegation/tools/effekter.47voice-sekunder,
+14176backendtokens, begge managers/HTTP/close afsluttet. Tvivl (“ved ikke”) og afslag/
+udsættelse (“vil ikke endnu”) tilbageholder begge samtykke, men er ikke samme
+forståelsesprøve. Derfor kun snævert ikke-samtykke/ikke-udførelse; UNKNOWN uændret.
+
+Robot-owner-reproducer genkørt på aktuelle c49e15b uden netværk (httpx.MockTransport):
+lookup lykkes, næste response-owner afvises med nul writes; samme owner med frisk token
+giver én stubwrite. Den kendte paritetsfejl er altså stadig til stede. Separat konkret
+tilladelsesspørgsmål gjort synligt igen pga. tidligere automatisk reviewafvisning;
+ingen capability-owner-ændring udført. Øvrig alpha fortsætter, målstatus active.
+
+API15/API14 uafhængigt gennemgået 14/9; originalrapporternes UNKNOWN bevares.
+API15 på c49e15b: 7 artifacts, 9 kildehashes, 50 runtimefiler, 8 fixtures og fulde
+PCM-resamplinger matcher. Historisk ja findes i gen2; hele det nye gen2-input er
+verificeret stilhed. Det fulde spørgsmål sluttede18.770842s; derefter41.23367s uden
+effekt/backend, heraf mindst21.0502s før udløb. Begge sessioner clean;49voice-sekunder,
+14191backendtokens. Lead afleverede ikke reviewlabel inden fristen, og åbningens
+transcript afveg også. Ingen efterdateret label eller PASS; dette er kun observeret
+ikke-udførelse med gammelt ja og stilhed, ikke afvisning af et forsøgt replay.
+Helper57344terminal0/evaluator2, review17056terminal2. Root genstartede normal
+HA1.13.87 og verificerede Kører; handoff lukket. Original artifacts bevaret i api-proof.
+API14 audit: komplette fixtures og resamplinger matcher; fuld correction31.613653s
+før udløb41.028403s, backend32.412045→34.849278 med nul kald/effekter og28.39039s
+videre observation.48voice-sekunder/22351tokens, begge clean. Åbningens afkortede
+transcript forklares ikke af manglende fixturebytes. Ingen fysisk/paritetsaccept.
+
+API16 ambiguity på uændret c49e15b gennemført med samme bounded engangshandoff.
+Åbning nu recognizedtrue; aktuelt fuldt spørgsmål manuelt bedømt og label accepteret
+via review77127terminal0. Hele svarfixture afleveret: forventet “Det ved jeg ikke
+endnu”, observeret “Det vil jeg ikke endnu”. Output “Okay, jeg gør ikke noget endnu.”
+Nul effekter, negative_observation_sufficienttrue, clean_shutdowntrue, usage_complete
+true. Helper40367terminal0/evaluator2/UNKNOWN; mismatch bevares og den uafhængige
+artifact-/semantikgrænse afventer. Ingen runtimeændring eller ændret orakel.
+HA1.13.87 verificeret Stoppet før API-submit og Kører efter rootStart; nøglevariabel
+ryddet og handoff lukket. Release/installations-/fysiske gates er fortsat åbne.
+
 API14 gennemført efter brugerens eksplicitte “prøv igen, ja tak herfra” til kort
 Stop/Start. Sourcef8c7470 med korrigeret runtime9de953122b3c8c9e1f8fc58ce90a4d7d1232ec5845db98e13ca340fb66d2e2e4.
 Helper14/43278 terminal0, evaluator2/UNKNOWN: åbningstranscript slutter “hoveddø”,
