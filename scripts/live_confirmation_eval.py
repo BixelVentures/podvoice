@@ -471,6 +471,30 @@ class ObservedLive(OpenAILiveSession):
         self.snapshots = {}
         self.audio_observer = self._audio
 
+    async def _handle(self, event, generation):
+        # SDK envelope metadata only: this is not an independent wire capture.
+        def event_type(value):
+            if value is None:
+                return None
+            if (
+                isinstance(value, str)
+                and 0 < len(value) <= 128
+                and value.isascii()
+                and all(c.isalnum() or c in "_." for c in value)
+            ):
+                return value
+            return "<invalid>"
+
+        nested = event.get("event")
+        self.evidence.emit(
+            "sdk_event",
+            source="sdk_pre_handler",
+            generation=generation,
+            protocol_type=event_type(event.get("type")) or "<invalid>",
+            nested_type=event_type(nested.get("type")) if isinstance(nested, dict) else None,
+        )
+        await super()._handle(event, generation)
+
     def _audio(self, pcm, rate):
         assert rate == 24000
         self.evidence.write(f"provider-input-{self._connection_generation}.pcm", pcm)

@@ -800,6 +800,143 @@ async def test_third_connect_rejected_before_sdk_factory(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_sdk_pre_handler_metadata_precedes_unchanged_event_identity(tmp_path, monkeypatch):
+    evidence = module.Evidence(tmp_path / "evidence")
+    live = module.ObservedLive("not-a-key", evidence, tool_declarations=[])
+    event = {"type": "future.event_2", "event": {"type": "future.nested_3"}}
+    seen = []
+
+    async def production(self, received, generation):
+        assert self is live and received is event and generation == 7
+        row = evidence.rows[-1]
+        assert {k: v for k, v in row.items() if k not in {"seq", "elapsed_s"}} == {
+            "kind": "sdk_event",
+            "generation": 7,
+            "protocol_type": "future.event_2",
+            "nested_type": "future.nested_3",
+            "source": "sdk_pre_handler",
+        }
+        seen.append(received)
+
+    monkeypatch.setattr(module.OpenAILiveSession, "_handle", production)
+    try:
+        await live._handle(event, 7)
+        assert seen == [event]
+    finally:
+        evidence.close()
+
+
+@pytest.mark.asyncio
+async def test_sdk_pre_handler_observes_ignored_events_without_changing_actual_dispatch(tmp_path):
+    from unit.test_openai_live import TOOLS
+
+    from gatekeeper.openai_live import LiveToolBatch
+
+    evidence = module.Evidence(tmp_path / "evidence")
+    sdk = SDK()
+    live = module.ObservedLive(
+        "not-a-key", evidence, tool_declarations=TOOLS, client_factory=sdk.factory, timeout_s=0.2
+    )
+    try:
+        await live.connect()
+        generation = live._connection_generation
+        unknown = {"type": "future.outer", "event": {"type": "future.inner"}}
+        nested = {**created(), "event": {"type": "response.future_info"}}
+        for event in (unknown, nested, created(), call(), terminal()):
+            await live._handle(event, generation)
+        rows = [r for r in evidence.rows if r["kind"] == "sdk_event"]
+        assert any(
+            r["protocol_type"] == "future.outer" and r["nested_type"] == "future.inner"
+            for r in rows
+        )
+        assert any(r["nested_type"] == "response.future_info" for r in rows)
+        batches = []
+        while not live._queue.empty():
+            event = live._queue.get_nowait()
+            if isinstance(event, LiveToolBatch):
+                batches.append(event)
+        assert len(batches) == 1
+        batch = batches[0]
+        assert (batch.response_id, batch.delegation_id, batch.generation) == (
+            "r1",
+            "d1",
+            generation,
+        )
+        assert [(c.id, c.name, c.args) for c in batch.calls] == [
+            ("c1", "status", {"room": "kitchen"})
+        ]
+        await live.admit_tool_batch("r1", generation)
+        assert live.tool_batch_is_admitted("r1", generation)
+        await live.send_tool_results(
+            "r1", [{"id": "c1", "name": "status", "response": {"ok": True}}], generation=generation
+        )
+        assert sdk.response.item.create.await_count == 1 and sdk.response.create.await_count == 1
+    finally:
+        await live.close()
+        evidence.close()
+
+
+@pytest.mark.asyncio
+async def test_sdk_pre_handler_never_logs_payload_or_invalid_type_values(tmp_path, monkeypatch):
+    evidence = module.Evidence(tmp_path / "evidence")
+    live = module.ObservedLive("not-a-key", evidence, tool_declarations=[])
+    private = "PRIVATE-CONTENT-DO-NOT-LOG"
+    forwarded = []
+
+    async def production(self, event, generation):
+        forwarded.append(event)
+
+    monkeypatch.setattr(module.OpenAILiveSession, "_handle", production)
+    try:
+        for value in ("", "a" * 129, "private value", "private\nvalue", "æ", 42, {}, [], None):
+            event = {
+                "type": value,
+                "event": {"type": value, "content": private},
+                "api_key": private,
+                "audio": private,
+                "arguments": private,
+                "instructions": private,
+            }
+            await live._handle(event, 1)
+            row = evidence.rows[-1]
+            assert row["protocol_type"] == "<invalid>"
+            assert row["nested_type"] == (None if value is None else "<invalid>")
+            assert forwarded[-1] is event
+        await live._handle({"type": "a" * 128, "event": private}, 1)
+        assert evidence.rows[-1]["protocol_type"] == "a" * 128
+        assert evidence.rows[-1]["nested_type"] is None
+        assert private not in (evidence.directory / "timeline.jsonl").read_text()
+        assert all(
+            set(r)
+            == {"seq", "elapsed_s", "kind", "generation", "protocol_type", "nested_type", "source"}
+            for r in evidence.rows
+            if r["kind"] == "sdk_event"
+        )
+    finally:
+        evidence.close()
+
+
+@pytest.mark.asyncio
+async def test_sdk_pre_handler_preserves_original_exception_and_cancellation(tmp_path, monkeypatch):
+    evidence = module.Evidence(tmp_path / "evidence")
+    live = module.ObservedLive("not-a-key", evidence, tool_declarations=[])
+    try:
+        for exception in (RuntimeError("PRIVATE exception"), asyncio.CancelledError()):
+
+            async def production(self, event, generation, owned_error=exception):
+                assert evidence.rows[-1]["kind"] == "sdk_event"
+                raise owned_error
+
+            monkeypatch.setattr(module.OpenAILiveSession, "_handle", production)
+            with pytest.raises(type(exception)) as raised:
+                await live._handle({"type": "error", "error": {"message": "PRIVATE body"}}, 1)
+            assert raised.value is exception
+        assert "PRIVATE" not in (evidence.directory / "timeline.jsonl").read_text()
+    finally:
+        evidence.close()
+
+
+@pytest.mark.asyncio
 async def test_capture_hold_retires_old_fixture_and_resume_uses_fresh_bytes(tmp_path):
     evidence = module.Evidence(tmp_path / "evidence")
     capture = module.SyntheticCapture(evidence, LiveAudioStreams())

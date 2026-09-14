@@ -2,6 +2,40 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+SDK pre-handler-måling14/9 er implementeret i evaluator alene og uafhængigt Astra
+HIGH reviewet scopedGO. Script SHA
+cc4f3136c545994feb85fe15cc6bc274372751f15dd722907dffa5a3420e6877,
+tests SHA2f7f4ae498971700aea36b5c1c9537efb291a3a032e31ce5ed3250bcfac820cb.
+Alle181evaluator-tests bestod6.22s, Ruff/format rene; reviewer gentog fire målrettede
+adversaries. Sammeevent/generation videresendes én gang; exception/cancellation
+bevares; payloadudeladelse/invalidtype-redigering/ukendte typer/realSDKbatchcontinuation
+er testet. Lokalt stressmål6000metadata-rækker:1.10MB/23ms, under nuværende2MB/10k-
+grænser. Det er lokalobserveromkostning, ikke provider- eller fysisklatensbevis.
+Type-only metadata er nok til den erklærede snævre SDKmodtaget-versus-ignoreret-type-
+grænse. Fravær må kun konkluderes fra komplet ren observation; kapacitets-/skrivefejl
+kan afbryde evaluator og gør sådan en konklusion ugyldig. Ingen produktionsfiler,
+model, prompt, autorisation, lydtransport eller tidsgrænser er ændret. API09 endnu
+ikke startet; nye sourcepins kræves i engangshjælperen før næste diagnostic.
+
+API08 afsluttet14/9, parent73952 exit0/child2 UNKNOWN. Frisk gen2spørgsmål og fuldt
+“Ja, gør det”36.674s observeret; primærtale “Okay, jeg sender den nu.” fulgte, men
+ingen gen2 LiveBackendStarted/Complete/ToolBatch, effekt eller followupfixture.
+Instruktions-ACK kom15.900s før spørgsmålet17.142–18.834s; fuldt ja havde ca.2.329s
+før originalexpiry39.003s. Intet backend-kald kan udledes af talen. Begge sessioner
+lukker rent med finalusage, i alt49voice-sekunder/14141backendtokens; ingenruntimefault.
+HA.87 stoppet før, manuelt startet efter og frisk Kører verificeret; nøgle/form ryddet.
+Aktiv afgrænset målebeslutning: evaluator-only observation ved SDK pre-handler.
+Eksisterende log ligger efter produktionsadapterens parsing; nul oversatte backend-
+events beviser ikke fravær af modtagne/ignorerede SDK-envelopes. Tilføj kun bounded
+outer/nested eventtype og generation før uændret super._handle på samme objekt.
+Ingen eventbody/lyd/argumenter/nøgler/prompts logges. Kildelabel siger sdk_pre_handler,
+ikke uafhængigt wire-/providerreceiptbevis. Hypotese: næste tilsvarende trace skelner
+manglende SDKbackend-event fra ignoreret eventtype/parsing. Invarianter: Thin ejer
+stadig admission/autorisation; ingen ny delegation, force-call, TTL, prompt, VAD eller
+runtimepatch. Regressioner skal bevise videresendelse, eventorden, ukendte typer,
+malformet/redigeret metadata og uændret fejladfærd. Uafhængigt review og målrettet
+softwaregate kræves før næste API-prøve. Rollback er kun evaluatorinstrumenteringen.
+
 API07 uafhængig semantisk delvurdering14/9: “prøvehandling” versus “prøvehandlingen”
 ændrer hverken den anmodede handling eller målet hoveddøren. Én direkte godkendelse
 med én præcist bundet effekt er dermed manuelt semantisk konsistent; automatisk
