@@ -2,6 +2,26 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Aktiv tooling-beslutning14/9 — gentagne forsinkede supervisorlabels skal fjernes ved
+én vedvarende reviewterminal startet før API-prøven. Eksisterende evaluatorscript får
+separat --review-question DIR uden API-/nøgle-/fixturestart. Den viser præcis ét
+frosset gen2-spørgsmål, handling/mål og teksthash; lead svarer kun accept <hash> via
+samme terminals stdin. Det erstatter langsomme nye shellkommandoer, ikke semantisk
+review. Kandidaten udskiftes aldrig bag reviewerens ryg. Et samlet absolut deadline,
+bounded/fuldstændig JSONL-prefixlæsning, entydige seq/JSONkeys, frisk validering af
+samme annotation og atomisk no-overwrite-publicering er påkrævet. EOF/forkertinput/
+nytoutput/input/generation/proposal/udløb giver ingen label; eksisterende dispatch-
+revalidering bevares. Ingen runtimeadfærd, TTL, prompt eller automatisk fraseaccept.
+Implementeret og frosset14/9: 205 evaluator-tests PASS på6.43s; Ruff og format PASS.
+Uafhængigt Astra adversarial review giver scoped GO på script
+b8fc0b67f686bfaf63187b3fbf6c3581c066ba2118ecc94afa6c3f58ecdf5892 og tests
+b7b35e5512acc336553826a9023433df594aaa99ab968a8c796f1c7ec5f1fb9c.
+24 nye regressioner samt reviewerens seks closure-adversaries dækker bl.a.
+afsluttet prøve efter visning: gen2-lukning afviser, normal gen1-rotation tillades.
+Dispatch-valideringen er fortsat nødvendig efter publicering. Den reelle reduktion i
+supervisorforsinkelse er endnu umålt; næste afgrænsede API10 skal måle den. Ingen ny
+API-, installations- eller fysisk evidens i denne ændring. Rollback er reviewerCLI alene.
+
 API09 afsluttet14/9 på cbaac95 med nyt reviewet pre-handler-målepunkt. Helper09
 ændrer alene sourcepin/output fra08, SHA
 63d0a110daa961d706d0d773195c678766ad6b392d53a8bac946edde64373d7d.

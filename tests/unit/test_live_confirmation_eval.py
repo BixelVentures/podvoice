@@ -224,6 +224,196 @@ def supervised_rows():
     return rows, annotation, rows.index(second) + 1
 
 
+def terminal_review_fixture(directory):
+    rows, annotation, index = supervised_rows()
+    rows = rows[:index]
+    next(r["proposal"] for r in rows if r["kind"] == "pending_proposal")["expires_at"] = (
+        module.time.monotonic() + 60
+    )
+    write_review_rows(directory, rows)
+    return rows, annotation
+
+
+def write_review_rows(directory, rows):
+    (directory / "timeline.jsonl").write_bytes(
+        b"".join(json.dumps(row).encode() + b"\n" for row in rows)
+    )
+
+
+def test_review_timeline_reads_only_complete_prefix(tmp_path):
+    rows, _ = terminal_review_fixture(tmp_path)
+    with (tmp_path / "timeline.jsonl").open("ab") as stream:
+        stream.write(b'{"seq": 999, "private_incomplete":')
+    assert module.read_review_timeline(tmp_path) == rows
+    candidate = module.review_question_candidate(rows, module.time.monotonic())
+    assert candidate is not None and candidate[1] == "Skal jeg udføre prøvehandlingen nu?"
+
+
+@pytest.mark.parametrize(
+    "contents",
+    [
+        b'{"seq":0,"seq":0}\n',
+        b'{"seq":1}\n',
+        b'{"seq":true}\n',
+        b"[]\n",
+        b"{broken}\n",
+        b"x" * 2_000_001,
+        b"".join(json.dumps({"seq": i}).encode() + b"\n" for i in range(10001)),
+    ],
+)
+def test_review_timeline_rejects_ambiguous_malformed_or_over_capacity(tmp_path, contents):
+    (tmp_path / "timeline.jsonl").write_bytes(contents)
+    with pytest.raises(ValueError):
+        module.read_review_timeline(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        None,
+        "output",
+        "input",
+        "expiry",
+        "wrong_hash",
+        "eof",
+        "deadline",
+        "ended",
+        "hard_deadline",
+        "closed",
+        "sdk_closed",
+        "closing",
+        "old_closed",
+    ],
+)
+def test_review_terminal_pipe_binds_frozen_question_and_revalidates_latest_rows(
+    tmp_path, monkeypatch, change
+):
+    import os
+
+    rows, annotation = terminal_review_fixture(tmp_path)
+    read_fd, write_fd = os.pipe()
+    printed = []
+
+    def terminal_print(text, **kwargs):
+        printed.append(text)
+        if not text.startswith("{"):
+            return
+        display = json.loads(text)
+        assert display["review_question"] == "Skal jeg udføre prøvehandlingen nu?"
+        assert display["action"] == module.ACTION and display["arguments"] == module.ARGS
+        assert display["accept_command"] == "accept " + annotation["text_sha256"]
+        if change in {"input", "output"}:
+            rows.append(
+                {
+                    "seq": len(rows),
+                    "kind": "LiveTranscript",
+                    "generation": 2,
+                    "direction": "in" if change == "input" else "out",
+                    "text": "Vent",
+                    "start_ms": 2000,
+                    "end_ms": 2100,
+                }
+            )
+            write_review_rows(tmp_path, rows)
+        elif change == "expiry":
+            next(r["proposal"] for r in rows if r["kind"] == "pending_proposal")["expires_at"] = (
+                module.time.monotonic() - 1
+            )
+            write_review_rows(tmp_path, rows)
+        elif change in {"ended", "hard_deadline", "closed", "sdk_closed", "closing", "old_closed"}:
+            terminal_row = {
+                "ended": {"kind": "observation_finished"},
+                "hard_deadline": {"kind": "hard_process_deadline"},
+                "closed": {"kind": "LiveSessionClosed", "generation": 2},
+                "sdk_closed": {
+                    "kind": "sdk_event",
+                    "generation": 2,
+                    "protocol_type": "session.closed",
+                },
+                "closing": {
+                    "kind": "close_phase",
+                    "generation": 2,
+                    "phase": "request_close",
+                    "outcome": "enter",
+                },
+                "old_closed": {"kind": "LiveSessionClosed", "generation": 1},
+            }[change]
+            rows.append({"seq": len(rows), **terminal_row})
+            write_review_rows(tmp_path, rows)
+        if change == "eof":
+            os.close(write_fd)
+        elif change != "deadline":
+            command = "accept wrong" if change == "wrong_hash" else display["accept_command"]
+            os.write(write_fd, (command + "\n").encode())
+
+    monkeypatch.setattr("builtins.print", terminal_print)
+    started = module.time.monotonic()
+    try:
+        result = module.review_question_terminal(tmp_path, timeout_s=0.1, input_fd=read_fd)
+        accepted = change in {None, "old_closed"}
+        assert result == (0 if accepted else 2)
+        assert module.time.monotonic() - started < 0.5
+        path = tmp_path / "question-review.json"
+        assert path.exists() is accepted
+        if accepted:
+            assert json.loads(path.read_bytes()) == annotation
+            assert path.stat().st_mode & 0o777 == 0o600
+        assert len([line for line in printed if line.startswith("{")]) == 1
+        assert not list(tmp_path.glob(".question-review-*"))
+    finally:
+        os.close(read_fd)
+        if change != "eof":
+            os.close(write_fd)
+
+
+@pytest.mark.parametrize("existing", ["file", "symlink"])
+def test_review_publish_never_overwrites_existing_entry_and_cleans_temporary(tmp_path, existing):
+    _, annotation = terminal_review_fixture(tmp_path)
+    target = tmp_path / "question-review.json"
+    preserved = tmp_path / "preserved.json"
+    preserved.write_bytes(b"original")
+    if existing == "file":
+        target.write_bytes(b"original")
+    else:
+        target.symlink_to(preserved)
+    with pytest.raises(FileExistsError):
+        module.publish_question_review(tmp_path, annotation)
+    assert target.read_bytes() == preserved.read_bytes() == b"original"
+    assert target.is_symlink() is (existing == "symlink")
+    assert not list(tmp_path.glob(".question-review-*"))
+
+
+def test_review_cli_uses_pipe_without_fixtures_credentials_or_provider(tmp_path, monkeypatch):
+    import os
+    from types import SimpleNamespace
+
+    _, annotation = terminal_review_fixture(tmp_path)
+    read_fd, write_fd = os.pipe()
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Review CLI must not enter the provider/fixture path")
+
+    original_get = os.environ.get
+
+    def no_key_read(key, *args):
+        if key == "OPENAI_API_KEY":
+            return forbidden()
+        return original_get(key, *args)
+
+    monkeypatch.setattr(module, "load_fixtures", forbidden)
+    monkeypatch.setattr(module, "ObservedLive", forbidden)
+    monkeypatch.setattr(os.environ, "get", no_key_read)
+    monkeypatch.setattr(sys, "argv", [str(SCRIPT), "--review-question", str(tmp_path)])
+    monkeypatch.setattr(sys, "stdin", SimpleNamespace(fileno=lambda: read_fd))
+    try:
+        os.write(write_fd, ("accept " + annotation["text_sha256"] + "\n").encode())
+        assert module.main() == 0
+        assert json.loads((tmp_path / "question-review.json").read_bytes()) == annotation
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+
+
 def test_supervised_equivalent_question_binds_exact_span_before_fresh_reply():
     rows, annotation, index = supervised_rows()
     assert module.observed_question(rows) is None

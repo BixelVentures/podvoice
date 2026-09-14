@@ -21,8 +21,10 @@ import json
 import logging
 import math
 import os
+import select
 import signal
 import sys
+import tempfile
 import time
 import unicodedata
 from pathlib import Path
@@ -1461,14 +1463,167 @@ async def evaluate(
     return report, bool(done)
 
 
+def read_review_timeline(directory):
+    """Read a bounded complete JSONL prefix without treating a partial write as a row."""
+    path = directory / "timeline.jsonl"
+    if directory.is_symlink() or path.is_symlink():
+        raise ValueError("review_symlink")
+    try:
+        with path.open("rb") as stream:
+            data = stream.read(2_000_001)
+    except FileNotFoundError:
+        return []
+    if len(data) > 2_000_000:
+        raise ValueError("review_timeline_capacity")
+    lines = data.split(b"\n")[:-1]
+    if len(lines) > 10000:
+        raise ValueError("review_row_capacity")
+    rows = [json.loads(line, object_pairs_hook=unique_json_object) for line in lines]
+    if any(
+        not isinstance(row, dict) or type(row.get("seq")) is not int or row["seq"] != i
+        for i, row in enumerate(rows)
+    ):
+        raise ValueError("review_sequence")
+    if any(
+        row.get("kind") in {"observation_finished", "hard_process_deadline"}
+        or (
+            row.get("generation") == 2
+            and (
+                row.get("kind") == "LiveSessionClosed"
+                or (row.get("kind") == "close_phase" and row.get("outcome") == "enter")
+                or (row.get("kind") == "sdk_event" and row.get("protocol_type") == "session.closed")
+            )
+        )
+        for row in rows
+    ):
+        raise ValueError("review_trial_ended")
+    return rows
+
+
+def review_question_candidate(rows, checked_at):
+    proposals = [r.get("proposal") for r in rows if r.get("kind") == "pending_proposal"]
+    fragments = [
+        r
+        for r in rows
+        if r.get("kind") == "LiveTranscript"
+        and r.get("generation") == 2
+        and r.get("direction") == "out"
+    ]
+    if len(proposals) != 1 or not fragments:
+        return None
+    text = "".join(r["text"] for r in fragments)
+    if not text.rstrip().endswith("?") or len(text.encode()) > 4096:
+        return None
+    proposal = proposals[0]
+    annotation = {
+        "decision": "equivalent_confirmation_question",
+        "generation": 2,
+        "session_id": proposal["context"]["session_id"],
+        "challenge_id": proposal["challenge_id"],
+        "first_seq": fragments[0]["seq"],
+        "last_seq": fragments[-1]["seq"],
+        "text_sha256": digest(text.encode()),
+        "start_ms": fragments[0]["start_ms"],
+        "end_ms": fragments[-1]["end_ms"],
+    }
+    if validate_question_review(rows, annotation, checked_at) is None:
+        return None
+    return annotation, text
+
+
+def publish_question_review(directory, annotation):
+    # Link publishes a complete file atomically and cannot overwrite any existing entry.
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb", dir=directory, prefix=".question-review-", delete=False
+        ) as stream:
+            temporary = Path(stream.name)
+            stream.write(json.dumps(annotation, allow_nan=False).encode())
+        os.link(temporary, directory / "question-review.json")
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def review_question_terminal(directory, *, timeout_s=90.0, input_fd=None):
+    """One semantic decision over an existing synthetic trial; never starts the API."""
+    if not 0 < timeout_s <= 90 or not math.isfinite(timeout_s):
+        raise ValueError("review_deadline")
+    deadline = time.monotonic() + timeout_s
+    input_fd = sys.stdin.fileno() if input_fd is None else input_fd
+    target = directory / "question-review.json"
+    try:
+        while time.monotonic() < deadline:
+            if target.exists() or target.is_symlink():
+                raise ValueError("review_already_present")
+            candidate = review_question_candidate(read_review_timeline(directory), time.monotonic())
+            if candidate is not None:
+                break
+            time.sleep(min(0.1, max(0, deadline - time.monotonic())))
+        else:
+            raise ValueError("review_deadline")
+        annotation, text = candidate
+        print(
+            json.dumps(
+                {
+                    "review_question": text,
+                    "action": ACTION,
+                    "arguments": ARGS,
+                    "accept_command": "accept " + annotation["text_sha256"],
+                },
+                ensure_ascii=False,
+            ),
+            flush=True,
+        )
+        command = b""
+        while time.monotonic() < deadline and b"\n" not in command:
+            readable, _, _ = select.select(
+                [input_fd], [], [], min(1, max(0, deadline - time.monotonic()))
+            )
+            if not readable:
+                continue
+            chunk = os.read(input_fd, 128 - len(command))
+            if not chunk:
+                raise ValueError("review_eof")
+            command += chunk
+            if len(command) >= 128:
+                raise ValueError("review_input_capacity")
+        if command != ("accept " + annotation["text_sha256"] + "\n").encode():
+            raise ValueError("review_not_accepted")
+        rows = read_review_timeline(directory)
+        now = time.monotonic()
+        if now >= deadline or validate_question_review(rows, annotation, now) is None:
+            raise ValueError("review_no_longer_current")
+        publish_question_review(directory, annotation)
+        print("Question label submitted; runtime authorization remains unchanged.", flush=True)
+        return 0
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, KeyboardInterrupt):
+        print("Question label not submitted; no API or runtime action performed.", flush=True)
+        return 2
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--case", choices=CASES, required=True)
-    parser.add_argument("--fixtures", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--case", choices=CASES)
+    parser.add_argument("--fixtures", type=Path)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--review-question", type=Path)
     parser.add_argument("--validate-only", action="store_true")
     parser.add_argument("--supervised-question", action="store_true")
     args = parser.parse_args()
+    if args.review_question is not None:
+        if (
+            args.case
+            or args.fixtures
+            or args.output
+            or args.validate_only
+            or args.supervised_question
+        ):
+            parser.error("--review-question cannot be combined with provider/fixture options")
+        return review_question_terminal(args.review_question)
+    if args.case is None or args.fixtures is None or args.output is None:
+        parser.error("--case, --fixtures and --output are required for evaluation")
     manifest, fixtures = load_fixtures(args.fixtures)
     if args.validate_only:
         print("Validated synthetic fixtures; no provider connection.")
