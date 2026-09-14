@@ -246,6 +246,33 @@ def matching_observation(expect, answer):
     )
 
 
+@pytest.mark.parametrize("scenario_id", ["device-room-question", "device-room-correction"])
+def test_room_lookup_oracle_rejects_observed_redundant_discovery(scenario_id):
+    """.79 returned correct Danish rooms but spent an avoidable discovery round."""
+    scenario = next(s for s in ev.load_scenarios(ev.DEVICE_EVAL_PATH) if s.id == scenario_id)
+    expect = scenario.turns[0].expect
+    observed = matching_observation(expect, "Den kan rengøre Køkken og Spisestue.")
+    assert not ev.grade_turn(expect, observed)
+    observed.decisions = [dc.GET_CAPABILITIES, dc.GET_CAPABILITIES]
+    observed.decision_batches = [[dc.GET_CAPABILITIES], [dc.GET_CAPABILITIES]]
+    observed.tool_args[dc.GET_CAPABILITIES].insert(0, {})
+    assert "wrong-decision" in {finding.code for finding in ev.grade_turn(expect, observed)}
+    assert observed.fixture_side_effects == 0
+
+
+@pytest.mark.parametrize("scenario_id", ["device-room-question", "device-room-correction"])
+def test_room_lookup_oracle_rejects_wrong_target_and_start(scenario_id):
+    scenario = next(s for s in ev.load_scenarios(ev.DEVICE_EVAL_PATH) if s.id == scenario_id)
+    expect = scenario.turns[0].expect
+    observed = matching_observation(expect, "Den kan rengøre Køkken og Spisestue.")
+    observed.tool_args[dc.GET_CAPABILITIES] = [{"entity_id": "vacuum.other"}]
+    assert ev.grade_turn(expect, observed)
+    observed = matching_observation(expect, "Den kan rengøre Køkken og Spisestue.")
+    observed.decisions.append(dc.EXECUTE_ACTION)
+    observed.fixture_side_effects = 1
+    assert ev.grade_turn(expect, observed)
+
+
 @pytest.mark.parametrize("scenario_index", [1, 2])
 @pytest.mark.parametrize(
     "answer",
