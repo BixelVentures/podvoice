@@ -1,5 +1,42 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — .87 eksplicit mål og ejerskab af læsevalidering
+
+.86 eval-1789379823-ff9989: rumspørgsmålet med eksakt vacuum.eval_qrevo gav GET{}
+før GET med det angivne ID, nul handlinger og korrekt rumliste, men 40.2s. Tidligere
+"known exact"-præcisering garanterer altså ikke direkte opslag. Uafhængigt review
+klassificerer dette som reel overflødig discovery, ikke forkert svarbedømmelse.
+Årsagen er en hypotese: modellen kan fortolke "known" som tidligere verificeret.
+Kodebevis: GET kontrollerer allowlist før register/stateadgang; discovery er ikke
+nødvendig for at validere et brugerangivet mål. Kæde: input→Realtime vælger mål→GET
+validerer→capabilityresultat→tale→opfølgning/close/rearm. Kun beskrivelsen ved valget
+ændres; read-only-validering før og resultatform efter, handlinger og begge I/O-
+adapteres lifecycle bevares. Realtime ejer semantik, inklusive negation/målrettelse.
+Erstat første GET-sætninger og parametertekst med én regel: brug den aktuelle
+forespørgsels eksplicitte mål direkte; GET validerer tilladelsen. Brugerens nuværende
+mål går før tidligere værktøjskontekst. Kopiér ikke blot første nævnte ID og udled
+aldrig ID fra naturlige navne. Intet ekstra værktøj, taleparser, budget- eller
+runtimeindgreb. Eksakt afvist mål må ikke falde tilbage til anden robot.
+Regressioner: tilladt eksplicit mål med flere robotter; afvist ID før HA-læsning og
+uden fallback/handling; ukendt mål/sole-robot uændret; samme sikre 6-scenarieprofil
+bevarer exact-one-call. Fokuserede tests→fast→review→frossen gate→grøn .87→backup/
+installation→komplet frisk profil og konkret svarreview. Rollback .86 OFF.
+Stopregel: gentages dobbelt-discovery på denne præciserede kontrakt, stopper yderligere
+beskrivelsestuning. Nyt løsningsprincip kræver særskilt beslutning, ikke endnu en
+blind releasecyklus. Ingen aktivering eller fysisk accept arves fra tidligere runs.
+
+Faktisk ændring: kun GET-beskrivelsens to tekstfelter;271 målrettede tests PASS,
+fast PASS87.0s med fulde tests, Ruff/format og mypy47. Uafhængigt review
+robot_83_result_review GO, ingen uløste P0/P1/P2. ReviewdiffSHA256
+595e61c6e265a9c3f5208b6facb032ff744067bd9751e51f571a2b2ae508d2ce.
+To værktøjer,2774→3257UTF8bytes (+483); fixture, systemprompt, runtime og lifecycle
+uændrede. Tests beviser afvist ID uden HA-læsning/handling/token/fallback, ikke AI'ens
+negationsforståelse. Hele diffet inklusive status fryses nu til releasegaten.
+
+Frossen .87-releasegate PASS44.2s: fulde unit/integration, Ruff/format127, mypy47,
+candidate-scope. Ingen filer ændret under gaten. Offentlig CI/artifact og frisk
+installeret liveprofil mangler fortsat; denne linje er leveringsmetadata.
+
 ## Aktiv lead-beslutning — .86 sand anmodningsaccept uden obligatorisk frase
 
 .85 liveeval-1789378753-072362 viser korrekt GET+fire handlinger+modelclose og
@@ -34,6 +71,35 @@ negation og sene modsigelser afvises. Diff inklusive status fryses nu til én ga
 Frossen .86-releasegate PASS42.0s med fulde unit/integration, Ruff/format127,
 mypy47 og candidate-scope. Ingen ændringer under gaten; kun dette leveringsresultat
 tilføjet bagefter. Publicering, installation og fuld frisk robotprofil resterer.
+
+PR56 headfed2470a17d7a9b7ad627c0d173c15568ca7bfe5: CI34829879343
+lint-test1m43s/ARM64-build2m9s PASS. Squashmerged til main
+9a93375c3d64a02e64baddd835232310660265ad. Frisk lokal krypteret manuel backup
+14/9 kl.11.49,14.04MB, indhold PodVoice1.13.85 verificeret. Automatisk app-
+opdatering midlertidigt OFF; gendannes efter kontrolleret installation.
+
+MainCI34830100108 PASS. Publiceret .86-image
+sha256:6dfee7568b1ab167517277a49129c9dc9d08272665d7904bda45dfd1e4e75813.
+Opdateringsdialog verificeret .85→.86 med backup ON; installation startet.
+
+Kl.11.56.12 installeret .86 verificeret: git9a93375c3d64a02e64baddd835232310660265ad,
+rootfs-v1:b27d8ddd27eb74ea6abcd98a5c3a6e598d35eb988834e3c4a7c69e65725580a5.
+Promptv15/OFF-router uændret; MCP og VoicePE192.168.86.245 forbundet, HeyChat
+firmwarebekræftet. Auto-opdatering gendannet ON. Frisk fuld sikker robotprofil
+eval-1789379823-ff9989 startet én gang; fuldt resultat og semantisk review afventes.
+
+.86-liveprofil FAIL efter 7/8 ture: device-sequence, unknown, ambiguous og
+accepted-dialogue PASS. Alle seks svar i disse scenarier læst; anmodningskvittering,
+ukendt udfald uden retry og navnekonflikt uden rå ID'er er korrekte. Room-question
+fejler alene exact-one-call: "Hvilke rum kan Roborock vacuum.eval_qrevo rengøre?"
+gav GET{} efterfulgt af GET{entity_id:vacuum.eval_qrevo}. Korrekt svar "Køkken og
+Spisestue", nul effekter, åben dialog, men 40187ms og et overflødigt modelopslag.
+Room-correction blev ikke kørt. 198543tokens,$0.3878112,339.78s kapacitetsventen.
+Tidligere direkte-opslagshypotese er dermed ikke tilstrækkeligt bevist. Robotstyring
+forbliver OFF, ingen fysisk accept. Nyt uafhængigt årsagsreview før kode: skeln
+udtrykkeligt mellem et brugerangivet eksakt ID og et allerede verificeret ID;
+GET ejer selv læsevalideringen, så discovery bør ikke bruges til at validere det.
+Ingen blind genkørsel eller svækkelse af exact-one-call-gaten.
 
 ## Aktiv lead-beslutning — .85 samlet rumafklaring og robot-svarbedømmelse
 
