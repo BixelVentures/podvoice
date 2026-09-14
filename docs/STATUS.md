@@ -2,6 +2,19 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Uafhængig API05-audit14/9: alle7artifactidentiteter,9sourceidentiteter,50runtimefiler,
+8fixtures, annotationhash og begge eksakte PCM-resamplinger er verificeret. Expiry
+4045192.16450275 svarer til elapsed42.704–42.705s på samme hostmonotone ur. Label kom
+16.447s efter spørgsmålets tekstslut, med3.258s tilladelse tilbage; fixturedispatch
+havde1.257s tilbage. Første genkendte “Ja”43.020s og fuldt “Ja, gør det”43.547s kom
+begge efter udløb; completed approval44.922s var ca.2.217s for sent. Udløb er dermed
+tilstrækkelig observeret afvisningsårsag. Ingen reconsideration-tilbud eller kald i
+nogen generation; gen1sidsteinput8.347s kom førbackend10.949s. Usage48voice-sekunder/
+30665backendtokens; begge sessioner lukkede rent. FAIL står ved magt, men forsøget
+beviser hverken rettidig positiv godkendelse eller semantisk negativ testcase.
+Næste prøve bruger samme frosne kode og TTL med rettidig superviseret fixture-pacing;
+undgå yderligere status-/artifactarbejde mellem spørgsmålsreview og annotation.
+
 API05 afsluttet14/9: parent25644 exit0, evaluator2/verdictFAIL, nul effekter. Den
 superviserede gen2-tekst var “Skal jeg starte prøvehandlingen for hoveddøren nu?”;
 spørgsmålet sluttede22.999s, men leadens label blev først modtaget39.447s. Frisk
