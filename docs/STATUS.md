@@ -1,5 +1,25 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktuel leveringsstatus — .87 installeret, Roborock ON til fysisk prøve
+
+14/9 kl.12.35: offentlig .87, installeret exact mainbe4c5e8cc9b8e3e371eeb622b326c03019f98416,
+rootfs4987991b718e18906ec4236180562e6975ad1f82a55c4036639bc8cb1f21c2f6.
+Komplet sikker robotprofil eval-1789381509-b91ff2 bestod seks scenarier/otte ture;
+alle svar konkret godkendt af lead og uafhængig reviewer. Robotudvidelse gemt ON
+med de fem tidligere godkendte entiteter uændrede. Efter genstart matcher faktisk
+router502ac0be97ee4644deb7cd881254a7df7180b4209f5607f562da9ab6d56b125d
+præcis den sikre kandidats router; samme artifact, diagnostic_active=false,
+VoicePE forbundet/IDLE/HeyChat bekræftet. 21 eksisterende tools bevaret, to
+robottools tilføjet. Automatisk app-opdatering gendannet og UI-verificeret ON.
+Backup af .86 verificeret før installation og opdateringsbackup ON; deaktivering
+er hurtig sikker rollback for nye robotkommandoer. Ingen rigtig rengøring startet.
+
+Fysisk prøve er klar, ikke bestået: én lokal optagelse armet til næste samtale;
+brugeren bedt spørge hvilke rum Roborock kan rengøre, afslutte og prøve ny wake.
+Faktisk rengøring med HA-områder/indstillinger/gentagelser, fysisk opfølgning,
+golden chain og 10/10 lifecycle er fortsat ikke dokumenteret af denne release.
+De tidligere fejlede/ufuldstændige .83–.86-evalueringer bevarer deres status.
+
 ## Aktiv lead-beslutning — .87 eksplicit mål og ejerskab af læsevalidering
 
 .86 eval-1789379823-ff9989: rumspørgsmålet med eksakt vacuum.eval_qrevo gav GET{}
@@ -36,6 +56,35 @@ negationsforståelse. Hele diffet inklusive status fryses nu til releasegaten.
 Frossen .87-releasegate PASS44.2s: fulde unit/integration, Ruff/format127, mypy47,
 candidate-scope. Ingen filer ændret under gaten. Offentlig CI/artifact og frisk
 installeret liveprofil mangler fortsat; denne linje er leveringsmetadata.
+
+PR57 head6dea5bb003f7768a1de0041ad265bc5ba3bc3807, CI34831922756
+lint-test1m44s/ARM64-build1m48s PASS. Squashmerged til main
+be4c5e8cc9b8e3e371eeb622b326c03019f98416. Publiceret image afventes før installation.
+
+MainCI34832110591 PASS, publiceret .87-image
+sha256:94160cfef5b75a9486f576425e10aa8243164a42adc8b32326b8448446cb7d03.
+Frisk krypteret lokal manuel backup14/9 kl.12.14,14.04MB, PodVoice1.13.86
+verificeret. Installeret kl.12.19.57 med opdateringsbackup ON. Runtimegit
+be4c5e8cc9b8e3e371eeb622b326c03019f98416 og rootfs-v1:
+4987991b718e18906ec4236180562e6975ad1f82a55c4036639bc8cb1f21c2f6 verificeret.
+MCPassist/OFF-schema og promptv15 uændrede; VoicePE192.168.86.245 forbundet,
+HeyChat firmwarebekræftet. Fuld frisk sikker robotprofil eval-1789381509-b91ff2
+startet én gang. Aktivering afventer komplet resultat og konkret svarreview.
+
+Frisk .87-robotprofil eval-1789381509-b91ff2 COMPLETE/PASS: præcis seks scenarier,
+otte ture, alle uden findings; candidate_contract_passed=true,selected_ok=true.
+Generiske profile_complete/coverage_complete=false gælder standardprofilen, ikke
+robotsættet; robotprofilens egen fuldstændighedspredikat er opfyldt. 207688tokens,
+$0.3193448,351.0s kapacitetsventen. To lange sekvenser med korrekte indstillinger/
+repeat2, sand kvittering og hhv. modelclose/åben dialog; ukendt udfald uden retry;
+navnekonflikt uden ID-oplæsning; rumspørgsmål og rettelse hver præcis én GET,
+Køkken/Spisestue og nul handlinger. Alle otte svar konkret læst af lead og
+uafhængigt robot_83_result_review: GO til kontrolleret ON, ikke fysisk godkendelse.
+Artifact matcher installeret .87. Kandidatrouter
+502ac0be97ee4644deb7cd881254a7df7180b4209f5607f562da9ab6d56b125d;
+SafeEval-enabled-schema2c7a4c48411be59d219885fa2088da087f664651e54acd47eb23ed7a31282d68
+er en anden hash-type. Aktivering kræver faktisk routermatch, samme artifact,
+uændrede fem entiteter og frigivet diagnosticlås. Disse kontroller følger nu.
 
 ## Aktiv lead-beslutning — .86 sand anmodningsaccept uden obligatorisk frase
 
