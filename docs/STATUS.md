@@ -2,6 +2,76 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Resultat14/9 — goal-funktionen viser nu ACTIVE efter brugerens genstart; den fulde
+målsætning er uændret. Supervised evaluator er uafhængigt Astra HIGH reviewet GO:
+177 regressioner bestået. Script SHA77989cd42b09ff2c813fca94f7e11e6e2534676d211d380d5039d59de62952ca,
+test SHA83c148eb840112ea3fa731f6e00ff74dd6506a7f8d1d858d22272deb8dafebf3.
+Review lukkede automatisk fallback uden label, ny input/output under pacing-delay,
+udløbet/pensioneret proposal, queued SDK-events, duplicate JSON samt manglende
+dispatchbevis ved tilsigtet stilhed. Label styrer alene syntetisk fixture-pacing;
+produktets autorisation er uændret. Ingen ny API-prøve eller fysisk evidens endnu.
+HA-fanen viste ved seneste opslag1.13.85 Kører, men også reconnect-banner; frisk
+forbindelse skal verificeres før prøve. Fetched origin/main er be4c5e8/version1.13.87.
+Lead låser denne sammenligning til observeret installeret1.13.85/43430eb, så arbejdet
+ikke følger hver ny main-version. .85 ændrer robotbeskrivelse/eval/version/docs, ikke
+Thin, SDK, audio eller lifecycle. Baselineintegration kræver sammensat kontrol; ingen
+arvet fysisk godkendelse og ingen capability-owner-ændring.
+
+Genoptaget14/9 efter brugerens “update the goal and start it again, and pursue it
+relentless”. Slutmålet er fortsat en reversibel Alpha ON/OFF med funktionsparitet,
+Live-native samtale, uafhængigt review, software/live-gates og præcis installeret
+kandidats fysiske golden chain, 10/10 lifecycle, dobbelttale og målte svartider.
+Næste konkrete checkpoint er et troværdigt superviseret API-bevis for frisk
+stemmebekræftelse; evaluatorens nye label-kontrol testes og reviewes før API05.
+Appens mål står stadig blocked; tilgængelig mål-API kan hverken ændre objektivet på
+et eksisterende uafsluttet mål eller genoptage status. Arbejdet fortsætter i denne
+opgave, mens brugerens Start/Genoptag-kontrol ejer scheduler-status.
+Separat robotændring nedenfor er kun en foreslået beslutning: automatisk review
+afviste ændringen af capability-ejerskab og krævede eksplicit særskilt godkendelse.
+Runtime er uændret på denne grænse, og godkendelsesspørgsmålet er fortsat åbent.
+
+Faktisk API-prøve04 er terminal UNKNOWN, parent20115 exit0/evaluator2. To sessioner,
+nul effekter, fuld korrekt åbningsytring. Sidste inputfragment8.7426s ligger før
+backendstart8.7815s; reconsider_action blev derfor IKKE faktisk afprøvet. Frisk gen2
+spurgte “Vil du køre prøvekørslen for hoveddøren?” ved17.096–18.797s. Det er semantisk
+samme lokale tilbud, uafhængigt reviewet, men den eksakte fixtureordlyd matcher ikke;
+ingen frisk ja-fixture blev sendt. Gen2-source er kun stilhed, ikke afvist brugersvar.
+Begge forbindelser lukkede korrekt: gen2close60.0040→62.7886s, heraf manager1.993s.
+Endelig usage48voice-sekunder/14153backendtokens. Uafhængig Astra-audit verificerer
+alle7artifactidentiteter,9sources,50filers manifest,8fixtures og begge eksakte PCM-
+resamplinger. HA1.13.84 er genstartet og Kører frisk verificeret; handoff lukket,
+ingen nøgle beholdt eller ny installation. Prøve04 må ikke eftergodkendes som fuld PASS.
+
+Aktiv lead-beslutning — næste developer-prøve bruger eksplicit superviseret spørgsmål.
+Ingen voksende synonym-/fraseparser eller runtimeprompt ændres for at passe testen.
+En engangs reviewannotation binder agentens semantiske vurdering til aktuel gen2,
+eksakt pendingchallenge og faktiske transcript-receipts/span/hash/providerinterval.
+Prøveværktøjet validerer bindingen før syntetisk svar, logger annotationen og beholder
+alle eksisterende input-/effekt-/tidskrav. Forkert, manglende, forsinket eller tvetydig
+annotation giver ingen fixture og UNKNOWN. Det er superviseret syntetisk test, ikke
+produktets brugerautorisation, fysisk tale eller et provider-completion-signal.
+Uafhængigt review og passende orakelregressioner kræves før API05.
+
+Aktiv lead-beslutning — reparér eksisterende Live device-capability-ejerskab. Stærkeste
+bevis er den ovenstående rigtige ToolRouter/DeviceControl-reproducer med mock-HA.
+Hel kæde: modelens capabilitylookup→serverudstedt token→næste backendrespons→prepare→
+policy/guard→HA-send→resultat/playback→teardown/næste wake. Response-ID som owner gør
+et gyldigt sekventielt token ugyldigt; samme owner bruges også af start-once-journalen.
+Lead vælger kun for de to interne device_control.TOOL_NAMES i Live dispatch et stabilt
+ExecutionContext.turn_id=live:generation:delegation_id; alle andre værktøjer og
+approve_action beholder faktisk response-ID. Ingen nye routerargumenter/abstraktioner.
+Invarianter: tokenets præcise mål/argumenter, TTL, engangsbrug, samme session/generation,
+start-once og unknown-outcome-spærre bevares. Faktisk responseadmission/inputreceipt/
+revision/epoch/Stop/schema/post-awaitguards er uændrede og må ikke bruge delegation
+som friskhedsbevis. OFF uændret. De to interne tools bruger allerede trusted READ_ONLY/
+LOW_RISK; ingen ny følsom godkendelsesregel indføres. Uafhængig design-GO foreligger.
+Hypotese: lookup og efterfølgende handling i samme modelopgave virker, mens andre
+opgaver/generationer, udløb/replay/Stop/queuedkorrektion stadig afvises. Regressioner
+skal bruge rigtig Thin+SDK+ToolRouter+mock-HA inkl. reviewed device-call, sekventielt
+returneret token og anden start afvist. Rollback er alene de to tools' kontekstvalg.
+Ingen samtidig firmware, VAD, gain eller lydtuning. Kandidaten er fortsat ikke fysisk
+klar; scoped kodereview, sammensatte tests og fast kræves før næste API-checkpoint.
+
 Samlet softwaregate14/9 på frosset fdc5503 er terminal exit0: fast54618,
 Ruff/format43filer, mypy50sources, hele pytest108.81s, samlet109.5s. Ingen source/docs
 blev ændret under gaten. Uafhængigt composed Astra-review verificerer .84-samlingen

@@ -196,6 +196,388 @@ def good_rows(fresh="negative"):
     return rows
 
 
+def supervised_rows():
+    rows = good_rows("positive")
+    rows.insert(0, {"kind": "supervised_question_mode", "enabled": True})
+    proposal = next(r["proposal"] for r in rows if r["kind"] == "pending_proposal")
+    proposal["expires_at"] = 120.0
+    proposal["normalized_args"] = json.dumps(module.ARGS, sort_keys=True, separators=(",", ":"))
+    question = next(r for r in rows if r.get("text") == module.CONFIRMATION_QUESTION)
+    question.update(text="Skal jeg udføre ", end_ms=1500)
+    second = {**question, "text": "prøvehandlingen nu?", "start_ms": 1500, "end_ms": 2000}
+    rows.insert(rows.index(question) + 1, second)
+    for i, row in enumerate(rows):
+        row["seq"] = i
+        if row["kind"] == "stub_effect":
+            row["dispatch_seq"] = i - 1
+    annotation = {
+        "decision": "equivalent_confirmation_question",
+        "generation": 2,
+        "session_id": "test-session",
+        "challenge_id": "held-challenge",
+        "first_seq": question["seq"],
+        "last_seq": second["seq"],
+        "text_sha256": module.digest((question["text"] + second["text"]).encode()),
+        "start_ms": 1000,
+        "end_ms": 2000,
+    }
+    return rows, annotation, rows.index(second) + 1
+
+
+def test_supervised_equivalent_question_binds_exact_span_before_fresh_reply():
+    rows, annotation, index = supervised_rows()
+    assert module.observed_question(rows) is None
+    accepted = module.validate_question_review(rows[:index], annotation, 100.0)
+    assert accepted == {
+        "receipt_index": index - 1,
+        "start_ms": 1000,
+        "end_ms": 2000,
+        "generation": 2,
+        "supervised": True,
+    }
+    rows.insert(
+        index, {"kind": "question_review_accepted", "annotation": annotation, "checked_at": 100.0}
+    )
+    rows.insert(
+        index + 1,
+        {
+            "kind": "question_review_dispatch",
+            "annotation": annotation,
+            "checked_at": 101.0,
+            "current_proposal": True,
+        },
+    )
+    assert module.observed_question(rows) == accepted
+    assert (
+        module.assess(
+            "positive",
+            rows,
+            [{"action": module.ACTION, "args": module.ARGS}],
+            clean=True,
+            usage_complete=True,
+        )["verdict"]
+        == "OBSERVED_PASS"
+    )
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "missing_field",
+        "extra_field",
+        "decision",
+        "challenge",
+        "session",
+        "generation",
+        "hash",
+        "raw_space",
+        "first_seq",
+        "last_seq",
+        "start_ms",
+        "end_ms",
+        "overlap",
+        "expired",
+        "nonfinite_check",
+        "duplicate_proposal",
+        "wrong_action",
+        "wrong_args",
+        "no_mode",
+        "duplicate_mode",
+        "not_ready",
+        "not_resumed",
+        "late_fixture",
+        "late_input",
+        "later_output",
+        "partial_question",
+    ],
+)
+def test_supervised_question_rejects_unbound_stale_or_late_annotation(damage):
+    rows, annotation, index = supervised_rows()
+    rows = rows[:index]
+    checked_at = 100.0
+    if damage == "missing_field":
+        annotation.pop("challenge_id")
+    elif damage == "extra_field":
+        annotation["approved"] = True
+    elif damage in {"decision", "challenge", "session", "hash"}:
+        key = {"challenge": "challenge_id", "session": "session_id", "hash": "text_sha256"}.get(
+            damage, damage
+        )
+        annotation[key] = "wrong"
+    elif damage in {"generation", "first_seq", "last_seq", "start_ms", "end_ms"}:
+        annotation[damage] = -1
+    elif damage == "raw_space":
+        rows[-1]["text"] = " " + rows[-1]["text"]
+    elif damage == "overlap":
+        rows[-1]["start_ms"] = 1499
+    elif damage == "expired":
+        checked_at = 120.0
+    elif damage == "nonfinite_check":
+        checked_at = float("nan")
+    elif damage == "duplicate_proposal":
+        rows.insert(1, next(r for r in rows if r["kind"] == "pending_proposal"))
+    elif damage in {"wrong_action", "wrong_args"}:
+        proposal = next(r["proposal"] for r in rows if r["kind"] == "pending_proposal")
+        proposal["action" if damage == "wrong_action" else "normalized_args"] = "wrong"
+    elif damage == "no_mode":
+        rows.pop(0)
+    elif damage == "duplicate_mode":
+        rows.insert(0, rows[0])
+    elif damage in {"not_ready", "not_resumed"}:
+        kind = "LiveSessionReady" if damage == "not_ready" else "synthetic_capture_resumed"
+        rows[:] = [r for r in rows if r["kind"] != kind]
+    elif damage == "late_fixture":
+        rows.append({"kind": "fixture_started", "phase": 1})
+    elif damage == "late_input":
+        rows.append({"kind": "LiveTranscript", "generation": 2, "direction": "in", "text": "Ja"})
+    elif damage == "later_output":
+        rows.append({**rows[-1], "seq": rows[-1]["seq"] + 1, "text": " Mere."})
+    elif damage == "partial_question":
+        rows[-1]["text"] = "prøvehandlingen nu"
+        annotation["text_sha256"] = module.digest("Skal jeg udføre prøvehandlingen nu".encode())
+    assert module.validate_question_review(rows, annotation, checked_at) is None
+
+
+@pytest.mark.parametrize("damage", ["duplicate", "rejected", "after_input"])
+def test_supervised_label_cannot_be_replayed_or_added_after_reply(damage):
+    rows, annotation, index = supervised_rows()
+    label = {"kind": "question_review_accepted", "annotation": annotation, "checked_at": 100.0}
+    if damage == "after_input":
+        index = next(i for i, r in enumerate(rows) if r.get("text") == module.TEXTS["positive"]) + 1
+    rows.insert(index, label)
+    if damage == "duplicate":
+        rows.insert(index + 1, label)
+    elif damage == "rejected":
+        rows.insert(index + 1, {"kind": "question_review_rejected"})
+    assert module.observed_question(rows) is None
+    assert (
+        module.assess(
+            "positive",
+            rows,
+            [{"action": module.ACTION, "args": module.ARGS}],
+            clean=True,
+            usage_complete=True,
+        )["verdict"]
+        != "OBSERVED_PASS"
+    )
+
+
+@pytest.mark.parametrize("boundary", ["question", "recognition", "delivery"])
+def test_supervised_question_label_never_rescues_an_early_effect(boundary):
+    rows, annotation, index = supervised_rows()
+    rows.insert(
+        index, {"kind": "question_review_accepted", "annotation": annotation, "checked_at": 100.0}
+    )
+    effect = next(r for r in rows if r["kind"] == "stub_effect")
+    rows.remove(effect)
+    target = next(
+        i
+        for i, r in enumerate(rows)
+        if (boundary == "question" and r.get("seq") == annotation["first_seq"])
+        or (boundary == "recognition" and r.get("text") == module.TEXTS["positive"])
+        or (
+            boundary == "delivery"
+            and r["kind"] == "fixture_finished"
+            and r.get("name") == "positive"
+        )
+    )
+    rows.insert(target, effect)
+    assert (
+        module.assess(
+            "positive",
+            rows,
+            [{"action": module.ACTION, "args": module.ARGS}],
+            clean=True,
+            usage_complete=True,
+        )["verdict"]
+        == "FAIL"
+    )
+
+
+@pytest.mark.parametrize(
+    "file_kind", ["valid", "malformed", "duplicate_keys", "oversized", "symlink"]
+)
+def test_supervised_review_file_acceptance_is_bounded_and_records_rejection(
+    tmp_path, monkeypatch, file_kind
+):
+    rows, annotation, index = supervised_rows()
+    evidence = module.Evidence(tmp_path / "evidence")
+    try:
+        for row in rows[:index]:
+            evidence.emit(
+                row["kind"],
+                **{k: v for k, v in row.items() if k not in {"kind", "seq", "elapsed_s"}},
+            )
+        path = tmp_path / "question-review.json"
+        annotation["first_seq"] += 1  # Evidence emits its limits record first.
+        annotation["last_seq"] += 1
+        path.write_text(json.dumps(annotation))
+        if file_kind == "malformed":
+            path.write_text("{")
+        elif file_kind == "duplicate_keys":
+            path.write_text('{"generation": 1, ' + json.dumps(annotation)[1:])
+        elif file_kind == "oversized":
+            path.write_text(" " * 4097)
+        elif file_kind == "symlink":
+            alias = tmp_path / "alias.json"
+            alias.symlink_to(path)
+            path = alias
+        monkeypatch.setattr(module.time, "monotonic", lambda: 100.0)
+        module.accept_question_review(evidence, path)
+        assert evidence.rows[-1]["kind"] == (
+            "question_review_accepted" if file_kind == "valid" else "question_review_rejected"
+        )
+    finally:
+        evidence.close()
+
+
+def test_supervised_mode_does_not_fall_back_to_unlabelled_exact_question():
+    rows = good_rows("positive")
+    assert module.observed_question(rows) is not None
+    rows.insert(0, {"kind": "supervised_question_mode", "enabled": True})
+    assert module.observed_question(rows) is None
+    assert (
+        module.assess(
+            "positive",
+            rows,
+            [{"action": module.ACTION, "args": module.ARGS}],
+            clean=True,
+            usage_complete=True,
+        )["verdict"]
+        == "UNKNOWN"
+    )
+
+
+def test_supervised_intentional_silence_also_requires_current_dispatch():
+    rows, annotation, index = supervised_rows()
+    rows = rows[:index]
+    rows.append({"kind": "question_review_accepted", "annotation": annotation, "checked_at": 100.0})
+    rows.append({"kind": "intentional_no_fresh_speech"})
+    assert module.observed_question(rows) is None
+    rows.insert(
+        -1,
+        {
+            "kind": "question_review_dispatch",
+            "annotation": annotation,
+            "checked_at": 101.0,
+            "current_proposal": True,
+        },
+    )
+    assert module.observed_question(rows) is not None
+
+
+@pytest.mark.parametrize(
+    "damage",
+    ["missing", "duplicate", "foreign", "late", "expired", "new_output", "new_input", "retired"],
+)
+def test_supervised_fixture_needs_current_dispatch_after_delay(damage):
+    rows, annotation, index = supervised_rows()
+    rows.insert(
+        index, {"kind": "question_review_accepted", "annotation": annotation, "checked_at": 100.0}
+    )
+    dispatch = {
+        "kind": "question_review_dispatch",
+        "annotation": annotation,
+        "checked_at": 101.0,
+        "current_proposal": True,
+    }
+    dispatch_index = index + 1
+    if damage == "foreign":
+        dispatch["annotation"] = {**annotation, "challenge_id": "foreign"}
+    elif damage == "expired":
+        dispatch["checked_at"] = 120.0
+    elif damage == "retired":
+        dispatch["current_proposal"] = False
+    elif damage in {"new_output", "new_input"}:
+        rows.insert(
+            dispatch_index,
+            {
+                "kind": "LiveTranscript",
+                "generation": 2,
+                "direction": "out" if damage == "new_output" else "in",
+                "text": "Vent",
+                "start_ms": 2000,
+                "end_ms": 2100,
+            },
+        )
+        dispatch_index += 1
+    elif damage == "late":
+        dispatch_index = next(i for i, r in enumerate(rows) if r["kind"] == "fixture_started") + 1
+    if damage != "missing":
+        rows.insert(dispatch_index, dispatch)
+    if damage == "duplicate":
+        rows.insert(dispatch_index + 1, dispatch)
+    assert module.observed_question(rows) is None
+    assert (
+        module.assess(
+            "positive",
+            rows,
+            [{"action": module.ACTION, "args": module.ARGS}],
+            clean=True,
+            usage_complete=True,
+        )["verdict"]
+        != "OBSERVED_PASS"
+    )
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        None,
+        "retired",
+        "policy_retired",
+        "session",
+        "challenge",
+        "generation",
+        "inactive",
+        "closing",
+        "transport_closing",
+        "received_input",
+        "queued_event",
+    ],
+)
+def test_supervised_pacing_guard_reads_current_thin_proposal_owner(damage):
+    from types import SimpleNamespace
+
+    rows, annotation, _ = supervised_rows()
+    proposal = SimpleNamespace(
+        **next(r["proposal"] for r in rows if r["kind"] == "pending_proposal")
+    )
+    proposal.context = SimpleNamespace(**proposal.context)
+    current = [proposal]
+    session = SimpleNamespace(
+        _active=True,
+        _closing=False,
+        _transport_closing=False,
+        _live_confirmation=proposal,
+        _live_confirmation_generation=2,
+        _history_session="test-session",
+        brain=SimpleNamespace(_connection_generation=2, input_sequence=0, _queue=asyncio.Queue()),
+        tools=SimpleNamespace(
+            execution_policy=SimpleNamespace(peek_live_challenge=lambda *args, **kwargs: current[0])
+        ),
+    )
+    if damage == "retired":
+        session._live_confirmation = None
+    elif damage == "policy_retired":
+        current[0] = None
+    elif damage == "session":
+        session._history_session = "next-session"
+    elif damage == "challenge":
+        annotation["challenge_id"] = "next-challenge"
+    elif damage == "generation":
+        session.brain._connection_generation = 3
+    elif damage == "inactive":
+        session._active = False
+    elif damage in {"closing", "transport_closing"}:
+        setattr(session, "_" + damage, True)
+    elif damage == "received_input":
+        session.brain.input_sequence = 1
+    elif damage == "queued_event":
+        session.brain._queue.put_nowait(object())
+    assert module.question_proposal_current(session, annotation) is (damage is None)
+
+
 @pytest.mark.parametrize("boundary", ["question", "recognition", "delivery"])
 def test_positive_effect_before_fresh_evidence_is_failure(boundary):
     rows = good_rows("positive")
@@ -462,6 +844,102 @@ async def until(predicate):
     async with asyncio.timeout(3):
         while not predicate():  # noqa: ASYNC110
             await asyncio.sleep(0.005)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("during_delay", [None, "input", "output"])
+async def test_supervised_actual_sdk_pacing_rechecks_after_await(
+    tmp_path, fixtures, monkeypatch, during_delay
+):
+    manifest, data = module.load_fixtures(fixtures[0])
+    evidence = module.Evidence(tmp_path / "evidence")
+    sdk = SDK()
+    monkeypatch.setattr(module, "INPUT_DELAY_S", 0.06)
+    monkeypatch.setattr(module, "OBSERVATION_S", 0.65)
+    monkeypatch.setattr(module, "CLEANUP_S", 2)
+    trial = asyncio.create_task(
+        module.evaluate(
+            "not-a-key",
+            "positive",
+            manifest,
+            data,
+            evidence,
+            client_factory=sdk.factory,
+            supervised_question=True,
+        )
+    )
+
+    def seen(kind, **fields):
+        return any(
+            r["kind"] == kind and all(r.get(k) == v for k, v in fields.items())
+            for r in evidence.rows
+        )
+
+    try:
+        await until(lambda: seen("fixture_finished", name="opening"))
+        for event in (
+            {
+                "type": "session.input_transcript.delta",
+                "delta": module.TEXTS["opening"],
+                "start_ms": 0,
+                "end_ms": 100,
+            },
+            created(),
+            call(name=module.ACTION, arguments=json.dumps(module.ARGS)),
+            terminal(),
+        ):
+            await sdk.incoming.put(event)
+        await until(lambda: sdk.response.create.await_count == 1)
+        for event in (created("r2"), terminal("r2")):
+            await sdk.incoming.put(event)
+        await until(lambda: seen("synthetic_capture_resumed"))
+        text = "Skal jeg udføre prøvehandlingen nu?"
+        await sdk.incoming.put(
+            {
+                "type": "session.output_transcript.delta",
+                "delta": text,
+                "start_ms": 1000,
+                "end_ms": 2000,
+            }
+        )
+        await until(lambda: seen("LiveTranscript", text=text))
+        proposal = next(r["proposal"] for r in evidence.rows if r["kind"] == "pending_proposal")
+        question = next(r for r in evidence.rows if r.get("text") == text)
+        annotation = {
+            "decision": "equivalent_confirmation_question",
+            "generation": 2,
+            "session_id": proposal["context"]["session_id"],
+            "challenge_id": proposal["challenge_id"],
+            "first_seq": question["seq"],
+            "last_seq": question["seq"],
+            "text_sha256": module.digest(text.encode()),
+            "start_ms": 1000,
+            "end_ms": 2000,
+        }
+        (evidence.directory / "question-review.json").write_text(json.dumps(annotation))
+        await until(lambda: seen("declared_question_observed"))
+        assert not seen("fixture_started", name="positive")
+        if during_delay:
+            await sdk.incoming.put(
+                {
+                    "type": f"session.{during_delay}_transcript.delta",
+                    "delta": "Vent",
+                    "start_ms": 2000,
+                    "end_ms": 2100,
+                }
+            )
+            await until(lambda: seen("LiveTranscript", text="Vent"))
+        report, settled = await trial
+        assert settled and report["verdict"] == "UNKNOWN" and not report["effects"]
+        assert seen("question_review_dispatch") is (during_delay is None)
+        assert seen("fixture_started", name="positive") is (during_delay is None)
+        if during_delay:
+            assert seen("question_review_rejected")
+    finally:
+        if not trial.done():
+            trial.cancel()
+            await trial
+        evidence.close()
 
 
 @pytest.mark.asyncio

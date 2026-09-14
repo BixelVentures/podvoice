@@ -105,12 +105,218 @@ def valid_interval(row):
     )
 
 
-def observed_question(rows):
-    """Exact synthetic question only; paraphrases are UNKNOWN, not product failures.
+def validate_question_review(rows, annotation, checked_at):
+    """Validate a supervisor's fixture-pacing label, never authorize a product action."""
+    fields = {
+        "decision",
+        "generation",
+        "session_id",
+        "challenge_id",
+        "first_seq",
+        "last_seq",
+        "text_sha256",
+        "start_ms",
+        "end_ms",
+    }
+    if not isinstance(annotation, dict) or set(annotation) != fields:
+        return None
+    if (
+        annotation["decision"] != "equivalent_confirmation_question"
+        or annotation["generation"] != 2
+    ):
+        return None
+    if type(checked_at) not in (int, float) or not math.isfinite(checked_at):
+        return None
+    proposals = [r["proposal"] for r in rows if r["kind"] == "pending_proposal"]
+    if len(proposals) != 1:
+        return None
+    proposal = proposals[0]
+    expires = proposal.get("expires_at")
+    if (
+        proposal.get("challenge_id") != annotation["challenge_id"]
+        or not isinstance(annotation["challenge_id"], str)
+        or not annotation["challenge_id"]
+        or proposal.get("context", {}).get("session_id") != annotation["session_id"]
+        or proposal.get("action") != ACTION
+        or proposal.get("normalized_args")
+        != json.dumps(ARGS, sort_keys=True, separators=(",", ":"))
+        or type(expires) not in (int, float)
+        or not math.isfinite(expires)
+        or not checked_at < expires
+    ):
+        return None
+    modes = [
+        i
+        for i, r in enumerate(rows)
+        if r["kind"] == "supervised_question_mode" and r.get("enabled") is True
+    ]
+    ready = [
+        i
+        for i, r in enumerate(rows)
+        if r["kind"] == "LiveSessionReady" and r.get("generation") == 2
+    ]
+    resumed = [i for i, r in enumerate(rows) if r["kind"] == "synthetic_capture_resumed"]
+    if len(modes) != 1 or len(ready) != 1 or len(resumed) != 1:
+        return None
+    if any(
+        r["kind"] == "LiveSessionReady" and r.get("generation") != 2 for r in rows[ready[0] + 1 :]
+    ):
+        return None
+    if any(
+        (r["kind"] == "fixture_started" and r.get("phase") == 1)
+        or (
+            r["kind"] == "LiveTranscript"
+            and r.get("generation") == 2
+            and r.get("direction") == "in"
+            and r["text"].strip()
+        )
+        for r in rows
+    ):
+        return None
+    first, last = annotation["first_seq"], annotation["last_seq"]
+    if type(first) is not int or type(last) is not int or not 0 <= first <= last:
+        return None
+    span = [
+        (i, r)
+        for i, r in enumerate(rows)
+        if type(r.get("seq")) is int and first <= r["seq"] <= last
+    ]
+    if not span or span[0][1]["seq"] != first or span[-1][1]["seq"] != last:
+        return None
+    fragments = [
+        (i, r)
+        for i, r in span
+        if r["kind"] == "LiveTranscript"
+        and r.get("generation") == 2
+        and r.get("direction") == "out"
+    ]
+    if not fragments or fragments[0] != span[0] or fragments[-1] != span[-1]:
+        return None
+    if not modes[0] < max(ready[0], resumed[0]) < fragments[0][0]:
+        return None
+    highwater = 0
+    for _, row in fragments:
+        if not valid_interval(row) or row["start_ms"] < highwater:
+            return None
+        highwater = row["end_ms"]
+    text = "".join(r["text"] for _, r in fragments)
+    if (
+        not text.rstrip().endswith("?")
+        or digest(text.encode()) != annotation["text_sha256"]
+        or annotation["start_ms"] != fragments[0][1]["start_ms"]
+        or annotation["end_ms"] != fragments[-1][1]["end_ms"]
+        or any(
+            r["kind"] == "LiveTranscript"
+            and r.get("generation") == 2
+            and r.get("direction") == "out"
+            and r["text"].strip()
+            for r in rows[fragments[-1][0] + 1 :]
+        )
+    ):
+        return None
+    return {
+        "receipt_index": fragments[-1][0],
+        "start_ms": annotation["start_ms"],
+        "end_ms": annotation["end_ms"],
+        "generation": 2,
+        "supervised": True,
+    }
 
+
+def unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate_json_key")
+        result[key] = value
+    return result
+
+
+def question_proposal_current(session, annotation):
+    """Read current ownership for fixture pacing without granting any authority."""
+    if not isinstance(annotation, dict):
+        return False
+    proposal = session._live_confirmation
+    return bool(
+        session._active
+        and not session._closing
+        and not session._transport_closing
+        and session.brain.input_sequence == 0
+        and session.brain._queue.empty()
+        and session._live_confirmation_generation == session.brain._connection_generation == 2
+        and session._history_session == annotation.get("session_id")
+        and proposal is not None
+        and proposal.challenge_id == annotation.get("challenge_id")
+        and proposal.context.session_id == annotation.get("session_id")
+        and proposal.action == ACTION
+        and proposal.normalized_args == json.dumps(ARGS, sort_keys=True, separators=(",", ":"))
+        and session.tools.execution_policy.peek_live_challenge(
+            proposal.challenge_id, session_id=session._history_session
+        )
+        == proposal
+    )
+
+
+def accept_question_review(evidence, path):
+    """One file, one attempt. Invalid or late labels never start a reply fixture."""
+    checked_at = time.monotonic()
+    annotation = None
+    try:
+        if path.is_symlink() or path.stat().st_size > 4096:
+            raise ValueError("question_review_file")
+        annotation = json.loads(path.read_bytes(), object_pairs_hook=unique_json_object)
+        question = validate_question_review(evidence.rows, annotation, checked_at)
+    except (OSError, ValueError, TypeError, KeyError):
+        question = None
+    if question is None:
+        evidence.emit("question_review_rejected")
+        return
+    evidence.emit("question_review_accepted", annotation=annotation, checked_at=checked_at)
+
+
+def observed_question(rows):
+    """Recognize the exact question or a bound, explicit supervisor annotation.
+
+    Unreviewed paraphrases stay UNKNOWN, not product failures. A label controls
+    synthetic fixture pacing only; it grants no runtime authorization.
     A terminal '?' in the declared transcript is the test's textual completion
     criterion. This is not an API speech-done event or proof of audible playback.
     """
+    if any(r["kind"] == "question_review_rejected" for r in rows):
+        return None
+    labels = [(i, r) for i, r in enumerate(rows) if r["kind"] == "question_review_accepted"]
+    supervised = any(r["kind"] == "supervised_question_mode" for r in rows)
+    if labels or supervised:
+        if len(labels) != 1:
+            return None
+        index, label = labels[0]
+        question = validate_question_review(
+            rows[:index], label.get("annotation"), label.get("checked_at")
+        )
+        if question is None:
+            return None
+        dispatches = [(i, r) for i, r in enumerate(rows) if r["kind"] == "question_review_dispatch"]
+        fixtures = [
+            i
+            for i, r in enumerate(rows)
+            if (r["kind"] == "fixture_started" and r.get("phase") == 1)
+            or r["kind"] == "intentional_no_fresh_speech"
+        ]
+        if not dispatches:
+            return None if fixtures else question
+        if len(dispatches) != 1:
+            return None
+        dispatch_index, dispatch = dispatches[0]
+        if (
+            dispatch_index <= index
+            or dispatch.get("current_proposal") is not True
+            or dispatch.get("annotation") != label.get("annotation")
+            or any(i <= dispatch_index for i in fixtures)
+        ):
+            return None
+        return validate_question_review(
+            rows[:dispatch_index], dispatch.get("annotation"), dispatch.get("checked_at")
+        )
     ready = resumed = False
     fragments = []
     highwater = 0
@@ -1071,7 +1277,11 @@ def assess(case, rows, effects, *, clean, usage_complete):
     }
 
 
-async def evaluate(key, case, manifest, fixtures, evidence, *, client_factory=None):
+async def evaluate(
+    key, case, manifest, fixtures, evidence, *, client_factory=None, supervised_question=False
+):
+    if supervised_question:
+        evidence.emit("supervised_question_mode", enabled=True)
     tools = StubTools(evidence)
     streams = LiveAudioStreams()
     capture = SyntheticCapture(evidence, streams)
@@ -1119,13 +1329,40 @@ async def evaluate(key, case, manifest, fixtures, evidence, *, client_factory=No
             evidence.emit("history_fixture_seed", messages=list(SEED))
             await asyncio.sleep(INPUT_DELAY_S)
             capture.play_fixture("opening", fixtures["opening"])
-            fresh_sent = followup_sent = False
+            fresh_sent = followup_sent = review_attempted = False
             while session._active:
+                review_path = evidence.directory / "question-review.json"
+                if (
+                    supervised_question
+                    and capture.phase == 1
+                    and not fresh_sent
+                    and not review_attempted
+                    and review_path.exists()
+                ):
+                    review_attempted = True
+                    accept_question_review(evidence, review_path)
                 question = observed_question(evidence.rows) if capture.phase == 1 else None
                 if capture.phase == 1 and not fresh_sent and question:
                     evidence.emit("declared_question_observed", **question)
                     await asyncio.sleep(INPUT_DELAY_S)
                     fresh_sent = True
+                    if supervised_question:
+                        labels = [
+                            r for r in evidence.rows if r["kind"] == "question_review_accepted"
+                        ]
+                        checked_at = time.monotonic()
+                        annotation = labels[0]["annotation"] if len(labels) == 1 else None
+                        if validate_question_review(
+                            evidence.rows, annotation, checked_at
+                        ) is None or not question_proposal_current(session, annotation):
+                            evidence.emit("question_review_rejected")
+                            continue
+                        evidence.emit(
+                            "question_review_dispatch",
+                            annotation=annotation,
+                            checked_at=checked_at,
+                            current_proposal=True,
+                        )
                     if CASES[case]:
                         capture.play_fixture(CASES[case], fixtures[CASES[case]])
                     else:
@@ -1189,6 +1426,7 @@ async def evaluate(key, case, manifest, fixtures, evidence, *, client_factory=No
             adapter_error_present=live.last_error is not None,
             close_phase_evidence_failed=live.close_trace_failed,
             declared_question_text=CONFIRMATION_QUESTION,
+            supervised_question_mode=supervised_question,
             manifest=manifest,
             artifacts={
                 name: {"bytes": size, "sha256": digest((evidence.directory / name).read_bytes())}
@@ -1205,6 +1443,7 @@ def main():
     parser.add_argument("--fixtures", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument("--supervised-question", action="store_true")
     args = parser.parse_args()
     manifest, fixtures = load_fixtures(args.fixtures)
     if args.validate_only:
@@ -1260,7 +1499,14 @@ def main():
 
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, interrupt)
-        return await evaluate(key, args.case, manifest, fixtures, evidence)
+        return await evaluate(
+            key,
+            args.case,
+            manifest,
+            fixtures,
+            evidence,
+            supervised_question=args.supervised_question,
+        )
 
     try:
         report, settled = asyncio.run(run())
