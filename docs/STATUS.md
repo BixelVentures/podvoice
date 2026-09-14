@@ -2,6 +2,20 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Baselineintegration14/9 — .84 er nu sammenført med alphaen. Eneste konflikt var
+den indledende STATUS-log; begge komplette beslutningshistorikker er bevaret i samme
+fil. Runtime-reviewhashes er uændrede; versions-/robotbeskrivelses-/evalændringer kommer
+fra origin/main af0fad6. Composed kontrol og én fast-gate mangler på samlingen.
+Separat device-control-finding er reproduceret med rigtig ToolRouter/DeviceControl og
+httpx.MockTransport: capabilitylookup under live:1:response-one giver token; brug under
+live:1:response-two afvises device_capability med nul stubwrites og konsumerer token.
+Frisk token under samme owner giver én stubwrite. Ingen netværk/enhedseffekt.
+Reproducer /private/tmp/podvoice-live-device-owner-repro.py SHA
+9041e86a37b2a7f42229d8e175d80fc70ca3ea65f201a5fe93c7332eb7d461b8.
+Default extended_device_control=False; installeret værdi ukendt. Fuld funktionsparitet
+må ikke hævdes. Årsagsgrænsen håndteres særskilt efter genvurderingens API-checkpoint;
+ingen capability-owner-patch i denne samling og ingen fysisk installationsgodkendelse.
+
 Resultat14/9 — den specifikt godkendte reconsider_action-kontrakt er implementeret
 og har uafhængigt Astra HIGH scoped GO. Frosne runtimehashes: Thin
 b582d80591b7ae550a35a95e2b884b3c2c63f5f874cbfa921c3d51d2cdc204c8; SDK
@@ -1366,6 +1380,150 @@ runtimeimplementering, setting, releasegate, installation, golden chain eller10/
 for Alpha. Kandidaten er ikke fysisk testklar. Ingen produktionsdiff.
 Researchleverance ligger i den lokale Codex-visualiseringsmappe gpt-live-alpha med
 undersoegelse.md, index.html, begge reproduktionsscripts og rå JSON-resultater.
+## Aktiv lead-beslutning — direkte robotopslag uden overflødig discovery
+
+11/9 Lead Codex, efter brugerens ønske om videre arbejde. .79 live SafeEval
+eval-1789126001-bff797: eksplicit vacuum.eval_qrevo gav capabilities {} efterfulgt
+af capabilities med entity_id. Korrekt dansk rumliste og nul fixture-sideeffekter,
+men exact-one-call-gaten fejlede; 37956ms omfatter provider/pacing, ikke fysisk
+svartid. Fire forudgående scenarier bestod, korrektionsscenariet blev ikke kørt.
+Robotudvidelsen forbliver OFF. Parallel opgave ejer .81-release og live-vindue.
+
+Kæde: fysisk wake/mic → accepteret Thin-tur → Realtime læser deklaration og vælger
+argumenter → completed batch/pacing → read-only, servervalideret capability →
+modelgrundet svar → fysisk playback → opfølgning/close → teardown/rearm → ny wake.
+Begge nabogrænser er uændrede: modelinput før valg, validering/resultat efter valg.
+Hypotese: deklarationen lærer no-ID-discovery, men mangler prioritet for et eksplicit
+kendt ID. En præcis parameterinstruktion kan fjerne det første opslag uden at
+fortolke tale lokalt. Falsifikation: samme sikre live-scenarie bruger stadig to kald.
+Ingen påstand om, at hele ventetiden skyldes discovery.
+
+Invarianter: Realtime ejer semantik; ingen gættede ID'er, nye værktøjer, hævede
+budgetter, runtime-/firmware-/VAD-/lifecycleændringer eller svækket oracle. Bevar
+ukendt robots discovery, tvetydighed, serverallowlist, stale/duplicate/timeout-
+afvisning og sand HA-kvittering. Ændring afgrænses til eksisterende tool-beskrivelse.
+Regressioner: reproducer to read-only-kald + korrekt svar som fejl; ét direkte kald
+som bestået, forkert mål/start som fejl; direkte eksplicit mål med flere tilladte
+robotter; no-ID single/multi-path og detached Voice/Talk/fixture-schema.
+Målrettede tests → fast → uafhængigt adversarial review → på samlet frisk base én
+frossen releasegate. Live robotprofil og fysisk prøve kræves før aktivering/accept.
+Rollback er at kassere denne isolerede beskrivelsesændring og bevare installeret
+version/config; ingen ny installation eller fysisk godkendelse i denne post endnu.
+Gammel dev-clone fejlede fetch på manglende git-blob; frisk usynkroniseret clone
+/private/tmp/podvoice-robot-direct-lookup på .80/main4fd4016 bruges uden at ændre
+Documents-workspace eller den gamle lokale leveringslog. Rebase til .81 før release.
+
+Faktisk ændring: kun GET-værktøjets beskrivelse og entity_id-parameterbeskrivelse;
+to værktøjer før/efter, serialiserede deklarationer2223→2472UTF8bytes (+249).
+Systemprompt, parametervalidation, runtime, budget og obligatoriske kald er uændrede.
+152 målrettede tests PASS; fast på stabilt diff PASS1.6s med Ruff/format, mypy47 og
+169 fokuserede tests. Uafhængigt robot_lookup_causal_review: GO til integration/
+freeze, P0/P1/P2=0,152 unit+11 integration PASS. Reviewdiff SHA256
+513bce2bdb34234d9e8ef11bc7db8ea78fa099dbf8f11a37e520afb2ef3aff91.
+Ingen releasegate/liveeval/installation udført for rettelsen. No-ID sole-robot-
+natursprog er ikke dækket af den eksplicitte multi-robot-livefixture og skal prøves
+fysisk; den mekaniske sole-robot-vej er dækket lokalt. Review ændrer ikke .79's
+fejlede robotgate eller giver fysisk accept.
+
+Rent rebaset på .81/main34fb8c8b816801f4836c6fc21b69389970f4e218, kandidat
+b6471184ccbd9bd2fc21f5acbf06d3fd06ca570b. Reviewer genbekræftede identisk reviewdiff
+og GO til lokal freeze/gate. Én frossen releasegate PASS41.1s: Ruff/format127,
+mypy47, candidate-scope og fulde unit-/integrationstests. Ingen produktionsændring
+efter freeze. Denne statusopdatering er kun leveringsmetadata; offentlig kode/CI-
+artifact, koordineret installation og sikker robotliveeval resterer. .81-opgaven
+ejer fortsat live-vinduet; ingen HA-state er ændret af denne rettelse.
+
+Brugeren har nu eksplicit bestilt push, build, installation og aktivering efter
+sikker test. .83 bruges på offentlig .81-base; separat upubliceret .82-payload
+medtages ikke. Installationsvinduet er frigivet. Kun versionsmetadata/changelog
+tilføjes til den reviewede robotrettelse; rollback er installeret .81 og dens
+backup, robotudvidelse OFF ved fejlet gate. Ingen nye beskeder til anden opgave.
+Endelig .83-metadatareview robot_lookup_causal_review: GO, P0/P1/P2=0;
+engangstoken-terminologi præciseret. Frossen .83-releasegate PASS45.7s med fulde
+unit/integration, Ruff/format127, mypy47 og candidate-scope. Publicering følger;
+installation/live-gate/aktivering er endnu ikke resultater.
+Efter første grønne PR53-CI34603987929 (lint-test1m41s, ARM64-build1m44s) er .82
+nu offentliggjort som mainf880c682. .83 er rebaset derpå; begge changelogafsnit og
+hele den offentlige .82-fixtureændring bevares. Robotreviewhash er uændret.
+Reviewer genbekræftede GO til ny samlet freeze; tidligere gate er ikke bevis for
+denne nye base. Installationsvinduet afventer igen den anden udgivelse, og Chrome
+blokerer HA-automatisering med et åbent udvidelsesvindue. Brugeren er bedt lukke det.
+Automatisk app-opdatering blev midlertidigt slået OFF før push (tidligere ON);
+gendan efter kontrolleret installation. Robotudvidelsen er OFF, fem entiteter bevaret.
+Samlet frossen .83-på-.82-gate PASS44.5s: Ruff/format127, mypy47, candidate-scope,
+fuld unit/integration. Ny PR-head kræver frisk CI; ingen manuel genkørsel af CI.
+
+14/9 genoptaget efter eksplicit ordre om installation/færdiggørelse. Frisk PR53-
+kontrol: headcfe20a3, CI34604609086 lint-test/ARM64-build PASS. Offentlig main var
+fortsat .82/f880c682. PR53 nu squashmerged til479aa5b5ec0059344706b27fec80935b677d0189;
+mainCI34819500914 bygger/publicerer. Ingen kodeændring eller gategenkørsel.
+HA-fjernadgangen viser "Unable to connect to Home Assistant"; separat HTTPS-check
+fejler TLS-forbindelse, og homeassistant.local:8123 kan ikke resolves her. Nabu Casa-
+forbindelsessiden kræver login og er åbnet til brugeren. Det er adgangsblokering,
+ikke bevis for add-onfejl. Installation, frisk config-status og robotliveeval kan
+ikke verificeres endnu; ingen aktivering udført. Ingen beskeder til andre opgaver.
+MainCI34819500914 nu PASS: lint-test1m42s, publish-addon2m9s. .83-image publiceret
+sha256:a068b65dd15a6d69145bfe27fdaaab9bf2d687e431c5ef3bf211464d0f779a2e.
+Kode, merge og publiceret installationspakke er færdige. HA-adgang/login er eneste
+aktuelle installationsblokering; sikker robotliveeval og fysisk accept er stadig
+ikke udført. Denne lokale leveringspost er ikke en påstand om installeret .83.
+
+14/9 HA-adgang genetableret. .83 installeret én gang med eksplicit aktiveret backup;
+HA viser lokal backup "PodVoice 1.13.82",14.04MB. Automatisk app-opdatering gendannet
+ON. Kørende startupidentitet: version1.13.83,git479aa5b5ec0059344706b27fec80935b677d0189,
+rootfs-v1:ba736c9d28213644518418a34307253671c9b37143a7b306ab89adfc93084562.
+Promptv15:9f18bc2bdeafd28b30c5d6022adcf152975dce7cbcd920d2c5cc03d0331056c9;
+MCPassist schema508001010df295576e6bd63f02594c9a6ab514da702c729049929aed30e90e23.
+Sikker fuld robotprofil startet eval-1789373379-0712ad; resultat afventes før ON.
+Voice PE er fortsat offline: mDNS-opslag timer ud, cached192.168.86.240:6053 giver
+Errno113; samme fejl observeret før .83 på .82. Ingen firmwareændring eller fysisk
+accept. HA/MCP og PodConnect svarer igen; forbindelsesfejl er ikke robotsemantik.
+
+Liveeval-1789373379-0712ad afsluttet FAIL i device-sequence tur2: eneste finding
+answer-pattern-mismatch. GET + fire forventede handlinger + end_conversation blev
+godkendt; fire syntetiske sideeffekter, ingen virkelige HA-handlinger. Svar:
+"Anmodningen er accepteret med maksimal sugestyrke og ekstrem vaskeintensitet, og
+køkkenet er sat til at blive støvsuget og vasket to gange. Den fysiske udførelse er
+ikke bekræftet." Oracle kræver sendt eller navngivet HA-accept. Manglende kilde er
+under uafhængig vurdering; ingen påstand om falsk fysisk start alene fra regexfail.
+2/8 ture kørt; rumspørgsmål/korrektion ikke kørt, candidate_contract_passed=false.
+71529tokens,$0.1113872;94.57s budgetventen. Robotudvidelse verificeret OFF med alle
+fem tidligere entiteter bevaret. Ingen blind genkørsel, oracleændring eller ON.
+
+Leadbeslutning .84 — kun eval-oracle: uafhængigt robot_83_result_review reproducerer
+falsk negativ; den citerede kvittering beskriver anmodningsaccept/fremtidig opgave,
+ikke robotkvittering eller fysisk start. Samme svar med eksplicit HA-navn består.
+Kæde/nabogrænser: completed modelrespons → evalobservations svartekst → bounded
+regressionfilter → profilstatus → aktiveringsgate. Produktionsdispatch og fysisk
+wake/playback/teardown/rearm ændres ikke. Hypotese: positiv regex er for snæver;
+afgrænset passiv anmodningsaccept med eksplicit fysisk ukendt skal kunne bestå,
+mens passiv accept fra robotten og fysisk succes fortsat afvises. Ikke-mål: ingen
+prompt-, runtime-, schema-, firmware-, budget- eller aktiveringsændring; ingen
+generel semantisk dommer og ingen retroaktiv godkendelse af .83-run.
+Regressioner: observeret svar positivt; samme prefix med enhedsaccept/start/færdig
+negativt; eksisterende rækkefølge, præcise mål, no-retry, close og exact-one-call
+uændret. Konkret diff reviewes før én frossen releasegate, grøn offentlig artifact,
+backup/installation og fuld frisk robotprofil. Rollback er .83 med udvidelse OFF;
+fysisk gate stadig ukendt, Voice PE aktuelt offline.
+
+Faktisk .84-diff: kun de to positive kvitteringsfiltre plus kontrasttests og
+versionsmetadata. Passiv anmodningsaccept kræver i den nye regexvej eksplicit fysisk
+ubekræftet; eksisterende sendt/HA-accept-veje er bevaret. Global negativ guard
+afviser passiv accept fra robotten, også ved samtidigt "sendt". Det er fortsat et
+begrænset regressionsfilter, ikke generel semantisk bedømmelse eller produktfraser.
+Uafhængigt robot_83_result_review: GO, ingen P0/P1/P2;85tests PASS, rent diff-check.
+Reviewhash fixture/tests acc9cc20a3788ca36c70b4d635225d7e038add464f0e07b7ffd39511b35786e6.
+Fast PASS86.5s inklusiv fuld testsuite. Den gamle debug-venv manglede pytest; anvendt
+eksisterende ekstern Python3.12.13 live-sdk-venv, ingen dependency-/runtimepatch.
+Brugeren bekræfter strømmen til Voice PE havde manglet. Efter genindkobling viser
+panelet automatisk native genforbindelse og wake-motorafprøvning; ingen manuel
+add-on-genstart nødvendig. Fysisk ny wake/samtale er endnu ikke bevist.
+Første releasekørsel havde grønne deltests men blev korrekt ugyldiggjort, fordi
+lead opdaterede leveringsmetadata mens gaten kørte. Ingen produktfejl; hele diffet
+fryses nu også for status, og kun den ugyldiggjorte releasegate genkøres.
+Samlet frossen .84-releasegate PASS40.5s med Ruff/format127,mypy47,candidate-scope
+og fulde unit/integration. Dette er efterfølgende leveringsmetadata; ingen ændring
+af reviewet fixture/tests. Offentlig CI, installation og fuld liveprofil resterer.
 
 ## Aktiv lead-beslutning — rent tak uden verbal kvittering .80
 

@@ -1,3 +1,17 @@
+## 1.13.84 — Korrekt bedømmelse af robotkvittering
+
+- Den sikre robot-test accepterer også en passiv anmodningsaccept, når svaret
+  udtrykkeligt siger, at fysisk udførelse ikke er bekræftet. Den afviser fortsat
+  påstået robotaccept, fysisk start og færdiggørelse uden bevis.
+- Ingen ændring af prompt, værktøjer, robotstyring, lyd eller firmware. En fejlet
+  eller ufuldstændig tidligere test bliver ikke automatisk godkendt.
+
+## 1.13.83 — Direkte opslag på kendt Roborock
+
+- Præciserer, at et allerede kendt robot-ID bruges direkte uden et ekstra listeopslag. Ukendt ID bruger fortsat discovery; ingen lokale taleregler eller nye værktøjer.
+- Bevarer HA-rumkobling, sikker målvalidering, engangstokens og prompt v15 fra .81. Ingen firmware-, lyd- eller kapacitetsændring.
+- Regressioner fastholder ét opslag ved kendt mål og afviser forkert mål eller rengøring ved et rumspørgsmål. Robotudvidelsen aktiveres først efter bestået sikker AI-test; fysisk afprøvning er separat.
+
 ## 1.13.82 — Mediefiltre i den sikre tak-test
 
 - Den isolerede fejlprøve accepterer tre præcise, schema-validerede målangivelser for stuen: område alene, med media_player-domæne eller med speaker-klasse.

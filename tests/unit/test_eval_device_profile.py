@@ -246,6 +246,33 @@ def matching_observation(expect, answer):
     )
 
 
+@pytest.mark.parametrize("scenario_id", ["device-room-question", "device-room-correction"])
+def test_room_lookup_oracle_rejects_observed_redundant_discovery(scenario_id):
+    """.79 returned correct Danish rooms but spent an avoidable discovery round."""
+    scenario = next(s for s in ev.load_scenarios(ev.DEVICE_EVAL_PATH) if s.id == scenario_id)
+    expect = scenario.turns[0].expect
+    observed = matching_observation(expect, "Den kan rengøre Køkken og Spisestue.")
+    assert not ev.grade_turn(expect, observed)
+    observed.decisions = [dc.GET_CAPABILITIES, dc.GET_CAPABILITIES]
+    observed.decision_batches = [[dc.GET_CAPABILITIES], [dc.GET_CAPABILITIES]]
+    observed.tool_args[dc.GET_CAPABILITIES].insert(0, {})
+    assert "wrong-decision" in {finding.code for finding in ev.grade_turn(expect, observed)}
+    assert observed.fixture_side_effects == 0
+
+
+@pytest.mark.parametrize("scenario_id", ["device-room-question", "device-room-correction"])
+def test_room_lookup_oracle_rejects_wrong_target_and_start(scenario_id):
+    scenario = next(s for s in ev.load_scenarios(ev.DEVICE_EVAL_PATH) if s.id == scenario_id)
+    expect = scenario.turns[0].expect
+    observed = matching_observation(expect, "Den kan rengøre Køkken og Spisestue.")
+    observed.tool_args[dc.GET_CAPABILITIES] = [{"entity_id": "vacuum.other"}]
+    assert ev.grade_turn(expect, observed)
+    observed = matching_observation(expect, "Den kan rengøre Køkken og Spisestue.")
+    observed.decisions.append(dc.EXECUTE_ACTION)
+    observed.fixture_side_effects = 1
+    assert ev.grade_turn(expect, observed)
+
+
 @pytest.mark.parametrize("scenario_index", [1, 2])
 @pytest.mark.parametrize(
     "answer",
@@ -286,6 +313,11 @@ def test_negative_reply_oracles_accept_truthful_uncertainty_and_clarification(
         "HA har modtaget anmodningen. Jeg kan ikke bekræfte fysisk start.",
         "Home Assistant har accepteret opgaven, men den er ikke bekræftet færdig.",
         "Anmodningen er sendt. Robotten har ikke bekræftet modtagelsen.",
+        # .83 live: truthful passive request receipt, not a device acknowledgement.
+        "Anmodningen er accepteret med maksimal sugestyrke og ekstrem vaskeintensitet, "
+        "og køkkenet er sat til at blive støvsuget og vasket to gange. "
+        "Den fysiske udførelse er ikke bekræftet.",
+        "Anmodningen er accepteret. Den fysiske udførelse er ikke verificeret.",
     ],
 )
 def test_accepted_reply_filter_allows_service_receipt_and_negated_physical_proof(
@@ -313,6 +345,16 @@ def test_accepted_reply_filter_allows_service_receipt_and_negated_physical_proof
         "Jeg har gennemført rengøringen to gange.",
         "Home Assistant har accepteret opgaven. Rengøringen er færdig.",
         "Jeg har startet rengøringen. Anmodningen er sendt.",
+        "Anmodningen er accepteret af robotten. Den fysiske udførelse er ikke bekræftet.",
+        "Anmodningen er accepteret med maksimal styrke af støvsugeren. "
+        "Den fysiske udførelse er ikke bekræftet.",
+        "Anmodningen er sendt. Anmodningen er accepteret af enheden.",
+        "Anmodningen er accepteret. Robotten er startet. Den fysiske udførelse er ikke bekræftet.",
+        "Anmodningen er accepteret. Rengøringen er færdig. "
+        "Den fysiske udførelse er ikke verificeret.",
+        "Anmodningen er accepteret. Robotten har accepteret opgaven. "
+        "Den fysiske udførelse er ikke bekræftet.",
+        "Anmodningen er accepteret. Den fysiske udførelse er bekræftet.",
     ],
 )
 def test_accepted_reply_filter_rejects_known_false_source_and_physical_claims(
