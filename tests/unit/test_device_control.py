@@ -210,6 +210,17 @@ async def test_explicit_vacuum_with_multiple_permitted_targets_needs_no_discover
     assert not rig.writes
 
 
+@pytest.mark.parametrize("target", ["vacuum.not_permitted", "select.other", "Roborock"])
+async def test_explicit_rejected_target_does_not_read_or_fall_back_to_sole_robot(rig, target):
+    result = await rig.router.dispatch(
+        GET_CAPABILITIES, {"entity_id": target}, execution_context=CTX
+    )
+    assert not result["ok"]
+    assert not rig.reads
+    assert not rig.writes
+    assert "capability_token" not in result
+
+
 async def test_ha_area_expands_all_segments_once_on_active_map(rig):
     rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"] = {
         "kitchen": ["0_16", "0_17"],
@@ -428,7 +439,11 @@ async def test_room_speech_uses_ha_names_but_keeps_technical_ids_in_calls(rig):
     assert "explicit technical requests" in description
     assert "without distinguishing aliases" in description
     assert "never invent a distinction" in description
-    assert "without listing devices first" in description
+    assert "current request" in description and "FIRST call" in description
+    assert "read-only tool validates permission" in description
+    assert "do not list devices first to validate a supplied ID" in description
+    assert "Respect corrections and negation, not the first mentioned ID" in description
+    assert "Never fall back to another robot after a target is rejected" in description
     assert (
         sum(d["name"] in {GET_CAPABILITIES, EXECUTE_ACTION} for d in rig.router.declarations()) == 2
     )

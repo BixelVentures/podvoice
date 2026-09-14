@@ -35,9 +35,13 @@ _DECLARATIONS = [
     {
         "name": GET_CAPABILITIES,
         "description": (
-            "Read available HA cleaning areas and extended controls. With a known exact "
-            "vacuum entity_id, call directly for that ID without listing devices first. "
-            "Without entity_id, "
+            "Read available HA cleaning areas and extended controls. When the current request "
+            "explicitly identifies its target with an exact vacuum entity_id, use that unchanged "
+            "target in the FIRST call. This read-only tool validates permission: do not list "
+            "devices first to validate a supplied ID. Otherwise use an exact target established "
+            "by tool results. Omit entity_id only when no exact target is established. "
+            "Respect corrections and negation, not the first mentioned ID. Never fall back "
+            "to another robot after a target is rejected. Without entity_id, "
             "read the sole permitted vacuum directly, or list vacuum IDs if ambiguous. "
             "Use for questions about cleanable rooms and advanced vacuum requests. "
             "An information question is NOT permission to start cleaning. "
@@ -56,8 +60,10 @@ _DECLARATIONS = [
                 "entity_id": {
                     "type": "string",
                     "description": (
-                        "Exact vacuum ID supplied by the user or established by tool results. "
-                        "Omit only when unknown; never infer an ID from a room or device name."
+                        "Exact target of the current request, unchanged, even before tool "
+                        "verification; this tool validates permission. Otherwise use an exact "
+                        "target established by tool results. Omit only if unknown; never derive "
+                        "an ID from a natural room or device name."
                     ),
                 }
             },
