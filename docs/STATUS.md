@@ -2,6 +2,17 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Integration6794e20 med installeret1.13.87 bestod fast74760: exit0, samlet100.2s,
+pytest99.61s, Ruff/format43filer og mypy50sources PASS. Uafhængigt Astra scoped GO:
+alle otte berørte non-STATUSfiler matcher be4c5e8, Thin/SDK/Liveprompt uændrede,
+begge statushistorikker bevaret, ingen capability-owner-ændring. Nyt runtimehash
+53f44f7bbbc4b9141eb22c87d56cbfe8b24a1ae8485cf42d75295a2f9583e96b;
+API10 beviser den tidligere runtime, ikke automatisk denne samling.
+Næste konkrete artifactarbejde er provisioneret firmware fra uændret alpha-overlay;
+18komponentfiler og overlay matcher compile02. Canonical secrets findes lokalt, men
+aktuelt key/device-match er endnu ikke verificeret. Ingen build/flash med gættet
+provisionering; releasegate/fysisk teststatus er fortsat åben.
+
 API10 afsluttet14/9 på55c1c3f: original evaluator OBSERVED_PASS for context-followup;
 præcis én lokal prøveeffekt, frisk ja, begge sessioner lukket, ingen runtimefejl.
 Supervisorlabel kom9.784s efter spørgsmålets sidste tekstfragment mod16.663s i09;
