@@ -2,6 +2,129 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+
+Uafhængig frisk officiel close-gennemgang: Live-guiden kræver nødvendige backend-
+resultater/continuations færdige → session.close → forbindelser beholdes indtil
+session.closed → cleanup. Officiel WebRTCeksempel rydder peer/audio ved session.closed;
+manglende separat akustisk ACK gør derfor ikke i sig selv Talkimplementeringen
+APIstridig. Der er ikke etableret et officielt speak-finalize/audio-done-primitive.
+Seks sekunders ventetid før close er fortsat vores heuristik, ikke OpenAI-anbefaling.
+Hold to krav adskilt: protokolfinalisering følger dokumentation; oplevet farvel uden
+klip og speakerdræn kræver egen fysisk måling. Opfind ikke nyt completion-event eller
+parallel samtaleejer for at lukke evidensgabet. Denne præcisering erstatter en mulig
+fortolkning af live_browser_drain_unconfirmed som demonstreret API-fejl.
+
+
+Best-practice-kontrol af faktisk kode: openai_live bruger officiel live.connect for
+VoicePE/WebSocket og live.create + live.sideband.connect for Talk/WebRTC. PCMformat
+angives kun for WebSocket; frontenddatachannel kan ikke udføre backendkommandoer.
+Liveprompt har Backchannel/Interruption/Delegation-policy; fulde schemas og detaljer
+ligger i backend. Dette er dokumenteret struktur, ikke komplet produktgodkendelse.
+Device01s timeline har ikke lydchunk-/speakergrænser; dens backendsettled/finaltider
+kan derfor ikke begrunde en ny kortere grace. Næste close-måling skal korrelere sidste
+reelle outputlyd med providerfinal og fysisk/browserspeakerdræn. Ingen timerændring.
+
+
+API19 background på c194126 terminal OBSERVED_PASS: helper46345exit0, superviseret
+spørgsmål-review51244exit0. Faktisk spørgsmål “Vil du køre prøvehandlingen for
+hoveddøren?” blev bedømt mod det eksakte holdte mock-forslag. Rapport: åbning korrekt,
+hel frisk backgroundfixture korrekt modtaget efter spørgsmål, nul effekter, tilstrækkelig
+negativ observation, to sessions final usage/clean, ingen runtimefaults. Uafhængigt
+Astrareview scoped GO:7artifact-/9source-/8fixturehashes matcher, begge komplette
+providerresamplinger byteidentiske. Hel “Peter, vil du have kaffe”34.965s, ca4.49s
+før expiry;25.038s videre observation. Gen2 sagde “Jeg lytter lige med.” men havde
+nul backendresponses/toolbatches/effekter.46finalvoice-sekunder/14154backendtokens.
+Beviser ikke perfekt stille UX, forsøgt approval-afvisning eller reconsideration.
+Root verificerede normal HA1.13.87 Kører→Stoppet→
+Kører, ryddede nøglevariabel og lukkede handoff. Ingen mic, hjemaktion eller installation.
+Originaler og særskilt rootobservation bevaret; hasharkiv i
+/private/tmp/podvoice-live-alpha-api-proof/confirmation-background-19.
+
+Brugeren genunderstregede best practice. Frisk officiel Live-guide14/9:
+https://developers.openai.com/api/docs/guides/live-prompting anbefaler kort frontend-
+prompt, detaljer/backendtools i delegation.responses.instructions og applikationsejet
+autorisation; taleafbrydelse stopper ikke automatisk backendarbejde. Aktuel kode har
+denne opdeling, men omfattende frontendregler og eksplicit6s eksperimentel closegrace.
+Disse er ikke erklæret optimale eller fuldt Live-native. Separat read-only officiel
+close/drain-gennemgang bestilt; ingen gættet audio-done event eller timingpatch.
+Eksisterende godkendelsesevaluator kan kun ramme reconsider_action, hvis rigtig ny
+inputfragment ankommer under backendarbejdet; normal PASS beviser ikke denne gren.
+Der tilføjes ikke gentagne tilfældige prøver for at tvinge et grønt resultat.
+
+
+Næste afgrænsede gate efter device01: eksisterende background-case i uændret
+live_confirmation_eval.py b8fc0b67... på c194126. Kendt hel syntetisk ytring
+“Peter, vil du have kaffe?” efter faktisk, superviseret godkendelsesspørgsmål må give
+nul effekter på det holdte mock-forslag. Kun handoffens runtimepin, case og outputsti
+ændres fra18 til19; ingen prompt-, runtime-, timing-, fixture- eller orakelændring.
+Højst2sessions/60s observation/15s cleanup; egentlig reconsideration er separat åbent
+krav, og denne baggrundsprøve må ikke foregive at bevise den. Review før APIstart.
+Forrige målfortsættelse gav konkret fremdrift: device01 realproviderbevis og Astra GO.
+
+
+14/9 device01 faktisk kørt efter brugerens konkrete “Ja” til lokal OpenAI-prøve og
+kort Stop/Start. Dette erstatter nedenstående afventende status for netop denne prøve.
+Helper16895 terminal0. Rigtig GPT-Live-1/SDK + Talk/Thin/ToolRouter/DeviceControl på
+c194126, men kun mock-HA/Rig: modelvalgt capabilitylookup → max-sugestyrke → frisk
+capability → én Køkkenalrum-start. Rapporten viser præcis to mockwrites:
+set_fan_speed(max), send_command(app_segment_clean, segments=[16], repeat=1).
+Root så faktisk browserinput én gang og modelsvar “Sugestyrken er sat til maks, og
+støvsugningen af Køkkenalrum er sendt afsted.” Ingen rigtig robot eller HA-mutation.
+Én providerstart, fem completed backendresponses, 15 final voice-sekunder,
+39107 backendtokens, clean shutdown og ingen rapporterede faults. Modellen valgte
+end_conversation efter værktøjsresultater; terminal backend settled45.550s,
+live_browser_drain_unconfirmed52.115s og teardown54.266s. Derfor ingen akustisk
+finish-/fysisk lifecycleaccept; browserens afslutning alene er ikke playbackbevis.
+Normal PodVoice1.13.87 blev faktisk verificeret Kører → Stoppet → Kører igen.
+Nøglevariabel ryddet, prøvefaner lukket; mikrofon aldrig åbnet. Originale reports og
+separat rootobservation arkiveret i api-proof/talk-device-01 med hashes.
+Uafhængig Astra-resultataudit: scoped GO uden finding. Alle53pinnede filer matcher
+c194126; fem completed backendresponses deler én delegation, dispatch følger completion,
+og eksakte resultater er submitted før continuation. Samme capability-owner hele vejen,
+ingen dobbelt start. Dette godkender provider/router-sekvens mod mock-HA, ikke rigtig
+robot, cleaning-mode, akustisk dræn eller fysisk lifecycle. Ingen ny runtimeændring,
+releasegate, push, installation eller fysisk10/10/duplex/latensaccept. GitHub-statuspush
+har fortsat sin særskilte åbne tilladelse.
+
+Lokalt ARM64robotimage på c194126 bygget:39643terminal0, tag
+podvoice-live-alpha:c194126. Config4a3db8d51012e93885e5fafd66c4d996380344388a40533302eaaf57a9c7c828,
+manifest92b6c2485821f6561027f4091ba2a243dc1388050ebbf1a59a30b40fe4566c79.
+Netværksisoleret faktisk import terminal0;50runtimekilder matcher
+ eabf6c7f0f1457cb0e1cc93168a61d4ce997637c56f021f9ed63f72b6f4bbb99,
+sourceenv fuld c194126; aarch64/OpenAI3.13.0. Runtimeartifact
+ a10d08a3108a290efb8b91b47dc46abf6fc9856297fe0948bf11f225e9a018ae.
+Build resolverede httpx2/httpcore2 til2.13.0 (tidligere3551b87-image2.12.0).
+Kildeidentitet/import er verificeret, men dette arver ikke gamle API-prøvers fulde
+artifactbevis; præcis installeret artifact skal stadig gates. Ingen versionspinændring
+eller runtimepatch udledes alene af dependencyopløsningen. Metadata bevaret lokalt.
+API-nøgleoverførsel/StopStart afventer brugerens konkrete accept; ingen API-kørsel,
+serviceafbrydelse, releasegate, publicering eller installation i denne fortsættelse.
+
+Device01 checkpoint er forberedt og uafhængigt reviewet GO, men IKKE kørt.
+Launcher96e233a.../handoff52cec39... pin c194126 og Rig3b44b820...; realSDK/Talk/
+Thin/ToolRouter/DeviceControl med kun eksisterende mock-HA. Tids-/callback-/guardgrænser
+reviewet; ingen rigtig HAcredential eller fysisk devicevej. Runtime uændret.
+Automatic approval review afviste browserhandlingen, som skulle fylde eksisterende
+OpenAI-nøgle i lokal engangshandoff og Stoppe normal PodVoice: kræver eksplicit
+handlingstidsgodkendelse af nøgleoverførsel/serviceafbrydelse. Ingen genforsøg/omvej.
+Root ryddede nøglevariabel, lukkede formularfanen og verificerede HA1.13.87 Kører.
+Handoff44076 afbrudt terminal130 under server.handle_request før nøglemodtagelse;
+ingen device01-evidencemappe eller API-session blev oprettet. Samlet runtimefix er
+fortsat softwarekontrolleret, men ingen realprovider-robotaccept. Konkret spørgsmål
+om eksisterende OpenAI-nøgle til lokal prøveproces og kort Stop/Start afventer.
+
+Næste robotcheckpoint på c194126: rigtig GPT-Live/SDK + shipped Talk/Thin/ToolRouter/
+DeviceControl, men kun eksisterende Rig med httpx.MockTransport som HA-modpart.
+Formål: bevis modelvalgt capabilitylookup→indstilling→næste token→én områdestart
+på tværs af rigtige completed backendresponses. Brug fuld produktionsdeklaration og
+prompt; ingen konstruerede SDK-events, ingen rigtig robot/HAcredential/servicekald.
+Maks2providerstarts/60s aktiv observation,120s prewake og eksisterende boundedcleanup.
+Kildehash inkluderer fixtureRig; log mockwrites og faktiske resultater/SDKcontinuations.
+Forventet konkret ytring: sæt sugestyrken på vacuum.qrevo til max og støvsug derefter
+Køkkenalrum én gang. Resultat må højst bevise providersyntaks/ejerkæde og sand
+HA-acceptformulering mod fixture; ingen fysisk robot- eller VoicePE-accept. Normal
+PodVoice stoppes kort til APIisolering og genstartes verificeret. Review før kørsel.
+
 Robotdiff endeligt uafhængigt scoped GO for source+tests: reviewer genverificerede
 Thin8ef83.../testd059... og genkørte19tests PASS. Ingen actionablefinding. Tolv nye
 cases bruger shipped SDKadapter/Thin/ToolRouter/devicepolicy med simuleret provider/HA;
