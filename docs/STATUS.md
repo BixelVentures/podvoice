@@ -2,6 +2,34 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Talk03 uafhængigt scoped GO:52kildeentries matcher0bffd66bd59308f6db2a6ce4ee359ed81a6624b2;
+launcherdiff er kun sourcepin. Tre input gemt én gang, svar42/Farvel/Fem, rootChrome
+bekræfter enkeltvisning. Modelterminalens backendcontinuation settled36.624s;
+eksisterende6s heuristisk grace efterfølges af providerfinal43.379s og teardown45.533s,
+længe før prøvecleanup80.029s. Dette var modelstyret farvel, ikke prøvefristens close.
+Ny samtale54.691s med frisk provider/generation passerer primary/sidebandready og svarer;
+PanelStop færdig69.868s. Begge sessionsusage final:35voice-sekunder/26970backendtokens,
+fire completedresponses uden konflikt; clean uden faults. Trace markerer eksplicit
+live_browser_drain_unconfirmed: hverken akustisk dræn eller fysisk VoicePE er bevist.
+Fortsat åbent: stemmegodkendelsesmatrix/reconsideration, fuld toolparitet og særskilt
+robot-owner-tilladelse, mikrofon/overlap, releaseartifact/installation, fysisk golden
+chain/10/10/duplex/latens. Ingen ny slutgodkendelse eller målændring.
+
+Fast62030 på frosset0bffd66 terminalexit0:100.0s samlet, pytest99.56s, Ruff/format43
+og mypy50sources PASS. Ingen source/commitændringer under gaten. Talkvisningsrettelsen
+har dermed kausal regression, uafhængig review og samlet softwarekontrol.
+
+Faktisk Chrome-Talk03 på0bffd66: runtime54ec7559bd10c1fb7ff86cb39f64671bbfd8059c789ef0bb0996b7b231330839;
+reviewet launcher kun sourcepinændret til0bffd66, sha e954acb0d00770fd5feb81698f9d9cce1ec1aaa378a282251bf71a39882399b4.
+Root observerede én bubble per typed input:6×7→“Mm-hmm.42.”, frisk “Tak, det var alt.
+Farvel.”→“Mm.”/“Farvel.” og UI “Live-samtalen er afsluttet”/klar. Derefter ny typed
+samtale2+3→“Hmm.Fem.”, rootAfslut. Ingen mikrofon aktiveret. Helper97738terminal0,
+report2providerstarts, cleantrue, faults tom. Provider-/lifecycle-/usageaudit afventer;
+UItranscript er ikke lydoptagelse eller akustisk drænbevis. Ingen fuld physicalaccept.
+HA1.13.87 blev verificeret Stoppet før og Kører efter rootStart; engangshandoff og
+Talkfane lukket, nøglevariabel ryddet. Originale rapporter og eksplicitte rootDOM-
+observationer arkiveret i api-proof/talk-browser-03. Ingen alpha-installation udført.
+
 Typedvisningsrettelsen fik uafhængig scoped GO på Thin4ef1f712... og test6fa147ff...:
 bevarer admissiontid/session, inputtællere, providersend og anden hubs fallback.
 Den nye faktiske TalkConnection/Hub/History-regression bestod også uafhængigt.
