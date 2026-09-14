@@ -2,6 +2,28 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+STOP-THE-LINE14/9 — Ultra-review reproducerer queued-input race i terminalreceipt.
+SDK har modtaget ny ikke-tom brugerrettelse (input_sequence1), mens Thin endnu har
+revision0; terminal_receipt_current forbliver true, og grace kan sende session.close
+før rettelsen leveres. Samme receipt bruges ved confirmation-rotation. Kandidaten er
+IKKE installationsklar; tidligere image/firmwarebuild er kun artifactbevis.
+Kausal kæde: SDK inputreceipt → Thin kø → terminaltool/result/continuation → grace
+eller capturehold → providerclose/rotation → playbackdræn/rearm. Invarianter: frisk
+input må afbryde gammel slutintention; ingen gammel kvittering må krydse generation;
+én Thin-ejer, samme VoicePE/Talk-adapterkontrakt og serverautorisation.
+Hypotese: receipt skal bindes til den observerede SDK-inputgrænse, og ændring skal
+invalideres før close/rotation også efter await på hold. Regressioner skal tilbageholde
+Thin-levering efter rigtig SDK-receipt før settlement/grace/hold; tidligere reviewede
+Stop/rotation/typed cases skal bevares. Ingen TTL/prompt/gain/robot-owner-ændring.
+Ret kun denne ejergrænse efter samlet review; uafhængig reviewer genkontrollerer faktisk
+diff før releasegate. Rollback hele korrektionsdiffet; release/installation HOLD.
+API11 er terminal OBSERVED_PASS for old-yes-fresh-no på hidtidig runtime, afventer
+uafhængig negativ semantisk verifikation. Root har læst gen2-spor: “Nej, du skal ikke
+gøre det” → “Okay, det gør jeg ikke.”; report effects tom, begge sessioner clean og
+ingen runtimefaults. Originalrapport bevaret i api-proof/confirmation-negative-11.
+Normal HA1.13.87 er efter prøven frisk verificeret Kører; nøglevariabel/formular ryddet.
+Dette er en negativ syntetisk delprøve, ikke komplet matrix eller fysisk bevis.
+
 Installationsforberedelse14/9: Brugeren gentog “godkendt fra mig” under arbejdet med
 installationsparret; fortsæt mod installation efter gates. Ingen fysisk accept arves.
 Lokalt ARM64 Dockerbuild23523 fra02c1ecd afsluttet exit0; tag podvoice-live-alpha:02c1ecd,
