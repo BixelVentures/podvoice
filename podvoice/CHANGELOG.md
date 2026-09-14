@@ -1,3 +1,11 @@
+## 1.13.84 — Korrekt bedømmelse af robotkvittering
+
+- Den sikre robot-test accepterer også en passiv anmodningsaccept, når svaret
+  udtrykkeligt siger, at fysisk udførelse ikke er bekræftet. Den afviser fortsat
+  påstået robotaccept, fysisk start og færdiggørelse uden bevis.
+- Ingen ændring af prompt, værktøjer, robotstyring, lyd eller firmware. En fejlet
+  eller ufuldstændig tidligere test bliver ikke automatisk godkendt.
+
 ## 1.13.83 — Direkte opslag på kendt Roborock
 
 - Præciserer, at et allerede kendt robot-ID bruges direkte uden et ekstra listeopslag. Ukendt ID bruger fortsat discovery; ingen lokale taleregler eller nye værktøjer.
