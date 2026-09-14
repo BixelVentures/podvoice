@@ -1,3 +1,14 @@
+## 1.13.85 — HA-rumnavne og samlet sikker robotprøve
+
+- Rumopslag bruger HA-navne og aliaser i tale. Navnekollisioner uden brugbar
+  skelnen skal forklares, ikke erstattes af interne ID'er eller opdigtede etager.
+  Tekniske forespørgsler kan stadig få præcise entitets-ID'er.
+- Alle seks sikre robotprøver er gennemgået samlet: hele rumlisten kræves,
+  naturlige negationer bevares, og falsk succes eller foreslået genforsøg ved
+  ukendt udfald afvises. Testfiltre er ikke en generel sproglig sandhedsdommer.
+- Ingen nye værktøjer, scripts, budgetter, firmware eller lydændringer. Aktivering
+  kræver fortsat komplet frisk robotprøve; fysisk afprøvning er en separat gate.
+
 ## 1.13.84 — Korrekt bedømmelse af robotkvittering
 
 - Den sikre robot-test accepterer også en passiv anmodningsaccept, når svaret

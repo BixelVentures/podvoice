@@ -338,7 +338,15 @@
               "ha_get_device_capabilities": {}
             },
             "fixture_side_effects": 0,
-            "remain_open": true
+            "remain_open": true,
+            "answer_all": [
+              "vacuum.eval_qrevo",
+              "vacuum.eval_unknown",
+              "vacuum.eval_ambiguous"
+            ],
+            "answer_patterns": [
+              "(?s)^(?!(?:.*)(?:\\b(?<!om )(?<!ikke bekræfte at )(?:robotten|støvsugeren|enheden|rengøringen|den|køkken(?:et)?) er (?:nu )?(?:startet|i gang|færdig|rengjort)|(?:robotten|støvsugeren|enheden) har (?:nu )?(?:accepteret|modtaget)|(?:robotten|støvsugeren|enheden) (?:vasker|støvsuger|kører) nu|jeg har (?:nu )?(?:startet|gennemført)|jeg starter (?!ikke\\b)|rengøringen er gennemført|færdigrengjort)).+"
+            ]
           }
         },
         {
@@ -388,7 +396,7 @@
             "fixture_side_effects": 4,
             "remain_open": false,
             "answer_patterns": [
-              "(?s)^(?!.*(?:robotten|støvsugeren|enheden) (?:har (?:nu )?(?:accepteret|modtaget)|er (?:nu )?(?:startet|i gang|færdig)|(?:vasker|støvsuger|kører) nu))(?!.*accepteret[^.!?]* af (?:robotten|støvsugeren|enheden))(?!.*(?:jeg har (?:startet|gennemført)|rengøringen er (?:startet|færdig|gennemført))).*(?:sendt|(?:home assistant|\\bha\\b) har (?:accepteret|modtaget)|anmodningen er accepteret.*den fysiske udførelse er ikke (?:bekræftet|verificeret)).*"
+              "(?s)^(?!(?:.*)(?:\\b(?<!om )(?<!ikke bekræfte at )(?:robotten|støvsugeren|enheden|rengøringen|den|køkken(?:et)?) er (?:nu )?(?:startet|i gang|færdig|rengjort)|(?:robotten|støvsugeren|enheden) har (?:nu )?(?:accepteret|modtaget)|(?:robotten|støvsugeren|enheden) (?:vasker|støvsuger|kører) nu|jeg har (?:nu )?(?:startet|gennemført)|jeg starter (?!ikke\\b)|rengøringen er gennemført|færdigrengjort))(?!.*accepteret.* af (?:robotten|støvsugeren|enheden))(?!.*(?:(?:ikke|aldrig) (?:sendt|accepteret)|kunne ikke sende|anmodningen (?:er|blev) afvist)).*(?:sendt|(?:home assistant|\\bha\\b) har (?:accepteret|modtaget)|anmodningen er accepteret.*den fysiske udfør(?:else|sel) er ikke (?:bekræftet|verificeret)).*"
             ]
           }
         }
@@ -445,7 +453,7 @@
             ],
             "remain_open": true,
             "answer_patterns": [
-              "^(?!(?:robotten|støvsugeren|rengøringen) (?:er startet|er færdig))(?!(?:jeg har|jeg har nu) (?:startet|sat))(?!(?:.*)(?:rengøringen er færdig|har gennemført|færdigrengjort)).*(?:ukendt|usikker|ikke bekræfte|ikke sikker|ved ikke|tjek|kontroller).+"
+              "(?s)^(?!(?:.*)(?:\\b(?<!om )(?<!ikke bekræfte at )(?:robotten|støvsugeren|enheden|rengøringen|den|køkken(?:et)?) er (?:nu )?(?:startet|i gang|færdig|rengjort)|(?:robotten|støvsugeren|enheden) har (?:nu )?(?:accepteret|modtaget)|(?:robotten|støvsugeren|enheden) (?:vasker|støvsuger|kører) nu|jeg har (?:nu )?(?:startet|gennemført)|jeg starter (?!ikke\\b)|rengøringen er gennemført|færdigrengjort))(?!.*accepteret.* af (?:robotten|støvsugeren|enheden))(?!.*(?:\\bkitchen\\b|\\bdining\\b|\\bvacuum eval\\b|\\bselect eval\\b|\\bcapability token\\b|\\b(?:ambiguous|unknown|eval)[0-9]+\\b))(?!.*(?:(?:den|robotten|køkkenet|rengøringen) (?:er|blev) ikke startet|(?:jeg|vi) (?:prøver|forsøger|starter) (?!ikke\\b).*igen|(?:prøv|start|gentag) .*igen|anmodningen er accepteret|anmodningen er sendt)).*(?:ukendt|usikker|ikke bekræfte|ikke sikker|ved ikke|tjek|kontroller).*"
             ]
           }
         }
@@ -475,7 +483,10 @@
             ],
             "remain_open": true,
             "answer_patterns": [
-              "^(?!(?:robotten|støvsugeren|rengøringen) (?:er startet|er færdig))(?!(?:jeg har|jeg har nu) (?:startet|sat))(?!(?:.*)(?:rengøringen er færdig|har gennemført|færdigrengjort)).*(?:hvilk|præcis|to rum|flere rum|mener du).+"
+              "(?s)^(?!(?:.*)(?:\\b(?<!om )(?<!ikke bekræfte at )(?:robotten|støvsugeren|enheden|rengøringen|den|køkken(?:et)?) er (?:nu )?(?:startet|i gang|færdig|rengjort)|(?:robotten|støvsugeren|enheden) har (?:nu )?(?:accepteret|modtaget)|(?:robotten|støvsugeren|enheden) (?:vasker|støvsuger|kører) nu|jeg har (?:nu )?(?:startet|gennemført)|jeg starter (?!ikke\\b)|rengøringen er gennemført|færdigrengjort))(?!.*accepteret.* af (?:robotten|støvsugeren|enheden))(?!.*(?:\\bkitchen\\b|\\bdining\\b|\\bvacuum eval\\b|\\bselect eval\\b|\\bcapability token\\b|\\b(?:ambiguous|unknown|eval)[0-9]+\\b))(?!.*(?:ovenpå|nedenunder|første sal|anden sal|1 sal|2 sal|jeg (?:vælger|rengør) begge))(?=.*(?:to|flere|begge|samme navn|ens navne|tvetydig))(?=.*(?:hvilk|mener du|kan du|vil du|præcis|skelne|skelnen|forskellige navne|unikke navne|omdøb|adskille)).+"
+            ],
+            "answer_all": [
+              "køkken"
             ]
           }
         }
@@ -498,7 +509,15 @@
               "ha_get_device_capabilities": {}
             },
             "fixture_side_effects": 0,
-            "remain_open": true
+            "remain_open": true,
+            "answer_all": [
+              "vacuum.eval_qrevo",
+              "vacuum.eval_unknown",
+              "vacuum.eval_ambiguous"
+            ],
+            "answer_patterns": [
+              "(?s)^(?!(?:.*)(?:\\b(?<!om )(?<!ikke bekræfte at )(?:robotten|støvsugeren|enheden|rengøringen|den|køkken(?:et)?) er (?:nu )?(?:startet|i gang|færdig|rengjort)|(?:robotten|støvsugeren|enheden) har (?:nu )?(?:accepteret|modtaget)|(?:robotten|støvsugeren|enheden) (?:vasker|støvsuger|kører) nu|jeg har (?:nu )?(?:startet|gennemført)|jeg starter (?!ikke\\b)|rengøringen er gennemført|færdigrengjort)).+"
+            ]
           }
         },
         {
@@ -544,7 +563,7 @@
             "fixture_side_effects": 4,
             "remain_open": true,
             "answer_patterns": [
-              "(?s)^(?!.*(?:robotten|støvsugeren|enheden) (?:har (?:nu )?(?:accepteret|modtaget)|er (?:nu )?(?:startet|i gang|færdig)|(?:vasker|støvsuger|kører) nu))(?!.*accepteret[^.!?]* af (?:robotten|støvsugeren|enheden))(?!.*(?:jeg har (?:startet|gennemført)|rengøringen er (?:startet|færdig|gennemført))).*(?:sendt|(?:home assistant|\\bha\\b) har (?:accepteret|modtaget)|anmodningen er accepteret.*den fysiske udførelse er ikke (?:bekræftet|verificeret)).*"
+              "(?s)^(?!(?:.*)(?:\\b(?<!om )(?<!ikke bekræfte at )(?:robotten|støvsugeren|enheden|rengøringen|den|køkken(?:et)?) er (?:nu )?(?:startet|i gang|færdig|rengjort)|(?:robotten|støvsugeren|enheden) har (?:nu )?(?:accepteret|modtaget)|(?:robotten|støvsugeren|enheden) (?:vasker|støvsuger|kører) nu|jeg har (?:nu )?(?:startet|gennemført)|jeg starter (?!ikke\\b)|rengøringen er gennemført|færdigrengjort))(?!.*accepteret.* af (?:robotten|støvsugeren|enheden))(?!.*(?:(?:ikke|aldrig) (?:sendt|accepteret)|kunne ikke sende|anmodningen (?:er|blev) afvist)).*(?:sendt|(?:home assistant|\\bha\\b) har (?:accepteret|modtaget)|anmodningen er accepteret.*den fysiske udfør(?:else|sel) er ikke (?:bekræftet|verificeret)).*"
             ],
             "forbid": [
               "end_conversation"
@@ -580,9 +599,11 @@
             ],
             "remain_open": true,
             "answer_patterns": [
+              "(?s)^(?!(?:.*)(?:\\b(?<!om )(?<!ikke bekræfte at )(?:robotten|støvsugeren|enheden|rengøringen|den|køkken(?:et)?) er (?:nu )?(?:startet|i gang|færdig|rengjort)|(?:robotten|støvsugeren|enheden) har (?:nu )?(?:accepteret|modtaget)|(?:robotten|støvsugeren|enheden) (?:vasker|støvsuger|kører) nu|jeg har (?:nu )?(?:startet|gennemført)|jeg starter (?!ikke\\b)|rengøringen er gennemført|færdigrengjort))(?!.*accepteret.* af (?:robotten|støvsugeren|enheden))(?!.*(?:\\bkitchen\\b|\\bdining\\b|\\bvacuum eval\\b|\\bselect eval\\b|\\bcapability token\\b|\\b(?:ambiguous|unknown|eval)[0-9]+\\b))(?!.*(?:(?:skal|må) jeg (?:starte|rengøre|gøre rent)|(?:vil|ønsker) du.*(?:starter|starte|rengør|gør rent)|bekræft.*(?:start|rengør))).+"
+            ],
+            "answer_all": [
               "køkken",
-              "spisestue",
-              "(?s)^(?!.*(?:bekræft|startet|starter|kitchen|dining room)).*"
+              "spisestue"
             ]
           }
         }
@@ -615,6 +636,9 @@
             ],
             "remain_open": true,
             "answer_patterns": [
+              "(?s)^(?!(?:.*)(?:\\b(?<!om )(?<!ikke bekræfte at )(?:robotten|støvsugeren|enheden|rengøringen|den|køkken(?:et)?) er (?:nu )?(?:startet|i gang|færdig|rengjort)|(?:robotten|støvsugeren|enheden) har (?:nu )?(?:accepteret|modtaget)|(?:robotten|støvsugeren|enheden) (?:vasker|støvsuger|kører) nu|jeg har (?:nu )?(?:startet|gennemført)|jeg starter (?!ikke\\b)|rengøringen er gennemført|færdigrengjort))(?!.*accepteret.* af (?:robotten|støvsugeren|enheden))(?!.*(?:\\bkitchen\\b|\\bdining\\b|\\bvacuum eval\\b|\\bselect eval\\b|\\bcapability token\\b|\\b(?:ambiguous|unknown|eval)[0-9]+\\b))(?!.*(?:(?:skal|må) jeg (?:starte|rengøre|gøre rent)|(?:vil|ønsker) du.*(?:starter|starte|rengør|gør rent)|bekræft.*(?:start|rengør))).+"
+            ],
+            "answer_all": [
               "køkken",
               "spisestue"
             ]

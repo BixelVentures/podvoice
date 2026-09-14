@@ -286,7 +286,107 @@ def test_room_lookup_oracle_rejects_wrong_target_and_start(scenario_id):
 def test_negative_reply_oracles_reject_empty_or_false_success(scenario_index, answer):
     expect = ev.load_scenarios(ev.DEVICE_EVAL_PATH)[scenario_index].turns[0].expect
     findings = ev.grade_turn(expect, matching_observation(expect, answer))
-    assert [finding.code for finding in findings] == ["answer-pattern-mismatch"]
+    assert "answer-pattern-mismatch" in {finding.code for finding in findings}
+
+
+@pytest.mark.parametrize("scenario_index", [0, 3])
+@pytest.mark.parametrize(
+    "answer,passed",
+    [
+        ("Jeg har vacuum.eval_qrevo, vacuum.eval_unknown og vacuum.eval_ambiguous.", True),
+        ("", False),
+        ("Jeg har vacuum.eval_qrevo og vacuum.eval_unknown.", False),
+        ("Jeg kan se tre robotter.", False),
+        (
+            "vacuum.eval_qrevo, vacuum.eval_unknown og vacuum.eval_ambiguous. Robotten er startet.",
+            False,
+        ),
+    ],
+)
+def test_explicit_entity_discovery_requires_all_ids(scenario_index, answer, passed):
+    expect = ev.load_scenarios(ev.DEVICE_EVAL_PATH)[scenario_index].turns[0].expect
+    assert bool(not ev.grade_turn(expect, matching_observation(expect, answer))) is passed
+
+
+@pytest.mark.parametrize("scenario_index", [4, 5])
+@pytest.mark.parametrize(
+    "answer,passed",
+    [
+        ("Den kan rengøre Køkken og Spisestue.", True),
+        ("Jeg starter ikke noget. Den kan rengøre Spisestue og Køkken.", True),
+        ("Der er ikke startet rengøring. Rummene er Køkken og Spisestue.", True),
+        ("Hej", False),
+        ("Køkken", False),
+        ("Spisestue", False),
+        ("Køkken er startet", False),
+        ("Køkken og Spisestue. Robotten er startet.", False),
+        ("Køkken og Spisestue.\nJeg har startet rengøringen.", False),
+        ("Køkken og Spisestue. Skal jeg starte rengøringen?", False),
+        ("Køkken og Spisestue. Vil du have, at jeg rengør begge?", False),
+        ("Køkken og Spisestue. Bekræft starten.", False),
+        ("Køkken (kitchen) og Spisestue (dining room).", False),
+        ("Køkken og Spisestue via vacuum.eval_qrevo.", False),
+    ],
+)
+def test_room_replies_require_both_names_and_no_action_or_raw_ids(scenario_index, answer, passed):
+    expect = ev.load_scenarios(ev.DEVICE_EVAL_PATH)[scenario_index].turns[0].expect
+    assert bool(not ev.grade_turn(expect, matching_observation(expect, answer))) is passed
+
+
+@pytest.mark.parametrize(
+    "answer,passed",
+    [
+        ("Hvilket af de to rum med navnet Køkken mener du?", True),
+        ("Begge rum hedder Køkken. Giv dem venligst unikke navne i Home Assistant.", True),
+        (
+            "Der er to forskellige områder, der begge hedder Køkken. "
+            "Kan du give dem forskellige navne i Home Assistant?",
+            True,
+        ),
+        (
+            "Jeg kan ikke skelne mellem de to Køkken-områder. "
+            "De skal have forskellige navne, før jeg kan vælge sikkert.",
+            True,
+        ),
+        ("Hvilket mener du?", False),
+        ("Der er et Køkken. Vil du vælge det?", False),
+        (
+            "Jeg kan se to forskellige områder, der begge hedder Køkken, så jeg kan ikke "
+            "sikkert vælge det rigtige. Vil du have, at jeg renser kitchen_one, kitchen_two, "
+            "eller begge?",
+            False,
+        ),
+        ("Mener du Køkken ovenpå eller nedenunder? Der er to.", False),
+        ("Hvilket Køkken, første sal eller anden sal, mener du?", False),
+        ("Der er to Køkken-områder. Jeg vælger begge.", False),
+        ("Begge rum hedder Køkken. Jeg vælger begge.", False),
+        ("Hvilket af de to Køkken-områder mener du? Robotten er startet.", False),
+    ],
+)
+def test_ambiguous_room_reply_explains_collision_without_inventing_choices(answer, passed):
+    expect = ev.load_scenarios(ev.DEVICE_EVAL_PATH)[2].turns[0].expect
+    assert bool(not ev.grade_turn(expect, matching_observation(expect, answer))) is passed
+
+
+@pytest.mark.parametrize(
+    "answer,passed",
+    [
+        ("Jeg kan ikke bekræfte, at køkkenet blev startet. Tjek robotten.", True),
+        ("Udfaldet er ukendt; kontrollér robotten før et nyt forsøg.", True),
+        ("Udfaldet er ukendt.", True),
+        ("Jeg ved ikke, om den er startet eller ej. Tjek robotten.", True),
+        ("Jeg kan ikke bekræfte at robotten er startet. Tjek robotten.", True),
+        ("Udfaldet er ukendt. Jeg prøver ikke igen.", True),
+        ("Udfaldet er ukendt. Robotten er startet.", False),
+        ("Jeg kan ikke bekræfte udfaldet. Den blev ikke startet.", False),
+        ("Udfaldet er ukendt. Jeg prøver igen.", False),
+        ("Tjek robotten. Start den igen.", False),
+        ("Udfaldet er ukendt. Anmodningen er accepteret.", False),
+    ],
+)
+def test_unknown_outcome_neither_asserts_result_nor_retries(answer, passed):
+    expect = ev.load_scenarios(ev.DEVICE_EVAL_PATH)[1].turns[0].expect
+    assert bool(not ev.grade_turn(expect, matching_observation(expect, answer))) is passed
 
 
 @pytest.mark.parametrize(
@@ -355,6 +455,10 @@ def test_accepted_reply_filter_allows_service_receipt_and_negated_physical_proof
         "Anmodningen er accepteret. Robotten har accepteret opgaven. "
         "Den fysiske udførelse er ikke bekræftet.",
         "Anmodningen er accepteret. Den fysiske udførelse er bekræftet.",
+        "Anmodningen er ikke sendt via Home Assistant.",
+        "Home Assistant har accepteret opgaven. Anmodningen er afvist.",
+        "Anmodningen er sendt. Den er startet.",
+        "Anmodningen er sendt. Køkkenet er rengjort.",
     ],
 )
 def test_accepted_reply_filter_rejects_known_false_source_and_physical_claims(

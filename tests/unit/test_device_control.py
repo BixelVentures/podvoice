@@ -421,6 +421,19 @@ async def test_action_target_description_distinguishes_control_from_vacuum(rig):
     assert "vacuum.set_fan_speed" in description and "vacuum.send_command" in description
 
 
+async def test_room_speech_uses_ha_names_but_keeps_technical_ids_in_calls(rig):
+    declaration = next(d for d in rig.router.declarations() if d["name"] == GET_CAPABILITIES)
+    description = declaration["description"]
+    assert "HA names and aliases, not internal IDs" in description
+    assert "explicit technical requests" in description
+    assert "without distinguishing aliases" in description
+    assert "never invent a distinction" in description
+    assert "without listing devices first" in description
+    assert (
+        sum(d["name"] in {GET_CAPABILITIES, EXECUTE_ACTION} for d in rig.router.declarations()) == 2
+    )
+
+
 @pytest.mark.parametrize(
     "action,wrong_target,right_target,arguments",
     [
