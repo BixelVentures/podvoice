@@ -90,6 +90,167 @@ async def until(predicate):
             await asyncio.sleep(0.005)
 
 
+async def live_teardown_fixture(adapter):
+    if adapter == "talk":
+        from test_talk_webrtc import finish, setup
+
+        from gatekeeper.talk import run_talk
+
+        wire, link, session, _, _ = setup()
+        task = asyncio.create_task(run_talk(wire, session, link))
+        wire.send("wake", command_id="teardown-wake")
+        await until(lambda: wire.result("teardown-wake") is not None)
+        assert wire.result("teardown-wake")["status"] == "accepted"
+
+        async def cleanup():
+            await finish(wire, task)
+
+        return session, wire.sdk, link, cleanup
+    session, sdk, _, _, link = build()
+    await session.start()
+    await session.wake()
+    return session, sdk, link, session.aclose
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("adapter", ["native", "talk"])
+async def test_live_teardown_allows_finalized_sdk_manager_to_outlast_default_step(
+    adapter, monkeypatch
+):
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.03)
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_TOTAL_TIMEOUT_S", 0.6)
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_REARM_TIMEOUT_S", 0.2)
+    session, sdk, link, cleanup = await live_teardown_fixture(adapter)
+    session.brain.timeout_s = 0.3
+    entered, release = asyncio.Event(), asyncio.Event()
+    operations = []
+    lease = session.brain._lease
+
+    async def manager_exit(_sdk, *_):
+        assert session.brain.final_usage_seconds == 5
+        assert session.brain._closed.is_set()
+        assert session.brain._reader is None  # Production joined its reader first.
+        assert not (link._streaming if adapter == "talk" else link.streaming)
+        operations.append("manager-enter")
+        entered.set()
+        await release.wait()
+        operations.append("manager-return")
+
+    async def http_close():
+        assert operations[-1] == "manager-return"
+        assert session.brain._lease is lease
+        assert not session.attention.release_calls
+        if adapter == "native":
+            assert link.rearm_calls == 0
+        operations.append("http-close")
+
+    monkeypatch.setattr(type(sdk), "__aexit__", manager_exit)
+    sdk.client.close.side_effect = http_close
+    try:
+        closing = asyncio.create_task(session.stop())
+        await asyncio.wait_for(entered.wait(), 1)
+        await asyncio.sleep(0.07)  # Beyond the OFF/default 0.03s step, within Live's budget.
+        assert not closing.done()
+        assert session.brain._lease is lease
+        assert not session.attention.release_calls
+        if adapter == "native":
+            assert link.rearm_calls == 0
+        release.set()
+        await asyncio.wait_for(closing, 1)
+        assert operations == ["manager-enter", "manager-return", "http-close"]
+        sdk.session.close.assert_awaited_once()
+        sdk.client.close.assert_awaited_once()
+        assert session.brain._lease is None
+        assert session.brain._manager is session.brain._client is None
+        assert not session._teardown_incomplete
+        assert len(session.attention.release_calls) == 1
+        if adapter == "native":
+            assert link.rearm_calls == 1
+    finally:
+        release.set()
+        await cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("adapter", ["native", "talk"])
+async def test_live_teardown_remaining_budget_still_blocks_unfinished_cleanup_readiness(
+    adapter, monkeypatch
+):
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.02)
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_TOTAL_TIMEOUT_S", 0.18)
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_REARM_TIMEOUT_S", 0.08)
+    monkeypatch.setattr("gatekeeper.thin.REARM_RETRY_DELAYS_S", (10.0,))
+    session, sdk, link, cleanup = await live_teardown_fixture(adapter)
+    session.brain.timeout_s = 0.5
+    cancelled = asyncio.Event()
+    cancel_at = None
+    loop = asyncio.get_running_loop()
+
+    async def manager_exit(_sdk, *_):
+        nonlocal cancel_at
+        assert session.brain.final_usage_seconds == 5
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancel_at = loop.time()
+            cancelled.set()
+            raise
+
+    monkeypatch.setattr(type(sdk), "__aexit__", manager_exit)
+    try:
+        started = loop.time()
+        await asyncio.wait_for(session.stop(), 1)
+        assert cancelled.is_set() and cancel_at is not None
+        available = 0.1 if adapter == "native" else 0.18
+        assert available - 0.04 < cancel_at - started < available + 0.08
+        sdk.client.close.assert_awaited_once()  # SDK finally cleanup is still attempted.
+        assert session.brain._lease is None
+        assert session._teardown_incomplete and session._transport_closing
+        assert not session._active
+        assert not session.attention.release_calls  # Exhausted suffix is not success.
+        if adapter == "native":
+            assert link.rearm_calls == 0
+        starts = len(sdk.factory_calls)
+        await session.wake()
+        assert not session._active and len(sdk.factory_calls) == starts
+    finally:
+        await cleanup()
+
+
+@pytest.mark.asyncio
+async def test_off_provider_close_keeps_default_step_instead_of_live_sdk_timeout(monkeypatch):
+    from gatekeeper import thin as thin_module
+
+    assert thin_module.TEARDOWN_STEP_TIMEOUT_S == 2.0
+    monkeypatch.setattr(thin_module, "TEARDOWN_STEP_TIMEOUT_S", 0.03)
+    monkeypatch.setattr(thin_module, "TEARDOWN_TOTAL_TIMEOUT_S", 0.6)
+    monkeypatch.setattr(thin_module, "TEARDOWN_REARM_TIMEOUT_S", 0.2)
+    monkeypatch.setattr(thin_module, "REARM_RETRY_DELAYS_S", (10.0,))
+    session, sdk, _, _, link = build(enabled=False)
+    # An OFF provider with a longer provider timeout still uses the shared 2s step.
+    session._realtime_brain.timeout_s = 0.3
+    cancelled = asyncio.Event()
+
+    async def blocked_close():
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    monkeypatch.setattr(session._realtime_brain, "close", blocked_close)
+    await session.start()
+    try:
+        await session.wake()
+        started = asyncio.get_running_loop().time()
+        await asyncio.wait_for(session.stop(), 0.2)
+        assert asyncio.get_running_loop().time() - started < 0.15
+        assert cancelled.is_set() and not sdk.factory_calls
+        assert session._teardown_incomplete and link.rearm_calls == 0
+    finally:
+        await session.aclose()
+
+
 async def emit(sdk, *events):
     for event in events:
         await sdk.incoming.put(event)

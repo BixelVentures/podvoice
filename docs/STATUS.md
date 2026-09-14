@@ -2,6 +2,55 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Resultat14/9 — Live provider-close-budget implementeret som ét Live-only argument.
+Uafhængig Astra HIGH scoped GO på Thin28dd0ca563e51f5a744c53bff0a41a9ad581cf50b31ceeb263c5d51f891d9c77
+og test7136d5920130459d54e4728a2a6e53602f5f7b82ec8fa33b62acbcdb809db811.
+77 ThinLive/TalkWebRTC-regressioner bestod både hos testforfatter og uafhængig reviewer;
+fjernelse af argumentet reproducerer de to forsinkede normale cleanup-fejl.
+Ruff/format bestod. Samlet fast på dette nye diff og faktisk provider-cleanup mangler;
+ingen releasegate, installation eller fysisk godkendelse. Kendt cancellation-finally-
+begrænsning og fail-closed ved udtømt budget er bevaret. Inputrevision er næste
+selvstændige årsagsgrænse og må ikke kaldes rettet af denne ændring.
+
+Aktiv lead-beslutning — Live provider-close-budget14/9 efter fuld årsagsgennemgang
+og uafhængig designkontrol. Tre prøver lokaliserer normal official session.closed
+før socketmanager-release; gen1 normal release1.880s plus providerfinalisering kan
+overskride Thin's generiske2s fase. Mindste ændring er at bruge adapterens eksisterende
+timeout_s for Live provider-close alene, fortsat afskåret af samme samlede12s budget
+og native6s rearmreserve. OFF beholder2s. Ingen nye konstanter, retries, baggrunds-
+cleanup, fakeACK eller ændring i fysisk Stop/mic/playback-gate.
+Berørt kæde: synkron Stop/publiceringsspærre→fysisk silence/stop-streaming→officiel
+providerfinalisering→SDKsocketmanager→HTTPclient/leasefrigivelse→øvrig cleanup→
+korreleret rearm/næste wake. Hypotese: faktisk normal lukning kan afslutte inden for
+allerede eksisterende fælles budget frem for falsk timeout ved2s. Ved udtømt budget
+forbliver teardown incomplete og readiness blokeret; reservetid er ikke i sig selv
+bevis for gennemført rearm. asyncio.wait_for afventer cancellation-finally, så12s
+er ikke et hårdt wallclockloft ved modstandsdygtig cleanup; det må ikke loves.
+Regressionskrav: forsinket SDKmanager efter finalusage på native og Talk, ordnet HTTP-
+close/lease/rearm, budgetudtømning uden falsk readiness, Stop under resistantstartup
+og uændret OFF2s. Rollback er ét Live-only timeoutargument. Uafhængigt kodereview og
+målrettede/composed gates før næste liveprøve. Inputrevisionfejlen løses særskilt;
+alpha forbliver ikke fysisk testklar.
+
+Tredje faktiske prøve03 på commit c65363e er terminal UNKNOWN (proces48526 parent0,
+evaluator2). Frisk fuld åbningsytring genkendt, men backendstart7.0767s ligger før
+sidste transcriptfragment "ren" ved7.3691s (provider4200–4400ms). Completed eksakt
+oprindeligt værktøj8.7118s afvises stale_input_revision8.7128s før StubTools-dispatch.
+Ingen proposal/rotation/gen2 og dermed IKKE faktisk afprøvet ny spørgeinstruktion.
+Én faktisk session, nul effekter, finalusage54voice-sekunder og13303backendtokens.
+Assay usage_complete=false kræver to generationer; den ene faktiske sessions usage
+ER final. Uafhængig Astra-audit matcher source/artifact/hash og fuld PCM-resampling.
+Cleanup nu præcist lokaliseret: finalusage/closed/readerdone ved60.7562s;
+manager_exit starter60.7562s og annulleres62.0057s af ydre2s provider-step.
+HTTPclientclose afslutter normalt62.0177s efterca12ms. .82 genstartet og Kører
+frisk verificeret. Ingen fortsatte prøveprocesser eller installation.
+Stop-the-line på yderligere API-prøver: hele inputfragment→backendstart→completed
+forslag→revisionguard skal forklares uden at opfinde lokale semantiske ture.
+Separat ejerskabsreview undersøger Live SDK-close kontra eksisterende12s samlet
+teardown/6s rearmreserve; endnu ingen timeoutpatch. De to kendte fejlgrænser holdes
+adskilt. Kandidaten er fortsat IKKE testklar; heller ikke kun fordi softwarefast
+eller instruktions-ACK senere skulle bestå.
+
 Frosset kandidat14/9 har uafhængigt Astra HIGH scoped GO: Thin
  d0c4dfcbe5a09cd8eef45fc2a5ab1f7bd1119a835b06b81787ecc5245e4e5de5 og test
 1f1ab2b0f7102475a4c41e922483f3d5c91c9704968a11aafc1b1cd58eb6775c (181Thin/SDK

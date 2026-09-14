@@ -1470,6 +1470,7 @@ class ThinSession:
             "provider-close",
             self.brain.close(),
             deadline=teardown_deadline,
+            timeout_s=self.brain.timeout_s if self.live_alpha else None,
             reserve_s=rearm_reserve,
         )
         rotation_io_complete = True
