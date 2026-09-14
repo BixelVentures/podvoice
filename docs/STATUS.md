@@ -2,6 +2,14 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+API12 forberedelse14/9 blev afbrudt før nøgle/API: helper12/correction var kun lokal
+nøgleløs admission, runtimepin9de953122b3c8c9e1f8fc58ce90a4d7d1232ec5845db98e13ca340fb66d2e2e4.
+CUA gammel fane væk, navigationtimeout og kernelreset; ny browserinventar Chromeid2
+(iabid1), men ny Chrome-navigation timeoutede også. Ingen HAStop, nøglelæsning eller
+prøveafsendelse. Egen helperPID68330 identificeret og afsluttet TERM; handle33843
+terminal143. Ingen correction12-resultat eller APIforbrug kan påstås. Aktuel online-
+adgang er midlertidigt utilgængelig; runtime/artifacts er uændrede. Goal fortsat åbent.
+
 Fast49279 på fast2f6346e terminalexit0: samlet97.9s, pytest97.24s,
 Ruff/format43filer og mypy50sources PASS. Ingen scopeændring under denne gate.
 Queued-input-P1 er dermed rettet, uafhængigt reviewet og samlet softwarekontrolleret.
