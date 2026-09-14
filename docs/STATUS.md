@@ -2,6 +2,21 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Samlet softwaregate14/9 på frosset checkpoint12e1cd0 er terminal exit0:
+scripts/dev fast --base origin/main, proces72525, Ruff/format43filer, mypy50sources,
+hele pytest93.06s, samlet93.5s. Ingen source/docs ændret under gaten. Dette beviser
+softwarekontrakten; faktisk provider-cleanup, semantisk matrix og fysiske gates mangler.
+
+Inputrevisionanalyse14/9 afviser en ny client_event_id-baseret autorisationsmekanisme:
+SDK-feltet er valgfrit, og tidligere faktiske måle-/farvelprøver sendte eksplicit
+response.create-ID uden tilsvarende ID i response.created. To uafhængige Astra-
+gennemgange bekræfter, at recorder ville have gemt feltet. Same-delegation/next-response
+må ikke bruges som skjult erstatning for denne manglende binding. Ingen kode bygget
+på den antagelse. Lead undersøger nu ét eksplicit, engangs review-token i eksisterende
+managed tool-result-kæde med serverfastholdt originalhandling og faktisk observeret
+input. Dette er alene design under adversarial review; ingen ny semantisk kontrakt
+eller runtimeændring implementeret endnu. Flere API-prøver er fortsat stoppet.
+
 Resultat14/9 — Live provider-close-budget implementeret som ét Live-only argument.
 Uafhængig Astra HIGH scoped GO på Thin28dd0ca563e51f5a744c53bff0a41a9ad581cf50b31ceeb263c5d51f891d9c77
 og test7136d5920130459d54e4728a2a6e53602f5f7b82ec8fa33b62acbcdb809db811.
