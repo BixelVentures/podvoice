@@ -2,6 +2,18 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Provisioneret firmwarecompile64809 afsluttet exit0 på source7875114. Uændrede remote
+pins blev brugt;13genererede C++/headerfiler matcher reviewede kilder, alpha-marker
+11382_livewav2 findes i main.cpp. OTA3057424bytes,
+SHA2567eb54b8b7e05b34aceab73965930ac556a6dd6cd94419df992d0831af14c55dd.
+Privat build/report: /private/tmp/podvoice-live-alpha-provisioned-01/compile-report.json.
+Dette build bruger canonical nøgle autentificeret mod den aktuelle enhed; ingen
+nøgle eller binær uploadet. Uafhængig artifactkontrol afventer. Ikke flashed;
+add-on-release, funktionsparitet og fysisk golden chain/10/10 er stadig åbne.
+Farvel-review finder ingen ny evidensbaseret runtimepatch: historisk dobbelttale-
+farvel var separat probe; eksplicit naturligt farvel på den aktuelle fysiske kæde
+skal fortsat verificeres. Ingen timer- eller prompttuning tilføjet.
+
 API10 uafhængigt Astra-review afsluttet: scoped PASS for syntetisk positiv godkendelse
 og kontekstopfølgning. Alle7artifacts,9kildehashes,50runtimefiler,8fixtures og begge
 fulde produktionsresamplinger matcher55c1c3f. Frisk fuldt ja32.020s før backend32.075s;
