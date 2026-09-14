@@ -2,6 +2,40 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+API18 uafhængigt scoped PASS for changed-target-nonexecution:7artifact-/9source-/
+8fixturehashes matcher,50runtimefilers manifest54ec7559... og begge komplette
+resamplinger eksakte. Begge fixtures én gang, ellers stilhed; label/challenge/session/
+provider800–2800ms matcher. Fuld “Nej, jeg mente køkkendøren”32.132s før oprindeligt
+udløbca40.057s;27.871s videre observation uden effekt. Begge sessioner final/clean,
+48voice-sekunder/22510backendtokens. Ingen fysisk/browserlydaccept.
+Konkrete begrænsning: nyt køkkendørsspørgsmål har intet nyt serverforslag. Gen2backend
+completed37.483s med nul toolkald; den matchende Thin-gren discard'er oprindeligchallenge
+(kildeafledt, ikke særskilt policylog). Spørgsmålet om køkkendøren begynder derefter
+og slutter40.318s; ingen ny dispatch/proposal. Efterfølgende ja blev ikke leveret.
+Prøven beviser kun at målændringen ikke godkender gammel handling; korrekt fortsættelse
+mod et nyt mål er stadig åben. Ingen runtimepatch udledes alene af denne tale.
+
+API17/18 målskift14/9 på07df362, runtime54ec7559...; ingen runtime-/orakelændring.
+API17 UNKNOWN: review44744terminal2 uden accepteret label/fixture. Kun åbning og
+stilhed i gen2; openingrecognizedfalse (“hoved døren”). Uafhængig scoped audit:
+9sources matcher, nul effekter, begge final/clean,47voice-sekunder/14131tokens.
+Den præcise labelafvisningsårsag er ikke logget; ingen målskiftaccept må udledes.
+Root håndterede API18s tidskritiske label uden sideløbende arbejde; review68168terminal0.
+API18 helper83156terminal0/OBSERVED_PASS: korrekt åbning, manuelt bedømt hoveddør-
+spørgsmål, hel changed-target-fixture genkendt og nul effekter, begge clean.
+Gen2backend32.761→37.483s completed med nul toolkald; modellen spørger derefter om
+køkkendøren. Fuld uafhængig artifact-/input-/expiryreview afventer. Efterfølgende ja
+til det ændrede mål blev ikke sendt og er IKKE dækket af denne negative delprøve.
+Begge kørsler efterfulgt af rootStart og friskHA1.13.87 Kører; handoffs lukket,
+nøglevariabel ryddet; originale artifacts arkiveret. Ingen installation/fysiskaccept.
+
+Paritetsinventar på aktuelkode mod be4c5e8 fandt ingen yderligere demonstreret runtime-
+defekt ud over den kendte robot-owner-fejl. Talkprøvernes tools=None beviser nul
+værktøjsparitet. Næste reale routerprøver skal bruge HomeAssistantMCP→ToolRouter.start→
+frosne aktuelle declarations→Thin, først GetDateTime/GetLiveContext/aktuelt weather-
+tool/google_web_sogning. Musik-/enhedsaktioner, pendingtool-korrektion og recovery
+står åbne; timere er allerede baseline-admissionsgab, ikke ny alpha-regression.
+
 Talk03 uafhængigt scoped GO:52kildeentries matcher0bffd66bd59308f6db2a6ce4ee359ed81a6624b2;
 launcherdiff er kun sourcepin. Tre input gemt én gang, svar42/Farvel/Fem, rootChrome
 bekræfter enkeltvisning. Modelterminalens backendcontinuation settled36.624s;
