@@ -173,3 +173,41 @@ async def test_typed_first_websocket_off_and_automatic_close_is_not_false_media_
         await until(lambda: wire.result("off-stop") is not None)
     finally:
         await finish(wire, task)
+
+
+async def test_live_typed_receipt_is_only_visible_input_and_history_persists_once(tmp_path):
+    from gatekeeper.history import History
+    from gatekeeper.talk import TalkConnection, TalkHub
+
+    wire = BrowserWire()
+    connection = TalkConnection(wire)
+    connection.start()
+    link = BrowserLink(connection.send_json, connection.send_bytes)
+    session, _, _, _, _ = build(device=link)
+    session.live_brain.client_factory = wire.sdk.factory
+    history = History(tmp_path / "history.jsonl")
+    session.hub = TalkHub(connection.send_json, history=history)
+    connection.attach(session)
+    task = asyncio.create_task(run_talk(connection, session, link))
+    try:
+        text = "Min cykel er mørkegrøn. Hvad er 7 gange 12?"
+        wire.send("text", command_id="typed-once", text=text)
+        await until(lambda: wire.result("typed-once") is not None)
+        first = wire.result("typed-once")
+        assert first["status"] == "submitted"
+        wire.send("text", command_id="typed-once", text=text)
+        await until(lambda: sum(e.get("command_id") == "typed-once" for e in wire.outgoing) == 2)
+        receipts = [e for e in wire.outgoing if e.get("command_id") == "typed-once"]
+        assert all(e["type"] == "command_result" and e["status"] == "submitted" for e in receipts)
+        assert not [e for e in wire.outgoing if e["type"] == "transcript" and e["dir"] == "in"]
+        assert history.session_text(room=session.room, session=first["session_id"]) == (
+            ("user", text),
+        )
+        assert session._live_prior_text() == (("user", text),)
+        assert session._live_input_revision == session.live_brain.input_sequence == 1
+        assert wire.sdk.response.item.create.await_count == 1
+        assert receipts[0]["session_id"] == receipts[1]["session_id"]
+        assert receipts[0]["seq"] < receipts[1]["seq"]
+    finally:
+        await finish(wire, task)
+        await connection.aclose()

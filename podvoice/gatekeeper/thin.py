@@ -2831,9 +2831,15 @@ class ThinSession:
                     "Live kunne ikke modtage beskeden.",
                 )
             if self.hub is not None:
-                self.hub.transcript(
-                    self.room, "in", text, ts=admitted_at, session=history_session or None
-                )
+                if hasattr(self.hub, "submitted_text"):
+                    # Talk's command_result owns the visible typed bubble, as in Realtime.
+                    self.hub.submitted_text(
+                        self.room, text, ts=admitted_at, session=history_session or None
+                    )
+                else:
+                    self.hub.transcript(
+                        self.room, "in", text, ts=admitted_at, session=history_session or None
+                    )
             return self._remember_text_receipt(
                 command_id,
                 "submitted",

@@ -2,6 +2,63 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Typedvisningsrettelsen fik uafhængig scoped GO på Thin4ef1f712... og test6fa147ff...:
+bevarer admissiontid/session, inputtællere, providersend og anden hubs fallback.
+Den nye faktiske TalkConnection/Hub/History-regression bestod også uafhængigt.
+Diff fryses nu til samlet fast; ingen yderligere ændring/commit mens gaten kører.
+
+Talk02 uafhængigt artifact-/lifecycle-review:52runtime/UI/requirementsfiler matcher
+0289197afea28396a31a4cee5c5c06a46c3b1e12, launcherf50afba3209950e1ab958f9d0c7d66d48789e14fdfb3a16fefce1b139e79d154.
+Begge generationer har primary_started før provider_connected/session_ready/sideband_ready;
+forskellige provider-/historiksessioner. PanelStop→teardown tog2.509s; ny typedwake
+nåede ready og korrekt15. Historik har kun én post per input og tre backendresponses:
+dobbeltvisningen var UI-events, ikke dobbelt providerafsendelse. Begge sessionsusage
+endelige:20+18voice-sekunder/20198backendtokens uden konflikt; slutrapportens snapshot
+viser kun sidste generation, usage.json bevarer begge. Ekstra teardown_complete under
+slutcleanup er andet aclose efter inaktivitet, ikke anden closetransaktion; SDKclose er
+no-op efter frigivelse. Ingen mikrofon-, akustisk dræn-, farvel- eller fysisk rearmaccept.
+
+Typedvisningsrettelse implementeret:12runtime-difflinjer genbruger den eksisterende
+TalkHub.submitted_text-grænse. Permanent TalkConnection/BrowserLink/Thin/TalkHub/
+History-regression var rød før rettelse, nu grøn med én historikpost/SDKsubmission,
+ingen ekstra inputtranscript og uændret idempotent receipt/inputrevision/rotationskontekst.
+15målrettede regressioner PASS0.67s; Ruff/format/diffcheck PASS. Frosset Thinsha
+4ef1f7124b8e17a11e2e2cb400f59e0b61071fefeaffef0258dbb9558d9fa41c.
+Uafhængig diffreview og samlet fast afventer; denne ændring er endnu ikke bygget ind
+i lokalt ARM64image eller fysisk afprøvet. Ingen SDK/prompt/lyd/robotændringer.
+
+Aktiv fejlgrænse efter faktisk Chrome-Talk02: alle tre typed input vises dobbelt.
+Korrekte svar var84, kontekstopfølgningen Mørkegrøn og ny samtale efter Afslut gav15.
+Kausal kæde: UI sender én command → Thin Live send_text → hub.transcript sender
+første bubble → submitted command_result sender anden bubble → opfølgning/Stop/
+ny samtale. Realtime-grenen bruger allerede TalkHub.submitted_text til persistens
+uden ekstra transcriptframe; Live-grenen kalder fortsat transcript. Hypotese: genbrug
+den eksisterende submitted_text-grænse i Live, med samme fallback for andre hubs.
+Invarianter: serverkvittering ejer synlig typed aflevering, historik gemmes én gang,
+command-id/replay, inputrevision, providersend, Stop og ny generation uændret.
+Ikke-mål: ingen tekstfrase-deduplikering, provider-/lyd-/prompt-/robotændring. Test den
+faktiske TalkHub/History-grænse inklusive genafspillet command-id og eksisterende
+rotationshistorik; reviewer kontrollerer eventrækkefølge og modsatte adapter. Rollback
+er alene denne persistens-/visningsgrænse. Ingen physical eller releaseaccept arves.
+
+Talk01 var opstarts-timeout før send:0providerstarts, clean, ingen API-evidens.
+Talk02 brugte samme reviewede launcher og uændret runtime0289197, højst2SDKstarts;
+terminal0/report clean, root har verificeret normalHA1.13.87 Kører efter genstart.
+Forsøgt farvel kom ved prøvefristen og har ikke dokumenteret aflevering/svar; tæller
+ikke som naturligt farvel. Uafhængig artifact-/lifecycleanalyse afventer.
+
+Næste afgrænsede kontrol14/9: faktisk Chrome-Talk på uændret alpha-runtime.
+Brug den shippede web/TalkConnection/BrowserLink/ThinSession og officielle Live-SDK,
+med midlertidig lokal opstartsadapter uden HA/PodConnect eller eksterne værktøjer.
+Typed input først, kontekstopfølgning, Stop og frisk samtale; mikrofon åbnes ikke
+programmatisk. Højst to providerstarts og60s observationsvindue plus15s cleanup/5s
+hard-stop. Eksisterende private engangshandoff bærer kun nøglen i hukommelsen;
+normal PodVoice stoppes kort før API og genstartes verificeret efter.
+Dette undersøger ægte browser/WebRTC, shipped UI og serverejerskab; det beviser
+hverken fysisk puck, mikrofon/AEC, fuld toolparitet eller10/10. Ingen ny runtimekode,
+transportomlægning eller testorakeltilpasning. Resultat afventer; robotrettelse kræver
+fortsat særskilt tilladelse efter tidligere reviewafvisning.
+
 API16 uafhængig audit: 7 artifacts/9 kildehashes/50 runtimefiler/8 fixtures matcher
 c49e15b;654 sammenhængende events og begge fulde PCM-resamplinger korrekte. Frisk
 observeret “Det vil jeg ikke endnu” sluttede30.866821s før udløb39.539861s, derefter
