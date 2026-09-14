@@ -2,6 +2,29 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+API05 afsluttet14/9: parent25644 exit0, evaluator2/verdictFAIL, nul effekter. Den
+superviserede gen2-tekst var “Skal jeg starte prøvehandlingen for hoveddøren nu?”;
+spørgsmålet sluttede22.999s, men leadens label blev først modtaget39.447s. Frisk
+ja-fixture41.448–42.391s blev korrekt genkendt “Ja, gør det” ved43.547s. Modellen
+kaldte approve_action44.922s; policy afviste approval_denied. Endelig rapport siger
+clean_shutdown=true og usage_complete=true. Tidslinjens præcise expiry og evt.
+gen1-reconsideration undersøges uafhængigt før næste prøve; runtime-TTL må ikke tunes
+for at kompensere for forsinket supervisorsvar. Positiv godkendelse er stadig ikke
+bevist, og arkivets FAIL ændres ikke.
+Frosset sammensat softwaregate980dfe7 bestod: fast73914 exit0,97.8s total,
+pytest97.19s, Ruff/format43filer, mypy50sources. Første forsøg47632 fejlede, fordi
+sandboxen forbød lokal socket.bind; isoleret test_models_endpoint viste samme
+PermissionError. Genkørsel med autoriseret loopbackadgang bestod uden kodeændring.
+Fremtidige gates med lokale servere bruger denne adgang fra start i samme miljø.
+Helper05 SHAab0e17fef1178231b2175220069ccdf136542f903503995355dbf280006dfd3a,
+50runtimefilers manifest14bcccb0e1668343ae168a015a6bc39eedf6be6024ea5aa081a6484c4ddfa115.
+Aktuelt HA viser1.13.87: frisk IDLE/0sessioner før prøve, derefter Stoppet verificeret
+før aflevering af den private engangsnøgle. Efter prøven viste HA allerede Kører;
+rootens Start-locator fandtes derfor ikke, og root har alene verificeret drift igen,
+ikke udført eller tilskrevet genstarten. Brugeren oplyste samtidig genstart af Voice
+PE; det er brugeroplysning, ikke fysisk alphatest. Engangsfanen er lukket og nøgle-
+variablen ryddet. Ingen ny installation eller ændring af normal runtime/settings.
+
 Resultat14/9 — goal-funktionen viser nu ACTIVE efter brugerens genstart; den fulde
 målsætning er uændret. Supervised evaluator er uafhængigt Astra HIGH reviewet GO:
 177 regressioner bestået. Script SHA77989cd42b09ff2c813fca94f7e11e6e2534676d211d380d5039d59de62952ca,
