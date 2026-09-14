@@ -2,6 +2,20 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+API06 afsluttet14/9 på samme reviewede runtime/evaluator som05; HEADf7396aa er kun
+docs-descendant. Helper06 ændrer alene engangsoutputmappe fra05 og har SHA
+6328fe8c52f12d578344ead072ccf902b0a68d85f1cc85a424675418fa88ab52.
+Parent14435 exit0/child2, verdictUNKNOWN. Gen1input blev transskriberet “Kør
+prøvehandling for at hue døren”; modellen spurgte “Mener du hoveddøren eller
+køkkendøren?” i samme generation. Ingen pendingproposal, friskgen2, reviewlabel,
+ja-fixture eller effekt. Vi sender aldrig et generisk ja til en målpræcisering og
+kalder det autorisation. Faktisk én session med finalusage54voice-sekunder/7044tokens;
+clean_shutdown=true, assayusage_complete=false da tosessioners forløb ikke nås.
+Uafhængig sammenligning af source/fixture/providerresampling med05 er i gang;
+ASR-afvigelsen er ikke nok til en gain/VAD/promptpatch. HA1.13.87 blev verificeret
+Stoppet før prøve, fortsat Stoppet efter; root trykkede Start og verificerede Kører.
+Nøglevariablen er ryddet og engangsfanen lukket. Ingen installation/fysisk gate.
+
 Uafhængig API05-audit14/9: alle7artifactidentiteter,9sourceidentiteter,50runtimefiler,
 8fixtures, annotationhash og begge eksakte PCM-resamplinger er verificeret. Expiry
 4045192.16450275 svarer til elapsed42.704–42.705s på samme hostmonotone ur. Label kom
