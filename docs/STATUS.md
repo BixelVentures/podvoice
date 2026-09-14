@@ -1461,6 +1461,54 @@ runtimeimplementering, setting, releasegate, installation, golden chain eller10/
 for Alpha. Kandidaten er ikke fysisk testklar. Ingen produktionsdiff.
 Researchleverance ligger i den lokale Codex-visualiseringsmappe gpt-live-alpha med
 undersoegelse.md, index.html, begge reproduktionsscripts og rå JSON-resultater.
+## Aktiv lead-beslutning — .85 samlet rumafklaring og robot-svarbedømmelse
+
+14/9 brugeren bestiller fuld rettelse/udgivelse/installation efter .84. Evidens:
+eval-1789375253-af30e5 afklarer sikkert med nul handlinger, men oplæser interne
+kitchen_one/two-ID'er. Uafhængigt review reproducerer desuden OR-hul i de to
+rumopslags answer_patterns: "Hej", "Køkken er startet" og ét rum kan passere.
+Det er både et afgrænset tale-UX-hul og en utroværdig testgate, ikke forkert HA-dispatch.
+Kæde: fysisk wake/mic → Thin accepterer tur → Realtime læser eksisterende GET-
+beskrivelse → friske capabilities/HA-navne → modelsvarets tekst → evalbedømmelse
+→ aktiveringsbeslutning; fysisk playback/followup/close/teardown/rearm er uændret.
+Nabogrænser: native/Talk-input og serverens capabilityvalidering forbliver identiske.
+Hypotese: skelnen mellem menneskelige navne og tekniske ID'er skal fremgå af GET;
+samtlige seks fixtures skal kræve både nødvendige data og fravær af falske påstande.
+Realtime ejer fortsat sprog og semantik. Ingen parser, nye værktøjer, scripts,
+firmware-, VAD-, lyd-, kapacitets- eller systempromptændring. Interne ID'er må bruges
+i kald og ved eksplicit teknisk forespørgsel; aldrig som navne på rum i almindelig tale.
+Navnekollision uden aliaser skal forklares, ikke løses med opdigtet etage eller ID.
+Plan: eksisterende answer_all for alle nødvendige navne/ID'er, ét sammenhængende
+bounded regex per svarklasse; ingen global OR→ANDændring. Kontrasttests på tværs af
+alle otte ture: negationer, falsk fortsættelse, ukendt kontra afvist, rå ID'er,
+opdigtede skel og delvise rumlister. Bevar eksakte tools/args, rækkefølge, single-use,
+no-retry, nul sideeffekt ved opslag, modelclose og modsat ønsket videre dialog.
+Målrettet test → fast → uafhængigt review → én frossen samlet releasegate → grøn
+mainartifact → backup/én installation → fuld frisk sikker robotprofil → ON først
+ved komplet bestået profil og matchende artifact/schema. Rollback er installeret
+.84 med udvidelse OFF. Fysisk golden chain og faktisk rengøring arves ikke.
+Tidligere .83/.84-kørsler forbliver fejlet/ufuldstændige. Ingen blind genkørsel.
+
+Faktisk ændring: eksisterende GET-beskrivelse præciserer HA-navne/aliaser i almindelig
+tale og tekniske ID'er i kald/udtrykkeligt tekniske forespørgsler. To værktøjer før/
+efter; kompakte deklarationer2472→2774UTF8bytes (+302). Systemprompt, parametre,
+runtime, tokens og firmware er uændrede. Alle otte tures nødvendige data kræves med
+answer_all; sammenhængende svarfiltre erstatter OR-hullet. Globale gradersemantik
+ændres ikke. Strukturerede fixturekald/argumenter/batches/sideeffekter/lifecycle
+er identiske med .84. Regexer er fortsat bounded regressioner med manuelt live-review.
+Fast PASS79.3s inklusiv fuld testsuite. Reviewer fandt to falsk-negative ved
+terminalt "Udfaldet er ukendt" og "Begge rum ... unikke navne"; begge rettet med
+positiv/negativ kontrast før freeze.240 målrettede device/evaltests PASS.
+Endeligt uafhængigt robot_83_result_review: GO til samlet freeze, ingen uløste
+P0/P1/P2. ReviewdiffSHA256 aa79510267ebbaa5e5c4e5a41a036354c13b51556ee945d50e2cb4d40a5b208e.
+Hele diffet inklusive denne status er frosset til releasegaten; ingen installation
+eller robotaktivering er resultat af dette review.
+
+Frossen samlet .85-releasegate PASS41.7s: Ruff/format127, mypy47,
+candidate-scope og fulde unit-/integrationstests. Ingen filer blev ændret under
+gaten. Publicering/installation og den komplette sikre liveprofil resterer;
+denne efterfølgende statuslinje er leveringsmetadata, ikke fysisk godkendelse.
+
 ## Aktiv lead-beslutning — direkte robotopslag uden overflødig discovery
 
 11/9 Lead Codex, efter brugerens ønske om videre arbejde. .79 live SafeEval
@@ -1605,6 +1653,37 @@ fryses nu også for status, og kun den ugyldiggjorte releasegate genkøres.
 Samlet frossen .84-releasegate PASS40.5s med Ruff/format127,mypy47,candidate-scope
 og fulde unit/integration. Dette er efterfølgende leveringsmetadata; ingen ændring
 af reviewet fixture/tests. Offentlig CI, installation og fuld liveprofil resterer.
+14/9 PR54 headad73888b2b47f6dffb6af34e62ccff52f7b4f574 fik grøn CI34822345778
+(lint-test1m31s,ARM64-build2m22s) og blev merged til
+af0fad6c881db4d299feff5eafc4201dc5fece8d. MainCI34822612612 PASS og publicerede
+.84-image sha256:ccec63e8e382dca478f572868cdfdd3adb95561240993c15b5965be0b363ff53.
+Installation af .84 er endnu ikke udført: .83 blev eksternt stoppet10:28:43 og
+startet10:30:46 på samme rootfs. Opgaven "Planlæg 10x hurtigere Voice PE" er aktiv;
+ingen besked sendt dertil. Brugeren er spurgt om live-vinduet, før HA overskrives.
+Automatisk app-opdatering er midlertidigt OFF til kontrolleret backup/installation;
+gendan ON bagefter. Udvidelsen er stadig OFF. Ny .84-liveprofil/fysisk prøve resterer.
+Senere læsekontrol fandt, at den separate API-opgave har stoppet nye prøver efter
+eget fund; produktion forblev .83. Ingen tværopgavebesked sendt. Manuel lokal,
+krypteret backup oprettet10:38 (UI-navn Custom backup2026.8.2),14.04MB, indhold
+eksplicit PodVoice1.13.83. Opdateringsdialog verificeret .83→.84 og backupON.
+.84 nu installeret én gang og Kører; automatisk app-opdatering gendannetON.
+Startup10:40:16:gitaf0fad6c881db4d299feff5eafc4201dc5fece8d,
+rootfs-v1:bacb3fd0c1b3f887ffa3b67d750ffbe61237a8669b2820ed44e47dc1d76ff260.
+Prompt/schema er uændret fra .83. Fuld frisk sikker profil eval-1789375253-af30e5
+startet på installeret .84; resultat afventes. Voice PE native forbindelse er tilbage.
+Liveeval-1789375253-af30e5 FAIL/ufuldstændig efter4/8ture: device-sequence og
+device-unknown PASS, device-ambiguous kun answer-pattern-mismatch. GET på eksakt
+vacuum.eval_ambiguous, nul sideeffekter og åben samtale bestod. Svaret var:
+"Jeg kan se to forskellige områder, der begge hedder Køkken, så jeg kan ikke sikkert
+vælge det rigtige. Vil du have, at jeg renser kitchen_one, kitchen_two, eller begge?"
+Regex genkender hvilk/præcis/to rum/flere rum/mener du, men ikke denne alternative
+opklaring. Samtidig nævner svaret rå area_id'er, hvilket ikke opfylder den ønskede HA-rum-UX.
+Fixture giver kun to identiske Køkken-navne og forskellige interne ID'er; ingen
+brugbare menneskelige skel. Ikke bevis for forkerte robotactioner, heller ikke en
+godkendt fuld profil. 110062tokens,$0.2251896,175.33s kapacitetsventen.
+Lead stopper aktivering og yderligere blind evalgenkørsel; uafhængigt review af
+samlet oracle/ambiguity-grænse bestilt før ny rettelse. .84 er publiceret/installeret,
+men robotudvidelsen forbliver OFF og fysisk robot-/golden-chain-accept ukendt.
 
 ## Aktiv lead-beslutning — rent tak uden verbal kvittering .80
 
