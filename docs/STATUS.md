@@ -73,6 +73,78 @@ gendan efter kontrolleret installation. Robotudvidelsen er OFF, fem entiteter be
 Samlet frossen .83-på-.82-gate PASS44.5s: Ruff/format127, mypy47, candidate-scope,
 fuld unit/integration. Ny PR-head kræver frisk CI; ingen manuel genkørsel af CI.
 
+14/9 genoptaget efter eksplicit ordre om installation/færdiggørelse. Frisk PR53-
+kontrol: headcfe20a3, CI34604609086 lint-test/ARM64-build PASS. Offentlig main var
+fortsat .82/f880c682. PR53 nu squashmerged til479aa5b5ec0059344706b27fec80935b677d0189;
+mainCI34819500914 bygger/publicerer. Ingen kodeændring eller gategenkørsel.
+HA-fjernadgangen viser "Unable to connect to Home Assistant"; separat HTTPS-check
+fejler TLS-forbindelse, og homeassistant.local:8123 kan ikke resolves her. Nabu Casa-
+forbindelsessiden kræver login og er åbnet til brugeren. Det er adgangsblokering,
+ikke bevis for add-onfejl. Installation, frisk config-status og robotliveeval kan
+ikke verificeres endnu; ingen aktivering udført. Ingen beskeder til andre opgaver.
+MainCI34819500914 nu PASS: lint-test1m42s, publish-addon2m9s. .83-image publiceret
+sha256:a068b65dd15a6d69145bfe27fdaaab9bf2d687e431c5ef3bf211464d0f779a2e.
+Kode, merge og publiceret installationspakke er færdige. HA-adgang/login er eneste
+aktuelle installationsblokering; sikker robotliveeval og fysisk accept er stadig
+ikke udført. Denne lokale leveringspost er ikke en påstand om installeret .83.
+
+14/9 HA-adgang genetableret. .83 installeret én gang med eksplicit aktiveret backup;
+HA viser lokal backup "PodVoice 1.13.82",14.04MB. Automatisk app-opdatering gendannet
+ON. Kørende startupidentitet: version1.13.83,git479aa5b5ec0059344706b27fec80935b677d0189,
+rootfs-v1:ba736c9d28213644518418a34307253671c9b37143a7b306ab89adfc93084562.
+Promptv15:9f18bc2bdeafd28b30c5d6022adcf152975dce7cbcd920d2c5cc03d0331056c9;
+MCPassist schema508001010df295576e6bd63f02594c9a6ab514da702c729049929aed30e90e23.
+Sikker fuld robotprofil startet eval-1789373379-0712ad; resultat afventes før ON.
+Voice PE er fortsat offline: mDNS-opslag timer ud, cached192.168.86.240:6053 giver
+Errno113; samme fejl observeret før .83 på .82. Ingen firmwareændring eller fysisk
+accept. HA/MCP og PodConnect svarer igen; forbindelsesfejl er ikke robotsemantik.
+
+Liveeval-1789373379-0712ad afsluttet FAIL i device-sequence tur2: eneste finding
+answer-pattern-mismatch. GET + fire forventede handlinger + end_conversation blev
+godkendt; fire syntetiske sideeffekter, ingen virkelige HA-handlinger. Svar:
+"Anmodningen er accepteret med maksimal sugestyrke og ekstrem vaskeintensitet, og
+køkkenet er sat til at blive støvsuget og vasket to gange. Den fysiske udførelse er
+ikke bekræftet." Oracle kræver sendt eller navngivet HA-accept. Manglende kilde er
+under uafhængig vurdering; ingen påstand om falsk fysisk start alene fra regexfail.
+2/8 ture kørt; rumspørgsmål/korrektion ikke kørt, candidate_contract_passed=false.
+71529tokens,$0.1113872;94.57s budgetventen. Robotudvidelse verificeret OFF med alle
+fem tidligere entiteter bevaret. Ingen blind genkørsel, oracleændring eller ON.
+
+Leadbeslutning .84 — kun eval-oracle: uafhængigt robot_83_result_review reproducerer
+falsk negativ; den citerede kvittering beskriver anmodningsaccept/fremtidig opgave,
+ikke robotkvittering eller fysisk start. Samme svar med eksplicit HA-navn består.
+Kæde/nabogrænser: completed modelrespons → evalobservations svartekst → bounded
+regressionfilter → profilstatus → aktiveringsgate. Produktionsdispatch og fysisk
+wake/playback/teardown/rearm ændres ikke. Hypotese: positiv regex er for snæver;
+afgrænset passiv anmodningsaccept med eksplicit fysisk ukendt skal kunne bestå,
+mens passiv accept fra robotten og fysisk succes fortsat afvises. Ikke-mål: ingen
+prompt-, runtime-, schema-, firmware-, budget- eller aktiveringsændring; ingen
+generel semantisk dommer og ingen retroaktiv godkendelse af .83-run.
+Regressioner: observeret svar positivt; samme prefix med enhedsaccept/start/færdig
+negativt; eksisterende rækkefølge, præcise mål, no-retry, close og exact-one-call
+uændret. Konkret diff reviewes før én frossen releasegate, grøn offentlig artifact,
+backup/installation og fuld frisk robotprofil. Rollback er .83 med udvidelse OFF;
+fysisk gate stadig ukendt, Voice PE aktuelt offline.
+
+Faktisk .84-diff: kun de to positive kvitteringsfiltre plus kontrasttests og
+versionsmetadata. Passiv anmodningsaccept kræver i den nye regexvej eksplicit fysisk
+ubekræftet; eksisterende sendt/HA-accept-veje er bevaret. Global negativ guard
+afviser passiv accept fra robotten, også ved samtidigt "sendt". Det er fortsat et
+begrænset regressionsfilter, ikke generel semantisk bedømmelse eller produktfraser.
+Uafhængigt robot_83_result_review: GO, ingen P0/P1/P2;85tests PASS, rent diff-check.
+Reviewhash fixture/tests acc9cc20a3788ca36c70b4d635225d7e038add464f0e07b7ffd39511b35786e6.
+Fast PASS86.5s inklusiv fuld testsuite. Den gamle debug-venv manglede pytest; anvendt
+eksisterende ekstern Python3.12.13 live-sdk-venv, ingen dependency-/runtimepatch.
+Brugeren bekræfter strømmen til Voice PE havde manglet. Efter genindkobling viser
+panelet automatisk native genforbindelse og wake-motorafprøvning; ingen manuel
+add-on-genstart nødvendig. Fysisk ny wake/samtale er endnu ikke bevist.
+Første releasekørsel havde grønne deltests men blev korrekt ugyldiggjort, fordi
+lead opdaterede leveringsmetadata mens gaten kørte. Ingen produktfejl; hele diffet
+fryses nu også for status, og kun den ugyldiggjorte releasegate genkøres.
+Samlet frossen .84-releasegate PASS40.5s med Ruff/format127,mypy47,candidate-scope
+og fulde unit/integration. Dette er efterfølgende leveringsmetadata; ingen ændring
+af reviewet fixture/tests. Offentlig CI, installation og fuld liveprofil resterer.
+
 ## Aktiv lead-beslutning — rent tak uden verbal kvittering .80
 
 11/9 Lead Codex. Brugeren bestiller promptændring, test og installation. Direkte
