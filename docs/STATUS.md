@@ -2,6 +2,60 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Robotdiff endeligt uafhængigt scoped GO for source+tests: reviewer genverificerede
+Thin8ef83.../testd059... og genkørte19tests PASS. Ingen actionablefinding. Tolv nye
+cases bruger shipped SDKadapter/Thin/ToolRouter/devicepolicy med simuleret provider/HA;
+begge adapters dækker crossresponse/replay/start-once/Stop/køetSDKinput/reconsideration.
+Native dækker fremmed delegation/nygeneration. Eksisterende devicecases dækker udløb
+og ukendt udfald; OFF er uændret i kildegrenen, ikke selvstændigt bevist af nye cases.
+Rettelsen kan gemmes som softwarekontrolleret kandidat. Rigtig provider→robot-sekvens,
+release/installationsartifact og fysisk accept mangler fortsat; ingen sådan accept arves.
+
+Samlet fast62518 på frosset robotdiff terminalexit0:96.6s total, pytest96.19s,
+Ruff/format43 og mypy50sources PASS. Ingen sourceændring/commit under gaten.
+Efter gaten er Thin8ef83... og testd059... genverificeret byteidentiske.
+Uafhængig source-GO foreligger; særskilt testreview af samme diff afsluttes før commit.
+Fortsat ingen releasegate, genbygget robot-image, installation eller fysiskrobotaccept.
+
+Robotrettelse implementeret: Thin giver kun device_control.TOOL_NAMES en
+live:generation:delegation-owner; andre tools og approve_action beholder responseowner.
+Runtime-diff9indsættelser/4sletninger, Thinsha8ef83f866ec82883586cef4ab71913deed18da10ae434c3a9e540b3497edcf5e.
+Uafhængigt source-review GO: faktiske response-/revision-/input-/Stopguards uændrede.
+Kausale integrationer frosset til testsha d059853947d55b66dc614d486b7c887d45e78c1ef9ca41b93d90ccacebf2b1aa:
+19filetests PASS0.43s, heraf12nye med rigtig Thin/SDK/router/device og mock-HA.
+Native+Talk: opslag→handling én gang; brugt token afvist; nyt token kan ikke starte
+samme opgave igen; anden delegation eller Stop/nywake-generation afvist; Stop og
+SDKmodtaget men køet input under maps-preflight sender nul writes; reconsider_action
+på holdt devicekald bruger oprindelige args/token og faktisk reviewwire korrekt én gang.
+Samme to positive native/Talkcases var RED på HEADs gamle Thin i separat Pythonproces
+(device_capability, nul writes), GREEN med rettelsen. Eksisterende relevante device/
+ThinLive/policyregressioner bestod; fem lokale registry-wiretests blev først blokeret
+ved sandboxbind, derefter kun disse fem genkørt med loopbackadgang og PASS.
+Ingen runtimepatch for miljøfejlen. Testreview og samlet fast afventer; diff fryses nu.
+Ingen commit/ændring under gaten. Ikke release-/installations-/fysiskaccept.
+
+Bruger godkendte nu udtrykkeligt robotrettelsen: “Ja til robotrettlse.” Implementér
+den tidligere afgrænsede leadbeslutning: kun de to interne device_control-tools får
+samme generation/delegation som capability-owner; faktisk responseadmission og alle
+input-/epoch-/Stop-/schema-/postawaitguards bevares. Installeret extended_device_control
+blev frisk verificeret true; dette er et konkret paritetsgab. Årsagskæde og ikke-mål
+står i eksisterende robotbeslutning nedenfor. Uafhængig agent skriver kausale integration-
+regressioner; root ejer runtimeændringen, separat reviewer godkender det faktiske diff.
+Ingen hjemmeaktion, installation eller push er del af denne lokale rettelse.
+
+Frisk read-only baselineafklaring14/9 efter routerprøven: faktisk installeret
+PodVoice1.13.87 /status live viser Udvidet enhedsstyring checked=true, verificeret
+både synlig checkbox og dens DOM.checked. Fem tilladte Roborock-entiteter er gemt:
+vacuum.roborock_qrevo samt cleaning_mode, moppeintensitet, moppetilstand og selected_map.
+Dermed er den kendte Live capability-owner-fejl relevant for en aktiveret baseline-
+funktion; tidligere “installeret værdi ukendt” er nu afklaret, men fysisk robotfunktion
+bevises ikke af indstillingen. Ingen Gem, genstart, ændring eller enhedshandling.
+Næste runtimeændring er den allerede beskrevne afgrænsede robot-owner-reparation;
+den konkrete særskilte tilladelse efter tidligere reviewafvisning mangler stadig.
+Statuspush fe15246 blev separat afvist af automatic approval review: drifts-/test-
+detaljer til GitHub kræver tydeligere destinations-/payloadgodkendelse. Lokal commit
+og originale evidence er bevaret; ingen omvej eller ny push udført.
+
 Router02 uafhængigt scoped GO:52kildehashes matcher3551b87, launcher42228cda...;
 begge modelkald fulgte completed backendresponse, originale routerresultater nåede
 SDKsubmission og completed continuation under samme delegation. Weatheroutput1700bytes

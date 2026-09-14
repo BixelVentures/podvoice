@@ -227,3 +227,250 @@ async def test_router_guard_reaches_mcp_when_connection_reinitializes_after_prep
         assert not result["ok"] and "stale_execution" in result["error"]
         assert ha.calls == []
         assert "tools/call" not in ha.methods
+
+
+@asynccontextmanager
+async def live_device_stack(adapter):
+    """Real Live/Thin/router/device policy; existing fake SDK and HA I/O only."""
+    from test_talk_webrtc import BrowserWire, finish
+    from test_thin_live import build, until
+    from unit.test_device_control import Rig
+
+    from gatekeeper.talk import BrowserLink, run_talk
+
+    rig = Rig()
+    if adapter == "talk":
+        wire = BrowserWire()
+        link = BrowserLink(wire.send_json, wire.send_bytes)
+        session, _, _, _, _ = build(device=link)
+        sdk = wire.sdk
+        session.live_brain.client_factory = sdk.factory
+    else:
+        session, sdk, _, _, _ = build()
+    session.tools = rig.router
+    from gatekeeper.live_prompt import live_instructions
+    from gatekeeper.prompt import SYSTEM_PROMPT_DA
+
+    session.live_brain.instructions, session.live_brain.backend_instructions = live_instructions(
+        SYSTEM_PROMPT_DA
+    )
+    if adapter == "talk":
+        task = asyncio.create_task(run_talk(wire, session, link))
+        wire.send("wake", command_id="device-wake")
+        await until(lambda: wire.result("device-wake") is not None)
+        assert wire.result("device-wake")["status"] == "accepted"
+    else:
+        await session.start()
+        await session.wake()
+    try:
+        yield session, sdk, rig
+    finally:
+        if adapter == "talk":
+            await finish(wire, task)
+        else:
+            await session.aclose()
+        await rig.client.aclose()
+
+
+async def live_device_call(sdk, response, name, args, delegation="d1"):
+    from test_thin_live import emit, result_for, until
+    from unit.test_openai_live import call, created, terminal
+
+    wire_id = "wire-" + response
+    await emit(
+        sdk,
+        created(response, delegation),
+        call(wire_id, name=name, arguments=json.dumps(args), delegation=delegation),
+        terminal(response, delegation=delegation),
+    )
+    await until(lambda: result_for(sdk, wire_id) is not None)
+    return result_for(sdk, wire_id)
+
+
+def device_action(token, *, start=False):
+    from unit.test_device_control import ROBOT
+
+    return {
+        "capability_token": token,
+        "entity_id": ROBOT,
+        "action": "vacuum.send_command" if start else "vacuum.set_fan_speed",
+        "arguments": {"command": "app_segment_clean", "area_ids": ["kitchen"], "repeat": 1}
+        if start
+        else {"fan_speed": "max"},
+    }
+
+
+@pytest.mark.parametrize("adapter", ["native", "talk"])
+async def test_live_device_capability_crosses_responses_once_in_same_delegation(adapter):
+    from unit.test_device_control import ROBOT
+
+    from gatekeeper.device_control import EXECUTE_ACTION, GET_CAPABILITIES
+
+    async with live_device_stack(adapter) as (session, sdk, rig):
+        lookup = await live_device_call(sdk, "lookup", GET_CAPABILITIES, {"entity_id": ROBOT})
+        token = lookup["capability_token"]
+        result = await live_device_call(sdk, "action", EXECUTE_ACTION, device_action(token))
+        assert result["ok"], result
+        assert result["data"]["physical_result_verified"] is False
+        assert rig.writes == [
+            ("services/vacuum/set_fan_speed", {"entity_id": ROBOT, "fan_speed": "max"})
+        ]
+        replay = await live_device_call(sdk, "replay", EXECUTE_ACTION, device_action(token))
+        assert replay["error_kind"] == "device_capability" and len(rig.writes) == 1
+        assert (
+            session._live_confirmation is None
+        )  # Existing bounded device policy, no new approval.
+
+
+@pytest.mark.parametrize("adapter", ["native", "talk"])
+async def test_live_device_second_start_blocked_even_with_new_capability_same_delegation(adapter):
+    from unit.test_device_control import ROBOT
+
+    from gatekeeper.device_control import EXECUTE_ACTION, GET_CAPABILITIES
+
+    async with live_device_stack(adapter) as (_, sdk, rig):
+        first = await live_device_call(sdk, "lookup", GET_CAPABILITIES, {"entity_id": ROBOT})
+        started = await live_device_call(
+            sdk, "start", EXECUTE_ACTION, device_action(first["capability_token"], start=True)
+        )
+        assert started["ok"], started
+        fresh = await live_device_call(sdk, "lookup-again", GET_CAPABILITIES, {"entity_id": ROBOT})
+        denied = await live_device_call(
+            sdk,
+            "second-start",
+            EXECUTE_ACTION,
+            device_action(fresh["capability_token"], start=True),
+        )
+        assert not denied["ok"] and denied["error_kind"] == "device_capability"
+        assert rig.writes == [
+            (
+                "services/vacuum/send_command",
+                {
+                    "entity_id": ROBOT,
+                    "command": "app_segment_clean",
+                    "params": [{"segments": [16], "repeat": 1}],
+                },
+            )
+        ]
+
+
+@pytest.mark.parametrize("boundary", ["delegation", "new_wake"])
+async def test_live_device_capability_cannot_cross_work_or_generation(boundary):
+    from unit.test_device_control import ROBOT
+
+    from gatekeeper.device_control import EXECUTE_ACTION, GET_CAPABILITIES
+
+    async with live_device_stack("native") as (session, sdk, rig):
+        lookup = await live_device_call(sdk, "lookup", GET_CAPABILITIES, {"entity_id": ROBOT})
+        if boundary == "new_wake":
+            await session.stop()
+            await session.wake()
+            assert session.brain._connection_generation == 2
+        result = await live_device_call(
+            sdk,
+            "action",
+            EXECUTE_ACTION,
+            device_action(lookup["capability_token"]),
+            "d2" if boundary == "delegation" else "d1",
+        )
+        assert result["error_kind"] == "device_capability" and rig.writes == []
+
+
+@pytest.mark.parametrize("adapter", ["native", "talk"])
+@pytest.mark.parametrize("reason", ["stop", "queued_input"])
+async def test_live_device_preflight_keeps_stop_and_sdk_input_guard(adapter, reason, monkeypatch):
+    from test_thin_live import emit, result_for, until
+    from unit.test_device_control import ROBOT
+    from unit.test_openai_live import call, created, terminal
+
+    from gatekeeper.device_control import EXECUTE_ACTION, GET_CAPABILITIES
+    from gatekeeper.openai_live import LiveTranscript
+
+    async with live_device_stack(adapter) as (session, sdk, rig):
+        lookup = await live_device_call(sdk, "lookup", GET_CAPABILITIES, {"entity_id": ROBOT})
+        entered, release, input_release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+        async def pause_maps():
+            entered.set()
+            await release.wait()
+
+        original = session._on_live_event
+
+        async def pause_input(event):
+            if isinstance(event, LiveTranscript) and event.direction == "in":
+                await input_release.wait()
+            await original(event)
+
+        rig.maps_hook = pause_maps
+        monkeypatch.setattr(session, "_on_live_event", pause_input)
+        try:
+            await emit(
+                sdk,
+                created("action"),
+                call(
+                    "action-wire",
+                    name=EXECUTE_ACTION,
+                    arguments=json.dumps(device_action(lookup["capability_token"])),
+                ),
+                terminal("action"),
+            )
+            await asyncio.wait_for(entered.wait(), 1)
+            assert not rig.writes
+            if reason == "stop":
+                stopping = asyncio.create_task(session.stop())
+                await until(lambda: session._transport_closing)
+                release.set()
+                await asyncio.wait_for(stopping, 2)
+            else:
+                await emit(
+                    sdk,
+                    {
+                        "type": "session.input_transcript.delta",
+                        "delta": "Nej, vent",
+                        "start_ms": 100,
+                        "end_ms": 200,
+                    },
+                )
+                await until(lambda: session.brain.input_sequence == 1)
+                assert session._live_input_revision == 0
+                release.set()
+                await until(lambda: result_for(sdk, "action-wire") is not None)
+                assert result_for(sdk, "action-wire")["error_kind"] == "stale_execution"
+            assert not rig.writes
+        finally:
+            release.set()
+            input_release.set()
+
+
+@pytest.mark.parametrize("adapter", ["native", "talk"])
+async def test_live_reviewed_device_call_keeps_original_capability_and_actual_wire(adapter):
+    from test_thin_live import emit, fresh_confirmation_input, result_for, send_review, until
+    from unit.test_device_control import ROBOT
+    from unit.test_openai_live import call, created, terminal
+
+    from gatekeeper.device_control import EXECUTE_ACTION, GET_CAPABILITIES
+
+    async with live_device_stack(adapter) as (session, sdk, rig):
+        lookup = await live_device_call(sdk, "lookup", GET_CAPABILITIES, {"entity_id": ROBOT})
+        args = device_action(lookup["capability_token"])
+        await fresh_confirmation_input(session, sdk, "Sæt sugestyrken til")
+        await emit(sdk, created("action"))
+        await until(lambda: "action" in session._live_backend_revisions)
+        await fresh_confirmation_input(session, sdk, " max")
+        await emit(
+            sdk,
+            call("held-wire", name=EXECUTE_ACTION, arguments=json.dumps(args)),
+            terminal("action"),
+        )
+        await until(lambda: result_for(sdk, "held-wire") is not None)
+        review = result_for(sdk, "held-wire")["reconsideration"]
+        assert review["action"] == {"name": EXECUTE_ACTION, "arguments": args}
+        assert [item["text"] for item in review["evidence"]] == [" max"]
+        assert not rig.writes
+        await send_review(sdk, review["review_token"])
+        await until(lambda: result_for(sdk, "review-wire") is not None)
+        assert result_for(sdk, "review-wire")["ok"], result_for(sdk, "review-wire")
+        assert rig.writes == [
+            ("services/vacuum/set_fan_speed", {"entity_id": ROBOT, "fan_speed": "max"})
+        ]
+        assert session._live_review is None and session._live_confirmation is None

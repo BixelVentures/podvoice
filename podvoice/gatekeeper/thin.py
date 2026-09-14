@@ -27,6 +27,7 @@ from . import __version__, runtime_artifact_identity
 from . import audio as audio_mod
 from . import constants as C
 from .data_result import MAX_TOOL_RESULT_BYTES, tool_result_size
+from .device_control import TOOL_NAMES as DEVICE_CONTROL_TOOL_NAMES
 from .events import Event, EventType, State
 from .execution_policy import ExecutionContext, PendingAction, Risk, assess_tool
 from .led import led_command_for
@@ -2316,11 +2317,15 @@ class ThinSession:
                     elif self.tools is None or call.name not in self._tool_declaration_hashes:
                         result = failure("stale_schema", "Tool was not declared for this session.")
                     else:
-                        # This is a backend work identity, explicitly NOT a speech-end turn.
+                        # Device capabilities span sequential responses in one backend task.
+                        # Freshness is still checked against the actual response below.
+                        owner = (
+                            batch.delegation_id
+                            if call.name in DEVICE_CONTROL_TOOL_NAMES
+                            else batch.response_id
+                        )
                         context = ExecutionContext(
-                            self._history_session,
-                            f"live:{batch.generation}:{batch.response_id}",
-                            "live",
+                            self._history_session, f"live:{batch.generation}:{owner}", "live"
                         )
                         result = await self.tools.dispatch(
                             call.name,
