@@ -2,6 +2,14 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+API13 forberedelse14/9: browser/HA-adgang tilbage; frisk helper13 for correction.
+Automatisk godkendelsesreview afviste HA Stop med begrundelsen manglende konkret
+autorisation til at afbryde normal PodVoice. Ingen Stop/API-submit blev udført.
+Lokalt passwordfelt ryddet, handoff lukket, nøglevariabel ryddet; helperPID69175
+termineret og handle12638terminal143. HA1.13.87 bagefter frisk verificeret Kører.
+Bed om præcis kort Stop/Start-tilladelse til afgrænset syntetisk prøve; ingen omgåelse
+eller parallel API-session. Ingen ny runtime-/prøve-/fysisk evidens.
+
 API12 forberedelse14/9 blev afbrudt før nøgle/API: helper12/correction var kun lokal
 nøgleløs admission, runtimepin9de953122b3c8c9e1f8fc58ce90a4d7d1232ec5845db98e13ca340fb66d2e2e4.
 CUA gammel fane væk, navigationtimeout og kernelreset; ny browserinventar Chromeid2
