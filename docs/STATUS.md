@@ -2,6 +2,123 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+Frosset kandidat14/9 har uafhængigt Astra HIGH scoped GO: Thin
+ d0c4dfcbe5a09cd8eef45fc2a5ab1f7bd1119a835b06b81787ecc5245e4e5de5 og test
+1f1ab2b0f7102475a4c41e922483f3d5c91c9704968a11aafc1b1cd58eb6775c (181Thin/SDK
+regressioner); evaluator85055009571f58b72e435075cde2d392340e9b4fb8ca04555c99d345baac2d51
+og tests3b483318c7e041088e602fd7e17166c649e653818f426361dd058c47eaacc225 (63tests).
+Samlet autoritativ fast96631 er faktisk terminal exit0: Ruff/format43filer,
+mypy50sources og hele pytest95.07s, samlet95.5s. Ingen kode/docs ændret under gate.
+Næste gate er én afgrænset positiv faktisk API-prøve; helper03 er samme reviewede
+mekanik med nye sourcepins/outputmappe, SHA68bc7b1673e79bddc8a6427a9b3ed322d72c22adee1dbc686ef4f4578bf01706.
+50runtimefilers manifest560f111302c6e28b31f97b25e3579d613b43f1639a6b01837669bd1cdbe14c12.
+Der er ikke kørt releasegate, ny installation eller fysisk gate. Gammelt farvel-UX,
+fuld funktionsparitet, cleanup og fysisk duplex/latens er fortsat åbne.
+
+Release-observation afgrænset14/9: SDK3.13's manager.__aexit__ afventer WebSocket
+close, mens AsyncOpenAI.close afventer HTTPX.aclose. Lead godkender to små lokale
+forwarding-observatører i developer-evaluatoren omkring netop disse faktiske await-
+kanter. De bruger eksisterende statiske close_phase-labels, kalder originalen én
+gang og bevarer returværdi/cancellation/error. Ingen global monkeypatch, alternativ
+cleanup, længere timeout eller skjult retry. Regression injicerer cancel/error i
+hver kant og kræver korrekt ejerfrigivelse samt UNKNOWN ved manglende bevis.
+Formålet er at skille socketmanager fra HTTP-client i næste allerede afgrænsede
+måling; produktrettelse må først besluttes ud fra det faktiske resultat.
+
+Anden faktiske prøve02 er terminal UNKNOWN: proces1445 parent exit0/evaluator2.
+Ingen gen2-transcript/backend/spørgsmål og ingen positiv fixture; to providerstarts,
+nul stubeffekter, finalusage7+42=49voice-sekunder og13429backendtokens. Astra har
+uafhængigt verificeret identiteter og eksakt PCM-resampling. .82 er genstartet og
+Kører frisk verificeret. Teardown-timeout er nu lokaliseret efter providerens
+finalisering: close60.0048s, request return60.0052s, release enter60.8801s med
+finalusage/closed/readerdone alle sande, release cancel62.0071s. Gen1 release tog
+1.880s og bestod. Manager/socket kontra HTTP-client release er stadig ukendt;
+ingen timeoutændring er begrundet endnu.
+
+Aktiv årsagsbeslutning — begynd det friske godkendelsesspørgsmål via officiel
+Live-mekanisme. Prøve02 beviser tavshed under gen2 stilhed; nuværende rotation
+konfigurerer spørgsmålet i startup-instruktionerne, men sender ingen frisk speech-
+first-instruktion efter session.started. OpenAI-guiden genlæst14/9 beskriver netop
+session.instructions.append med delegation_id=null efter opstart, korreleret
+session.instructions.appended, fortsat inputaudio/stilhed og valgfrit kort
+commentary.append. Kilde: https://developers.openai.com/api/docs/guides/live-conversations#greet-before-the-caller-speaks
+Hypotese: én frisk dansk instruktionsappend efter ny capture/pump er aktiv anmoder
+modellen om at stille sit allerede konfigurerede spørgsmål før brugersvar. Brug
+først den eksisterende append_instructions-adapter; ingen ny abstraktion eller
+syntetisk brugerbesked, backendresponse, approve_action eller completion-ACK.
+Berørt kæde: fastholdt forslag→gammel finalisering→frisk capture/provider→instruktions-
+ACK→modelspørgsmål→ægte input→completed approval→dispatch→close/rearm; både native
+og Talk. Invarianter: én Thin-ejer, eksakt generation/engangschallenge, ingen
+instruktion som frisk brugerinput, OFF uændret, Stop/expiry/stale ACK fejler lukket.
+Regressionskrav: audio kan fortsætte mens ACK afventes; forkert/stale ACK er inert;
+Stop/expiry/ny generation under await kan ikke fremkalde sen tale/dispatch; ingen
+inputrevision eller godkendelse fra append alene. Hold startup-/close-timeouts,
+model/voice/backend og andre prompts uændrede. Manglende spørgsmål efter append
+forbliver måleresultat; ACK er ikke tale eller fysisk playback. Runtimepatch kræver
+uafhængigt review, målrettet Thin+adapter og relevant samlet fast før ny live-gate.
+Rollback er denne særskilte instruktionskant. Alpha fortsat ikke fysisk testklar.
+
+Evalrettelsen har nu uafhængigt Astra HIGH scoped GO på script
+ d81aaa32a59cac8016fc183144bda2835c29d0aa13824298374f6a69b02b195e og tests
+4b2d30a31274e0b20c6957a83e1d9d7f15b790df9363ec942fd05ddbcd76679b.
+57 fokuserede tests består uafhængigt. Før-spørgsmål/før-fixture inputkvitteringer
+med senere providertimestamps giver UNKNOWN; oprindelig prøve01 forbliver UNKNOWN.
+Evaluator venter nu på den deklarerede syntetiske spørgetekst med terminalt '?',
+frisk generation og gyldige fremadgående providerintervaller. Parafrase eller intet
+spørgsmål giver intet syntetisk svar/UNKNOWN, ikke en produktfejl. Close/request_close/
+release har developer-only enter/return/cancel/error-observationer og scalar-state;
+produktionens timeouts/semantik er uændret. Helper02 ændrer kun scriptpin og ny
+outputmappe, SHA f720b4707d38a04c285b4d84401167e09495bcc4cae38a2b4c4c9994db3b5ebb.
+Anden afgrænset API-prøve startet i proces1445 efter frisk Kører→Stoppet i HA.
+Output /private/tmp/podvoice-live-confirmation-positive-02; resultat afventes.
+
+14/9 faktisk positiv API-prøve01 — UNKNOWN, ikke semantisk accept. Efter brugerens
+strømtilslutning blev .82 Kører frisk verificeret; Stop blev kvitteret Stoppet før
+engangs-handoff. Proces97828 afsluttede faktisk: evaluator exit2, parent exit0.
+Rapport: /private/tmp/podvoice-live-confirmation-positive-01/report.json. To
+providerstarts, final usage på begge generationer (7+41=48 voice-sekunder; tre
+backendresponses, i alt21137tokens), nul lokale stubeffekter. .82 blev genstartet
+og Kører frisk verificeret bagefter. Ingen fysisk playback, installation eller
+hjemmehandling i prøven.
+Uafhængig Astra-kontrol bekræfter source-/fixture-/artifactidentitet og eksakt
+pending proposal + historik i frisk provider. Men syntetisk ja blev sendt18.229–
+19.151s og genkendt på gen2 interval2800–3400ms FØR faktisk nyt spørgsmål på
+5800–8200ms (host23.153–25.462s). Åbningsdiagnostik mangler desuden sidste suffix
+("hoveddø"), hvorfor exact opening-recognition ikke består. Provider-close ramte
+2s teardown-step-timeout ved62.007s, selv om finalusage foreligger. Ingen af disse
+observationer må omtales som vellykket autorisation eller fysisk forståelse.
+Aktiv næste årsagsgrænse er testfixture→provider-spørgsmål→frisk fixture, ikke
+runtime-authorisation: evaluatorens fase1/readiness er ikke bevis for et stillet
+spørgsmål. Ret kun developer-evaluatorens rækkefølge og instrumentér manglende
+close-kanter før ny API-prøve. Invarianter: ægte Thin/SDK/policy, ingen opfundne
+provider-ACKs, højst2connects/60s observation, ukendt input/cleanup giver UNKNOWN.
+Hypotese: vent på observeret nyt spørgsmål, så fixtureintervallet først begynder
+bagefter; manglende eller stale spørgsmål skal blive ukendt, ikke udløse et ja.
+Timeoutårsag er endnu ukendt: close omfatter request/finalusage, SDK-reader,
+manager og client-release. Ingen runtime-, prompt-, VAD- eller timeouttuning uden
+lokaliseret await/evidens. Regressionen skal genafspille observeret før-spørgsmål-
+sekvens og afvise den. Rollback er developer-script/tests; uafhængigt genreview
+kræves før en ny API-prøve. Kandidaten er fortsat ikke fysisk testklar.
+
+Genoptaget 14/9 efter brugerens eksplicitte destinationsgodkendelse: push af
+reviewet commit a6b548af4d844add60b69e735c31c1fdca2d55d2 til den separate branch
+codex/gpt-live-alpha-research i BixelVentures/podvoice lykkedes (proces33627,
+exit0). Ingen merge til main, release eller installation. Den tidligere
+publiceringsblokering er dermed fjernet. Uafhængig Astra-verifikation har nu
+hentet den eksakte firmwarepin b56a08a6d31044f7507b178961ac74f731474253 fra GitHub
+ind i en ny bare repo uden lokale objekter. Alle18 komponentfiler matcher både
+reviewet repo, lokal buildkopi og provenancefilens SHA256; ordnet manifest er
+25f0c9a87232d3bc043466e36dc87be77d4b95365d51850d176d264a04f098e2.
+Remote-kilden er dermed bevist hentbar og byteidentisk. Dette ændrer ikke den
+historiske dummy-PSK-build til en provisioneret installationsartifact.
+Mac/browseradgang virker igen. HA-info viste først cached 1.13.82/Kører med
+forbindelsesfejl; frisk reload og HA's egen Retry now endte begge på Unable to
+connect to Home Assistant. Derfor er nuværende driftstilstand UKENDT, ikke bevist
+Kører. Den dokumenterede lokale adresse homeassistant.local:8123 fejler DNS-opslag.
+Ingen nøgle er læst, ingen produktionsservice stoppet og ingen ny API-prøve startet.
+Den reviewede positive eval afventer adgang til eksisterende konfiguration og et
+verificeret isoleret testvindue. Der udledes ingen runtimefejl af forbindelsesfejlen.
+
 Lokal nøgle-handoff har nu scoped GO efter uafhængige Python3.12.13 socket-tests:
 partial body0.253s og tricklede headers0.329s, ingen accepteret nøgle. Reviewer
 verificerede finally-close og global admissionalarm. Endelig helperhash

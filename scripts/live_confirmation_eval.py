@@ -47,6 +47,7 @@ OBSERVATION_S = 60.0
 CLEANUP_S = 15.0
 INPUT_DELAY_S = 2.0
 NEGATIVE_OBSERVATION_S = 8.0
+CONFIRMATION_QUESTION = "Skal jeg køre prøvehandlingen for hoveddøren nu?"
 FRAME_S = 0.02
 FRAME_BYTES = 640
 TEXTS = {
@@ -90,6 +91,58 @@ def normalized(text: str) -> str:
             c.lower() if c.isalnum() else " " for c in unicodedata.normalize("NFC", text)
         ).split()
     )
+
+
+def valid_interval(row):
+    start, end = row.get("start_ms"), row.get("end_ms")
+    return (
+        type(start) in (int, float)
+        and type(end) in (int, float)
+        and math.isfinite(start)
+        and math.isfinite(end)
+        and 0 <= start < end
+    )
+
+
+def observed_question(rows):
+    """Exact synthetic question only; paraphrases are UNKNOWN, not product failures.
+
+    A terminal '?' in the declared transcript is the test's textual completion
+    criterion. This is not an API speech-done event or proof of audible playback.
+    """
+    ready = resumed = False
+    fragments = []
+    highwater = 0
+    expected = normalized(CONFIRMATION_QUESTION)
+    for index, row in enumerate(rows):
+        if row["kind"] == "LiveSessionReady" and row["generation"] == 2:
+            ready = True
+        if row["kind"] == "synthetic_capture_resumed":
+            resumed = True
+        if row["kind"] != "LiveTranscript" or row["generation"] != 2 or row["direction"] != "out":
+            continue
+        forward = valid_interval(row) and row["start_ms"] >= highwater
+        if valid_interval(row):
+            highwater = max(highwater, row["end_ms"])
+        if not (ready and resumed and forward):
+            fragments = []
+            continue
+        fragments.append(row)
+        text = "".join(part["text"] for part in fragments)
+        if normalized(text).endswith(expected) and row["text"].rstrip().endswith("?"):
+            while len(fragments) > 1 and expected in normalized(
+                "".join(p["text"] for p in fragments[1:])
+            ):
+                fragments.pop(0)
+            return {
+                "receipt_index": index,
+                "start_ms": fragments[0]["start_ms"],
+                "end_ms": row["end_ms"],
+                "generation": 2,
+            }
+        if row["text"].rstrip().endswith((".", "?", "!")):
+            fragments = []
+    return None
 
 
 def load_fixtures(directory: Path) -> tuple[dict, dict[str, bytes]]:
@@ -177,6 +230,29 @@ class Evidence:
             file.close()
 
 
+class _ObservedSDKCleanup:
+    """Forward one owned SDK cleanup await without changing its cancellation."""
+
+    def __init__(self, owned, observe):
+        self._owned = owned
+        self._observe = observe
+
+    def __getattr__(self, name):
+        return getattr(self._owned, name)
+
+    async def __aexit__(self, *args):
+        try:
+            return await self._observe("manager_exit", self._owned.__aexit__(*args))
+        finally:
+            self._owned = self._observe = None
+
+    async def close(self):
+        try:
+            return await self._observe("http_client_close", self._owned.close())
+        finally:
+            self._owned = self._observe = None
+
+
 class ObservedLive(OpenAILiveSession):
     """Observe public adapter boundaries; all provider parsing remains production code."""
 
@@ -184,6 +260,7 @@ class ObservedLive(OpenAILiveSession):
         super().__init__(key, **kwargs)
         self.evidence = evidence
         self.starts = 0
+        self.close_trace_failed = False
         self.snapshots = {}
         self.audio_observer = self._audio
 
@@ -235,9 +312,52 @@ class ObservedLive(OpenAILiveSession):
         await super().send_tool_results(response_id, results, **kwargs)
         self.evidence.emit("tool_results_return", generation=self._connection_generation)
 
+    async def _observe_close_phase(self, phase, operation):
+        def trace(outcome):
+            try:
+                self.evidence.emit(
+                    "close_phase",
+                    phase=phase,
+                    outcome=outcome,
+                    generation=self._connection_generation,
+                    final_usage_present=self.final_usage_seconds is not None,
+                    provider_closed=self._closed.is_set(),
+                    reader_done=self._reader is None or self._reader.done(),
+                    manager_present=self._manager is not None,
+                    client_present=self._client is not None,
+                )
+            except Exception:
+                self.close_trace_failed = True
+
+        trace("enter")
+        try:
+            result = await operation
+        except asyncio.CancelledError:
+            trace("cancel")
+            raise
+        except Exception:
+            trace("error")
+            raise
+        else:
+            trace("return")
+            return result
+
+    async def request_close(self):
+        return await self._observe_close_phase("request_close", super().request_close())
+
+    async def _release(self):
+        # Observe the actual SDK manager/WebSocket exit and HTTPX client close.
+        # The production method retains its ordering, timeouts and lease release.
+        for attribute in ("_manager", "_client"):
+            owned = getattr(self, attribute)
+            if owned is not None and not isinstance(owned, _ObservedSDKCleanup):
+                setattr(self, attribute, _ObservedSDKCleanup(owned, self._observe_close_phase))
+        del owned
+        return await self._observe_close_phase("release", super()._release())
+
     async def close(self):
         try:
-            await super().close()
+            await self._observe_close_phase("close", super().close())
         finally:
             snapshot = self.usage_snapshot()
             if snapshot["generation"]:
@@ -478,16 +598,6 @@ def assess(case, rows, effects, *, clean, usage_complete):
         for r in rows
     )
 
-    def valid_interval(row):
-        start, end = row.get("start_ms"), row.get("end_ms")
-        return (
-            type(start) in (int, float)
-            and type(end) in (int, float)
-            and math.isfinite(start)
-            and math.isfinite(end)
-            and 0 <= start < end
-        )
-
     # Both receipt and same-generation provider order are needed; never convert clocks.
     # These are transcript intervals, not a provider speech/turn-finished event.
     followup_boundary = None
@@ -522,12 +632,36 @@ def assess(case, rows, effects, *, clean, usage_complete):
             and r["start_ms"] >= question_end_ms
         )
         followup_answer = "mørkegrøn" in normalized(later_output)
+    question = observed_question(rows)
     opening = normalized(TEXTS["opening"]) in normalized(transcript(1, "in"))
     fresh = CASES[case]
     recognized = fresh is None or normalized(TEXTS[fresh]) in normalized(transcript(2, "in"))
     finished = {r["name"] for r in rows if r["kind"] == "fixture_finished"}
     inputs_complete = "opening" in finished and (fresh is None or fresh in finished)
     silent = fresh is None and not normalized(transcript(2, "in"))
+    reply_starts = [
+        i
+        for i, r in enumerate(rows)
+        if (r["kind"] == "fixture_started" and r.get("name") == fresh and r.get("phase") == 1)
+        or (fresh is None and r["kind"] == "intentional_no_fresh_speech")
+    ]
+    fresh_input = [
+        (i, r)
+        for i, r in enumerate(rows)
+        if r["kind"] == "LiveTranscript"
+        and r["generation"] == 2
+        and r["direction"] == "in"
+        and r["text"].strip()
+    ]
+    after_question = bool(
+        question
+        and len(reply_starts) == 1
+        and reply_starts[0] > question["receipt_index"]
+        and all(
+            i > reply_starts[0] and valid_interval(r) and r["start_ms"] >= question["end_ms"]
+            for i, r in fresh_input
+        )
+    )
     expected = 1 if case in {"positive", "context-followup"} else 0
     observation_ends = [r["elapsed_s"] for r in rows if r["kind"] == "observation_finished"]
     input_ends = [
@@ -545,6 +679,7 @@ def assess(case, rows, effects, *, clean, usage_complete):
         reached
         and rotated
         and history_retained
+        and after_question
         and opening
         and recognized
         and inputs_complete
@@ -567,6 +702,8 @@ def assess(case, rows, effects, *, clean, usage_complete):
         "historical_seed_in_fresh_configuration": history_retained,
         "answer_observed_after_followup": followup_answer,
         "opening_recognized": opening,
+        "declared_question_observed": question,
+        "fresh_reply_after_question": after_question,
         "fresh_fixture_recognized": recognized,
         "fixture_delivery_complete": inputs_complete,
         "effects": effects,
@@ -627,7 +764,9 @@ async def evaluate(key, case, manifest, fixtures, evidence, *, client_factory=No
             capture.play_fixture("opening", fixtures["opening"])
             fresh_sent = followup_sent = False
             while session._active:
-                if capture.phase == 1 and not fresh_sent:
+                question = observed_question(evidence.rows) if capture.phase == 1 else None
+                if capture.phase == 1 and not fresh_sent and question:
+                    evidence.emit("declared_question_observed", **question)
                     await asyncio.sleep(INPUT_DELAY_S)
                     fresh_sent = True
                     if CASES[case]:
@@ -679,6 +818,7 @@ async def evaluate(key, case, manifest, fixtures, evidence, *, client_factory=No
         if (
             runtime_faults
             or live.last_error
+            or live.close_trace_failed
             or reason not in {"observation_deadline", "thin_session_ended"}
         ) and report["verdict"] != "FAIL":
             report["verdict"] = "UNKNOWN"
@@ -690,6 +830,8 @@ async def evaluate(key, case, manifest, fixtures, evidence, *, client_factory=No
             lifecycle=lifecycle,
             runtime_faults=runtime_faults,
             adapter_error_present=live.last_error is not None,
+            close_phase_evidence_failed=live.close_trace_failed,
+            declared_question_text=CONFIRMATION_QUESTION,
             manifest=manifest,
             artifacts={
                 name: {"bytes": size, "sha256": digest((evidence.directory / name).read_bytes())}

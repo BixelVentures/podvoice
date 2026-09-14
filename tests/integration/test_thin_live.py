@@ -1048,13 +1048,14 @@ async def test_confirmation_capability_does_not_change_off_provider_selection():
         await session.wake()
         assert session.brain is session._realtime_brain
         assert sdk.session.start.await_count == 0
+        assert sdk.session.instructions.append.await_count == 0
         assert link.capture_calls == []
     finally:
         await session.aclose()
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("phase", ["hold", "connect", "resume"])
+@pytest.mark.parametrize("phase", ["hold", "connect", "resume", "append"])
 async def test_stop_owns_cancellation_resistant_confirmation_transition_before_next_wake(
     phase, monkeypatch
 ):
@@ -1077,6 +1078,13 @@ async def test_stop_owns_cancellation_resistant_confirmation_transition_before_n
             return await original_enter(self)
 
         monkeypatch.setattr(SDK, "__aenter__", delayed_enter)
+    elif phase == "append":
+
+        async def delayed_append(**kwargs):
+            await resist_cancellation()
+            await sdk.instruction(**kwargs)
+
+        sdk.session.instructions.append.side_effect = delayed_append
     else:
         name = "hold_live_capture" if phase == "hold" else "resume_live_capture"
         original = getattr(link, name)
@@ -1101,7 +1109,7 @@ async def test_stop_owns_cancellation_resistant_confirmation_transition_before_n
         assert not session._teardown_incomplete
         assert not link.streaming
         assert tools.calls == [] and session._live_confirmation is None
-        assert sdk.session.start.await_count == (2 if phase == "resume" else 1)
+        assert sdk.session.start.await_count == (2 if phase in {"resume", "append"} else 1)
         await session.wake()
         assert session._active
         assert session._live_confirmation is None
@@ -1231,6 +1239,16 @@ async def test_real_browser_link_confirmation_holds_capture_until_closed_then_ne
     session.live_brain.instructions, session.live_brain.backend_instructions = live_instructions(
         SYSTEM_PROMPT_DA
     )
+
+    async def question_instruction(**kwargs):
+        assert offers == 2 and link._streaming
+        assert session._reader and not session._reader.done()
+        assert session._pump is None and not session._live_rotating
+        assert session._live_input_revision == session._live_confirmation_input_floor
+        assert kwargs["delegation_id"] is None
+        await sdk.instruction(**kwargs)
+
+    sdk.session.instructions.append.side_effect = question_instruction
     await session.start()
     try:
         await session.wake()
@@ -1247,6 +1265,7 @@ async def test_real_browser_link_confirmation_holds_capture_until_closed_then_ne
         assert offers == 2 and link._streaming
         assert [message["type"] for message in messages].count("live_hold") == 1
         assert sdk.client.live.create.await_count == 2
+        assert sdk.session.instructions.append.await_count == 1
         assert session._live_stream is None and session._pump is None
         if reader_failure:
             session._reader.cancel()
@@ -1425,5 +1444,169 @@ async def test_typed_context_orders_admitted_input_before_reply_during_sdk_send(
         expected = (("user", "Cyklen er blå"), ("assistant", "Din cykel er blå."))
         assert history.session_text(room=session.room, session=session._history_session) == expected
         assert session._live_prior_text() == expected
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_confirmation_start_instruction_waits_exact_ack_with_native_audio_running():
+    from gatekeeper.thin import LIVE_CONFIRMATION_START_INSTRUCTION
+
+    session, sdk, _, tools, link = confirmation_build()
+    sdk.session.instructions.append.side_effect = None
+    await session.start()
+    try:
+        await session.wake()
+        assert sdk.session.instructions.append.await_count == 0
+        await rotate_confirmation(session, sdk)
+        await until(lambda: sdk.session.instructions.append.await_count == 1)
+        request = sdk.session.instructions.append.await_args.kwargs
+        assert request["content"] == LIVE_CONFIRMATION_START_INSTRUCTION
+        assert request["delegation_id"] is None
+        assert session._reader and not session._reader.done()
+        assert session._pump and not session._pump.done()
+        assert session._keepalive and not session._keepalive.done()
+        assert link.streaming and not session._live_rotating
+        floor = session._live_confirmation_input_floor
+        link.feed([b"\0\0" * 320])
+        await until(lambda: sdk.session.input_audio.append.await_count > 0)
+        await emit(sdk, {"type": "session.instructions.appended", "client_event_id": "foreign"})
+        await asyncio.sleep(0.01)
+        assert not session._live_rotation_task.done()
+        assert session._live_input_revision == floor and tools.calls == []
+        await emit(
+            sdk, {"type": "session.instructions.appended", "client_event_id": request["event_id"]}
+        )
+        await until(lambda: session._live_rotation_task.done())
+        assert session._active and session._live_input_revision == floor and tools.calls == []
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("hold_dispatch", [False, True])
+async def test_real_approval_consumed_during_instruction_ack_does_not_fail_rotation(hold_dispatch):
+    session, sdk, _, tools, _ = confirmation_build()
+    sdk.session.instructions.append.side_effect = None
+    if hold_dispatch:
+        tools.preparing, tools.release = asyncio.Event(), asyncio.Event()
+    await session.start()
+    try:
+        await session.wake()
+        proposal = await rotate_confirmation(session, sdk)
+        await until(lambda: sdk.session.instructions.append.await_count == 1)
+        rotation = session._live_rotation_task
+        await fresh_confirmation_input(session, sdk)
+        await approve_proposal(sdk, proposal)
+        if hold_dispatch:
+            await asyncio.wait_for(tools.preparing.wait(), 1)
+            assert session._live_confirmation is proposal and tools.calls == []
+        else:
+            await until(lambda: len(tools.calls) == 1)
+        assert (
+            tools.execution_policy.peek_live_challenge(
+                proposal.challenge_id, session_id=session._history_session
+            )
+            is None
+        )
+        request = sdk.session.instructions.append.await_args.kwargs
+        await emit(
+            sdk, {"type": "session.instructions.appended", "client_event_id": request["event_id"]}
+        )
+        await until(rotation.done)
+        assert session._active and not session._transport_closing
+        if hold_dispatch:
+            tools.release.set()
+            await until(lambda: len(tools.calls) == 1)
+        assert tools.calls[0][:2] == ("danger", {"entity_id": "lock.front_door"})
+    finally:
+        if tools.release:
+            tools.release.set()
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_stop_during_confirmation_instruction_ack_and_late_ack_cannot_cross_next_wake():
+    session, sdk, _, tools, _ = confirmation_build()
+    sdk.session.instructions.append.side_effect = None
+    await session.start()
+    try:
+        await session.wake()
+        await rotate_confirmation(session, sdk)
+        await until(lambda: sdk.session.instructions.append.await_count == 1)
+        request = sdk.session.instructions.append.await_args.kwargs
+        rotation = session._live_rotation_task
+        await session.stop()
+        await until(lambda: not session._active and rotation.done())
+        assert not session._live_confirmation and not tools.calls
+        await session.wake()
+        assert session.brain._connection_generation == 3
+        await emit(
+            sdk, {"type": "session.instructions.appended", "client_event_id": request["event_id"]}
+        )
+        await asyncio.sleep(0.01)
+        assert session._active and session._live_confirmation is None
+        assert sdk.session.instructions.append.await_count == 1 and not tools.calls
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("when", ["before_request", "during_ack"])
+async def test_expired_confirmation_never_executes_around_start_instruction(when):
+    session, sdk, _, tools, link = confirmation_build()
+    sdk.session.instructions.append.side_effect = None
+    original_resume = link.resume_live_capture
+    if when == "before_request":
+
+        async def expired_resume(token):
+            await original_resume(token)
+            proposal = session._live_confirmation
+            tools.execution_policy._clock = lambda: proposal.expires_at + 1
+
+        link.resume_live_capture = expired_resume
+    await session.start()
+    try:
+        await session.wake()
+        proposal = await pending_confirmation(session, sdk)
+        await emit(sdk, created("r2"), terminal("r2"))
+        if when == "before_request":
+            await until(lambda: session._transport_closing)
+            assert sdk.session.instructions.append.await_count == 0
+        else:
+            await until(lambda: sdk.session.instructions.append.await_count == 1)
+            tools.execution_policy._clock = lambda: proposal.expires_at + 1
+            await fresh_confirmation_input(session, sdk)
+            await approve_proposal(sdk, proposal)
+            await until(lambda: sdk.response.item.create.await_count == 2)
+            request = sdk.session.instructions.append.await_args.kwargs
+            await emit(
+                sdk,
+                {"type": "session.instructions.appended", "client_event_id": request["event_id"]},
+            )
+            await until(lambda: session._live_rotation_task.done())
+            assert session._active and not session._transport_closing
+        assert tools.calls == []
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["missing_ack", "rejected"])
+async def test_confirmation_start_instruction_failure_closes_owned_session(failure):
+    session, sdk, _, tools, _ = confirmation_build()
+    sdk.session.instructions.append.side_effect = (
+        None if failure == "missing_ack" else RuntimeError("rejected")
+    )
+    await session.start()
+    try:
+        await session.wake()
+        await pending_confirmation(session, sdk)
+        await emit(sdk, created("r2"), terminal("r2"))
+        await until(lambda: sdk.session.instructions.append.await_count == 1)
+        await until(lambda: session._transport_closing)
+        await until(lambda: not session._active)
+        assert tools.calls == [] and session._live_confirmation is None
+        assert sdk.session.start.await_count == 2 and sdk.session.close.await_count == 2
     finally:
         await session.aclose()

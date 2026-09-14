@@ -53,6 +53,12 @@ if TYPE_CHECKING:
     from .openai_live import LiveToolBatch
 
 LIVE_CLOSE_GRACE_S = 6.0
+LIVE_CONFIRMATION_START_INSTRUCTION = (
+    "Stil nu straks det korte, konkrete bekræftelsesspørgsmål om det allerede "
+    "konfigurerede afventende forslag. Tal dansk. Vent ikke på, at brugeren taler først. "
+    "Stil kun spørgsmålet; hold derefter pause og lyt efter brugerens svar. "
+    "Følg fortsat de gældende regler for frisk bekræftelse."
+)
 MAX_TYPED_TEXT_CHARS = 2000
 MAX_TALK_COMMAND_ID_CHARS = 128
 _PHYSICAL_PROVIDER_TRACE_KINDS = frozenset(
@@ -2271,7 +2277,7 @@ class ThinSession:
         owner = asyncio.current_task()
         completed = False
 
-        def check() -> None:
+        def check(*, require_proposal: bool = True) -> None:
             if (
                 not self._active
                 or self._transport_closing
@@ -2281,7 +2287,7 @@ class ThinSession:
                 or (owner is not None and owner.cancelling())
             ):
                 raise asyncio.CancelledError
-            if (
+            if require_proposal and (
                 self._live_confirmation is not proposal
                 or self.tools.execution_policy.peek_live_challenge(
                     proposal.challenge_id, session_id=self._history_session
@@ -2357,6 +2363,7 @@ class ThinSession:
                 check()
                 if brain._connection_generation == generation:
                     raise RuntimeError("confirmation provider generation was not replaced")
+                confirmation_generation = brain._connection_generation
                 self._reader = self._spawn(self._read_events(), "thin-reader")
                 if self._live_webrtc:
                     await self.voicepe.wait_live_started()
@@ -2376,6 +2383,18 @@ class ThinSession:
                     provider_generation=brain._connection_generation,
                     prior_provider_context_restored=False,
                     saved_text_messages=len(prior_text),
+                )
+                check()
+                await brain.append_instructions(LIVE_CONFIRMATION_START_INSTRUCTION)
+                # Capture and tool handling stay live during the exact ACK wait. An
+                # answer may already have consumed the proposal; do not revoke its
+                # dispatch or close a healthy session merely because peek is empty.
+                check(require_proposal=False)
+                if brain._connection_generation != confirmation_generation:
+                    raise asyncio.CancelledError
+                self._trace_event(
+                    "live_confirmation_instruction_ack",
+                    provider_generation=brain._connection_generation,
                 )
                 completed = True
         except asyncio.CancelledError:

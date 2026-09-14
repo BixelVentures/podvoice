@@ -103,6 +103,15 @@ def good_rows(fresh="negative"):
             ],
         },
         {"kind": "LiveSessionReady", "generation": 2},
+        {"kind": "synthetic_capture_resumed"},
+        {
+            "kind": "LiveTranscript",
+            "generation": 2,
+            "direction": "out",
+            "text": module.CONFIRMATION_QUESTION,
+            "start_ms": 1000,
+            "end_ms": 2000,
+        },
         {
             "kind": "LiveTranscript",
             "generation": 1,
@@ -114,6 +123,7 @@ def good_rows(fresh="negative"):
     if fresh:
         rows.extend(
             [
+                {"kind": "fixture_started", "name": fresh, "phase": 1},
                 {
                     "kind": "LiveTranscript",
                     "generation": 2,
@@ -126,7 +136,8 @@ def good_rows(fresh="negative"):
     for row in rows:
         row["elapsed_s"] = 0
         if row["kind"] == "LiveTranscript":
-            row["start_ms"], row["end_ms"] = 0, 100
+            row.setdefault("start_ms", 3000 if row["generation"] == 2 else 0)
+            row.setdefault("end_ms", 4000 if row["generation"] == 2 else 100)
     rows.append({"kind": "observation_finished", "elapsed_s": 10})
     return rows
 
@@ -261,9 +272,12 @@ async def until(predicate):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("case,expected_effects", [("positive", 1), ("old-yes-no-input", 0)])
+@pytest.mark.parametrize(
+    "case,expected_effects,has_question",
+    [("positive", 1, True), ("old-yes-no-input", 0, True), ("positive", 0, False)],
+)
 async def test_actual_thin_sdk_rotation_stub_path_and_final_usage(
-    tmp_path, fixtures, monkeypatch, case, expected_effects
+    tmp_path, fixtures, monkeypatch, case, expected_effects, has_question
 ):
     directory, _ = fixtures
     manifest, data = module.load_fixtures(directory)
@@ -302,14 +316,29 @@ async def test_actual_thin_sdk_rotation_stub_path_and_final_usage(
         for event in (created("r2"), terminal("r2")):
             await sdk.incoming.put(event)
         await until(lambda: seen("synthetic_capture_resumed"))
+        assert not seen("fixture_started", name="positive")
+        if not has_question:
+            report, settled = await trial
+            assert settled and report["verdict"] == "UNKNOWN"
+            assert not seen("fixture_started", name="positive") and not report["effects"]
+            assert report["connect_attempts"] == 2
+            return
+        await sdk.incoming.put(
+            {
+                "type": "session.output_transcript.delta",
+                "delta": module.CONFIRMATION_QUESTION,
+                "start_ms": 1000,
+                "end_ms": 2000,
+            }
+        )
         if expected_effects:
             await until(lambda: seen("fixture_finished", name="positive"))
             await sdk.incoming.put(
                 {
                     "type": "session.input_transcript.delta",
                     "delta": module.TEXTS["positive"],
-                    "start_ms": 0,
-                    "end_ms": 100,
+                    "start_ms": 3000,
+                    "end_ms": 4000,
                 }
             )
         else:
@@ -530,4 +559,216 @@ def test_late_context_output_requires_same_generation_provider_order(damage):
     assert (
         module.assess("context-followup", rows, effects, clean=True, usage_complete=True)["verdict"]
         == expected
+    )
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        "valid",
+        "incomplete",
+        "wrong_generation",
+        "before_resume",
+        "stale",
+        "overlap",
+        "missing_interval",
+        "paraphrase",
+    ],
+)
+def test_declared_question_needs_fresh_complete_forward_provider_evidence(damage):
+    prefix = [{"kind": "LiveSessionReady", "generation": 2}, {"kind": "synthetic_capture_resumed"}]
+    first = {
+        "kind": "LiveTranscript",
+        "generation": 2,
+        "direction": "out",
+        "text": "Skal jeg køre prøvehandlingen",
+        "start_ms": 1000,
+        "end_ms": 2000,
+    }
+    last = {
+        "kind": "LiveTranscript",
+        "generation": 2,
+        "direction": "out",
+        "text": " for hoveddøren nu?",
+        "start_ms": 2000,
+        "end_ms": 3000,
+    }
+    rows = [*prefix, first, last]
+    if damage == "incomplete":
+        rows.pop()
+    elif damage == "wrong_generation":
+        first["generation"] = last["generation"] = 1
+    elif damage == "before_resume":
+        rows = [prefix[0], first, last, prefix[1]]
+    elif damage == "stale":
+        rows.insert(2, {**first, "text": "Tidligere.", "start_ms": 5000, "end_ms": 6000})
+    elif damage == "overlap":
+        last["start_ms"] = 1500
+    elif damage == "missing_interval":
+        first.pop("start_ms")
+    elif damage == "paraphrase":
+        first["text"] = "Vil du køre handlingen"
+    result = module.observed_question(rows)
+    assert bool(result) == (damage == "valid")
+    if result:
+        assert result["start_ms"] == 1000 and result["end_ms"] == 3000
+
+
+@pytest.mark.parametrize(
+    "damage", ["source_before_question", "input_before_question", "missing_question"]
+)
+def test_positive_assessor_independently_rejects_prequestion_reply(damage):
+    rows = good_rows("positive")
+    question = next(r for r in rows if r.get("text") == module.CONFIRMATION_QUESTION)
+    if damage == "source_before_question":
+        start = next(r for r in rows if r["kind"] == "fixture_started")
+        rows.remove(start)
+        rows.insert(rows.index(question), start)
+    elif damage == "input_before_question":
+        fresh = next(r for r in rows if r.get("text") == module.TEXTS["positive"])
+        fresh.update(start_ms=100, end_ms=200)
+    else:
+        rows.remove(question)
+    effects = [{"action": module.ACTION, "args": module.ARGS}]
+    report = module.assess("positive", rows, effects, clean=True, usage_complete=True)
+    assert report["verdict"] == "UNKNOWN"
+
+
+@pytest.mark.asyncio
+async def test_close_phase_cancellation_is_recorded_without_exception_text(tmp_path):
+    evidence = module.Evidence(tmp_path / "evidence")
+    sdk = SDK()
+    live = module.ObservedLive(
+        "not-a-key",
+        evidence,
+        tool_declarations=[],
+        provider_budget=ProviderBudgetCoordinator(),
+        client_factory=sdk.factory,
+        timeout_s=0.2,
+    )
+    await live.connect()
+    entered = asyncio.Event()
+
+    async def blocked_close():
+        entered.set()
+        await asyncio.Event().wait()
+
+    sdk.session.close.side_effect = blocked_close
+    task = asyncio.create_task(live.request_close())
+    await entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    phases = [r for r in evidence.rows if r["kind"] == "close_phase"]
+    assert [(r["phase"], r["outcome"]) for r in phases] == [
+        ("request_close", "enter"),
+        ("request_close", "cancel"),
+    ]
+    # The cancelled request never reached this fake provider: no invented finalization.
+    with pytest.raises(TimeoutError):
+        await live.close()
+    phases = [r for r in evidence.rows if r["kind"] == "close_phase"]
+    assert any(r["phase"] == "close" and r["outcome"] == "error" for r in phases)
+    assert any(
+        r["phase"] == "release"
+        and r["outcome"] == "return"
+        and not r["client_present"]
+        and not r["manager_present"]
+        for r in phases
+    )
+    evidence.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["manager_exit", "http_client_close"])
+@pytest.mark.parametrize("outcome", ["return", "error", "cancel"])
+async def test_sdk_cleanup_observation_preserves_actual_order_errors_and_cancellation(
+    tmp_path, phase, outcome
+):
+    evidence = module.Evidence(tmp_path / "evidence")
+    entered = asyncio.Event()
+    operations, handles = [], []
+    failure = OSError("private exception detail must not be recorded")
+
+    async def operation(name):
+        operations.append(name)
+        handles.append(live._manager if name == "manager_exit" else live._client)
+        if name == phase:
+            entered.set()
+            if outcome == "error":
+                raise failure
+            if outcome == "cancel":
+                await asyncio.Event().wait()
+
+    class CleanupSDK(SDK):
+        async def __aexit__(self, *args):
+            assert args == (None, None, None)
+            await operation("manager_exit")
+            return await super().__aexit__(*args)
+
+    sdk = CleanupSDK()
+
+    async def client_close():
+        await operation("http_client_close")
+
+    sdk.client.close.side_effect = client_close
+    live = module.ObservedLive(
+        "not-a-key",
+        evidence,
+        tool_declarations=[],
+        provider_budget=ProviderBudgetCoordinator(),
+        client_factory=sdk.factory,
+        timeout_s=0.2,
+    )
+    try:
+        await live.connect()
+        closing = asyncio.create_task(live.close())
+        await asyncio.wait_for(entered.wait(), 1)
+        if outcome == "cancel":
+            closing.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await closing
+        elif outcome == "error":
+            with pytest.raises(OSError) as raised:
+                await closing
+            assert raised.value is failure
+        else:
+            await closing
+        assert operations == ["manager_exit", "http_client_close"]
+        sdk.client.close.assert_awaited_once()
+        assert live._manager is live._client is live._lease is None
+        assert all(handle._owned is handle._observe is None for handle in handles)
+        phases = [
+            (row["phase"], row["outcome"])
+            for row in evidence.rows
+            if row["kind"] == "close_phase"
+            and row["phase"] in {"manager_exit", "http_client_close"}
+        ]
+        assert phases == [
+            ("manager_exit", "enter"),
+            ("manager_exit", outcome if phase == "manager_exit" else "return"),
+            ("http_client_close", "enter"),
+            ("http_client_close", outcome if phase == "http_client_close" else "return"),
+        ]
+        assert "private exception detail" not in json.dumps(evidence.rows)
+    finally:
+        await live.close()
+        evidence.close()
+
+
+@pytest.mark.parametrize("boundary", ["question", "fixture"])
+def test_positive_received_before_scheduled_fixture_is_unknown_even_with_future_timestamp(boundary):
+    rows = good_rows("positive")
+    fresh = next(r for r in rows if r.get("text") == module.TEXTS["positive"])
+    rows.remove(fresh)
+    if boundary == "question":
+        before = next(r for r in rows if r.get("text") == module.CONFIRMATION_QUESTION)
+    else:
+        before = next(r for r in rows if r["kind"] == "fixture_started")
+    rows.insert(rows.index(before), fresh)
+    assert fresh["start_ms"] == 3000  # Later provider time does not repair earlier receipt.
+    effects = [{"action": module.ACTION, "args": module.ARGS}]
+    assert (
+        module.assess("positive", rows, effects, clean=True, usage_complete=True)["verdict"]
+        == "UNKNOWN"
     )
