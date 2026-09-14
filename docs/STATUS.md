@@ -2,6 +2,23 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+API07 afsluttet14/9 på samme frosne runtime/evaluator som05/06, HEAD32ea489 kun docs.
+Parent12871 exit0/child2, automatisk UNKNOWN. Gen1transcript “Kør prøvehandling for
+hoveddøren” afviger fra exactfixture “Kør prøvehandlingen for hoveddøren.”; derfor
+opening_recognized=false. Gen2spørgsmål “Vil du køre prøvehandlingen for hoveddøren?”
+blev reviewet som samme præcise handling/mål og bundet til seq49..55/provider0..1800ms.
+Label28.732s, fixture30.734s, fuldt friskt “Ja, gør det”32.864s, én lokalstub-effekt
+34.223s. positive_effect_linked=true, effect_before_fresh_evidence=false. Begge
+sessioner lukker rent, usage_complete=true, runtime_faults=[] og thin_session_ended.
+Uafhængigt audit af betydning/identiteter/expiry/semantisk close er i gang; automatisk
+UNKNOWN bevares. Dette må ikke blive til fuld funktionsmatrix, fysisk accept eller
+hørestabilitet. HA.87 blev verificeret Stoppet før/efter prøve, manuelt startet af
+root bagefter og frisk verificeret Kører; nøglevariabel/formular ryddet.
+API06-uafhængigt audit fandt hele05source-0/provider-input-1 som byteeksakte præfikser
+af06 med kun yderligere stilhed. Samme komplette openingclip én gang ved1.86s, eksakt
+produktionsresampling; ingen payloadkorruption/trunkering. Forskellig genkendelse på
+sammePCM isolerer ikke provider/model/pacingårsag og begrunder ingen runtimepatch.
+
 API06 afsluttet14/9 på samme reviewede runtime/evaluator som05; HEADf7396aa er kun
 docs-descendant. Helper06 ændrer alene engangsoutputmappe fra05 og har SHA
 6328fe8c52f12d578344ead072ccf902b0a68d85f1cc85a424675418fa88ab52.
