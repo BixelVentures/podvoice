@@ -3,6 +3,192 @@
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
 
+15/9 frysning til én lokal software-releasegate: samlet production-review er GO,
+classifierrettelsen er reviewet og målrettet grøn; ingen planlagt runtimeændring.
+Den samlede lokale gate køres nu på frosne filer, før yderligere praktiske prøver,
+så softwaremangler findes før installationsarbejde. Dette flytter kun tidspunktet
+for lokal softwareverifikation; tidligere semantiske ukendte, fuld funktionsparitet,
+GitHub-publicering og installation/fysisk accept er stadig åbne og må ikke udledes
+af grønt resultat. Ingen filændring/commit mens gaten kører. Runtimefingerprint
+6221770445d223780e7a65742c11aa3c4093bff336bd3fe18bdd92811537c50e uændret.
+
+
+15/9 toolingrettelse implementeret og lokalt committed c8142c6: classifier bruger
+konservativt hele tilføjede/fjernede ikke-kommentarlinjer over10000tegn; små diff
+bevarer præcis matchning. Fingerprint og coupling-reviewcheck uændret. Root reviewede
+faktisk diff og verificerede hashes/resultat:21målrettede tests, Ruff/format/diffcheck
+PASS. Samme femdomæne-coupling PASS på0.243792s mod42.137218s. Ingen runtimeændring;
+dette er gatehastighed, ikke voicelatency. Ingen fuld releasegate/push/installation.
+Rapport: /private/tmp/podvoice-alpha-reviewed-scope-15-fast.json. Ældre one-use
+APIlaunchere er stadig sourcepinnet til tidligere HEAD og må ikke genbruges blindt.
+Samlet reviewpost ovenfor er stadig bundet til uændret production-fingerprint.
+
+
+15/9 scope-gate nu faktisk PASS (63343exit0), exact reviewed coupling på de frosne
+c88c54e-bits. Målt42.137s i /private/tmp/podvoice-alpha-reviewed-scope-15.json.
+Releaseværktøjets kandidat-scope-stage har30s deadline, så den fulde releasegate
+ville timeoute på tooling; den startes ikke blindt. Samme langsomme klassifikation
+sås også ved første afklaring. Permanent afgrænset toolingrettelse er bestilt:
+undgå kvadratisk tegnmatchning på stort diff, bevar præcis fingerprint/review-gate
+og konservativ domæneklassifikation. Ingen produktionsændring eller accepteret
+runtimehypotese udledes heraf. Kun målrettede classifier-regressioner først.
+
+
+15/9 integreret uafhængigt Astra-review: scoped GO på c88c54e. Ingen åbne konkrete
+P0/P1; fem domæner er nødvendig kobling for den godkendte Alpha. De 12 adapter-/
+wiring-/firmwarefiler matcher tidligere reviewede bits; endelige robot-/typed-input-
+ændringer blev særskilt eftergået. Ingen ny gate/API/fysisk accept arves.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "be4c5e8cc9b8e3e371eeb622b326c03019f98416",
+  "merge_base": "be4c5e8cc9b8e3e371eeb622b326c03019f98416",
+  "domains": [
+    "audio_input",
+    "ha_tools",
+    "physical_output",
+    "realtime_semantics",
+    "rearm"
+  ],
+  "fingerprint": "6221770445d223780e7a65742c11aa3c4093bff336bd3fe18bdd92811537c50e",
+  "reviewer": "alpha_final_audit integrated Astra review 2026-09-15",
+  "rationale": "User-authorized reversible Live Alpha requires one coupled continuous audio, playback, semantic tool admission and Stop/rearm chain under ThinSession and VoicePELink. Final source inspection found no unresolved concrete P0/P1; queued-input and robot capability freshness guards remain intact, OFF retains Realtime/FLAC. Scope approval only; semantic, release, installation and physical acceptance remain separate."
+}
+-->
+
+Frisk HA-UI15/9: installeret1.13.87 Kører; Voice PE forbundet/wake afprøves,
+PodConnect og hjemmestyring verificeret. Tid/hjem/web/vejr/musik fundet, timere mangler.
+R0 er Køkkenalrum HomePod, duck0%, Hey Chat bekræftet af enheden. Read-only; ingen
+Gem, nøgleaflæsning, Stop/genstart eller afspilning. Dette er readiness, ikke fysisk proof.
+
+
+15/9 installationsgrænse genverificeret: direkte candidate_scope --base origin/main
+--json afsluttede exit1 (session45939) på c88c54e, base/mergebase be4c5e8:
+audio_input + ha_tools + physical_output + realtime_semantics + rearm mangler en
+aktuel samlet coupling-reviewpost. Dette er ikke en fysisk/runtimefejl, og gaten
+må ikke omgås med nedarvede delreviews. Ingen fuld releasegate startet. Integreret
+uafhængigt review er bestilt hos alpha_final_audit; source-fingerprint genberegnet
+6221770445d223780e7a65742c11aa3c4093bff336bd3fe18bdd92811537c50e.
+Kun faktisk reviewresultat kan åbne denne scope-gate; semantik/installation/fysisk
+accept er fortsat særskilte krav.
+
+Afgrænset Astra-paritetsaudit fandt ingen ny konkret Live-only fejl i musik/web/timer.
+Root genlæste de berørte ejere: Thin starter fælles samtaleducking og stopper
+heartbeat før attention-release; Talk bruger NoAttention og beviser ikke rum-music.
+Musik kræver rigtig Live→ToolRouter→eksplicit speaker→pause og fysisk restoration;
+web kræver faktisk discovered google_web_sogning og kildebaseret continuation.
+TimerManager er dormant, og timerværktøjer er ikke admitted i ON eller OFF: dette er
+baseline-produktgab, ikke en Alpha-regression eller anledning til ny timerfeature.
+Ingen HA-hjemmehandling, API, optagelse, release eller installation i denne kontrol.
+
+
+15/9: Målemetode rettet isoleret, ingen runtimeændring eller ny mikrofon/API-prøve.
+Recorder05 er recorder04 med PCM i Matroska (.mka) i stedet for WAV og eksplicit
+ukendt samplezero/hostclock-alignment. Samme 60s capture, 75s watchdog og kill/reap.
+Offline 4s syntetisk tone med udeladt interval 1–2s: Matroska bevarer 1.003s
+packetgap og slutter ved 3.999s; WAV sammenpresser til 2.997334s uden hullet.
+Det beviser formatets relative tidsbevarelse, ikke AVFoundation-kontinuitet,
+årsagen til Talk04-afvigelsen eller fysisk playback/latens. Recorder05 er kun
+compile-checket, ikke kørt. Bevis: /private/tmp/podvoice-room-timestamp-offline-05.
+Uafhængig Astra-review scoped GO: hashes og packetgap genberegnet, begge kilder
+compile-checket uden execution. Recorder05 SHA256
+0794fc797809f6ac8ff9dcfaa843f6ebad4eb0ace4675092ecdc67fc13856f8f.
+Ingen timingtuning. Lokal evidens arkiveret i api-proof/room-timestamp-offline-05.
+Optageren bevarer relative huller, men genskaber ikke mistede samples; faktisk
+AVFoundation-optagelse, samplezero og akustisk farvel er fortsat ubevist.
+
+
+Talk04 acousticreview færdig: UNKNOWN for fysisk farvel/lag. Ingen konsistent unik
+room↔provideralignment. Stærkeste korte initialmatch0.673 blev ikke bekræftet af
+senere tale; farvelmatch0.312 mod alternativ0.296. Ingen tilpasset tærskel for PASS.
+Sidste energiholdige providerchunk modtaget5.467s før close er sidebandmodtagelse,
+ikke fysisk stilhed. Analysis/crops separat bevaret under talk-acoustic-04/analysis;
+roomcrop er kun kandidat, ikke bekræftet farvel. Bruger er spurgt om vedkommende hørte
+42 og hele farvel; et eventuelt svar bliver selvstændig observation, ikke numerisk
+latencybevis. Optagelsens tidskontinuitet skal bevares i næste målemetode; gentag ikke
+samme WAV-only60smetode blindt. Ingen runtimeændring eller større testframework.
+Mikrofonprøvens tidligere samtykkeblocker er løst; denne turn gav realAPI/rumdata og
+konkret begrænsning. Goal er ikke komplet og må ikke lukkes på protokol-GO.
+
+
+Talk04 faktisk kørt efter brugerens “Ja gør bare det” til lokal60srumoptagelse.
+APIhelper83718exit0, recorder45863exit0/no timeout. RootChrome: “Hvad er seks gange
+syv?” → “Hmm. Det er42.”; “Tak, det var alt. Farvel.” → “Hmm.”, end_conversation,
+“Farvel.”, faktisk lukket UI. Ingen manualStop/Talkmic/HAtools. Normal HA1.13.87 blev
+verificeret Kører→Stoppet→Kører, prøvefaner lukket/nøglevariabel ryddet. Originale
+Talk/rumreports plus særskilt rootobservation arkiveret i api-proof/talk-acoustic-04.
+
+Uafhængig protokolaudit scoped GO:52sourcehashes matcher c88c54e; providerhashes matcher.
+Backendcontinuation settled99.611s → SDKclose105.613s (6.002sgrace) → faktisk
+session.closed106.397s → teardown108.553s før prøvedeadline. Lydrefleksion blev stadig
+opsamlet85ms efter closerequest. Senere closemetodekald efter final er SDK-noop,
+ikke andet wireclose. Én session35finalvoice-sekunder/20283backendtokens, clean,
+ingen capture-/observerfaults. Protokolfinalisering bestået, ikke akustisk accept.
+
+Målebegrænsning fundet: providerPCM34.6s med seks200ms intervalhuller (og begynder ved
+200ms); sammenkædede filoffsets er ikke ubrudt sessionstid. RoomWAV47.136s samples,
+selvom recorderproces60.726s og -t60 med exit0/tom log. Processstart er derfor ikke
+samplezero, og manglende/sammenpresset rumtid må ikke bruges som latencybevis.
+Root kunne ikke gennemlytte via modelværktøjet (audio input unsupported); der påstås
+ikke semantisk gennemlytning. Offline acousticmatch undersøges af separat reviewer,
+uden tærskeltilpasning for PASS. Ingen6s-tuning eller runtimepatch udledes af
+måleudstyrets begrænsning; VoicePE-installation/golden/10of10/duplex/latens stadig åbne.
+
+
+Goal blocker-audit: rum-/mikrofonspørgsmålet for Talk04 er fortsat ubesvaret gennem
+klargøringsturnen og to efterfølgende automatiske fortsættelser. Klargøring var
+fremdrift; sidste fortsættelse var kun genverifikation/status, ikke ny produktevidens
+eller verified wait. Ingen prøveproces er startet, og begge outputmapper findes ikke.
+Samme konkrete adgang til den nødvendige lydmåling mangler; ingen ny optagelse eller
+alternativ sidestillet prøve startes for at omgå det. Goal markeres blocked, ikke
+complete. Hele alphamålet bevares. Genoptag fra reviewede Talk04/handoff/recorder på
+c88c54e, når brugeren bekræfter lokal60srumoptagelse; kør ikke gamle hjælpere igen.
+
+
+Talk04/måleudstyr endeligt scoped GO fra uafhængig Astra-review. Frosne hashes:
+launcher77f2526102122934de143d9242d9ddbc61fafee9ca454cc546572e2ed7d1c5e5,
+handoffa1615228ee28c542c4adc070990ff72c4f3db9927ac977a68748ade236181e49,
+recorder6a6ec11d9dc68092070089202042592f382ad65708b3f4889a73f6ffce64098d.
+Slutreview rettede også close-diagnostik til ikke at blokere/maskere originalclose
+og recorderens postspawn-finally til altid at kill/reape barn ved fejl/interruption.
+Alle tre compile-only bestået, kildepins matcher; ingen runtimeændring. Provider-
+intervaller, hostclock og ukendt recordingsamplezero forbliver særskilt mærket.
+Ingen API/session/mic/afspilning startet. Afventer kun konkret rum-/mikrofonaccept
+for denne måling; tidligere lokalAPI/StopStart-tilladelse gælder fortsat sit scope.
+Næste efter accept: start faktisk Talkapp, optag højst60s lokalt via recorder, skriv
+kort regnespørgsmål og derefter naturligt farvel, behold eksakte tids-/lydspor, gendan
+normal HA og vurder slutord/gap uden at opfinde speaker-ACK eller tune midt i prøven.
+
+
+Talk04-klargøring: launcher91c5c3c.../handoff87db4d7... pin c88c54e + runtimeeabf6c7.
+SDK3.13 kildetype bekræfter sideband monoPCM16LE24kHz med start/endms; hul i
+refleksionen kan forekomme og bevares som intervalmetadata. Reviewer fandt målelagets
+exceptions kunne forhindre originalhandler; rettet med observer-only Exceptionfangst,
+fault/stopmarkering uden journalafhængighed, derefter originalhandler præcis én gang.
+Originale exceptions/cancellation bevares. response.incomplete tilføjet diagnostik.
+Separat recorder dccd828c... bruger kun FFmpeg audioindex0 i60s, lokalt WAV, privat
+ny mappe og75s watchdog; intet kamera/netværk eller implicit samplezero-klokkebevis.
+Compile() i hukommelse PASS. Første py_compile brugte systemPythons blokerede cache,
+ingen optagelse eller produktevidens udledes af det. Slutreview af rettelser/recorder
+bestilt. Ingen launch/API/mic. Rumgodkendelse fortsat afventende; første venteturn,
+ikke gentagen blockergrænse. Forberedelsen er konkret fremdrift, goal ikke opfyldt.
+
+
+Næste praktiske close-måling på c88c54e (runtime fortsat eabf6c7...): genbrug faktisk
+Talk-prøve og lokal FFmpeg-rumoptagelse, ingen runtimeændring. Read-only hardwareliste
+verificerede MacBook Pro-mikrofon/højttalere; FFmpeg AVFoundation audioindex0 er
+“Mikrofon i MacBook Pro”. Listekommandoens exit251 skyldes tom input efter enumeration,
+ikke afprøvet optagefejl. Ingen micoptagelse eller tilladelsesændring er udført.
+Bruger er spurgt, om Mac står åben i roligt rum, og kort lokal afspilning/optagelse
+kan begynde; afventer. Normal PodVoice røres ikke under forberedelse. Målingen skal
+bevare sidebandens providerklokke, hostmodtagelsestid og PCMoffset særskilt og bracketere
+systemtid mod monotonic. FFmpegprocesstart er ikke automatisk præcis sample-zero.
+Reviewet launcher genbruges med mindst nødvendig observationskode; ingen ekstra
+receiver eller ændret SDKeventrækkefølge. Efter review én afgrænset prøve, når rummet
+bekræftes. Dette er Talk/rumbevis og kan aldrig erstatte VoicePE-fysiskgate.
+
+
 Uafhængig frisk officiel close-gennemgang: Live-guiden kræver nødvendige backend-
 resultater/continuations færdige → session.close → forbindelser beholdes indtil
 session.closed → cleanup. Officiel WebRTCeksempel rydder peer/audio ved session.closed;
