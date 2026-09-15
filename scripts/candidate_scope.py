@@ -67,6 +67,11 @@ _AUDIO_ANALYSIS_SURFACES = {
     "podvoice/gatekeeper/static/index.html",
 }
 
+# Character matching without autojunk can become quadratic on large repeated diffs.
+# Above this bound, include whole changed lines: extra domains require review, but
+# no executable scope is lost and fingerprint/coupling checks remain unchanged.
+_MAX_FINE_DIFF_CHARS = 10_000
+
 
 def classify_candidate(changes: Sequence[str], production_diff: str) -> CandidateScope:
     production = tuple(
@@ -95,13 +100,16 @@ def classify_candidate(changes: Sequence[str], production_diff: str) -> Candidat
             added.append(line[1:])
     old_code = "\n".join(line for line in removed if not line.lstrip().startswith(("#", "//")))
     new_code = "\n".join(line for line in added if not line.lstrip().startswith(("#", "//")))
-    changed_fragments: list[str] = []
-    matcher = difflib.SequenceMatcher(a=old_code, b=new_code, autojunk=False)
-    for tag, old_start, old_end, new_start, new_end in matcher.get_opcodes():
-        if tag == "equal":
-            continue
-        changed_fragments.extend((old_code[old_start:old_end], new_code[new_start:new_end]))
-    production_code = "\n".join(changed_fragments)
+    if len(old_code) + len(new_code) > _MAX_FINE_DIFF_CHARS:
+        production_code = old_code + "\n" + new_code
+    else:
+        changed_fragments: list[str] = []
+        matcher = difflib.SequenceMatcher(a=old_code, b=new_code, autojunk=False)
+        for tag, old_start, old_end, new_start, new_end in matcher.get_opcodes():
+            if tag == "equal":
+                continue
+            changed_fragments.extend((old_code[old_start:old_end], new_code[new_start:new_end]))
+        production_code = "\n".join(changed_fragments)
     domains = {
         name for name, pattern in _DOMAIN_PATTERNS.items() if pattern.search(production_code)
     }
