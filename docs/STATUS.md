@@ -2,6 +2,12 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+15/9 CI34947845484 på3300fc8 fangede én reel pakningsfejl: pyproject-version
+var stadig .87, mens config/__version__ var .88. Lead retter kun dette tredje
+versionsfelt og kører eksisterende release-contract-test. Ingen runtimepatch;
+versionspakken må ikke installeres før efterfølgende exact-head CI er grøn.
+
+
 15/9 uafhængig alpha_final_audit GO for .88-pakning og forudsat reversibel
 Alpha-installation: eneste runtime-delta fra 5c01837 er __version__87→88; config
 matcher og CHANGELOG angiver eksperimentel status. Koblingsrecord er genbundet til
