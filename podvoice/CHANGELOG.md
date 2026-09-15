@@ -1,3 +1,12 @@
+## 1.13.88 — Valgfri GPT-Live Alpha
+
+- Tilføjer en eksplicit Alpha ON/OFF-indstilling. OFF beholder Realtime-vejen;
+  ON bruger GPT-Live med den officielle SDK, streaming og samme samtaleejer.
+- Bevarer værktøjernes serverkontrol, Stop og samtalelukning. Talk understøtter
+  Alpha; Voice PE kræver den tilhørende firmware.
+- Eksperimentel: fysisk dobbelttale, ekko, farvel, næste wake og hastighed skal
+  stadig verificeres på Voice PE. Software- og API-prøver er ikke fysisk bevis.
+
 ## 1.13.87 — Direkte opslag på brugerens eksakte robotmål
 
 - Præciserer, at et eksplicit mål fra den aktuelle forespørgsel bruges i første

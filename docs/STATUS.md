@@ -2,6 +2,94 @@
 
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
+15/9 uafhængig alpha_final_audit GO for .88-pakning og forudsat reversibel
+Alpha-installation: eneste runtime-delta fra 5c01837 er __version__87→88; config
+matcher og CHANGELOG angiver eksperimentel status. Koblingsrecord er genbundet til
+f9161d39…992f15 på samme b3f4bd5-base efter dette konkrete review; tidligere runtime-
+gates bevares med versionsdelta eksplicit. Ingen fuld lokal gate gentages for metadata.
+Firmwaretree19f3c23877c448692c49bc11e6dd10a1af9989cc identisk fra7875114 til5c01837;
+13 genererede komponentfiler og alle tre binære hashes verificeret af reviewer.
+Baseline rollback-OTA /private/tmp/podvoice-release-078/firmware.ota.bin matcher
+identity.json:3054096bytes, f4dbe3a1557387df918c536dd02b013fa545c8d26a9a91968b52ea99cb17a4d5.
+Gammel .87 kræver baseline11378-firmware; AlphaOFF accepterer Alpha11382. Derfor
+skal fuld rollback omfatte begge, ikke kun gammel add-on. Frisk HA-backup afventer.
+
+
+15/9 aktiv installationsbeslutning: PR59 5c01837 er MERGEABLE og begge CI-jobs
+grønne. Den almindelige immutable publish-vej afviser eksisterende version1.13.87;
+registryopslag viser 1.13.88 not found. Hypotese: en ren versionspakning til .88
+kan gøre de allerede reviewede bits installerbare uden ændret samtaleadfærd.
+Berørt kæde: source/CI → HA-image → default Alpha OFF → firmware/API → wake,
+Live/OFF-session → playback/close/rearm. Invarianter: én ThinSession/VoicePELink,
+eksakt artifact-identitet, OFF bevaret, ingen fysisk accept arvet.
+Ikke-mål: alle runtime-, gain-, VAD-, prompt- og timeoutændringer. Kun version og
+changelog samt denne log ændres. Kontrol: versionsparitet/diff, uafhængigt review,
+ny exact-commit CI/publish; tidligere adfærdsgates bevares med eksplicit metadata-
+delta. Firmware7875114→5c01837 har nul kildeforskel i esphome. Rollback kræver
+frisk HA-backup af .87 og verificeret firmwarebinary før nogen installation.
+
+
+15/9 brugeren: “godt, så fortsæt videre. Musik er godkendt”. Lead registrerer
+musik som brugeraccepteret Alpha-delprøve; 0 model-pausekald og manglende direkte
+lyd-/Spotify-inspektion står fortsat som målegrænser, ikke fejl. Uafhængig review
+bekræfter 52 kildehashes, completed før playdispatch, HA action_done før continuation,
+model-close og ren afslutning; 15 voice-sekunder/22759 backendtokens. Ingen ny
+musikprøve kræves for denne accepterede delmilepæl. Næste arbejde er præcis
+installationspakke, firmwarekompatibilitet, rollback og installation-readiness review.
+Der ændres ikke gain, VAD, prompt eller timeout som del af denne overgang.
+
+
+15/9 musik01 gennemført afgrænset på 5c01837 med uafhængigt helper-GO
+(a04bfe48), ingen runtimeændring. Bruger godkendte ny nøgle og bad om ingen chok;
+HA Køkkenalrum HomePod blev sat fra 34 til 6 procent før typed Talk-play.
+Én rigtig HassMediaSearchAndPlay (rolig klavermusik, præcist navn) returnerede
+ok/action_done og Spotify-album. Browseradgang forsvandt under prøven og blev
+genetableret med ny browseridentitet. Ingen pause-input eller model-pausekald.
+Bruger oplyste selv at have stoppet musikken; root observerede HA Inaktiv ved 6
+og PodConnect idle. Spotify-visning blev spurgt til af bruger, ikke inspiceret af root.
+Prøven er derfor kun delvist musikbevis, ikke samlet play/pause eller fysisk gate.
+Launcher exit0, 1 session, 15 voice-sekunder, clean_shutdown; close reason
+live-browser-drain-unconfirmed. Ingen årsag til runtimepatch udledt af browserudfald.
+Normal HA 1.13.87 Kører genoprettet. Named music01-token tilbagekaldt og HA viser
+ingen langlivede tokens. Lydstyrke efterladt på 6 procent for at undgå overraskelser.
+Lokal evidens api-proof/talk-music-01 med separate root-observationer; pause og
+fysisk Voice PE-prøve er stadig åbne. Uafhængig evidensreview afventer.
+
+
+
+Router03 afsluttende uafhængigt review scoped PASS:52sourcehashes og executedlauncher
+matcher5c01837; begge searchdispatches efter completed, toolresult før continuation;
+Aarhusopfølgning nul tools. Én close-request; første teardown118.241s er0.941s før
+observationdeadline119.182s. Tre teardownlogs deler samme closeowner og skyldes
+senere idempotent cleanup, ikke tre lifecyclecyklusser; der påstås ikke én metode-
+invokation. Usage52voice-sekunder/6backendresponses/45016backendtokens. Verificerbar
+kildehenvisning stadig ikke leveret. Ingen fysisk lyd- eller installationsaccept.
+Punkt1 er fuldført; punkt2 har nu faktisk web-/opfølgningsbevis plus præcis grøn
+CIpakke. Musikparitet og resterende semantiske afklaringer står åbne før punkt3.
+
+
+15/9 punkt1 afsluttet: CI34941620795 på5c01837 GREEN, lint-test2m13/ARM64build2m45,
+PR59 MERGEABLE. Ingen runtimeændring for at få grønt. Grøn CIimage indexdigest
+236ced437c03c5cf323c25efd82b0ebcfe73092fb8776c3c24fb849b78113cc9 hentet lokalt;
+netværksløs read-only importkontrol91360exit0 viser exactsource5c01837,aarch64,
+OpenAI3.13.0,50runtimefiler med uændret manifesteabf6c7f…bbb99. Runtimeartifact
+1b057ee75a7daed9e11a046eb7a26e1650cd7dbb930b588b6a53232d1e6e7ac6.
+Ingen merge til main eller HA-/firmwareinstallation.
+
+Router03 faktisk kørt på5c01837 (engangshandoff90514exit0). Før nøgleoprettelse
+stoppede autoreview den10årstekniske HA-token; brugeren gav herefter specifikt
+“Ja, opret og tilbagekald efter prøven”. Token brugt privat, ikke gemt i rapporter;
+HA-UI verificeret ingen langlivede tokens efter named-token-tilbagekaldelse. Normal
+PodVoice1.13.87 Kører→Stoppet→Kører verificeret; prøvetabs lukket/variabler ryddet.
+Kun typed Talk, ingen mic/rumoptagelse/hjemmeaktion/manualStop.
+Inputweb ARoS åbningsår→to rigtige google_web_sogningkald→2004; byopfølgning→Aarhus;
+Tak det var alt Farvel→end_conversation→Farvel→UIafsluttet. Én providersession,
+52voice-sekunder, fuld usage/clean_shutdown/no faults. Kildebegrænsning: HA returnerede
+scalar2004 og en faktasætning uden URL; “ifølge museets hjemmeside” er derfor ikke
+verificeret kildehenvisning. Forløbet er sendt til uafhængig afsluttende evidensreview,
+ikke fysisk proof. Originals /private/tmp/podvoice-live-talk-router-03-evidence;
+lokal arkivkopi api-proof/talk-router-03 med separate root-observationer og hashes.
+
 
 15/9 PR59 mergekonflikt løst på c093b03, GitHub MERGEABLE. CI34941071752:
 ARM64build PASS3m00, lint-test fejlede én browsermock-test efter2m16. Astra
@@ -119,7 +207,7 @@ wiring-/firmwarefiler matcher tidligere reviewede bits; endelige robot-/typed-in
     "realtime_semantics",
     "rearm"
   ],
-  "fingerprint": "0eef9914b3a078cbaa1dccad8f64f3872b7d9026b20d4f58ba9b8b75b12a4342",
+  "fingerprint": "f9161d39eed0c3bd2a0f0eaf32a0f5af5df62e0affffde05ef4d558073992f15",
   "reviewer": "alpha_final_audit integrated review and documentation-merge rebind 2026-09-15",
   "rationale": "User-authorized reversible Live Alpha requires one coupled continuous audio, playback, semantic tool admission and Stop/rearm chain under ThinSession and VoicePELink. Final source inspection found no unresolved concrete P0/P1; queued-input and robot capability freshness guards remain intact, OFF retains Realtime/FLAC. Scope approval only; semantic, release, installation and physical acceptance remain separate."
 }
