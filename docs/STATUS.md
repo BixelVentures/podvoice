@@ -3,6 +3,30 @@
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
 
+15/9 PR59 mergekonflikt løst på c093b03, GitHub MERGEABLE. CI34941071752:
+ARM64build PASS3m00, lint-test fejlede én browsermock-test efter2m16. Astra
+reproducerede præcis eval291false!==true på Node24.19: global navigator er getter-only,
+så var-mocken blev ignoreret; Node20.20 har ikke denne global. Kun testmock var→const
+ændret, shippet JS og assertions urørte. Begge Nodeversioner målrettet PASS samt
+Ruff/format/diffcheck; root reviewede faktisk3linjediff. Ny CI følger testrettelsen,
+ingen blind manuel genkørsel eller runtimepatch. Samlet lokal gate gentages ikke.
+
+CIimage c093b03 er publiceret og lokalt kontrolleret uden netværk/read-only:
+indexdigest22be5bd12eedc7c708eb8345ffa0b49c7c54b6043aac38cd82057088c93bb906,
+ARM64manifest6f9e23c9aceaff16fe6267f3506f328d94156c8396f871d91b0780961b46c714.
+Tagbuild-5ade11747921f5f9ee4cfa42da4281b942042c7d58dbd86f40fbd46f9a592b24,
+label/envsourcec093b03, aarch64, OpenAI3.13.0,50runtimefilers manifesteabf6c7f…bbb99
+matcher arbejdsfiler, reelle imports PASS. Runtimeartifact
+4916a329769ece97dceeb96f027d3c9f342835610cbd6e000a65f4232bccc6a3.
+Dette er image-/importbevis, ikke releaseinstallationsaccept: samlet CI og resterende
+semantisk/fysisk accept er stadig åben. Ingen HAændring. Lokal proofJSON:
+/private/tmp/podvoice-alpha-ci-c093b03-image-proof.json.
+
+Read-only web-router03 er forberedt og uafhængigt reviewet på c093b03; kun pins og
+outputpaths ændret fra02. Ikke startet; fremtidig test-onlyHEAD kræver korrekt
+kildepin før kørsel. Ingen ny mikrofon- eller hjemmehandling i klargøring.
+
+
 15/9 main b3f4bd5 forenet: kun STATUS-tilføjelser om .87-installation og robot-ON.
 Begge tekstblokke bevaret præcis én gang; uafhængig Astra GO og root diffkontrol
 bekræfter nul runtime/firmware/test/toolingændring mod11c5827. Reviewpost genbundet

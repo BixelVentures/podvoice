@@ -46,7 +46,8 @@ function logLine(){}
 function setState(){}
 var exitCallbacks={};
 var window={self:{},top:{},addEventListener(name,callback){exitCallbacks[name]=callback;}};
-var navigator={mediaDevices:{async getUserMedia(){permissionCalls++;if(permissionGate)return await permissionGate;return stream();}}};
+// A lexical mock also works when Node exposes a getter-only global navigator.
+const navigator={mediaDevices:{async getUserMedia(){permissionCalls++;if(permissionGate)return await permissionGate;return stream();}}};
 class RTCPeerConnection{
  constructor(){this.iceGatheringState='complete';this.connectionState='new';peers.push(this);}
  addTrack(t){this.sender={track:t,async replaceTrack(next){if(replaceGate)await replaceGate;this.track=next;}};return this.sender;}
