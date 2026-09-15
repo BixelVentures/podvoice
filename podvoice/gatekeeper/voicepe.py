@@ -39,6 +39,7 @@ log = logging.getLogger(__name__)
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
 EXPECTED_FIRMWARE_BUILD = "podvoice_build_11378_wakeboundary1"
+LIVE_FIRMWARE_BUILD = "podvoice_build_11382_livewav2"
 _WAKE_WORD_ACK_TIMEOUT_S = 3.0
 
 # --- Firmware contract ----------------------------------------------------------
@@ -138,10 +139,19 @@ class VoicePELink:
         self._mute_key: int | None = None  # the mute switch/sensor key (None = not published)
         self._event_key: int | None = None  # PodVoice lifecycle event entity
         self._rearm_ack_key: int | None = None  # correlated reset ACK text sensor
+        self._capture_status_key: int | None = None
+        self.supports_live_capture_hold = False
+        self._capture_counter = int(time.time())
+        self._capture_token: int | None = None
+        self._capture_connection = -1
+        self._capture_phase: str | None = None
+        self._capture_waiter: asyncio.Future[None] | None = None
+        self._capture_lock = asyncio.Lock()
         self._reply_status_key: int | None = None
         self.supports_playback_ids = True
         self.supports_local_stop = False
         self.supports_stop_context = False
+        self.supports_live_wav = False
         self._stop_context_key: int | None = None
         self._stop_session: str | None = None
         self._stop_generation = 0
@@ -669,9 +679,13 @@ class VoicePELink:
         self._mute_key = None
         self._event_key = None
         self._rearm_ack_key = None
+        self._capture_status_key = None
+        self.supports_live_capture_hold = False
+        self._invalidate_live_capture()
         self._reply_status_key = None
         self.supports_local_stop = False
         self.supports_stop_context = False
+        self.supports_live_wav = False
         self._stop_context_key = None
         self._reset_stop_context()
         self._wake_word_ack_key = None
@@ -725,6 +739,15 @@ class VoicePELink:
                 None,
             )
             self._rearm_ack_key = getattr(rearm_ack, "key", None) if rearm_ack else None
+            capture_status = next(
+                (
+                    e
+                    for e in text_sensors
+                    if getattr(e, "object_id", "") == "podvoice_capture_status"
+                ),
+                None,
+            )
+            self._capture_status_key = getattr(capture_status, "key", None)
             reply_status = next(
                 (e for e in text_sensors if getattr(e, "object_id", "") == "podvoice_reply_status"),
                 None,
@@ -753,6 +776,12 @@ class VoicePELink:
             advertised: set[str] = set()
             for e in events:
                 advertised.update(getattr(e, "event_types", None) or [])
+            self.supports_live_capture_hold = (
+                "live_capture_hold_v1" in advertised
+                and self._capture_status_key is not None
+                and "podvoice_capture_hold" in self._user_services
+                and "podvoice_capture_resume" in self._user_services
+            )
             self.supports_same_breath = "same_breath_v1" in advertised
             self.supports_wake_audio_boundary = "wake_audio_boundary_v1" in advertised
             self.supports_podvoice_channel = "podvoice_channel_v1" in advertised
@@ -770,6 +799,9 @@ class VoicePELink:
             self.supports_playback_events = "podvoice_playback_events_v1" in advertised
             self.supports_local_stop = "correlated_local_stop_v1" in advertised
             self.supports_stop_context = "correlated_stop_context_v2" in advertised
+            self.supports_live_wav = "podvoice_live_wav_v1" in (
+                getattr(podvoice_event, "event_types", None) or []
+            )
             self.supports_direct = (
                 "direct_speaker_v3" in advertised
                 and "podvoice_direct_prepare" in self._user_services
@@ -819,7 +851,10 @@ class VoicePELink:
             missing_capabilities.append("physical_rearm_audio_progress_v1")
         if not self.supports_correlated_reset_rearm:
             missing_capabilities.append("correlated_reset_rearm_v2")
-        if self.firmware_build != EXPECTED_FIRMWARE_BUILD:
+        if self.firmware_build == LIVE_FIRMWARE_BUILD:
+            if not self.supports_live_wav:
+                missing_capabilities.append("podvoice_live_wav_v1")
+        elif self.firmware_build != EXPECTED_FIRMWARE_BUILD:
             missing_capabilities.append(EXPECTED_FIRMWARE_BUILD)
         if not self.supports_playback_events:
             missing_capabilities.append("podvoice_playback_events_v1")
@@ -844,6 +879,7 @@ class VoicePELink:
             "missing_entities": missing_entities,
             "missing_capabilities": missing_capabilities,
             "firmware_build": self.firmware_build,
+            "supports_live_wav": self.supports_live_wav,
             "firmware_builds": self.firmware_builds,
             "wake_word_supported": self._wake_word_ack_key is not None
             and "podvoice_set_wake_word" in self._user_services,
@@ -975,7 +1011,75 @@ class VoicePELink:
 
     async def stop_streaming(self) -> bool:
         """Close the device mic-forward (session end / grace expiry)."""
+        self._invalidate_live_capture()
         return await self._call_service("podvoice_stream_stop")
+
+    def _invalidate_live_capture(self) -> None:
+        self._capture_token = None
+        self._capture_phase = None
+        self._capture_connection = -1
+        if self._capture_waiter is not None and not self._capture_waiter.done():
+            self._capture_waiter.cancel()
+        self._capture_waiter = None
+
+    async def hold_live_capture(self) -> int:
+        """Hold device forwarding until an exact native ACK cuts host audio ownership."""
+        if not self.supports_live_capture_hold:
+            raise RuntimeError("firmware mangler live_capture_hold_v1")
+        async with self._capture_lock:
+            if self._capture_token is not None:
+                raise RuntimeError("capture transition already owned")
+            self._capture_counter = max(self._capture_counter, int(time.time())) + 1
+            if self._capture_counter > 0x7FFFFFFF:
+                raise RuntimeError("capture token space exhausted")
+            token = self._capture_counter
+            self._capture_token = token
+            self._capture_connection = self._connection_generation
+            self._capture_phase = "held"
+            waiter = asyncio.get_running_loop().create_future()
+            self._capture_waiter = waiter
+            try:
+                async with asyncio.timeout(3.0):
+                    if not await self._call_service("podvoice_capture_hold", {"token": token}):
+                        raise RuntimeError("capture hold was not sent")
+                    await waiter
+                if (
+                    self._capture_token != token
+                    or self._capture_connection != self._connection_generation
+                ):
+                    raise RuntimeError("capture connection changed")
+                return token
+            except BaseException:
+                self._invalidate_live_capture()
+                raise
+            finally:
+                if self._capture_waiter is waiter:
+                    self._capture_waiter = None
+
+    async def resume_live_capture(self, token: int) -> None:
+        """Resume the same held device only after the new provider is ready."""
+        async with self._capture_lock:
+            if (
+                token != self._capture_token
+                or self._capture_connection != self._connection_generation
+                or self._capture_phase != "held"
+            ):
+                raise RuntimeError("stale capture resume")
+            self._capture_phase = "resumed"
+            waiter = asyncio.get_running_loop().create_future()
+            self._capture_waiter = waiter
+            try:
+                async with asyncio.timeout(3.0):
+                    if not await self._call_service("podvoice_capture_resume", {"token": token}):
+                        raise RuntimeError("capture resume was not sent")
+                    await waiter
+                if (
+                    self._capture_token != token
+                    or self._capture_connection != self._connection_generation
+                ):
+                    raise RuntimeError("capture connection changed")
+            finally:
+                self._invalidate_live_capture()
 
     async def rearm_wake_word(self) -> str:
         """Open the next wake gate and return the firmware-owned readiness level.
@@ -1058,6 +1162,7 @@ class VoicePELink:
     async def _on_disconnect(
         self, expected_disconnect: bool = False
     ) -> None:  # VERIFY: cb signature
+        self._invalidate_live_capture()
         self._api_audio_ready = False
         self._state_subscription_token = None
         self._wake_admitted = False
@@ -1275,6 +1380,32 @@ class VoicePELink:
                 self.confirmed_wake_word = model
                 self._publish_wake_word()
                 self._wake_word_waiter.set()
+        if key == self._capture_status_key and tname == "TextSensorState":
+            parts = str(getattr(state, "state", "")).split(":")
+            if len(parts) != 3 or not parts[0].isdigit() or not parts[2].isdigit():
+                return
+            token, phase, high_water = parts
+            if not 0 <= int(high_water) <= 0x7FFFFFFF:
+                return
+            self._capture_counter = max(self._capture_counter, int(high_water))
+            waiter = self._capture_waiter
+            if (
+                phase in ("held", "resumed", "fault")
+                and token == str(self._capture_token)
+                and self._capture_connection == self._connection_generation
+                and waiter is not None
+                and not waiter.done()
+            ):
+                if phase == "fault":
+                    waiter.set_exception(RuntimeError("firmware capture boundary failed"))
+                elif phase == self._capture_phase:
+                    try:
+                        if phase == "held":
+                            self.cut_audio_boundary("live-capture-held")
+                    except Exception as exc:
+                        waiter.set_exception(exc)
+                    else:
+                        waiter.set_result(None)
         if key == self._rearm_ack_key and tname == "TextSensorState":
             ack = str(getattr(state, "state", ""))
             token_text, separator, outcome = ack.partition(":")

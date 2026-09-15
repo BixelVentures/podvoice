@@ -1,5 +1,2544 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
+
+15/9 CI34947845484 på3300fc8 fangede én reel pakningsfejl: pyproject-version
+var stadig .87, mens config/__version__ var .88. Lead retter kun dette tredje
+versionsfelt og kører eksisterende release-contract-test. Ingen runtimepatch;
+versionspakken må ikke installeres før efterfølgende exact-head CI er grøn.
+
+
+15/9 uafhængig alpha_final_audit GO for .88-pakning og forudsat reversibel
+Alpha-installation: eneste runtime-delta fra 5c01837 er __version__87→88; config
+matcher og CHANGELOG angiver eksperimentel status. Koblingsrecord er genbundet til
+f9161d39…992f15 på samme b3f4bd5-base efter dette konkrete review; tidligere runtime-
+gates bevares med versionsdelta eksplicit. Ingen fuld lokal gate gentages for metadata.
+Firmwaretree19f3c23877c448692c49bc11e6dd10a1af9989cc identisk fra7875114 til5c01837;
+13 genererede komponentfiler og alle tre binære hashes verificeret af reviewer.
+Baseline rollback-OTA /private/tmp/podvoice-release-078/firmware.ota.bin matcher
+identity.json:3054096bytes, f4dbe3a1557387df918c536dd02b013fa545c8d26a9a91968b52ea99cb17a4d5.
+Gammel .87 kræver baseline11378-firmware; AlphaOFF accepterer Alpha11382. Derfor
+skal fuld rollback omfatte begge, ikke kun gammel add-on. Frisk HA-backup afventer.
+
+
+15/9 aktiv installationsbeslutning: PR59 5c01837 er MERGEABLE og begge CI-jobs
+grønne. Den almindelige immutable publish-vej afviser eksisterende version1.13.87;
+registryopslag viser 1.13.88 not found. Hypotese: en ren versionspakning til .88
+kan gøre de allerede reviewede bits installerbare uden ændret samtaleadfærd.
+Berørt kæde: source/CI → HA-image → default Alpha OFF → firmware/API → wake,
+Live/OFF-session → playback/close/rearm. Invarianter: én ThinSession/VoicePELink,
+eksakt artifact-identitet, OFF bevaret, ingen fysisk accept arvet.
+Ikke-mål: alle runtime-, gain-, VAD-, prompt- og timeoutændringer. Kun version og
+changelog samt denne log ændres. Kontrol: versionsparitet/diff, uafhængigt review,
+ny exact-commit CI/publish; tidligere adfærdsgates bevares med eksplicit metadata-
+delta. Firmware7875114→5c01837 har nul kildeforskel i esphome. Rollback kræver
+frisk HA-backup af .87 og verificeret firmwarebinary før nogen installation.
+
+
+15/9 brugeren: “godt, så fortsæt videre. Musik er godkendt”. Lead registrerer
+musik som brugeraccepteret Alpha-delprøve; 0 model-pausekald og manglende direkte
+lyd-/Spotify-inspektion står fortsat som målegrænser, ikke fejl. Uafhængig review
+bekræfter 52 kildehashes, completed før playdispatch, HA action_done før continuation,
+model-close og ren afslutning; 15 voice-sekunder/22759 backendtokens. Ingen ny
+musikprøve kræves for denne accepterede delmilepæl. Næste arbejde er præcis
+installationspakke, firmwarekompatibilitet, rollback og installation-readiness review.
+Der ændres ikke gain, VAD, prompt eller timeout som del af denne overgang.
+
+
+15/9 musik01 gennemført afgrænset på 5c01837 med uafhængigt helper-GO
+(a04bfe48), ingen runtimeændring. Bruger godkendte ny nøgle og bad om ingen chok;
+HA Køkkenalrum HomePod blev sat fra 34 til 6 procent før typed Talk-play.
+Én rigtig HassMediaSearchAndPlay (rolig klavermusik, præcist navn) returnerede
+ok/action_done og Spotify-album. Browseradgang forsvandt under prøven og blev
+genetableret med ny browseridentitet. Ingen pause-input eller model-pausekald.
+Bruger oplyste selv at have stoppet musikken; root observerede HA Inaktiv ved 6
+og PodConnect idle. Spotify-visning blev spurgt til af bruger, ikke inspiceret af root.
+Prøven er derfor kun delvist musikbevis, ikke samlet play/pause eller fysisk gate.
+Launcher exit0, 1 session, 15 voice-sekunder, clean_shutdown; close reason
+live-browser-drain-unconfirmed. Ingen årsag til runtimepatch udledt af browserudfald.
+Normal HA 1.13.87 Kører genoprettet. Named music01-token tilbagekaldt og HA viser
+ingen langlivede tokens. Lydstyrke efterladt på 6 procent for at undgå overraskelser.
+Lokal evidens api-proof/talk-music-01 med separate root-observationer; pause og
+fysisk Voice PE-prøve er stadig åbne. Uafhængig evidensreview afventer.
+
+
+
+Router03 afsluttende uafhængigt review scoped PASS:52sourcehashes og executedlauncher
+matcher5c01837; begge searchdispatches efter completed, toolresult før continuation;
+Aarhusopfølgning nul tools. Én close-request; første teardown118.241s er0.941s før
+observationdeadline119.182s. Tre teardownlogs deler samme closeowner og skyldes
+senere idempotent cleanup, ikke tre lifecyclecyklusser; der påstås ikke én metode-
+invokation. Usage52voice-sekunder/6backendresponses/45016backendtokens. Verificerbar
+kildehenvisning stadig ikke leveret. Ingen fysisk lyd- eller installationsaccept.
+Punkt1 er fuldført; punkt2 har nu faktisk web-/opfølgningsbevis plus præcis grøn
+CIpakke. Musikparitet og resterende semantiske afklaringer står åbne før punkt3.
+
+
+15/9 punkt1 afsluttet: CI34941620795 på5c01837 GREEN, lint-test2m13/ARM64build2m45,
+PR59 MERGEABLE. Ingen runtimeændring for at få grønt. Grøn CIimage indexdigest
+236ced437c03c5cf323c25efd82b0ebcfe73092fb8776c3c24fb849b78113cc9 hentet lokalt;
+netværksløs read-only importkontrol91360exit0 viser exactsource5c01837,aarch64,
+OpenAI3.13.0,50runtimefiler med uændret manifesteabf6c7f…bbb99. Runtimeartifact
+1b057ee75a7daed9e11a046eb7a26e1650cd7dbb930b588b6a53232d1e6e7ac6.
+Ingen merge til main eller HA-/firmwareinstallation.
+
+Router03 faktisk kørt på5c01837 (engangshandoff90514exit0). Før nøgleoprettelse
+stoppede autoreview den10årstekniske HA-token; brugeren gav herefter specifikt
+“Ja, opret og tilbagekald efter prøven”. Token brugt privat, ikke gemt i rapporter;
+HA-UI verificeret ingen langlivede tokens efter named-token-tilbagekaldelse. Normal
+PodVoice1.13.87 Kører→Stoppet→Kører verificeret; prøvetabs lukket/variabler ryddet.
+Kun typed Talk, ingen mic/rumoptagelse/hjemmeaktion/manualStop.
+Inputweb ARoS åbningsår→to rigtige google_web_sogningkald→2004; byopfølgning→Aarhus;
+Tak det var alt Farvel→end_conversation→Farvel→UIafsluttet. Én providersession,
+52voice-sekunder, fuld usage/clean_shutdown/no faults. Kildebegrænsning: HA returnerede
+scalar2004 og en faktasætning uden URL; “ifølge museets hjemmeside” er derfor ikke
+verificeret kildehenvisning. Forløbet er sendt til uafhængig afsluttende evidensreview,
+ikke fysisk proof. Originals /private/tmp/podvoice-live-talk-router-03-evidence;
+lokal arkivkopi api-proof/talk-router-03 med separate root-observationer og hashes.
+
+
+15/9 PR59 mergekonflikt løst på c093b03, GitHub MERGEABLE. CI34941071752:
+ARM64build PASS3m00, lint-test fejlede én browsermock-test efter2m16. Astra
+reproducerede præcis eval291false!==true på Node24.19: global navigator er getter-only,
+så var-mocken blev ignoreret; Node20.20 har ikke denne global. Kun testmock var→const
+ændret, shippet JS og assertions urørte. Begge Nodeversioner målrettet PASS samt
+Ruff/format/diffcheck; root reviewede faktisk3linjediff. Ny CI følger testrettelsen,
+ingen blind manuel genkørsel eller runtimepatch. Samlet lokal gate gentages ikke.
+
+CIimage c093b03 er publiceret og lokalt kontrolleret uden netværk/read-only:
+indexdigest22be5bd12eedc7c708eb8345ffa0b49c7c54b6043aac38cd82057088c93bb906,
+ARM64manifest6f9e23c9aceaff16fe6267f3506f328d94156c8396f871d91b0780961b46c714.
+Tagbuild-5ade11747921f5f9ee4cfa42da4281b942042c7d58dbd86f40fbd46f9a592b24,
+label/envsourcec093b03, aarch64, OpenAI3.13.0,50runtimefilers manifesteabf6c7f…bbb99
+matcher arbejdsfiler, reelle imports PASS. Runtimeartifact
+4916a329769ece97dceeb96f027d3c9f342835610cbd6e000a65f4232bccc6a3.
+Dette er image-/importbevis, ikke releaseinstallationsaccept: samlet CI og resterende
+semantisk/fysisk accept er stadig åben. Ingen HAændring. Lokal proofJSON:
+/private/tmp/podvoice-alpha-ci-c093b03-image-proof.json.
+
+Read-only web-router03 er forberedt og uafhængigt reviewet på c093b03; kun pins og
+outputpaths ændret fra02. Ikke startet; fremtidig test-onlyHEAD kræver korrekt
+kildepin før kørsel. Ingen ny mikrofon- eller hjemmehandling i klargøring.
+
+
+15/9 main b3f4bd5 forenet: kun STATUS-tilføjelser om .87-installation og robot-ON.
+Begge tekstblokke bevaret præcis én gang; uafhængig Astra GO og root diffkontrol
+bekræfter nul runtime/firmware/test/toolingændring mod11c5827. Reviewpost genbundet
+til ny base med nyt fingerprint; dette ændrer ikke fysisk eller semantisk status.
+Ingen fuld lokal gate gentages for dokumentationsmerge. CI på nyt PR-head følger.
+
+
+15/9 specifik brugeraccept modtaget: “Ja, push og opret draft-PR”. Eksakt godkendt
+11c5827 pushet til BixelVentures/podvoice codex/gpt-live-alpha-research (86188exit0),
+draft-PR59 oprettet (29552exit0): https://github.com/BixelVentures/podvoice/pull/59.
+Frisk GitHub-read verificerede OPEN, isDraft=true og headRefOid11c582780042a106e1f7844f8cb10ffcc7849663.
+statusCheckRollup var tom ved kontrol: ingen CI-resultater påstås. Ingen merge eller
+installation. Tidligere publiceringsblocker er dermed løst; lokal auditnote fra
+blokeringen er ikke pushet. Resterende semantisk/CI/artifact/fysisk accept er åben.
+
+
+15/9 goal blocker-audit: den specifikke GitHub-destinations-/payloadgodkendelse er
+fortsat ubesvaret gennem forespørgsels-/gate-turnen, lokal PR-klargøring og denne
+fortsættelse. Klargøring var fremdrift; denne kontrol giver ingen ny produktevidens.
+Før denne logtilføjelse: clean HEAD11c5827, PR-bodyhash verificeret, alle agenter
+terminal completed og begge gateprocesser tidligere terminal. Intet CI-job er
+startet; en forventet godkendelse er ikke et kørende job. Ingen pushomvej, nye
+samme-bits-tests eller optagelser startes for at maskere ventetiden. Goal blokeres
+på den krævede godkendelse, ikke complete. Ved svar: genoptag fra11c5827 og den
+klargjorte /private/tmp/podvoice-live-alpha-pr-11c5827.md, bevar fuldt alphamål og
+åbne semantiske/fysiske gates. Denne lokale auditnote er ikke del af den allerede
+specificerede11c5827-publiceringspayload og er ikke committed/pushet.
+
+
+15/9 samlet lokal softwareverifikation grøn på frosset2052c4d. Én scripts/dev release
+--base origin/main (21749) gav PASS for scope0.27s, Ruff/format154filer0.17s,
+mypy50filer6.06s og hele unit47.35s. Integration blev ugyldiggjort af sandboxens
+PermissionError ved aiohttp socket.bind; isoleret test_models_endpoint reproducerede
+netop denne OS-grænse, ikke runtimefejl. Kun integration blev genkørt med godkendt
+adgang til lokale testporte (40521exit0): alle522tests PASS. Ingen rigtig provider,
+HA-nøgle eller fysisk test. Ingen fil-/commitændring under nogen gate; bagefter var
+HEAD stadig2052c4d og worktree clean. 50runtimefilers manifest genverificeret
+ eabf6c7f0f1457cb0e1cc93168a61d4ce997637c56f021f9ed63f72b6f4bbb99.
+Den oprindelige runnerexit2 er bevaret som sandboxfejl; samlet softwareaccept bygger
+på de grønne uændrede stages plus netop den genkørte integrationstage. Ingen fuld
+releasegenkørsel. CI/ARM64-installationsimage, resterende realAPI-funktionsparitet og
+fysisk golden/10of10/duplex/latens er stadig åbne. Normal HA er ikke stoppet/ændret.
+
+
+15/9 frysning til én lokal software-releasegate: samlet production-review er GO,
+classifierrettelsen er reviewet og målrettet grøn; ingen planlagt runtimeændring.
+Den samlede lokale gate køres nu på frosne filer, før yderligere praktiske prøver,
+så softwaremangler findes før installationsarbejde. Dette flytter kun tidspunktet
+for lokal softwareverifikation; tidligere semantiske ukendte, fuld funktionsparitet,
+GitHub-publicering og installation/fysisk accept er stadig åbne og må ikke udledes
+af grønt resultat. Ingen filændring/commit mens gaten kører. Runtimefingerprint
+6221770445d223780e7a65742c11aa3c4093bff336bd3fe18bdd92811537c50e uændret.
+
+
+15/9 toolingrettelse implementeret og lokalt committed c8142c6: classifier bruger
+konservativt hele tilføjede/fjernede ikke-kommentarlinjer over10000tegn; små diff
+bevarer præcis matchning. Fingerprint og coupling-reviewcheck uændret. Root reviewede
+faktisk diff og verificerede hashes/resultat:21målrettede tests, Ruff/format/diffcheck
+PASS. Samme femdomæne-coupling PASS på0.243792s mod42.137218s. Ingen runtimeændring;
+dette er gatehastighed, ikke voicelatency. Ingen fuld releasegate/push/installation.
+Rapport: /private/tmp/podvoice-alpha-reviewed-scope-15-fast.json. Ældre one-use
+APIlaunchere er stadig sourcepinnet til tidligere HEAD og må ikke genbruges blindt.
+Samlet reviewpost ovenfor er stadig bundet til uændret production-fingerprint.
+
+
+15/9 scope-gate nu faktisk PASS (63343exit0), exact reviewed coupling på de frosne
+c88c54e-bits. Målt42.137s i /private/tmp/podvoice-alpha-reviewed-scope-15.json.
+Releaseværktøjets kandidat-scope-stage har30s deadline, så den fulde releasegate
+ville timeoute på tooling; den startes ikke blindt. Samme langsomme klassifikation
+sås også ved første afklaring. Permanent afgrænset toolingrettelse er bestilt:
+undgå kvadratisk tegnmatchning på stort diff, bevar præcis fingerprint/review-gate
+og konservativ domæneklassifikation. Ingen produktionsændring eller accepteret
+runtimehypotese udledes heraf. Kun målrettede classifier-regressioner først.
+
+
+15/9 integreret uafhængigt Astra-review: scoped GO på c88c54e. Ingen åbne konkrete
+P0/P1; fem domæner er nødvendig kobling for den godkendte Alpha. De 12 adapter-/
+wiring-/firmwarefiler matcher tidligere reviewede bits; endelige robot-/typed-input-
+ændringer blev særskilt eftergået. Ingen ny gate/API/fysisk accept arves.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "b3f4bd5d1bcaf2a0715e94c345eb9988bf04697e",
+  "merge_base": "b3f4bd5d1bcaf2a0715e94c345eb9988bf04697e",
+  "domains": [
+    "audio_input",
+    "ha_tools",
+    "physical_output",
+    "realtime_semantics",
+    "rearm"
+  ],
+  "fingerprint": "f9161d39eed0c3bd2a0f0eaf32a0f5af5df62e0affffde05ef4d558073992f15",
+  "reviewer": "alpha_final_audit integrated review and documentation-merge rebind 2026-09-15",
+  "rationale": "User-authorized reversible Live Alpha requires one coupled continuous audio, playback, semantic tool admission and Stop/rearm chain under ThinSession and VoicePELink. Final source inspection found no unresolved concrete P0/P1; queued-input and robot capability freshness guards remain intact, OFF retains Realtime/FLAC. Scope approval only; semantic, release, installation and physical acceptance remain separate."
+}
+-->
+
+Frisk HA-UI15/9: installeret1.13.87 Kører; Voice PE forbundet/wake afprøves,
+PodConnect og hjemmestyring verificeret. Tid/hjem/web/vejr/musik fundet, timere mangler.
+R0 er Køkkenalrum HomePod, duck0%, Hey Chat bekræftet af enheden. Read-only; ingen
+Gem, nøgleaflæsning, Stop/genstart eller afspilning. Dette er readiness, ikke fysisk proof.
+
+
+15/9 installationsgrænse genverificeret: direkte candidate_scope --base origin/main
+--json afsluttede exit1 (session45939) på c88c54e, base/mergebase be4c5e8:
+audio_input + ha_tools + physical_output + realtime_semantics + rearm mangler en
+aktuel samlet coupling-reviewpost. Dette er ikke en fysisk/runtimefejl, og gaten
+må ikke omgås med nedarvede delreviews. Ingen fuld releasegate startet. Integreret
+uafhængigt review er bestilt hos alpha_final_audit; source-fingerprint genberegnet
+6221770445d223780e7a65742c11aa3c4093bff336bd3fe18bdd92811537c50e.
+Kun faktisk reviewresultat kan åbne denne scope-gate; semantik/installation/fysisk
+accept er fortsat særskilte krav.
+
+Afgrænset Astra-paritetsaudit fandt ingen ny konkret Live-only fejl i musik/web/timer.
+Root genlæste de berørte ejere: Thin starter fælles samtaleducking og stopper
+heartbeat før attention-release; Talk bruger NoAttention og beviser ikke rum-music.
+Musik kræver rigtig Live→ToolRouter→eksplicit speaker→pause og fysisk restoration;
+web kræver faktisk discovered google_web_sogning og kildebaseret continuation.
+TimerManager er dormant, og timerværktøjer er ikke admitted i ON eller OFF: dette er
+baseline-produktgab, ikke en Alpha-regression eller anledning til ny timerfeature.
+Ingen HA-hjemmehandling, API, optagelse, release eller installation i denne kontrol.
+
+
+15/9: Målemetode rettet isoleret, ingen runtimeændring eller ny mikrofon/API-prøve.
+Recorder05 er recorder04 med PCM i Matroska (.mka) i stedet for WAV og eksplicit
+ukendt samplezero/hostclock-alignment. Samme 60s capture, 75s watchdog og kill/reap.
+Offline 4s syntetisk tone med udeladt interval 1–2s: Matroska bevarer 1.003s
+packetgap og slutter ved 3.999s; WAV sammenpresser til 2.997334s uden hullet.
+Det beviser formatets relative tidsbevarelse, ikke AVFoundation-kontinuitet,
+årsagen til Talk04-afvigelsen eller fysisk playback/latens. Recorder05 er kun
+compile-checket, ikke kørt. Bevis: /private/tmp/podvoice-room-timestamp-offline-05.
+Uafhængig Astra-review scoped GO: hashes og packetgap genberegnet, begge kilder
+compile-checket uden execution. Recorder05 SHA256
+0794fc797809f6ac8ff9dcfaa843f6ebad4eb0ace4675092ecdc67fc13856f8f.
+Ingen timingtuning. Lokal evidens arkiveret i api-proof/room-timestamp-offline-05.
+Optageren bevarer relative huller, men genskaber ikke mistede samples; faktisk
+AVFoundation-optagelse, samplezero og akustisk farvel er fortsat ubevist.
+
+
+Talk04 acousticreview færdig: UNKNOWN for fysisk farvel/lag. Ingen konsistent unik
+room↔provideralignment. Stærkeste korte initialmatch0.673 blev ikke bekræftet af
+senere tale; farvelmatch0.312 mod alternativ0.296. Ingen tilpasset tærskel for PASS.
+Sidste energiholdige providerchunk modtaget5.467s før close er sidebandmodtagelse,
+ikke fysisk stilhed. Analysis/crops separat bevaret under talk-acoustic-04/analysis;
+roomcrop er kun kandidat, ikke bekræftet farvel. Bruger er spurgt om vedkommende hørte
+42 og hele farvel; et eventuelt svar bliver selvstændig observation, ikke numerisk
+latencybevis. Optagelsens tidskontinuitet skal bevares i næste målemetode; gentag ikke
+samme WAV-only60smetode blindt. Ingen runtimeændring eller større testframework.
+Mikrofonprøvens tidligere samtykkeblocker er løst; denne turn gav realAPI/rumdata og
+konkret begrænsning. Goal er ikke komplet og må ikke lukkes på protokol-GO.
+
+
+Talk04 faktisk kørt efter brugerens “Ja gør bare det” til lokal60srumoptagelse.
+APIhelper83718exit0, recorder45863exit0/no timeout. RootChrome: “Hvad er seks gange
+syv?” → “Hmm. Det er42.”; “Tak, det var alt. Farvel.” → “Hmm.”, end_conversation,
+“Farvel.”, faktisk lukket UI. Ingen manualStop/Talkmic/HAtools. Normal HA1.13.87 blev
+verificeret Kører→Stoppet→Kører, prøvefaner lukket/nøglevariabel ryddet. Originale
+Talk/rumreports plus særskilt rootobservation arkiveret i api-proof/talk-acoustic-04.
+
+Uafhængig protokolaudit scoped GO:52sourcehashes matcher c88c54e; providerhashes matcher.
+Backendcontinuation settled99.611s → SDKclose105.613s (6.002sgrace) → faktisk
+session.closed106.397s → teardown108.553s før prøvedeadline. Lydrefleksion blev stadig
+opsamlet85ms efter closerequest. Senere closemetodekald efter final er SDK-noop,
+ikke andet wireclose. Én session35finalvoice-sekunder/20283backendtokens, clean,
+ingen capture-/observerfaults. Protokolfinalisering bestået, ikke akustisk accept.
+
+Målebegrænsning fundet: providerPCM34.6s med seks200ms intervalhuller (og begynder ved
+200ms); sammenkædede filoffsets er ikke ubrudt sessionstid. RoomWAV47.136s samples,
+selvom recorderproces60.726s og -t60 med exit0/tom log. Processstart er derfor ikke
+samplezero, og manglende/sammenpresset rumtid må ikke bruges som latencybevis.
+Root kunne ikke gennemlytte via modelværktøjet (audio input unsupported); der påstås
+ikke semantisk gennemlytning. Offline acousticmatch undersøges af separat reviewer,
+uden tærskeltilpasning for PASS. Ingen6s-tuning eller runtimepatch udledes af
+måleudstyrets begrænsning; VoicePE-installation/golden/10of10/duplex/latens stadig åbne.
+
+
+Goal blocker-audit: rum-/mikrofonspørgsmålet for Talk04 er fortsat ubesvaret gennem
+klargøringsturnen og to efterfølgende automatiske fortsættelser. Klargøring var
+fremdrift; sidste fortsættelse var kun genverifikation/status, ikke ny produktevidens
+eller verified wait. Ingen prøveproces er startet, og begge outputmapper findes ikke.
+Samme konkrete adgang til den nødvendige lydmåling mangler; ingen ny optagelse eller
+alternativ sidestillet prøve startes for at omgå det. Goal markeres blocked, ikke
+complete. Hele alphamålet bevares. Genoptag fra reviewede Talk04/handoff/recorder på
+c88c54e, når brugeren bekræfter lokal60srumoptagelse; kør ikke gamle hjælpere igen.
+
+
+Talk04/måleudstyr endeligt scoped GO fra uafhængig Astra-review. Frosne hashes:
+launcher77f2526102122934de143d9242d9ddbc61fafee9ca454cc546572e2ed7d1c5e5,
+handoffa1615228ee28c542c4adc070990ff72c4f3db9927ac977a68748ade236181e49,
+recorder6a6ec11d9dc68092070089202042592f382ad65708b3f4889a73f6ffce64098d.
+Slutreview rettede også close-diagnostik til ikke at blokere/maskere originalclose
+og recorderens postspawn-finally til altid at kill/reape barn ved fejl/interruption.
+Alle tre compile-only bestået, kildepins matcher; ingen runtimeændring. Provider-
+intervaller, hostclock og ukendt recordingsamplezero forbliver særskilt mærket.
+Ingen API/session/mic/afspilning startet. Afventer kun konkret rum-/mikrofonaccept
+for denne måling; tidligere lokalAPI/StopStart-tilladelse gælder fortsat sit scope.
+Næste efter accept: start faktisk Talkapp, optag højst60s lokalt via recorder, skriv
+kort regnespørgsmål og derefter naturligt farvel, behold eksakte tids-/lydspor, gendan
+normal HA og vurder slutord/gap uden at opfinde speaker-ACK eller tune midt i prøven.
+
+
+Talk04-klargøring: launcher91c5c3c.../handoff87db4d7... pin c88c54e + runtimeeabf6c7.
+SDK3.13 kildetype bekræfter sideband monoPCM16LE24kHz med start/endms; hul i
+refleksionen kan forekomme og bevares som intervalmetadata. Reviewer fandt målelagets
+exceptions kunne forhindre originalhandler; rettet med observer-only Exceptionfangst,
+fault/stopmarkering uden journalafhængighed, derefter originalhandler præcis én gang.
+Originale exceptions/cancellation bevares. response.incomplete tilføjet diagnostik.
+Separat recorder dccd828c... bruger kun FFmpeg audioindex0 i60s, lokalt WAV, privat
+ny mappe og75s watchdog; intet kamera/netværk eller implicit samplezero-klokkebevis.
+Compile() i hukommelse PASS. Første py_compile brugte systemPythons blokerede cache,
+ingen optagelse eller produktevidens udledes af det. Slutreview af rettelser/recorder
+bestilt. Ingen launch/API/mic. Rumgodkendelse fortsat afventende; første venteturn,
+ikke gentagen blockergrænse. Forberedelsen er konkret fremdrift, goal ikke opfyldt.
+
+
+Næste praktiske close-måling på c88c54e (runtime fortsat eabf6c7...): genbrug faktisk
+Talk-prøve og lokal FFmpeg-rumoptagelse, ingen runtimeændring. Read-only hardwareliste
+verificerede MacBook Pro-mikrofon/højttalere; FFmpeg AVFoundation audioindex0 er
+“Mikrofon i MacBook Pro”. Listekommandoens exit251 skyldes tom input efter enumeration,
+ikke afprøvet optagefejl. Ingen micoptagelse eller tilladelsesændring er udført.
+Bruger er spurgt, om Mac står åben i roligt rum, og kort lokal afspilning/optagelse
+kan begynde; afventer. Normal PodVoice røres ikke under forberedelse. Målingen skal
+bevare sidebandens providerklokke, hostmodtagelsestid og PCMoffset særskilt og bracketere
+systemtid mod monotonic. FFmpegprocesstart er ikke automatisk præcis sample-zero.
+Reviewet launcher genbruges med mindst nødvendig observationskode; ingen ekstra
+receiver eller ændret SDKeventrækkefølge. Efter review én afgrænset prøve, når rummet
+bekræftes. Dette er Talk/rumbevis og kan aldrig erstatte VoicePE-fysiskgate.
+
+
+Uafhængig frisk officiel close-gennemgang: Live-guiden kræver nødvendige backend-
+resultater/continuations færdige → session.close → forbindelser beholdes indtil
+session.closed → cleanup. Officiel WebRTCeksempel rydder peer/audio ved session.closed;
+manglende separat akustisk ACK gør derfor ikke i sig selv Talkimplementeringen
+APIstridig. Der er ikke etableret et officielt speak-finalize/audio-done-primitive.
+Seks sekunders ventetid før close er fortsat vores heuristik, ikke OpenAI-anbefaling.
+Hold to krav adskilt: protokolfinalisering følger dokumentation; oplevet farvel uden
+klip og speakerdræn kræver egen fysisk måling. Opfind ikke nyt completion-event eller
+parallel samtaleejer for at lukke evidensgabet. Denne præcisering erstatter en mulig
+fortolkning af live_browser_drain_unconfirmed som demonstreret API-fejl.
+
+
+Best-practice-kontrol af faktisk kode: openai_live bruger officiel live.connect for
+VoicePE/WebSocket og live.create + live.sideband.connect for Talk/WebRTC. PCMformat
+angives kun for WebSocket; frontenddatachannel kan ikke udføre backendkommandoer.
+Liveprompt har Backchannel/Interruption/Delegation-policy; fulde schemas og detaljer
+ligger i backend. Dette er dokumenteret struktur, ikke komplet produktgodkendelse.
+Device01s timeline har ikke lydchunk-/speakergrænser; dens backendsettled/finaltider
+kan derfor ikke begrunde en ny kortere grace. Næste close-måling skal korrelere sidste
+reelle outputlyd med providerfinal og fysisk/browserspeakerdræn. Ingen timerændring.
+
+
+API19 background på c194126 terminal OBSERVED_PASS: helper46345exit0, superviseret
+spørgsmål-review51244exit0. Faktisk spørgsmål “Vil du køre prøvehandlingen for
+hoveddøren?” blev bedømt mod det eksakte holdte mock-forslag. Rapport: åbning korrekt,
+hel frisk backgroundfixture korrekt modtaget efter spørgsmål, nul effekter, tilstrækkelig
+negativ observation, to sessions final usage/clean, ingen runtimefaults. Uafhængigt
+Astrareview scoped GO:7artifact-/9source-/8fixturehashes matcher, begge komplette
+providerresamplinger byteidentiske. Hel “Peter, vil du have kaffe”34.965s, ca4.49s
+før expiry;25.038s videre observation. Gen2 sagde “Jeg lytter lige med.” men havde
+nul backendresponses/toolbatches/effekter.46finalvoice-sekunder/14154backendtokens.
+Beviser ikke perfekt stille UX, forsøgt approval-afvisning eller reconsideration.
+Root verificerede normal HA1.13.87 Kører→Stoppet→
+Kører, ryddede nøglevariabel og lukkede handoff. Ingen mic, hjemaktion eller installation.
+Originaler og særskilt rootobservation bevaret; hasharkiv i
+/private/tmp/podvoice-live-alpha-api-proof/confirmation-background-19.
+
+Brugeren genunderstregede best practice. Frisk officiel Live-guide14/9:
+https://developers.openai.com/api/docs/guides/live-prompting anbefaler kort frontend-
+prompt, detaljer/backendtools i delegation.responses.instructions og applikationsejet
+autorisation; taleafbrydelse stopper ikke automatisk backendarbejde. Aktuel kode har
+denne opdeling, men omfattende frontendregler og eksplicit6s eksperimentel closegrace.
+Disse er ikke erklæret optimale eller fuldt Live-native. Separat read-only officiel
+close/drain-gennemgang bestilt; ingen gættet audio-done event eller timingpatch.
+Eksisterende godkendelsesevaluator kan kun ramme reconsider_action, hvis rigtig ny
+inputfragment ankommer under backendarbejdet; normal PASS beviser ikke denne gren.
+Der tilføjes ikke gentagne tilfældige prøver for at tvinge et grønt resultat.
+
+
+Næste afgrænsede gate efter device01: eksisterende background-case i uændret
+live_confirmation_eval.py b8fc0b67... på c194126. Kendt hel syntetisk ytring
+“Peter, vil du have kaffe?” efter faktisk, superviseret godkendelsesspørgsmål må give
+nul effekter på det holdte mock-forslag. Kun handoffens runtimepin, case og outputsti
+ændres fra18 til19; ingen prompt-, runtime-, timing-, fixture- eller orakelændring.
+Højst2sessions/60s observation/15s cleanup; egentlig reconsideration er separat åbent
+krav, og denne baggrundsprøve må ikke foregive at bevise den. Review før APIstart.
+Forrige målfortsættelse gav konkret fremdrift: device01 realproviderbevis og Astra GO.
+
+
+14/9 device01 faktisk kørt efter brugerens konkrete “Ja” til lokal OpenAI-prøve og
+kort Stop/Start. Dette erstatter nedenstående afventende status for netop denne prøve.
+Helper16895 terminal0. Rigtig GPT-Live-1/SDK + Talk/Thin/ToolRouter/DeviceControl på
+c194126, men kun mock-HA/Rig: modelvalgt capabilitylookup → max-sugestyrke → frisk
+capability → én Køkkenalrum-start. Rapporten viser præcis to mockwrites:
+set_fan_speed(max), send_command(app_segment_clean, segments=[16], repeat=1).
+Root så faktisk browserinput én gang og modelsvar “Sugestyrken er sat til maks, og
+støvsugningen af Køkkenalrum er sendt afsted.” Ingen rigtig robot eller HA-mutation.
+Én providerstart, fem completed backendresponses, 15 final voice-sekunder,
+39107 backendtokens, clean shutdown og ingen rapporterede faults. Modellen valgte
+end_conversation efter værktøjsresultater; terminal backend settled45.550s,
+live_browser_drain_unconfirmed52.115s og teardown54.266s. Derfor ingen akustisk
+finish-/fysisk lifecycleaccept; browserens afslutning alene er ikke playbackbevis.
+Normal PodVoice1.13.87 blev faktisk verificeret Kører → Stoppet → Kører igen.
+Nøglevariabel ryddet, prøvefaner lukket; mikrofon aldrig åbnet. Originale reports og
+separat rootobservation arkiveret i api-proof/talk-device-01 med hashes.
+Uafhængig Astra-resultataudit: scoped GO uden finding. Alle53pinnede filer matcher
+c194126; fem completed backendresponses deler én delegation, dispatch følger completion,
+og eksakte resultater er submitted før continuation. Samme capability-owner hele vejen,
+ingen dobbelt start. Dette godkender provider/router-sekvens mod mock-HA, ikke rigtig
+robot, cleaning-mode, akustisk dræn eller fysisk lifecycle. Ingen ny runtimeændring,
+releasegate, push, installation eller fysisk10/10/duplex/latensaccept. GitHub-statuspush
+har fortsat sin særskilte åbne tilladelse.
+
+Lokalt ARM64robotimage på c194126 bygget:39643terminal0, tag
+podvoice-live-alpha:c194126. Config4a3db8d51012e93885e5fafd66c4d996380344388a40533302eaaf57a9c7c828,
+manifest92b6c2485821f6561027f4091ba2a243dc1388050ebbf1a59a30b40fe4566c79.
+Netværksisoleret faktisk import terminal0;50runtimekilder matcher
+ eabf6c7f0f1457cb0e1cc93168a61d4ce997637c56f021f9ed63f72b6f4bbb99,
+sourceenv fuld c194126; aarch64/OpenAI3.13.0. Runtimeartifact
+ a10d08a3108a290efb8b91b47dc46abf6fc9856297fe0948bf11f225e9a018ae.
+Build resolverede httpx2/httpcore2 til2.13.0 (tidligere3551b87-image2.12.0).
+Kildeidentitet/import er verificeret, men dette arver ikke gamle API-prøvers fulde
+artifactbevis; præcis installeret artifact skal stadig gates. Ingen versionspinændring
+eller runtimepatch udledes alene af dependencyopløsningen. Metadata bevaret lokalt.
+API-nøgleoverførsel/StopStart afventer brugerens konkrete accept; ingen API-kørsel,
+serviceafbrydelse, releasegate, publicering eller installation i denne fortsættelse.
+
+Device01 checkpoint er forberedt og uafhængigt reviewet GO, men IKKE kørt.
+Launcher96e233a.../handoff52cec39... pin c194126 og Rig3b44b820...; realSDK/Talk/
+Thin/ToolRouter/DeviceControl med kun eksisterende mock-HA. Tids-/callback-/guardgrænser
+reviewet; ingen rigtig HAcredential eller fysisk devicevej. Runtime uændret.
+Automatic approval review afviste browserhandlingen, som skulle fylde eksisterende
+OpenAI-nøgle i lokal engangshandoff og Stoppe normal PodVoice: kræver eksplicit
+handlingstidsgodkendelse af nøgleoverførsel/serviceafbrydelse. Ingen genforsøg/omvej.
+Root ryddede nøglevariabel, lukkede formularfanen og verificerede HA1.13.87 Kører.
+Handoff44076 afbrudt terminal130 under server.handle_request før nøglemodtagelse;
+ingen device01-evidencemappe eller API-session blev oprettet. Samlet runtimefix er
+fortsat softwarekontrolleret, men ingen realprovider-robotaccept. Konkret spørgsmål
+om eksisterende OpenAI-nøgle til lokal prøveproces og kort Stop/Start afventer.
+
+Næste robotcheckpoint på c194126: rigtig GPT-Live/SDK + shipped Talk/Thin/ToolRouter/
+DeviceControl, men kun eksisterende Rig med httpx.MockTransport som HA-modpart.
+Formål: bevis modelvalgt capabilitylookup→indstilling→næste token→én områdestart
+på tværs af rigtige completed backendresponses. Brug fuld produktionsdeklaration og
+prompt; ingen konstruerede SDK-events, ingen rigtig robot/HAcredential/servicekald.
+Maks2providerstarts/60s aktiv observation,120s prewake og eksisterende boundedcleanup.
+Kildehash inkluderer fixtureRig; log mockwrites og faktiske resultater/SDKcontinuations.
+Forventet konkret ytring: sæt sugestyrken på vacuum.qrevo til max og støvsug derefter
+Køkkenalrum én gang. Resultat må højst bevise providersyntaks/ejerkæde og sand
+HA-acceptformulering mod fixture; ingen fysisk robot- eller VoicePE-accept. Normal
+PodVoice stoppes kort til APIisolering og genstartes verificeret. Review før kørsel.
+
+Robotdiff endeligt uafhængigt scoped GO for source+tests: reviewer genverificerede
+Thin8ef83.../testd059... og genkørte19tests PASS. Ingen actionablefinding. Tolv nye
+cases bruger shipped SDKadapter/Thin/ToolRouter/devicepolicy med simuleret provider/HA;
+begge adapters dækker crossresponse/replay/start-once/Stop/køetSDKinput/reconsideration.
+Native dækker fremmed delegation/nygeneration. Eksisterende devicecases dækker udløb
+og ukendt udfald; OFF er uændret i kildegrenen, ikke selvstændigt bevist af nye cases.
+Rettelsen kan gemmes som softwarekontrolleret kandidat. Rigtig provider→robot-sekvens,
+release/installationsartifact og fysisk accept mangler fortsat; ingen sådan accept arves.
+
+Samlet fast62518 på frosset robotdiff terminalexit0:96.6s total, pytest96.19s,
+Ruff/format43 og mypy50sources PASS. Ingen sourceændring/commit under gaten.
+Efter gaten er Thin8ef83... og testd059... genverificeret byteidentiske.
+Uafhængig source-GO foreligger; særskilt testreview af samme diff afsluttes før commit.
+Fortsat ingen releasegate, genbygget robot-image, installation eller fysiskrobotaccept.
+
+Robotrettelse implementeret: Thin giver kun device_control.TOOL_NAMES en
+live:generation:delegation-owner; andre tools og approve_action beholder responseowner.
+Runtime-diff9indsættelser/4sletninger, Thinsha8ef83f866ec82883586cef4ab71913deed18da10ae434c3a9e540b3497edcf5e.
+Uafhængigt source-review GO: faktiske response-/revision-/input-/Stopguards uændrede.
+Kausale integrationer frosset til testsha d059853947d55b66dc614d486b7c887d45e78c1ef9ca41b93d90ccacebf2b1aa:
+19filetests PASS0.43s, heraf12nye med rigtig Thin/SDK/router/device og mock-HA.
+Native+Talk: opslag→handling én gang; brugt token afvist; nyt token kan ikke starte
+samme opgave igen; anden delegation eller Stop/nywake-generation afvist; Stop og
+SDKmodtaget men køet input under maps-preflight sender nul writes; reconsider_action
+på holdt devicekald bruger oprindelige args/token og faktisk reviewwire korrekt én gang.
+Samme to positive native/Talkcases var RED på HEADs gamle Thin i separat Pythonproces
+(device_capability, nul writes), GREEN med rettelsen. Eksisterende relevante device/
+ThinLive/policyregressioner bestod; fem lokale registry-wiretests blev først blokeret
+ved sandboxbind, derefter kun disse fem genkørt med loopbackadgang og PASS.
+Ingen runtimepatch for miljøfejlen. Testreview og samlet fast afventer; diff fryses nu.
+Ingen commit/ændring under gaten. Ikke release-/installations-/fysiskaccept.
+
+Bruger godkendte nu udtrykkeligt robotrettelsen: “Ja til robotrettlse.” Implementér
+den tidligere afgrænsede leadbeslutning: kun de to interne device_control-tools får
+samme generation/delegation som capability-owner; faktisk responseadmission og alle
+input-/epoch-/Stop-/schema-/postawaitguards bevares. Installeret extended_device_control
+blev frisk verificeret true; dette er et konkret paritetsgab. Årsagskæde og ikke-mål
+står i eksisterende robotbeslutning nedenfor. Uafhængig agent skriver kausale integration-
+regressioner; root ejer runtimeændringen, separat reviewer godkender det faktiske diff.
+Ingen hjemmeaktion, installation eller push er del af denne lokale rettelse.
+
+Frisk read-only baselineafklaring14/9 efter routerprøven: faktisk installeret
+PodVoice1.13.87 /status live viser Udvidet enhedsstyring checked=true, verificeret
+både synlig checkbox og dens DOM.checked. Fem tilladte Roborock-entiteter er gemt:
+vacuum.roborock_qrevo samt cleaning_mode, moppeintensitet, moppetilstand og selected_map.
+Dermed er den kendte Live capability-owner-fejl relevant for en aktiveret baseline-
+funktion; tidligere “installeret værdi ukendt” er nu afklaret, men fysisk robotfunktion
+bevises ikke af indstillingen. Ingen Gem, genstart, ændring eller enhedshandling.
+Næste runtimeændring er den allerede beskrevne afgrænsede robot-owner-reparation;
+den konkrete særskilte tilladelse efter tidligere reviewafvisning mangler stadig.
+Statuspush fe15246 blev separat afvist af automatic approval review: drifts-/test-
+detaljer til GitHub kræver tydeligere destinations-/payloadgodkendelse. Lokal commit
+og originale evidence er bevaret; ingen omvej eller ny push udført.
+
+Router02 uafhængigt scoped GO:52kildehashes matcher3551b87, launcher42228cda...;
+begge modelkald fulgte completed backendresponse, originale routerresultater nåede
+SDKsubmission og completed continuation under samme delegation. Weatheroutput1700bytes
+under grænsen. To input én gang i samme historiksession; én providerstart, fire completed
+backendresponses,56finalvoice-sekunder/30557backendtokens uden usagekonflikt, clean.
+Smal accept: rigtig læseværktøjsbrug for tid/vejr og relevant opfølgning. Intet nyt
+bevis for Stop, naturligt farvel, mikrofon, akustisk dræn, fysisk VoicePE eller ukaldte
+tools. Tokenrevocation/normalHArestore er roots separate faktiske UI-observationer.
+
+Bruger gav konkret accept af midlertidig HA-nøgle. Real-router01/02 udført14/9
+med to navngivne midlertidige tokens, begge efterfølgende tilbagekaldt i HA; root
+verificerede “Du har ingen langlivede adgangstokens endnu.” Normal HA1.13.87 blev
+verificeret Stoppet før hver prøve og Kører efter. Ingen installation/hjemaktion/mic.
+
+Router01: GetLiveContext startupopslag lykkedes, fire aktuelle læsetools fundet,
+men30s prewake udløb før browserinput; nul SDKstarter, clean. Gentagen toolingfejl:
+prøvestartfrist er nu120s, initialhard200s, parent300s;60s aktiv observation,
+højst2SDKstarter og15s cleanup/postwake80shard uændret. Uafhængigt review GO på
+launcher42228cda.../handoff0c2fd73a...; ingen runtime- eller semantikændring.
+HA-navnefelt og Talk-tekstfelt krævede faktisk inputtast efter fill før validering;
+første router02 klik viste kun kladde. Efter almindeligt tastetryk blev input afleveret.
+
+Router02: én rigtig SDKstart, to modelvalgte læsekald via shipped Thin/ToolRouter/MCP:
+GetDateTime35.512s→ok36.104s og weather_forecast37.264s→ok37.488s; begge resultater
+sendt tilbage til Live. RootChrome så svar15.43/skyer/11–19grader/79procentregn/blæst
+og efterfølgende “Skal jeg tage regntøj med så?”→“Hmm. Ja, det vil være en god idé.”
+Rigtig HAdata:15:42:58; næste dag11.2–19.5°C,78.9procentregn,24.1km/h vind.
+Ingen præcis avrundings-/latensaccept; browsertranscript er ikke lydoptagelse.
+Trialcleanup89.667s, clean96.238s; ingen faults, én generation,56voice-sekunder,
+fire backendresponses. RootAfslut kom efter prøvens deadline og beviser IKKE Stop.
+Helper59710terminal0. Originale reports/source/events plus særskilt rootobservation
+arkiveret i api-proof/talk-router-01 og02. Uafhængig resultat-/kildeaudit afventer.
+Alle prøvefaner lukket; nøgler ikke gemt i filer eller output. Fuld toolparitet,
+stemmegodkendelser, robot-owner, installation og fysisk10/10/duplex/latens stadig åbent.
+
+Goal-kontrol14/9 efter ARM64-genbyg: forrige fortsættelse var konkret fremdrift
+(nyt image og verificeret sourceidentitet). Denne fortsættelse fandt ingen ny
+brugeraccept af midlertidig HA-kontoadgang. Prøven og review er klar; build er terminal.
+Næste prioriterede real-router-prøve afventer fortsat samme eksplicitte svar. Ingen
+ny kørsel, nøgle eller installation; ikke endnu tre fortsættelser uden fremdrift.
+
+Lokalt ARM64-image genbygget på3551b87 med den reviewede Talk-visningsrettelse:
+build42229 terminal0; tag podvoice-live-alpha:3551b87, imageconfig
+ a21c12c2e1924e1a08309ab1705169c13739a162095fae0bc9e603b5b5bf16f1,
+manifest00175212e8e74b17e9ef60f4b1b1477dd5233c962b9a2b79d9ad1fc78186fa05.
+Netværksisoleret containerimport terminal0: faktisk aarch64/OpenAI3.13.0; alle50
+runtimekilder matcher54ec7559bd10c1fb7ff86cb39f64671bbfd8059c789ef0bb0996b7b231330839;
+PODVOICE_GIT_SHA matcher hele3551b87. Runtimeartifact
+ a0db9e46979d683f82c5264ccba00efaa9f73128e1d360721e9ce100a303e564.
+Frisk Docker-inspect af ældre tag673f02c gav lokalt image-idb20812b..., derfor bruges
+ældre summary-identitet ikke som aktuel reference. Ny buildmetadata er bevaret.
+Ingen runtimeændring, releasegate, publicering, HA-stop, installation eller fysisk
+accept udført i denne fortsættelse. Midlertidig HA-token-godkendelse afventer stadig.
+
+Real-router-prøven er forberedt, endnu ikke kørt. Uafhængigt review fandt to fejl i
+prøveværktøjet: vars() på slots-baseret ExecutionContext ville stoppe modelkald før
+routeren, og den ydre 90s watchdog kunne afkorte den tilladte observation/cleanup.
+Root rettede kun diagnostik til de tre eksplicitte contextfelter og ydre watchdog til
+200s (uden ændring af launcherens 60s observation, to SDK-starts eller cleanupgrænser).
+Startupens GetLiveContext går gennem samme læseallowlist og logges som startup;
+dette må aldrig tælle som modelvalgt værktøjsbrug. Launcher sha1185f97f6eea0c5fecfce1a0b27a6249507f9aa742fdb14a32b8aaa82d4e1455.
+Dobbelt engangshandoff er klargjort med OPENAI_API_KEY og HA_ACCESS_TOKEN alene i
+proceshukommelse; syntax valideret, ingen server/API startet. Uafhængig Astra-review af begge rettelser gav GO; handoff sha
+4b3555246e23816dcf56bb8367ec0665d186ce2b652a28eafef388ff38436bdb.
+Særskilt accept af oprettelse af midlertidigt HA-token afventer. Runtime uændret.
+
+Real-router-adgang14/9: frisk HAprofil/Sikkerhed viser ingen langlivede adgangstokens;
+UI beskriver nye tokens som gyldige10år. Eksisterende browserlogin er ikke en læsbar
+scriptcredential, og ingen token udtrækkes fra browserstorage. Ingen token oprettet.
+Forbered afgrænset lokal Talk+HomeAssistantMCP+ToolRouter-prøve, kun aktuelle læsetools
+(GetDateTime/GetLiveContext/HassGetState/HassGetWeather/weather_forecast/google_web_sogning),
+med både deklarationsfilter og dispatchallowlist før rigtig router. Ingen hjemaktioner,
+mikrofon eller permanent produktkodeændring. OpenAI/HAcredentials kun privat engangs-
+handoff/proceshukommelse;2providerstarts/60s+15scleanup+5shard. Nyt HA-token skal navngives
+entydigt som midlertidigt og straks tilbagekaldes i samme prøve efter cleanup.
+Særskilt brugeraccept kræves før denne nye kontoadgang oprettes; kodeforberedelse og
+review kan fortsætte uden credential. Normal PodVoice er ikke stoppet til forberedelsen.
+
+API18 uafhængigt scoped PASS for changed-target-nonexecution:7artifact-/9source-/
+8fixturehashes matcher,50runtimefilers manifest54ec7559... og begge komplette
+resamplinger eksakte. Begge fixtures én gang, ellers stilhed; label/challenge/session/
+provider800–2800ms matcher. Fuld “Nej, jeg mente køkkendøren”32.132s før oprindeligt
+udløbca40.057s;27.871s videre observation uden effekt. Begge sessioner final/clean,
+48voice-sekunder/22510backendtokens. Ingen fysisk/browserlydaccept.
+Konkrete begrænsning: nyt køkkendørsspørgsmål har intet nyt serverforslag. Gen2backend
+completed37.483s med nul toolkald; den matchende Thin-gren discard'er oprindeligchallenge
+(kildeafledt, ikke særskilt policylog). Spørgsmålet om køkkendøren begynder derefter
+og slutter40.318s; ingen ny dispatch/proposal. Efterfølgende ja blev ikke leveret.
+Prøven beviser kun at målændringen ikke godkender gammel handling; korrekt fortsættelse
+mod et nyt mål er stadig åben. Ingen runtimepatch udledes alene af denne tale.
+
+API17/18 målskift14/9 på07df362, runtime54ec7559...; ingen runtime-/orakelændring.
+API17 UNKNOWN: review44744terminal2 uden accepteret label/fixture. Kun åbning og
+stilhed i gen2; openingrecognizedfalse (“hoved døren”). Uafhængig scoped audit:
+9sources matcher, nul effekter, begge final/clean,47voice-sekunder/14131tokens.
+Den præcise labelafvisningsårsag er ikke logget; ingen målskiftaccept må udledes.
+Root håndterede API18s tidskritiske label uden sideløbende arbejde; review68168terminal0.
+API18 helper83156terminal0/OBSERVED_PASS: korrekt åbning, manuelt bedømt hoveddør-
+spørgsmål, hel changed-target-fixture genkendt og nul effekter, begge clean.
+Gen2backend32.761→37.483s completed med nul toolkald; modellen spørger derefter om
+køkkendøren. Fuld uafhængig artifact-/input-/expiryreview afventer. Efterfølgende ja
+til det ændrede mål blev ikke sendt og er IKKE dækket af denne negative delprøve.
+Begge kørsler efterfulgt af rootStart og friskHA1.13.87 Kører; handoffs lukket,
+nøglevariabel ryddet; originale artifacts arkiveret. Ingen installation/fysiskaccept.
+
+Paritetsinventar på aktuelkode mod be4c5e8 fandt ingen yderligere demonstreret runtime-
+defekt ud over den kendte robot-owner-fejl. Talkprøvernes tools=None beviser nul
+værktøjsparitet. Næste reale routerprøver skal bruge HomeAssistantMCP→ToolRouter.start→
+frosne aktuelle declarations→Thin, først GetDateTime/GetLiveContext/aktuelt weather-
+tool/google_web_sogning. Musik-/enhedsaktioner, pendingtool-korrektion og recovery
+står åbne; timere er allerede baseline-admissionsgab, ikke ny alpha-regression.
+
+Talk03 uafhængigt scoped GO:52kildeentries matcher0bffd66bd59308f6db2a6ce4ee359ed81a6624b2;
+launcherdiff er kun sourcepin. Tre input gemt én gang, svar42/Farvel/Fem, rootChrome
+bekræfter enkeltvisning. Modelterminalens backendcontinuation settled36.624s;
+eksisterende6s heuristisk grace efterfølges af providerfinal43.379s og teardown45.533s,
+længe før prøvecleanup80.029s. Dette var modelstyret farvel, ikke prøvefristens close.
+Ny samtale54.691s med frisk provider/generation passerer primary/sidebandready og svarer;
+PanelStop færdig69.868s. Begge sessionsusage final:35voice-sekunder/26970backendtokens,
+fire completedresponses uden konflikt; clean uden faults. Trace markerer eksplicit
+live_browser_drain_unconfirmed: hverken akustisk dræn eller fysisk VoicePE er bevist.
+Fortsat åbent: stemmegodkendelsesmatrix/reconsideration, fuld toolparitet og særskilt
+robot-owner-tilladelse, mikrofon/overlap, releaseartifact/installation, fysisk golden
+chain/10/10/duplex/latens. Ingen ny slutgodkendelse eller målændring.
+
+Fast62030 på frosset0bffd66 terminalexit0:100.0s samlet, pytest99.56s, Ruff/format43
+og mypy50sources PASS. Ingen source/commitændringer under gaten. Talkvisningsrettelsen
+har dermed kausal regression, uafhængig review og samlet softwarekontrol.
+
+Faktisk Chrome-Talk03 på0bffd66: runtime54ec7559bd10c1fb7ff86cb39f64671bbfd8059c789ef0bb0996b7b231330839;
+reviewet launcher kun sourcepinændret til0bffd66, sha e954acb0d00770fd5feb81698f9d9cce1ec1aaa378a282251bf71a39882399b4.
+Root observerede én bubble per typed input:6×7→“Mm-hmm.42.”, frisk “Tak, det var alt.
+Farvel.”→“Mm.”/“Farvel.” og UI “Live-samtalen er afsluttet”/klar. Derefter ny typed
+samtale2+3→“Hmm.Fem.”, rootAfslut. Ingen mikrofon aktiveret. Helper97738terminal0,
+report2providerstarts, cleantrue, faults tom. Provider-/lifecycle-/usageaudit afventer;
+UItranscript er ikke lydoptagelse eller akustisk drænbevis. Ingen fuld physicalaccept.
+HA1.13.87 blev verificeret Stoppet før og Kører efter rootStart; engangshandoff og
+Talkfane lukket, nøglevariabel ryddet. Originale rapporter og eksplicitte rootDOM-
+observationer arkiveret i api-proof/talk-browser-03. Ingen alpha-installation udført.
+
+Typedvisningsrettelsen fik uafhængig scoped GO på Thin4ef1f712... og test6fa147ff...:
+bevarer admissiontid/session, inputtællere, providersend og anden hubs fallback.
+Den nye faktiske TalkConnection/Hub/History-regression bestod også uafhængigt.
+Diff fryses nu til samlet fast; ingen yderligere ændring/commit mens gaten kører.
+
+Talk02 uafhængigt artifact-/lifecycle-review:52runtime/UI/requirementsfiler matcher
+0289197afea28396a31a4cee5c5c06a46c3b1e12, launcherf50afba3209950e1ab958f9d0c7d66d48789e14fdfb3a16fefce1b139e79d154.
+Begge generationer har primary_started før provider_connected/session_ready/sideband_ready;
+forskellige provider-/historiksessioner. PanelStop→teardown tog2.509s; ny typedwake
+nåede ready og korrekt15. Historik har kun én post per input og tre backendresponses:
+dobbeltvisningen var UI-events, ikke dobbelt providerafsendelse. Begge sessionsusage
+endelige:20+18voice-sekunder/20198backendtokens uden konflikt; slutrapportens snapshot
+viser kun sidste generation, usage.json bevarer begge. Ekstra teardown_complete under
+slutcleanup er andet aclose efter inaktivitet, ikke anden closetransaktion; SDKclose er
+no-op efter frigivelse. Ingen mikrofon-, akustisk dræn-, farvel- eller fysisk rearmaccept.
+
+Typedvisningsrettelse implementeret:12runtime-difflinjer genbruger den eksisterende
+TalkHub.submitted_text-grænse. Permanent TalkConnection/BrowserLink/Thin/TalkHub/
+History-regression var rød før rettelse, nu grøn med én historikpost/SDKsubmission,
+ingen ekstra inputtranscript og uændret idempotent receipt/inputrevision/rotationskontekst.
+15målrettede regressioner PASS0.67s; Ruff/format/diffcheck PASS. Frosset Thinsha
+4ef1f7124b8e17a11e2e2cb400f59e0b61071fefeaffef0258dbb9558d9fa41c.
+Uafhængig diffreview og samlet fast afventer; denne ændring er endnu ikke bygget ind
+i lokalt ARM64image eller fysisk afprøvet. Ingen SDK/prompt/lyd/robotændringer.
+
+Aktiv fejlgrænse efter faktisk Chrome-Talk02: alle tre typed input vises dobbelt.
+Korrekte svar var84, kontekstopfølgningen Mørkegrøn og ny samtale efter Afslut gav15.
+Kausal kæde: UI sender én command → Thin Live send_text → hub.transcript sender
+første bubble → submitted command_result sender anden bubble → opfølgning/Stop/
+ny samtale. Realtime-grenen bruger allerede TalkHub.submitted_text til persistens
+uden ekstra transcriptframe; Live-grenen kalder fortsat transcript. Hypotese: genbrug
+den eksisterende submitted_text-grænse i Live, med samme fallback for andre hubs.
+Invarianter: serverkvittering ejer synlig typed aflevering, historik gemmes én gang,
+command-id/replay, inputrevision, providersend, Stop og ny generation uændret.
+Ikke-mål: ingen tekstfrase-deduplikering, provider-/lyd-/prompt-/robotændring. Test den
+faktiske TalkHub/History-grænse inklusive genafspillet command-id og eksisterende
+rotationshistorik; reviewer kontrollerer eventrækkefølge og modsatte adapter. Rollback
+er alene denne persistens-/visningsgrænse. Ingen physical eller releaseaccept arves.
+
+Talk01 var opstarts-timeout før send:0providerstarts, clean, ingen API-evidens.
+Talk02 brugte samme reviewede launcher og uændret runtime0289197, højst2SDKstarts;
+terminal0/report clean, root har verificeret normalHA1.13.87 Kører efter genstart.
+Forsøgt farvel kom ved prøvefristen og har ikke dokumenteret aflevering/svar; tæller
+ikke som naturligt farvel. Uafhængig artifact-/lifecycleanalyse afventer.
+
+Næste afgrænsede kontrol14/9: faktisk Chrome-Talk på uændret alpha-runtime.
+Brug den shippede web/TalkConnection/BrowserLink/ThinSession og officielle Live-SDK,
+med midlertidig lokal opstartsadapter uden HA/PodConnect eller eksterne værktøjer.
+Typed input først, kontekstopfølgning, Stop og frisk samtale; mikrofon åbnes ikke
+programmatisk. Højst to providerstarts og60s observationsvindue plus15s cleanup/5s
+hard-stop. Eksisterende private engangshandoff bærer kun nøglen i hukommelsen;
+normal PodVoice stoppes kort før API og genstartes verificeret efter.
+Dette undersøger ægte browser/WebRTC, shipped UI og serverejerskab; det beviser
+hverken fysisk puck, mikrofon/AEC, fuld toolparitet eller10/10. Ingen ny runtimekode,
+transportomlægning eller testorakeltilpasning. Resultat afventer; robotrettelse kræver
+fortsat særskilt tilladelse efter tidligere reviewafvisning.
+
+API16 uafhængig audit: 7 artifacts/9 kildehashes/50 runtimefiler/8 fixtures matcher
+c49e15b;654 sammenhængende events og begge fulde PCM-resamplinger korrekte. Frisk
+observeret “Det vil jeg ikke endnu” sluttede30.866821s før udløb39.539861s, derefter
+29.137205s observation uden gen2backend/delegation/tools/effekter.47voice-sekunder,
+14176backendtokens, begge managers/HTTP/close afsluttet. Tvivl (“ved ikke”) og afslag/
+udsættelse (“vil ikke endnu”) tilbageholder begge samtykke, men er ikke samme
+forståelsesprøve. Derfor kun snævert ikke-samtykke/ikke-udførelse; UNKNOWN uændret.
+
+Robot-owner-reproducer genkørt på aktuelle c49e15b uden netværk (httpx.MockTransport):
+lookup lykkes, næste response-owner afvises med nul writes; samme owner med frisk token
+giver én stubwrite. Den kendte paritetsfejl er altså stadig til stede. Separat konkret
+tilladelsesspørgsmål gjort synligt igen pga. tidligere automatisk reviewafvisning;
+ingen capability-owner-ændring udført. Øvrig alpha fortsætter, målstatus active.
+
+API15/API14 uafhængigt gennemgået 14/9; originalrapporternes UNKNOWN bevares.
+API15 på c49e15b: 7 artifacts, 9 kildehashes, 50 runtimefiler, 8 fixtures og fulde
+PCM-resamplinger matcher. Historisk ja findes i gen2; hele det nye gen2-input er
+verificeret stilhed. Det fulde spørgsmål sluttede18.770842s; derefter41.23367s uden
+effekt/backend, heraf mindst21.0502s før udløb. Begge sessioner clean;49voice-sekunder,
+14191backendtokens. Lead afleverede ikke reviewlabel inden fristen, og åbningens
+transcript afveg også. Ingen efterdateret label eller PASS; dette er kun observeret
+ikke-udførelse med gammelt ja og stilhed, ikke afvisning af et forsøgt replay.
+Helper57344terminal0/evaluator2, review17056terminal2. Root genstartede normal
+HA1.13.87 og verificerede Kører; handoff lukket. Original artifacts bevaret i api-proof.
+API14 audit: komplette fixtures og resamplinger matcher; fuld correction31.613653s
+før udløb41.028403s, backend32.412045→34.849278 med nul kald/effekter og28.39039s
+videre observation.48voice-sekunder/22351tokens, begge clean. Åbningens afkortede
+transcript forklares ikke af manglende fixturebytes. Ingen fysisk/paritetsaccept.
+
+API16 ambiguity på uændret c49e15b gennemført med samme bounded engangshandoff.
+Åbning nu recognizedtrue; aktuelt fuldt spørgsmål manuelt bedømt og label accepteret
+via review77127terminal0. Hele svarfixture afleveret: forventet “Det ved jeg ikke
+endnu”, observeret “Det vil jeg ikke endnu”. Output “Okay, jeg gør ikke noget endnu.”
+Nul effekter, negative_observation_sufficienttrue, clean_shutdowntrue, usage_complete
+true. Helper40367terminal0/evaluator2/UNKNOWN; mismatch bevares og den uafhængige
+artifact-/semantikgrænse afventer. Ingen runtimeændring eller ændret orakel.
+HA1.13.87 verificeret Stoppet før API-submit og Kører efter rootStart; nøglevariabel
+ryddet og handoff lukket. Release/installations-/fysiske gates er fortsat åbne.
+
+API14 gennemført efter brugerens eksplicitte “prøv igen, ja tak herfra” til kort
+Stop/Start. Sourcef8c7470 med korrigeret runtime9de953122b3c8c9e1f8fc58ce90a4d7d1232ec5845db98e13ca340fb66d2e2e4.
+Helper14/43278 terminal0, evaluator2/UNKNOWN: åbningstranscript slutter “hoveddø”,
+opening_recognizedfalse. Frisk fuld correction “Ja, nej, vent, gør det ikke” registreret;
+output “Jeg stopper det og gør det ikke.Okay, den bliver ikke kørt.”. Nul effekter,
+begge sessioner clean, ingen runtimefaults. OriginalUNKNOWN bevaret; uafhængig lyd-/
+artifact-/semantisk grænseverifikation afventer. Normal HA1.13.87 frisk Stoppet før,
+rootStart efter og Kører bagefter; handoff lukket og nøglevariabel ryddet. Ingen
+installation eller fysisk proof. Den tidligere Stop-tilladelsesblokering er nu løst.
+
+API13 forberedelse14/9: browser/HA-adgang tilbage; frisk helper13 for correction.
+Automatisk godkendelsesreview afviste HA Stop med begrundelsen manglende konkret
+autorisation til at afbryde normal PodVoice. Ingen Stop/API-submit blev udført.
+Lokalt passwordfelt ryddet, handoff lukket, nøglevariabel ryddet; helperPID69175
+termineret og handle12638terminal143. HA1.13.87 bagefter frisk verificeret Kører.
+Bed om præcis kort Stop/Start-tilladelse til afgrænset syntetisk prøve; ingen omgåelse
+eller parallel API-session. Ingen ny runtime-/prøve-/fysisk evidens.
+
+API12 forberedelse14/9 blev afbrudt før nøgle/API: helper12/correction var kun lokal
+nøgleløs admission, runtimepin9de953122b3c8c9e1f8fc58ce90a4d7d1232ec5845db98e13ca340fb66d2e2e4.
+CUA gammel fane væk, navigationtimeout og kernelreset; ny browserinventar Chromeid2
+(iabid1), men ny Chrome-navigation timeoutede også. Ingen HAStop, nøglelæsning eller
+prøveafsendelse. Egen helperPID68330 identificeret og afsluttet TERM; handle33843
+terminal143. Ingen correction12-resultat eller APIforbrug kan påstås. Aktuel online-
+adgang er midlertidigt utilgængelig; runtime/artifacts er uændrede. Goal fortsat åbent.
+
+Fast49279 på fast2f6346e terminalexit0: samlet97.9s, pytest97.24s,
+Ruff/format43filer og mypy50sources PASS. Ingen scopeændring under denne gate.
+Queued-input-P1 er dermed rettet, uafhængigt reviewet og samlet softwarekontrolleret.
+Lokalt image673f02c indeholder præcis samme runtime; firmware uændret fra provisioneret
+byg. Fortsat åbent: resterende semantisk godkendelsesmatrix/reconsideration og domæne-
+paritet, faktisk Talk, releasegate/CI-installationsartifact og fysisk accept. Ingen
+påstand om at denne softwaregate beviser installation eller fysisk 10/10.
+
+Fast81773 terminalexit2: pytest110.18s uden testfejl, men scopeguard afviste resultatet,
+fordi lead committede673f02c efter gatestart. Dette er lead/workflowfejl, ikke runtime-
+fejl eller godkendt samlet gate. Gentag kun den ugyldiggjorte fast på fast commit uden
+ændringer/commits under løbet. Ingen runtimepatch på baggrund af dette resultat.
+Genbyg5554 afsluttetexit0: lokalt ARM64image podvoice-live-alpha:673f02c.
+Netværksisoleret import94173exit0; SDK/Thinhashes matcher reviewet og runtimeartifact er
+6d34a7c418471fd3d3603ee0c137c389127b656cdbcb0d8fbdcf734aacd90110.
+Ingen release eller installation udført.
+
+Queued-input-korrektion frosset14/9:24runtimeindsættelser/4sletninger i SDK/Thin.
+Inputindex følger faktisk response.created→batch→terminalreceipt; nyt ikke-tomt
+SDK-/typedinput invaliderer kun slutintention, ikke krævet backendresultat/continuation.
+Rotation revaliderer efter hold og stopawait; allerede holdt capture afvikles gennem
+eksisterende ejede teardown ved invalidation. Ingen ny after-close-acceptpolicy.
+242SDK/Thin/TalkStop/TalkWebRTC-regressioner PASS9.05s inkl.18nye kausale cases,
+Ruff/format/mypy2sources PASS. RuntimehashSDK49b59a6dcc079f7caf458b9d324be199380c2b1321980db62e07510a4be08317,
+Thin2f8fc093582586487ab7bcec1207c765c243a25e46f3d65ee0c1df22e338733e.
+Ultra scoped GO på ovenstående eksakte hashes: oprindelig P1 lukket. Seks oprindelige
+queue-adversaries afviser staleclose/rotation; native+Talk posthold og native poststop
+ender bounded uden ny provider/handling eller incomplete teardown. Ingen øvrig
+konkret P0/P1/P2-finding etableret. Samlet fast81773 afventer terminalresultat.
+Ingen installationsklarhed før disse resultater og resterende gates.
+
+API11 uafhængigt scoped PASS mod frosseta2367af:7artifacts/9kildehashes/50runtimefiler,
+8fixtures og begge komplette produktionsresamplinger matcher. Historisk “Ja, gør det.”
+fandtes i faktisk gen2prior_text; frisk fuldt nej33.083s før oprindeligt udløb39.119s.
+Svar “Okay, det gør jeg ikke.” sluttede34.267s, med26.921s videre observation efter
+fuldt nej. Nul effekter og ingen gen2SDKbackend-envelope;49voice-sekunder/14142tokens,
+begge managers/HTTP-resources lukket. Dette validerer kun oldyes/freshno på før-fix-bits.
+Queued-input-rettelsen ligger nu i SDK/Thin (24indsættelser/4sletninger), men mangler
+regressionsresultat og reviewerens slutkontrol. Providerresultater fortsætter, mens kun
+den forældede afslutningsintention afvises; efter hold/stop bruges eksisterende teardown.
+Bygget add-on-image02c1ecd indeholder ikke rettelsen og må ikke installeres som fix.
+
+STOP-THE-LINE14/9 — Ultra-review reproducerer queued-input race i terminalreceipt.
+SDK har modtaget ny ikke-tom brugerrettelse (input_sequence1), mens Thin endnu har
+revision0; terminal_receipt_current forbliver true, og grace kan sende session.close
+før rettelsen leveres. Samme receipt bruges ved confirmation-rotation. Kandidaten er
+IKKE installationsklar; tidligere image/firmwarebuild er kun artifactbevis.
+Kausal kæde: SDK inputreceipt → Thin kø → terminaltool/result/continuation → grace
+eller capturehold → providerclose/rotation → playbackdræn/rearm. Invarianter: frisk
+input må afbryde gammel slutintention; ingen gammel kvittering må krydse generation;
+én Thin-ejer, samme VoicePE/Talk-adapterkontrakt og serverautorisation.
+Hypotese: receipt skal bindes til den observerede SDK-inputgrænse, og ændring skal
+invalideres før close/rotation også efter await på hold. Regressioner skal tilbageholde
+Thin-levering efter rigtig SDK-receipt før settlement/grace/hold; tidligere reviewede
+Stop/rotation/typed cases skal bevares. Ingen TTL/prompt/gain/robot-owner-ændring.
+Ret kun denne ejergrænse efter samlet review; uafhængig reviewer genkontrollerer faktisk
+diff før releasegate. Rollback hele korrektionsdiffet; release/installation HOLD.
+API11 er terminal OBSERVED_PASS for old-yes-fresh-no på hidtidig runtime, afventer
+uafhængig negativ semantisk verifikation. Root har læst gen2-spor: “Nej, du skal ikke
+gøre det” → “Okay, det gør jeg ikke.”; report effects tom, begge sessioner clean og
+ingen runtimefaults. Originalrapport bevaret i api-proof/confirmation-negative-11.
+Normal HA1.13.87 er efter prøven frisk verificeret Kører; nøglevariabel/formular ryddet.
+Dette er en negativ syntetisk delprøve, ikke komplet matrix eller fysisk bevis.
+
+Installationsforberedelse14/9: Brugeren gentog “godkendt fra mig” under arbejdet med
+installationsparret; fortsæt mod installation efter gates. Ingen fysisk accept arves.
+Lokalt ARM64 Dockerbuild23523 fra02c1ecd afsluttet exit0; tag podvoice-live-alpha:02c1ecd,
+imageconfig52d84ce956ae9141d5c49662c98c1bd0551b64178ebbcc241be9e9fb51457656.
+Netværksisoleret container90045 exit0 importerer Thin/Live/Talk/web/officiel Live SDK
+på aarch64. Runtime-artifact8e57356903e91599157e407db88d6f7d1d0a349fa49dc2a949ae1523d2cf8b13.
+Ingen Dockerfile/dependencypatch nødvendig. Dette er lokalt image, ikke publiceret release.
+Provisioneret firmware fik uafhængigt Astra scoped GO: tre YAML,21kompilerede filer,
+rene eksakte remotepins, decoder0.2.0/WAV0.1.0/IDF5.5.4, WAV enabled samt gyldig OTA-
+checksum/validationhash. Canonical key matcher genereret kode/binær; eksisterende nøgle
+matcher også repoets eksempel, så der påstås ikke ny unik/private nøgle. Ingen rotation.
+Én Ultra adversarial gennemgang af frosset produktionsdiff er startet før releasegate.
+Negativ godkendelsesmatrix, reconsideration, rigtig Talk og fysiske gates er stadig åbne.
+
+Provisioneret firmwarecompile64809 afsluttet exit0 på source7875114. Uændrede remote
+pins blev brugt;13genererede C++/headerfiler matcher reviewede kilder, alpha-marker
+11382_livewav2 findes i main.cpp. OTA3057424bytes,
+SHA2567eb54b8b7e05b34aceab73965930ac556a6dd6cd94419df992d0831af14c55dd.
+Privat build/report: /private/tmp/podvoice-live-alpha-provisioned-01/compile-report.json.
+Dette build bruger canonical nøgle autentificeret mod den aktuelle enhed; ingen
+nøgle eller binær uploadet. Uafhængig artifactkontrol afventer. Ikke flashed;
+add-on-release, funktionsparitet og fysisk golden chain/10/10 er stadig åbne.
+Farvel-review finder ingen ny evidensbaseret runtimepatch: historisk dobbelttale-
+farvel var separat probe; eksplicit naturligt farvel på den aktuelle fysiske kæde
+skal fortsat verificeres. Ingen timer- eller prompttuning tilføjet.
+
+API10 uafhængigt Astra-review afsluttet: scoped PASS for syntetisk positiv godkendelse
+og kontekstopfølgning. Alle7artifacts,9kildehashes,50runtimefiler,8fixtures og begge
+fulde produktionsresamplinger matcher55c1c3f. Frisk fuldt ja32.020s før backend32.075s;
+eksklusiv completed approve_action33.757s gav én effekt5.874s før oprindeligt udløb.
+“Mørkegrøn.” kommer efter hele farvespørgsmålet og matcher seed. Begge sessioner
+lukker rent, ingen faults;49voice-sekunder/38764backendtokens. reconsider_action blev
+ikke brugt, og negative cases/installation/fysisk proof er fortsat åbne.
+
+Provisionering14/9: ren native device_info/list_entities-kontrol autentificerede med
+canonical lokal nøgle mod den UI-konfigurerede podvoice-pe-0a7e7a.local. Returneret
+MAC20:F8:3B:0A:7E:7A, navn podvoice-pe-0a7e7a, ESPHome2026.6.2 og eksisterende
+marker11378_wakeboundary1. Ingen servicekald, lyd eller indstillingsændring.
+Start separat provisioneret compile i privat /private/tmp/podvoice-live-alpha-provisioned-01
+med uændrede remote pins og eksisterende secrets uden nøgleoutput. ESPHome wake-venv,
+PlatformIO penv og IDF5.5.4-venv er verificeret af reviewer. Dette bygger kun en artifact;
+ingen upload/flash og ingen fysisk alpha-readiness. Resultat afventer terminal build.
+
+Integration6794e20 med installeret1.13.87 bestod fast74760: exit0, samlet100.2s,
+pytest99.61s, Ruff/format43filer og mypy50sources PASS. Uafhængigt Astra scoped GO:
+alle otte berørte non-STATUSfiler matcher be4c5e8, Thin/SDK/Liveprompt uændrede,
+begge statushistorikker bevaret, ingen capability-owner-ændring. Nyt runtimehash
+53f44f7bbbc4b9141eb22c87d56cbfe8b24a1ae8485cf42d75295a2f9583e96b;
+API10 beviser den tidligere runtime, ikke automatisk denne samling.
+Næste konkrete artifactarbejde er provisioneret firmware fra uændret alpha-overlay;
+18komponentfiler og overlay matcher compile02. Canonical secrets findes lokalt, men
+aktuelt key/device-match er endnu ikke verificeret. Ingen build/flash med gættet
+provisionering; releasegate/fysisk teststatus er fortsat åben.
+
+API10 afsluttet14/9 på55c1c3f: original evaluator OBSERVED_PASS for context-followup;
+præcis én lokal prøveeffekt, frisk ja, begge sessioner lukket, ingen runtimefejl.
+Supervisorlabel kom9.784s efter spørgsmålets sidste tekstfragment mod16.663s i09;
+den nye terminal reducerede forsinkelsen i denne prøve, men gjorde den ikke øjeblikkelig.
+Svarsporet indeholder “Mørkegrøn.” efter farveopfølgningen; uafhængigt semantisk og
+artifact-review afventer. Dette er syntetisk rigtig API, ikke fysisk eller browserbevis.
+Normal HA1.13.87 var Stoppet før prøven og er bagefter frisk verificeret Kører;
+ingen alpha installeret, engangsfane lukket og nøglevariabel ryddet.
+
+Aktiv integrationsbeslutning14/9: Den installerede OFF-baseline er1.13.87/be4c5e8,
+mens alpha er baseret på1.13.85/43430eb. Integrér de to allerede frigivne main-commits
+9a93375/be4c5e8 uden ny runtimepolitik, så alpha ikke tilbageruller nuværende adfærd.
+Diffet er robot-toolbeskrivelser, eksisterende evalforventninger, version og status;
+Thin/Live/lyd/firmware/approval-owner ændres ikke. Den separat afviste alpha-robot-
+capability-owner-rettelse indgår ikke. Berørte kontrakter: OFF-paritet, eksakt mål og
+samme serverejede autorisation. Hypotese: ren main-integration bevarer disse kontrakter;
+kontrollér merge-diff og relevante eksisterende tool/alpha-tests. Rollback er merge-
+commit; ingen installation eller fysisk godkendelse følger af integrationen.
+
+Aktiv tooling-beslutning14/9 — gentagne forsinkede supervisorlabels skal fjernes ved
+én vedvarende reviewterminal startet før API-prøven. Eksisterende evaluatorscript får
+separat --review-question DIR uden API-/nøgle-/fixturestart. Den viser præcis ét
+frosset gen2-spørgsmål, handling/mål og teksthash; lead svarer kun accept <hash> via
+samme terminals stdin. Det erstatter langsomme nye shellkommandoer, ikke semantisk
+review. Kandidaten udskiftes aldrig bag reviewerens ryg. Et samlet absolut deadline,
+bounded/fuldstændig JSONL-prefixlæsning, entydige seq/JSONkeys, frisk validering af
+samme annotation og atomisk no-overwrite-publicering er påkrævet. EOF/forkertinput/
+nytoutput/input/generation/proposal/udløb giver ingen label; eksisterende dispatch-
+revalidering bevares. Ingen runtimeadfærd, TTL, prompt eller automatisk fraseaccept.
+Implementeret og frosset14/9: 205 evaluator-tests PASS på6.43s; Ruff og format PASS.
+Uafhængigt Astra adversarial review giver scoped GO på script
+b8fc0b67f686bfaf63187b3fbf6c3581c066ba2118ecc94afa6c3f58ecdf5892 og tests
+b7b35e5512acc336553826a9023433df594aaa99ab968a8c796f1c7ec5f1fb9c.
+24 nye regressioner samt reviewerens seks closure-adversaries dækker bl.a.
+afsluttet prøve efter visning: gen2-lukning afviser, normal gen1-rotation tillades.
+Dispatch-valideringen er fortsat nødvendig efter publicering. Den reelle reduktion i
+supervisorforsinkelse er endnu umålt; næste afgrænsede API10 skal måle den. Ingen ny
+API-, installations- eller fysisk evidens i denne ændring. Rollback er reviewerCLI alene.
+
+API09 afsluttet14/9 på cbaac95 med nyt reviewet pre-handler-målepunkt. Helper09
+ændrer alene sourcepin/output fra08, SHA
+63d0a110daa961d706d0d773195c678766ad6b392d53a8bac946edde64373d7d.
+Parent92760 exit0/child2 UNKNOWN. Gen2friskja blev genkendt; ingen effekt/followup,
+clean_shutdown=true/usage_complete=true/runtime_faults=[]. Ny måling viser gen2
+session.delegation.created samt2response.created/2response.completed og efterfølgende
+værktøjshåndtering. Her ankom altså backend-events; fraværet fra08 blev ikke gentaget.
+Primærtale “Ja, jeg kører den” blev efterfulgt af sand afvisningsforklaring om udløbet
+bekræftelse. Fixture blev først sendt38.228s, så supervisorsvarets forsinkelse er igen
+en relevant forklaring; præcis tidsaudit mangler. Ingen runtimepatch udledes heraf.
+Gentagen supervisorsvar-forsinkelse skal løses i testarbejdsgangen før flere sådanne
+positive/kontekstprøver; behold originalTTL og samtlige tidligere resultater. Vi må
+ikke fortsætte uændrede manuelle forsøg, hvor værktøjsrundture bruger acceptvinduet.
+HA.87 verificeretStoppet før/efter, rootStart derefter og friskKører verificeret;
+nøgle/formular ryddet. Ingen installation eller fysisk accept.
+
+SDK pre-handler-måling14/9 er implementeret i evaluator alene og uafhængigt Astra
+HIGH reviewet scopedGO. Script SHA
+cc4f3136c545994feb85fe15cc6bc274372751f15dd722907dffa5a3420e6877,
+tests SHA2f7f4ae498971700aea36b5c1c9537efb291a3a032e31ce5ed3250bcfac820cb.
+Alle181evaluator-tests bestod6.22s, Ruff/format rene; reviewer gentog fire målrettede
+adversaries. Sammeevent/generation videresendes én gang; exception/cancellation
+bevares; payloadudeladelse/invalidtype-redigering/ukendte typer/realSDKbatchcontinuation
+er testet. Lokalt stressmål6000metadata-rækker:1.10MB/23ms, under nuværende2MB/10k-
+grænser. Det er lokalobserveromkostning, ikke provider- eller fysisklatensbevis.
+Type-only metadata er nok til den erklærede snævre SDKmodtaget-versus-ignoreret-type-
+grænse. Fravær må kun konkluderes fra komplet ren observation; kapacitets-/skrivefejl
+kan afbryde evaluator og gør sådan en konklusion ugyldig. Ingen produktionsfiler,
+model, prompt, autorisation, lydtransport eller tidsgrænser er ændret. API09 endnu
+ikke startet; nye sourcepins kræves i engangshjælperen før næste diagnostic.
+
+API08 afsluttet14/9, parent73952 exit0/child2 UNKNOWN. Frisk gen2spørgsmål og fuldt
+“Ja, gør det”36.674s observeret; primærtale “Okay, jeg sender den nu.” fulgte, men
+ingen gen2 LiveBackendStarted/Complete/ToolBatch, effekt eller followupfixture.
+Instruktions-ACK kom15.900s før spørgsmålet17.142–18.834s; fuldt ja havde ca.2.329s
+før originalexpiry39.003s. Intet backend-kald kan udledes af talen. Begge sessioner
+lukker rent med finalusage, i alt49voice-sekunder/14141backendtokens; ingenruntimefault.
+HA.87 stoppet før, manuelt startet efter og frisk Kører verificeret; nøgle/form ryddet.
+Aktiv afgrænset målebeslutning: evaluator-only observation ved SDK pre-handler.
+Eksisterende log ligger efter produktionsadapterens parsing; nul oversatte backend-
+events beviser ikke fravær af modtagne/ignorerede SDK-envelopes. Tilføj kun bounded
+outer/nested eventtype og generation før uændret super._handle på samme objekt.
+Ingen eventbody/lyd/argumenter/nøgler/prompts logges. Kildelabel siger sdk_pre_handler,
+ikke uafhængigt wire-/providerreceiptbevis. Hypotese: næste tilsvarende trace skelner
+manglende SDKbackend-event fra ignoreret eventtype/parsing. Invarianter: Thin ejer
+stadig admission/autorisation; ingen ny delegation, force-call, TTL, prompt, VAD eller
+runtimepatch. Regressioner skal bevise videresendelse, eventorden, ukendte typer,
+malformet/redigeret metadata og uændret fejladfærd. Uafhængigt review og målrettet
+softwaregate kræves før næste API-prøve. Rollback er kun evaluatorinstrumenteringen.
+
+API07 uafhængig semantisk delvurdering14/9: “prøvehandling” versus “prøvehandlingen”
+ændrer hverken den anmodede handling eller målet hoveddøren. Én direkte godkendelse
+med én præcist bundet effekt er dermed manuelt semantisk konsistent; automatisk
+UNKNOWN bevares, og reconsideration er ikke afprøvet. Gen1levering er eksakt fuld
+resampling; gen2provider-input er et eksakt præfiks med alle ja-ytringens samples,
+men mangler32.640 efterfølgende resamplede nulbytes (~0.680s stilhed). Den fulde
+sourcefil må derfor ikke kaldes identisk med hele providerfilen; closegrænsen audit-
+kontrolleres særskilt. Modelens end_conversation efter vellykket tool-resultat er i
+overensstemmelse med nuværende promptkontrakt for afsluttet selvstændig handling,
+ikke i sig selv en ny closefejl. Ingen fysisk-/stabilitets-/fuldUX-gate arves.
+Forberedt næste afgrænsede diagnostic: eksisterende context-followup-case på samme
+frosne kode. Efter frisk ja og lokalstub-effekt sendes det deklarerede opfølgende
+spørgsmål om tidligere oplyst cykelfarve; målet er kontekst og fortsat samtale under
+resultat/closeforløb. Helper08 ændrer kun case/output fra07, SHA
+b38235feaec507bce5a26348cc182afdd082766b979d9657d5f81b99ce1f5601.
+Den er endnu ikke startet, og der er ingen samtidig runtime/timing/promptændring.
+
+API07 afsluttet14/9 på samme frosne runtime/evaluator som05/06, HEAD32ea489 kun docs.
+Parent12871 exit0/child2, automatisk UNKNOWN. Gen1transcript “Kør prøvehandling for
+hoveddøren” afviger fra exactfixture “Kør prøvehandlingen for hoveddøren.”; derfor
+opening_recognized=false. Gen2spørgsmål “Vil du køre prøvehandlingen for hoveddøren?”
+blev reviewet som samme præcise handling/mål og bundet til seq49..55/provider0..1800ms.
+Label28.732s, fixture30.734s, fuldt friskt “Ja, gør det”32.864s, én lokalstub-effekt
+34.223s. positive_effect_linked=true, effect_before_fresh_evidence=false. Begge
+sessioner lukker rent, usage_complete=true, runtime_faults=[] og thin_session_ended.
+Uafhængigt audit af betydning/identiteter/expiry/semantisk close er i gang; automatisk
+UNKNOWN bevares. Dette må ikke blive til fuld funktionsmatrix, fysisk accept eller
+hørestabilitet. HA.87 blev verificeret Stoppet før/efter prøve, manuelt startet af
+root bagefter og frisk verificeret Kører; nøglevariabel/formular ryddet.
+API06-uafhængigt audit fandt hele05source-0/provider-input-1 som byteeksakte præfikser
+af06 med kun yderligere stilhed. Samme komplette openingclip én gang ved1.86s, eksakt
+produktionsresampling; ingen payloadkorruption/trunkering. Forskellig genkendelse på
+sammePCM isolerer ikke provider/model/pacingårsag og begrunder ingen runtimepatch.
+
+API06 afsluttet14/9 på samme reviewede runtime/evaluator som05; HEADf7396aa er kun
+docs-descendant. Helper06 ændrer alene engangsoutputmappe fra05 og har SHA
+6328fe8c52f12d578344ead072ccf902b0a68d85f1cc85a424675418fa88ab52.
+Parent14435 exit0/child2, verdictUNKNOWN. Gen1input blev transskriberet “Kør
+prøvehandling for at hue døren”; modellen spurgte “Mener du hoveddøren eller
+køkkendøren?” i samme generation. Ingen pendingproposal, friskgen2, reviewlabel,
+ja-fixture eller effekt. Vi sender aldrig et generisk ja til en målpræcisering og
+kalder det autorisation. Faktisk én session med finalusage54voice-sekunder/7044tokens;
+clean_shutdown=true, assayusage_complete=false da tosessioners forløb ikke nås.
+Uafhængig sammenligning af source/fixture/providerresampling med05 er i gang;
+ASR-afvigelsen er ikke nok til en gain/VAD/promptpatch. HA1.13.87 blev verificeret
+Stoppet før prøve, fortsat Stoppet efter; root trykkede Start og verificerede Kører.
+Nøglevariablen er ryddet og engangsfanen lukket. Ingen installation/fysisk gate.
+
+Uafhængig API05-audit14/9: alle7artifactidentiteter,9sourceidentiteter,50runtimefiler,
+8fixtures, annotationhash og begge eksakte PCM-resamplinger er verificeret. Expiry
+4045192.16450275 svarer til elapsed42.704–42.705s på samme hostmonotone ur. Label kom
+16.447s efter spørgsmålets tekstslut, med3.258s tilladelse tilbage; fixturedispatch
+havde1.257s tilbage. Første genkendte “Ja”43.020s og fuldt “Ja, gør det”43.547s kom
+begge efter udløb; completed approval44.922s var ca.2.217s for sent. Udløb er dermed
+tilstrækkelig observeret afvisningsårsag. Ingen reconsideration-tilbud eller kald i
+nogen generation; gen1sidsteinput8.347s kom førbackend10.949s. Usage48voice-sekunder/
+30665backendtokens; begge sessioner lukkede rent. FAIL står ved magt, men forsøget
+beviser hverken rettidig positiv godkendelse eller semantisk negativ testcase.
+Næste prøve bruger samme frosne kode og TTL med rettidig superviseret fixture-pacing;
+undgå yderligere status-/artifactarbejde mellem spørgsmålsreview og annotation.
+
+API05 afsluttet14/9: parent25644 exit0, evaluator2/verdictFAIL, nul effekter. Den
+superviserede gen2-tekst var “Skal jeg starte prøvehandlingen for hoveddøren nu?”;
+spørgsmålet sluttede22.999s, men leadens label blev først modtaget39.447s. Frisk
+ja-fixture41.448–42.391s blev korrekt genkendt “Ja, gør det” ved43.547s. Modellen
+kaldte approve_action44.922s; policy afviste approval_denied. Endelig rapport siger
+clean_shutdown=true og usage_complete=true. Tidslinjens præcise expiry og evt.
+gen1-reconsideration undersøges uafhængigt før næste prøve; runtime-TTL må ikke tunes
+for at kompensere for forsinket supervisorsvar. Positiv godkendelse er stadig ikke
+bevist, og arkivets FAIL ændres ikke.
+Frosset sammensat softwaregate980dfe7 bestod: fast73914 exit0,97.8s total,
+pytest97.19s, Ruff/format43filer, mypy50sources. Første forsøg47632 fejlede, fordi
+sandboxen forbød lokal socket.bind; isoleret test_models_endpoint viste samme
+PermissionError. Genkørsel med autoriseret loopbackadgang bestod uden kodeændring.
+Fremtidige gates med lokale servere bruger denne adgang fra start i samme miljø.
+Helper05 SHAab0e17fef1178231b2175220069ccdf136542f903503995355dbf280006dfd3a,
+50runtimefilers manifest14bcccb0e1668343ae168a015a6bc39eedf6be6024ea5aa081a6484c4ddfa115.
+Aktuelt HA viser1.13.87: frisk IDLE/0sessioner før prøve, derefter Stoppet verificeret
+før aflevering af den private engangsnøgle. Efter prøven viste HA allerede Kører;
+rootens Start-locator fandtes derfor ikke, og root har alene verificeret drift igen,
+ikke udført eller tilskrevet genstarten. Brugeren oplyste samtidig genstart af Voice
+PE; det er brugeroplysning, ikke fysisk alphatest. Engangsfanen er lukket og nøgle-
+variablen ryddet. Ingen ny installation eller ændring af normal runtime/settings.
+
+Resultat14/9 — goal-funktionen viser nu ACTIVE efter brugerens genstart; den fulde
+målsætning er uændret. Supervised evaluator er uafhængigt Astra HIGH reviewet GO:
+177 regressioner bestået. Script SHA77989cd42b09ff2c813fca94f7e11e6e2534676d211d380d5039d59de62952ca,
+test SHA83c148eb840112ea3fa731f6e00ff74dd6506a7f8d1d858d22272deb8dafebf3.
+Review lukkede automatisk fallback uden label, ny input/output under pacing-delay,
+udløbet/pensioneret proposal, queued SDK-events, duplicate JSON samt manglende
+dispatchbevis ved tilsigtet stilhed. Label styrer alene syntetisk fixture-pacing;
+produktets autorisation er uændret. Ingen ny API-prøve eller fysisk evidens endnu.
+HA-fanen viste ved seneste opslag1.13.85 Kører, men også reconnect-banner; frisk
+forbindelse skal verificeres før prøve. Fetched origin/main er be4c5e8/version1.13.87.
+Lead låser denne sammenligning til observeret installeret1.13.85/43430eb, så arbejdet
+ikke følger hver ny main-version. .85 ændrer robotbeskrivelse/eval/version/docs, ikke
+Thin, SDK, audio eller lifecycle. Baselineintegration kræver sammensat kontrol; ingen
+arvet fysisk godkendelse og ingen capability-owner-ændring.
+
+Genoptaget14/9 efter brugerens “update the goal and start it again, and pursue it
+relentless”. Slutmålet er fortsat en reversibel Alpha ON/OFF med funktionsparitet,
+Live-native samtale, uafhængigt review, software/live-gates og præcis installeret
+kandidats fysiske golden chain, 10/10 lifecycle, dobbelttale og målte svartider.
+Næste konkrete checkpoint er et troværdigt superviseret API-bevis for frisk
+stemmebekræftelse; evaluatorens nye label-kontrol testes og reviewes før API05.
+Appens mål står stadig blocked; tilgængelig mål-API kan hverken ændre objektivet på
+et eksisterende uafsluttet mål eller genoptage status. Arbejdet fortsætter i denne
+opgave, mens brugerens Start/Genoptag-kontrol ejer scheduler-status.
+Separat robotændring nedenfor er kun en foreslået beslutning: automatisk review
+afviste ændringen af capability-ejerskab og krævede eksplicit særskilt godkendelse.
+Runtime er uændret på denne grænse, og godkendelsesspørgsmålet er fortsat åbent.
+
+Faktisk API-prøve04 er terminal UNKNOWN, parent20115 exit0/evaluator2. To sessioner,
+nul effekter, fuld korrekt åbningsytring. Sidste inputfragment8.7426s ligger før
+backendstart8.7815s; reconsider_action blev derfor IKKE faktisk afprøvet. Frisk gen2
+spurgte “Vil du køre prøvekørslen for hoveddøren?” ved17.096–18.797s. Det er semantisk
+samme lokale tilbud, uafhængigt reviewet, men den eksakte fixtureordlyd matcher ikke;
+ingen frisk ja-fixture blev sendt. Gen2-source er kun stilhed, ikke afvist brugersvar.
+Begge forbindelser lukkede korrekt: gen2close60.0040→62.7886s, heraf manager1.993s.
+Endelig usage48voice-sekunder/14153backendtokens. Uafhængig Astra-audit verificerer
+alle7artifactidentiteter,9sources,50filers manifest,8fixtures og begge eksakte PCM-
+resamplinger. HA1.13.84 er genstartet og Kører frisk verificeret; handoff lukket,
+ingen nøgle beholdt eller ny installation. Prøve04 må ikke eftergodkendes som fuld PASS.
+
+Aktiv lead-beslutning — næste developer-prøve bruger eksplicit superviseret spørgsmål.
+Ingen voksende synonym-/fraseparser eller runtimeprompt ændres for at passe testen.
+En engangs reviewannotation binder agentens semantiske vurdering til aktuel gen2,
+eksakt pendingchallenge og faktiske transcript-receipts/span/hash/providerinterval.
+Prøveværktøjet validerer bindingen før syntetisk svar, logger annotationen og beholder
+alle eksisterende input-/effekt-/tidskrav. Forkert, manglende, forsinket eller tvetydig
+annotation giver ingen fixture og UNKNOWN. Det er superviseret syntetisk test, ikke
+produktets brugerautorisation, fysisk tale eller et provider-completion-signal.
+Uafhængigt review og passende orakelregressioner kræves før API05.
+
+Aktiv lead-beslutning — reparér eksisterende Live device-capability-ejerskab. Stærkeste
+bevis er den ovenstående rigtige ToolRouter/DeviceControl-reproducer med mock-HA.
+Hel kæde: modelens capabilitylookup→serverudstedt token→næste backendrespons→prepare→
+policy/guard→HA-send→resultat/playback→teardown/næste wake. Response-ID som owner gør
+et gyldigt sekventielt token ugyldigt; samme owner bruges også af start-once-journalen.
+Lead vælger kun for de to interne device_control.TOOL_NAMES i Live dispatch et stabilt
+ExecutionContext.turn_id=live:generation:delegation_id; alle andre værktøjer og
+approve_action beholder faktisk response-ID. Ingen nye routerargumenter/abstraktioner.
+Invarianter: tokenets præcise mål/argumenter, TTL, engangsbrug, samme session/generation,
+start-once og unknown-outcome-spærre bevares. Faktisk responseadmission/inputreceipt/
+revision/epoch/Stop/schema/post-awaitguards er uændrede og må ikke bruge delegation
+som friskhedsbevis. OFF uændret. De to interne tools bruger allerede trusted READ_ONLY/
+LOW_RISK; ingen ny følsom godkendelsesregel indføres. Uafhængig design-GO foreligger.
+Hypotese: lookup og efterfølgende handling i samme modelopgave virker, mens andre
+opgaver/generationer, udløb/replay/Stop/queuedkorrektion stadig afvises. Regressioner
+skal bruge rigtig Thin+SDK+ToolRouter+mock-HA inkl. reviewed device-call, sekventielt
+returneret token og anden start afvist. Rollback er alene de to tools' kontekstvalg.
+Ingen samtidig firmware, VAD, gain eller lydtuning. Kandidaten er fortsat ikke fysisk
+klar; scoped kodereview, sammensatte tests og fast kræves før næste API-checkpoint.
+
+Samlet softwaregate14/9 på frosset fdc5503 er terminal exit0: fast54618,
+Ruff/format43filer, mypy50sources, hele pytest108.81s, samlet109.5s. Ingen source/docs
+blev ændret under gaten. Uafhængigt composed Astra-review verificerer .84-samlingen
+og giver scoped GO til én bounded syntetisk API-prøve, ikke installation/fysisk proof.
+Helper04 bevarer nøjagtigt den tidligere reviewede one-use loopback-mekanisme; kun
+sourcepins og ny outputmappe ændret. SHAac3ea4aed4f58a9dfac4d5deb395a0c8c4ce9c953defad5c90cd8f7069950667,
+50runtimefilers manifest55a2ad97b7cc8f46b83e0f32c1f37de2f2a3cc2a89e02451145aeb60460b671d.
+Prøve04 er på registreringstidspunktet endnu ikke startet. Den må kun bruge lokalstub,
+syntetisk fixture, to providerstarts, eksisterende observations-/cleanup-lofter og
+normalproduktion stoppet kort og verificeret genstartet bagefter. Ingen hus-effekter.
+
+Baselineintegration14/9 — .84 er nu sammenført med alphaen. Eneste konflikt var
+den indledende STATUS-log; begge komplette beslutningshistorikker er bevaret i samme
+fil. Runtime-reviewhashes er uændrede; versions-/robotbeskrivelses-/evalændringer kommer
+fra origin/main af0fad6. Composed kontrol og én fast-gate mangler på samlingen.
+Separat device-control-finding er reproduceret med rigtig ToolRouter/DeviceControl og
+httpx.MockTransport: capabilitylookup under live:1:response-one giver token; brug under
+live:1:response-two afvises device_capability med nul stubwrites og konsumerer token.
+Frisk token under samme owner giver én stubwrite. Ingen netværk/enhedseffekt.
+Reproducer /private/tmp/podvoice-live-device-owner-repro.py SHA
+9041e86a37b2a7f42229d8e175d80fc70ca3ea65f201a5fe93c7332eb7d461b8.
+Default extended_device_control=False; installeret værdi ukendt. Fuld funktionsparitet
+må ikke hævdes. Årsagsgrænsen håndteres særskilt efter genvurderingens API-checkpoint;
+ingen capability-owner-patch i denne samling og ingen fysisk installationsgodkendelse.
+
+Resultat14/9 — den specifikt godkendte reconsider_action-kontrakt er implementeret
+og har uafhængigt Astra HIGH scoped GO. Frosne runtimehashes: Thin
+b582d80591b7ae550a35a95e2b884b3c2c63f5f874cbfa921c3d51d2cdc204c8; SDK
+c320810eea1bc6a2b0b1b41fd6383dc62548d71dd09b9b9b5bec3a159b2dc28d; prompt
+e4abf9a6aea1cc1bfe39673cbbdf8b81b9bb7b3401300c69875ba9e3d8e9ac39.
+226 Thin/Talk/SDK/prompt-regressioner og115 evaluatorregressioner bestod uafhængigt.
+Fire ekstra in-memory modprøver (native/Talk × queued input/foreign backend under
+approval-dispatch-await) gav nul effekter før Thin-callbacks; de beviser kun dispatch-
+fence, ikke fysisk cleanup. De almindelige sammensatte tests dækker software-teardown.
+Evaluatorhash4f17fad91225e7d3a3302f822b31f01b1a6baa39c4a58609d37e1c9d43aca734;
+ test503f47c6ddbe10958a4c364729e028c8d30761cf282a0207ae9db159fbc5dff1.
+Måleværktøjet kræver nu eksakt oprindelig approval, én leveret uafkortet token/evidens,
+fuldt friskt inputinterval, faktisk SDK-single-flight, rigtige wire-identiteter og
+uændrede modtagelsestællere ved dispatch/effekt. Ingen ekstra Thin-observatør.
+Faktisk modelsemantik, cleanup og fysiske gates er fortsat UBEVIST; endnu ingen API04.
+
+Baseline14/9: HA viser nu1.13.84 Kører; root har alene læst UI. Frisk origin/main
+af0fad6 er .84 og tilføjer direkte kendt Roborock-ID i værktøjsbeskrivelsen samt
+sand passive-receipt eval, versioner/docs/tests. Ingen Thin/SDK/promptændring i upstream.
+Lead integrerer denne baseline efter ovenstående frosne reviewcheckpoint, bevarer begge
+beslutningshistorikker og kræver composed diffkontrol + fast før afgrænset API-prøve.
+Review fandt separat mulig eksisterende Live device-capability-ejerfejl mellem
+backendresponser: capabilityowner bruger response-ID. Read-only reproducer undersøges;
+ingen samtidig runtimepatch og ingen påstand om fuld funktionsparitet. Alpha er ikke
+installations-/fysisk testklar. Ingen releasegate, mainmerge eller installation.
+
+Brugergodkendelse14/9 — efter forklaring af den konkrete genvurdering med engangs-ID
+svarede brugeren “Ja tak.” Det godkender implementering af den nedenstående Live-only
+reconsider_action-kontrakt, inklusive bounded inputevidens/modtagelsestællere og
+uændrede Stop-, policy-, expiry- og engangsgrænser. Den tidligere automatiske afvisning
+er historik; konkret godkendelse er nu modtaget. Implementering, independent diffreview,
+sammensatte regressionsgates og faktisk API-bevis skal stadig udføres. Ingen ny
+installation eller fysisk godkendelse følger af dette ja.
+
+Resultat14/9 — developer-evaluator rettet og uafhængigt godkendt. To falsk-positive
+veje er lukket: effekt før frisk evidens og backendstart før det komplette friske ja.
+En positiv effekt kræver nu faktisk completed eksklusiv approve_action med præcist
+challenge/session/dispatch/effect-link; backend skal starte efter genkendt ja, og batch
+skal afsluttes efter fixturelevering. Manglende link eller en fremtidig review-protokol
+forbliver UNKNOWN. Nye rettelser før effekt kan ikke skjules af et tidligere ja.
+85 fokuserede tests bestod både hos implementør og uafhængig Astra HIGH reviewer;
+Ruff/format bestod. De nye kausale modprøver var røde før rettelserne. Tidligere prøver
+01/02/03 forbliver UNKNOWN med nul effekter ved offline replay. Frosne hashes:
+script5027ce07b43c66c774599cfda941d4e6622ab858b8b37b32536b8e2d12c90191 og
+ tested3c63e9bf2d752d3da60d7250622266a6d7c1f652227fe4528a5e6589b8e3fe.
+Ingen runtime-, prompt-, firmware- eller APIændring i dette checkpoint. Den nye
+reconsider_action-runtime kræver fortsat den konkrete godkendelse beskrevet nedenfor.
+Produktionsstatus sidst verificeret1.13.82 Kører efter prøve03; alpha ikke installeret,
+ingen releasegate eller fysisk gate bestået. Ingen ny API-prøve startet efter03.
+
+Implementeringsstatus14/9 — genvurderingsprotokollen er IKKE skrevet. Første SDK-
+apply_patch blev afvist af automatic approval review med begrundelsen: ny Live runtime-
+autorisations-/dispatchprotokol og inputejerskabstællere ændrer Realtime-semantik uden
+udtrykkelig brugergodkendelse af netop protokollen eller afsluttet uafhængigt review.
+Uafhængigt Astra HIGH designreview gav conditional GO for implementering og offline
+bevis med de nedenstående ejerskabsvilkår; dette er ikke review af et implementeret diff.
+Ingen retry eller alternativ skrivevej anvendt. Lead skal indhente konkret godkendelse
+før runtimeprotokollen implementeres. Den allerede reviewede cleanup-rettelse og dens
+beståede softwaregate er upåvirket; alpha-gren a944e9b er uploadet, ingen installation.
+
+Separat developer-evaluator-finding14/9: uafhængig replay injicerede en stub_effect før
+frisk spørgsmål/fixture i en ellers positiv trace; assessor returnerede OBSERVED_PASS.
+Det er en falsk-positiv mulighed i prøveværktøjet, ikke bevis for faktisk tidlig handling;
+alle tre faktiske prøver havde nul effekter og UNKNOWN. Ret kun evaluatorens effekt-
+korrelation til frisk fuldt afleveret/genkendt ja, gen2 og faktisk completed godkendelses-
+batch. Tidlig effekt skal være FAIL; manglende binding UNKNOWN. De seks negative cases
+fejler allerede på enhver effekt. Ny runtimeprotokol forbliver blokeret og må ikke
+indføres indirekte gennem denne afgrænsede måleværktøjsrettelse.
+
+Aktiv lead-beslutning14/9 — én Live-only semantisk genvurdering af ekstra input.
+Direkte fejl: prøve03s normale suffix efter backendstart medfører nul-effekt afvisning.
+Rå transcriptfragmenter er ikke semantiske ture; hverken delegation eller valgfri
+client_event_id er et bevist inputvandmærke. Lead vælger en afgrænset reserved tool
+reconsider_action(review_token, decision=proceed|discard), uden handlingsnavn eller
+nye argumenter, gennem samme officielle managed backend. Ingen ekstra model.
+Thin fastholder én eksakt, valideret, endnu uudført handling. Dens zero-effect-resultat
+bærer et nyt engangs-ID og hele det nødvendige observerede inputinterval: supplerende
+fragmenter efter oprindelig backendstart; ved approve_action hele den friske periode
+efter confirmation-floor. Manglende interval eller overskredet eksisterende2048-byte
+resultatgrænse giver afvisning, aldrig trunkering af en mulig rettelse.
+Ejerskab: samme session/generation/delegation, ingen anden udestående respons/batch ved
+udstedelse. Første efterfølgende respons kan være kandidat, men kun eksakt token i
+én completed, eksklusiv review-call giver genvurderingsbeslutningen. Token er bevis for
+adgang til eksplicit leveret data, IKKE fuldført tale eller forståelse af uhørt input.
+Ny faktisk modtaget input, anden/foreign respons, mixed/no-call, Stop, expiry og replay
+retirerer review. SDK's lokale modtagelsestællere kontrolleres ved udstedelse og alle
+post-await effektguards, så endnu ikke behandlede queue-events ikke kan krydse grænsen.
+Berørte invarianter: Thin er ene semantiske runtime-ejer; modellen ejer betydning;
+completed schema/budget-validering, præcise originale argumenter, engangsapproval og
+Stop/mic/playback/teardown/rearm bevares. Godkendelseschallenge fastholdes unconsumed
+kun under én review og uden forlænget TTL; review må ikke gentages. Resultat/terminal-
+receipt bindes til faktisk review-wire-call og respons; eksisterende dispatch bruges.
+Hel kæde: fysisk input→SDK receipt→Thin evidens→completed stale call→zero-effect review-
+resultat→modelbeslutning→policy/dispatch eller discard→playback/farvel→close/rearm/nywake.
+Hypotese: modellen kan skelne almindeligt suffix fra reel rettelse med den leverede
+tekst uden en lokal fraseparser. Regressioner skal modbevise med hoveddø/ren, ja/nej,
+queued input, concurrent/foreign response, replay, overflow med slutafslag, udløb,
+Stop og næste generation samt native/Talk/OFF. Ingen SDK transportomlægning, nye
+hjemmeværktøjsskemaer, VAD/gain/timeouts eller lydændring. Rollback er hele denne
+isolerede review-kontrakt. Uafhængig design- og kodereview, relevante sammensatte tests,
+fast og passende SafeEval før API-prøve. Kandidaten er fortsat IKKE fysisk testklar.
+
+Samlet softwaregate14/9 på frosset checkpoint12e1cd0 er terminal exit0:
+scripts/dev fast --base origin/main, proces72525, Ruff/format43filer, mypy50sources,
+hele pytest93.06s, samlet93.5s. Ingen source/docs ændret under gaten. Dette beviser
+softwarekontrakten; faktisk provider-cleanup, semantisk matrix og fysiske gates mangler.
+
+Inputrevisionanalyse14/9 afviser en ny client_event_id-baseret autorisationsmekanisme:
+SDK-feltet er valgfrit, og tidligere faktiske måle-/farvelprøver sendte eksplicit
+response.create-ID uden tilsvarende ID i response.created. To uafhængige Astra-
+gennemgange bekræfter, at recorder ville have gemt feltet. Same-delegation/next-response
+må ikke bruges som skjult erstatning for denne manglende binding. Ingen kode bygget
+på den antagelse. Lead undersøger nu ét eksplicit, engangs review-token i eksisterende
+managed tool-result-kæde med serverfastholdt originalhandling og faktisk observeret
+input. Dette er alene design under adversarial review; ingen ny semantisk kontrakt
+eller runtimeændring implementeret endnu. Flere API-prøver er fortsat stoppet.
+
+Resultat14/9 — Live provider-close-budget implementeret som ét Live-only argument.
+Uafhængig Astra HIGH scoped GO på Thin28dd0ca563e51f5a744c53bff0a41a9ad581cf50b31ceeb263c5d51f891d9c77
+og test7136d5920130459d54e4728a2a6e53602f5f7b82ec8fa33b62acbcdb809db811.
+77 ThinLive/TalkWebRTC-regressioner bestod både hos testforfatter og uafhængig reviewer;
+fjernelse af argumentet reproducerer de to forsinkede normale cleanup-fejl.
+Ruff/format bestod. Samlet fast på dette nye diff og faktisk provider-cleanup mangler;
+ingen releasegate, installation eller fysisk godkendelse. Kendt cancellation-finally-
+begrænsning og fail-closed ved udtømt budget er bevaret. Inputrevision er næste
+selvstændige årsagsgrænse og må ikke kaldes rettet af denne ændring.
+
+Aktiv lead-beslutning — Live provider-close-budget14/9 efter fuld årsagsgennemgang
+og uafhængig designkontrol. Tre prøver lokaliserer normal official session.closed
+før socketmanager-release; gen1 normal release1.880s plus providerfinalisering kan
+overskride Thin's generiske2s fase. Mindste ændring er at bruge adapterens eksisterende
+timeout_s for Live provider-close alene, fortsat afskåret af samme samlede12s budget
+og native6s rearmreserve. OFF beholder2s. Ingen nye konstanter, retries, baggrunds-
+cleanup, fakeACK eller ændring i fysisk Stop/mic/playback-gate.
+Berørt kæde: synkron Stop/publiceringsspærre→fysisk silence/stop-streaming→officiel
+providerfinalisering→SDKsocketmanager→HTTPclient/leasefrigivelse→øvrig cleanup→
+korreleret rearm/næste wake. Hypotese: faktisk normal lukning kan afslutte inden for
+allerede eksisterende fælles budget frem for falsk timeout ved2s. Ved udtømt budget
+forbliver teardown incomplete og readiness blokeret; reservetid er ikke i sig selv
+bevis for gennemført rearm. asyncio.wait_for afventer cancellation-finally, så12s
+er ikke et hårdt wallclockloft ved modstandsdygtig cleanup; det må ikke loves.
+Regressionskrav: forsinket SDKmanager efter finalusage på native og Talk, ordnet HTTP-
+close/lease/rearm, budgetudtømning uden falsk readiness, Stop under resistantstartup
+og uændret OFF2s. Rollback er ét Live-only timeoutargument. Uafhængigt kodereview og
+målrettede/composed gates før næste liveprøve. Inputrevisionfejlen løses særskilt;
+alpha forbliver ikke fysisk testklar.
+
+Tredje faktiske prøve03 på commit c65363e er terminal UNKNOWN (proces48526 parent0,
+evaluator2). Frisk fuld åbningsytring genkendt, men backendstart7.0767s ligger før
+sidste transcriptfragment "ren" ved7.3691s (provider4200–4400ms). Completed eksakt
+oprindeligt værktøj8.7118s afvises stale_input_revision8.7128s før StubTools-dispatch.
+Ingen proposal/rotation/gen2 og dermed IKKE faktisk afprøvet ny spørgeinstruktion.
+Én faktisk session, nul effekter, finalusage54voice-sekunder og13303backendtokens.
+Assay usage_complete=false kræver to generationer; den ene faktiske sessions usage
+ER final. Uafhængig Astra-audit matcher source/artifact/hash og fuld PCM-resampling.
+Cleanup nu præcist lokaliseret: finalusage/closed/readerdone ved60.7562s;
+manager_exit starter60.7562s og annulleres62.0057s af ydre2s provider-step.
+HTTPclientclose afslutter normalt62.0177s efterca12ms. .82 genstartet og Kører
+frisk verificeret. Ingen fortsatte prøveprocesser eller installation.
+Stop-the-line på yderligere API-prøver: hele inputfragment→backendstart→completed
+forslag→revisionguard skal forklares uden at opfinde lokale semantiske ture.
+Separat ejerskabsreview undersøger Live SDK-close kontra eksisterende12s samlet
+teardown/6s rearmreserve; endnu ingen timeoutpatch. De to kendte fejlgrænser holdes
+adskilt. Kandidaten er fortsat IKKE testklar; heller ikke kun fordi softwarefast
+eller instruktions-ACK senere skulle bestå.
+
+Frosset kandidat14/9 har uafhængigt Astra HIGH scoped GO: Thin
+ d0c4dfcbe5a09cd8eef45fc2a5ab1f7bd1119a835b06b81787ecc5245e4e5de5 og test
+1f1ab2b0f7102475a4c41e922483f3d5c91c9704968a11aafc1b1cd58eb6775c (181Thin/SDK
+regressioner); evaluator85055009571f58b72e435075cde2d392340e9b4fb8ca04555c99d345baac2d51
+og tests3b483318c7e041088e602fd7e17166c649e653818f426361dd058c47eaacc225 (63tests).
+Samlet autoritativ fast96631 er faktisk terminal exit0: Ruff/format43filer,
+mypy50sources og hele pytest95.07s, samlet95.5s. Ingen kode/docs ændret under gate.
+Næste gate er én afgrænset positiv faktisk API-prøve; helper03 er samme reviewede
+mekanik med nye sourcepins/outputmappe, SHA68bc7b1673e79bddc8a6427a9b3ed322d72c22adee1dbc686ef4f4578bf01706.
+50runtimefilers manifest560f111302c6e28b31f97b25e3579d613b43f1639a6b01837669bd1cdbe14c12.
+Der er ikke kørt releasegate, ny installation eller fysisk gate. Gammelt farvel-UX,
+fuld funktionsparitet, cleanup og fysisk duplex/latens er fortsat åbne.
+
+Release-observation afgrænset14/9: SDK3.13's manager.__aexit__ afventer WebSocket
+close, mens AsyncOpenAI.close afventer HTTPX.aclose. Lead godkender to små lokale
+forwarding-observatører i developer-evaluatoren omkring netop disse faktiske await-
+kanter. De bruger eksisterende statiske close_phase-labels, kalder originalen én
+gang og bevarer returværdi/cancellation/error. Ingen global monkeypatch, alternativ
+cleanup, længere timeout eller skjult retry. Regression injicerer cancel/error i
+hver kant og kræver korrekt ejerfrigivelse samt UNKNOWN ved manglende bevis.
+Formålet er at skille socketmanager fra HTTP-client i næste allerede afgrænsede
+måling; produktrettelse må først besluttes ud fra det faktiske resultat.
+
+Anden faktiske prøve02 er terminal UNKNOWN: proces1445 parent exit0/evaluator2.
+Ingen gen2-transcript/backend/spørgsmål og ingen positiv fixture; to providerstarts,
+nul stubeffekter, finalusage7+42=49voice-sekunder og13429backendtokens. Astra har
+uafhængigt verificeret identiteter og eksakt PCM-resampling. .82 er genstartet og
+Kører frisk verificeret. Teardown-timeout er nu lokaliseret efter providerens
+finalisering: close60.0048s, request return60.0052s, release enter60.8801s med
+finalusage/closed/readerdone alle sande, release cancel62.0071s. Gen1 release tog
+1.880s og bestod. Manager/socket kontra HTTP-client release er stadig ukendt;
+ingen timeoutændring er begrundet endnu.
+
+Aktiv årsagsbeslutning — begynd det friske godkendelsesspørgsmål via officiel
+Live-mekanisme. Prøve02 beviser tavshed under gen2 stilhed; nuværende rotation
+konfigurerer spørgsmålet i startup-instruktionerne, men sender ingen frisk speech-
+first-instruktion efter session.started. OpenAI-guiden genlæst14/9 beskriver netop
+session.instructions.append med delegation_id=null efter opstart, korreleret
+session.instructions.appended, fortsat inputaudio/stilhed og valgfrit kort
+commentary.append. Kilde: https://developers.openai.com/api/docs/guides/live-conversations#greet-before-the-caller-speaks
+Hypotese: én frisk dansk instruktionsappend efter ny capture/pump er aktiv anmoder
+modellen om at stille sit allerede konfigurerede spørgsmål før brugersvar. Brug
+først den eksisterende append_instructions-adapter; ingen ny abstraktion eller
+syntetisk brugerbesked, backendresponse, approve_action eller completion-ACK.
+Berørt kæde: fastholdt forslag→gammel finalisering→frisk capture/provider→instruktions-
+ACK→modelspørgsmål→ægte input→completed approval→dispatch→close/rearm; både native
+og Talk. Invarianter: én Thin-ejer, eksakt generation/engangschallenge, ingen
+instruktion som frisk brugerinput, OFF uændret, Stop/expiry/stale ACK fejler lukket.
+Regressionskrav: audio kan fortsætte mens ACK afventes; forkert/stale ACK er inert;
+Stop/expiry/ny generation under await kan ikke fremkalde sen tale/dispatch; ingen
+inputrevision eller godkendelse fra append alene. Hold startup-/close-timeouts,
+model/voice/backend og andre prompts uændrede. Manglende spørgsmål efter append
+forbliver måleresultat; ACK er ikke tale eller fysisk playback. Runtimepatch kræver
+uafhængigt review, målrettet Thin+adapter og relevant samlet fast før ny live-gate.
+Rollback er denne særskilte instruktionskant. Alpha fortsat ikke fysisk testklar.
+
+Evalrettelsen har nu uafhængigt Astra HIGH scoped GO på script
+ d81aaa32a59cac8016fc183144bda2835c29d0aa13824298374f6a69b02b195e og tests
+4b2d30a31274e0b20c6957a83e1d9d7f15b790df9363ec942fd05ddbcd76679b.
+57 fokuserede tests består uafhængigt. Før-spørgsmål/før-fixture inputkvitteringer
+med senere providertimestamps giver UNKNOWN; oprindelig prøve01 forbliver UNKNOWN.
+Evaluator venter nu på den deklarerede syntetiske spørgetekst med terminalt '?',
+frisk generation og gyldige fremadgående providerintervaller. Parafrase eller intet
+spørgsmål giver intet syntetisk svar/UNKNOWN, ikke en produktfejl. Close/request_close/
+release har developer-only enter/return/cancel/error-observationer og scalar-state;
+produktionens timeouts/semantik er uændret. Helper02 ændrer kun scriptpin og ny
+outputmappe, SHA f720b4707d38a04c285b4d84401167e09495bcc4cae38a2b4c4c9994db3b5ebb.
+Anden afgrænset API-prøve startet i proces1445 efter frisk Kører→Stoppet i HA.
+Output /private/tmp/podvoice-live-confirmation-positive-02; resultat afventes.
+
+14/9 faktisk positiv API-prøve01 — UNKNOWN, ikke semantisk accept. Efter brugerens
+strømtilslutning blev .82 Kører frisk verificeret; Stop blev kvitteret Stoppet før
+engangs-handoff. Proces97828 afsluttede faktisk: evaluator exit2, parent exit0.
+Rapport: /private/tmp/podvoice-live-confirmation-positive-01/report.json. To
+providerstarts, final usage på begge generationer (7+41=48 voice-sekunder; tre
+backendresponses, i alt21137tokens), nul lokale stubeffekter. .82 blev genstartet
+og Kører frisk verificeret bagefter. Ingen fysisk playback, installation eller
+hjemmehandling i prøven.
+Uafhængig Astra-kontrol bekræfter source-/fixture-/artifactidentitet og eksakt
+pending proposal + historik i frisk provider. Men syntetisk ja blev sendt18.229–
+19.151s og genkendt på gen2 interval2800–3400ms FØR faktisk nyt spørgsmål på
+5800–8200ms (host23.153–25.462s). Åbningsdiagnostik mangler desuden sidste suffix
+("hoveddø"), hvorfor exact opening-recognition ikke består. Provider-close ramte
+2s teardown-step-timeout ved62.007s, selv om finalusage foreligger. Ingen af disse
+observationer må omtales som vellykket autorisation eller fysisk forståelse.
+Aktiv næste årsagsgrænse er testfixture→provider-spørgsmål→frisk fixture, ikke
+runtime-authorisation: evaluatorens fase1/readiness er ikke bevis for et stillet
+spørgsmål. Ret kun developer-evaluatorens rækkefølge og instrumentér manglende
+close-kanter før ny API-prøve. Invarianter: ægte Thin/SDK/policy, ingen opfundne
+provider-ACKs, højst2connects/60s observation, ukendt input/cleanup giver UNKNOWN.
+Hypotese: vent på observeret nyt spørgsmål, så fixtureintervallet først begynder
+bagefter; manglende eller stale spørgsmål skal blive ukendt, ikke udløse et ja.
+Timeoutårsag er endnu ukendt: close omfatter request/finalusage, SDK-reader,
+manager og client-release. Ingen runtime-, prompt-, VAD- eller timeouttuning uden
+lokaliseret await/evidens. Regressionen skal genafspille observeret før-spørgsmål-
+sekvens og afvise den. Rollback er developer-script/tests; uafhængigt genreview
+kræves før en ny API-prøve. Kandidaten er fortsat ikke fysisk testklar.
+
+Genoptaget 14/9 efter brugerens eksplicitte destinationsgodkendelse: push af
+reviewet commit a6b548af4d844add60b69e735c31c1fdca2d55d2 til den separate branch
+codex/gpt-live-alpha-research i BixelVentures/podvoice lykkedes (proces33627,
+exit0). Ingen merge til main, release eller installation. Den tidligere
+publiceringsblokering er dermed fjernet. Uafhængig Astra-verifikation har nu
+hentet den eksakte firmwarepin b56a08a6d31044f7507b178961ac74f731474253 fra GitHub
+ind i en ny bare repo uden lokale objekter. Alle18 komponentfiler matcher både
+reviewet repo, lokal buildkopi og provenancefilens SHA256; ordnet manifest er
+25f0c9a87232d3bc043466e36dc87be77d4b95365d51850d176d264a04f098e2.
+Remote-kilden er dermed bevist hentbar og byteidentisk. Dette ændrer ikke den
+historiske dummy-PSK-build til en provisioneret installationsartifact.
+Mac/browseradgang virker igen. HA-info viste først cached 1.13.82/Kører med
+forbindelsesfejl; frisk reload og HA's egen Retry now endte begge på Unable to
+connect to Home Assistant. Derfor er nuværende driftstilstand UKENDT, ikke bevist
+Kører. Den dokumenterede lokale adresse homeassistant.local:8123 fejler DNS-opslag.
+Ingen nøgle er læst, ingen produktionsservice stoppet og ingen ny API-prøve startet.
+Den reviewede positive eval afventer adgang til eksisterende konfiguration og et
+verificeret isoleret testvindue. Der udledes ingen runtimefejl af forbindelsesfejlen.
+
+Lokal nøgle-handoff har nu scoped GO efter uafhængige Python3.12.13 socket-tests:
+partial body0.253s og tricklede headers0.329s, ingen accepteret nøgle. Reviewer
+verificerede finally-close og global admissionalarm. Endelig helperhash
+3bb2d7801432300ead1509b43bf25ead4c2c9291fa6cf9bd0af5593bf9bb4ccc afviger fra
+reviewet helper kun ved opdateret, reviewet evaluatorpin; begge sourceguards består.
+Leadens validate-only på de otte Sara-fixtures består uden providerforbindelse.
+Software og den første afgrænsede prøve er nu konkret klargjort. Videre provider-
+og installationsbevis kræver ulåst Mac til eksisterende HA-konfiguration/testvindue;
+remote-publicering kræver svar på den allerede sendte destinationsgodkendelse.
+Ingen faktisk API-evaluering, upload, release, installation eller fysisk gate i dette
+checkpoint. Målet er ikke opnået, og ingen releasegate startes før semantisk bevis.
+
+Syntetisk API-evaluator har nu uafhængigt Astra HIGH scoped GO på script
+2ce13fa93374375361568d5353373421fedf7ed8ba2a19fb4c5f810784b5d988 og tests
+d6dfd6a75dae5bf87623997068480d252073c633cf4fbe7c6fdd8ddadf7ac62a.
+Alle42 offline tests består; reviewer reproducerer gammelt/overlappende output som
+UNKNOWN og gyldigt senere output som OBSERVED_PASS. Eksakt startup-SEED-kontrol,
+2-connect cap, ægte Thin/SDK/policy og afgrænset cleanup er reviewet. GO gælder én
+afgrænset syntetisk prøve, ikke faktisk samtykkesemantik eller fysisk funktion.
+De otte syntetiske Sara-fixtures er valideret; ingen provider er kaldt endnu.
+Nøgle-handoff har fået global admission-deadline og bounded socketreads; ufuldstændig
+body/tricklede headers lukker i lokale tests uden accepteret nøgle. Den endelige
+reviewede evaluatorhash er nu pinned i handoff; endeligt handoff-review afventes.
+
+Eval-genreview:33 offline tests består efter de første to rettelser, men uafhængigt
+review reproducerer stadig forsinket gammelt output: spørgsmål på providerinterval
+8000–10000ms efterfulgt af senere modtaget output fra2000–3000ms gav falsk PASS.
+Kontekstcasen er derfor fortsat HOLD. Bedømmelsen skal bruge samme generation og
+providerens egne intervaller; ingen omregning til hosttid. Manglende/overlappende
+interval giver UNKNOWN. Startup-SEED-kontrollen er nu verificeret korrekt.
+Den eksisterende engangs-loopback-nøgleoverførsel er klargjort til én positiv
+60s/2-sessioners prøve i /private/tmp/podvoice-live-confirmation-handoff-01.py;
+den er ikke startet. 50 runtime-Pythonfiler og evaluatorens hash kontrolleres både
+før handoff og før childstart. Sourceguard mismatch-test består; særskilt review
+pågår. API-vindue og faktisk prøve afventer fortsat ulåst Mac. Ingen nøgle er læst,
+intet produktionsstop og intet API-kald er udført i dette trin.
+
+Samlet fast77163 på runtimecheckpoint5e49a9c plus første frosne evalscript består:
+Ruff/format43filer, mypy50sources, hele pytest88.94s, samlet89.3s. Dette beviser ikke
+at evaluatorens verdict er korrekt. Uafhængigt review reproducerer to falske PASS:
+mørkegrøn før followup kan tælle som svar efter followup; gammelt-ja cases kan
+PASS uden bevis for at SEED var i generation2 startup input. Derfor HOLD på
+evaluator fc78786a6d36eaadca8aa7063581be69791867104ae98090e29177c619ba51fb,
+ingen faktisk API-prøve. Owner retter kun de to bedømmelsesgrænser efter fuld gate
+blev terminal. 26 offline tests og manifestvalidering er ikke semantisk accept.
+Ingen ny runtimefejl er udledt af disse testværktøjsfejl.
+
+Efter prototypefjernelse består24 releasekontrakt/live-policy/execution-guard-tests
+og git diff --check. Identitetsændringen har27 målrettede tests og uafhængigt review;
+lokal firmwarecompile er bestået som beskrevet nedenfor. Dette er et lokalt
+software-/buildcheckpoint; det nye semantiske evalscript er et separat ufrosset diff.
+
+Lokal firmwarecompile faktisk bestået: proces18707 exit0, ESPHome2026.6.2,
+101.80s; marker11382_livewav2 findes i den genererede binær. 13 C++/headerfiler
+fra de tre pinned komponenter er byteidentiske mellem reviewet input og compilerens
+src-tree; alle18 inputfiler matcher det tidligere manifest. OTA-binær3057344bytes,
+SHA256 b2aefe0fdcf79af3f9974525e56482aa8cfa35994bf59d8e52cf631a0eab75a8.
+Buildrapport ligger i /private/tmp/podvoice-live-alpha-build-02/compile-report.json.
+Eksplicit dummy-PSK og lokale source-overrides; remote-fetch/provisionering/install
+og fysisk gate er IKKE bevist. CUA viser nu låst Mac; HA/API-testvindue afventer
+adgang, men intet produktionsstop eller API-kald er udført i dette trin.
+
+Mindst nødvendig kode — lead-beslutning og uafhængigt læsereview: Den gamle
+live_confirmation.py timestamp-ledger har kun sin isolerede test som importør;
+SDK/Thin bruger nu execution_policy.confirm_live og frisk provider-generation.
+Beholdt prototype øger artifactoverfladen uden funktion. Fjern modulet og den ene
+isolerede test (714 linjer), bevar historisk evidens og alle aktive policy/SDK/Thin-
+regressioner. Hypotese: ingen aktiv import/eksport/schema/buildreference ændres;
+Docker kopierer mindre kode. Invarianter er én autorisationsvej, uændret runtime-
+ejer og eksakt artifact. grace_review har verificeret import-/buildergrænsen.
+Stage begge sletninger før gate: selector-only-prøve viser ellers at dev-tooling
+vælger den slettede test; staged deletion vælger eksisterende fuld testsuite.
+Rollback er de to filer; ingen fysisk accept eller release arves.
+
+Firmwareidentitet har uafhængigt Astra HIGH scoped GO og27 firmware/native tests
+bestået. Push til origin blev afvist af automatisk godkendelseskontrol med krav
+om specifik destinations-/publiceringsgodkendelse. Intet upload blev udført;
+spørgsmål er sendt til brugeren. Arbejdet fortsætter med lokal dummy-PSK compile
+på byteidentiske lokale komponentkilder, som ikke beviser remote-pinned fetch
+eller provisioneret artifact. Disse to gates afventer fortsat separat bevis.
+
+Præcis firmwarekandidat — aktiv lead-beslutning: Alpha-overlay og host accepterer
+stadig den ældre prototypeidentitet podvoice_build_11379_livewav1, selv om capture
+hold/resume og disconnect-fence siden er ændret. Hypotese: en ny specifik marker
+podvoice_build_11382_livewav2 binder denne Alpha-kandidat til hostens forventning,
+så den gamle prototype ikke kan bestå kontrakten under den nye identitet.
+Berørt kæde: kildepinned ESPHome-build → annonceret firmwaremarker → VoicePELink
+kontrakt → Alpha-admission → capture/playback/rearm. Invarianter er eksakt artifact-
+identitet, OFF-kontrakten og ingen arvet fysisk accept. Ændringen er kun de to
+Alpha-markerværdier og en gammel-marker regression; ingen audio-/VAD-/gain-tuning.
+Komponentkilden forbliver b56a08a6d31044f7507b178961ac74f731474253 med verificeret
+18-fil manifest. Før build skal denne commit være hentbar på den faktiske Git-URL.
+Første compile bruger eksplicit dummy PSK og er ikke den provisionerede installations-
+artifact. Kræver uafhængigt review, firmwarekontrakt og frisk ESPHome compile.
+Rollback er hele Alpha-kandidaten; ingen firmwareflash i dette trin.
+
+Kontekstcheckpoint efter P2: regressionen fejlede med assistent før bruger på
+urettet kode og består nu gennem rigtig SDK-eventkø. 71 Thin+History-tests og Ruff
+består efter timestamp-rettelsen. Uafhængigt Astra HIGH genreview giver scoped
+composed GO efter16 fokuserede historik-/konteksttests på Thin
+5166395aae345b7b9d8ded11491a8f044ea4ec5fc7b03b9d09ac6955edab586f.
+SDK84a365629c7e1577c4eb4a813ec5ba99b49e8ca74806da341a1df6ece1710377 og
+prompt635f04036dcc1b89d309b32fa23c0862fc2f2735e5d45f118cbc8b3e540e4b8d
+har124 enhedstests samt Ruff/mypy bestået. Ingen resterende deterministisk finding
+på dette reviewscope. Den tidligere hele fast er på diffet før den lille timestamp-
+rettelse; målrettet regression og review dækker rettelsen. Ingen releasegate endnu.
+Næste konkrete gate er isoleret, bounded API-evaluering med rigtig Thin/SDK/policy,
+to providergenerationer højst, syntetiske danske fixtures og kun lokal stubeffekt.
+Nul effekter uden genkendt fixture/proposal/fresh session må ikke kaldes semantisk
+PASS. .82 produktion og tidligere fysisk baseline ændres ikke af dette checkpoint.
+Alpha er stadig ikke installeret eller fysisk godkendt.
+
+Samlet fast på kontekstdiff før nedenstående P2-rettelse: session5879 exit0;
+Ruff/format43filer, mypy51sources, hele pytest84.80s, samlet85.2s. Uafhængigt
+kontekstreview består194 målrettede tests, men reproducerer P2: typed text får
+ankomsttid efter await SDK-send, så hurtigt provider-output kan gemmes før sit
+udløsende spørgsmål. Årsagsgrænse: Thin accepteret tekst → await response.create
+→ samtidig transcript → historiksortering → næste provider startup input.
+Ret kun tidspunktets ejer: fang tidspunkt ved tekst-admission og brug det ved
+vellykket persist sammen med allerede fanget session-id. Ingen falsk provider-ACK
+eller ændret godkendelsesrevision. Regression injicerer output mens SDK-kaldet
+stadig afventer og kræver bruger før assistent i gemt og gendannet tekst.
+Samme-session/ordre/OFF-invarianter berøres; rollback er denne timestamp-rettelse.
+Resultat og uafhængigt genreview afventes, ingen fysisk acceptance arves.
+
+Faktisk P1-resultat: initial/post-rotation Talk-heartbeat og tom/whitespace input
+reproducerede fire fejl før rettelsen. To Thin-betingelser retter de ejergrænser;
+55 Thin-tests, Ruff/format/mypy består. Uafhængigt Astra HIGH genreview har scoped
+GO efter15 fokuserede regressioner på Thin a4f693afc230d4fa629738c1628313474070e1466af2620dd91178bba43154fd.
+Readerfejl og native pumpfejl lukker stadig korrekt. Denne accept omfatter ikke den
+nye kontekstintegration nedenfor eller fysisk alpha.
+
+Kontekstintegrationens første faktiske softwarebevis: History.session_text filtrerer
+præcis room/session, uden fallback til nærliggende samtaler. Thin samler tilstødende
+samme-rolle-fragmenter med newline, beholder en sammenhængende nyeste del inden for
+SDK-bytebudget og skærer aldrig inde i et fragment. Snapshot tages efter gammel
+reader er samlet op og stages én gang; typed text gemmes én gang under oprindelig
+session. Test viser historisk ja i session.input, uændret frisk-inputrevision og nul
+handling uden nyt input; næste wake får ingen gammel startuphistorik. 58 Thin Live
+og12 History-tests består; Ruff og mypy på de to kilder består. Thin hash
+f3b4c913eb6f1a40ae13fe00e29e9ad7c7de1d77015b99d9638095232ee257d7.
+SDK/prompt-ejer færdiggør særskilte tests; samlet review og semantisk API-gate mangler.
+Ingen påstand om bevaret intern provider-state eller fulde toolresultater.
+
+Kontekstkontinuitet gennem godkendelse — aktiv lead-beslutning: Den nye provider
+modtager nu kun det serverholdte forslag; tidligere samtaletekst mangler, så
+opfølgninger kan miste deres referencer. Dette er direkte kodebevis, ikke en
+observeret akustisk fejl. OpenAI Live conversations-guiden, genlæst 11/9, understøtter
+startup session.input med tidligere rolleopdelte tekstbeskeder (128 beskeder/8192
+samlede tokens). Vi vælger denne officielle mekanisme frem for store/fork.
+Hypotese: et immutable snapshot af netop samme Thin-session giver tekstkontinuitet,
+uden at historik kan hæve frisk-input-revisionen. Snapshot mærkes som tidligere
+kontekst i både primary- og backendinstruktioner; forslag og engangsautorisation
+forbliver særskilte serverdata. SDK accepterer højst64 user/assistant-beskeder med
+samlet UTF8(role)+UTF8(text)+32 bytes per besked højst6000; dette er en konservativ
+bytegrænse, ikke en tokenmåling. Default uden historik ændrer ingen prompt/config.
+Kæden er eksisterende transcript/typed input → samtaleejet historik → capture hold
+og gammel provider-finalisering → engangsstaged startup input → frisk capture/input
+→ completed approval → eksisterende exact-args guard → opfølgning/Stop/næste wake.
+Invarianter: samme samtale/room, ingen historisk event som frisk input, ingen replay
+af handlinger, Stop/generationsisolation, én Thin-ejer og OFF uændret. Ikke-mål:
+fuld intern provider-state, ny lagerpolitik, modelbaseret summarizer eller lokal
+fortolkning af ja/nej. Fejl/oversize må ikke lække data til næste connectforsøg.
+Regressioner: forkert room/session, rollebevaring, immutable payload, næste wake,
+Stop/failed connect, typed input, og intet nyt input giver mekanisk nul effekt.
+Semantisk API-gate kræver gammelt ja + nyt nej/forbehold/baggrundstale/rettelse,
+ændret mål samt positivt nyt ja; alle home-tools er stubs. Historik kan ikke alene
+bevise korrekt modelsemantik. Uafhængigt review og faktisk negativ API-evaluering
+kræves før alpha-installation; fysisk gate stadig ikke bestået.
+
+Aktiv afgrænset P1-korrektion efter uafhængig reproduktion: Talk Live WebRTC har
+bevidst ingen Thin PCM-pump, men heartbeat behandler `_pump is None` som fejl og
+lukker den ellers fungerende samtale; fejlen gælder også efter bekræftelsesrotation.
+Separat kan et tomt eller whitespace-only Live-inputfragment øge inputrevisionen,
+så et efterfølgende eksklusivt approve_action kan passere fresh-input-gaten uden
+indhold. Komponenttests var for korte til første heartbeat og prøvede ikke tomt
+providerinput. Dette er kode-/reproduktionsbevis, ikke en ny fysisk observation.
+
+Berørt kæde: browser-peer/native pump → Thin heartbeat/reader → Live inputfragment
+→ fresh-generation/revision → completed approval → policy/dispatch → Stop og næste
+wake. Hypotese: heartbeat kræver pump kun på en pump-ejet transport, mens tomme
+inputfragmenter aldrig flytter autoriserende revision. Begge rettelser ligger i
+Thin; native pumpfejl og alle readerfejl skal stadig lukke sikkert. Berørte krav:
+én samtaleejer, lifecycle/readiness og invariant14's serverautoriserede konkrete
+handling samt generations-/Stop-isolation. Ingen timeout-, VAD-, prompt-, grace-
+eller firmwaretuning; ingen historikimplementering i dette diff. Regressioner:
+faktisk Thin/BrowserLink/SDK før og efter rotation over heartbeatgrænsen, native
+pump- og readerfejl, tomt/whitespace-fragment før approval giver nul effekter, og
+normal frisk input godkender fortsat præcis én handling. Uafhængigt re-review efter
+fokuserede tests; ingen fuld gate, API, release eller installation i denne patch.
+Rollback er de to Thin-betingelser og deres regressionsdiff. Alpha er fortsat ikke
+fysisk eller semantisk accepteret.
+
+Syvende faktiske isolerede API-prøve (4s grace, evidence-api-02) er afsluttet:
+én tool/result/continuation, backendcompleted→close4.004s, officiel closed/finalusage
+15.0s, backend1074+1133tokens. Faste testfrasers SHA256-match viser forventet
+“Farvel, og tak for den hyggelige snak.” ved6000–7800ms efterbackendcompletion;
+men også et tidligt “Farvel.”3400–3800ms førcompletion. Derfor er protokol og
+post-backend-output observeret, men dobbeltfarvel er stadig UX-fejl; ingen akustisk
+eller fysisk accept. Capture460800PCMbytes/156964WebMbytes gemt. .82 blev stoppet
+og efter prøven genstartet, “Kører”1.13.82 bekræftet på HA-screenshot. Ingen Alpha-
+installation. Samme process13980 blev fulgt til exit0 trods click-observationstimeout;
+inget ekstra API-kald. Ingen længere grace vælges; uafhængigt evidensreview pågår.
+
+Capture hold/resume har nu uafhængigt Astra HIGH scoped GO (grace_review),69tests
+(65native/host +4C++harness) består. Den præcise unsubscribe/samme-pointer-race er
+rettet og genprøvet uden mellemliggende loop; ingen åbne P0/P1/P2 på denne grænse.
+Source er frosset i b56a08a6d31044f7507b178961ac74f731474253. Overlayets to
+komponentrefs peger nu på den præcise lokale commit;18filers manifest
+25f0c9a87232d3bc043466e36dc87be77d4b95365d51850d176d264a04f098e2 er verificeret,
+12firmwarekontrakttests består. Ref er endnu ikke publiceret/fetchet af et
+rigtigt firmwarebuild; dette er ikke release eller device-bevis.
+
+Forudsætninger under implementering/review: SDK/prompt95tests består også ved leadens
+uafhængige genkørsel; normal default/custom prompt er uændret når flag er OFF. Native
+barriere64tests og4C++harness består. Adversarial review fandt VA unsubscribe/resubscribe
+på samme pointer uden loop kunne genbruge token: den vendorede VA-disconnect-handler
+kalder nu stop_streaming synkront, med C++-regression og faktisk YAML-kontraktstest.
+Talk-review fandt peer lukket før provider session.closed; hold ændres til mic-held
+med primary/DC bevaret indtil officiel finalisering. Sammenkobling i Thin pågår.
+Den nye firmware er ikke repinnet/provisioneret: sourcefreeze, manifest og særskilt
+Alpha-buildidentitet skal opdateres før artifact-gate; ingen gamle bit-claims arves.
+
+Næste implementering: frisk provider-generation til stemmegodkendelse inden for
+samme Thin-samtale, brugerautoriseret Alpha-paritet. Observeret mangel: Live-dispatch
+returnerer confirmation-unavailable; den gamle unwired timestamp-ledger kan ikke
+bruges, da protokolprøverne ikke leverer den nødvendige nye delegation/ask-anchor.
+Kodegennemgang på begge I/O-adaptere viser eksisterende stop/start kun rydder host/
+ring et øjeblik; passive callbacks og et allerede dequeued pump-frame kan krydse
+providergrænsen. Hypotese: tokenbundet firmware hold→ordnet held-ACK→frisk provider
+→matching resume, plus cancel/join af gammel pump/send, udelukker gammel forwardet
+lyd uden at ændre native PCM-format. Hold blokerer også keepalive/start/begin;
+ACK skærer host-epoch synkront før waiter vågner. Samme native forbindelse kræves.
+Dette er forwarding/callback-grænse, ikke påstand om ADC-flush eller hørt spørgsmål.
+
+Berørt kæde: fysisk capture/ring/native queue → VoicePELink → Thin pump → SDK-
+generation → completed tool/admission → serverholdt engangsforslag → provider-
+rotation/fresh input → confirm_live/exakt ApprovedCall → eksisterende dispatchguard
+→ playback/Stop/teardown/rearm/næste wake. Thin beholder history/epoch/attention;
+rotation er ikke wake/teardown. Gammel usage bevares før SDK reconnect. Talk bruger
+frisk peer med eksplicit bevaret mic-intent og ingen mic-permission for typed-only.
+Eksisterende approval-mode=live, original expiry og serverholdt args-hash genbruges;
+ingen modelleverede erstatningsargs, gamle ja-fragmenter eller lokal taleparser.
+
+Invarianter: én Thin-ejer, én native adapter, firmware mic/rearm-ejer, eksklusiv
+completed tool-admission, Stop/privacy, generationsisolation, OFF uændret og ingen
+fabrikeret turn/audio-done. Ikke-mål: ny transport, gain/VAD-tuning, ADC-proveniens,
+nyt ledgerlag eller fysisk accept fra tests. Regressioner: hold/start/keepalive,
+gammel token/ACK/reconnect, PCM før ACK leveret senere, allerede dequeued send,
+Stop i alle awaits, ny generation, typed-only/mic-intent, expiry/replay/mixed batch
+og guard efter awaited target-preparation. Host C++ + begge adaptere + Thin/shared
+policy, uafhængigt Astra HIGH review, derefter fast/semantisk live-gate på frosne
+bits. Firmware-kildepin skal matche faktisk bygget komponent før provisionering.
+Rollback: Alpha OFF og hele provider-rotation/hold-diffet; ingen installation før
+sammensatte gates. Kandidaten er ikke fysisk testklar.
+
+Terminalreceipt-diffet har uafhængigt Astra HIGH scoped GO (grace_review):110 tests
+(78 SDK +32 Thin) består. Tre reproducerede races er rettet: nyt backendarbejde
+invaliderer gammel close permanent; correction før waiterstart annullerer receipt
+synkront; gammel waiter/callback må ikke ændre ny ejers ending-state eller receipt.
+Reviewede sourcehashes: SDK b97bb4ffe519c646c8dee5f35283082fe45d39ae237a9ede48d8a4c21c7367e9,
+Thin f48ed33474322a0768af6082d15874f5e1c6994c46a46877aa7dd97b3c55165b.
+Samlet fast14942 består Ruff/format/mypy; pytest blev ugyldiggjort af sandbox
+socket.bind PermissionError, isoleret med én aiohttp-test. Genkørsel80961 med
+loopback-adgang har én gammel Talk-testfejl (direkte internt funktionskald uden
+receipt). Testen går nu gennem faktisk SDK backend-end/result/continuation og
+alle4 Talk WebRTC-tests består. Ingen runtimepatch afledt af miljø/testfejlene.
+Samlet fast83849 på det frosne diff består: Ruff/format38filer, mypy51sources,
+hele tests-træet83.63s, samlet84.1s. Release/install/fysisk gate stadig ikke bestået. Grace er fortsat eksplicit heuristik og stemmegodkendelse mangler.
+
+Den forberedte 4s-prøve evidence-api-01 udløb før browserens Start: kun prepared/cleanup,
+0 bytes provider/browserlyd og ingen API-session. Proces74052 er terminal. Næste
+browserkontrol møder låst Mac; ingen Alpha-installation eller produktionsstop er
+udført i denne prøve. Softwarearbejdet fortsætter; dette er ikke en providerfejl.
+
+Næste runtimekorrektion retter den observerede backend-grænse før farvel. Direkte
+kodebevis: Thin starter grace efter send_tool_results-return; LiveBackendComplete
+emitteres før klassifikation af function-items; enhver response.created rydder den
+nuværende globale continuation-inflight. Ingen af disse er et korreleret settlement.
+Adapteren får én generation/batch/delegation-bundet terminalreceipt registreret før
+resultatskrivning, bundet først når faktisk continuation udsendes og dens nye respons
+observeres. Den afsluttes kun efter korrekt completed nul-call respons og intet
+udestående krævet arbejde. Flere toolcalls opgiver natural-close, men må dispatches.
+Thin venter uden tool-lock og bevarer inputrevision/epoch/Stop-grænser. Stemmeinput
+og accepteret typed correction afbryder pending settlement/grace; silent-end venter
+samme backend men uden talegrace. Tests: sen/foreign/duplicate respons, completion
+før write-return, flere toolcalls, typed/voice correction, Stop→ny wake→sen completion.
+Ingen output-done-claim. Graceværdien optimeres først fra den separate lydprøve.
+Adversarial review reproducerer ny backend under grace: gammel close ville lukke
+med pending response. Derfor invaliderer adapterens næste response.created permanent
+det afsluttede intent; Thin genkontrollerer efter settlement og før close. Regression
+skal dække både pending og allerede færdigt nyt arbejde samt køet event.
+Rollback er receipt/Thin-ending-diffet; uafhængig anden reviewer før accept.
+
+Uafhængigt API-review af backend-first-prøven finder3.35ms fra sidste backend-
+completion til close-request; sidste output-PCM ligger før completion. Kun output-
+transcriptet3200–3400ms ligger før første tool-completion. Protokol består, farvel-UX
+fejler: øjeblikkelig close giver ikke den primære stemme en brugbar mulighed for
+farvel. Mindste næste developer-kandidat bevarer prompt/tool/continuation og tillader
+4.0s eksplicit eksperimentel, annullerbar ending-grace EFTER completed continuation,
+med I/O åbent. Ingen tale-færdig-claim, ingen stilhedsdetektor/ny LLM/prompttuning.
+Derefter samme officielle close/closed og cleanup; samlet30s bound bevares. Grace
+skal afbrydes af Stop og må ikke skjule manglende farvel i capture. Valget4.0s er en
+prøveværdi for levedygtighed, endnu ikke målt optimum eller runtimegodkendelse.
+
+Samlet fast på f293e65: Ruff/format38filer og mypy51sources består; pytest82.14s
+har én fejl i gammel string-kontrakt test_panel_contract.py:169, som kræver direkte
+pagehide→micStop. Shippet handler lukker nu også Live-peer før micStop. Dette er
+observeret forældet testforventning, ikke grund til runtimepatch. Testen opdateres
+med faktisk side-/socketcleanup og relevant browseradfærd; genkørsel skal dække den
+invaliderede pytest-gate. Checkpoint er endnu ikke samlet grønt.
+
+Talk WebRTC-wiring har nu uafhængigt Astra HIGH scoped GO uden åbne P0/P1/P2 på
+Thin dabd0a4d / Talk03b2cbcd / UI230c4b57. Reviewer gentog106 tests og kørte den
+faktiske browserkode med ekstra Stop-races: pending getUserMedia, sen remoteanswer,
+gammel datachannel/ontrack og ny peer. Mikrofon forbliver gated før live_ready;
+sideband alene åbner ikke readiness. OFF og nul dobbelt media består. GO gælder
+software og næste bounded rigtig Talk-prøve; sekssekunders-grace og fysisk/akustisk
+oplevelse er fortsat ikke accepteret. Dette checkpoint fryses nu til samlet fast.
+
+Backend-first developer-prøven1fa1d10f er afsluttet med proces0 og korrekt protokol:
+én delegation ved3000ms, ét eksklusivt terminalværktøj/resultat, én faktisk completed
+continuation, så close/closed. Finalusage15.0s, backend1070+1134tokens. MEN forventet
+farvel mangler i outputtranscriptet: kun ét6-byte fragment ved3200–3400ms, ikke match
+til den kendte farvelsætning. Capture/providerlyd er gemt, ikke fysisk gennemlyttet.
+Dette er protokolbevis, IKKE bestået farvel-UX. Evidence: leverancens
+api-proof/farewell-backend-03 og samme /private/tmp-kildemappe. .82 er genstartet og
+Kører verificeret. Uafhængigt lyd-/eventreview pågår før konkret næste korrektion.
+Talk-wiring er frosset til uafhængig review med106 targeted tests, Ruff/mypy/JSsyntax
+bestået; samme source er endnu ikke samlet fast/release-/fysisk godkendt.
+
+Det afsluttede Astra HIGH lifecycle-review anbefaler én konkret backend-first kandidat:
+accepter end-intent under eksisterende input/generation/Stop-guards; færdiggør resultat
+og nødvendig continuation; close; bevar media/readers til closed og finalusage; cleanup.
+For WebRTC er officiel cleanup efter closed en gyldig implementering, selv om fysisk
+dræn ikke er bevist. Fravær af ekstra browserdræn-ACK må ikke alene skabe en runtime-
+fejl; telemetry skal stadig sige drain unconfirmed. Voice PE kræver derimod stream-EOF
+og den eksakte fysiske playback-lease færdig. Rejektionskriterier for kandidaten:
+manglende/klippet farvel i faktisk capture, tabte handlingsresultater, tidligt annulleret
+continuation, ny input der ikke afbryder pending close, fejl i Stop/finalusage/stale.
+Dette præciserer nedenstående midlertidige unconfirmed-slutvej; ingen fysisk gate er bestået.
+
+Astra HIGH lifecycle-review har korrigeret en for stærk implementeringsforudsætning:
+der kræves ikke et ekstra deterministisk spoken-finish-event for at implementere
+den officielle close-protokol. Det kommende developer-forsøg erstatter den afviste
+farvel-før-delegation-rute: backend modtager end-intent, completed eksklusiv terminal-
+stub får resultat, den krævede Responses-continuation afsluttes, så session.close →
+session.closed/finalusage → adaptercleanup. Naturligt farvel styres i Live/backend-
+resultatprompt; faktisk lyd må bagefter afvise afklippet/manglende farvel. Backend-
+completion er aldrig audio.done. Ingen ny timer som tale-bevis, ingen lokale fraser.
+Samme syntetiske fixture, muted capture, tids-/værktøjsgrænser og credentialhåndtering.
+Kun developer-probe og regressioner ændres nu; normal probe bevares, tidligere kilder
+og fejlede prøver er frosset. Review før API. Runtimeændring følger først efter bevis;
+Voice PE's fysiske playback-events kræves fortsat ved den fysiske releasegate.
+
+Den kontrollerede policy-prøve c84ed4c2 er nu afsluttet og AFVIST på samme terminal-
+gate. Begge14 fragmenters hashes matcher igen kendt input og hele farvelsætningen;
+nul delegation/backend. Finalusage28.0s og session.closed modtaget; deadline-close,
+ikke semantisk close. Evidence: /private/tmp/podvoice-live-farewell-policy-02 og
+leverancens api-proof/farewell-policy-02. .82 er genstartet og Kører verificeret.
+Der køres ikke flere varianter af samme farvel-før-delegation-hypotese. Næste review
+undersøger backend-før-farvel med officielle lifecycle-signaler og ærligt mediedræn;
+inget arbitrært grace-interval må beskrives som providerens talefærdig-signal.
+Talk WebRTC-wiring udvikles fortsat under den nedenstående separate ejergrænse.
+
+Næste nødvendige Alpha-implementering er Talk WebRTC-wiring i eksisterende Thin,
+BrowserLink og panel. Direkte kodebevis: adapterens prepare_webrtc findes, men Thin
+allokerer stadig WAV og starter PCM-pump; BrowserLink har ingen SDP-handshake.
+Hypotese: én socket-/attempt-/provider-generation-bundet handshake kan bruge den
+reviewede SDK-adapter og bevare samme Thin close-owner. Kæde: eksplicit Talk input
+→ frisk offer → SDKcreate/sideband → answer → faktisk primary started + sideband-
+snapshot → løbende direkte media → Stop/disconnect → samme teardown → ny peer.
+Invarianter: Thin-ejerskab, OFF-paritet, privacy, ingen dobbeltlyd, stale-afvisning,
+readiness adskilt fra playback. Ingen nye endpoints/SDK-wrappere/samtalemotorer.
+Regressioner: samme rigtige Thin/BrowserLink, forkert/duplikat/sen identitet, Stop
+ved alle opstarts-awaits, typed-first uden micpermission, ny wake og nul WAV/PCM i
+WebRTC. Naturligt farvel er fortsat separat uafklaret: fravær af WAV-lease må IKKE
+blive succesbevis for browserdræn. Indtil policyen er bevist skal denne slutvej
+rapportere dræn ubekræftet. Det er en ufærdig kandidat, ikke reduceret acceptkrav.
+Rollback er disse tre filers transportwiring; Astra HIGH skal reviewe samlet diff.
+
+Uafhængigt Astra HIGH evidence-review bekræfter alle14 transcript-hashmatches og
+nul delegation/backendevents. Close blev anmodet30.023s efter session-create;
+closed kom30.809s efter. Provider-PCM har tre200ms tidsstempelhuller: sammenkædet
+filposition må ikke bruges som sessionsur. Begge lydfiler indeholder ikke-stille
+output, men reviewet har ikke bevist hørt/fysisk farvel. Reviewer støtter kun den
+kontrollerede promptprøve; ingen ekstra transskription eller rå tekstlog er nødvendig.
+
+Promptdiffet er nu implementeret som developer-only og har93 eksisterende probe-
+regressioner samt Ruff/format grønt. Uafhængigt Astra HIGH scoped GO på SHA
+c84ed4c2901f9910efdd139163140e274692311e538451daa26f0dab580b4f0d;
+review verificerede uændret normal config og alle øvrige forsøgsparametre. Frosset
+prøve ligger i /private/tmp/podvoice-live-farewell-policy-02. Ingen ny samlet runtime-
+gate kræves for dette isolerede promptforsøg; faktisk API-resultat udestår stadig.
+
+Næste developer-only hypotese følger den friskt læste officielle live-prompting-guide:
+bevar Delegation policy og dens tre labels, beskriv afslutning som backendkapabilitet
+og giv en konkret delegationsbetingelse. Den fejlede prøve havde fri prosa uden denne
+struktur. Kun prøvens primære prompt ændres; samme kendte farvel, før-delegation-
+rækkefølge, backendstub, lydfixture, transport, close-ejer og 30s grænse bevares.
+Hypotesen er falsificerbar ved fortsat manglende delegation; labels er ingen garanti.
+Ingen runtime- eller OFF-ændring. Review af promptdiff og eksisterende developer-
+regressioner kræves før en ny isoleret API-prøve. Rollback er kun promptdiffet.
+Kilde: https://developers.openai.com/api/docs/guides/live-prompting (11/9).
+
+Den fjerde isolerede API-prøve er afsluttet på a357d52 (WS02667b36/WebRTCb7437f15).
+Resultatet AFVISER den prøvede farvel-før-delegation-kæde: ingen delegation eller
+terminal backendfunktion kom inden prøvens grænse. SHA256-match mod kun de to kendte
+syntetiske fraser rekonstruerer input “ Tak for hjælpen. Det var alt. Farvel” og
+output “ Farvel, og tak for den hyggelige snak.”; alle transcriptfragmenter matcher.
+Det støtter semantisk farveltekst, men beviser ikke lyd i rummet eller efterfølgende
+lukning. Deadline udløste close; session.closed bekræftede 28.0s endeligt voiceforbrug,
+ingen backendforbrug/manglende terminaler. Browsercapture og provider-PCM er bevaret
+under api-proof/farewell-reviewed-01 i leverancen, med transcript-evidence.json.
+Prøven returnerede farewell_trial_evidence_incomplete, ikke succes. .82 er startet
+igen og HA UI viser Kører. Næste årsagsgrænse er primærmodellens delegation efter
+farvel, ikke manglende input eller et påvist FLAC-problem. Uafhængigt evidence-review
+pågår før ny prøve; ingen runtimeændring eller fysisk gate arves af transcriptet.
+
+Farvel-prøvens korrigerede scripts har nu uafhængigt Astra HIGH scoped GO på
+WS02667b36/WebRTCb7437f15:93 tests på1.35s plus direkte late create/attach/update-
+og resistant typed-send-reproduktion. Ingen sen SDP, én remoteclose, ingen uønsket
+continuation. Capture er autentificeret/bounded; fejlet optagelse og manglende eller
+ikke-endeligt voiceforbrug afviser. Node syntaxcheck af den faktiske browserkode
+består. Initial browserrendering kan komme før onplaying-optagelsen; dette er en
+udtrykkelig måleusikkerhed, ikke bevis for providerklip. Gemte bytes eller closed
+beviser ikke hørt farvel/fysisk dræn. Samlet fast på frosne filer bestod81.7s: alle valgte
+tests100%, Ruff/format36 filer og mypy51 sources. Én kort syntetisk prøve kan nu
+køres i den allerede godkendte isolerede pause. Frisk HA UI viser.82 Kører, R0 klar/standby, native forbundet,
+PodConnect/hjemmestyring verificeret; fysisk wake er endnu uprøvet efter genstart.
+
+Næste sammenhængende godkendelsesrute er nu afgrænset ved read-only Astra HIGH:
+frisk provider-generation for den sjældne følsomme challenge, inden for samme Thin-
+samtale. Der findes ingen eksisterende mid-conversation capture-ACK: stream_stop
+nulstiller firmware-ring, men service-return beviser ikke effekten; fuld rearm har
+uønskede conversation/reply/Stop-bivirkninger. En mulig minimal Alpha-barriere må
+lukke forwarding/keepalive, nulstille ring under eksisterende mutex, observere frisk
+micfremdrift, kassere kontrolvinduet og ACK'e eksakt token mens input fortsat er
+lukket. Adapteren skærer lokal generation synkront ved ACK; kun matching resume
+åbner lyd til den nye provider. Stop/timeout/stale token forbliver lukket. Browseren
+kræver ny capture/peer-generation. Det er captureproveniens, ikke fysisk hørelse.
+Ingen implementering endnu: gammel audio efter ACK, keepalive, speech over grænsen,
+expiry, gammel backend og Stop skal prøves; ingen implicit fornyelse af challenge-TTL.
+
+Developer-farvelprøvens uafhængige review er foreløbig NO-GO: den eksisterende
+WebRTC-probe kan miste ejerskab til en remote session, hvis create returnerer sent
+på trods af Stop/cancellation, fordi den afviser før session-id gemmes. Den normale
+allerede afsluttede API-prøve havde ikke dette forløb; dens observerede transport-
+resultat består, men generelle Stop-claims må ikke arves. Korrektionen beholder
+sen remoteidentitet og cleanup-attach før afvisning og får permanent regression.
+Dette er developer-proben; den tilsvarende runtimeadapter er separat rettet/reviewet.
+Ingen ny API-prøve før reviewer lukker fundet og kontrollerer forbrug/capture-evidens.
+
+Stop/disconnect-diffet har nu uafhængigt Astra HIGH scoped GO uden åbne P0/P1/P2.
+Reviewer kørte322 tests på38.88s inklusive OFF/shared Thin, Talk, Live og SDK; root
+kørte101 kombinerede regressioner grønt. WebRTC late create/attach/update med
+undertrykt cancellation gav ingen sen SDP, én remote/client-close og nul leases.
+Reviewed hashes: Talkb061d65b,Thinb9af8b5e,SDK29653e51,testd5e78a38. En kommando der
+fortsat modsætter sig cancellation efter providercleanup beholdes ejet og logges;
+shutdown påstås ikke bounded i den situation. Samlet fast på næste frosne checkpoint
+udestår; intet release-/installations-/fysisk bevis er tilføjet.
+
+Uafhængigt review fandt desuden P1 i den samme Stop/disconnect-kæde: ved sockettab
+venter run_talk på en annulleret commandworker FØR session.aclose. En virkelig
+Thin/BrowserLink-prøve med cancellation-resistant typed SDK-send holdt derfor
+Thin aktiv uden nogen providerclose, også efter SDK-deadline. Årsagen er inverteret
+cleanup-ejerskab, ikke netværkets varighed. Korrektion inden for samme Talk-diff:
+start den eksisterende Thin shutdown/close før join af commandworker, så resource-
+cleanup kan frigøre SDK-send; behold ejerskab og rapportér uafsluttet cleanup ærligt.
+Regression dækker sockettab under typed send og eksisterende Stop, næste wake og
+forsinkede gamle events. Astra fandt også at direkte Thin.aclose ikke annullerer
+Live-opstart før settle: en sent returneret connection kunne derfor stadig starte.
+Lead retter aclose til at bruge den eksisterende _request_close(shutdown) og afvente
+samme shieldede close-owner; direkte teardown er kun fallback uden aktiv samtale.
+Det bevarer central task-annullering, inputfence og ressourceejerskab for begge I/O.
+Kandidaten forbliver ikke testklar til review er lukket.
+
+Stop-regressionen har nu direkte sammensat modevidens:18/19 targeted består, men
+real Thin+BrowserLink med SDK __aenter__, der ignorerer cancellation, kan sende
+session.start efter Stop. Thin afventer først åbningens retirement, så adapterens
+closeflag er endnu ikke sat. Kandidaten er IKKE testklar. Mindste årsagsrettelse:
+provideropstart skal afvise en faktisk annulleret ejertask efter ethvert SDK-await,
+før start/answer/readiness kan blive accepteret. Det må ikke ændre graceful close
+eller normale responses. Den forsinkede forbindelse skal stadig frigives af samme
+owner. Regressionen bevares; independent review skal kontrollere begge transporters
+sene create/attach og næste wake. Ingen runtimepatch på timeout alene. Root har
+nu tilføjet kontrol af opstartsejerens faktiske cancellation efter attach og i
+kommando-admission før readiness. Den tidligere røde sammensatte regression og
+de77 valgte Talk/Live-adaptertests består. Independent Astra HIGH-review pågår;
+ingen samlet gate eller fysisk status arves af disse deltests.
+
+Separat developer-only næste målehypotese (ingen API-kørsel endnu): Live siger et
+kort genkendeligt farvel FØR delegeret end-intent; completed eksklusiv terminalstub
+returneres uden ny backendcontinuation, derefter officiel graceful close. Bevar
+providerlyd/browser-renderet lyd og faktisk session.closed hver for sig. Dette er
+ikke prompt-/runtimegodkendelse eller bevis for talerækkefølge; normal probeadfærd
+bevares. Ny prøve kræver frozen source og uafhængigt review; ingen HA-handlinger.
+
+Astra HIGH-paritetsaudit korrigerer kravet til stemmegodkendelser: OFF Talk tillader
+full-duplex-afbrydelse og policyen bruger ikke playback-finish eller hørt-spørgsmål
+som autorisation. Den fælles kontrakt er eksakt serverholdt handling, umiddelbart
+næste autoritative input, completed eksklusiv semantisk godkendelse, expiry/once og
+aktuel kontekst. Alpha må derfor ikke blokeres på et ekstra krav om fysisk hørelse.
+Den reelle P1 består: gammelt input må ikke ligne frisk godkendelse. En frisk Live-
+generation er kun en mulig løsning, hvis gammel capture/historik ikke kan krydse
+som nyt input; der opfindes stadig ingen complete-turn-event. Dette erstatter den
+stærkere fysiske-godkendelsesfortolkning, ikke kravene om fysisk afspilning/lifecycle.
+
+Næste aktive årsagsgrænse: Talk Stop under opstart. Direkte kodebevis i run_talk:
+wake/text/stop går gennem samme worker, der afventer session.wake/submit_text.
+En ventende provideropstart holder derfor Stop bag sig. Falsificerbar hypotese:
+Stop skal nå den eksisterende Thin close-owner før opstart fuldføres; pre-Stop
+kølagte kommandoer skal afvises og må ikke genåbne næste generation. Berørte
+invarianter: én close-owner, privacy/Stop, stale input, samme Thin for begge I/O.
+Kæde: browserkommando → kø/opstart → Thin provider/mic/afspilning → Stop → teardown
+→ næste eksplicitte wake. Ingen transport-, prompt-, timer- eller policyændring.
+Regressioner: blokeret wake og typed startup, queued input før Stop, gentaget Stop,
+sockettab under Stop, ny wake samt sen gammel startup. Ret mindste køejer; reviewer
+skal modbevise cancellation/ordering. Rollback er det isolerede Talk-diff; intet
+installeres eller kaldes fysisk bevist af denne softwareændring.
+
+Samlet fast-gate kørte alle valgte tests til100% på81.52s, Ruff/format og mypy51
+sources bestod, men wrapperen afviste resultatet fordi lead ændrede STATUS under
+kørslen. Resultatet tæller ikke som samlet gate. Filer fryses før én gentagelse;
+ingen runtimeændring udledes af denne workflowfejl. Gentagelsen på frosne filer
+bestod: fast79.4s, hele valgte testscope100%, Ruff/format og mypy51 sources. Det
+er softwarebevis, ikke release-/installations-/fysisk godkendelse. Adapteren har separat Astra
+HIGH GO efter rettelse af close ved receiverfejl; Talk-wiring er endnu ikke lavet.
+
+Ny direkte evidens afviser ordinary-continuation-hypotesen for godkendelsesankeret:
+den afsluttede SDK-prøve i /private/tmp/podvoice-live-ws-measurement-01/evidence
+(sourcea1ea1d99) viste én delegation ved source3000ms. Frisk response.create gav
+en ny respons under SAMME delegation, uden ny delegation.created eller client-id-
+korrelation på response.created. Astra HIGH har uafhængigt kontrolleret det. Det
+gamle offset må aldrig genbruges til frisk samtykke; ledger/wiring forbliver lukket.
+Den efterfølgende instructions.append-prøve er også afsluttet: source283f23e9,
+/private/tmp/podvoice-live-instruction-probe-01/evidence. Det friske event-id
+korrelerede kun til ACK ved estimeret7200–7400ms;17 output-transcriptfragmenter
+havde intet client_event_id, inklusive4 fragmenter og195 PCM-events efter ACK.
+Uafhængigt Astra HIGH-review afviser denne konkrete korrelationsvej, ikke enhver
+mulig Live-konfiguration. Finalusage26.0s, backend907+962 tokens,1279680 modtagne
+og skrevne outputbytes; session.closed og procesexit0. Ingen fysisk lyd er bevist.
+.82 er efter tredje autoriserede prøve igen bekræftet Kører i HA.
+
+Målet er nu verificeret ACTIVE efter brugerens genstart. Næste afgrænsede designreview
+undersøger en frisk Live-generation bundet til den eksakte challenge, inklusive om
+den faktisk beviser spørgsmål-før-svar og ikke blot challenge-før-input. Det er en
+uafklaret hypotese med mulig ekstra latenstid, ikke implementeringsgodkendelse.
+Der tilføjes ingen alternativ samtalemotor eller lokale godkendelsesfraser for at
+omgå denne grænse; stemmegodkendelses-wiring forbliver inaktiv.
+
+SDK-prøven sluttede grønt med27.0s, backend904+966 tokens, source123834 bytes og
+1292160 modtagne = skrevne outputbytes inklusive terminallyd. Output-WAV og3312
+ordnede tidslinjeevents er bevaret. Dette er første måling uden tab af terminal-PCM,
+men ikke semantisk farvel- eller højttalerbevis. .82 er efterfølgende startet igen
+og “Kører” bekræftet i HA. Begge pause/genstarter fulgte brugerens udtrykkelige ja.
+
+Næste runtime-afgrænsning efter virkelig WebRTC-protokolprøve: udvid kun den
+eksisterende OpenAILiveSession med officiel create/sideband/SDP-vej til Alpha Talk.
+Samme Thin ejer fortsat budget, generation, værktøjer og close; ingen ekstra motor.
+OFF og Voice PE's WS-transport ændres ikke. Kæde: bounded browseroffer → SDKcreate
+→ samme-session sideband → answer sendt før ventet readiness → faktisk matching
+session.updated + browser-start → eksisterende typed/backend-policy → Stop/close.
+Nøgle bliver på serveren, frontend har ingen providercommand-tilladelser. Stop under
+create/attach/SDP/readiness skal bevare ejerskab til sen ressource og afvise stale
+generation. Der må ikke fabrikeres session.started, audio.done eller fysisk finish.
+Først isoleret adapterkode og regressioner; Talk-tilkobling kræver separat sammensat
+review og en ærlig løsning på terminal media-dræn. Ingen WAV-dobbeltlyd på WebRTC.
+
+Første rigtige WebRTC/sideband-prøve er afsluttet (frosset source90d1f254/importeec62553,
+evidence-api-01 i /private/tmp/podvoice-live-webrtc-reviewed-01). Præcis én session;
+create → sideband attach → SDP answer → korreleret session.updated → primary started
+→ typed submit → completed stub/result/continuation → session.closed blev observeret.
+Forbrug28.0s, backend845+902 tokens, ingen manglende terminaler; lokale tracks og proces
+blev lukket. Output var muted og syntetisk fixture startet: dette er transportbevis,
+ikke hørt svar, dansk forståelse, mikrofoninputparitet eller fysisk latency/dræn.
+Klikværktøjet meldte timeout efter at Start-knappen blev disabled; den samme faktisk
+startede session blev observeret færdig, aldrig genstartet pga. observationstimeout.
+.82 blev kort stoppet med brugerens eksplicitte tilladelse og er efter prøven
+bekræftet “Kører” igen i HA UI. Ingen Alpha-installation fandt sted.
+
+Brugeren har nu udtrykkeligt godkendt begge afventende punkter: kort pause/genstart
+af PodVoice til den isolerede API-prøve og den beskrevne Live-stemmegodkendelsesvej
+først efter bestået protokolprøve og review. Tilladelsesblokeringerne nedenfor er
+dermed afløst af dette ja. Ingen teknisk eller fysisk gate er afløst af tilladelsen.
+
+Seneste eksterne kontrol efter brugerens “klar”: Chrome virker igen, og den
+eksisterende API-konfiguration blev overført én gang i hukommelsen til den frosne
+WebRTC-prøve. Ingen session-create blev startet. Automatisk godkendelseskontrol
+afviste Stop af den kørende .82-add-on: browserprøven blev ikke anset som specifik
+autorisation til den korte produktionsafbrydelse. Stop blev ikke udført; HA UI
+bekræftede efterfølgende “Kører”. Den lokale prøveproces udløb uden API-start
+(child returncode1, kun prepared/cleanup i rapporten); nøglereference og prøvetabs er ryddet.
+Browserblokeringen er løst. Næste API-prøve afventer nu udtrykkelig tilladelse til
+pause/genstart for isolation. Den separate HA-stemmegodkendelses-wiring er ligeledes
+fortsat inaktiv og afventer det tidligere beskrevne specifikke ja samt protokolbevis.
+
+Seneste resultat: den UNWIRED ledger-korrektion har uafhængigt Astra HIGH GO
+(source02e1235c,44 tests plus reviewerens egne stale-session/replay/tidsgrænser).
+Den gamle spørgsmål/ja-reproduktion afvises nu uden faktisk anchor og før et senere
+anchor. P2 exact-object ejerskab er bevaret. Lead kørte også55 ledger/policy-tests
+og typekontrol grønt. Dette lukker den mekaniske reproduktion, ikke hele voice-parity-
+gaten: Live skal stadig bevises at levere den nye eksakt korrelerede delegation.
+Fremtidig wiring skal modtage metadata udelukkende fra den aktuelle SDK-generation,
+observere delegationer fra sessionsstart og aldrig acceptere modelleverede anchors.
+Thin returnerer fortsat confirmation-unavailable; ingen HA-godkendelsesvej er aktiveret.
+
+Alpha-leverancegrænse (ikke release-/installationsstatus):
+
+| Brugeroplevelse | Aktuelt bevis | Mangler før Alpha accepteres |
+| --- | --- | --- |
+| ON/OFF ved siden af nuværende løsning | Lokal setting og sessionsnapshot; OFF følger .82 | Installeret, kontrolleret skift og rollback |
+| Naturlig løbende samtale | SDK-prøve og sammensatte Thin-regressioner | Rigtig input/afbrudt svar/opfølgning med uændret forståelse |
+| Alle nuværende værktøjer | Fælles router; rigtig API kun med ufarlig statusstub | Domæneparitet inkl. friske stemmegodkendelser |
+| Snappy Talk | WAV streamer, men Chrome-start ca.4.75s | Direkte WebRTC-protokolprøve, integration og målt oplevelse |
+| Naturligt farvel | Foreløbig seks sekunders ventepolicy; måleværktøj reviewet | Målte terminalgrænser uden klipning eller unødig venten |
+| Stop, privacy og næste wake | Software-regressioner og browser-WAV Stop-prøve | Samme provisionerede kandidat fysisk golden chain og10/10 |
+| Full duplex på pucken | Firmware compile og AEC/forwarding-kæde undersøgt | Rigtig dobbelttale/ekko, room-audio og latencyfordeling |
+
+Firmware fra compile-prøven indeholder dummy-PSK og er ikke installationsartifact.
+Ingen af tabellens softwarebeviser gør Alpha fysisk testklar.
+
+Næste UNWIRED korrektion af samtykke-P1: ledgeren må ikke udstede reviewgodkendelse
+uden en ny faktisk session.delegation.created efter det serveroprettede proposal.
+Ledgeren genererer et friskt continuation-event-id; kun præcis korrelation, hidtil
+uset delegation og valideret faktisk offset_ms kan åbne source-grænsen. Gamle eller
+genbrugte delegationer, fraværende/mismatched korrelation og ugyldig offset afviser.
+Forsinket gammelt spørgsmål/ja efter lokal register skal afvises både uden anchor og
+før et faktisk senere anchor. Det er en betinget protokolkontrakt: almindelig Live-
+continuation er ikke bevist at levere denne nye korrelerede delegation. Ingen runtime-
+wiring, estimeret append-tid, komplet-tur-garanti eller HA-aktivering tilføjes.
+
+Aktuel stop-the-line for stemmegodkendelsesforslaget: uafhængigt Astra HIGH-review
+reproducerede, at et helt forsinket gammelt spørgsmål og ja kan passere den lokale
+fragmentledger. Seneste modtagne transcript-tid er ikke challenge-oprettelsens
+kildetid; hypotesen nedenfor er derfor ikke bevist. Ledgeren er UNWIRED og kandidaten
+er ikke testklar. En separat cross-ledger ownership-fejl afgrænses med præcis udstedt
+objektidentitet samt session/challenge/hash, men dette løser ikke gammel samtykke-lyd.
+Ingen router-/Thin-aktivering må følge af grønne ledger-tests.
+
+Automatisk godkendelseskontrol afviste at forbinde denne nye godkendelsesvej til
+HA-handlinger: Alpha-målet blev ikke anset som tilstrækkelig specifik autorisation
+til den ændrede godkendelsesgrænse. Den afviste ToolRouter-ændring blev ikke anvendt.
+Der forsøges ingen indirekte aktivering; øvrig transport- og målearbejde fortsætter.
+Et konkret, selvstændigt reviewet forslag skal først foreligge før brugerafklaring.
+
+Seneste afgrænsede reviewresultater: Astra HIGH har lukket cross-ledger-fejlen;
+forsinket gammel samtykke-lyd er fortsat reproducerbar og åben. 43 målrettede
+ledger/policy/prompt-tests bestod ved reviewerens kontrol. v15 Live-prompttilpasningen
+bestod det strukturelle review; den kan ikke erstatte semantisk provider-eval.
+
+WebRTC-developerprøven har Astra HIGH GO på source90d1f254 efter to Stop-rettelser:
+Stop før første create afviser sen opstart; blokerede typed SDK-sends holder ikke
+shutdown-låsen. 45 offline tests bestod. Præcis reviewed probe + importeret afhængighed
+er frosset i /private/tmp/podvoice-live-webrtc-reviewed-01. Chrome blokerede efterfølgende
+browserstyring med et åbent udvidelsesvindue. Handoff-serveren er stoppet uden modtaget
+nøgle, ingen API-session startet, og midlertidig browserreferencenøgle er ryddet.
+Transport-, tids- og playback-bevis står derfor stadig åbent.
+
+Installeret baseline er observeret i HA som1.13.82. Frisk origin/mainf880c68 har kun
+eval-fixture/test-, versions- og statusændringer siden34fb8c8; runtime/prompt/firmware
+er uændret i git-diff. Den er efterfølgende flettet ind i Alpha uden konflikt;249
+målrettede eval-harness/Live-prompt-tests bestod på sammenfletningen. Ingen fysisk
+gate arves. Alpha-review og fysiske krav er uændret åbne.
+
+Samlet lokal fast-gate på379c220 plus nedenstående arbejdsdiff mod origin/mainf880c68
+bestod på81.0s: hele valgte tests-træ, Ruff/format35 filer og mypy51 kildefiler. Det
+er udviklingsgaten, ikke releasegaten eller fysisk readiness. Uafhængigt Astra HIGH
+godkendte også SDK/policy-diffet med91 tests: nye Live-API'er er stadig inaktive, OFF's
+risiko og næste-tur-binding er bevaret, og SDK-counteren følger faktisk eventmodtagelse.
+
+Måleprøvens valgfrie JSONL-tidslinje og terminal-PCM-dræn har særskilt Astra HIGH GO
+(sourcea1ea1d99,50 offline tests). En blokeret outputpipe fejler bounded uden falsk
+drænbevis. Tidslinjen skelner SDK request/return, faktisk delegation.offset_ms,
+PCM-sampleoffset og pipe-write; ingen kant påstår hørt lyd eller færdigt farvel.
+Næste harmløse protokolmåling skal afprøve, om en frisk response.create-korrelation
+faktisk giver en ny delegation med ny source-position. Genbrugt delegation, manglende
+korrelation og estimeret append-ACK må ikke bruges til at bortforklare samtykke-P1.
+
+Næste aktive ændring: Live-bekræftelser. Observeret blocker er, at den nuværende
+Alpha afviser bl.a. vacuum/mute/relativvolumen, fordi provider ikke har OFF's komplette
+næste-brugertur. Hypotese: samme managed backend kan vurdere et serverfastholdt,
+uforanderligt udsnit af faktisk input/output og frigive samme eksisterende one-shot-
+policy uden at opfinde en tur. Kæde: canonical challenge → genereret præcist forslag
+→ senere faktisk bekræftelsesinput → reserveret review_pending_action → evidence-token
+→ senere completed eksklusiv approve_action → uændret target/schema/policy og final-
+send guard → resultat/tale → close/rearm. OFF confirm/begin_turn forbliver uændrede.
+
+Plan: én aktiv Live-challenge; eksplicit mode på serverens ExecutionContext afviser
+cross-mode. Review returnerer kun token, når hele nødvendige materialet passer i
+2048-byte værktøjsresultatet. Ingen skjult afkortning. Token binder session/generation,
+challenge/argumenthash, immutable fragmentreferencer, observeret revision, udløb og
+SDK's modtagne response-created highwater. En godkendende respons skal være modtaget
+EFTER tokenudstedelsen, ikke bare behandlet senere fra køen. Valgte outputfragmenter
+skal være efter challenge-registrering; voice-input skal tidsmæssigt følge det fulde
+valgte forslag. Typed input mærkes eksplicit som tekst med lokal modtagelsesrækkefølge,
+ikke et opdigtet provider-tidsstempel. Hele efterfølgende input skal indgå; modellen
+må ikke vælge kun “ja” og skjule et allerede observeret “nej”. Nyt input/ændret forslag,
+Stop, udløb eller anden generation afviser token og senere sends. Nyt input alene
+annullerer ikke betydningen af selve forslaget. Semantik afgøres af modellen; ingen
+lokal liste over godkendelsesord. Outputtekst beviser generering, ikke hørt lyd;
+Alpha lover aktuelt observeret samtykke, ikke en komplet fremtidig ytring.
+
+Regressioner: korrekt release, forkert mål/evidence, overlap/for tidligt eller sent
+forsinket ja, ja…nej, nye fragmenter under target/MCP-await, tokenreplay, cross-mode,
+expiry, ændret schema, Stop og en allerede kølagt response-created før reviewtoken.
+Sen fejlkontrol må ikke genafspille en allerede sendt handling. Fysisk og semantisk
+API-eval samt Astra HIGH's endelige adversarial review kræves før aktivering/release.
+Rollbackgrænse er Alpha OFF; der ændres ingen risikoklassifikation eller TTL.
+
+Aktivt Alpha-goal er nu oprettet på brugerens udtrykkelige ordre: fortsæt til den
+samlede on/off-Alpha, ikke kun delmilepæle. Lokal prototype5bba274 er udgangspunkt;
+main34fb8c8 (.81) indarbejdes nu. Git-diff viser v15 stille-tak plus eval-/versions-
+ændringer; ingen ny firmware eller mic-/playbackmekanik. Begge beslutningshistorikker
+bevares. OFF får præcis main's v15. Alpha tilpasser samme produktregel: et rent
+modtaget-signal efter svar giver stille fortsat lytning; høflighed i spørgsmål,
+anmodning eller godkendelse skal stadig forstås. Live behøver ikke et wait-værktøj
+for at lytte i stilhed. Regression sammenholder v15-kilderegler og begge prompts.
+Der arves ingen fysisk eller Alpha-semantisk gate ved baselineopdateringen.
+
+Aktiv implementeringsbeslutning efter brugerens fortsæt-besked: testvinduet hos
+.80 begrænser kun eksterne prøver. Alpha-kode fortsætter i isoleret clone. Én lead,
+Astra SDK/audio som implementører, Astra HIGH som uafhængig reviewer. Observeret
+API-kompatibilitet fra prøve2 retfærdiggør nu adapterintegration; ingen latency- eller
+fysisk funktionspåstand. Falsificerbar hypotese: en eksplicit kontinuerlig Live-
+protokol under samme ThinSession kan føre input → completed toolbatch → streaming →
+én close/rearm uden at ændre OFF's Realtime/FLAC-eventkæde.
+
+Kæde og invariantscope: wake/privacy/native mic → sessiongeneration og Live-inputclock
+→ delegation/responsebatch + uændret ToolRouter/policy → session-WAV/HTTP → tokeniseret
+announcement/mixer → korreleret fysisk finish → én teardown/rearm/næste wake. Tests
+skal injicere stale generation, duplicate/out-of-order batch, for sen append/fetch,
+output overflow/disconnect, Stop under tool/send/close, mic efter close, manglende
+fysisk finish og modsatte Talk-adapter. Ingen lokalsemantik, legacydirectPCM, gain,
+VAD, wake eller OFF-tuning. Output clock følger providerens PCM; ingen lokalt opfundne
+silencepakker i output. HTTP queue tom er ikke EOF. Providerclose er ikke DAC-finish.
+
+Implementeringsgrænser: openai_live.py ejer kun officiel SDK/wire, typed Live-events,
+24k output/inputformat og16→24k inputresampling, completed atomisk batch og særskilt
+backend-/sekundusage. live_audio.py + separat beskyttet HTTP-route ejer kun bounded
+sessionstream. Thin ejer input, dispatch, playbacklease og close. Samme settingsflag
+snapshot vælges ved næste wake; ingen hot-swap. Standard WAV-codec aktiveres eksplicit
+som firmwarefeature før fysisk ON-test, FLAC/mixerforbindelser bevares.
+
+Alpha-voice-approval er et særskilt åbent delkrav: nuværende policy kræver bekræftelse
+for blandt andet vacuum, relativ volumen og mute. De må IKKE klassificeres ned for
+at få parity. Før den nye godkendelseskontrakt er testet, må Alpha returnere eksplicit
+unavailable-confirmation og udføre nul effekter, ikke bede om et virkningsløst ja.
+Det er en implementeringsmellemtilstand og en reel full-parity-gate, ikke en færdig
+Alpha. Core udvikles videre imens. Forslag til senere godkendelse er eksakt server-
+challenge + postproposal source-tidsinterval + immutable evidence-review + completed
+semantisk beslutning + atomisk generation/revision/expiry/once check. Den gamle
+next-turn-garanti må ikke påstås for Live. Godkendelse åbnes først efter sen-rettelse-
+regressioner og uafhængigt review. UI-click er kun alternativ, ikke voice-parity.
+
+Graceful close bliver en udtrykkelig Alpha-policy: efter modelsemantisk completed
+close-intent gives bounded mulighed for terminalt svar; målte grænser er ikke
+provider audio.done. Accepter slutlyd indtil session.closed, forsegl den aktuelle
+HTTPstream og kræv dens fysiske finish før rearm. Stop/mute/fejl kasserer derimod
+queued/incomingaudio og bruger eksisterende stopfence. Kandidaten er ikke fysisk
+testklar før sammensatte gates, review og alle Alpha-paritykrav er opfyldt. Rollback:
+OFF fra næste samtale, Stop afslutter aktiv ON, ingen replay af sideeffekter.
+
+Adversarial review under integration fandt tre konkrete ejergrænser: ON skal
+admitteres på eksplicit WAV-capability før providerforbindelsen; ny inputrevision
+under ToolRouter's awaited targetforberedelse skal kontrolleres igen umiddelbart
+før HA/MCP-dispatch og hvert batchmål; en afsluttet Live-reader efter session.closed
+må ikke udløse heartbeatfejl midt i fysisk dræn. Mindste rettelser er Alpha-only
+capability admission, valgfri server-ejet execution_guard ført til final send efter
+MCP-initialize og et eksplicit forventet reader-slutvilkår under graceful close.
+OFF har ingen guard og uændret transport. Regressioner skal holde target-read og
+initialize blokeret, ændre revision/Stop, frigive og bevise nul efterfølgende sends.
+
+Næste reviewfangst: SDK-context entry kan afslutte efter Stop, hvis close kun ser
+efter allerede oprettet connection. Adapterens connect-operation skal derfor være
+lukbar fra første await, med generationsfence og oprydning af en sent erhvervet
+context. Thin ejer tilsvarende en separat Alpha-openingtask, som close annullerer
+og afventer før fysisk stop/rearm; sent start_streaming/connect må ikke starte
+reader/pump i en afsluttet eller ny samtale. OFF's åbning ændres ikke.
+Talk-browserprøven observerede Chrome Range: bytes=0- og416/decoderfejl. Den præcise
+initial-range må behandles som200 nonseekable hel stream; andre ranges afvises stadig,
+uden falsk Content-Range eller genbrug af forbrugt sessionstream.
+Forbrug tilføjes som særskilt Live-sekund/backendtoken-ledger med dedup; eksisterende
+OFF-regnskab bevares og ukendt pris må ikke vises som gratis. Prisgrundlag verificeres
+på officielle kilder; ændringen påvirker ikke samtalens semantik.
+
+Live-native UX-review på brugerens præcisering: Live ejer overlap, lytterreaktioner,
+rettelser og taletiming; backendarbejde lever videre under en taleafbrydelse. En rå
+inputfragmentrevision er IKKE en semantisk opgaverevision. Produktets eksisterende
+præcise read-only-kontrakter må derfor færdiggøre og returnere deres parameterbundne
+resultat efter ny tale; ukendte/ændrende handlinger beholder konservativ final-send-
+revision og Stop/generation/budgetgrænse. Ingen lokal frasegenkendelse. Regression:
+"mm" under opslag giver resultat, Stop under samme opslag giver ingen ny dispatch;
+rettelser vurderes af backend mod det returnerede resultat og dets oprindelige opgave.
+Primær-/backendprompts tilpasses hver for sig til Live med uændrede produkt- og
+handlingsregler. Den nuværende sekssekunders farvel-grace er en ufærdig prototype,
+ikke accepteret brugeroplevelse; ingen ny lydtærskel fastlægges uden en defineret
+optaget sammenligning. Kort outputro efter semantisk lukning er en mulig målepolicy,
+ikke provider audio.done. Voice-approval er fortsat en fuld parity-gate.
+
+Lokalt Chrome-forsøg på eksakt WAV-route har bevist muted streaming før EOF,
+Stop/HTTP-disconnect med afvist sen append efter ca.197ms og afspilning af ny
+streamidentitet. BrowserLink kan nu udtrykkeligt modtage denne codec. Første playback
+var ca.4,75s efter første PCM i forsøget; det er en observeret browserbegrænsning og
+IKKE snappy Talk-bevis. WebRTC er fortsat officiel browseranbefaling; browserens
+native Live-rute må vurderes særskilt uden at bruge Talk som fysisk puck-bevis.
+Firmwareoverlay compiler, men den genererede binær har dummy-PSK og er ikke en
+provisioneret installationskandidat. Runtime/setting er nu lokalt implementeret,
+ucommittet og ufrossen; intet herfra er installeret, ingen Alpha golden/10/10.
+Historiske "endnu ikke implementeret" nedenfor beskriver tidligere probemilepæle.
+
+Det afgrænsede integrationsreview er efter rettelser bestået: 19 Thin-regressioner
+for én modesnapshot, skift under typed admission, Stop før første lyd, sent mic-start,
+teardowntimeout/retry, stale generation, læseopslag under lytterreaktion, sidesend-
+revision, fysisk dræn og endeligt forbrug. Astra HIGH reproducerede de afgørende
+races. Syv yderligere tests bruger den reelle ToolRouter/MCP mod HTTP-testtransport:
+revision/Stop efter targetforberedelse og initialize giver nul efterfølgende kald;
+revocation efter første mål sender ikke de resterende mål. Tolv lokale HTTP-tests
+består med loopback aktiveret. Sandboxens afviste bind er miljøfejl, ikke lydfejl.
+
+Firmware-/AEC-kæden er nu kodegennemgået: native mic-forwarding afhænger af wake-
+privacy og subscription, ikke announcement-state; XMOS-reference og AEC/IC/NS findes
+i den kompilerede vej. Ingen fysisk double-talk-forståelse er bevist. Før accept
+sammenlignes kendte danske brugerord alene og under egen tale, output-only residualt
+ekko og ekstern musik, med synkroniseret device/provider/output/rumlyd. Backlog,
+drops, gain/clipping, Stop/mute og næste wake registreres særskilt. Mikrofon åben er
+ikke bevis for forståelse. En kontinuerlig afspilningslease er heller ikke bevis for
+kontinuerlig tale; Alpha LED/UI skal vurderes mod dette før produktaccept.
+
+Lokal integrationsmilepæl: scripts/dev fast --base origin/main bestod på det samlede
+aktuelle runtime-diff i80,7s: hele valgte tests-træ, Ruff/format27ændrede Pythonfiler
+og mypy50kilder. Den første fulde kørsel fandt kun paneltestens gamle ordlyd for
+Realtime-model; den forsætlige mere præcise label er nu dækket af kontrakttesten.
+Den delte gate-lås blev respekteret, mens en anden release kørte. Ingen runtime-
+ændring blev foretaget på grund af sandboxens netværksafvisning.
+Astra HIGH's afgrænsede Thin- og promptreview har nul resterende P0/P1/P2 i deres
+reviewede scope. Prompten tillader valgfri relevant indledning, fjerner gammel
+per-tur/talesekvensstyring og lader backend kontrollere frisk værktøjstilgængelighed.
+Forbrugsregnskabet bevarer final voice-sekunder og særskilt backendusage efter Stop;
+ukendte beløb/finalisering vises som ukendte, ikke gratis. Dette er IKKE samlet
+releasegodkendelse. Releasegate er ikke kørt, .80/v15-alignment og fuld Alpha-paritet
+mangler, og der er ingen installation eller fysisk golden/10/10 for denne kandidat.
+
+Seneste resultat: anden API-prøve med hashverificeret dansk syntetisk fixture
+bestod den afgrænsede SDK-/managed-delegation-kæde. source_input_bytes123834,
+synthetic_silence_bytes1195206, input_bytes_sent1319040. Én completed-valideret
+get_probe_status, ét indsendt stub-resultat og én continuation; to backendterminaler
+med905/965tokens, nul manglende terminal/usage. session.started og session.closed,
+final Live usage27s. Modtaget PCM1286400bytes/26.8s, peak16000/RMS829.13.
+Astra HIGH bekræfter protokolmilepælen uafhængigt. Aggregatet gemmer ikke alle
+response/delegation-id'er og er ikke en standalone tool-result-ACK eller fuld trace.
+Output er endnu ikke gennemlyttet; dansk forståelse, meningsfuldt talt svar,
+afbrydelse, farvel og fysisk afspilning er derfor stadig ikke bevist. To audioevents
+blev kasseret under deadline-close som forventet af Stop-proben, ikke graceful drain.
+
+.79 er efter anden prøve genstartet: frisk status viser Kører/IDLE/native connected,
+MCP/PodConnect up og korreleret rearm-ack; fysisk wake afventer bevis. Intet installeret herfra.
+Provider-vinduet er frigivet til .80-opgaven. Ingen flere liveforsøg uden koordinering.
+Valgt integrationsretning er officiel Live-SDK/WebSocket og managed Responses;
+standard-WAV/PCM gennem eksisterende HTTP-announcement/mixer er lokal lydkandidat
+på baggrund af pinned host-proof. ThinSession bevarer ejerskab, OFF bevarer FLAC.
+Runtime og ON/OFF-setting er endnu ikke implementeret. Før runtime skal Alpha-
+kontrakten for bekræftelser og graceful close være eksplicit og falsificerbar.
+Live mangler komplette inputtur- og spoken-output-done-events; de må ikke opfindes.
+En målt farvel-grace kan være en eksplicit Alpha-politik, aldrig providerbevis;
+alle accepterede slutbytes skal drænes til samme fysiske stream/DAC før rearm.
+Følsomme handlinger må ikke åbnes med falsk næste-tur-bevis. Næste arbejde er review
+af eksisterende prøveoutput og den kontrakt, derefter adapter-/firmwareintegration.
+
+Bruger har nu godkendt, at lead vælger adgangsrute og fortsætter. Valgt rute er
+HA's eksisterende PodVoice-option; nøglen må kun overføres lokalt til den afgrænsede
+probe i hukommelsen, aldrig til chat, repo eller rapport. En kort loopback-only
+engangshandoff med origin/path-validering kan forbinde browserens godkendte
+konfiguration til prøveprocessen. Ingen ny credential eller offentlig endpoint.
+Før netværksprøven kontrolleres idle og installeret version; produktion pauses kort
+for at overholde eksklusiv testadgang og genstartes efter forsøget, også ved fejl.
+Prøven bruger kun syntetisk dansk input og immutable stub, højst30s plus startup/
+close-deadlines, ingen reconnect. Resultat skal vise faktisk start, audio, tool og
+session-close separat; en fejl er ikke tilladelse til blind retry eller runtimepatch.
+
+Faktisk første API-forsøg 11/9: .79 var IDLE og native-forbundet; kort pause,
+én SDK-session og efterfølgende genstart blev gennemført. session.started og
+session.closed kom, final voice usage var27.0s, backendusage tom. Modtaget PCM var
+1315200bytes/27.4s, peak45/RMS1.16 af32768; det beviser ikke tale. Den syntetiske
+inputfixture viste sig at være0bytes. Alle1339200sendte bytes var EOF-padding.
+Forsøget er derfor kun forbindelses-/finaliseringsbevis; dansk, delegation, stub,
+afbrydelse og farvel er IKKE bestået. Probe-exit0 var utilstrækkelig forsøgsvalidering.
+Den lokale første handoff blev afvist før API-kald; same-origin Referrer-Policy og
+en nøglefri POST-test rettede adgangsvejen uden at svække origin/path-kontrollen.
+
+Afgrænset korrektionshypotese: et separat inputkildetæller og fejlet resultat ved
+nul kildebytes forhindrer denne falske prøveaccept. Kæden er fixture → faktisk pipe-
+read → EOF-padding → SDK-session → rapport/exit. Ingen runtime-, lyd- eller provider-
+konfiguration ændres; invarianten er sand evidens og uændret OFF. Regression skal
+bruge rigtige OS-pipes med tomt/ikke-tomt input og bevare final usage ved inputfejl.
+Astra HIGH reviewer dette lille probe-diff separat. Ikke-nul bytes er heller ikke
+bevis for forståelig tale. macOS say gav tom fil under sandbox; én kontrolleret
+kørsel uden sandbox gav123834bytes PCM24k/2.579875s, peak18502/RMS4266.85.
+SHA256c08aa5cad00ddbb0fcda022302a86c22cd28d759d68ec86e69dfdf4b309c0019.
+Fixturekvalitet kræver stadig semantisk kontrol; ingen blind ny API-prøve.
+
+Korrektionsdiffet tæller nu source_input_bytes direkte fra pipe-read og returnerer
+no_source_audio/exit1 ved nul kildebytes, selv om session.closed og final usage findes.
+26 målrettede prøver består. Astra HIGH fandt og fik rettet en P2 i den nye CLI-test:
+optional SDK blev importeret uden skip i normalmiljøet. Uafhængigt genreview PASS,
+0 uløste P0/P1/P2;26pass med SDK og22pass/4skip ved simuleret manglende SDK-import.
+Frossen fast-gate PASS79.2s, alle tests valgt plus ændret Python Ruff/format.
+ScriptSHA256eec62553f5a5fc6b93dff876fbfd96e226dbe52a651de12625462208d15151fb;
+testSHA25634ab41b5fdccde7f35f4343af4ae031200e0714228a14a3412c8a494e867d8db.
+Ingen ny SDK-dependency er tilføjet den shippede add-on.
+
+Efter prøven viser frisk .79-status IDLE/native connected=true, MCP/PodConnect up
+og korreleret rearm-ack; wake afventer fysisk bekræftelse og OpenAI afventer næste
+rigtige Realtime-session. Ingen ny golden/10/10 er bevist. .80-opgaven har nu det
+koordinerede installations-/provider-vindue; Alpha foretager kun offlinearbejde,
+indtil det er frigivet. Ingen credentials er gemt i repo, lyd eller rapport.
+
+Implementering startet på brugerens godkendelse 11/9. Lead er denne tråds Codex;
+Astra medium arbejder på afgrænsede SDK-/lydopgaver, Astra high er uafhængig auditor.
+Første ændring er et isoleret developer-probeprogram og dets regressioner; ingen
+setting eller produktionsvej aktiveres. Officiel SDK mangler i eksisterende testvenv;
+brug en separat usynkroniseret Python3.12-venv og registrér den installerede version.
+
+Aktiv falsificerbar hypotese: den officielle Live-SDK og Responses delegation kan
+føre en dansk, løbende lydsamtale med ét ufarligt værktøj, korrekt correlated
+completed-response-dispatch og afgrænset close uden gamle Realtime-turevents.
+Kæde: paced testinput → SDK/start/readiness → Live audio/delegation → valideret
+stub-resultat → kontinuerlig testoutput → close/final event. Probeoutput er ikke
+puck- eller rumbevis. Ingen HA-klient eller produktionssideeffekt tilsluttes proben.
+Test stale/duplicate/malformed/failed response, ordnet audio, backpressure,
+input-EOF versus session-close, fejl og deadlines. Rollback er at fjerne den isolerede
+probe; OFF/runtime/firmware skal have nul adfærdsændring i denne leverance.
+Uafhængig audit sker mod faktisk diff; fysisk kandidatstatus forbliver ikke testklar.
+
+SDK3.13.0 er installeret i separat /private/tmp/podvoice-live-sdk-venv og dens
+AsyncOpenAI.live.connect er verificeret lokalt. Ingen API-nøgle findes i testmiljøets
+environment; adgangsvej er efterspurgt uden at bede om nøglens værdi.
+Supplerende off-device-hypotese: officiel micro_decoder WAV-codec kan muligvis
+bære kontinuerlig PCM over den eksisterende HTTP-announcement/mixer uden ny encoder.
+Prøv præcis pinned decoder med fragmenteret/ukendt længde/EOF; et FFmpeg-resultat
+alene tæller ikke. Ingen firmware-/runtimeændring før kompatibilitetsresultat.
+
+Astra-high arkitekturaudit: managed Responses understøtter completed-batch og
+skrevet user-input. Tilpas manglende standalone-resultat-ACK til sand pending/error-
+status. Fuld paritet er endnu blokeret af uprøvet næste-brugertursgodkendelse,
+opgaverevision ved rettelser, separat Live-/backend-budget og semantisk farvel til
+fysisk dræn. Ingen transcriptfragment/delegation må opfindes som brugertur. Den
+ufarlige probe kan fortsætte; auditten er ikke runtimegodkendelse.
+
+Styrende brugerpræcisering: standardintegration og mindst mulig egen vedligeholdt
+kode. Officiel Live-SDK og dokumenteret delegation først; eksisterende funktioner
+bevares, men Alpha skal ikke efterligne gamle Realtime-turregler. WebSocket er den
+officielle servervej, WebRTC browservejen. Lokal FLAC/PCM/WebRTC vælges efter egnethed
+og samlet vedligeholdelse; specialencoder er ikke længere automatisk første build.
+
+Lead: Codex. Brugerens nye scope er dyb undersøgelse af tre transportveje og en
+on/off-Alpha med samme aktuelt tilgængelige funktioner som den brugbare løsning.
+Seneste præcisering: OFF er fortsat half-duplex; ON skal sigte efter full duplex
+under aktiv Live-samtale. Undersøgelsen er ikke en aktivering af det gamle flag.
+Det tillader en eksplicit eksperimentel Live-politik; det er ikke godkendelse af
+en ny stabil baseline eller af quarantined Classic/direct-PCM. OFF skal vælge den
+eksisterende vej fra næste samtale. Én ThinSession og én fysisk mic-/playbackejer.
+
+Tidligere researchbaseline: main70a623a08e2dfb29328c9f391105deb30920924c (.76).
+Implementeringsclone er nu fast-forwardet til main778f5bd8b578a5b9830e8f7840161c29985af1de
+(.79), efter brugerens besked om forestående .79-installation. Før API-forsøget
+verificerede denne tråd frisk .79 som installeret og kørende. Clone
+/private/tmp/podvoice-live-alpha-research. Den gamle arbejdsmappe og .71-eksperimentet
+er ikke implementeringsgrundlag. Denne undersøgelse ændrer ikke installeret enhed.
+
+Direkte evidens: aktuelle officielle Live-dokumenter mangler spoken-response-done,
+Realtime speech_stopped/commit og output-item-identitet i primær audio. Nuværende
+Thin kræver netop disse ejergrænser. Hele kæden der skal redesignafklares: wake og
+privacy → native mic og buffer → Live-input/clock → delegation/autorisation →
+stream/mixer/DAC → fysisk dræn/ekko → follow-up, semantisk close og næste wake.
+Invarianter: én runtimeejer, fysisk half-duplex for OFF, session-/generationisolation,
+værktøjsautorisation og senere bekræftelse, én teardown/rearm, sand playback/evidens.
+Realtime-specifikke ACK-/turnregler kan ikke opfyldes ved opdigtede Live-events.
+En ny Alpha-kontrakt skal bevises og opdatere autoritative dokumenter før runtime.
+
+Hypotese: en frameleverende FLAC-encoder kan fjerne væsentlig lokal opsamling og
+bevare mixeren; fysisk streamgrænse er separat og endnu uløst. Tre undersøgte veje:
+1 FLAC-streaming, 2 ny lokal PCM-kilde i samme mixer, 3 direkte WebRTC med server-
+broker/sideband. Full duplex er nu et eksplicit Alpha-mål. Ikke-mål: skjult
+duplex i OFF, VAD-/gain-/wake-tuning, fjernelse af
+tools, skjult fallback/replay eller en setting uden fungerende backend.
+
+Faktisk research: 8 CLI-forsøg og 4 libFLAC-forsøg, syntetisk 24kHz PCM i 20ms
+realtidspakker; alle 12 fulde roundtrips var byteidentiske. Lokal macOS FLAC1.5.0,
+ikke shippet ARM64 eller puck. CLI med releaseargumenter gav første post-metadata-
+lydbytes efter441ms(støj)/1121ms(tone). Kun960-sampleblok gav261–269/946–965ms.
+libFLAC callback med4096blok gav første komplette frame180–183ms;960blok61.6–62.3ms.
+Metoderne har forskellige leverings-/metadataegenskaber og isolerer ikke én buffer.
+Resultatet afviser FLAC-formatet som påvist nødvendig transportudskiftning; ingen
+måling beviser akustisk latency eller den samlede målopfyldelse.
+
+Uafhængigt adversarial review fra latency_review: vej1 kun første transportforsøg,
+ikke fuld Alpha-testklarhed. Alvorlige fælles åbne spørgsmål er kontinuerlig mic-/godkendelsesgrænse,
+gyldig senere approve_action, tool-output uden standalone ACK, farvel/dræn, typed
+Talk og separat Live-/Responsesusage. Disse er indarbejdet i researchleverancen.
+Reviewer har ikke godkendt runtime eller fysisk test. Historisk voice.py-docstring
+om uændret interface ved GPT-Live er ikke migrationsautoritet.
+Afsluttende review af rapport/HTML: ingen P0/P1. Præcisering indarbejdet: approve_action
+kræver umiddelbart næste brugertur; mellemliggende input/ændring/udløb/teardown aflyser.
+
+Gældende implementeringsplan efter brugerens best-practice-præcisering:
+1. Officiel Live-SDK/quickstart med dansk, ufarligt værktøj, afbrydelse og afslutning.
+   Afklar adgang, delegation, godkendelser, typed Talk, usage og close i samme prøve.
+2. Fysisk dobbelttale og valg af ét egnet lokalt lydled efter vedligeholdelse og målte
+   krav. FLAC er kandidat, ikke forhåndskrav; fysisk prøve kan ske uafhængigt af trin1.
+3. Tilslut fuld funktionsparitet under ThinSession, kontinuerlig Alpha-input og fælles
+   værktøjsautorisation. Skriv eksplicitte Alpha-regler i autoritative docs før runtime;
+   gamle Realtime-eventkrav må ikke opfindes som Live-kontrakt.
+4. Én setting OFF/ON fra næste samtale, gemt versus aktiv status og samme firmware.
+5. Sammensatte regressioner, uafhængigt review, passende software-/firmwaregates,
+   præcis installation og frisk fysisk golden chain plus10/10. Kontroller også OFF.
+6. OFF/ON/direkte Live-reference:40enkle+20toolture, rumlyd og fejl med i opgørelsen;
+   fjern kun målte ekstra ventetider, med relevante fysiske gates per tuning.
+Første implementeringsleverance er trin1, ikke en ny FLAC-encoder. Den gennemgåede
+encoderhypotese ovenfor er tidligere research og bestemmer ikke transportvalget.
+Detaljeret brugerplan ligger i researchleverancens alpha-plan.md. Denne post er
+fortsat den eneste aktive beslutningslog. Trin1 har implementeret off-device-probe;
+rigtig Live-API-prøve og den samlede Alpha mangler fortsat.
+Full-parity Alpha kræver alle eksisterende funktioner tilsluttet, uafhængigt review
+og relevante software/protokol/fysiske adgangsgates. Baselineparitet må inventeres:
+.76 har dormant TimerManager, ikke bevis for admitted stemmetimere.
+Rollbackgrænse: OFF fra næste samtale; Stop kan afslutte aktiv Alpha; ingen ny
+session må genafspille en allerede udført handling. Samme firmware skal bevare OFF.
+
+Ny full-duplex-research: XMOS v1.3.1/1a1df7c og præcis ESPHome-komponent
+772f2b9 er gennemgået. Separate I2S-input/output; XMOS læser digital speakerreference
+og kører AEC. ESPHome sætter kanal1=NS (XMOS alene har defaultAEC); aktiv I2C-stage
+og dobbelttalekvalitet er ikke fysisk verificeret. Ekstern HomePod er ikke denne
+speakerreference. Full duplex kræver ikke WebRTC eller udskiftning af FLAC.
+
+Uafhængigt genreview fra latency_review: gammelt full_duplex-flag er ingen genvej.
+Det er blokeret i settings/factory, fjerner lokal Stop-context, aktiverer ikke
+providerinterrupt, har600ms barge-debounce og en stop-ACK/taleslut-race. Echo-tail
+skærer stadig mic-generation og kan tabe dobbelttale. Realtime-truncate kan ikke
+opfindes i Live. Med det nye mål bortfalder behovet for per-svar mic-genåbning;
+farvel/dræn, autorisation og én teardown/rearm består. Ingen runtime er godkendt.
+Før implementering skal Alpha-kontrakten optages i autoritative dokumenter; den
+fysiske produktionskontrakt er ikke ændret af research. Detaljer/prøvematrix ligger
+i researchleverancens full-duplex.md; samme lead-post er fortsat beslutningslog.
+
+Faktisk første kodeleverance: scripts/live_alpha_probe.py, isoleret fra add-onen,
+med officiel OpenAI-SDK3.13.0, dansk probe-prompt, ufarligt get_probe_status,
+20ms-paced PCM, markeret EOF-stilhed, bounded startup/close, ingen reconnect,
+completed-batch-staging, særskilt forbrug og max256 backend-outputtokens per response.
+Der er ingen dollarbudgetgaranti eller fysisk drain i proben. Reproduktion står i
+scripts/LIVE_ALPHA_PROBE.md; dependency er kun scripts/requirements-live-alpha.txt.
+
+22 regressionsprøver i tests/unit/test_live_alpha_probe.py består og opdages af den
+normale releasegate. Astra HIGH fandt og fik rettet overset backendusage under close,
+ignoreret nested backend error og continuation efter Stop under awaited result-send.
+Uafhængig genprøve og frossen audit: PASS, ingen uløste P0/P1/P2 for proben.
+ScriptSHA256cd8dd5a36b3c2cbf14c602adccc2c2ed8f7555e07b1e41cd5b60bdc5a627d132;
+testSHA2560044fb0f72a304b88c221767b8271bebc77ec11dbbe0c4ed8e45b731a2d9e8a2.
+Fast på .79-kilde, isoleret Python3.12-venv: PASS81.7s med alle tests valgt samt
+Ruff/format. Første forsøg stoppede før test pga manglende lokal origin/main-ref;
+ref er hentet korrekt. Mellemkørsel havde grønne tests men forkastet scope pga audit-
+rettelser under kørsel; kun det efterfølgende frosne resultat tæller. Ingen runtime-
+eller firmwareændring og ingen release/installationsgate kørt for den fulde Alpha.
+
+Standard-WAV-hostprøve: pinned micro-decoder0.2.0 og micro-wav0.1.0, verificeret50
+kildefiler,8cases/16streams. Fragmenteret PCM16mono16/24kHz, ukendt længde0xFFFFFFFF,
+lyd før EOF, EOF og stop/genstart giver forventet PCM. Zero-length-header giver nul
+lyd som negativ kontrol. Astra-high verificerede sourcechecksums og de16PCM-resultater.
+Det begrunder standard-WAV som kandidat uden specialencoder; ESPHTTP, firmware,
+mixer/DAC, dobbelttale og farvel er ikke fysisk bevist. Reproduktion/evidens er i
+/private/tmp/podvoice-live-wav-probe og kopieret til researchleverancens wav-proof.
+
+API-adgang og den afgrænsede completed-delegation-kæde er nu bevist af anden prøve.
+Første fejlbehandlede nul-inputforsøg er bevaret som fejl og permanent regression.
+Den samlede Alpha, samtalekvalitet og fysiske funktion er fortsat ikke bevist.
+
+Status: første isolated probe implementeret og softwareauditeret; research og offlineforsøg afsluttet. Ingen Live-API-/kontoadgangsprøve,
+runtimeimplementering, setting, releasegate, installation, golden chain eller10/10
+for Alpha. Kandidaten er ikke fysisk testklar. Ingen produktionsdiff.
+Researchleverance ligger i den lokale Codex-visualiseringsmappe gpt-live-alpha med
+undersoegelse.md, index.html, begge reproduktionsscripts og rå JSON-resultater.
 ## Aktuel leveringsstatus — .87 installeret, Roborock ON til fysisk prøve
 
 14/9 kl.12.35: offentlig .87, installeret exact mainbe4c5e8cc9b8e3e371eeb622b326c03019f98416,

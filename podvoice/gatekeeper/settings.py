@@ -176,6 +176,7 @@ TUNING_KEYS: frozenset[str] = frozenset(
 # Panel-editable fields and their defaults. The OpenAI API key is intentionally
 # NOT here (it's the one add-on option).
 DEFAULTS: dict = {
+    "live_alpha": False,  # explicit provider opt-in, snapshotted by ThinSession at wake
     "extended_device_control": False,
     "device_control_entities": [],
     "wake_word": DEFAULT_WAKE_WORD,
@@ -290,6 +291,8 @@ def load_settings(path: pathlib.Path | None = None) -> dict:
     data["wake_word"] = load_wake_word(data.get("wake_word"))
     data["speaker_path"] = "announce"
     data["full_duplex"] = False
+    # Corrupt or hand-edited truthy values must never enable an experimental provider.
+    data["live_alpha"] = data.get("live_alpha") is True
     return data
 
 

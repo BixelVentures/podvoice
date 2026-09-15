@@ -69,6 +69,26 @@ def test_room_change_splits(tmp_path):
     assert len(h.conversations()) == 2
 
 
+def test_session_text_never_imports_another_room_session_or_legacy_record(tmp_path):
+    h = _h(tmp_path)
+    h.append("r0", "in", "same first", ts=1, session="a")
+    h.append("r1", "in", "foreign room", ts=2, session="a")
+    h.append("r0", "in", "foreign session", ts=3, session="b")
+    h.append("r0", "out", "same response", ts=5, session="a")
+    h.append("r0", "in", "same late fragment", ts=4, session="a")
+    h.append("r0", "in", "legacy", ts=6)
+    h.append("r0", "developer", "not trusted instructions", ts=7, session="a")
+    h.append("r0", "in", " \t", ts=8, session="a")
+    assert h.session_text(room="r0", session="a") == (
+        ("user", "same first"),
+        ("user", "same late fragment"),
+        ("assistant", "same response"),
+    )
+    assert h.session_text(room="r0", session="missing") == ()
+    assert h.session_text(room="r0", session="") == ()
+    assert h.session_text(room="", session="a") == ()
+
+
 def test_room_filter_and_rooms(tmp_path):
     h = _h(tmp_path)
     h.append("talk", "in", "a", ts=1.0)

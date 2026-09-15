@@ -24,9 +24,11 @@ import asyncio
 import contextlib
 import json
 import logging
+import secrets
 import time
 import uuid
 from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from typing import Any
 
 from aiohttp import WSMsgType
@@ -36,6 +38,7 @@ log = logging.getLogger("podvoice.talk")
 TALK_ROOM = "talk"
 PROTOCOL_VERSION = 2
 _QUEUE_MAXSIZE = 200  # ~4 s of 20 ms frames, same backpressure policy as the puck link
+_COMMAND_JOIN_DIAGNOSTIC_S = 2.0  # Report stuck cleanup; never abandon its owned task.
 
 
 class TalkConnection:
@@ -122,6 +125,22 @@ class TalkConnection:
         return self.ws.__aiter__()
 
 
+@dataclass
+class _LiveHandshake:
+    attempt_id: str
+    offer: asyncio.Future
+    started: asyncio.Future
+    stopped: asyncio.Future
+    provider_session_id: str | None = None
+    generation: int | None = None
+    valid: bool = True
+    provider_finalized: bool = False
+    rotation_token: str | None = None
+    resume_requested: bool = False
+    resumed: asyncio.Future | None = None
+    held: asyncio.Future | None = None
+
+
 class BrowserLink:
     """The browser as a Voice PE: same contract surface ThinSession drives.
 
@@ -141,6 +160,13 @@ class BrowserLink:
         self.supports_same_breath = True
         self.supports_direct = False
         self.supports_playback_ids = True
+        # Native Chrome audio verified with the exact non-seekable Live WAV route.
+        # This is browser transport capability, never physical Voice PE evidence.
+        self.supports_live_wav = True
+        self.supports_live_webrtc = True
+        self._live_handshake: _LiveHandshake | None = None
+        self._socket_closed = False
+        self._rotation_token: str | None = None
         # Callbacks the engine wires (same names as VoicePELink).
         self.on_wake: Any = None
         self.on_media_state: Any = None
@@ -156,6 +182,234 @@ class BrowserLink:
         self._playback_id: str | None = None
         self._playback_phase = "idle"
 
+    async def hold_live_capture(self) -> str:
+        """Stop capture while retaining the primary for official provider close."""
+        handshake = self._live_handshake
+        if handshake is None:
+            raise RuntimeError("browser_live_handshake_missing")
+        self._require_live(handshake)
+        self.invalidate_live_handshake()
+        self._streaming = False
+        token = secrets.token_urlsafe(24)
+        self._rotation_token = token
+        handshake.held = asyncio.get_running_loop().create_future()
+        if not await self._safe_json(
+            {"type": "live_hold", "rotation_token": token, **self._live_identity(handshake)}
+        ):
+            self._rotation_token = None
+            raise RuntimeError("browser_live_hold_send_failed")
+        held = await asyncio.shield(handshake.held)
+        if (
+            not held
+            or self._socket_closed
+            or self._live_handshake is not handshake
+            or self._rotation_token != token
+        ):
+            raise RuntimeError("browser_live_hold_superseded")
+        return token
+
+    async def resume_live_capture(self, token: str) -> None:
+        """Caller has verified provider readiness; require browser capture ACK too."""
+        handshake = self._live_handshake
+        if (
+            handshake is None
+            or handshake.rotation_token != token
+            or token is None
+            or handshake.resume_requested
+        ):
+            raise RuntimeError("browser_live_rotation_missing")
+        self._require_live(handshake)
+        if not handshake.started.done() or handshake.started.cancelled():
+            raise RuntimeError("browser_live_primary_not_started")
+        handshake.resume_requested = True
+        if not await self._safe_json({"type": "live_ready", **self._live_identity(handshake)}):
+            raise RuntimeError("browser_live_resume_send_failed")
+        assert handshake.resumed is not None
+        await asyncio.shield(handshake.resumed)
+        self._require_live(handshake)
+        self._streaming = True
+
+    async def prepare_live_transport(self, *, rotation_token: str | None = None):
+        if rotation_token != self._rotation_token:
+            raise RuntimeError("browser_live_rotation_superseded")
+        previous = self._live_handshake
+        if self._socket_closed:
+            raise RuntimeError("browser_live_transport_still_owned")
+        if rotation_token is not None:
+            if (
+                previous is None
+                or previous.valid
+                or previous.held is None
+                or not previous.held.done()
+                or previous.held.cancelled()
+                or not previous.provider_finalized
+            ):
+                raise RuntimeError("browser_live_rotation_not_finalized")
+        elif previous is not None:
+            raise RuntimeError("browser_live_transport_still_owned")
+        self._rotation_token = None  # One use; Stop invalidates both pending and active ownership.
+        loop = asyncio.get_running_loop()
+        handshake = _LiveHandshake(
+            secrets.token_urlsafe(24),
+            loop.create_future(),
+            loop.create_future(),
+            loop.create_future(),
+        )
+        handshake.rotation_token = rotation_token
+        handshake.resumed = loop.create_future()
+        self._live_handshake = handshake
+        if not await self._safe_json(
+            {
+                "type": "live_offer_request",
+                "attempt_id": handshake.attempt_id,
+                "rotation_token": rotation_token,
+            }
+        ):
+            raise RuntimeError("browser_live_offer_send_failed")
+        offer = await handshake.offer
+        self._require_live(handshake)
+
+        async def answer(session_id: str, sdp: str, generation: int) -> None:
+            self._require_live(handshake)
+            if handshake.provider_session_id is not None:
+                raise RuntimeError("browser_live_answer_already_issued")
+            handshake.provider_session_id, handshake.generation = session_id, generation
+            if not await self._safe_json(
+                {"type": "live_answer", "sdp": sdp, **self._live_identity(handshake)}
+            ):
+                raise RuntimeError("browser_live_answer_send_failed")
+            self._require_live(handshake)
+
+        return offer, answer
+
+    def _require_live(self, handshake: _LiveHandshake) -> None:
+        if self._live_handshake is not handshake or not handshake.valid or self._socket_closed:
+            raise RuntimeError("browser_live_handshake_superseded")
+
+    @staticmethod
+    def _live_identity(handshake: _LiveHandshake) -> dict:
+        return {
+            "attempt_id": handshake.attempt_id,
+            "provider_session_id": handshake.provider_session_id,
+            "generation": handshake.generation,
+        }
+
+    async def wait_live_started(self) -> None:
+        handshake = self._live_handshake
+        if handshake is None:
+            raise RuntimeError("browser_live_handshake_missing")
+        await handshake.started
+        self._require_live(handshake)
+
+    def invalidate_live_handshake(self) -> None:
+        self._rotation_token = None
+        handshake = self._live_handshake
+        if handshake is not None:
+            handshake.valid = False
+            for future in (handshake.offer, handshake.started, handshake.resumed, handshake.held):
+                if future is not None and not future.done():
+                    future.cancel()
+
+    def live_socket_closed(self) -> None:
+        self._socket_closed = True
+        self.invalidate_live_handshake()
+        if self._live_handshake is not None and not self._live_handshake.stopped.done():
+            self._live_handshake.stopped.set_result(False)
+
+    def receive_live(self, data: dict) -> bool:
+        """Return True only for a matching browser fault; never accept stale peer events."""
+        handshake = self._live_handshake
+        if handshake is None or data.get("attempt_id") != handshake.attempt_id:
+            return False
+        kind = data.get("type")
+        if kind == "live_held":
+            if (
+                not handshake.valid
+                and self._rotation_token is not None
+                and data.get("rotation_token") == self._rotation_token
+                and data.get("capture_held") is True
+                and data.get("provider_session_id") == handshake.provider_session_id
+                and type(data.get("generation")) is int
+                and data.get("generation") == handshake.generation
+                and handshake.held is not None
+                and not handshake.held.done()
+            ):
+                handshake.held.set_result(True)
+            return False
+        if kind == "live_stopped":
+            if (
+                not handshake.valid
+                and (
+                    self._rotation_token is None
+                    or data.get("rotation_token") == self._rotation_token
+                )
+                and data.get("tracks_stopped") is True
+                and data.get("peer_closed") is True
+                and data.get("provider_session_id") == handshake.provider_session_id
+                and type(data.get("generation")) is type(handshake.generation)
+                and data.get("generation") == handshake.generation
+            ):
+                if not handshake.stopped.done():
+                    handshake.stopped.set_result(True)
+            return False
+        if not handshake.valid:
+            return False
+        if kind == "live_fault":
+            self.invalidate_live_handshake()
+            return True
+        if kind == "live_offer":
+            offer = data.get("sdp")
+            if (
+                handshake.offer.done()
+                or not isinstance(offer, str)
+                or not offer.startswith("v=0")
+                or len(offer.encode()) > 65536
+            ):
+                self.invalidate_live_handshake()
+                return True
+            handshake.offer.set_result(offer)
+        elif kind == "live_resumed":
+            if (
+                handshake.rotation_token is not None
+                and handshake.resume_requested
+                and data.get("rotation_token") == handshake.rotation_token
+                and type(data.get("generation")) is int
+                and data.get("generation") == handshake.generation
+                and data.get("provider_session_id") == handshake.provider_session_id
+                and data.get("capture_ready") is True
+                and handshake.started.done()
+                and not handshake.started.cancelled()
+                and handshake.resumed is not None
+                and not handshake.resumed.done()
+            ):
+                handshake.resumed.set_result(None)
+        elif kind == "live_started":
+            event = data.get("event")
+            if (
+                handshake.provider_session_id is not None
+                and type(data.get("generation")) is int
+                and data.get("generation") == handshake.generation
+                and data.get("provider_session_id") == handshake.provider_session_id
+                and isinstance(event, dict)
+                and event.get("type") == "session.started"
+                and isinstance(event.get("session"), dict)
+                and event["session"].get("id") == handshake.provider_session_id
+            ):
+                if not handshake.started.done():
+                    handshake.started.set_result(None)
+        return False
+
+    async def note_live_finalized(self) -> None:
+        if self._live_handshake is not None:
+            self._live_handshake.provider_finalized = True
+            await self._safe_json(
+                {
+                    "type": "live_finalized",
+                    "drain_confirmed": False,
+                    **self._live_identity(self._live_handshake),
+                }
+            )
+
     # ---------------------------------------------------------------- lifecycle
     async def start(self) -> None:  # the socket IS the connection
         return None
@@ -166,6 +420,8 @@ class BrowserLink:
     # ---------------------------------------------------------------- mic path
     def feed(self, data: bytes) -> None:
         """One binary WS frame of 16 kHz PCM from the browser mic."""
+        if self._live_handshake is not None:
+            return  # WebRTC owns this attempt's media; never forward a duplicate PCM path.
         if not self._streaming:
             return  # gate CLOSED — same privacy truth as the puck's mic-forward
         self.frames_in += 1
@@ -192,8 +448,22 @@ class BrowserLink:
         return n
 
     async def start_streaming(self) -> bool:
+        if self._rotation_token is not None:
+            return False  # Ordinary keepalive cannot reopen a held capture generation.
         if self._streaming:
             return True  # keepalive re-assert — nothing to tell the browser
+        if self._live_handshake is not None:
+            handshake = self._live_handshake
+            self._require_live(handshake)
+            if handshake.rotation_token is not None:
+                return False  # Explicit resume owns the first enable after rotation.
+            if not handshake.started.done() or handshake.started.cancelled():
+                return False
+            sent = await self._safe_json({"type": "live_ready", **self._live_identity(handshake)})
+            if not sent:
+                return False
+            self._streaming = True
+            return True
         self._streaming = True
         await self._safe_json({"type": "mic", "on": True})
         return True
@@ -217,6 +487,24 @@ class BrowserLink:
 
     async def stop_playback(self, *, playback_id: str | None = None) -> bool:
         """Stop exactly the reply owned by the caller, never a newer browser reply."""
+        self._rotation_token = None
+        handshake = self._live_handshake
+        if handshake is not None:
+            self.invalidate_live_handshake()
+            if self._socket_closed:
+                if handshake.provider_finalized:
+                    self._live_handshake = None
+                    return True  # Official finalized-session cleanup; audible drain stays unknown.
+                return False  # Explicit Stop cannot claim an ACK on a lost socket.
+            if not await self._safe_json({"type": "live_stop", **self._live_identity(handshake)}):
+                return False
+            if handshake.provider_finalized:
+                self._live_handshake = None
+                return True  # Do not invent a decoder/drain ACK prerequisite after session.closed.
+            stopped = await asyncio.shield(handshake.stopped)
+            if stopped and self._live_handshake is handshake:
+                self._live_handshake = None
+            return bool(stopped)
         owned_id = playback_id or self._playback_id
         sent = await self._safe_json(
             {
@@ -427,56 +715,106 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
             "conversation": "idle",
         }
     )
-    commands: asyncio.Queue[dict | None] = asyncio.Queue()
+    commands: asyncio.Queue[tuple[int, dict, bool] | None] = asyncio.Queue()
+    command_epoch = 0
+    running: asyncio.Task | None = None
+    stopping = False
+    stop_task: asyncio.Task | None = None
+    stop_commands: list[str] = []
+    stop_receipts: dict[str, dict] = {}
+
+    async def receipt(correlation_id: str, **result) -> None:
+        with contextlib.suppress(Exception):
+            await ws.send_json({"type": "command_result", **result, "command_id": correlation_id})
+
+    async def execute(data: dict) -> dict:
+        if data["type"] == "wake":
+            await session.wake()
+            active = bool(getattr(session, "_active", False))
+            return {
+                "status": "accepted" if active else "rejected",
+                "code": "accepted" if active else "unavailable",
+            }
+        return await session.submit_text(str(data.get("text") or ""), data["command_id"])
 
     async def command_worker() -> None:
+        nonlocal running
         while True:
-            data = await commands.get()
-            if data is None:
+            queued = await commands.get()
+            if queued is None:
                 return
-            kind = data.get("type")
-            command_id = str(data.get("command_id") or uuid.uuid4().hex)
+            epoch, data, rejected_during_stop = queued
+            command_id = data["command_id"]
+            if epoch != command_epoch or rejected_during_stop or stopping:
+                await receipt(command_id, status="rejected", code="stopped")
+                continue
+            task = asyncio.create_task(execute(data), name="talk-command")
+            running = task
             try:
-                if kind == "wake":
-                    await session.wake()
-                    active = bool(getattr(session, "_active", False))
-                    await ws.send_json(
-                        {
-                            "type": "command_result",
-                            "command_id": command_id,
-                            "status": "accepted" if active else "rejected",
-                            "code": "accepted" if active else "unavailable",
-                        }
-                    )
-                elif kind == "stop":
-                    await session.stop(reason="panel")
-                    await ws.send_json(
-                        {
-                            "type": "command_result",
-                            "command_id": command_id,
-                            "status": "accepted",
-                            "code": "accepted",
-                        }
-                    )
-                elif kind == "text":
-                    receipt = await session.submit_text(str(data.get("text") or ""), command_id)
-                    await ws.send_json(
-                        {"type": "command_result", "command_id": command_id, **receipt}
-                    )
+                result = await task
             except asyncio.CancelledError:
-                raise
+                owner = asyncio.current_task()
+                if owner is not None and owner.cancelling():
+                    raise
+                result = {"status": "rejected", "code": "stopped"}
             except Exception as exc:
-                log.warning("talk command %s failed without killing the socket: %s", kind, exc)
+                log.warning(
+                    "talk command %s failed without killing the socket: %s", data["type"], exc
+                )
+                result = {
+                    "status": "rejected",
+                    "code": "internal_error",
+                    "message": "Kommandoen fejlede; prøv igen.",
+                }
+            finally:
+                if running is task:
+                    running = None
+            # A cancellation-resistant command cannot publish success after Stop.
+            if epoch != command_epoch:
+                result = {"status": "rejected", "code": "stopped"}
+            await receipt(command_id, **result)
+
+    async def perform_stop(interrupted: asyncio.Task | None) -> None:
+        nonlocal stopping
+        succeeded = False
+        try:
+            # Thin owns its cancellation-safe close transaction. Do not wait for
+            # the interrupted command before invoking that owner.
+            await session.stop(reason="panel")
+            if interrupted is not None:
+                await asyncio.gather(interrupted, return_exceptions=True)
+            succeeded = True
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.warning("talk Stop failed without killing the socket: %s", exc)
+        finally:
+            # Failed close remains fenced; it cannot authorize a fresh wake.
+            for command_id in stop_commands:
+                result = {
+                    "status": "accepted" if succeeded else "rejected",
+                    "code": "accepted" if succeeded else "internal_error",
+                }
+                stop_receipts[command_id] = result
+                if len(stop_receipts) > 128:
+                    del stop_receipts[next(iter(stop_receipts))]
                 with contextlib.suppress(Exception):
-                    await ws.send_json(
-                        {
-                            "type": "command_result",
-                            "command_id": command_id,
-                            "status": "rejected",
-                            "code": "internal_error",
-                            "message": "Kommandoen fejlede; prøv igen.",
-                        }
-                    )
+                    await receipt(command_id, **result)
+            stop_commands.clear()
+            if succeeded:
+                stopping = False
+
+    def begin_stop(command_id: str) -> None:
+        nonlocal command_epoch, stopping, stop_task
+        if command_id not in stop_commands:
+            stop_commands.append(command_id)
+        if stop_task is None or stop_task.done():
+            command_epoch += 1
+            stopping = True
+            interrupted = running
+            if interrupted is not None:
+                interrupted.cancel()
+            stop_task = asyncio.create_task(perform_stop(interrupted), name="talk-stop")
 
     worker = asyncio.create_task(command_worker(), name="talk-command-worker")
     try:
@@ -488,9 +826,28 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                     data = json.loads(msg.data)
                 except (json.JSONDecodeError, ValueError):
                     continue
+                if not isinstance(data, dict):
+                    continue
                 kind = data.get("type")
                 if kind in ("wake", "stop", "text"):
-                    commands.put_nowait(data)
+                    data["command_id"] = str(data.get("command_id") or uuid.uuid4().hex)
+                if kind == "stop":
+                    if data["command_id"] in stop_receipts:
+                        await receipt(data["command_id"], **stop_receipts[data["command_id"]])
+                        continue
+                    begin_stop(data["command_id"])
+                elif kind in {
+                    "live_offer",
+                    "live_started",
+                    "live_stopped",
+                    "live_fault",
+                    "live_resumed",
+                    "live_held",
+                }:
+                    if link.receive_live(data):
+                        begin_stop("live-fault-" + uuid.uuid4().hex)
+                elif kind in ("wake", "text"):
+                    commands.put_nowait((command_epoch, data, stopping))
                 elif kind == "media":
                     playback_id = str(data.get("playback_id")) if data.get("playback_id") else None
                     state = str(data.get("state") or "")
@@ -513,9 +870,27 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
             elif msg.type == WSMsgType.ERROR:
                 break
     finally:
+        command_epoch += 1
+        stopping = True
+        if link is not None:
+            link.live_socket_closed()
         commands.put_nowait(None)
         worker.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await worker
-        with contextlib.suppress(Exception):
-            await session.aclose()
+        # Invoke the existing Thin close owner before joining a cancelled command:
+        # its SDK cleanup may be what releases a cancellation-resistant send.
+        closing = asyncio.create_task(session.aclose(), name="talk-session-close")
+        try:
+            await asyncio.shield(closing)
+        except asyncio.CancelledError:
+            await asyncio.shield(closing)
+            raise
+        finally:
+            if stop_task is not None and not stop_task.done():
+                stop_task.cancel()
+            owned = [worker, *([stop_task] if stop_task is not None else [])]
+            _, pending = await asyncio.wait(owned, timeout=_COMMAND_JOIN_DIAGNOSTIC_S)
+            if pending:
+                log.error(
+                    "talk command cleanup still pending after provider close; retaining ownership"
+                )
+            await asyncio.gather(*owned, return_exceptions=True)

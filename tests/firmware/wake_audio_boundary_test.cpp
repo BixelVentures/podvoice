@@ -72,6 +72,79 @@ struct Rig {
   }
 };
 int main() {
+  // Adding the explicit rearm hook must not cut ordinary same-breath capture.
+  {
+    Rig r; r.audio.start_streaming(); r.feed({1,2,3});
+    const auto before=r.audio.audio_position(); r.audio.reset_capture_barrier();
+    assert(r.audio.is_streaming() && r.audio.audio_position().epoch==before.epoch);
+    assert((r.output()==std::vector<int16_t>{1,2,3}));
+  }
+  // Provider replacement: old queued PCM and PCM collected during the hold never
+  // enter the resumed native stream. Legacy starts/wakes cannot release the token.
+  {
+    Rig r; r.audio.start_streaming(); r.feed({11,12,13});
+    const auto before=r.audio.audio_position(); const auto callbacks=r.audio.frames_written();
+    assert(r.audio.hold_capture(10)); assert(r.audio.hold_capture(10));
+    assert(!r.audio.hold_capture(11)); assert(!r.audio.resume_capture(9));
+    r.feed({21,22,23}); auto mark=r.detector.consume(3);
+    assert(r.audio.audio_position().sample==before.sample+3);
+    assert(r.audio.frames_written()==callbacks+1);
+    r.audio.start_streaming(); r.audio.keepalive();
+    assert(!r.audio.begin_conversation(mark)); assert(!r.audio.is_streaming());
+    assert(r.output().empty()); assert(r.audio.capture_high_water()==10);
+    assert(r.audio.resume_capture(10)); assert(!r.audio.resume_capture(10));
+    assert(!r.audio.hold_capture(10)); assert(!r.audio.hold_capture(9));
+    r.feed({31,32,33}); assert((r.output()==std::vector<int16_t>{31,32,33}));
+  }
+  // Stop retires the token and holds fail-closed until the existing successful
+  // wake rearm boundary. It must not leave the next legitimate wake permanently deaf.
+  {
+    Rig r; r.audio.start_streaming(); assert(r.audio.hold_capture(20));
+    r.audio.stop_streaming(); r.audio.start_streaming();
+    assert(!r.audio.resume_capture(20)); assert(!r.audio.hold_capture(20));
+    assert(!r.audio.is_streaming());
+    r.audio.reset_capture_barrier(); assert(r.audio.capture_high_water()==20);
+    r.detector.reset_clock(); r.feed(std::vector<int16_t>(512,100));
+    auto mark=r.detector.consume(160); assert(r.audio.begin_conversation(mark));
+    assert(!r.audio.hold_capture(20)); assert(r.audio.hold_capture(21));
+    assert(!r.audio.resume_capture(20)); assert(r.audio.resume_capture(21));
+  }
+  // Disconnect and direct subscriber replacement both invalidate the old resume.
+  for (bool replacement : {false,true}) {
+    Rig r; r.audio.start_streaming(); assert(r.audio.hold_capture(30));
+    api::APIConnection next;
+    r.va.client=replacement ? &next : nullptr;
+    assert(!r.audio.resume_capture(30)); r.audio.loop();
+    r.va.client=&r.client;
+    assert(!r.audio.resume_capture(30)); r.audio.start_streaming();
+    assert(!r.audio.is_streaming());
+    r.audio.reset_capture_barrier(); r.audio.start_streaming();
+    assert(r.audio.hold_capture(31)); assert(r.audio.resume_capture(31));
+  }
+  // The VA subscriber-disconnected automation retires the token synchronously.
+  // Reusing the exact client pointer without an audio.loop() must not resurrect it.
+  {
+    Rig r; r.audio.start_streaming(); assert(r.audio.hold_capture(35));
+    r.va.client=nullptr; r.audio.stop_streaming();
+    r.va.client=&r.client;
+    assert(!r.audio.resume_capture(35)); r.audio.start_streaming();
+    assert(!r.audio.is_streaming());
+    r.audio.reset_capture_barrier(); r.audio.start_streaming();
+    assert(r.audio.hold_capture(36)); assert(r.audio.resume_capture(36));
+  }
+  // Holding a concurrent producer discards either ordering of its old batch;
+  // resume begins with only post-resume PCM, without restarting MWW/Stop inference.
+  {
+    Rig r; r.audio.start_streaming(); r.detector.arm_stop();
+    const int resets=frontend_resets;
+    std::thread producer([&] { r.feed(std::vector<int16_t>(512,200)); });
+    assert(r.audio.hold_capture(40)); producer.join();
+    assert(r.output().empty()); assert(r.audio.resume_capture(40));
+    assert(r.detector.stop_armed() && !r.detector.stop_context_fault());
+    assert(frontend_resets==resets);
+    r.feed({51,52}); assert((r.output()==std::vector<int16_t>{51,52}));
+    assert(!r.audio.hold_capture(0)); assert(!r.audio.hold_capture(0x80000000));
+  }
   // Same breath: the question begins inside the SAME physical callback as wake.
   // Inference consumes only wake samples; later producer callbacks/main-loop
   // delay must never slide that boundary into question PCM.

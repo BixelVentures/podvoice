@@ -166,10 +166,15 @@ def test_talk_wakes_only_after_successful_capture_and_releases_tracks():
     assert "if (started) sendWake();" in html
     assert 'if (!wsReady) { micStop(); setState("offline"' in html
     assert "micBtn.disabled = !wsReady;" in html
-    assert 'window.addEventListener("pagehide", micStop)' in html
-    assert 'window.addEventListener("beforeunload", micStop)' in html
     assert (
-        "wsReady = false; micBtn.disabled = true; micStop(); stopReply(false); "
+        'window.addEventListener("pagehide", function () { closeLivePeer(); micStop(); });' in html
+    )
+    assert (
+        'window.addEventListener("beforeunload", function () { closeLivePeer(); micStop(); });'
+        in html
+    )
+    assert (
+        "wsReady = false; micBtn.disabled = true; closeLivePeer(); micStop(); stopReply(false); "
         'setState("offline"' in html
     )
     assert 'if (ev.state === "IDLE") { endTurn(); micStop(); }' in html
@@ -426,7 +431,7 @@ def test_effective_model_and_custom_turn_controls_are_explicit():
     html = PANEL.read_text()
 
     assert 'id="s_model_effective"' in html
-    assert "Effektiv model: GPT Realtime 2.1 mini (tvunget)" in html
+    assert "Realtime-model efter genstart: GPT Realtime 2.1 mini (tvunget)" in html
     assert 'id="s_custom_turn"' in html
     for field in (
         "openai_turn",

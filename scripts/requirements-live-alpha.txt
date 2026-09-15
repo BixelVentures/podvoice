@@ -1,0 +1,3 @@
+# Isolated developer probe only; not an add-on runtime dependency.
+# Verified with Python 3.12.13. Install repo test dependencies separately for gates.
+openai[realtime]==3.13.0

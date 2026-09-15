@@ -1,0 +1,29 @@
+# Experimental codec extension. OFF's default configuration remains podvoice.yaml.
+# Compile and verify this distinct artifact before either mode uses it physically.
+packages:
+  podvoice: !include podvoice.yaml
+
+substitutions:
+  podvoice_build_marker: podvoice_build_11382_livewav2
+
+esphome:
+  build_path: .esphome/build/podvoice-pe-live-alpha
+
+# ESPHome 2026.6.2 supports WAV through the existing audio_http source/mixer.
+# YAML framework components run at final codegen priority and pin dependencies.
+esp32:
+  framework:
+    components:
+      - name: esphome/micro-decoder
+        ref: "0.2.0"
+      - name: esphome/micro-wav
+        ref: "0.1.0"
+
+audio:
+  codecs:
+    wav: {}
+
+event:
+  - id: !extend podvoice_event
+    event_types:
+      - podvoice_live_wav_v1

@@ -36,10 +36,15 @@ class ExecutionContext:
 
     session_id: str
     turn_id: str
+    approval_mode: str = "turn"
 
     @property
     def valid(self) -> bool:
-        return bool(self.session_id.strip() and self.turn_id.strip())
+        return bool(
+            self.session_id.strip()
+            and self.turn_id.strip()
+            and self.approval_mode in {"turn", "live"}
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +59,9 @@ class Assessment:
 
 
 @dataclass(frozen=True, slots=True)
-class _Challenge:
+class PendingAction:
+    """Immutable server-held proposal for a trusted Live evidence review."""
+
     challenge_id: str
     context: ExecutionContext
     action: str
@@ -62,6 +69,10 @@ class _Challenge:
     normalized_args: str
     args_sha256: str
     expires_at: float
+
+
+@dataclass(frozen=True, slots=True)
+class _Challenge(PendingAction):
     approval_turn_id: str | None = None
 
 
@@ -361,10 +372,16 @@ class ExecutionPolicy:
     ) -> ApprovedCall | None:
         """Release the exact proposal after a trusted explicit later-turn signal.
 
-        This does not inspect speech or model text.  The signal must arrive on a later
-        turn in the same session; no current PodVoice transport calls this method.
+        This does not inspect speech or model text. ThinSession's completed approval
+        dispatch reaches this method through ToolRouter. The context must be the
+        immediately next admitted input turn in the same session.
         """
         self._prune()
+        if confirmation_context.approval_mode != "turn":
+            return None
+        pending = self._challenges.get(challenge_id)
+        if pending is not None and pending.context.approval_mode != "turn":
+            return None
         challenge = self._challenges.pop(challenge_id, None)
         now = self._clock()
         if (
@@ -396,6 +413,79 @@ class ExecutionPolicy:
             return None
         return ApprovedCall(challenge.action, args, confirmation_context, token)
 
+    def peek_live_challenge(self, challenge_id: str, *, session_id: str) -> PendingAction | None:
+        """Read only an unexpired Live proposal belonging to this session."""
+        self._prune()
+        challenge = self._challenges.get(challenge_id)
+        if (
+            challenge is None
+            or challenge.context.approval_mode != "live"
+            or challenge.context.session_id != session_id
+        ):
+            return None
+        return PendingAction(
+            challenge.challenge_id,
+            challenge.context,
+            challenge.action,
+            challenge.target,
+            challenge.normalized_args,
+            challenge.args_sha256,
+            challenge.expires_at,
+        )
+
+    def discard_live_challenge(self, challenge_id: str, *, session_id: str) -> bool:
+        if self.peek_live_challenge(challenge_id, session_id=session_id) is None:
+            return False
+        del self._challenges[challenge_id]
+        return True
+
+    def confirm_live(
+        self,
+        challenge_id: str,
+        *,
+        confirmation_context: ExecutionContext,
+        expected_arguments_sha256: str,
+    ) -> ApprovedCall | None:
+        """Release an exact proposal after the owner validates Live evidence.
+
+        This API does not interpret speech or establish semantic confirmation.
+        The caller supplies a fresh review identity, never a fabricated turn edge.
+        """
+        if (
+            not confirmation_context.valid
+            or confirmation_context.approval_mode != "live"
+            or confirmation_context in self._consumed_confirmation_turns
+        ):
+            return None
+        challenge = self.peek_live_challenge(
+            challenge_id, session_id=confirmation_context.session_id
+        )
+        if challenge is None or challenge.context == confirmation_context:
+            return None
+        # One trusted review identity cannot authorize another proposal after a
+        # failed exact-argument check, nor can the same proposal be replayed.
+        self._consumed_confirmation_turns.add(confirmation_context)
+        del self._challenges[challenge_id]
+        if (
+            not isinstance(expected_arguments_sha256, str)
+            or re.fullmatch(r"[0-9a-f]{64}", expected_arguments_sha256) is None
+            or not secrets.compare_digest(challenge.args_sha256, expected_arguments_sha256)
+        ):
+            return None
+        token = secrets.token_urlsafe(32)
+        self._approvals[token] = _Approval(
+            token,
+            challenge.context,
+            confirmation_context,
+            challenge.action,
+            challenge.target,
+            challenge.args_sha256,
+            challenge.expires_at,
+        )
+        return ApprovedCall(
+            challenge.action, json.loads(challenge.normalized_args), confirmation_context, token
+        )
+
     def begin_turn(self, context: ExecutionContext) -> None:
         """Bind pending challenges to exactly the immediately following user turn.
 
@@ -404,12 +494,15 @@ class ExecutionPolicy:
         on the next edge, and is deleted on any later edge. No speech or model text is
         inspected here.
         """
-        if not context.valid:
+        if not context.valid or context.approval_mode != "turn":
             return
         self._prune()
         updated: dict[str, _Challenge] = {}
         for challenge_id, challenge in self._challenges.items():
-            if challenge.context.session_id != context.session_id:
+            if (
+                challenge.context.session_id != context.session_id
+                or challenge.context.approval_mode != "turn"
+            ):
                 updated[challenge_id] = challenge
                 continue
             if challenge.context.turn_id == context.turn_id:

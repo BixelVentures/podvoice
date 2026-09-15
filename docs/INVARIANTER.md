@@ -1,5 +1,16 @@
 # PodVoice-systeminvarianter
 
+> Eksperimentel GPT-Live Alpha (under implementering, ikke releasegodkendt):
+> Brugeren har godkendt en særskilt ON/OFF-Alpha. OFF beholder hele nedenstående
+> produktionskontrakt. ON bruger samme ThinSession, VoicePELink, ToolRouter og
+> fysisk close/rearm-ejer, men har kontinuerlig Live-lyd og egne ærligt navngivne
+> backend/session-events. Realtime-tur-/audio-done-/ACK-events må ikke fabrikeres.
+> Fuld funktionsparitet, voice-bekræftelser, Stop, Talk, fysisk duplex og dræn er
+> adgangsgates, ikke antagelser. Aktuel implementeringskontrakt, hypotese og åbne
+> krav står i den ene aktive lead-post i STATUS.md. Ingen følsom handling må
+> åbnes ved en opdigtet næste-brugertur. Ingen fysisk readiness arves fra OFF.
+
+
 Dette er repoets autoritative tværgående kontrakt. `AGENTS.md` og `CLAUDE.md` kræver,
 at den læses før arkitektur-, lyd-, VAD-, Realtime-, firmware- eller livscyklusændringer.
 En grøn deltest må aldrig tilsidesætte en invariant her.

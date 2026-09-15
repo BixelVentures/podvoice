@@ -90,6 +90,30 @@ def test_candidate_scope_ignores_unchanged_semantic_tool_on_replaced_json_line()
     assert report.domains == ("unclassified_runtime",)
 
 
+def test_large_repeated_diff_preserves_removed_and_added_domains_without_character_matching(
+    monkeypatch,
+):
+    def unexpected_matcher(*args, **kwargs):
+        raise AssertionError("large diffs must not enter quadratic character matching")
+
+    monkeypatch.setattr("scripts.candidate_scope.difflib.SequenceMatcher", unexpected_matcher)
+    report = classify_candidate(
+        ["podvoice/gatekeeper/thin.py", "tests/unit/test_scope.py"],
+        "- mic_gain = old_value\n" * 600
+        + "+ value = new_value\n" * 600
+        + "+ MCP(); playback(); response.done(); next_wake();\n",
+    )
+
+    assert report.domains == (
+        "audio_input",
+        "ha_tools",
+        "physical_output",
+        "realtime_semantics",
+        "rearm",
+    )
+    assert not report.passed
+
+
 def test_candidate_scope_treats_prompt_routing_and_dispatch_as_ha_tools():
     report = classify_candidate(
         [

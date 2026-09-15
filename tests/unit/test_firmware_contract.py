@@ -26,7 +26,7 @@ def test_fresh_ha_package_fetches_podvoice_audio_without_local_copy():
     audio_source = next(
         block for block in active.split("  - source:") if "components: [podvoice_audio]" in block
     )
-    assert "ref: 61da40c0885e07641a334636f5f2548288ed84f1" in audio_source
+    assert "ref: b56a08a6d31044f7507b178961ac74f731474253" in audio_source
     assert "path: esphome/components" in external
     assert "refresh: 0s" in external
     assert "\n  - source: { type: local, path: components }" not in external
@@ -185,8 +185,8 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
     assert "type: git" in stop_source
     assert "url: https://github.com/BixelVentures/podvoice" in stop_source
     assert "path: esphome/components" in stop_source
-    assert "ref: 61da40c0885e07641a334636f5f2548288ed84f1" in stop_source
-    assert active.count("ref: 61da40c0885e07641a334636f5f2548288ed84f1") == 2
+    assert "ref: b56a08a6d31044f7507b178961ac74f731474253" in stop_source
+    assert active.count("ref: b56a08a6d31044f7507b178961ac74f731474253") == 2
     observers = active.split("components: [mixer, resampler, speaker_source]", 1)[0]
     assert "ref: 305b51059dc0c7391b95896f359a6c7f64548f16" in observers
     files = sorted(
@@ -201,7 +201,7 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
         for p in files
     )
     assert hashlib.sha256(manifest.encode()).hexdigest() == (
-        "ea8251f71f3df21118368f159758174dbc94df63cf01075dc10ffd4d5f1471a0"
+        "25f0c9a87232d3bc043466e36dc87be77d4b95365d51850d176d264a04f098e2"
     )
 
 
