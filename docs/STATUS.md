@@ -3,6 +3,21 @@
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
 
+15/9 samlet lokal softwareverifikation grøn på frosset2052c4d. Én scripts/dev release
+--base origin/main (21749) gav PASS for scope0.27s, Ruff/format154filer0.17s,
+mypy50filer6.06s og hele unit47.35s. Integration blev ugyldiggjort af sandboxens
+PermissionError ved aiohttp socket.bind; isoleret test_models_endpoint reproducerede
+netop denne OS-grænse, ikke runtimefejl. Kun integration blev genkørt med godkendt
+adgang til lokale testporte (40521exit0): alle522tests PASS. Ingen rigtig provider,
+HA-nøgle eller fysisk test. Ingen fil-/commitændring under nogen gate; bagefter var
+HEAD stadig2052c4d og worktree clean. 50runtimefilers manifest genverificeret
+ eabf6c7f0f1457cb0e1cc93168a61d4ce997637c56f021f9ed63f72b6f4bbb99.
+Den oprindelige runnerexit2 er bevaret som sandboxfejl; samlet softwareaccept bygger
+på de grønne uændrede stages plus netop den genkørte integrationstage. Ingen fuld
+releasegenkørsel. CI/ARM64-installationsimage, resterende realAPI-funktionsparitet og
+fysisk golden/10of10/duplex/latens er stadig åbne. Normal HA er ikke stoppet/ændret.
+
+
 15/9 frysning til én lokal software-releasegate: samlet production-review er GO,
 classifierrettelsen er reviewet og målrettet grøn; ingen planlagt runtimeændring.
 Den samlede lokale gate køres nu på frosne filer, før yderligere praktiske prøver,
