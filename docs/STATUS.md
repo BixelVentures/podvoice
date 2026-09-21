@@ -62,6 +62,15 @@ missing/stale review og ændrede bytes afvises stadig. Ingen runtimehypotese æn
 }
 -->
 
+### Lokal releasegate grøn — installation udestår
+
+Frosset `982ea3a`: `scripts/dev release --base origin/main` PASS på54,8s med
+localhost-testporte tilladt. Ruff/format, mypy50, exact candidate-scope og fulde
+unit/integration-suiter PASS. Log `/private/tmp/pv-stop-release-final-0921.log`.
+Fixturevedligeholdelsen har særskilt Astra GO; productionfingerprint er uændret.
+Næste gate er exact-head CI/ARM64-image og installation af samme godkendte kandidat;
+ingen modelsemantisk eller fysisk gate udledes af dette resultat.
+
 ### Gateforløb og test-fixture-kompatibilitet
 
 Første kontrol blev ugyldiggjort af sandboxens forbud mod localhost-bind; ingen
