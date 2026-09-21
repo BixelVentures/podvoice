@@ -60,6 +60,7 @@ class PodVoiceReply : public Component {
     char nonce[33];
     snprintf(nonce, sizeof(nonce), "%08x%08x%08x%08x", random_uint32(), random_uint32(), random_uint32(), random_uint32());
     if (!context_.begin(nonce)) return false;
+    live_worker_run_ = detector_->stop_context_worker_run();
 #if defined(USE_PODVOICE_ACTIVITY_OBSERVER) && defined(USE_MICRO_WAKE_WORD_VAD)
     activity_input_floor_ = detector_->podvoice_activity().sequence;
     activity_input_seen_ = activity_input_floor_;
@@ -70,9 +71,14 @@ class PodVoiceReply : public Component {
     if (generation <= 0 || !context_.set(session, static_cast<uint32_t>(generation), enabled)) return;
     request_context_();
   }
+  void set_live_context(const std::string &session, int generation) {
+    if (generation <= 0 || detector_->stop_context_worker_run() != live_worker_run_ ||
+        !context_.set_live(session, static_cast<uint32_t>(generation))) return;
+    request_context_();
+  }
   void play(const std::string &token, const std::string &url, const std::string &session, int generation) {
     if (generation <= 0 || !context_.admits(session, static_cast<uint32_t>(generation)) ||
-        detector_->stop_context_ack() != context_.command || detector_->stop_context_fault()) return;
+        detector_->stop_context_ack() != context_.command || context_fault_()) return;
     if (!state_.play(token)) return;
 #ifdef USE_PODVOICE_ACTIVITY_OBSERVER
     // Discard the previous lease's measurement window, never its audio.
@@ -91,7 +97,7 @@ class PodVoiceReply : public Component {
     stop_();
   }
   bool ready_to_rearm() const {
-    return !(context_.command & 1) && detector_->stop_context_ack() == context_.command &&
+    return !context_.playback_allowed && !(context_.command & 1) && detector_->stop_context_ack() == context_.command &&
       (state_.phase == ReplyState::IDLE || state_.phase == ReplyState::STOPPED);
   }
   bool ready_after_restart() const { return ready_to_rearm() && !detector_->stop_context_fault(); }
@@ -212,17 +218,23 @@ class PodVoiceReply : public Component {
     if (context_.active) context_status_->publish_state(context_.session + ":" + std::to_string(context_.generation) + ":" + value);
     else context_status_->publish_state("00000000000000000000000000000000:0:idle");
   }
+  bool context_fault_() const {
+    return detector_->stop_context_fault() ||
+      (context_.playback_allowed && !context_.enabled &&
+       detector_->stop_context_worker_run() != live_worker_run_);
+  }
   void publish_context_ack_() {
-    if (detector_->stop_context_fault() && context_.enabled && !context_.cancelled) {
-      context_.cancelled = true;
+    const bool fault = context_fault_();
+    if (fault && context_.playback_allowed && !context_.cancelled) {
+      context_.cancelled = true; context_.playback_allowed = false;
       state_.cancel(state_.token, false); state_.blocked = true;
       stop_(); context_published_ = true; publish_context_("fault");
     }
     if (context_published_) return;
-    if (detector_->stop_context_fault() && context_.enabled) {
+    if (fault && (context_.enabled || context_.playback_allowed)) {
       context_published_ = true; publish_context_("fault");
     } else if (detector_->stop_context_ack() == context_.command) {
-      context_published_ = true; publish_context_(context_.enabled ? "armed" : (context_.cancelled ? "cancelled" : "disabled"));
+      context_published_ = true; publish_context_(context_.enabled ? "armed" : (context_.cancelled ? "cancelled" : (context_.playback_allowed ? "live" : "disabled")));
     }
   }
   void stop_() {
@@ -243,6 +255,7 @@ class PodVoiceReply : public Component {
   text_sensor::TextSensor *context_status_;
   switch_::Switch *mute_switch_;
   bool context_published_{false};
+  uint32_t live_worker_run_{0};
   bool muted_{false};
   bool timer_suspended_{false}, idle_fault_{false};
   speaker_source::SpeakerSourceMediaPlayer *player_;

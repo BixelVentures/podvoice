@@ -86,6 +86,7 @@ namespace micro_wake_word { class MicroWakeWord { public:
   void request_stop_context(uint32_t value) { command=value; gate.request(value); }
   uint32_t stop_context_ack() const { return gate.acknowledged(); }
   bool stop_context_fault() const { return gate.faulted(); }
+  uint32_t stop_context_worker_run() const { return gate.worker_run(); }
   void frame() {
     gate.begin_write(); gate.end_write(160); gate.consume(160);
     gate.observe(true, true, 480);
@@ -95,6 +96,7 @@ namespace micro_wake_word { class MicroWakeWord { public:
   void request_stop_context(uint32_t value) { command=value; }
   uint32_t stop_context_ack() const { return command; }
   bool stop_context_fault() const { return fault; }
+  uint32_t stop_context_worker_run() const { return 1; }
   void deliver(uint32_t value) { if (value == command && (value & 1) && !fault) callback(value); }
 #endif
   void set_stop_model(WakeWordModel *m) { m->enable(); }

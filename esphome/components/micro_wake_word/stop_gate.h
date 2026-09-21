@@ -15,6 +15,7 @@ class StopGate {
   }
   uint32_t acknowledged() const { return acknowledged_.load(); }
   bool faulted() const { return fault_.load(); }
+  uint32_t worker_run() const { return worker_run_.load(); }
 
   // Producer: bracket actual ring writes. The worker must not snapshot a write
   // between publication of its bytes and publication of its sample count.
@@ -27,6 +28,9 @@ class StopGate {
 
   // Worker lifecycle only; called before microphone start, never at arm/wake.
   void worker_start() {
+    // Publish restart identity BEFORE clearing a disabled command's fault/ACK.
+    // Live playback admission binds to the wake's run even with keyword disabled.
+    worker_run_.fetch_add(1);
     consumed_ = 0;
     produced_.store(0);
     worker_command_ = command_.load();
@@ -68,7 +72,7 @@ class StopGate {
   }
 
  private:
-  std::atomic<uint32_t> command_{0}, acknowledged_{0xffffffff};
+  std::atomic<uint32_t> command_{0}, acknowledged_{0xffffffff}, worker_run_{0};
   std::atomic<uint32_t> produced_{0}, producer_sequence_{0};
   std::atomic<bool> fault_{false};
   uint32_t consumed_{0}, worker_command_{0}, floor_{0};
