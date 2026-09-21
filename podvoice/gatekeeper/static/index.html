@@ -1799,6 +1799,59 @@ setInterval(function () {
     return p && p.attempt_id === ev.attempt_id && p.connection_id === ev.connection_id &&
       p.provider_session_id === ev.provider_session_id && p.generation === ev.generation;
   }
+  // Observation only: WebRTC source/receiver energy is not room silence or speaker drain.
+  // No second audio graph is opened; browser AEC and the existing media path stay intact.
+  function stopLiveActivity(p) {
+    if (p.activityTimer != null) clearTimeout(p.activityTimer);
+    p.activityTimer = null; p.activityEpoch = (p.activityEpoch || 0) + 1;
+  }
+  function liveAudioStats(report, type, previous) {
+    var rows = [];
+    if (report) report.forEach(function (r) { if (r.type === type && r.kind === "audio") rows.push(r); });
+    if (rows.length !== 1) return {status:"unknown", reason:"missing_or_ambiguous_stats"};
+    var r = rows[0];
+    if (![r.timestamp, r.totalAudioEnergy, r.totalSamplesDuration].every(function (v) { return typeof v === "number" && Number.isFinite(v) && v >= 0; }))
+      return {status:"unknown", reason:"missing_stats_fields"};
+    if (previous && previous.id === r.id && (r.timestamp <= previous.timestamp || r.totalSamplesDuration <= previous.duration || r.totalAudioEnergy < previous.energy))
+      return {status:"unknown", reason:"nonadvancing_stats"};
+    return {status:"observed", stats_timestamp_ms:r.timestamp, total_audio_energy:r.totalAudioEnergy,
+      total_samples_duration:r.totalSamplesDuration,
+      audio_level:typeof r.audioLevel === "number" && Number.isFinite(r.audioLevel) && r.audioLevel >= 0 && r.audioLevel <= 1 ? r.audioLevel : null,
+      source_generation:previous ? previous.generation + (previous.id !== r.id ? 1 : 0) : 1,
+      _id:r.id};
+  }
+  async function sampleLiveActivity(p) {
+    if (!liveCurrent(p) || !p.ready || p.held || !wsReady || p.activityBusy) return;
+    var epoch = p.activityEpoch || 0, input = p.sender && p.sender.track, receiver = p.receiver, sampledAt = performance.now();
+    p.activityBusy = true;
+    try {
+      var results = await Promise.allSettled([
+        p.microphone && input && input.enabled && input.readyState === "live" && p.sender.getStats ? p.sender.getStats() : Promise.resolve(null),
+        receiver && receiver.getStats ? receiver.getStats() : Promise.resolve(null)
+      ]);
+      if (!liveCurrent(p) || !p.ready || p.held || !wsReady || epoch !== (p.activityEpoch || 0) || input !== p.sender.track || receiver !== p.receiver) return;
+      if (!p.microphone || !input || !input.enabled || input.readyState !== "live") results[0] = {status:"fulfilled", value:null};
+      var observed = results.map(function (result, index) {
+        var key = index === 0 ? "inputStats" : "outputStats";
+        var row = liveAudioStats(result.status === "fulfilled" ? result.value : null, index === 0 ? "media-source" : "inbound-rtp", p[key]);
+        if (row.status === "observed") { p[key] = {id:row._id, timestamp:row.stats_timestamp_ms, generation:row.source_generation, duration:row.total_samples_duration, energy:row.total_audio_energy}; delete row._id; }
+        return row;
+      });
+      var a = p.audio, render = {status:"unknown"};
+      if (a && Number.isFinite(a.currentTime) && typeof a.paused === "boolean" && typeof a.muted === "boolean" && Number.isFinite(a.volume) && Number.isInteger(a.readyState))
+        render = {status:"observed", current_time_s:a.currentTime, paused:a.paused, muted:a.muted, volume:a.volume, ready_state:a.readyState};
+      sendJson(Object.assign({type:"live_activity", observation_seq:p.activitySeq = (p.activitySeq || 0) + 1,
+        browser_monotonic_ms:sampledAt, input:observed[0], output:observed[1], render:render}, liveIdentity(p)));
+    } catch (_) { /* Observation failures must not fault the conversation. */ }
+    finally {
+      p.activityBusy = false;
+      if (liveCurrent(p) && p.ready && !p.held && epoch === (p.activityEpoch || 0))
+        p.activityTimer = setTimeout(function () { p.activityTimer = null; sampleLiveActivity(p); }, 250);
+    }
+  }
+  function startLiveActivity(p) {
+    if (p.activityTimer == null && !p.activityBusy) p.activityTimer = setTimeout(function () { p.activityTimer = null; sampleLiveActivity(p); }, 250);
+  }
   function liveFault(p) {
     if (!liveCurrent(p) || (p.held && p.providerFinalized)) return;
     sendJson(Object.assign({type:"live_fault"}, liveIdentity(p)));
@@ -1810,6 +1863,7 @@ setInterval(function () {
     micRequestSerial += 1;
     var p = livePeer; if (!p) return;
     livePeer = null; // Fence every callback before touching asynchronous resources.
+    stopLiveActivity(p);
     retiredLiveAttempts.push(p.attempt_id);
     if (retiredLiveAttempts.length > 128) retiredLiveAttempts.shift();
     if (p.cancelIce) p.cancelIce();
@@ -1858,6 +1912,7 @@ setInterval(function () {
       p.pc.ontrack = function (event) {
         if (!liveCurrent(p)) return;
         if (p.audio) { liveFault(p); return; }
+        p.receiver = event.receiver;
         var a = new Audio(); p.audio = a; a.autoplay = true;
         a.srcObject = event.streams[0] || new MediaStream([event.track]);
         a.onerror = function () { liveFault(p); };
@@ -1909,6 +1964,7 @@ setInterval(function () {
         if (held.held) return true;
         var microphone = !!held.microphone;
         held.held = true; held.ready = false;
+        stopLiveActivity(held);
         micRequestSerial += 1;
         if (held.source) { held.source.stop(); held.source.disconnect(); held.source = null; }
         held.input.getTracks().forEach(function (t) { t.enabled = false; t.stop(); });
@@ -1930,6 +1986,7 @@ setInterval(function () {
       var p = livePeer;
       if (liveCurrent(p) && !p.held && liveMatches(p, ev)) {
         p.ready = true;
+        startLiveActivity(p);
         p.input.getAudioTracks().forEach(function (t) { t.enabled = true; });
         micHint.textContent = p.microphone ? "Live-samtalen lytter." : "Live er klar til tekst. Mikrofonen er ikke åbnet.";
         if (p.rotation_token) sendJson(Object.assign({type:"live_resumed", rotation_token:p.rotation_token,

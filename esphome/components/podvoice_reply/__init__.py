@@ -33,6 +33,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(PodVoiceReply),
         **{cv.Required(key): cv.use_id(typ) for key, typ in _FIELDS.items()},
+        cv.Optional("activity_status"): cv.use_id(text_sensor.TextSensor),
         cv.Optional("on_timer_stop"): automation.validate_automation(single=True),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -43,6 +44,9 @@ async def to_code(config):
     await cg.register_component(var, config)
     for key in _FIELDS:
         cg.add(getattr(var, "set_" + key)(await cg.get_variable(config[key])))
+    if "activity_status" in config:
+        cg.add_define("USE_PODVOICE_ACTIVITY_OBSERVER")
+        cg.add(var.set_activity_status(await cg.get_variable(config["activity_status"])))
     if "on_timer_stop" in config:
         await automation.build_automation(var.get_timer_stop_trigger(), [], config["on_timer_stop"])
 

@@ -13,6 +13,21 @@ from gatekeeper.openai_live import LiveAudioChunk
 from gatekeeper.talk import BrowserLink, run_talk
 
 
+class HistoricalWavBrowserLink(BrowserLink):
+    """Historical WS/WAV fixture; native capability and ACK are explicitly simulated."""
+
+    supports_live_semantic_stop = True
+    _stop_generation = 0
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.supports_live_webrtc = False
+
+    async def set_live_context(self):
+        self._stop_generation += 1
+        return True  # Fixture admission only; no firmware or physical proof.
+
+
 class Wire:
     def __init__(self):
         self.incoming = asyncio.Queue()
@@ -134,8 +149,7 @@ async def test_real_thin_alpha_stop_cancels_blocked_sdk_startup_before_late_rele
 ):
     wire, entered, cancelled = Wire(), asyncio.Event(), asyncio.Event()
     release = asyncio.Event()
-    link = BrowserLink(wire.send_json, wire.send_bytes)
-    link.supports_live_webrtc = False  # This fixture exercises the existing WS transport.
+    link = HistoricalWavBrowserLink(wire.send_json, wire.send_bytes)
     session, _, _, _, _ = build(device=link)
 
     class BlockedSDK(SDK):
@@ -250,8 +264,7 @@ async def test_failed_close_remains_fenced_without_blocking_socket_errors():
 @pytest.mark.parametrize("stop_first", [False, True])
 async def test_disconnect_closes_real_thin_before_joining_cancel_resistant_typed_send(stop_first):
     wire = Wire()
-    link = BrowserLink(wire.send_json, wire.send_bytes)
-    link.supports_live_webrtc = False  # This fixture exercises the existing WS transport.
+    link = HistoricalWavBrowserLink(wire.send_json, wire.send_bytes)
     session, sdk, _, _, _ = build(device=link)
     entered, cancelled, released_by_cleanup = (asyncio.Event() for _ in range(3))
 
@@ -304,8 +317,7 @@ async def test_disconnect_fences_real_thin_shielded_wake_before_late_sdk_start(
 ):
     wire = Wire()
     entered, cancelled, release = (asyncio.Event() for _ in range(3))
-    link = BrowserLink(wire.send_json, wire.send_bytes)
-    link.supports_live_webrtc = False  # This fixture exercises the existing WS transport.
+    link = HistoricalWavBrowserLink(wire.send_json, wire.send_bytes)
     session, _, _, _, _ = build(device=link)
 
     class StartupSDK(SDK):

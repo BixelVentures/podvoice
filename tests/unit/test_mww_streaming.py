@@ -16,6 +16,7 @@ SOURCE = ROOT / "esphome/components/micro_wake_word"
     "harness",
     [
         "mww_streaming_test.cpp",
+        "mww_activity_test.cpp",
         "mww_stop_gate_test.cpp",
         "mww_event_test.cpp",
         "wake_audio_boundary_test.cpp",
@@ -52,7 +53,12 @@ def test_actual_streaming_model_load_cooldown_and_warm_inference(tmp_path, harne
     ):
         path = include / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text('#include "mww_platform_stubs.h"\n')
+        if name == "esphome/core/defines.h" and harness == "mww_activity_test.cpp":
+            path.write_text(
+                "#define USE_MICRO_WAKE_WORD_VAD\n#define USE_PODVOICE_ACTIVITY_OBSERVER\n"
+            )
+        else:
+            path.write_text('#include "mww_platform_stubs.h"\n')
     component_dir = tmp_path / "tree/esphome/components"
     component_dir.mkdir(parents=True)
     (component_dir / "micro_wake_word").symlink_to(SOURCE, target_is_directory=True)
@@ -78,7 +84,8 @@ def test_actual_streaming_model_load_cooldown_and_warm_inference(tmp_path, harne
             str(SOURCE / "streaming_model.cpp"),
             *(
                 [str(SOURCE / "micro_wake_word.cpp")]
-                if harness in ("mww_event_test.cpp", "wake_audio_boundary_test.cpp")
+                if harness
+                in ("mww_event_test.cpp", "wake_audio_boundary_test.cpp", "mww_activity_test.cpp")
                 else []
             ),
             *(

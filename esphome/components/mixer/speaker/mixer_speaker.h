@@ -1,4 +1,8 @@
 #pragma once
+#include "esphome/core/defines.h"
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+#include "activity_observer.h"
+#endif
 
 #ifdef USE_ESP32
 
@@ -60,6 +64,10 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   bool has_buffered_data() const override;
   // PodVoice observer only: includes the LAST source after the owner reset it.
   bool podvoice_quiescent() const;
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+  void podvoice_observe_activity(bool enabled) { podvoice_observe_activity_ = enabled; }
+  SourceActivityObservation podvoice_activity() { return podvoice_activity_.take(); }
+#endif
 
 
   /// @brief Mute state changes are passed to the parent's output speaker
@@ -104,6 +112,10 @@ class SourceSpeaker : public speaker::Speaker, public Component {
   std::shared_ptr<audio::RingBufferAudioSource> audio_source_;
   std::weak_ptr<audio::RingBufferAudioSource> podvoice_last_source_;
   bool podvoice_forced_stop_{false};
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+  bool podvoice_observe_activity_{false};  // configured before audio tasks start
+  SourceActivityObserver podvoice_activity_;
+#endif
   std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
 
   uint32_t buffer_duration_ms_;

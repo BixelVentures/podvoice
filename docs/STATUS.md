@@ -1,5 +1,227 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — Alpha Stop og lys, 21/9
+
+Brugeren understreger: implementér aftalt adfærd, begræns diagnosearbejdet.
+Lead Codex. Bevist statisk årsagskæde: Thin Alpha wake + playback armer keyword;
+VoicePELink kræver armed og firmware StopContext.admits kræver enabled. Det
+lokale keyword kan derfor kappe “stop musik”; blot disable blokerer også lyd.
+Samtidig kan shared end_conversation-beskrivelsen gøre hush eller musikhandling
+terminal. Dette retter en kendt ejergrænse uafhængigt af den endnu uafklarede
+post-action exception. Observerkandidat færdiggøres softwaremæssigt; ingen ny
+separat diagnoseinstallation før denne konkrete adfærdsrettelse er klar.
+
+Kæde: physicalwake nonce → keyword-disabled Live-admission + workerACK →
+kontinuerlig mic/Live → modeltolket stop/musik → backendautorisation/dispatch →
+playback → fysisk/panel cancel eller senere close/rearm. Invarianter: én Thin,
+intet lokalt intentparse, ingen genoplivning af cancelled context, exact generation
+og ACK, OFF uændret, ingen gevinst/VAD/buffer-/timeouttuning. Hypotese: separat
+playback_allowed med disabled keyword og Live-only semantik lader hele sætningen
+nå modellen og bevarer samtalen ved hush/musik; forsinket native-stop fra tidligere
+kontekst kan ikke påvirke den nye. Må ikke kaldes fysisk bevist uden afbrydelsesprøve.
+
+Implementering: capability live_semantic_stop_v1 + service podvoice_live_context,
+nyt korreleret live-ACK; gammel stop-service bevares. Alpha kræver kapabiliteten
+før provideropen. Fysisk/panel Stop og close revokerer admission og annullerer lyd.
+Live-only prompt/declaration skelner hush fra session-end og bevarer samtalen efter
+musik; tak-policy og OFF-prompt urørt. Cyan er feedback for åben Alpha, ikke falsk
+påstand om tale fra kontinuerlig stream; fault/idle forbliver hændelsesbaseret.
+Regressioner: gammelt/newfirmware x ON/OFF, disabledkeyword playback, fault/manglende
+ACK, cancelled/sent detection/stale generation, fysiskStop, tekst/modelsemantik,
+Talkparitet. Uafhængig Astrareview, målrettet SafeEval ved semantikændring, relevante
+gates før install. Rollbackgrænse: nul lyd eller forkert ejer/cancel/fault medfører
+NO-GO, ingen fallback til lokalt keyword i Alpha. Post-action/idle/goodbye stadig åbne.
+
+Observerkandidatens releasekørsel: delchecks grønne, men samlet gate **ugyldig**,
+fordi lead ændrede STATUS under kørslen. Ingen installation eller releasegodkendelse
+udledes heraf. Næste samlede gate køres først på frosset konkret Stop-kandidat.
+
+### Uafhængigt review af frosset Stop-kandidat
+
+Source-review GO fra Astra /root/alpha_tool_chain_audit: begge P1-findings lukket,
+ingen uløst sourcefinding. Firmwarekilde er publiceret som
+`d22da734e6bbef650881b3b6bd413ffe145764e5`; de to komponentgrupper er pinnet til
+samme revision. Manifest19-filer `b14ac035f86a9535db7dde9e3e3592096b7bc80fdbf39dcc1a7bddcee597087f`.
+Den eksisterende scopegate mangler netop denne tre-domæners kombination; den får
+en afgrænset tooling-regression (22 PASS). Særskilt Astra tooling-review GO:
+missing/stale review og ændrede bytes afvises stadig. Ingen runtimehypotese ændres.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "275e9ca8d030388b3722e1e2aa0d31f263d19ada",
+  "merge_base": "275e9ca8d030388b3722e1e2aa0d31f263d19ada",
+  "domains": [
+    "physical_output",
+    "realtime_semantics",
+    "rearm"
+  ],
+  "fingerprint": "57478c06d23bf823b67bf3b719a054cc515966ac1126a9fd3774e36f898d4b46",
+  "reviewer": "Independent Astra /root/alpha_tool_chain_audit",
+  "rationale": "One approved Alpha Stop contract requires keyword-disabled firmware playback admission and exact native ACK/revocation, worker-run continuity through cleanup/rearm, and Live-only semantic distinction between hush/music control and session closure. Splitting these domains would preserve keyword truncation, block playback, or leave semantic closing inconsistent. Inert observations remain identity-bound. Cancellation and restart races have regressions; OFF and thanks policy unchanged. Software gates only, not semantic or physical acceptance."
+}
+-->
+
+### Lokal releasegate grøn — installation udestår
+
+Frosset `982ea3a`: `scripts/dev release --base origin/main` PASS på54,8s med
+localhost-testporte tilladt. Ruff/format, mypy50, exact candidate-scope og fulde
+unit/integration-suiter PASS. Log `/private/tmp/pv-stop-release-final-0921.log`.
+Fixturevedligeholdelsen har særskilt Astra GO; productionfingerprint er uændret.
+Næste gate er exact-head CI/ARM64-image og installation af samme godkendte kandidat;
+ingen modelsemantisk eller fysisk gate udledes af dette resultat.
+
+### Gateforløb og test-fixture-kompatibilitet
+
+Første kontrol blev ugyldiggjort af sandboxens forbud mod localhost-bind; ingen
+runtimeændring fulgte. Genoptaget med testporte tilladt fandt7 historiske Talk-WAV-
+fixtures, som tvang WebRTC fra uden at simulere den nye native admission. De nåede
+derfor korrekt ikke SDK-start. Testfixtures og SyntheticCapture-evaluatoren har nu
+eksplicit syntetisk capability/ACK, markeret uden fysisk bevis. Produktionens Talk
+og Thin er urørt. 216 berørte tests PASS; ingen timeoutforhøjelse. Næste releasegate
+køres med nødvendige testporte og hele diffet frosset under kørslen.
+
+### Provisioneret Stop-build
+
+ESPHome2026.6.2 compile PASS fra remote d22da73-pin. Alle21 genererede C++-filer i
+de ændrede komponentgrupper er byteidentiske med reviewet kilde. Ny Live-service,
+kapabilitet, observer-define og amplifier-boot er verificeret i genereret main.
+Privat artifact: `/private/tmp/pv-stop-build-0921/esphome/.esphome/.esphome/build/podvoice-pe-live-alpha/.pioenvs/podvoice-pe/firmware.ota.bin`.
+3061616bytes, SHA256 `c6e305ada9d7daa9d7d62818f4e89d4ccf2ae10a83ca874354a0422b89660fed`.
+Report `/private/tmp/pv-stop-build-0921/compile-report.json`. Ikke installeret;
+ingen fysisk gate arves. Rollbackbuild og eksisterende enhed er urørt.
+
+### Faktisk Stop/LED-ændring før installationsbuild
+
+Thin bruger nu særskilt Live-admission ved wake og første playback; Alpha kræver
+kapabiliteten og korrekt ACK før provideropen. Firmware tillader playback med
+keyword slået fra. Native Stop/close/fault revokerer admission og ventende ACKs;
+kontrolleret providerrotation kan få en ny admission. OFFs keywordvej bevares.
+Live-only instruktion og end-tool skelner hush fra lukning og bevarer samtalen efter
+musikstyring. Tak-policy er ikke ændret. Ready Alpha viser stabil cyan gennem
+lytning, backendarbejde og lyd; error/mute/idle har fortsat egen betydning.
+
+Astrareview fandt en reel restart-race: et disabled keyword kunne få sit fault
+nulstillet og samme kommando genbekræftet mellem to mainloop-ticks. Rettelsen
+binder Live-admission/ACK/play til inferenceworkerens run ved fysisk wake. Ny run
+kan ikke genbruge admission; normal cleanup og næste wake kan stadig komme videre.
+En foreslået generel cancel-latch blev ikke beholdt, fordi samme cancel bruges ved
+legitim bekræftelsesrotation. Terminal closing og native revisionsfence ejer Stop.
+
+Målrettet samlet Thin/Live/Talk/native/prompt-suite: 194 PASS. Uafhængige 9
+adversarial Thin-regressioner PASS; firmware/observer/worker-suite 19 PASS.
+Ruff/format og mypy for de tre ændrede Python-runtimefiler PASS. Dette er
+softwarebevis, ikke bevis for modeltolkning, lyd i rummet eller installation.
+Source-review og provisioneret build er nu PASS; frozen releasegate udestår endnu.
+Firesekunders stilhedslukning, erstatning for farewell-grace, post-action-fejlen
+og fysisk slutmatrix er fortsat åbne dele af det samlede Alpha-goal.
+
+## Fast godkendt Alpha-adfærd — præcisering fra chatten, 21/9
+
+Ingen ny produktbeslutning: brugerens godkendte plan er autoriteten for ON.
+- Talt “stop”: stop assistant-tale, lyt videre i SAMME samtale.
+- “stop musik”: stop musikken, bevar samtalen.
+- Ny tale under svar: naturlig afbrydelse og behandling af den nye hensigt.
+- “farvel”: naturlig afslutning, hele farvel afspillet, derefter næste wake klar.
+- Fysisk Stop/panel-Stop: luk session og annullér igangværende/ventende/incoming lyd.
+- Reel stilhed: UI-værdien (aktuelt4s), efter klar lydvej og uden ventende arbejde.
+- ON/OFF gælder næste samtale. OFF bevarer sin eksisterende kontrakt.
+Modellen fortolker alle talte ønsker; lokal keyword-stop skal ikke kunne afskære
+“stop musik” i Alpha. Fundet teknisk kobling mellem keyword-enable og playback-
+admission er en fejlgrænse, som skal adskilles, ikke en grund til at ændre aftalen.
+“Tak for det” indgår i gennemgangen af eksisterende stille-lytten-regel; brugerens
+seneste citerede “blot til debat, ikke ændre” autoriserer ingen ny tak-policy.
+
+## Aktiv lead-beslutning — gennemfør Alpha, observationsgrundlag, 21/9
+
+Brugeren gentager eksplicit gennemførsel af hele den godkendte plan; goal er nu
+oprettet og aktivt. Lead Codex. .89 er installeret, men fysisk musikreproduktion
+mangler. Post-action-fejl må ikke gættes væk. Uafhængigt af dette kan planens B
+observationsgrundlag implementeres og reviewes uden at aktivere timeoutkontrol.
+Observeret kodefejl: Alpha har ingen idle-deadline, og en kontinuerlig tavs stream
+kan beholde AI_SPEAKING. Eksisterende VAD-bool mangler friskhedsbevis, mens mixeren
+allerede ejer source-pending/output-consumed frames. Hypotese: friske kontekstbundne
+VAD-inferences og announcement-source-målinger kan levere aktivitet uden musik-
+forurening; den skal falsificeres mod optagelser før signalet må lukke en samtale.
+Kæde: fysisk capture/VAD → native observation → VoicePELink → Thin-trace og
+announcement source før mix → output-consumed watermark → samme observer.
+Invarianter: Thin ene samtaleejer, ingen ny semantikmotor, gammel observation inert,
+manglende/stale data ukendt, ingen musik som assistant-tale, OFF uændret, fysisk
+output/finish stadig eksisterende korrelerede gates. Ikke-mål: ændrede gain/VAD,
+lydtærskler, timeout eller transport. Talk skal få tilsvarende observation med
+browserkilde og ærligt ukendt fysisk rumdræn. Ingen provider-tur-events fabrikeres.
+Regressioner: stale/duplicate/reconnect/contextskift, inference-opvarmning/stop,
+source/mixer-bufferfremdrift, musikadskillelse, intet signal før korrekt identitet.
+Afgrænset review og gates før installation; ingen fysisk accept eller timeout-
+aktivering uden kalibrering. Denne observationsændring er ikke et fix af kandidat1.
+
+21/9 konkret fremdrift på observationsgrundlaget: native firmwaretelemetri,
+VoicePELink-ingest, Thin-trace og Talk WebRTC stats/render-observer er implementeret
+lokalt. Ingen af signalerne styrer endnu timeout eller farvel; transportfriskhed
+og fysisk dræn er eksplicit ubekræftet. Root-suite141 PASS (ThinLive/native capture/
+activity), native validering23 PASS, Talk udvalgte24 PASS og root mypy PASS.
+Uafhængig Astra-review fandt P2: gentagen VAD-inference stod som frisk stilhed;
+source-work kunne krydse restart-epoch; synkron Talk-observer CancelledError kunne
+lukke samtalen. Talk-finding er rettet/regression PASS; firmwarefindings rettes nu.
+Frosset diff/release/installation af denne kandidat er IKKE udført.
+
+21/9 root prøvede selv musikpause via Talk på installeret .89 kl12:03:49.745.
+Prøven fejlede før dispatch: klient/budget frigivet12:03:59.327, ingen reader/socket,
+provider connect failed tom exception12:03:59.335 og close error:connection.
+Ingen musikhandling udført; dette er IKKE reproduktion af post-action-fejlen.
+Kausal regression beviser offer→hængende HTTP-create→ydre Thin-opstartstimeout,
+levende ping, nul dispatch, ren cleanup og ny session uden replay. Receive-loop-
+deadlock er afkræftet. Kodekonflikt: Thin samlet8s vs browserICE15s og adapter15s;
+der er ikke indført en større timeout på gæt. Den oprindelige musikfejl er åben.
+
+21/9 observationskandidat1.13.90: uafhængig Astra-review GO, alle tre P2 rettet.
+Native23 tests, Talk24 udvalgte, samlet review36 cases PASS. Fastgate format/Ruff/
+mypy50 PASS; hele pytest kun fejlet på den forventede gamle immutable firmwarepin.
+Denne test opdateret til endeligt reviewet pin/manifest og målrettet PASS.
+Rigtig firmwarekompilering afslørede feature-defines include-order; afgrænset fix
+uafhængigt reviewet og real-MWW-test ændret til genereret defines.h (ikke blot -D).
+Komponentkildeacc6dbd efterfulgt af35ea628e252d8a6825ff1f6df0a04ac27fbd3393 er pushet.
+Begge ændrede komponentpins bruger35ea628; podvoice_audio forbliverb56a08a6.
+Manifest19 udvalgte kildefiler SHA256ebf3aa7742a58ec4fe0b9a29951b6df9ccc83465ddeae4ccccb6a26317d6e0f2.
+Observer-sensor er disabled_by_default i HA (undgår recorder/state-længdeproblemer),
+men native-synlig. Rigtig ESPHome boot/package-regression PASS OFF ogAlpha.
+Slutbyg kører i/private/tmp/pv-activity-build-0921; rollbackbuild er urørt.
+Ingen firmwareflash eller1.13.90-installation endnu; releasegate afventer slutbyg.
+
+Næste Stop-implementering er afklaret mod brugerens allerede godkendte kontrakt:
+separat capability live_semantic_stop_v1/service podvoice_live_context giver
+keyword-disabled playback-admission gennem samme nonce/generation og exact worker-
+ACK; gammel stop-service/OFF bevarer enabled=playback-admission. Ny tilladelse må
+ikke omgå cancelled/fault/ACK eller genoplive cancelled kontekst. Thin Alpha wake
+og playback bruger den nye admission; manglende firmwarekapabilitet fejler før
+provider. Fysisk/panel-Stop beholder fuld cancellation. Live-only instruktion og
+end_conversation-beskrivelse skal skelne hush fra session ending og bevare musik-
+samtalen; kanonisk OFF-prompt og eksisterende tak-policy ændres ikke. Dette er
+implementeringsgrundlag, IKKE færdig kode eller fysisk afbrydelsesbevis.
+
+21/9 slutbyg PASS73.01s. OTA3060768bytes SHA256
+e020b824e87c79a4ad3295510aed8a90b92958ff938f90b844fbe6d05b7cd2e5.
+Alle8 genererede observerfiler matcher35ea628; ampboot og default-disabled sensor
+bekræftet. Ingen flash. Første release-preflight stoppede før tests, fordi den
+manglede den eksisterende gatekontrakts exact-tree coupling-post. Uafhængig Astra
+verificerede nedenstående fingerprint/domæner og godkendte den nødvendige kobling.
+Ingen runtime-/gateændring udledt; releaseforløbet genoptages på samme produktbits.
+
+<!-- historical-observer-candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "275e9ca8d030388b3722e1e2aa0d31f263d19ada",
+  "merge_base": "275e9ca8d030388b3722e1e2aa0d31f263d19ada",
+  "domains": [
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "8ca1413662b378c81472c4cc4b0fefdc7ce0d567f7f69c18996f56de438bce6a",
+  "reviewer": "Independent Astra high alpha_tool_chain_audit",
+  "rationale": "One observation-only activity contract correlates fresh firmware VAD inference and announcement-source consumption with native session/epoch and Thin identity. Splitting removes the paired calibration evidence. No timeout, Stop, gain, VAD or playback control changes. Exact production tree independently reviewed; firmware matches pinned35ea628."
+}
+-->
+
 ## Aktiv lead-beslutning — Alpha kandidat 1: resultat og lukningsdiagnostik, 21/9
 
 Brugeren har godkendt implementering af den fulde Alpha-plan. Lead Codex starter
@@ -58,6 +280,36 @@ exact-head CI/ARM-image, installation og frisk post-action-prøve; ingen fysisk 
 Frisk read-only HA-kontrol: fortsat1.13.88. En senere bruger-session10:16:24–10:17:03
 havde webopslag og model-close/rearm uden den viste tool-fejl; den ophæver ikke de to
 musikfejl eller beviser svarets korrekthed/lyd. Ingen agentudløst lydprøve.
+
+21/9 PR60 oprettet og vedhæftet; head b07ab7c726bdf776ed3d87f070f511abc35adf50,
+base307e2f8. CI35578364975 lint-test og ARM build-addon SUCCESS, PR MERGEABLE/draft.
+Automatisk godkendelseskontrol AFVISTE gh pr ready/merge før eksekvering: den kræver
+brugerens eksplicitte godkendelse til merge af draft og installation af1.13.89.
+Afgrænset spørgsmål er sendt med PR/version/genstart/ingen adfærdsændring. Ingen
+merge, publicering eller installation er udført. HA forbliver1.13.88; ingen ny OTA.
+Denne logopdatering holdes lokal, så den præcise grønne PR-head ikke ændres under
+ventetiden. Næste handling ved godkendelse: merge eksakt head, grøn main-publicering,
+HA backup/update, versions-/artifactkontrol, optag frisk prøve. Uden godkendelse
+forbliver draft og installation uændrede; intet alternativt deploy må omgå blokken.
+
+21/9 brugerens nye instruktion “ret de resterende fejl og så installer” er forelagt
+godkendelseskontrollen med konkret PR60-diagnoseforudsætning. Handlingen blev tilladt:
+PR60 MERGED09:43:51Z til275e9ca8d030388b3722e1e2aa0d31f263d19ada. Main-
+CI35584910634 kører; installation afventer grøn publicering. Ny arbejdsgren
+codex/gpt-live-alpha-followup starter på denne main med tidligere lokal ventelog
+bevaret. Bruger gentager, at “tak for det” kun er debat: ingen policyændring.
+
+21/9 main-CI35584910634 lint-test/publicering SUCCESS. HA-opdatering udført med
+backup-switch verificeret ON; separat backup-resultat ikke kontrolleret. HA viser
+1.13.89 Kører. Runtimeopstart11:54:46 og identity11:54:47 bekræfter
+275e9ca8d030388b3722e1e2aa0d31f263d19ada og
+rootfs-v1:ee6f3ddb5a1a84ccbd97d2466f25104cbc1efbff83c5fafbd6cdf019168e2951.
+MCP18 værktøjer og Voice PE-handshake11:54:51 lykkes; firmwarekontrakt OK inkl.
+podvoice_amp_boot_v1. Stale rearm-ACK afvist; wake detector recovered afventer
+første fysiske bevis. Ingen firmwareflash, testlyd eller lydstyrkeændring udført.
+Diagnostik er installeret; musikfejl, fysisk golden chain og 10/10 er IKKE bevist.
+Goal-værktøjet returnerede null ved denne genoptagelse; tidligere aktiv-status
+ovenfor er historisk og må ikke læses som aktuel schedulerstatus.
 
 ## Aktiv lead-beslutning — tavs fysisk højttaler efter Alpha-installation, 21/9
 

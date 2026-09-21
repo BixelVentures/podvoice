@@ -29,7 +29,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeGuard
 
 from aiohttp import WSMsgType
 
@@ -139,6 +139,8 @@ class _LiveHandshake:
     resume_requested: bool = False
     resumed: asyncio.Future | None = None
     held: asyncio.Future | None = None
+    activity_seq: int = 0
+    activity_timestamp_ms: float = -1.0
 
 
 class BrowserLink:
@@ -168,6 +170,8 @@ class BrowserLink:
         self._socket_closed = False
         self._rotation_token: str | None = None
         # Callbacks the engine wires (same names as VoicePELink).
+        self.on_activity: Any = None
+        self._activity_observation: dict | None = None
         self.on_wake: Any = None
         self.on_media_state: Any = None
         self.on_playback_fault: Any = None
@@ -303,6 +307,7 @@ class BrowserLink:
 
     def invalidate_live_handshake(self) -> None:
         self._rotation_token = None
+        self._activity_observation = None
         handshake = self._live_handshake
         if handshake is not None:
             handshake.valid = False
@@ -315,6 +320,96 @@ class BrowserLink:
         self.invalidate_live_handshake()
         if self._live_handshake is not None and not self._live_handshake.stopped.done():
             self._live_handshake.stopped.set_result(False)
+
+    def accepts_activity(self, observation: dict) -> bool:
+        """Observation identity fence, never a claim about silence or freshness."""
+        handshake = self._live_handshake
+        return bool(
+            handshake is not None
+            and handshake.valid
+            and not self._socket_closed
+            and observation is self._activity_observation
+            and observation.get("attempt_id") == handshake.attempt_id
+            and observation.get("provider_session_id") == handshake.provider_session_id
+            and observation.get("provider_generation") == handshake.generation
+        )
+
+    @staticmethod
+    def _activity_number(value: Any) -> TypeGuard[int | float]:
+        return type(value) in (int, float) and 0 <= value <= 2**53 - 1
+
+    @classmethod
+    def _activity_audio(cls, raw: Any) -> dict:
+        unknown = {"status": "unknown"}
+        if not isinstance(raw, dict) or raw.get("status") != "observed":
+            return unknown
+        keys = ("stats_timestamp_ms", "total_audio_energy", "total_samples_duration")
+        if not all(cls._activity_number(raw.get(key)) for key in keys):
+            return unknown
+        generation = raw.get("source_generation")
+        if type(generation) is not int or not 1 <= generation <= 2**53 - 1:
+            return unknown
+        level = raw.get("audio_level")
+        return {
+            "status": "observed",
+            **{key: raw[key] for key in keys},
+            "source_generation": generation,
+            "audio_level": level if cls._activity_number(level) and level <= 1 else None,
+        }
+
+    def _receive_activity(self, data: dict, handshake: _LiveHandshake) -> None:
+        sequence, timestamp = data.get("observation_seq"), data.get("browser_monotonic_ms")
+        if (
+            handshake.provider_session_id is None
+            or not handshake.started.done()
+            or handshake.started.cancelled()
+            or data.get("provider_session_id") != handshake.provider_session_id
+            or type(data.get("generation")) is not int
+            or data["generation"] != handshake.generation
+            or type(sequence) is not int
+            or not handshake.activity_seq < sequence <= 2**53 - 1
+            or not self._activity_number(timestamp)
+            or timestamp <= handshake.activity_timestamp_ms
+        ):
+            return
+        render = data.get("render")
+        observed_render = {"status": "unknown"}
+        if (
+            isinstance(render, dict)
+            and render.get("status") == "observed"
+            and self._activity_number(render.get("current_time_s"))
+            and type(render.get("paused")) is bool
+            and type(render.get("muted")) is bool
+            and self._activity_number(render.get("volume"))
+            and render["volume"] <= 1
+            and type(render.get("ready_state")) is int
+            and 0 <= render["ready_state"] <= 4
+        ):
+            observed_render = {
+                key: render[key]
+                for key in ("status", "current_time_s", "paused", "muted", "volume", "ready_state")
+            }
+        handshake.activity_seq, handshake.activity_timestamp_ms = sequence, timestamp
+        observation = {
+            "source": "browser_webrtc",
+            "attempt_id": handshake.attempt_id,
+            "provider_session_id": handshake.provider_session_id,
+            "provider_generation": handshake.generation,
+            "sequence": sequence,
+            "source_timestamp_ms": timestamp,
+            "received_monotonic": time.monotonic(),
+            "freshness": "unverified_transport_age",
+            "freshness_verified": False,
+            "input": self._activity_audio(data.get("input")),
+            "output": self._activity_audio(data.get("output")),
+            "render": observed_render,
+            "drain_confirmed": False,
+        }
+        self._activity_observation = observation
+        if self.on_activity is not None:
+            # Diagnostic sinks must not introduce conversation failures.
+            with contextlib.suppress(Exception, asyncio.CancelledError):
+                self.on_activity(observation)
 
     def receive_live(self, data: dict) -> bool:
         """Return True only for a matching browser fault; never accept stale peer events."""
@@ -353,6 +448,9 @@ class BrowserLink:
                     handshake.stopped.set_result(True)
             return False
         if not handshake.valid:
+            return False
+        if kind == "live_activity":
+            self._receive_activity(data, handshake)
             return False
         if kind == "live_fault":
             self.invalidate_live_handshake()
@@ -488,6 +586,7 @@ class BrowserLink:
     async def stop_playback(self, *, playback_id: str | None = None) -> bool:
         """Stop exactly the reply owned by the caller, never a newer browser reply."""
         self._rotation_token = None
+        self._activity_observation = None
         handshake = self._live_handshake
         if handshake is not None:
             self.invalidate_live_handshake()
@@ -843,6 +942,7 @@ async def run_talk(ws, session, link: BrowserLink) -> None:
                     "live_fault",
                     "live_resumed",
                     "live_held",
+                    "live_activity",
                 }:
                     if link.receive_live(data):
                         begin_stop("live-fault-" + uuid.uuid4().hex)

@@ -178,3 +178,96 @@ function answer(id,gen=1){return {type:'live_answer',attempt_id:id,connection_id
         timeout=10,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_shipped_browser_activity_observes_stats_without_media_or_close_authority():
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node is required for the shipped browser JavaScript regression")
+    html = SCRIPT.read_text()
+    helpers = html.split("// ---- Live WebRTC: one peer for one server-issued attempt ----", 1)[
+        1
+    ].split("// ---- End Live WebRTC ----", 1)[0]
+    harness = r"""
+const assert=require('node:assert/strict');
+let sent=[], timers=new Map(), serial=0;
+function setTimeout(f){let id=++serial;timers.set(id,f);return id;}
+function clearTimeout(id){timers.delete(id);}
+var halted=false,socketGeneration=1,ws={},wsReady=true,micRequestSerial=0,capStream=null;
+function sendJson(x){sent.push(x);}
+function micStop(){}
+var micHint={};
+function logLine(){}
+function stats(type, timestamp, energy=0.5){return new Map([['a', {id:type+'-1',kind:'audio',type,
+ timestamp,totalAudioEnergy:energy,totalSamplesDuration:timestamp/1000,audioLevel:0.2}]]);}
+function peer(){let track={enabled:true,readyState:'live',stop(){this.readyState='ended';}};
+return {attempt_id:'a',connection_id:'conn',provider_session_id:'provider-a',generation:1,
+ socketGeneration,sock:ws,ready:true,microphone:true,
+ input:{getTracks:()=>[track],getAudioTracks:()=>[track]},
+ sender:{track,getStats:async()=>stats('media-source',1000)},
+ receiver:{getStats:async()=>stats('inbound-rtp',1000)},
+ pc:{close(){}}, audio:{currentTime:1,paused:false,muted:false,volume:1,readyState:4,pause(){this.paused=true;}}};}
+function msg(p,type){return {...liveIdentity(p),connection_id:p.connection_id,type};}
+"""
+    cases = r"""
+(async()=>{
+ let p=peer();livePeer=p;
+ await sampleLiveActivity(p);
+ assert.equal(sent.length,1);assert.equal(sent[0].type,'live_activity');
+ assert.equal(sent[0].input.total_audio_energy,0.5);assert.equal(sent[0].output.total_audio_energy,0.5);
+ assert.equal(sent[0].render.current_time_s,1);assert.equal(sent[0].observation_seq,1);
+ assert.equal(sent[0].drain_confirmed,undefined);assert.equal(p.ready,true);
+ let first=sent[0];await sampleLiveActivity(p);
+ assert.equal(sent.at(-1).input.status,'unknown'); // Frozen native sample is not silence.
+ assert.equal(sent.at(-1).output.status,'unknown');
+ let advanced=stats('media-source',2000);advanced.get('a').totalSamplesDuration=1;
+ assert.equal(liveAudioStats(advanced,'media-source',p.inputStats).status,'unknown');
+ let reversed=stats('media-source',2000,0.1);
+ assert.equal(liveAudioStats(reversed,'media-source',p.inputStats).status,'unknown');
+ let replacement=stats('media-source',2000,0);replacement.get('a').id='new-source';
+ assert.equal(liveAudioStats(replacement,'media-source',p.inputStats).source_generation,2);
+ p.sender.getStats=async()=>{throw new Error('unsupported');};p.receiver.getStats=async()=>new Map();
+ await sampleLiveActivity(p);assert.equal(sent.at(-1).input.status,'unknown');
+ assert.equal(sent.at(-1).output.status,'unknown');assert.equal(livePeer,p);
+ p.microphone=false;let calls=0;p.sender.getStats=async()=>{calls++;return stats('media-source',2000,0);};
+ await sampleLiveActivity(p);assert.equal(calls,0);assert.equal(sent.at(-1).input.status,'unknown'); // Typed silent clock is not room quiet.
+ p.microphone=true;
+ p.sender.getStats=async()=>stats('media-source',2000,0);
+ p.receiver.getStats=async()=>stats('inbound-rtp',2000,0);
+ p.inputStats=null;p.outputStats=null; // New RTP source can reset its counters.
+ await sampleLiveActivity(p);assert.equal(sent.at(-1).input.total_audio_energy,0);
+ assert.equal(sent.at(-1).output.total_audio_energy,0); // Zero remains a measurement; no quiet classification.
+ handleLiveMessage(msg(p,'live_finalized'));
+ await sampleLiveActivity(p);assert.equal(livePeer,p);assert.equal(p.ready,true);
+ assert.equal(sent.at(-1).drain_confirmed,undefined); // Provider closure grants no render drain fact.
+ for(const boundary of ['hold','close','socket','track']){
+   p=peer();livePeer=p;halted=false;let release;
+   p.sender.getStats=()=>new Promise(r=>release=r);
+   let before=sent.length, pending=sampleLiveActivity(p);
+   await Promise.resolve();
+   if(boundary==='hold')handleLiveMessage({...msg(p,'live_hold'),rotation_token:'rotate'});
+   if(boundary==='close')closeLivePeer();
+   if(boundary==='socket')socketGeneration++;
+   if(boundary==='track')p.sender.track={enabled:true,readyState:'live'};
+   let afterBoundary=sent.length;release(stats('media-source',3000));await pending;
+   assert.equal(sent.length,afterBoundary,boundary+' callback crossed ownership boundary');
+   assert.equal(sent.slice(before).some(x=>x.type==='live_activity'),false);
+ }
+ // Stopping the same input track during collection makes input unknown.
+ p=peer();livePeer=p;let endRead;
+ p.sender.getStats=()=>new Promise(r=>endRead=r);let stoppedRead=sampleLiveActivity(p);
+ await Promise.resolve();p.sender.track.stop();endRead(stats('media-source',3500));await stoppedRead;
+ assert.equal(sent.at(-1).input.status,'unknown');
+ // An old pending peer cannot inject into a new session with fresh identity.
+ p=peer();p.socketGeneration=socketGeneration;livePeer=p;let resolveOld;
+ p.sender.getStats=()=>new Promise(r=>resolveOld=r);let pending=sampleLiveActivity(p);
+ await Promise.resolve();closeLivePeer();let fresh=peer();fresh.attempt_id='fresh';fresh.generation=2;livePeer=fresh;
+ let before=sent.length;resolveOld(stats('media-source',4000));await pending;
+ assert.equal(sent.length,before);assert.equal(livePeer,fresh);
+ closeLivePeer();
+})().catch(e=>{console.error(e);process.exitCode=1;});
+"""
+    result = subprocess.run(
+        [node, "-e", harness + helpers + cases], text=True, capture_output=True, timeout=10
+    )
+    assert result.returncode == 0, result.stderr
