@@ -16,6 +16,7 @@ SOURCE = ROOT / "esphome/components/micro_wake_word"
     "harness",
     [
         "mww_streaming_test.cpp",
+        "mww_activity_test.cpp",
         "mww_stop_gate_test.cpp",
         "mww_event_test.cpp",
         "wake_audio_boundary_test.cpp",
@@ -65,6 +66,11 @@ def test_actual_streaming_model_load_cooldown_and_warm_inference(tmp_path, harne
             "-std=c++17",
             "-DUSE_ESP32",
             "-DUSE_VOICE_ASSISTANT",
+            *(
+                ["-DUSE_MICRO_WAKE_WORD_VAD", "-DUSE_PODVOICE_ACTIVITY_OBSERVER"]
+                if harness == "mww_activity_test.cpp"
+                else []
+            ),
             "-I",
             str(ROOT / "esphome/components/podvoice_audio"),
             "-I",
@@ -78,7 +84,8 @@ def test_actual_streaming_model_load_cooldown_and_warm_inference(tmp_path, harne
             str(SOURCE / "streaming_model.cpp"),
             *(
                 [str(SOURCE / "micro_wake_word.cpp")]
-                if harness in ("mww_event_test.cpp", "wake_audio_boundary_test.cpp")
+                if harness
+                in ("mww_event_test.cpp", "wake_audio_boundary_test.cpp", "mww_activity_test.cpp")
                 else []
             ),
             *(

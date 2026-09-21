@@ -19,12 +19,18 @@ class PodVoiceReply : public Component {
   void set_mixer(mixer_speaker::MixerSpeaker *v) { mixer_ = v; }
   void set_output(speaker::Speaker *v) { output_ = v; }
   void set_status(text_sensor::TextSensor *v) { status_ = v; }
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+  void set_activity_status(text_sensor::TextSensor *v) { activity_status_ = v; }
+#endif
   void set_context_status(text_sensor::TextSensor *v) { context_status_ = v; }
   void set_detector(micro_wake_word::MicroWakeWord *v) { detector_ = v; }
   void set_mute_switch(switch_::Switch *v) { mute_switch_ = v; }
   Trigger<> *get_timer_stop_trigger() { return &timer_stop_trigger_; }
   void set_stop_model(micro_wake_word::WakeWordModel *v) { stop_model_ = v; }
   void setup() override {
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+    source_->podvoice_observe_activity(activity_status_ != nullptr);
+#endif
     detector_->set_stop_model(stop_model_);
     muted_ = mute_switch_->state;
     mute_switch_->add_on_state_callback([this](bool muted) {
@@ -54,6 +60,10 @@ class PodVoiceReply : public Component {
     char nonce[33];
     snprintf(nonce, sizeof(nonce), "%08x%08x%08x%08x", random_uint32(), random_uint32(), random_uint32(), random_uint32());
     if (!context_.begin(nonce)) return false;
+#if defined(USE_PODVOICE_ACTIVITY_OBSERVER) && defined(USE_MICRO_WAKE_WORD_VAD)
+    activity_input_floor_ = detector_->podvoice_activity().sequence;
+    activity_input_seen_ = activity_input_floor_;
+#endif
     request_context_(); return true;
   }
   void set_stop_context(const std::string &session, int generation, bool enabled) {
@@ -64,6 +74,10 @@ class PodVoiceReply : public Component {
     if (generation <= 0 || !context_.admits(session, static_cast<uint32_t>(generation)) ||
         detector_->stop_context_ack() != context_.command || detector_->stop_context_fault()) return;
     if (!state_.play(token)) return;
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+    // Discard the previous lease's measurement window, never its audio.
+    source_->podvoice_activity();
+#endif
     fence_armed_ = false; producer_stopped_ = false;
     auto call = player_->make_call();
     call.set_media_url(url); call.set_announcement(true); call.perform();
@@ -90,6 +104,9 @@ class PodVoiceReply : public Component {
     if (!context_.active) { context_.timer(value && !muted_ && !timer_suspended_); request_context_(); }
   }
   void loop() override {
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+    publish_activity_();
+#endif
     if (!context_.active && !timer_suspended_ && detector_->stop_context_fault() && !idle_fault_) {
       // No second restart owner: stop the ringing timer and publish a fault for
       // the same adapter/Thin cleanup that handles reconnect. Block wake until it
@@ -138,6 +155,55 @@ class PodVoiceReply : public Component {
     }
   }
  protected:
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+  void publish_activity_() {
+    if (activity_status_ == nullptr) return;
+    const uint32_t now = millis();
+    // Reporting cadence only: never a silence, end-of-speech or drain threshold.
+    if (static_cast<uint32_t>(now - activity_report_ms_) < 100) return;
+    activity_report_ms_ = now;
+    const auto output = source_->podvoice_activity();
+    if (!context_.active) return;  // Discard unrelated announcement windows.
+    const char *input_state = "unknown";
+    uint32_t inference_seq = 0, inference_ms = 0, capture_epoch = 0, detector_run = 0;
+    uint64_t sample_end = 0;
+    unsigned probability = 0;
+    bool input_valid = false;
+#ifdef USE_MICRO_WAKE_WORD_VAD
+    const auto input = detector_->podvoice_activity();
+    inference_seq = input.sequence; inference_ms = input.source_ms;
+    capture_epoch = input.position.epoch; detector_run = input.position.detector_run;
+    sample_end = input.position.sample; probability = input.probability;
+    // A repeated snapshot proves no new source observation, never ongoing quiet.
+    input_valid = input.valid && input.sequence != activity_input_floor_ &&
+                  input.sequence != activity_input_seen_ && !mute_switch_->state;
+    activity_input_seen_ = input.sequence;
+    if (input_valid) input_state = input.active ? "active" : "quiet";
+#endif
+    char value[1536];
+    const int size = snprintf(value, sizeof(value),
+        "{\"v\":1,\"owner\":\"%s\",\"context_generation\":%u,\"seq\":%u,\"source_ms\":%u,"
+        "\"input\":{\"state\":\"%s\",\"inference_seq\":%u,\"inference_ms\":%u,"
+        "\"capture_epoch\":%u,\"detector_run\":%u,\"sample_end\":%llu,\"probability\":%u,\"valid\":%s},"
+        "\"output\":{\"reply_token\":\"%s\",\"source_epoch\":%u,\"mix_seq\":%u,\"mix_ms\":%u,"
+        "\"sample_rate\":%u,\"peak\":%u,\"sum_squares\":%llu,\"sample_count\":%llu,"
+        "\"frame_begin\":%llu,\"frame_end\":%llu,\"consumed_frames\":%llu,\"consumed_us\":%lld,"
+        "\"valid\":%s,\"mixer_consumed_frames\":%u,\"mixer_pending_frames\":%u,"
+        "\"producer_idle\":%s,\"resampler_quiescent\":%s,\"source_quiescent\":%s}}",
+        context_.session.c_str(), context_.generation, ++activity_sequence_, now,
+        input_state, inference_seq, inference_ms, capture_epoch, detector_run,
+        static_cast<unsigned long long>(sample_end), probability, input_valid ? "true" : "false",
+        state_.token.c_str(), output.epoch, output.sequence, output.source_ms, output.sample_rate, output.peak,
+        static_cast<unsigned long long>(output.sum_squares), static_cast<unsigned long long>(output.sample_count),
+        static_cast<unsigned long long>(output.frame_begin), static_cast<unsigned long long>(output.frame_end),
+        static_cast<unsigned long long>(output.consumed_frames), static_cast<long long>(output.consumed_us),
+        output.valid ? "true" : "false", mixer_->podvoice_consumed_frames(), mixer_->get_frames_in_pipeline(),
+        player_->podvoice_announcement_idle() ? "true" : "false", resampler_->podvoice_quiescent() ? "true" : "false",
+        source_->podvoice_quiescent() ? "true" : "false");
+    // Unexpected identity expansion cannot publish truncated or invalid JSON.
+    if (size > 0 && static_cast<size_t>(size) < sizeof(value)) activity_status_->publish_state(value);
+  }
+#endif
   void request_context_() {
     context_published_ = false;
     detector_->request_stop_context(context_.command);
@@ -166,6 +232,10 @@ class PodVoiceReply : public Component {
     resampler_->stop();
   }
   void publish_(const char *value) { status_->publish_state(state_.token + ":" + value); }
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+  text_sensor::TextSensor *activity_status_{nullptr};
+  uint32_t activity_sequence_{0}, activity_report_ms_{0}, activity_input_floor_{0}, activity_input_seen_{0};
+#endif
   ReplyState state_;
   StopContext context_;
   Trigger<> timer_stop_trigger_;

@@ -33,6 +33,7 @@ struct TfLiteTensor {
 namespace tflite {
 inline uint8_t probability = 0;
 inline int invocations = 0;
+inline int inference_stride = 1;
 inline int allocations = 0;
 struct Model { int version() const { return TFLITE_SCHEMA_VERSION; } };
 inline const Model *GetModel(const uint8_t *) { static Model model; return &model; }
@@ -56,11 +57,11 @@ class MicroInterpreter {
   template<class... Args> explicit MicroInterpreter(Args&&...) {}
   TfLiteStatus AllocateTensors() { ++allocations; return kTfLiteOk; }
   size_t arena_used_bytes() const { return 128; }
-  TfLiteTensor *input(int) { return &input_; }
+  TfLiteTensor *input(int) { input_dims_.data[1] = inference_stride; return &input_; }
   TfLiteTensor *output(int) { return &output_; }
   TfLiteStatus Invoke() { ++invocations; output_data_[0] = probability; return kTfLiteOk; }
  private:
-  int8_t input_data_[40]{};
+  int8_t input_data_[80]{};
   uint8_t output_data_[1]{};
   TfLiteIntArray input_dims_{3, {1, 1, 40}}, output_dims_{2, {1, 1, 0}};
   TfLiteTensor input_{&input_dims_, kTfLiteInt8, {.int8 = input_data_}};

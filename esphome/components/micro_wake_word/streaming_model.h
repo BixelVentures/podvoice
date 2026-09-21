@@ -52,6 +52,8 @@ class StreamingModel {
   bool is_enabled() const { return this->enabled_; }
 
   bool get_unprocessed_probability_status() const { return this->unprocessed_probability_status_; }
+  // VAD observation must distinguish a new Invoke from a feature-only stride.
+  void clear_observed_probability_status() { this->unprocessed_probability_status_ = false; }
 
   // PodVoice: arm only after actual load warm-up, never from a synthetic false
   // detection returned while the upstream model is still ignoring windows.

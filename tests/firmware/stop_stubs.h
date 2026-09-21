@@ -3,6 +3,10 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+#include "esphome/components/micro_wake_word/activity_observer.h"
+#include "esphome/components/mixer/speaker/activity_observer.h"
+#endif
 #ifdef PODVOICE_TEST_REAL_STOP_GATE
 #include "stop_gate.h"
 #endif
@@ -48,7 +52,14 @@ namespace resampler { class ResamplerSpeaker { public: bool quiet=true; int stop
   bool podvoice_quiescent() const { return quiet; } void stop() { ++stops; }
 }; }
 namespace mixer_speaker {
-class SourceSpeaker { public: bool quiet=true; bool podvoice_quiescent() const { return quiet; } };
+class SourceSpeaker { public: bool quiet=true; bool podvoice_quiescent() const { return quiet; }
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+  bool observing=false;
+  SourceActivityObserver observer;
+  void podvoice_observe_activity(bool enabled) { observing=enabled; }
+  SourceActivityObservation podvoice_activity() { return observer.take(); }
+#endif
+};
 class MixerSpeaker { public:
   uint32_t pending=0, consumed=0;
   uint32_t get_frames_in_pipeline() const { return pending; }
@@ -62,6 +73,10 @@ namespace micro_wake_word { class WakeWordModel { public: bool enabled=false;
   bool is_enabled() const { return enabled; } void enable() { enabled=true; } void disable() { enabled=false; }
 }; }
 namespace micro_wake_word { class MicroWakeWord { public:
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+  ActivityObserver observer;
+  ActivityObservation podvoice_activity() { return observer.snapshot(); }
+#endif
   uint32_t command=0;
   bool fault=false;
   std::function<void(uint32_t)> callback;

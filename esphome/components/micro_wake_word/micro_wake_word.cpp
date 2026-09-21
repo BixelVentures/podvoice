@@ -153,6 +153,9 @@ void MicroWakeWord::on_ota_global_state(ota::OTAState state, float progress, uin
 #endif
 
 void MicroWakeWord::reset_audio_source_(audio::RingBufferAudioSource &source) {
+#if defined(USE_PODVOICE_ACTIVITY_OBSERVER) && defined(USE_MICRO_WAKE_WORD_VAD)
+  this->activity_observer_.invalidate();
+#endif
   // Any gap which resets shared feature history faults the current Stop context.
   // Recovery cannot silently restore an armed context; teardown/rearm owns that.
   this->stop_gate_.invalidate();
@@ -175,6 +178,9 @@ void MicroWakeWord::reset_audio_source_(audio::RingBufferAudioSource &source) {
 void MicroWakeWord::inference_task(void *params) {
   MicroWakeWord *this_mww = (MicroWakeWord *) params;
   this_mww->stop_gate_.worker_start();
+#if defined(USE_PODVOICE_ACTIVITY_OBSERVER) && defined(USE_MICRO_WAKE_WORD_VAD)
+  this_mww->activity_observer_.invalidate();
+#endif
   {
     std::lock_guard<std::mutex> lock(this_mww->wake_audio_clock_.mutex);
     this_mww->wake_audio_clock_.restart();
@@ -253,6 +259,9 @@ void MicroWakeWord::inference_task(void *params) {
 
   xEventGroupSetBits(this_mww->event_group_, EventGroupBits::TASK_STOPPING);
   this_mww->stop_gate_.invalidate();
+#if defined(USE_PODVOICE_ACTIVITY_OBSERVER) && defined(USE_MICRO_WAKE_WORD_VAD)
+  this_mww->activity_observer_.invalidate();
+#endif
 
   this_mww->unload_models_();
   this_mww->microphone_source_->stop();
@@ -486,6 +495,13 @@ void MicroWakeWord::process_probabilities_() {
   DetectionEvent vad_state = this->vad_model_->determine_detected();
 
   this->vad_state_ = vad_state.detected;  // atomic write, so thread safe
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+  if (!this->vad_model_->is_ready_for_detection()) this->activity_observer_.invalidate();
+  if (this->vad_model_->get_unprocessed_probability_status()) {
+    this->activity_observer_.publish(millis(), this->feature_wake_audio_, vad_state.average_probability,
+                                    vad_state.detected, this->vad_model_->is_ready_for_detection());
+  }
+#endif
 #endif
 
   for (auto &model : this->wake_word_models_) {
@@ -549,6 +565,9 @@ bool MicroWakeWord::update_model_probabilities_(const int8_t audio_features[PREP
     success = success & model->perform_streaming_inference(audio_features);
   }
 #ifdef USE_MICRO_WAKE_WORD_VAD
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+  this->vad_model_->clear_observed_probability_status();
+#endif
   success = success & this->vad_model_->perform_streaming_inference(audio_features);
 #endif
 

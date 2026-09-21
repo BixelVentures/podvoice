@@ -3,6 +3,9 @@
 #ifdef USE_ESP32
 
 #include "preprocessor_settings.h"
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+#include "activity_observer.h"
+#endif
 #include "streaming_model.h"
 #include "stop_gate.h"
 #include "wake_audio_clock.h"
@@ -90,6 +93,9 @@ class MicroWakeWord : public Component
 
   // Intended for the voice assistant component to fetch VAD status
   bool get_vad_state() { return this->vad_state_; }
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+  ActivityObservation podvoice_activity() { return this->activity_observer_.snapshot(); }
+#endif
 #endif
 
   // Intended for the voice assistant component to access which wake words are available
@@ -119,6 +125,9 @@ class MicroWakeWord : public Component
 #ifdef USE_MICRO_WAKE_WORD_VAD
   std::unique_ptr<VADModel> vad_model_;
   bool vad_state_{false};
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+  ActivityObserver activity_observer_;
+#endif
 #endif
 
   bool pending_start_{false};

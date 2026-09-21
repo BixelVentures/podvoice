@@ -89,6 +89,9 @@ void SourceSpeaker::setup() {
   this->disable_loop();
 
   this->parent_->get_output_speaker()->add_audio_output_callback([this](uint32_t new_frames, int64_t write_timestamp) {
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+    const uint64_t observation = this->podvoice_observe_activity_ ? this->podvoice_activity_.capture() : 0;
+#endif
     // First, drain the playback delay (frames in pipeline before this source started contributing)
     uint32_t delay_to_drain = atomic_subtract_clamped(this->playback_delay_frames_, new_frames);
     uint32_t remaining_frames = new_frames - delay_to_drain;
@@ -97,6 +100,9 @@ void SourceSpeaker::setup() {
     if (remaining_frames > 0) {
       uint32_t speakers_playback_frames = atomic_subtract_clamped(this->pending_playback_frames_, remaining_frames);
       if (speakers_playback_frames > 0) {
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+        if (this->podvoice_observe_activity_) this->podvoice_activity_.consumed(observation, speakers_playback_frames, write_timestamp);
+#endif
         this->audio_output_callback_(speakers_playback_frames, write_timestamp);
       }
     }
@@ -140,11 +146,17 @@ void SourceSpeaker::loop() {
   // Process state machine
   switch (this->state_) {
     case speaker::STATE_STARTING: {
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+      const uint32_t observation_epoch = this->podvoice_observe_activity_ ? this->podvoice_activity_.restart() : 0;
+#endif
       esp_err_t err = this->start_();
       if (err == ESP_OK) {
         this->pending_playback_frames_.store(0, std::memory_order_release);  // reset pending playback frames
         this->playback_delay_frames_.store(0, std::memory_order_release);    // reset playback delay
         this->has_contributed_.store(false, std::memory_order_release);      // reset contribution tracking
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+        if (this->podvoice_observe_activity_) this->podvoice_activity_.ready(observation_epoch);
+#endif
         this->state_ = speaker::STATE_RUNNING;
         this->stop_gracefully_ = false;
         this->last_seen_data_ms_ = millis();
@@ -487,6 +499,10 @@ void MixerSpeaker::audio_mixer_task(void *params) {
     // Pre-allocate vectors to avoid heap allocation in the loop (max 8 source speakers per schema)
     FixedVector<SourceSpeaker *> speakers_with_data;
     FixedVector<std::shared_ptr<audio::RingBufferAudioSource>> audio_sources_with_data;
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+    FixedVector<uint64_t> source_observations;
+    source_observations.init(this_mixer->source_speakers_.size());
+#endif
     speakers_with_data.init(this_mixer->source_speakers_.size());
     audio_sources_with_data.init(this_mixer->source_speakers_.size());
 
@@ -504,9 +520,15 @@ void MixerSpeaker::audio_mixer_task(void *params) {
 
       speakers_with_data.clear();
       audio_sources_with_data.clear();
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+      source_observations.clear();
+#endif
 
       for (auto &speaker : this_mixer->source_speakers_) {
         if (speaker->is_running() && !speaker->get_pause_state()) {
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+          const uint64_t observation = speaker->podvoice_observe_activity_ ? speaker->podvoice_activity_.capture() : 0;
+#endif
           // Speaker is running and not paused, so it possibly can provide audio data
           std::shared_ptr<audio::RingBufferAudioSource> audio_source = speaker->get_audio_source().lock();
           if (audio_source.use_count() == 0) {
@@ -519,6 +541,9 @@ void MixerSpeaker::audio_mixer_task(void *params) {
             // Retain shared ownership across the mixing pass so the source isn't released mid-mix
             audio_sources_with_data.push_back(audio_source);
             speakers_with_data.push_back(speaker);
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+            source_observations.push_back(observation);
+#endif
           }
         }
       }
@@ -559,6 +584,13 @@ void MixerSpeaker::audio_mixer_task(void *params) {
             speakers_with_data[0]->has_contributed_.store(true, std::memory_order_release);
           }
 
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+          if (speakers_with_data[0]->podvoice_observe_activity_) {
+            speakers_with_data[0]->podvoice_activity_.mixed(source_observations[0], audio_sources_with_data[0]->data(), frames_to_mix,
+                active_stream_info.get_channels(), active_stream_info.get_bits_per_sample(),
+                active_stream_info.get_sample_rate(), millis());
+          }
+#endif
           // Update source speaker pending frames
           speakers_with_data[0]->pending_playback_frames_.fetch_add(frames_to_mix, std::memory_order_release);
           audio_sources_with_data[0]->consume(active_stream_info.frames_to_bytes(frames_to_mix));
@@ -622,6 +654,13 @@ void MixerSpeaker::audio_mixer_task(void *params) {
             speakers_with_data[i]->has_contributed_.store(true, std::memory_order_release);
           }
 
+#ifdef USE_PODVOICE_ACTIVITY_OBSERVER
+          if (speakers_with_data[i]->podvoice_observe_activity_) {
+            const auto &info = speakers_with_data[i]->get_audio_stream_info();
+            speakers_with_data[i]->podvoice_activity_.mixed(source_observations[i], audio_sources_with_data[i]->data(), frames_to_mix,
+                info.get_channels(), info.get_bits_per_sample(), info.get_sample_rate(), millis());
+          }
+#endif
           speakers_with_data[i]->pending_playback_frames_.fetch_add(frames_to_mix, std::memory_order_release);
           audio_sources_with_data[i]->consume(
               speakers_with_data[i]->get_audio_stream_info().frames_to_bytes(frames_to_mix));
