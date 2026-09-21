@@ -67,6 +67,22 @@ _AUDIO_ANALYSIS_SURFACES = {
     "podvoice/gatekeeper/static/index.html",
 }
 
+_NATIVE_QUIET_SURFACES = {
+    "podvoice/gatekeeper/__init__.py",
+    "podvoice/gatekeeper/thin.py",
+    "podvoice/gatekeeper/live_idle.py",
+    "podvoice/gatekeeper/audio_trace.py",
+}
+_NATIVE_QUIET_REGRESSIONS = {
+    "tests/unit/test_live_idle.py",
+    "tests/integration/test_thin_live_idle.py",
+    "tests/integration/test_thin_live_quiet_close.py",
+}
+_NATIVE_QUIET_TRACE_REGRESSIONS = {
+    "tests/unit/test_audio_trace.py",
+    "tests/integration/test_thin_activity_observer.py",
+}
+
 # Character matching without autojunk can become quadratic on large repeated diffs.
 # Above this bound, include whole changed lines: extra domains require review, but
 # no executable scope is lost and fingerprint/coupling checks remain unchanged.
@@ -214,6 +230,21 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         and "podvoice/gatekeeper/audio_analysis.py" in report.production_files
         and set(report.production_files) <= _AUDIO_ANALYSIS_SURFACES
     )
+    # Native inactivity necessarily combines fresh input with consumed output.
+    # Admit only the shared Thin policy and its observation sink, with the real
+    # helper and full close-chain regressions. This is still an exact-tree review,
+    # not a generic admission for input/output changes or firmware/adapters.
+    quiet_regressions = _NATIVE_QUIET_REGRESSIONS
+    if "podvoice/gatekeeper/audio_trace.py" in report.production_files:
+        quiet_regressions = quiet_regressions | _NATIVE_QUIET_TRACE_REGRESSIONS
+    reviewed_native_quiet = (
+        report.domains == ("audio_input", "physical_output")
+        and {"podvoice/gatekeeper/thin.py", "podvoice/gatekeeper/live_idle.py"}
+        <= set(report.production_files)
+        and set(report.production_files) <= _NATIVE_QUIET_SURFACES
+        and quiet_regressions <= set(report.test_files)
+        and all((root / path).is_file() for path in quiet_regressions)
+    )
     if (
         type(record["version"]) is not int
         or record["version"] != 1
@@ -222,6 +253,7 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         or record["domains"] != list(report.domains)
         or (
             not reviewed_audio_analysis
+            and not reviewed_native_quiet
             and report.domains
             not in {
                 ("physical_output", "rearm"),

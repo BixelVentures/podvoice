@@ -1,5 +1,160 @@
 # PodVoice-status — én aktuel sandhed
 
+
+## Aktiv R2-afslutningsbeslutning — brugerafgrænset næste Alpha-release
+
+21/9, Lead Codex. Brugeren kræver timeout/farvel færdiggjort, udgivet og installeret;
+fysisk acceptprøve udføres efter næste release. Køkkennavne, robotområder og usikker
+wake er eksplicit fjernet fra denne opgave. Derefter er hastighed hovedprioritet,
+forudsat afslutning/Stop/afbrydelser/ekko består den efterfølgende prøve.
+
+Stærkeste direkte kodebevis: Alpha sætter altid _idle_deadline=None; den almindelige
+heartbeat blokerer samtidig på continuous-WAV playing, også under nul-PCM.
+Semantisk end venter terminal backendreceipt og seks sekunders markeret grace,
+provider session.closed, samme stream-seal og fysisk playbacklease-finish.
+Hypotese: den manglende Alpha-specifikke, friske input-/output-ro-kontrol forklarer
+manglende inaktivitetslukning. Eksisterende Stop og semantiske ejere bevares.
+
+Før styring: koordineret passiv native optagelse af eksisterende activity-sensor under
+kort panelåbnet samtale. Ingen gain-/VAD-/volumenændring eller testtone. Tidligere
+30 s uden aktiv context gav kun retained unknown snapshot og er ikke cadencebevis.
+Native input genbruger firmware-VAD; eksakt digitalt nul er en konservativ kandidat
+for outputro, ikke en valgt amplitudetærskel. Manglende/forældet observation er ukendt.
+Provider-PCM og mixerframes må ikke sammenlignes ved sample-rate alene uden samme
+startpunkt/coverage; der må ikke fabrikeres en provider audio-done-hændelse.
+
+Afgrænset kæde: provider-/native readiness → frisk faktisk input og output → gemt
+UI-stilhedsperiode (4 s) uden kendt ventende arbejde → atomisk identity/work-recheck
+→ providerlukning → streamfinish → samme playbacklease-dræn → eksisterende teardown/
+rearm. Ny inputrevision før commit revokerer semantisk end; støjenergi ejer ikke
+hensigt. Naturligt farvel må ikke byttes til en rå transportlukning eller klippes.
+Regressionskrav: tavse streams, pending tools/startup, stale/duplicate telemetry,
+input før commit, queued/delayed output, samme-generation restart, Stop/followup,
+OFF og Talk. Uafhængigt adversarial review og frossen releasegate før installation.
+Rollback: dette afgrænsede kontrol-diff; 1.13.91-R1 holdes særskilt. Ingen fysisk
+accept hævdes før brugerens efter-release prøve. Runtimekontrol implementeret nedenfor.
+
+
+R1 nu udgivet og installeret: PR #62 merged, main
+2413e4b0ec89afa2cf3499885d9e36d6959fe84b; main ARM64/publicerings-CI grøn.
+HA startup 21/9 18:05:55 bekræfter version 1.13.91 og artifact
+rootfs-v1:16a58e7dbe99e186f967923092a83edfc81f136bde716e49fa767e6e9db40b89.
+Native firmwarekontrakt OK, Hey Chat readback og gemt Alpha ON efter genstart.
+Dette er installationsbevis; ingen ny fysisk golden chain eller 10/10.
+Den tidligere publiceringsblok blev ophævet af eksplicit brugergodkendelse.
+Panel-Lyt kl.17:59 gav live-context-unconfirmed før provider: programmatisk wake
+havde ikke firmware-ejet fysisk nonce. Målingen kan ikke kalibrere aktivitet, og
+admissionen ændres ikke for at omgå den. Fysisk prøve ligger efter næste release.
+
+R2 konkret kontrolpolitik under implementation: samme gemte UI-periode for input+
+output-ro ved idle; output-ro alene ved modelvalgt farvel, så rå VAD-støj ikke kan
+veto'e semantisk hensigt. Accepteret nyt input revokerer stadig farvel. Digitalt nul
+og kildens egne consumed-frames anvendes konservativt; intet sample-rate-baseret
+fælles startpunkt opfindes. 200 ms freshness er en eksplicit forkastningsgrænse for
+firmwarens 100 ms rapporteringskontrakt, ikke en målt akustisk tærskel. Stale/ukendt
+nulstiller perioden. Forsinkede reelle svar og støj skal prøves på releasekandidaten.
+
+
+Implementeret i 1.13.92-kandidaten: NativeIdleWindow holder kilde-/sample-/forbrugs-
+kontinuitet uden provider-frame-mapping. Thin holder alle readiness-/arbejds-/input-
+checks og én fælles close-transaktion. En fuld nul-PCM-buffer blokerer ikke alene;
+ikke-nul PCM, ægte arbejde, ny inputidentitet og stale kildedata nulstiller perioden.
+Aldrig-startet output kræver særskilt eksplicit producer/resampler/source-quiescence.
+Udløbet approval/review tæller ikke længere som ventende arbejde; den eksisterende
+handlingsautorisation ændres ikke. Semantisk farvel ignorerer rå input-VAD, men ikke
+nyt accepteret input. Talk beholder sin markerede sekssekunderspolicy og ukendt
+browserdræn; native aktivitetsbevis overføres ikke til WebRTC. Silent=true er uændret.
+
+Målrettet kontrol: 43 helper-/aktivitetsprøver, 110 eksisterende Live-lifecycleprøver
+og 2 sammensatte native quiet→provider-close→samme playback-finish→rearm-prøver PASS.
+En gammel test ventede fast 90 ms på den udgåede grace; den venter nu på den faktiske
+receipt-invalidering på heartbeat. Ingen runtimeændring blev lavet for testens timing.
+Ruff og mypy på hjælper/runtime PASS. Uafhængig Astra-slutreview GO uden åbne
+findings på samlet kilde, identiteter, Stop, pending-work, OFF/Talk og de rigtige
+helper-/close-prøver. Fast-gate PASS 104,0 s med hele testsuiten, Ruff, format og
+mypy 51 kildefiler. Første sandboxkørsel kunne ikke binde lokale testservere;
+samme gate med localhost-rettighed bestod uden produktpatch. Kodediffet er frosset;
+den ene releasegate og publicerings-CI skal bestå før installation. Der køres ingen
+ny fysisk prøve før release. Talk-dræn og observerede native ACK-begrænsninger
+påstås ikke rettet af denne kandidat. Fysisk godkendelse mangler som aftalt.
+
+
+Release-precheck stoppede før softwaretrinnene, fordi den eksisterende scopegate
+ikke kendte den nødvendige audio_input + physical_output-kobling. Den isolerede
+toolingrettelse kræver nu de eksakte Thin/live_idle-overflader, alle tre egentlige
+quiet-/close-regressioner og ekstra sink-prøver ved recorderændring. Urelaterede
+adaptere/firmware, manglende prøver og stale review afvises stadig. Reviewer lavede
+gateændringen, Lead gennemgik den uafhængigt; 24 scope-regressioner og Ruff PASS.
+Ingen runtimebytes blev ændret for precheckfejlen. Den fulde releasegate genoptages
+på dette frosne diff med nedenstående eksakte reviewbinding.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "2413e4b0ec89afa2cf3499885d9e36d6959fe84b",
+  "merge_base": "2413e4b0ec89afa2cf3499885d9e36d6959fe84b",
+  "domains": [
+    "audio_input",
+    "physical_output"
+  ],
+  "fingerprint": "2e8c5eb99fbc3ab9e30fee0df260ab8a4363bc11ac1e5a5f9b469ed280988dda",
+  "reviewer": "Independent Astra alpha_tool_chain_audit; Lead reviewed isolated scope-tooling change",
+  "rationale": "Native Alpha inactivity necessarily couples current input observations with consumed announcement output under ThinSession. Exact source review found no unresolved finding; actual helper and full close-chain regressions pass. Optional recorder changes retain their sink/observer regressions. No firmware, adapter, prompt, VAD or gain change. Scope/release admission only; room acceptance follows installation by user authorization."
+}
+-->
+
+
+## Aktiv R2-observationsbeslutning — målevej, ikke idle-aktivering
+
+21/9, Lead Codex; afgrænset implementation delegeret: isoleret kandidat fra 699d1ed,
+mens R1 udgives.
+Direkte kode-/sinkbevis: Thin sender aktivitet som en nested observation, men både
+StatusHub og AudioTraceRecorder gemmer kun scalar-felter. Native Live PCM appendes
+til outputstream uden speaker-capture. Derfor mangler de eksisterende målespor
+aktivitet og den accepterede native outputgrænse; ingen fysisk stilhed er bevist.
+
+Falsificerbar hypotese: en fast, præfikset scalar-allowlist gennem de rigtige sinks
+bevarer adapterens identitet, kildetid og unknown-status. Capture efter accepteret
+native append bevarer nøjagtig PCM uden at medtage stale/rejected/WebRTC-output.
+Kæde: adapterens aktuelle owner-check → Thin session/generation → særskilt armet
+room/session-ejet trace → bounded Hub/Recorder → manifest/WAV. Outputkædens næste
+trin (stream → native speaker → drain → teardown/rearm) ændres ikke og er ikke
+bevist af WAV. Nærliggende races er gammel generation, andet rum, trace afsluttet,
+rotation, observerfejl og afvist append; alle skal forblive uden runtimeeffekt.
+
+Berørte kontrakter: én Thin-ejer, ingen stale events over generation/session,
+ærlig ukendt aktivitet/drain, one-shot lokal optagelse og bounded diagnostik.
+Plan: billig room/session-ownership, fast scalar-projektion, selvstændigt antal-/
+bytebudget med eksplicit truncation og accepteret native PCM-capture. Regressioner
+går gennem rigtig Hub+Recorder til manifest/WAV og afviser ovenstående fejlveje;
+målrettet audio_trace/Thin/VoicePE/Talk-test, Ruff og typecheck i usynkroniseret clone.
+Ingen idle-aktivering, tærskler, VAD/gain, firmware, timeout, semantisk farvel eller
+tak-politik. Ingen release/push her. Rollback er dette observationsdiff alene.
+Implementeret: kun armet room/session ejer nye hooks; fast activity_-projektion,
+stabil SHA256[:16]-reference for provider-session, fuld uint64-counterrange og
+uændret unknown/freshness/drain-status. Recorder accepterer observationer før Hub
+og deler en eksplicit truncation-marker ved 1024 events eller 1 MiB; provider- og
+lifecycle-events beholder egne budgetter. Native speaker-WAV får præcis PCM efter
+accepteret stream-append. Diagnostiske exceptions inklusive synkront rejst
+CancelledError isoleres i de nye no-await hooks; transportens cancellation ændres
+ikke. Ingen nye lifecycle-/lydklassifikationsbeslutninger.
+
+Målrettet suite PASS: 177 tests i test_audio_trace, test_voicepe_activity,
+test_thin_activity_observer, test_thin_live og test_talk_webrtc. Ruff PASS for alle
+fire ændrede kode-/testfiler; mypy PASS for de to ændrede produktionsfiler.
+Uafhængig alpha_tool_chain_audit kildegennemgang lukkede sine to findings
+(diagnostisk cancellation og rå provider-session-ID); slutresultater sendt til lead.
+Fuld releasegate, release, installation og fysisk observation er ikke kørt for R2.
+4 s idle, støjgrænser og semantisk final-output/drain er stadig ubevist/ufærdigt.
+
+R1-publiceringsgrænse ved denne handoff: lokal commit 699d1ed67e2f0f5b6c682f9c4629946c552c45ed,
+tree 5118853e315a33669b74e6620ffe559a9b2d68bb, releasegate PASS. Connector-blobs
+er verificeret, men create_tree blev afvist af automatisk approval-review på grund
+af offentlig CHANGELOG-videregivelse, selv efter bevis for gammel offentlig tekst
+plus 11 releaselinjer. Eksplicit brugerspørgsmål afventer svar. Ingen remote branch,
+PR, merge eller installation er foretaget. HA 1.13.90 med Alpha ON er verificeret i UI
+af lead; det er ikke fysisk lifecycle-godkendelse eller en R1-installation.
+
 ## Aktiv lead-beslutning — Alpha lifecycle recovery, planrevision 2
 
 Brugerautorisation21/9: planreview til mindst97/100, derefter implementér,

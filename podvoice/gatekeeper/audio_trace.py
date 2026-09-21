@@ -35,6 +35,12 @@ PROVIDER_TRACE_STRING_MAX = 128
 PROVIDER_TRACE_EVENTS_MAX = 128
 PROVIDER_TRACE_BYTES_MAX = 64 * 1024
 _PROVIDER_TRACE_KEY_MAX = 64
+# Separate from provider ancestry: 100 ms firmware observations can fill a
+# 60-second measurement without consuming its lifecycle/provider evidence budget.
+ACTIVITY_TRACE_EVENTS_MAX = 1024
+ACTIVITY_TRACE_BYTES_MAX = 1024 * 1024
+ACTIVITY_TRACE_STRING_MAX = 128
+_ACTIVITY_TRACE_MARKER_RESERVE = 1024
 
 
 @dataclass
@@ -104,6 +110,9 @@ class AudioTraceRecorder:
         self._provider_trace_events = 0
         self._provider_trace_bytes = 2  # canonical JSON array brackets
         self._provider_trace_truncated = False
+        self._activity_trace_events = 0
+        self._activity_trace_bytes = 2
+        self._activity_trace_truncated = False
         self._stages: dict[str, _Stage] = {}
         self._limit_reported: set[str] = set()
         self._latest = self._load_latest()
@@ -147,11 +156,76 @@ class AudioTraceRecorder:
         self._provider_trace_events = 0
         self._provider_trace_bytes = 2  # canonical JSON array brackets
         self._provider_trace_truncated = False
+        self._activity_trace_events = 0
+        self._activity_trace_bytes = 2
+        self._activity_trace_truncated = False
         self._stages = {}
         self._limit_reported = set()
         self.event("capture_started", room=room)
         _LOG.info("audio trace started id=%s [room=%s]", self._trace_id, room)
         return True
+
+    def owns(self, room: str, session_id: str) -> bool:
+        """Cheap one-shot ownership check for high-frequency observation hooks."""
+        return bool(
+            session_id
+            and self._active_room == room
+            and self._metadata.get("session_id") == session_id
+        )
+
+    def activity_event(self, **details: Any) -> tuple[str, dict[str, Any]] | None:
+        """Store one scalar observation or one explicit incomplete-evidence marker.
+
+        Return exactly the accepted fields for the Hub sink. Both sinks therefore
+        stop together; a rejected or partial identity never looks like valid data.
+        Other lifecycle and provider events retain their independent budgets.
+        """
+        if self._active_room is None or self._activity_trace_truncated:
+            return None
+        reason = None
+        for key, value in details.items():
+            if len(key.encode("utf-8")) > 64:
+                reason = "field_limit"
+            elif isinstance(value, str):
+                if len(value.encode("utf-8")) > ACTIVITY_TRACE_STRING_MAX:
+                    reason = "string_limit"
+            elif isinstance(value, bool) or value is None:
+                pass
+            elif isinstance(value, int):
+                # Firmware counters are uint64; retain the complete source range.
+                if not -(2**63) <= value < 2**64:
+                    reason = "number_limit"
+            elif isinstance(value, float):
+                if not math.isfinite(value):
+                    reason = "number_limit"
+            else:
+                reason = "non_scalar"
+            if reason:
+                break
+        event_name = "live_activity_observed"
+        row = self._event_row(event_name, details) if reason is None else {}
+        storage = self._encoded_event_size(row) + bool(self._activity_trace_events)
+        if reason is None and (
+            self._activity_trace_events + 2 > ACTIVITY_TRACE_EVENTS_MAX
+            or self._activity_trace_bytes + storage + _ACTIVITY_TRACE_MARKER_RESERVE
+            > ACTIVITY_TRACE_BYTES_MAX
+        ):
+            reason = "event_or_byte_limit"
+        if reason:
+            event_name = "activity_trace_truncated"
+            details = {
+                "reason": reason,
+                "max_events": ACTIVITY_TRACE_EVENTS_MAX,
+                "max_bytes": ACTIVITY_TRACE_BYTES_MAX,
+                "max_string_bytes": ACTIVITY_TRACE_STRING_MAX,
+            }
+            row = self._event_row(event_name, details)
+            storage = self._encoded_event_size(row) + bool(self._activity_trace_events)
+            self._activity_trace_truncated = True
+        self._events.append(row)
+        self._activity_trace_events += 1
+        self._activity_trace_bytes += storage
+        return event_name, details
 
     def audio(self, stage: str, pcm: bytes, rate: int) -> None:
         if self._active_room is None or stage not in {"device", "provider", "speaker"} or not pcm:

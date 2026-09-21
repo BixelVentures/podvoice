@@ -54,6 +54,11 @@ from .voice import (
 if TYPE_CHECKING:
     from .openai_live import LiveToolBatch
 
+from .live_idle import NativeIdleWindow
+
+# Firmware publishes activity every 100 ms. Reject two missed source periods;
+# this is a conservative freshness policy, not an amplitude/VAD calibration.
+LIVE_ACTIVITY_FRESHNESS_S = 0.2
 LIVE_CLOSE_GRACE_S = 6.0
 LIVE_CONFIRMATION_START_INSTRUCTION = (
     "Stil nu straks det korte, konkrete bekræftelsesspørgsmål om det allerede "
@@ -183,6 +188,70 @@ APPROVE_ACTION_TOOL = "approve_action"
 RECONSIDER_ACTION_TOOL = "reconsider_action"
 LIVE_REVIEW_EVIDENCE_BYTES = 8192
 LIVE_REVIEW_EVIDENCE_ITEMS = 128
+# Fixed projection only: never recursively log arbitrary adapter data. Source
+# identity/clocks remain prefixed and cannot overwrite Thin's owning trace fields.
+_ACTIVITY_TRACE_FIELDS = {
+    "": (
+        "source",
+        "source_timestamp_ms",
+        "received_monotonic",
+        "sequence",
+        "native_session",
+        "native_generation",
+        "native_connection",
+        "native_reset",
+        "reply_token",
+        "playback_id",
+        "freshness",
+        "freshness_verified",
+        "drain_confirmed",
+        "attempt_id",
+        "provider_session_id",
+        "provider_generation",
+    ),
+    "input": (
+        "inference_seq",
+        "inference_ms",
+        "capture_epoch",
+        "detector_run",
+        "sample_end",
+        "probability",
+        "state",
+        "valid",
+        "status",
+        "stats_timestamp_ms",
+        "total_audio_energy",
+        "total_samples_duration",
+        "source_generation",
+        "audio_level",
+    ),
+    "output": (
+        "source_epoch",
+        "mix_seq",
+        "mix_ms",
+        "sample_rate",
+        "peak",
+        "sum_squares",
+        "sample_count",
+        "frame_begin",
+        "frame_end",
+        "consumed_frames",
+        "consumed_us",
+        "mixer_consumed_frames",
+        "mixer_pending_frames",
+        "valid",
+        "producer_idle",
+        "resampler_quiescent",
+        "source_quiescent",
+        "status",
+        "stats_timestamp_ms",
+        "total_audio_energy",
+        "total_samples_duration",
+        "source_generation",
+        "audio_level",
+    ),
+    "render": ("status", "current_time_s", "paused", "muted", "volume", "ready_state"),
+}
 END_CONVERSATION_DECLARATION: dict[str, Any] = {
     "name": END_CONVERSATION_TOOL,
     "description": (
@@ -464,6 +533,11 @@ class ThinSession:
         self._live_stream = None
         self._live_output_bytes = 0
         self._live_input_revision = 0
+        self._live_idle_window = NativeIdleWindow(freshness_s=LIVE_ACTIVITY_FRESHNESS_S)
+        self._live_end_window = NativeIdleWindow(
+            freshness_s=LIVE_ACTIVITY_FRESHNESS_S, require_input_quiet=False
+        )
+        self._live_activity_latest: dict | None = None
         self._live_backend_revisions: dict[str, int] = {}
         self._live_backend_inputs: dict[str, int] = {}
         self._live_input_evidence: dict[int, dict] = {}
@@ -754,6 +828,8 @@ class ThinSession:
         self._live_confirmation = None
         self._live_confirmation_generation = None
         self._live_backend_revisions.clear()
+        self._reset_live_quiet()
+        self._live_activity_latest = None
         self._live_backend_inputs.clear()
         self._live_input_evidence.clear()
         self._live_review = None
@@ -802,6 +878,7 @@ class ThinSession:
                 source_room_context = str(getattr(self.brain, "room_context", "") or "")
                 artifact_identity_kind, artifact_sha256 = runtime_artifact_identity()
                 return {
+                    "session_id": self._history_session,
                     "mic_channel": getattr(self.voicepe, "mic_channel", None),
                     "mic_gain": getattr(self.voicepe, "mic_gain", None),
                     "input_rate": getattr(self.brain, "input_rate", C.INPUT_RATE),
@@ -1928,6 +2005,12 @@ class ThinSession:
             if self.live_alpha and self._live_stream is not None and self._live_stream.cancelled:
                 self._request_close("live-output-cancelled", error_kind="device")
                 return
+            if self.live_alpha and self._live_quiet_ready():
+                if self._goodbye is None or self._goodbye.done():
+                    self._goodbye = self._spawn(
+                        self._finalize_live_conversation(self._epoch, reason="idle-fallback"),
+                        "live-idle-close",
+                    )
             # _speaking means "the model is generating" — generation finishes long
             # before the device stops PLAYING, so closing on it alone truncated long
             # replies mid-sentence. Use the device's own playback truth, bounded.
@@ -1990,6 +2073,15 @@ class ThinSession:
             except (ValueError, RuntimeError, BufferError):
                 self._request_close("live-output-overflow", error_kind="device")
                 return
+            if any(ev.pcm):
+                self._reset_live_quiet()
+            # Capture the accepted native stream boundary, not a physical drain
+            # claim. Stale, rejected and browser-owned PCM never reaches this hook.
+            with contextlib.suppress(Exception, asyncio.CancelledError):
+                if self.audio_trace is not None and self.audio_trace.owns(
+                    self.room, self._history_session
+                ):
+                    self.audio_trace.audio("speaker", ev.pcm, ev.sample_rate)
             self._live_output_bytes += len(ev.pcm)
             if self._playback_lease is None and self._live_output_bytes >= 3840:
                 lease = self._arm_playback_lease(item_id=self._live_stream.id, kind="live")
@@ -2024,6 +2116,7 @@ class ThinSession:
                     self.room, ev.direction, ev.text, session=self._history_session or None
                 )
         elif isinstance(ev, LiveBackendStarted):
+            self._reset_live_quiet()
             review = self._live_review
             if review is not None:
                 if (
@@ -2076,6 +2169,7 @@ class ThinSession:
             self._record_live_usage()
             self._trace_event("live_usage", seconds=ev.seconds, final=ev.final)
         elif isinstance(ev, LiveToolBatch):
+            self._reset_live_quiet()
             if self._live_rotating and ev.generation != self._live_rotation_old_generation:
                 self._request_close("live-confirmation-before-capture", error_kind="connection")
                 return
@@ -2809,6 +2903,7 @@ class ThinSession:
         return tuple(reversed(selected))
 
     def _cancel_live_end(self) -> None:
+        self._reset_live_quiet()
         if self._live_finalizing:
             return
         if self._live_end_receipt is not None:
@@ -2862,26 +2957,80 @@ class ThinSession:
                 self._request_close("live-terminal-settlement-failed", error_kind="connection")
 
     async def _finish_live_conversation(self, epoch: float, receipt: asyncio.Future[bool]) -> None:
-        """Bounded Alpha grace, then provider finalization and exact physical drain.
+        """Wait for the saved quiet policy, then finalize the same conversation.
 
-        Six seconds is an experimental grace policy, never a provider audio-done fact.
-        New observed user input can cancel grace; Stop can cancel every phase.
+        Output quiet is a client inactivity policy, not a provider audio-done event.
+        Semantic intent is not vetoed by raw room noise; new accepted input still
+        revokes its receipt before the final no-await ownership check.
         """
-        try:
+        generation = self.brain._connection_generation
+        revision = self._live_input_revision
+        self._live_end_window.reset()
+        if self._live_webrtc:
+            # Browser render completion is still explicitly unconfirmed. Preserve
+            # its existing bounded policy until its own observer proves that edge.
             await asyncio.sleep(LIVE_CLOSE_GRACE_S)
-            if not self._active or self._epoch != epoch or self._transport_closing:
+        else:
+            while (
+                self._active
+                and self._epoch == epoch
+                and self.brain._connection_generation == generation
+                and self._live_input_revision == revision
+                and not self._transport_closing
+                and self._live_end_receipt is receipt
+            ):
+                if not self.brain.terminal_receipt_current(receipt):
+                    self._ending_conversation = False
+                    return
+                if self._live_quiet_ready(semantic=True):
+                    break
+                await asyncio.sleep(HEARTBEAT_S)
+            else:
                 return
+        if (
+            self._live_input_revision != revision
+            or self.brain._connection_generation != generation
+            or (not self._live_webrtc and not self._live_quiet_ready(semantic=True))
+        ):
+            return
+        await self._finalize_live_conversation(epoch, reason="model-close", receipt=receipt)
+
+    async def _finalize_live_conversation(
+        self,
+        epoch: float,
+        *,
+        reason: str,
+        receipt: asyncio.Future[bool] | None = None,
+    ) -> None:
+        """One provider finalization and exact playback drain for quiet/semantic close."""
+        if not self._active or self._epoch != epoch or self._transport_closing:
+            return
+        if self._live_finalizing:
+            return
+        if receipt is not None:
             if self._live_end_receipt is not receipt:
                 return
             if not self.brain.terminal_receipt_current(receipt):
                 self._ending_conversation = False
                 return
-            self._live_finalizing = True
+        elif not self._live_quiet_ready(semantic=False):
+            return
+        # No suspension between the final currentness check and close ownership.
+        self._live_finalizing = True
+        generation = self.brain._connection_generation
+        try:
             await self.brain.request_close()
             await asyncio.wait_for(self._live_provider_closed.wait(), 15.0)
+            if (
+                not self._active
+                or self._epoch != epoch
+                or self._transport_closing
+                or self.brain._connection_generation != generation
+            ):
+                return
             if self._live_webrtc:
                 self._request_close("live-browser-drain-unconfirmed")
-                return  # No WAV lease is not evidence of a drained WebRTC speaker.
+                return
             if self._live_stream is not None:
                 self._live_stream.finish()
             lease = self._playback_lease
@@ -2891,11 +3040,17 @@ class ThinSession:
                     raise RuntimeError("live drain identity changed")
             elif self._live_output_bytes:
                 raise RuntimeError("live audio never acquired playback")
-            self._request_close("model-close")
+            if (
+                self._active
+                and self._epoch == epoch
+                and not self._transport_closing
+                and self.brain._connection_generation == generation
+            ):
+                self._request_close(reason)
         except asyncio.CancelledError:
             raise
         except Exception:
-            if self._active and self._epoch == epoch:
+            if self._active and self._epoch == epoch and not self._transport_closing:
                 self._request_close("live-drain-failed", error_kind="device")
 
     async def _submit_live_text(self, text: str, command_id: str) -> dict:
@@ -4969,12 +5124,124 @@ class ThinSession:
         self._spawn(self.wake(rearm_attempt_id), "thin-wake")
 
     def _on_activity_observation(self, observation: dict) -> None:
-        """Record adapter facts only; uncalibrated observations never drive lifecycle."""
+        """Update owned native quiet policy and optional one-shot diagnostics."""
+        try:
+            self._observe_live_quiet(observation)
+        except (Exception, asyncio.CancelledError):
+            self._reset_live_quiet()  # Unknown evidence never authorizes closure.
+        # Adapter callbacks are frequent; only an explicitly armed, exact trace
+        # owner pays for projection/persistence. Diagnostics cannot affect runtime.
+        with contextlib.suppress(Exception, asyncio.CancelledError):
+            self._trace_activity_observation(observation)
+
+    def _reset_live_quiet(self) -> None:
+        self._live_idle_window.reset()
+        self._live_end_window.reset()
+
+    def _live_quiet_owner(self) -> tuple:
+        return (
+            self._history_session,
+            self.brain._connection_generation,
+            self._live_input_revision,
+            self.brain.input_sequence,
+            self.brain.backend_sequence,
+            bool(self._live_output_bytes),
+        )
+
+    def _live_quiet_work_clear(self, *, semantic: bool) -> bool:
+        from .openai_live import LiveAudioChunk
+
+        brain = self.brain
+        now = time.monotonic()
+        if (
+            not self._active
+            or not self.live_alpha
+            or self._live_webrtc
+            or self._transport_closing
+            or self._live_rotating
+            or self._live_finalizing
+            or (not semantic and self._ending_conversation)
+            or (self._live_opening_task is not None and not self._live_opening_task.done())
+            or not getattr(brain, "provider_session_started", False)
+            or getattr(brain, "_close_requested", True)
+            or getattr(brain, "_responses", None)
+            or getattr(brain, "_batches", None)
+            or getattr(brain, "_continuation_pending", True)
+            or getattr(brain, "_continuation_inflight", True)
+            or self._tool_lock.locked()
+            or self._text_input_lock.locked()
+            or any(not task.done() for task in self._tool_tasks.values())
+            or self._tool_batches
+            or (self._live_confirmation is not None and self._live_confirmation.expires_at >= now)
+            or (self._live_review is not None and self._live_review.expires_at >= now)
+        ):
+            return False
+        queue = getattr(brain, "_queue", None)
+        if queue is None:
+            return False
+        # Constant zero transport is not pending speech. Every other queued SDK
+        # event must reach Thin before it can make the final currentness decision.
+        for event in getattr(queue, "_queue", ()):
+            if not (
+                isinstance(event, LiveAudioChunk)
+                and event.generation == brain._connection_generation
+                and not any(event.pcm)
+            ):
+                return False
+        stream, lease = self._live_stream, self._playback_lease
+        if stream is None or stream.cancelled or stream.finished:
+            return False
+        if any(any(chunk) for chunk in stream._chunks):
+            return False
+        if self._live_output_bytes:
+            return bool(lease is not None and lease.kind == "live" and lease.phase == "started")
+        return lease is None and stream.buffered_bytes == 0
+
+    def _observe_live_quiet(self, observation: dict) -> None:
+        if (
+            not self._active
+            or not self.live_alpha
+            or self._live_webrtc
+            or self._transport_closing
+            or self._live_rotating
+            or not self.voicepe.accepts_activity(observation)
+            or observation.get("provider_generation", self.brain._connection_generation)
+            != self.brain._connection_generation
+        ):
+            return
+        self._live_activity_latest = observation
+        owner, now = self._live_quiet_owner(), time.monotonic()
+        for window, semantic in ((self._live_idle_window, False), (self._live_end_window, True)):
+            window.observe(
+                observation,
+                owner=owner,
+                now=now,
+                work_clear=self._live_quiet_work_clear(semantic=semantic),
+                output_started=bool(self._live_output_bytes),
+            )
+
+    def _live_quiet_ready(self, *, semantic: bool = False) -> bool:
+        """Idempotent final check; never re-ingest or fabricate an observation."""
+        observation = self._live_activity_latest
+        if (
+            observation is None
+            or not self._live_quiet_work_clear(semantic=semantic)
+            or not self.voicepe.accepts_activity(observation)
+        ):
+            return False
+        window = self._live_end_window if semantic else self._live_idle_window
+        return window.ready(
+            owner=self._live_quiet_owner(), now=time.monotonic(), idle_s=self.idle_timeout_s
+        )
+
+    def _trace_activity_observation(self, observation: dict) -> None:
         if (
             not self._active
             or not self.live_alpha
             or self._transport_closing
             or self._live_rotating
+            or self.audio_trace is None
+            or not self.audio_trace.owns(self.room, self._history_session)
             or not self.voicepe.accepts_activity(observation)
         ):
             return
@@ -4983,7 +5250,23 @@ class ThinSession:
             return
         # Keep the source observation separate from Thin's owning trace identity.
         # A source clock or received bytes is not room silence or physical drain.
-        self._trace_event("live_activity_observed", observation=observation)
+        details = {}
+        for group, fields in _ACTIVITY_TRACE_FIELDS.items():
+            source = observation.get(group, {}) if group else observation
+            if not isinstance(source, dict):
+                continue
+            for field in fields:
+                if field in source:
+                    prefix = f"activity_{group}_" if group else "activity_"
+                    value = source[field]
+                    if field == "provider_session_id" and isinstance(value, str):
+                        # Keep stable ancestry without publishing provider-controlled text.
+                        details[prefix + "provider_session_ref"] = hashlib.sha256(
+                            value.encode("utf-8")
+                        ).hexdigest()[:16]
+                    else:
+                        details[prefix + field] = value
+        self._trace_event("live_activity_observed", **details)
 
     def _on_device_event(self, room: str, state: object) -> None:
         etype = getattr(state, "event_type", None) or getattr(state, "event", None)
@@ -5304,6 +5587,14 @@ class ThinSession:
             "rearm_token": getattr(self.voicepe, "rearm_token", None),
         }
         payload.update(details)
+        activity_event = event_name == "live_activity_observed"
+        if activity_event:
+            if self.audio_trace is None:
+                return
+            accepted = self.audio_trace.activity_event(**payload)
+            if accepted is None:
+                return
+            event_name, payload = accepted
         if self.hub is not None and hasattr(self.hub, "timeline"):
             at_ms = (
                 round((time.monotonic() - self._conv_started) * 1000)
@@ -5317,7 +5608,7 @@ class ThinSession:
                 at_ms=at_ms,
                 **payload,
             )
-        if self.audio_trace is not None:
+        if self.audio_trace is not None and not activity_event:
             self.audio_trace.event(event_name, **payload)
 
     def _enter_followup(self) -> None:

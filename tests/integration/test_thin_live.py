@@ -98,6 +98,25 @@ async def until(predicate):
             await asyncio.sleep(0.005)
 
 
+def quiet_policy_fixture(session, monkeypatch):
+    """Isolate receipt/drain permutations from the separately tested activity gate."""
+    from gatekeeper import thin
+
+    receipt_seen = None
+    started = None
+
+    def ready(*, semantic=False):
+        nonlocal receipt_seen, started
+        if not semantic:
+            return False
+        if receipt_seen is not session._live_end_receipt:
+            receipt_seen = session._live_end_receipt
+            started = asyncio.get_running_loop().time()
+        return asyncio.get_running_loop().time() - started >= thin.LIVE_CLOSE_GRACE_S
+
+    monkeypatch.setattr(session, "_live_quiet_ready", ready)
+
+
 async def live_teardown_fixture(adapter):
     if adapter == "talk":
         from test_talk_webrtc import finish, setup
@@ -369,6 +388,7 @@ async def test_change_during_target_preparation_prevents_side_effect(interrupt):
 async def test_provider_finalization_waits_for_matching_physical_finish(monkeypatch):
     monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0)
     session, sdk, _, _, link = build()
+    quiet_policy_fixture(session, monkeypatch)
     await session.start()
     try:
         await session.wake()
@@ -686,6 +706,7 @@ async def propose_end(session, sdk, *, silent=False):
 async def test_end_requires_actual_zero_call_continuation_before_grace(monkeypatch, silent):
     monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 60 if silent else 0.05)
     session, sdk, _, _, link = build()
+    quiet_policy_fixture(session, monkeypatch)
     await session.start()
     try:
         await session.wake()
@@ -715,6 +736,7 @@ async def test_end_requires_actual_zero_call_continuation_before_grace(monkeypat
 async def test_correction_cancels_end_during_settlement_or_grace(monkeypatch, phase, source):
     monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.06)
     session, sdk, _, _, link = build()
+    quiet_policy_fixture(session, monkeypatch)
     await session.start()
     try:
         await session.wake()
@@ -793,6 +815,7 @@ async def test_stop_during_terminal_wait_rejects_late_completion_after_fresh_wak
 async def test_new_backend_after_terminal_settlement_invalidates_old_close(monkeypatch, phase):
     monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.06)
     session, sdk, _, tools, link = build()
+    quiet_policy_fixture(session, monkeypatch)
     grace_entered = asyncio.Event()
     original_finish = session._finish_live_conversation
 
@@ -828,7 +851,10 @@ async def test_new_backend_after_terminal_settlement_invalidates_old_close(monke
         # Cross the old grace deadline while this newer backend is still active.
         await asyncio.sleep(0.09)
         assert session._active and sdk.session.close.await_count == 0
-        assert link.rearm_calls == 0 and not session._ending_conversation
+        # The quiet-policy waiter observes receipt invalidation on its heartbeat,
+        # not on the retired fixed-grace deadline.
+        await until(lambda: not session._ending_conversation)
+        assert link.rearm_calls == 0
         await emit(sdk, call(call_id="c3", arguments="{}"), terminal("r3"))
         await until(lambda: tools.calls == [("status", {})])
         await until(lambda: sdk.response.create.await_count == 2)
@@ -844,6 +870,7 @@ async def test_new_backend_after_terminal_settlement_invalidates_old_close(monke
 async def test_completed_new_backend_cannot_restore_settled_terminal_receipt(monkeypatch):
     monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.03)
     session, sdk, _, _, link = build()
+    quiet_policy_fixture(session, monkeypatch)
     await session.start()
     try:
         await session.wake()
@@ -865,6 +892,7 @@ async def test_completed_new_backend_cannot_restore_settled_terminal_receipt(mon
 async def test_correction_before_goodbye_runs_cancels_only_its_owned_receipt(monkeypatch):
     monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0)
     session, sdk, _, _, link = build()
+    quiet_policy_fixture(session, monkeypatch)
     waiter_started = []
     captured = {}
     original_waiter = session._await_live_end
@@ -922,6 +950,7 @@ async def test_correction_before_goodbye_runs_cancels_only_its_owned_receipt(mon
 async def test_fresh_end_during_old_grace_keeps_its_own_intent(monkeypatch):
     monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.05)
     session, sdk, _, _, link = build()
+    quiet_policy_fixture(session, monkeypatch)
     entered = asyncio.Event()
     original_finish = session._finish_live_conversation
 

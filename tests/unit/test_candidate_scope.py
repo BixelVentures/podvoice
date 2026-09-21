@@ -154,7 +154,7 @@ def test_candidate_scope_allows_process_only_change():
     assert report.domains == ()
 
 
-def _coupled_repo(tmp_path, domains=("physical_output", "rearm")):
+def _coupled_repo(tmp_path, domains=("physical_output", "rearm"), *, native_quiet=False):
     import json
     import subprocess
 
@@ -168,7 +168,9 @@ def _coupled_repo(tmp_path, domains=("physical_output", "rearm")):
     git("config", "user.email", "scope@example.invalid")
     (tmp_path / "podvoice/gatekeeper").mkdir(parents=True)
     source = tmp_path / (
-        "podvoice/gatekeeper/audio_analysis.py"
+        "podvoice/gatekeeper/thin.py"
+        if native_quiet
+        else "podvoice/gatekeeper/audio_analysis.py"
         if domains == ("audio_input", "physical_output")
         else "podvoice/gatekeeper/device.py"
     )
@@ -192,6 +194,16 @@ def _coupled_repo(tmp_path, domains=("physical_output", "rearm")):
     git("add", ".")
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests/test_device.py").write_text("def test_device(): pass\n")
+    if native_quiet:
+        (tmp_path / "podvoice/gatekeeper/live_idle.py").write_text("known = True\n")
+        for name in (
+            "tests/unit/test_live_idle.py",
+            "tests/integration/test_thin_live_idle.py",
+            "tests/integration/test_thin_live_quiet_close.py",
+        ):
+            path = tmp_path / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("def test_quiet(): pass\n")
     report = inspect_repository(tmp_path, base)
     assert not report.passed
     record = {
@@ -213,6 +225,89 @@ def _coupled_repo(tmp_path, domains=("physical_output", "rearm")):
     write_record(record)
     assert inspect_repository(tmp_path, base).passed
     return source, base, git, record, write_record
+
+
+def test_native_quiet_coupling_requires_exact_review_and_complete_regressions(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    source, base, _git, record, write = _coupled_repo(
+        tmp_path, ("audio_input", "physical_output"), native_quiet=True
+    )
+    (tmp_path / "docs/STATUS.md").unlink()
+    assert not inspect_repository(tmp_path, base).passed
+    for key, value in (
+        ("fingerprint", "stale"),
+        ("base_tip", "old"),
+        ("merge_base", "old"),
+        ("domains", ["physical_output"]),
+        ("reviewer", ""),
+        ("rationale", ""),
+    ):
+        write({**record, key: value})
+        assert not inspect_repository(tmp_path, base).passed
+    write(record)
+    original = source.read_text()
+    source.write_text(original + "changed = True\n")
+    assert not inspect_repository(tmp_path, base).passed
+    source.write_text(original)
+    for name in (
+        "tests/unit/test_live_idle.py",
+        "tests/integration/test_thin_live_idle.py",
+        "tests/integration/test_thin_live_quiet_close.py",
+    ):
+        regression = tmp_path / name
+        contents = regression.read_text()
+        regression.unlink()
+        assert not inspect_repository(tmp_path, base).passed
+        regression.write_text(contents)
+    assert inspect_repository(tmp_path, base).passed
+
+
+def test_native_quiet_coupling_rejects_other_surfaces_even_with_fresh_review(tmp_path):
+    from scripts.candidate_scope import inspect_repository, production_fingerprint
+
+    _source, base, _git, record, write = _coupled_repo(
+        tmp_path, ("audio_input", "physical_output"), native_quiet=True
+    )
+
+    def refresh_review():
+        report = inspect_repository(tmp_path, base)
+        write(
+            {
+                **record,
+                "fingerprint": production_fingerprint(
+                    tmp_path, base, base, report.production_files
+                ),
+            }
+        )
+
+    for name in (
+        "podvoice/gatekeeper/voicepe.py",
+        "podvoice/gatekeeper/audio_analysis.py",
+        "podvoice/gatekeeper/openai_live.py",
+        "esphome/audio.cpp",
+    ):
+        extra = tmp_path / name
+        extra.write_text("changed = True\n")
+        refresh_review()
+        assert not inspect_repository(tmp_path, base).passed
+        extra.unlink()
+    # Thin alone cannot claim the native policy exception.
+    helper = tmp_path / "podvoice/gatekeeper/live_idle.py"
+    helper.unlink()
+    refresh_review()
+    assert not inspect_repository(tmp_path, base).passed
+    helper.write_text("known = True\n")
+    # Adding the optional sink requires both its own and adapter round-trip tests.
+    (tmp_path / "podvoice/gatekeeper/audio_trace.py").write_text("trace = True\n")
+    refresh_review()
+    assert not inspect_repository(tmp_path, base).passed
+    (tmp_path / "tests/unit/test_audio_trace.py").write_text("def test_trace(): pass\n")
+    assert not inspect_repository(tmp_path, base).passed
+    (tmp_path / "tests/integration/test_thin_activity_observer.py").write_text(
+        "def test_observer(): pass\n"
+    )
+    assert inspect_repository(tmp_path, base).passed
 
 
 def test_audio_analysis_requires_exact_review_and_cannot_include_runtime_paths(tmp_path):
