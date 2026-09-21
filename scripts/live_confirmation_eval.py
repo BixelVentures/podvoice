@@ -706,6 +706,7 @@ class SyntheticCapture:
     """Local fixture pacing and null output drain. No claim about physical capture."""
 
     supports_live_wav = supports_playback_ids = supports_live_capture_hold = True
+    supports_live_semantic_stop = True
     supports_same_breath = supports_wake_audio_boundary = True
     supports_physical_rearm_ack = supports_podvoice_channel = True
     on_media_state = None
@@ -721,6 +722,19 @@ class SyntheticCapture:
         self.offset = 0
         self.drains = {}
         self.closed = False
+        self._stop_generation = 0
+
+    async def set_live_context(self):
+        if self.closed:
+            return False
+        self._stop_generation += 1
+        self.evidence.emit(
+            "synthetic_live_context_ack",
+            generation=self._stop_generation,
+            keyword_enabled=False,
+            physical_verified=False,
+        )
+        return True
 
     async def start(self):
         pass

@@ -1,11 +1,11 @@
 """Real BrowserLink + Thin Alpha contract; provider and playback edges are simulated."""
 
 import pytest
+from test_talk_stop import HistoricalWavBrowserLink
 from test_thin_live import build, until
 
 from gatekeeper.live_audio import LiveAudioError
 from gatekeeper.openai_live import LiveAudioChunk
-from gatekeeper.talk import BrowserLink
 
 
 async def test_browser_live_wav_capability_allows_wake_and_stop_then_new_identity():
@@ -17,14 +17,14 @@ async def test_browser_live_wav_capability_allows_wake_and_stop_then_new_identit
     async def send_bytes(data):
         pass
 
-    link = BrowserLink(send_json, send_bytes)
-    link.supports_live_webrtc = False  # Historical WAV adapter regression.
+    link = HistoricalWavBrowserLink(send_json, send_bytes)
     session, sdk, _, _, _ = build(device=link)
     await session.start()
     try:
         await session.wake()
         assert session._active and session.live_alpha
         assert sdk.factory_calls
+        assert link._stop_generation == 1  # Explicit simulated native admission.
         old_stream = session._live_stream
         generation = session.brain._connection_generation
         await session._on_live_event(LiveAudioChunk(b"\x01\x00" * 1920, generation))

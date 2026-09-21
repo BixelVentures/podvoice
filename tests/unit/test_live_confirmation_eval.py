@@ -1130,6 +1130,12 @@ async def test_sdk_pre_handler_preserves_original_exception_and_cancellation(tmp
 async def test_capture_hold_retires_old_fixture_and_resume_uses_fresh_bytes(tmp_path):
     evidence = module.Evidence(tmp_path / "evidence")
     capture = module.SyntheticCapture(evidence, LiveAudioStreams())
+    assert capture.supports_live_semantic_stop
+    assert await capture.set_live_context()
+    assert capture._stop_generation == 1
+    assert evidence.rows[-1]["kind"] == "synthetic_live_context_ack"
+    assert evidence.rows[-1]["keyword_enabled"] is False
+    assert evidence.rows[-1]["physical_verified"] is False
     await capture.start_streaming()
     capture.play_fixture("old", b"\x01\0" * 640)
     frames = capture.pcm_frames()
@@ -1139,10 +1145,14 @@ async def test_capture_hold_retires_old_fixture_and_resume_uses_fresh_bytes(tmp_
     with pytest.raises(RuntimeError, match="capture_token"):
         await capture.resume_live_capture(token + 1)
     await capture.resume_live_capture(token)
+    assert await capture.set_live_context()
+    assert capture._stop_generation == 2
     capture.play_fixture("new", b"\x02\0" * 320)
     assert await anext(frames) == b"\x02\0" * 320
     await frames.aclose()
     await capture.aclose()
+    assert not await capture.set_live_context()
+    assert capture._stop_generation == 2
     evidence.close()
 
 

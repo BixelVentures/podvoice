@@ -62,6 +62,16 @@ missing/stale review og ændrede bytes afvises stadig. Ingen runtimehypotese æn
 }
 -->
 
+### Gateforløb og test-fixture-kompatibilitet
+
+Første kontrol blev ugyldiggjort af sandboxens forbud mod localhost-bind; ingen
+runtimeændring fulgte. Genoptaget med testporte tilladt fandt7 historiske Talk-WAV-
+fixtures, som tvang WebRTC fra uden at simulere den nye native admission. De nåede
+derfor korrekt ikke SDK-start. Testfixtures og SyntheticCapture-evaluatoren har nu
+eksplicit syntetisk capability/ACK, markeret uden fysisk bevis. Produktionens Talk
+og Thin er urørt. 216 berørte tests PASS; ingen timeoutforhøjelse. Næste releasegate
+køres med nødvendige testporte og hele diffet frosset under kørslen.
+
 ### Provisioneret Stop-build
 
 ESPHome2026.6.2 compile PASS fra remote d22da73-pin. Alle21 genererede C++-filer i
