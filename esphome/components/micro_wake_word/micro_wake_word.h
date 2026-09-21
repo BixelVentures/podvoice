@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include "preprocessor_settings.h"
+#include "esphome/core/defines.h"
 #ifdef USE_PODVOICE_ACTIVITY_OBSERVER
 #include "activity_observer.h"
 #endif

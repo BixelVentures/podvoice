@@ -1,4 +1,5 @@
 #pragma once
+#include "esphome/core/defines.h"
 #ifdef USE_PODVOICE_ACTIVITY_OBSERVER
 #include "activity_observer.h"
 #endif

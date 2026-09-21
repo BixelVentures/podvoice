@@ -53,7 +53,12 @@ def test_actual_streaming_model_load_cooldown_and_warm_inference(tmp_path, harne
     ):
         path = include / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text('#include "mww_platform_stubs.h"\n')
+        if name == "esphome/core/defines.h" and harness == "mww_activity_test.cpp":
+            path.write_text(
+                "#define USE_MICRO_WAKE_WORD_VAD\n#define USE_PODVOICE_ACTIVITY_OBSERVER\n"
+            )
+        else:
+            path.write_text('#include "mww_platform_stubs.h"\n')
     component_dir = tmp_path / "tree/esphome/components"
     component_dir.mkdir(parents=True)
     (component_dir / "micro_wake_word").symlink_to(SOURCE, target_is_directory=True)
@@ -66,11 +71,6 @@ def test_actual_streaming_model_load_cooldown_and_warm_inference(tmp_path, harne
             "-std=c++17",
             "-DUSE_ESP32",
             "-DUSE_VOICE_ASSISTANT",
-            *(
-                ["-DUSE_MICRO_WAKE_WORD_VAD", "-DUSE_PODVOICE_ACTIVITY_OBSERVER"]
-                if harness == "mww_activity_test.cpp"
-                else []
-            ),
             "-I",
             str(ROOT / "esphome/components/podvoice_audio"),
             "-I",

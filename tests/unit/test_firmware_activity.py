@@ -15,6 +15,7 @@ def test_firmware_observer_measurements_are_identified_and_never_control_audio(t
     include = tmp_path / "include"
     for name in (
         "core/component.h",
+        "core/defines.h",
         "core/helpers.h",
         "components/speaker_source/speaker_source_media_player.h",
         "components/mixer/speaker/mixer_speaker.h",
