@@ -51,6 +51,14 @@ openai_live b67a2ebc382fa89203ea7ef378a065754b408ee60eb091b75e28fdbf17997815;
 thin88d1cf10b0706c48000904aaade78d336f2ba1c3f11943cc18d6c593901edce1.
 Releasegaten startes nu én gang på dette diff. Ingen fysisk prøve kørt i arbejdet.
 
+21/9 releasegate på e7b7542 PASS51.1s: Ruff/format, candidate-scope,
+mypy50, unit og integration. Log /private/tmp/pv-alpha89-release.log.
+Ingen SafeEval, da kandidat1 ikke ændrer prompt/schema/semantik. Næste grænse er
+exact-head CI/ARM-image, installation og frisk post-action-prøve; ingen fysisk accept.
+Frisk read-only HA-kontrol: fortsat1.13.88. En senere bruger-session10:16:24–10:17:03
+havde webopslag og model-close/rearm uden den viste tool-fejl; den ophæver ikke de to
+musikfejl eller beviser svarets korrekthed/lyd. Ingen agentudløst lydprøve.
+
 ## Aktiv lead-beslutning — tavs fysisk højttaler efter Alpha-installation, 21/9
 
 Lead Codex. Installeret add-on 1.13.88 og firmware podvoice_build_11382_livewav2
