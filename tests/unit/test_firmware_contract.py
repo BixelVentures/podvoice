@@ -185,23 +185,24 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
     assert "type: git" in stop_source
     assert "url: https://github.com/BixelVentures/podvoice" in stop_source
     assert "path: esphome/components" in stop_source
-    assert "ref: b56a08a6d31044f7507b178961ac74f731474253" in stop_source
-    assert active.count("ref: b56a08a6d31044f7507b178961ac74f731474253") == 2
+    assert "ref: 35ea628e252d8a6825ff1f6df0a04ac27fbd3393" in stop_source
+    assert active.count("ref: 35ea628e252d8a6825ff1f6df0a04ac27fbd3393") == 2
+    assert active.count("ref: b56a08a6d31044f7507b178961ac74f731474253") == 1
     observers = active.split("components: [mixer, resampler, speaker_source]", 1)[0]
-    assert "ref: 305b51059dc0c7391b95896f359a6c7f64548f16" in observers
+    assert "ref: 35ea628e252d8a6825ff1f6df0a04ac27fbd3393" in observers
     files = sorted(
         p
         for name in ("micro_wake_word", "podvoice_reply", "podvoice_audio")
         for p in (ROOT / "esphome/components" / name).rglob("*")
         if p.is_file() and "__pycache__" not in p.parts
     )
-    assert len(files) == 18
+    assert len(files) == 19
     manifest = "".join(
         str(p.relative_to(ROOT)) + "\0" + hashlib.sha256(p.read_bytes()).hexdigest() + "\n"
         for p in files
     )
     assert hashlib.sha256(manifest.encode()).hexdigest() == (
-        "25f0c9a87232d3bc043466e36dc87be77d4b95365d51850d176d264a04f098e2"
+        "ebf3aa7742a58ec4fe0b9a29951b6df9ccc83465ddeae4ccccb6a26317d6e0f2"
     )
 
 

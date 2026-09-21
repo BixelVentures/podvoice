@@ -612,6 +612,8 @@ class ThinSession:
             voicepe.on_wake = self._on_wake_cb
         if hasattr(voicepe, "on_event"):
             voicepe.on_event = self._on_device_event
+        if hasattr(voicepe, "on_activity"):
+            voicepe.on_activity = self._on_activity_observation
         if hasattr(voicepe, "on_media_state"):
             voicepe.on_media_state = self._on_media_state
         if hasattr(voicepe, "on_playback_fault"):
@@ -4944,6 +4946,23 @@ class ThinSession:
             return
         rearm_attempt_id = secrets.token_hex(12)
         self._spawn(self.wake(rearm_attempt_id), "thin-wake")
+
+    def _on_activity_observation(self, observation: dict) -> None:
+        """Record adapter facts only; uncalibrated observations never drive lifecycle."""
+        if (
+            not self._active
+            or not self.live_alpha
+            or self._transport_closing
+            or self._live_rotating
+            or not self.voicepe.accepts_activity(observation)
+        ):
+            return
+        generation = getattr(self.brain, "_connection_generation", None)
+        if observation.get("provider_generation", generation) != generation:
+            return
+        # Keep the source observation separate from Thin's owning trace identity.
+        # A source clock or received bytes is not room silence or physical drain.
+        self._trace_event("live_activity_observed", observation=observation)
 
     def _on_device_event(self, room: str, state: object) -> None:
         etype = getattr(state, "event_type", None) or getattr(state, "event", None)

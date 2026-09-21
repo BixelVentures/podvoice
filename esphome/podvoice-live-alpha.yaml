@@ -29,3 +29,15 @@ event:
       - podvoice_live_wav_v1
       # Revision identity only; actual audible output still requires a physical test.
       - podvoice_amp_boot_v1
+      - podvoice_activity_observer_v1
+
+# Observer-only telemetry. This does not enable idle control or change VAD/gain.
+text_sensor:
+  - platform: template
+    id: podvoice_activity_status
+    name: "PodVoice Activity Status"
+    entity_category: diagnostic
+    disabled_by_default: true
+
+podvoice_reply:
+  activity_status: podvoice_activity_status

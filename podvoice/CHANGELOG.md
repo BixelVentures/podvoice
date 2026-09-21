@@ -1,3 +1,14 @@
+## 1.13.90 — Aktivitetsmåling til GPT-Live Alpha
+
+- Måler firmware-VAD og announcement-lyden før musikmix med kildeidentitet,
+  rækkefølge og faktisk kildeforbrug. Kræver den tilhørende observer-firmware.
+- Talk registrerer WebRTC-lydstatistik og browserens afspilningstilstand uden
+  at kalde modtagne lydpakker for færdigafspillet lyd.
+- Gamle og manglende målinger forbliver ukendte. Målingen skal kalibreres, før
+  den må styre Alpha-stilhedslukning og farvel; disse rettelser er endnu ikke leveret.
+- Samtaleadfærd, Stop, gain og VAD-indstillinger er uændrede. Musikfejlen er
+  fortsat under undersøgelse. Denne kandidat er ikke den færdige Alpha.
+
 ## 1.13.89 — Afgrænset GPT-Live fejldiagnostik
 
 - Registrerer sikre, korrelerede trin mellem værktøjshandling, resultat, backend-

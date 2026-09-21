@@ -211,3 +211,163 @@ async def test_live_typed_receipt_is_only_visible_input_and_history_persists_onc
     finally:
         await finish(wire, task)
         await connection.aclose()
+
+
+async def test_typed_first_http_create_timeout_keeps_socket_live_and_never_dispatches(monkeypatch):
+    """Field order: offer -> blocked HTTP create -> timeout -> client release.
+
+    This reproduces the observed boundary, not a claim that increasing a deadline
+    fixes the provider. The command worker must leave signaling and Stop readable.
+    """
+    import gatekeeper.thin as thin_module
+
+    monkeypatch.setattr(thin_module.C, "CONNECT_TIMEOUT_S", 0.1)
+    wire, link, session, _, tools = setup()
+    session.live_brain.timeout_s = 1.0  # Outer Thin deadline is the failing owner.
+    entered, cancelled = asyncio.Event(), asyncio.Event()
+
+    async def blocked_create(**_):
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    wire.sdk.client.live.create.side_effect = blocked_create
+    failed_sdk = wire.sdk
+    task = asyncio.create_task(run_talk(wire, session, link))
+    try:
+        wire.send("text", command_id="timed-out", text="fixed fixture")
+        await asyncio.wait_for(entered.wait(), 1)
+        assert link._live_handshake.offer.done()
+        wire.send("ping", ping_id="during-http-create")
+        await until(lambda: any(e.get("ping_id") == "during-http-create" for e in wire.outgoing))
+        await until(lambda: wire.result("timed-out") is not None)
+        assert cancelled.is_set()
+        assert wire.result("timed-out")["status"] == "rejected"
+        assert tools.calls == []
+        failed_sdk.response.item.create.assert_not_called()
+        failed_sdk.response.create.assert_not_called()
+        assert failed_sdk.connection_options is None  # No sideband connection existed.
+        failed_sdk.client.close.assert_awaited_once()
+        assert session.live_brain._lease is None
+        await until(lambda: session._close_task is not None and session._close_task.done())
+        assert not session._active and link._live_handshake is None
+
+        # The rejected command is never replayed into the next provider generation.
+        wire.sdk = WebRTCSDK()
+        session.live_brain.client_factory = wire.sdk.factory
+        wire.send("text", command_id="fresh", text="fresh fixture")
+        await until(lambda: wire.result("fresh") is not None)
+        assert wire.result("fresh")["status"] == "submitted"
+        assert wire.sdk.response.item.create.await_count == 1
+        assert wire.sdk.response.item.create.call_args.kwargs["item"]["content"] == [
+            {"type": "input_text", "text": "fresh fixture"}
+        ]
+    finally:
+        await finish(wire, task)
+
+
+async def test_live_activity_route_is_observation_only_identity_fenced_and_allowlisted():
+    wire, link, session, _, _ = setup()
+    rows = []
+    link.on_activity = rows.append
+    task = asyncio.create_task(run_talk(wire, session, link))
+    try:
+        wire.send("wake", command_id="wake")
+        await until(lambda: wire.result("wake") is not None)
+        handshake = link._live_handshake
+        identity = {
+            "attempt_id": handshake.attempt_id,
+            "provider_session_id": handshake.provider_session_id,
+            "generation": handshake.generation,
+        }
+        audio = {
+            "status": "observed",
+            "stats_timestamp_ms": 1234.5,
+            "total_audio_energy": 0.04,
+            "total_samples_duration": 0.25,
+            "source_generation": 1,
+            "audio_level": 0.4,
+            "private_extra": "must not trace",
+        }
+        event = {
+            **identity,
+            "observation_seq": 1,
+            "browser_monotonic_ms": 250.0,
+            "input": audio,
+            "output": audio,
+            "render": {
+                "status": "observed",
+                "current_time_s": 0.25,
+                "paused": False,
+                "muted": False,
+                "volume": 1,
+                "ready_state": 4,
+            },
+            "drain_confirmed": True,
+        }
+        state_before = session.sm.state
+        wire.send("live_activity", **event)
+        await until(lambda: len(rows) == 1)
+        assert session.sm.state == state_before and session._active
+        row = rows[0]
+        assert link.accepts_activity(row)
+        assert not link.accepts_activity(dict(row))
+        assert row["drain_confirmed"] is False
+        assert row["freshness"] == "unverified_transport_age"
+        assert row["input"]["total_audio_energy"] == 0.04
+        assert "private_extra" not in str(row)
+        for override in (
+            {},
+            {"generation": True},
+            {"generation": handshake.generation + 1},
+            {"attempt_id": "old"},
+            {"provider_session_id": "old"},
+            {"observation_seq": 2, "browser_monotonic_ms": 249},
+            {"observation_seq": 2, "browser_monotonic_ms": float("nan")},
+            {"observation_seq": True, "browser_monotonic_ms": 251},
+            {"observation_seq": 2, "browser_monotonic_ms": 10**1000},
+        ):
+            wire.send("live_activity", **{**event, **override})
+        wire.send("ping", ping_id="fenced")
+        await until(lambda: any(e.get("ping_id") == "fenced" for e in wire.outgoing))
+        assert len(rows) == 1
+        wire.send(
+            "live_activity",
+            **{
+                **event,
+                "observation_seq": 2,
+                "browser_monotonic_ms": 500,
+                "input": {**audio, "total_audio_energy": True},
+                "output": None,
+                "render": {"status": "observed"},
+            },
+        )
+        await until(lambda: len(rows) == 2)
+        assert not link.accepts_activity(row)
+        assert rows[1]["input"] == rows[1]["output"] == rows[1]["render"] == {"status": "unknown"}
+        assert session.sm.state == state_before
+        link.on_activity = lambda _: (_ for _ in ()).throw(RuntimeError("observer unavailable"))
+        wire.send("live_activity", **{**event, "observation_seq": 3, "browser_monotonic_ms": 750})
+        wire.send("ping", ping_id="observer-isolated")
+        await until(lambda: any(e.get("ping_id") == "observer-isolated" for e in wire.outgoing))
+        assert session._active
+        link.on_activity = lambda _: (_ for _ in ()).throw(asyncio.CancelledError())
+        wire.send("live_activity", **{**event, "observation_seq": 4, "browser_monotonic_ms": 1000})
+        wire.send("ping", ping_id="observer-cancellation-isolated")
+        await until(
+            lambda: any(e.get("ping_id") == "observer-cancellation-isolated" for e in wire.outgoing)
+        )
+        assert session._active and not task.done()
+        latest = link._activity_observation
+        link.invalidate_live_handshake()
+        assert not link.accepts_activity(latest)
+        assert link._activity_observation is None
+        link.receive_live(
+            {"type": "live_activity", **event, "observation_seq": 4, "browser_monotonic_ms": 1000}
+        )
+        assert link._activity_observation is None
+    finally:
+        await finish(wire, task)

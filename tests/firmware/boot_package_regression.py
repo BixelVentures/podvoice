@@ -32,6 +32,19 @@ def main():
             CORE.config_path = str(work / name)
             config = yaml_util.load_yaml(work / name)
             merged = merge_packages(do_packages_pass(config))
+            observers = [
+                item
+                for item in merged["text_sensor"]
+                if item.get("id") == "podvoice_activity_status"
+            ]
+            if name == "podvoice-live-alpha.yaml":
+                assert len(observers) == 1
+                assert observers[0]["disabled_by_default"] is True
+                assert observers[0]["entity_category"] == "diagnostic"
+                assert not observers[0].get("internal", False)
+                assert merged["podvoice_reply"]["activity_status"] == "podvoice_activity_status"
+            else:
+                assert not observers and "activity_status" not in merged["podvoice_reply"]
             boots = merged["esphome"]["on_boot"]
             assert len(boots) == 2, (name, "Expected hardware and capture boot")
             assert boots[0] == expected[0], (name, "Hardware boot changed or disappeared")

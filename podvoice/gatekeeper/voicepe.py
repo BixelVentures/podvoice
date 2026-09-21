@@ -26,7 +26,7 @@ import socket
 import time
 from collections.abc import AsyncIterator, Callable, Coroutine
 from types import SimpleNamespace
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TypeGuard
 
 from . import constants as C
 from .wake_words import WAKE_WORDS
@@ -119,6 +119,13 @@ class VoicePELink:
         self.last_audio_ts = 0.0
         # Wake/button events -> state machine. Signature: on_event(room, state).
         self.on_event: Callable[[str, object], Any] | None = None
+        self.on_activity: Callable[[dict], None] | None = None
+        self.supports_activity_observer = False
+        self._activity_status_key: int | None = None
+        self._activity_latest: dict | None = None
+        self._activity_owner: tuple | None = None
+        self._activity_sequence = -1
+        self._activity_source_ms: int | None = None
         # Called at the end of every (re)connect so the orchestrator can re-assert the
         # device stream + LED for the CURRENT state (subscriptions/flags don't survive a
         # reconnect, and the device must never be left streaming or stuck dark).
@@ -680,6 +687,9 @@ class VoicePELink:
         self._event_key = None
         self._rearm_ack_key = None
         self._capture_status_key = None
+        self._activity_status_key = None
+        self.supports_activity_observer = False
+        self._activity_latest = None
         self.supports_live_capture_hold = False
         self._invalidate_live_capture()
         self._reply_status_key = None
@@ -758,6 +768,15 @@ class VoicePELink:
                 None,
             )
             self._stop_context_key = getattr(stop_context, "key", None)
+            activity = next(
+                (
+                    e
+                    for e in text_sensors
+                    if getattr(e, "object_id", "") == "podvoice_activity_status"
+                ),
+                None,
+            )
+            self._activity_status_key = getattr(activity, "key", None)
             wake_ack = next(
                 (
                     e
@@ -799,6 +818,10 @@ class VoicePELink:
             self.supports_playback_events = "podvoice_playback_events_v1" in advertised
             self.supports_local_stop = "correlated_local_stop_v1" in advertised
             self.supports_stop_context = "correlated_stop_context_v2" in advertised
+            self.supports_activity_observer = (
+                "podvoice_activity_observer_v1" in advertised
+                and self._activity_status_key is not None
+            )
             self.supports_live_wav = "podvoice_live_wav_v1" in (
                 getattr(podvoice_event, "event_types", None) or []
             )
@@ -1337,6 +1360,9 @@ class VoicePELink:
         key = getattr(state, "key", None)
         tname = type(state).__name__
         event_type = getattr(state, "event_type", None) or getattr(state, "event", None)
+        if key == self._activity_status_key and tname == "TextSensorState":
+            self._on_activity_status(str(getattr(state, "state", "")))
+            return
         if key == self._stop_context_key and tname == "TextSensorState":
             self._on_stop_context(str(getattr(state, "state", "")))
             return
@@ -1510,7 +1536,144 @@ class VoicePELink:
             self._reply_phase = "fault"
             raise RuntimeError("Voice PE could not admit reply playback")
 
+    def accepts_activity(self, observation: dict) -> bool:
+        """Source facts remain inert after any native context or playback boundary."""
+        return (
+            observation is self._activity_latest
+            and self.supports_activity_observer
+            and self._stop_session is not None
+            and not self._stop_cancelled
+            and observation.get("native_session") == self._stop_session
+            and observation.get("native_generation") == self._stop_generation
+            and observation.get("native_connection") == self._connection_generation
+            and observation.get("native_reset") == self._stop_reset_generation
+            and observation.get("reply_token") == (self._reply_token or "")
+            and observation.get("playback_id") == self._reply_id
+        )
+
+    def _on_activity_status(self, value: str) -> None:
+        """Validate optional firmware measurements; never classify output or close."""
+        if not self.supports_activity_observer or len(value) > 4096:
+            return
+        try:
+            row = json.loads(value)
+        except (ValueError, RecursionError):
+            return
+        if not isinstance(row, dict) or type(row.get("v")) is not int or row["v"] != 1:
+            return
+        if (
+            self._stop_session is None
+            or self._stop_cancelled
+            or row.get("owner") != self._stop_session
+            or type(row.get("context_generation")) is not int
+            or row["context_generation"] != self._stop_generation
+        ):
+            return
+
+        def uint(value: object, maximum: int = (1 << 64) - 1) -> TypeGuard[int]:
+            return type(value) is int and 0 <= value <= maximum
+
+        sequence, source_ms = row.get("seq"), row.get("source_ms")
+        if not uint(sequence) or not uint(source_ms, 0xFFFFFFFF):
+            return
+        owner = (
+            self._connection_generation,
+            self._stop_reset_generation,
+            self._stop_session,
+            self._stop_generation,
+        )
+        if owner == self._activity_owner:
+            if sequence <= self._activity_sequence:
+                return
+            # millis wraps; backwards jumps cannot become fresh source evidence.
+            if (
+                self._activity_source_ms is not None
+                and ((source_ms - self._activity_source_ms) & 0xFFFFFFFF) >= 0x80000000
+            ):
+                return
+        inp, out = row.get("input"), row.get("output")
+        if not isinstance(inp, dict) or not isinstance(out, dict):
+            return
+        input_fields = (
+            "inference_seq",
+            "inference_ms",
+            "capture_epoch",
+            "detector_run",
+            "sample_end",
+            "probability",
+        )
+        output_fields = (
+            "source_epoch",
+            "mix_seq",
+            "mix_ms",
+            "sample_rate",
+            "peak",
+            "sum_squares",
+            "sample_count",
+            "frame_begin",
+            "frame_end",
+            "consumed_frames",
+            "consumed_us",
+            "mixer_consumed_frames",
+            "mixer_pending_frames",
+        )
+        if (
+            inp.get("state") not in ("active", "quiet", "unknown")
+            or type(inp.get("valid")) is not bool
+            or any(not uint(inp.get(name)) for name in input_fields)
+            or inp["probability"] > 255
+            or inp["inference_ms"] > 0xFFFFFFFF
+            or (not inp["valid"] and inp["state"] != "unknown")
+            or any(not uint(out.get(name)) for name in output_fields)
+            or any(
+                type(out.get(name)) is not bool
+                for name in ("valid", "producer_idle", "resampler_quiescent", "source_quiescent")
+            )
+            or out.get("reply_token") != (self._reply_token or "")
+            or out["peak"] > 32768
+            or out["consumed_us"] > 0x7FFFFFFFFFFFFFFF
+            or out["mix_ms"] > 0xFFFFFFFF
+            or out["frame_end"] < out["frame_begin"]
+        ):
+            return
+        observation = {
+            "source": "voice_pe_firmware",
+            "source_timestamp_ms": source_ms,
+            "received_monotonic": time.monotonic(),
+            "sequence": sequence,
+            "native_session": self._stop_session,
+            "native_generation": self._stop_generation,
+            "native_connection": self._connection_generation,
+            "native_reset": self._stop_reset_generation,
+            "reply_token": out["reply_token"],
+            "playback_id": self._reply_id,
+            "freshness_verified": False,
+            "drain_confirmed": False,
+            "input": {name: inp[name] for name in (*input_fields, "state", "valid")},
+            "output": {
+                name: out[name]
+                for name in (
+                    *output_fields,
+                    "valid",
+                    "producer_idle",
+                    "resampler_quiescent",
+                    "source_quiescent",
+                )
+            },
+        }
+        self._activity_owner = owner
+        self._activity_sequence = sequence
+        self._activity_source_ms = source_ms
+        self._activity_latest = observation
+        if self.on_activity is not None:
+            # Optional measurement sinks cannot disrupt device event delivery.
+            try:
+                self.on_activity(observation)
+            except (Exception, asyncio.CancelledError):
+                log.warning("Voice PE activity observer failed")
+
     def _reset_stop_context(self) -> None:
+        self._activity_latest = None
         self._stop_reset_generation += 1
         self._stop_session = None
         self._stop_generation = 0
