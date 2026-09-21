@@ -2102,3 +2102,224 @@ async def test_diagnostics_protocol_error_reference_preserves_reason_without_raw
     assert errors[0]["protocol_error_ref"] == expected
     assert message not in caplog.text + str(rows)
     await session._release()
+
+
+async def completed_budget_batch(session, index, total_tokens):
+    response_id, call_id = f"budget-r{index}", f"budget-c{index}"
+    await session._handle(created(response_id), session._connection_generation)
+    await session._handle(call(call_id), session._connection_generation)
+    event = terminal(response_id)
+    event["event"]["response"]["usage"] = {
+        "input_tokens": total_tokens - 100,
+        "output_tokens": 100,
+        "total_tokens": total_tokens,
+    }
+    await session._handle(event, session._connection_generation)
+    return response_id, call_id
+
+
+def paced_wire_provider():
+    session, sdk, rows = diagnostic_wire_provider()
+    clock = [0.0]
+    session.provider_budget = ProviderBudgetCoordinator(monotonic=lambda: clock[0])
+    session.capacity_monotonic = lambda: clock[0]
+    return session, sdk, rows, clock
+
+
+@pytest.mark.asyncio
+async def test_live_fourth_batch_waits_for_actual_local_refill_without_replaying_three_outputs():
+    session, sdk, rows, clock = paced_wire_provider()
+    await session.connect()
+    session.timeout_s = 5
+    waits = []
+
+    async def refill(delay):
+        waits.append(delay)
+        assert sum(event["type"] == "response.item.create" for event in sdk.wire) == 3
+        assert not session._batches["budget-r4"].admitted
+        clock[0] += delay + 0.000001
+        await asyncio.sleep(0)
+
+    session.capacity_sleep = refill
+    try:
+        for index, (elapsed, tokens) in enumerate(
+            [(0, 7000), (2.198, 8000), (5.098, 9000), (7.858, 10000)], 1
+        ):
+            clock[0] = elapsed
+            response_id, call_id = await completed_budget_batch(session, index, tokens)
+            await session.admit_tool_batch(response_id, 1)
+            assert session.tool_batch_is_admitted(response_id, 1)
+            await session.send_tool_results(
+                response_id, [{"id": call_id, "response": {"accepted_by_ha": True}}], generation=1
+            )
+        assert waits == pytest.approx([2.75])
+        outputs = [
+            event["item"]["call_id"]
+            for event in sdk.wire
+            if event["type"] == "response.item.create"
+        ]
+        assert outputs == [f"budget-c{index}" for index in range(1, 5)]
+        assert sum(event["type"] == "response.create" for event in sdk.wire) == 4
+        blocked = next(
+            row
+            for row in rows
+            if row["kind"] == "live_tool_admission" and row["outcome"] == "blocked"
+        )
+        assert blocked["reason"] == "insufficient_capacity"
+        assert blocked["target_tokens"] == 13072
+        assert blocked["available"] == pytest.approx(11238.667)
+        assert blocked["limit"] == 40000 and blocked["authoritative"] is False
+        await session._handle(created("settled"), 1)
+        await session._handle(terminal("settled"), 1)
+    finally:
+        await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", ["impossible", "beyond_deadline", "overslept", "released_lease"])
+async def test_live_capacity_cannot_gain_authority_for_impossible_stale_or_expired_wait(case):
+    session, sdk, rows, clock = paced_wire_provider()
+    await session.connect()
+    session.timeout_s = 5
+    # A 19k completed response leaves 21k; its 22072 reservation needs 1.608s refill.
+    response_id, _ = await completed_budget_batch(
+        session, 1, 41000 if case == "impossible" else 19000
+    )
+    waits = []
+
+    async def refill(delay):
+        waits.append(delay)
+        if case == "released_lease":
+            session.provider_budget.release(session._lease)
+        clock[0] += 6 if case == "overslept" else delay
+        await asyncio.sleep(0)
+
+    session.capacity_sleep = refill
+    if case == "beyond_deadline":
+        session.timeout_s = 0.1
+    try:
+        with pytest.raises(ProviderBudgetUnavailable, match="capacity_unavailable"):
+            await session.admit_tool_batch(response_id, 1)
+        assert not session._batches[response_id].admitted
+        assert not any(event["type"].startswith("response.") for event in sdk.wire)
+        assert len(waits) == (case in {"overslept", "released_lease"})
+        failures = [
+            row
+            for row in rows
+            if row["kind"] == "live_tool_admission" and row["outcome"] == "failed"
+        ]
+        assert failures
+        if case == "released_lease":
+            assert any(row.get("reason") == "inactive_lease" for row in rows)
+    finally:
+        await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("boundary", ["cancel", "close", "next_generation", "duplicate"])
+async def test_live_capacity_wait_rechecks_owner_and_cannot_cross_cancellation_or_generation(
+    boundary,
+):
+    session, sdk, rows, clock = paced_wire_provider()
+    await session.connect()
+    session.timeout_s = 5
+    response_id, _ = await completed_budget_batch(session, 1, 19000)
+    waiting, resume = asyncio.Event(), asyncio.Event()
+
+    async def refill(delay):
+        waiting.set()
+        await resume.wait()
+        clock[0] += delay + 0.000001
+
+    session.capacity_sleep = refill
+    admission = asyncio.create_task(session.admit_tool_batch(response_id, 1))
+    await asyncio.wait_for(waiting.wait(), 0.2)
+    try:
+        if boundary == "cancel":
+            admission.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await admission
+            assert not session._batches[response_id].admitted
+        elif boundary == "duplicate":
+            clock[0] += 2
+            await session.admit_tool_batch(response_id, 1)
+            resume.set()
+            with pytest.raises(ProviderBudgetUnavailable, match="replayed"):
+                await admission
+            assert session.tool_batch_is_admitted(response_id, 1)
+        else:
+            await session.close()
+            if boundary == "next_generation":
+                await session.connect()
+                assert session._connection_generation == 2
+            fresh_rows = len(rows)
+            resume.set()
+            with pytest.raises(LiveProtocolError, match="not_accepting"):
+                await admission
+            if boundary == "next_generation":
+                assert not [
+                    row for row in rows[fresh_rows:] if row["kind"] == "live_tool_admission"
+                ]
+        assert not any(event["type"].startswith("response.") for event in sdk.wire)
+    finally:
+        admission.cancel()
+        await asyncio.gather(admission, return_exceptions=True)
+        await session.close()
+
+
+@pytest.mark.asyncio
+async def test_live_capacity_rechecks_intervening_backend_usage_without_extending_deadline():
+    session, sdk, rows, clock = paced_wire_provider()
+    await session.connect()
+    session.timeout_s = 5
+    response_id, _ = await completed_budget_batch(session, 1, 19000)
+    waits = []
+
+    async def refill(delay):
+        waits.append(delay)
+        clock[0] += delay + 0.000001
+        await session._handle(created("competing", "other"), 1)
+        event = terminal("competing", delegation="other")
+        event["event"]["response"]["usage"] = {
+            "input_tokens": 4900,
+            "output_tokens": 100,
+            "total_tokens": 5000,
+        }
+        await session._handle(event, 1)
+
+    session.capacity_sleep = refill
+    try:
+        with pytest.raises(ProviderBudgetUnavailable, match="capacity_unavailable"):
+            await session.admit_tool_batch(response_id, 1)
+        assert waits == pytest.approx([1.608])
+        assert not session._batches[response_id].admitted
+        assert not any(event["type"].startswith("response.") for event in sdk.wire)
+        failure = [
+            row
+            for row in rows
+            if row["kind"] == "live_tool_admission" and row["outcome"] == "failed"
+        ][-1]
+        assert failure["deadline_remaining_s"] == pytest.approx(3.391999)
+        assert failure["wait_s"] == pytest.approx(7.499999)
+    finally:
+        await session.close()
+
+
+@pytest.mark.asyncio
+async def test_live_capacity_never_blocks_provider_reader_for_refill():
+    session, _, rows, _ = paced_wire_provider()
+    await session.connect()
+    session.timeout_s = 5
+    response_id, _ = await completed_budget_batch(session, 1, 19000)
+    reader = session._reader
+    session.capacity_sleep = AsyncMock()
+    try:
+        session._reader = asyncio.current_task()
+        with pytest.raises(ProviderBudgetUnavailable, match="capacity_unavailable"):
+            await session.admit_tool_batch(response_id, 1)
+        session.capacity_sleep.assert_not_awaited()
+        assert not session._batches[response_id].admitted
+        assert any(row.get("reason") == "admission_wait_in_reader" for row in rows)
+    finally:
+        session._reader = reader
+        await session.close()

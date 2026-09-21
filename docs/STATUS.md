@@ -1,5 +1,159 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — Alpha lifecycle recovery, planrevision 2
+
+Brugerautorisation21/9: planreview til mindst97/100, derefter implementér,
+udgiv og installér; slut med gemt AlphaON på den ene Voice PE. Lead Codex.
+97 er planens fuldstændighed, aldrig runtime-/akustikgodkendelse.
+
+Planreview: uafhængig Astra alpha_tool_chain_audit revision1=84/100,
+revision2=97/100 (kausal19/20,ejerskab20/20,aktivitet24/25,gates19/20,scope15/15).
+GO til R1, ikke R2-aktivering eller fysisk godkendelse.
+R1 årsagshypotese præciseret: Live-admission mangler den eksisterende bounded
+produktionspacing for completed toolchains. Feltkæden viser ny fjerde response,
+levende lease og ingen replay; kapacitetsafvisning er stærkeste kodeunderstøttede
+forklaring, men numerisk shortfall blev ikke logget. Brug eksisterende ledger-
+refill/pacing med samme response/generation før dispatch, ikke nye limits, rerun af
+HA eller providerretry. Regression skal også afvise stale/cancel/udløbet venten.
+Startupfejltale har bevist ejerfejl: silence-device revokerer Live-playbackadmission,
+men error-oneshot forsøger URL uden ny admission. Mindste rettelse: close-ejet
+error-only admission med epoch/close-id/Stop/reconnect-fence før og efter nativeACK.
+Normal _set_live_context closing-guard bevares. Denied/staleACK må afspille nul lyd
+og fortsætte samme cleanup. Regression bruger den virkelige native admissiongate.
+Native Stop-ACK-timeouts er afgrænset til device-/worker-/drain-grænsen, men loggen
+kan ikke vælge mellem forkert identity, worker/drain eller levering. Ingen patch
+eller tidsforhøjelse på gæt; få korreleret grænsebevis i fysisk prøve.
+Providerclose er ikke bevist deadlock: terminalwait afbrydes, reader joins, SDKexit
+bruger2.15s. Ingen timeoutpatch på dette fund alene.
+
+
+R1 implementeret som kandidat 1.13.91: lokal kapacitetsventen med samme admission-
+identitet og uændrede limits; close-ejet frisk native admission til fejltale.
+Uafhængig samlet Astra-kodereview: GO, ingen findings. Providerregressioner 156 PASS,
+fem rigtige native-admissiongrænser PASS og fire tidligere error-close-regressioner
+PASS. `scripts/dev fast --base origin/main` PASS (104 s, netværk tilladt).
+En sandboxkørsel blev afbrudt ved lokale forbindelser; ingen runtimeændring deraf.
+Den historiske .90 coupling-record arkiveres; den gælder ikke dette diff.
+Releasegate PASS på det frosne runtime-diff (58.9 s; unit, integration, mypy,
+Ruff og scope). Historisk coupling-arkivering uafhængigt godkendt; ingen gatekode
+ændret. CI/ARM64-publicering, installation og fysisk kontrol udestår. R1 ændrer ikke firmware,
+4 s timeout, farvel, native Stop-ACK, gain, VAD eller tak-politik.
+
+Leverance og rækkefølge:
+1. Kandidat R1: dokumenter præcis admission-afvisningsgren og hele close-await/
+   nativeACK-kæden fra feltfejlene nedenfor. Deadlock er en hypotese, ikke et fund.
+   Reproducer samme kæde i regression før mindste ejerrettelse. Accepted HA-effect
+   er irreversibelt: ingen replay, nyt samtykke eller ommærkning til fejlet handling
+   ved fejlet resultatsvar. Resultatstatus skal overleve cleanup. Kapacitetsreservation
+   og frisk usage forbliver fail-closed; ingen vilkårlig limit-/timeoutforhøjelse.
+   Startupfejl må bruge frisk Live-admission til eksisterende fejltale, ellers ærlig
+   stille fejl/LED og cleanup; aldrig keywordfallback. Stopcleanup undersøges fra
+   producerstop/admissionrevoke gennem taskcancel, providerterminal, native drain/
+   disableACK til rearm. Én Thin-closeejer, ingen reader-self-await eller ACK-lockcykel.
+   Eksisterende trinfrister beholdes indtil spor beviser forkert ejergrænse.
+2. Kandidat R2: færdiggør aktivitets- og afslutningskontrakten nedenfor efter
+   observationsmåling. R1 må installeres selvstændigt med ærlig reststatus; R2
+   må ikke styre på freshness_verified=false eller gættede tærskler.
+3. Særskilt mappingkontrol: læs aktivt Roborock map-ID/segment-ID og HA-area/alias-
+   register, list de to umappede segmenter og bevis kobling. Køkken må ikke mappes
+   til større Køkkenalrum uden at de faktisk er samme ønskede område. Zoner kræver
+   eksisterende støttet koordinat-/zoneidentitet, ikke gæt. Ingen rengøringsprøve
+   eller navneændring som bivirkning af læsningen. Eventuel mappingrettelse reviewes
+   særskilt; uklar fysisk afgrænsning kræver brugerens betydning af rummene.
+4. Wake/latens: mål misset fysisk wake separat fra registreretwake→providerready,
+   sidsteord→meningsfuld rumlyd, tooltid og afbrydelseslydhale. Sammenlign samme
+   position/afstand/lydstyrke, stille/støj/musik. Gains/VAD/wakefølsomhed ændres kun
+   hvis dette vælger konkret flaskehals; ingen samtidige akustiske tuninger.
+
+R2 eksekverbar kontrakt og bevisgrænse:
+- Identitet: Thin epoch/session + providergeneration + native connection/run/context
+  + playbacklease. Input bruger frisk faktisk firmwareVAD-inference på nye samples;
+  native source_ms er kun lokalt firmwareur, modtagelse får Python monotonic.
+  Sequence/source-run-fremdrift valideres; duplicates/out-of-order skaber ikke friskhed.
+  Talk bruger egen browserobservation og browser/playbackidentitet, ikke nativeACK.
+- Freshness-expiry og amplitudetærskler vælges fra observerede cadence/jitter og
+  optaget stille/lavtale/ekko/musik/samtidigtale-matrix, fastfryses med regression.
+  Måleudfald bestemmer værdierne, ikke planens score. Hvis ro ikke kan adskilles
+  sikkert, stopper R2-aktivering ved denne grænse; bevar tydelig ukendt/fejl.
+- Idle eligibility = ready AND frisk inputro AND frisk assistant-ro/drain AND ingen
+  ventende backend/tool/approval/producer/playback/close. Kontinuerlig monotonic
+  periode med gemt UI4s; enhver invaliditet nulstiller perioden. Sidste check og
+  closecommit udføres uden await. Manglende observationsfremdrift er separat bounded
+  teknisk fejl, aldrig stilhed. Ingen transcriptpauser eller musik tæller som robevis.
+- Semantisk end er tentative receipt bundet til samme completed backend og resultat-
+  continuation. Ingen ukendt terminalbackend accepteres. Current user-inputrevision
+  revokerer receipt inden commit; queued gyldig inputobservation behandles før commit-
+  check. Efter commit afvises input til gammel epoch, næste wake får ny session.
+- En quiet snapshot beviser ikke at forsinket farvel er færdigt. Før sekssekunders
+  grace fjernes skal rigtig providerprøve bevise terminalresultat→genereret farvel→
+  closekvittering uden afklip. Providerens session.closed forsegler stream; derefter
+  kræves samme playbackleases faktiske consumer-watermark/finish og lydhale. Ingen
+  silencepakker alene må forsegle den. Hvis protokollen ikke giver tilstrækkelig
+  grænse, behold markeret grace og stop denne del, dokumentér præcis begrænsning.
+- Støjenergi kan ikke ophæve semantisk end; faktisk ny brugerbesked kan. Vedvarende
+  tvetydig baggrundstale er et måleproblem, ikke tilladelse til lokal intentparser.
+- Talk skal have browserens faktiske output/drainkvittering; manglende kvittering
+  giver ubekræftet afslutning og bounded cleanup, aldrig falsk succes.
+
+Regression/accept per kandidat: feltsekvens med vellykket HA→fejlet admission,
+startup uden playback, Stop under hver fase, forsinkede audio/result/ACK efter
+Stop/fault/rearm/næstewake; frisk/stale/reordered aktivitet, stille stream, output-
+restart, langsomt tool og input/end-race; samme Thin-kontrakt i VoicePE/Talk og OFF.
+Sideeffektfri rigtig installeret SDK/Live-protokol for multibatch continuation og
+hush/musik/farvel-semantik, eksklusiv eval uden produktionssamtale. Uafhængig Astra
+adversarial review, fast under udvikling, release én gang på frozen diff; ingen
+manuel CI-retry. Grøn mainartifact verificeres ved installeret sha/digest; firmware
+kun hvis ejerrettelsen kræver det, ampboot bevares. Gem AlphaON og kontroller efter
+restart. Ingen uvarslede høje tests.
+
+Fysisk accept: sammeartifact golden+10/10 (5semantiske/5idle med opfølgning/næstewake),
+20afbrydelser,50ekko-frie svar,Talk-drain,ON/OFF/ON,funktionsparitet og40simple+20tool
+rumlatens. Lavlydstyrke først. Manglende fysisk medvirken/lydbevis rapporteres som
+udestående; må aldrig erstattes af plan-score, syntetisk ACK eller CI. Stop-the-line
+ved ny kausal modstrid, uløst alvorligt review, klippet svar eller tabt næste wake.
+Rollback kræver kendt artifact og efterfølgende feltkontrol, arver ikke stabilitet.
+
+## Feltfund 21/9 efter installation .90 — lukning, rumvalg, hastighed og wake
+
+Read-only gennemgang af HA-download
+`/private/tmp/23375871_podvoice_2026-09-21T14-52-59.514Z.log` (10000 linjer).
+Samme .90 startupidentitet 0c570873 / rootfs688ff471. Ingen runtime-/settingsændring.
+Kandidaten er ikke fysisk godkendt; nedenstående fejl stopper accept.
+
+- 16:45:17.883: HA accepterer app_segment_clean, area_ids=[kokkenalrum], repeat1,
+  efter cleaning_mode=vacuum kl.16:45:15.034. Resultatsendelse og backendcontinue
+  returnerer kl.17.902. Næste batch fejler i admission kl.19.416; error_class-hash
+  0fa733f52f631ab0 matcher ProviderBudgetUnavailable. Ingen OpenAI-rate-limit er
+  dermed bevist; præcis underårsag (lease/replay/kapacitet) mangler i loggen.
+  Close starter19.419, provider-close timeout27.581, recovered28.951:9.532s.
+- Capabilities kl.16:45:11.930 viser Køkkenalrum, intet separat Køkken og
+  unmapped_segments=2. Det beviser eksponeret mapping, ikke at Køkken ikke findes
+  på robotkortet eller i HA. Rå mapping og de to umappede segmenter skal kontrolleres
+  før navne/aliaser/zoner ændres. Ingen ny rengøring startet ved denne gennemgang.
+- Wake16:44:58.390 → readerstart59.766=1.376s (ikke session-ready/audible proof).
+  Første capabilitydispatch16:45:11.559 → cleaning accepted17.883=6.324s.
+  Wake→accepted19.493s inkluderer brugerens tale; kan ikke kaldes svartid.
+  Rumoptaget sidste ord/første meningsfulde lyd findes ikke i denne log.
+- 16:23:09.021 wake registreret, providerconnect fejler19.283, fejltale fejler
+ 19.514 med Stop context is not armed. Derfor er denne manglende respons efterwake.
+- Stop16:23:57.598 efterfølges af gentagne stop-context-disable timeouts;
+  Stop16:27:28.594 af silence-device og stop-context-disable timeouts, reconnect
+ 16:27:44.268. Det er særskilt fra akustisk wake-rate og semantisk timeout.
+- Musik16:43:14 søges som Collert Pumas og fejler;16:43:30 Colors Black Pumas lykkes.
+  Ingen kildeoptagelse: genkendelse vs misfortolkning er ikke afgjort.
+- Alpha sætter fortsat idle_deadline=None. Ingen idle/semantisk lukning ses i disse
+  fem eftermiddags-sessioner; stop/error lukker dem. FirmwareVAD/gain uændret.
+
+Anbefalet hierarki til næste kandidat: fysisk/panelStop og fatalfejl ejer bounded
+cancel/cleanup; modelsemantisk end ejer naturlig afslutning efter kvitteret arbejde
+og faktisk lydhale, ny brugerbesked kan annullere før commit; ellers gemt UI-idle
+kun ved frisk verificeret ro og intet ventende arbejde. Støjenergi alene er hverken
+samtalehensigt eller grund til at holde en semantisk afsluttet session åben.
+Ukendt aktivitet må ikke tælle som ro. Ved vedvarende tvetydig tale/støj skal
+observationsgrænsen bevises; ingen skjult længere timeout eller lokal intentparser.
+Ret konkret admission/cleanup/startup-fejl før akustisk tuning; undersøg derefter
+wake-hitrate i rummet separat fra efterwake og playback-ekko.
+
 ## Aktiv lead-beslutning — Alpha Stop og lys, 21/9
 
 Brugeren understreger: implementér aftalt adfærd, begræns diagnosearbejdet.
@@ -46,7 +200,7 @@ Den eksisterende scopegate mangler netop denne tre-domæners kombination; den f�
 en afgrænset tooling-regression (22 PASS). Særskilt Astra tooling-review GO:
 missing/stale review og ændrede bytes afvises stadig. Ingen runtimehypotese ændres.
 
-<!-- candidate-scope-coupling
+<!-- historical-v1.13.90-candidate-scope-coupling
 {
   "version": 1,
   "base_tip": "275e9ca8d030388b3722e1e2aa0d31f263d19ada",
@@ -61,6 +215,43 @@ missing/stale review og ændrede bytes afvises stadig. Ingen runtimehypotese æn
   "rationale": "One approved Alpha Stop contract requires keyword-disabled firmware playback admission and exact native ACK/revocation, worker-run continuity through cleanup/rearm, and Live-only semantic distinction between hush/music control and session closure. Splitting these domains would preserve keyword truncation, block playback, or leave semantic closing inconsistent. Inert observations remain identity-bound. Cancellation and restart races have regressions; OFF and thanks policy unchanged. Software gates only, not semantic or physical acceptance."
 }
 -->
+
+### Installeret 1.13.90 — Alpha gemt ON, 21/9 kl. 14.13
+
+Brugeren gav udtrykkelig ready/merge/install-godkendelse. PR61 er merged fra
+`a0020fb7b35b62ef06219baae76380fa695ef4fa` til main
+`0c5708733a5f5cbcd75e6a94e121aa191a636b75`. Main-run35597567667:
+lint-test og publish-addon SUCCESS, ingen manuelle CI-genkørsler.
+HA opdateret gennem appens normale opdatering: installeret1.13.90, Kører.
+Startup bekræfter samme git_sha og artifact
+`rootfs-v1:688ff471dbc5fa02b74c22c455693ccbbddad24bc7c37cc53a4dbd598a67934a`.
+Voice PE genforbundet kl.14.13.28, krypteret handshake, live_semantic_stop_v1,
+activityobserver og amplifier-boot capability til stede; kanal1/gain16 bevaret.
+
+Frisk indstillingsvisning efter add-on-genstart: GPT-Live Alpha checkbox=1,
+ingen aktiv samtale, Hey Chat bekræftet af enheden, gemt timeout4s.
+Valget persisteres i HA `/data/podvoice.json` og læses ved hver ny wake.
+Voice PE efterlades dermed med Alpha valgt til næste samtale; strømfrakobling
+ændrer ikke HA-valget. Faktisk unplug/replug og hørbar samtale er ikke prøvet her.
+Brugeren har én Voice PE; ingen særskilt køkken-enhedsvariant er oprettet.
+
+Nedenstående approvalblok er historisk og løst. Hele Alpha-goal er ikke færdigt:
+post-action-fejl, aktivitetskalibrering/stilhedstimeout, farvel/Talk-drain og den
+samlede fysiske accept udestår. Installation er ikke fysisk golden/10/10-bevis.
+
+### Delinstallation og afventende konkret repository-godkendelse
+
+PR61 exact-head `a0020fb7b35b62ef06219baae76380fa695ef4fa`: CI lint-test og ARM64
+build-addon SUCCESS (run35591325208). Firmware OTA c6e305ad… blev installeret med
+acknowledged success. Krypteret API bekræfter samme MAC20:F8:3B:0A:7E:7A,
+compiletime2026-09-21 12:45:03+0200, ny podvoice_live_context-service og activitysensor.
+Rapport `/private/tmp/pv-stop-build-0921/installed-report.json`. Ingen hørbar eller
+lifecycle-proof endnu. HA kører fortsat1.13.89; Stop/LED-apprettelserne er ikke aktive.
+
+Automatisk approvalreview afviste `gh pr ready61` (og revurdering med tidligere
+installationsgodkendelse): reviewer kræver udtrykkelig godkendelse af draft→ready.
+Et konkret spørgsmål om ready+mergePR61+HA-install er sendt til brugeren; afventer
+svaret. Ingen workaround eller anden mergevej er forsøgt. Goal er fortsat aktivt.
 
 ### Lokal releasegate grøn — installation udestår
 

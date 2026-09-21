@@ -1,3 +1,14 @@
+## 1.13.91 — Alpha: kapacitetsventen og hørbar forbindelsesfejl
+
+- En færdig værktøjsbatch kan vente afgrænset på lokal kapacitet før udførelse,
+  i stedet for straks at afbryde samtalen. Gennemførte handlinger gentages ikke;
+  samme generation, tilladelse og kapacitetskrav kontrolleres efter venten.
+- Fejltale efter Alpha-forbindelsesfejl får en frisk afspilningstilladelse efter
+  bekræftet stop. Stop, genforbindelse og forældet kvittering kan ikke starte klippet.
+- Uændret firmware, gain, VAD, ON/OFF og samtalens Stop-/tak-politik.
+- Stilhedstimeout, fysisk farvel og de observerede native Stop-timeouts er stadig
+  åbne. Denne afgrænsede rettelse er ikke fuld fysisk Alpha-godkendelse.
+
 ## 1.13.90 — Naturligt Stop og stabilt lys i GPT-Live Alpha
 
 - Alpha deaktiverer lokal Stop-ordgenkendelse uden at blokere lyd. Live fortolker

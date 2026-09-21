@@ -5877,6 +5877,29 @@ class ThinSession:
             with contextlib.suppress(Exception):
                 pcm = self.speech.cached(C.ERROR_PHRASES.get(kind, C.FALLBACK_CONNECTION))
         try:
+            if self.live_alpha and not self._live_webrtc:
+                # Confirmed silence revoked the old Live playback permission. Only
+                # this close may admit its error clip; ordinary Live work stays closed.
+                epoch, close_id = self._epoch, self._close_id
+
+                def current_error_close() -> bool:
+                    return (
+                        self._active
+                        and self._transport_closing
+                        and self._epoch == epoch
+                        and self._close_id == close_id
+                        and self._trace_reason.startswith("error:")
+                        and not self._stop_error_speech.is_set()
+                        and not self._teardown_retry_wakeup.is_set()
+                    )
+
+                if not current_error_close():
+                    return
+                admitted = await self.voicepe.set_live_context()
+                if not admitted or not current_error_close():
+                    self._trace_event("live_error_admission_skipped")
+                    return
+                self._local_stop_armed = False
             await self._play_oneshot(
                 pcm or audio_mod.error_tone(C.OUTPUT_RATE),
                 wait_for_physical_finish=bool(
