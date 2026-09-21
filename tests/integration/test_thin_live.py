@@ -2143,7 +2143,11 @@ async def test_confirmation_start_instruction_failure_closes_owned_session(failu
         await emit(sdk, created("r2"), terminal("r2"))
         await until(lambda: sdk.session.instructions.append.await_count == 1)
         await until(lambda: session._transport_closing)
-        await until(lambda: not session._active)
+        # _active clears before provider cleanup; observe the owned transaction's end.
+        close_task = session._close_task
+        assert close_task is not None
+        await asyncio.wait_for(asyncio.shield(close_task), 2)
+        assert not session._active
         assert tools.calls == [] and session._live_confirmation is None
         assert sdk.session.start.await_count == 2 and sdk.session.close.await_count == 2
     finally:

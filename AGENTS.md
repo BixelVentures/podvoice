@@ -66,6 +66,11 @@ terminal. En afvist spændvidde må først frigive næste mic-open efter natural
 `speech_stopped`, commit/item og eksakt delete-ACK; manglende terminalkant skal lukke
 samme session bounded fail-closed.
 
+Før hvert firmwarebyg skal `tests/firmware/boot_package_regression.py` køres med den pinnede
+ESPHome-Python. Den reelle package-merge skal bevare hele hardware-bootsekvensen og
+alle overlay-hooks præcis én gang; rå YAML-tekst er ikke dette bevis. Ved ændret
+boot skal genereret C++ også kontrolleres før upload.
+
 ## Den eneste produktionsretning
 
 - Voice PE-firmware ejer fysisk wake, mic-latch, playback-events og rearm-bevis.

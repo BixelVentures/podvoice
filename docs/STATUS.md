@@ -1,5 +1,54 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — tavs fysisk højttaler efter Alpha-installation, 21/9
+
+Lead Codex. Installeret add-on 1.13.88 og firmware podvoice_build_11382_livewav2
+på MAC 20:F8:3B:0A:7E:7A. Brugeren rapporterer normal lyssekvens men ingen tale
+med Alpha ON eller OFF; heller ingen lyd fra panelets højttalertest.
+Frisk OFF-prøve 09:15:11–24: wake, device mic, session.updated accepteret,
+korrekt input “Hvad er seks gange syv?”, completed respons og lydtokens;
+Voice PE henter 64345 B FLAC (114240 B PCM). Firmware melder playback-start,
+UI viser 1664 ms, og normal idle/teardown/rearm følger. Brugerens stilhedsobservation
+modsiger påstanden om hørbar lyd. Native read-only probe på samme MAC viser
+media_player IDLE, volume=1.0, muted=False, mikrofonmute=False. Ingen gainændring,
+genstart, firmwareinstallation eller ny testlyd udført af lead under diagnosen.
+
+Kæde: firmware package-merge/boot → forstærker/DAC → wake/mic → provider → FLAC/WAV
+HTTP/mixer/resampler → output/amp → faktisk lyd → finish/teardown/rearm/næste wake.
+Falsificerbar hypotese: Alphas nye listeformede on_boot i podvoice.yaml erstatter
+basens mappingformede on_boot ved ESPHome package-merge, så amplifier-enable ved
+boot bortfalder. Forstærkeren har ALWAYS_OFF og er internal; softwarevolume og
+playback-events kan derfor stadig se normale ud. Hypotesen afventer verificering
+mod den faktiske ESPHome 2026.6.2 mergefunktion; den er endnu ikke en bevist årsag.
+Invarianter: OFF-bevarelse, én fysisk lydvej, firmware som hardwareejer, fysisk
+lydbevis stærkere end events/UI. Ikke-mål: model, prompt, VAD, gain, timeout,
+transport, mixer eller nye runtimeabstraktioner.
+
+Plan: uafhængigt Astra-review af hypotesen; mindst mulige konfigurationsrettelse,
+regression af den reelt sammenflettede OFF- og Alpha-bootkæde, firmwarebyg og
+relevante gates på frosne bits før installation. Bevar capture-status-init og hele
+basens bootsekvens uden dobbelt amp-init. Ny firmware skal have egen identitet.
+Rollback kræver eksisterende verificeret binær eller nyt verificeret baselinebyg;
+ingen slettet /tmp-artifact må antages tilgængelig. Kandidaten er IKKE fysisk
+testklar; golden chain, 10/10, Alpha-duplex og hastighed er ikke godkendt.
+
+21/9 faktisk årsag bekræftet: ESPHome2026.6.2 merge_config erstatter mapping med
+liste; original307e2f8 mister hardware-boot. Uafhængig Astra silence_boot_audit
+reproducerede fejlen med uændret upstream helper og reviewede den minimale rettelse.
+Base on_boot er nu samme automation i en liste; alle handlinger/prioritet bevaret.
+Alpha annoncerer desuden podvoice_amp_boot_v1 som revisionsidentitet, ikke fysisk
+bevis. 11382-markøren bevares som kompatibilitetsidentitet; ny binær SHA identificerer
+rettelsen. Ingen add-onændring. Den nye regression bruger den faktiske ESPHome
+package-merge for både baseline og nestedAlpha, beviser begge boot-hooks og reproducerer
+den gamle fejl. AGENTS kræver regressionen ved hvert firmwarebyg.
+Genereret main.cpp er uafhængigt kontrolleret for begge prioriteter og amp-enable;
+32 komponentfiler matcher buildkopien. Fastgate PASS116.0s inklusive hele den valgte
+testsuite. ESPHomebyg PASS; rollbackbyg fra preAlpha-parent kører, da gammel binær er
+slettet. Brugeren har eksplicit godkendt installation, når klar. Voice PE volumen
+100→20 procent er sendt og læst tilbage; mute fortsatFalse. Ingen OTA endnu.
+Astra scoped GO til firmware-only-recovery efter artifactkontrol; fysisk lyd/golden/
+10/10 stadig åbent. Diff fryses nu til én releasegate.
+
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
 15/9 CI34947845484 på3300fc8 fangede én reel pakningsfejl: pyproject-version
@@ -201,7 +250,7 @@ P0/P1; fem domæner er nødvendig kobling for den godkendte Alpha. De 12 adapter
 wiring-/firmwarefiler matcher tidligere reviewede bits; endelige robot-/typed-input-
 ændringer blev særskilt eftergået. Ingen ny gate/API/fysisk accept arves.
 
-<!-- candidate-scope-coupling
+<!-- historical-alpha-candidate-scope-coupling
 {
   "version": 1,
   "base_tip": "b3f4bd5d1bcaf2a0715e94c345eb9988bf04697e",
