@@ -49,6 +49,26 @@ slettet. Brugeren har eksplicit godkendt installation, når klar. Voice PE volum
 Astra scoped GO til firmware-only-recovery efter artifactkontrol; fysisk lyd/golden/
 10/10 stadig åbent. Diff fryses nu til én releasegate.
 
+21/9 installation gennemført på brugerens eksplicitte godkendelse. Første release-
+precheck afviste gammel Alpha-coupling-record; den er historiseret, og den nye
+firmwareregression er lagt i tests/firmware/boot_package_regression.py. Næste gate
+bestod Ruff/format, scope og mypy50, men fandt en eksisterende tidlig assertion i
+Live-confirmation-testen: _active=False indtræffer før provider-close. Uafhængig
+reviewer ændrede kun testen til bounded await af den eksisterende close-task;
+root gennemgik diffet. Begge parametriseringer PASS, dernæst hele unit+integration
+PASS på de endelige bits; ingen runtimepatch eller gentagen fuld releasegate.
+Firmwarekilde/testrettelse commit9e83a09. Kandidat-OTA3057856bytes,
+SHA256afc70fc46eb7140bf22ff2988662a789149c7aaf888dd10a7129fa70389e1a5c.
+Rollback fra præ-Alpha b3f4bd5,11378, blev genbygget (ikke arvet fysisk godkendt):
+3054096bytes SHA256f1fb0c561c370e45fbfcc6e57f472696ec6db9d7a3f796972a0154c327be65ec.
+Begge binærer opbevares privat i speaker-recovery-20260921-arkivet.
+OTA til frisk DNS-verificeret192.168.86.30: SUCCESS9.24s. Efter reboot bekræfter
+krypteret nativeAPI samme MAC20:F8:3B:0A:7E:7A, kompatibilitetsmarkør11382,
+ny revisionsmarkørpodvoice_amp_boot_v1, volume0.2 og mutedFalse. HA1.13.88
+har genfundet Voice PE; ingen add-oninstallation eller Alpha-settingsændring.
+Brugeren er bedt om én høreprøve. Hørbarhed, golden chain,10/10 og AlphaON-prøve
+AFVENTER; firmwareevents eller grøn UI kan ikke erstatte brugerens lydobservation.
+
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
 15/9 CI34947845484 på3300fc8 fangede én reel pakningsfejl: pyproject-version
