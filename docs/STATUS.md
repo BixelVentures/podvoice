@@ -1,5 +1,102 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — Alpha Stop og lys, 21/9
+
+Brugeren understreger: implementér aftalt adfærd, begræns diagnosearbejdet.
+Lead Codex. Bevist statisk årsagskæde: Thin Alpha wake + playback armer keyword;
+VoicePELink kræver armed og firmware StopContext.admits kræver enabled. Det
+lokale keyword kan derfor kappe “stop musik”; blot disable blokerer også lyd.
+Samtidig kan shared end_conversation-beskrivelsen gøre hush eller musikhandling
+terminal. Dette retter en kendt ejergrænse uafhængigt af den endnu uafklarede
+post-action exception. Observerkandidat færdiggøres softwaremæssigt; ingen ny
+separat diagnoseinstallation før denne konkrete adfærdsrettelse er klar.
+
+Kæde: physicalwake nonce → keyword-disabled Live-admission + workerACK →
+kontinuerlig mic/Live → modeltolket stop/musik → backendautorisation/dispatch →
+playback → fysisk/panel cancel eller senere close/rearm. Invarianter: én Thin,
+intet lokalt intentparse, ingen genoplivning af cancelled context, exact generation
+og ACK, OFF uændret, ingen gevinst/VAD/buffer-/timeouttuning. Hypotese: separat
+playback_allowed med disabled keyword og Live-only semantik lader hele sætningen
+nå modellen og bevarer samtalen ved hush/musik; forsinket native-stop fra tidligere
+kontekst kan ikke påvirke den nye. Må ikke kaldes fysisk bevist uden afbrydelsesprøve.
+
+Implementering: capability live_semantic_stop_v1 + service podvoice_live_context,
+nyt korreleret live-ACK; gammel stop-service bevares. Alpha kræver kapabiliteten
+før provideropen. Fysisk/panel Stop og close revokerer admission og annullerer lyd.
+Live-only prompt/declaration skelner hush fra session-end og bevarer samtalen efter
+musik; tak-policy og OFF-prompt urørt. Cyan er feedback for åben Alpha, ikke falsk
+påstand om tale fra kontinuerlig stream; fault/idle forbliver hændelsesbaseret.
+Regressioner: gammelt/newfirmware x ON/OFF, disabledkeyword playback, fault/manglende
+ACK, cancelled/sent detection/stale generation, fysiskStop, tekst/modelsemantik,
+Talkparitet. Uafhængig Astrareview, målrettet SafeEval ved semantikændring, relevante
+gates før install. Rollbackgrænse: nul lyd eller forkert ejer/cancel/fault medfører
+NO-GO, ingen fallback til lokalt keyword i Alpha. Post-action/idle/goodbye stadig åbne.
+
+Observerkandidatens releasekørsel: delchecks grønne, men samlet gate **ugyldig**,
+fordi lead ændrede STATUS under kørslen. Ingen installation eller releasegodkendelse
+udledes heraf. Næste samlede gate køres først på frosset konkret Stop-kandidat.
+
+### Uafhængigt review af frosset Stop-kandidat
+
+Source-review GO fra Astra /root/alpha_tool_chain_audit: begge P1-findings lukket,
+ingen uløst sourcefinding. Firmwarekilde er publiceret som
+`d22da734e6bbef650881b3b6bd413ffe145764e5`; de to komponentgrupper er pinnet til
+samme revision. Manifest19-filer `b14ac035f86a9535db7dde9e3e3592096b7bc80fdbf39dcc1a7bddcee597087f`.
+Den eksisterende scopegate mangler netop denne tre-domæners kombination; den får
+en afgrænset tooling-regression (22 PASS). Særskilt Astra tooling-review GO:
+missing/stale review og ændrede bytes afvises stadig. Ingen runtimehypotese ændres.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "275e9ca8d030388b3722e1e2aa0d31f263d19ada",
+  "merge_base": "275e9ca8d030388b3722e1e2aa0d31f263d19ada",
+  "domains": [
+    "physical_output",
+    "realtime_semantics",
+    "rearm"
+  ],
+  "fingerprint": "57478c06d23bf823b67bf3b719a054cc515966ac1126a9fd3774e36f898d4b46",
+  "reviewer": "Independent Astra /root/alpha_tool_chain_audit",
+  "rationale": "One approved Alpha Stop contract requires keyword-disabled firmware playback admission and exact native ACK/revocation, worker-run continuity through cleanup/rearm, and Live-only semantic distinction between hush/music control and session closure. Splitting these domains would preserve keyword truncation, block playback, or leave semantic closing inconsistent. Inert observations remain identity-bound. Cancellation and restart races have regressions; OFF and thanks policy unchanged. Software gates only, not semantic or physical acceptance."
+}
+-->
+
+### Provisioneret Stop-build
+
+ESPHome2026.6.2 compile PASS fra remote d22da73-pin. Alle21 genererede C++-filer i
+de ændrede komponentgrupper er byteidentiske med reviewet kilde. Ny Live-service,
+kapabilitet, observer-define og amplifier-boot er verificeret i genereret main.
+Privat artifact: `/private/tmp/pv-stop-build-0921/esphome/.esphome/.esphome/build/podvoice-pe-live-alpha/.pioenvs/podvoice-pe/firmware.ota.bin`.
+3061616bytes, SHA256 `c6e305ada9d7daa9d7d62818f4e89d4ccf2ae10a83ca874354a0422b89660fed`.
+Report `/private/tmp/pv-stop-build-0921/compile-report.json`. Ikke installeret;
+ingen fysisk gate arves. Rollbackbuild og eksisterende enhed er urørt.
+
+### Faktisk Stop/LED-ændring før installationsbuild
+
+Thin bruger nu særskilt Live-admission ved wake og første playback; Alpha kræver
+kapabiliteten og korrekt ACK før provideropen. Firmware tillader playback med
+keyword slået fra. Native Stop/close/fault revokerer admission og ventende ACKs;
+kontrolleret providerrotation kan få en ny admission. OFFs keywordvej bevares.
+Live-only instruktion og end-tool skelner hush fra lukning og bevarer samtalen efter
+musikstyring. Tak-policy er ikke ændret. Ready Alpha viser stabil cyan gennem
+lytning, backendarbejde og lyd; error/mute/idle har fortsat egen betydning.
+
+Astrareview fandt en reel restart-race: et disabled keyword kunne få sit fault
+nulstillet og samme kommando genbekræftet mellem to mainloop-ticks. Rettelsen
+binder Live-admission/ACK/play til inferenceworkerens run ved fysisk wake. Ny run
+kan ikke genbruge admission; normal cleanup og næste wake kan stadig komme videre.
+En foreslået generel cancel-latch blev ikke beholdt, fordi samme cancel bruges ved
+legitim bekræftelsesrotation. Terminal closing og native revisionsfence ejer Stop.
+
+Målrettet samlet Thin/Live/Talk/native/prompt-suite: 194 PASS. Uafhængige 9
+adversarial Thin-regressioner PASS; firmware/observer/worker-suite 19 PASS.
+Ruff/format og mypy for de tre ændrede Python-runtimefiler PASS. Dette er
+softwarebevis, ikke bevis for modeltolkning, lyd i rummet eller installation.
+Source-review og provisioneret build er nu PASS; frozen releasegate udestår endnu.
+Firesekunders stilhedslukning, erstatning for farewell-grace, post-action-fejlen
+og fysisk slutmatrix er fortsat åbne dele af det samlede Alpha-goal.
+
 ## Fast godkendt Alpha-adfærd — præcisering fra chatten, 21/9
 
 Ingen ny produktbeslutning: brugerens godkendte plan er autoriteten for ON.
@@ -82,6 +179,29 @@ provider. Fysisk/panel-Stop beholder fuld cancellation. Live-only instruktion og
 end_conversation-beskrivelse skal skelne hush fra session ending og bevare musik-
 samtalen; kanonisk OFF-prompt og eksisterende tak-policy ændres ikke. Dette er
 implementeringsgrundlag, IKKE færdig kode eller fysisk afbrydelsesbevis.
+
+21/9 slutbyg PASS73.01s. OTA3060768bytes SHA256
+e020b824e87c79a4ad3295510aed8a90b92958ff938f90b844fbe6d05b7cd2e5.
+Alle8 genererede observerfiler matcher35ea628; ampboot og default-disabled sensor
+bekræftet. Ingen flash. Første release-preflight stoppede før tests, fordi den
+manglede den eksisterende gatekontrakts exact-tree coupling-post. Uafhængig Astra
+verificerede nedenstående fingerprint/domæner og godkendte den nødvendige kobling.
+Ingen runtime-/gateændring udledt; releaseforløbet genoptages på samme produktbits.
+
+<!-- historical-observer-candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "275e9ca8d030388b3722e1e2aa0d31f263d19ada",
+  "merge_base": "275e9ca8d030388b3722e1e2aa0d31f263d19ada",
+  "domains": [
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "8ca1413662b378c81472c4cc4b0fefdc7ce0d567f7f69c18996f56de438bce6a",
+  "reviewer": "Independent Astra high alpha_tool_chain_audit",
+  "rationale": "One observation-only activity contract correlates fresh firmware VAD inference and announcement-source consumption with native session/epoch and Thin identity. Splitting removes the paired calibration evidence. No timeout, Stop, gain, VAD or playback control changes. Exact production tree independently reviewed; firmware matches pinned35ea628."
+}
+-->
 
 ## Aktiv lead-beslutning — Alpha kandidat 1: resultat og lukningsdiagnostik, 21/9
 

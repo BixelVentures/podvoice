@@ -183,7 +183,7 @@ APPROVE_ACTION_TOOL = "approve_action"
 RECONSIDER_ACTION_TOOL = "reconsider_action"
 LIVE_REVIEW_EVIDENCE_BYTES = 8192
 LIVE_REVIEW_EVIDENCE_ITEMS = 128
-END_CONVERSATION_DECLARATION = {
+END_CONVERSATION_DECLARATION: dict[str, Any] = {
     "name": END_CONVERSATION_TOOL,
     "description": (
         "End when the latest user clearly wants to finish talking, or a self-contained "
@@ -213,6 +213,17 @@ END_CONVERSATION_DECLARATION = {
         },
         "additionalProperties": False,
     },
+}
+LIVE_END_CONVERSATION_DECLARATION = {
+    **END_CONVERSATION_DECLARATION,
+    "description": END_CONVERSATION_DECLARATION["description"].replace(
+        "When the user wants to interrupt this conversation and have silence, set silent=true and produce no speech.",
+        "A request to stop assistant speech means be quiet and keep listening in the same "
+        "conversation; do not call this tool for that request. Use silent=true only for "
+        "an explicit request to end the session without speech.",
+    )
+    + " Music controls, including pause and stop, keep the conversation open after the "
+    "truthful result unless the user also explicitly asks to end the conversation.",
 }
 WAIT_FOR_USER_DECLARATION = {
     "name": WAIT_FOR_USER_TOOL,
@@ -448,6 +459,7 @@ class ThinSession:
         self.live_audio = live_audio
         self.live_reply_url = live_reply_url
         self.live_alpha = False
+        self._live_led_ready = False
         self._live_webrtc = False
         self._live_stream = None
         self._live_output_bytes = 0
@@ -770,6 +782,7 @@ class ThinSession:
         opening_epoch = self._epoch
         opening_brain = self.brain
         opening_live = self.live_alpha
+        self._live_led_ready = False
         opening_webrtc = self._live_webrtc
 
         def opening_is_current() -> bool:
@@ -857,14 +870,17 @@ class ThinSession:
         self._idle_deadline = self._conv_started + self.idle_timeout_s
         self._local_stop_armed = False
         if self.live_alpha:
-            if not opening_webrtc and not getattr(self.voicepe, "supports_live_wav", False):
+            if not opening_webrtc and not (
+                getattr(self.voicepe, "supports_live_wav", False)
+                and getattr(self.voicepe, "supports_live_semantic_stop", False)
+            ):
                 self._trace_event("live_capability_missing")
                 self._request_close("live-firmware-unavailable", error_kind="device")
                 return
             if not opening_webrtc:
                 self._live_stream = self.live_audio.open(self._history_session, sample_rate=24000)
             self._idle_deadline = None
-        if not await self._set_local_stop(self.live_alpha):
+        if not await (self._set_live_context() if self.live_alpha else self._set_local_stop(False)):
             return
         self.sm.state = State.THINKING if opening_webrtc else State.LISTENING
         if opening_webrtc:
@@ -936,7 +952,9 @@ class ThinSession:
         decls = [d for d in decls if d.get("name") not in reserved]
         decls.extend(
             (
-                END_CONVERSATION_DECLARATION,
+                LIVE_END_CONVERSATION_DECLARATION
+                if self.live_alpha
+                else END_CONVERSATION_DECLARATION,
                 WAIT_FOR_USER_DECLARATION,
                 APPROVE_ACTION_DECLARATION,
             )
@@ -1007,6 +1025,9 @@ class ThinSession:
             # The close owner joins this opening before provider cleanup/rearm.
             # A late startup must never close a subsequently reused adapter.
             return
+        self._live_led_ready = self.live_alpha
+        if self.live_alpha:
+            self._set_led(State.LISTENING)
         self._trace_event("provider_connected")
         if self.audio_trace is not None and rearm_attempt_id is not None:
             proved = self.audio_trace.prove_next_session(
@@ -2103,7 +2124,7 @@ class ThinSession:
 
     async def _start_live_playback(self, lease: _PlaybackLease) -> None:
         try:
-            if not await self._set_local_stop(True) or not self._lease_is_current(lease):
+            if not await self._set_live_context() or not self._lease_is_current(lease):
                 return
             stream = self._live_stream
             if stream is None:
@@ -5335,6 +5356,21 @@ class ThinSession:
         self._last_activity = time.monotonic()
         self._idle_deadline = self._last_activity + self.idle_timeout_s
 
+    async def _set_live_context(self) -> bool:
+        """Admit native Live playback without arming local intent detection."""
+        if self._live_webrtc:
+            return True
+        epoch = self._epoch
+        ok = await self.voicepe.set_live_context()
+        if epoch != self._epoch or not self._active or self._transport_closing:
+            return False
+        if not ok:
+            self._request_close("live-context-unconfirmed", error_kind="device")
+            return False
+        self._local_stop_armed = False
+        self._trace_event("live_context_ack", generation=self.voicepe._stop_generation)
+        return True
+
     async def _set_local_stop(self, enabled: bool) -> bool:
         if (self.full_duplex and not self.live_alpha) or not getattr(
             self.voicepe, "supports_stop_context", False
@@ -5853,7 +5889,22 @@ class ThinSession:
     def _set_led(self, state: State, *, error: bool = False) -> None:
         if not hasattr(self.voicepe, "set_light"):
             return
-        cmd = led_command_for(state, muted=self._muted, error=error)
+        display_state = state
+        if (
+            self.live_alpha
+            and self._live_led_ready
+            and self._active
+            and not self._transport_closing
+            and state
+            in (
+                State.LISTENING,
+                State.THINKING,
+                State.AI_SPEAKING,
+                State.LOUNGE_WINDOW,
+            )
+        ):
+            display_state = State.LISTENING
+        cmd = led_command_for(display_state, muted=self._muted, error=error)
         self._trace_event(
             "led_command",
             state=state.name,

@@ -1,13 +1,16 @@
-## 1.13.90 — Aktivitetsmåling til GPT-Live Alpha
+## 1.13.90 — Naturligt Stop og stabilt lys i GPT-Live Alpha
 
-- Måler firmware-VAD og announcement-lyden før musikmix med kildeidentitet,
-  rækkefølge og faktisk kildeforbrug. Kræver den tilhørende observer-firmware.
-- Talk registrerer WebRTC-lydstatistik og browserens afspilningstilstand uden
-  at kalde modtagne lydpakker for færdigafspillet lyd.
-- Gamle og manglende målinger forbliver ukendte. Målingen skal kalibreres, før
-  den må styre Alpha-stilhedslukning og farvel; disse rettelser er endnu ikke leveret.
-- Samtaleadfærd, Stop, gain og VAD-indstillinger er uændrede. Musikfejlen er
-  fortsat under undersøgelse. Denne kandidat er ikke den færdige Alpha.
+- Alpha deaktiverer lokal Stop-ordgenkendelse uden at blokere lyd. Live fortolker
+  hele sætningen: “stop” betyder ti og lyt videre, mens “stop musik” er en
+  musikhandling og bevarer samtalen. Fysisk Stop og panel-Stop lukker stadig.
+- Åben, forbundet Alpha viser stabil cyan. Fejl, mute og afsluttet tilstand
+  bevarer særskilt feedback. Alpha OFF og den eksisterende tak-policy er uændrede.
+- Kræver tilhørende Alpha-firmware med separat playback-admission og sikring mod
+  forsinkede hændelser og intern genstart. Gain og VAD-indstillinger bevares.
+- Måler firmware-VAD, announcement-kildeforbrug og Talk WebRTC-aktivitet med
+  identitet og rækkefølge. Ukendte eller manglende observationer er ikke stilhed.
+- Stilhedslukning, fysisk farvel og musikfejlen efter en handling er fortsat åbne.
+  Denne kandidat er ikke den færdige Alpha; fysisk afprøvning er stadig påkrævet.
 
 ## 1.13.89 — Afgrænset GPT-Live fejldiagnostik
 

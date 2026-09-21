@@ -56,6 +56,7 @@ REQUIRED_SERVICES: dict[str, str] = {
     "podvoice_stop_context": "acknowledged conversation and turn bound Stop eligibility",
 }
 OPTIONAL_SERVICES: dict[str, str] = {
+    "podvoice_live_context": "Alpha playback admission with the local Stop keyword disabled",
     "podvoice_va_abort": "stock-run abort (covered by the RUN_END fallback)",
     "podvoice_stop_word_enable": "on-device 'stop' word during replies (classic engine)",
     "podvoice_stop_word_disable": "on-device 'stop' word disarm (classic engine)",
@@ -158,11 +159,13 @@ class VoicePELink:
         self.supports_playback_ids = True
         self.supports_local_stop = False
         self.supports_stop_context = False
+        self.supports_live_semantic_stop = False
         self.supports_live_wav = False
         self._stop_context_key: int | None = None
         self._stop_session: str | None = None
         self._stop_generation = 0
         self._stop_armed = False
+        self._stop_playback_allowed = False
         self._stop_cancelled = False
         self._stop_changed = asyncio.Event()
         self._stop_control_lock = asyncio.Lock()
@@ -172,7 +175,9 @@ class VoicePELink:
         self._retired_stop_session: str | None = None
         self._stop_idle_confirmed = False
         self._stop_reset_generation = 0
+        self._stop_live_revision = 0
         self._reply_token: str | None = None
+        self._reply_stop_context: tuple[str | None, int] | None = None
         self._reply_id: str | None = None
         self._orphan_reply_token: str | None = None
         self._reply_phase = "idle"
@@ -695,6 +700,7 @@ class VoicePELink:
         self._reply_status_key = None
         self.supports_local_stop = False
         self.supports_stop_context = False
+        self.supports_live_semantic_stop = False
         self.supports_live_wav = False
         self._stop_context_key = None
         self._reset_stop_context()
@@ -818,6 +824,12 @@ class VoicePELink:
             self.supports_playback_events = "podvoice_playback_events_v1" in advertised
             self.supports_local_stop = "correlated_local_stop_v1" in advertised
             self.supports_stop_context = "correlated_stop_context_v2" in advertised
+            self.supports_live_semantic_stop = (
+                "live_semantic_stop_v1" in (getattr(podvoice_event, "event_types", None) or [])
+                and self.supports_stop_context
+                and self._stop_context_key is not None
+                and "podvoice_live_context" in self._user_services
+            )
             self.supports_activity_observer = (
                 "podvoice_activity_observer_v1" in advertised
                 and self._activity_status_key is not None
@@ -1520,11 +1532,15 @@ class VoicePELink:
 
     async def play_url(self, url: str, *, playback_id: str | None = None) -> None:
         """Submit token and URL atomically; firmware rejects plays after a local stop."""
-        if self.supports_stop_context and (not self._stop_armed or self._stop_cancelled):
+        admitted = self._stop_armed or (
+            self.supports_live_semantic_stop and self._stop_playback_allowed
+        )
+        if self.supports_stop_context and (not admitted or self._stop_cancelled):
             raise RuntimeError("Voice PE Stop context is not armed")
         if self._reply_phase in ("requested", "started", "stopping", "stop_detected"):
             raise RuntimeError("Voice PE reply is still owned by the previous playback")
         self._reply_token = secrets.token_hex(16)
+        self._reply_stop_context = (self._stop_session, self._stop_generation)
         self._reply_id = playback_id
         self._reply_phase = "requested"
         self._reply_stop_seen = False
@@ -1675,9 +1691,11 @@ class VoicePELink:
     def _reset_stop_context(self) -> None:
         self._activity_latest = None
         self._stop_reset_generation += 1
+        self._stop_live_revision += 1
         self._stop_session = None
         self._stop_generation = 0
         self._stop_armed = False
+        self._stop_playback_allowed = False
         self._stop_cancelled = False
         self._stop_expected = None
         self._stop_orphan = None
@@ -1685,16 +1703,39 @@ class VoicePELink:
         self._stop_outcome = "disconnected"
         self._stop_changed.set()
 
+    def _revoke_live_admission(self) -> None:
+        self._stop_live_revision += 1
+        self._stop_playback_allowed = False
+        if self._stop_expected is not None and self._stop_expected[2] == "live":
+            self._stop_expected = None
+            self._stop_outcome = "revoked"
+            self._stop_changed.set()
+
     async def set_stop_context(self, enabled: bool, *, closing: bool = False) -> bool:
         """Transport an owner-selected state; never inspect the user's words."""
+        return await self._set_stop_admission(enabled=enabled, closing=closing, live=False)
+
+    async def set_live_context(self) -> bool:
+        """Require firmware proof of playback admission with keyword detection disabled."""
+        if not self.supports_live_semantic_stop:
+            return False
+        return await self._set_stop_admission(enabled=False, closing=False, live=True)
+
+    async def _set_stop_admission(self, *, enabled: bool, closing: bool, live: bool) -> bool:
         if not self.supports_stop_context:
             return False
+        if not live:
+            self._revoke_live_admission()
+        else:
+            self._stop_playback_allowed = False
         connection = self._connection_generation
         reset_generation = self._stop_reset_generation
+        live_revision = self._stop_live_revision
         async with self._stop_control_lock:
             if (
                 connection != self._connection_generation
                 or reset_generation != self._stop_reset_generation
+                or (live and live_revision != self._stop_live_revision)
             ):
                 return False
 
@@ -1716,6 +1757,8 @@ class VoicePELink:
                     ):
                         return False
                 token = self._stop_session
+                if live and (self._stop_cancelled or live_revision != self._stop_live_revision):
+                    return False
                 if (
                     connection != self._connection_generation
                     or reset_generation != self._stop_reset_generation
@@ -1725,18 +1768,17 @@ class VoicePELink:
                 generation = self._stop_generation
                 if generation > 0x7FFFFFFF:
                     return False
-                wanted = "armed" if enabled else "disabled"
+                wanted = "live" if live else ("armed" if enabled else "disabled")
                 self._stop_expected = (token, generation, wanted)
                 self._stop_outcome = None
                 self._stop_armed = False
+                self._stop_playback_allowed = False
                 self._stop_changed.clear()
+                args: dict[str, Any] = {"session": token, "generation": generation}
+                if not live:
+                    args["enabled"] = enabled
                 if not await self._call_service(
-                    "podvoice_stop_context",
-                    {
-                        "session": token,
-                        "generation": generation,
-                        "enabled": enabled,
-                    },
+                    "podvoice_live_context" if live else "podvoice_stop_context", args
                 ):
                     return False
                 await self._stop_changed.wait()
@@ -1745,6 +1787,7 @@ class VoicePELink:
                     and reset_generation == self._stop_reset_generation
                     and self._stop_session == token
                     and self._stop_generation == generation
+                    and (not live or live_revision == self._stop_live_revision)
                     and (
                         self._stop_outcome == wanted
                         or (closing and not enabled and self._stop_outcome == "cancelled")
@@ -1752,12 +1795,16 @@ class VoicePELink:
                     and (closing or not self._stop_cancelled)
                 )
 
+            success = False
             try:
-                return await asyncio.wait_for(exchange(), timeout=3.0)
+                success = await asyncio.wait_for(exchange(), timeout=3.0)
+                return success
             except TimeoutError:
                 return False
             finally:
                 self._stop_expected = None
+                if not success:
+                    self._stop_playback_allowed = False
 
     def accepts_stop_fault(self, event: object) -> bool:
         """Revalidate at delivery so a queued callback cannot cross rearm/reconnect."""
@@ -1827,6 +1874,7 @@ class VoicePELink:
             if self._stop_session is None and outcome in (
                 "armed",
                 "disabled",
+                "live",
                 "cancelled",
                 "stopped",
                 "fault",
@@ -1837,9 +1885,10 @@ class VoicePELink:
                 self._stop_changed.set()
             return
         if outcome in ("stopped", "fault") and (
-            self._stop_armed or self._stop_expected is not None
+            self._stop_armed or self._stop_playback_allowed or self._stop_expected is not None
         ):
             self._stop_armed = False
+            self._stop_playback_allowed = False
             self._stop_cancelled = True
             self._stop_outcome = outcome
             self._stop_changed.set()
@@ -1863,6 +1912,9 @@ class VoicePELink:
         if outcome != expected[2] and not (expected[2] == "disabled" and outcome == "cancelled"):
             return
         self._stop_armed = outcome == "armed"
+        self._stop_playback_allowed = (
+            outcome == "live" and self.supports_live_semantic_stop and not self._stop_cancelled
+        )
         self._stop_cancelled = self._stop_cancelled or outcome == "cancelled"
         self._stop_outcome = outcome
         self._stop_changed.set()
@@ -1893,6 +1945,8 @@ class VoicePELink:
                         ),
                     )
         if outcome in ("stopped", "stopped_word", "fault"):
+            if self._reply_stop_context == (self._stop_session, self._stop_generation):
+                self._revoke_live_admission()
             self._reply_phase = outcome
             self._reply_stopped.set()
             if outcome == "fault" and self.on_event and self._reply_id is not None:
@@ -2027,9 +2081,12 @@ class VoicePELink:
 
     async def stop_playback(self, *, playback_id: str | None = None) -> bool:
         """True only for a correlated firmware drain ACK; send success is insufficient."""
+        if playback_id is None or playback_id == self._reply_id:
+            self._revoke_live_admission()
         async with self._reply_stop_lock:
             if playback_id is not None and playback_id != self._reply_id:
                 return False
+            self._stop_playback_allowed = False
             if self._client is None or self._reply_status_key is None:
                 return False
             if self._reply_id is None and self._orphan_reply_token:

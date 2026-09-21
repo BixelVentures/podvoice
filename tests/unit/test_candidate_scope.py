@@ -1,3 +1,4 @@
+import pytest
 from scripts.candidate_scope import classify_candidate
 
 
@@ -182,6 +183,8 @@ def _coupled_repo(tmp_path, domains=("physical_output", "rearm")):
         if domains == ("audio_input", "physical_output")
         else "MCP end_conversation\n"
         if domains == ("ha_tools", "realtime_semantics")
+        else "playback end_conversation rearm\n"
+        if domains == ("physical_output", "realtime_semantics", "rearm")
         else "mic_gate MCP playback response.done rearm\n"
         if len(domains) == 5
         else "playback = 1\nrearm = 1\n"
@@ -365,14 +368,20 @@ def test_semantic_tool_coupling_requires_exact_review(tmp_path):
     assert not inspect_repository(tmp_path, base).passed
 
 
-def test_stop_whole_chain_requires_exact_review_and_preserves_fail_closed_guards(tmp_path):
+@pytest.mark.parametrize(
+    "domains",
+    [
+        ("physical_output", "realtime_semantics", "rearm"),
+        ("audio_input", "ha_tools", "physical_output", "realtime_semantics", "rearm"),
+    ],
+)
+def test_stop_whole_chain_requires_exact_review_and_preserves_fail_closed_guards(tmp_path, domains):
     from scripts.candidate_scope import inspect_repository
 
-    domains = ("audio_input", "ha_tools", "physical_output", "realtime_semantics", "rearm")
     source, base, _git, record, write = _coupled_repo(tmp_path, domains)
     assert inspect_repository(tmp_path, base).domains == domains
     (tmp_path / "docs/STATUS.md").unlink()
-    assert not inspect_repository(tmp_path, base).passed  # no automatic five-domain exemption
+    assert not inspect_repository(tmp_path, base).passed  # no automatic multidomain exemption
     write(record)
     for key, value in (
         ("fingerprint", "stale"),

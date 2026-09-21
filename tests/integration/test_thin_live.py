@@ -21,6 +21,13 @@ from gatekeeper.tools import ToolRouter
 class Device(FakeVoicePELink):
     on_media_state = None
     supports_live_wav = True
+    supports_live_semantic_stop = True
+    _stop_generation = 0
+
+    async def set_live_context(self):
+        self._stop_generation += 1
+        return True
+
     supports_playback_ids = True
 
     async def play_url(self, url, *, playback_id=None):
@@ -554,7 +561,7 @@ async def test_usage_survives_reader_cancellation_at_stop_and_repeated_flush(tmp
 
 
 @pytest.mark.asyncio
-async def test_correlated_local_stop_is_armed_before_first_audio():
+async def test_live_admission_disables_keyword_and_retains_correlated_device_safety():
     from types import SimpleNamespace
 
     class StopDevice(Device):
@@ -571,7 +578,8 @@ async def test_correlated_local_stop_is_armed_before_first_audio():
     await session.start()
     try:
         await session.wake()
-        assert session._playback_lease is None and session._local_stop_armed
+        assert session._playback_lease is None and not session._local_stop_armed
+        assert link.stop_word_states == []
         session._on_device_event(
             "kitchen",
             SimpleNamespace(
@@ -591,7 +599,7 @@ async def test_correlated_local_stop_is_armed_before_first_audio():
         )
         assert session._transport_closing and session._live_stream.cancelled
         await until(lambda: link.rearm_calls == 1)
-        assert link.stop_word_states == [True, False]
+        assert link.stop_word_states == [False]
     finally:
         await session.aclose()
 

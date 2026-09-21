@@ -226,6 +226,9 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
             not in {
                 ("physical_output", "rearm"),
                 ("ha_tools", "realtime_semantics"),
+                # Alpha separates keyword eligibility from playback admission and
+                # model-owned closure; the exact independent review remains required.
+                ("physical_output", "realtime_semantics", "rearm"),
                 # The approved Stop contract spans warm firmware inference, listening
                 # admission, physical silence/rearm and model-owned semantic closure.
                 # This tuple still needs the exact independent whole-tree review below.
