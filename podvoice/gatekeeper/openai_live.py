@@ -696,6 +696,11 @@ class OpenAILiveSession:
                 error_class=name
                 if name in _DIAGNOSTIC_EXCEPTION_CLASSES
                 else self._diagnostic_ref(name),
+                **(
+                    {"protocol_error_ref": self._diagnostic_ref(str(exc))}
+                    if isinstance(exc, LiveProtocolError)
+                    else {}
+                ),
                 **fields,
             )
             raise
@@ -777,6 +782,11 @@ class OpenAILiveSession:
                 error_class=name
                 if name in _DIAGNOSTIC_EXCEPTION_CLASSES
                 else self._diagnostic_ref(name),
+                **(
+                    {"protocol_error_ref": self._diagnostic_ref(str(exc))}
+                    if isinstance(exc, LiveProtocolError)
+                    else {}
+                ),
             )
             failure = (
                 exc

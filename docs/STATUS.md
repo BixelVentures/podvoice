@@ -40,6 +40,17 @@ Brugerens drøftelse af stille afslutning efter “tak for det” er KUN debat: 
 fastgate kører og én releasegate følger. Musikfejlens årsag og alle fysiske gates
 står fortsat åbne. Det godkendte Alpha-goal er aktivt, ikke fuldført.
 
+21/9 fastgate: Ruff/format/mypy PASS. Første pytest lå under sandbox uden lokale
+socketrettigheder og indsamlede én assertion mens provideragentens sidste testedit
+landede; ingen produktpatch udledt. Den invaliderede pytest-del blev kørt igen på
+frosne bits med lokale testporte: hele tests PASS. Derefter ét afgrænset diagnostik-
+hul rettet: interne LiveProtocolError-årsager får hashed protocol_error_ref, også før
+providerens indre stadier. Nye145 provider-/6 målrettede Thin-prøver PASS. Uafhængig
+Astra re-review GO, P0/P1/P2=0. Endeligt frosne produkt-SHA256:
+openai_live b67a2ebc382fa89203ea7ef378a065754b408ee60eb091b75e28fdbf17997815;
+thin88d1cf10b0706c48000904aaade78d336f2ba1c3f11943cc18d6c593901edce1.
+Releasegaten startes nu én gang på dette diff. Ingen fysisk prøve kørt i arbejdet.
+
 ## Aktiv lead-beslutning — tavs fysisk højttaler efter Alpha-installation, 21/9
 
 Lead Codex. Installeret add-on 1.13.88 og firmware podvoice_build_11382_livewav2

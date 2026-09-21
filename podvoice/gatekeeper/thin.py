@@ -122,6 +122,7 @@ _PHYSICAL_PROVIDER_TRACE_FIELDS = (
     "error_class",
     "provider_error_code",
     "provider_error_type",
+    "protocol_error_ref",
 )
 
 _LOG = logging.getLogger("podvoice.thin")
@@ -2218,6 +2219,8 @@ class ThinSession:
 
     async def _run_live_batch(self, batch: LiveToolBatch, epoch: float) -> None:
         """Execute a completed provider batch under the existing server policy."""
+        from .openai_live import LiveProtocolError
+
         revision = self._live_backend_revisions.get(batch.response_id)
         reviewed: _LiveReview | None = None
         stage = "admission"
@@ -2231,7 +2234,9 @@ class ThinSession:
         )
         session_ref = self._history_session
 
-        def observe(outcome: str, error_class: str | None = None) -> None:
+        def observe(
+            outcome: str, error_class: str | None = None, protocol_error_ref: str | None = None
+        ) -> None:
             fields = {
                 "stage": stage,
                 "outcome": outcome,
@@ -2241,6 +2246,7 @@ class ThinSession:
                 "completed_results": completed_results,
                 "successful_results": successful_results,
                 "error_class": error_class,
+                "protocol_error_ref": protocol_error_ref,
             }
             try:
                 _LOG.info("thin: live batch %s [session=%s]", fields, session_ref)
@@ -2496,6 +2502,11 @@ class ThinSession:
                 if type(exc).__module__ == "builtins"
                 else "sha256:"
                 + hashlib.sha256(type(exc).__name__.encode(errors="replace")).hexdigest()[:16],
+                protocol_error_ref=(
+                    "sha256:" + hashlib.sha256(str(exc).encode(errors="replace")).hexdigest()[:16]
+                    if isinstance(exc, LiveProtocolError)
+                    else None
+                ),
             )
             if current():
                 self._request_close("live-tool-failed", error_kind="connection")

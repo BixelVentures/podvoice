@@ -2377,3 +2377,39 @@ async def test_late_live_batch_error_is_logged_without_crossing_session_trace(mo
         assert "private late failure" not in caplog.text
     finally:
         await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_live_result_entry_protocol_error_is_correlated_without_raw_message(
+    monkeypatch, caplog
+):
+    import hashlib
+
+    from gatekeeper.openai_live import LiveProtocolError
+
+    session, sdk, _, tools, _ = build()
+    message = "live_session_not_accepting_commands"
+
+    async def fail_entry(*args, **kwargs):
+        raise LiveProtocolError(message)
+
+    monkeypatch.setattr(session.live_brain, "send_tool_results", fail_entry)
+    caplog.set_level("INFO", logger="podvoice.thin")
+    await session.start()
+    try:
+        await session.wake()
+        await emit(sdk, created(), call(arguments="{}"), terminal())
+        await until(lambda: session._close_task is not None)
+        await asyncio.wait_for(asyncio.shield(session._close_task), 2)
+        assert tools.calls == [("status", {})]
+        expected = "sha256:" + hashlib.sha256(message.encode()).hexdigest()[:16]
+        failed = [
+            r.message
+            for r in caplog.records
+            if r.name == "podvoice.thin" and "'outcome': 'failed'" in r.message
+        ]
+        assert len(failed) == 1
+        assert expected in failed[0] and message not in failed[0]
+        assert "'stage': 'result_submit'" in failed[0]
+    finally:
+        await session.aclose()

@@ -2067,3 +2067,38 @@ async def test_diagnostics_close_send_failure_still_releases_budget_and_does_not
     assert not session.provider_budget.snapshot(session.api_key, session.backend_model)[
         "production_sessions"
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["stage", "reader"])
+@pytest.mark.parametrize(
+    "message", ["live_session_not_accepting_commands", "sk-private-injected-error"]
+)
+async def test_diagnostics_protocol_error_reference_preserves_reason_without_raw_text(
+    path, message, monkeypatch, caplog
+):
+    import hashlib
+
+    caplog.set_level("INFO", logger="gatekeeper.openai_live")
+    session, sdk, rows = diagnostic_wire_provider()
+    await session.connect()
+    failure = LiveProtocolError(message)
+    if path == "stage":
+        with pytest.raises(LiveProtocolError) as caught:
+            with session._diagnostic_stage("live_tool_result", "send", generation=1):
+                raise failure
+        assert caught.value is failure
+    else:
+        monkeypatch.setattr(session, "_handle", AsyncMock(side_effect=failure))
+        await sdk.incoming.put({"type": "session.usage.updated", "usage": {"seconds": 1}})
+        await session._reader
+        with pytest.raises(LiveProtocolError) as caught:
+            await anext(session.events())
+        assert caught.value is failure
+    expected = "sha256:" + hashlib.sha256(message.encode()).hexdigest()[:16]
+    errors = [row for row in rows if row["outcome"] == "failed"]
+    assert len(errors) == 1
+    assert errors[0]["error_class"] == "LiveProtocolError"
+    assert errors[0]["protocol_error_ref"] == expected
+    assert message not in caplog.text + str(rows)
+    await session._release()
