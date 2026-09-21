@@ -1,3 +1,11 @@
+## 1.13.89 — Afgrænset GPT-Live fejldiagnostik
+
+- Registrerer sikre, korrelerede trin mellem værktøjshandling, resultat, backend-
+  fortsættelse og providerlukning, så fejl efter en udført handling kan forklares.
+- Skelner logget resultat fra efterfølgende forbindelsesfejl uden automatisk replay.
+- Ingen ændring af lyd, Stop, timeout, model eller samtaleadfærd. Dette er en
+  diagnosekandidat; den kendte Alpha-fejl efter musikpause er endnu ikke rettet.
+
 ## 1.13.88 — Valgfri GPT-Live Alpha
 
 - Tilføjer en eksplicit Alpha ON/OFF-indstilling. OFF beholder Realtime-vejen;

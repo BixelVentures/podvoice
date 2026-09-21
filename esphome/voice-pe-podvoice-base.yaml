@@ -6,7 +6,8 @@
 # b68a8e8df8dc5471bf23706503c04c736182d93aa7a0c78724331146b2dc2c68
 #
 # Intentional delta: the center button and micro wake word emit PodVoice events;
-# neither starts the stock Home Assistant voice pipeline. Keep the rest byte-for-byte
+# neither starts the stock Home Assistant voice pipeline. Boot is normalized to a list
+# so package overlays preserve the upstream hardware initialization. Keep other content
 # aligned with the pinned upstream file so hardware/audio maintenance remains auditable.
 
 substitutions:
@@ -51,20 +52,21 @@ esphome:
   name_add_mac_suffix: true
   min_version: 2026.5.0
   on_boot:
-    priority: 375
-    then:
-      # Run the script to refresh the LED status
-      - script.execute: control_leds
-      - delay: 1s
-      - switch.turn_on: internal_speaker_amp
-      # If after 10 minutes, the device is still initializing (It did not yet connect to Home Assistant), turn off the init_in_progress variable and run the script to refresh the LED status
-      - delay: 10min
-      - if:
-          condition:
-            lambda: return id(init_in_progress);
-          then:
-            - lambda: id(init_in_progress) = false;
-            - script.execute: control_leds
+    # Keep a list so package overlays append boot hooks without replacing this one.
+    - priority: 375
+      then:
+        # Run the script to refresh the LED status
+        - script.execute: control_leds
+        - delay: 1s
+        - switch.turn_on: internal_speaker_amp
+        # If after 10 minutes, the device is still initializing (It did not yet connect to Home Assistant), turn off the init_in_progress variable and run the script to refresh the LED status
+        - delay: 10min
+        - if:
+            condition:
+              lambda: return id(init_in_progress);
+            then:
+              - lambda: id(init_in_progress) = false;
+              - script.execute: control_leds
 
 esp32:
   board: esp32-s3-devkitc-1

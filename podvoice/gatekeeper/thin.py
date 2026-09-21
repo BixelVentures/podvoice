@@ -80,6 +80,12 @@ _PHYSICAL_PROVIDER_TRACE_KINDS = frozenset(
         "response_done",
         "duplicate_response_done",
         "production_capacity_wait",
+        "live_tool_result",
+        "live_backend_continue",
+        "live_close",
+        "live_reader",
+        "live_release",
+        "live_provider_error",
     }
 )
 _PHYSICAL_PROVIDER_TRACE_FIELDS = (
@@ -109,6 +115,14 @@ _PHYSICAL_PROVIDER_TRACE_FIELDS = (
     "audio_start_ms",
     "audio_end_ms",
     "generation",
+    "stage",
+    "outcome",
+    "provider_session_id",
+    "delegation_id",
+    "error_class",
+    "provider_error_code",
+    "provider_error_type",
+    "protocol_error_ref",
 )
 
 _LOG = logging.getLogger("podvoice.thin")
@@ -2205,8 +2219,47 @@ class ThinSession:
 
     async def _run_live_batch(self, batch: LiveToolBatch, epoch: float) -> None:
         """Execute a completed provider batch under the existing server policy."""
+        from .openai_live import LiveProtocolError
+
         revision = self._live_backend_revisions.get(batch.response_id)
         reviewed: _LiveReview | None = None
+        stage = "admission"
+        completed_results = 0
+        successful_results = 0
+        call_ref = ""
+        # Hash externally supplied identifiers: enough for correlation without
+        # permitting provider strings to inject secrets or newlines into logs.
+        response_ref = (
+            "sha256:" + hashlib.sha256(batch.response_id.encode(errors="replace")).hexdigest()[:16]
+        )
+        session_ref = self._history_session
+
+        def observe(
+            outcome: str, error_class: str | None = None, protocol_error_ref: str | None = None
+        ) -> None:
+            fields = {
+                "stage": stage,
+                "outcome": outcome,
+                "response_ref": response_ref,
+                "call_ref": call_ref,
+                "batch_generation": batch.generation,
+                "completed_results": completed_results,
+                "successful_results": successful_results,
+                "error_class": error_class,
+                "protocol_error_ref": protocol_error_ref,
+            }
+            try:
+                _LOG.info("thin: live batch %s [session=%s]", fields, session_ref)
+                if (
+                    self._epoch != epoch
+                    or self._history_session != session_ref
+                    or not self.live_alpha
+                    or self.brain._connection_generation != batch.generation
+                ):
+                    return  # Never attach old work to the next conversation's trace.
+                self._trace_event("live_batch_diagnostic", **fields)
+            except (Exception, asyncio.CancelledError):
+                pass  # A synchronous diagnostic sink cannot alter runtime work.
 
         def current() -> bool:
             return (
@@ -2235,9 +2288,11 @@ class ThinSession:
             async with self._tool_lock:
                 if not current():
                     return
+                observe("started")
                 await self.brain.admit_tool_batch(batch.response_id, batch.generation)
                 if not current():
                     return
+                stage = "classify_batch"
                 calls = batch.calls
                 names = [call.name for call in calls]
                 review_denial = None
@@ -2278,6 +2333,11 @@ class ThinSession:
                 ):
                     self._discard_live_confirmation()
                 for wire_call, call in zip(batch.calls, calls, strict=True):
+                    call_ref = (
+                        "sha256:"
+                        + hashlib.sha256(wire_call.id.encode(errors="replace")).hexdigest()[:16]
+                    )
+                    stage = "prepare_call"
                     read_only = assess_tool(call.name, call.args).risk is Risk.READ_ONLY
                     if not current():
                         return
@@ -2301,6 +2361,7 @@ class ThinSession:
                         if call.name == APPROVE_ACTION_TOOL and offered is None:
                             self._discard_live_confirmation()
                     elif call.name == APPROVE_ACTION_TOOL:
+                        stage = "approve_dispatch"
                         result = await self._approve_live_proposal(
                             call, batch, revision, dispatch_current
                         )
@@ -2327,6 +2388,8 @@ class ThinSession:
                         context = ExecutionContext(
                             self._history_session, f"live:{batch.generation}:{owner}", "live"
                         )
+                        stage = "dispatch"
+                        observe("started")
                         result = await self.tools.dispatch(
                             call.name,
                             call.args,
@@ -2340,6 +2403,8 @@ class ThinSession:
                                 )
                             ),
                         )
+                        stage = "dispatch_returned"
+                        observe("returned")
                         if result.get("needs_confirmation"):
                             challenge_id = result.get("approval", {}).get("challenge_id", "")
                             policy = self.tools.execution_policy
@@ -2362,6 +2427,10 @@ class ThinSession:
                                     "live_confirmation_unavailable",
                                     "Confirmation is unavailable for this request. No action was executed.",
                                 )
+                    completed_results += 1
+                    successful_results += int(result.get("ok") is True)
+                    stage = "result_publish"
+                    observe("result_ready")
                     if self.hub is not None:
                         self.hub.incr("tool_calls")
                         self.hub.incr("tool_ok" if result.get("ok") else "tool_error")
@@ -2369,6 +2438,7 @@ class ThinSession:
                     results.append({"id": wire_call.id, "name": wire_call.name, "response": result})
                     if not current():
                         return  # Never replay an action whose result became unavailable.
+                stage = "terminal_bookkeeping"
                 if (
                     proposal is not None
                     and dispatch_current()
@@ -2417,12 +2487,27 @@ class ThinSession:
                     # Release review ownership before its result continuation; it
                     # cannot become another review or retire a newly created proposal.
                     self._live_review = None
+                stage = "result_submit"
+                observe("started")
                 await self.brain.send_tool_results(
                     batch.response_id, results, generation=batch.generation
                 )
+                observe("returned")
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as exc:
+            observe(
+                "failed",
+                type(exc).__name__
+                if type(exc).__module__ == "builtins"
+                else "sha256:"
+                + hashlib.sha256(type(exc).__name__.encode(errors="replace")).hexdigest()[:16],
+                protocol_error_ref=(
+                    "sha256:" + hashlib.sha256(str(exc).encode(errors="replace")).hexdigest()[:16]
+                    if isinstance(exc, LiveProtocolError)
+                    else None
+                ),
+            )
             if current():
                 self._request_close("live-tool-failed", error_kind="connection")
         finally:

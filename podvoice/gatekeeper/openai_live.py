@@ -13,9 +13,11 @@ import binascii
 import copy
 import hashlib
 import json
+import logging
 import math
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
@@ -33,6 +35,65 @@ from .provider_budget import (
 )
 from .tool_wire import realtime_function_tool
 from .voice import ToolCall
+
+_LOG = logging.getLogger(__name__)
+# Only fixed machine vocabulary may appear verbatim. Unknown values remain correlatable
+# hashes; provider-supplied IDs, error text and exception messages are never logged.
+_DIAGNOSTIC_ERROR_CODES = frozenset(
+    {
+        "unknown_parameter",
+        "invalid_parameter",
+        "missing_required_parameter",
+        "invalid_value",
+        "invalid_type",
+        "invalid_request_error",
+        "server_error",
+        "rate_limit_exceeded",
+        "insufficient_quota",
+        "authentication_error",
+        "permission_denied",
+        "invalid_api_key",
+        "model_not_found",
+        "session_expired",
+    }
+)
+_DIAGNOSTIC_ERROR_TYPES = frozenset(
+    {
+        "invalid_request_error",
+        "server_error",
+        "rate_limit_error",
+        "authentication_error",
+        "permission_error",
+        "insufficient_quota",
+    }
+)
+_DIAGNOSTIC_EXCEPTION_CLASSES = frozenset(
+    {
+        "LiveProtocolError",
+        "CancelledError",
+        "TimeoutError",
+        "ConnectionError",
+        "ConnectionResetError",
+        "ConnectionAbortedError",
+        "BrokenPipeError",
+        "OSError",
+        "ValueError",
+        "TypeError",
+        "RuntimeError",
+        "KeyError",
+        "JSONDecodeError",
+        "APIConnectionError",
+        "APITimeoutError",
+        "APIStatusError",
+        "RateLimitError",
+        "BadRequestError",
+        "AuthenticationError",
+        "PermissionDeniedError",
+        "WebSocketConnectionClosedError",
+        "ConnectionClosedError",
+        "ConnectionClosedOK",
+    }
+)
 
 LIVE_PRIOR_TEXT_MAX_MESSAGES = 64
 LIVE_PRIOR_TEXT_MAX_BYTES = 6000
@@ -584,6 +645,99 @@ class OpenAILiveSession:
             raise LiveProtocolError("live_session_not_accepting_commands")
         return self._connection
 
+    @staticmethod
+    def _diagnostic_ref(value: Any) -> str | None:
+        if not isinstance(value, str) or not value:
+            return None
+        return "sha256:" + hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+    def _observe_provider(self, kind: str, *, generation: int | None = None, **fields: Any) -> None:
+        """Bounded milestones only; never audio, transcripts, payloads or recovery."""
+        if generation is not None and generation != self._connection_generation:
+            return
+        try:
+            row = {
+                "kind": kind,
+                "generation": self._connection_generation,
+                "provider_session_id": self._diagnostic_ref(self._usage_session_id),
+                **fields,
+            }
+            for field in ("response_id", "delegation_id", "call_id", "event_id"):
+                if field in row:
+                    row[field] = self._diagnostic_ref(row[field])
+            # Logging and an armed trace consume the same sanitized record.
+            _LOG.log(
+                logging.WARNING if row.get("outcome") == "failed" else logging.INFO,
+                "Live diagnostic: %s",
+                row,
+            )
+            if self.provider_observer is not None:
+                self.provider_observer(dict(row))
+        except (Exception, asyncio.CancelledError):
+            pass  # A synchronous diagnostic callback cannot cancel runtime work.
+
+    @contextmanager
+    def _diagnostic_stage(
+        self, kind: str, stage: str, *, generation: int | None = None, **fields: Any
+    ) -> Iterator[None]:
+        generation = self._connection_generation if generation is None else generation
+        self._observe_provider(
+            kind, stage=stage, outcome="started", generation=generation, **fields
+        )
+        try:
+            yield
+        except BaseException as exc:
+            name = type(exc).__name__
+            self._observe_provider(
+                kind,
+                stage=stage,
+                outcome="cancelled" if isinstance(exc, asyncio.CancelledError) else "failed",
+                generation=generation,
+                error_class=name
+                if name in _DIAGNOSTIC_EXCEPTION_CLASSES
+                else self._diagnostic_ref(name),
+                **(
+                    {"protocol_error_ref": self._diagnostic_ref(str(exc))}
+                    if isinstance(exc, LiveProtocolError)
+                    else {}
+                ),
+                **fields,
+            )
+            raise
+        else:
+            self._observe_provider(
+                kind, stage=stage, outcome="done", generation=generation, **fields
+            )
+
+    def _observe_provider_error(
+        self,
+        event: dict,
+        generation: int,
+        *,
+        stage: str,
+        delegation_id: Any = None,
+        response_id: Any = None,
+    ) -> None:
+        error = event.get("error")
+        error = error if isinstance(error, dict) else {}
+        code, error_type = error.get("code"), error.get("type")
+        self._observe_provider(
+            "live_provider_error",
+            generation=generation,
+            stage=stage,
+            outcome="failed",
+            error_class="LiveProtocolError",
+            provider_error_code=code
+            if isinstance(code, str) and code in _DIAGNOSTIC_ERROR_CODES
+            else self._diagnostic_ref(code),
+            provider_error_type=error_type
+            if isinstance(error_type, str) and error_type in _DIAGNOSTIC_ERROR_TYPES
+            else self._diagnostic_ref(error_type),
+            event_id=error.get("client_event_id") or event.get("client_event_id"),
+            delegation_id=delegation_id,
+            response_id=response_id,
+        )
+
     def _emit(self, event: LiveEvent) -> None:
         try:
             self._queue.put_nowait(event)
@@ -600,6 +754,9 @@ class OpenAILiveSession:
                 async for event in connection:
                     yield event.model_dump()
 
+        self._observe_provider(
+            "live_reader", stage="receive", outcome="started", generation=generation
+        )
         try:
             async for event in incoming():
                 if generation != self._connection_generation or connection is not self._connection:
@@ -609,10 +766,28 @@ class OpenAILiveSession:
                     return
             raise LiveProtocolError("live_socket_without_finalization")
         except asyncio.CancelledError:
+            self._observe_provider(
+                "live_reader", stage="receive", outcome="cancelled", generation=generation
+            )
             raise
         except Exception as exc:
             if generation != self._connection_generation:
                 return
+            name = type(exc).__name__
+            self._observe_provider(
+                "live_reader",
+                stage="receive",
+                outcome="failed",
+                generation=generation,
+                error_class=name
+                if name in _DIAGNOSTIC_EXCEPTION_CLASSES
+                else self._diagnostic_ref(name),
+                **(
+                    {"protocol_error_ref": self._diagnostic_ref(str(exc))}
+                    if isinstance(exc, LiveProtocolError)
+                    else {}
+                ),
+            )
             failure = (
                 exc
                 if isinstance(exc, LiveProtocolError)
@@ -633,6 +808,9 @@ class OpenAILiveSession:
             if generation == self._connection_generation:
                 self._cancel_terminal_receipt()
                 self._closed.set()
+                self._observe_provider(
+                    "live_reader", stage="exit", outcome="done", generation=generation
+                )
 
     async def _handle(self, event: dict, generation: int) -> None:
         if generation != self._connection_generation or self._closed.is_set():
@@ -645,6 +823,7 @@ class OpenAILiveSession:
         ):
             raise LiveProtocolError("live_event_before_readiness")
         if kind == "error":
+            self._observe_provider_error(event, generation, stage="session")
             self._cancel_terminal_receipt()
             raise LiveProtocolError("live_provider_error")
         if kind == "session.started":
@@ -718,6 +897,9 @@ class OpenAILiveSession:
             self._usage_voice_seconds = float(seconds)
             self._emit(LiveUsage(float(seconds), final, generation))
             if final:
+                self._observe_provider(
+                    "live_close", stage="terminal", outcome="received", generation=generation
+                )
                 self._cancel_terminal_receipt()
                 self.final_usage_seconds = float(seconds)
                 self._close_requested = True
@@ -768,6 +950,15 @@ class OpenAILiveSession:
         event = envelope["event"]
         kind = event["type"]
         if kind == "error":
+            delegation = envelope.get("delegation_id")
+            state = self._responses.get(delegation) if isinstance(delegation, str) else None
+            self._observe_provider_error(
+                event,
+                generation,
+                stage="backend",
+                delegation_id=delegation,
+                response_id=state.id if state is not None else None,
+            )
             raise LiveProtocolError("live_backend_error")
         # Unknown nested informational/delta events require no task correlation.
         if kind not in {
@@ -863,6 +1054,15 @@ class OpenAILiveSession:
             LiveBackendComplete(delegation, state.id, status, usage, generation, len(state.calls))
         )
         if status != "completed":
+            details = response.get("status_details")
+            if isinstance(details, dict):
+                self._observe_provider_error(
+                    details,
+                    generation,
+                    stage="backend_terminal",
+                    delegation_id=delegation,
+                    response_id=state.id,
+                )
             raise LiveProtocolError("live_backend_not_completed")
         receipt = self._terminal_receipt
         if (
@@ -1149,28 +1349,50 @@ class OpenAILiveSession:
             ids = [call.id for call in batch.event.calls]
             if [result.get("id") for result in results] != ids:
                 raise LiveProtocolError("live_result_batch_mismatch")
-            outputs = [bounded_tool_output(result.get("response")) for result in results]
-            if any(len(output.encode("utf-8")) > self.result_byte_limit for output in outputs):
-                raise LiveProtocolError("live_result_too_large")
+            with self._diagnostic_stage(
+                "live_tool_result",
+                "encode",
+                generation=generation,
+                response_id=response_id,
+                delegation_id=batch.event.delegation_id,
+            ):
+                outputs = [bounded_tool_output(result.get("response")) for result in results]
+                if any(len(output.encode("utf-8")) > self.result_byte_limit for output in outputs):
+                    raise LiveProtocolError("live_result_too_large")
             batch.submitting = True
             async with self._send_lock:
                 async with asyncio.timeout(self.timeout_s):
                     for call_id, output in zip(ids, outputs, strict=True):
-                        connection = self._active(generation)
-                        await connection.response.item.create(
-                            item={
-                                "type": "function_call_output",
-                                "call_id": call_id,
-                                "output": output,
-                            }
-                        )
+                        with self._diagnostic_stage(
+                            "live_tool_result",
+                            "send",
+                            generation=generation,
+                            response_id=response_id,
+                            delegation_id=batch.event.delegation_id,
+                            call_id=call_id,
+                        ):
+                            connection = self._active(generation)
+                            await connection.response.item.create(
+                                item={
+                                    "type": "function_call_output",
+                                    "call_id": call_id,
+                                    "output": output,
+                                }
+                            )
                     self._active(generation)
                     self._batches.pop(response_id, None)
                     receipt = self._terminal_receipt
                     if receipt is not None and receipt.response_id == response_id:
                         receipt.submitted = True
                     self._continuation_pending = True
-                    await self._continue_backend(generation)
+                    with self._diagnostic_stage(
+                        "live_tool_result",
+                        "continue",
+                        generation=generation,
+                        response_id=response_id,
+                        delegation_id=batch.event.delegation_id,
+                    ):
+                        await self._continue_backend(generation)
         except BaseException:
             self._cancel_terminal_receipt()
             raise
@@ -1183,6 +1405,12 @@ class OpenAILiveSession:
             or self._responses
             or self._batches
         ):
+            self._observe_provider(
+                "live_backend_continue",
+                stage="send",
+                outcome="deferred",
+                generation=generation,
+            )
             return
         connection = self._active(generation)
         event_id = self._text_continuation_id
@@ -1198,11 +1426,17 @@ class OpenAILiveSession:
         self._continuation_pending = False
         self._continuation_inflight = True
         self._text_continuation_id = None
-        async with asyncio.timeout(self.timeout_s):
-            if event_id is None:
-                await connection.response.create()
-            else:
-                await connection.response.create(event_id=event_id)
+        with self._diagnostic_stage(
+            "live_backend_continue",
+            "send",
+            generation=generation,
+            event_id=event_id,
+        ):
+            async with asyncio.timeout(self.timeout_s):
+                if event_id is None:
+                    await connection.response.create()
+                else:
+                    await connection.response.create(event_id=event_id)
 
     async def append_instructions(self, text: str) -> None:
         generation = self._connection_generation
@@ -1221,26 +1455,28 @@ class OpenAILiveSession:
             self._append_waiters.pop(event_id, None)
 
     async def request_close(self) -> None:
-        self._next_confirmation = None
-        self._next_confirmation_text = ()
-        self._cancel_terminal_receipt()
-        startup = self._startup_task
-        if startup is not None and startup is not asyncio.current_task() and not startup.done():
-            self._close_requested = True
-            startup.cancel()
-            done, _ = await asyncio.wait([startup], timeout=self.timeout_s)
-            if not done:
-                raise LiveProtocolError("live_startup_close_timeout")
-            await asyncio.gather(startup, return_exceptions=True)
-            return
-        if self._close_requested:
-            return
-        self._close_requested = True  # Synchronize before any await; freezes new work.
-        if self._connection is not None:
-            async with asyncio.timeout(self.timeout_s):
-                if self.transport == "webrtc":
-                    self._webrtc_close_sent = True
-                await self._connection.session.close()
+        with self._diagnostic_stage("live_close", "request"):
+            self._next_confirmation = None
+            self._next_confirmation_text = ()
+            self._cancel_terminal_receipt()
+            startup = self._startup_task
+            if startup is not None and startup is not asyncio.current_task() and not startup.done():
+                self._close_requested = True
+                startup.cancel()
+                done, _ = await asyncio.wait([startup], timeout=self.timeout_s)
+                if not done:
+                    raise LiveProtocolError("live_startup_close_timeout")
+                await asyncio.gather(startup, return_exceptions=True)
+                return
+            if self._close_requested:
+                return
+            self._close_requested = True  # Synchronize before any await; freezes new work.
+            if self._connection is not None:
+                async with asyncio.timeout(self.timeout_s):
+                    if self.transport == "webrtc":
+                        self._webrtc_close_sent = True
+                    with self._diagnostic_stage("live_close", "send"):
+                        await self._connection.session.close()
 
     async def events(self) -> AsyncIterator[LiveEvent]:
         queue, generation = self._queue, self._connection_generation
@@ -1264,9 +1500,10 @@ class OpenAILiveSession:
                 await self.request_close()
                 if self._connection is None and self._reader is None:
                     return  # Startup released; absence of final usage remains unconfirmed.
-                await asyncio.wait_for(self._closed.wait(), self.timeout_s)
-                if self.final_usage_seconds is None:
-                    raise LiveProtocolError(self.last_error or "live_finalization_missing")
+                with self._diagnostic_stage("live_close", "wait_terminal"):
+                    await asyncio.wait_for(self._closed.wait(), self.timeout_s)
+                    if self.final_usage_seconds is None:
+                        raise LiveProtocolError(self.last_error or "live_finalization_missing")
             finally:
                 startup = self._startup_task
                 if startup is None or startup.done():
@@ -1274,52 +1511,59 @@ class OpenAILiveSession:
                 # A cancellation-resistant startup retains ownership until its own cleanup.
 
     async def _release(self) -> None:
-        self._next_confirmation = None
-        self._next_confirmation_text = ()
-        self._cancel_terminal_receipt()
-        self._close_requested = True
-        if (
-            self.transport == "webrtc"
-            and self._connection is not None
-            and self.final_usage_seconds is None
-        ):
-            # _closed also means receiver failure, not provider finalization. A
-            # separate WebRTC primary still needs an explicit session.close;
-            # closing the sideband socket alone does not close that session.
-            # If the reader ended, retain unknown final usage after this attempt.
+        with self._diagnostic_stage("live_release", "release"):
+            self._next_confirmation = None
+            self._next_confirmation_text = ()
+            self._cancel_terminal_receipt()
+            self._close_requested = True
+            if (
+                self.transport == "webrtc"
+                and self._connection is not None
+                and self.final_usage_seconds is None
+            ):
+                # _closed also means receiver failure, not provider finalization. A
+                # separate WebRTC primary still needs an explicit session.close;
+                # closing the sideband socket alone does not close that session.
+                # If the reader ended, retain unknown final usage after this attempt.
+                try:
+                    async with asyncio.timeout(self.timeout_s):
+                        if not self._webrtc_close_sent:
+                            self._webrtc_close_sent = True
+                            with self._diagnostic_stage("live_close", "release_send"):
+                                await self._connection.session.close()
+                        with self._diagnostic_stage("live_close", "release_wait_terminal"):
+                            await self._closed.wait()
+                except Exception:
+                    self.last_error = self.last_error or "live_startup_finalization_missing"
+            if self._ready is not None:
+                if self._ready.done() and not self._ready.cancelled():
+                    self._ready.exception()  # Account for startup failures before its first await.
+                elif not self._ready.done():
+                    self._ready.cancel()
+            if self._reader is not None:
+                with self._diagnostic_stage("live_release", "reader"):
+                    self._reader.cancel()
+                    await asyncio.gather(self._reader, return_exceptions=True)
+                    self._reader = None
+            for waiter in self._append_waiters.values():
+                if not waiter.done():
+                    waiter.cancel()
+            self._append_waiters.clear()
             try:
                 async with asyncio.timeout(self.timeout_s):
-                    if not self._webrtc_close_sent:
-                        self._webrtc_close_sent = True
-                        await self._connection.session.close()
-                    await self._closed.wait()
-            except Exception:
-                self.last_error = self.last_error or "live_startup_finalization_missing"
-        if self._ready is not None:
-            if self._ready.done() and not self._ready.cancelled():
-                self._ready.exception()  # Account for startup failures before its first await.
-            elif not self._ready.done():
-                self._ready.cancel()
-        if self._reader is not None:
-            self._reader.cancel()
-            await asyncio.gather(self._reader, return_exceptions=True)
-            self._reader = None
-        for waiter in self._append_waiters.values():
-            if not waiter.done():
-                waiter.cancel()
-        self._append_waiters.clear()
-        try:
-            async with asyncio.timeout(self.timeout_s):
-                if self._manager is not None:
-                    await self._manager.__aexit__(None, None, None)
-        finally:
-            self._manager = None
-            self._connection = None
-            try:
-                if self._client is not None:
-                    async with asyncio.timeout(self.timeout_s):
-                        await self._client.close()
+                    if self._manager is not None:
+                        with self._diagnostic_stage("live_release", "socket"):
+                            await self._manager.__aexit__(None, None, None)
             finally:
-                self._client = None
-                self.provider_budget.release(self._lease)
-                self._lease = None
+                self._manager = None
+                self._connection = None
+                try:
+                    if self._client is not None:
+                        async with asyncio.timeout(self.timeout_s):
+                            with self._diagnostic_stage("live_release", "client"):
+                                await self._client.close()
+                finally:
+                    self._client = None
+                    with self._diagnostic_stage("live_release", "budget"):
+                        self.provider_budget.release(self._lease)
+                        self._lease = None

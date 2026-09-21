@@ -1,5 +1,238 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — Alpha kandidat 1: resultat og lukningsdiagnostik, 21/9
+
+Brugeren har godkendt implementering af den fulde Alpha-plan. Lead Codex starter
+med kandidat1; øvrige runtimeændringer venter på den kendte post-action-fejls
+årsagsgrænse. Observeret kæde: HA HassMediaPause action_done09:46:04.125 →
+live-tool-failed09:46:05.204 → provider-close timeout09:46:13.350 → rearm09:46:14.786.
+Den konkrete exception skjules. Hypotese: fejl mellem afsluttet dispatch og
+backend-fortsættelse; SDK-serialisering er separat bevist, faktisk serveraccept ukendt.
+Kæde dækkes fra brugerinput/generation → completed/admission → dispatch/result →
+provider continuation/lyd → close-send/terminal/socket-release → fysisk stop/rearm.
+Invarianter: én Thin-ejer, ingen replay af udført handling, autorisation bevaret,
+stale-generation isoleret, fysisk afslutning ikke afledt af provider/UI.
+Første ændring er udelukkende redigeret diagnostik: statiske stadier og fejltyper,
+korrelationsidentitet, providerfejlkode uden tekst/payload, close-milestones.
+Ingen ændring i timeout, gain, prompt, payloadform, Stop, transport eller fallback.
+Regressionsplan: rigtige SDK-wirekald, fejl før/efter output/continuation, observerfejl
+uden adfærdseffekt, ingen hemmeligheder i diagnostik, current/stale tool-failure og
+én dispatch, stop/cancel under close. Målrettet gate, fastgate, uafhængig Astra-review;
+release først efter diff-freeze. Fysisk gate er IKKE bestået; ny diagnostik kræver
+installeret exact artifact og frisk korreleret prøve før årsagspatch. Ukendt årsag
+må ikke omgås med næste symptompatch. Rollback til dokumenteret .88/amp_boot_v1;
+ingen fysisk accept arves. Ingen nye testlyde eller musikstart planlagt.
+
+21/9 kandidat1 implementeret som1.13.89 diagnose-only. OpenAILiveSession logger
+redigerede stage-milestones og aktiverer provider_observer; IDs er SHA256-referencer,
+maskinfejlkoder allowlistes, ukendte værdier hashes. Ingen payload/exceptionmessage,
+lyd eller transcript i den nye diagnostik. Thin registrerer resultatantal og præcist
+stadie, også ved sen fejl, men gamle sessioner kan ikke få trace/close ind i næste.
+Observer- og logsinkfejl kan ikke ændre dispatch/cancellation. Provider141 tests PASS;
+hele ThinLive109 PASS før sidste encoding-hardening, fokuserede5 PASS. RealSDK bruges
+over offline socket; det er ikke server- eller fysisk bevis. Uafhængig Astra
+alpha_candidate1_review GO efter rettelse af alle findings; P0/P1/P2=0.
+Review SHA256 openai_live21cd04e021d17d092ab320eff01747837b8a7330d42bb8ff8072529c1f88bfd7,
+thin331b23b0ddbecbc49d0e1ecf11aa2e473b4f04806f8a741575fc0aa31173f96d.
+Pakning .89 matcher pyproject/config/__version__; ingen ny firmware-OTA krævet.
+Brugerens drøftelse af stille afslutning efter “tak for det” er KUN debat: ingen
+ændring af instruktion eller afslutningspolitik i kandidat1. Produktdiff frosset;
+fastgate kører og én releasegate følger. Musikfejlens årsag og alle fysiske gates
+står fortsat åbne. Det godkendte Alpha-goal er aktivt, ikke fuldført.
+
+21/9 fastgate: Ruff/format/mypy PASS. Første pytest lå under sandbox uden lokale
+socketrettigheder og indsamlede én assertion mens provideragentens sidste testedit
+landede; ingen produktpatch udledt. Den invaliderede pytest-del blev kørt igen på
+frosne bits med lokale testporte: hele tests PASS. Derefter ét afgrænset diagnostik-
+hul rettet: interne LiveProtocolError-årsager får hashed protocol_error_ref, også før
+providerens indre stadier. Nye145 provider-/6 målrettede Thin-prøver PASS. Uafhængig
+Astra re-review GO, P0/P1/P2=0. Endeligt frosne produkt-SHA256:
+openai_live b67a2ebc382fa89203ea7ef378a065754b408ee60eb091b75e28fdbf17997815;
+thin88d1cf10b0706c48000904aaade78d336f2ba1c3f11943cc18d6c593901edce1.
+Releasegaten startes nu én gang på dette diff. Ingen fysisk prøve kørt i arbejdet.
+
+21/9 releasegate på e7b7542 PASS51.1s: Ruff/format, candidate-scope,
+mypy50, unit og integration. Log /private/tmp/pv-alpha89-release.log.
+Ingen SafeEval, da kandidat1 ikke ændrer prompt/schema/semantik. Næste grænse er
+exact-head CI/ARM-image, installation og frisk post-action-prøve; ingen fysisk accept.
+Frisk read-only HA-kontrol: fortsat1.13.88. En senere bruger-session10:16:24–10:17:03
+havde webopslag og model-close/rearm uden den viste tool-fejl; den ophæver ikke de to
+musikfejl eller beviser svarets korrekthed/lyd. Ingen agentudløst lydprøve.
+
+## Aktiv lead-beslutning — tavs fysisk højttaler efter Alpha-installation, 21/9
+
+Lead Codex. Installeret add-on 1.13.88 og firmware podvoice_build_11382_livewav2
+på MAC 20:F8:3B:0A:7E:7A. Brugeren rapporterer normal lyssekvens men ingen tale
+med Alpha ON eller OFF; heller ingen lyd fra panelets højttalertest.
+Frisk OFF-prøve 09:15:11–24: wake, device mic, session.updated accepteret,
+korrekt input “Hvad er seks gange syv?”, completed respons og lydtokens;
+Voice PE henter 64345 B FLAC (114240 B PCM). Firmware melder playback-start,
+UI viser 1664 ms, og normal idle/teardown/rearm følger. Brugerens stilhedsobservation
+modsiger påstanden om hørbar lyd. Native read-only probe på samme MAC viser
+media_player IDLE, volume=1.0, muted=False, mikrofonmute=False. Ingen gainændring,
+genstart, firmwareinstallation eller ny testlyd udført af lead under diagnosen.
+
+Kæde: firmware package-merge/boot → forstærker/DAC → wake/mic → provider → FLAC/WAV
+HTTP/mixer/resampler → output/amp → faktisk lyd → finish/teardown/rearm/næste wake.
+Falsificerbar hypotese: Alphas nye listeformede on_boot i podvoice.yaml erstatter
+basens mappingformede on_boot ved ESPHome package-merge, så amplifier-enable ved
+boot bortfalder. Forstærkeren har ALWAYS_OFF og er internal; softwarevolume og
+playback-events kan derfor stadig se normale ud. Hypotesen afventer verificering
+mod den faktiske ESPHome 2026.6.2 mergefunktion; den er endnu ikke en bevist årsag.
+Invarianter: OFF-bevarelse, én fysisk lydvej, firmware som hardwareejer, fysisk
+lydbevis stærkere end events/UI. Ikke-mål: model, prompt, VAD, gain, timeout,
+transport, mixer eller nye runtimeabstraktioner.
+
+Plan: uafhængigt Astra-review af hypotesen; mindst mulige konfigurationsrettelse,
+regression af den reelt sammenflettede OFF- og Alpha-bootkæde, firmwarebyg og
+relevante gates på frosne bits før installation. Bevar capture-status-init og hele
+basens bootsekvens uden dobbelt amp-init. Ny firmware skal have egen identitet.
+Rollback kræver eksisterende verificeret binær eller nyt verificeret baselinebyg;
+ingen slettet /tmp-artifact må antages tilgængelig. Kandidaten er IKKE fysisk
+testklar; golden chain, 10/10, Alpha-duplex og hastighed er ikke godkendt.
+
+21/9 faktisk årsag bekræftet: ESPHome2026.6.2 merge_config erstatter mapping med
+liste; original307e2f8 mister hardware-boot. Uafhængig Astra silence_boot_audit
+reproducerede fejlen med uændret upstream helper og reviewede den minimale rettelse.
+Base on_boot er nu samme automation i en liste; alle handlinger/prioritet bevaret.
+Alpha annoncerer desuden podvoice_amp_boot_v1 som revisionsidentitet, ikke fysisk
+bevis. 11382-markøren bevares som kompatibilitetsidentitet; ny binær SHA identificerer
+rettelsen. Ingen add-onændring. Den nye regression bruger den faktiske ESPHome
+package-merge for både baseline og nestedAlpha, beviser begge boot-hooks og reproducerer
+den gamle fejl. AGENTS kræver regressionen ved hvert firmwarebyg.
+Genereret main.cpp er uafhængigt kontrolleret for begge prioriteter og amp-enable;
+32 komponentfiler matcher buildkopien. Fastgate PASS116.0s inklusive hele den valgte
+testsuite. ESPHomebyg PASS; rollbackbyg fra preAlpha-parent kører, da gammel binær er
+slettet. Brugeren har eksplicit godkendt installation, når klar. Voice PE volumen
+100→20 procent er sendt og læst tilbage; mute fortsatFalse. Ingen OTA endnu.
+Astra scoped GO til firmware-only-recovery efter artifactkontrol; fysisk lyd/golden/
+10/10 stadig åbent. Diff fryses nu til én releasegate.
+
+21/9 installation gennemført på brugerens eksplicitte godkendelse. Første release-
+precheck afviste gammel Alpha-coupling-record; den er historiseret, og den nye
+firmwareregression er lagt i tests/firmware/boot_package_regression.py. Næste gate
+bestod Ruff/format, scope og mypy50, men fandt en eksisterende tidlig assertion i
+Live-confirmation-testen: _active=False indtræffer før provider-close. Uafhængig
+reviewer ændrede kun testen til bounded await af den eksisterende close-task;
+root gennemgik diffet. Begge parametriseringer PASS, dernæst hele unit+integration
+PASS på de endelige bits; ingen runtimepatch eller gentagen fuld releasegate.
+Firmwarekilde/testrettelse commit9e83a09. Kandidat-OTA3057856bytes,
+SHA256afc70fc46eb7140bf22ff2988662a789149c7aaf888dd10a7129fa70389e1a5c.
+Rollback fra præ-Alpha b3f4bd5,11378, blev genbygget (ikke arvet fysisk godkendt):
+3054096bytes SHA256f1fb0c561c370e45fbfcc6e57f472696ec6db9d7a3f796972a0154c327be65ec.
+Begge binærer opbevares privat i speaker-recovery-20260921-arkivet.
+OTA til frisk DNS-verificeret192.168.86.30: SUCCESS9.24s. Efter reboot bekræfter
+krypteret nativeAPI samme MAC20:F8:3B:0A:7E:7A, kompatibilitetsmarkør11382,
+ny revisionsmarkørpodvoice_amp_boot_v1, volume0.2 og mutedFalse. HA1.13.88
+har genfundet Voice PE; ingen add-oninstallation eller Alpha-settingsændring.
+Brugeren er bedt om én høreprøve. Hørbarhed, golden chain,10/10 og AlphaON-prøve
+AFVENTER; firmwareevents eller grøn UI kan ikke erstatte brugerens lydobservation.
+
+21/9 brugerens første Alpha-prøve efter amp-rettelsen: “alpha virkede ret godt i
+første hug”. Dette er brugerbekræftet hørbarhed/afgrænset Alpha-brug, ikke golden
+chain/10/10. Nye observationer: stop musik problematisk, pause musik virker;
+farveskift1–3s efter start; manglende idle-lukning. Read-only kodeaudit:
+Thin850 sætter Alpha idle_deadline=None og ingen Live-event genarmerer den; normal
+UI idle_timeout_s kan derfor ikke virke. Thin851 armer lokal stop for hele Alpha;
+4867–4885 accepterer korreleret wake_stop uanset samtalestate i Alpha. Stop musik
+kan afbrydes før fuld semantisk forståelse, men præcis brugerhændelse er ikke
+korreleret til stop-word i de viste logs. Fysisk LED sættes til cyan LISTENING før
+providerconnect; første80ms kontinuerligt output kan udløse playback-start og grøn
+AI_SPEAKING, også uden bevis for meningsfuld tale. Eksakt rapporteret blå→cyan hue
+kan ikke fastslås uden matchende trace/visuel observation. Astra alpha_ux_audit
+bekræfter idle- og LED-ejergrænser. Ingen runtimeændring udført.
+Direkte HA-log:09:46:04.125 HassMediaPause action_done;09:46:05.204 live-tool-failed,
+09:46:13.350 provider-close timeout. Så selv vellykket musikpause har en separat
+fejl efter handlingen; årsagen er ikke logget af catch-blokken og må ikke gættes.
+09:46:54→09:47:26 stille session lukkes først ved stop. Næste kausale undersøgelser:
+tool-resultat/close-fejl; Alpha-ejet stilhed baseret på rigtige tale/lydgrænser;
+Stop-konflikt og sand LED-status. Ingen fraseregler eller opdigtede Realtime-events.
+
+## Plan efter første hørbare Alpha-prøve — 21/9, kun undersøgelse
+
+Brugeren beder om plan og loggennemgang. Ingen ny runtimeændring, indstilling,
+lydprøve eller installation i denne undersøgelse. Lead Codex; uafhængige read-only
+Astra-audits alpha_ux_audit og alpha_tool_failure_plan. Installerede bits er fortsat
+HA1.13.88 + amp_boot_v1 ovenfor. Første brugerprøve er positiv; kandidaten er ikke
+lifecycle-godkendt, og kendte tool-/idle-fejl skal afklares før acceptserien.
+
+Loggrundlag: de tidligere læste sessioner09:45:32–09:47:30 og genlæst HA-loghale
+09:45:39–09:52:31. To provider-close timeouts09:45:46.122/09:46:13.350;
+09:46:04.125 musikpause action_done efterfølges af live-tool-failed09:46:05.204.
+En session09:46:54.585–09:47:26.913 har meget lavt micniveau og slutter ved stop;
+lavt gennemsnitsniveau alene beviser hverken fysisk stilhed eller mikrofonfejl.
+Loghalen er ikke en fuld historik. Wake-recovered-warning er afventende fysisk
+bevis, ikke i sig selv endnu en produktfejl. Senere discovery viser18 admitted
+værktøjer, ingen timeroprettelse, pending HassBroadcast/HassCancelAllTimers.
+Dette er en åben funktionsparitetsgrænse, ikke bevist ny Alpha-regression.
+
+### Rækkefølge og accept
+
+1. **Handling lykkes, samtalen fejler — højeste prioritet.** Spor hele kæden fra
+   autoriseret HA-kald og action_done til resultatkodning, output-send,
+   continuation, providerens svar, playback og lukning/næste wake. Thin skjuler
+   exceptiontype/stadie; Live-adapterens provider_observer kaldes aldrig, og
+   providerfejl reduceres til generiske koder. Første ændring skal derfor være
+   afgrænset, redigeret diagnostik med session/generation/call-id og close-stadier,
+   uden hemmeligheder eller unødige lyd-/persondata. Hypotese: fejlen ligger efter
+   sideeffekten, men den konkrete ejergrænse er endnu ukendt. RealSDK3.13.0
+   offline-serialisering af præcis function_call_output, også med nested tool_calls
+   i JSON-strengen, PASS; ingen evidens for forkert payloadform eller en statisk
+   deadlock. Genproducer én godkendt pause; ret kun det dokumenterede fejlsnit.
+   Accept: én handling, korrekt feedback, opfølgning virker, fejl giver sand status,
+   bounded cleanup og næste wake. Ingen automatisk gentagelse af udført handling.
+   live-tool-failed springer aktuelt talt fejlfeedback over; vælg eksplicit Alpha-
+   fejlfeedback som del af rettelsen. Forlæng ikke timeout for at skjule fejlen.
+2. **Stop skal forstå hele ønsket.** Planlagt Alpha-adfærd: modellen ejer forskellen
+   mellem stop musik, stop med at tale og afslutning. Lokal keyword-stop må ikke
+   afskære hele sætningen; fysisk Stop-knap/panel-Stop bevares deterministisk.
+   Undersøg mindst mic→keywordevent→Live→tool→playback→close→rearm og forsinket stop
+   fra forrige generation. Ingen lokal liste over undtagelsesfraser. Accept:
+   stop/pause musik udfører højst én korrekt musikhandling og bevarer samtalen;
+   afbrydelse og farvel fungerer, fysisk Stop standser også queued/incoming lyd.
+3. **Den gemte UI-stilhedsperiode skal virke i Alpha.** Genbrug værdien (aktuelt4s),
+   ikke ny skjult timeout. Alpha deaktiverer deadline, og den kontinuerlige WAV-
+   lease holder AI_SPEAKING; blot at sætte deadline er utilstrækkeligt. Følg OpenAI:
+   appstyret inaktivitet baseret på audioaktivitet, faktisk assistant-playback og
+   igangværende arbejde. Afklar først hvilke autoritative aktivitetssignaler der
+   findes; dokumentér nødvendig måling før ændring. Transcriptpauser, løbende
+   tavse PCM-bytes eller backend-completed er ikke tale-/afspilningsslut. Accept:
+   luk efter UI-perioden ved reel ro, aldrig under brugerens tale, hørbart svar,
+   toolarbejde eller farvel; én lukning, mørk idle, næste wake. Afprøv kort/langt
+   svar, tænkepause, baggrundsstøj, langsomt værktøj og tale ved timeoutgrænsen.
+4. **LED skal fortælle sandheden om full duplex.** Første80ms output starter den
+   kontinuerlige afspilning og kan skifte LED uden hørbar tale. Foreslå stabil cyan
+   mens Alpha-samtalen er åben; særskilt forbindelse/fejl/idle kun på sande events.
+   Talefarve kræver pålidelig faktisk taleaktivitet. Eksakt blå→cyan-observation
+   skal korreleres fysisk; den er ikke forklaret alene af nuværende farvetabel.
+   Accept: ingen falsk talestatus ved tavs stream, korrekt stop/fejl/off, ingen
+   påvirkning af mic/lifecycle. LED implementeres efter aktivitetskontrakten.
+5. **Bevis samlet oplevelse og funktioner.** Mål første meningsfulde lyd særskilt
+   fra streamstart; undersøg timerkapabiliteter før påstand om fuld paritet.
+   Afprøv AlphaON/OFF og Talk, musik/hjem/vejr/web/timere, opfølgning, interruption,
+   ekko, farvel, timeout, fysisk Stop og næste wake. Samme kandidat skal have egen
+   fysisk golden chain og10/10 ubrudt lifecycle; første gode prøve er ikke dette.
+
+Fælles invarianter: ThinSession ejer samtalen; VoicePELink ejer native-adapteren;
+modellen ejer betydning; autorisation før sideeffekt; session/generation/playback-
+identitet isolerer stale events; fysisk output/rearm må ikke udledes af UI;
+AlphaOFF bevares. Ingen gain/VAD/prompt/transporttuning i denne plan.
+Før hver runtimeændring præciseres falsificerbar hypotese i denne post. Regressioner
+skal injicere post-action-fejl, sen/manglende terminalevent, duplicate/stale events
+på tværs af generationer og bevise ingen dobbelt sideeffekt. Brug realSDK over
+kontrolleret socket samt Thin/VoicePE/Talk-kontrakter. Målrettede gates først,
+uafhængigt adversarial review, én relevant releasegate efter diff-freeze; SafeEval
+kun hvor semantik/prompt/tool ændres. Rollback-grænse: stop kandidat ved uafklaret
+race, OFF-regression eller forværret fysisk lyd/lifecycle; vend til dokumenteret
+installerbar artifact, uden at arve fysisk godkendelse. Ingen ny transport planlagt.
+
+Officielle kilder kontrolleret21/9:
+- https://developers.openai.com/api/docs/guides/live-conversations — Close idle
+  sessions and resume: appstyret aktivitet/playback/pending-work og graceful close.
+- https://developers.openai.com/api/docs/guides/live-delegation — returnér hvert
+  function_call_output og fortsæt med response.create; item-create har ingen separat
+  succes-ACK, så providerfejl og nested lifecycle skal fortsat behandles.
+
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
 15/9 CI34947845484 på3300fc8 fangede én reel pakningsfejl: pyproject-version
@@ -201,7 +434,7 @@ P0/P1; fem domæner er nødvendig kobling for den godkendte Alpha. De 12 adapter
 wiring-/firmwarefiler matcher tidligere reviewede bits; endelige robot-/typed-input-
 ændringer blev særskilt eftergået. Ingen ny gate/API/fysisk accept arves.
 
-<!-- candidate-scope-coupling
+<!-- historical-alpha-candidate-scope-coupling
 {
   "version": 1,
   "base_tip": "b3f4bd5d1bcaf2a0715e94c345eb9988bf04697e",

@@ -27,3 +27,5 @@ event:
   - id: !extend podvoice_event
     event_types:
       - podvoice_live_wav_v1
+      # Revision identity only; actual audible output still requires a physical test.
+      - podvoice_amp_boot_v1
