@@ -69,6 +69,26 @@ har genfundet Voice PE; ingen add-oninstallation eller Alpha-settingsændring.
 Brugeren er bedt om én høreprøve. Hørbarhed, golden chain,10/10 og AlphaON-prøve
 AFVENTER; firmwareevents eller grøn UI kan ikke erstatte brugerens lydobservation.
 
+21/9 brugerens første Alpha-prøve efter amp-rettelsen: “alpha virkede ret godt i
+første hug”. Dette er brugerbekræftet hørbarhed/afgrænset Alpha-brug, ikke golden
+chain/10/10. Nye observationer: stop musik problematisk, pause musik virker;
+farveskift1–3s efter start; manglende idle-lukning. Read-only kodeaudit:
+Thin850 sætter Alpha idle_deadline=None og ingen Live-event genarmerer den; normal
+UI idle_timeout_s kan derfor ikke virke. Thin851 armer lokal stop for hele Alpha;
+4867–4885 accepterer korreleret wake_stop uanset samtalestate i Alpha. Stop musik
+kan afbrydes før fuld semantisk forståelse, men præcis brugerhændelse er ikke
+korreleret til stop-word i de viste logs. Fysisk LED sættes til cyan LISTENING før
+providerconnect; første80ms kontinuerligt output kan udløse playback-start og grøn
+AI_SPEAKING, også uden bevis for meningsfuld tale. Eksakt rapporteret blå→cyan hue
+kan ikke fastslås uden matchende trace/visuel observation. Astra alpha_ux_audit
+bekræfter idle- og LED-ejergrænser. Ingen runtimeændring udført.
+Direkte HA-log:09:46:04.125 HassMediaPause action_done;09:46:05.204 live-tool-failed,
+09:46:13.350 provider-close timeout. Så selv vellykket musikpause har en separat
+fejl efter handlingen; årsagen er ikke logget af catch-blokken og må ikke gættes.
+09:46:54→09:47:26 stille session lukkes først ved stop. Næste kausale undersøgelser:
+tool-resultat/close-fejl; Alpha-ejet stilhed baseret på rigtige tale/lydgrænser;
+Stop-konflikt og sand LED-status. Ingen fraseregler eller opdigtede Realtime-events.
+
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
 15/9 CI34947845484 på3300fc8 fangede én reel pakningsfejl: pyproject-version
