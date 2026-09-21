@@ -15,6 +15,7 @@ import hashlib
 import json
 import logging
 import math
+import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from contextlib import contextmanager
@@ -298,6 +299,8 @@ class OpenAILiveSession:
         self.provider_budget = provider_budget
         self.client_factory = client_factory
         self.timeout_s = timeout_s
+        self.capacity_monotonic: Callable[[], float] = time.monotonic
+        self.capacity_sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
         self.last_error: str | None = None
         self.audio_observer: Callable[[bytes, int], None] | None = None
         self.provider_observer: Callable[[dict[str, Any]], None] | None = None
@@ -1217,14 +1220,31 @@ class OpenAILiveSession:
         return {"status": "submitted", "provider_ack": "unavailable", "command_id": command}
 
     async def admit_tool_batch(self, response_id: str, generation: int | None) -> None:
-        self._active(generation)
+        connection = self._active(generation)
         batch = self._batches.get(response_id)
+        lease = self._lease
+        # One existing timeout window starts at admission, not at backend completion.
+        # Never restart it after a refill or wait inside the provider reader.
+        deadline = self.capacity_monotonic() + self.timeout_s
+
+        def observe(outcome: str, **fields: Any) -> None:
+            self._observe_provider(
+                "live_tool_admission",
+                stage="capacity",
+                outcome=outcome,
+                generation=generation,
+                response_id=response_id,
+                **fields,
+            )
+
         if (
             batch is None
             or batch.event.generation != generation
             or batch.admitted
-            or self._lease is None
+            or batch.submitting
+            or lease is None
         ):
+            observe("failed", reason="missing_or_replayed_batch")
             raise ProviderBudgetUnavailable("missing_or_replayed_live_batch")
         # Upper bound each serialized result by UTF-8 bytes, conservatively one token/byte.
         # This is local reservation, not proof of managed-backend rate-limit headroom.
@@ -1233,13 +1253,57 @@ class OpenAILiveSession:
             + self.max_output_tokens
             + self.result_byte_limit * len(batch.event.calls)
         )
-        aggregate = tokens + sum(
-            pending.reserved_tokens for pending in self._batches.values() if pending.admitted
-        )
-        if not self.provider_budget.ensure_response_capacity(self._lease, aggregate):
-            raise ProviderBudgetUnavailable("live_result_capacity_unavailable")
-        batch.reserved_tokens = tokens
-        batch.admitted = True
+        while True:
+            if (
+                self._active(generation) is not connection
+                or self._lease is not lease
+                or self._batches.get(response_id) is not batch
+                or batch.admitted
+                or batch.submitting
+            ):
+                observe("failed", reason="stale_or_replayed_owner")
+                raise ProviderBudgetUnavailable("missing_or_replayed_live_batch")
+            remaining = deadline - self.capacity_monotonic()
+            if remaining <= 0:
+                observe("failed", reason="admission_deadline_exceeded")
+                raise ProviderBudgetUnavailable("live_result_capacity_unavailable")
+            # Other completed batches may consume usage or change reservations while
+            # this tool task waits. Recompute and atomically reserve the exact total.
+            aggregate = tokens + sum(
+                pending.reserved_tokens for pending in self._batches.values() if pending.admitted
+            )
+            admitted, decision = self.provider_budget.ensure_response_capacity_observed(
+                lease, aggregate
+            )
+            observe("admitted" if admitted else "blocked", **decision)
+            if admitted:
+                batch.reserved_tokens = tokens
+                batch.admitted = True
+                return  # No await between exact reservation and the final dispatch guard.
+            if asyncio.current_task() is self._reader:
+                observe("failed", reason="admission_wait_in_reader")
+                raise ProviderBudgetUnavailable("live_result_capacity_unavailable")
+            delay = self.provider_budget.production_retry_after(lease, aggregate)
+            remaining = deadline - self.capacity_monotonic()
+            if delay is None or delay < 0 or delay >= remaining:
+                observe(
+                    "failed",
+                    reason="refill_unavailable_or_exceeds_deadline",
+                    wait_s=delay,
+                    deadline_remaining_s=max(0.0, remaining),
+                )
+                raise ProviderBudgetUnavailable("live_result_capacity_unavailable")
+            if delay > 0:
+                observe(
+                    "waiting",
+                    reason="local_refill",
+                    target_tokens=aggregate,
+                    wait_s=delay,
+                    deadline_remaining_s=remaining,
+                )
+                await self.capacity_sleep(delay)
+                # Cancellation propagates. Recheck the same owner, batch and deadline;
+                # this only admits unexecuted work, never replays an accepted effect.
 
     def tool_batch_is_admitted(self, response_id: str, generation: int | None) -> bool:
         """Synchronous final-dispatch guard; no reservation renewal after an effect."""
