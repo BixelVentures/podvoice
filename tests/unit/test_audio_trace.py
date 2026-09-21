@@ -6,11 +6,85 @@ import pytest
 
 from gatekeeper import runtime_artifact_identity, runtime_artifact_sha256
 from gatekeeper.audio_trace import (
+    ACTIVITY_TRACE_BYTES_MAX,
+    ACTIVITY_TRACE_EVENTS_MAX,
+    ACTIVITY_TRACE_STRING_MAX,
     PROVIDER_TRACE_BYTES_MAX,
     PROVIDER_TRACE_EVENTS_MAX,
     PROVIDER_TRACE_STRING_MAX,
     AudioTraceRecorder,
 )
+
+
+def test_activity_trace_has_independent_bounded_storage_and_one_explicit_marker(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    recorder.begin("r0", {"session_id": "current"})
+    assert recorder.owns("r0", "current")
+    assert not recorder.owns("other", "current")
+    assert not recorder.owns("r0", "previous")
+    assert not recorder.owns("r0", "")
+    for sequence in range(ACTIVITY_TRACE_EVENTS_MAX + 100):
+        recorder.activity_event(activity_sequence=sequence, activity_input_state="unknown")
+    recorder.provider_event("provider_session_closed", provider_generation=3)
+    recorder.event("rearm_complete")
+    manifest = recorder.finish("test")
+    assert not recorder.owns("r0", "current")
+    rows = [e for e in manifest["events"] if e["event"].startswith(("live_activity", "activity_"))]
+    assert len(rows) == ACTIVITY_TRACE_EVENTS_MAX
+    assert rows[-1]["event"] == "activity_trace_truncated"
+    assert sum(e["event"] == "activity_trace_truncated" for e in rows) == 1
+    assert len(json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode()) == (
+        recorder._activity_trace_bytes
+    )
+    assert recorder._activity_trace_bytes <= ACTIVITY_TRACE_BYTES_MAX
+    assert manifest["events"][-3]["event"] == "provider_session_closed"
+    assert manifest["events"][-2]["event"] == "rearm_complete"
+    recorder.arm("r0")
+    recorder.begin("r0", {"session_id": "new"})
+    assert recorder.owns("r0", "new")
+    assert recorder.activity_event(activity_sequence=1)[0] == "live_activity_observed"
+
+
+def test_activity_trace_byte_limit_includes_marker_without_truncating_identity(tmp_path):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    recorder.begin("r0", {"session_id": "current"})
+    for _ in range(ACTIVITY_TRACE_EVENTS_MAX):
+        result = recorder.activity_event(
+            **{f"activity_field_{i}": "x" * ACTIVITY_TRACE_STRING_MAX for i in range(60)}
+        )
+        if result is None:
+            break
+    rows = recorder._events[1:]
+    assert len(rows) < ACTIVITY_TRACE_EVENTS_MAX
+    assert rows[-1]["event"] == "activity_trace_truncated"
+    assert len(json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode()) <= (
+        ACTIVITY_TRACE_BYTES_MAX
+    )
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "s" * (ACTIVITY_TRACE_STRING_MAX + 1),
+        float("nan"),
+        float("inf"),
+        2**64,
+        {"secret": "never-persist"},
+        [1, 2],
+    ],
+)
+def test_activity_rejects_oversize_or_non_scalar_evidence_explicitly(tmp_path, invalid):
+    recorder = AudioTraceRecorder(tmp_path)
+    recorder.arm("r0")
+    recorder.begin("r0", {"session_id": "current"})
+    result = recorder.activity_event(activity_input_state=invalid, activity_sequence=1)
+    assert result[0] == "activity_trace_truncated"
+    assert len(recorder._events) == 2
+    assert recorder.activity_event(activity_sequence=2) is None
+    assert "never-persist" not in json.dumps(recorder._events)
+    assert "activity_sequence" not in recorder._events[-1]
 
 
 def test_runtime_artifact_identity_is_deterministic_and_bounded():

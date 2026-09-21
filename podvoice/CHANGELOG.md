@@ -1,3 +1,16 @@
+## 1.13.92 — Alpha: fælles stilhedsperiode og kontrolleret farvel
+
+- Voice PE Alpha bruger den gemte stilhedsperiode efter frisk input-/output-ro;
+  en kontinuerlig tavs svarstream tæller ikke alene som tale.
+- Modelvalgt farvel venter på svarlydens ro med samme UI-værdi. Baggrundsstøj
+  vetoer ikke modellens afslutning; nyt accepteret input annullerer før lukning.
+- Timeout og farvel deler providerlukning og korreleret afspilningsslut. Ukendte,
+  gamle eller manglende aktivitetssignaler tæller ikke som stilhed.
+- Bevarer Alpha ON/OFF, fysisk Stop, taleinstruktioner, firmware, gain og VAD.
+  Talk beholder sin særskilte, endnu ubekræftede afspilningsgrænse.
+- Fysisk prøve af afslutning, afbrydelser og ekko udføres efter installation.
+  Denne release er ikke i sig selv fysisk Alpha-godkendelse eller et hastighedsbevis.
+
 ## 1.13.91 — Alpha: kapacitetsventen og hørbar forbindelsesfejl
 
 - En færdig værktøjsbatch kan vente afgrænset på lokal kapacitet før udførelse,
