@@ -89,6 +89,91 @@ fejl efter handlingen; årsagen er ikke logget af catch-blokken og må ikke gæt
 tool-resultat/close-fejl; Alpha-ejet stilhed baseret på rigtige tale/lydgrænser;
 Stop-konflikt og sand LED-status. Ingen fraseregler eller opdigtede Realtime-events.
 
+## Plan efter første hørbare Alpha-prøve — 21/9, kun undersøgelse
+
+Brugeren beder om plan og loggennemgang. Ingen ny runtimeændring, indstilling,
+lydprøve eller installation i denne undersøgelse. Lead Codex; uafhængige read-only
+Astra-audits alpha_ux_audit og alpha_tool_failure_plan. Installerede bits er fortsat
+HA1.13.88 + amp_boot_v1 ovenfor. Første brugerprøve er positiv; kandidaten er ikke
+lifecycle-godkendt, og kendte tool-/idle-fejl skal afklares før acceptserien.
+
+Loggrundlag: de tidligere læste sessioner09:45:32–09:47:30 og genlæst HA-loghale
+09:45:39–09:52:31. To provider-close timeouts09:45:46.122/09:46:13.350;
+09:46:04.125 musikpause action_done efterfølges af live-tool-failed09:46:05.204.
+En session09:46:54.585–09:47:26.913 har meget lavt micniveau og slutter ved stop;
+lavt gennemsnitsniveau alene beviser hverken fysisk stilhed eller mikrofonfejl.
+Loghalen er ikke en fuld historik. Wake-recovered-warning er afventende fysisk
+bevis, ikke i sig selv endnu en produktfejl. Senere discovery viser18 admitted
+værktøjer, ingen timeroprettelse, pending HassBroadcast/HassCancelAllTimers.
+Dette er en åben funktionsparitetsgrænse, ikke bevist ny Alpha-regression.
+
+### Rækkefølge og accept
+
+1. **Handling lykkes, samtalen fejler — højeste prioritet.** Spor hele kæden fra
+   autoriseret HA-kald og action_done til resultatkodning, output-send,
+   continuation, providerens svar, playback og lukning/næste wake. Thin skjuler
+   exceptiontype/stadie; Live-adapterens provider_observer kaldes aldrig, og
+   providerfejl reduceres til generiske koder. Første ændring skal derfor være
+   afgrænset, redigeret diagnostik med session/generation/call-id og close-stadier,
+   uden hemmeligheder eller unødige lyd-/persondata. Hypotese: fejlen ligger efter
+   sideeffekten, men den konkrete ejergrænse er endnu ukendt. RealSDK3.13.0
+   offline-serialisering af præcis function_call_output, også med nested tool_calls
+   i JSON-strengen, PASS; ingen evidens for forkert payloadform eller en statisk
+   deadlock. Genproducer én godkendt pause; ret kun det dokumenterede fejlsnit.
+   Accept: én handling, korrekt feedback, opfølgning virker, fejl giver sand status,
+   bounded cleanup og næste wake. Ingen automatisk gentagelse af udført handling.
+   live-tool-failed springer aktuelt talt fejlfeedback over; vælg eksplicit Alpha-
+   fejlfeedback som del af rettelsen. Forlæng ikke timeout for at skjule fejlen.
+2. **Stop skal forstå hele ønsket.** Planlagt Alpha-adfærd: modellen ejer forskellen
+   mellem stop musik, stop med at tale og afslutning. Lokal keyword-stop må ikke
+   afskære hele sætningen; fysisk Stop-knap/panel-Stop bevares deterministisk.
+   Undersøg mindst mic→keywordevent→Live→tool→playback→close→rearm og forsinket stop
+   fra forrige generation. Ingen lokal liste over undtagelsesfraser. Accept:
+   stop/pause musik udfører højst én korrekt musikhandling og bevarer samtalen;
+   afbrydelse og farvel fungerer, fysisk Stop standser også queued/incoming lyd.
+3. **Den gemte UI-stilhedsperiode skal virke i Alpha.** Genbrug værdien (aktuelt4s),
+   ikke ny skjult timeout. Alpha deaktiverer deadline, og den kontinuerlige WAV-
+   lease holder AI_SPEAKING; blot at sætte deadline er utilstrækkeligt. Følg OpenAI:
+   appstyret inaktivitet baseret på audioaktivitet, faktisk assistant-playback og
+   igangværende arbejde. Afklar først hvilke autoritative aktivitetssignaler der
+   findes; dokumentér nødvendig måling før ændring. Transcriptpauser, løbende
+   tavse PCM-bytes eller backend-completed er ikke tale-/afspilningsslut. Accept:
+   luk efter UI-perioden ved reel ro, aldrig under brugerens tale, hørbart svar,
+   toolarbejde eller farvel; én lukning, mørk idle, næste wake. Afprøv kort/langt
+   svar, tænkepause, baggrundsstøj, langsomt værktøj og tale ved timeoutgrænsen.
+4. **LED skal fortælle sandheden om full duplex.** Første80ms output starter den
+   kontinuerlige afspilning og kan skifte LED uden hørbar tale. Foreslå stabil cyan
+   mens Alpha-samtalen er åben; særskilt forbindelse/fejl/idle kun på sande events.
+   Talefarve kræver pålidelig faktisk taleaktivitet. Eksakt blå→cyan-observation
+   skal korreleres fysisk; den er ikke forklaret alene af nuværende farvetabel.
+   Accept: ingen falsk talestatus ved tavs stream, korrekt stop/fejl/off, ingen
+   påvirkning af mic/lifecycle. LED implementeres efter aktivitetskontrakten.
+5. **Bevis samlet oplevelse og funktioner.** Mål første meningsfulde lyd særskilt
+   fra streamstart; undersøg timerkapabiliteter før påstand om fuld paritet.
+   Afprøv AlphaON/OFF og Talk, musik/hjem/vejr/web/timere, opfølgning, interruption,
+   ekko, farvel, timeout, fysisk Stop og næste wake. Samme kandidat skal have egen
+   fysisk golden chain og10/10 ubrudt lifecycle; første gode prøve er ikke dette.
+
+Fælles invarianter: ThinSession ejer samtalen; VoicePELink ejer native-adapteren;
+modellen ejer betydning; autorisation før sideeffekt; session/generation/playback-
+identitet isolerer stale events; fysisk output/rearm må ikke udledes af UI;
+AlphaOFF bevares. Ingen gain/VAD/prompt/transporttuning i denne plan.
+Før hver runtimeændring præciseres falsificerbar hypotese i denne post. Regressioner
+skal injicere post-action-fejl, sen/manglende terminalevent, duplicate/stale events
+på tværs af generationer og bevise ingen dobbelt sideeffekt. Brug realSDK over
+kontrolleret socket samt Thin/VoicePE/Talk-kontrakter. Målrettede gates først,
+uafhængigt adversarial review, én relevant releasegate efter diff-freeze; SafeEval
+kun hvor semantik/prompt/tool ændres. Rollback-grænse: stop kandidat ved uafklaret
+race, OFF-regression eller forværret fysisk lyd/lifecycle; vend til dokumenteret
+installerbar artifact, uden at arve fysisk godkendelse. Ingen ny transport planlagt.
+
+Officielle kilder kontrolleret21/9:
+- https://developers.openai.com/api/docs/guides/live-conversations — Close idle
+  sessions and resume: appstyret aktivitet/playback/pending-work og graceful close.
+- https://developers.openai.com/api/docs/guides/live-delegation — returnér hvert
+  function_call_output og fortsæt med response.create; item-create har ingen separat
+  succes-ACK, så providerfejl og nested lifecycle skal fortsat behandles.
+
 ## Aktiv lead-beslutning — GPT-Live som valgfri Alpha, 11/9
 
 15/9 CI34947845484 på3300fc8 fangede én reel pakningsfejl: pyproject-version
