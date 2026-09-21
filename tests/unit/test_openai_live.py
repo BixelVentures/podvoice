@@ -1733,3 +1733,337 @@ async def test_terminal_receipt_accepts_input_before_owning_response_and_ignores
         assert session.input_sequence == 1
     finally:
         await session.close()
+
+
+class DiagnosticWireSDK(SDK):
+    """Real installed SDK serializer/parser over a controlled, offline socket."""
+
+    def __init__(self):
+        super().__init__()
+        self.wire = []
+        self.fail_type = None
+        self.block_type = None
+        self.blocked = asyncio.Event()
+
+    async def __aenter__(self):
+        from openai.resources.live.live import AsyncLiveConnection
+
+        return AsyncLiveConnection(self, max_retries=0)
+
+    async def send(self, data):
+        import json
+
+        event = json.loads(data)
+        self.wire.append(event)
+        if event["type"] == self.fail_type:
+            raise ConnectionError("private-result sk-private-credential")
+        if event["type"] == self.block_type:
+            self.blocked.set()
+            await asyncio.Future()
+        if event["type"] == "session.start":
+            await self.start()
+        elif event["type"] == "session.close":
+            await self.finalize()
+
+    async def recv(self, **_):
+        import json
+
+        return json.dumps(await self.incoming.get()).encode()
+
+
+def diagnostic_wire_provider():
+    sdk = DiagnosticWireSDK()
+    session = OpenAILiveSession(
+        "test-key-not-a-credential",
+        tool_declarations=TOOLS,
+        client_factory=sdk.factory,
+        provider_budget=ProviderBudgetCoordinator(),
+        timeout_s=2,  # Real SDK cold serializer/parser imports are inside startup.
+    )
+    rows = []
+    session.provider_observer = rows.append
+    return session, sdk, rows
+
+
+def milestones(rows, kind):
+    return [(row["stage"], row["outcome"]) for row in rows if row["kind"] == kind]
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_real_sdk_serialization_and_terminal_are_separate_milestones(caplog):
+    import json
+
+    caplog.set_level("INFO", logger="gatekeeper.openai_live")
+    session, sdk, rows = diagnostic_wire_provider()
+    await session.connect()
+    await stage(session)
+    await session.admit_tool_batch("r1", 1)
+    private_result = {"tool_calls": [{"result": "private-result"}], "ok": True}
+    await session.send_tool_results("r1", [{"id": "c1", "response": private_result}], generation=1)
+    output = next(event for event in sdk.wire if event["type"] == "response.item.create")
+    assert output["item"] == {
+        "type": "function_call_output",
+        "call_id": "c1",
+        "output": json.dumps(private_result, separators=(",", ":")),
+    }
+    continuation = [event for event in sdk.wire if event["type"] == "response.create"]
+    assert continuation == [{"type": "response.create"}]
+    assert milestones(rows, "live_tool_result") == [
+        ("encode", "started"),
+        ("encode", "done"),
+        ("send", "started"),
+        ("send", "done"),
+        ("continue", "started"),
+        ("continue", "done"),
+    ]
+    assert not session.final_usage_seconds
+    # Outbound sends have no server-acceptance or physical-playback meaning.
+    await session._handle(created("r2"), 1)
+    await session._handle(terminal("r2"), 1)
+    await session.close()
+    assert ("terminal", "received") in milestones(rows, "live_close")
+    assert ("wait_terminal", "done") in milestones(rows, "live_close")
+    assert milestones(rows, "live_release")[-1] == ("release", "done")
+    assert sdk.released
+    for row in rows:
+        assert row["generation"] == 1
+        assert row["provider_session_id"].startswith("sha256:")
+    encoded = json.dumps(rows) + caplog.text
+    for private in ("private-result", session.api_key, "session_live", '"r1"', '"c1"'):
+        assert private not in encoded
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["encode", "send", "continue"])
+async def test_diagnostics_real_sdk_fault_stage_keeps_exception_and_never_replays(
+    phase, monkeypatch, caplog
+):
+    caplog.set_level("INFO", logger="gatekeeper.openai_live")
+    session, sdk, rows = diagnostic_wire_provider()
+    await session.connect()
+    await stage(session)
+    await session.admit_tool_batch("r1", 1)
+    if phase == "encode":
+
+        def fail_encode(_):
+            raise ConnectionError("private-result sk-private-credential")
+
+        monkeypatch.setattr("gatekeeper.openai_live.bounded_tool_output", fail_encode)
+    else:
+        sdk.fail_type = "response.item.create" if phase == "send" else "response.create"
+    with pytest.raises(ConnectionError, match="private-result"):
+        await session.send_tool_results(
+            "r1", [{"id": "c1", "response": {"private-result": True}}], generation=1
+        )
+    failed = [row for row in rows if row["outcome"] == "failed"]
+    assert any(row["stage"] == phase and row["error_class"] == "ConnectionError" for row in failed)
+    assert len([event for event in sdk.wire if event["type"] == "response.item.create"]) == (
+        phase != "encode"
+    )
+    assert len([event for event in sdk.wire if event["type"] == "response.create"]) == (
+        phase == "continue"
+    )
+    assert "private-result" not in caplog.text + str(rows)
+    assert "sk-private-credential" not in caplog.text + str(rows)
+    await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("nested", [False, True])
+@pytest.mark.parametrize("known", [False, True])
+async def test_diagnostics_real_sdk_provider_errors_are_private_and_generation_bound(
+    nested, known, caplog
+):
+    caplog.set_level("INFO", logger="gatekeeper.openai_live")
+    session, sdk, rows = diagnostic_wire_provider()
+    await session.connect()
+    await anext(session.events())
+    error = {
+        "type": "error",
+        "event_id": "sk-private-event",
+        "error": {
+            "code": "unknown_parameter" if known else "sk-private-code",
+            "type": "invalid_request_error" if known else "private error text",
+            "message": "private-result sk-private-credential",
+            "param": "private-param",
+            "client_event_id": "sk-private-client-event",
+        },
+    }
+    if nested:
+        await session._handle(created(), 1)
+        error = envelope("error", **{key: value for key, value in error.items() if key != "type"})
+    await sdk.incoming.put(error)
+    await session._reader
+    observed = [row for row in rows if row["kind"] == "live_provider_error"]
+    assert len(observed) == 1
+    row = observed[0]
+    assert row["stage"] == ("backend" if nested else "session")
+    assert row["provider_error_code"] == (
+        "unknown_parameter" if known else session._diagnostic_ref("sk-private-code")
+    )
+    assert row["provider_error_type"] == (
+        "invalid_request_error" if known else session._diagnostic_ref("private error text")
+    )
+    assert row["event_id"] == session._diagnostic_ref("sk-private-client-event")
+    assert ("receive", "failed") in milestones(rows, "live_reader")
+    with pytest.raises(LiveProtocolError):
+        await anext(session.events())
+    with pytest.raises(LiveProtocolError):
+        await session.close()
+    before = len(rows)
+    await session.connect()
+    await session._handle(error, 1)  # Delayed previous-generation server event.
+    assert not [row for row in rows[before:] if row["kind"] == "live_provider_error"]
+    await session.close()
+    for private in ("private-result", "sk-private-", "private error text", "private-param"):
+        assert private not in caplog.text + str(rows)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("exception", [RuntimeError, asyncio.CancelledError])
+async def test_diagnostics_observer_cannot_fail_send_close_or_runtime(exception, caplog):
+    caplog.set_level("INFO", logger="gatekeeper.openai_live")
+    session, sdk, _ = diagnostic_wire_provider()
+    observed = []
+
+    def broken_observer(row):
+        observed.append(row)
+        raise exception("private-observer-error")
+
+    session.provider_observer = broken_observer
+    await session.connect()
+    await stage(session)
+    await session.admit_tool_batch("r1", 1)
+    await session.send_tool_results("r1", [{"id": "c1", "response": {"ok": True}}], generation=1)
+    await session.close()
+    assert sdk.released
+    assert ("send", "done") in milestones(observed, "live_backend_continue")
+    assert ("terminal", "received") in milestones(observed, "live_close")
+    assert "private-observer-error" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_actual_close_cancellation_propagates_and_releases():
+    session, sdk, rows = diagnostic_wire_provider()
+    await session.connect()
+    sdk.block_type = "session.close"
+    closing = asyncio.create_task(session.close())
+    await asyncio.wait_for(sdk.blocked.wait(), 0.2)
+    closing.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await closing
+    assert ("request", "cancelled") in milestones(rows, "live_close")
+    assert ("send", "cancelled") in milestones(rows, "live_close")
+    assert milestones(rows, "live_release")[-1] == ("release", "done")
+    assert sdk.released
+    assert sum(event["type"] == "session.close" for event in sdk.wire) == 1
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_missing_terminal_times_out_without_claiming_provider_close():
+    session, sdk, rows = diagnostic_wire_provider()
+    await session.connect()
+    sdk.finalize = AsyncMock()
+    session.timeout_s = 0.02  # Bound only the terminal wait under test, after SDK startup.
+    with pytest.raises(TimeoutError):
+        await session.close()
+    assert ("send", "done") in milestones(rows, "live_close")
+    assert ("wait_terminal", "failed") in milestones(rows, "live_close")
+    assert ("terminal", "received") not in milestones(rows, "live_close")
+    assert sdk.released
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_never_emit_per_audio_or_transcript_fragment_and_ignore_old_stage():
+    session, _, rows = diagnostic_wire_provider()
+    await session.connect()
+    await anext(session.events())
+    before = len(rows)
+    for _ in range(20):
+        await session.send_audio(b"\x01\x00" * 320)
+        await session._handle({"type": "session.output_audio.delta", "delta": "AAA="}, 1)
+        await session._handle(
+            {
+                "type": "session.output_transcript.delta",
+                "delta": "private-transcript",
+                "start_ms": 0,
+                "end_ms": 20,
+            },
+            1,
+        )
+    assert len(rows) == before
+    await session.close()
+    await session.connect()
+    before = len(rows)
+    with session._diagnostic_stage("live_tool_result", "send", generation=1, call_id="old-call"):
+        pass
+    assert len(rows) == before
+    await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("event_type", ["response.item.create", "response.create"])
+async def test_diagnostics_real_sdk_serializer_failure_is_distinct_from_socket_send(
+    event_type, monkeypatch, caplog
+):
+    from openai.resources.live import live as live_sdk
+
+    caplog.set_level("INFO", logger="gatekeeper.openai_live")
+    session, sdk, rows = diagnostic_wire_provider()
+    await session.connect()
+    await stage(session)
+    await session.admit_tool_batch("r1", 1)
+    transform = live_sdk.async_maybe_transform
+
+    async def invalid_serialized_value(event, schema):
+        if event["type"] == event_type:
+            return {"private-sdk-key": object()}
+        return await transform(event, schema)
+
+    monkeypatch.setattr(live_sdk, "async_maybe_transform", invalid_serialized_value)
+    with pytest.raises(TypeError, match="JSON serializable"):
+        await session.send_tool_results(
+            "r1", [{"id": "c1", "response": {"ok": True}}], generation=1
+        )
+    failures = [row for row in rows if row["outcome"] == "failed"]
+    assert any(row["error_class"] == "TypeError" and row["stage"] == "send" for row in failures)
+    assert not any(event["type"] == event_type for event in sdk.wire)
+    assert "private-sdk-key" not in caplog.text + str(rows)
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_failed_backend_terminal_reports_only_machine_error():
+    session, _, rows = diagnostic_wire_provider()
+    await session.connect()
+    await session._handle(created(), 1)
+    event = terminal(status="failed")
+    event["event"]["response"]["status_details"] = {
+        "type": "failed",
+        "error": {"code": "server_error", "message": "private-provider-detail"},
+    }
+    with pytest.raises(LiveProtocolError, match="live_backend_not_completed"):
+        await session._handle(event, 1)
+    error = next(row for row in rows if row["kind"] == "live_provider_error")
+    assert error["stage"] == "backend_terminal"
+    assert error["provider_error_code"] == "server_error"
+    assert error["response_id"] == session._diagnostic_ref("r1")
+    assert "private-provider-detail" not in str(rows)
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_diagnostics_close_send_failure_still_releases_budget_and_does_not_retry():
+    session, sdk, rows = diagnostic_wire_provider()
+    await session.connect()
+    sdk.fail_type = "session.close"
+    with pytest.raises(ConnectionError):
+        await session.close()
+    assert ("send", "failed") in milestones(rows, "live_close")
+    assert ("request", "failed") in milestones(rows, "live_close")
+    assert ("terminal", "received") not in milestones(rows, "live_close")
+    assert sum(event["type"] == "session.close" for event in sdk.wire) == 1
+    assert sdk.released
+    assert not session.provider_budget.snapshot(session.api_key, session.backend_model)[
+        "production_sessions"
+    ]

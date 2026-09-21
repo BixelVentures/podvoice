@@ -2260,3 +2260,120 @@ async def test_correction_during_rotation_capture_await_uses_owned_teardown(
     finally:
         release.set()
         await cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failed_stage", ["result_publish", "result_submit"])
+async def test_live_post_action_failure_records_stage_without_replay_or_payload(
+    failed_stage, monkeypatch, caplog
+):
+    from gatekeeper.hub import StatusHub
+
+    session, sdk, _, tools, _ = build()
+    session.hub = StatusHub()
+    secret = "private-result-do-not-log"
+
+    def fail_publish(*args, **kwargs):
+        raise RuntimeError(secret)
+
+    async def fail_send(*args, **kwargs):
+        raise RuntimeError(secret)
+
+    if failed_stage == "result_publish":
+        monkeypatch.setattr(session.hub, "tool_call", fail_publish)
+    else:
+        sdk.response.create.side_effect = fail_send
+    caplog.set_level("INFO", logger="podvoice.thin")
+    await session.start()
+    try:
+        await session.wake()
+        await emit(sdk, created(), call(arguments="{}"), terminal())
+        await until(lambda: session._close_task is not None)
+        await asyncio.wait_for(asyncio.shield(session._close_task), 2)
+        assert tools.calls == [("status", {})]
+        failed = [
+            r.message
+            for r in caplog.records
+            if r.name == "podvoice.thin" and "'outcome': 'failed'" in r.message
+        ]
+        assert len(failed) == 1
+        assert f"'stage': '{failed_stage}'" in failed[0]
+        assert "'successful_results': 1" in failed[0]
+        assert "'completed_results': 1" in failed[0]
+        assert "'error_class': 'RuntimeError'" in failed[0]
+        assert secret not in caplog.text
+        assert not session._active
+        assert sdk.released
+        # A fresh wake must not replay the previous completed action.
+        await session.wake()
+        assert session._active
+        assert tools.calls == [("status", {})]
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sink_error", [RuntimeError, asyncio.CancelledError])
+async def test_live_batch_diagnostic_sink_failure_does_not_change_execution(
+    monkeypatch, sink_error
+):
+    session, sdk, _, tools, _ = build()
+    trace = session._trace_event
+
+    def fail_diagnostic(event, **details):
+        if event == "live_batch_diagnostic":
+            raise sink_error("broken diagnostic sink")
+        return trace(event, **details)
+
+    monkeypatch.setattr(session, "_trace_event", fail_diagnostic)
+    await session.start()
+    try:
+        await session.wake()
+        await emit(sdk, created(), call(arguments="{}"), terminal())
+        await until(lambda: sdk.response.create.await_count == 1)
+        assert tools.calls == [("status", {})]
+        assert session._active
+        assert not session._transport_closing
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_late_live_batch_error_is_logged_without_crossing_session_trace(monkeypatch, caplog):
+    session, sdk, _, tools, _ = build()
+    trace_rows = []
+    trace = session._trace_event
+
+    def record(event, **fields):
+        if event == "live_batch_diagnostic":
+            trace_rows.append(fields)
+        return trace(event, **fields)
+
+    async def stale_send(**kwargs):
+        # Inject the generation/epoch boundary before the late old-work failure.
+        session._epoch += 1
+        session._history_session = "next-conversation"
+        raise RuntimeError("private late failure")
+
+    monkeypatch.setattr(session, "_trace_event", record)
+    sdk.response.create.side_effect = stale_send
+    caplog.set_level("INFO", logger="podvoice.thin")
+    await session.start()
+    try:
+        await session.wake()
+        original_session = session._history_session
+        await emit(sdk, created(), call(arguments="{}"), terminal())
+        await until(lambda: sdk.response.create.await_count == 1 and not session._tool_tasks)
+        assert tools.calls == [("status", {})]
+        assert not session._transport_closing
+        assert not any(row["outcome"] == "failed" for row in trace_rows)
+        failures = [
+            r.message
+            for r in caplog.records
+            if r.name == "podvoice.thin" and "'outcome': 'failed'" in r.message
+        ]
+        assert len(failures) == 1 and original_session in failures[0]
+        assert "next-conversation" not in failures[0]
+        assert "private late failure" not in caplog.text
+    finally:
+        await session.aclose()

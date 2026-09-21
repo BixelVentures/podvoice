@@ -1,5 +1,45 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv lead-beslutning — Alpha kandidat 1: resultat og lukningsdiagnostik, 21/9
+
+Brugeren har godkendt implementering af den fulde Alpha-plan. Lead Codex starter
+med kandidat1; øvrige runtimeændringer venter på den kendte post-action-fejls
+årsagsgrænse. Observeret kæde: HA HassMediaPause action_done09:46:04.125 →
+live-tool-failed09:46:05.204 → provider-close timeout09:46:13.350 → rearm09:46:14.786.
+Den konkrete exception skjules. Hypotese: fejl mellem afsluttet dispatch og
+backend-fortsættelse; SDK-serialisering er separat bevist, faktisk serveraccept ukendt.
+Kæde dækkes fra brugerinput/generation → completed/admission → dispatch/result →
+provider continuation/lyd → close-send/terminal/socket-release → fysisk stop/rearm.
+Invarianter: én Thin-ejer, ingen replay af udført handling, autorisation bevaret,
+stale-generation isoleret, fysisk afslutning ikke afledt af provider/UI.
+Første ændring er udelukkende redigeret diagnostik: statiske stadier og fejltyper,
+korrelationsidentitet, providerfejlkode uden tekst/payload, close-milestones.
+Ingen ændring i timeout, gain, prompt, payloadform, Stop, transport eller fallback.
+Regressionsplan: rigtige SDK-wirekald, fejl før/efter output/continuation, observerfejl
+uden adfærdseffekt, ingen hemmeligheder i diagnostik, current/stale tool-failure og
+én dispatch, stop/cancel under close. Målrettet gate, fastgate, uafhængig Astra-review;
+release først efter diff-freeze. Fysisk gate er IKKE bestået; ny diagnostik kræver
+installeret exact artifact og frisk korreleret prøve før årsagspatch. Ukendt årsag
+må ikke omgås med næste symptompatch. Rollback til dokumenteret .88/amp_boot_v1;
+ingen fysisk accept arves. Ingen nye testlyde eller musikstart planlagt.
+
+21/9 kandidat1 implementeret som1.13.89 diagnose-only. OpenAILiveSession logger
+redigerede stage-milestones og aktiverer provider_observer; IDs er SHA256-referencer,
+maskinfejlkoder allowlistes, ukendte værdier hashes. Ingen payload/exceptionmessage,
+lyd eller transcript i den nye diagnostik. Thin registrerer resultatantal og præcist
+stadie, også ved sen fejl, men gamle sessioner kan ikke få trace/close ind i næste.
+Observer- og logsinkfejl kan ikke ændre dispatch/cancellation. Provider141 tests PASS;
+hele ThinLive109 PASS før sidste encoding-hardening, fokuserede5 PASS. RealSDK bruges
+over offline socket; det er ikke server- eller fysisk bevis. Uafhængig Astra
+alpha_candidate1_review GO efter rettelse af alle findings; P0/P1/P2=0.
+Review SHA256 openai_live21cd04e021d17d092ab320eff01747837b8a7330d42bb8ff8072529c1f88bfd7,
+thin331b23b0ddbecbc49d0e1ecf11aa2e473b4f04806f8a741575fc0aa31173f96d.
+Pakning .89 matcher pyproject/config/__version__; ingen ny firmware-OTA krævet.
+Brugerens drøftelse af stille afslutning efter “tak for det” er KUN debat: ingen
+ændring af instruktion eller afslutningspolitik i kandidat1. Produktdiff frosset;
+fastgate kører og én releasegate følger. Musikfejlens årsag og alle fysiske gates
+står fortsat åbne. Det godkendte Alpha-goal er aktivt, ikke fuldført.
+
 ## Aktiv lead-beslutning — tavs fysisk højttaler efter Alpha-installation, 21/9
 
 Lead Codex. Installeret add-on 1.13.88 og firmware podvoice_build_11382_livewav2
