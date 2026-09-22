@@ -661,6 +661,8 @@ class OpenAILiveSession:
         try:
             row = {
                 "kind": kind,
+                "host_monotonic_ns": time.monotonic_ns(),
+                "clock_source": "host_monotonic",
                 "generation": self._connection_generation,
                 "provider_session_id": self._diagnostic_ref(self._usage_session_id),
                 **fields,
@@ -975,6 +977,20 @@ class OpenAILiveSession:
         delegation = envelope.get("delegation_id")
         if not isinstance(delegation, str) or not delegation:
             raise LiveProtocolError("missing_live_delegation")
+        if kind in {
+            "response.created",
+            "response.completed",
+            "response.failed",
+            "response.incomplete",
+        }:
+            self._observe_provider(
+                "live_backend_timing",
+                stage=kind,
+                outcome="received",
+                generation=generation,
+                delegation_id=delegation,
+                response_id=event.get("response", {}).get("id"),
+            )
         if kind == "response.created":
             response_id = event["response"]["id"]
             if (
@@ -1127,6 +1143,14 @@ class OpenAILiveSession:
         batch = LiveToolBatch(tuple(calls), delegation, state.id, generation)
         self._batches[state.id] = _Batch(batch, usage, state.input_index)
         self._emit(batch)
+        self._observe_provider(
+            "live_backend_timing",
+            stage="batch_enqueued",
+            outcome="done",
+            generation=generation,
+            delegation_id=delegation,
+            response_id=state.id,
+        )
 
     def usage_snapshot(self) -> dict:
         """Last generation's units survive teardown; replay safely into UsageMeter.

@@ -1,3 +1,10 @@
+## 1.13.93 — Alpha: tidsmåling af værktøjsrunder
+
+- Måler modtagelse af backendrespons, lokal kø og ventetid før værktøjer.
+- Samme monotone host-ur i logs og optagede traces; identiteter hashes.
+- Ingen ændring af samtaleadfærd, lyd, timeout, værktøjsrettigheder eller firmware.
+- Målepunkterne er ikke i sig selv en hastighedsforbedring eller fysisk lydmåling.
+
 ## 1.13.92 — Alpha: fælles stilhedsperiode og kontrolleret farvel
 
 - Voice PE Alpha bruger den gemte stilhedsperiode efter frisk input-/output-ro;

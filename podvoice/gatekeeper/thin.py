@@ -87,6 +87,7 @@ _PHYSICAL_PROVIDER_TRACE_KINDS = frozenset(
         "production_capacity_wait",
         "live_tool_result",
         "live_backend_continue",
+        "live_backend_timing",
         "live_close",
         "live_reader",
         "live_release",
@@ -94,6 +95,8 @@ _PHYSICAL_PROVIDER_TRACE_KINDS = frozenset(
     }
 )
 _PHYSICAL_PROVIDER_TRACE_FIELDS = (
+    "host_monotonic_ns",
+    "clock_source",
     "target_tokens",
     "wait_s",
     "deadline_remaining_s",
@@ -2169,6 +2172,14 @@ class ThinSession:
             self._record_live_usage()
             self._trace_event("live_usage", seconds=ev.seconds, final=ev.final)
         elif isinstance(ev, LiveToolBatch):
+            self.brain._observe_provider(
+                "live_backend_timing",
+                stage="batch_received",
+                outcome="done",
+                generation=ev.generation,
+                response_id=ev.response_id,
+                delegation_id=ev.delegation_id,
+            )
             self._reset_live_quiet()
             if self._live_rotating and ev.generation != self._live_rotation_old_generation:
                 self._request_close("live-confirmation-before-capture", error_kind="connection")
@@ -2360,6 +2371,8 @@ class ThinSession:
                 "response_ref": response_ref,
                 "call_ref": call_ref,
                 "batch_generation": batch.generation,
+                "host_monotonic_ns": time.monotonic_ns(),
+                "clock_source": "host_monotonic",
                 "completed_results": completed_results,
                 "successful_results": successful_results,
                 "error_class": error_class,
@@ -2402,9 +2415,13 @@ class ThinSession:
         if not current():
             return
         try:
+            stage = "lock_wait"
+            observe("started")
             async with self._tool_lock:
                 if not current():
                     return
+                observe("done")
+                stage = "admission"
                 observe("started")
                 await self.brain.admit_tool_batch(batch.response_id, batch.generation)
                 if not current():

@@ -2323,3 +2323,25 @@ async def test_live_capacity_never_blocks_provider_reader_for_refill():
     finally:
         session._reader = reader
         await session.close()
+
+
+@pytest.mark.asyncio
+async def test_backend_timing_orders_received_and_enqueued_without_private_payload():
+    session, _, rows = diagnostic_wire_provider()
+    await session.connect()
+    try:
+        await stage(session)
+        timing = [r for r in rows if r["kind"] == "live_backend_timing"]
+        assert [r["stage"] for r in timing] == [
+            "response.created",
+            "response.completed",
+            "batch_enqueued",
+        ]
+        assert all(r["clock_source"] == "host_monotonic" for r in timing)
+        assert all(r["response_id"] == session._diagnostic_ref("r1") for r in timing)
+        stamps = [r["host_monotonic_ns"] for r in timing]
+        assert all(type(t) is int for t in stamps)
+        assert stamps == sorted(stamps)
+        assert "kitchen" not in str(timing)
+    finally:
+        await session.close()
