@@ -1,5 +1,57 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv beslutning 22/9 — Alpha værktøjstiming
+
+Lead Codex. .90-log viser 1811/1607 ms fra continuation-send-done til næste
+admission, men mangler backendmodtagelse og kø/lock-grænser. Hypotese: venten
+ligger før dispatch; observationerne skal kunne falsificere lokal køventen.
+Kæde: input → provider → backend created/completed → batch enqueue/receive →
+lock request/acquire → autoriseret dispatch → resultat/continuation → lyd →
+close/rearm. Invarianter: Thin ejer samtalen; completed-response-validering,
+autorisation, generationsisolation, OFF/Talk og fysisk playback uændret.
+Kun faste metadata, hash-identiteter og host monotonic timestamps; ingen
+resultater/transcripts/nøgler. Ingen per-audio logging eller nye waits.
+Regression: ordnede milepæle, lock contention, stale generation og observerfejl.
+Uafhængig review og relevante gates; rollback er kun diagnostikdiffet.
+Ingen fysisk latency- eller installationspåstand for denne kandidat.
+
+Implementeret som 1.13.93: host_monotonic_ns på eksisterende diagnostik,
+backend received/enqueued/received og lock_wait start/done. Trace-projektion
+bevarer felterne. Tre nye regressioner: timing/privatliv, faktisk holdt lock
+og trace-projektion. Fast partial gate PASS48,5s inkl. Ruff/format/mypy og
+relevante integrations-/providertests. Astra timing_review GO; ingen åbne
+findings. Kun hostmodtagelse måles, ikke ren providerberegning. Diff fryses
+før fuld releasegate; ingen SafeEval da semantik/prompt/schema er uændret.
+Release-precheck fandt .92s historiske coupling-marker. Den er arkiveret som
+historisk record; denne kandidat har kun ét klassificeret domæne og kræver
+ingen coupling-undtagelse. Runtime og scopegate er uændrede.
+Releasegate PASS 22/9 (58,1 s): Ruff/format/mypy, scope, unit og integration.
+Første forsøg krævede localhost-tilladelse; næste fandt en glemt versionsværdi
+i pyproject.toml, nu rettet til 1.13.93 og fuld gate genkørt grøn.
+Offentliggørelse af opdateret STATUS afventer konkret brugergodkendelse efter
+automatisk upload-afvisning. Ingen .93-PR, installation eller fysisk prøve endnu.
+
+
+
+## Feltobservation 22/9 — køkken, før 1.13.93
+
+Brugeren rapporterer langsom svarstart, hakkende assistant-lyd og svag wake med
+baggrundsmusik på installeret 1.13.92. Historikken 14:31–14:33 viser forstået
+bestilling af grundig støvsugning/vask i køkkenalrum og entré, men gentagne
+utilgængelighedssvar. HA GetLiveContext 14:36:02 viser Roborock unavailable;
+at robotten opleves online i egen app beviser ikke HA-forbindelsen.
+Samtalen lover først genkontrol efter 30 sekunder og logning af lydfejl, men
+trækker begge kapabilitetspåstande tilbage. Registreres som UX-fejl, ikke udført
+opgave. Historikkens 311 ture er tekstfragmenter, ikke 311 brugerhenvendelser.
+Runtime-tail viser stop 14:34:21.575, provider terminal 14:34:22.660 og rearm
+14:34:24.984. Ingen timeout/farvel-accept udledes af dette Stop-forløb.
+Logvisningens tilgængelige tail starter 14:33:22; fuld logdownload er blokeret
+af browserens organisationspolitik. Ingen påstand om komplet loganalyse,
+præcis fysisk svartid eller årsag til lydhak/wake. Firmware/gain/buffere uændret.
+1.13.93 måleændringen løser ikke disse fysiske feltfejl i sig selv.
+Opfølgning samme dag: HA-enhedssiden viser I dock, oplader og 78 procent.
+Aktivitetsloggen daterer genetableringen til 14:36:06, efter samtalens Stop.
+Ingen integrationsgenstart eller rengøringskommando udført af agenten.
 
 ## Aktiv R2-afslutningsbeslutning — brugerafgrænset næste Alpha-release
 
@@ -88,7 +140,7 @@ gateændringen, Lead gennemgik den uafhængigt; 24 scope-regressioner og Ruff PA
 Ingen runtimebytes blev ændret for precheckfejlen. Den fulde releasegate genoptages
 på dette frosne diff med nedenstående eksakte reviewbinding.
 
-<!-- candidate-scope-coupling
+<!-- historical-reviewed-coupling
 {
   "version": 1,
   "base_tip": "2413e4b0ec89afa2cf3499885d9e36d6959fe84b",
@@ -102,6 +154,44 @@ på dette frosne diff med nedenstående eksakte reviewbinding.
   "rationale": "Native Alpha inactivity necessarily couples current input observations with consumed announcement output under ThinSession. Exact source review found no unresolved finding; actual helper and full close-chain regressions pass. Optional recorder changes retain their sink/observer regressions. No firmware, adapter, prompt, VAD or gain change. Scope/release admission only; room acceptance follows installation by user authorization."
 }
 -->
+
+
+## Aktuel installation — GPT-Live Alpha 1.13.92, 21/9 kl. 18:53
+
+Lead Codex. Brugerens aktuelle afgrænsning: rum-/robotnavne og usikker akustisk wake
+udgår. Timeout/farvel-rettelsen er nu udgivet og installeret; fysisk afprøvning ligger
+EFTER denne release. Når afslutning, Stop, afbrydelser og ekko består, er næste fokus
+kun hastighed i denne opgave. Ingen fysisk acceptance eller 10/10 hævdes her.
+
+PR #63: https://github.com/BixelVentures/podvoice/pull/63 — merged.
+Installeret main: e52067d878da9a4010eecca83de1e6ecdaf8dbc4.
+Præcis reviewet/testet tree: 0ee97f39c33c95e7b0d41b1b5f05f05175f03bc2.
+HA startup 18:52:52 bekræfter version 1.13.92 og
+rootfs-v1:f91c8e79caaf70eb84096c9729029d9c366787075f9124ef949563adf04fefba.
+Native firmwarekontrakt OK; gemt Alpha ON og UI idle_timeout_s=4 er verificeret
+efter add-on-genstart. Voice PE er forbundet; næste fysiske wake er ikke prøvet.
+
+Løsning: Thin bruger friske input-/forbrugte announcement-outputobservationer til
+den gemte stilhedsperiode. Tavse transportpakker alene tæller ikke som tale.
+Semantisk farvel bruger outputro, så rå VAD-støj ikke vetoer modellens hensigt;
+nyt accepteret input revokerer stadig en ventende afslutning. Begge deler
+providerlukning og korreleret fysisk playback-finish. OFF, firmware, gain, VAD,
+talt Stop-politik og rent-tak-politik er uændrede. Talk beholder sin særskilte,
+endnu ubekræftede drængrænse; tidligere native ACK-fejl påstås ikke fysisk løst.
+
+Bevis: uafhængig Astra-review GO; 43 aktivitetsprøver, 110 eksisterende Live-prøver,
+2 sammensatte quiet→provider-close→playback-finish→rearm-prøver og 24 scope-prøver
+PASS. Fast fuld suite PASS104,0s. Frossen releasegate PASS63,5s. PR CI35627199327
+og main/publicering35627675201 grønne; ingen manuelle CI-genkørsler. Scope-precheck
+krævede en særskilt snæver toolingrettelse med uændret fingerprint/reviewbinding;
+localhost-sandboxfejl blev håndteret som testmiljø, aldrig runtimepatch.
+
+Aktuel usynkroniseret kilde-/gatekopi:
+/private/tmp/pv-alpha-r2-observe-0921 (publiceret tree ovenfor; efterfølgende lokal
+STATUS-opdatering er kun leveringslog). Den gamle Documents-worktree indeholder
+historiske ucommittede ændringer og må ikke bruges som installeret-kildebevis.
+Ingen fysisk lydprøve, ændret lydstyrke eller firmwareflash blev udført ved denne
+installation. Næste konkrete handling er brugerens aftalte efter-release prøve.
 
 
 ## Aktiv R2-observationsbeslutning — målevej, ikke idle-aktivering

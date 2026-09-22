@@ -2450,3 +2450,74 @@ async def test_live_result_entry_protocol_error_is_correlated_without_raw_messag
         assert "'stage': 'result_submit'" in failed[0]
     finally:
         await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_live_timing_separates_batch_queue_lock_wait_and_dispatch(caplog):
+    session, sdk, _, tools, _ = build()
+    rows = []
+    session.live_brain.provider_observer = rows.append
+    caplog.set_level("INFO", logger="podvoice.thin")
+    await session.start()
+    held = False
+    try:
+        await session.wake()
+        await session._tool_lock.acquire()
+        held = True
+        await emit(sdk, created(), call(arguments="{}"), terminal())
+
+        def diagnostic_rows():
+            return [
+                r.args[0]
+                for r in caplog.records
+                if r.name == "podvoice.thin" and r.msg == "thin: live batch %s [session=%s]"
+            ]
+
+        await until(lambda: any(r["stage"] == "lock_wait" for r in diagnostic_rows()))
+        assert tools.calls == []
+        assert not any(r["stage"] == "admission" for r in diagnostic_rows())
+        assert any(r.get("stage") == "batch_received" for r in rows)
+        session._tool_lock.release()
+        held = False
+        await until(
+            lambda: any(
+                r["stage"] == "result_submit" and r["outcome"] == "returned"
+                for r in diagnostic_rows()
+            )
+        )
+        recorded = diagnostic_rows()
+        assert [(r["stage"], r["outcome"]) for r in recorded[:4]] == [
+            ("lock_wait", "started"),
+            ("lock_wait", "done"),
+            ("admission", "started"),
+            ("dispatch", "started"),
+        ]
+        assert recorded[0]["host_monotonic_ns"] <= recorded[1]["host_monotonic_ns"]
+        assert tools.calls == [("status", {})]
+    finally:
+        if held:
+            session._tool_lock.release()
+        await session.aclose()
+
+
+def test_live_timing_survives_physical_trace_projection():
+    from unittest.mock import Mock
+
+    session, _, _, _, _ = build()
+    session.audio_trace = Mock()
+    session._trace_provider_event(
+        {
+            "kind": "live_backend_timing",
+            "stage": "batch_received",
+            "outcome": "done",
+            "host_monotonic_ns": 123456789,
+            "clock_source": "host_monotonic",
+            "response_id": "sha256:example",
+            "private_payload": "must-not-survive",
+        }
+    )
+    args, fields = session.audio_trace.provider_event.call_args
+    assert args == ("provider_live_backend_timing",)
+    assert fields["host_monotonic_ns"] == 123456789
+    assert fields["clock_source"] == "host_monotonic"
+    assert "private_payload" not in fields
