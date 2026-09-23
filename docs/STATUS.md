@@ -1,5 +1,29 @@
 # PodVoice-status — én aktuel sandhed
 
+## Candidate — physical Alpha wake acknowledgement before native context ACK
+
+Lead Codex, 2026-09-23. Observed event trace places the light command about 205 ms
+after wake, after native context acknowledgement. This is command timing, not an
+optical measurement. Source comparison found no changed Hey Chat model, wake gain,
+channel or threshold since .76. Acoustic recognition remains unproven.
+
+The candidate keeps ThinSession as sole light/session owner and paints its existing
+cyan after native Alpha capability checks, before waiting for context ACK, only for
+physical wakes. No microphone gate, provider readiness, firmware, sensitivity,
+model, prompt or timeout changes. Firmware-local painting was rejected because it
+would require a new takeover/cleanup boundary on host failure.
+
+Regression covers delayed/failed context ACK, Stop while pending, final dark/rearm
+and unchanged programmatic startup; Talk regression also passes. Independent adversarial source review GO; four frozen wake regression cases and
+seven Talk cases pass. Relevant fast gate PASS47.2s after granting its existing
+localhost HTTP test the required binding permission. No runtime patch followed
+the sandbox failure. No release, installation or
+physical improvement is claimed. HA is currently unreachable; hearing calibration
+requires the existing retained audio and device settings once access returns.
+Rollback boundary is this isolated host change; do not add speculative gain/model
+changes to compensate for unavailable acoustic evidence.
+
+
 ### .98 adversarial finding — pending output must block quiet closure
 
 Independent composed review reproduced a new race introduced by waiting: a full
