@@ -549,6 +549,7 @@ class ThinSession:
         self._live_webrtc = False
         self._live_stream = None
         self._live_output_bytes = 0
+        self._live_pending_audio: tuple | None = None
         self._live_input_revision = 0
         self._live_idle_window = NativeIdleWindow(freshness_s=LIVE_ACTIVITY_FRESHNESS_S)
         self._live_end_window = NativeIdleWindow(
@@ -836,6 +837,7 @@ class ThinSession:
             raise RuntimeError("Live Alpha integration is unavailable")
         self._live_stream = None
         self._live_output_bytes = 0
+        self._live_pending_audio = None
         self._live_input_revision = 0
         self._live_rotating = False
         self._live_rotation_old_generation = None
@@ -2109,11 +2111,98 @@ class ThinSession:
             if ev.sample_rate != 24000 or self._live_stream is None:
                 self._request_close("live-audio-contract", error_kind="connection")
                 return
+            from .live_audio import LiveAudioError
+
+            stream, brain, epoch = self._live_stream, self.brain, self._epoch
+            generation = ev.generation
+
+            def current_audio_identity() -> bool:
+                return bool(
+                    self._active
+                    and not self._transport_closing
+                    and self._epoch == epoch
+                    and self.brain is brain
+                    and brain._connection_generation == generation
+                    and self._live_stream is stream
+                    and not (
+                        self._live_rotating and generation == self._live_rotation_old_generation
+                    )
+                )
+
+            def current_audio_owner() -> bool:
+                return current_audio_identity() and not brain.last_error
+
+            before_bytes = stream.buffered_bytes
+            pending_audio = None
+            if any(ev.pcm):
+                # The reader has removed this chunk from the provider queue. Keep
+                # its nonzero work visible while capacity is awaited, without
+                # treating the continuous zero stream as activity.
+                pending_audio = (epoch, brain, generation, stream, object())
+                self._live_pending_audio = pending_audio
+                self._reset_live_quiet()
             try:
-                self._live_stream.append(ev.pcm)
-            except (ValueError, RuntimeError, BufferError):
-                self._request_close("live-output-overflow", error_kind="device")
+                await stream.append_wait(
+                    ev.pcm, timeout_s=ANNOUNCE_START_TIMEOUT_S, current=current_audio_owner
+                )
+            except LiveAudioError as exc:
+                # A delayed old producer must never close or publish into a new owner.
+                if not current_audio_identity():
+                    return
+                fault = "provider_fault" if brain.last_error else exc.code
+                stream_fault = (
+                    stream.fault
+                    if stream.fault
+                    in {
+                        None,
+                        "invalid_pcm",
+                        "buffer_overflow",
+                        "producer_stalled",
+                        "http_disconnect",
+                        "http_write_timeout",
+                        "http_cancelled",
+                        "http_incomplete",
+                        "server_shutdown",
+                        "conversation-close",
+                        "confirmation-rotation",
+                    }
+                    else "other"
+                )
+                _LOG.error(
+                    "thin: live output fault=%s chunk_bytes=%d buffer_at_attempt=%d buffered_bytes=%d "
+                    "limit_bytes=%d claimed=%s stream_fault=%s finished=%s cancelled=%s [room=%s]",
+                    fault,
+                    len(ev.pcm),
+                    before_bytes,
+                    stream.buffered_bytes,
+                    stream.max_buffer_bytes,
+                    stream.claimed,
+                    stream_fault,
+                    stream.finished,
+                    stream.cancelled,
+                    self.room,
+                )
+                with contextlib.suppress(Exception, asyncio.CancelledError):
+                    self._trace_event(
+                        "live_output_fault",
+                        fault=fault,
+                        chunk_bytes=len(ev.pcm),
+                        buffer_at_attempt=before_bytes,
+                        buffered_bytes=stream.buffered_bytes,
+                        stream_fault=stream_fault,
+                        finished=stream.finished,
+                        cancelled=stream.cancelled,
+                        limit_bytes=stream.max_buffer_bytes,
+                        claimed=stream.claimed,
+                    )
+                self._request_close(
+                    f"live-output-{fault}",
+                    error_kind="connection" if brain.last_error else "device",
+                )
                 return
+            finally:
+                if pending_audio is not None and self._live_pending_audio is pending_audio:
+                    self._live_pending_audio = None
             if any(ev.pcm):
                 self._reset_live_quiet()
             # Capture the accepted native stream boundary, not a physical drain
@@ -5219,6 +5308,15 @@ class ThinSession:
 
         brain = self.brain
         now = time.monotonic()
+        pending = self._live_pending_audio
+        if (
+            pending is not None
+            and pending[0] == self._epoch
+            and pending[1] is brain
+            and pending[2] == brain._connection_generation
+            and pending[3] is self._live_stream
+        ):
+            return False
         if (
             not self._active
             or not self.live_alpha

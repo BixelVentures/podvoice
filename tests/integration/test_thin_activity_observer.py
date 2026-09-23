@@ -190,8 +190,8 @@ async def test_native_live_speaker_trace_contains_only_accepted_current_pcm(tmp_
         await session._on_live_event(LiveAudioChunk(generation=generation, pcm=pcm))
         session._live_webrtc = False
         assert closes == [
-            "live-output-overflow",
-            "live-output-overflow",
+            "live-output-invalid_pcm",
+            "live-output-sealed",
             "live-audio-contract",
             "live-duplicate-audio-path",
         ]
