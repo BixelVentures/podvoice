@@ -1,5 +1,34 @@
 # PodVoice-status — én aktuel sandhed
 
+## v1.13.97 candidate — bounded automatic Alpha diagnostics
+
+Reviewed source candidate; not physically accepted. Ordinary physical Alpha sessions
+save bounded rolling diagnostics, with an explicitly requested pre-wake reference
+kept outside provider input. Alpha OFF, model behavior, gain/VAD and saved timeout
+are preserved. Independent source review covered the entire ownership chain and
+resolved stale scheduling, diagnostic congestion and multipart evidence boundaries.
+Firmware source is pinned to `9f77e300680339c96028eb677825a61dd020da11` and the paired
+marker is `podvoice_build_11397_diagnostics1`. Physical wake, audible latency and
+lifecycle acceptance remain pending; private household evidence is retained locally.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "c8c765849990276f43dd7c44458f3a6a7e4ea72e",
+  "merge_base": "c8c765849990276f43dd7c44458f3a6a7e4ea72e",
+  "domains": [
+    "ha_tools",
+    "physical_output",
+    "realtime_semantics",
+    "rearm"
+  ],
+  "fingerprint": "fbbc6eb794c8f0632f6a123f053b3bfc74da375e8cc08a7bcd40da41a0b96116",
+  "reviewer": "Independent Astra reviewer /root/wake_regression_audit; source and mechanical identity GO, 2026-09-23",
+  "rationale": "One bounded observational chain: admitted physical Alpha wake, requested pre-wake reference, native ownership, provider event metadata, rolling local persistence, teardown and next-wake evidence. No gain/VAD/model/prompt/tool/idle semantics changes. Exact source review resolved diagnostic congestion, stale scheduled-task ownership and multipart evidence misuse; mandatory regressions and fingerprint bind this coupled candidate. Physical acceptance remains separate."
+}
+-->
+
+
 ## Aktiv beslutning 22/9 — Alpha værktøjstiming
 
 Lead Codex. .90-log viser 1811/1607 ms fra continuation-send-done til næste
