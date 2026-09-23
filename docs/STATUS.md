@@ -1,5 +1,53 @@
 # PodVoice-status — én aktuel sandhed
 
+### .98 adversarial finding — pending output must block quiet closure
+
+Independent composed review reproduced a new race introduced by waiting: a full
+silent output queue and already-started lease can leave a dequeued nonzero chunk
+waiting outside both provider and stream queues. Both idle and semantic work-clear
+incorrectly returned true. Candidate remains blocked until pending nonzero output
+is owner-scoped, counted as work, cleared safely across cancellation/generations,
+and a permanent regression proves neither closure path can pass while it waits.
+
+Resolution implemented and independently reviewed: pending nonzero audio now has
+an exact epoch/provider/generation/stream token; both quiet-close gates reject it.
+Receipt resets quiet timing, and finally retires only its own token. Constant-zero
+transport does not become user/assistant activity. Regression covers both gates
+and delayed old-wait cleanup against a replacement marker. Independent final
+source review: GO, no unresolved blocking findings. Focused owner suite41 and
+independent suite50 pass; actual HTTP route passed outside loopback sandbox.
+Fast gate passed121.0s with the supported full-suite timeout budget after the
+initial120s budget expired at98% without failed assertions; no runtime change
+was made from that process timeout. Frozen release and exact-commit CI pending.
+
+## Active .98 decision — bounded Live output startup backpressure
+
+Lead: Codex. A physical .97 attempt failed without speech, with red LED and
+`live-output-overflow`; exact paired artifact verified. Private diagnostic trace
+has dropped commands, so the label alone cannot prove capacity rather than a
+sealed stream. Independent composed reproduction: eleven 100ms PCM envelopes
+queued before scheduling playback exceed the unchanged 1000ms stream ceiling;
+this also reproduces without automatic diagnostics. Field causation remains open.
+
+Chain: physical wake/admission → provider input/start → queued Live output →
+Thin producer → existing HTTP consumer → native playback → close/rearm/next wake.
+Hypothesis: bounded producer backpressure allows the already-scheduled playback
+consumer to progress without raising the audio storage ceiling or dropping PCM.
+Keep one Thin owner, exact stream/session/generation identities, independent Stop,
+completed tool authorization, final audio drain, Talk WebRTC and Alpha OFF.
+Non-goals: firmware, gain/VAD, model/prompt/tools, saved idle timeout, buffer tuning.
+Use the existing 2.5s playback-start ceiling for a stalled capacity wait; no retry.
+Invalidate waiting PCM before append on cancellation, sealing, generation change
+or provider failure; intentional provider closing must still drain terminal audio.
+Log static fault and bounded counters outside the lossy recorder path.
+Regression requirements: burst before native ACK/HTTP consumption, unchanged cap
+and byte order, dead sink, Stop/seal/generation/provider failure during wait,
+terminal audio and next identity, HTTP adapter and opposite I/O contract.
+Independent adversarial review, fast and frozen release gates required. No claim
+of physical correction before the installed candidate is used successfully.
+Rollback boundary: preceding paired .96/.94 retained; .97 is not a golden baseline.
+
+
 ## v1.13.97 candidate — bounded automatic Alpha diagnostics
 
 Reviewed source candidate; not physically accepted. Ordinary physical Alpha sessions
@@ -11,7 +59,7 @@ Firmware source is pinned to `9f77e300680339c96028eb677825a61dd020da11` and the 
 marker is `podvoice_build_11397_diagnostics1`. Physical wake, audible latency and
 lifecycle acceptance remain pending; private household evidence is retained locally.
 
-<!-- candidate-scope-coupling
+<!-- historical .97 reviewed coupling (not applicable to .98)
 {
   "version": 1,
   "base_tip": "c8c765849990276f43dd7c44458f3a6a7e4ea72e",

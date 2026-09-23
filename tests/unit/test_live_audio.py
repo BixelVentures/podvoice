@@ -85,3 +85,64 @@ def test_duplicate_session_claim_invalid_pcm_and_shutdown():
     pending = registry.open("next")
     registry.close()
     assert pending.cancelled and pending.fault == "server_shutdown"
+
+
+async def test_waiting_producer_preserves_burst_bytes_without_exceeding_capacity():
+    registry = LiveAudioStreams()
+    stream = registry.open("session")
+    chunks = [bytes([i, 0]) * 2400 for i in range(12)]
+    accepted = []
+
+    async def produce():
+        for chunk in chunks:
+            await stream.append_wait(chunk, timeout_s=1, current=lambda: True)
+            accepted.append(stream.buffered_bytes)
+        stream.finish()
+
+    producer = asyncio.create_task(produce())
+    await asyncio.sleep(0)
+    assert stream.buffered_bytes == 48000 and not producer.done()
+    registry.claim(stream.id)
+    received = []
+    while (chunk := await stream.next_chunk()) is not None:
+        received.append(chunk)
+    await producer
+    assert b"".join(received) == b"".join(chunks)
+    assert max(accepted) == 48000
+
+
+@pytest.mark.parametrize("boundary", ["finish", "cancel", "owner", "stall"])
+async def test_waiting_producer_rechecks_terminal_owner_and_stall(boundary):
+    registry = LiveAudioStreams()
+    stream = registry.open("session")
+    stream.append(bytes(48000))
+    current = [True]
+    pending = asyncio.create_task(
+        stream.append_wait(b"\x11\x11", timeout_s=0.02, current=lambda: current[0])
+    )
+    await asyncio.sleep(0)
+    if boundary in {"finish", "cancel"}:
+        getattr(stream, boundary)()
+    elif boundary == "owner":
+        current[0] = False
+        registry.claim(stream.id)
+        await stream.next_chunk()
+    with pytest.raises(LiveAudioError) as failure:
+        await pending
+    assert (
+        failure.value.code
+        == {
+            "finish": "sealed",
+            "cancel": "sealed",
+            "owner": "stale_owner",
+            "stall": "producer_stalled",
+        }[boundary]
+    )
+    assert b"\x11\x11" not in stream._chunks
+
+
+async def test_async_oversized_pcm_fails_immediately_without_capacity_wait():
+    stream = LiveAudioStreams().open("session")
+    with pytest.raises(LiveAudioError) as error:
+        await stream.append_wait(bytes(48002), timeout_s=1, current=lambda: True)
+    assert error.value.code == "buffer_overflow" and stream.cancelled

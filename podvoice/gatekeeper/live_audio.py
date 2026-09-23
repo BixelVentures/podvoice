@@ -12,6 +12,10 @@ from collections.abc import Callable
 class LiveAudioError(RuntimeError):
     """Rejected audio ownership or transport failure."""
 
+    def __init__(self, message: str, *, code: str = "transport_error"):
+        super().__init__(message)
+        self.code = code
+
 
 def live_wav_header(sample_rate: int = 24000) -> bytes:
     """PCM16 mono stream header accepted by pinned micro-wav 0.1.0.
@@ -47,33 +51,64 @@ class LiveAudioStream:
         self.max_buffer_bytes = sample_rate * 2
         self._chunks: deque[bytes] = deque()
         self._changed = asyncio.Event()
+        self._capacity_changed = asyncio.Event()
         self._cancelled = asyncio.Event()
         self._retire = retire
 
     def append(self, pcm: bytes) -> None:
         if self.cancelled or self.finished:
-            raise LiveAudioError("stream is sealed")
+            raise LiveAudioError("stream is sealed", code="sealed")
         if not isinstance(pcm, bytes) or len(pcm) % 2:
             self.cancel("invalid_pcm")
-            raise LiveAudioError("expected aligned PCM16 bytes")
+            raise LiveAudioError("expected aligned PCM16 bytes", code="invalid_pcm")
         if self.buffered_bytes + len(pcm) > self.max_buffer_bytes:
             self.cancel("buffer_overflow")
-            raise LiveAudioError("Live PCM exceeded 1000 ms queue limit")
+            raise LiveAudioError("Live PCM exceeded 1000 ms queue limit", code="buffer_overflow")
         if pcm:
             self._chunks.append(pcm)
             self.buffered_bytes += len(pcm)
             self._changed.set()
 
+    async def append_wait(
+        self, pcm: bytes, *, timeout_s: float, current: Callable[[], bool]
+    ) -> None:
+        """Wait for bounded queue capacity; revalidate ownership before committing."""
+        if not isinstance(pcm, bytes) or len(pcm) % 2 or len(pcm) > self.max_buffer_bytes:
+            if not current():
+                raise LiveAudioError("audio owner changed", code="stale_owner")
+            self.append(pcm)  # Preserve the synchronous validation/fault contract.
+            return
+        try:
+            async with asyncio.timeout(timeout_s):
+                while True:
+                    if not current():
+                        raise LiveAudioError("audio owner changed", code="stale_owner")
+                    if self.cancelled or self.finished:
+                        raise LiveAudioError("stream is sealed", code="sealed")
+                    if self.buffered_bytes + len(pcm) <= self.max_buffer_bytes:
+                        # No await between the caller's final guard and mutation.
+                        self.append(pcm)
+                        return
+                    self._capacity_changed.clear()
+                    await self._capacity_changed.wait()
+        except TimeoutError:
+            if not current():
+                raise LiveAudioError("audio owner changed", code="stale_owner") from None
+            self.cancel("producer_stalled")
+            raise LiveAudioError("Live PCM consumer stalled", code="producer_stalled") from None
+
     def finish(self) -> None:
         """Seal accepted PCM for draining; caller owns the reason for closure."""
         if not self.cancelled:
             self.finished = True
+            self._capacity_changed.set()
             self._changed.set()
 
     def cancel(self, reason: str = "cancelled") -> None:
         if self.cancelled:
             return
         self.cancelled = True
+        self._capacity_changed.set()
         self._cancelled.set()
         self.fault = reason
         self._chunks.clear()
@@ -95,6 +130,7 @@ class LiveAudioStream:
             if self._chunks:
                 pcm = self._chunks.popleft()
                 self.buffered_bytes -= len(pcm)
+                self._capacity_changed.set()
                 return pcm
             if self.finished:
                 self._retire()

@@ -1,3 +1,9 @@
+## 1.13.98
+
+- Live output applies bounded backpressure while playback starts, retaining the existing one-second queue cap instead of closing on a short producer burst.
+- Stop, provider failure and session replacement invalidate waiting audio. Output faults report the actual static reason and queue counters.
+- Uses the existing 1.13.97 diagnostic firmware; no firmware, wake, gain, model or saved timeout changes.
+
 ## 1.13.97
 
 - Save bounded local diagnostics automatically for ordinary physical GPT-Live Alpha conversations, including rolling audio, sanitized provider events, persistence failures and wake/rearm timing.
