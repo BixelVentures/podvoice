@@ -1,3 +1,9 @@
+## 1.13.95
+
+- Preserve already measured Alpha silence across empty activity snapshots, without accepting unknown audio as quiet.
+- Require a fresh, valid, contiguous output measurement before inactivity can close the conversation.
+- Keeps the saved inactivity duration, semantic farewell policy and existing `podvoice_build_11394_activity2` firmware unchanged. Physical timing verification remains pending.
+
 ## 1.13.94
 
 - Prepare GPT-Live SDK dependencies without blocking the conversation event loop.

@@ -200,3 +200,38 @@ async def test_new_nonzero_and_queued_input_prevent_commit_and_stale_owner_is_in
             assert not session._live_quiet_ready(semantic=True)
     finally:
         await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_empty_native_snapshot_cannot_close_but_valid_continuation_retains_idle(monkeypatch):
+    from unit.test_live_idle import empty_snapshot
+
+    session, _, link = await setup()
+    clock, commits = [100.0], []
+
+    async def finalizer(epoch, *, reason, receipt=None):
+        commits.append((epoch, reason))
+        await asyncio.Event().wait()
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(thin_module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+            patch.setattr(session, "_finalize_live_conversation", finalizer)
+            for i in range(40):
+                deliver(session, link, clock, i)
+            empty = empty_snapshot(40, observation(39))
+            clock[0] = empty["received_monotonic"]
+            link.latest = empty
+            link.on_activity(empty)
+            assert not session._live_quiet_ready()
+            assert commits == []
+            continuation = observation(41)
+            continuation["output"].update(frame_begin=192000, sample_count=9600)
+            clock[0] = continuation["received_monotonic"]
+            link.latest = continuation
+            link.on_activity(continuation)
+            assert session._live_quiet_ready()
+            await until(lambda: bool(commits))
+            assert commits == [(session._epoch, "idle-fallback")]
+    finally:
+        await session.aclose()
