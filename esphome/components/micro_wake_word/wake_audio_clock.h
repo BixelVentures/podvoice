@@ -13,6 +13,7 @@ struct WakeAudioPosition {
   uint32_t epoch{0};
   uint32_t detector_run{0};
   bool valid{false};
+  uint32_t detected_ms{0}, delivered_ms{0};  // Queue insertion and main-loop delivery, device clock.
 };
 
 // The caller serializes producer append and consumer/reset with mutex. Inference

@@ -397,6 +397,7 @@ void MicroWakeWord::loop() {
               continue;
           }
           this->delivered_wake_audio_ = queued.audio;
+          this->delivered_wake_audio_.delivered_ms = millis();
           this->wake_word_detected_trigger_.trigger(*detection_event.wake_word);
           this->delivered_wake_audio_ = {};
           if (this->stop_after_detection_) {
@@ -530,6 +531,7 @@ void MicroWakeWord::process_probabilities_() {
         if (vad_state.detected) {
 #endif
           QueuedDetection queued{wake_word_state, 0, this->feature_wake_audio_};
+          queued.audio.detected_ms = millis();
           xQueueSend(this->detection_queue_, &queued, portMAX_DELAY);
 
           // Wake main loop immediately to process wake word detection
@@ -540,6 +542,7 @@ void MicroWakeWord::process_probabilities_() {
         } else {
           wake_word_state.blocked_by_vad = true;
           QueuedDetection queued{wake_word_state, 0, this->feature_wake_audio_};
+          queued.audio.detected_ms = millis();
           xQueueSend(this->detection_queue_, &queued, portMAX_DELAY);
         }
 #endif

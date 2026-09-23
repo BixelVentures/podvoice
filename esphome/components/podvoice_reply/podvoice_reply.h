@@ -67,6 +67,12 @@ class PodVoiceReply : public Component {
 #endif
     request_context_(); return true;
   }
+  const std::string &conversation_nonce() const { return context_.session; }
+  // Diagnostic permission only; this cannot admit playback or change Stop state.
+  uint32_t wake_reference_generation(const std::string &session, bool require_ack) const {
+    return !mute_switch_->state && !context_.enabled && context_.admits(session, context_.generation) &&
+      !context_fault_() && (!require_ack || detector_->stop_context_ack() == context_.command) ? context_.generation : 0;
+  }
   void set_stop_context(const std::string &session, int generation, bool enabled) {
     if (generation <= 0 || !context_.set(session, static_cast<uint32_t>(generation), enabled)) return;
     request_context_();
