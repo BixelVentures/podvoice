@@ -217,3 +217,12 @@ async def test_stale_cancel_callback_cannot_replace_new_report(recording):
     service._result = {"status": "running", "trace_id": "new"}
     service._finish(old_task, "old", lease)
     assert service.status() == {"status": "running", "trace_id": "new"}
+
+
+@pytest.mark.parametrize("status", ["recording", "part_complete", "complete"])
+def test_rolling_parts_are_not_single_recording_analysis(recording, status):
+    directory, manifest, save = recording
+    manifest.update(automatic=True, capture_status=status, finished_at=123)
+    save()
+    with pytest.raises(ValueError, match="Automatiske samtaledele"):
+        prepare(directory, TRACE)

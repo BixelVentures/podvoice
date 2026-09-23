@@ -109,6 +109,10 @@ def prepare(directory: Path, trace_id: str) -> tuple[dict[str, Any], list[bytes]
         or not manifest.get("finished_at")
     ):
         raise ValueError("Optagelsen er ikke afsluttet.")
+    if manifest.get("automatic"):
+        raise ValueError(
+            "Automatiske samtaledele kan ikke bruges til denne enkeltoptagelsesanalyse."
+        )
     events = manifest.get("events")
     if (
         not isinstance(events, list)

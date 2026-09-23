@@ -29,6 +29,7 @@ from types import SimpleNamespace
 from typing import Any, ClassVar, TypeGuard
 
 from . import constants as C
+from .wake_reference import WakeReferenceAssembler
 from .wake_words import WAKE_WORDS
 
 log = logging.getLogger(__name__)
@@ -118,9 +119,21 @@ class VoicePELink:
         self.frames_in = 0
         self.bytes_in = 0
         self.last_audio_ts = 0.0
+        self.audio_queue_high_water = 0
+        self.audio_queue_dropped_frames = 0
+        self.audio_queue_dropped_bytes = 0
+        self.first_audio_after_wake_ts = 0.0
         # Wake/button events -> state machine. Signature: on_event(room, state).
         self.on_event: Callable[[str, object], Any] | None = None
         self.on_activity: Callable[[dict], None] | None = None
+        self.supports_wake_reference = False
+        self._wake_reference_key: int | None = None
+        self._wake_reference = WakeReferenceAssembler()
+        self._wake_reference_session = ""
+        self._wake_reference_owner = ""
+        self._wake_reference_request: object | None = None
+        self._wake_reference_expiry: asyncio.TimerHandle | None = None
+        self._wake_reference_observer: Callable[[Any], None] | None = None
         self.supports_activity_observer = False
         self._activity_status_key: int | None = None
         self._activity_latest: dict | None = None
@@ -693,6 +706,9 @@ class VoicePELink:
         self._rearm_ack_key = None
         self._capture_status_key = None
         self._activity_status_key = None
+        self._wake_reference_key = None
+        self.supports_wake_reference = False
+        self._clear_wake_reference()
         self.supports_activity_observer = False
         self._activity_latest = None
         self.supports_live_capture_hold = False
@@ -783,6 +799,15 @@ class VoicePELink:
                 None,
             )
             self._activity_status_key = getattr(activity, "key", None)
+            reference = next(
+                (
+                    e
+                    for e in text_sensors
+                    if getattr(e, "object_id", "") == "podvoice_wake_reference"
+                ),
+                None,
+            )
+            self._wake_reference_key = getattr(reference, "key", None)
             wake_ack = next(
                 (
                     e
@@ -833,6 +858,11 @@ class VoicePELink:
             self.supports_activity_observer = (
                 "podvoice_activity_observer_v1" in advertised
                 and self._activity_status_key is not None
+            )
+            self.supports_wake_reference = (
+                "wake_reference_v1" in advertised
+                and self._wake_reference_key is not None
+                and "podvoice_wake_snapshot" in self._user_services
             )
             self.supports_live_wav = "podvoice_live_wav_v1" in (
                 getattr(podvoice_event, "event_types", None) or []
@@ -1302,6 +1332,8 @@ class VoicePELink:
         self.frames_in += 1
         self.bytes_in += len(data)
         self.last_audio_ts = asyncio.get_event_loop().time()
+        if self._last_local_wake_at and self.first_audio_after_wake_ts < self._last_local_wake_at:
+            self.first_audio_after_wake_ts = time.monotonic()
         try:
             self._audio_q.put_nowait(data)
         except asyncio.QueueFull:
@@ -1309,9 +1341,33 @@ class VoicePELink:
             # reached, discard the oldest 20 ms (normally wake/pre-roll) instead of
             # the end of the request, which carries the intent and tool arguments.
             with contextlib.suppress(asyncio.QueueEmpty):
-                self._audio_q.get_nowait()
-            with contextlib.suppress(asyncio.QueueFull):
+                dropped = self._audio_q.get_nowait()
+                self.audio_queue_dropped_frames += 1
+                self.audio_queue_dropped_bytes += len(dropped)
+            try:
                 self._audio_q.put_nowait(data)
+            except asyncio.QueueFull:
+                self.audio_queue_dropped_frames += 1
+                self.audio_queue_dropped_bytes += len(data)
+        self.audio_queue_high_water = max(self.audio_queue_high_water, self._audio_q.qsize())
+
+    def wake_diagnostics(self) -> dict[str, int | float | None]:
+        """Host receipt/queue facts, not acoustic detection or firmware TX-loss proof."""
+        return {
+            "native_wake_received_mono_s": self._last_local_wake_at,
+            "native_first_audio_after_wake_mono_s": (
+                self.first_audio_after_wake_ts
+                if self._last_local_wake_at
+                and self.first_audio_after_wake_ts >= self._last_local_wake_at
+                else None
+            ),
+            "native_audio_frames_total": self.frames_in,
+            "native_audio_bytes_total": self.bytes_in,
+            "native_queue_frames": self._audio_q.qsize(),
+            "native_queue_high_water": self.audio_queue_high_water,
+            "native_queue_dropped_frames_total": self.audio_queue_dropped_frames,
+            "native_queue_dropped_bytes_total": self.audio_queue_dropped_bytes,
+        }
 
     def drain_mic(self) -> int:
         """Drop queued mic frames at start and the correlated rearm boundary.
@@ -1347,6 +1403,7 @@ class VoicePELink:
         The caller owns *when* a boundary is authoritative; this primitive owns only
         the mechanical generation cut.
         """
+        self._clear_wake_reference()
         self._audio_epoch += 1
         dropped = self.drain_mic()
         log.debug(
@@ -1372,6 +1429,30 @@ class VoicePELink:
         key = getattr(state, "key", None)
         tname = type(state).__name__
         event_type = getattr(state, "event_type", None) or getattr(state, "event", None)
+        if key is not None and key == self._wake_reference_key and tname == "TextSensorState":
+            # Diagnostic pre-wake audio has its own route: never enter the mic queue.
+            if self._wake_reference_observer is not None and (
+                self._stop_session != self._wake_reference_owner or self._stop_cancelled
+            ):
+                self._clear_wake_reference()
+            if self._wake_reference_observer is not None:
+                result = self._wake_reference.feed(
+                    getattr(state, "state", ""),
+                    now=time.monotonic(),
+                    connection=self._connection_generation,
+                    epoch=float(self._audio_epoch),
+                    session_id=self._wake_reference_session,
+                )
+                if result is not None:
+                    if self._wake_reference_expiry is not None:
+                        self._wake_reference_expiry.cancel()
+                        self._wake_reference_expiry = None
+                    observer, self._wake_reference_observer = self._wake_reference_observer, None
+                    try:
+                        observer(result)
+                    except (Exception, asyncio.CancelledError):
+                        log.warning("wake reference observer failed")
+            return
         if key == self._activity_status_key and tname == "TextSensorState":
             self._on_activity_status(str(getattr(state, "state", "")))
             return
@@ -1391,6 +1472,7 @@ class VoicePELink:
         ):
             return
         if event_type in ("wake_okay_nabu", "wake"):
+            self._clear_wake_reference()
             self._last_local_wake_at = time.monotonic()
         # Firmware-owned playback edges are authoritative.  Native API media-player
         # state did not reach the add-on in the physical 2026-08-17 trace even though
@@ -1505,10 +1587,12 @@ class VoicePELink:
         elif (
             key is not None
             and key == self._mute_key
-            and self.on_mute is not None
             and tname in ("SwitchEntityState", "BinarySensorEntityState")
         ):
-            self._run_cb(self.on_mute, bool(getattr(state, "state", False)))
+            if bool(getattr(state, "state", False)):
+                self._clear_wake_reference()
+            if self.on_mute is not None:
+                self._run_cb(self.on_mute, bool(getattr(state, "state", False)))
         if self.on_event is not None:
             # on_event may be a coroutine function; schedule without blocking the cb.
             self._run_cb(self.on_event, self.room, state)
@@ -1688,7 +1772,81 @@ class VoicePELink:
             except (Exception, asyncio.CancelledError):
                 log.warning("Voice PE activity observer failed")
 
+    def _clear_wake_reference(self) -> None:
+        if self._wake_reference_expiry is not None:
+            self._wake_reference_expiry.cancel()
+            self._wake_reference_expiry = None
+        self._wake_reference_owner = ""
+        self._wake_reference_request = None
+        self._wake_reference.reset()
+        self._wake_reference_observer = None
+        self._wake_reference_session = ""
+
+    async def request_wake_reference(
+        self, session_id: str, observer: Callable[[Any], None]
+    ) -> bool:
+        if (
+            not self.supports_wake_reference
+            or not self._stop_session
+            or self._stop_cancelled
+            or not self._wake_admitted
+            or not self._stop_playback_allowed
+            or self._stop_outcome != "live"
+            or not session_id
+        ):
+            return False
+        self._clear_wake_reference()
+        request = self._wake_reference_request = object()
+        self._wake_reference_session = session_id
+        self._wake_reference_owner = self._stop_session
+        self._wake_reference_observer = observer
+        self._wake_reference.begin(
+            self._stop_session,
+            self._stop_generation,
+            now=time.monotonic(),
+            connection=self._connection_generation,
+            epoch=float(self._audio_epoch),
+            session_id=session_id,
+        )
+
+        def expire() -> None:
+            if self._wake_reference_request is not request:
+                return
+            if self._wake_reference_observer is observer:
+                self._wake_reference.expire(now=time.monotonic())
+                self._wake_reference_observer = None
+                self._wake_reference_session = ""
+                self._wake_reference_owner = ""
+            self._wake_reference_expiry = None
+
+        self._wake_reference_expiry = asyncio.get_running_loop().call_later(15.0, expire)
+        try:
+            async with asyncio.timeout(1.0):
+                ok = await self._call_service(
+                    "podvoice_wake_snapshot",
+                    {
+                        "session": self._stop_session,
+                        "generation": self._stop_generation,
+                    },
+                )
+        except asyncio.CancelledError:
+            if self._wake_reference_request is request:
+                self._clear_wake_reference()
+            raise
+        except Exception:
+            if self._wake_reference_request is request:
+                self._clear_wake_reference()
+            return False
+        if not ok and self._wake_reference_request is request:
+            self._clear_wake_reference()
+        return ok
+
+    def wake_reference_status(self) -> dict:
+        self._wake_reference.expire(now=time.monotonic())
+        return self._wake_reference.snapshot()
+
     def _reset_stop_context(self) -> None:
+        self._clear_wake_reference()
         self._activity_latest = None
         self._stop_reset_generation += 1
         self._stop_live_revision += 1
@@ -1704,6 +1862,7 @@ class VoicePELink:
         self._stop_changed.set()
 
     def _revoke_live_admission(self) -> None:
+        self._clear_wake_reference()
         self._stop_live_revision += 1
         self._stop_playback_allowed = False
         if self._stop_expected is not None and self._stop_expected[2] == "live":
@@ -1887,6 +2046,7 @@ class VoicePELink:
         if outcome in ("stopped", "fault") and (
             self._stop_armed or self._stop_playback_allowed or self._stop_expected is not None
         ):
+            self._clear_wake_reference()
             self._stop_armed = False
             self._stop_playback_allowed = False
             self._stop_cancelled = True

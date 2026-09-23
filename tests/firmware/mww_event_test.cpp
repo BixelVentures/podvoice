@@ -30,7 +30,12 @@ int main() {
   std::vector<uint32_t> stops;
   detector.add_on_stop_detected_callback([&](uint32_t epoch) { stops.push_back(epoch); });
   for (int i=0;i<110;++i) detector.frame(0);
-  detector.frame(255); detector.loop();
+  WakeAudioPosition delivered;
+  detector.get_wake_word_detected_trigger()->callback=[&](const std::string &) { delivered=detector.wake_audio_position(); };
+  esphome::test_millis=123; detector.frame(255);
+  esphome::test_millis=321; detector.loop();
+  assert(delivered.detected_ms==123 && delivered.delivered_ms==321);
+  esphome::test_millis=100;
   assert(stops.empty()); // inactive Stop has not put itself on the queue
   assert(detector.get_wake_word_detected_trigger()->delivered.size()==1);
   int allocations=tflite::allocations;

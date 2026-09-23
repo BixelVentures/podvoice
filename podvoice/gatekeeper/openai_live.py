@@ -89,6 +89,25 @@ _DIAGNOSTIC_ERROR_TYPES = frozenset(
         "insufficient_quota",
     }
 )
+_DIAGNOSTIC_WIRE_TYPES = frozenset(
+    {
+        "error",
+        "session.started",
+        "session.updated",
+        "session.output_audio.delta",
+        "session.input_transcript.delta",
+        "session.output_transcript.delta",
+        "session.usage.updated",
+        "session.closed",
+        "session.instructions.appended",
+        "response.event",
+        "response.created",
+        "response.output_item.done",
+        "response.completed",
+        "response.failed",
+        "response.incomplete",
+    }
+)
 _DIAGNOSTIC_EXCEPTION_CLASSES = frozenset(
     {
         "LiveProtocolError",
@@ -589,37 +608,46 @@ class OpenAILiveSession:
         self._resampler = StreamResampler(self.input_rate, 24000)
         try:
             async with asyncio.timeout(self.timeout_s) as startup_deadline:
-                factory = self.client_factory
-                if factory is None:
-                    factory = await prepare_live_sdk()
+                with self._diagnostic_stage("live_startup", "sdk_prepare", generation=generation):
+                    factory = self.client_factory
+                    if factory is None:
+                        factory = await prepare_live_sdk()
                 if (
                     self._close_requested
                     or generation != self._connection_generation
                     or (self._startup_task is not None and self._startup_task.cancelling())
                 ):
                     raise LiveProtocolError("live_startup_superseded")
-                self._client = factory(api_key=self.api_key, max_retries=0, timeout=self.timeout_s)
-                if self.transport == "webrtc":
-                    result = await self._client.live.create(
-                        session=configuration,
-                        transport={"type": "webrtc", "sdp": self.webrtc_offer},
+                with self._diagnostic_stage("live_startup", "client_create", generation=generation):
+                    self._client = factory(
+                        api_key=self.api_key, max_retries=0, timeout=self.timeout_s
                     )
-                    session_id = result.session.id
-                    if not isinstance(session_id, str) or not session_id:
-                        raise LiveProtocolError("invalid_live_webrtc_session")
-                    self._webrtc_session_id = session_id
-                    self._usage_session_id = session_id
-                    answer = getattr(getattr(result, "transport", None), "sdp", None)
-                    # Even a cancellation-resistant create must leave an owned close path.
-                    self._manager = self._client.live.sideband.connect(
-                        session_id=session_id,
-                        max_retries=0,
-                        graceful_close=True,
-                        max_queue_size=65536,
-                    )
-                else:
-                    self._manager = self._client.live.connect(max_retries=0, max_queue_size=65536)
-                connection = await self._manager.__aenter__()
+                with self._diagnostic_stage(
+                    "live_startup", "transport_connect", generation=generation
+                ):
+                    if self.transport == "webrtc":
+                        result = await self._client.live.create(
+                            session=configuration,
+                            transport={"type": "webrtc", "sdp": self.webrtc_offer},
+                        )
+                        session_id = result.session.id
+                        if not isinstance(session_id, str) or not session_id:
+                            raise LiveProtocolError("invalid_live_webrtc_session")
+                        self._webrtc_session_id = session_id
+                        self._usage_session_id = session_id
+                        answer = getattr(getattr(result, "transport", None), "sdp", None)
+                        # Even a cancellation-resistant create must leave an owned close path.
+                        self._manager = self._client.live.sideband.connect(
+                            session_id=session_id,
+                            max_retries=0,
+                            graceful_close=True,
+                            max_queue_size=65536,
+                        )
+                    else:
+                        self._manager = self._client.live.connect(
+                            max_retries=0, max_queue_size=65536
+                        )
+                    connection = await self._manager.__aenter__()
                 if self.transport == "webrtc":
                     self._connection = connection
                     self._reader = asyncio.create_task(self._receive(connection, generation))
@@ -641,7 +669,12 @@ class OpenAILiveSession:
                     ):
                         raise LiveProtocolError("invalid_live_webrtc_answer")
                     self._attachment_event_id = "attach_" + uuid.uuid4().hex
-                    await connection.session.update(session={}, event_id=self._attachment_event_id)
+                    with self._diagnostic_stage(
+                        "live_startup", "session_start", generation=generation
+                    ):
+                        await connection.session.update(
+                            session={}, event_id=self._attachment_event_id
+                        )
                     self._active(generation)
                     if startup_deadline.expired():
                         raise LiveProtocolError("live_startup_deadline_expired")
@@ -653,9 +686,15 @@ class OpenAILiveSession:
                 else:
                     self._connection = connection
                     self._reader = asyncio.create_task(self._receive(connection, generation))
-                    await connection.session.start(session=configuration)
+                    with self._diagnostic_stage(
+                        "live_startup", "session_start", generation=generation
+                    ):
+                        await connection.session.start(session=configuration)
                 self._active(generation)
-                await self._ready
+                with self._diagnostic_stage(
+                    "live_startup", "provider_ready_wait", generation=generation
+                ):
+                    await self._ready
                 self._active(generation)
         except BaseException:
             await self._release()
@@ -679,8 +718,10 @@ class OpenAILiveSession:
             return None
         return "sha256:" + hashlib.sha256(value.encode("utf-8", errors="replace")).hexdigest()[:16]
 
-    def _observe_provider(self, kind: str, *, generation: int | None = None, **fields: Any) -> None:
-        """Bounded milestones only; never audio, transcripts, payloads or recovery."""
+    def _observe_provider(
+        self, kind: str, emit_log: bool = True, /, *, generation: int | None = None, **fields: Any
+    ) -> None:
+        """Sanitized records; only low-rate milestones enter normal logs."""
         if generation is not None and generation != self._connection_generation:
             return
         try:
@@ -695,16 +736,61 @@ class OpenAILiveSession:
             for field in ("response_id", "delegation_id", "call_id", "event_id"):
                 if field in row:
                     row[field] = self._diagnostic_ref(row[field])
-            # Logging and an armed trace consume the same sanitized record.
-            _LOG.log(
-                logging.WARNING if row.get("outcome") == "failed" else logging.INFO,
-                "Live diagnostic: %s",
-                row,
-            )
+            # High-rate receive envelopes belong only to a bounded observer sink.
+            if emit_log:
+                _LOG.log(
+                    logging.WARNING if row.get("outcome") == "failed" else logging.INFO,
+                    "Live diagnostic: %s",
+                    row,
+                )
             if self.provider_observer is not None:
                 self.provider_observer(dict(row))
         except (Exception, asyncio.CancelledError):
             pass  # A synchronous diagnostic callback cannot cancel runtime work.
+
+    def _observe_wire_event(self, event: dict, generation: int) -> None:
+        """Sanitized receive facts, before interpretation; no payload copies or logs."""
+        if self.provider_observer is None or generation != self._connection_generation:
+            return
+        try:
+            if not isinstance(event, dict):
+                return
+
+            def safe_type(value: Any) -> str | None:
+                return (
+                    value
+                    if isinstance(value, str) and value in _DIAGNOSTIC_WIRE_TYPES
+                    else self._diagnostic_ref(value)
+                )
+
+            kind = event.get("type")
+            fields: dict[str, Any] = {
+                "stage": "receive",
+                "outcome": "received",
+                "wire_source": "live_sideband" if self.transport == "webrtc" else "live_websocket",
+                "wire_event_type": safe_type(kind),
+                "event_id": event.get("event_id") or event.get("client_event_id"),
+                "response_id": event.get("response_id"),
+            }
+            session = event.get("session")
+            if isinstance(session, dict) and isinstance(session.get("id"), str):
+                fields["provider_session_id"] = self._diagnostic_ref(session["id"])
+            if kind == "response.event":
+                fields["delegation_id"] = event.get("delegation_id")
+                nested = event.get("event")
+                if isinstance(nested, dict):
+                    fields["wire_backend_event_type"] = safe_type(nested.get("type"))
+                    response = nested.get("response")
+                    fields["response_id"] = nested.get("response_id") or (
+                        response.get("id") if isinstance(response, dict) else None
+                    )
+            delta = event.get("delta")
+            if kind == "session.output_audio.delta" and isinstance(delta, str) and delta.isascii():
+                # Base64 wire bytes only: no decoding, PCM copy, or acceptance claim.
+                fields["delta_encoded_bytes"] = len(delta)
+            self._observe_provider("live_wire_event", False, generation=generation, **fields)
+        except (Exception, asyncio.CancelledError):
+            pass  # Even diagnostic extraction must not change receive/handler behavior.
 
     @contextmanager
     def _diagnostic_stage(
@@ -791,6 +877,7 @@ class OpenAILiveSession:
             async for event in incoming():
                 if generation != self._connection_generation or connection is not self._connection:
                     return
+                self._observe_wire_event(event, generation)
                 await self._handle(event, generation)
                 if self._closed.is_set():
                     return

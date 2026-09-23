@@ -927,3 +927,10 @@ def test_legacy_provider_ancestry_without_ownership_fields_remains_compatible():
     ).score(trace)
 
     assert report.passed, report.issues
+
+
+def test_automatic_part_never_inherits_golden_trace_verdict():
+    trace = _fixture("voicepe_golden.json")
+    trace.update(automatic=True, capture_status="complete", incomplete=False)
+    report = TraceOracle(adapter="voicepe").score(trace)
+    assert "automatic_part_not_lifecycle_proof" in _codes(report)

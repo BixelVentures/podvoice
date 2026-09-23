@@ -1,3 +1,10 @@
+## 1.13.97
+
+- Save bounded local diagnostics automatically for ordinary physical GPT-Live Alpha conversations, including rolling audio, sanitized provider events, persistence failures and wake/rearm timing.
+- Add a requested, identity-bound pre-wake audio reference on the paired Alpha firmware; keep it separate from microphone audio sent to OpenAI.
+- Show retained conversation parts and diagnostic gaps. Preserve Alpha OFF and explicit manual recordings; reject partial automatic recordings as complete analysis or lifecycle proof.
+- No wake-model, gain, VAD, prompt, inactivity timeout or volume tuning. New diagnostic firmware and add-on require physical verification together.
+
 ## 1.13.96
 
 - Restore explicitly armed provider-input recordings when Alpha selects GPT-Live, including confirmation connection changes.

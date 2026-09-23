@@ -23,14 +23,21 @@ int main() {
   reply.set_stop_context(session, 1, true);
   for (int i=0;i<4;++i) detector.frame();
   reply.loop(); assert(context.values.back()==session+":1:armed");
+  assert(reply.conversation_nonce()==session);
+  assert(reply.wake_reference_generation(session, true)==0); // OFF never authorizes reference
   const uint32_t queued_old_keyword = detector.command;
   reply.set_live_context(session, 2);
   assert(!(detector.command & 1));
+  assert(reply.wake_reference_generation(session, true)==0);
+  assert(reply.wake_reference_generation(session, false)==2);
   reply.play("premature", "url", session, 2);
   assert(player.plays == 0); // native service send is not the disabled-worker ACK
   assert(!reply.ready_to_rearm()); // idle playback state is not a closed Live context
   detector.frame(); reply.loop();
   assert(context.values.back()==session+":2:live");
+  assert(reply.wake_reference_generation(session, true)==2);
+  assert(reply.wake_reference_generation("old", true)==0);
+  mute.state=true; assert(reply.wake_reference_generation(session, false)==0); mute.state=false;
   reply.play("live-reply", "url", session, 2);
   assert(player.plays == 1);
   player.state=media_player::MEDIA_PLAYER_STATE_ANNOUNCING; reply.loop();
@@ -49,6 +56,7 @@ int main() {
   detector.gate.invalidate();
   detector.gate.worker_start(); detector.frame();
   assert(!detector.stop_context_fault());
+  assert(reply.wake_reference_generation(session, false)==0);
   assert(detector.stop_context_ack() == live_command);
   reply.set_live_context(session, 3); // cannot rebind a new run within this wake
   assert(detector.command == live_command);

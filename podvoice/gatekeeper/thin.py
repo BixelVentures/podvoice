@@ -92,6 +92,8 @@ _PHYSICAL_PROVIDER_TRACE_KINDS = frozenset(
         "live_reader",
         "live_release",
         "live_provider_error",
+        "live_wire_event",
+        "live_startup",
     }
 )
 _PHYSICAL_PROVIDER_TRACE_FIELDS = (
@@ -113,6 +115,10 @@ _PHYSICAL_PROVIDER_TRACE_FIELDS = (
     "input_kind",
     "source_call_id",
     "provider_event_type",
+    "wire_source",
+    "wire_event_type",
+    "wire_backend_event_type",
+    "delta_encoded_bytes",
     "previous_item_id",
     "item_id",
     "item_type",
@@ -918,7 +924,15 @@ class ThinSession:
                     ),
                 }
 
-            trace_started = self.audio_trace.begin(self.room, trace_metadata)
+            if (
+                self.live_alpha
+                and not self._live_webrtc
+                and rearm_attempt_id is not None
+                and getattr(self.audio_trace, "automatic", False)
+            ):
+                trace_started = self.audio_trace.begin(self.room, trace_metadata, automatic=True)
+            else:
+                trace_started = self.audio_trace.begin(self.room, trace_metadata)
         self._trace_event(
             "wake_received",
             source="physical_wake_callback" if rearm_attempt_id else "programmatic",
@@ -967,6 +981,11 @@ class ThinSession:
             self._idle_deadline = None
         if not await (self._set_live_context() if self.live_alpha else self._set_local_stop(False)):
             return
+        if opening_live and not opening_webrtc and trace_started:
+            self._spawn(
+                self._request_wake_reference(self.audio_trace, self._history_session, self._epoch),
+                "thin-wake-reference",
+            )
         self.sm.state = State.THINKING if opening_webrtc else State.LISTENING
         if opening_webrtc:
             self._set_led(State.THINKING)
@@ -1123,7 +1142,11 @@ class ThinSession:
                 provider_generation=getattr(self.brain, "_connection_generation", None),
                 previous_provider_generation=previous_provider_generation,
             )
-            if not proved:
+            proof_status = getattr(self.audio_trace, "next_session_proof_status", None)
+            if not proved and not (
+                callable(proof_status)
+                and proof_status(self.room, rearm_attempt_id) in {"pending", "saved"}
+            ):
                 self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
         if self.hub is not None:
             self.hub.set_service(
@@ -1342,6 +1365,9 @@ class ThinSession:
         # Synchronous barrier: an ACK wait must not leave reader/tool publication
         # alive for another event-loop turn after the user pressed/spoke stop.
         self._transport_closing = True
+        reference_status = getattr(self.voicepe, "wake_reference_status", None)
+        if self.live_alpha and callable(reference_status):
+            self._trace_event("wake_reference_final_status", **reference_status())
         if self.live_alpha:
             self._retire_live_review()
         if self._live_webrtc:
@@ -1758,7 +1784,11 @@ class ThinSession:
                 release_music=release_music,
                 silence_complete=silence_complete,
             )
-        if teardown_complete and self.audio_trace is not None:
+        if (
+            teardown_complete
+            and self.audio_trace is not None
+            and self.audio_trace.owns(self.room, self._history_session)
+        ):
             try:
                 self.audio_trace.finish(self._trace_reason)
             except Exception as exc:
@@ -1856,7 +1886,9 @@ class ThinSession:
                     return
                 if not self._active:
                     continue  # drain quietly; stream stop is in flight
-                if self.audio_trace is not None:
+                if self.audio_trace is not None and self.audio_trace.owns(
+                    self.room, self._history_session
+                ):
                     self.audio_trace.audio("device", frame, C.INPUT_RATE)
                 if not (self.full_duplex or self.live_alpha) and self.sm.state not in (
                     State.LISTENING,
@@ -4122,7 +4154,9 @@ class ThinSession:
         self.reply_bus.clear(self.room)
         self.reply_bus.start(self.room)
         for pcm in self._held_announce_pcm:
-            if self.audio_trace is not None:
+            if self.audio_trace is not None and self.audio_trace.owns(
+                self.room, self._history_session
+            ):
                 self.audio_trace.audio("speaker", pcm, C.OUTPUT_RATE)
             self.reply_bus.push(self.room, pcm)
         self._held_announce_pcm.clear()
@@ -4167,7 +4201,9 @@ class ThinSession:
                             break
                         await asyncio.sleep(min(ahead - DIRECT_LEAD_S, 0.05))
                     self.voicepe.send_direct_pcm(piece)
-                    if self.audio_trace is not None:
+                    if self.audio_trace is not None and self.audio_trace.owns(
+                        self.room, self._history_session
+                    ):
                         self.audio_trace.audio("speaker", piece, C.OUTPUT_RATE)
                     sent += len(piece)
                     self._direct_sent = sent
@@ -5546,6 +5582,45 @@ class ThinSession:
         if lease.kind in ("reply", "oneshot"):
             self._enter_followup()
 
+    async def _request_wake_reference(self, recorder, session_id: str, epoch: float) -> None:
+        """Capture diagnostic pre-wake bytes separately; never send them to a brain."""
+        if (
+            self._epoch != epoch
+            or self._history_session != session_id
+            or self.audio_trace is not recorder
+            or not self._active
+            or self._transport_closing
+            or not self.live_alpha
+            or self._live_webrtc
+        ):
+            return
+        requester = getattr(self.voicepe, "request_wake_reference", None)
+        if recorder is None or not recorder.owns(self.room, session_id):
+            return
+        if not callable(requester) or not getattr(self.voicepe, "supports_wake_reference", False):
+            self._trace_event("wake_reference_unavailable", reason="firmware_capability")
+            return
+
+        def accept(reference) -> None:
+            if (
+                self._epoch != epoch
+                or self._history_session != session_id
+                or not self._active
+                or self._transport_closing
+                or self.audio_trace is not recorder
+                or not recorder.owns(self.room, session_id)
+            ):
+                return
+            # The assembler emits only bounded validated scalar metadata, never PCM in events.
+            self._trace_event("wake_reference_received", **reference.metadata)
+            if reference.pcm:
+                recorder.audio("wake_reference", reference.pcm, 16000)
+
+        self._trace_event("wake_reference_requested")
+        accepted = await requester(session_id, accept)
+        if self._epoch == epoch and self._history_session == session_id:
+            self._trace_event("wake_reference_request_sent", accepted=accepted)
+
     def _install_provider_audio_observer(self) -> None:
         """Bind attempted wire input to this provider generation and armed capture."""
         self._restore_provider_audio_observer()
@@ -5603,7 +5678,11 @@ class ThinSession:
 
     def _trace_provider_event(self, row: dict) -> None:
         """Persist bounded provider ancestry only inside an armed physical trace."""
-        if self.audio_trace is None or not isinstance(row, dict):
+        if (
+            self.audio_trace is None
+            or not self.audio_trace.owns(self.room, self._history_session)
+            or not isinstance(row, dict)
+        ):
             return
         kind = row.get("kind")
         if kind not in _PHYSICAL_PROVIDER_TRACE_KINDS:
@@ -5669,9 +5748,22 @@ class ThinSession:
             "rearm_token": getattr(self.voicepe, "rearm_token", None),
         }
         payload.update(details)
+        if event_name in {
+            "wake_received",
+            "live_context_requested",
+            "live_context_ack",
+            "provider_connected",
+            "capture_finished",
+            "teardown_complete",
+        }:
+            observer = getattr(self.voicepe, "wake_diagnostics", None)
+            if callable(observer):
+                payload.update(observer())
         activity_event = event_name == "live_activity_observed"
         if activity_event:
-            if self.audio_trace is None:
+            if self.audio_trace is None or not self.audio_trace.owns(
+                self.room, self._history_session
+            ):
                 return
             accepted = self.audio_trace.activity_event(**payload)
             if accepted is None:
@@ -5690,7 +5782,11 @@ class ThinSession:
                 at_ms=at_ms,
                 **payload,
             )
-        if self.audio_trace is not None and not activity_event:
+        if (
+            self.audio_trace is not None
+            and not activity_event
+            and self.audio_trace.owns(self.room, self._history_session)
+        ):
             self.audio_trace.event(event_name, **payload)
 
     def _enter_followup(self) -> None:
@@ -5734,6 +5830,7 @@ class ThinSession:
         if self._live_webrtc:
             return True
         epoch = self._epoch
+        self._trace_event("live_context_requested")
         ok = await self.voicepe.set_live_context()
         if epoch != self._epoch or not self._active or self._transport_closing:
             return False
