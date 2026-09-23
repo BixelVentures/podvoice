@@ -758,6 +758,12 @@ async def test_end_requires_actual_zero_call_continuation_before_grace(monkeypat
         await session.wake()
         receipt = await propose_end(session, sdk, silent=silent)
         assert sdk.response.item.create.await_count == 1
+        result = json.loads(sdk.response.item.create.call_args.kwargs["item"]["output"])
+        assert result["data"] == {
+            "decision": "end_conversation",
+            "closure_status": "accepted_not_closed",
+        }
+        assert session._active and sdk.session.close.await_count == 0
         await asyncio.sleep(0.07)  # Result writes alone must not start the grace clock.
         assert not receipt.done() and sdk.session.close.await_count == 0
         continuation = created("r2")
@@ -1424,6 +1430,8 @@ async def test_reconsider_lifecycle_result_and_continuation_keep_actual_review_w
         await until(lambda: sdk.response.create.await_count == 2)
         assert result_for(sdk, "review-wire")["ok"] is True
         assert tools.calls == [] and sdk.session.close.await_count == 0
+        if name == "end_conversation":
+            assert result_for(sdk, "review-wire")["data"]["closure_status"] == "accepted_not_closed"
         receipt = session._live_end_receipt
         if name == "end_conversation":
             assert receipt is not None and not receipt.done()

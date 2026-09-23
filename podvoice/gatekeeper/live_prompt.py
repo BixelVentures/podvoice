@@ -69,8 +69,12 @@ Backchannel policy:
 Lyt diskret og naturligt. En kort, kontekstrelevant indledning eller kvittering for
 anmodningen er tilladt, når den hjælper samtalen, også mens backend arbejder.
 Den er aldrig påkrævet: undgå påtvungne ventereplikker og konstante lytterreaktioner.
-Foregrib aldrig et værktøjsresultat; en kvittering for anmodningen er ikke en
-bekræftelse på udførelse. En indledning er heller ikke selve svaret.
+Foregrib aldrig et værktøjsresultat eller backendens vurdering af, hvad du kan.
+Før den vurdering må en indledning hverken bekræfte muligheden med et ja eller
+love udførelse, heller ikke med “det gør jeg” eller “det tjekker jeg lige”.
+Hvis du siger noget, udtryk kun, at du undersøger, om det er muligt; ellers lyt
+stille, mens backend arbejder. Delegér straks uden at vente på en indledning.
+En indledning er heller ikke selve svaret.
 
 Interruption policy:
 Når brugeren beder dig stoppe din tale, fx et enkelt “stop”, ti og lyt videre i samme
@@ -119,6 +123,10 @@ Backend afgør semantisk afslutning via det deklarerede værktøj. Ved silent=tr
 sig intet. Ellers giv højst én kort sand kvittering eller et kort farvel, når det er
 relevant, uden fast talesekvens. Applikationen ejer fysisk playback og lukning;
 lydro eller færdig tale er ikke bevis for, at forbindelsen eller enheden er lukket.
+Afslutningsværktøjets closure_status=accepted_not_closed bekræfter kun beslutningen;
+forbindelsen er stadig åben til den sidste lyd er afspillet. Påstå ikke, at samtalen
+eller enheden allerede er lukket. Et naturligt farvel eller stilhed er tilstrækkeligt;
+giv ikke brugeren en teknisk lukningsstatus.
 """.strip()
 
     conversation = _replace(
@@ -186,6 +194,12 @@ lydro eller færdig tale er ikke bevis for, at forbindelsen eller enheden er luk
         "En anmodning om at stoppe assistentens tale betyder ti og lyt videre i samme "
         "samtale; kald ikke end_conversation for dette. Vælg kun silent=true ved et "
         "udtrykkeligt ønske om at lukke samtalen uden tale.",
+    )
+    ending += (
+        "\n- closure_status=accepted_not_closed fra afslutningsværktøjet betyder kun, "
+        "at afslutningsbeslutningen er accepteret. Playback og fysisk lukning udestår. "
+        "Returnér denne afgrænsning til Live; påstå ikke, at samtalen eller enheden "
+        "allerede er lukket. Live kan sige et naturligt farvel eller være stille."
     )
     ending += (
         "\n- Musikstyring, herunder pause og stop, bevarer samtalen efter det sande "

@@ -102,6 +102,8 @@ def test_capability_policy_survives_custom_and_both_confirmation_phases():
         assert backend.index(custom) < backend.index("# BEKRÆFTEDE KAPABILITETER")
         assert "det konkrete værktøjsresultat beviser oprettelsen eller registreringen" in backend
         assert "Den er aldrig påkrævet" in primary  # Optional natural introduction remains.
+        assert "hverken bekræfte muligheden med et ja" in primary
+        assert "Delegér straks uden at vente på en indledning" in primary
         assert "stille fortsat lytning" in primary
         assert "ti og lyt videre i samme" in primary
         assert "stop musik" in primary
@@ -276,3 +278,18 @@ def test_semantic_farewell_delegates_closure_before_optional_spoken_farewell():
     assert "stille fortsat lytning" in primary
     assert "stop musik" in primary
     assert "kald ikke end_conversation for dette" in backend
+
+
+def test_live_end_acceptance_is_not_a_completed_physical_close():
+    from gatekeeper.thin import END_CONVERSATION_DECLARATION, LIVE_END_CONVERSATION_DECLARATION
+
+    for instruction in live_instructions(SYSTEM_PROMPT_DA):
+        assert "closure_status=accepted_not_closed" in instruction
+        assert "allerede er lukket" in instruction
+    assert "After closing" not in LIVE_END_CONVERSATION_DECLARATION["description"]
+    assert "accepted_not_closed" in LIVE_END_CONVERSATION_DECLARATION["description"]
+    assert "After closing" in END_CONVERSATION_DECLARATION["description"]
+    assert (
+        LIVE_END_CONVERSATION_DECLARATION["parameters"]
+        == END_CONVERSATION_DECLARATION["parameters"]
+    )

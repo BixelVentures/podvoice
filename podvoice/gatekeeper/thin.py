@@ -288,7 +288,15 @@ END_CONVERSATION_DECLARATION: dict[str, Any] = {
 }
 LIVE_END_CONVERSATION_DECLARATION = {
     **END_CONVERSATION_DECLARATION,
-    "description": END_CONVERSATION_DECLARATION["description"].replace(
+    "description": END_CONVERSATION_DECLARATION["description"]
+    .replace(
+        "After closing, give one brief truthful action receipt without an extra farewell or invitation.",
+        "This tool accepts the ending decision; closure_status=accepted_not_closed means "
+        "the application must still finish playback and close the connection. Do not "
+        "report the session or device as already closed. Live may give a brief truthful "
+        "action receipt, a natural farewell, or remain silent, without an invitation.",
+    )
+    .replace(
         "When the user wants to interrupt this conversation and have silence, set silent=true and produce no speech.",
         "A request to stop assistant speech means be quiet and keep listening in the same "
         "conversation; do not call this tool for that request. Use silent=true only for "
@@ -2501,7 +2509,13 @@ class ThinSession:
                         )
                     elif call.name == END_CONVERSATION_TOOL:
                         result = (
-                            {"ok": True, "data": {"decision": END_CONVERSATION_TOOL}}
+                            {
+                                "ok": True,
+                                "data": {
+                                    "decision": END_CONVERSATION_TOOL,
+                                    "closure_status": "accepted_not_closed",
+                                },
+                            }
                             if self._valid_end_args(call.args)
                             else failure("invalid_arguments", "Invalid end arguments.")
                         )
