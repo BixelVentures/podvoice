@@ -201,3 +201,156 @@ def test_source_clock_wrap_and_malformed_observations_fail_closed():
         row = copy.deepcopy(observation(41))
         row.update(changed)
         assert not feed(window, 41, row=row)
+
+
+def empty_snapshot(index, previous):
+    """Firmware take() after no new mixed samples, not a never-started chain."""
+    row = observation(index)
+    row["output"] = copy.deepcopy(previous["output"])
+    row["output"].update(
+        valid=False,
+        sample_count=0,
+        peak=0,
+        sum_squares=0,
+        frame_begin=previous["output"]["frame_end"],
+    )
+    return row
+
+
+def test_empty_snapshots_preserve_only_proven_zero_coverage_until_valid_successor():
+    window = NativeIdleWindow(freshness_s=0.2)
+    previous = observation(0)
+    assert not feed(window, 0, row=previous)
+    end = previous["output"]["frame_end"]
+    for index in range(1, 43):
+        if index % 3 == 1:
+            row = empty_snapshot(index, previous)
+            assert not feed(window, index, row=row)
+        else:
+            row = observation(index)
+            row["output"].update(
+                frame_begin=end, frame_end=(index + 1) * 4800, sample_count=(index + 1) * 4800 - end
+            )
+            end = row["output"]["frame_end"]
+            ready = feed(window, index, row=row)
+            if index < 40:
+                assert not ready
+        previous = row
+    assert ready
+
+
+def test_physical_47703_empty_snapshot_consumes_only_previously_measured_frames():
+    window = NativeIdleWindow(freshness_s=0.2)
+    row = observation(0)
+    row["output"].update(frame_begin=2018564, frame_end=2023364, consumed_frames=2016548)
+    feed(window, 0, row=row)
+    empty = empty_snapshot(1, row)
+    empty["output"]["consumed_frames"] = 2021348
+    assert not feed(window, 1, row=empty)
+    successor = observation(2)
+    successor["output"].update(
+        frame_begin=2023364, frame_end=2032800, sample_count=9436, consumed_frames=2024804
+    )
+    feed(window, 2, row=successor)
+    assert window._last is not None
+    assert window._source_elapsed == pytest.approx(0.2)
+    assert window._zero_start == 2018564
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "nonzero",
+        "gap",
+        "duplicate",
+        "epoch",
+        "owner",
+        "input",
+        "work",
+        "mix_seq",
+        "mix_ms",
+        "backward",
+        "overrun",
+        "begin",
+        "count",
+        "stale",
+        "coverage_lost",
+    ],
+)
+def test_empty_snapshot_cannot_bridge_unknown_or_sticky_lost_coverage(kind):
+    window = NativeIdleWindow(freshness_s=0.2)
+    for index in range(40):
+        feed(window, index)
+    row = empty_snapshot(40, observation(39))
+    out = row["output"]
+    if kind == "nonzero":
+        out["peak"] = 1
+    elif kind == "gap":
+        row["sequence"] += 1
+    elif kind == "duplicate":
+        row["sequence"] -= 1
+    elif kind == "epoch":
+        out["source_epoch"] += 1
+    elif kind == "owner":
+        row["native_generation"] += 1
+    elif kind == "input":
+        row["input"]["state"] = "active"
+    elif kind == "mix_seq":
+        out["mix_seq"] += 1
+    elif kind == "mix_ms":
+        out["mix_ms"] += 1
+    elif kind == "backward":
+        out["consumed_frames"] -= 1
+    elif kind == "overrun":
+        out["consumed_frames"] += 1
+    elif kind == "begin":
+        out["frame_begin"] -= 1
+    elif kind == "count":
+        out["sample_count"] = 1
+    elif kind == "stale":
+        row["source_timestamp_ms"] += 101
+        row["input"]["inference_ms"] += 101
+        row["received_monotonic"] += 0.101
+    assert not feed(window, 40, row=row, clear=kind != "work")
+    successor = observation(41)
+    successor["output"]["frame_begin"] = observation(39)["output"]["frame_end"]
+    successor["output"]["sample_count"] = 9600
+    if kind == "coverage_lost":
+        # Sticky firmware loss never produces valid=True again in this epoch.
+        successor["output"]["valid"] = False
+    assert not feed(window, 41, row=successor)
+    assert not feed(window, 42)
+
+
+def test_empty_snapshot_never_authorizes_and_cannot_refresh_old_mix_forever():
+    window = NativeIdleWindow(freshness_s=0.2)
+    for index in range(41):
+        feed(window, index)
+    previous = observation(40)
+    for index in range(41, 50):
+        row = empty_snapshot(index, previous)
+        assert not feed(window, index, row=row)
+        previous = row
+    assert window._last is None
+
+
+def test_consumption_stall_after_provisional_coverage_cannot_authorize():
+    window = NativeIdleWindow(freshness_s=0.2)
+    for index in range(40):
+        feed(window, index)
+    empty = empty_snapshot(40, observation(39))
+    assert not feed(window, 40, row=empty)
+    successor = observation(41)
+    successor["output"].update(frame_begin=192000, sample_count=9600, consumed_frames=192000)
+    assert not feed(window, 41, row=successor)
+    assert window._anchor is None
+
+
+def test_old_empty_callback_after_reset_cannot_seed_next_window():
+    window = NativeIdleWindow(freshness_s=0.2)
+    for index in range(40):
+        feed(window, index)
+    window.reset()
+    assert not feed(window, 40, row=empty_snapshot(40, observation(39)))
+    assert window._last is None
+    assert not feed(window, 41, owner=("next", 4, 0))

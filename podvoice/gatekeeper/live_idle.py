@@ -22,6 +22,7 @@ class _Sample:
     consumed: int
     rate: int
     empty: bool
+    provisional: bool
 
 
 class NativeIdleWindow:
@@ -43,6 +44,7 @@ class NativeIdleWindow:
 
     def reset(self) -> None:
         self._last: _Sample | None = None
+        self._coverage: _Sample | None = None
         self._source_elapsed = 0.0
         self._arrival_lag = 0.0
         self._minimum_lag = 0.0
@@ -90,6 +92,7 @@ class NativeIdleWindow:
         )
         rate, count = number(out, "sample_rate"), number(out, "sample_count")
         empty = not output_started
+        provisional = not empty and out["valid"] is False and count == 0
         if empty:
             if not (
                 out["valid"] is False
@@ -101,6 +104,15 @@ class NativeIdleWindow:
                 )
             ):
                 raise ValueError("empty chain not established")
+        elif provisional:
+            if not (
+                rate > 0
+                and begin == end
+                and consumed <= end
+                and number(out, "peak") == number(out, "sum_squares") == 0
+                and self._delta_ms(source_ms, number(out, "mix_ms")) <= self.freshness_s * 1000
+            ):
+                raise ValueError("empty snapshot has no preserved coverage")
         elif not (
             out["valid"] is True
             and rate > 0
@@ -138,12 +150,15 @@ class NativeIdleWindow:
             consumed,
             rate,
             empty,
+            provisional,
         )
 
     def _baseline(self, sample: _Sample) -> None:
         self.reset()
         self._last = sample
         self._zero_start = sample.begin
+        if not sample.empty:
+            self._coverage = sample
 
     def observe(
         self, row: dict, *, owner: tuple, now: float, work_clear: bool, output_started: bool
@@ -158,6 +173,9 @@ class NativeIdleWindow:
             return
         previous = self._last
         if previous is None or previous.owner != sample.owner:
+            if sample.provisional:
+                self.reset()
+                return
             self._baseline(sample)
             return
         host_delta = sample.received - previous.received
@@ -176,12 +194,28 @@ class NativeIdleWindow:
                 <= self.freshness_s * 1000
             )
         if not sample.empty:
-            advancing = advancing and (
-                sample.begin == previous.end
-                and sample.mix_sequence > previous.mix_sequence
-                and 0 < self._delta_ms(sample.mix_ms, previous.mix_ms) <= self.freshness_s * 1000
-                and sample.consumed >= previous.consumed
-            )
+            coverage = self._coverage
+            advancing = advancing and coverage is not None
+            if coverage is not None:
+                advancing = advancing and (
+                    sample.begin == coverage.end and sample.consumed >= previous.consumed
+                )
+                if sample.provisional:
+                    # take() resets the interval metrics, but its old mix identity
+                    # and covered end must remain exact. This heartbeat cannot
+                    # authorize closure; only a later valid contiguous interval can.
+                    advancing = advancing and (
+                        sample.end == coverage.end
+                        and sample.mix_sequence == coverage.mix_sequence
+                        and sample.mix_ms == coverage.mix_ms
+                    )
+                else:
+                    advancing = advancing and (
+                        sample.mix_sequence > coverage.mix_sequence
+                        and 0
+                        < self._delta_ms(sample.mix_ms, coverage.mix_ms)
+                        <= self.freshness_s * 1000
+                    )
         self._arrival_lag += host_delta - source_delta
         self._minimum_lag = min(self._minimum_lag, self._arrival_lag)
         if not advancing or self._arrival_lag - self._minimum_lag > self.freshness_s:
@@ -189,6 +223,10 @@ class NativeIdleWindow:
             return
         self._source_elapsed += source_delta
         self._last = sample
+        if sample.provisional:
+            return
+        if not sample.empty:
+            self._coverage = sample
         if not sample.empty and (
             previous.consumed < self._zero_start or sample.consumed == previous.consumed
         ):
@@ -205,6 +243,7 @@ class NativeIdleWindow:
         sample, anchor = self._last, self._anchor
         if (
             sample is None
+            or sample.provisional
             or anchor is None
             or sample.owner[: len(owner)] != owner
             or not math.isfinite(now)
