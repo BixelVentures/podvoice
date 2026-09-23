@@ -5968,7 +5968,7 @@ class ThinSession:
             )
             self.hub.activity(
                 self.room,
-                "🟡 Wake-motor genstartet — klar, men bekræftes ved næste 'Okay Nabu'",
+                "🟡 Wake-motor genstartet — bekræftes ved næste brug af dit valgte vækkeord",
             )
         if not self._active:
             self._set_led(State.IDLE)

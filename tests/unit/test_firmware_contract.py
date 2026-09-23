@@ -185,11 +185,11 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
     assert "type: git" in stop_source
     assert "url: https://github.com/BixelVentures/podvoice" in stop_source
     assert "path: esphome/components" in stop_source
-    assert "ref: d22da734e6bbef650881b3b6bd413ffe145764e5" in stop_source
-    assert active.count("ref: d22da734e6bbef650881b3b6bd413ffe145764e5") == 2
+    assert "ref: 1506994271093d555fefdf0b98c79aeeb9aab9c5" in stop_source
+    assert active.count("ref: 1506994271093d555fefdf0b98c79aeeb9aab9c5") == 2
     assert active.count("ref: b56a08a6d31044f7507b178961ac74f731474253") == 1
     observers = active.split("components: [mixer, resampler, speaker_source]", 1)[0]
-    assert "ref: d22da734e6bbef650881b3b6bd413ffe145764e5" in observers
+    assert "ref: 1506994271093d555fefdf0b98c79aeeb9aab9c5" in observers
     files = sorted(
         p
         for name in ("micro_wake_word", "podvoice_reply", "podvoice_audio")

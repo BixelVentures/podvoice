@@ -142,6 +142,20 @@ def _live_alpha_enabled() -> bool:
     return load_settings().get("live_alpha") is True
 
 
+async def _prepare_saved_live_alpha() -> None:
+    """Warm pure SDK imports before accepting sessions, only for the saved opt-in."""
+    if not _live_alpha_enabled():
+        return
+    from .openai_live import prepare_live_sdk
+
+    try:
+        await prepare_live_sdk()
+    except Exception as exc:
+        # Keep the settings panel available to disable Alpha. The real connection
+        # path repeats preparation under its existing bounded startup owner.
+        _LOG.warning("Live SDK preparation failed: %s", type(exc).__name__)
+
+
 def _make_live_brain(
     cfg: Config, declarations: list[dict], *, room_context="", input_rate=C.INPUT_RATE
 ):
@@ -315,6 +329,7 @@ async def _restart_addon(token: str) -> bool:
 async def run(cfg: Config) -> None:
     from .audio_trace import AudioTraceRecorder
 
+    await _prepare_saved_live_alpha()
     history = History()  # persisted conversations (Talk + Voice PE rooms) for the History tab
     hub = StatusHub(history=history)
     # Privacy-safe evidence: disabled until the owner arms exactly one conversation

@@ -4,7 +4,7 @@ packages:
   podvoice: !include podvoice.yaml
 
 substitutions:
-  podvoice_build_marker: podvoice_build_11382_livewav2
+  podvoice_build_marker: podvoice_build_11394_activity2
 
 esphome:
   build_path: .esphome/build/podvoice-pe-live-alpha
