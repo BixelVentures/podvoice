@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import threading
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -170,6 +171,82 @@ async def test_sdk_readiness_resampling_continuous_audio_and_close():
     await session.close()
     sdk.session.close.assert_awaited_once()
     assert not budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("transport", ["websocket", "webrtc"])
+@pytest.mark.parametrize("boundary", ["stop", "timeout"])
+async def test_cold_dependencies_never_block_loop_or_create_late_client(
+    monkeypatch, transport, boundary
+):
+    from gatekeeper import openai_live
+
+    session, sdk, budget = webrtc_provider() if transport == "webrtc" else provider()
+    session.client_factory = None
+    entered, finished = asyncio.Event(), asyncio.Event()
+    release = threading.Event()
+    loop = asyncio.get_running_loop()
+    owner_thread = threading.get_ident()
+
+    def slow_imports():
+        assert threading.get_ident() != owner_thread
+        loop.call_soon_threadsafe(entered.set)
+        release.wait()
+        loop.call_soon_threadsafe(finished.set)
+        return sdk.factory
+
+    monkeypatch.setattr(openai_live, "_load_live_sdk", slow_imports)
+    opening = asyncio.create_task(session.connect())
+    try:
+        await asyncio.wait_for(entered.wait(), 1)
+        # These event-loop heartbeats must run while the real worker is blocked.
+        for _ in range(4):
+            await asyncio.sleep(0)
+            assert not release.is_set() and not sdk.factory_calls
+        if boundary == "stop":
+            await asyncio.wait_for(session.close(), 1)
+            with pytest.raises(asyncio.CancelledError):
+                await opening
+        else:
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(opening, 1)
+        assert not budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+        release.set()
+        await asyncio.wait_for(finished.wait(), 1)
+        await asyncio.sleep(0)
+        assert not sdk.factory_calls and session._connection is None
+        sdk.session.start.assert_not_called()
+        if transport == "webrtc":
+            sdk.client.live.create.assert_not_called()
+    finally:
+        release.set()
+        await asyncio.gather(opening, return_exceptions=True)
+        await asyncio.wait_for(finished.wait(), 1)
+        await session.close()
+
+
+@pytest.mark.asyncio
+async def test_cancel_resistant_preparation_cannot_allocate_client(monkeypatch):
+    from gatekeeper import openai_live
+
+    session, sdk, _ = provider()
+    session.client_factory = None
+    entered = asyncio.Event()
+
+    async def resistant():
+        entered.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            return sdk.factory
+
+    monkeypatch.setattr(openai_live, "prepare_live_sdk", resistant)
+    opening = asyncio.create_task(session.connect())
+    await entered.wait()
+    await session.close()
+    with pytest.raises(LiveProtocolError, match="startup_superseded"):
+        await opening
+    assert not sdk.factory_calls
 
 
 @pytest.mark.asyncio

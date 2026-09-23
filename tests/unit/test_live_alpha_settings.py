@@ -6,11 +6,36 @@ import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from gatekeeper import settings
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("enabled", [False, True])
+async def test_boot_prepares_pure_sdk_only_for_saved_alpha(monkeypatch, enabled):
+    from gatekeeper import __main__ as main
+    from gatekeeper import openai_live
+
+    preparation = AsyncMock()
+    monkeypatch.setattr(main, "_live_alpha_enabled", lambda: enabled)
+    monkeypatch.setattr(openai_live, "prepare_live_sdk", preparation)
+    await main._prepare_saved_live_alpha()
+    assert preparation.await_count == int(enabled)
+
+
+@pytest.mark.asyncio
+async def test_boot_import_failure_keeps_settings_available(monkeypatch):
+    from gatekeeper import __main__ as main
+    from gatekeeper import openai_live
+
+    monkeypatch.setattr(main, "_live_alpha_enabled", lambda: True)
+    preparation = AsyncMock(side_effect=ImportError("synthetic missing dependency"))
+    monkeypatch.setattr(openai_live, "prepare_live_sdk", preparation)
+    await main._prepare_saved_live_alpha()
+    preparation.assert_awaited_once()
 
 
 def test_alpha_defaults_off_and_never_revives_legacy(tmp_path):

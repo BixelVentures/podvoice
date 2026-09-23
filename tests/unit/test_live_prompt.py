@@ -70,6 +70,45 @@ def test_primary_defers_current_capability_check_without_cached_inventory():
     assert "GetDateTime" not in primary
 
 
+def test_delayed_recheck_and_logging_need_capability_and_completed_creation():
+    primary, backend = live_instructions(SYSTEM_PROMPT_DA)
+    for prompt in (primary, backend):
+        assert "automatisk genkontrol, senere opfølgning" in prompt
+        assert "logning af en fejl" in " ".join(prompt.split())
+    assert "backend skal først bekræfte, at et aktuelt værktøj kan udføre netop det" in primary
+    assert "værktøjsresultat bekræfter den konkrete oprettelse eller registrering" in primary
+    assert "At vente i\nsamtalen opretter ikke en baggrundsopgave" in primary
+    assert "at beskrive en fejl er ikke at logge den" in primary
+    assert "uden at love at vende tilbage af dig selv" in primary
+    assert "Et opslag nu er ikke et værktøj til at planlægge et senere opslag" in backend
+    assert "brugerens fejlrapport er registreret" in backend
+    assert "Mangler det nødvendige værktøj, returnér begrænsningen til Live" in backend
+    assert "Er værktøjet tilgængeligt, gælder de normale krav til autorisation" in backend
+    assert "det konkrete værktøjsresultat beviser oprettelsen eller registreringen" in backend
+
+
+def test_capability_policy_survives_custom_and_both_confirmation_phases():
+    from gatekeeper.live_prompt import (
+        live_confirmation_capable_instructions,
+        live_confirmation_instructions,
+    )
+
+    custom = "Lov altid at tjekke igen senere og at gemme fejlrapporten."
+    normal = live_instructions(custom)
+    capable = live_confirmation_capable_instructions(*normal)
+    confirmation = live_confirmation_instructions(*normal, held_proposal())
+    for primary, backend in (normal, capable, confirmation):
+        assert "backend skal først bekræfte, at et aktuelt værktøj kan udføre netop det" in primary
+        assert backend.index(custom) < backend.index("# BEKRÆFTEDE KAPABILITETER")
+        assert "det konkrete værktøjsresultat beviser oprettelsen eller registreringen" in backend
+        assert "Den er aldrig påkrævet" in primary  # Optional natural introduction remains.
+        assert "hverken bekræfte muligheden med et ja" in primary
+        assert "Delegér straks uden at vente på en indledning" in primary
+        assert "stille fortsat lytning" in primary
+        assert "ti og lyt videre i samme" in primary
+        assert "stop musik" in primary
+
+
 def test_custom_prompt_retained_with_explicit_security_and_live_ownership():
     custom = 'Skriv "hej".\nMin brugerdefinerede regel.'
     primary, backend = live_instructions(custom)
@@ -229,3 +268,28 @@ def test_history_confirmation_marks_past_context_without_changing_default_or_pro
         assert "afvent brugerens nye svar i denne provider-session" in after
         assert proposal.challenge_id in after and proposal.args_sha256 in after
     assert live_instructions(SYSTEM_PROMPT_DA) == original
+
+
+def test_semantic_farewell_delegates_closure_before_optional_spoken_farewell():
+    primary, backend = live_instructions(SYSTEM_PROMPT_DA)
+    assert "delegér afslutningen til backend før en eventuel" in primary
+    assert "At sige farvel lukker ikke forbindelsen" in primary
+    assert "kort afsked eller afslutte uden ord" in primary
+    assert "stille fortsat lytning" in primary
+    assert "stop musik" in primary
+    assert "kald ikke end_conversation for dette" in backend
+
+
+def test_live_end_acceptance_is_not_a_completed_physical_close():
+    from gatekeeper.thin import END_CONVERSATION_DECLARATION, LIVE_END_CONVERSATION_DECLARATION
+
+    for instruction in live_instructions(SYSTEM_PROMPT_DA):
+        assert "closure_status=accepted_not_closed" in instruction
+        assert "allerede er lukket" in instruction
+    assert "After closing" not in LIVE_END_CONVERSATION_DECLARATION["description"]
+    assert "accepted_not_closed" in LIVE_END_CONVERSATION_DECLARATION["description"]
+    assert "After closing" in END_CONVERSATION_DECLARATION["description"]
+    assert (
+        LIVE_END_CONVERSATION_DECLARATION["parameters"]
+        == END_CONVERSATION_DECLARATION["parameters"]
+    )

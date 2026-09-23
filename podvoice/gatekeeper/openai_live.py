@@ -20,6 +20,8 @@ import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import cache
+from importlib import import_module
 from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -38,6 +40,25 @@ from .tool_wire import realtime_function_tool
 from .voice import ToolCall
 
 _LOG = logging.getLogger(__name__)
+
+
+@cache
+def _load_live_sdk() -> Callable[..., Any]:
+    """Import pure dependencies only; never construct a client or touch credentials."""
+    from openai import AsyncOpenAI
+
+    # These SDK resources otherwise import synchronously on first client.live and
+    # manager entry. Keep their cold cost off the native callback/event loop.
+    import_module("openai.resources.live")
+    import_module("openai.lib._websocket")
+    return AsyncOpenAI
+
+
+async def prepare_live_sdk() -> Callable[..., Any]:
+    """Cancellation can leave pure imports finishing, never a late client/socket."""
+    return await asyncio.to_thread(_load_live_sdk)
+
+
 # Only fixed machine vocabulary may appear verbatim. Unknown values remain correlatable
 # hashes; provider-supplied IDs, error text and exception messages are never logged.
 _DIAGNOSTIC_ERROR_CODES = frozenset(
@@ -567,13 +588,17 @@ class OpenAILiveSession:
         self._text_continuation_id = None
         self._resampler = StreamResampler(self.input_rate, 24000)
         try:
-            factory = self.client_factory
-            if factory is None:
-                from openai import AsyncOpenAI
-
-                factory = AsyncOpenAI
-            self._client = factory(api_key=self.api_key, max_retries=0, timeout=self.timeout_s)
             async with asyncio.timeout(self.timeout_s) as startup_deadline:
+                factory = self.client_factory
+                if factory is None:
+                    factory = await prepare_live_sdk()
+                if (
+                    self._close_requested
+                    or generation != self._connection_generation
+                    or (self._startup_task is not None and self._startup_task.cancelling())
+                ):
+                    raise LiveProtocolError("live_startup_superseded")
+                self._client = factory(api_key=self.api_key, max_retries=0, timeout=self.timeout_s)
                 if self.transport == "webrtc":
                     result = await self._client.live.create(
                         session=configuration,

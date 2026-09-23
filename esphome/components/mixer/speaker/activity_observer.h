@@ -39,6 +39,9 @@ class SourceActivityObserver {
   }
   void mixed(uint64_t captured, const uint8_t *data, uint32_t frames, uint8_t channels, uint8_t bits,
              uint32_t sample_rate, uint32_t source_ms) {
+    // A full output buffer can produce an empty mixer pass. It observes no
+    // samples: preserve existing coverage without advancing its freshness.
+    if (frames == 0) return;
     uint32_t peak = 0;
     uint64_t squares = 0;
     const bool valid = bits == 16 && channels > 0 && sample_rate > 0 && frames > 0;

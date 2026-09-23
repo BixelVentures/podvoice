@@ -1,3 +1,11 @@
+## 1.13.94
+
+- Prepare GPT-Live SDK dependencies without blocking the conversation event loop.
+- Preserve real activity measurements across empty mixer passes so silence can be measured.
+- Require backend closure before an optional spoken farewell and confirmed tool capability before promising later work or logging.
+- Show the selected wake word in the panel instead of a fixed example.
+- Requires paired Alpha firmware `podvoice_build_11394_activity2`; physical acceptance remains pending.
+
 ## 1.13.93 — Alpha: tidsmåling af værktøjsrunder
 
 - Måler modtagelse af backendrespons, lokal kø og ventetid før værktøjer.

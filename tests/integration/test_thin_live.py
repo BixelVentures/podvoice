@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import threading
 
 import pytest
 from fakes.fake_attention import FakeAttention
@@ -503,6 +504,51 @@ async def test_stop_during_late_mic_start_closes_before_next_off_generation():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("next_live", [False, True])
+async def test_stop_during_cold_import_rearms_without_late_connection(monkeypatch, next_live):
+    from gatekeeper import openai_live
+
+    session, sdk, flag, _, link = build()
+    session.live_brain.client_factory = None
+    entered, finished = asyncio.Event(), asyncio.Event()
+    release = threading.Event()
+    loop = asyncio.get_running_loop()
+
+    def slow_imports():
+        loop.call_soon_threadsafe(entered.set)
+        release.wait()
+        loop.call_soon_threadsafe(finished.set)
+        return sdk.factory
+
+    monkeypatch.setattr(openai_live, "_load_live_sdk", slow_imports)
+    await session.start()
+    opening = asyncio.create_task(session.wake())
+    try:
+        await asyncio.wait_for(entered.wait(), 1)
+        await asyncio.wait_for(session.stop(), 1)
+        await opening
+        assert link.rearm_calls == 1 and not link.streaming
+        assert not sdk.factory_calls and not session._active
+        release.set()
+        await asyncio.wait_for(finished.wait(), 1)
+        assert not sdk.factory_calls
+        flag[0] = next_live
+        await session.wake()
+        assert session.live_alpha is next_live
+        assert link.streaming and session._reader is not None
+        assert len(sdk.factory_calls) == int(next_live)
+        if next_live:
+            assert session.brain._connection_generation == 2
+        else:
+            assert session.brain is session._realtime_brain
+    finally:
+        release.set()
+        await session.aclose()
+        await opening
+        await asyncio.wait_for(finished.wait(), 1)
+
+
+@pytest.mark.asyncio
 async def test_late_opening_timeout_blocks_rearm_but_does_not_skip_physical_cleanup(monkeypatch):
     monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.025)
     entered, release = asyncio.Event(), asyncio.Event()
@@ -712,6 +758,12 @@ async def test_end_requires_actual_zero_call_continuation_before_grace(monkeypat
         await session.wake()
         receipt = await propose_end(session, sdk, silent=silent)
         assert sdk.response.item.create.await_count == 1
+        result = json.loads(sdk.response.item.create.call_args.kwargs["item"]["output"])
+        assert result["data"] == {
+            "decision": "end_conversation",
+            "closure_status": "accepted_not_closed",
+        }
+        assert session._active and sdk.session.close.await_count == 0
         await asyncio.sleep(0.07)  # Result writes alone must not start the grace clock.
         assert not receipt.done() and sdk.session.close.await_count == 0
         continuation = created("r2")
@@ -1378,6 +1430,8 @@ async def test_reconsider_lifecycle_result_and_continuation_keep_actual_review_w
         await until(lambda: sdk.response.create.await_count == 2)
         assert result_for(sdk, "review-wire")["ok"] is True
         assert tools.calls == [] and sdk.session.close.await_count == 0
+        if name == "end_conversation":
+            assert result_for(sdk, "review-wire")["data"]["closure_status"] == "accepted_not_closed"
         receipt = session._live_end_receipt
         if name == "end_conversation":
             assert receipt is not None and not receipt.done()
