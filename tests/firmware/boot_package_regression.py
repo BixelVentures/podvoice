@@ -45,6 +45,39 @@ def main():
                 assert merged["podvoice_reply"]["activity_status"] == "podvoice_activity_status"
             else:
                 assert not observers and "activity_status" not in merged["podvoice_reply"]
+            references = [
+                item
+                for item in merged["text_sensor"]
+                if item.get("id") == "podvoice_wake_reference"
+            ]
+            reference_actions = [
+                item
+                for item in merged["api"]["actions"]
+                if item.get("action") == "podvoice_wake_snapshot"
+            ]
+            if name == "podvoice-live-alpha.yaml":
+                assert len(references) == len(reference_actions) == 1
+                assert references[0]["disabled_by_default"] is True
+                assert references[0]["entity_category"] == "diagnostic"
+                assert not references[0].get("internal", False)
+                assert reference_actions[0]["variables"] == {
+                    "session": "string",
+                    "generation": "int",
+                }
+                assert (
+                    str(reference_actions[0]["then"][0]["lambda"])
+                    == "id(pv_audio).request_wake_snapshot(session, generation);"
+                )
+                assert (
+                    merged["podvoice_audio"]["wake_reference_sensor"] == "podvoice_wake_reference"
+                )
+                assert merged["podvoice_audio"]["wake_reference_mute"] == "master_mute_switch"
+                assert "wake_reference_generation(session, require_ack)" in str(
+                    merged["podvoice_audio"]["wake_reference_guard"]
+                )
+            else:
+                assert not references and not reference_actions
+                assert "wake_reference_sensor" not in merged["podvoice_audio"]
             live_actions = [
                 item
                 for item in merged["api"]["actions"]

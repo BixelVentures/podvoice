@@ -330,15 +330,15 @@
 
     <div class="section">
       <h2>Hvad du ser og hører</h2>
-      <p class="sub" style="margin:0 0 10px">Hele forløbet, fra du kalder til den lukker — hvert trin har ét lys og højst én lyd.</p>
+      <p class="sub" style="margin:0 0 10px">Alpha holder cyan under den åbne samtale. Når Alpha er fra, bruges gul under arbejde og grøn under svar.</p>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px">
         <tr style="text-align:left;color:var(--muted)"><th style="padding:4px 8px 4px 0">Øjeblik</th><th style="padding:4px 8px 4px 0">Ring</th><th style="padding:4px 0">Lyd</th></tr>
-        <tr><td style="padding:3px 8px 3px 0">Du siger dit valgte vækkeord</td><td style="padding:3px 8px 3px 0"><b>Cyan</b> med det samme</td><td style="padding:3px 0">Stilhed &mdash; tal videre</td></tr>
+        <tr><td style="padding:3px 8px 3px 0">Du siger dit valgte vækkeord</td><td style="padding:3px 8px 3px 0"><b>Cyan</b>, når samtalen åbner</td><td style="padding:3px 0">Stilhed &mdash; tal videre</td></tr>
         <tr><td style="padding:3px 8px 3px 0">Du taler</td><td style="padding:3px 8px 3px 0">Cyan</td><td style="padding:3px 0">Stilhed &mdash; den lytter</td></tr>
-        <tr><td style="padding:3px 8px 3px 0">Du er færdig, den arbejder</td><td style="padding:3px 8px 3px 0"><b>Gul</b></td><td style="padding:3px 0">Stilhed &mdash; værktøjet starter straks</td></tr>
-        <tr><td style="padding:3px 8px 3px 0">Den svarer</td><td style="padding:3px 8px 3px 0"><b>Gr&oslash;n</b></td><td style="padding:3px 0">Svaret</td></tr>
-        <tr><td style="padding:3px 8px 3px 0">Samtalen lukker</td><td style="padding:3px 8px 3px 0">Slukket</td><td style="padding:3px 0">Kort, blid nedadg&aring;ende tone &mdash; <b>mikrofonen er lukket</b></td></tr>
-        <tr><td style="padding:3px 8px 3px 0">Noget gik galt</td><td style="padding:3px 8px 3px 0"><b>R&oslash;d</b></td><td style="padding:3px 0">Den siger h&oslash;jt hvad der er galt</td></tr>
+        <tr><td style="padding:3px 8px 3px 0">Du er færdig, den arbejder</td><td style="padding:3px 8px 3px 0">Cyan (Alpha) / gul</td><td style="padding:3px 0">Et svar eller arbejde kan være på vej</td></tr>
+        <tr><td style="padding:3px 8px 3px 0">Den svarer</td><td style="padding:3px 8px 3px 0">Cyan (Alpha) / grøn</td><td style="padding:3px 0">Svaret</td></tr>
+        <tr><td style="padding:3px 8px 3px 0">Samtalen lukker</td><td style="padding:3px 8px 3px 0">Slukket</td><td style="padding:3px 0">Eventuel afsluttende tale er færdig &mdash; <b>mikrofonen er lukket</b></td></tr>
+        <tr><td style="padding:3px 8px 3px 0">Noget gik galt</td><td style="padding:3px 8px 3px 0"><b>R&oslash;d</b></td><td style="padding:3px 0">Fejlen vises i panelet; talt besked, når lydvejen virker</td></tr>
       </table>
     </div>
 
@@ -352,7 +352,7 @@
   <div class="pane" id="pane-test" role="tabpanel" aria-labelledby="tab-test" hidden>
     <div class="section">
       <h2>Lydbevis</h2>
-      <p class="sub" style="margin:2px 0 10px">Optag kun den næste samtale lokalt, så vi kan sammenligne lyden fra Voice PE med præcis den lyd, OpenAI modtog. Optagelsen stopper automatisk og forlader ikke Home Assistant ud over den normale samtale.</p>
+      <p class="sub" style="margin:2px 0 10px">Alpha gemmer automatisk diagnose fra dine Voice PE-samtaler: hændelser, mikrofon, lyd sendt mod OpenAI og svarlyd. Der gemmes ikke løbende lyd mellem samtaler. Efter et registreret wake kan op til 1,5 sekunders lokal vækkeordsreference gemmes; den sendes ikke til OpenAI. Data beholdes lokalt i højst 24 timer og inden for 512 MiB. Lyd sendt mod OpenAI er ikke bevis for modtagelse; svarlyd er ikke en optagelse af lyden i rummet. Manuel optagelse er stadig mulig uden Alpha.</p>
       <button id="trace_arm">Optag næste samtale</button>
       <button id="trace_cancel" class="ghost" hidden>Annullér</button>
       <div id="trace_status" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
@@ -1027,7 +1027,7 @@ setInterval(function () {
 
 <script>
 "use strict";
-// ---- One-shot physical audio evidence ----
+// ---- Local conversation diagnostics and explicit manual capture ----
 (function () {
   var arm = document.getElementById("trace_arm");
   var cancel = document.getElementById("trace_cancel");
@@ -1043,12 +1043,16 @@ setInterval(function () {
     return name + ": " + (stage.duration_ms / 1000).toLocaleString("da-DK", {maximumFractionDigits:1}) + " s · RMS " + stage.rms + " · peak " + stage.peak_pct + "% · clipping " + stage.clipped_pct + "%";
   }
   function render(data) {
-    latestTrace = data && !data.active && data.latest ? data.latest.id : null;
+    latestTrace = data && !data.active && data.latest && !data.latest.automatic ? data.latest.id : null;
     analyse.disabled = !latestTrace || analysisBusy;
     box.innerHTML = "";
     if (!data || data.ok === false) { arm.disabled = true; cancel.hidden = true; if (numericPreview) numericPreview.textContent = "Numerisk A/B: lydbevis er ikke tilgængeligt."; box.appendChild(te("div", "empty", "Optagelsesstatus ukendt. " + ((data && data.error) || "Lydbevis er ikke tilgængeligt."))); return; }
+    if (data.automatic) box.appendChild(te("div", "sub", "Automatisk diagnose for Voice PE Alpha er slået til. Lokalt: højst 24 timer / 512 MiB; lange samtaler gemmes i dele."));
+    if (data.pending && data.pending.length) box.appendChild(te("div", "sub", "Gemmer " + data.pending.length + " samtale(r) i baggrunden."));
+    if (data.errors && Object.keys(data.errors).length) box.appendChild(te("div", "empty", "Diagnosen er ufuldstændig: en lokal lagringsfejl er registreret."));
+    if (data.dropped && Object.values(data.dropped).some(function (n) { return n > 0; })) box.appendChild(te("div", "empty", "Diagnosen har huller: måledata blev tabt, mens samtalen fortsatte."));
     if (data.active) {
-      box.appendChild(te("div", "line out", "Optager nu i " + data.active.room + " — kun denne samtale, højst " + data.max_seconds + " sekunder."));
+      box.appendChild(te("div", "line out", "Optager nu i " + data.active.room + (data.active.automatic ? " — automatisk samtalediagnose." : " — manuel optagelse, højst " + data.max_seconds + " sekunder.")));
       arm.disabled = true; cancel.hidden = true; return;
     }
     if (data.armed_room) {
@@ -1056,7 +1060,7 @@ setInterval(function () {
       arm.disabled = true; cancel.hidden = false; return;
     }
     arm.disabled = false; cancel.hidden = true;
-    box.appendChild(te("div", "empty", "Lydoptagelse slået fra. Historik og tidslinje gemmes stadig, men uden lyd. Aktivér igen før næste lydprøve."));
+    if (!data.automatic) box.appendChild(te("div", "empty", "Lydoptagelse slået fra. Historik og tidslinje gemmes stadig, men uden lyd. Aktivér igen før næste lydprøve."));
     if (!data.latest) {
       if (numericPreview) numericPreview.textContent = "Numerisk A/B: intet lydbevis indlæst endnu.";
       box.appendChild(te("div", "empty", "Ingen lydoptagelse endnu.")); return;
@@ -1065,20 +1069,35 @@ setInterval(function () {
     var metadata = latest.metadata || {};
     var providerContract = (latest.events || []).find(function (event) { return event && event.event === "provider_contract"; }) || {};
     if (numericPreview) numericPreview.textContent = "Numerisk A/B-kandidat før start: trace " + latest.id + " · målturn 1 · PodVoice " + (metadata.podvoice_version || "mangler") + " · rootfs " + String(metadata.artifact_sha256 || "mangler").slice(0, 12) + " · prompt " + String(metadata.prompt_sha256 || "mangler").slice(0, 12) + " · schema " + String(providerContract.tool_schema_sha256 || "mangler").slice(0, 12) + " · rum " + String(metadata.room_context_sha256 || "mangler").slice(0, 12) + " · samlet prisloft $5.";
+    if (latest.automatic && numericPreview) numericPreview.textContent = "Automatiske samtaledele kan gennemgås som lyd og tidslinje. Den særskilte numeriske A/B-prøve kræver en komplet manuel optagelse.";
     var line = te("div", "line out");
-    line.appendChild(te("div", "who", "Seneste lydbevis · " + latest.room));
+    line.appendChild(te("div", "who", "Seneste gemte diagnose · " + latest.room));
+    if (latest.part_index != null) line.appendChild(te("div", "sub", "Del " + (latest.part_index + 1) + " af samtalen · " + (latest.capture_status || "ukendt status") + (latest.incomplete ? " · ufuldstændig" : "")));
     line.appendChild(te("div", "sub", "Optaget " + new Date(latest.started_at * 1000).toLocaleString("da-DK") + " · PodVoice " + (metadata.podvoice_version || "ukendt version")));
     line.appendChild(te("div", "sub", stageText("Voice PE", stages.device)));
-    line.appendChild(te("div", "sub", stageText("Sendt til OpenAI", stages.provider)));
+    line.appendChild(te("div", "sub", stageText("Til OpenAI (før afsendelse)", stages.provider)));
     line.appendChild(te("div", "sub", stageText("Sendt til højttaler", stages.speaker)));
-    ["device", "provider", "speaker", "manifest"].forEach(function (stage) {
+    ["wake_reference", "device", "provider", "speaker", "manifest"].forEach(function (stage) {
       if (stage !== "manifest" && !stages[stage]) return;
-      var a = te("a", "", stage === "device" ? "Hør Voice PE-lyden" : stage === "provider" ? "Hør OpenAI-lyden" : stage === "speaker" ? "Hør den færdige svarlyd" : "Se tidslinjen");
+      var a = te("a", "", stage === "wake_reference" ? "Hør vækkeordsreferencen" : stage === "device" ? "Hør Voice PE-lyden" : stage === "provider" ? "Hør OpenAI-lyden" : stage === "speaker" ? "Hør svarlyden før højttaleren" : "Se tidslinjen");
       a.href = "api/audio-trace/" + encodeURIComponent(latest.id) + "/" + stage;
       a.style.cssText = "display:inline-block;margin:8px 14px 0 0";
       line.appendChild(a);
     });
     box.appendChild(line);
+    (data.recent || []).filter(function (part) { return part.id !== latest.id; }).slice(0, 30).forEach(function (part) {
+      var row = te("div", "sub");
+      row.appendChild(te("span", "", new Date(part.started_at * 1000).toLocaleString("da-DK") + " · " + part.room + " · del " + ((part.part_index || 0) + 1) + (part.incomplete ? " · ufuldstændig" : "")));
+      ["wake_reference", "device", "provider", "speaker", "manifest"].forEach(function (stage) {
+        if (stage !== "manifest" && !(part.stages || {})[stage]) return;
+        var labels = {wake_reference:"Vækkeord", device:"Mikrofon", provider:"Til OpenAI", speaker:"Svarlyd", manifest:"Tidslinje"};
+        var a = te("a", "", labels[stage]);
+        a.href = "api/audio-trace/" + encodeURIComponent(part.id) + "/" + stage;
+        a.style.cssText = "display:inline-block;margin:8px 10px";
+        row.appendChild(a);
+      });
+      box.appendChild(row);
+    });
   }
   async function load() {
     try { render(await (await fetch("api/audio-trace", {cache:"no-store"})).json()); }

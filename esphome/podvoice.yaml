@@ -379,14 +379,14 @@ external_components:
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 1506994271093d555fefdf0b98c79aeeb9aab9c5
+      ref: 9f77e300680339c96028eb677825a61dd020da11
       path: esphome/components
     components: [podvoice_reply, micro_wake_word]
     refresh: 0s
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 1506994271093d555fefdf0b98c79aeeb9aab9c5
+      ref: 9f77e300680339c96028eb677825a61dd020da11
       path: esphome/components
     components: [mixer, resampler, speaker_source]
     refresh: 0s
@@ -401,7 +401,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: b56a08a6d31044f7507b178961ac74f731474253
+      ref: 9f77e300680339c96028eb677825a61dd020da11
       path: esphome/components
     components: [podvoice_audio]
     refresh: 0s

@@ -4,7 +4,7 @@ packages:
   podvoice: !include podvoice.yaml
 
 substitutions:
-  podvoice_build_marker: podvoice_build_11394_activity2
+  podvoice_build_marker: podvoice_build_11397_diagnostics1
 
 esphome:
   build_path: .esphome/build/podvoice-pe-live-alpha
@@ -31,6 +31,7 @@ event:
       - podvoice_amp_boot_v1
       - podvoice_activity_observer_v1
       - live_semantic_stop_v1
+      - wake_reference_v1
 
 # Observer-only telemetry. This does not enable idle control or change VAD/gain.
 text_sensor:
@@ -40,12 +41,31 @@ text_sensor:
     entity_category: diagnostic
     disabled_by_default: true
 
+  # No publish_state: PCM travels only to the current VA subscriber after request.
+  - platform: template
+    id: podvoice_wake_reference
+    name: "PodVoice Wake Reference"
+    entity_category: diagnostic
+    disabled_by_default: true
+
+podvoice_audio:
+  wake_reference_sensor: podvoice_wake_reference
+  wake_reference_mute: master_mute_switch
+  wake_reference_guard: !lambda |-
+    return id(pv_reply).wake_reference_generation(session, require_ack);
+
 podvoice_reply:
   activity_status: podvoice_activity_status
 
 # Live keeps natural speech with the provider. Only the physical/panel Stop closes.
 api:
   actions:
+    - action: podvoice_wake_snapshot
+      variables:
+        session: string
+        generation: int
+      then:
+        - lambda: "id(pv_audio).request_wake_snapshot(session, generation);"
     - action: podvoice_live_context
       variables:
         session: string

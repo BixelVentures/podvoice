@@ -41,7 +41,12 @@
 
 #pragma once
 
+#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#ifdef USE_PODVOICE_WAKE_REFERENCE
+#include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/components/switch/switch.h"
+#endif
 #include "esphome/core/helpers.h"
 
 #include "esphome/components/microphone/microphone_source.h"
@@ -93,6 +98,14 @@ class PodVoiceAudio : public Component {
   // (PodVoice crashed / half-open socket) loop() force-stops so the mic can NEVER
   // be left streaming. Defined in the .cpp (need millis()).
   bool begin_conversation(micro_wake_word::WakeAudioPosition boundary);
+  void bind_wake_snapshot(const std::string &owner);
+  void clear_wake_snapshot();
+#ifdef USE_PODVOICE_WAKE_REFERENCE
+  void set_wake_reference_sensor(text_sensor::TextSensor *sensor) { wake_reference_sensor_ = sensor; }
+  void set_wake_reference_mute(switch_::Switch *mute) { wake_reference_mute_ = mute; }
+  void set_wake_reference_guard(std::function<uint32_t(const std::string &, bool)> guard) { wake_reference_guard_ = std::move(guard); }
+  void request_wake_snapshot(const std::string &owner, int generation);
+#endif
   void start_streaming();
   void stop_streaming();
   // Provider replacement holds forwarding without stopping the shared physical mic.
@@ -130,6 +143,27 @@ class PodVoiceAudio : public Component {
   // Pulls bytes out of the ring buffer (read(), atomic) and sends them to the
   // subscribed client. Runs on the main/API task. Returns true if anything was sent.
   bool drain_once_();
+  bool last_drain_send_failed_{false};
+#ifdef USE_PODVOICE_WAKE_REFERENCE
+  void send_wake_snapshot_(bool audio_sent);
+  void clear_wake_snapshot_();  // audio_mutex_ held; no network/large memory wipe on the audio task
+  static constexpr size_t WAKE_REFERENCE_CAPACITY = 48000, WAKE_REFERENCE_CHUNK = 768;
+  static constexpr uint32_t WAKE_REFERENCE_TTL_MS = 15000;
+  uint8_t *wake_reference_data_{nullptr};  // Optional setup-only PSRAM allocation; failure is diagnostic-only.
+  text_sensor::TextSensor *wake_reference_sensor_{nullptr};
+  switch_::Switch *wake_reference_mute_{nullptr};
+  std::function<uint32_t(const std::string &, bool)> wake_reference_guard_;
+  micro_wake_word::WakeAudioPosition wake_reference_boundary_;
+  api::APIConnection *wake_reference_client_{nullptr};
+  api::APIConnection *wake_reference_debt_client_{nullptr};  // Main task only; survives snapshot invalidation.
+  char wake_reference_json_[1600]{};  // Main task only; keep formatting off the 8KB loop stack.
+  std::string wake_reference_owner_;
+  size_t wake_reference_size_{0}, wake_reference_offset_{0}, wake_reference_crc_offset_{0};
+  uint64_t wake_reference_start_{0};
+  uint32_t wake_reference_capture_ms_{0}, wake_reference_generation_{0}, wake_reference_crc_{0};
+  uint32_t wake_reference_trim_us_{0};
+  bool wake_reference_ready_{false}, wake_reference_requested_{false}, wake_reference_done_{false};
+#endif
 
   // The passive tap. Created in codegen; we only register the callback.
   microphone::MicrophoneSource *mic_source_{nullptr};

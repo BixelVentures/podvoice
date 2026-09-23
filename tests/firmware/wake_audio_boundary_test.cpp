@@ -50,12 +50,26 @@ struct Rig {
   microphone::MicrophoneSource pv_mic, mww_mic;
   Detector detector; Audio audio;
   api::APIConnection client; voice_assistant::VoiceAssistant va;
-  explicit Rig(uint32_t ring_ms=400) {
+#ifdef USE_PODVOICE_WAKE_REFERENCE
+  text_sensor::TextSensor reference_sensor;
+  switch_::Switch mute;
+  uint32_t live_generation{1};
+  bool ack{true};
+#endif
+  explicit Rig(uint32_t ring_ms=400, bool observe=false) {
     va.client=&client; voice_assistant::global_voice_assistant=&va;
     detector.set_microphone_source(&mww_mic); detector.set_features_step_size(10);
     detector.set_stop_after_detection(false);
     pv_mic.info.channels=2;
     audio.set_microphone_source(&pv_mic); audio.set_wake_detector(&detector);
+#ifdef USE_PODVOICE_WAKE_REFERENCE
+    if (observe) {
+      audio.set_wake_reference_sensor(&reference_sensor); audio.set_wake_reference_mute(&mute);
+      audio.set_wake_reference_guard([this](const std::string &session, bool require_ack) {
+        return session == "0123456789abcdef0123456789abcdef" && (!require_ack || ack) && !mute.state ? live_generation : 0;
+      });
+    }
+#endif
     audio.set_ring_ms(ring_ms); audio.setup(); detector.init();
   }
   void feed(const std::vector<int16_t> &mono) {
@@ -258,4 +272,5 @@ int main() {
     r.detector.queue(fresh,&word); r.detector.loop();
     assert(r.detector.get_wake_word_detected_trigger()->delivered.size()==1);
   }
+  return 0;
 }

@@ -332,9 +332,9 @@ async def run(cfg: Config) -> None:
     await _prepare_saved_live_alpha()
     history = History()  # persisted conversations (Talk + Voice PE rooms) for the History tab
     hub = StatusHub(history=history)
-    # Privacy-safe evidence: disabled until the owner arms exactly one conversation
-    # from the ingress panel; local files are bounded and rotated automatically.
-    audio_trace = AudioTraceRecorder()
+    # Physical Alpha conversations keep bounded local diagnostic evidence by default.
+    # Thin admits capture only after wake; OFF and Talk retain explicit manual capture.
+    audio_trace = AudioTraceRecorder(automatic=True)
     live_audio = LiveAudioStreams()
     reply_bus = ReplyBus()  # AI-reply audio -> /reply/<room>.flac -> device media_player announce
     # Per-boot token protecting /reply/* (the one route exempt from the ingress lock,
@@ -688,6 +688,8 @@ async def run(cfg: Config) -> None:
             await live_eval_service.aclose()
         for s in sessions.values():
             await s.aclose()
+        await audio_trace.wait_pending(timeout_s=3.0)
+        await audio_trace.shutdown(timeout_s=1.0)
         await runner.cleanup()
         if attention is not None:
             await attention.aclose()

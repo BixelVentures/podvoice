@@ -5,8 +5,8 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const source = fs.readFileSync(path.join(__dirname, '../../podvoice/gatekeeper/static/index.html'), 'utf8');
 const css = source.match(/<style>([\s\S]*?)<\/style>/)[1];
-const markup = source.match(/<button id="trace_arm"[\s\S]*?<div id="trace_analysis"[^>]*><\/div>/)[0];
-const controller = source.match(/\/\/ ---- One-shot physical audio evidence ----([\s\S]*?)<\/script>/)[1];
+const markup = source.match(/<button id="trace_arm"[\s\S]*?<div id="trace_analysis"[^>]*><\/div>/)[0] + source.match(/<div id="eval_numeric_preview"[^>]*>[\s\S]*?<\/div>/)[0];
+const controller = source.match(/\/\/ ---- Local conversation diagnostics and explicit manual capture ----([\s\S]*?)<\/script>/)[1];
 (async () => {
   const browser = await chromium.launch({ headless: true, executablePath: process.env.PODVOICE_TEST_CHROMIUM });
   try {
@@ -52,6 +52,18 @@ const controller = source.match(/\/\/ ---- One-shot physical audio evidence ----
       await page.waitForFunction(() => document.getElementById('trace_status').textContent.includes('Optager nu'));
       assert.equal(await page.locator('#trace_analyse').isDisabled(), true);
       assert.equal(posts, 1);
+      trace = {ok:true, automatic:true, active:null, pending:['saving'], errors:{disk:'storage_unavailable'}, dropped:{part:2}, latest:{id:'auto-p0001', automatic:true, room:'r0', started_at:1, part_index:1, capture_status:'complete', incomplete:true, stages:{wake_reference:{},provider:{}}}, recent:[{id:'auto-p0000',room:'r0',started_at:1,part_index:0,stages:{device:{}}}]};
+      await page.reload();
+      await page.waitForFunction(() => document.getElementById('trace_status').textContent.includes('Automatisk diagnose'));
+      const automaticText = await page.locator('#trace_status').textContent();
+      assert.ok(!automaticText.includes('Lydoptagelse slået fra'));
+      assert.ok(automaticText.includes('lagringsfejl'));
+      assert.ok(automaticText.includes('måledata blev tabt'));
+      assert.ok(automaticText.includes('Gemmer 1'));
+      assert.equal(await page.locator('#trace_analyse').isDisabled(), true);
+      assert.equal(await page.locator('a[href="api/audio-trace/auto-p0001/wake_reference"]').count(), 1);
+      assert.equal(await page.locator('a[href="api/audio-trace/auto-p0000/device"]').count(), 1);
+      assert.ok((await page.locator('#eval_numeric_preview').textContent()).includes('komplet manuel optagelse'));
       assert.deepEqual(errors, []);
       await page.close();
     }

@@ -495,3 +495,123 @@ def test_stop_whole_chain_requires_exact_review_and_preserves_fail_closed_guards
     assert inspect_repository(tmp_path, base).passed
     (tmp_path / "tests/test_device.py").unlink()
     assert not inspect_repository(tmp_path, base).passed
+
+
+def _automatic_diagnostics_repo(tmp_path):
+    from scripts.candidate_scope import (
+        _AUTOMATIC_DIAGNOSTIC_REGRESSIONS,
+        _AUTOMATIC_DIAGNOSTIC_REQUIRED,
+        inspect_repository,
+        production_fingerprint,
+    )
+
+    source, base, git, record, write = _coupled_repo(
+        tmp_path, ("audio_input", "physical_output"), native_quiet=True
+    )
+    (tmp_path / "podvoice/gatekeeper/live_idle.py").unlink()
+    for name in _AUTOMATIC_DIAGNOSTIC_REQUIRED | _AUTOMATIC_DIAGNOSTIC_REGRESSIONS:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("diagnostic = True\n")
+    source.write_text('observed = ["MCP", "playback", "response.done", "rearm"]\n')
+    git("add", "podvoice/gatekeeper/thin.py")
+    domains = ("ha_tools", "physical_output", "realtime_semantics", "rearm")
+
+    def refresh():
+        report = inspect_repository(tmp_path, base)
+        refreshed = {
+            **record,
+            "domains": list(domains),
+            "fingerprint": production_fingerprint(tmp_path, base, base, report.production_files),
+            "rationale": "Reviewed bounded native, provider and local recording observation chain.",
+        }
+        write(refreshed)
+        return refreshed
+
+    reviewed = refresh()
+    assert inspect_repository(tmp_path, base).passed
+    return source, base, git, reviewed, write, refresh
+
+
+def test_automatic_diagnostics_coupling_requires_exact_tree_review(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    source, base, _git, record, write, _refresh = _automatic_diagnostics_repo(tmp_path)
+    (tmp_path / "docs/STATUS.md").unlink()
+    assert not inspect_repository(tmp_path, base).passed
+    for key, value in (
+        ("fingerprint", "changed"),
+        ("base_tip", "stale"),
+        ("merge_base", "stale"),
+        ("reviewer", ""),
+        ("rationale", ""),
+        ("domains", ["ha_tools", "physical_output"]),
+    ):
+        write({**record, key: value})
+        assert not inspect_repository(tmp_path, base).passed
+    write(record)
+    source.write_text(source.read_text() + "unreviewed = True\n")
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_automatic_diagnostics_requires_all_chain_regressions(tmp_path):
+    from scripts.candidate_scope import _AUTOMATIC_DIAGNOSTIC_REGRESSIONS, inspect_repository
+
+    _source, base, _git, _record, _write, refresh = _automatic_diagnostics_repo(tmp_path)
+    for name in _AUTOMATIC_DIAGNOSTIC_REGRESSIONS:
+        path = tmp_path / name
+        contents = path.read_text()
+        path.unlink()
+        refresh()
+        assert not inspect_repository(tmp_path, base).passed, name
+        path.write_text(contents)
+    refresh()
+    assert inspect_repository(tmp_path, base).passed
+
+
+def test_automatic_diagnostics_rejects_unrelated_surfaces_even_with_new_fingerprint(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    _source, base, _git, _record, _write, refresh = _automatic_diagnostics_repo(tmp_path)
+    for name in (
+        "podvoice/gatekeeper/tools.py",
+        "podvoice/gatekeeper/live_prompt.py",
+        "podvoice/gatekeeper/live_idle.py",
+        "esphome/components/mixer/speaker/activity_observer.h",
+    ):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("unrelated = True\n")
+        refresh()
+        assert not inspect_repository(tmp_path, base).passed, name
+        path.unlink()
+    refresh()
+    assert inspect_repository(tmp_path, base).passed
+
+
+def test_arbitrary_four_domain_candidate_cannot_reuse_diagnostics_coupling(tmp_path):
+    from scripts.candidate_scope import _AUTOMATIC_DIAGNOSTIC_REQUIRED, inspect_repository
+
+    _source, base, _git, _record, _write, refresh = _automatic_diagnostics_repo(tmp_path)
+    # Even all required test filenames and a new exact review cannot turn a
+    # four-domain engine change alone into the approved end-to-end observer chain.
+    for name in _AUTOMATIC_DIAGNOSTIC_REQUIRED - {"podvoice/gatekeeper/thin.py"}:
+        (tmp_path / name).unlink()
+    refresh()
+    report = inspect_repository(tmp_path, base)
+    assert report.domains == ("ha_tools", "physical_output", "realtime_semantics", "rearm")
+    assert not report.passed
+
+
+def test_automatic_diagnostics_cannot_admit_deleted_required_owner(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    source, base, _git, _record, _write, refresh = _automatic_diagnostics_repo(tmp_path)
+    # Keep all four domains in another allowed changed file while removing the
+    # tracked Thin owner; deleted paths remain in git's changed production list.
+    (tmp_path / "podvoice/gatekeeper/audio_trace.py").write_text(source.read_text())
+    source.unlink()
+    refresh()
+    report = inspect_repository(tmp_path, base)
+    assert "podvoice/gatekeeper/thin.py" in report.production_files
+    assert not report.passed

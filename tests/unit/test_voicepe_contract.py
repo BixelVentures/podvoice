@@ -1336,6 +1336,14 @@ async def test_mic_queue_keeps_the_end_of_a_long_request_on_backpressure():
     for number in range(601):
         await link._handle_audio(number.to_bytes(2, "little"), audio_epoch=link._audio_epoch)
     assert link._audio_q.qsize() == 600
+    diagnostic = link.wake_diagnostics()
+    assert diagnostic["native_queue_high_water"] == 600
+    assert diagnostic["native_queue_dropped_frames_total"] == 1
+    assert diagnostic["native_queue_dropped_bytes_total"] == 2
+    assert diagnostic["native_audio_frames_total"] == 601
+    before = dict(diagnostic)
+    await link._handle_audio(b"stale", audio_epoch=link._audio_epoch - 1)
+    assert link.wake_diagnostics() == before
     assert await link._audio_q.get() == (1).to_bytes(2, "little")
     newest = b""
     while not link._audio_q.empty():

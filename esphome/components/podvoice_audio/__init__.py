@@ -50,6 +50,8 @@ import esphome.final_validate as fv
 from esphome.components import (  # noqa: F401  (DEPENDENCIES)
     micro_wake_word,
     microphone,
+    switch,
+    text_sensor,
     voice_assistant,
 )
 from esphome.const import CONF_ID, CONF_MICROPHONE
@@ -74,6 +76,9 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(PodVoiceAudio),
         cv.Required("wake_detector"): cv.use_id(micro_wake_word.MicroWakeWord),
+        cv.Optional("wake_reference_sensor"): cv.use_id(text_sensor.TextSensor),
+        cv.Optional("wake_reference_mute"): cv.use_id(switch.Switch),
+        cv.Optional("wake_reference_guard"): cv.returning_lambda,
         # The microphone tap. microphone_source_schema() is itself wrapped in
         # maybe_conf(CONF_MICROPHONE, ...), so nesting it once under CONF_MICROPHONE
         # yields the canonical `microphone:` sub-block (short form `microphone: i2s_mics`
@@ -110,6 +115,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 def _validate_shared_microphone(config):
+    diagnostic = ("wake_reference_sensor", "wake_reference_mute", "wake_reference_guard")
+    if any(k in config for k in diagnostic) and not all(k in config for k in diagnostic):
+        raise cv.Invalid("wake reference requires sensor, mute and Live admission guard together")
     full = fv.full_config.get()
     detector_path = full.get_path_for_id(config["wake_detector"])[:-1]
     detector = full.get_config_for_path(detector_path)
@@ -147,6 +155,21 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     detector = await cg.get_variable(config["wake_detector"])
     cg.add(var.set_wake_detector(detector))
+    if "wake_reference_sensor" in config:
+        cg.add_define("USE_PODVOICE_WAKE_REFERENCE")
+        cg.add(
+            var.set_wake_reference_sensor(await cg.get_variable(config["wake_reference_sensor"]))
+        )
+        cg.add(var.set_wake_reference_mute(await cg.get_variable(config["wake_reference_mute"])))
+        guard = await cg.process_lambda(
+            config["wake_reference_guard"],
+            [
+                (cg.std_string.operator("const").operator("ref"), "session"),
+                (cg.bool_, "require_ack"),
+            ],
+            return_type=cg.uint32,
+        )
+        cg.add(var.set_wake_reference_guard(guard))
     cg.add(var.set_default_channel(config["default_channel"]))
     await cg.register_component(var, config)
 

@@ -1688,6 +1688,8 @@ micro_wake_word:
                       id(podvoice_conversation_active) = id(pv_reply).begin_conversation();
                       if (!id(podvoice_conversation_active))
                         id(pv_audio).stop_streaming();
+                      else
+                        id(pv_audio).bind_wake_snapshot(id(pv_reply).conversation_nonce());
                     }
                 - if:
                     condition:

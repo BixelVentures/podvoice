@@ -1867,6 +1867,205 @@ def milestones(rows, kind):
 
 
 @pytest.mark.asyncio
+async def test_wire_observer_real_sdk_receive_is_before_handle_and_contains_no_payload(caplog):
+    import json
+
+    caplog.set_level("INFO", logger="gatekeeper.openai_live")
+    session, sdk, rows = diagnostic_wire_provider()
+    await session.connect()
+    await anext(session.events())
+    before_input = []
+
+    def observe(row):
+        rows.append(row)
+        if row.get("wire_event_type") == "session.input_transcript.delta":
+            before_input.append(session.input_sequence)
+
+    session.provider_observer = observe
+    pcm = b"\x11\x22" * 16
+    encoded_pcm = base64.b64encode(pcm).decode()
+    try:
+        await sdk.incoming.put(
+            {
+                "type": "session.output_audio.delta",
+                "delta": encoded_pcm,
+                "event_id": "private-event",
+                "response_id": "private-response",
+                "api_key": "sk-private-key",
+                "arguments": {"private": "private-tool-args"},
+            }
+        )
+        audio = await asyncio.wait_for(anext(session.events()), 1)
+        assert isinstance(audio, LiveAudioChunk) and audio.pcm == pcm
+        await sdk.incoming.put(
+            {
+                "type": "session.input_transcript.delta",
+                "delta": "private transcript",
+                "start_ms": 0,
+                "end_ms": 10,
+            }
+        )
+        transcript = await asyncio.wait_for(anext(session.events()), 1)
+        assert isinstance(transcript, LiveTranscript) and transcript.text == "private transcript"
+        assert before_input == [0] and session.input_sequence == 1
+        wire_rows = [row for row in rows if row["kind"] == "live_wire_event"]
+        audio_row = next(
+            row for row in wire_rows if row["wire_event_type"] == "session.output_audio.delta"
+        )
+        assert audio_row["event_id"] == session._diagnostic_ref("private-event")
+        assert audio_row["response_id"] == session._diagnostic_ref("private-response")
+        assert audio_row["delta_encoded_bytes"] == len(encoded_pcm)
+        assert audio_row["wire_source"] == "live_websocket"
+        assert audio_row["generation"] == 1
+        assert audio_row["clock_source"] == "host_monotonic"
+        assert type(audio_row["host_monotonic_ns"]) is int
+        assert "delta_encoded_bytes" not in wire_rows[-1]
+        assert "live_wire_event" not in caplog.text
+        text = json.dumps(wire_rows)
+        for private in (
+            encoded_pcm,
+            "private-event",
+            "private-response",
+            "sk-private-key",
+            "private-tool-args",
+            "private transcript",
+            session.api_key,
+        ):
+            assert private not in text
+    finally:
+        await session.close()
+
+
+def test_wire_type_allowlist_hashes_unknown_values_and_backend_ancestry():
+    session, _, _ = provider()
+    rows = []
+    session.provider_observer = rows.append
+    session._connection_generation = 7
+    session._observe_wire_event(
+        {
+            "type": "response.event",
+            "event_id": "private-event",
+            "delegation_id": "private-delegation",
+            "event": {"type": "response.created", "response": {"id": "private-response"}},
+        },
+        7,
+    )
+    assert rows[-1]["wire_backend_event_type"] == "response.created"
+    assert rows[-1]["response_id"] == session._diagnostic_ref("private-response")
+    assert rows[-1]["delegation_id"] == session._diagnostic_ref("private-delegation")
+    session._observe_wire_event({"type": "sk-private-as-event-type", "payload": "secret"}, 7)
+    assert rows[-1]["wire_event_type"] == session._diagnostic_ref("sk-private-as-event-type")
+    session._observe_wire_event({"type": "response.event", "event": {"type": "private-inner"}}, 7)
+    assert rows[-1]["wire_backend_event_type"] == session._diagnostic_ref("private-inner")
+    assert "private-" not in str(rows) and "secret" not in str(rows)
+    before = len(rows)
+    session._observe_wire_event({"type": "error"}, 6)
+    assert len(rows) == before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", [RuntimeError, asyncio.CancelledError])
+async def test_wire_observer_exception_cannot_interrupt_real_sdk_receive(error):
+    session, sdk, rows = diagnostic_wire_provider()
+
+    def observe(row):
+        rows.append(row)
+        if row["kind"] == "live_wire_event":
+            raise error("private observer failure")
+
+    session.provider_observer = observe
+    await session.connect()
+    await anext(session.events())
+    await sdk.incoming.put({"type": "session.output_audio.delta", "delta": "AAA="})
+    assert isinstance(await asyncio.wait_for(anext(session.events()), 1), LiveAudioChunk)
+    await session.close()
+    assert session.last_error is None and sdk.released
+    assert any(row.get("wire_event_type") == "session.closed" for row in rows)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stale", ["generation", "connection"])
+async def test_receive_rejects_stale_envelope_before_wire_observer(stale):
+    session, sdk, _ = provider()
+    session._connection_generation = 2
+    rows = []
+    session.provider_observer = rows.append
+    old = SDK()
+    await old.incoming.put({"type": "session.output_audio.delta", "delta": "AAA="})
+    session._connection = old if stale == "generation" else sdk
+    await session._receive(old, 1 if stale == "generation" else 2)
+    assert not any(row["kind"] == "live_wire_event" for row in rows)
+
+
+@pytest.mark.asyncio
+async def test_startup_diagnostics_order_real_sdk_boundaries_without_payloads(caplog):
+    caplog.set_level("INFO", logger="gatekeeper.openai_live")
+    session, _, rows = diagnostic_wire_provider()
+    await session.connect()
+    expected = [
+        "sdk_prepare",
+        "client_create",
+        "transport_connect",
+        "session_start",
+        "provider_ready_wait",
+    ]
+    assert milestones(rows, "live_startup") == [
+        (stage, outcome) for stage in expected for outcome in ("started", "done")
+    ]
+    assert session.api_key not in caplog.text + str(rows)
+    await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "stage",
+    [
+        "sdk_prepare",
+        "client_create",
+        "transport_connect",
+        "session_start",
+        "provider_ready_wait",
+    ],
+)
+async def test_startup_diagnostics_fail_at_actual_boundary_without_private_error(
+    stage, monkeypatch, caplog
+):
+    caplog.set_level("INFO", logger="gatekeeper.openai_live")
+    session, sdk, _ = provider()
+    rows = []
+    session.provider_observer = rows.append
+    failure = RuntimeError("sk-private-startup-message")
+
+    def fail(**kwargs):
+        raise failure
+
+    if stage == "sdk_prepare":
+        session.client_factory = None
+        monkeypatch.setattr(
+            "gatekeeper.openai_live.prepare_live_sdk", AsyncMock(side_effect=failure)
+        )
+    elif stage == "client_create":
+        session.client_factory = fail
+    elif stage == "transport_connect":
+        monkeypatch.setattr(SDK, "__aenter__", AsyncMock(side_effect=failure))
+    elif stage == "session_start":
+        sdk.session.start = AsyncMock(side_effect=failure)
+    else:
+
+        async def rejected(**kwargs):
+            session._ready.set_exception(failure)
+
+        sdk.session.start = rejected
+    with pytest.raises(RuntimeError) as caught:
+        await session.connect()
+    assert caught.value is failure
+    assert milestones(rows, "live_startup")[-2:] == [(stage, "started"), (stage, "failed")]
+    assert session._connection is None and session._reader is None
+    assert "sk-private-startup-message" not in caplog.text + str(rows)
+    assert session.api_key not in caplog.text + str(rows)
+
+
+@pytest.mark.asyncio
 async def test_diagnostics_real_sdk_serialization_and_terminal_are_separate_milestones(caplog):
     import json
 

@@ -238,6 +238,13 @@ class TraceOracle:
     def score(self, trace: Mapping[str, Any] | Sequence[Mapping[str, Any]]) -> TraceReport:
         events = _events(trace)
         issues: list[TraceIssue] = []
+        if isinstance(trace, Mapping) and trace.get("automatic"):
+            issues.append(
+                TraceIssue(
+                    "automatic_part_not_lifecycle_proof",
+                    "A rolling conversation part is not a complete physical lifecycle trace",
+                )
+            )
         names = [_name(event) for event in events]
         counts = Counter(names)
 

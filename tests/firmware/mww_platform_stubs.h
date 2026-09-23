@@ -73,8 +73,13 @@ namespace esphome {
 using LogString = char;
 template<class T> T clamp(T v, T lo, T hi) { return std::min(hi, std::max(lo, v)); }
 using std::make_unique;
+inline bool fail_optional_psram = false;
 template<class T> struct RAMAllocator {
-  T *allocate(size_t n) { return new T[n]; }
+  static constexpr int ALLOC_EXTERNAL = 1;
+  int flags{0};
+  RAMAllocator() = default;
+  explicit RAMAllocator(int value) : flags(value) {}
+  T *allocate(size_t n) { return flags && fail_optional_psram ? nullptr : new T[n]; }
   void deallocate(T *p, size_t) { delete[] p; }
 };
 struct ESPPreferenceObject {
@@ -84,7 +89,14 @@ struct ESPPreferenceObject {
 struct Preferences {
   template<class T> ESPPreferenceObject make_preference(uint32_t) { return {}; }
 };
-inline uint32_t millis() { return 100; }
+inline uint32_t test_millis = 100;
+inline uint32_t millis() { return test_millis; }
+inline uint32_t micros() { return test_millis * 1000; }
+struct StringRef {
+  std::string value;
+  StringRef() = default;
+  StringRef(const char *data, size_t size) : value(data, size) {}
+};
 inline Preferences preferences;
 inline Preferences *global_preferences = &preferences;
 inline uint32_t fnv1_hash(const std::string &) { return 1; }
@@ -136,7 +148,8 @@ template<class... Args> struct CallbackManager<void(Args...)> {
 };
 template<class... Args> struct Trigger {
   std::vector<std::tuple<Args...>> delivered;
-  void trigger(Args... args) { delivered.emplace_back(args...); }
+  std::function<void(Args...)> callback;
+  void trigger(Args... args) { delivered.emplace_back(args...); if(callback) callback(args...); }
 };
 struct Component {
   virtual ~Component() = default;
@@ -211,12 +224,39 @@ struct RingBufferAudioSource {
 
 namespace esphome::api {
 struct VoiceAssistantAudio { const uint8_t *data{}; uint16_t data_len{}; bool end{}; };
+struct TextSensorStateResponse { uint32_t key{}; StringRef state; bool missing_state{}; };
 struct APIConnection {
   std::vector<uint8_t> pcm;
-  bool send_message(const VoiceAssistantAudio &msg) { pcm.insert(pcm.end(), msg.data, msg.data+msg.data_len); return true; }
+  std::vector<TextSensorStateResponse> reference;
+  std::vector<char> sends;
+  bool writable{true}, audio_success{true}, reference_success{true}, pressure_after_reference{false};
+  bool try_to_clear_buffer(bool) { return writable; }
+  bool send_message(const VoiceAssistantAudio &msg) {
+    sends.push_back('a');
+    if (!audio_success || !writable) return false;
+    pcm.insert(pcm.end(), msg.data, msg.data+msg.data_len); return true;
+  }
+  bool send_message(const TextSensorStateResponse &msg) {
+    sends.push_back('r');
+    if (!reference_success) return false;
+    reference.push_back(msg);
+    if (pressure_after_reference) writable=false;
+    return true;
+  }
 };
 }
 namespace esphome::voice_assistant {
 struct VoiceAssistant { api::APIConnection *client{}; api::APIConnection *get_api_connection() { return client; } };
 inline VoiceAssistant *global_voice_assistant{};
+}
+
+namespace esphome::text_sensor {
+struct TextSensor { uint32_t get_object_id_hash() const { return 0x12345678; } };
+}
+namespace esphome::switch_ {
+struct Switch {
+  bool state{false}; std::function<void(bool)> callback;
+  void add_on_state_callback(std::function<void(bool)> value) { callback=std::move(value); }
+  void set(bool value) { state=value; if(callback) callback(value); }
+};
 }

@@ -83,6 +83,55 @@ _NATIVE_QUIET_TRACE_REGRESSIONS = {
     "tests/integration/test_thin_activity_observer.py",
 }
 
+# One reviewed observation chain: native wake reference -> Thin/provider evidence
+# -> bounded local recording -> honest artifact consumers. Domain words describe
+# observed events, not permission to mix unrelated tools/prompts/lifecycle changes.
+_AUTOMATIC_DIAGNOSTIC_SURFACES = {
+    "podvoice/gatekeeper/__init__.py",
+    "podvoice/gatekeeper/__main__.py",
+    "podvoice/gatekeeper/audio_analysis.py",
+    "podvoice/gatekeeper/audio_trace.py",
+    "podvoice/gatekeeper/openai_live.py",
+    "podvoice/gatekeeper/static/index.html",
+    "podvoice/gatekeeper/thin.py",
+    "podvoice/gatekeeper/trace_oracle.py",
+    "podvoice/gatekeeper/voicepe.py",
+    "podvoice/gatekeeper/wake_reference.py",
+    "esphome/components/micro_wake_word/micro_wake_word.cpp",
+    "esphome/components/micro_wake_word/wake_audio_clock.h",
+    "esphome/components/podvoice_audio/__init__.py",
+    "esphome/components/podvoice_audio/podvoice_audio.cpp",
+    "esphome/components/podvoice_audio/podvoice_audio.h",
+    "esphome/components/podvoice_reply/podvoice_reply.h",
+    "esphome/podvoice-live-alpha.yaml",
+    "esphome/podvoice.yaml",
+    "esphome/voice-pe-podvoice-base.yaml",
+}
+_AUTOMATIC_DIAGNOSTIC_REQUIRED = {
+    "podvoice/gatekeeper/audio_trace.py",
+    "podvoice/gatekeeper/thin.py",
+    "podvoice/gatekeeper/voicepe.py",
+    "podvoice/gatekeeper/wake_reference.py",
+    "podvoice/gatekeeper/openai_live.py",
+    "esphome/components/micro_wake_word/wake_audio_clock.h",
+    "esphome/components/podvoice_audio/podvoice_audio.cpp",
+}
+_AUTOMATIC_DIAGNOSTIC_REGRESSIONS = {
+    "tests/unit/test_audio_trace_automatic.py",
+    "tests/integration/test_thin_automatic_diagnostics.py",
+    "tests/unit/test_voicepe_wake_reference.py",
+    "tests/unit/test_wake_reference.py",
+    "tests/unit/test_openai_live.py",
+    "tests/firmware/wake_reference_test.cpp",
+    "tests/unit/test_mww_streaming.py",
+    "tests/unit/test_live_wav_firmware.py",
+    "tests/unit/test_firmware_contract.py",
+    "tests/firmware/boot_package_regression.py",
+    "tests/unit/test_audio_analysis.py",
+    "tests/unit/test_trace_oracle.py",
+    "tests/browser/audio_analysis_visibility.cjs",
+}
+
 # Character matching without autojunk can become quadratic on large repeated diffs.
 # Above this bound, include whole changed lines: extra domains require review, but
 # no executable scope is lost and fingerprint/coupling checks remain unchanged.
@@ -245,6 +294,14 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         and quiet_regressions <= set(report.test_files)
         and all((root / path).is_file() for path in quiet_regressions)
     )
+    reviewed_automatic_diagnostics = (
+        report.domains == ("ha_tools", "physical_output", "realtime_semantics", "rearm")
+        and _AUTOMATIC_DIAGNOSTIC_REQUIRED <= set(report.production_files)
+        and all((root / path).is_file() for path in _AUTOMATIC_DIAGNOSTIC_REQUIRED)
+        and set(report.production_files) <= _AUTOMATIC_DIAGNOSTIC_SURFACES
+        and _AUTOMATIC_DIAGNOSTIC_REGRESSIONS <= set(report.test_files)
+        and all((root / path).is_file() for path in _AUTOMATIC_DIAGNOSTIC_REGRESSIONS)
+    )
     if (
         type(record["version"]) is not int
         or record["version"] != 1
@@ -254,6 +311,7 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         or (
             not reviewed_audio_analysis
             and not reviewed_native_quiet
+            and not reviewed_automatic_diagnostics
             and report.domains
             not in {
                 ("physical_output", "rearm"),
