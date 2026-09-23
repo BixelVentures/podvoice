@@ -1,3 +1,9 @@
+## 1.13.96
+
+- Restore explicitly armed provider-input recordings when Alpha selects GPT-Live, including confirmation connection changes.
+- Isolate captured audio by conversation and provider generation; stale callbacks cannot contaminate a later recording. Recording failures do not interrupt delivery.
+- Provider recordings represent post-resample bytes offered to the SDK, not proof of provider receipt or audible playback. Existing firmware, audio settings and conversation behavior are unchanged.
+
 ## 1.13.95
 
 - Preserve already measured Alpha silence across empty activity snapshots, without accepting unknown audio as quiet.

@@ -696,13 +696,10 @@ class ThinSession:
         # when a browser double-clicks or reconnects while an acknowledgement is late.
         self._text_input_lock = asyncio.Lock()
         self._text_receipts: OrderedDict[str, dict] = OrderedDict()
+        self._provider_audio_observer_binding: tuple[Any, Any, Any] | None = None
         self._provider_trace_observer_original = None
         self._provider_trace_observer_installed = False
 
-        # Capture the exact post-resample bytes that the provider receives. The hook
-        # remains installed but is a no-op unless the owner explicitly arms one trace.
-        if self.audio_trace is not None and hasattr(self.brain, "audio_observer"):
-            self.brain.audio_observer = self._trace_provider_audio
         if hub is not None:
             hub.register_room(room)
         if hasattr(voicepe, "on_wake"):
@@ -1113,6 +1110,7 @@ class ThinSession:
             # The close owner joins this opening before provider cleanup/rearm.
             # A late startup must never close a subsequently reused adapter.
             return
+        self._install_provider_audio_observer()
         self._live_led_ready = self.live_alpha
         if self.live_alpha:
             self._set_led(State.LISTENING)
@@ -2859,6 +2857,7 @@ class ThinSession:
                 self._live_input_evidence.clear()
                 self._live_backend_inputs.clear()
                 confirmation_generation = brain._connection_generation
+                self._install_provider_audio_observer()
                 self._reader = self._spawn(self._read_events(), "thin-reader")
                 if self._live_webrtc:
                     await self.voicepe.wait_live_started()
@@ -5547,9 +5546,60 @@ class ThinSession:
         if lease.kind in ("reply", "oneshot"):
             self._enter_followup()
 
-    def _trace_provider_audio(self, pcm: bytes, rate: int) -> None:
-        if self.audio_trace is not None:
-            self.audio_trace.audio("provider", pcm, rate)
+    def _install_provider_audio_observer(self) -> None:
+        """Bind attempted wire input to this provider generation and armed capture."""
+        self._restore_provider_audio_observer()
+        brain, recorder = self.brain, self.audio_trace
+        if not hasattr(brain, "audio_observer"):
+            return
+        if (
+            recorder is None
+            or self._live_webrtc
+            or not recorder.owns(self.room, self._history_session)
+        ):
+            return
+        epoch, session_id = self._epoch, self._history_session
+        generation = getattr(brain, "_connection_generation", None)
+        original = brain.audio_observer
+        capture_failed = False
+
+        def observe_audio(pcm: bytes, rate: int) -> None:
+            # The adapter invokes this synchronously after resampling and before
+            # send. It is evidence of attempted bytes, not provider receipt.
+            nonlocal capture_failed
+            if not (
+                self._active
+                and not self._transport_closing
+                and self._epoch == epoch
+                and self._history_session == session_id
+                and self.brain is brain
+                and brain.audio_observer is observe_audio
+                and getattr(brain, "_connection_generation", None) == generation
+            ):
+                return
+            if original is not None:
+                original(pcm, rate)
+            if (
+                not capture_failed
+                and self.audio_trace is recorder
+                and recorder.owns(self.room, session_id)
+            ):
+                try:
+                    recorder.audio("provider", pcm, rate)
+                except Exception:
+                    capture_failed = True
+                    _LOG.warning("thin: provider audio observation failed [room=%s]", self.room)
+
+        brain.audio_observer = observe_audio
+        self._provider_audio_observer_binding = (brain, original, observe_audio)
+
+    def _restore_provider_audio_observer(self) -> None:
+        binding = self._provider_audio_observer_binding
+        if binding is not None:
+            brain, original, installed = binding
+            if brain.audio_observer is installed:
+                brain.audio_observer = original
+            self._provider_audio_observer_binding = None
 
     def _trace_provider_event(self, row: dict) -> None:
         """Persist bounded provider ancestry only inside an armed physical trace."""
@@ -5601,6 +5651,7 @@ class ThinSession:
         self._provider_trace_observer_installed = True
 
     def _restore_provider_trace_observer(self) -> None:
+        self._restore_provider_audio_observer()
         if not self._provider_trace_observer_installed:
             return
         if hasattr(self.brain, "provider_observer"):
