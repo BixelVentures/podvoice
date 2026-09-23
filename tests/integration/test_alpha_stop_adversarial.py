@@ -59,6 +59,9 @@ async def test_delayed_native_admission_cannot_publish_into_replaced_thin_epoch(
     pending = asyncio.create_task(session._set_live_context())
     try:
         await asyncio.wait_for(entered.wait(), 1)
+        # The request is observed before the owner changes; a late ACK must add nothing.
+        assert traces == [("live_context_requested", {})]
+        traces.clear()
         session._epoch += 1
         session._local_stop_armed = True  # A replacement owner's state is not ours to clear.
         release.set()
