@@ -319,7 +319,9 @@ def _coerce(key: str, value, template) -> object:
     if key == "device_control_entities":
         return list(validate_entities(value))
     if key == "wake_word" and (not isinstance(value, str) or value not in WAKE_WORDS):
-        raise ValueError("wake_word: vælg Okay Nabu, Hey Jarvis, Hey Mycroft eller Hey Chat")
+        raise ValueError(
+            "wake_word: vælg Okay Nabu, Hey Jarvis, Hey Mycroft, Hey Chat eller Hey Chat + Hey Jarvis"
+        )
     if isinstance(template, bool):
         if isinstance(value, bool):
             return value

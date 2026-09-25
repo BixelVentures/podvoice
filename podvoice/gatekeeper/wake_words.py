@@ -1,6 +1,7 @@
 """The ordinary wake models shipped by the paired Voice PE firmware."""
 
-WAKE_WORDS = ("okay_nabu", "hey_jarvis", "hey_mycroft", "hey_chat")
+WAKE_MODELS = ("okay_nabu", "hey_jarvis", "hey_mycroft", "hey_chat")
+WAKE_WORDS = (*WAKE_MODELS, "hey_chat_hey_jarvis")
 DEFAULT_WAKE_WORD = "okay_nabu"
 
 

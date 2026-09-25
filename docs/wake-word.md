@@ -1,13 +1,17 @@
 # Vækkeord på Voice PE
 
 Indstillinger → Daglig brug → Vækkeord tilbyder Okay Nabu (standard), Hey Jarvis,
-Hey Mycroft og Hey Chat. Valget gemmes med **Gem og genstart** og gælder alle
+Hey Mycroft, Hey Chat og **Hey Chat + Hey Jarvis**. Valget gemmes med **Gem og genstart** og gælder alle
 konfigurerede Voice PE-enheder. Eksisterende gyldige valg bevares ved opgradering.
 
-Hey Chat kræver den parrede firmware med `podvoice_build_11362_heychat1`.
+Kombinationen kræver firmware med understøttelse af det dobbelte valg. Begge ord
+kan vække samme samtale; de skal ikke siges i én sætning. Firmwaren bekræfter
+hele modelvalget, og gamle firmwareversioner kan ikke bekræfte kombinationen.
 Modellen er Tater Tottersons færdige microWakeWord; upstream-commit og SHA-256
 for manifest og TFLite står i `esphome/hey-chat-model.json`. Dens cutoff 0.95,
-vindue 5, feature-step 10 og tensor-arena 30000 ændres ikke af PodVoice.
+vindue 5, feature-step 10 og tensor-arena 30000 er manifestets værdier.
+Den eksisterende følsomhedsindstilling kan sænke cutoff; dobbeltvalget ændrer
+ikke følsomhed, gain eller VAD.
 Modellen deklarerer engelsk træningssprog; naturlig dansk udtale er endnu ikke bevist.
 
 Panelet viser gemt valg og hver enheds firmwarebekræftede valg separat.

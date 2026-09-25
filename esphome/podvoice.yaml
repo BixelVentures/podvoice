@@ -134,7 +134,7 @@ api:
         - lambda: "id(pv_audio).set_mic_gain(gain);"
     # WAKE WORD, switchable at runtime. The upstream package already ships three trained
     # models (okay_nabu, hey_jarvis, hey_mycroft) — this exposes the choice instead of
-    # making it a 25-minute reflash. Exactly ONE is enabled at a time.
+    # making it a 25-minute reflash. Select one model or the explicit Hey Chat + Hey Jarvis pair.
     #
     # A lambda, not micro_wake_word.enable_model:, because that action binds a model at
     # COMPILE time (EnableModelAction holds a WakeWordModel*), so it cannot take a name
@@ -149,9 +149,9 @@ api:
       then:
         - lambda: |-
             const bool nabu    = (name == "okay_nabu");
-            const bool jarvis  = (name == "hey_jarvis");
+            const bool jarvis  = (name == "hey_jarvis" || name == "hey_chat_hey_jarvis");
             const bool mycroft = (name == "hey_mycroft");
-            const bool chat    = (name == "hey_chat");
+            const bool chat    = (name == "hey_chat" || name == "hey_chat_hey_jarvis");
             if (!nabu && !jarvis && !mycroft && !chat) {
               ESP_LOGW("podvoice", "unknown wake word '%s' — keeping the current one",
                        name.c_str());
@@ -162,13 +162,12 @@ api:
             mycroft ? id(hey_mycroft).enable() : id(hey_mycroft).disable();
             chat    ? id(hey_chat).enable()    : id(hey_chat).disable();
             // Read the actual flags, not just the requested name. Stop remains
-            // independently owned and is deliberately excluded from this count.
-            const int enabled = id(okay_nabu).is_enabled() + id(hey_jarvis).is_enabled()
-                              + id(hey_mycroft).is_enabled() + id(hey_chat).is_enabled();
-            const std::string active = id(okay_nabu).is_enabled() ? "okay_nabu"
-                : id(hey_jarvis).is_enabled() ? "hey_jarvis"
-                : id(hey_mycroft).is_enabled() ? "hey_mycroft" : "hey_chat";
-            id(podvoice_wake_word_ack).publish_state(token + ":" + (enabled == 1 ? active : "fault"));
+            // independently owned and is deliberately excluded from this comparison.
+            const bool confirmed = id(okay_nabu).is_enabled() == nabu
+                && id(hey_jarvis).is_enabled() == jarvis
+                && id(hey_mycroft).is_enabled() == mycroft
+                && id(hey_chat).is_enabled() == chat;
+            id(podvoice_wake_word_ack).publish_state(token + ":" + (confirmed ? name.c_str() : "fault"));
             ESP_LOGI("podvoice", "wake word set to %s", name.c_str());
 
 # PodVoice's first reliable channel uses the upstream external_media_player only for
