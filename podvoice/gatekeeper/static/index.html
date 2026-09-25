@@ -455,13 +455,14 @@
           <option value="hey_jarvis">Hey Jarvis</option>
           <option value="hey_mycroft">Hey Mycroft</option>
           <option value="hey_chat">Hey Chat</option>
+          <option value="hey_chat_hey_jarvis">Hey Chat + Hey Jarvis</option>
         </select>
         <label for="s_idle_timeout_s">Luk efter stilhed (sek.)</label>
         <input id="s_idle_timeout_s" type="number" min="3" max="120">
         <label for="s_duck_level">Musik mens Nabu lytter (%)</label>
         <input id="s_duck_level" type="number" min="0" max="100">
       </div>
-      <p id="s_wake_word_hint" class="sub">Hey Chat kræver opdateret Voice PE-firmware. Når modellen er installeret, kan du skifte vækkeord med Gem og genstart.</p>
+      <p id="s_wake_word_hint" class="sub">Hey Chat + Hey Jarvis gør begge vækkeord aktive samtidig, når enheden venter på en samtale. Kræver opdateret Voice PE-firmware. Vælg Gem og genstart; enheden skal bekræfte begge.</p>
       <div id="s_wake_word_status" class="sub" role="status" aria-live="polite"></div>
 
       <div class="exsub" style="margin-top:18px">Enheder &mdash; sættes én gang</div>
@@ -802,9 +803,11 @@ var wakeStatusAvailable = false;
 function renderWakeWordStatus() {
   var target = document.getElementById("s_wake_word_status");
   if (!target) return;
-  var names = {okay_nabu:"Okay Nabu", hey_jarvis:"Hey Jarvis", hey_mycroft:"Hey Mycroft", hey_chat:"Hey Chat"};
+  var names = {okay_nabu:"Okay Nabu", hey_jarvis:"Hey Jarvis", hey_mycroft:"Hey Mycroft", hey_chat:"Hey Chat", hey_chat_hey_jarvis:"Hey Chat + Hey Jarvis"};
   var example = document.getElementById("wake-example");
-  if (example) example.textContent = "“" + (names[savedWakeWord] || "Dit vækkeord") + ", hvad er klokken?”";
+  if (example) example.textContent = savedWakeWord === "hey_chat_hey_jarvis"
+    ? "“Hey Chat, hvad er klokken?” eller “Hey Jarvis, hvad er klokken?”"
+    : "“" + (names[savedWakeWord] || "Dit vækkeord") + ", hvad er klokken?”";
   var lines = ["Gemt valg (alle enheder): " + (names[savedWakeWord] || "Ikke hentet")];
   Object.keys(rooms).forEach(function (id) {
     var rm = rooms[id];

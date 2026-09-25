@@ -980,6 +980,11 @@ class ThinSession:
                 return
             if not opening_webrtc:
                 self._live_stream = self.live_audio.open(self._history_session, sample_rate=24000)
+                # Acknowledge admitted wake before the native context round trip.
+                # This is only light feedback: provider readiness, mic admission,
+                # and failure/Stop cleanup keep their existing owners below.
+                if rearm_attempt_id is not None:
+                    self._set_led(State.LISTENING)
             self._idle_deadline = None
         if not await (self._set_live_context() if self.live_alpha else self._set_local_stop(False)):
             return

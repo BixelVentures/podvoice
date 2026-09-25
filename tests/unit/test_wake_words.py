@@ -6,7 +6,7 @@ import pytest
 from gatekeeper.config import from_options
 from gatekeeper.settings import load_settings, save_settings
 from gatekeeper.voicepe import VoicePELink
-from gatekeeper.wake_words import WAKE_WORDS
+from gatekeeper.wake_words import WAKE_MODELS, WAKE_WORDS
 
 
 @pytest.mark.parametrize("word", WAKE_WORDS)
@@ -56,6 +56,10 @@ async def test_ack_not_send_is_confirmation_and_disconnect_clears_it(word):
     assert link.confirmed_wake_word is None
     link._on_state(TextSensorState(f"old:{word}"))
     link._on_state(TextSensorState(f"{token}:invalid"))
+    for other in WAKE_WORDS:
+        if other != word:
+            link._on_state(TextSensorState(f"{token}:{other}"))
+            assert link.confirmed_wake_word is None
     assert link.confirmed_wake_word is None
     link._on_state(TextSensorState(f"{token}:{word}"))
     await task
@@ -116,10 +120,10 @@ def test_pinned_model_and_four_normal_models_keep_single_owner():
     models = base.split("micro_wake_word:\n", 1)[1].split("  vad:", 1)[0]
     assert models.count("    - model:") == 5
     assert provenance["commit"] in models
-    for word in WAKE_WORDS:
+    for word in WAKE_MODELS:
         assert f"id: {word}" in models
     assert "id: stop" in models
     service = overlay.split("action: podvoice_set_wake_word", 1)[1].split("\n# PodVoice", 1)[0]
     assert "id(stop)" not in service
-    for word in WAKE_WORDS:
+    for word in WAKE_MODELS:
         assert f"id({word}).is_enabled()" in service

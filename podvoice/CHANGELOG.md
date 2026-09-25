@@ -1,3 +1,9 @@
+## 1.13.99
+
+- Add Hey Chat + Hey Jarvis as a persistent wake choice, confirmed against the actual enabled firmware models. Both phrases use one conversation latch.
+- Request the native Alpha listening LED before the context acknowledgement round trip, while preserving microphone and provider admission.
+- Requires paired 1.13.99 Alpha firmware. No gain, VAD, model, sensitivity or volume changes; acoustic acceptance remains a physical check.
+
 ## 1.13.98
 
 - Live output applies bounded backpressure while playback starts, retaining the existing one-second queue cap instead of closing on a short producer burst.

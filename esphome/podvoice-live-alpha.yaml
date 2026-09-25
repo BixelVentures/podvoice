@@ -4,7 +4,7 @@ packages:
   podvoice: !include podvoice.yaml
 
 substitutions:
-  podvoice_build_marker: podvoice_build_11397_diagnostics1
+  podvoice_build_marker: podvoice_build_11399_dualwake1
 
 esphome:
   build_path: .esphome/build/podvoice-pe-live-alpha

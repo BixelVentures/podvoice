@@ -1,5 +1,69 @@
 # PodVoice-status — én aktuel sandhed
 
+## Active decision 25/9 — simultaneous Hey Chat and Hey Jarvis
+
+Lead Codex. User reports unreliable Hey Chat in kitchen and explicitly requests
+Jarvis always available alongside it. Source confirms both models already shipped,
+but selection service disables all except one and ACK requires count==1.
+Hypothesis: a canonical combined selection and exact enabled-mask ACK provides
+persistent dual wake without a second conversation engine. This is availability,
+not proof of acoustic improvement. Chain: saved choice → reconnect apply → firmware
+model flags → either detection → one physical capture/latch → Thin/Live → playback
+→ teardown/rearm → either next wake. Invariants: firmware sole wake owner, one
+Thin/VoicePELink, token/generation-fenced confirmation, Stop model independently
+owned; muted/active conversations cannot be reopened by the other phrase.
+Non-goals: model retraining, VAD/gain/cutoff changes, any new transport. Keep faster
+host acknowledgement isolated in existing candidate. Regressions: exact enabled
+flags, failed enable/disable, unknown selection, old/wrong/stale ACK, persistence,
+dual callback admission, existing OFF/Talk and shipped firmware compilation. Review
+independent before release, one frozen releasegate. Rollback: previous paired
+artifact and single choice; no inherited physical reliability. Installation and
+power-cycle/physical dual wake require actual device access and remain unproven.
+
+
+Implementation/review 25/9: explicit combined choice, exact four-model flag ACK,
+persistent setting/reconnect and honest either-phrase example implemented. Compiled
+shipped selector covers all initial masks and failed toggles; shipped admission
+lambda covers consecutive detections, Stop exclusion and next conversation.
+Independent dual_wake_review: GO after fixes; 34 independently run regressions pass.
+Targeted final regressions: 46 pass. Browser save/restart/readback/error regressions
+pass at 320/390/1440 px. Real ESPHome 2026.6.2 compile passes after correcting the
+StringRef ternary caught by the compiler. No sensitivity or acoustic change.
+Final frozen release gate PASS in 73.9 s (unit 73.50 s, integration 51.07 s,
+ruff/format, mypy, candidate scope). Earlier aggregate fast hit its 120 s bound
+without reported assertion failure; final parallel release completes both suites.
+Artifact: add-on 1.13.99, firmware podvoice_build_11399_dualwake1; OTA SHA-256
+605210467285c39e08ee115aa1563dfd607107560fb82824b98bdc5dcbb6e810.
+Before installation: cloud UI confirms .98 Alpha ON and Hey Chat; verified physical
+device still advertises .97 diagnostic firmware. Its mDNS address now resolves to
+a different DHCP address, explaining the failed fixed-IP check. No install or
+physical dual-wake acceptance yet; publication and paired install remain next.
+
+
+## Candidate — physical Alpha wake acknowledgement before native context ACK
+
+Lead Codex, 2026-09-23. Observed event trace places the light command about 205 ms
+after wake, after native context acknowledgement. This is command timing, not an
+optical measurement. Source comparison found no changed Hey Chat model, wake gain,
+channel or threshold since .76. Acoustic recognition remains unproven.
+
+The candidate keeps ThinSession as sole light/session owner and paints its existing
+cyan after native Alpha capability checks, before waiting for context ACK, only for
+physical wakes. No microphone gate, provider readiness, firmware, sensitivity,
+model, prompt or timeout changes. Firmware-local painting was rejected because it
+would require a new takeover/cleanup boundary on host failure.
+
+Regression covers delayed/failed context ACK, Stop while pending, final dark/rearm
+and unchanged programmatic startup; Talk regression also passes. Independent adversarial source review GO; four frozen wake regression cases and
+seven Talk cases pass. Relevant fast gate PASS47.2s after granting its existing
+localhost HTTP test the required binding permission. No runtime patch followed
+the sandbox failure. No release, installation or
+physical improvement is claimed. HA is currently unreachable; hearing calibration
+requires the existing retained audio and device settings once access returns.
+Rollback boundary is this isolated host change; do not add speculative gain/model
+changes to compensate for unavailable acoustic evidence.
+
+
 ### .98 adversarial finding — pending output must block quiet closure
 
 Independent composed review reproduced a new race introduced by waiting: a full

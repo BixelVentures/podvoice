@@ -40,7 +40,7 @@ log = logging.getLogger(__name__)
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
 EXPECTED_FIRMWARE_BUILD = "podvoice_build_11378_wakeboundary1"
-LIVE_FIRMWARE_BUILD = "podvoice_build_11397_diagnostics1"
+LIVE_FIRMWARE_BUILD = "podvoice_build_11399_dualwake1"
 _WAKE_WORD_ACK_TIMEOUT_S = 3.0
 
 # --- Firmware contract ----------------------------------------------------------
