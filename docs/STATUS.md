@@ -40,6 +40,25 @@ a different DHCP address, explaining the failed fixed-IP check. No install or
 physical dual-wake acceptance yet; publication and paired install remain next.
 
 
+Installation result 25/9: PR70 merged as baf74ddb4914f08c5defc68da2b52a8fc2061b26;
+main CI36132170456 PASS including publication. Image digest
+sha256:2bae28047f9cfb532999b27a1020f3feff0e76aa6d68363c2e7b8d91068cfa64.
+Paired OTA succeeded; native readback verifies11399_dualwake1 with compilation time
+2026-09-25 13:48:50 +0200. HA installed1.13.99 with backup. The stale HA update
+entity was refreshed explicitly before installation. App is running; Alpha remains
+ON; stored choice is hey_chat_hey_jarvis. Device exact-mask ACK confirms both.
+After one native hardware restart and automatic reconnect, a fresh ACK again
+confirms the pair; UI independently shows saved and device-confirmed pair. Existing
+moderate thresholds remain Hey Chat230/255 and Jarvis235/255. Observed inference
+transition reaches DETECTING_WAKE_WORD; no allocation/inference errors in the two
+bounded post-selection/post-restart observations. Benign already-running warning
+appeared during add-on reconnect before normal detector recovery. This is installation,
+selection and restart evidence, NOT acoustic recall, physical power unplug, golden
+chain, interruption or10/10 evidence. User asked to try each phrase from the kitchen.
+Artifacts: /private/tmp/pv-099-artifacts/. Room performance remains unaccepted;
+Hey Chat acoustic retraining/improvement remains open.
+
+
 ## Candidate — physical Alpha wake acknowledgement before native context ACK
 
 Lead Codex, 2026-09-23. Observed event trace places the light command about 205 ms
