@@ -1,5 +1,45 @@
 # PodVoice-status — én aktuel sandhed
 
+
+## Active decision 27/9 — bounded semantic close and truthful failure stages
+
+Lead Codex. User authorizes timeout/farewell correction toward97/100 quality; no
+numeric score is established. Direct source evidence in installed .100:
+_finish_live_conversation waits for semantic quiet without a deadline; provider
+request/terminal and physical drain exceptions are all labelled live-drain-failed.
+The field report of never closing is not yet causally reproduced. Official Live
+session guide requires playback/pending work completion before close, and backend
+settlement is not primary speech completion. Immediate close after model intent is
+therefore NOT justified; retain current observed-zero playback policy for now.
+
+Chain: model terminal tool -> result/continuation settlement -> same-generation
+output observation -> provider close/terminal -> exact physical drain -> teardown
+and rearm -> next wake. Invariants: one Thin owner, model-only intent, no fabricated
+speech completion, no stale close across input/generation, physical drain truth.
+Hypothesis: missing/continuously reset observations can leave a valid semantic
+intent waiting forever; bounding this phase turns that hang into explicit failed
+closure. Bound is configured quiet period plus existing provider operation timeout,
+not a replacement silence threshold. Normal inactivity retains the saved UI value.
+No gain/VAD/prompt/transport change or unconditional inactivity maximum. Distinguish
+provider-finalization failure from physical drain failure for both close paths.
+Regression: missing observation, continuing output, new input and stale generation
+at deadline, provider request/terminal failure, wrong physical finish, successful
+quiet close and next wake, OFF/Talk regressions. Independent adversarial review,
+fast gate then one frozen release gate. Rollback paired .100; physical gate pending
+while Voice PE offline. Faster farvel without clipped audio remains unproved.
+
+Bounded close candidate checkpoint27/9:12 composed quiet-close tests PASS, including
+actual error teardown/rearm and next wake. Independent reviewer GO, no P0/P1;
+existing Live+idle suites independently PASS. Injected provider/device timeouts
+prove classification only. Immediate semantic close remains rejected because
+backend completion is not speech completion. Version1.13.101 uses .100 firmware.
+No field no-close reproduction or physical97/100 claim.
+
+Frozen release gate PASS70.7s: unit70.47s, integration51.78s, lint/format/mypy
+and single-domain scope. Full fast PASS75.8s. Earlier development gate was
+discarded because tests changed while it ran; no runtime patch from that event.
+Exact-commit CI/image, installation and physical acceptance remain outstanding.
+
 ## Active decision 27/9 — field reliability: button, close evidence, history and music
 
 Lead Codex. User authorizes fixing all analysed issues, including unreliable single
