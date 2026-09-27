@@ -5,7 +5,7 @@ from gatekeeper.prompt import PROMPT_VERSION, SYSTEM_PROMPT_DA
 
 
 def test_canonical_prompt_changes_require_live_policy_review():
-    assert PROMPT_VERSION == 15
+    assert PROMPT_VERSION == 16
     assert set(_sections()) == {
         "IDENTITET OG MÅL",
         "PRIORITET",
