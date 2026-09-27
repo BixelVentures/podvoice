@@ -9473,7 +9473,7 @@ Latency og feedback må ikke udvikles i samme kandidat: først måles og låses 
 baseline, derefter tilføjes feedback som en separat, fuldt reversibel feature. Fuld
 duplex, barge-in og nye motorer er ikke en del af denne rækkefølge.
 
-<!-- candidate-scope-coupling
+<!-- historical-103-button-coupling
 {
   "version": 1,
   "base_tip": "8581e16e4f0f60dd49f4046a0a019bb13dbbb70d",
