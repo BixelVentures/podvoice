@@ -74,6 +74,22 @@ unit73.93s, integration50.53s, whole-tree lint/format, mypy and diff checks.
 Firmware test compile PASS. Exact-commit CI/image and paired installation remain next;
 physical golden and10/10 remain NOT RUN. No97/100 acceptance claim.
 
+Installation evidence27/9 (physical acceptance remains separate): PR71 merged as
+ dd619133f7ca835efc01eafdcced34dc6858ff3e. Main CI36310575439 PASS and exact image
+sha256:f5d2574c0a8622a395db9473f8ac21a2b502bed3f296d26227409a20d12b462c published.
+HA update UI confirms installed1.13.100 with backup. Provisioned Alpha OTA succeeded;
+native readback confirms113100_livebutton1 and physical_button_capture_v1, compiled
+2026-09-27 11:45:16 +0200. OTA SHA256
+d92b2402e89b203ade6080592b202ba856bf6488d2ee7e4a4a4ffcdfb8c5bd9e.
+Speakers PR2 merged c7cbee910ba2c92adbe3e022230828beb2d9fd07; native ARM publication
+36310260809 PASS; HA confirms0.26.2 running. Control v0.10.1 installed via HACS;
+required Core restart completed (HA UI: Home Assistant er startet).
+Post-restart UI confirms1.13.100, Voice PE connected, HA/MCP and PodConnect
+verified. Settings confirm Alpha ON and saved/device-ACKed Hey Chat plus Hey Jarvis.
+No new room conversation or physical button result yet; golden/10of10 NOT RUN.
+Prompt16 is preserved separately on codex/music-intent-pending-0927 (26ea67d),
+not deployed and not live-validated. Four-second setting and wake acoustics unchanged.
+
 ## Active decision 25/9 — measured Hey Chat acoustic improvement
 
 Lead Codex. User requests agent-managed improvement/training of Hey Chat and

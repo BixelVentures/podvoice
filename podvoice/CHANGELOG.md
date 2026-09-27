@@ -1,3 +1,11 @@
+## 1.13.100
+
+- First short physical press starts or stops once; rapid repeats have no extra action.
+- Stop cancels provider startup before rearm; stale button events cannot open the next conversation.
+- Requires paired Alpha firmware `podvoice_build_113100_livebutton1` with its post-press capture boundary.
+- Keep bounded content-free lifecycle diagnostics for 14 days separately from audio; group Live history fragments as segments while preserving context.
+- Prompt, gain, wake models and silence thresholds unchanged. Installed candidate still needs physical button and lifecycle acceptance; automatic-close field cause remains unresolved.
+
 ## 1.13.99
 
 - Add Hey Chat + Hey Jarvis as a persistent wake choice, confirmed against the actual enabled firmware models. Both phrases use one conversation latch.
