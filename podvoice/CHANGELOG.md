@@ -1,3 +1,9 @@
+## 1.13.105
+
+- Add observation-only Alpha inactivity diagnostics comparing consumed output quiet with native input activity. Keep content-free metadata in the existing bounded diagnostic retention; do not change timeout, prompts, gain, firmware or closing decisions.
+- Prepare a disabled interval-bound inactivity policy for later validated input verdicts. It is not connected to production closing, does not classify audio, and cannot yet fix noisy-room timeout. Unknown and stale evidence never authorize closure.
+- Preserve Alpha ON/OFF and paired .103 firmware. Activation of the prepared policy requires candidate-1 evidence, calibrated input classification and a separate reviewed change.
+
 ## 1.13.104
 
 - Route silent Alpha endings through the same guarded provider finalization and physical playback drain as spoken endings. A silent farewell must not cancel an earlier answer still playing.

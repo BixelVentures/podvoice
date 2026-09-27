@@ -374,3 +374,170 @@ def test_diagnostics_explain_reset_and_never_advance_the_window():
     assert details["quiet_s"] == 4
     assert details["reset_count"] == count + 1
     assert window.diagnostics(owner=OWNER, now=104.3, idle_s=4)["blocker"] == "stale_observation"
+
+
+def test_shadow_exposes_output_quiet_while_real_policy_remains_blocked_by_active_vad():
+    from gatekeeper.live_idle import NativeIdleShadow
+
+    runtime = NativeIdleWindow(freshness_s=0.2)
+    shadow = NativeIdleShadow(freshness_s=0.2)
+    for index in range(41):
+        row = observation(index)
+        row["input"]["state"] = "active"
+        original = copy.deepcopy(row)
+        assert not feed(runtime, index, row=row)
+        shadow.observe(row, owner=OWNER, now=100 + index / 10, work_clear=True, output_started=True)
+        assert row == original
+    report = shadow.diagnostics(owner=OWNER, now=104, idle_s=4)
+    assert report["observation_only"] is True
+    assert report["output_blocker"] == "ready"
+    assert report["output_quiet_s"] == pytest.approx(4)
+    assert report["vad_active_observed_s"] == pytest.approx(4)
+    assert report["vad_episode_s"] == pytest.approx(4)
+    assert report["vad_state"] == "active"
+    assert report["vad_sequence"] == report["vad_inference_seq"] == 41
+    assert report["vad_source_ms"] == report["vad_inference_ms"] == 5000
+    assert not hasattr(shadow, "ready")
+    assert not runtime.ready(owner=OWNER, now=104, idle_s=4)
+    assert runtime.diagnostics(owner=OWNER, now=104, idle_s=4)["blocker"] == "input_not_quiet"
+    assert shadow.diagnostics(owner=OWNER, now=104, idle_s=4) == report
+    assert shadow.diagnostics(owner=OWNER, now=104.201, idle_s=4)["vad_state"] == "unknown"
+    assert (
+        shadow.diagnostics(owner=OWNER, now=104.201, idle_s=4)["output_blocker"]
+        == "stale_observation"
+    )
+
+
+@pytest.mark.parametrize(
+    "kind", ["stale", "gap", "generation", "owner", "work", "nonzero", "drain"]
+)
+def test_shadow_preserves_native_coverage_identity_work_and_drain_rejections(kind):
+    from gatekeeper.live_idle import NativeIdleShadow
+
+    shadow = NativeIdleShadow(freshness_s=0.2)
+    for index in range(40):
+        shadow.observe(
+            observation(index),
+            owner=OWNER,
+            now=100 + index / 10,
+            work_clear=True,
+            output_started=True,
+        )
+    row, owner, now = observation(40), OWNER, 104
+    if kind == "stale":
+        now += 1
+    elif kind == "gap":
+        row["sequence"] += 1
+    elif kind == "generation":
+        row["native_generation"] += 1
+    elif kind == "owner":
+        owner = (*OWNER, "new_input_revision")
+    elif kind == "nonzero":
+        row["output"]["peak"] = row["output"]["sum_squares"] = 1
+    elif kind == "drain":
+        row["output"]["consumed_frames"] = observation(39)["output"]["consumed_frames"]
+    shadow.observe(row, owner=owner, now=now, work_clear=kind != "work", output_started=True)
+    report = shadow.diagnostics(owner=owner, now=now, idle_s=4)
+    assert report["output_blocker"] != "ready"
+    assert report["output_quiet_s"] == 0
+
+
+def test_shadow_raw_input_owner_changes_still_prevent_a_quiet_anchor():
+    from gatekeeper.live_idle import NativeIdleShadow
+
+    shadow = NativeIdleShadow(freshness_s=0.2)
+    for index in range(41):
+        row = observation(index)
+        row["input"]["state"] = "active"
+        owner = (*OWNER, index)
+        shadow.observe(row, owner=owner, now=100 + index / 10, work_clear=True, output_started=True)
+    report = shadow.diagnostics(owner=owner, now=104, idle_s=4)
+    assert report["output_reset_reason"] == "owner_changed"
+    assert report["output_quiet_s"] == report["vad_episode_s"] == 0
+    assert report["output_blocker"] != "ready"
+    assert report["vad_unobserved_intervals"] == 40
+
+
+def test_shadow_input_projection_is_bounded_and_transitions_count_as_unknown():
+    from gatekeeper.live_idle import NativeIdleShadow
+
+    shadow = NativeIdleShadow(freshness_s=0.2)
+    for index, state in enumerate(("active", "active", "quiet", "quiet", "unknown", "unknown")):
+        row = observation(index)
+        row.update(text="private transcript", pcm=b"private audio" * 10000)
+        row["input"]["state"] = state
+        row["input"]["valid"] = state != "unknown"
+        shadow.observe(row, owner=OWNER, now=100 + index / 10, work_clear=True, output_started=True)
+    report = shadow.diagnostics(owner=OWNER, now=100.5, idle_s=4)
+    assert report["vad_active_observed_s"] == pytest.approx(0.1)
+    assert report["vad_quiet_observed_s"] == pytest.approx(0.1)
+    assert report["vad_unknown_observed_s"] == pytest.approx(0.3)
+    assert "private" not in repr(report) + repr(vars(shadow))
+    assert len(shadow._input) == 10
+    shadow.reset("external_reset")
+    report = shadow.diagnostics(owner=OWNER, now=100.5, idle_s=4)
+    assert (
+        report["vad_active_observed_s"]
+        == report["vad_quiet_observed_s"]
+        == report["vad_unknown_observed_s"]
+        == 0
+    )
+    assert report["vad_state"] == "unknown"
+    assert report["vad_received"] is None
+
+
+def test_shadow_repeated_vad_inference_remains_unknown_until_it_advances():
+    from gatekeeper.live_idle import NativeIdleShadow
+
+    shadow = NativeIdleShadow(freshness_s=0.2)
+    for index in range(3):
+        row = observation(index)
+        row["input"]["inference_seq"] = 1
+        row["input"]["inference_ms"] = 1000
+        row["input"]["sample_end"] = 1600
+        shadow.observe(row, owner=OWNER, now=100 + index / 10, work_clear=True, output_started=True)
+        if index:
+            assert (
+                shadow.diagnostics(owner=OWNER, now=100 + index / 10, idle_s=4)["vad_state"]
+                == "unknown"
+            )
+    shadow.observe(observation(3), owner=OWNER, now=100.3, work_clear=True, output_started=True)
+    # The first advancement follows a 300ms inference gap: require the next
+    # contiguous fresh observation before attributing its interval to quiet.
+    assert shadow.diagnostics(owner=OWNER, now=100.3, idle_s=4)["vad_state"] == "unknown"
+    shadow.observe(observation(4), owner=OWNER, now=100.4, work_clear=True, output_started=True)
+    assert shadow.diagnostics(owner=OWNER, now=100.4, idle_s=4)["vad_state"] == "quiet"
+
+
+def test_shadow_vad_rejects_accumulated_arrival_lag_without_forgiving_next_packet():
+    from gatekeeper.live_idle import NativeIdleShadow
+
+    shadow = NativeIdleShadow(freshness_s=0.2)
+    protected_totals = None
+    for index in range(13):
+        row = observation(index)
+        row["input"]["state"] = "active"
+        # Each host/source step independently passes200ms freshness, while the
+        # source falls50ms further behind on every delivered observation.
+        row["received_monotonic"] = now = 100 + index * 0.15
+        shadow.observe(row, owner=OWNER, now=now, work_clear=True, output_started=True)
+        report = shadow.diagnostics(owner=OWNER, now=now, idle_s=4)
+        if index >= 5:
+            assert report["vad_state"] == "unknown"
+            assert report["vad_reason"] == "arrival_lag"
+            assert report["vad_episode_s"] == 0
+            totals = tuple(
+                report[f"vad_{state}_observed_s"] for state in ("active", "quiet", "unknown")
+            )
+            if protected_totals is None:
+                protected_totals = totals
+                assert totals[0] <= 0.4
+            assert totals == protected_totals
+    shadow.reset()
+    for index in range(2):
+        row = observation(index)
+        row["input"]["state"] = "active"
+        shadow.observe(row, owner=OWNER, now=100 + index / 10, work_clear=True, output_started=True)
+    report = shadow.diagnostics(owner=OWNER, now=100.1, idle_s=4)
+    assert report["vad_state"] == "active"
+    assert report["vad_active_observed_s"] == pytest.approx(0.1)

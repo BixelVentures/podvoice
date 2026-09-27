@@ -15,6 +15,12 @@ def test_diagnostic_survives_audio_deletion_without_content(tmp_path):
                 "at_ms": 20,
                 "idle_blocker": "input_not_quiet",
                 "idle_reset_count": 5,
+                "idle_shadow_output_blocker": "ready",
+                "idle_shadow_vad_state": "active",
+                "idle_shadow_vad_reason": "observed",
+                "idle_shadow_observation_only": True,
+                "idle_shadow_output_quiet_s": 4.1,
+                "idle_shadow_private_text": "secret speech",
                 "idle_text": "secret speech",
                 "session_id": "private-session",
             },
@@ -37,6 +43,11 @@ def test_diagnostic_survives_audio_deletion_without_content(tmp_path):
     data = json.loads(retained)
     assert data["events"][0]["idle_blocker"] == "input_not_quiet"
     assert data["events"][0]["idle_reset_count"] == 5
+    assert data["events"][0]["idle_shadow_output_blocker"] == "ready"
+    assert data["events"][0]["idle_shadow_vad_state"] == "active"
+    assert data["events"][0]["idle_shadow_vad_reason"] == "observed"
+    assert data["events"][0]["idle_shadow_observation_only"] is True
+    assert data["events"][0]["idle_shadow_output_quiet_s"] == 4.1
     assert data["events"][0]["session_id_hash"] == data["session_hash"]
     assert len(data["events"]) == 2
     retain_diagnostics(tmp_path)

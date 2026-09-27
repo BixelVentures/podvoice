@@ -54,7 +54,7 @@ from .voice import (
 if TYPE_CHECKING:
     from .openai_live import LiveToolBatch
 
-from .live_idle import NativeIdleWindow
+from .live_idle import NativeIdleShadow, NativeIdleWindow
 
 # Firmware publishes activity every 100 ms. Reject two missed source periods;
 # this is a conservative freshness policy, not an amplitude/VAD calibration.
@@ -553,6 +553,7 @@ class ThinSession:
         self._live_pending_audio: tuple | None = None
         self._live_input_revision = 0
         self._live_idle_window = NativeIdleWindow(freshness_s=LIVE_ACTIVITY_FRESHNESS_S)
+        self._live_idle_shadow = NativeIdleShadow(freshness_s=LIVE_ACTIVITY_FRESHNESS_S)
         self._live_end_window = NativeIdleWindow(
             freshness_s=LIVE_ACTIVITY_FRESHNESS_S, require_input_quiet=False
         )
@@ -5349,6 +5350,8 @@ class ThinSession:
     def _reset_live_quiet(self) -> None:
         self._live_idle_window.reset()
         self._live_end_window.reset()
+        with contextlib.suppress(Exception, asyncio.CancelledError):
+            self._live_idle_shadow.reset()
 
     def _live_quiet_owner(self) -> tuple:
         return (
@@ -5440,6 +5443,16 @@ class ThinSession:
                 work_clear=self._live_quiet_work_clear(semantic=semantic),
                 output_started=bool(self._live_output_bytes),
             )
+        # Shadow evidence has no control authority. Its failure cannot reset the
+        # real idle/end windows or escape into the native activity callback.
+        with contextlib.suppress(Exception, asyncio.CancelledError):
+            self._live_idle_shadow.observe(
+                observation,
+                owner=owner,
+                now=now,
+                work_clear=self._live_quiet_work_clear(semantic=False),
+                output_started=bool(self._live_output_bytes),
+            )
 
     def _record_idle_diagnostic(self) -> None:
         now = time.monotonic()
@@ -5450,6 +5463,11 @@ class ThinSession:
         diagnostic = window.diagnostics(
             owner=self._live_quiet_owner(), now=now, idle_s=self.idle_timeout_s
         )
+        shadow = {}
+        with contextlib.suppress(Exception, asyncio.CancelledError):
+            shadow = self._live_idle_shadow.diagnostics(
+                owner=self._live_quiet_owner(), now=now, idle_s=self.idle_timeout_s
+            )
         self._trace_event(
             "live_idle_diagnostic",
             idle_semantic=self._ending_conversation,
@@ -5462,6 +5480,7 @@ class ThinSession:
             idle_provider_started=bool(getattr(self.brain, "provider_session_started", False)),
             idle_finalizing=self._live_finalizing,
             **{f"idle_{key}": value for key, value in diagnostic.items()},
+            **{f"idle_shadow_{key}": value for key, value in shadow.items()},
         )
 
     def _live_quiet_ready(self, *, semantic: bool = False) -> bool:

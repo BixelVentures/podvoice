@@ -70,6 +70,12 @@ _REASONS = {
     "quiet",
     "active",
     "unknown",
+    "no_observation",
+    "invalid_native_observation",
+    "observed",
+    "unknown_or_stale_input",
+    "input_observation_discontinuity",
+    "missing_stale_or_changed_owner",
 }
 _IDENTITIES = {"session_id", "response_id", "playback_id", "close_id", "rearm_token"}
 
@@ -99,7 +105,15 @@ def content_free_manifest(manifest: dict) -> dict:
                 }
             ):
                 clean[key] = value
-            elif key in {"idle_blocker", "idle_reset_reason", "activity_input_state"}:
+            elif key in {
+                "idle_blocker",
+                "idle_reset_reason",
+                "activity_input_state",
+                "idle_shadow_output_blocker",
+                "idle_shadow_output_reset_reason",
+                "idle_shadow_vad_state",
+                "idle_shadow_vad_reason",
+            }:
                 if isinstance(value, str) and value in _REASONS:
                     clean[key] = value
             elif (
