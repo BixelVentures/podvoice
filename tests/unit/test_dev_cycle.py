@@ -451,3 +451,21 @@ def test_diff_check_covers_committed_staged_and_unstaged(
         ["git", "diff", "--cached", "--check"],
         ["git", "diff", "--check"],
     ]
+
+
+def test_full_fast_scope_keeps_all_suites_in_isolated_bounded_workers(monkeypatch, tmp_path):
+    from scripts.dev_cycle import FAST_TIMEOUT_S, run_fast
+
+    stages = []
+    monkeypatch.setattr("scripts.dev_cycle._git", lambda *args: "")
+    monkeypatch.setattr("scripts.dev_cycle.sibling_tool", lambda _, name: name)
+    monkeypatch.setattr(
+        "scripts.dev_cycle.run_parallel", lambda root, env, selected: stages.extend(selected)
+    )
+    monkeypatch.setattr("scripts.dev_cycle.diff_check", lambda *args: None)
+    run_fast(tmp_path, {}, "python", ScopeSnapshot("h", "b", ("esphome/podvoice.yaml",), "", ()))
+    assert {s.name: s.command[-1] for s in stages} == {
+        "unit": "tests/unit",
+        "integration": "tests/integration",
+    }
+    assert all(s.timeout == FAST_TIMEOUT_S for s in stages)

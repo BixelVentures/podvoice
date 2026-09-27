@@ -35,7 +35,7 @@ FULL_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11378_wakeboundary1",
+    "podvoice_build_113100_button1",
     "podvoice_playback_events_v1",
     "correlated_local_stop_v1",
     "correlated_stop_context_v2",
@@ -45,7 +45,7 @@ REARM_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_11378_wakeboundary1",
+    "podvoice_build_113100_button1",
 ]
 
 
@@ -189,7 +189,7 @@ async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build(wrong
 
     assert report["ok"] is False
     assert report["firmware_build"] == wrong_marker
-    assert report["missing_capabilities"] == ["podvoice_build_11378_wakeboundary1"]
+    assert report["missing_capabilities"] == ["podvoice_build_113100_button1"]
 
 
 async def test_contract_rejects_multiple_firmware_build_markers():
@@ -213,10 +213,10 @@ async def test_contract_rejects_multiple_firmware_build_markers():
     assert report["ok"] is False
     assert report["firmware_build"] is None
     assert report["firmware_builds"] == [
+        "podvoice_build_113100_button1",
         "podvoice_build_11342",
-        "podvoice_build_11378_wakeboundary1",
     ]
-    assert report["missing_capabilities"] == ["podvoice_build_11378_wakeboundary1"]
+    assert report["missing_capabilities"] == ["podvoice_build_113100_button1"]
 
 
 async def test_contract_mismatch_is_loud_and_reported(caplog):
@@ -946,7 +946,7 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "continuous_rearm_v1",
         "physical_rearm_audio_progress_v1",
         "correlated_reset_rearm_v2",
-        "podvoice_build_11378_wakeboundary1",
+        "podvoice_build_113100_button1",
         "podvoice_playback_events_v1",
         "correlated_local_stop_v1",
         "correlated_stop_context_v2",
@@ -1525,7 +1525,10 @@ async def test_wake_word_is_reasserted_on_every_connect():
 
 
 @pytest.mark.parametrize("disconnect", [False, True])
-async def test_pending_wake_ack_cannot_admit_wake_or_old_subscription(monkeypatch, disconnect):
+@pytest.mark.parametrize("event_type", ["wake_okay_nabu", "single_press"])
+async def test_pending_wake_ack_cannot_admit_wake_or_old_subscription(
+    monkeypatch, disconnect, event_type
+):
     from gatekeeper import voicepe
 
     monkeypatch.setattr(voicepe, "_WAKE_WORD_ACK_TIMEOUT_S", 0.02)
@@ -1545,7 +1548,7 @@ async def test_pending_wake_ack_cannot_admit_wake_or_old_subscription(monkeypatc
     link.wake_word = "hey_chat"
     delivered = []
     link.on_event = lambda room, event: delivered.append(event)
-    wake = SimpleNamespace(key=3, event_type="wake_okay_nabu")
+    wake = SimpleNamespace(key=3, event_type=event_type)
     admission = asyncio.create_task(link._on_connect())
     await asyncio.sleep(0)
     old_callback = client.state_callback
@@ -1576,7 +1579,8 @@ async def test_pending_wake_ack_cannot_admit_wake_or_old_subscription(monkeypatc
 
 
 @pytest.mark.parametrize("disconnect", [False, True])
-async def test_admission_preserves_only_post_rearm_wake_in_same_batch(disconnect):
+@pytest.mark.parametrize("event_type", ["wake_okay_nabu", "single_press"])
+async def test_admission_preserves_only_post_rearm_wake_in_same_batch(disconnect, event_type):
     client = _ConnectableClient(
         [*FULL_SERVICES, "podvoice_set_wake_word"],
         [
@@ -1592,7 +1596,7 @@ async def test_admission_preserves_only_post_rearm_wake_in_same_batch(disconnect
     link.wake_word = "hey_chat"
     delivered = []
     link.on_event = lambda room, event: delivered.append(event)
-    wake = SimpleNamespace(key=3, event_type="wake_okay_nabu")
+    wake = SimpleNamespace(key=3, event_type=event_type)
     rearm_sent = asyncio.Event()
     original_execute = client.execute_service
 

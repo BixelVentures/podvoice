@@ -137,3 +137,84 @@ def test_trim_caps_file(tmp_path):
 def test_missing_file_reads_empty(tmp_path):
     h = _h(tmp_path)
     assert h.conversations() == [] and h.rooms() == []
+
+
+def test_live_fragments_compact_before_retention_and_survive_restart(tmp_path):
+    h = _h(tmp_path, max_turns=3)
+    h.append("r0", "in", "legacy", ts=0, session="a")
+    for i in range(499):
+        h.append_fragment("r0", "out", "a", ts=1 + i / 100, session="a", generation=1)
+    restored = _h(tmp_path, max_turns=3)
+    turns = restored.conversations()[0]["turns"]
+    assert len(turns) == 2
+    assert turns[0]["text"] == "legacy" and "kind" not in turns[0]
+    assert turns[1]["text"] == "a" * 499
+    assert turns[1]["kind"] == "segment" and turns[1]["fragment_count"] == 499
+    assert turns[1]["ts"] == 1 and turns[1]["end_ts"] == 5.98
+    assert len((tmp_path / "history.jsonl").read_text().splitlines()) == 2
+    # A restart cannot infer continuation of a previous process's segment.
+    restored.append_fragment("r0", "out", "new", ts=6, session="a", generation=1)
+    assert len(restored.conversations()[0]["turns"]) == 3
+
+
+def test_live_segments_preserve_interruption_generation_and_time_boundaries(tmp_path):
+    h = _h(tmp_path)
+    for direction, text, ts, generation in [
+        ("out", "Hello", 1, 1),
+        ("out", " there", 2, 1),
+        ("in", "Stop", 3, 1),
+        ("out", "Okay", 4, 1),
+        ("out", "Reconnect", 5, 2),
+        ("out", "Later", 20, 2),
+    ]:
+        h.append_fragment("r0", direction, text, ts=ts, session="a", generation=generation)
+    turns = h.conversations()[0]["turns"]
+    assert [t["text"] for t in turns] == ["Hello there", "Stop", "Okay", "Reconnect", "Later"]
+    assert len({t["segment_id"] for t in turns}) == 5
+    assert turns[0]["fragment_count"] == 2
+    assert h.session_text(room="r0", session="a") == (
+        ("assistant", "Hello"),
+        ("assistant", " there"),
+        ("user", "Stop"),
+        ("assistant", "Okay"),
+        ("assistant", "Reconnect"),
+        ("assistant", "Later"),
+    )
+
+
+def test_live_segments_never_merge_across_other_room_session_or_legacy(tmp_path):
+    h = _h(tmp_path)
+    for room, session, text, ts in [
+        ("r0", "a", "one", 1),
+        ("r1", "a", "other room", 2),
+        ("r0", "a", "two", 3),
+        ("r0", "b", "other session", 4),
+        ("r0", "a", "three", 5),
+    ]:
+        h.append_fragment(room, "in", text, ts=ts, session=session, generation=1)
+    h.append("r0", "in", "complete", ts=6, session="a")
+    h.append_fragment("r0", "in", "four", ts=7, session="a", generation=1)
+    assert h.session_text(room="r0", session="a") == tuple(
+        ("user", text) for text in ["one", "two", "three", "complete", "four"]
+    )
+
+
+def test_live_retention_counts_segments_not_tokens(tmp_path):
+    h = _h(tmp_path, max_turns=2)
+    for generation in range(3):
+        for i in range(250):
+            h.append_fragment(
+                "r0", "out", "x", ts=generation * 10 + i / 100, session="a", generation=generation
+            )
+    turns = _h(tmp_path).conversations()[0]["turns"]
+    assert [t["generation"] for t in turns] == [1, 2]
+    assert [t["fragment_count"] for t in turns] == [250, 250]
+
+
+def test_live_segment_size_and_backwards_time_are_storage_boundaries(tmp_path):
+    h = _h(tmp_path)
+    for text, ts in [("x" * 16384, 1), ("tail", 2), ("older", 1.5)]:
+        h.append_fragment("r0", "out", text, ts=ts, session="a", generation=1)
+    turns = h.conversations()[0]["turns"]
+    assert len({t["segment_id"] for t in turns}) == 3
+    assert [t["text"] for t in turns] == ["x" * 16384, "older", "tail"]

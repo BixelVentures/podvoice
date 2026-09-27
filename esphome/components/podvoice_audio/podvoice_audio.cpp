@@ -269,6 +269,21 @@ void PodVoiceAudio::send_wake_snapshot_(bool audio_sent) {
 }
 #endif
 
+bool PodVoiceAudio::begin_button_conversation() {
+  // A physical press is its own privacy boundary, never a detector proof.
+  std::lock_guard<std::mutex> lock(this->audio_mutex_);
+  if (this->capture_held_ || this->ring_buffer_ == nullptr || this->boundary_consumed_)
+    return false;
+  this->ring_buffer_->reset();
+#ifdef USE_PODVOICE_WAKE_REFERENCE
+  this->clear_wake_snapshot_();
+#endif
+  this->boundary_consumed_ = true;
+  this->user_enabled_ = true;
+  this->last_keepalive_ms_ = millis();
+  return true;
+}
+
 void PodVoiceAudio::start_streaming() {
   // Idempotent enable/keepalive. Never reset here: the add-on calls this again while
   // the session is live, and doing so would cut words out of an active utterance.

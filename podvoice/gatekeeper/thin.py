@@ -605,6 +605,7 @@ class ThinSession:
 
         self.sm = _Mini(self)
         self.playout = PlayoutClock()
+        self._last_idle_diagnostic = 0.0
         self._active = False  # one conversation open?
         self._transport_closing = False
         self._stop_error_speech = asyncio.Event()
@@ -777,23 +778,43 @@ class ThinSession:
             if self.audio_trace is not None:
                 self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
             return
-        if self._active or not selected_live:
+        if self._active:
             await self._wake(rearm_attempt_id, live_mode=selected_live)
             return
+        # A programmatic OFF wake may wait for an existing recovery, but it is
+        # not that old conversation's startup owner. Register only after its
+        # teardown releases the lock, otherwise teardown would await its waiter.
+        if self._teardown_lock.locked():
+            try:
+                async with asyncio.timeout(3.0):
+                    async with self._teardown_lock:
+                        pass
+            except TimeoutError:
+                return
         task = self._live_opening_task
         if task is None or task.done():
             task = asyncio.create_task(
-                self._wake(rearm_attempt_id, live_mode=selected_live), name="thin-live-opening"
+                self._wake(rearm_attempt_id, live_mode=selected_live), name="thin-provider-opening"
             )
             self._live_opening_task = task
         try:
             await asyncio.shield(task)
         except asyncio.CancelledError:
             if not task.cancelled():
+                close = self._request_close("stop")
+                if close is not None:
+                    await asyncio.shield(close)
+                else:
+                    task.cancel()
                 raise
         finally:
             if self._live_opening_task is task and task.done():
                 self._live_opening_task = None
+        # Startup failure hands cleanup to the sole close task. The public wake
+        # call returns only after that cleanup, without self-awaiting in _wake.
+        close_task = self._close_task
+        if close_task is not None and not close_task.done():
+            await asyncio.shield(close_task)
 
     async def _wake(self, rearm_attempt_id: str | None = None, *, live_mode: bool) -> None:
         """Open ONE conversation: duck, stream mic, connect the brain. Idempotent."""
@@ -988,6 +1009,8 @@ class ThinSession:
             self._idle_deadline = None
         if not await (self._set_live_context() if self.live_alpha else self._set_local_stop(False)):
             return
+        if not opening_is_current():
+            return
         if opening_live and not opening_webrtc and trace_started:
             self._spawn(
                 self._request_wake_reference(self.audio_trace, self._history_session, self._epoch),
@@ -1012,7 +1035,7 @@ class ThinSession:
         # once forwarding has stopped, so old-tail audio cannot cross conversations.
         if not opening_webrtc and hasattr(self.voicepe, "start_streaming"):
             stream_started = await self.voicepe.start_streaming()
-            if opening_live and not opening_is_current():
+            if not opening_is_current():
                 return
             if stream_started is False:
                 if self.audio_trace is not None:
@@ -1091,7 +1114,7 @@ class ThinSession:
             self._install_provider_trace_observer()
         previous_provider_generation = getattr(self.brain, "_connection_generation", None)
         try:
-            if opening_live and not opening_is_current():
+            if not opening_is_current():
                 return
             async with asyncio.timeout(C.CONNECT_TIMEOUT_S):
                 if opening_webrtc:
@@ -1100,7 +1123,7 @@ class ThinSession:
                         return
                     opening_brain.prepare_webrtc(offer, answer)
                 await opening_brain.connect()
-                if opening_live and not opening_is_current():
+                if not opening_is_current():
                     return
                 if opening_webrtc:
                     await self.voicepe.wait_live_started()
@@ -1117,7 +1140,7 @@ class ThinSession:
             self._restore_provider_trace_observer()
             raise
         except Exception as e:
-            if opening_live and not opening_is_current():
+            if not opening_is_current():
                 return
             if self.audio_trace is not None:
                 self.audio_trace.reject_next_session(self.room, rearm_attempt_id)
@@ -1132,7 +1155,7 @@ class ThinSession:
                 )
             await self._fail("diagnostic" if diagnostic_busy else "connection")
             return
-        if opening_live and not opening_is_current():
+        if not opening_is_current():
             # The close owner joins this opening before provider cleanup/rearm.
             # A late startup must never close a subsequently reused adapter.
             return
@@ -1651,7 +1674,7 @@ class ThinSession:
             self.reply_bus.end(self.room)
         stream_complete = True
         opening_complete = True
-        if self.live_alpha:
+        if self._live_opening_task is not None or self._live_rotation_task is not None:
             opening_complete, _ = await self._teardown_step(
                 "live-opening-settle",
                 self._settle_live_opening(),
@@ -2033,6 +2056,7 @@ class ThinSession:
             await asyncio.sleep(HEARTBEAT_S)
             if not self._active:
                 continue
+            self._record_idle_diagnostic()
             if self._live_rotating:
                 continue  # Rotation has its own bounded owner and retains attention.
             expected_live_reader_end = (
@@ -2247,8 +2271,12 @@ class ThinSession:
                 )
                 self._cancel_live_end()
             if self.hub is not None:
-                self.hub.transcript(
-                    self.room, ev.direction, ev.text, session=self._history_session or None
+                self.hub.transcript_fragment(
+                    self.room,
+                    ev.direction,
+                    ev.text,
+                    session=self._history_session,
+                    generation=self.brain._connection_generation,
                 )
         elif isinstance(ev, LiveBackendStarted):
             self._reset_live_quiet()
@@ -5389,6 +5417,29 @@ class ThinSession:
                 output_started=bool(self._live_output_bytes),
             )
 
+    def _record_idle_diagnostic(self) -> None:
+        now = time.monotonic()
+        if not self.live_alpha or self._live_webrtc or now - self._last_idle_diagnostic < 1.0:
+            return
+        self._last_idle_diagnostic = now
+        window = self._live_end_window if self._ending_conversation else self._live_idle_window
+        diagnostic = window.diagnostics(
+            owner=self._live_quiet_owner(), now=now, idle_s=self.idle_timeout_s
+        )
+        self._trace_event(
+            "live_idle_diagnostic",
+            idle_semantic=self._ending_conversation,
+            idle_pending_responses=len(getattr(self.brain, "_responses", {}) or {}),
+            idle_pending_batches=len(getattr(self.brain, "_batches", {}) or {}),
+            idle_pending_tools=sum(not task.done() for task in self._tool_tasks.values()),
+            idle_continuation_pending=bool(getattr(self.brain, "_continuation_pending", False)),
+            idle_continuation_inflight=bool(getattr(self.brain, "_continuation_inflight", False)),
+            idle_pending_audio=self._live_pending_audio is not None,
+            idle_provider_started=bool(getattr(self.brain, "provider_session_started", False)),
+            idle_finalizing=self._live_finalizing,
+            **{f"idle_{key}": value for key, value in diagnostic.items()},
+        )
+
     def _live_quiet_ready(self, *, semantic: bool = False) -> bool:
         """Idempotent final check; never re-ingest or fabricate an observation."""
         observation = self._live_activity_latest
@@ -5441,7 +5492,21 @@ class ThinSession:
         etype = getattr(state, "event_type", None) or getattr(state, "event", None)
         if etype in ("wake_okay_nabu", "wake"):
             self._on_wake_cb()
-        elif etype in ("wake_stop", "single_press") and self._active:
+        elif etype == "single_press":
+            self._trace_event("button_pressed", active=self._active, closing=self._closing)
+            if self._active:
+                self._request_close("stop")
+            elif (
+                not self._closing
+                and not self._teardown_incomplete
+                and not self._teardown_lock.locked()
+                and (self._close_task is None or self._close_task.done())
+                and getattr(self.voicepe, "supports_button_capture", False)
+            ):
+                # Firmware owns the physical press/capture boundary. Unlike wake,
+                # this must not promote acoustic detector readiness to proven.
+                self._spawn(self.wake(), "thin-button-start")
+        elif etype == "wake_stop" and self._active:
             playback_id = getattr(state, "playback_id", None)
             if etype == "wake_stop":
                 if getattr(self.voicepe, "supports_stop_context", False):
@@ -5851,6 +5916,18 @@ class ThinSession:
             "rearm_token": getattr(self.voicepe, "rearm_token", None),
         }
         payload.update(details)
+        diagnostic_writer = getattr(self.audio_trace, "diagnostic_event", None)
+        if callable(diagnostic_writer) and self._history_session:
+            with contextlib.suppress(Exception):
+                diagnostic_writer(
+                    self._history_session,
+                    event_name=event_name,
+                    terminal=event_name == "teardown_complete",
+                    at_ms=round((time.monotonic() - self._conv_started) * 1000)
+                    if self._conv_started
+                    else None,
+                    **{key: value for key, value in payload.items() if key != "session_id"},
+                )
         if event_name in {
             "wake_received",
             "live_context_requested",

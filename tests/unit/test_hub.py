@@ -184,3 +184,56 @@ async def test_legacy_brain_service_is_canonical_openai_truth():
     detail = hub.snapshot()["service_details"]["openai"]
     assert detail["observed_at"] is not None
     assert detail["source"] == "runtime"
+
+
+async def test_live_fragment_is_never_broadcast_as_complete_turn(tmp_path):
+    from gatekeeper.history import History
+
+    history = History(tmp_path / "history.jsonl")
+    hub = StatusHub(history=history)
+    q = await hub.subscribe()
+    hub.transcript_fragment("r0", "out", "Hello", ts=1, session="a", generation=2)
+    hub.transcript_fragment("r0", "out", " there", ts=2, session="a", generation=2)
+    events = [q.get_nowait(), q.get_nowait()]
+    assert all(e["type"] == "transcript_fragment" and e["kind"] == "segment" for e in events)
+    assert events[0]["segment_id"] == events[1]["segment_id"]
+    assert history.conversations()[0]["turns"][0]["text"] == "Hello there"
+    hub.unsubscribe(q)
+
+
+async def test_talk_live_fragments_preserve_generation_and_interruption(tmp_path):
+    from gatekeeper.history import History
+    from gatekeeper.talk import TalkHub
+
+    emitted = []
+
+    async def send(event):
+        emitted.append(event)
+
+    history = History(tmp_path / "history.jsonl")
+    hub = TalkHub(send, history=history)
+    for direction, text, generation in [
+        ("out", "A", 1),
+        ("out", "B", 1),
+        ("in", "C", 1),
+        ("out", "D", 1),
+        ("out", "E", 2),
+    ]:
+        hub.transcript_fragment("talk", direction, text, session="s", generation=generation)
+    await asyncio.gather(*hub._pending)
+    assert [e["type"] for e in emitted] == ["transcript_fragment"] * 5
+    assert emitted[0]["segment_id"] == emitted[1]["segment_id"]
+    assert len({e["segment_id"] for e in emitted}) == 4
+    assert [t["text"] for t in history.conversations()[0]["turns"]] == ["AB", "C", "D", "E"]
+
+
+async def test_live_without_history_breaks_segments_at_complete_transcript():
+    hub = StatusHub()
+    q = await hub.subscribe()
+    hub.transcript_fragment("r0", "out", "a", ts=1, session="s", generation=1)
+    hub.transcript("r0", "out", "complete", ts=2, session="s")
+    hub.transcript_fragment("r0", "out", "b", ts=3, session="s", generation=1)
+    first, complete, last = [q.get_nowait() for _ in range(3)]
+    assert first["segment_id"] != last["segment_id"]
+    assert complete["type"] == "transcript" and "kind" not in complete
+    hub.unsubscribe(q)

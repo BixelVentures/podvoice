@@ -142,6 +142,18 @@ psram:
   ignore_not_found: false  # The VPE has PSRAM, so this is safe. Allows configuring WiFi driver to use more resources (done automatically by the speaker media player)
 
 globals:
+  - id: podvoice_button_down_ms
+    type: uint32_t
+    initial_value: '0'
+  - id: podvoice_button_last_release_ms
+    type: uint32_t
+    initial_value: '0'
+  - id: podvoice_button_repeat
+    type: bool
+    initial_value: 'false'
+  - id: podvoice_button_seen_release
+    type: bool
+    initial_value: 'false'
   # Global index for our LEDs. So that switching between different animation does not lead to unwanted effects.
   - id: global_led_animation_index
     type: int
@@ -297,6 +309,10 @@ binary_sensor:
       number: GPIO0
       inverted: true
     on_press:
+      - lambda: |-
+          id(podvoice_button_down_ms) = millis();
+          id(podvoice_button_repeat) = id(podvoice_button_seen_release) &&
+              uint32_t(id(podvoice_button_down_ms) - id(podvoice_button_last_release_ms)) <= 250;
       - script.execute: control_leds
     on_release:
       - script.execute: control_leds
@@ -306,66 +322,41 @@ binary_sensor:
             lambda: return id(factory_reset_requested);
           then:
             - button.press: factory_reset_button
+      # Act on the first short release. Rapid repeats never toggle a second time.
+      - if:
+          condition:
+            lambda: |-
+              const uint32_t now = millis();
+              const bool repeat = id(podvoice_button_repeat);
+              id(podvoice_button_seen_release) = true;
+              id(podvoice_button_last_release_ms) = now;
+              return !repeat && uint32_t(now - id(podvoice_button_down_ms)) < 1000 &&
+                  !id(factory_reset_requested) && (id(podvoice_conversation_active) ||
+                  (!id(init_in_progress) && !id(color_changed) && !id(group_volume_changed)));
+          then:
+            - if:
+                condition:
+                  switch.is_on: timer_ringing
+                then:
+                  - switch.turn_off: timer_ringing
+                else:
+                  - if:
+                      condition:
+                        lambda: "return !id(podvoice_conversation_active) && !id(master_mute_switch).state;"
+                      then:
+                        - lambda: |-
+                            if (id(pv_audio).begin_button_conversation()) {
+                              id(podvoice_conversation_active) = id(pv_reply).begin_conversation();
+                              if (!id(podvoice_conversation_active)) id(pv_audio).stop_streaming();
+                            }
+                  - if:
+                      condition:
+                        lambda: "return id(podvoice_conversation_active);"
+                      then:
+                        - event.trigger:
+                            id: podvoice_event
+                            event_type: single_press
     on_multi_click:
-      # Simple Click: PodVoice owns the conversation lifecycle. The button emits
-      # one control event and never starts the stock Home Assistant voice pipeline.
-      - timing:
-          - ON for at most 1s
-          - OFF for at least 0.25s
-        then:
-          - if:
-              condition:
-                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed);
-              then:
-                - if:
-                    condition:
-                      switch.is_on: timer_ringing
-                    then:
-                      - switch.turn_off: timer_ringing
-                    else:
-                      - event.trigger:
-                          id: podvoice_event
-                          event_type: single_press
-      # Double Click
-      #  . Exposed as an event entity. To be used in automations inside Home Assistant
-      - timing:
-          - ON for at most 1s
-          - OFF for at most 0.25s
-          - ON for at most 1s
-          - OFF for at least 0.25s
-        then:
-          - if:
-              condition:
-                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed);
-              then:
-                - script.execute:
-                    id: play_sound
-                    priority: false
-                    sound_file: "center_button_double_press_sound"
-                - event.trigger:
-                    id: button_press_event
-                    event_type: "double_press"
-      # Triple Click
-      #  . Exposed as an event entity. To be used in automations inside Home Assistant
-      - timing:
-          - ON for at most 1s
-          - OFF for at most 0.25s
-          - ON for at most 1s
-          - OFF for at most 0.25s
-          - ON for at most 1s
-          - OFF for at least 0.25s
-        then:
-          - if:
-              condition:
-                lambda: return !id(init_in_progress) && !id(color_changed) && !id(group_volume_changed);
-              then:
-                - script.execute:
-                    id: play_sound
-                    priority: false
-                    sound_file: "center_button_triple_press_sound"
-                - event.trigger:
-                    id: button_press_event
-                    event_type: "triple_press"
       # Long Press
       #  . Exposed as an event entity. To be used in automations inside Home Assistant
       - timing:

@@ -1041,6 +1041,23 @@ setInterval(function () {
   var latestTrace = null, analysisBusy = false;
   if (!arm || !box) return;
   function te(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  {
+    var savedBox = te("div", "saved-diagnostics", null);
+    box.parentNode.insertBefore(savedBox, box.nextSibling);
+      savedBox.appendChild(te("div", "sub", "Driftsdiagnostik uden lyd eller samtaletekst gemmes i op til 14 dage / 32 MiB."));
+      var saved = te("button", "btn", "Vis gemt driftsdiagnostik");
+      var savedOutput = te("pre", "sub", "");
+      saved.onclick = async function () {
+        saved.disabled = true;
+        try {
+          var response = await fetch("api/diagnostics", {cache:"no-store"});
+          if (!response.ok) throw new Error("Diagnostikken kunne ikke hentes.");
+          savedOutput.textContent = JSON.stringify(await response.json(), null, 2);
+        } catch (error) { savedOutput.textContent = "Diagnostikken kunne ikke hentes. Prøv igen."; }
+        finally { saved.disabled = false; }
+      };
+      savedBox.appendChild(saved); savedBox.appendChild(savedOutput);
+    }
   function stageText(name, stage) {
     if (!stage) return name + ": ingen lyd";
     return name + ": " + (stage.duration_ms / 1000).toLocaleString("da-DK", {maximumFractionDigits:1}) + " s · RMS " + stage.rms + " · peak " + stage.peak_pct + "% · clipping " + stage.clipped_pct + "%";
@@ -1696,7 +1713,7 @@ setInterval(function () {
   // Talk receives complete display turns. The server intentionally hides raw
   // Realtime transcript deltas because its asynchronous input transcript can land
   // in the middle of the assistant's acknowledgement and visually scramble turns.
-  var curT = null, curTDir = null;
+  var curT = null, curTDir = null, curSegmentId = null;
   function streamT(dir, text) {
     if (!text) return;
     var e = clog.querySelector(".empty"); if (e) e.remove();
@@ -1717,7 +1734,7 @@ setInterval(function () {
       var live = document.getElementById("turn_announce");
       if (live) live.textContent = (curTDir === "in" ? "Du: " : "Nabu: ") + curT._body.textContent;
     }
-    curT = null; curTDir = null;
+    curT = null; curTDir = null; curSegmentId = null;
   }
 
   function ensurePlay() {
@@ -2094,7 +2111,13 @@ setInterval(function () {
           }
         }
       }
-      else if (ev.type === "transcript") streamT(ev.dir === "in" ? "in" : "out", ev.text);
+      else if (ev.type === "transcript_fragment") {
+        if (curSegmentId !== ev.segment_id) endTurn();
+        streamT(ev.dir === "in" ? "in" : "out", ev.text);
+        curSegmentId = ev.segment_id;
+        if (curT) curT.querySelector(".who").textContent = (ev.dir === "in" ? "you" : providerName()) + " · Live-segment";
+      }
+      else if (ev.type === "transcript") { if (curSegmentId) endTurn(); streamT(ev.dir === "in" ? "in" : "out", ev.text); }
       else if (ev.type === "play") { if (livePeer) return; halted = false; playReply(ev.url, ev.playback_id); }
       else if (ev.type === "stop_playback") {
         pendingLiveRotation = null;
@@ -2575,13 +2598,16 @@ setInterval(function () {
     var top = he("div", "top");
     top.appendChild(he("span", "rname", roomLabel(conv.room)));
     var n = (conv.turns || []).length;
-    top.appendChild(he("span", "pill pill-idle", n + (n === 1 ? " tur" : " ture")));
+    var segments = (conv.turns || []).filter(function (t) { return t.kind === "segment"; }).length;
+    var complete = n - segments;
+    var countLabel = segments ? segments + " Live-segmenter" + (complete ? " · " + complete + " ture" : "") : n + (n === 1 ? " tur" : " ture");
+    top.appendChild(he("span", "pill pill-idle", countLabel));
     box.appendChild(top);
     box.appendChild(he("div", "meta")).appendChild(he("span", null, when(conv.started, conv.ended)));
     var tx = he("div", "tx"); tx.style.marginTop = "10px"; tx.style.minHeight = "0";
     (conv.turns || []).forEach(function (t) {
       var line = he("div", "line " + (t.dir === "in" ? "in" : "out"));
-      line.appendChild(he("div", "who", t.dir === "in" ? "du" : "Nabu"));
+      line.appendChild(he("div", "who", (t.dir === "in" ? "du" : "Nabu") + (t.kind === "segment" ? " · Live-segment" : "")));
       line.appendChild(document.createTextNode(t.text || ""));
       tx.appendChild(line);
     });

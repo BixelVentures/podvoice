@@ -16,7 +16,7 @@ import time
 from collections import deque
 
 from . import __version__
-from .history import History
+from .history import History, TranscriptSegments
 
 _LOG = logging.getLogger("podvoice.hub")
 
@@ -59,6 +59,7 @@ def _bounded_result(result: dict, limit: int = 4000) -> dict:
 
 class StatusHub:
     def __init__(self, history: History | None = None) -> None:
+        self._segments = TranscriptSegments()
         self._history = history  # optional History; room transcripts are persisted to it
         self._rooms: dict[str, dict] = {}
         self._services: dict[str, str] = {
@@ -495,6 +496,31 @@ class StatusHub:
                 {"type": "transcript_delta", "room": room, "dir": direction, "text": text}
             )
 
+    def transcript_fragment(
+        self,
+        room: str,
+        direction: str,
+        text: str,
+        *,
+        session: str,
+        generation: int,
+        ts: float | None = None,
+    ) -> None:
+        """An observed Live fragment; segment boundaries are not provider turns."""
+        if not text:
+            return
+        observed_at = time.time() if ts is None else ts
+        if self._history is not None:
+            rec = self._history.append_fragment(
+                room, direction, text, ts=observed_at, session=session, generation=generation
+            )
+        else:
+            rec = self._segments.fragment(
+                room, direction, text, ts=observed_at, session=session, generation=generation
+            )
+        if rec is not None:
+            self._broadcast({"type": "transcript_fragment", **rec})
+
     def transcript(
         self,
         room: str,
@@ -506,6 +532,7 @@ class StatusHub:
     ) -> None:
         """A complete turn (one utterance): broadcast AND persist to history. This is
         what the History tab shows — one clean turn, not per-token fragments."""
+        self._segments.boundary()
         if text:
             observed_at = time.time() if ts is None else ts
             self._broadcast(

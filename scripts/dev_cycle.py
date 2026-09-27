@@ -597,13 +597,16 @@ def run_fast(
     if any(path.startswith("podvoice/gatekeeper/") for path in changes):
         mypy = sibling_tool(python, "mypy")
         stages.append(Stage("mypy", (mypy, "podvoice/gatekeeper"), 60))
-    stages.append(
-        Stage(
-            "pytest",
-            (python, "-m", "pytest", "-q", *tests),
-            int(os.environ.get("PODVOICE_FAST_TIMEOUT", FAST_TIMEOUT_S)),
+    timeout = int(os.environ.get("PODVOICE_FAST_TIMEOUT", FAST_TIMEOUT_S))
+    # A full firmware/build scope exceeded the serial fast budget repeatedly.
+    # Keep every test and the same per-worker bound; use release's isolated split.
+    if tests == [FULL_SUITE_MARKER]:
+        stages.extend(
+            Stage(name, (python, "-m", "pytest", "-q", f"tests/{name}"), timeout)
+            for name in ("unit", "integration")
         )
-    )
+    else:
+        stages.append(Stage("pytest", (python, "-m", "pytest", "-q", *tests), timeout))
     run_parallel(root, env, stages)
     diff_check(root, env, snapshot.merge_base)
 

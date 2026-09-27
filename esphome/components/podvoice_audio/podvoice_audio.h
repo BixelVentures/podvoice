@@ -98,6 +98,7 @@ class PodVoiceAudio : public Component {
   // (PodVoice crashed / half-open socket) loop() force-stops so the mic can NEVER
   // be left streaming. Defined in the .cpp (need millis()).
   bool begin_conversation(micro_wake_word::WakeAudioPosition boundary);
+  bool begin_button_conversation();
   void bind_wake_snapshot(const std::string &owner);
   void clear_wake_snapshot();
 #ifdef USE_PODVOICE_WAKE_REFERENCE

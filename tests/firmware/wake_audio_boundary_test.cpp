@@ -86,6 +86,21 @@ struct Rig {
   }
 };
 int main() {
+  // Physical button admits only post-press audio and cannot reuse a capture.
+  {
+    Rig r; r.feed({11,12,13});
+    assert(r.audio.begin_button_conversation());
+    assert(!r.audio.begin_button_conversation());
+    r.feed({21,22}); assert((r.output()==std::vector<int16_t>{21,22}));
+    assert(r.audio.hold_capture(10));
+    assert(!r.audio.begin_button_conversation());
+    r.audio.stop_streaming();
+    assert(!r.audio.begin_button_conversation());
+    r.audio.reset_capture_barrier(); r.client.pcm.clear();
+    r.feed({31,32}); assert(r.audio.begin_button_conversation());
+    r.feed({41,42}); assert((r.output()==std::vector<int16_t>{41,42}));
+  }
+
   // Adding the explicit rearm hook must not cut ordinary same-breath capture.
   {
     Rig r; r.audio.start_streaming(); r.feed({1,2,3});

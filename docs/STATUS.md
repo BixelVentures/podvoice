@@ -1,5 +1,116 @@
 # PodVoice-status — én aktuel sandhed
 
+## Active decision 27/9 — field reliability: button, close evidence, history and music
+
+Lead Codex. User authorizes fixing all analysed issues, including unreliable single
+press Stop, missing inactive Start, no double-press feature, automatic close and
+PodConnect disappearance/reconnection. Direct evidence: shipped .99 Thin handles
+single_press only while active; firmware multi-click consumes rapid presses as
+separate double/triple events. Sept25 history stores Live fragments as complete
+turns and reports generic music requests resolved as literal titles. Speakers log
+Sept25 18:49–18:50 proves failed health checks and engine restart; Sept27 10:27 proves
+alias selection succeeded but playlist context returned404. Neither proves one
+universal network cause. Four-second UI value freshly verified; field no-close
+cause remains unproven, so no guessed silence/acoustic threshold changes.
+
+Chain: physical button/wake→firmware privacy latch→native admission→Thin provider
+startup/tool work→announcement/mixer→close cancellation/drain→rearm→next input;
+Spotify action→alias/context resolution→engine→AirPlay→reported action outcome.
+Invariants: one Thin close owner, firmware capture owner, stale-generation fencing,
+physical drain truth, no model intent parser, no repeated side effects on unknown
+outcomes, OFF/Talk parity. Hypotheses: multi-click discrimination suppresses intended
+Stop; fragment-as-turn persistence destroys useful retention; unresolved provider
+context failures must not masquerade as successful music. Activity reset reasons
+must establish whether the strict quiet contract blocks the reported close.
+
+Non-goals: hidden timeout increase, guessed gain/VAD tuning, new conversation engine,
+unmeasured wake recall claims or numeric quality score as substitute for evidence.
+Implement bounded button admission/cancellation and firmware first-short-press with
+rapid-repeat suppression; retain maintenance long-press safely. Add truthful fragment
+history and durable content-free lifecycle diagnostics. Speakers changes remain an
+independently identified candidate; preserve dirty source work. Regression scope:
+startup/listening/playback/tools/closing, duplicate/delayed press, next generation,
+privacy latch, restart retention, partial/interleaved transcripts, Spotify failure
+and recovery without duplicate actions. Independent adversarial review then relevant
+fast/software/firmware gates; one frozen release gate only after resolved findings.
+Rollback: current paired .99 plus existing speaker artifact; no inherited physical
+acceptance. User quality target97/100 is not a measured acceptance result.
+
+Implementation checkpoint 27/9: button first-short-release now bypasses old multi-click
+consumption; a rapid repeat is ignored, and a distinct firmware capability protects
+the new post-press privacy boundary during mixed-version upgrade. Common startup
+ownership now cancels/joins OFF as well as Live before rearm; independent review
+found and fixed late-connect resurrection, sticky close flag and queued press during
+rearm. Six real lifecycle regressions passed independently. History distinguishes
+Live segments and preserves original fragments for existing context seeding.
+Diagnostics retain content-free correlated metadata14days/32MiB separately from
+24h audio, including idle blockers; restart and late-rearm overwrite regressions pass.
+PodConnect candidate now propagates engine/no-session/search/library/device failures
+and panel Stop errors without retries. Its source review has no unresolved concrete
+P0/P1; no physical recovery claim. Final Alpha firmware build succeeded15.65s with distinct113100_livebutton1
+identity; base is113100_button1. Component ref4fe6f4612402b8f7ef4dd579132eca9abdcc1617.
+No test-key image is eligible for installation.
+
+Workflow finding: existing serial full-suite fast fallback again exceeded120s; first
+attempt also lacked local-server sandbox permission. These are not product causes.
+Permanent tooling regression now keeps complete unit and integration suites in two
+isolated bounded workers, matching the existing release split. No time budget raised.
+Full fast gate passed27/9: lint/format/mypy, unit70.77s and integration49.93s.
+Independent source review reports no unresolved concrete P0/P1. Candidate remains
+NOT release-ready: final release gate and physical gates
+are not yet established. Current installed version remains1.13.99, freshly read in HA.
+Timeout field cause and Spotify discovery stall are not yet proven or declared fixed.
+Release attempt27/9 stopped at candidate-scope (audio_input plus rearm); remaining
+workers were cancelled, so this is NOT a green release gate. Independent review isolated the extra domain to the separate prompt16 music change.
+That change and its two version assertions are saved as a separate pending patch;
+this mechanical candidate retains prompt15. No classifier exception was added.
+No installation performed.
+
+Final mechanical candidate: rooted at public main baf74ddb4914f08c5defc68da2b52a8fc2061b26.
+Independent final review GO; production fingerprint
+92cfff8af7db5a59d2029977f06211c2ce3dac5ff52cd642b2ccaeebbe27d197.
+Prompt15 unchanged. Scope PASS rearm with no exception. Frozen release gate PASS74.2s:
+unit73.93s, integration50.53s, whole-tree lint/format, mypy and diff checks.
+Firmware test compile PASS. Exact-commit CI/image and paired installation remain next;
+physical golden and10/10 remain NOT RUN. No97/100 acceptance claim.
+
+## Active decision 25/9 — measured Hey Chat acoustic improvement
+
+Lead Codex. User requests agent-managed improvement/training of Hey Chat and
+explicitly authorizes installation after completion. Strongest current failure
+evidence is repeated user-reported kitchen misses; .99 proves dual-model selection
+and restart persistence, not acoustic recall. Preserve installed .99 and Jarvis.
+Hypothesis: a speaker-disjoint Hey Chat candidate trained with reverberation and
+background interference improves held-out recall at no worse false activations and
+within the current device inference budget. Threshold-only wins must be compared
+at matched false-activation rate; neither synthetic recall nor 99.9% aspiration is
+home proof. Chain: room/mic/XMOS wake channel → frontend/model/window/VAD → latch →
+LED/capture → ThinSession/Live → physical playback → close/rearm → either next wake.
+Invariants: firmware sole wake/latch owner, one ThinSession and VoicePELink, privacy
+boundary, existing gain/VAD, deterministic Stop, exact dual selection and fresh rearm.
+Non-goals: new audio transport, provider gain/prompt/timeout changes, replacing
+Hey Chat, or continuous private audio export. Never upload household audio to TTS.
+
+Experiment: pin trainer/evaluator/model hashes; create isolated local training env;
+preassign speaker pools and source recordings before any mixing/augmentation; use
+separate validation and untouched test sets, positive and confusing-negative speech,
+noise/music and room impulse responses. Preserve source/seed/split metadata. Match
+feature stride, quantization, smoothing and VAD semantics to shipped ESPHome; report
+any replay limitation explicitly. Compare baseline and candidate on identical clips,
+recall, false activations/hour and detection offset. Current free disk ~27 GiB:
+bounded downloads only; stop before filling the system volume. Independent adversarial
+review covers recipe and final diff; firmware compile/resource and current field
+regressions precede physical comparison. Freeze once for release gate. Rollback is
+paired .99 artifact plus exact dual selection; no inherited physical acceptance.
+A new model is not install-ready until controlled comparison supports improvement,
+no unresolved severe review finding remains and relevant device gates pass.
+
+Progress: pinned Apple Silicon trainer 60abc9a2f92ea1f048e50684d7909b11c154435e;
+local official evaluator, Piper generator and training engine fetched; isolated
+Python 3.11.16 installed, dependencies being prepared. Stock trainer random-WAV split
+and ordered speaker-pair truncation rejected: they can leak speakers and bias data.
+No trained candidate, production model change or 99.9% measurement yet.
+
 ## Active decision 25/9 — simultaneous Hey Chat and Hey Jarvis
 
 Lead Codex. User reports unreliable Hey Chat in kitchen and explicitly requests
@@ -38,6 +149,25 @@ Before installation: cloud UI confirms .98 Alpha ON and Hey Chat; verified physi
 device still advertises .97 diagnostic firmware. Its mDNS address now resolves to
 a different DHCP address, explaining the failed fixed-IP check. No install or
 physical dual-wake acceptance yet; publication and paired install remain next.
+
+
+Installation result 25/9: PR70 merged as baf74ddb4914f08c5defc68da2b52a8fc2061b26;
+main CI36132170456 PASS including publication. Image digest
+sha256:2bae28047f9cfb532999b27a1020f3feff0e76aa6d68363c2e7b8d91068cfa64.
+Paired OTA succeeded; native readback verifies11399_dualwake1 with compilation time
+2026-09-25 13:48:50 +0200. HA installed1.13.99 with backup. The stale HA update
+entity was refreshed explicitly before installation. App is running; Alpha remains
+ON; stored choice is hey_chat_hey_jarvis. Device exact-mask ACK confirms both.
+After one native hardware restart and automatic reconnect, a fresh ACK again
+confirms the pair; UI independently shows saved and device-confirmed pair. Existing
+moderate thresholds remain Hey Chat230/255 and Jarvis235/255. Observed inference
+transition reaches DETECTING_WAKE_WORD; no allocation/inference errors in the two
+bounded post-selection/post-restart observations. Benign already-running warning
+appeared during add-on reconnect before normal detector recovery. This is installation,
+selection and restart evidence, NOT acoustic recall, physical power unplug, golden
+chain, interruption or10/10 evidence. User asked to try each phrase from the kitchen.
+Artifacts: /private/tmp/pv-099-artifacts/. Room performance remains unaccepted;
+Hey Chat acoustic retraining/improvement remains open.
 
 
 ## Candidate — physical Alpha wake acknowledgement before native context ACK

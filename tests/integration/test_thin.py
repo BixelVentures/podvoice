@@ -6921,3 +6921,47 @@ async def test_quiet_ack_keeps_context_next_reply_then_close_and_stale_ack_after
         assert brain.connect_count == 2
     finally:
         await session.aclose()
+
+
+@pytest.mark.parametrize("active", [False, True])
+async def test_physical_button_starts_or_stops_without_claiming_wake_proof(active):
+    brain = FakeBrainSession()
+    session, _, device = _build(brain)
+    calls = []
+    device.wake_readiness = "recovered"
+
+    async def start(*args, **kwargs):
+        calls.append("start")
+
+    session.wake = start
+    session._request_close = lambda reason, **kwargs: calls.append(reason)
+    session._active = active
+    session._on_device_event(ROOM, SimpleNamespace(event_type="single_press"))
+    await asyncio.sleep(0)
+    assert calls == ["stop" if active else "start"]
+    assert device.wake_readiness == "recovered"
+
+
+@pytest.mark.parametrize("event", ["double_press", "triple_press"])
+async def test_multi_press_has_no_conversation_action(event):
+    session, _, _ = _build(FakeBrainSession())
+    calls = []
+    session._request_close = lambda reason, **kwargs: calls.append(reason)
+    session._active = True
+    session._on_device_event(ROOM, SimpleNamespace(event_type=event))
+    assert calls == []
+
+
+@pytest.mark.parametrize("flag", ["_closing", "_teardown_incomplete"])
+async def test_button_does_not_restart_during_teardown(flag):
+    session, _, _ = _build(FakeBrainSession())
+    setattr(session, flag, True)
+    calls = []
+
+    async def start(*args, **kwargs):
+        calls.append("start")
+
+    session.wake = start
+    session._on_device_event(ROOM, SimpleNamespace(event_type="single_press"))
+    await asyncio.sleep(0)
+    assert calls == []
