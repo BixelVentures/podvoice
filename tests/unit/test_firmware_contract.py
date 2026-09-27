@@ -26,7 +26,7 @@ def test_fresh_ha_package_fetches_podvoice_audio_without_local_copy():
     audio_source = next(
         block for block in active.split("  - source:") if "components: [podvoice_audio]" in block
     )
-    assert "ref: 4fe6f4612402b8f7ef4dd579132eca9abdcc1617" in audio_source
+    assert "ref: 26148b9f377e50978373eef7c9995ddd67d9c959" in audio_source
     assert "path: esphome/components" in external
     assert "refresh: 0s" in external
     assert "\n  - source: { type: local, path: components }" not in external
@@ -55,7 +55,7 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "continuous_rearm_v1" in overlay
     assert "physical_rearm_audio_progress_v1" in overlay
     assert "correlated_reset_rearm_v2" in overlay
-    assert "podvoice_build_113100_button1" in overlay
+    assert "podvoice_build_113103_buttonstop1" in overlay
     assert "podvoice_playback_events_v1" in overlay
     assert "action: podvoice_reply_play" in overlay
     assert "action: podvoice_reply_cancel" in overlay
@@ -185,10 +185,10 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
     assert "type: git" in stop_source
     assert "url: https://github.com/BixelVentures/podvoice" in stop_source
     assert "path: esphome/components" in stop_source
-    assert "ref: 4fe6f4612402b8f7ef4dd579132eca9abdcc1617" in stop_source
-    assert active.count("ref: 4fe6f4612402b8f7ef4dd579132eca9abdcc1617") == 3
+    assert "ref: 26148b9f377e50978373eef7c9995ddd67d9c959" in stop_source
+    assert active.count("ref: 26148b9f377e50978373eef7c9995ddd67d9c959") == 3
     observers = active.split("components: [mixer, resampler, speaker_source]", 1)[0]
-    assert "ref: 4fe6f4612402b8f7ef4dd579132eca9abdcc1617" in observers
+    assert "ref: 26148b9f377e50978373eef7c9995ddd67d9c959" in observers
     files = sorted(
         p
         for name in ("micro_wake_word", "podvoice_reply", "podvoice_audio")
@@ -201,7 +201,7 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
         for p in files
     )
     assert hashlib.sha256(manifest.encode()).hexdigest() == (
-        "70cf62883a326fc2a82df4f21344ceabef72b6005675bf58537d88a2d0ced577"
+        "06514887fdf6a4daeafba8946cce68df8d646a573cafb403d5ac9d7de202b558"
     )
 
 

@@ -4,7 +4,7 @@ packages:
   podvoice: !include podvoice.yaml
 
 substitutions:
-  podvoice_build_marker: podvoice_build_113100_livebutton1
+  podvoice_build_marker: podvoice_build_113103_livebuttonstop1
 
 esphome:
   build_path: .esphome/build/podvoice-pe-live-alpha

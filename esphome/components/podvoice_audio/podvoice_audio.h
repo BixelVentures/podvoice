@@ -109,6 +109,7 @@ class PodVoiceAudio : public Component {
 #endif
   void start_streaming();
   void stop_streaming();
+  void stop_from_button();  // Local latch; only rearm plus a fresh physical boundary releases it.
   // Provider replacement holds forwarding without stopping the shared physical mic.
   // Tokens increase strictly within a boot; an exact held retry is idempotent.
   bool hold_capture(uint32_t token);
@@ -175,6 +176,7 @@ class PodVoiceAudio : public Component {
   uint32_t audio_epoch_{1};
   bool boundary_consumed_{false};
   bool capture_held_{false};
+  bool button_stop_latched_{false};
   uint32_t capture_token_{0};
   uint32_t capture_last_token_{0};
   api::APIConnection *capture_client_{nullptr};

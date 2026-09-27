@@ -1,5 +1,37 @@
 # PodVoice-status — én aktuel sandhed
 
+## Active release decision — 1.13.103 physical button only
+
+Release scope: paired physical-button firmware and exact runtime firmware identity,
+based on installed .102. One active short press locally stops capture and assistant
+output; Thin remains the sole cleanup/rearm owner. Idle short press starts the saved
+mode; repeats during cleanup do nothing; active Stop also silences a ringing timer.
+No change to ThinSession, Live prompt, semantic ending, inactivity timing or model.
+
+The combined semantic candidate is PARKED in /private/tmp/pv-close-103 and is NOT
+part of this release. Actual Live trial03 recognized the question and Okay and
+stayed silent, but did not close during the bounded observation. Therefore no
+semantic/noise-timeout fix is claimed. Existing .102 LED and Connect fixes remain.
+Historical combined-candidate notes below are retained as evidence, not release
+approval. Its coupling marker was removed; the button-only diff requires its own
+independent scope review and frozen release gate before publication/installation.
+Independent button-only source/artifact review GO; exact coupling gate PASS.
+Frozen release gate PASS75.3s (unit75.00s, integration52.64s), plus100 targeted
+firmware/button/identity checks. No prompt/schema/Realtime change in this release.
+Paired OTA/source identity recorded below remains byte-identical and applicable.
+Physical button/next-wake acceptance remains pending; no 97/100 claim.
+
+Current consolidated work since 16:49 (27/9):
+- Noise blocking the four-second ordinary fallback: unresolved deterministic audio
+  distinction; parked semantic candidate failed to close in actual Live trial03; not released.
+- Contextual silent completion and safe quiet/drain: parked, NOT shipped in .103.
+- Physical button: idle single press starts; active single press must stop locally
+  immediately; repeats during cleanup ignored. Firmware correction source-reviewed and paired build passed; installation pending.
+- Actual-work LED: .102 published, main8581e16e; HA installation verified; running again after preflight preparation.
+- Connect Speakers 0.26.3 installed and Running, boot/watchdog ON; DNS-SD seen
+  17:54:13. Actual Spotify disappearance/recovery remains physically unproved.
+Robot-area naming and wake tuning remain parked per user scope.
+
 
 Panel verification caught stale cyan-only explanatory copy after the first freeze.
 Updated only its three descriptions to match the reviewed work-light behavior;
@@ -15,7 +47,116 @@ its existing approximately200ms brightness cycle, not a claimed calm pulse. Targ
 LED/native tests74PASS and existing Live/Talk115PASS. No idle/prompt fix in this
 release; background-noise fallback remains unresolved. Physical gate pending.
 
+Actual receipt preflight 01: one connection attempted; it ended with connection
+failure at 8019ms before LiveReady or input delivery. Clean local teardown; final
+usage unknown. Verdict UNKNOWN, not a model-policy failure or pass. Report is
+/private/tmp/pv-receipt-api-01/report.json; no room audio was used. HA was restarted
+and its Running status verified immediately afterwards. Do not release the prompt
+candidate on this result. Candidate full integration passes; full unit run found
+one stale firmware-marker assertion, now being corrected to the actual paired bits.
+
+Composite independent source/artifact review GO: all three source pins match
+26148b9, runtime/YAML markers match .103, and all four changed compiled C++ files
+match the reviewed bytes. Silent/spoken endings still have one Thin owner; local
+button Stop does not replace cleanup/rearm. Model and physical gates remain open.
+
+Actual receipt preflight 02 reached the provider, recognized the math question
+and Okay (numerals 2 rather than word form caused the strict automatic recognizer
+UNKNOWN), answered four, then delegated wait_for_user and spoke a checking preamble.
+No end_conversation occurred during the 45s observation. Clean shutdown and final
+usage complete; conservative cost0.052118USD. This is direct evidence against the
+candidate receipt behavior, not acceptance. The shared wait_for_user declaration
+still recommends waiting for a pure acknowledgment, contradicting the adapted Live
+prompt. Amend only Alpha's declaration to preserve uncertainty/open tasks but route
+contextual completion to silent end; make the silent-delegation exception explicit
+in the permitted-preamble rule. OFF declaration stays unchanged. Re-review and new
+bounded model trial required; no timeout/VAD change and no release on trial02.
+
+Actual receipt preflight 03: math and Okay recognized correctly, answer four,
+no extra spoken reply, but no semantic ending during the bounded observation.
+The prompt candidate therefore remains NOT TEST READY; do not publish it as a fix.
+Lead splits the independently reviewed local-button correction into .103 from the
+installed .102 baseline. Semantic prompt/quiet-flow changes remain in /private/tmp/pv-close-103
+and are not part of this button release. No rollback of installed LED or
+Connect fixes. Normal HA operation restored and Running verified after trial03.
+
 ## Active decision 27/9 — field idle noise and truthful Alpha work LED
+
+Receipt API01 diagnosis: UNKNOWN before LiveReady, no input delivered, no final
+provider usage. Thin's existing8s CONNECT_TIMEOUT_S cancels startup at8.019s;
+release evidence has client/manager but no reader, placing the unresolved await
+at WebSocket manager entry before session.start. DNS/ordinary HTTP availability
+does not prove this WebSocket path. Wall timestamps advance932.912s while monotonic
+elapsed advances8.019s; sleep/clock discontinuity is possible, not established.
+Existing runtime sanitized startup-stage diagnostics were lost because the wrapper
+did not attach provider_observer and disables logs. Minimal evaluator-only fix
+attaches that existing observer and prewarms the existing pure SDK import before
+timed wake, matching production bootstrap. An isolated fresh import measured0.782s;
+it is not proven to cause the trial timeout. Initial limits now truthfully45s/1
+start; no fixture is queued after failed readiness. No runtime timeout or protocol
+change, no retry loop. A deterministic cancelled WebSocket entry verifies retained
+stage/type and cleanup without credentials/network. API01 remains UNKNOWN; a fresh
+bounded trial requires parent review/final source identity and the exclusive window.
+
+Handoff browser compatibility checkpoint: first real Chrome submission was rejected
+before any provider run; production restart was requested. Reproduced in a separate
+Chrome tab using only a synthetic key: the old no-referrer policy sends Origin:null
+for a native form POST, which the exact-origin guard correctly rejects. Changed only
+the response policy to same-origin; exact Origin/Host/path checks remain mandatory.
+The same Chrome dummy flow then returned Accepted and the one-use helper exited.
+Added fixed allowlisted rejection codes without body/key/header values. No real
+credential, clipboard, HA tab or provider was accessed in this diagnosis. Native
+form behavior matches https://fetch.spec.whatwg.org/#append-a-request-origin-header .
+New source fingerprint27258633b28e0f27cf5b4a46a176e57495ec93b7db4148fe80d1e3495a96137c;
+fixture manifest unchanged. Parent re-review required before real handoff.
+
+Physical-button amendment: field session324067f8 receives single_press at76.844s
+and requests Stop at76.847s, but teardown/rearm completes around80.299s. Current
+firmware only emits the event; it has no local Stop action. Thin fences incoming
+work immediately but physical cancellation needs the native round trip, and the
+old listening/work LED persists until cleanup. Hypothesis: a firmware-local Stop
+latch at the active short release closes that boundary without replacing Thin.
+Reuse capture-held with invalid token0 to reject delayed start/hold/resume until
+existing authoritative rearm. Revoke reply admission, stop announcement/resampler,
+and retain the conversation latch; publish existing single_press for exactly one
+Thin cleanup. A dim white stopping indicator is not idle/readiness proof. Idle
+single press, amplifier boot, wake models/gain/VAD, spoken Stop and normal semantic
+close stay unchanged. Regression: delayed capture keepalive/resume, queued/stale
+announcement, duplicate press, teardown ACK and rearm/next generation; compile
+paired .103 source identity. Independent review before release/install. Rollback
+must restore the paired .100 firmware/.101 baseline, without inheriting proof.
+Implementation checkpoint: local button Stop now holds capture with token0,
+revokes reply admission and cancels announcement before publishing single_press.
+The mic's button latch survives rearm until a new physical begin, rejecting a late
+untagged keepalive while idle. Existing retired-token high-water and reply session
+nonce reject known stale rotation/announcement commands after next wake; an unseen
+old capture token is not generation-identifiable by the current token-only wire
+protocol and still relies on its ordered native command boundary plus Thin's
+cancellation fence. Active conversation Stop also takes precedence over a ringing timer and silences
+it; an idle timer-only press retains its previous behavior. Sixteen targeted
+regressions pass. Independent adversarial source review GO: eight additional
+button/rotation checks and two actual C++ harnesses PASS. The sole rotation owner
+is cancelled and joined before rearm; a failed join blocks opening_complete, and
+native commands sent earlier precede rearm on the ordered connection. Thus the
+unseen-token issue is not reachable in this supported owner chain; firmware alone
+is not claimed generation-proof. Source-only commit
+26148b9f377e50978373eef7c9995ddd67d9c959 is published for immutable pinning.
+Paired compile now PASS; physical Stop remains pending. An already in-flight LED write
+may briefly override the local stopping colour, without reopening mic/playback.
+
+Paired firmware checkpoint: all three immutable component pins now use reviewed
+26148b9f377e50978373eef7c9995ddd67d9c959; 19-file source manifest
+06514887fdf6a4daeafba8946cce68df8d646a573cafb403d5ac9d7de202b558.
+All 28 firmware contract/button/Stop tests pass. ESPHome2026.6.2 compiles the exact
+pinned Alpha configuration successfully (16.82s, config_hash0x68db26ce). All four
+changed generated C++ component files byte-match the reviewed source. Marker:
+podvoice_build_113103_livebuttonstop1. OTA3065024bytes SHA256
+ d98993c2b31565c4b7b5f230b3154a0cb0a6e61b9564fcce5c04c8226f4e572c.
+Artifact: /private/tmp/pv-firmware-0927-build/.esphome/.esphome/build/podvoice-pe-live-alpha/.pioenvs/podvoice-pe/firmware.ota.bin.
+Configuration: /private/tmp/pv-firmware-0927-build/podvoice-live-alpha.yaml;
+its existing private provisioning file is unchanged. No installation or physical
+Stop proof follows from this compile; parent retains release/install ownership.
+
 
 User reports .101 remains open; confirms only background sound while silent.
 Fresh automatic diagnostic session324067f8 (17:23:35) shows no semantic end,
@@ -45,6 +186,83 @@ must remain intact. Regression covers both generated prompts and guarded negativ
 contexts; existing Live eval/preflight must assess model behavior before release.
 This does not solve background-noise fallback without a contextual receipt, and
 does not establish physical success. Independent review required; rollback .101.
+
+Silent-close mechanical amendment: current Alpha _await_live_end bypasses the
+saved quiet/drain path for silent=true and requests immediate teardown after
+backend settlement. Silence controls spoken output; it must not bypass playback
+truth or the opportunity for a follow-up. Route both Alpha variants through the
+same _finish_live_conversation owner; OFF silent handling and physical Stop remain
+unchanged. Chain: validated tool -> terminal receipt -> four seconds consumed
+output quiet with no pending work -> provider close -> exact physical drain ->
+teardown/rearm. New accepted input/backend work, stale generation, Stop and queued
+nonzero audio must invalidate or block the old ending. Known residual: speech
+before its first provider transcript is not fully observed by receipt revisions.
+Regressions cover silent and spoken endings against noisy VAD, queued audio,
+correction and owner changes. Parent independently reviews this runtime delta.
+Implementation result: both Alpha variants now enter the same existing finish
+owner. Expanded native quiet/close and Thin tests pass, including silent four-second
+noisy-VAD closure, stale owner cancellation, corrections and queued nonzero audio.
+One old wire-contract test assumed immediate silent close; its isolated fixture now
+uses the existing explicit quiet-policy fixture and passes. Lint/diff checks pass.
+No model or physical success is inferred from these deterministic checks.
+
+Policy scope amendment (separate hypothesis from the observed Okay receipt):
+primary/backend may choose silent semantic completion only for a naturally
+completed exchange with only irrelevant background audio. This is not an end
+command after every answer. Preserve thinking pauses, open questions, approvals,
+uncompleted tasks, plain Stop and music-control conversations. No local intent
+parser, transcript-only timer or new acoustic threshold. Actual Live policy eval
+is required; deterministic receipt tests cannot prove model classification.
+Rollback remains .101 and physical noise/late-speech behavior remains unproved.
+
+Receipt implementation checkpoint: Live primary and adapted backend now permit
+that contextual silent end and retain the pending-dialogue/Stop exceptions. OFF
+prompt15 is unchanged. Generated-prompt contracts, the complete Thin Live suite,
+native idle/quiet-close suites, Ruff and diff checks PASS. These are deterministic
+instruction/mechanism checks, not model-behavior or physical proof. No local API key
+is available. Existing SafeEval runs Realtime, not GPT-Live; live_alpha_probe uses
+substitute prompts. scripts/live_confirmation_eval.py uses shipped Live prompts
+and Thin with synthetic audio, but currently has approval-only cases, so there is
+no ready receipt preflight command. Receipt model evaluation and independent
+review remain release blockers for this prompt candidate. The no-receipt noise
+fallback remains unresolved.
+
+Receipt preflight preparation: lead authorizes a bounded single-generation
+developer evaluator reusing existing ObservedLive, SyntheticCapture and real
+ThinSession. Synthetic Danish speech only: completed math → Okay; math → Okay
+with followup; plain Stop preserves conversation. No HA tools, room microphone,
+runtime patches or alternate conversation engine. Explicit fixture-pacing labels
+are not provider speech-completion events. Require correlated input/tool/close,
+final usage and cleanup; ambiguous timing/recognition remains UNKNOWN. New fixture
+bytes and candidate source hashes must be retained. A new private one-use localhost
+credential form may be prepared with exact origin/path checks and expiry, but must
+not start before independent parent review. Existing documented route uses the HA
+option directly into memory, never reports/chat/repo. Parent owns idle/version,
+exclusive provider window and production restart in finally. No physical proof.
+
+Preflight tooling checkpoint: scripts/live_receipt_eval.py reuses the existing
+real Thin/ObservedLive/SyntheticCapture adapters and adds only three fixed cases.
+scripts/live_receipt_handoff.py implements reviewed one-use loopback form, exact
+Origin/Host/path, 90s total admission, bounded reads and source/manifest checks
+before admission and child start. It stores no key on disk or in reports. Synthetic
+Sara fixtures in /private/tmp/pv-receipt-fixtures-0927-v2 are nonempty and validated;
+sandbox speech yielded empty PCM and was isolated by authorized system speech
+access, with no runtime patch. Four localhost tests verify one-use, rejected
+origin, incomplete body expiry and trickled-header expiry; no real key/provider.
+Assessor requires matching current-generation settled semantic decision and rejects
+missing/old output intervals. Verdict is model_policy_only; saved audio requires
+independent listening. SyntheticCapture lacks native observations, so physical
+quiet/close is explicitly UNTESTED and cleanup is local after policy observation.
+Limits: one connection, 45s observation +15s cleanup +5s hard deadline, four backend
+responses, no HA declarations, no blind retry. Final provider usage is required;
+conservative cost accounting rejects missing usage or >$5. This is an operational
+bound, not a provider-side monetary cutoff. Official pricing checked27/9:
+https://developers.openai.com/api/docs/pricing and
+https://developers.openai.com/api/docs/models/gpt-5.6-luna .
+Fingerprint f9c7eb7c12af430e6e7fd7064dbac1b8ac5d62d4ae2e322c70efd1b45dcee672
+includes runtime Python, version files and all three evaluator/helper scripts.
+Fixture manifest cc52ecfc7ec91f85b992becb2920f50af54737d1e92ffc751986c0db1b13ddf2.
+No actual provider trial or credential handoff has started at this checkpoint.
 
 LED candidate: existing Alpha override makes known backend/tool work cyan. Show
 existing amber THINKING appearance while response/batch/tool/continuation work is
@@ -9207,3 +9425,18 @@ Derefter følger 7-døgns stabilitet og den målte Gemini/Alexa-sammenligning.
 Latency og feedback må ikke udvikles i samme kandidat: først måles og låses den hurtige
 baseline, derefter tilføjes feedback som en separat, fuldt reversibel feature. Fuld
 duplex, barge-in og nye motorer er ikke en del af denne rækkefølge.
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "8581e16e4f0f60dd49f4046a0a019bb13dbbb70d",
+  "merge_base": "8581e16e4f0f60dd49f4046a0a019bb13dbbb70d",
+  "domains": [
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "49318dcdb8300456395105c6768c2a9192ba47613f85c574c58f780960800667",
+  "reviewer": "connect_recovery independent adversarial review",
+  "rationale": "Button-only local Stop boundary: physical short release latches microphone capture, revokes reply admission and stops local announcement before publishing the existing event to the sole ThinSession cleanup/rearm owner. Reviewed immutable component26148b9 and paired103 runtime/YAML identities match the compiled firmware. Prior independent review covered stale playback, repeated presses, timer precedence and cancellation-resistant rotation joins before rearm. ThinSession, Live prompts and evaluation scripts are byte-identical to installed102; failed semantic candidate is excluded. This exact software coupling does not claim physical button or lifecycle acceptance."
+}
+-->

@@ -102,12 +102,22 @@ class PodVoiceReply : public Component {
     if (state_.phase == ReplyState::STOPPED) { publish_(state_.word ? "stopped_word" : "stopped"); return; }
     stop_();
   }
+  bool button_stop_latched() const { return button_stop_latched_; }
+  void stop_from_button() {
+    if (button_stop_latched_) return;
+    button_stop_latched_ = true;
+    context_.stop_from_button(); request_context_();
+    state_.cancel(state_.token, false);
+    state_.blocked = true;
+    stop_();
+  }
   bool ready_to_rearm() const {
     return !context_.playback_allowed && !(context_.command & 1) && detector_->stop_context_ack() == context_.command &&
       (state_.phase == ReplyState::IDLE || state_.phase == ReplyState::STOPPED);
   }
   bool ready_after_restart() const { return ready_to_rearm() && !detector_->stop_context_fault(); }
   void rearmed() {
+    button_stop_latched_ = false;
     state_.reset(); context_.clear(); timer_suspended_ = false; idle_fault_ = false;
     context_.timer(timer_required_ && !muted_); request_context_();
   }
@@ -254,6 +264,7 @@ class PodVoiceReply : public Component {
   text_sensor::TextSensor *activity_status_{nullptr};
   uint32_t activity_sequence_{0}, activity_report_ms_{0}, activity_input_floor_{0}, activity_input_seen_{0};
 #endif
+  bool button_stop_latched_{false};
   ReplyState state_;
   StopContext context_;
   Trigger<> timer_stop_trigger_;

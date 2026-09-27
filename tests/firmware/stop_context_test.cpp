@@ -46,7 +46,15 @@ int main() {
   assert(!context.set_live("session-C", 1)); // old pending admission cannot cross close generation
   assert(!context.admits("session-C", 2));
   assert(context.set_live("session-C", 3)); // controlled provider rotation preserves firmware context
+  assert(context.stop_from_button());
+  assert(!context.stop_from_button()); // repeated press never starts another lifecycle
+  assert(!context.admits("session-C", 3));
+  assert(!context.set_live("session-C", 4)); // delayed Live admission after button
+  assert(!context.set("session-C", 4, true)); // delayed OFF admission after button
+  assert(context.set("session-C", 4, false)); // cleanup remains admitted
   context.clear(); assert(context.begin("session-D"));
+  assert(!context.set_live("session-C", 5)); // old generation after next wake
+  assert(!context.admits("session-C", 3));
   assert(context.set("session-D", 1, true));
   assert(context.set("session-D", 2, false));
   assert(context.set("session-D", 3, true)); // OFF rearm remains unchanged

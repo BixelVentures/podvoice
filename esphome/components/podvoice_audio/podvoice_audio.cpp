@@ -105,6 +105,7 @@ bool PodVoiceAudio::begin_conversation(micro_wake_word::WakeAudioPosition bounda
     auto *va = voice_assistant::global_voice_assistant;
     this->wake_reference_client_ = va == nullptr ? nullptr : va->get_api_connection();
 #endif
+    this->button_stop_latched_ = false;
     this->boundary_consumed_ = true;
     this->user_enabled_ = true;
     this->last_keepalive_ms_ = millis();
@@ -278,6 +279,7 @@ bool PodVoiceAudio::begin_button_conversation() {
 #ifdef USE_PODVOICE_WAKE_REFERENCE
   this->clear_wake_snapshot_();
 #endif
+  this->button_stop_latched_ = false;
   this->boundary_consumed_ = true;
   this->user_enabled_ = true;
   this->last_keepalive_ms_ = millis();
@@ -288,7 +290,7 @@ void PodVoiceAudio::start_streaming() {
   // Idempotent enable/keepalive. Never reset here: the add-on calls this again while
   // the session is live, and doing so would cut words out of an active utterance.
   std::lock_guard<std::mutex> lock(this->audio_mutex_);
-  if (this->capture_held_)
+  if (this->capture_held_ || this->button_stop_latched_)
     return;
   this->user_enabled_ = true;
   this->last_keepalive_ms_ = millis();
@@ -310,12 +312,23 @@ void PodVoiceAudio::stop_streaming() {
     this->ring_buffer_->reset();
 }
 
+void PodVoiceAudio::stop_from_button() {
+  {
+    std::lock_guard<std::mutex> lock(this->audio_mutex_);
+    this->button_stop_latched_ = true;
+    this->capture_held_ = true;
+    this->capture_token_ = 0;  // No in-flight provider rotation may resume this hold.
+    this->capture_client_ = nullptr;
+  }
+  this->stop_streaming();
+}
+
 bool PodVoiceAudio::hold_capture(uint32_t token) {
 #ifdef USE_VOICE_ASSISTANT
   auto *va = voice_assistant::global_voice_assistant;
   auto *client = va != nullptr ? va->get_api_connection() : nullptr;
   std::lock_guard<std::mutex> lock(this->audio_mutex_);
-  if (token == 0 || token > 0x7FFFFFFF || client == nullptr || this->ring_buffer_ == nullptr)
+  if (this->button_stop_latched_ || token == 0 || token > 0x7FFFFFFF || client == nullptr || this->ring_buffer_ == nullptr)
     return false;
   if (this->capture_held_)
     return token == this->capture_token_ && client == this->capture_client_;
@@ -344,7 +357,7 @@ bool PodVoiceAudio::resume_capture(uint32_t token) {
   auto *va = voice_assistant::global_voice_assistant;
   auto *client = va != nullptr ? va->get_api_connection() : nullptr;
   std::lock_guard<std::mutex> lock(this->audio_mutex_);
-  if (!this->capture_held_ || token == 0 || token != this->capture_token_ ||
+  if (this->button_stop_latched_ || !this->capture_held_ || token == 0 || token != this->capture_token_ ||
       client == nullptr || client != this->capture_client_)
     return false;
   if (this->ring_buffer_ != nullptr)
