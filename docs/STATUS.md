@@ -1,6 +1,10 @@
 # PodVoice-status — én aktuel sandhed
 
 
+Panel verification caught stale cyan-only explanatory copy after the first freeze.
+Updated only its three descriptions to match the reviewed work-light behavior;
+no UI lifecycle logic changed. Final frozen release gate PASS76.3s (unit75.90s, integration51.72s) includes this correction.
+
 LED1.13.102 gates: full fast PASS74.7s; frozen release PASS72.3s, unit71.94s
 and integration51.68s. First sandbox fast failed local server binds with explicit
 PermissionError; permitted local-port rerun passed without a runtime patch.
