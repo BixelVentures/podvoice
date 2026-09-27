@@ -3155,21 +3155,38 @@ class ThinSession:
             # its existing bounded policy until its own observer proves that edge.
             await asyncio.sleep(LIVE_CLOSE_GRACE_S)
         else:
-            while (
-                self._active
-                and self._epoch == epoch
-                and self.brain._connection_generation == generation
-                and self._live_input_revision == revision
-                and not self._transport_closing
-                and self._live_end_receipt is receipt
-            ):
-                if not self.brain.terminal_receipt_current(receipt):
-                    self._ending_conversation = False
-                    return
-                if self._live_quiet_ready(semantic=True):
-                    break
-                await asyncio.sleep(HEARTBEAT_S)
-            else:
+            try:
+                # A semantic intent must not wait forever for missing physical
+                # evidence. Expiry is an abnormal close, never proof of silence.
+                async with asyncio.timeout(self.idle_timeout_s + self.brain.timeout_s):
+                    while (
+                        self._active
+                        and self._epoch == epoch
+                        and self.brain._connection_generation == generation
+                        and self._live_input_revision == revision
+                        and not self._transport_closing
+                        and self._live_end_receipt is receipt
+                    ):
+                        if not self.brain.terminal_receipt_current(receipt):
+                            self._ending_conversation = False
+                            return
+                        if self._live_quiet_ready(semantic=True):
+                            break
+                        await asyncio.sleep(HEARTBEAT_S)
+                    else:
+                        return
+            except TimeoutError:
+                if (
+                    self._active
+                    and self._epoch == epoch
+                    and self.brain._connection_generation == generation
+                    and self._live_input_revision == revision
+                    and not self._transport_closing
+                    and not self._live_finalizing
+                    and self._live_end_receipt is receipt
+                    and self.brain.terminal_receipt_current(receipt)
+                ):
+                    self._request_close("live-semantic-drain-unconfirmed", error_kind="device")
                 return
         if (
             self._live_input_revision != revision
@@ -3202,6 +3219,7 @@ class ThinSession:
         # No suspension between the final currentness check and close ownership.
         self._live_finalizing = True
         generation = self.brain._connection_generation
+        failure_reason, failure_kind = "live-finalization-failed", "connection"
         try:
             await self.brain.request_close()
             await asyncio.wait_for(self._live_provider_closed.wait(), 15.0)
@@ -3215,6 +3233,7 @@ class ThinSession:
             if self._live_webrtc:
                 self._request_close("live-browser-drain-unconfirmed")
                 return
+            failure_reason, failure_kind = "live-drain-failed", "device"
             if self._live_stream is not None:
                 self._live_stream.finish()
             lease = self._playback_lease
@@ -3235,7 +3254,7 @@ class ThinSession:
             raise
         except Exception:
             if self._active and self._epoch == epoch and not self._transport_closing:
-                self._request_close("live-drain-failed", error_kind="device")
+                self._request_close(failure_reason, error_kind=failure_kind)
 
     async def _submit_live_text(self, text: str, command_id: str) -> dict:
         """Thin accepts the command; Live exposes no separate item-accepted ACK."""

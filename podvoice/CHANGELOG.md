@@ -1,3 +1,9 @@
+## 1.13.101
+
+- Bound the semantic-farewell wait for physical quiet. If quiet cannot be confirmed within the saved quiet interval plus the existing provider timeout, close through the shared error path rather than waiting indefinitely.
+- Distinguish failed provider finalization from failed physical playback drain. Neither is reported as a successful farewell.
+- Preserve new-input, Stop and generation fencing, the four-second inactivity setting and existing firmware. No promise of faster or physically proven farewell delivery.
+
 ## 1.13.99
 
 - Add Hey Chat + Hey Jarvis as a persistent wake choice, confirmed against the actual enabled firmware models. Both phrases use one conversation latch.
