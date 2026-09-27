@@ -386,7 +386,8 @@ async def test_change_during_target_preparation_prevents_side_effect(interrupt):
 
 
 @pytest.mark.asyncio
-async def test_provider_finalization_waits_for_matching_physical_finish(monkeypatch):
+@pytest.mark.parametrize("silent", [False, True])
+async def test_provider_finalization_waits_for_matching_physical_finish(monkeypatch, silent):
     monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0)
     session, sdk, _, _, link = build()
     quiet_policy_fixture(session, monkeypatch)
@@ -397,7 +398,12 @@ async def test_provider_finalization_waits_for_matching_physical_finish(monkeypa
         await session._on_live_event(LiveAudioChunk(b"\x01\x00" * 1920, generation))
         await until(lambda: session._device_playing)
         lease = session._playback_lease
-        await emit(sdk, created(), call(name="end_conversation", arguments="{}"), terminal())
+        await emit(
+            sdk,
+            created(),
+            call(name="end_conversation", arguments='{"silent":true}' if silent else "{}"),
+            terminal(),
+        )
         await until(lambda: sdk.response.create.await_count == 1)
         await emit(sdk, created("r2"), terminal("r2"))
         await asyncio.wait_for(session._live_provider_closed.wait(), 1)
@@ -750,7 +756,7 @@ async def propose_end(session, sdk, *, silent=False):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("silent", [False, True])
 async def test_end_requires_actual_zero_call_continuation_before_grace(monkeypatch, silent):
-    monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 60 if silent else 0.05)
+    monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.05)
     session, sdk, _, _, link = build()
     quiet_policy_fixture(session, monkeypatch)
     await session.start()
@@ -774,8 +780,7 @@ async def test_end_requires_actual_zero_call_continuation_before_grace(monkeypat
         await emit(sdk, terminal("r2"))
         await until(receipt.done)
         assert receipt.result() is True
-        if not silent:
-            assert sdk.session.close.await_count == 0  # Grace starts at settlement.
+        assert sdk.session.close.await_count == 0  # Both variants wait after settlement.
         await until(lambda: link.rearm_calls == 1)
         assert sdk.session.close.await_count == 1 and not session._active
     finally:
@@ -785,14 +790,17 @@ async def test_end_requires_actual_zero_call_continuation_before_grace(monkeypat
 @pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["settlement", "grace"])
 @pytest.mark.parametrize("source", ["voice", "typed"])
-async def test_correction_cancels_end_during_settlement_or_grace(monkeypatch, phase, source):
+@pytest.mark.parametrize("silent", [False, True])
+async def test_correction_cancels_end_during_settlement_or_grace(
+    monkeypatch, phase, source, silent
+):
     monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.06)
     session, sdk, _, _, link = build()
     quiet_policy_fixture(session, monkeypatch)
     await session.start()
     try:
         await session.wake()
-        receipt = await propose_end(session, sdk)
+        receipt = await propose_end(session, sdk, silent=silent)
         if phase == "grace":
             await emit(sdk, created("r2"), terminal("r2"))
             await until(receipt.done)
@@ -838,14 +846,15 @@ async def test_continuation_with_more_tools_releases_end_and_dispatches():
 
 
 @pytest.mark.asyncio
-async def test_stop_during_terminal_wait_rejects_late_completion_after_fresh_wake():
+@pytest.mark.parametrize("silent", [False, True])
+async def test_stop_during_terminal_wait_rejects_late_completion_after_fresh_wake(silent):
     session, sdk, _, _, link = build()
     await session.start()
     try:
         await session.wake()
         brain = session.brain
         generation = brain._connection_generation
-        receipt = await propose_end(session, sdk)
+        receipt = await propose_end(session, sdk, silent=silent)
         await session.stop()
         assert receipt.cancelled() and link.rearm_calls == 1
         fresh = SDK()
@@ -1411,8 +1420,12 @@ async def test_reconsider_overflow_never_truncates_final_correction_into_a_revie
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("name", ["end_conversation", "wait_for_user"])
-async def test_reconsider_lifecycle_result_and_continuation_keep_actual_review_wire(name):
+async def test_reconsider_lifecycle_result_and_continuation_keep_actual_review_wire(
+    name, monkeypatch
+):
     session, sdk, tools, link, cleanup = await reconsider_fixture()
+    monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.01)
+    quiet_policy_fixture(session, monkeypatch)
     try:
         await fresh_confirmation_input(session, sdk, "Tak")
         await emit(sdk, created("original"))

@@ -3135,10 +3135,9 @@ class ThinSession:
                 self._ending_conversation = False
                 return  # Further backend tools remain owned by ordinary dispatch.
             self._trace_event("live_terminal_backend_settled", provider_generation=generation)
-            if silent:
-                self._request_close("model-close-silent")
-            else:
-                await self._finish_live_conversation(epoch, receipt)
+            # Silent means no new farewell, not permission to discard existing
+            # output. Both semantic variants retain the same quiet/drain owner.
+            await self._finish_live_conversation(epoch, receipt)
         except asyncio.CancelledError:
             receipt.cancel()
             raise
