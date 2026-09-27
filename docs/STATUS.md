@@ -1,6 +1,269 @@
 # PodVoice-status — én aktuel sandhed
 
+## Kodeplan 27/9 — robust Alpha-afslutning (plan, ikke implementeret)
+
+Implementeringsstatus 1.13.105-kandidat: NativeIdleShadow er koblet på løbende
+metadata og har ingen kontrolauthority; fejl inklusive cancellation er isoleret
+fra real idle/end-vinduer. Uafhængig review fandt og fik rettet ophobet arrival lag
+og cancellation-isolation. Kandidat1 source review GO; fysisk ingen ny prøve,
+Voice PE er bevidst uden strøm. Firmware .103, LED og Stop ændres ikke.
+
+Review/gates: uafhængig source-GO for kandidat1 og dormant kandidat2; ingen åbne
+P0/P1. Første frozen releasekørsel bestod scope/lint/format, men mypy fandt otte
+typingfejl og afbrød testarbejderne. Kun annotations/ækvivalente None-guards rettet;
+fuld mypy54 PASS, berørt lint/format PASS. De afbrudte fulde unit/integration-stages
+blev derefter afsluttet én gang: unit72.82s PASS, integration53.88s PASS. Ikke en
+påstand om første releasekørsel bestået. Ingen SafeEval: prompt/schema/provider-
+semantik uændret. Endelig live_idle SHA256
+95ad8c2b306e134a67fe27d8b6e0ddf256bd343bd9c62b209760dd725176ea1e;
+dormant policy SHA2564f541aec49161e3f467630c1df0dce1b7032f57beeb88ccd752b494e44b6ea14.
+
+Kandidat2 er kodet som `live_input_policy.py` med tests, men er IKKE importeret
+eller instantieret i runtime og er desuden disabled som standard. Den er en
+mekanisk forberedelse, ikke en færdig tale/støjklassifikator eller en UI-toggle.
+Aktivering kræver fortsat kandidat1-evidens, valideret verdict-kilde og separat
+reviewet integration. Et forsinket relevant verdict starter konservativt sin
+idleperiode ved modtagelse; denne ekstra forsinkelse skal måles/justeres før
+aktivering. Ingen fysisk97/100-, timeoutfix- eller funktionsparitetspåstand.
+
+Udførelsesjustering efter brugerens godkendelse: kandidat1 kodes og kandidat2s
+deterministiske input/timeoutpolicy forberedes nu, men kandidat2 forbliver helt
+deaktiveret. Ingen model/detektor vælges på gæt. Den forberedte policy accepterer
+kun eksakt intervalbundne verdicts, har ukendt/fault som særskilte udfald og kan
+ikke give close-tilladelse uden friskt output/workbevis. Aktivering kræver stadig
+den aftalte feltgate og et målt usikkerhedsbudget. Tests med kunstige verdicts
+beviser kun mekanik, ikke dansk inputklassifikation.
+
+Plan review er godkendt; ingen 97/100-score tildeles før PRODUKTMÅLs obligatoriske
+beviser. Implementering af støjklassifikation
+er betinget af nedenstående evidensgate. Lead ejer én retning i ThinSession.
+
+### 1. Fast kontrakt og mindste ændringsflade
+
+- `podvoice/gatekeeper/live_idle.py`: adskil frisk, sammenhængende observation af
+  forbrugt assistant-output fra inputrelevans. Bevar kildeidentitet, sekvens,
+  counter-wrap, gaps, freshness og manglende-dræn-fejl. Ingen falsk audio-done.
+- `podvoice/gatekeeper/thin.py`: ejer aktivitetsbeslutning, idle-anker, foreløbig
+  inputbeskyttelse, semantisk anmodning og én endelig close-transaktion. Udvid de
+  eksisterende `_observe_live_quiet`, `_live_quiet_ready`, `_await_live_end`,
+  `_finish_live_conversation` og `_finalize_live_conversation`; ingen ny motor.
+- `voicepe.py`: leverer observationer med aktuel session/generation og kildetid.
+  Firmware ændres kun hvis en nødvendig eksisterende DSP-observation ikke er
+  tilgængelig. Ingen samtidige gain-/wake-/VAD-tuninger.
+- `openai_live.py`: bevar rå inputsekvens, providerhændelser og terminal receipts.
+  En separat idle-policy revision må IKKE ændre samtykke, tool-authorisation eller
+  freshness af semantiske receipts. Nye rå input gør gamle receipts ugyldige også
+  når en hjælpedetektor senere vurderer input som baggrund.
+- `talk.py` og browseradapter: samme lifecycle-kontrakt, men eget input/outputbevis.
+  WebRTC-sporets slutning er ikke fysisk render-dræn. Manglende bevis giver bounded,
+  eksplicit ubekræftet afslutning; ingen påstand om Voice PE/Talk-paritet uden test.
+
+### 2. Inputbeslutning uden at flytte samtaleforståelsen
+
+Observationer skal kunne skelne: relevant tale, dokumenteret baggrund, foreløbig
+tale og ukendt. Hver vurdering bindes til audiointerval, session, generation,
+sekvens, kildetid, friskhed og kilde/version; sene svar kan ikke ændre næste session.
+VAD-onset beskytter omgående mod close, før en transcript kan nå frem. Relevant
+tale nulstiller idle-perioden. Valideret baggrund ophæver den foreløbige blokering
+uden at starte fire sekunder forfra. Ukendt er aldrig automatisk baggrund.
+Gentagne rå VAD-events må ikke forlænge samme uafklarede episode uendeligt.
+En baggrundsafgørelse frigiver kun sit dækkede audiointerval; nyere onset og
+uklassificeret hale forbliver beskyttet, også når tale starter under konstant støj.
+Foreløbig onset-beskyttelse gælder både semantic og inactivity-close.
+
+Aktiv kandidat1, 27/9: bruger har godkendt udførelse. Lead fastholder invariants om
+én ThinSession, frisk/native playback-identitet, uændret input/tool-autorisation og
+ingen fabrikeret providerhændelse. Falsificerbar hypotese: samme friske observationer
+kan bevise roligt forbrugt output, mens ordinary idle resettes af input_not_quiet.
+Implementer en output-only shadowmåling i eksisterende idlemodul og content-free
+løbende diagnose; den må aldrig kalde close eller ændre kontrolvinduet. Ikke-mål:
+ingen klassifikation, VAD/gain/promptændring eller aktiveret ny timeout i kandidat1.
+Regressioner: aktiv input + nuloutput; stale/gap/new owner; diagnostikexception;
+ingen ændret normal close/Stop/OFF. Rollback: fjern observer-hook uden runtimepolicy-
+ændring. Fysisk gate fortsat ubestået. Uafhængig reviewer har GO for shadowplanen,
+men kandidat2 er lukket indtil lydgrundlag og klassifikation er valideret.
+
+Før kontrol aktiveres: sammenlign eksisterende feltlyd og VAD/outputevents. Hvis
+årsagen er ikke-tale, evaluer eksisterende tale/støjdetektor på den faktiske DSP-
+lyd. Hvis årsagen er andre stemmer, kræves kontekstuel addressedness-vurdering,
+ikke blot en ny VAD. Dette er en eksplicit semantisk kontraktbeslutning før kode:
+hjælperen må kun levere input til inactivity, aldrig hensigt, værktøjsvalg eller
+afslutningshensigt. Dansk, svartid, ressourceforbrug og fejl skal måles. Første
+kørsel er shadow-only på autoriserede eksisterende optagelser; ingen ekstra rå
+lydretention/cloudoverførsel introduceres stiltiende. Blokeret optagelsesadgang
+omgås ikke; uden lydgrundlag frigives ingen akustisk rettelse.
+
+### 3. To tidsforløb og ét commitpunkt
+
+UI-værdien (nu fire sekunder) er samtalens inactivityperiode, fra seneste relevante
+input er afsluttet OG observeret assistant-output/krævet arbejde er roligt. Aktiv
+assistant-output, værktøjer, backend, åbning og relevante bekræftelser forhindrer
+normal close. Efter nyt arbejde starter en hel ny periode. Efter valideret baggrund
+kan den eksisterende periode fortsætte, kun med bevaret sammenhængende outputbevis.
+En inputepisode uden afgørelse har separat bounded fejlhåndtering; dens grænse
+vælges fra målt observation/klassifikationsforsinkelse før aktivering. Udløb er en
+synlig fejl/recovery, ikke en vellykket firesekunders timeout eller påstået stilhed.
+
+Semantisk end kan være stille eller med tale. Eksisterende outputbeskyttelse
+bevares, indtil en erstatning er bevist; fjern ikke quiet-vinduet på et backend-
+receipt alene. Idle-fallback må ikke starte endnu et helt idle-vindue i finalizer.
+Ny input før commit annullerer pending close. Den sidste generation/input/work/
+outputkontrol og ejerskabsovertagelse sker uden await. Efter afsendt provider.close
+kan forbindelsen ikke genåbnes ved at annullere en task: gamle resultater afvises,
+teardown/rearm fuldføres, og næste wake/tryk åbner ny session. Ingen automatisk
+videresendelse af afklippet input til næste session uden særskilt godkendt kontrakt.
+
+Normal finalisering beholder provider.close → provider.closed → stream.finish →
+identitetsbundet fysisk playback_finished → teardown/rearm. Fysisk/panel-Stop
+bruger straks cancel-vejen og venter aldrig på klassifikation eller normal drain.
+Allerede udførte handlinger gentages eller tilbagerulles ikke af lifecycle.
+
+### 4. Tre reviewbare kandidater
+
+1. Evidens + inputobservation i shadow-mode. Genbrug løbende diagnose og log kun
+   beslutningsårsag/tider/identitet: idle startet, beskyttet, nulstillet, genoptaget,
+   semantic requested, close committed, drain confirmed/unconfirmed, rearmed.
+   Leverance: årsagsklassifikation og målte fejl/latens for valgt signal; ingen
+   ændret lukkebeslutning endnu.
+2. Valideret inputpolicy + timeout. Integrer kun vindende signal i eksisterende
+   Thin/idle-kæde. Fysisk Stop/OFF uændret. Replay skal vise både at feltets
+   never-close forsvinder og at lav/ny rigtig tale ikke klippes.
+3. Samlet semantic/drain/Talk-kontrakt. Promptændring kun hvis konkret regression
+   kræver den; tidligere mislykkede reassessment-prompts må ikke genbruges som
+   bevist mekanisme. Ingen ny obligatorisk farvelsætning eller fast nøgleordsliste.
+
+### 5. Regressioner, release og stopregel
+
+Udvid eksisterende `tests/unit/test_live_idle.py`,
+`tests/unit/test_voicepe_activity.py`, `tests/integration/test_thin_live_idle.py`,
+`test_thin_live_quiet_close.py`, `test_thin_live.py` og relevante Talk/Stop-tests.
+Matrix: quiet room, VAD-noise bursts/continuous activity, TV/music, echo, low speech,
+ack uden assistantsvar, lange tænke-/værktøjspauser, speech ved deadline, input før
+og efter commit, stale/duplicate/out-of-order observations/classifier results,
+generation switch, Stop i hver fase, manglende provider.closed/playback finish.
+Bevis intet dobbelt værktøj, ingen stale lyd, én close/rearm og fungerende næste wake.
+
+Uafhængig adversarial review før frozen diff; relevante fast/lifecycle-gates i
+usynkroniseret clone og én releasegate efter freeze. SafeEval kun hvis prompt,
+schema, tools eller providersemantik ændres. Samme releaseartifact skal gennem
+frisk fysisk golden chain og 10/10 ubrudt lifecycle (naturlig og idle-afslutning),
+ON/OFF-regression og målrettede støj/afbrydelsescases. Rapportér false-close,
+never-close, fysisk tid til IDLE, clipping og uafklarede afslutninger separat.
+Release/install er ikke fysisk accept. Rollback aktiveres ved ny clipping,
+selvafbrydelse, ubegrundet close eller rearmfejl; OFF og eksisterende firmware
+bevares som sammenligningsvej. Kan inputrelevans ikke valideres, stoppes kandidat2;
+der sættes ikke blot en hård timeout hen over mulig rigtig tale.
+
+## Research 27/9 — full-duplex completion and inactivity (no runtime change)
+
+User requested completed research, not another prompt-only attempt. Current field
+trace proves native input activity repeatedly resets the idle window after assistant
+output/work are quiet; it does not identify whether the sound is noise or irrelevant
+speech. Two primary reassessment experiments produced no end delegation. Neither
+result establishes that all semantic approaches are impossible.
+
+Primary-source findings:
+- OpenAI explicitly assigns inactivity policy to the application, using audio,
+  playback and application activity. Transcript gaps are not silence. Append ACKs
+  confirm context delivery, not completion assessment. Live exposes no output-audio-
+  done event: https://developers.openai.com/api/docs/guides/live-conversations
+- LiveKit separates user-away detection from application shutdown:
+  https://docs.livekit.io/agents/logic/sessions/
+- Smart Turn predicts a completed USER TURN after VAD pause; it is not a session-end
+  or device-directedness classifier:
+  https://github.com/pipecat-ai/docs/blob/main/api-reference/server/utilities/turn-detection/smart-turn-overview.mdx
+- Alexa research combines context and acoustic/recognition evidence to distinguish
+  device-directed speech from other voices. It supplies a design principle, not a
+  ready Danish Voice PE classifier:
+  https://www.amazon.science/blog/how-alexa-knows-when-youre-talking-to-her
+- Follow-up DDSD research supports context plus ASR uncertainty, but its published
+  error tradeoff is not household acceptance or a deployable guarantee:
+  https://arxiv.org/abs/2411.00023
+
+Recommended boundary, not yet implemented: ThinSession owns one close operation.
+Physical Stop has priority. Semantic completion may request quiet closure without
+mandatory farewell; new relevant input revokes a pending close. Ordinary inactivity
+uses the saved UI interval after actual output/work settle, with relevant input
+resetting it. Acoustic activity is a provisional protection signal, not indefinite
+proof of addressed interaction. Unknown observations must not be treated as silence.
+The latter requires a validated classifier or explicit bounded uncertainty policy;
+it must not be smuggled in as a VAD threshold change.
+
+Remaining empirical research, in order:
+1. Compare native VAD, DSP microphone audio, output reference and timeline for the
+   known field interval. Determine non-speech false activity versus real unrelated
+   speech versus echo. Current recording download restriction prevents that acoustic
+   conclusion; existing logs alone cannot supply it.
+2. Evaluate an existing speech/noise detector only if non-speech is the cause. If
+   unrelated speech is the cause, evaluate contextual addressedness instead. Neither
+   detector may own tool authorization or replace Live conversation ownership.
+3. Specify provisional speech protection before transcript arrival, classifier
+   uncertainty/failure, and late-input cancellation. A text-only observer cannot
+   guarantee protection of new speech before its transcript arrives.
+4. Evaluate semantic end and inactivity separately on silent acknowledgments,
+   thinking pauses, low speech, TV/music, echo, long replies, pending tools and late
+   corrections. Report false closures, never-closures, physical close delay and
+   clipped speech separately; no arbitrary aggregate 97/100 acceptance claim.
+5. Keep inactivity duration separate from bounded teardown cleanup. Do not add a
+   second full four-second window after the first expires. Strict four-second
+   closure and unlimited protection of unobservable silent thinking cannot both be
+   guaranteed; this is a policy tradeoff, not another hidden timeout constant.
+
+No new engine/framework migration is justified by these sources. No firmware,
+prompt, gain, VAD, timeout, runtime or installed artifact changed for this research.
+
 ## Active decision 27/9 — close ownership audit after installed103
+
+Installation verified: HA installed/latest1.13.104, backup enabled. .103 firmware
+unchanged. App Running verified before coherent model trial; physical Voice PE was
+offline, so no physical acceptance claim.
+
+Coherent primary reassessment trial02 /private/tmp/pv-primary-reassessment-api-02:
+reviewed parked primary/backend/Live-only end+wait policies align; source fingerprint
+dd07418db6ed38910517f4bbfa956c0135b56dc0a12592bd482b6d36392b48bf.
+FAIL again: recognized/timingtrue, one request+matchingACK, zero backend/endcalls,
+no runtimefault, clean shutdown, usagecomplete, cost0.035USD conservative. Request
+14.060s, ACK14.751s; no decision by45s. The extra one-shot primary steering has not
+proved effective even with coherent policy; do not install or repeat payload.
+Negative scenarios are not run because positive efficacy failed. Source/model
+policy-only evidence cannot resolve noisy-room activity or physical closure.
+Production restarted immediately after trial: HA Running verified; fresh panel
+v1.13.104 statuslive and GPT-Live Alpha checkbox checked. Physical Voice PE remains
+unverified/offline; no claim that noisy-room timeout or absent delegation is fixed.
+
+Publication: PR76 merged581009f7268091b6ee5a951bc257aa391159a3ff.
+PRCI36343697049 and mainCI36344001746 PASS. Published digest
+sha256:d298cffb248129ab63a3bd6a88ee7466ec9cf18ced6f60fc11f8add143bf6017.
+HA update103→104 requested with backup; installed state not yet verified.
+
+Primary reassessment model trial01 /private/tmp/pv-primary-reassessment-api-01:
+recognized=true, request1/ACK1, backend/endcalls0,45s observation, clean shutdown,
+complete46s usage, conservative0.038333USD. Exact experiment FAIL; not proof the
+API cannot support assessment. Independent audit verifies source identity and
+matching append ACK, no protocol error. Confound: retained104 primary requires
+pureack silent waiting; backend/end schema permits silent only explicit ending.
+The appended completed-exchange instruction conflicts with those policies.
+No retry of this payload. Separate coherent-policy experiment may combine the
+already reviewed parked policy with one-shot steering; never ship based on ACK.
+HA was restarted and Running verified immediately after this trial.
+
+Research outcome (not shipped): the existing Live primary append_instructions path
+is audio-aware and may be used for a one-shot reassessment experiment; managed
+Responses send_text instead creates a user message and cannot be treated as a
+room-audio classifier. Any experiment must state only output/work observations,
+never pretend the input VAD proves irrelevant noise. A resulting end still needs
+completed delegated receipt and normal finalization. No end decision is not
+permission to close. Four seconds to assess plus backend work plus current four
+seconds after settlement can exceed eight seconds; no four-second promise.
+This is a bounded model-policy experiment, not an approved runtime change.
+
+Validation checkpoint: all integration tests passed with local test ports enabled.
+Frozen release run passed lint, formatting, mypy, scope and integration54.32s;
+unit found only the missed __version__103 string. Corrected to104 and reran only
+unit: PASS. Independent runtime-review SHA remains unchanged. Initial sandbox
+integration failure was local bind PermissionError, not product behavior.
+Draft PR76 created; publication/installation pending CI. Latest HA panel103 is
+live, but Voice PE reports offline (20:34); physical proof remains unavailable.
 
 Independent adversarial review: GO for this exact three-line runtime correction;
 reviewed thin.py SHA2566840c9771d01c500123f8a40b4020d1306c493e983f6aeb68a22eda7a771abce.

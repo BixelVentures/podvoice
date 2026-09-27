@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -289,3 +290,190 @@ class NativeIdleWindow:
 
     def ready(self, *, owner: tuple, now: float, idle_s: float) -> bool:
         return self.diagnostics(owner=owner, now=now, idle_s=idle_s)["blocker"] == "ready"
+
+
+class NativeIdleShadow:
+    """Content-free observation only; never a close permission or input classifier.
+
+    Output coverage uses the caller's *unchanged* policy owner, including its raw
+    input revisions. Those revisions can still reset the shadow window. Input
+    durations count only adjacent fresh native observations; transitions and
+    invalid/stalled inference are unknown, never an inference of background noise.
+    Memory is constant: one output window, one input sample and three counters.
+    """
+
+    def __init__(self, *, freshness_s: float) -> None:
+        self._output = NativeIdleWindow(freshness_s=freshness_s, require_input_quiet=False)
+        self.reset()
+
+    def reset(self, reason: str = "external_reset") -> None:
+        self._output.reset(reason)
+        self._input: dict[str, Any] | None = None
+        self._durations = dict.fromkeys(("active", "quiet", "unknown"), 0.0)
+        self._episode_s = 0.0
+        self._input_reason = "no_observation"
+        self._unobserved_intervals = 0
+        self._input_arrival_lag = self._input_minimum_lag = 0.0
+
+    @staticmethod
+    def _counter(data: dict, key: str, maximum: int = 2**64 - 1) -> int | None:
+        value = data.get(key)
+        return value if type(value) is int and 0 <= value <= maximum else None
+
+    def observe(
+        self, row: dict, *, owner: tuple, now: float, work_clear: bool, output_started: bool
+    ) -> None:
+        self._output.observe(
+            row, owner=owner, now=now, work_clear=work_clear, output_started=output_started
+        )
+        received: Any = row.get("received_monotonic")
+        source_ms = self._counter(row, "source_timestamp_ms", 0xFFFFFFFF)
+        sequence = self._counter(row, "sequence")
+        if (
+            row.get("source") != "voice_pe_firmware"
+            or type(received) not in (int, float)
+            or not math.isfinite(now)
+            or not math.isfinite(received)
+            or not 0 <= now - received <= self._output.freshness_s
+            or source_ms is None
+            or sequence is None
+        ):
+            self._input = None
+            self._episode_s = 0.0
+            self._input_reason = "invalid_native_observation"
+            self._unobserved_intervals += 1
+            return
+        inp = row.get("input")
+        inp = inp if isinstance(inp, dict) else {}
+        sample: dict[str, Any] = {
+            "owner": (
+                *owner,
+                *(
+                    row.get(k)
+                    for k in (
+                        "native_session",
+                        "native_generation",
+                        "native_connection",
+                        "native_reset",
+                    )
+                ),
+            ),
+            "received": received,
+            "sequence": sequence,
+            "source_ms": source_ms,
+            "inference_seq": self._counter(inp, "inference_seq"),
+            "inference_ms": self._counter(inp, "inference_ms", 0xFFFFFFFF),
+            "sample_end": self._counter(inp, "sample_end"),
+            "capture_epoch": self._counter(inp, "capture_epoch"),
+            "detector_run": self._counter(inp, "detector_run"),
+            "state": "unknown",
+        }
+        valid = (
+            inp.get("valid") is True
+            and inp.get("state") in ("active", "quiet")
+            and all(
+                sample[k] is not None
+                for k in (
+                    "inference_seq",
+                    "inference_ms",
+                    "sample_end",
+                    "capture_epoch",
+                    "detector_run",
+                )
+            )
+            and NativeIdleWindow._delta_ms(source_ms, sample["inference_ms"])
+            <= self._output.freshness_s * 1000
+        )
+        self._input_reason = "observed" if valid else "unknown_or_stale_input"
+        previous = self._input
+        continuous = False
+        delta = 0.0
+        if previous is None:
+            self._input_arrival_lag = self._input_minimum_lag = 0.0
+        else:
+            host_delta = received - previous["received"]
+            source_delta = NativeIdleWindow._delta_ms(source_ms, previous["source_ms"]) / 1000
+            continuous = (
+                sample["owner"] == previous["owner"]
+                and sequence == previous["sequence"] + 1
+                and 0 < host_delta <= self._output.freshness_s
+                and 0 < source_delta <= self._output.freshness_s
+                and sample["capture_epoch"] == previous["capture_epoch"]
+                and sample["detector_run"] == previous["detector_run"]
+            )
+            if continuous:
+                self._input_arrival_lag += host_delta - source_delta
+                self._input_minimum_lag = min(self._input_minimum_lag, self._input_arrival_lag)
+                delta = min(host_delta, source_delta)
+                if (
+                    valid
+                    and all(
+                        previous[k] is not None
+                        for k in ("inference_seq", "sample_end", "inference_ms")
+                    )
+                    and not (
+                        sample["inference_seq"] > previous["inference_seq"]
+                        and sample["sample_end"] > previous["sample_end"]
+                        and 0
+                        < NativeIdleWindow._delta_ms(
+                            sample["inference_ms"], previous["inference_ms"]
+                        )
+                        <= self._output.freshness_s * 1000
+                    )
+                ):
+                    valid = False
+                    self._input_reason = "input_not_advancing"
+                if self._input_arrival_lag - self._input_minimum_lag > self._output.freshness_s:
+                    # Individually timely packets may still be an accumulating
+                    # backlog. Keep its lag until catch-up or a new baseline;
+                    # unknown state must not forgive the next delayed packet.
+                    valid = continuous = False
+                    self._input_reason = "arrival_lag"
+                    self._unobserved_intervals += 1
+            else:
+                self._input_arrival_lag = self._input_minimum_lag = 0.0
+                self._unobserved_intervals += 1
+                self._input_reason = "input_observation_discontinuity"
+        if valid:
+            sample["state"] = inp["state"]
+        if continuous and previous is not None:
+            interval_state = sample["state"] if sample["state"] == previous["state"] else "unknown"
+            self._durations[interval_state] += delta
+            self._episode_s = (
+                self._episode_s + delta if sample["state"] == previous["state"] else 0.0
+            )
+        else:
+            self._episode_s = 0.0
+        self._input = sample
+
+    def diagnostics(self, *, owner: tuple, now: float, idle_s: float) -> dict:
+        output = self._output.diagnostics(owner=owner, now=now, idle_s=idle_s)
+        sample = self._input
+        current = bool(
+            sample is not None
+            and sample["owner"][: len(owner)] == owner
+            and math.isfinite(now)
+            and 0 <= now - sample["received"] <= self._output.freshness_s
+        )
+        return {
+            **{f"output_{key}": value for key, value in output.items()},
+            "observation_only": True,
+            "vad_state": sample["state"] if current and sample is not None else "unknown",
+            "vad_reason": self._input_reason if current else "missing_stale_or_changed_owner",
+            "vad_episode_s": self._episode_s if current else 0.0,
+            **{f"vad_{state}_observed_s": value for state, value in self._durations.items()},
+            "vad_unobserved_intervals": self._unobserved_intervals,
+            **{
+                f"vad_{key}": sample[key] if sample is not None else None
+                for key in (
+                    "received",
+                    "sequence",
+                    "source_ms",
+                    "inference_seq",
+                    "inference_ms",
+                    "sample_end",
+                    "capture_epoch",
+                    "detector_run",
+                )
+            },
+        }

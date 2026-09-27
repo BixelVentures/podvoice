@@ -40,6 +40,52 @@ async def setup(*, output=True):
     return session, sdk, link
 
 
+@pytest.mark.asyncio
+async def test_shadow_output_quiet_never_authorizes_close_with_active_input(monkeypatch):
+    session, _, link = await setup(output=False)
+    clock, events = [100.0], []
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(thin_module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+            patch.setattr(session, "_trace_event", lambda name, **data: events.append((name, data)))
+            for i in range(51):
+                deliver(session, link, clock, i, empty=True, input_state="active")
+                assert not session._live_quiet_ready()
+            session._record_idle_diagnostic()
+            assert events[-1][0] == "live_idle_diagnostic"
+            assert events[-1][1]["idle_blocker"] == "input_not_quiet"
+            assert any(key.startswith("idle_shadow_") for key in events[-1][1])
+            assert not session._live_finalizing
+            assert not session.brain._close_requested
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [RuntimeError, asyncio.CancelledError])
+async def test_shadow_failure_cannot_reset_real_window_or_block_idle(monkeypatch, failure):
+    session, _, link = await setup(output=False)
+    clock = [100.0]
+
+    def broken(*args, **kwargs):
+        raise failure("diagnostic observer unavailable")
+
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(thin_module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+            patch.setattr(session._live_idle_shadow, "observe", broken)
+            patch.setattr(session._live_idle_shadow, "diagnostics", broken)
+            patch.setattr(session._live_idle_shadow, "reset", broken)
+            session._reset_live_quiet()
+            for i in range(41):
+                deliver(session, link, clock, i, empty=True)
+            assert session._live_quiet_ready()
+            session._record_idle_diagnostic()
+            assert session._live_quiet_ready()
+    finally:
+        await session.aclose()
+
+
 def deliver(session, link, clock, index, *, empty=False, input_state="quiet"):
     row = observation(index, empty=empty)
     row["input"]["state"] = input_state
