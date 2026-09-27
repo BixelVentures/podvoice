@@ -713,7 +713,7 @@ async def test_wake_mode_and_startup_owner_use_one_settings_snapshot(first):
         await session.wake()
         assert enabled.call_count == 1
         assert session.live_alpha is first
-        assert (observed_owner[0] is not None) is first
+        assert observed_owner[0] is not None  # Both modes own cancellable startup now.
     finally:
         await session.aclose()
 

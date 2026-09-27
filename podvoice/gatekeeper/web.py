@@ -441,6 +441,7 @@ def create_app(
             web.post("/api/groundtest/result", _groundtest_result),
             web.post("/api/groundtest/final-wake", _groundtest_final_wake),
             web.get("/api/audio-trace", _audio_trace_status),
+            web.get("/api/diagnostics", _saved_diagnostics),
             web.get("/api/audio-analysis", _audio_analysis_status),
             web.post("/api/audio-analysis", _audio_analysis_start),
             web.post("/api/audio-trace/arm", _audio_trace_arm),
@@ -2890,6 +2891,14 @@ async def _groundtest_final_wake(request: web.Request) -> web.Response:
         hub.release_groundtest_final_wake(run_id, final_wake_id)
         return web.json_response({"ok": False, "error": str(exc)}, status=409)
     return web.json_response({"ok": True, **_groundtest_payload(hub)})
+
+
+async def _saved_diagnostics(request: web.Request) -> web.Response:
+    recorder = request.app[AUDIO_TRACE]
+    records = await asyncio.to_thread(recorder.diagnostics) if recorder is not None else []
+    return web.json_response(
+        {"ok": recorder is not None, "sessions": records}, headers={"Cache-Control": "no-store"}
+    )
 
 
 async def _audio_trace_status(request: web.Request) -> web.Response:

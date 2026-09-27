@@ -33,6 +33,8 @@ from typing import Any, TypeGuard
 
 from aiohttp import WSMsgType
 
+from .history import TranscriptSegments
+
 log = logging.getLogger("podvoice.talk")
 
 TALK_ROOM = "talk"
@@ -684,6 +686,7 @@ class TalkHub:
         self._send = send_json  # async callable(dict)
         owner = getattr(send_json, "__self__", None)
         self._post_ordered = getattr(owner, "post_json", None)
+        self._segments = TranscriptSegments()
         self._history = history
         self._pending: set[asyncio.Task] = set()
 
@@ -730,6 +733,30 @@ class TalkHub:
         # whole utterances; only show those authoritative display turns here.
         pass
 
+    def transcript_fragment(
+        self,
+        room: str,
+        direction: str,
+        text: str,
+        *,
+        session: str,
+        generation: int,
+        ts: float | None = None,
+    ) -> None:
+        """An observed Live fragment; segment boundaries are not provider turns."""
+        if not text:
+            return
+        observed_at = time.time() if ts is None else ts
+        if self._history is not None:
+            rec = self._history.append_fragment(
+                room, direction, text, ts=observed_at, session=session, generation=generation
+            )
+        else:
+            rec = self._segments.fragment(
+                room, direction, text, ts=observed_at, session=session, generation=generation
+            )
+        self._post({"type": "transcript_fragment", **rec})
+
     def transcript(
         self,
         room: str,
@@ -739,6 +766,7 @@ class TalkHub:
         ts: float | None = None,
         session: str | None = None,
     ) -> None:
+        self._segments.boundary()
         if text:
             observed_at = time.time() if ts is None else ts
             # Keep the established browser wire shape; the timestamp is persistence

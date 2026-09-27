@@ -42,7 +42,9 @@ class NativeIdleWindow:
         self.require_input_quiet = require_input_quiet
         self.reset()
 
-    def reset(self) -> None:
+    def reset(self, reason: str = "external_reset") -> None:
+        self.reset_reason = reason
+        self.reset_count = getattr(self, "reset_count", 0) + 1
         self._last: _Sample | None = None
         self._coverage: _Sample | None = None
         self._source_elapsed = 0.0
@@ -153,8 +155,8 @@ class NativeIdleWindow:
             provisional,
         )
 
-    def _baseline(self, sample: _Sample) -> None:
-        self.reset()
+    def _baseline(self, sample: _Sample, reason: str = "baseline") -> None:
+        self.reset(reason)
         self._last = sample
         self._zero_start = sample.begin
         if not sample.empty:
@@ -164,19 +166,22 @@ class NativeIdleWindow:
         self, row: dict, *, owner: tuple, now: float, work_clear: bool, output_started: bool
     ) -> None:
         if not work_clear or not math.isfinite(now):
-            self.reset()
+            self.reset("pending_work" if not work_clear else "invalid_clock")
             return
         try:
             sample = self._sample(row, owner, now, output_started)
-        except (KeyError, TypeError, ValueError, OverflowError):
-            self.reset()
+        except ValueError as exc:
+            self.reset(str(exc).replace(" ", "_"))
+            return
+        except (KeyError, TypeError, OverflowError):
+            self.reset("malformed_observation")
             return
         previous = self._last
         if previous is None or previous.owner != sample.owner:
             if sample.provisional:
-                self.reset()
+                self.reset("provisional_without_baseline")
                 return
-            self._baseline(sample)
+            self._baseline(sample, "owner_changed" if previous is not None else "baseline")
             return
         host_delta = sample.received - previous.received
         source_delta = self._delta_ms(sample.source_ms, previous.source_ms) / 1000
@@ -219,7 +224,19 @@ class NativeIdleWindow:
         self._arrival_lag += host_delta - source_delta
         self._minimum_lag = min(self._minimum_lag, self._arrival_lag)
         if not advancing or self._arrival_lag - self._minimum_lag > self.freshness_s:
-            self.reset()
+            reason = "discontinuous_observation" if not advancing else "arrival_lag"
+            if sample.sequence != previous.sequence + 1:
+                reason = "sequence_gap"
+            elif not 0 < host_delta <= self.freshness_s:
+                reason = "arrival_gap"
+            elif not 0 < source_delta <= self.freshness_s:
+                reason = "source_gap"
+            elif self.require_input_quiet and (
+                sample.input_sequence <= previous.input_sequence
+                or sample.input_sample <= previous.input_sample
+            ):
+                reason = "input_not_advancing"
+            self.reset(reason)
             return
         self._source_elapsed += source_delta
         self._last = sample
@@ -239,20 +256,36 @@ class NativeIdleWindow:
                 previous.consumed,
             )
 
-    def ready(self, *, owner: tuple, now: float, idle_s: float) -> bool:
+    def diagnostics(self, *, owner: tuple, now: float, idle_s: float) -> dict:
+        """Content-free policy evidence; reading this never advances quiet coverage."""
         sample, anchor = self._last, self._anchor
-        if (
-            sample is None
-            or sample.provisional
-            or anchor is None
-            or sample.owner[: len(owner)] != owner
-            or not math.isfinite(now)
-            or not math.isfinite(idle_s)
-            or idle_s <= 0
-            or not 0 <= now - sample.received <= self.freshness_s
-        ):
-            return False
-        duration = min(sample.received - anchor[0], self._source_elapsed - anchor[1])
-        if not sample.empty:
-            duration = min(duration, (sample.consumed - anchor[2]) / sample.rate)
-        return duration >= idle_s
+        age = now - sample.received if sample is not None and math.isfinite(now) else None
+        duration = 0.0
+        if sample is None:
+            blocker = self.reset_reason
+        elif sample.provisional:
+            blocker = "provisional_output"
+        elif anchor is None:
+            blocker = "no_consumed_quiet_anchor"
+        elif sample.owner[: len(owner)] != owner:
+            blocker = "owner_changed"
+        elif not math.isfinite(now) or not math.isfinite(idle_s) or idle_s <= 0:
+            blocker = "invalid_clock"
+        elif age is None or not 0 <= age <= self.freshness_s:
+            blocker = "stale_observation"
+        else:
+            duration = min(sample.received - anchor[0], self._source_elapsed - anchor[1])
+            if not sample.empty:
+                duration = min(duration, (sample.consumed - anchor[2]) / sample.rate)
+            blocker = "ready" if duration >= idle_s else "quiet_window_incomplete"
+        return {
+            "blocker": blocker,
+            "reset_reason": self.reset_reason,
+            "reset_count": self.reset_count,
+            "quiet_s": duration,
+            "observation_age_s": age,
+            "freshness_s": self.freshness_s,
+        }
+
+    def ready(self, *, owner: tuple, now: float, idle_s: float) -> bool:
+        return self.diagnostics(owner=owner, now=now, idle_s=idle_s)["blocker"] == "ready"

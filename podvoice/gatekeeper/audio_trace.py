@@ -26,6 +26,13 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from .diagnostic_retention import (
+    DIAGNOSTIC_AGE_S,
+    DIAGNOSTIC_BYTES,
+    retain_diagnostics,
+    save_diagnostics,
+)
+
 _LOG = logging.getLogger("podvoice.audio_trace")
 _SAFE_ID = re.compile(r"^[0-9A-Za-z_-]+$")
 _NEXT_SESSION_PROOF_TTL_S = 120.0
@@ -100,6 +107,8 @@ class _RollingWriter:
         self.expired: list[str] = []
         self.errors: dict[str, str] = {}
         self.dropped: dict[str, int] = {}
+        self.diagnostic_records: dict[str, dict] = {}
+        self.diagnostic_flush_at: dict[str, float] = {}
         self.current: dict | None = None
         self.stages: dict[str, _Stage] = {}
         self.files: dict[str, tuple[Any, Any]] = {}
@@ -118,7 +127,11 @@ class _RollingWriter:
         try:
             # Data cannot consume the slots reserved for begin/finish/shutdown.
             limit = (
-                120 if command[0] in {"audio", "event"} else 126 if command[0] == "begin" else 128
+                120
+                if command[0] in {"audio", "event", "diagnostic"}
+                else 126
+                if command[0] == "begin"
+                else 128
             )
             if self.queue.qsize() >= limit:
                 raise queue.Full
@@ -155,6 +168,15 @@ class _RollingWriter:
             while len(self.errors) > 32:
                 self.errors.pop(next(iter(self.errors)))
 
+    def _save_diagnostic(self, record: dict) -> None:
+        if not record.get("dirty", True):
+            return
+        try:
+            save_diagnostics(self.path, record)
+            record["dirty"] = False
+        except (OSError, ValueError, TypeError):
+            self._error("diagnostics", "diagnostic_write_failed")
+
     def _atomic_manifest(self, manifest: dict) -> None:
         target = self.path / f"{manifest['id']}.json"
         temporary = target.with_suffix(".pending")
@@ -170,9 +192,15 @@ class _RollingWriter:
         temporary.write_bytes(encoded)
         temporary.replace(target)
         self.stored_bytes += len(encoded) - prior_size
+        try:
+            save_diagnostics(self.path, manifest)
+        except (OSError, ValueError, TypeError):
+            self._error("diagnostics", "diagnostic_write_failed")
 
     def _recover(self) -> None:
         self.path.mkdir(parents=True, exist_ok=True)
+        for pending in self.path.glob("*.diagnostic_tmp"):
+            pending.unlink(missing_ok=True)
         for pending in self.path.glob("*.pending"):
             try:
                 manifest = json.loads(pending.read_text(encoding="utf-8"))
@@ -233,6 +261,10 @@ class _RollingWriter:
                     self.latest = None
         self.stored_bytes = total
         self.last_retention = time.monotonic()
+        try:
+            retain_diagnostics(self.path)
+        except OSError:
+            self._error("diagnostics", "diagnostic_retention_failed")
         if total + reserve > self.byte_limit:
             raise OSError("active recording storage limit")
 
@@ -400,6 +432,30 @@ class _RollingWriter:
 
     def _process(self, command: tuple) -> None:
         kind, trace_id, data = command
+        if kind == "diagnostic":
+            record = self.diagnostic_records.setdefault(
+                trace_id,
+                {
+                    "id": "diagnostic:" + trace_id,
+                    "metadata": {"session_id": trace_id},
+                    "events": [],
+                },
+            )
+            if len(record["events"]) >= 2048:
+                record["dropped_events"] = record.get("dropped_events", 0) + 1
+            record["events"] = [*record["events"], data][-2048:]
+            record["dirty"] = True
+            now = time.monotonic()
+            if now - self.diagnostic_flush_at.get(trace_id, 0) >= 5 or data.get("terminal"):
+                self._save_diagnostic(record)
+                self.diagnostic_flush_at[trace_id] = now
+            # Teardown is followed by rearm evidence in the same session. Keep
+            # the bounded record so that a late edge cannot overwrite its history.
+            while len(self.diagnostic_records) > 4:
+                oldest = next(iter(self.diagnostic_records))
+                self._save_diagnostic(self.diagnostic_records.pop(oldest))
+                self.diagnostic_flush_at.pop(oldest, None)
+            return
         if kind == "proof":
             self._prove(trace_id, data)
             return
@@ -488,6 +544,13 @@ class _RollingWriter:
             try:
                 command = self.queue.get(timeout=1)
             except queue.Empty:
+                for trace_id, record in self.diagnostic_records.items():
+                    if time.monotonic() - self.diagnostic_flush_at.get(trace_id, 0) >= 5:
+                        try:
+                            self._save_diagnostic(record)
+                            self.diagnostic_flush_at[trace_id] = time.monotonic()
+                        except (OSError, ValueError, TypeError):
+                            self._error("diagnostics", "diagnostic_write_failed")
                 if time.monotonic() - self.last_retention >= 60:
                     try:
                         self._retain()
@@ -504,6 +567,8 @@ class _RollingWriter:
                 continue
             try:
                 if command[0] == "shutdown":
+                    for record in self.diagnostic_records.values():
+                        self._save_diagnostic(record)
                     if self.current is not None:
                         self._close_files()
                         self._flush("interrupted", "writer_shutdown")
@@ -644,6 +709,29 @@ class AudioTraceRecorder:
             session_id
             and self._active_room == room
             and self._metadata.get("session_id") == session_id
+        )
+
+    def diagnostic_event(
+        self,
+        session_id: str,
+        *,
+        event_name: str = "live_idle_diagnostic",
+        terminal: bool = False,
+        **details: Any,
+    ) -> bool:
+        """Queue metadata without requiring, arming or extending an audio recording."""
+        if self._writer is None or not session_id or len(session_id) > 256:
+            return False
+        return self._writer.submit(
+            (
+                "diagnostic",
+                session_id,
+                {
+                    **details,
+                    "event": event_name,
+                    "terminal": terminal,
+                },
+            )
         )
 
     def activity_event(self, **details: Any) -> tuple[str, dict[str, Any]] | None:
@@ -1105,6 +1193,27 @@ class AudioTraceRecorder:
         await asyncio.to_thread(self._writer.thread.join, timeout_s)
         return not self._writer.thread.is_alive()
 
+    def diagnostics(self) -> list[dict]:
+        """Read bounded saved metadata for the UI, independently of expired audio."""
+        records = []
+        try:
+            files = sorted(
+                self.path.glob("*.diagnostic"), key=lambda p: p.stat().st_mtime, reverse=True
+            )
+            for path in files[:20]:
+                if path.stat().st_size > 1024 * 1024:
+                    continue
+                try:
+                    record = json.loads(path.read_text())
+                    if record.get("schema") == 1 and record.get("content_free") is True:
+                        record["events"] = record.get("events", [])[-60:]
+                        records.append(record)
+                except (OSError, ValueError, TypeError, AttributeError):
+                    continue
+        except OSError:
+            pass
+        return records
+
     def snapshot(self) -> dict[str, Any]:
         rolling = (
             self._writer.status()
@@ -1156,6 +1265,8 @@ class AudioTraceRecorder:
             "proof_pending": rolling["proof_pending"],
             "retention_bytes": self._writer.byte_limit if self._writer else None,
             "retention_age_s": self._writer.age_s if self._writer else None,
+            "diagnostic_retention_bytes": DIAGNOSTIC_BYTES,
+            "diagnostic_retention_age_s": DIAGNOSTIC_AGE_S,
             "max_seconds": self.max_seconds,
         }
 

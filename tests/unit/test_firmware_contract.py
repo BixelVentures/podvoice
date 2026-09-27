@@ -26,7 +26,7 @@ def test_fresh_ha_package_fetches_podvoice_audio_without_local_copy():
     audio_source = next(
         block for block in active.split("  - source:") if "components: [podvoice_audio]" in block
     )
-    assert "ref: 9f77e300680339c96028eb677825a61dd020da11" in audio_source
+    assert "ref: 4fe6f4612402b8f7ef4dd579132eca9abdcc1617" in audio_source
     assert "path: esphome/components" in external
     assert "refresh: 0s" in external
     assert "\n  - source: { type: local, path: components }" not in external
@@ -55,7 +55,7 @@ def test_clean_channel_is_explicit_and_old_direct_handshake_is_absent():
     assert "continuous_rearm_v1" in overlay
     assert "physical_rearm_audio_progress_v1" in overlay
     assert "correlated_reset_rearm_v2" in overlay
-    assert "podvoice_build_11378_wakeboundary1" in overlay
+    assert "podvoice_build_113100_button1" in overlay
     assert "podvoice_playback_events_v1" in overlay
     assert "action: podvoice_reply_play" in overlay
     assert "action: podvoice_reply_cancel" in overlay
@@ -80,7 +80,7 @@ def test_wake_boundary_uses_detector_position_and_keepalive_never_trims_live_spe
     base = BASE.read_text()
     source = (ROOT / "esphome" / "components" / "podvoice_audio" / "podvoice_audio.cpp").read_text()
     begin = source.split("bool PodVoiceAudio::begin_conversation(", 1)[1].split(
-        "void PodVoiceAudio::start_streaming()", 1
+        "bool PodVoiceAudio::begin_button_conversation()", 1
     )[0]
     keepalive = source.split("void PodVoiceAudio::start_streaming()", 1)[1].split(
         "void PodVoiceAudio::stop_streaming()", 1
@@ -168,7 +168,7 @@ def test_mains_powered_voice_link_disables_wifi_power_saving():
 
 def test_center_button_never_starts_stock_assist():
     base = BASE.read_text()
-    click = base.split("on_multi_click:", 1)[1].split("\n    - timing:", 1)[0]
+    click = base.split("id: center_button", 1)[1].split("      # Long Press", 1)[0]
     assert "- voice_assistant.start:" not in click
     assert "event_type: single_press" in click
 
@@ -185,10 +185,10 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
     assert "type: git" in stop_source
     assert "url: https://github.com/BixelVentures/podvoice" in stop_source
     assert "path: esphome/components" in stop_source
-    assert "ref: 9f77e300680339c96028eb677825a61dd020da11" in stop_source
-    assert active.count("ref: 9f77e300680339c96028eb677825a61dd020da11") == 3
+    assert "ref: 4fe6f4612402b8f7ef4dd579132eca9abdcc1617" in stop_source
+    assert active.count("ref: 4fe6f4612402b8f7ef4dd579132eca9abdcc1617") == 3
     observers = active.split("components: [mixer, resampler, speaker_source]", 1)[0]
-    assert "ref: 9f77e300680339c96028eb677825a61dd020da11" in observers
+    assert "ref: 4fe6f4612402b8f7ef4dd579132eca9abdcc1617" in observers
     files = sorted(
         p
         for name in ("micro_wake_word", "podvoice_reply", "podvoice_audio")
@@ -201,7 +201,7 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
         for p in files
     )
     assert hashlib.sha256(manifest.encode()).hexdigest() == (
-        "6d9dfac08cb227118c44125ac2a89a15c176aa75ae9f336bbc246c4d24b6d828"
+        "70cf62883a326fc2a82df4f21344ceabef72b6005675bf58537d88a2d0ced577"
     )
 
 

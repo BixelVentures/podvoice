@@ -39,8 +39,8 @@ log = logging.getLogger(__name__)
 # session.updated hand-off. The provider uses the same 12 s bound, so neither stage
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
-EXPECTED_FIRMWARE_BUILD = "podvoice_build_11378_wakeboundary1"
-LIVE_FIRMWARE_BUILD = "podvoice_build_11399_dualwake1"
+EXPECTED_FIRMWARE_BUILD = "podvoice_build_113100_button1"
+LIVE_FIRMWARE_BUILD = "podvoice_build_113100_livebutton1"
 _WAKE_WORD_ACK_TIMEOUT_S = 3.0
 
 # --- Firmware contract ----------------------------------------------------------
@@ -210,6 +210,7 @@ class VoicePELink:
         # Firmware capability marker: capture and provider connect start at the LOCAL
         # wake edge, before the stock cue + 300 ms delay. Without this generation the
         # user still has to pause after "Okay Nabu", so the panel must not call it ready.
+        self.supports_button_capture = False
         self.supports_same_breath = False
         self.supports_wake_audio_boundary = False
         # Clean firmware contract: one local event opens PodVoice and no stock HA
@@ -646,7 +647,7 @@ class VoicePELink:
             ):
                 return
             event = getattr(state, "event_type", None) or getattr(state, "event", None)
-            if event in ("wake_okay_nabu", "wake") and not self._wake_admitted:
+            if event in ("wake_okay_nabu", "wake", "single_press") and not self._wake_admitted:
                 # Firmware can ACK rearm and detect the next wake in one receive
                 # batch, before the awaiting admission coroutine resumes. Preserve
                 # only that post-boundary wake; a pre-rearm latch is deliberately
@@ -723,6 +724,7 @@ class VoicePELink:
         self._wake_word_ack_key = None
         self.confirmed_wake_word = None
         self.supports_direct = False
+        self.supports_button_capture = False
         self.supports_same_breath = False
         self.supports_wake_audio_boundary = False
         self.supports_podvoice_channel = False
@@ -832,6 +834,7 @@ class VoicePELink:
                 and "podvoice_capture_hold" in self._user_services
                 and "podvoice_capture_resume" in self._user_services
             )
+            self.supports_button_capture = "physical_button_capture_v1" in advertised
             self.supports_same_breath = "same_breath_v1" in advertised
             self.supports_wake_audio_boundary = "wake_audio_boundary_v1" in advertised
             self.supports_podvoice_channel = "podvoice_channel_v1" in advertised

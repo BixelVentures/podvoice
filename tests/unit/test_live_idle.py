@@ -354,3 +354,23 @@ def test_old_empty_callback_after_reset_cannot_seed_next_window():
     assert not feed(window, 40, row=empty_snapshot(40, observation(39)))
     assert window._last is None
     assert not feed(window, 41, owner=("next", 4, 0))
+
+
+def test_diagnostics_explain_reset_and_never_advance_the_window():
+    window = NativeIdleWindow(freshness_s=0.2)
+    bad = observation(0)
+    bad["input"]["state"] = "active"
+    feed(window, 0, row=bad)
+    details = window.diagnostics(owner=OWNER, now=100, idle_s=4)
+    assert details["blocker"] == "input_not_quiet"
+    assert details["reset_reason"] == "input_not_quiet"
+    count = details["reset_count"]
+    for _ in range(3):
+        assert window.diagnostics(owner=OWNER, now=100, idle_s=4) == details
+    for index in range(41):
+        feed(window, index)
+    details = window.diagnostics(owner=OWNER, now=104, idle_s=4)
+    assert details["blocker"] == "ready"
+    assert details["quiet_s"] == 4
+    assert details["reset_count"] == count + 1
+    assert window.diagnostics(owner=OWNER, now=104.3, idle_s=4)["blocker"] == "stale_observation"
