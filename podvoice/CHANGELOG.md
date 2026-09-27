@@ -1,3 +1,8 @@
+## 1.13.104
+
+- Route silent Alpha endings through the same guarded provider finalization and physical playback drain as spoken endings. A silent farewell must not cancel an earlier answer still playing.
+- Preserve corrections, Stop, generation fences, saved timeout, prompts and paired .103 firmware. Background-noise inactivity and browser playback confirmation remain unresolved.
+
 ## 1.13.103
 
 - Stop microphone capture and assistant playback locally on an active single button press, before server cleanup. Ignore repeated presses during cleanup; an idle single press starts the saved conversation mode.

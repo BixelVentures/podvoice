@@ -13,9 +13,9 @@ import gatekeeper.thin as thin_module
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("semantic", [False, True])
+@pytest.mark.parametrize("semantic,silent", [(False, False), (True, False), (True, True)])
 async def test_quiet_policy_reaches_provider_close_then_exact_playback_finish(
-    monkeypatch, semantic
+    monkeypatch, semantic, silent
 ):
     session, sdk, link = await setup()
     clock = [100.0]
@@ -29,7 +29,7 @@ async def test_quiet_policy_reaches_provider_close_then_exact_playback_finish(
     try:
         if semantic:
             monkeypatch.setattr(session, "_finish_live_conversation", observe_end)
-            await propose_end(session, sdk)
+            await propose_end(session, sdk, silent=silent)
             await emit(sdk, created("r2"), terminal("r2"))
             await asyncio.wait_for(entered.wait(), 1)
         with monkeypatch.context() as patch:
@@ -62,7 +62,8 @@ async def test_quiet_policy_reaches_provider_close_then_exact_playback_finish(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("evidence", ["missing", "stale", "audible"])
-async def test_semantic_wait_expires_as_failure_not_success(monkeypatch, evidence):
+@pytest.mark.parametrize("silent", [False, True])
+async def test_semantic_wait_expires_as_failure_not_success(monkeypatch, evidence, silent):
     session, sdk, link = await setup()
     session.idle_timeout_s = 0.01
     session.brain.timeout_s = 0.1
@@ -72,7 +73,7 @@ async def test_semantic_wait_expires_as_failure_not_success(monkeypatch, evidenc
             patch.setattr(
                 session, "_request_close", lambda reason, **kw: closes.append((reason, kw))
             )
-            await propose_end(session, sdk)
+            await propose_end(session, sdk, silent=silent)
             await emit(sdk, created("r2"), terminal("r2"))
             if evidence != "missing":
                 from unit.test_live_idle import observation
@@ -95,7 +96,8 @@ async def test_semantic_wait_expires_as_failure_not_success(monkeypatch, evidenc
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("changed", ["input", "generation", "stop"])
-async def test_semantic_expiry_cannot_close_after_owner_changes(monkeypatch, changed):
+@pytest.mark.parametrize("silent", [False, True])
+async def test_semantic_expiry_cannot_close_after_owner_changes(monkeypatch, changed, silent):
     session, sdk, link = await setup()
     session.idle_timeout_s = 0.01
     session.brain.timeout_s = 0.1
@@ -112,7 +114,7 @@ async def test_semantic_expiry_cannot_close_after_owner_changes(monkeypatch, cha
         with monkeypatch.context() as patch:
             patch.setattr(session, "_finish_live_conversation", observe_end)
             patch.setattr(session, "_request_close", lambda reason, **kw: closes.append(reason))
-            await propose_end(session, sdk)
+            await propose_end(session, sdk, silent=silent)
             await emit(sdk, created("r2"), terminal("r2"))
             await asyncio.wait_for(entered.wait(), 1)
             if changed == "input":

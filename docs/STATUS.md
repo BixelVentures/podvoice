@@ -1,5 +1,52 @@
 # PodVoice-status — én aktuel sandhed
 
+## Active decision 27/9 — close ownership audit after installed103
+
+Independent adversarial review: GO for this exact three-line runtime correction;
+reviewed thin.py SHA2566840c9771d01c500123f8a40b4020d1306c493e983f6aeb68a22eda7a771abce.
+Regression before patch: matching-finish case passes spoken and fails silent.
+After patch: full test_thin_live passes; reviewer17 focused quiet/stale/missing/
+Stop/new-wake cases pass with silent and spoken variants. No new acoustic claim.
+Release candidate1.13.104 reuses the installed103 firmware unchanged.
+
+Lead: root. Scope is the remaining semantic close and noise-blocked inactivity;
+installed103 button,102 work LED and Speakers0.26.3 are retained.
+Direct field evidence324067f8: no pending work/output, ordinary quiet reaches3.19s
+then native input_not_quiet resets it. This proves the blocking boundary, not an
+acoustic classifier error. The exact field WAV download is blocked by organizational
+browser policy; no alternate download route or invented acoustic conclusion.
+Actual Live trial03 received the question/Okay, remained silent and never delegated
+end during45s. The parked prompt candidate is not a fix and is excluded here.
+
+Concrete independent source finding to reproduce: _await_live_end(silent=True)
+bypasses _finish_live_conversation and _finalize_live_conversation. A silent semantic
+choice means no new spoken farewell, not permission to cancel earlier queued audio.
+Hypothesis: a completed silent end can invoke cancellation/rearm before matching
+physical tail, while the spoken branch waits correctly. Reproduce both branches
+with the same pending live lease, stale finish, real finish, correction and Stop.
+Affected invariants: one Thin close owner; current completed tool receipt; physical
+playback truth; generation fences; OFF isolation. Whole chain: model end candidate →
+completed backend batch → results/continuation settlement → current receipt → quiet
+policy → provider close/closed → stream finish → exact playback finish → teardown →
+rearm → next wake. Silent and spoken must use the same mechanical path.
+Non-goals: guessing new VAD/gain/timeout; local phrase classification; installing the
+failed semantic prompt; claiming acoustic/physical success from software.
+Rollback: retain103 if scoped regression or independent review fails. Planned gates:
+causal regression first, Live/native and Talk regression, independent adversarial
+review, frozen release gate only if the candidate merits publication. Physical
+acceptance remains open and must not be inherited.
+
+Research input: Amazon Science device-directed speech combines acoustics and
+semantic context (https://www.amazon.science/blog/how-alexa-knows-when-youre-talking-to-her).
+Google Continued Conversation describes a bounded follow-up window and contextual
+ending, not its internal classifier (https://support.google.com/googlehome/answer/7685981?hl=en).
+OpenAI explicitly assigns inactivity/playback/pending-work closure to the app
+(https://developers.openai.com/api/docs/guides/live-conversations). These support
+separating sound detection from addressed interaction; none supplies a drop-in
+reliable directed-speech signal for our current Live adapter. No runtime policy
+change is justified by vendor behavior alone.
+
+
 ## Active release decision — 1.13.103 physical button only
 
 Release scope: paired physical-button firmware and exact runtime firmware identity,
