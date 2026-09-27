@@ -1,3 +1,9 @@
+## 1.13.102
+
+- Show actual Alpha backend/tool work in amber using the device's advertised Thinking animation; return to cyan when work completes. Listening remains open.
+- Clear native light effects on normal state changes and Stop; reject delayed work lights after session replacement. Devices without the effect retain static feedback.
+- Keep existing firmware, saved timeout and conversation policy. This release does not resolve background-noise inactivity.
+
 ## 1.13.101
 
 - Bound the semantic-farewell wait for physical quiet. If quiet cannot be confirmed within the saved quiet interval plus the existing provider timeout, close through the shared error path rather than waiting indefinitely.

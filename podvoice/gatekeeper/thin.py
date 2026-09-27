@@ -546,6 +546,7 @@ class ThinSession:
         self.live_reply_url = live_reply_url
         self.live_alpha = False
         self._live_led_ready = False
+        self._live_led_working: bool | None = None
         self._live_webrtc = False
         self._live_stream = None
         self._live_output_bytes = 0
@@ -2057,6 +2058,7 @@ class ThinSession:
             if not self._active:
                 continue
             self._record_idle_diagnostic()
+            self._refresh_live_work_led()
             if self._live_rotating:
                 continue  # Rotation has its own bounded owner and retains attention.
             expected_live_reader_end = (
@@ -2303,6 +2305,7 @@ class ThinSession:
             self._trace_event(
                 "live_backend_started", response_id=ev.response_id, delegation_id=ev.delegation_id
             )
+            self._refresh_live_work_led()
         elif isinstance(ev, LiveBackendComplete):
             if (
                 self._live_review is not None
@@ -2327,6 +2330,7 @@ class ThinSession:
                 > self._live_confirmation_input_floor
             ):
                 self._discard_live_confirmation()
+            self._refresh_live_work_led()
         elif isinstance(ev, LiveUsage):
             self._live_usage_seconds = ev.seconds
             self._record_live_usage()
@@ -2351,6 +2355,7 @@ class ThinSession:
             epoch = self._epoch
             task = self._spawn(self._run_live_batch(ev, epoch), "live-tool-batch")
             self._tool_tasks[ev.response_id] = task
+            self._refresh_live_work_led()
         elif isinstance(ev, LiveSessionClosed):
             self._record_live_usage()
             self._live_provider_closed.set()
@@ -2816,6 +2821,7 @@ class ThinSession:
             self._tool_tasks.pop(batch.response_id, None)
             self._live_backend_revisions.pop(batch.response_id, None)
             self._live_backend_inputs.pop(batch.response_id, None)
+            self._refresh_live_work_led()
 
     def _live_confirmation_supported(self) -> bool:
         return bool(
@@ -6578,10 +6584,33 @@ class ThinSession:
         except Exception as exc:
             _LOG.warning("thin: error speech failed [room=%s]: %s", self.room, exc)
 
+    def _live_work_pending(self) -> bool:
+        """Known backend/tool work only; primary Live thinking is not observable."""
+        return bool(
+            getattr(self.brain, "_responses", None)
+            or getattr(self.brain, "_batches", None)
+            or getattr(self.brain, "_continuation_pending", False)
+            or getattr(self.brain, "_continuation_inflight", False)
+            or any(not task.done() for task in self._tool_tasks.values())
+        )
+
+    def _refresh_live_work_led(self) -> None:
+        if (
+            self.live_alpha
+            and self._live_led_ready
+            and self._active
+            and not self._transport_closing
+            and not self._live_rotating
+            and not self._live_finalizing
+            and self._live_led_working != self._live_work_pending()
+        ):
+            self._set_led(State.LISTENING)
+
     def _set_led(self, state: State, *, error: bool = False) -> None:
         if not hasattr(self.voicepe, "set_light"):
             return
         display_state = state
+        live_paint = False
         if (
             self.live_alpha
             and self._live_led_ready
@@ -6595,7 +6624,9 @@ class ThinSession:
                 State.LOUNGE_WINDOW,
             )
         ):
-            display_state = State.LISTENING
+            live_paint = True
+            self._live_led_working = self._live_work_pending()
+            display_state = State.THINKING if self._live_led_working else State.LISTENING
         cmd = led_command_for(display_state, muted=self._muted, error=error)
         self._trace_event(
             "led_command",
@@ -6605,7 +6636,28 @@ class ThinSession:
             rgb=",".join(str(value) for value in cmd.rgb),
             error=error,
         )
-        self._spawn(self.voicepe.set_light(cmd.on, cmd.rgb, cmd.brightness), "thin-led")
+        epoch, brain = self._epoch, self.brain
+        generation = getattr(brain, "_connection_generation", None)
+        work_light = getattr(self.voicepe, "set_work_light", None)
+        animate_work = (
+            live_paint and display_state == State.THINKING and not error and not self._muted
+        )
+
+        async def paint() -> None:
+            if live_paint and (
+                not self._active
+                or self._transport_closing
+                or self._epoch != epoch
+                or self.brain is not brain
+                or getattr(brain, "_connection_generation", None) != generation
+            ):
+                return
+            if animate_work and callable(work_light):
+                await work_light(cmd.rgb, cmd.brightness)
+            else:
+                await self.voicepe.set_light(cmd.on, cmd.rgb, cmd.brightness)
+
+        self._spawn(paint(), "thin-led")
 
     def _hub_state(self, name: str, activity: str | None, *, turn_cue: bool = False) -> None:
         if self.hub is None:

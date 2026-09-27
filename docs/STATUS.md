@@ -1,6 +1,70 @@
 # PodVoice-status — én aktuel sandhed
 
 
+Panel verification caught stale cyan-only explanatory copy after the first freeze.
+Updated only its three descriptions to match the reviewed work-light behavior;
+no UI lifecycle logic changed. Final frozen release gate PASS76.3s (unit75.90s, integration51.72s) includes this correction.
+
+LED1.13.102 gates: full fast PASS74.7s; frozen release PASS72.3s, unit71.94s
+and integration51.68s. First sandbox fast failed local server binds with explicit
+PermissionError; permitted local-port rerun passed without a runtime patch.
+
+LED release candidate1.13.102: independent original LED review GO; parent independent
+review of native animation extension GO. Advertised firmware Thinking effect uses
+its existing approximately200ms brightness cycle, not a claimed calm pulse. Targeted
+LED/native tests74PASS and existing Live/Talk115PASS. No idle/prompt fix in this
+release; background-noise fallback remains unresolved. Physical gate pending.
+
+## Active decision 27/9 — field idle noise and truthful Alpha work LED
+
+User reports .101 remains open; confirms only background sound while silent.
+Fresh automatic diagnostic session324067f8 (17:23:35) shows no semantic end,
+backend/tool work earlier, then zero pending work and consumed zero output.
+Quiet reaches3.19s at75.184s; input_not_quiet resets it at76.229s. Physical
+button closes at76.847s; teardown/rearm follows. This establishes input activity
+blocking ordinary inactivity, not proof of stuck backend or .101 semantic bound.
+No guessed VAD threshold or transcript-only silence rule is authorized as evidence.
+Need distinguish background acoustic activity from addressed speech without a new
+local intent parser, cutting legitimate input or weakening playback drain truth.
+
+Semantic amendment: fresh HA history r0:1790522614820483754 matches session324067f8.
+After the football question and club followup, the answer ends at1790522669.5765;
+the user says “Okay” at1790522673.4314, then reports only background sound.
+The shipped Live primary explicitly forbids delegation for a pure receipt, while
+its backend inherits an unconditional keep-open receipt rule. This prevents the
+model from choosing silent completion in that observed context. User authorizes
+contextual semantic closure first, with the saved four-second fallback retained.
+Hypothesis: adapt only Live's receipt policy so the model can recognize a completed
+exchange and delegate end_conversation(silent=true), with no spoken politeness.
+No keyword parser, transcript timer, acoustic threshold or OFF prompt change.
+Preserve new requests, assent to offers/approvals, unfinished work, ordinary
+backchannels, plain Stop and music Stop as open conversation. Chain: whole live
+utterance/context → delegated semantic decision → existing correlated terminal
+receipt → output/work drain → close/rearm. Existing generation/new-input guards
+must remain intact. Regression covers both generated prompts and guarded negative
+contexts; existing Live eval/preflight must assess model behavior before release.
+This does not solve background-noise fallback without a contextual receipt, and
+does not establish physical success. Independent review required; rollback .101.
+
+LED candidate: existing Alpha override makes known backend/tool work cyan. Show
+existing amber THINKING appearance while response/batch/tool/continuation work is
+actually outstanding, cyan when clear. Display-only: no mic gate/state transition,
+no guessed primary silent-thinking state and no firmware change. Recompute through
+existing event/heartbeat ownership, deduplicate paints, fence queued writes across
+Stop/generation, retain OFF/error precedence. Regression: real SDK-shaped work,
+overlap, failures, continuation, stale writes, Stop and OFF. Independent adversarial
+review before release; physical LED/duplex behavior remains unproved until installed.
+Rollback .101; idle policy changes require separate evidence within this same post.
+
+LED amendment: user requests an existing device animation for known work. Use the
+firmware-advertised Thinking effect (two opposing LEDs, approximately 200 ms
+brightness cycle), with static amber fallback if unavailable. Every normal/off
+write explicitly clears the effect. No new firmware or network animation loop;
+Thin keeps its existing stale-write guards and Talk/fakes retain static fallback.
+Regression: advertised capability, fallback, cyan/Stop effect reset and Thin
+work dispatch. Parent independently reviews this additional implementation.
+
+
 ## Active decision 27/9 — bounded semantic close and truthful failure stages
 
 Lead Codex. User authorizes timeout/farewell correction toward97/100 quality; no
@@ -38,7 +102,18 @@ No field no-close reproduction or physical97/100 claim.
 Frozen release gate PASS70.7s: unit70.47s, integration51.78s, lint/format/mypy
 and single-domain scope. Full fast PASS75.8s. Earlier development gate was
 discarded because tests changed while it ran; no runtime patch from that event.
-Exact-commit CI/image, installation and physical acceptance remain outstanding.
+Publication27/9: PR73 merged asd6d588611a677ce2d4b8293dd7de86413d943b64.
+PR CI36317068190 PASS including ARM build; main CI/publication36317283600 PASS.
+Version1.13.101 published and installed on HA Green27/9 with the UI backup
+option enabled. HA update entity confirms installed/latest1.13.101; add-on info
+confirms Running; restarted panel confirms v1.13.101 status live. Settings freshly
+verified: Alpha ON, silence4s, Hey Chat + Hey Jarvis saved. PodConnect and home
+control verified in panel. Voice PE remains offline; no firmware update performed
+or required (.100 firmware retained). No physical gate or97/100 claim. Normal
+inactivity root cause remains unknown; only unbounded semantic waiting/failure
+classification are changed. Browser debugger attachment failed; installation was
+completed through native Chrome UI. Installation evidence recorded locally.
+
 
 ## Active decision 27/9 — field reliability: button, close evidence, history and music
 
