@@ -30,6 +30,11 @@ class StopContext {
     cancelled = true; playback_allowed = false; // latch before publishing or stopping the speaker graph
     return true;
   }
+  bool stop_from_button() {
+    if (!active || cancelled) return false;
+    cancelled = true; enabled = false; playback_allowed = false;
+    advance(false); return true;
+  }
   bool admits(const std::string &nonce, uint32_t gen) const {
     return active && playback_allowed && !cancelled && nonce == session && gen == generation;
   }
