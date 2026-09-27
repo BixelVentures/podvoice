@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -307,7 +308,7 @@ class NativeIdleShadow:
 
     def reset(self, reason: str = "external_reset") -> None:
         self._output.reset(reason)
-        self._input: dict | None = None
+        self._input: dict[str, Any] | None = None
         self._durations = dict.fromkeys(("active", "quiet", "unknown"), 0.0)
         self._episode_s = 0.0
         self._input_reason = "no_observation"
@@ -325,7 +326,7 @@ class NativeIdleShadow:
         self._output.observe(
             row, owner=owner, now=now, work_clear=work_clear, output_started=output_started
         )
-        received = row.get("received_monotonic")
+        received: Any = row.get("received_monotonic")
         source_ms = self._counter(row, "source_timestamp_ms", 0xFFFFFFFF)
         sequence = self._counter(row, "sequence")
         if (
@@ -344,7 +345,7 @@ class NativeIdleShadow:
             return
         inp = row.get("input")
         inp = inp if isinstance(inp, dict) else {}
-        sample = {
+        sample: dict[str, Any] = {
             "owner": (
                 *owner,
                 *(
@@ -435,7 +436,7 @@ class NativeIdleShadow:
                 self._input_reason = "input_observation_discontinuity"
         if valid:
             sample["state"] = inp["state"]
-        if continuous:
+        if continuous and previous is not None:
             interval_state = sample["state"] if sample["state"] == previous["state"] else "unknown"
             self._durations[interval_state] += delta
             self._episode_s = (
@@ -457,7 +458,7 @@ class NativeIdleShadow:
         return {
             **{f"output_{key}": value for key, value in output.items()},
             "observation_only": True,
-            "vad_state": sample["state"] if current else "unknown",
+            "vad_state": sample["state"] if current and sample is not None else "unknown",
             "vad_reason": self._input_reason if current else "missing_stale_or_changed_owner",
             "vad_episode_s": self._episode_s if current else 0.0,
             **{f"vad_{state}_observed_s": value for state, value in self._durations.items()},

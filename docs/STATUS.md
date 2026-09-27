@@ -8,6 +8,16 @@ fra real idle/end-vinduer. Uafhængig review fandt og fik rettet ophobet arrival
 og cancellation-isolation. Kandidat1 source review GO; fysisk ingen ny prøve,
 Voice PE er bevidst uden strøm. Firmware .103, LED og Stop ændres ikke.
 
+Review/gates: uafhængig source-GO for kandidat1 og dormant kandidat2; ingen åbne
+P0/P1. Første frozen releasekørsel bestod scope/lint/format, men mypy fandt otte
+typingfejl og afbrød testarbejderne. Kun annotations/ækvivalente None-guards rettet;
+fuld mypy54 PASS, berørt lint/format PASS. De afbrudte fulde unit/integration-stages
+blev derefter afsluttet én gang: unit72.82s PASS, integration53.88s PASS. Ikke en
+påstand om første releasekørsel bestået. Ingen SafeEval: prompt/schema/provider-
+semantik uændret. Endelig live_idle SHA256
+95ad8c2b306e134a67fe27d8b6e0ddf256bd343bd9c62b209760dd725176ea1e;
+dormant policy SHA2564f541aec49161e3f467630c1df0dce1b7032f57beeb88ccd752b494e44b6ea14.
+
 Kandidat2 er kodet som `live_input_policy.py` med tests, men er IKKE importeret
 eller instantieret i runtime og er desuden disabled som standard. Den er en
 mekanisk forberedelse, ikke en færdig tale/støjklassifikator eller en UI-toggle.
