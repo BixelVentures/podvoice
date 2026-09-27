@@ -1625,3 +1625,28 @@ async def test_admission_preserves_only_post_rearm_wake_in_same_batch(disconnect
         assert disconnect
     assert delivered.count(wake) == (0 if disconnect else 1)
     assert link._link_up is (not disconnect)
+
+
+@pytest.mark.parametrize("effects", [[], ["Thinking", "Pulse"]])
+async def test_native_work_light_uses_advertised_effect_and_static_writes_clear_it(effects):
+    light = LightInfo("led_ring", 9)
+    light.effects = effects
+    client = _StubClient([], [light])
+    commands = []
+    client.light_command = lambda **kwargs: commands.append(kwargs)
+    link = _link(client)
+    await link._resolve_entities()
+    await link.set_work_light((1.0, 0.55, 0.0), 0.7)
+    assert commands[-1]["effect"] == ("Thinking" if effects else "None")
+    assert commands[-1]["key"] == 9 and commands[-1]["state"] is True
+    await link.set_light(True, (0.094, 0.733, 0.949), 0.8)
+    assert commands[-1]["effect"] == "None"
+    await link.set_work_light((1.0, 0.55, 0.0), 0.7)
+    await link.set_light(False, (0, 0, 0), 0)
+    assert commands[-1] == {"key": 9, "state": False, "effect": "None"}
+    client._entities = []
+    await link._resolve_entities()
+    assert link._light_effects == ()
+    count = len(commands)
+    await link.set_work_light((1.0, 0.55, 0.0), 0.7)
+    assert len(commands) == count

@@ -156,6 +156,7 @@ class VoicePELink:
         # Resolved once per connect from the device's published entities/services.
         self._user_services: dict[str, Any] = {}  # name -> UserService (start/stop forward)
         self._light_key: int | None = None  # the LED-ring light entity key (None = no LED)
+        self._light_effects: tuple[str, ...] = ()
         self._media_key: int | None = None  # the media_player key (AI-reply announce path)
         self._mute_key: int | None = None  # the mute switch/sensor key (None = not published)
         self._event_key: int | None = None  # PodVoice lifecycle event entity
@@ -701,6 +702,7 @@ class VoicePELink:
         """
         self._user_services = {}
         self._light_key = None
+        self._light_effects = ()
         self._media_key = None
         self._mute_key = None
         self._event_key = None
@@ -751,6 +753,7 @@ class VoicePELink:
             chosen = next((e for e in lights if getattr(e, "object_id", "") in preferred), None)
             chosen = chosen or (lights[0] if lights else None)
             self._light_key = getattr(chosen, "key", None) if chosen else None
+            self._light_effects = tuple(getattr(chosen, "effects", ()) or ())
             # The media_player we announce the AI reply through (speaker-out path).
             players = [e for e in (entities or []) if type(e).__name__ == "MediaPlayerInfo"]
             mp = next(
@@ -1213,17 +1216,31 @@ class VoicePELink:
                 self._rearm_expected_token = None
 
     async def set_light(self, on: bool, rgb: tuple[float, float, float], brightness: float) -> None:
-        """Drive the LED ring. Best-effort; no-op if the device has no resolvable light."""
+        """Drive a static ring; explicitly clear any previously selected effect."""
+        await self._set_light(on, rgb, brightness, effect="None")
+
+    async def set_work_light(self, rgb: tuple[float, float, float], brightness: float) -> None:
+        """Use the device's advertised native animation, otherwise static color."""
+        effect = "Thinking" if "Thinking" in self._light_effects else "None"
+        await self._set_light(True, rgb, brightness, effect=effect)
+
+    async def _set_light(
+        self, on: bool, rgb: tuple[float, float, float], brightness: float, *, effect: str
+    ) -> None:
         if self._light_key is None or self._client is None:
             return
         try:
             # VERIFY: light_command kwargs (key/state/rgb floats 0-1/brightness 0-1).
             if on:
                 self._client.light_command(
-                    key=self._light_key, state=True, rgb=rgb, brightness=max(brightness, 0.0)
+                    key=self._light_key,
+                    state=True,
+                    rgb=rgb,
+                    brightness=max(brightness, 0.0),
+                    effect=effect,
                 )
             else:
-                self._client.light_command(key=self._light_key, state=False)
+                self._client.light_command(key=self._light_key, state=False, effect="None")
         except Exception as e:
             log.debug("voicepe %s light_command failed: %s", self.host, e)
 
