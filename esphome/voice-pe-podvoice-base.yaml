@@ -330,16 +330,27 @@ binary_sensor:
               const bool repeat = id(podvoice_button_repeat);
               id(podvoice_button_seen_release) = true;
               id(podvoice_button_last_release_ms) = now;
-              return !repeat && uint32_t(now - id(podvoice_button_down_ms)) < 1000 &&
+              return !repeat && !id(pv_reply).button_stop_latched() &&
+                  uint32_t(now - id(podvoice_button_down_ms)) < 1000 &&
                   !id(factory_reset_requested) && (id(podvoice_conversation_active) ||
                   (!id(init_in_progress) && !id(color_changed) && !id(group_volume_changed)));
           then:
             - if:
                 condition:
-                  switch.is_on: timer_ringing
+                  lambda: "return id(timer_ringing).state && !id(podvoice_conversation_active);"
                 then:
                   - switch.turn_off: timer_ringing
                 else:
+                  # Active Stop is local, before the event crosses the network.
+                  - if:
+                      condition:
+                        lambda: "return id(podvoice_conversation_active);"
+                      then:
+                        - switch.turn_off: timer_ringing
+                        - lambda: |-
+                            id(pv_audio).stop_from_button();
+                            id(pv_reply).stop_from_button();
+                        - script.execute: control_leds
                   - if:
                       condition:
                         lambda: "return !id(podvoice_conversation_active) && !id(master_mute_switch).state;"
@@ -1012,6 +1023,14 @@ script:
           if (id(voice_kit_component).is_failed()) {
             id(control_leds_voice_kit_startup_failed).execute();
             return;
+          }
+          if (id(pv_reply).button_stop_latched()) {
+            auto animation = id(voice_assistant_leds).turn_off();
+            animation.set_effect("None"); animation.perform();
+            auto call = id(led_ring).turn_on();
+            call.set_effect("None");
+            call.set_rgb(1.0f, 1.0f, 1.0f); call.set_brightness(0.12f); call.perform();
+            return;  // Stop accepted locally; cleanup/rearm is not yet complete.
           }
           id(check_if_timers_active).execute();
           if (id(is_timer_active)){

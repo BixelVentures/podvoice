@@ -15,7 +15,7 @@
 substitutions:
   name: podvoice-pe
   friendly_name: PodVoice PE
-  podvoice_build_marker: podvoice_build_113100_button1
+  podvoice_build_marker: podvoice_build_113103_buttonstop1
   # The hardware base is vendored from upstream 26.6.0 with an auditable two-block
   # delta: wake word and center button emit PodVoice events and never start HA Assist.
 
@@ -379,14 +379,14 @@ external_components:
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 4fe6f4612402b8f7ef4dd579132eca9abdcc1617
+      ref: 26148b9f377e50978373eef7c9995ddd67d9c959
       path: esphome/components
     components: [podvoice_reply, micro_wake_word]
     refresh: 0s
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 4fe6f4612402b8f7ef4dd579132eca9abdcc1617
+      ref: 26148b9f377e50978373eef7c9995ddd67d9c959
       path: esphome/components
     components: [mixer, resampler, speaker_source]
     refresh: 0s
@@ -401,7 +401,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 4fe6f4612402b8f7ef4dd579132eca9abdcc1617
+      ref: 26148b9f377e50978373eef7c9995ddd67d9c959
       path: esphome/components
     components: [podvoice_audio]
     refresh: 0s

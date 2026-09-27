@@ -1,3 +1,10 @@
+## 1.13.103
+
+- Stop microphone capture and assistant playback locally on an active single button press, before server cleanup. Ignore repeated presses during cleanup; an idle single press starts the saved conversation mode.
+- Reject late capture/playback commands during Stop; retain the existing cleanup and rearm owner. Active conversation Stop also silences a ringing timer.
+- Show a dim white stopping indication until cleanup/rearm completes. Require the paired .103 firmware identity.
+- Preserve Alpha selection, wake models, gains, VAD, volume, conversation policy and timeout. This release does not fix background-noise inactivity.
+
 ## 1.13.102
 
 - Show actual Alpha backend/tool work in amber using the device's advertised Thinking animation; return to cyan when work completes. Listening remains open.
