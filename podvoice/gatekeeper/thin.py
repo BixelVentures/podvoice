@@ -2272,7 +2272,7 @@ class ThinSession:
                     end_ms=ev.end_ms,
                     input_revision=self._live_input_revision,
                 )
-                self._cancel_live_end()
+                self._cancel_live_end(reset_shadow=False)
             if self.hub is not None:
                 self.hub.transcript_fragment(
                     self.room,
@@ -3093,8 +3093,8 @@ class ThinSession:
             size += extra
         return tuple(reversed(selected))
 
-    def _cancel_live_end(self) -> None:
-        self._reset_live_quiet()
+    def _cancel_live_end(self, *, reset_shadow: bool = True) -> None:
+        self._reset_live_quiet(reset_shadow=reset_shadow)
         if self._live_finalizing:
             return
         if self._live_end_receipt is not None:
@@ -5347,11 +5347,12 @@ class ThinSession:
         with contextlib.suppress(Exception, asyncio.CancelledError):
             self._trace_activity_observation(observation)
 
-    def _reset_live_quiet(self) -> None:
+    def _reset_live_quiet(self, *, reset_shadow: bool = True) -> None:
         self._live_idle_window.reset()
         self._live_end_window.reset()
-        with contextlib.suppress(Exception, asyncio.CancelledError):
-            self._live_idle_shadow.reset()
+        if reset_shadow:
+            with contextlib.suppress(Exception, asyncio.CancelledError):
+                self._live_idle_shadow.reset()
 
     def _live_quiet_owner(self) -> tuple:
         return (
@@ -5359,6 +5360,17 @@ class ThinSession:
             self.brain._connection_generation,
             self._live_input_revision,
             self.brain.input_sequence,
+            self.brain.backend_sequence,
+            bool(self._live_output_bytes),
+        )
+
+    def _live_shadow_owner(self) -> tuple:
+        # Observation only: raw input fragments must invalidate close receipts,
+        # but cannot interrupt a measurement of independently consumed output.
+        return (
+            self._history_session,
+            self._epoch,
+            self.brain._connection_generation,
             self.brain.backend_sequence,
             bool(self._live_output_bytes),
         )
@@ -5448,7 +5460,7 @@ class ThinSession:
         with contextlib.suppress(Exception, asyncio.CancelledError):
             self._live_idle_shadow.observe(
                 observation,
-                owner=owner,
+                owner=self._live_shadow_owner(),
                 now=now,
                 work_clear=self._live_quiet_work_clear(semantic=False),
                 output_started=bool(self._live_output_bytes),
@@ -5466,7 +5478,7 @@ class ThinSession:
         shadow = {}
         with contextlib.suppress(Exception, asyncio.CancelledError):
             shadow = self._live_idle_shadow.diagnostics(
-                owner=self._live_quiet_owner(), now=now, idle_s=self.idle_timeout_s
+                owner=self._live_shadow_owner(), now=now, idle_s=self.idle_timeout_s
             )
         self._trace_event(
             "live_idle_diagnostic",

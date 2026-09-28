@@ -1,5 +1,50 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv beslutning 28/9 — mål outputro korrekt under transskriberet baggrundstale
+
+Observeret fejl: .109 TV-tracen uden Live-inputfragmenter viste >10 s fysisk
+outputro, mens native VAD forhindrede timeout. Det tidligere .108-spor havde
+derimod Live-inputfragmenter uden assistentarbejde. Den nuværende output-only
+shadow deler rå inputrevision og nulstilles ved hvert sådant fragment; den kan
+derfor ikke måle outputro på netop dette andet feltforløb. Dette er et hul i
+evidens, ikke tilladelse til at lukke over tale.
+
+Kæden er fysisk mikrofon/VAD → Live-inputfragment → Thin-freshness/semantic
+receipt → assistant-/værktøjsarbejde → mixer-output → idle-observation → eventuel
+close/teardown/rearm. Berørte invarianter: Thin ejer én samtale og close;
+providerinput annullerer gamle semantiske receipts; output-ro alene må ikke
+autorisere timeout; stale session/generation må aldrig krydse næste wake.
+Falsificerbar hypotese: shadowens outputvindue kan beholde samme output-/work-
+identitet under rå, ubehandlet Live-input, mens runtime-idlevinduet fortsat
+blokerer, og faktisk backendarbejde/output/nativt gapped coverage stadig resetter.
+Ikke-mål: ingen ændring af timeout, prompt, VAD, gain, firmware eller klassifikation.
+
+Målrettet regression: transskriberet TV-lignende fragment midt i sammenhængende
+outputro; real idle og semantic receipt bliver ugyldige, shadowen fortsætter,
+men kan aldrig lukke. Modprøver: backendstart, output, Stop og ny generation
+nulstiller shadow; gammel callback er inert; Talk/OFF uændret. Kør først
+relevante Thin/idle- og adaptertests, derefter fast/lifecycle og én releasegate
+på frosset diff. Uafhængig adversarial review før eventuel release. Rollback:
+denne shadowændring kan fjernes uden at ændre installeret close-politik.
+Fysisk gate for TV-afslutning og 10/10 forbliver ubestået.
+
+Implementeret i isoleret branch `codex/live-idle-shadow-owner`: `ThinSession`
+bevarer kun det diagnostiske outputvindue under et ubesvaret Live-inputfragment.
+Det reelle idle-/semantikvindue og eventuelle close-receipts annulleres fortsat.
+Shadow-ejeren følger session, epoch, provider-generation, backendsekvens og
+outputstart; nyt backendarbejde, ny lyd, Stop og næste wake nulstiller den. Den
+ændrer ingen close-beslutning. Regressionen bruger startet PCM-playback og
+sammenhængende native forbrugsobservationer, et Live-inputfragment,
+`LiveBackendStarted`, sen gammel generation samt Stop → næste wake.
+Målrettede idle-tests og `scripts/dev fast --base origin/main` er grønne
+(sidstnævnte inkl. fokuserede tests, Ruff og Mypy; lokal testport krævede
+sandboxadgang). Uafhængigt adversarialt review: GO for kilde/testdesign, ingen
+alvorlig finding; reviewer kunne ikke selv køre pytest. Ingen fysisk prøve på
+disse bits, og TV-afslutning er fortsat uløst. Kandidaten er **ikke releaseklar**
+som løsning på brugerfejlen; lifecycle/releasegate, artifact og installation er
+ikke udført. Næste beslutning kræver præcis relevansevidens for både transskriberet
+og ikke-transskriberet TV samt lav reel opfølgning, før close-politikken ændres.
+
 ## .109 installeret 28/9 — fysisk kandidatprøve afventer
 
 PR81 `dcbeac2` bestod PR-CI og den fulde lokale releasegate; merged main som
