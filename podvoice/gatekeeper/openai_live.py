@@ -371,6 +371,8 @@ class OpenAILiveSession:
         self._validators: dict[str, Draft202012Validator] = {}
         self._resampler = StreamResampler(input_rate, 24000)
         self.final_usage_seconds: float | None = None
+        self._finalized_generation: int | None = None
+        self._local_close_pending = False
         self._usage_session_id: str | None = None
         self._usage_voice_seconds: float | None = None
         self._usage_backend: dict[str, dict | None] = {}
@@ -595,6 +597,8 @@ class OpenAILiveSession:
         self._close_requested = False
         self.last_error = None
         self.final_usage_seconds = None
+        self._finalized_generation = None
+        self._local_close_pending = False
         self._usage_session_id = f"attempt_{uuid.uuid4().hex}"
         self._usage_voice_seconds = None
         self._usage_backend.clear()
@@ -1028,6 +1032,7 @@ class OpenAILiveSession:
                         len(self._responses) + len(self._batches),
                     )
                 )
+                self._finalized_generation = generation
                 self._closed.set()
         elif kind == "session.instructions.appended":
             waiter = self._append_waiters.get(event.get("client_event_id", ""))
@@ -1712,6 +1717,8 @@ class OpenAILiveSession:
 
     async def _release(self) -> None:
         with self._diagnostic_stage("live_release", "release"):
+            connection, manager = self._connection, self._manager
+            generation = self._connection_generation
             self._next_confirmation = None
             self._next_confirmation_text = ()
             self._cancel_terminal_receipt()
@@ -1751,19 +1758,48 @@ class OpenAILiveSession:
             self._append_waiters.clear()
             try:
                 async with asyncio.timeout(self.timeout_s):
-                    if self._manager is not None:
+                    if manager is not None:
                         with self._diagnostic_stage("live_release", "socket"):
-                            await self._manager.__aexit__(None, None, None)
+                            if (
+                                self.transport == "websocket"
+                                and self._finalized_generation == generation
+                                and generation == self._connection_generation
+                                and connection is self._connection
+                                and manager is self._manager
+                                and self._reader is None
+                            ):
+                                # SDK 3.13.0 owns this websockets 15.0.1 connection.
+                                # Accepted terminal usage and a joined reader make
+                                # further peer Close/TCP waiting unnecessary. Keep
+                                # unknown transports on the SDK's ordinary close.
+                                from websockets.asyncio.client import ClientConnection
+
+                                socket = getattr(connection, "_connection", None)
+                                if isinstance(socket, ClientConnection):
+                                    try:
+                                        if not self._local_close_pending:
+                                            socket.transport.abort()
+                                            self._local_close_pending = True
+                                        await socket.wait_closed()
+                                    except Exception:
+                                        # A changed/incompatible local transport
+                                        # still owes the SDK its ordinary exit.
+                                        pass
+                            await manager.__aexit__(None, None, None)
+                            self._local_close_pending = False
             finally:
-                self._manager = None
-                self._connection = None
-                try:
-                    if self._client is not None:
-                        async with asyncio.timeout(self.timeout_s):
-                            with self._diagnostic_stage("live_release", "client"):
-                                await self._client.close()
-                finally:
-                    self._client = None
-                    with self._diagnostic_stage("live_release", "budget"):
-                        self.provider_budget.release(self._lease)
-                        self._lease = None
+                # Interrupted local closure still owns the connection and lease.
+                # A serialized close retry must join it before another generation.
+                if not self._local_close_pending:
+                    self._manager = None
+                    self._connection = None
+                    try:
+                        if self._client is not None:
+                            async with asyncio.timeout(self.timeout_s):
+                                with self._diagnostic_stage("live_release", "client"):
+                                    await self._client.close()
+                    finally:
+                        self._client = None
+                        with self._diagnostic_stage("live_release", "budget"):
+                            self.provider_budget.release(self._lease)
+                            self._lease = None

@@ -1,3 +1,8 @@
+## 1.13.109
+
+- Complete GPT-Live WebSocket cleanup promptly after an accepted terminal event by closing only the owned local transport, then finishing SDK cleanup. Interrupted cleanup retains ownership until the same socket is joined; no new session opens early.
+- Pin the tested WebSocket dependency. Add-on only: reuses .108 firmware and preserves Alpha selection, wake models, gains, saved timeout, prompts, local Stop and playback. Physical Stop-to-next-wake latency and kitchen lifecycle remain to be measured on this candidate.
+
 ## 1.13.108
 
 - Isolate firmware main-loop wake notifications from ESP-IDF thread completion so normal network/audio wakeups cannot prematurely delete a decoder worker during cleanup.
