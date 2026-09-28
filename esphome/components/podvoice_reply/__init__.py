@@ -2,12 +2,13 @@
 
 import hashlib
 import json
+from pathlib import Path
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
 from esphome import automation
-from esphome.components import micro_wake_word, speaker, switch, text_sensor
+from esphome.components import esp32, micro_wake_word, speaker, switch, text_sensor
 from esphome.components.mixer.speaker import MixerSpeaker, SourceSpeaker
 from esphome.components.resampler.speaker import ResamplerSpeaker
 from esphome.components.speaker_source.media_player import SpeakerSourceMediaPlayer
@@ -40,6 +41,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
+    esp32.add_extra_script(
+        "pre", "podvoice_notification_slots.py", Path(__file__).parent / "notification_slots.py"
+    )
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for key in _FIELDS:
