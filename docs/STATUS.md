@@ -74,6 +74,22 @@ forseglede periode og annullering ved sent arbejde/reel henvendelse. Ellers
 jagter den en evigt ny inputhale. Hvordan input efter fristen bevares eller
 genstarter uden et dødt wake-vindue kræver særskilt adapter-/fysisk bevis.
 
+Grænseaudit 28/9: en sample-fence er heller ikke i sig selv en sikker
+TV-lukning. Lokalt ophør af sending ved fristen og providerens
+`session.input_audio.muted`-ACK kan afgrænse yderligere Live-input, mens
+mikrofonen fortsat optages lokalt; allerede sendt lyd skal afstemmes særskilt
+mod sin sample-identitet. ACK stopper ikke assistantgenerering eller
+backendarbejde. Men vedvarende TV fylder også bufferen efter fristen. En
+afgørelse, der kræver klassifikation helt frem til lukkeøjeblikket, får igen
+en evigt uafklaret hale. At ignorere halen kan omvendt klippe en lav reel
+henvendelse netop dér. Derfor er hverken "klassificér alt" eller "luk på
+tidligere TV-verdict" releasebar alene. En senere kandidat skal måle og
+afgrænse dette risikovindue på virkelig overlaplyd, bevare lokal capture
+under provider-mute, annullere lukning ved relevant/ukendt efterfølgende
+input og bevise replay/fortsættelse uden tabt første stavelse. Fejlet ACK,
+providerarbejde og ny generation må føre til fail-closed oprydning, ikke
+stiltiende successful timeout. Ingen sådan kandidat er aktiveret.
+
 ## Diagnostisk checkpoint 28/9 — mål outputro korrekt under transskriberet baggrundstale
 
 Observeret fejl: .109 TV-tracen uden Live-inputfragmenter viste >10 s fysisk
