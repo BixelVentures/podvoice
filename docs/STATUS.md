@@ -1,6 +1,53 @@
 # PodVoice-status — én aktuel sandhed
 
-## Aktiv beslutning 28/9 — mål outputro korrekt under transskriberet baggrundstale
+## Aktiv beslutning 28/9 — afprøv lydlig henvendelse på virkelig køkkenlyd
+
+Samme .109-session rummer et faktisk spørgsmål til assistenten og, efter
+svaret, brugeridentificeret TV-/baggrundstale. I p0000 ligger Live-input ved
++2,4–4,8 s, som historikken forbinder med spørgsmålet om Norge-kampen;
+p0002 efter afsluttet svar havde VAD-aktivitet, men intet ventende arbejde.
+Det fysiske problem er ikke blot tale samtidig med svar, men at rå VAD ejer
+inaktivitet uden at kende adressaten. Mikrofonens RMS i de udvalgte vinduer
+er ca. 262 mod 18 PCM-enheder; den forskel er et observationspunkt, ikke en
+sikker grænse for lavmælt opfølgning eller andre afstande.
+
+Kæden til afprøvning: nøjagtigt gemt device-WAV og tidslinje → afgrænset
+lydmodelverdict (relevant/baggrund/ukendt) → sammenligning med de kendte
+feltlabels → eventuel senere intervalbundet `LiveInputPolicy` → Thin close,
+fysisk dræn, teardown og rearm. Berørte invarianter: Thin er eneste close-ejer;
+ukendt/forældet input lukker aldrig; modelverdict udfører ingen værktøjer;
+gammel generation kan ikke krydse ny wake. Hypotese: en lydmodel kan skelne
+de to konkrete vinduer uden transcript- eller amplituderegel. Falsificering:
+en virkelig henvendelse klassificeres som baggrund, TV som relevant/ukendt
+for ofte, eller svarlatensen gør løbende brug uegnet. Ikke-mål: ingen ændret
+runtime-close, VAD, gain, timeout, prompt, firmware eller installeret artifact.
+
+Først en eval-only, engangskørende og omkostningsbegrænset prøve med de
+lokale WAV-filer uden lyd i Git. Den skal bruge identisk instruktion på
+positive og negative vinduer, højst 8 sekunder per vindue, højst seks kald,
+ingen retries eller husværktøjer, og registrere verdict/latens/fejl uden
+private transskripter eller nøgle. Modprøver: lav reel dansk opfølgning over
+TV og forsinket providerarbejde; de mangler endnu og kan stoppe kandidaten.
+Uafhængig review af evalgrænsen før providerbrug. Først ved positivt resultat
+oprettes en særskilt runtime-beslutning med adapter-/race-regressioner, gates,
+fysisk prøve og rollback til installeret .109.
+
+Evalcheckpoint: `scripts/live_addressedness_eval.py` validerer seks lokale
+klip (to kendte henvendelser, fire TV-vinduer på 2,5–8 s), sender aldrig
+labels/ID'er til modellen og kræver eksplicit `--execute` plus nøgle i
+procesmiljøet. Output indeholder kun verdict, tidsforbrug og hashes, ingen
+lyd eller transskript. Kald begrænses til seks uden retry; providerfejl,
+ufuldendt svar og fejlklassifikation er adskilte resultater. Fire målrettede
+tests, Ruff, format og diff-check PASS. Uafhængigt adversarialt review fandt
+tre svar-/rapporthuller, som er rettet; afsluttende re-review af den rettede
+eval-diff gav GO udelukkende til den afgrænsede prøve, ikke runtime/release.
+Ingen providerkald er kørt. Oprettelse af ny midlertidig OpenAI-key
+blev afvist af automatisk godkendelseskontrol: den ældre tilladelse blev ikke
+anset for at dække en ny nøgle, mens den eksisterende PodVoice-nøgle er aktiv.
+Ingen omvej eller nøgleoverførsel forsøges; specifik brugertilladelse kræves
+før denne eksterne prøves næste trin. Dette er ikke en runtime-/releasegate.
+
+## Diagnostisk checkpoint 28/9 — mål outputro korrekt under transskriberet baggrundstale
 
 Observeret fejl: .109 TV-tracen uden Live-inputfragmenter viste >10 s fysisk
 outputro, mens native VAD forhindrede timeout. Det tidligere .108-spor havde
