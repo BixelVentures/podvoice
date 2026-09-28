@@ -20,6 +20,17 @@ timeout 4 sekunder bekræftet i panelet; enheden er forbundet. Ingen ny
 firmwareflash var nødvendig. Fysisk Stop→næste wake, automatisk lukning ved
 TV, arbejdslys under værktøj og 10/10 på .109 er fortsat ubeståede gates.
 
+Supplerende før-installationsbevis fra automatisk .108-trace
+`20260928T134822-798-2fc09d8a` (del 7, +80–84 s): 8 nye Live-inputfragmenter,
+native input ofte `active`, men 0 ventende responses, batches, tools, continuation
+eller pending audio. Idle-diagnostikken viste `input_not_quiet`/gentagne reset;
+selv en kort ro nåede kun 0,08 s mod UI-værdien 4 s. Den gemte historik viser
+fortsat samtale i rummet uden ny assistentopgave; detaljer gengives ikke her.
+Tracen sluttede ved add-on-genstart for .109 (`process_restart`, ufuldstændig),
+så den er **ikke** bevis for en naturlig afslutning. Dette reproducerer den
+kendte inputveto-flaskehals på .108 og giver ingen tilladelse til at aktivere
+kandidat2 uden valideret relevans af den opfangede tale.
+
 ## Aktiv releasebeslutning — manglende main-publicering efter PR81
 
 PR81 blev merged 28/9 kl. 11:28:15 UTC som `43b2775635e2f760030cd1b6faee3f9a0e6178ec`.
