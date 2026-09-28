@@ -39,8 +39,8 @@ log = logging.getLogger(__name__)
 # session.updated hand-off. The provider uses the same 12 s bound, so neither stage
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
-EXPECTED_FIRMWARE_BUILD = "podvoice_build_113103_buttonstop1"
-LIVE_FIRMWARE_BUILD = "podvoice_build_113103_livebuttonstop1"
+EXPECTED_FIRMWARE_BUILD = "podvoice_build_113106_cancelretry1"
+LIVE_FIRMWARE_BUILD = "podvoice_build_113106_livecancelretry1"
 _WAKE_WORD_ACK_TIMEOUT_S = 3.0
 
 # --- Firmware contract ----------------------------------------------------------
@@ -184,6 +184,9 @@ class VoicePELink:
         self._stop_changed = asyncio.Event()
         self._stop_control_lock = asyncio.Lock()
         self._stop_expected: tuple[str, int, str] | None = None
+        self._closing_disable_sent: tuple[int, int, str, int] | None = None
+        self._closing_disable_proof: tuple[int, int, str, int] | None = None
+        self._closing_disable_revision = 0
         self._stop_outcome: str | None = None
         self._stop_orphan: tuple[str, int] | None = None
         self._retired_stop_session: str | None = None
@@ -1159,6 +1162,7 @@ class VoicePELink:
         operational, but continuity cannot be called proven until a real wake arrives.
         It is therefore a usable amber state, not a connection failure.
         """
+        self._forget_closing_disable()
         if not self.supports_physical_rearm_ack:
             raise RuntimeError("firmware mangler physical_rearm_ack_v1")
         if not self.supports_continuous_rearm:
@@ -1865,7 +1869,12 @@ class VoicePELink:
         self._wake_reference.expire(now=time.monotonic())
         return self._wake_reference.snapshot()
 
+    def _forget_closing_disable(self) -> None:
+        self._closing_disable_revision += 1
+        self._closing_disable_sent = self._closing_disable_proof = None
+
     def _reset_stop_context(self) -> None:
+        self._forget_closing_disable()
         self._clear_wake_reference()
         self._activity_latest = None
         self._stop_reset_generation += 1
@@ -1903,6 +1912,9 @@ class VoicePELink:
     async def _set_stop_admission(self, *, enabled: bool, closing: bool, live: bool) -> bool:
         if not self.supports_stop_context:
             return False
+        closing_disable = closing and not enabled and not live
+        if not closing_disable:
+            self._forget_closing_disable()
         if not live:
             self._revoke_live_admission()
         else:
@@ -1910,13 +1922,23 @@ class VoicePELink:
         connection = self._connection_generation
         reset_generation = self._stop_reset_generation
         live_revision = self._stop_live_revision
+        entry_closing_revision = self._closing_disable_revision
         async with self._stop_control_lock:
             if (
                 connection != self._connection_generation
                 or reset_generation != self._stop_reset_generation
                 or (live and live_revision != self._stop_live_revision)
+                or (closing_disable and entry_closing_revision != self._closing_disable_revision)
             ):
                 return False
+
+            identity = (connection, reset_generation, self._stop_session, self._stop_generation)
+            if closing_disable and self._closing_disable_proof == identity:
+                # Exact late ACK proves cleanup only, never permission to play.
+                return True
+            # No proof: keep recovery bounded by issuing a fresh request as before.
+            self._forget_closing_disable()
+            closing_revision = self._closing_disable_revision
 
             async def exchange() -> bool:
                 # Firmware publishes a fresh nonce after physical wake. This wait
@@ -1960,6 +1982,17 @@ class VoicePELink:
                     "podvoice_live_context" if live else "podvoice_stop_context", args
                 ):
                     return False
+                if (
+                    closing_disable
+                    and closing_revision == self._closing_disable_revision
+                    and connection == self._connection_generation
+                    and reset_generation == self._stop_reset_generation
+                    and self._stop_session == token
+                    and self._stop_generation == generation
+                ):
+                    self._closing_disable_sent = (connection, reset_generation, token, generation)
+                    if self._stop_outcome in ("disabled", "cancelled"):
+                        self._closing_disable_proof = self._closing_disable_sent
                 await self._stop_changed.wait()
                 return (
                     connection == self._connection_generation
@@ -1967,6 +2000,7 @@ class VoicePELink:
                     and self._stop_session == token
                     and self._stop_generation == generation
                     and (not live or live_revision == self._stop_live_revision)
+                    and (not closing_disable or closing_revision == self._closing_disable_revision)
                     and (
                         self._stop_outcome == wanted
                         or (closing and not enabled and self._stop_outcome == "cancelled")
@@ -2063,6 +2097,13 @@ class VoicePELink:
                 self._stop_outcome = "orphan"
                 self._stop_changed.set()
             return
+        identity = (self._connection_generation, self._stop_reset_generation, token, generation)
+        if outcome in ("fault", "stopped"):
+            self._forget_closing_disable()
+        elif outcome in ("disabled", "cancelled") and self._closing_disable_sent == identity:
+            self._closing_disable_proof = identity
+            self._stop_armed = self._stop_playback_allowed = False
+            self._stop_cancelled = self._stop_cancelled or outcome == "cancelled"
         if outcome in ("stopped", "fault") and (
             self._stop_armed or self._stop_playback_allowed or self._stop_expected is not None
         ):

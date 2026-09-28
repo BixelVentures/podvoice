@@ -6965,3 +6965,69 @@ async def test_button_does_not_restart_during_teardown(flag):
     session._on_device_event(ROOM, SimpleNamespace(event_type="single_press"))
     await asyncio.sleep(0)
     assert calls == []
+
+
+@pytest.mark.parametrize("alpha", [False, True])
+async def test_thin_late_native_disable_ack_survives_retry_without_new_generation(
+    alpha, monkeypatch
+):
+    class ClosingDevice(_ContextDevice):
+        supports_live_wav = True
+        supports_live_semantic_stop = True
+        on_media_state = None
+
+        async def set_stop_context(self, enabled, *, closing=False):
+            return await self.control.set_stop_context(enabled, closing=closing)
+
+        async def set_live_context(self):
+            self.control.supports_live_semantic_stop = True
+            return await self.control.set_live_context()
+
+        async def _service(self, name, args=None):
+            if name == "podvoice_live_context":
+                self.control._on_stop_context(f"{args['session']}:{args['generation']}:live")
+                return True
+            return await super()._service(name, args)
+
+    device = ClosingDevice()
+    if alpha:
+        from test_thin_live import build
+
+        session, _, _, _, _ = build(device=device)
+    else:
+        session, _, _ = _build(LiveFake(), device=device)
+    monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.03)
+    await session.start()
+    try:
+        await session.wake()
+        assert session._active
+        device.hold_disable = True
+        await session.stop()
+        assert session._teardown_incomplete
+        assert device.rearm_calls == 0
+        pending = dict(device.controls[-1])
+        control_count = len(device.controls)
+        device.ack(pending)
+        session._teardown_retry_wakeup.set()
+        await _wait_until(lambda: device.rearm_calls == 1)
+        assert not session._teardown_incomplete
+        assert len(device.controls) == control_count
+        device.hold_disable = False
+        device.new_nonce("b")
+        await session.wake()
+        assert session._active
+        before = (
+            device.control._stop_session,
+            device.control._stop_generation,
+            device.control._stop_playback_allowed,
+        )
+        device.ack(pending)
+        assert before == (
+            device.control._stop_session,
+            device.control._stop_generation,
+            device.control._stop_playback_allowed,
+        )
+        assert session._active and not session._transport_closing
+    finally:
+        device.hold_disable = False
+        await session.aclose()
