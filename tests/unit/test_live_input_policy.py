@@ -106,6 +106,33 @@ def test_continuous_activity_extends_tail_without_new_onset():
     assert decision(p, 4).status == "ready"
 
 
+def test_perfect_but_lagged_background_verdict_never_closes_continuous_tv():
+    """An unclassified live tail survives forever with any positive detector lag."""
+    p = policy(uncertainty_s=30)
+    for sequence in range(1, 101):
+        now = sequence / 10
+        p.observe(
+            owner=OWNER,
+            sequence=sequence,
+            begin=(sequence - 1) * 1600,
+            end=sequence * 1600,
+            active=True,
+            now=now,
+        )
+        if sequence > 10:
+            previous = sequence - 10  # Perfect classification, always one second behind.
+            verdict(
+                p,
+                previous,
+                (previous - 1) * 1600,
+                previous * 1600,
+                "background",
+                now=now,
+            )
+        if sequence in (40, 50, 100):
+            assert decision(p, now).reason == "input_unresolved"
+
+
 def test_partial_middle_coverage_does_not_release_either_tail():
     p = policy()
     observe(p, 1, 0, 100)

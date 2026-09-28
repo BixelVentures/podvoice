@@ -47,6 +47,20 @@ anset for at dække en ny nøgle, mens den eksisterende PodVoice-nøgle er aktiv
 Ingen omvej eller nøgleoverførsel forsøges; specifik brugertilladelse kræves
 før denne eksterne prøves næste trin. Dette er ikke en runtime-/releasegate.
 
+Ny mekanisk modprøve på den eksisterende deaktiverede `LiveInputPolicy`:
+100 sammenhængende 100 ms aktive inputintervaller, alle korrekt klassificeret
+som baggrund med præcis 1 s forsinkelse. Ved 4, 5 og 10 sekunder er verdict
+stadig `input_unresolved` med ti nye uklassificerede intervaller. Regressionen
+består og beviser, at perfekt men asynkron klassifikation alene aldrig lukker
+under kontinuerlig TV-tale. Derfor er en grøn lydmodel-eval kun nødvendig
+relevansevidens, ikke tilladelse til at aktivere den nuværende kandidat2.
+En senere runtime-beslutning skal enten have et verificeret aktuelt
+relevanssignal uden denne laggende hale eller definere en eksakt sample-fence
+ved UI-fristen, lokal buffering af efterfølgende tale, komplet verdict på den
+forseglede periode og annullering ved sent arbejde/reel henvendelse. Ellers
+jagter den en evigt ny inputhale. Hvordan input efter fristen bevares eller
+genstarter uden et dødt wake-vindue kræver særskilt adapter-/fysisk bevis.
+
 ## Diagnostisk checkpoint 28/9 — mål outputro korrekt under transskriberet baggrundstale
 
 Observeret fejl: .109 TV-tracen uden Live-inputfragmenter viste >10 s fysisk
