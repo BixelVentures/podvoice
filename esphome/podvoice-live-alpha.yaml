@@ -4,7 +4,7 @@ packages:
   podvoice: !include podvoice.yaml
 
 substitutions:
-  podvoice_build_marker: podvoice_build_113106_livecancelretry1
+  podvoice_build_marker: podvoice_build_113108_livenotifyisolation1
 
 esphome:
   build_path: .esphome/build/podvoice-pe-live-alpha
@@ -56,6 +56,42 @@ podvoice_audio:
 
 podvoice_reply:
   activity_status: podvoice_activity_status
+
+# The exposed ring is the native adapter's target. Reuse the base's two-tail
+# clockwise pattern; its internal "Thinking" effect only pulses in place.
+light:
+  - id: !extend led_ring
+    effects:
+      - addressable_lambda:
+          name: "Thinking"
+          update_interval: 100ms
+          lambda: |-
+            // Both partitions drive the same pixels. Stop our effect before the
+            // local safety display, including a work command already in flight.
+            if (id(pv_reply).button_stop_latched() || id(master_mute_switch).state ||
+                id(voice_kit_component).is_failed()) {
+              auto work = id(led_ring).turn_off();
+              work.set_effect("None"); work.perform();
+              id(control_leds).execute();
+              return;
+            }
+            static uint8_t index = 0;
+            if (initial_run) index = 0;
+            auto light_color = id(led_ring).current_values;
+            Color color(light_color.get_red() * 255, light_color.get_green() * 255,
+                  light_color.get_blue() * 255);
+            for (uint8_t i = 0; i < 12; i++) {
+              if (i == index || i == (index + 6) % 12) {
+                it[i] = color;
+              } else if (i == (index + 11) % 12 || i == (index + 5) % 12) {
+                it[i] = color * 192;
+              } else if (i == (index + 10) % 12 || i == (index + 4) % 12) {
+                it[i] = color * 128;
+              } else {
+                it[i] = Color::BLACK;
+              }
+            }
+            index = (index + 1) % 12;
 
 # Live keeps natural speech with the provider. Only the physical/panel Stop closes.
 api:

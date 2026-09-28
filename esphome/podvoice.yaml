@@ -15,7 +15,7 @@
 substitutions:
   name: podvoice-pe
   friendly_name: PodVoice PE
-  podvoice_build_marker: podvoice_build_113106_cancelretry1
+  podvoice_build_marker: podvoice_build_113108_notifyisolation1
   # The hardware base is vendored from upstream 26.6.0 with an auditable two-block
   # delta: wake word and center button emit PodVoice events and never start HA Assist.
 
@@ -24,6 +24,13 @@ substitutions:
 # sdkconfig, on_boot). Only the two lifecycle blocks documented in the base differ.
 packages:
   ha_voice: !include voice-pe-podvoice-base.yaml
+
+# Reserve slot 1 for the main loop; ESP-IDF pthread_join owns slot 0.
+# This is a kernel/TCB setting, so every firmware object is compiled consistently.
+esp32:
+  framework:
+    sdkconfig_options:
+      CONFIG_FREERTOS_TASK_NOTIFICATION_ARRAY_ENTRIES: "2"
 
 esphome:
   name: ${name}
@@ -379,14 +386,14 @@ external_components:
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: f7384c759dd4eef937ca210b1c3d76c04b6dfd0b
+      ref: 526ceb822938cfa2c1c6f7b0372228c954e38096
       path: esphome/components
     components: [podvoice_reply, micro_wake_word]
     refresh: 0s
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: f7384c759dd4eef937ca210b1c3d76c04b6dfd0b
+      ref: 526ceb822938cfa2c1c6f7b0372228c954e38096
       path: esphome/components
     components: [mixer, resampler, speaker_source]
     refresh: 0s
@@ -401,7 +408,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: f7384c759dd4eef937ca210b1c3d76c04b6dfd0b
+      ref: 526ceb822938cfa2c1c6f7b0372228c954e38096
       path: esphome/components
     components: [podvoice_audio]
     refresh: 0s

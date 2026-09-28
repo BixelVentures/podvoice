@@ -1,3 +1,9 @@
+## 1.13.108
+
+- Isolate firmware main-loop wake notifications from ESP-IDF thread completion so normal network/audio wakeups cannot prematurely delete a decoder worker during cleanup.
+- Keep Alpha working feedback cyan and rotate the ring, with physical Stop, mute and hardware-failure display taking priority.
+- Requires paired .108 firmware. Preserves wake models, gains, Alpha selection, saved timeout and production prompts. Kitchen Stop/rearm, click-free playback and background-speech closure require physical validation; this change does not activate candidate 2.
+
 ## 1.13.107
 
 - Discard queued HTTP audio on Alpha cancellation instead of flushing it after Stop. Preserve complete normal playback and isolate late cancellation from the next stream.

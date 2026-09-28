@@ -226,6 +226,12 @@ Før ændringer i arkitektur, Realtime, VAD, lyd, firmware eller lifecycle:
 9. Rollback og byteidentitet arver aldrig “golden” eller “stabil”; kandidaten skal bestå
    alle senere feltregressioner. Stabilitet kræver samme artifact 10/10 ubrudt.
 
+Ved mistænkt firmwarecrash skal den bevarede native crashlog hentes og den
+installerede kandidats ELF/artifact-identitet sikres før reboot eller flash.
+En backtrace uden tidspunkt beviser et tidligere crash, ikke automatisk årsagen til
+en bestemt samtale. Ved tråd-/RTOS-fejl skal ejerskab af delte signaler kontrolleres
+på tværs af den præcise shippede framework- og afhængighedskode.
+
 Før implementering skal lead desuden gennemgå hele den kausale kæde og mindst ét trin på
 hver side af den mistænkte fejl. En lokal rettelse er ugyldig, hvis den blot flytter
 ejerskab, timing eller fejl til mic-gate, provider, tool-round, playback, teardown eller

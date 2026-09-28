@@ -1,8 +1,200 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktivt samlet mål — solid Alpha i køkkenet
+
+Brugeren har eksplicit sat samlet goal: straks Stop/hurtig nextwake uden knas,
+automatisk semantisk/timeout-afslutning ved TV/baggrundstale, samme blå roterende
+arbejdslys, og gentagne fysiske køkkenforløb på samme installerede kandidat.
+Goal-feature bekræfter active. Alle fire krav skal opfyldes; LED alene er ikke mål.
+Frisk runtime-log indsnævrer107-fejlen: close11:21:57.919; providerterminal
+11:22:00.799 og SDK-release færdig02.661. Native unexpected disconnect27.224,
+connect27.235, handshake27.283, entities27.424, tom rearmACK27.470, wakeconfirm
+27.472, recovered27.961. Lang recovery falder sammen med native reconnect.
+Dette beviser ikke reboot eller decoder-deadlock; deadlines ændres ikke på gæt.
+LED-review fandt lokal mute/failure kunne overskrives af rotation; rettet med
+effekt-stop før lokal safety-visning. Uafhængig re-review GO på kilde/tests,
+ikke fysisk godkendelse. Panelets vejledning følger den nye cyan-rotation.
+Ingen ny installation endnu.
+
+## Aktiv beslutning — adskil firmware-wake fra pthread-join
+
+Lead: denne tråds hovedagent. Observeret fejl: fysisk Stop→nextwake30.045s,
+native disconnect/reconnect og gemt CPU1 interrupt-watchdog i TCP/select-semafor.
+Eksakt106-kilde viser notification-array=1; main_task task/ISR-wake,
+lwip_fast_select og wake_freertos bruger slot0. IDF5.5.4 pthread_join venter
+på samme slot0 uden at kontrollere færdigtilstand igen før TLS-destruktion og
+vTaskDelete. micro-decoder.stop kalder join fra mainloop. Uafhængig reviewer
+har bekræftet kollisionen. Crash uden timestamp er konsistent, ikke fysisk
+reproduktionsbevis for netop11:21-sessionen.
+
+Falsificerbar hypotese: pending/samtidig normal loop-wake frigiver pthread_join
+før HTTP-reader er færdig; TLS-semafor slettes mens select-waiter stadig er
+registreret; efterfølgende TCP-data signalerer frigivet kø. Berørt kæde:
+knap→lokalt lydstop→decoderjoin/HTTP→native ACK→Thin teardown→rearm→wake.
+Invarianter: én lifecycle-ejer, fysisk playback-sandhed, ingen tidlig ACK/rearm,
+ingen gammel generation ind i næste; begge reader/decoder og alle normale
+wake-producenter skal bevares. Fejlgrænsen gælder også normal close/error og
+play_url-prestop ved join af endnu kørende tråde, ikke kun knappen. For tidlig
+decoderdeletion kan give lydbrud, men knas/pop er endnu ikke kausalt bevist. Ikke-mål: gain/VAD/model/prompt/timeouttuning,
+ny transport eller ny motor.
+
+Mindste planlagte grænse: reserver eget notification-index til alle ESPHome
+mainloop-wake-producenter og consumer, behold pthreads slot0. Byg skal sikre
+mindst2slots og reproducerbar patch af kandidatens genererede kilder, aldrig
+ændre global installeret toolchain. Før implementation verificeres faktisk
+upstream-mulighed og alle kald. Permanent actual-source regression injicerer
+pending og samtidig wake under join og kræver at kun rigtig completion kan
+frigive den; task/ISR/fastselect/consume og stale-events dækkes. Samlet
+firmwarecompile, relevante runtime/adapterfelttests, uafhængig review og én
+frossen releasegate. Rollback/stop-the-line ved manglende wake, tidlig rearm,
+ukendt sourceidentity eller uløst race; ingen fysisk godkendelse arves.
+
+## .108 implementation og første softwarebevis
+
+Mainloop-wake er flyttet til index1 i tre nøjagtigt hashbundne genererede
+ESPHome2026.6.2-filer: main_task task/ISR, lwip_fast_select producer og
+wake_freertos consumer. Pthread beholder index0; SDK-notification-array=2.
+Buildhook skriver kun projektkopier og afviser ukendt kilde/version før ændring.
+Ingen global toolchainændring. 10 målrettede regressioner PASS (inklusive SCons-entrypoint, array-size-compileguard
+og symlink/hardlink/source-drift-afvisning): kompilerede faktiske
+wake-funktioner og IDF-pthread_join-krop reproducerer for tidlig trådsletning i
+106-kontrol og bevarer begge joins i den rettede variant, ved pending/samtidig
+wake fra task/ISR/TCP. Dette er softwaremekanismebevis, ikke fysisk crashrepro.
+Kandidat108 har parrede markerændringer og cyan-roterende arbejdslys; UI-tekst
+følger samme adfærd. Første isolerede udviklingscompile PASS123.93s i
+/private/tmp/pv108-firmware, log /private/tmp/pv108-firmware-compile.log,
+config_hash0x3e9cdaba. Genereret patch og effektiv kernelconfig2 verificeret.
+Det bruger lokal komponentkilde og er ikke det endelige immutable releaseartifact.
+Uafhængigt endeligt review og releasegates afventer. Kæden på hver side er kontrolleret: knapcallback stopper mic/reply lokalt,
+resampler-stop og event kommer før decoderjoin ved behandling af stopkøen.
+Native EventResponse omgår batchdelay og forsøger socketwrite synkront.
+Ved socketbackpressure kan event dog køes, og sikre joins kan stadig
+vente på rigtig HTTP-afslutning; derfor er Stoplatens/knas/nextwake og alle
+køkkengates fortsat åbne. Kandidat2 er ikke aktiveret.
+
+## .108 låst firmwarekilde og pinned compile
+
+Uafhængig komponentreview GO. Sourcecommit
+526ceb822938cfa2c1c6f7b0372228c954e38096 på codex/firmware-wake-isolation-108
+(tree dc8d7337e5a8fb79bf1611600ea9c07122a2d528) indeholder de to reviewede
+componentændringer. Alle tre firmwarepins bruger denne commit. 20-file manifest
+2d755be7f9002bde64b1c9b16ca2bc7c84464d5cec04b9134f980a1a287ab67b.
+Pinned ESPHomecompile PASS15.97s; config_hash0xa40f17cb. Hook byte-matcher
+reviewet kilde, alle tre genererede kernefiler matcher patchhashes, og effektiv
+kernel-notification-array=2. OTA c16abd3c472cda4f69316d2f2c9150420d9d6c1b66d66bc805d5c9d4e457041a;
+ELF e66d44947ceb2da2fa72eddef7bff089cafcdc4c48646ef682016c1e56acfdf8.
+Filer bevaret i /private/tmp/pv108-artifacts. Fastgatens delkontroller PASS (unit78.64s, integration55.05s, Ruff/format/mypy),
+men outer gate afviste resultatet fordi lead ændrede denne STATUS-fil under
+kørslen. Resultatet må ikke bruges som kandidatgate. Ingen produktfejl og ingen
+runtimepatch; filerne fryses før autoritativ genkørsel. Slutreview pågår;
+releasegate, PR/merge og installation er endnu ikke udført. Samtlige fysiske
+gates står åbne. Dette ændrer ikke kandidat2 eller løser automatisk TV-relevans.
+
+## .108 samlet review og diff-freeze
+
+Uafhængig Astra-review semantic_eval_review GO til freeze/releasegate: cached
+immutable commit er korrekt/clean, alle35 komponentfiler byte-matcher, tre
+patchhashes, kopieret hook, effektiv kernel2, begge YAML, firmwaremarkers og
+OTA/ELF er verificeret. 76 couplingtests PASS. Ingen uløst alvorlig finding.
+Den ugyldige fastgate kasseres; én releasegate genkører samme kontroller på det
+nu frosne diff og er autoritativ. Ingen filer ændres under kørslen. Reviewet
+beviser ikke fysisk Stop, lydfri lukning, køkkenlifecycle eller semantisk TV-afslutning.
+
+## .108 endelig lokal releasegate
+
+Frosset kandidat: releasegate PASS81.3s (unit80.94s; øvrige checks grønne).
+Log /private/tmp/pv108-release-gate.log. Ingen filer ændret under kontrollen.
+Kun denne resultatpost tilføjes bagefter. Exact-commit CI, ARM64-publicering,
+parret add-on/firmwareinstallation og fysisk accept udestår.
+
+## Native crash-bevis28/9 — årsagsgrænse under undersøgelse
+
+Read-only native logsubscription på installeret106 rapporterede gemt crash fra
+forrige boot: `Interrupt wdt - Interrupt wdt timeout on CPU1`, core1, PC0.
+Backtrace: 4037DFB5 4038171A 421352BE 420A3476 4209299F 420A52CD
+4209A812 4209F146 420A2FCA 42094652; core0:4037E0EB 42133A99 42135B53.
+Dette beviser et tidligere firmwarecrash, men har ikke eget tidspunkt og beviser
+endnu ikke at netop11:21-Stop udløste det. Det er interrupt-watchdog, ikke den
+separate5s task-watchdog. Dekodning mod106-ELF sha256
+f0c633fa51e24de18df6709386b43dd6aa0e24a691601bab435844568aad62e2
+og matchende shipped OTA a1508bda15250e31bc89d0627d00bb5bcf4a60ad7e326ebc02594ef12156fd1a:
+CPU1 esp_cpu_compare_and_set→spinlock_acquire/xPortEnterCriticalTimeout→
+xQueueGenericSend→sys_sem_signal→select_check_waiters/event_callback→recv_tcp→
+tcp_input→ip4_input→ethernet_input→tcpip_thread; core0 idle. Dette afviser
+at denne stack direkte beviser decoderjoin/mainloop-taskwatchdog. Næste
+årsagsgrænse er select-waiter/semafor under TCP-modtagelse; ingen runtimepatch
+før levetid/ejerskab er afgrænset.
+Efterfølgende readback har gyldig idle stopcontext, stopped reply, begge wakeACK
+og recovered rearmACK; kun WakeReference har missing_state=true. Tidligere tomme
+strenge må derfor ikke i sig selv bruges som permanent fejlbevis. Ingen reboot,
+flash eller ny lydprøve udført under denne aflæsning.
+
+## Frisk107-driftslog —30s Stop→rearm, native lukning fejler
+
+HA-browseradgang genetableret efter brugerens fortsættelse. Renderet driftslog
+session814eca8331807d096e2e4b2253dc32bbc7512b7f09a95a443c13fdb2571aa71f
+fra11:21:39: button18030ms, close18032, silence-device timeout20034,
+stop-context-disable24036; heartbeat-stop/attention-release total-deadline24036/37.
+Retry silence27052/33122/42171, context29106/35146/44193. Teardown47838,
+rearm48075:30.045s efter knappen. Provider-close fremgår ikke som timeout.
+Dette falsificerer at107-HTTPabort alene løser feltrecovery. LEDændring er
+separat visning; næste kausale audit retter sig mod native lydstop/contextACK.
+To første retentionposter er samme session, ikke to separate prøver. Lydtrace
+20260928T112139-886-c7d27e14 er ufuldstændigt; knasets årsag er fortsat ukendt.
+
+## Ny feltfejl efter107 — Stop/hvid, forsinket wake og støj
+
+Brugeren: ét tryk Stop gav hvid LED og Hey Jarvis åbnede ikke straks; senere
+virkede Hey Jarvis. Arbejdsanimation sås også, og hvid kom igen med højttalerstøj
+(knas/pop, brugerbeskrevet som støj på linjen). Derfor er107 fysisk Stop→nextwake
+FAIL; hverken varighed, årsag, reboot eller lydgrænse er bevist. Native readback
+bekræfter106-firmware/mute=false, men tomme context/reply/wake/rearm-statusser.
+Det beviser ikke reboot. Kilden viser Stopwhite ved button_stop_latched, og
+hostlys kan ankomme efter lokal Stop og overskrive det; fejllys kan også være
+reel cleanupfejl. Amp toggles kun ved boot, ikke eksplicit Stop/rearm. Ingen
+lyd-/gain-/timeoutpatch på gæt. Den tidligere anmodning om fysisk resultat er
+nu besvaret; problemet er dokumenteret, ikke afklaret.
+
+Brugerbeslutning: Alpha arbejdslys skal have samme blå/cyan som samtalen og
+rotere, ikke rav/rød som arbejdsindikator. Review finder konkret mangel: eksponeret
+led_ring har ingen effekter og nuværende workingfarve er rav. Planlagt afgrænset
+LED-kandidat skal bevare Thin-ejerskab, closing/epoch-fences, fysisk Stop/rearm,
+ægte fejlindikering og OFF-adapterkontrakt. Regressioner skal dække stale work
+efter Stop/ny generation og native effektudbud; firmwarecompile og uafhængig
+review før installation. Ingen ændring af lyd/lifecycle som skjult LED-bivirkning.
+Rollback ved falsk arbejde efter Stop eller ændret næste-wake-kæde.
+
+## .107 PR79 installeret — Alpha ON, fysisk Stop-gate åben
+
+PR79 https://github.com/BixelVentures/podvoice/pull/79 merged efter CI36399385518
+lint-test og build-addon PASS på6c16a8c6dc65dfe5a45bfbf7c4634a1b102f7e01.
+Main df8565c5332f7da2c841cf64c9f2a7a6ba922890 er byteidentisk med den testede
+tree e5fbb6acc7829f17ea936bc1f04a39bc40ac872a. Main publiceringsrun36399807431
+PASS med lint-test og publicering. Image-digest:
+sha256:95666e7d4cbd6e312e24128697c43655c132330e657ee3e79ae7f9c2cb284f0a.
+HA-opdateringsdialog viste106→107 med sikkerhedskopi valgt; installation
+afsluttet: HA viser Nuværende version1.13.107 og Kører. Frisk ingress viser
+v1.13.107/statuslive, Voice PE forbundet, GPT-Live Alpha checkbox checked og
+begge wakewords bekræftet af enheden. Ingen aktiv samtale. Ingen ny firmwareflash.
+Screenshotforsøg blev blokeret af en åben Chrome-extension-UI; ingen omgåelse.
+Fysisk Stop/nextwake, rumlyd og10/10 er fortsat åbne. Forudgående HA-info
+readback28/9 viser .106 Kører. Alpha/fysiske gates er ikke godkendt af CI.
+
+## Åbne adgangskrav efter installation28/9
+
+Stopprøve på107 er besvaret med fejl; frisk evidens og aktivt mål står øverst.
+Automatisk afslutning kan ikke godkendes: providerforsøget er reviewet/offlineklart,
+men den specifikke private OpenAI-nøgleoverførsel og korte eksklusive pause har
+endnu intet svar. Ingen key flyttet, listener startet eller providerforsøg kørt.
+Browseradgang er siden genetableret efter brugerens fortsættelse; den tidligere
+Chrome-extension-blokering er ikke længere aktiv.
+Ingen aktive test-, build- eller installationsprocesser afventer. Næste meningsfulde
+trin er ny fysisk evidens og den særskilt autoriserede modelprøve; yderligere
+gættede runtimeændringer er ikke begrundet. Goal forbliver uafsluttet.
+
 ## Kandidat .107 — afgrænset HTTP-Stop og lukkediagnostik
 
-Forberedes som add-on-only feltkandidat med eksisterende .106-firmware; ingen
+Leveret som add-on-only feltkandidat med eksisterende .106-firmware; ingen
 firmwarekontrakt, LED, gain, wake, model, prompt eller timeout ændres. Bevist fejl
 er serverens bevarede transportkø efter cancel, ikke hele16s-feltårsagen. Samme
 Stop→provider/HTTP→device→cleanup→rearm-kæde og rollbackgrænse som beslutningen
@@ -13,8 +205,8 @@ Endelig samlet packaging-review semantic_eval_review GO28/9: versionsfiler
 er samstemmende, firmware/settings/prompt uændrede, evalscripts uden for
 Docker-buildkontekst og ingen aktivering. Diff frosset; præcis én releasegate PASS79.4s: candidate-scope, Ruff/format,
 mypy, hele unit- og integrationssuiten. Resultat /private/tmp/pv107-release-gate.log.
-Efter gaten er kun denne resultatpost tilføjet. PR/exact-commit CI, ARM64-artifact,
-installation og fysisk kontrol udestår.
+Efter gaten blev kun resultatposten tilføjet før PR. PR/exact-commit CI,
+ARM64-publicering og installation er siden bekræftet ovenfor; fysisk kontrol udestår.
 
 ## Feltkontrol28/9 09:47 — .106 stopper hørbart, men Stop-recovery er stadig langsom
 
