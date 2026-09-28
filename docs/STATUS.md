@@ -45,6 +45,21 @@ som løsning på brugerfejlen; lifecycle/releasegate, artifact og installation e
 ikke udført. Næste beslutning kræver præcis relevansevidens for både transskriberet
 og ikke-transskriberet TV samt lav reel opfølgning, før close-politikken ændres.
 
+Efterfølgende hentet faktisk lokal Voice PE-diagnostik fra samme .109-session:
+mikrofonklip p0001–p0003 er 16 kHz mono, og p0002's tidslinje indeholder
+native VAD og fysisk mixerforbrug. Ved +37,284 s var output-shadow klar efter
+10,407 s; native VAD var `active` med probability 165, og ingen response,
+batch, tool, continuation eller assistant-audio ventede. Mixerens observerede
+assistant-output havde peak/sum_squares 0 i de nærliggende 100 ms frames.
+Brugerens samtidige feltbeskrivelse identificerer talen som TV/baggrund,
+ikke en henvendelse til Voice PE. Klippene er gemt lokalt uden for Git og er
+endnu ikke gennemlyttet/transskriberet eller sammenlignet med lav reel dansk
+opfølgning. Den lave PCM-amplitude alene er ikke et relevansverdict.
+Dette styrker den fysiske lokalisering af input-vetoet, men autoriserer stadig
+ikke output-only close. Næste måling skal binde et intervalpræcist
+baggrunds-/henvendelsesverdict til samme audio-sample clock og modprøve
+TV, lav opfølgning over TV og forsinket Live-arbejde før kandidat2 kan aktiveres.
+
 ## .109 installeret 28/9 — fysisk kandidatprøve afventer
 
 PR81 `dcbeac2` bestod PR-CI og den fulde lokale releasegate; merged main som
