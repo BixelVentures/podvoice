@@ -31,6 +31,53 @@ så den er **ikke** bevis for en naturlig afslutning. Dette reproducerer den
 kendte inputveto-flaskehals på .108 og giver ingen tilladelse til at aktivere
 kandidat2 uden valideret relevans af den opfangede tale.
 
+Første .109-feltforløb 14.01–14.04: tre separate wake/sessioner blev registreret.
+Den sidste automatiske trace `20260928T140338-544-2280768f` har huller i
+lydmålingerne, men korrelerede hændelser og brugerrapport: efter sidste
+assistent-/værktøjsarbejde var der >10 s output-ro uden pending response,
+tool, continuation eller audio. Ved +31,040 s viste output-only shadow
+4,214 s, mens runtime kun havde 0,307 s på grund af native input; ved
++37,284 s var shadow 10,407 s og runtime igen `input_not_quiet`. I del 3
+fortsatte input-VAD aktiv/rolig skiftevis uden nyt Live-inputfragment, men
+timeout fik stadig aldrig 4 s. Bruger identificerede lyden som baggrundstale
+fra TV og oplevede LED/samtale fortsat åben. Dette er ny fysisk evidens for
+inputveto-fejlen på selve .109, ikke et signal om at al native tale er irrelevant.
+
+Brugerens Stop i samme trace: `button_pressed` +53,459 s, `close_requested`
++53,462 s, providerterminal og release færdig +54,722 s, `teardown_complete`
++54,811 s, eksakt `wake_rearm_recovered` +55,018 s. Knap→rearm 1,559 s;
+socketrelease fra +54,711 til +54,722 s ≈11 ms. Brugeren oplevede at Stop
+virkede og rapporterede ingen klik/knas samt fungerende senere Hey Jarvis.
+Panelet viser to tidligere .109-rearms efterfulgt af ny wake kl. 14.02.09 og
+14.03.38, men ingen korreleret ny wake efter det sidste Stop kl. 14.04.32.
+Netop denne Stop→næste-wake-kæde og fysisk lydstop under faktisk tale er derfor
+endnu ikke fuldt bevist. De tidligere .108-målinger arves ikke.
+
+Årsagshypotese for næste isolerede afslutningskandidat: rå native VAD er en
+sikker foreløbig beskyttelse, men kan ikke alene eje relevans ved vedvarende
+baggrundsstemmer. Fravær af Live-transcript eller providerrespons er heller
+ikke i sig selv et positivt baggrundsverdict. Den forberedte kandidat2 må
+fortsat ikke aktiveres på output-only ro; næste gate er at validere en eksakt,
+frisk relevanskilde mod dette TV-spor og en reel opfølgning, inklusive sen
+providerrespons, før Thin får en ændret close-beslutning. Ingen timeout-,
+prompt-, VAD- eller firmwareændring er udført på dette fund.
+
+Full-duplex-beslutningsgrænse: GPT-Live kan behandle samtidig bruger- og
+assistenttale, men `session.input_transcript.delta` har kun omtrentlige
+lydintervaller og ingen markeret afsluttet samtaletur; manglende transcript
+beviser hverken stilhed eller at lyd er ikke-henvendt. OpenAI anbefaler en
+appstyret inaktivitetstimeout baseret på lydaktivitet, afspilning og ventende
+arbejde (Managing GPT-Live sessions, afsnittene “Manage speech and transcripts”
+og “Close idle sessions and resume”). Her kræver et sikkert close derfor to
+uafhængige observationer: fysisk færdig assistentlyd/arbejde og frisk bevis
+for at ny mikrofonlyd ikke er en henvendt opfølgning. En output-only timer
+kan måle muligheden for lukning, men ikke alene give close-tilladelse.
+`wait_for_user` er en modelfortolkning af et set input, ikke et tidsstemplet
+verdict over enhver senere VAD-spændvidde. Den næste isolerede gate skal prøve
+både transskriberet og ikke-transskriberet TV-lyd, lav dansk opfølgning over TV
+og forsinkede providerhændelser på samme kandidat; ukendt relevans må ikke
+rapporteres som bekræftet stilhed. Ingen ny produktionsadfærd er aktiveret.
+
 ## Aktiv releasebeslutning — manglende main-publicering efter PR81
 
 PR81 blev merged 28/9 kl. 11:28:15 UTC som `43b2775635e2f760030cd1b6faee3f9a0e6178ec`.
