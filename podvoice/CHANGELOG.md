@@ -1,3 +1,9 @@
+## 1.13.106
+
+- Preserve physical Stop progress when the host retries cancellation; retain the original drain fence and deadline, including button Stop before the first answer.
+- Accept an exact late cleanup acknowledgement after a cancelled wait, without issuing a replacement disable. Invalidate it across faults, rearm, connection changes and new control requests; never grant playback permission from cleanup evidence.
+- Requires paired .106 firmware. Preserves Alpha selection, four-second setting, prompts, wake models and gains. This correction does not fix inactivity blocked by TV or conversations with other people; physical Stop verification remains required.
+
 ## 1.13.105
 
 - Add observation-only Alpha inactivity diagnostics comparing consumed output quiet with native input activity. Keep content-free metadata in the existing bounded diagnostic retention; do not change timeout, prompts, gain, firmware or closing decisions.

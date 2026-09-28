@@ -136,3 +136,119 @@ def test_malformed_generation_is_inert(generation):
     link = device()
     link._on_stop_context(f"{'a' * 32}:{generation}:disabled")
     assert link._stop_session is None and link._stop_orphan is None
+
+
+async def cancelled_closing_disable(link, token):
+    link._on_stop_context(f"{token}:0:disabled")
+    task = asyncio.create_task(link.set_stop_context(False, closing=True))
+    args = await sent(link)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    return args["generation"]
+
+
+@pytest.mark.parametrize("outcome", ["disabled", "cancelled"])
+async def test_late_closing_disable_ack_is_reused_only_for_cleanup(outcome):
+    link = device()
+    token = "a" * 32
+    generation = await cancelled_closing_disable(link, token)
+    link._on_stop_context(f"{token}:{generation}:{outcome}")
+    link._on_stop_context(f"{token}:{generation}:{outcome}")
+    assert await link.set_stop_context(False, closing=True)
+    assert link._call_service.call_count == 1
+    assert not link._stop_playback_allowed and not link._stop_armed
+
+
+async def test_missing_closing_ack_retries_new_generation_and_rejects_old_ack():
+    link = device()
+    token = "a" * 32
+    generation = await cancelled_closing_disable(link, token)
+    link._call_service.reset_mock()
+    retry = asyncio.create_task(link.set_stop_context(False, closing=True))
+    args = await sent(link)
+    assert args["generation"] == generation + 1
+    link._on_stop_context(f"{token}:{generation}:disabled")
+    await asyncio.sleep(0)
+    assert not retry.done()
+    link._on_stop_context(f"{token}:{generation + 1}:cancelled")
+    assert await retry
+
+
+@pytest.mark.parametrize("boundary", ["reset", "fault", "rearm"])
+async def test_late_closing_ack_cannot_survive_owner_or_fault_boundary(boundary):
+    link = device()
+    token = "a" * 32
+    generation = await cancelled_closing_disable(link, token)
+    link._on_stop_context(f"{token}:{generation}:disabled")
+    if boundary == "reset":
+        link._reset_stop_context()
+    elif boundary == "fault":
+        link._on_stop_context(f"{token}:{generation}:fault")
+    else:
+        with pytest.raises(RuntimeError):
+            await link.rearm_wake_word()  # even failed preflight revokes old proof
+    link._on_stop_context(f"{token}:{generation}:disabled")
+    assert link._closing_disable_proof is None
+    assert not link._stop_playback_allowed
+
+
+@pytest.mark.parametrize("boundary", ["fault", "stopped", "reset", "rearm", "enable"])
+async def test_boundary_during_closing_send_cannot_recreate_cleanup_proof(boundary):
+    link = device()
+    token = "a" * 32
+    link._on_stop_context(f"{token}:0:disabled")
+    release = asyncio.Event()
+
+    async def delayed_send(*args):
+        await release.wait()
+        return True
+
+    link._call_service.side_effect = delayed_send
+    closing = asyncio.create_task(link.set_stop_context(False, closing=True))
+    args = await sent(link)
+    generation = args["generation"]
+    queued = None
+    if boundary in ("fault", "stopped"):
+        link._on_stop_context(f"{token}:{generation}:{boundary}")
+    elif boundary == "reset":
+        link._reset_stop_context()
+    elif boundary == "rearm":
+        with pytest.raises(RuntimeError):
+            await link.rearm_wake_word()
+    else:
+        queued = asyncio.create_task(link.set_stop_context(True))
+        await asyncio.sleep(0)
+    release.set()
+    link._on_stop_context(f"{token}:{generation}:disabled")
+    if boundary == "reset":
+        closing.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await closing
+    else:
+        assert not await closing
+    if queued is not None:
+        queued.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await queued
+    assert link._closing_disable_sent is None
+    assert link._closing_disable_proof is None
+    assert not link._stop_playback_allowed
+
+
+@pytest.mark.parametrize("cancel_send", [False, True])
+async def test_unsuccessful_closing_send_never_retains_late_ack(cancel_send):
+    link = device()
+    token = "a" * 32
+    link._on_stop_context(f"{token}:0:disabled")
+    if cancel_send:
+        link._call_service.side_effect = asyncio.CancelledError
+        with pytest.raises(asyncio.CancelledError):
+            await link.set_stop_context(False, closing=True)
+    else:
+        link._call_service.return_value = False
+        assert not await link.set_stop_context(False, closing=True)
+    link._on_stop_context(f"{token}:1:disabled")
+    assert link._closing_disable_sent is None
+    assert link._closing_disable_proof is None
+    assert not link._stop_playback_allowed

@@ -1,5 +1,115 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv beslutning 28/9 — Stop-retry bevarer fremdrift; inputrelevans stadig gated
+
+Bruger har nu bekræftet, at efterfølgende vejrtale var til andre/TV. Raw VAD
+er derfor utilstrækkelig inputrelevans for denne feltcase. Ingen lokal fraseregel,
+transcriptpause eller ukritisk output-only timeout indføres. Kandidat2 må først
+aktiveres med valideret addressedness-kilde; denne rettelse hævder ikke at løse
+den akustiske/semantiske del uden dens manglende bevis.
+
+Stopkæden nedenfor viser native silence/context-timeouts. Uafhængig Astra-audit
+fandt to konkrete retry-svagheder, men ikke en bevist samlet feltårsag: duplicate
+cancel nulstiller firmwaredræn; host cancellation kasserer en udestående disable-
+kvittering og næste retry skifter generation. Hypotese: forsinket kvittering og
+gentagne requests kan forkaste fremdrift, selv om den oprindelige lukning arbejder.
+Regressionerne skal først reproducere dette. Hele kæden: fysisk button mic/reply-
+latch → native event → Thin close → silence → provider close → context disabled →
+heartbeat/attention → eksakt rearm → næste wake. Providerterminal alene beviser
+ikke SDK-close-return. To sekunders hostdeadline ændres ikke på gæt.
+
+Berørte invarianter: én Thin close-owner, eksakt session/generation/playback,
+fysisk dræn før rearm, sen event inert på næste session, OFF/Talk bevaret.
+Planlagt afgrænset ændring: idempotent samme-token firmwarecancel i STOPPING;
+bevar kun en allerede sendt closing-disable-request over hostwait-cancellation,
+aldrig en enable/live-permission. Frisk forbindelse/reset/rearm invaliderer den.
+Tests: partial drain→duplicate cancel→oprindelig fence/deadline; canceled disable
+→late exact ACK→retry; forkert identitet, sendfejl og next-generation ACK; fælles
+Thin/VoicePE og Talk. Nødvendig independent review, fast og én frozen releasegate;
+firmwarebyg/installation og fysisk Stop/ny wake skal eksplicit bevises. Rollback
+til installeret105/.103; kandidatstatus IKKE TESTKLAR før disse gates.
+
+Implementeret checkpoint: idempotent firmwarecancel og exact late-disable proof er
+kodet. 63 målrettede unit/native/firmwaretests PASS; sammensat rigtig Thin→VoicePELink
+med Alpha ON/OFF PASS (timeout→late ACK→samme retry→rearm→nyt nonce→gammelt ACK inert).
+Astra uafhængig source review GO efter revision-fences ved lock-entry/send/return og
+fault/reset/rearm/new request. Ingen fysisk eller kandidat2-godkendelse.
+Fast-gatens lint/format/mypy PASS; integration blev først blokeret af sandboxens
+lokale socketforbud. Samme fulde integrationstage kørt med lokal socketadgang PASS;
+ingen runtimepatch baseret på miljøfejlen. Unit-sibling blev afbrudt og kræver fuld gate.
+
+Firmwarekilden er publiceret via GitHub-connector, fordi lokal Git-auth fejler.
+Remote source commit f7384c759dd4eef937ca210b1c3d76c04b6dfd0b har samme tree
+693aa151139c754790759d26cbba02905b1d1a5a som lokal sourcecommit4ca40fd.
+Alle tre pins er opdateret; default113106_cancelretry1 / Alpha113106_livecancelretry1.
+19-file source manifest98b4e590854e012a006910361450ad0485a648c10e29a100c7b48bc90335a0b0.
+ESPHome2026.6.2 Alpha compile PASS16.21s; config_hash0x8ec32c25.
+Genereret podvoice_reply.h byte-matcher den reviewede fil. OTA SHA256
+ a1508bda15250e31bc89d0627d00bb5bcf4a60ad7e326ebc02594ef12156fd1a.
+Artifact ligger i /private/tmp/pv-firmware-0927-build/.esphome/.esphome/build/
+podvoice-pe-live-alpha/.pioenvs/podvoice-pe/firmware.ota.bin. Endnu ikke installeret.
+
+Officiel Live sessions-/promptguide genlæst28/9: prompt kan bede modellen ignorere
+nearby conversation, men de gennemgåede guider dokumenterer ikke et intervalbundet
+addressedness-event til appen. Inaktivitet er appstyret og transcriptpauser er ikke
+stilhedsbevis. Den eksisterende prompt indeholder allerede baggrundsreglen. Derfor
+løser en ny formulering alene ikke den beviste native inputblokering. Semantisk
+inputrelevans kræver stadig valideret kilde og separat integration før kandidat2.
+
+Frozen releasegate28/9 PASS77.5s: lint/format, candidate-scope physical_output,
+mypy54, full integration54.04s og full unit77.18s. Uafhængig packaging-review GO:
+alle14 genererede C++/headers byte-matcher, YAML og marker verificeret. Ingen
+SafeEval nødvendig: prompt/schema/provider-semantik er uændret. Installation,
+eksakt commit-CI/ARM64 og fysisk Stop/ny wake mangler; HA viser fortsat Voice PE
+offline. Add-on må ikke installeres alene med den gamle .103 firmware.
+
+## Feltbevis 28/9 — kandidat1: manglende automatisk slut og langsom Stop-oprydning
+
+Frisk HA-ingress viser 1.13.105/status live. Bruger melder "it did not stop".
+Seneste trace `20260928T070318-637-bab2ff1f`, sessionhash
+`b293f843ecd88b6c330659cc2248ec69e92aedeca386e3511eb00fa8fcc4602e`.
+Tider nedenfor er relative host-logtider, ikke rumoptaget lyd:
+
+- Ved +30.254s er output-only shadow klar med 4.015s; runtime har kun
+  0.305s input/output-ro. Ved +31.282s er shadow 5.05s, runtime 1.34s.
+  Ingen ventende responses, batches, tools, continuation eller pending audio.
+- Ved +31.293s bliver native input active (probability180); +32.296s og
+  +33.339s viser `input_not_quiet`. Nye provider-inputfragmenter fra +32.022s
+  nulstiller også shadow-owner. Dette beviser inputgrænsens blokering, ikke
+  om lyden var brugerhenvendt tale, baggrundstale eller støj.
+- Ingen semantisk lukning i den viste tidslinje. Knap +34.182s,
+  `close_requested(reason=stop)` +34.184s. Syv teardown-timeouts, gentaget
+  `rearm_blocked_incomplete_teardown`; teardown først færdig +50.255s,
+  `wake_rearm_recovered` +50.517s: 16.335s efter knapregistrering.
+  Loggen beviser ikke tidspunktet for fysisk mic-/speaker-stop.
+- Lydsporet er automatisk delt og markeret ufuldstændigt/tabte måledata.
+  Den viste driftsdiagnostik er fragmentarisk på tværs af gemte dele, selv
+  om de enkelte retentionpakker angiver dropped_events=0. Ingen fuld
+  fysisk golden chain eller 10/10-godkendelse.
+
+Konklusion: kandidat1 leverer den tilsigtede adskillelse mellem output-ro og
+inputveto, men løser ikke timeout. Kandidat2 forbliver inaktiv: valideret
+klassifikationskilde og integration mangler stadig. Stop-oprydning er et
+separat dokumenteret fejlsymptom, der skal årsagsafgrænses før runtimepatch.
+Næste evidens er konkrete teardown-stepnavne fra trace samt sammenhængen
+mellem inputlyd/providerfragmenter og idle-reset. Ingen gain-/timeouttuning
+eller kandidat2-aktivering udført i denne loggennemgang.
+
+## Installeret 27/9 — 1.13.105 observation aktiv, kandidat2 inaktiv
+
+PR77 https://github.com/BixelVentures/podvoice/pull/77 merged. Reviewed head
+5fbe6abcb6b0004a1d3761363948c15005362ab4; main
+ee2eca7f22944831dab72e9c79cbd9d079990dd0. PR CI36347307754 PASS;
+main CI/publicering36347572544 PASS. Publiceret ARM64 digest
+sha256:e838e33124974d05cc44ce7900e0b92d4250fceb8f17a5b3b0f3bbf76928ef01.
+HA-opdatering .104→.105 med backup valgt er gennemført: installeret/nyeste1.13.105,
+Kører verificeret. Frisk ingress viser v1.13.105/status live og Alpha ON checked.
+Firmware .103 er uændret; ingen ny LED-/knap-/lydprøve. Voice PE er bevidst uden
+strøm, så fysisk smoke/10/10 og nye feltmålinger afventer næste almindelige brug.
+Kandidat1 observerer automatisk næste Alpha-samtale. Kandidat2-koden er dormant,
+uden produktionimport eller klassifikator; hverken aktiveret eller fysisk bevist.
+Timeoutproblemet er derfor ikke erklæret løst af denne installation.
+
 ## Kodeplan 27/9 — robust Alpha-afslutning (plan, ikke implementeret)
 
 Implementeringsstatus 1.13.105-kandidat: NativeIdleShadow er koblet på løbende

@@ -95,7 +95,15 @@ class PodVoiceReply : public Component {
     call.set_media_url(url); call.set_announcement(true); call.perform();
   }
   void cancel(const std::string &token) {
+    const bool already_stopping = state_.phase == ReplyState::STOPPING;
+    const bool blocked = state_.blocked;
     if (!state_.cancel(token, false)) return;
+    state_.blocked = state_.blocked || blocked;
+    // A host retry joins the physical Stop already in progress. In particular,
+    // button Stop precedes the native request. Do not restart its producer flush,
+    // consumed-frame fence or original deadline. Empty-token adoption above is
+    // still needed when the button stopped before the first playback request.
+    if (already_stopping) return;
     if (!context_.active && !timer_suspended_) {
       timer_suspended_ = true; context_.timer(false); request_context_();
     }
