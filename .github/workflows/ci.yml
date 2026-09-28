@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -81,7 +82,7 @@ jobs:
           # Optional cache export must not hold a completed image push open.
 
   publish-addon:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     needs: lint-test
     runs-on: ubuntu-latest
     steps:
@@ -89,6 +90,7 @@ jobs:
         with:
           fetch-depth: 2
       - uses: dorny/paths-filter@v3
+        if: github.event_name == 'push'
         id: changes
         with:
           filters: |
@@ -96,24 +98,24 @@ jobs:
               - 'podvoice/**'
               - '.github/workflows/ci.yml'
       - uses: docker/setup-qemu-action@v3
-        if: steps.changes.outputs.addon == 'true'
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
       - uses: docker/setup-buildx-action@v3
-        if: steps.changes.outputs.addon == 'true'
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
       - id: version
-        if: steps.changes.outputs.addon == 'true'
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
         run: |
           echo "version=$(sed -n 's/^version: \"\(.*\)\"/\1/p' podvoice/config.yaml)" >> "$GITHUB_OUTPUT"
       - id: artifact
-        if: steps.changes.outputs.addon == 'true'
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
         run: echo "context_sha=$(git ls-files -s podvoice | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v3
-        if: steps.changes.outputs.addon == 'true'
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Refuse an existing release version
-        if: steps.changes.outputs.addon == 'true'
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
         shell: bash
         run: |
           set +e
@@ -134,7 +136,7 @@ jobs:
           esac
       - name: Publish exact tested main image
         id: publish
-        if: steps.changes.outputs.addon == 'true'
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./podvoice
@@ -148,5 +150,5 @@ jobs:
           cache-from: type=gha,scope=podvoice-aarch64
           # Optional cache export must not hold a completed image push open.
       - name: Record published digest
-        if: steps.changes.outputs.addon == 'true'
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.addon == 'true'
         run: echo "published_digest=${{ steps.publish.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
