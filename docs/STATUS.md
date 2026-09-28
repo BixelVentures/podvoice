@@ -1,13 +1,34 @@
 # PodVoice-status — én aktuel sandhed
 
+## .109 installeret 28/9 — fysisk kandidatprøve afventer
+
+PR81 `dcbeac2` bestod PR-CI og den fulde lokale releasegate; merged main som
+`43b2775635e2f760030cd1b6faee3f9a0e6178ec`. Registryets immutable
+`1.13.109` og `sha-43b2775635e2f760030cd1b6faee3f9a0e6178ec` har samme
+index-digest `sha256:1ebf773c0c34c9f24edcdfddbb4be9db756d97c502b29ea9e42174e18b9f12a1`.
+Dette image fandtes, selv om GitHub Actions-oversigten og eventlisten ikke
+viste et main-push-job for PR81. Den tidligere konklusion om manglende
+publicering var derfor forkert. PR82's main-job bestod lint/test, men
+publish-jobbet afviste korrekt at overskrive den eksisterende version.
+
+HA-opdatering med backup ON gennemført. UI viser installeret/latest 1.13.109,
+Kører; PodVoice-panel viser v1.13.109/status live. Opstartslog rapporterer
+git SHA `43b2775` og firmwarekontrakt OK. Native readback: installeret
+`podvoice_build_113108_livenotifyisolation1`, mute OFF, begge wakeord ACK,
+reply stopped, StopContext idle og rearm recovered. Alpha ON og gemt UI-
+timeout 4 sekunder bekræftet i panelet; enheden er forbundet. Ingen ny
+firmwareflash var nødvendig. Fysisk Stop→næste wake, automatisk lukning ved
+TV, arbejdslys under værktøj og 10/10 på .109 er fortsat ubeståede gates.
+
 ## Aktiv releasebeslutning — manglende main-publicering efter PR81
 
 PR81 blev merged 28/9 kl. 11:28:15 UTC som `43b2775635e2f760030cd1b6faee3f9a0e6178ec`.
 PR-kontrollerne for `dcbeac2` er grønne, og main peger på merge-committet,
 men GitHub oprettede intet push-workflow i de første minutter. Workflowet er
 aktivt; manuel dispatch afvises (HTTP 422), fordi triggeren mangler. Årsagen
-til det manglende push-event er ukendt; image 1.13.109 er **ikke** publiceret,
-og .108 forbliver installeret. Ingen ny runtimehypotese udledes heraf.
+til det manglende push-event er ukendt. Vi antog da fejlagtigt, at image
+1.13.109 ikke var publiceret; se efterfølgende registry- og installationsbevis
+ovenfor. Ingen ny runtimehypotese udledes heraf.
 
 Mindste recovery: tillad eksplicit manuel CI-dispatch kun på main og lad
 publish-jobbet bruge præcis det checkout, de samme lint/tests og den eksisterende
@@ -24,8 +45,10 @@ afvisning. Uafhængigt review af den faktiske workflowdiff: GO uden alvorlige
 findings; dispatch kræver main, successful lint/test er `needs`, release-tag
 kan ikke publiceres fra PR, eksisterende immutability-check består. PR kan
 stadig lægge sit hidtidige build-cache-tag op; dette er ikke et release-tag.
-Diffcheck PASS. Den frosne releasegate, PR/merge, manuel main-kørsel og
-installation udestår.
+Diffcheck og frossen releasegate PASS. PR82 merged som `725bf745a53df486dea96c02dc7214d8aed2ca6b`.
+Den normale main-kørsel startede af sig selv; ingen manuel dispatch blev kørt.
+Den korrekte versionsbeskyttelse afviste dobbelt-publicering. Se .109-status
+ovenfor for den faktiske installation og åbne fysiske gates.
 
 ## Aktivt samlet mål — solid Alpha i køkkenet
 
@@ -41,7 +64,7 @@ Dette beviser ikke reboot eller decoder-deadlock; deadlines ændres ikke på gæ
 LED-review fandt lokal mute/failure kunne overskrives af rotation; rettet med
 effekt-stop før lokal safety-visning. Uafhængig re-review GO på kilde/tests,
 ikke fysisk godkendelse. Panelets vejledning følger den nye cyan-rotation.
-Ingen ny installation endnu.
+Dette afsnit beskriver .108-forberedelse; nyere .109-status står øverst.
 
 ## Aktiv beslutning — .109 luk den målte Live-socketvent uden tidlig rearm
 
