@@ -1,3 +1,9 @@
+## 1.13.107
+
+- Discard queued HTTP audio on Alpha cancellation instead of flushing it after Stop. Preserve complete normal playback and isolate late cancellation from the next stream.
+- Retain bounded cleanup-step identifiers in operational diagnostics so timeout failures identify the affected owner.
+- Add-on only: reuses .106 firmware. Alpha selection, saved timeout, wake settings and production prompts are unchanged. Background-speech closure and the observed 16-second recovery remain unproven; this is a field candidate, not lifecycle approval.
+
 ## 1.13.106
 
 - Preserve physical Stop progress when the host retries cancellation; retain the original drain fence and deadline, including button Stop before the first answer.

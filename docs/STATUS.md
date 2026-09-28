@@ -1,5 +1,182 @@
 # PodVoice-status — én aktuel sandhed
 
+## Kandidat .107 — afgrænset HTTP-Stop og lukkediagnostik
+
+Forberedes som add-on-only feltkandidat med eksisterende .106-firmware; ingen
+firmwarekontrakt, LED, gain, wake, model, prompt eller timeout ændres. Bevist fejl
+er serverens bevarede transportkø efter cancel, ikke hele16s-feltårsagen. Samme
+Stop→provider/HTTP→device→cleanup→rearm-kæde og rollbackgrænse som beslutningen
+nedenfor. De isolerede evalscripts ændrer ingen produktionsindstilling og aktiverer
+ikke kandidat2. Release-metadata løftes samlet til1.13.107. Review af endeligt diff
+og én releasegate kræves før PR/installation. Ingen fysisk godkendelse arves.
+Endelig samlet packaging-review semantic_eval_review GO28/9: versionsfiler
+er samstemmende, firmware/settings/prompt uændrede, evalscripts uden for
+Docker-buildkontekst og ingen aktivering. Diff frosset; præcis én releasegate PASS79.4s: candidate-scope, Ruff/format,
+mypy, hele unit- og integrationssuiten. Resultat /private/tmp/pv107-release-gate.log.
+Efter gaten er kun denne resultatpost tilføjet. PR/exact-commit CI, ARM64-artifact,
+installation og fysisk kontrol udestår.
+
+## Feltkontrol28/9 09:47 — .106 stopper hørbart, men Stop-recovery er stadig langsom
+
+Bruger: knap-tænd/sluk virkede perfekt, korrekt to-plus-to-svar; Hey Jarvis virker
+igen. Native direkte readback: Alpha106 marker, mute=false, Moderate, begge wake
+ACK. Teknisk log registrerer Hey Chat og Hey Jarvis; ingen gain/thresholdændring.
+Første rapport om manglende Hey Jarvis er ikke forklaret af dette. Detektorens
+stop/start under oprydning ses; ingen påstand om akustisk 99,9% wake.
+
+Vedvarende driftsdiagnostik for math-session
+6e35ca657c47419f0c4c4db9adc88abd20256ac1c5c9efe1ac458a991c9b5447:
+button +7331ms, close(stop)+7333, timeouts+9335/+13336/+13337, rearmblocked+13338,
+retrytimeouts+16347/+18367/+22385, teardown_complete+23720,
+wake_rearm_recovered+23993. Button→rearm16.662s. Brugerens oplevede gode stop er
+ikke det samme som prompt cleanup/nextwake. .106 er IKKE lifecycle-godkendt;
+Stop-retryrettelserne forklarer/løser ikke den fulde feltfejl. Årsagsgrænsen
+undersøges på ny før mere runtimepatch eller release.
+
+Næste session4254d3683dfe7966f3ae490361f08b671df4cf50b6f441054621a3d4c1646bb2
+(09:47:32, tidsforespørgsel) close(idle-fallback)+16192, teardown+17759,
+rearm+17970; altså automatisk timeout, ikke modelsemantisk slut. Denne log viser
+ingen tilsvarende teardown-timeouts. Audio-trace20260928T094732-043-b064c708 er
+ufuldstændigt pga tabte måledata. Hverken rumlatens, golden chain eller10/10 bevist.
+
+## Afgrænset diagnosekorrektion28/9 — behold lukketrinnets navn
+
+Den friske vedvarende driftslog har teardown_step_timeout uden step, selv om Thin
+allerede producerer det. Årsag direkte i diagnostic_retention: ukendte strings
+fjernes, og step er ikke tilladt. Ret kun retention med en fast allowlist for
+eksisterende teardown-trin og total-deadline på teardown-events. Ingen privat tekst,
+ny logfrekvens eller ændring af Stop/timeout. Regression: rigtig recorder-persistens
+bevarer step ved timeout/fejl, men afviser ukendte værdier og andre eventtyper.
+Implementeret lokalt: fast allowlist, seks relevante retentiontests PASS og Ruff
+PASS. Ikke installeret. Uafhængig stop_causal_audit-review GO for den afgrænsede retentionrettelse.
+Dette gør næste almindelige prøve forklarlig, men løser ikke16s-fejlen. Review og
+relevante gates før senere samlet kandidat; ikke selvstændig installation nu.
+
+## Aktiv beslutning28/9 — kasser HTTP-transportkøen ved annullering
+
+Kontrolleret faktisk _live_audio/aiohttp/TCP-prøve (pv106_transport_probe.py) har
+55056 bytes vedvarende write-buffer før cancel. close() returnerer fra handler,
+men socket/buffer består efter250ms; når klienten læser, leveres de55056 bytes.
+Eval-only abort() lukker socket og fjerner buffer; normal finish leverer identisk
+25644bytes WAV+PCM i begge varianter. Accelereret producer/pauset klient er en
+stressprøve, ikke fysisklatens eller bevis for ESP16s-årsagen.
+
+Berørt kæde: fysisk/panelStop → Thin.cancel → LiveAudioStream.cancel → HTTPwrite
+→ TCP → firmwaredecoder → lokaltstop/dræn → ACK → rearm. Invariant: Stop skal
+kassere ventende assistantlyd; allerede leverede kernel/devicebytes håndteres
+fortsat af firmwarecancel og eksakt dræn. Hypotese til afgrænset patch: abrupt
+cancel/incomplete skal abortere samme requesttransport, ikke gracefulclose; normal
+finish/write_eof bevares. Ingen ændring af bufferstørrelse, lydtærskel, model,
+timeout eller semantisk policy. Identitet og næste streams beskyttelse bevares.
+
+Permanent regression skal bruge rigtig handler og TCP-backpressure, vise positiv
+kø før cancel og nul bagefter, normalfinish fuld PCM og næste stream upåvirket.
+Uafhængig review + relevante gates før release. Rollback ved trunkeret normalfinish,
+ny transport/rearmfejl. Fysisk Stop/næste wake og16s-årsag står fortsat åbne.
+
+Implementeret: kun de to abrupt/incomplete transport.close-kald i _live_audio
+er ændret til abort. Normal write_eof er uændret. Den permanente TCP-regression
+fejlede før rettelsen og består efter: faktisk vedvarende buffer, ingen klientlæsning
+før socket lukket/buffer nul. Sen gammel cancel på samme keepalive-forbindelse
+afslutter ikke næste request; normal fuld PCM bevares.33 fokuserede HTTP/Talk/Thin-
+tests og Ruff PASS. Uafhængig semantic_eval_review GO uden åbne findings.
+Reviewhash web.py faa5f7642a0da37e7aef2dc2133804787ed7bf8e762f7a0fd7ac1284bccf2fb9;
+test_live_audio_web.py b0dbc211416e2e57a47333df3e0d0153acd42b8285703f4260ea0c679ef49680.
+Fast-gate første forsøg afvist af sandboxens loopback-restriktion; ikke produktfejl.
+Samme fast-gate med godkendt loopback PASS78.3s: Ruff/format/mypy samt hele
+unit- og integrationsscope. Runtime/testdiff uændret under gate. Ingen release
+eller installation endnu; .106 forbliver installeret og Alpha ON.
+
+## Årsagsgrænse28/9 — synkron decoderstop, endnu ikke bevist feltårsag
+
+Den byggede .106 dependency DecoderSource::stop joiner reader/decoder synkront
+fra ESPHome mainloop via SpeakerSourceMediaPlayer STOP. Det kan blokere native
+ACK-publicering. Modbevis mod simpel cirkulær venten: Thin annullerer allerede
+LiveAudioStream før ACK-wait; HTTP handler lukker transport, og decoder kontrollerer
+stop mellem reads. transport.close er graceful, ikke abort, men buffered-data-
+hypotesen er ikke bevist for den faktiske ESP-reader. Ingen runtimepatch foretages
+på denne antagelse. Kontrolleret rigtig TCP/handler-repro undersøges; native log
+under brugerens næste prøve skal skelne mainloopstall, HTTPstop og native reconnect.
+
+## Evalcheckpoint28/9 — reviewet forsøg, endnu ingen modelresultater
+
+scripts/live_semantic_completion_eval.py bruger .106 Thin/Live og kun syntetiske
+Sara-fixtures. Baseline/implicit, fire cases, 45s observation, én forbindelse,
+ingen hjemværktøjer/mikrofon og ingen timed append. Uafhængig Astra-review fandt
+forkert tool-result-envelope, manglende wait-description-undtagelse og for svag
+oracle. Alle tre rettet;228 offline tests og Ruff PASS. Re-review GO kun til
+begrænset providerprøve. Modelbeslutning, natural close og deadline-cleanup er
+adskilte; fysiskdræn/continuousTV er UNKNOWN. Provider ikke kørt. Eksisterende
+OpenAI-key findes ikke i procesmiljø. Privat engangsoverførsel og et begrænset
+pausevindue er forelagt brugeren; ingen credential flyttet endnu.
+
+Engangshandoff scripts/live_semantic_completion_handoff.py er ligeledes reviewet
+af semantic_eval_review: GO til den afgrænsede prøve;26 offline tests PASS. Fast
+baseline/implicit-positive/implicit-followup,30s admission og210s sekventielt budget.
+Stopper på ukendt/ufuldstændigt resultat; credentials ikke i argumenter/log/filer.
+Ingen listener/provider startet. Den specifikke nøgleoverførsel/pause afventer svar;
+operatøren ejer altid genstart. Dette er forsøgsberedskab, ikke modelvalidering.
+
+Native55s-log af første prøve understøtter beggewake-detektioner. Senere240s-
+read-only Stop-observation afsluttet uden ny brugerprøve; kun konfiguration og
+Wi-Fi roamcheck(-41dBm). Det er ikke bevis for Stopfunktion eller fejlårsag.
+
+## Aktiv beslutning 28/9 — eksterne systemer og isoleret semantisk forsøg
+
+Research af LiveKit AgentSession/UserIdle, Pipecat UserIdleController, HA ChatLog og
+ESPHome viser mekanisk idle/drain, ikke en valideret skelnen mellem henvendelse og
+TV. Apple/Alexa DDSD-forskning kombinerer lyd og kontekst. AttenLabs SAA tilbyder
+hostet addressedness, men SDK er ikke åbne modelvægte; cross-lingual recall er en
+kendt begrænsning. Der tilsluttes ingen ny tredjepart eller filtrering af huslyd.
+Kilder: https://github.com/livekit/agents/blob/main/livekit-agents/livekit/agents/voice/agent_session.py
+https://github.com/pipecat-ai/pipecat/blob/main/src/pipecat/turns/user_idle_controller.py
+https://machinelearning.apple.com/research/llm-device-directed-speech-detection
+https://github.com/attenlabs/saa-sdk
+
+Hypotese til separat eval, ikke runtime: Live kan positivt genkende færdig udveksling
+og efterfølgende tydelig henvendelse til en anden person, delegere dette og lade
+backend bruge eksisterende end_conversation(silent=true). Startup-kontrakten skal
+være konsistent i primary/backend/end/wait descriptions. Ingen tidsudløst append,
+ingen omskrivning af Thin og ingen ny classifier aktiveres. Ren TV-tilstedeværelse,
+tavshed, almindelig kvittering eller tænkepause er ikke positivt afslutningsbevis.
+Kæde: deklareret syntetisk lyd → rigtig Live SDK → backendbeslutning → Thin receipt
+→ inputrevision/freshness → naturlig close eller dokumenteret manglende native drain.
+Hvert nyt transcript kan fortsat annullere receipt; dette omgås ikke i forsøget.
+
+Berørte kontrakter: model ejer hensigt, Thin ejer lukning, gammel input/receipt må
+ikke krydse generation; OFF/Talk/firmware er urørt. Falsificering: manglende silent
+end på fuldt leveret positiv fixture eller end på reel opfølgning. Regressioner skal
+skelne modelbeslutning fra harnessens deadline-cleanup, låse faktisk wireconfig,
+bevare rig-defaults og forbyde rigtige handlinger. Uafhængig review før providerprøve;
+ingen installation eller kandidat2-aktivering på syntetisk evidens. Rollbackgrænse:
+evalfiler kan fjernes; produktion forbliver .106. Runtime/fysiske gates stadig åbne.
+
+Ny brugerobservation: Hey Jarvis vækker ikke efter .106. Dette prioriteres før
+Stop-prøve. Direkte native readback bekræfter online enhed og Alpha106 marker;
+UI gemt/ACK valg er Hey Chat + Hey Jarvis. Dette beviser ikke fungerende detektor.
+
+## Installeret28/9 — .106 Stop-retry, Alpha ON; automatisk baggrundslukning stadig åben
+
+PR78 https://github.com/BixelVentures/podvoice/pull/78 merged efter PR CI36391424701
+PASS på172b99b12093870095ee653d608c20b12b8c5149. Main
+bba87b9a3497da4793e9306f2e59de2d305ad74a har samme tree som kandidaten;
+main CI/publicering36391774469 PASS. Publiceret image digest
+sha256:2c32a9b2f6dde11dd36dbef775db0c0c752be8df831863b7fa3b71f9f6fa59cc.
+OTA106 upload PASS8.99s; native krypteret readback bekræfter
+podvoice_build_113106_livecancelretry1 på podvoice-pe-0a7e7a. HA105→106 installeret
+med backup valgt, Kører og frisk ingressv1.13.106/statuslive verificeret.
+Voice PE forbundet; GPT-Live Alpha checkbox checked efter genstart. Ingen lydprøve,
+ikke fysisk Stop-/golden-/10/10-godkendt. Kandidat1 observation fortsat aktiv;
+kandidat2 er stadig dormant og løser endnu ikke TV/side-conversation-inaktivitet.
+
+Brugerens næste prioritet: sammenlign konkrete andre systemer/repos og genbrug en
+bevist relevant afslutnings-/addressedness-mekanisme. Ny audit viser, at hver nonempty
+Live-inputtranscript revokerer pending semantic end; continuous TV kan derfor også
+forhindre en ellers korrekt semantisk beslutning i at blive færdig. Dette må ikke
+fjernes blindt, da nye reelle henvendelser skal kunne annullere lukning. Et muligt
+startup-only implicit-semantic-end eksperiment er ikke kandidat2-aktivering og
+kan ikke alene love continuous-TV-recovery. Ingen ny produktionsprompt ændret.
+
 ## Aktiv beslutning 28/9 — Stop-retry bevarer fremdrift; inputrelevans stadig gated
 
 Bruger har nu bekræftet, at efterfølgende vejrtale var til andre/TV. Raw VAD

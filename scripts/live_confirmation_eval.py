@@ -354,7 +354,7 @@ def observed_question(rows):
     return None
 
 
-def load_fixtures(directory: Path) -> tuple[dict, dict[str, bytes]]:
+def load_fixtures(directory: Path, *, texts=None) -> tuple[dict, dict[str, bytes]]:
     path = directory / "manifest.json"
     if path.stat().st_size > 16384:
         raise ValueError("manifest_too_large")
@@ -365,7 +365,7 @@ def load_fixtures(directory: Path) -> tuple[dict, dict[str, bytes]]:
     ):
         raise ValueError("fixture_format")
     fixtures = {}
-    for name, text in TEXTS.items():
+    for name, text in (TEXTS if texts is None else texts).items():
         item = manifest["fixtures"][name]
         if item["file"] != f"{name}.pcm" or item["text"] != text:
             raise ValueError("fixture_identity")
@@ -399,14 +399,14 @@ def load_fixtures(directory: Path) -> tuple[dict, dict[str, bytes]]:
 
 
 class Evidence:
-    def __init__(self, directory: Path):
+    def __init__(self, directory: Path, *, observation_s=OBSERVATION_S, starts=2):
         directory.mkdir(mode=0o700, parents=True, exist_ok=False)
         self.directory = directory
         self.rows: list[dict] = []
         self.files = {}
         self.sizes: dict[str, int] = {}
         self.started = time.monotonic()
-        self.emit("limits", observation_s=OBSERVATION_S, cleanup_s=CLEANUP_S, starts=2)
+        self.emit("limits", observation_s=observation_s, cleanup_s=CLEANUP_S, starts=starts)
 
     def write(self, name: str, data: bytes, limit: int = 8_000_000):
         size = self.sizes.get(name, 0) + len(data)

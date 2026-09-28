@@ -129,3 +129,26 @@ async def test_rearm_after_terminal_flush_preserves_entire_diagnostic(tmp_path):
         "teardown_complete",
         "wake_rearm_recovered",
     ]
+
+
+async def test_teardown_step_survives_persistence_without_arbitrary_strings(tmp_path):
+    from gatekeeper.audio_trace import AudioTraceRecorder
+
+    recorder = AudioTraceRecorder(tmp_path, automatic=True)
+    for name, step, reason in (
+        ("teardown_step_timeout", "silence-device", "total-deadline"),
+        ("teardown_step_failed", "stop-context-disable", "private error"),
+        ("teardown_step_timeout", "private step", "private error"),
+        ("button_pressed", "silence-device", "total-deadline"),
+    ):
+        assert recorder.diagnostic_event("s", event_name=name, step=step, reason=reason)
+    assert await recorder.shutdown()
+    saved = next(tmp_path.glob("*.diagnostic")).read_text()
+    rows = json.loads(saved)["events"]
+    assert rows[0]["step"] == "silence-device"
+    assert rows[0]["reason"] == "total-deadline"
+    assert rows[1]["step"] == "stop-context-disable"
+    assert "reason" not in rows[1]
+    assert "step" not in rows[2] and "reason" not in rows[2]
+    assert "step" not in rows[3] and "reason" not in rows[3]
+    assert "private" not in saved

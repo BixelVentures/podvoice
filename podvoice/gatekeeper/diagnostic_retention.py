@@ -77,6 +77,22 @@ _REASONS = {
     "input_observation_discontinuity",
     "missing_stale_or_changed_owner",
 }
+_TEARDOWN_EVENTS = {"teardown_step_failed", "teardown_step_timeout"}
+_TEARDOWN_STEPS = {
+    "attention-release",
+    "error-speech",
+    "heartbeat-stop",
+    "live-opening-settle",
+    "live-rotation-io-settle",
+    "orphan-silence",
+    "provider-close",
+    "silence-after-error",
+    "silence-device",
+    "silence-device-retry",
+    "stop-context-disable",
+    "stop-streaming",
+    "wake-rearm",
+}
 _IDENTITIES = {"session_id", "response_id", "playback_id", "close_id", "rearm_token"}
 
 
@@ -92,6 +108,13 @@ def content_free_manifest(manifest: dict) -> dict:
                 continue
             if key in _IDENTITIES and isinstance(value, str):
                 clean[key + "_hash"] = hashlib.sha256(value.encode()).hexdigest()
+            elif key == "step" and event["event"] in _TEARDOWN_EVENTS:
+                if isinstance(value, str) and value in _TEARDOWN_STEPS:
+                    clean[key] = value
+            elif (
+                key == "reason" and event["event"] in _TEARDOWN_EVENTS and value == "total-deadline"
+            ):
+                clean[key] = value
             elif (
                 key == "reason"
                 and isinstance(value, str)

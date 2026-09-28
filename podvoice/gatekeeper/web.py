@@ -831,7 +831,9 @@ async def _live_audio(request: web.Request) -> web.StreamResponse:
     async def abort_on_cancel() -> None:
         await stream.wait_cancelled()
         if request.transport is not None:
-            request.transport.close()
+            # Stop discards queued audio. close() would flush it before closing,
+            # potentially retaining both stale PCM and the socket under pressure.
+            request.transport.abort()
         if owner is not None:
             owner.cancel()
 
@@ -872,7 +874,7 @@ async def _live_audio(request: web.Request) -> web.StreamResponse:
         if not complete:
             stream.cancel("http_incomplete")
             if request.transport is not None:
-                request.transport.close()
+                request.transport.abort()
     return response
 
 
