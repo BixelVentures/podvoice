@@ -113,7 +113,12 @@ def test_shipped_firmware_state_arbitrates_late_play_finish_and_stop(tmp_path, h
 
 @pytest.mark.parametrize(
     "harness",
-    ["stop_pipeline_test.cpp", "stop_idle_recovery_test.cpp", "live_stop_pipeline_test.cpp"],
+    [
+        "stop_pipeline_test.cpp",
+        "stop_idle_recovery_test.cpp",
+        "live_stop_pipeline_test.cpp",
+        "stop_retry_test.cpp",
+    ],
 )
 def test_shipped_firmware_waits_for_producer_mixer_and_output_fence(tmp_path, harness):
     import shutil
