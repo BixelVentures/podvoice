@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -35,7 +37,7 @@ FULL_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_113106_cancelretry1",
+    "podvoice_build_113108_notifyisolation1",
     "podvoice_playback_events_v1",
     "correlated_local_stop_v1",
     "correlated_stop_context_v2",
@@ -45,7 +47,7 @@ REARM_CAPABILITIES = [
     "continuous_rearm_v1",
     "physical_rearm_audio_progress_v1",
     "correlated_reset_rearm_v2",
-    "podvoice_build_113106_cancelretry1",
+    "podvoice_build_113108_notifyisolation1",
 ]
 
 
@@ -189,7 +191,7 @@ async def test_contract_rejects_an_otherwise_complete_wrong_firmware_build(wrong
 
     assert report["ok"] is False
     assert report["firmware_build"] == wrong_marker
-    assert report["missing_capabilities"] == ["podvoice_build_113106_cancelretry1"]
+    assert report["missing_capabilities"] == ["podvoice_build_113108_notifyisolation1"]
 
 
 async def test_contract_rejects_multiple_firmware_build_markers():
@@ -213,10 +215,10 @@ async def test_contract_rejects_multiple_firmware_build_markers():
     assert report["ok"] is False
     assert report["firmware_build"] is None
     assert report["firmware_builds"] == [
-        "podvoice_build_113106_cancelretry1",
+        "podvoice_build_113108_notifyisolation1",
         "podvoice_build_11342",
     ]
-    assert report["missing_capabilities"] == ["podvoice_build_113106_cancelretry1"]
+    assert report["missing_capabilities"] == ["podvoice_build_113108_notifyisolation1"]
 
 
 async def test_contract_mismatch_is_loud_and_reported(caplog):
@@ -946,7 +948,7 @@ async def test_old_pause_required_firmware_is_reported_degraded():
         "continuous_rearm_v1",
         "physical_rearm_audio_progress_v1",
         "correlated_reset_rearm_v2",
-        "podvoice_build_113106_cancelretry1",
+        "podvoice_build_113108_notifyisolation1",
         "podvoice_playback_events_v1",
         "correlated_local_stop_v1",
         "correlated_stop_context_v2",
@@ -1627,8 +1629,13 @@ async def test_admission_preserves_only_post_rearm_wake_in_same_batch(disconnect
     assert link._link_up is (not disconnect)
 
 
-@pytest.mark.parametrize("effects", [[], ["Thinking", "Pulse"]])
+@pytest.mark.parametrize("effects", [[], "shipped-alpha"])
 async def test_native_work_light_uses_advertised_effect_and_static_writes_clear_it(effects):
+    if effects == "shipped-alpha":
+        firmware = (Path(__file__).parents[2] / "esphome/podvoice-live-alpha.yaml").read_text()
+        ring = firmware.split("- id: !extend led_ring", 1)[1].split("\napi:", 1)[0]
+        effects = re.findall(r'name: "([^"]+)"', ring)
+        assert "Thinking" in effects
     light = LightInfo("led_ring", 9)
     light.effects = effects
     client = _StubClient([], [light])
@@ -1636,9 +1643,10 @@ async def test_native_work_light_uses_advertised_effect_and_static_writes_clear_
     client.light_command = lambda **kwargs: commands.append(kwargs)
     link = _link(client)
     await link._resolve_entities()
-    await link.set_work_light((1.0, 0.55, 0.0), 0.7)
+    await link.set_work_light((0.094, 0.733, 0.949), 0.8)
     assert commands[-1]["effect"] == ("Thinking" if effects else "None")
     assert commands[-1]["key"] == 9 and commands[-1]["state"] is True
+    assert commands[-1]["rgb"] == (0.094, 0.733, 0.949)
     await link.set_light(True, (0.094, 0.733, 0.949), 0.8)
     assert commands[-1]["effect"] == "None"
     await link.set_work_light((1.0, 0.55, 0.0), 0.7)

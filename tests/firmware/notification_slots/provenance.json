@@ -1,0 +1,14 @@
+{
+  "esphome_version": "2026.6.2",
+  "esphome_source": "https://github.com/esphome/esphome/tree/2026.6.2/esphome/core",
+  "esphome_license": "https://github.com/esphome/esphome/blob/2026.6.2/LICENSE",
+  "core_sha256": {
+    "main_task.h": "b1a5d25c6e15c0cd02d7611415c9e8a90d816bc331331dfc1b305eff9f42c131",
+    "lwip_fast_select.c": "e4c7071f6d00b679faeca96725b64d5ba3e593edf851d95cc0e8af57368d86c4",
+    "wake/wake_freertos.h": "de5d713ebdf52dba565d736e930516602afed4550fed817c8ef6fe935d74829b"
+  },
+  "idf_version": "5.5.4",
+  "pthread_source": "https://github.com/espressif/esp-idf/blob/v5.5.4/components/pthread/pthread.c",
+  "pthread_full_sha256": "3423df09f2a291e76abf2cb34a26b5fde21a22bd514563f1526d44cdafa8da15",
+  "pthread_extract_sha256": "5c7de7440a9c837c47a3a386d2a2f4b6f3cf6f42b7faf57bcfef6e264d6dc240"
+}

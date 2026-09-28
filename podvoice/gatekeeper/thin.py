@@ -6645,7 +6645,10 @@ class ThinSession:
             live_paint = True
             self._live_led_working = self._live_work_pending()
             display_state = State.THINKING if self._live_led_working else State.LISTENING
-        cmd = led_command_for(display_state, muted=self._muted, error=error)
+        # Live's working signal changes motion, not the conversation colour.
+        # Keep OFF's state colours and the shared mute/error precedence intact.
+        colour_state = State.LISTENING if live_paint else display_state
+        cmd = led_command_for(colour_state, muted=self._muted, error=error)
         self._trace_event(
             "led_command",
             state=state.name,
