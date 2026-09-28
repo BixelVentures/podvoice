@@ -47,6 +47,19 @@ anset for at dække en ny nøgle, mens den eksisterende PodVoice-nøgle er aktiv
 Ingen omvej eller nøgleoverførsel forsøges; specifik brugertilladelse kræves
 før denne eksterne prøves næste trin. Dette er ikke en runtime-/releasegate.
 
+Full-duplex-modprøven er nu forberedt som et **alternativt** lokalt manifest:
+én virkelig henvendelse, to syntetiske blandinger af samme henvendelse med
+optaget TV ved 30 % og 10 % brugeramplitude samt tre rene TV-vinduer. Præcis
+seks kald er fortsat maksimum for den valgte prøve; de to manifester må ikke
+køres i forlængelse af hinanden under samme tilladelse. Modellen får nu
+eksplicit besked om, at selv én lavmælt henvendelse hvor som helst i et
+blandet klip skal klassificeres relevant, og at baggrund kræver fravær af
+henvendelse i hele klippet. Proveniens og WAV forbliver uden for Git.
+Syntetisk blanding undersøger kun en farlig modprøve; den beviser ikke, at
+Voice PE kan opfange en ægte lavmælt opfølgning over TV i køkkenet. Lokal
+manifestvalidering, 35 fokuserede tests, Ruff, format og diff-check PASS;
+ingen providerkald eller fysisk prøve er udført på denne evalrevision.
+
 Ny mekanisk modprøve på den eksisterende deaktiverede `LiveInputPolicy`:
 100 sammenhængende 100 ms aktive inputintervaller, alle korrekt klassificeret
 som baggrund med præcis 1 s forsinkelse. Ved 4, 5 og 10 sekunder er verdict
