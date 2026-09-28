@@ -4,7 +4,7 @@ import asyncio
 import base64
 import threading
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -101,6 +101,126 @@ def provider(**kwargs):
         **kwargs,
     )
     return session, sdk, budget
+
+
+def tracked_socket(sdk):
+    from websockets.asyncio.client import ClientConnection
+
+    class Socket(ClientConnection):
+        def __init__(self):
+            self.transport = SimpleNamespace(abort=Mock())
+            self.wait_closed = AsyncMock()
+
+    sdk._connection = Socket()
+    return sdk._connection
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("terminal_error", ["missing_reason", "queue_full"])
+async def test_rejected_terminal_never_authorizes_local_transport_abort(terminal_error):
+    session, sdk, _ = provider()
+    socket = tracked_socket(sdk)
+    await session.connect()
+    event = {"type": "session.closed", "usage": {"seconds": 1.25}}
+    if terminal_error == "queue_full":
+        event["reason"] = "close_requested"
+        while session._queue.qsize() < session._queue.maxsize - 1:
+            session._queue.put_nowait(None)
+    with pytest.raises((KeyError, LiveProtocolError)):
+        await session._handle(event, session._connection_generation)
+    # Both failures occur after final usage is assigned, which is insufficient
+    # by itself to authorize bypassing the SDK's ordinary shutdown.
+    assert session.final_usage_seconds == 1.25
+    assert session._finalized_generation is None
+    await session._release()
+    socket.transport.abort.assert_not_called()
+    socket.wait_closed.assert_not_awaited()
+    assert sdk.released
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "guard", ["webrtc", "unknown_terminal", "old_generation", "unknown_socket"]
+)
+async def test_local_transport_abort_requires_confirmed_current_primary_socket(guard):
+    session, sdk, _ = webrtc_provider() if guard == "webrtc" else provider()
+    socket = tracked_socket(sdk)
+    await session.connect()
+    await session.request_close()
+    await session._closed.wait()
+    if guard == "unknown_terminal":
+        session._finalized_generation = None
+        session.final_usage_seconds = None
+    elif guard == "old_generation":
+        session._finalized_generation -= 1
+    elif guard == "unknown_socket":
+        sdk._connection = SimpleNamespace(
+            transport=socket.transport, wait_closed=socket.wait_closed
+        )
+    await session._release()
+    socket.transport.abort.assert_not_called()
+    socket.wait_closed.assert_not_awaited()
+    assert sdk.released
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["abort", "wait_closed"])
+async def test_local_transport_compatibility_failure_still_exits_sdk_manager(failure):
+    session, sdk, _ = provider()
+    socket = tracked_socket(sdk)
+    await session.connect()
+    await session.request_close()
+    await session._closed.wait()
+    operation = socket.transport.abort if failure == "abort" else socket.wait_closed
+    operation.side_effect = RuntimeError("unsupported transport operation")
+    await session._release()
+    socket.transport.abort.assert_called_once()
+    assert sdk.released
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("interruption", ["cancel", "timeout"])
+async def test_interrupted_local_socket_join_retains_owner_until_close_retry(interruption):
+    session, sdk, budget = provider()
+    socket = tracked_socket(sdk)
+    await session.connect()
+    await session.request_close()
+    await session._closed.wait()
+    waiting, connection_lost = asyncio.Event(), asyncio.Event()
+
+    async def wait_closed():
+        waiting.set()
+        await connection_lost.wait()
+
+    socket.wait_closed.side_effect = wait_closed
+    client, lease = session._client, session._lease
+    closing = asyncio.create_task(session.close())
+    await waiting.wait()
+    socket.transport.abort.assert_called_once()
+    if interruption == "cancel":
+        closing.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await closing
+    else:
+        with pytest.raises(TimeoutError):
+            await closing
+    assert not sdk.released
+    assert session._connection is sdk and session._manager is sdk
+    assert session._client is client and session._lease is lease
+    client.close.assert_not_awaited()
+    assert budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
+    with pytest.raises(LiveProtocolError, match="live_session_already_connected"):
+        await session.connect()
+    assert session._connection_generation == 1
+    retry = asyncio.create_task(session.close())
+    await asyncio.sleep(0)
+    assert not retry.done() and not sdk.released
+    connection_lost.set()
+    await retry
+    socket.transport.abort.assert_called_once()
+    assert socket.wait_closed.await_count == 2 and sdk.released
+    assert session._connection is None and session._manager is None and session._client is None
+    assert not budget.snapshot(session.api_key, session.backend_model)["production_sessions"]
 
 
 def envelope(kind, delegation="d1", **fields):

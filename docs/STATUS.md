@@ -16,6 +16,60 @@ effekt-stop før lokal safety-visning. Uafhængig re-review GO på kilde/tests,
 ikke fysisk godkendelse. Panelets vejledning følger den nye cyan-rotation.
 Ingen ny installation endnu.
 
+## Aktiv beslutning — .109 luk den målte Live-socketvent uden tidlig rearm
+
+Lead: denne tråds hovedagent. På installeret .108 varede Stop→rearm 3,391 s;
+providerens terminal kom efter ca. 0,960 s, og efterfølgende SDK-socketrelease
+brugte 1,810 s. Lokal lyd standsede straks uden hørt klik i én brugerprøve.
+Rigtig OpenAI SDK 3.13.0 med websockets 15.0.1 reproducerer, at manager-exit
+kan vente på peer Close/TCP, selv efter gyldig `session.closed` og slutforbrug.
+Det beviser en afgrænset softwarevent, ikke fysisk besparelse på Voice PE.
+
+Berørt kæde: fysisk Stop→lokalt lydstop→Thin close→providerterminal→reader join→
+transportlukning→budgetfrigivelse→firmware-rearm→næste wake; normal farvel,
+idle-timeout, fejl, Talk/WebRTC og gammel generation er tilstødende grænser.
+Berørte invarianter: én close-ejer, gyldig terminal og korrekt slutforbrug,
+ingen tidlig budgetfrigivelse/rearm, ingen gammel socket ind i næste generation.
+Falsificerbar hypotese: kun vent på peerens websocket/TCP-lukning efter fuldt
+modtaget terminal kan fjernes ved at afbryde præcis den ejede WebSocket lokalt,
+vente på lokalt `connection_lost`, og derefter gennemføre SDK-oprydning. Ukendt
+terminal, startup og WebRTC beholder normal lukning. Ikke-mål: ændring af
+semantisk timeout, VAD/gain, prompt/model, firmware eller fysisk lydstop.
+
+Planlagte regressioner: rigtig SDK over lokal TCP med peer, der tilbageholder
+Close/TCP, ventende og annulleret writer, sen gammel socket mod næste generation;
+afvis forkert terminal/generation/transport og afbrydelse netop under lokal
+lukning. Fælles Thin/lifecycle og Talk-adapter samt fast- og én frossen
+releasegate kræves før PR/merge. Rollback-grænse: enhver ubekræftet lokal
+lukning, tabt oprydningsejer eller tidlig rearm er NO-GO. Uafhængig reviewer
+fandt faktisk cancellation-race i første diff: `wait_closed` kunne afbrydes,
+mens references/lease blev frigivet. Kandidaten er derfor **ikke testklar**;
+grænsen rettes og reviewes igen før gate eller installation.
+
+### .109 rettet og uafhængigt reviewet — endnu ikke udgivet
+
+Kandidatens faktiske kode afbryder kun den aktuelle primære WebSocket efter
+accepteret `session.closed`, gyldigt slutforbrug og afsluttet reader; den venter
+på lokal lukning og fuldfører derefter SDK-oprydning. Hvis lukningen afbrydes
+eller timer ud, beholdes samme connection, manager, client og budgetlease;
+`connect` afvises, og et serialiseret `close` genoptager netop den socket uden
+nyt abort. WebRTC, ukendt terminal og inkompatibel transport følger SDK-vejen.
+Ingen timeout, prompt, VAD, lyd eller firmware er ændret; add-on 1.13.109
+genbruger installeret .108-firmware.
+
+Uafhængig adversarial reviewer fandt den oprindelige cancellation-race og gav
+NO-GO; efter rettelsen GO for kilde/tests uden P0/P1. Reviewerens endelige
+kontrol: 184 OpenAILive-unit og 126 rigtig TCP/ThinLive/TalkLiveWav-integration
+PASS, diffcheck PASS. Leadens separate fem SDK/TCP-cases PASS og Ruff PASS.
+Dette er softwarebevis. Fast/releasegate, PR, publicering, installation og
+fysisk Stop→næste wake på .109 er stadig åbne. Reviewet ændrer ikke status for
+TV/baggrundstale, LED-feltprøve eller køkkenets 10/10.
+Fast-gate på dette diff PASS i usynkroniseret dev-clone: hele integration- og
+unitpakken, Ruff, format og mypy. Første sandboxkørsel kunne ikke binde lokale
+testservere og er kasseret som miljøfejl; samme gate med loopback-adgang PASS.
+Changelog er ukendt scope for fastværktøjet, så resultatet er mærket partial;
+den frosne fulde releasegate kræves stadig.
+
 ## Aktiv beslutning — adskil firmware-wake fra pthread-join
 
 Lead: denne tråds hovedagent. Observeret fejl: fysisk Stop→nextwake30.045s,
@@ -100,12 +154,165 @@ Den ugyldige fastgate kasseres; én releasegate genkører samme kontroller på d
 nu frosne diff og er autoritativ. Ingen filer ændres under kørslen. Reviewet
 beviser ikke fysisk Stop, lydfri lukning, køkkenlifecycle eller semantisk TV-afslutning.
 
+## .108 PR80 merged — publication/installation udestår
+
+PR80 https://github.com/BixelVentures/podvoice/pull/80 head
+42fa9bf459d78dd7e6f470c9d5c7bbeb9a6950f6 bestod CI36407978186:
+lint-test108881154415 og build-addon108881154645 PASS. Merged som
+ aeb03c3efdb9b52fa234d6b166fddc4d3d0dc7ee; merge-tree
+33c4879364e1bd15f4dcfcbce322270d5068768b matcher præcis lokal testtree.
+Main CI36408389105 PASS: lint108882477796 og publish108883414885.
+Publiceret digest sha256:9e969000c5dc56b5697a2a2cfa13cdd5f5045eac4e5c60b9ae35b16a04134164.
+HA viser fortsat1.13.107; panelrum er klar og
+forbundet, ingen aktiv samtale. En browserhandling blev afvist af automatisk
+review-routingtimeout; næste forsøg passerede review, men CDP-klikket fik
+timeout. Synlig PodVoice-genvejsnavigation virkede; browseren er tilgængelig.
+Ingen firmwareflash eller add-on-opdatering endnu.
+
 ## .108 endelig lokal releasegate
 
 Frosset kandidat: releasegate PASS81.3s (unit80.94s; øvrige checks grønne).
 Log /private/tmp/pv108-release-gate.log. Ingen filer ændret under kontrollen.
 Kun denne resultatpost tilføjes bagefter. Exact-commit CI, ARM64-publicering,
 parret add-on/firmwareinstallation og fysisk accept udestår.
+
+## .108 installeret28/9 — fysisk accept stadig åben
+
+HA-opdatering udført med sikkerhedskopi ON. UI bekræfter installeret/latest
+1.13.108 og Kører. Den gamle update-entity blev opdateret med
+homeassistant.update_entity før installation; ingen forkert version installeret.
+Eksakt bevaret OTA c16abd3c472cda4f69316d2f2c9150420d9d6c1b66d66bc805d5c9d4e457041a
+overført til192.168.86.27; ESPHome rapporterer OTA successful/upload9.86s.
+Efter reboot læser nativeAPI markør podvoice_build_113108_livenotifyisolation1,
+StopContext idle, reply stopped, wakeACK hey_chat_hey_jarvis og rearm recovered.
+HA panel er v1.13.108, VoicePE forbundet. Gemt Alpha ON, begge wake words bekræftet,
+UI-timeout4s, mute OFF, wake sound OFF, sensitivity Moderately sensitive bevaret.
+Midlertidige firmware-mismatch events under parret opdatering er historiske;
+forbindelsen er tilbage. Ingen lydtest eller musik startet under installationen.
+
+Brugeren er bedt om én fysisk Stop-under-svar→straks HeyJarvis-prøve og at oplyse
+knas/pop. Automatisk diagnostik kører. Ingen fysisk golden/10/10 eller køkkenaccept
+registreret endnu. TV/baggrundstale-afslutning og kandidat2 er fortsat åbne;
+providertrial afventer specifik privat nøgleoverførselstilladelse. Målet forbliver aktivt.
+
+## .108 opfølgning28/9 — logs og evalberedskab
+
+Frisk HA-log til12:32:11 viser runtime1.13.108/git aeb03c3,
+rootfs-v1:33fd8d257709acd2051e570c518e262e78612dffdb17afd3566ea03335821fd4.
+Firmwarekontrakt OK12:30:02.700, beggewakeACK02.747 og recovered03.235.
+Ingen ny samtale/Stop-test i det læste interval; det er installationsbevis,
+ikke fysisk gate. Fejl før12:30 tilhører det forventede versionsskift.
+
+Den reviewede semantiske eval er nu bundet til den installerede .108-kildes
+fingerprint55ece0737677e2ee6c2ef91cd0e1d63b0612c86971c1fb3713a3790b2346b205.
+Sara-fixtures valideret på ny uden providerforbindelse. Ingen ny kode, prompt,
+VAD eller timeout ændret. Providerprøve afventer fortsat det allerede stillede
+spørgsmål om privat nøgleoverførsel og eksklusivt prøvevindue; fysisk Stop-prøve
+venter på brugeren. Goal er aktivt; ingen afslutnings- eller køkkenaccept udledt.
+
+## Frisk .108 feltprøve28/9 kl12:38 — fremgang, ikke samlet accept
+
+Brugeren oplever måske1–2s utilgængelighed efter knapStop. Frisk HA-log:
+close(stop)12:38:45.249 → provider close request45.491 → terminal46.452 →
+socket release46.462–48.272 → release done48.279 → rearm recovered48.640.
+Host-close→rearm=3.391s; providerterminalvent0.960s og socketrelease1.810s.
+Ingen teardown-timeout/native disconnect i denne friske kæde. Næste fysiskwake
+49.639 → samtaleåben49.642 → providerready51.882 (wake→ready2.243s).
+Historikken matcher kendt input: historie blev afbrudt; næste samtale indeholder
+Hvad er2plus2→Det er fire; Hvad sagde du→Jeg sagde det er fire; Tak→Selv tak.
+Det beviser næste wake og semantisk konsistent input, ikke akustisk Stoplatens/pop.
+
+Efterfølgende samtale: provider close request12:39:08.261 → terminal09.191 →
+close(idle-fallback)09.634 → socketrelease09.746–11.046 → rearm11.426.
+Den afsluttede via idle-fallback, ikke modelsemantisk farvel. Ingen værktøjskald
+eller working-LED-case i det læste friske forløb; ingen fysisk første-lydsmåling.
+Kontinuerlig TV/baggrundstale og gentagne lifecycleforløb er ikke bevist.
+Native efterlæsning: .108, StopContextidle, reply stopped, beggewakeACK, rearmrecovered.
+Browserens fjernadgang var midlertidigt utilgængelig; lokalHAHTTP200 og retry
+hentede friske logs. Ældre cached106-log bruges ikke som108-evidens.
+
+## Godkendt semantisk providerprøve28/9 — UNKNOWN, produktion genstartet
+
+Brugeren godkendte privat OpenAI-keyoverførsel til lokal prøve. Reviewet one-use
+loopbackform modtog nøglen; browservariabel ryddet og formular lukket. HA var
+verificeret Stoppet under forsøget og Kører bagefter før brugerens knapprøve.
+Session25227 terminal exit3: baseline completed-side-address UNKNOWN ved
+observation_deadline; clean_shutdown=true, usage_complete=true, connect_attempts=1,
+fixtures_complete=true, opening_answered=true, recognized=false, end_calls=0.
+Batch stoppede efter baseline som reviewet; implicitvarianter ikke kørt.
+Rapport /private/tmp/pv108-semantic-trial-01/baseline-completed-side-address/report.json.
+Nøglen er kun i proceshukommelse/childmiljø, ikke rapport eller git. Ingen
+produktionsprompt eller kandidat2 aktiveret. Næste evalskridt er audit af faktisk
+fixturegenkendelse; UNKNOWN må ikke behandles som bevis for modelpolicyfejl.
+
+## Evalaudit28/9 — UNKNOWN har konkret inputafvigelse
+
+Timeline fra baselineprøven viser korrekt math-input (Hvad er2plus2) og svar4.
+Side-address-fixturens forventede Peter blev derimod transskriberet Bliver:
+Bliver nu taler jeg med dig. Hvad skal vi have til aftensmad. Modellen svarede
+Hvad har du i køleskabet? Ingen end_conversation. Derfor er prøven ikke et
+kontrolleret bevis for genkendt personhenvendelse eller implicit-policy, som slet
+ikke blev kørt. Rå source/providerinput er bevaret; næste skridt er audit af
+første ords audio/pacing, ikke lempelse af oraclen eller produktionspromptpatch.
+Stop-oprydningens manager.__aexit__ er samtidig sendt til uafhængig kildeaudit
+for at afgøre SDK/protokolgrænsen bag de målte1.810s. Ingen runtimeændring endnu.
+
+## Aktiv beslutning — luk færdig Live-transport uden ekstra peer-venten
+
+Lead hovedagent. Direkte .108-feltbevis: Stop→rearm3.391s, heraf socketrelease1.810s
+EFTER sessionterminal/slutforbrug. Uafhængig SDK-audit: OpenAI3.13.0 managerexit
+kalder websockets close, som venter Close-handshake og TCP/TLS-ophør. Loggen kan
+ikke skelne disse underfaser. Hypotese: peer-venten efter gyldig slutkvittering
+kan fjernes ved at abortere præcis den ejede transport og afvente lokal lukning.
+Kæde: fysiskStop→lokal stilhed→session.close→currentgeneration terminal/usage→
+readerjoined→transportclosed→clientcleanup/budgetrelease→rearm→næste wake.
+Invarianter: ingen tidlig rearm, ingen gammel writer/event ind i næste generation,
+én ejer, slutforbrug må ikke opfindes; ukendt finalization/startupfejl og Talk bevares.
+Ikke-mål: timeoutændring, baggrundsoprydning, ny motor, gain/VAD eller prompt.
+Før runtimepatch: faktisk SDK+TCP-repro af tilbageholdt peer shutdown, præcis
+websocketdependencyidentitet (lokalt15.0.1; image transitive endnu ikke fastlåst).
+Regressioner: pendingwriter, cancellation, duplicateclose, sen event/nygeneration,
+valid vs missing terminal, begge I/O-adaptere. Adversarial review og relevante
+gates før release; rollback ved nogen uafklaret transport/usage/ownergrænse.
+Fysisk Stoplatens/klik/lifecycle skal bevises på ny kandidat; .108 arves ikke.
+
+## Uafhængig audioaudit — lokalt testinput intakt
+
+semantic_eval_prepare verificerede hele side_address121552bytes som én byteeksakt
+forekomst i source-0.pcm ved offset208640 (6.52s), inklusive første ord.
+Samme StreamResampler16→24k reproducerer alle1864318providerinputbytes eksakt,
+SHA539e94f31c5b79728fcf90bd568664a90b6f56137d01ff651731248970cbf02f.
+Ingen hostclipping/resamplingafvigelse. Sideklippet starter2.019s efter math-
+svartranscript; dette er pacing, ikke fysisk outputdrænbevis. Resterende usikkerhed
+ligger i syntetisk udtale/providergenkendelse/serveringestion; klientoptagelsen
+beviser ikke serverens lydmodtagelse. Oraclen afviser også2vs.to; selv korrektion
+heraf vil ikke gøre den fejlgenkendte personhenvendelse til gyldigt policybevis.
+Ingen ny fixture, oracle, runtime eller firmware ændret på dette resultat.
+
+## Brugerbekræftet .108 lydstop28/9
+
+Brugeren svarede på den konkrete seneste Stop-prøve: talen virkede til at stoppe
+straks og uden klik/knas. Registreres som positiv menneskelig observation for
+denne ene kandidat/prøve, ikke millisekundmålt akustisk latency eller10/10.
+Kombineret med trace er resterende observeret problem3.391s til rearm, mens
+lokalt lydstop nu opleves øjeblikkeligt og uden pop. Bevar denne lydvej.
+
+## .109 kandidatforberedelse — rigtig SDK/TCP-reproduktion
+
+Main publishjob108883414885 for installeret108 indeholder wheelvalget
+websockets15.0.1 til OpenAI3.13.0 på ARM64; dermed matcher lokal Pythonprøve
+faktisk imageafhængighed for disse to pakker. Kontrolleret rigtig SDK+rå lokal
+TCPpeer i /private/tmp/pv-live-cleanup-probe.py PASS efter godkendt loopback:
+managerexit hænger mindst250ms både uden peer Close og når Close er sendt men
+TCP holdes åben, selv efter gyldig typed session.closed/usage. Efter abort af
+præcis egen socket + await wait_closed + almindelig managerexit er lokal
+shutdown0.116–0.303ms på fire cases. Pending og cancelled writer havde
+8327182bufferbytes før og0 efter; alle opgaver joined, ingen baggrundstasks.
+Forsinket old.abort under aktiv næste socket lod ny session.close og matchende
+terminal lykkes. Dette er faktisk SDK/transportrepro, ikke produktion/physical.
+Minste runtimegrænse undersøges: kun primær WebSocket med gyldig aktuel terminal
+og slutforbrug, efter joined reader; ingen WebRTC/startup/ukendt usage ændring.
+Privat SDK-internal kræver versionsguard/fallback og adversarial review.
 
 ## Native crash-bevis28/9 — årsagsgrænse under undersøgelse
 
