@@ -1,5 +1,32 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv releasebeslutning — manglende main-publicering efter PR81
+
+PR81 blev merged 28/9 kl. 11:28:15 UTC som `43b2775635e2f760030cd1b6faee3f9a0e6178ec`.
+PR-kontrollerne for `dcbeac2` er grønne, og main peger på merge-committet,
+men GitHub oprettede intet push-workflow i de første minutter. Workflowet er
+aktivt; manuel dispatch afvises (HTTP 422), fordi triggeren mangler. Årsagen
+til det manglende push-event er ukendt; image 1.13.109 er **ikke** publiceret,
+og .108 forbliver installeret. Ingen ny runtimehypotese udledes heraf.
+
+Mindste recovery: tillad eksplicit manuel CI-dispatch kun på main og lad
+publish-jobbet bruge præcis det checkout, de samme lint/tests og den eksisterende
+immutable-version-kontrol. PR-events må fortsat kun bygge, ikke publicere;
+push-events bevarer den nuværende path-filter. Ingen runtime-/firmwarefiler
+ændres. Uafhængigt review skal kontrollere eventgating, ref- og artifact-
+identitet, version-immutabilitet og at manuel job ikke omgår tests. Rollback:
+ingen dispatch eller installation ved forkert SHA/version eller tvetydigt
+publish-resultat. Dette er en releaseværktøjsrettelse, ikke ny produktfunktion.
+GitHub eventlisten viser `PullRequestEvent` for PR81-mergen, men ingen
+`PushEvent` for main, hvor PR80-mergen havde begge. Bruger har eksplicit
+godkendt den begrænsede workflowændring efter automatisk reviews første
+afvisning. Uafhængigt review af den faktiske workflowdiff: GO uden alvorlige
+findings; dispatch kræver main, successful lint/test er `needs`, release-tag
+kan ikke publiceres fra PR, eksisterende immutability-check består. PR kan
+stadig lægge sit hidtidige build-cache-tag op; dette er ikke et release-tag.
+Diffcheck PASS. Den frosne releasegate, PR/merge, manuel main-kørsel og
+installation udestår.
+
 ## Aktivt samlet mål — solid Alpha i køkkenet
 
 Brugeren har eksplicit sat samlet goal: straks Stop/hurtig nextwake uden knas,
