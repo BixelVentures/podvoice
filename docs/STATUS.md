@@ -1,5 +1,58 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv beslutning 29/9 — kildeidentitet for mikrofonpakker før TV-fence
+
+Observeret ejerhul: `VoicePELink._handle_audio` tæller tabte pakker og kender
+host-modtagelsestiden, men lægger kun rå bytes i `_audio_q`.
+`ThinSession._pump_mic` kan derfor ikke knytte en senere timeout-fence til
+pakken eller påvise et køtab inde i vurderingsvinduet. Den kvitterede
+Live-inputbarriere nedenfor ændrer ikke dette hul.
+
+Kæden er firmware mic → native callback med audio-generation → `VoicePELink`
+kø/drop → Thin mic-pump → Live send/barriere → mulig lokal klassifikation →
+Thin close/playback/teardown/rearm. Berørte invarianter: kun aktuell generation
+må gå videre, ingen audio må omordnes, legacy/Classic/OFF og Talk beholder
+deres byte-kontrakt, og et køtab eller ukendt kilde må aldrig tælle som
+fuldstændigt vurderet lyd. Hypotese: immutable host-kildemetadata på hver
+køpakke kan bevare eksisterende PCM-adfærd, samtidig med at en senere Thin-
+fence kan opdage tab og afgrænse et host-modtaget interval. Ikke-mål: ingen
+runtime-TV-lukning, ingen påstand om fysisk sampleklokke eller semantisk
+henvendelse, ingen VAD/gain/firmware/tidsændring.
+
+Regressioner: PCM-bytes og rækkefølge uændrede gennem eksisterende iterator;
+timed iterator giver monotont modtagelsestidspunkt, frame-sekvens, audio-/
+connection-generation og kumulativt køtab; overfyldt kø gør tab synligt;
+gammel audio-epoch forbliver inert; fysisk Stop/rearm og Talk/OFF gennemgås.
+Målrettet adaptertest, relevant Thin-test, fast gate, uafhængigt adversarialt
+review og senere samlet releasegate på frosset kandidat. Rollback er .109;
+metadata alene installeres ikke som TV-timeout-løsning.
+
+Implementeret lokalt: native callback lægger nu lyd og immutable metadata i
+samme bounded kø **synkront ved callbackens modtagelse**, før SDK'ens
+returnerede coroutine planlægges. Den gamle `pcm_frames()` afleverer stadig
+rene bytes; en senere `timed_pcm_frames()`-ejer kan læse host-callbacktid,
+sekvens og generation. Et adversarialt review fandt, at den første version
+kun tidsstemplede synkront, men stadig lagde i kø asynkront; omvendt
+coroutine-planlægning kunne derfor bytte A/B. Den ejerfejl er rettet og har
+en omvendt-planlægningsregression. Reviewet påpegede også, at pakker, som
+allerede ligger i kø, har et ældre drop-snapshot: fremtidig fence skal
+sammenligne både kontinuerlig sekvens og **den aktuelle** køtabstæller.
+`dropped_frames_at_enqueue` siger eksplicit, at feltet alene ikke er et
+fuldstændighedsbevis. Callbacktid er stadig host-tid, ikke firmware-
+sampleklokke; native netværkstab og akustisk relevans er stadig ubevist.
+Sekvensgab kan også komme fra afviste gamle callbacks; de betyder ukendt/
+ufuldstændigt input, ikke automatisk et bestemt slags køtab. Den senere
+relevansgate skal mærke både TV og almindelig samtale **mellem husets beboere**
+som ikke-henvendt baggrund, mens en reel opfølgning fra enhver af dem inden
+for UI-vinduet bevares. Stemmens identitet er ikke beslutningskriteriet.
+Slutreview af denne kildeproveniens-diff: ingen åbne P0/P1/P2; SDK-kilden
+blev kontrolleret for synkront callbackkald og asynkron håndtering af dens
+retur-coroutine. Målrettede native- og capture-regressioner samt
+`scripts/dev fast --base origin/main` (Ruff, format, Mypy, integration,
+unit) bestod i usynkroniseret clone med lokal loopback. Gaten er stadig
+fokuseret/partiel på branchens samlede ældre evalscript. Ingen lifecycle-
+eller releasegate, fysisk kandidatprøve, merge eller installation er sket.
+
 ## Aktiv beslutning 29/9 — kvitteret Live-inputbarriere (adapter, endnu ikke aktiveret)
 
 Observeret fejl: i den mærkede TV-prøve gav syv native taleperioder aldrig fire
