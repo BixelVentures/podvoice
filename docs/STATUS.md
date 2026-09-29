@@ -244,6 +244,21 @@ input og bevise replay/fortsættelse uden tabt første stavelse. Fejlet ACK,
 providerarbejde og ny generation må føre til fail-closed oprydning, ikke
 stiltiende successful timeout. Ingen sådan kandidat er aktiveret.
 
+Kodekontrol 29/9 af den mulige capture-grænse: firmware-
+`PodVoiceAudio::hold_capture()` sætter `user_enabled_ = false`, skifter
+audio-epoch og nulstiller ringbufferen. Mens hold er aktiv, øges den fysiske
+sampleklokke, men nye mikrofonbytes droppes; `resume_capture()` nulstiller
+ringbufferen igen. Det eksisterende hold er derfor **ikke** en tabsfri
+sample-fence for TV-timeout og må ikke genbruges til den funktion. Den
+installerede OpenAI Python-SDK eksponerer `session.input_audio.mute()` og
+`unmute()`, mens `ThinSession._pump_mic()` allerede modtager Voice PE-PCM
+før `brain.send_audio()`. En eventuel ny kandidat kan derfor kun starte med
+en host-ejet, bounded capture-/sendebarriere og eksakt provider-mute-ACK;
+den skal bevise rækkefølge for allerede sendte samples, bevare bytes efter
+barrieren, annullere ved reel/ukendt henvendelse og håndtere konstant TV uden
+uendelig buffer eller tabt første stavelse. Ingen sådan barriere er kodet,
+testet eller installeret, og SDK-mute er ikke i sig selv proof of silence.
+
 ## Diagnostisk checkpoint 28/9 — mål outputro korrekt under transskriberet baggrundstale
 
 Observeret fejl: .109 TV-tracen uden Live-inputfragmenter viste >10 s fysisk
