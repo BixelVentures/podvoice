@@ -151,6 +151,15 @@ runtime-close-gaten. Det næste relevante datasæt skal have både fysisk
 afsluttet svar, efterfølgende brugeropfølgning over TV, præcis sampleklokke
 og et tilsvarende rent TV-interval fra samme optagevej.
 
+Historikken for `20260928T140338` viser også en relevant opfølgning
+(`øh, fodbold tak`) i samme session, som modellen besvarede. Manifestet
+placerer dens eneste nye inputfragmenter ved +13,2–14,6 s; p0001 har
+samtidig 12,5 s registreret speaker-PCM og tre efterfølgende backend-runder
+ved +16,3–23,6 s. Det er et nyttigt positivt samtaleeksempel, men ikke et
+rent **efter færdigt svar + samtidig TV**-vindue: playback og input overlapper,
+og delen har 95 tabte optagekommandoer. En klassifikator eller close-regel
+må ikke godkendes alene på historikteksten eller denne ufuldstændige trace.
+
 Yderligere automatisk .109-trace fra 28/9 kl. 20.26.42 er nu læst fra
 HA's seks bevarede dele uden ny optagelse. Live-inputfragmenter fortsatte
 til +61,716 s (137 fragmenter i del 0–4), mens det registrerede
