@@ -176,6 +176,16 @@ optagekommandoer, klippet er ikke uafhængigt gennemlyttet, og samtidig
 TV-tale er ikke bekræftet i netop dette vindue. Ingen nye providerkald er
 kørt, og den tidligere seks-kaldstilladelse er opbrugt.
 
+TV-sporets native VAD-modprøve 29/9: p0002 fra samme samtale har 135
+aktivitetsobservationer over +27,003–40,784 s. De danner syv særskilte
+`active`-forløb; længste observerede `quiet`-forløb er kun 2,469 s.
+Samtidig har denne del nul `live_input_fragment`, nul backend-start og nul
+værktøjshændelser. Det forklarer mekanisk, hvorfor en firesekunders rå
+VAD-timeout ikke udløses, men Live-tavshed er stadig ikke et eksplicit
+relevansverdict. At skifte fra `VAD aktiv` til kun `VAD-start` ville heller
+ikke løse denne trace: TV leverer gentagne nye starter. Delens 95 tabte
+optagekommandoer begrænser enhver påstand om fuld akustisk kontinuitet.
+
 Yderligere automatisk .109-trace fra 28/9 kl. 20.26.42 er nu læst fra
 HA's seks bevarede dele uden ny optagelse. Live-inputfragmenter fortsatte
 til +61,716 s (137 fragmenter i del 0–4), mens det registrerede
