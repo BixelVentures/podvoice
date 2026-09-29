@@ -109,6 +109,30 @@ runtime-close-gaten. Det næste relevante datasæt skal have både fysisk
 afsluttet svar, efterfølgende brugeropfølgning over TV, præcis sampleklokke
 og et tilsvarende rent TV-interval fra samme optagevej.
 
+Yderligere automatisk .109-trace fra 28/9 kl. 20.26.42 er nu læst fra
+HA's seks bevarede dele uden ny optagelse. Live-inputfragmenter fortsatte
+til +61,716 s (137 fragmenter i del 0–4), mens det registrerede
+speaker-PCM havde RMS 0 i alle seks dele. Native input-VAD skiftede mellem
+aktiv og rolig, og ingen værktøjsopgave var ventende ved afslutningen.
+Ved +68,896 s viste den reelle idle-diagnostik 4,267 s frisk fysisk ro
+og `ready`; provideren kvitterede `session.closed` +69,954 s, fysisk
+playback-finish kom +70,399 s, lokal `idle-fallback`-close +70,400 s og
+exact rearm +70,844 s. Det beviser, at denne session **sluttede via vores
+timeout, da input omsider var roligt**, ikke at GPT-Live valgte semantisk
+farvel. Hvad den tidligere tale var rettet imod, er ikke mærket i denne
+trace; speaker-PCM er heller ikke en rumoptagelse. Forløbet reproducerer
+mekanismen bag lange åbne sessioner, men er ikke positiv modprøve for en
+brugertur over TV.
+
+Officiel Live-protokolkontrol: en app kan sende
+`session.instructions.append`/`session.thinking.append`, men ACK betyder kun,
+at kontekst er lagt på tidslinjen, ikke at modellen har besluttet eller
+handlet. Inputtransskript-deltaer er heller ikke komplette ture. En
+firesekunders "luk nu hvis TV"-instruktion kan derfor ikke alene erstatte
+appens close-ejerskab eller det manglende samplepræcise relevansbevis.
+Se [Live-sessionsguiden](https://developers.openai.com/api/docs/guides/live-conversations)
+og [Live-eventreferencen](https://developers.openai.com/api/reference/typescript/resources/live).
+
 Ny mekanisk modprøve på den eksisterende deaktiverede `LiveInputPolicy`:
 100 sammenhængende 100 ms aktive inputintervaller, alle korrekt klassificeret
 som baggrund med præcis 1 s forsinkelse. Ved 4, 5 og 10 sekunder er verdict
