@@ -160,6 +160,22 @@ rent **efter færdigt svar + samtidig TV**-vindue: playback og input overlapper,
 og delen har 95 tabte optagekommandoer. En klassifikator eller close-regel
 må ikke godkendes alene på historikteksten eller denne ufuldstændige trace.
 
+Ny afgrænsning 29/9 på de allerede gemte WAV-filer: p0000's registrerede
+`playback_started` ved +3,096 s og speaker-offset 9.600/24.000 samples
+placerer speaker-optagelsens nulpunkt ved +2,696 s. Sidste ikke-nul
+speaker-sample ligger dermed ved +11,379 s. Device-lyden er næsten rolig
+ved +12,5–12,8 s (RMS 14), men har tydelig energi ved +12,8–13,686 s
+(RMS 572); Live registrerer nye inputfragmenter ved +13,2–13,6 s. Et
+1,186 s positivt **kandidatklip** fra +12,5–13,686 s og et rent TV-vindue
+er derfor udskilt lokalt i
+`/private/tmp/pv-tv-audio-samples/addressedness-cases-corrected.json`.
+Det nye klip begynder mindst 1,1 s efter sidste målte speaker-lyd og
+fjerner den kendte egenlydsforurening fra den oprindelige positive prøve.
+Det er stadig ikke et godkendt positivt overlapbevis: p0000 har 95 tabte
+optagekommandoer, klippet er ikke uafhængigt gennemlyttet, og samtidig
+TV-tale er ikke bekræftet i netop dette vindue. Ingen nye providerkald er
+kørt, og den tidligere seks-kaldstilladelse er opbrugt.
+
 Yderligere automatisk .109-trace fra 28/9 kl. 20.26.42 er nu læst fra
 HA's seks bevarede dele uden ny optagelse. Live-inputfragmenter fortsatte
 til +61,716 s (137 fragmenter i del 0–4), mens det registrerede
