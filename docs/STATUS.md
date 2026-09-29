@@ -37,7 +37,9 @@ Målrettede lyd-/quiet-tests, hele integrationstesten og `scripts/dev fast`
 (Ruff, format, Mypy, integration, unit) er grønne. Uafhængigt adversarialt
 review fandt den første fixture-fejl, som blev rettet; re-review fandt ingen
 yderligere konkret ejer-/racefinding. Reviewet bekræfter ikke fysisk lyd.
-Kandidaten er stadig **ikke release-/installationsklar**: lifecycle/releasegate
+Kilde- og testdiffet er gemt som `fe39dac` på
+`codex/live-idle-shadow-owner`; der er intet nyt release-artifact. Kandidaten
+er stadig **ikke release-/installationsklar**: lifecycle/releasegate
 og fysisk golden+10/10 på præcis artifact mangler, og TV-timeouten er uløst.
 
 ## Aktiv beslutning 28/9 — afprøv lydlig henvendelse på virkelig køkkenlyd
