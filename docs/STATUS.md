@@ -41,8 +41,11 @@ Den installerede .109 Alpha sluttede selv via `idle-fallback` ved +33,486 s
 +22,664 s, så den loggede afstand til close er cirka 10,8 s. Disse tal
 må ikke fremstilles som én og samme latency-måling. Brugeren bekræftede
 også, at det virkelige opfølgende »to plus to?« blev besvaret korrekt.
-Dermed har .109 bevaret netop dette positive spørgsmål, men det beviser
-ikke, at en ændret TV-policy ville gøre det.
+HA-historikken for samme samtale viser fire Live-segmenter i rækkefølgen
+»Hvad er klokken« → »Klokken er 11.49« → »Og hvad er 2 plus2« → »Det er fire«.
+Dermed har .109 bevaret netop dette positive spørgsmål, men transcript og
+korrekt svar beviser ikke den fulde fysiske inputkæde eller at en ændret
+TV-policy ville gøre det.
 
 Teardown var færdig +33,696 s, og firmware kvitterede rearm +33,905 s. Det
 var hverken panel-/fysisk Stop eller modelsemantisk close. Samtalens tre
