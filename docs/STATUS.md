@@ -184,6 +184,20 @@ appens close-ejerskab eller det manglende samplepræcise relevansbevis.
 Se [Live-sessionsguiden](https://developers.openai.com/api/docs/guides/live-conversations)
 og [Live-eventreferencen](https://developers.openai.com/api/reference/typescript/resources/live).
 
+Kildekontrol 29/9 mod [GPT-Live-promptguiden](https://developers.openai.com/api/docs/guides/live-prompting),
+[migrationsguiden](https://developers.openai.com/api/docs/guides/live-migration)
+og [OpenAI Cookbooks full-duplex-eval](https://github.com/openai/openai-cookbook/tree/main/examples/audio/duplex_voice_agent_evaluation):
+Live bør lytte tavst til TV/baggrundstale, men API'et har ingen færdig-tur-
+eller `ikke henvendt til mig i fire sekunder`-kvittering. Appen styrer idle
+ud fra lyd, faktisk playback og ventende arbejde. Cookbooks RUN-harness bruger
+en uafhængig semantisk observatør på afsluttede samtale-/arbejdsdata og
+annullerer sin drænplan ved ny caller-lyd; den er en **evalstrategi**, ikke en
+produktions-close-kontrakt under vedvarende TV. Dens `background_speech`,
+`echo` og realistiske overlapscenarier er relevante modprøver, men erstatter
+ikke godkendt, fysisk optaget køkkenlyd. Den nuværende Live-prompt følger
+tavs-lytte-anbefalingen, mens .109's rå VAD blokerer idlevinduet. Ingen
+prompt- eller no-op-tool-ændring alene løser den observerede close-grænse.
+
 Ny mekanisk modprøve på den eksisterende deaktiverede `LiveInputPolicy`:
 100 sammenhængende 100 ms aktive inputintervaller, alle korrekt klassificeret
 som baggrund med præcis 1 s forsinkelse. Ved 4, 5 og 10 sekunder er verdict
