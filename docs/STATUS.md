@@ -258,6 +258,13 @@ den skal bevise rækkefølge for allerede sendte samples, bevare bytes efter
 barrieren, annullere ved reel/ukendt henvendelse og håndtere konstant TV uden
 uendelig buffer eller tabt første stavelse. Ingen sådan barriere er kodet,
 testet eller installeret, og SDK-mute er ikke i sig selv proof of silence.
+OpenAI's [sessionsguide](https://developers.openai.com/api/docs/guides/live-conversations)
+kræver eksakt `client_event_id`-bundet `session.input_audio.muted` /
+`unmuted`-ACK, og præciserer, at muting hverken standser lokal optagelse,
+modelgenerering eller delegeret arbejde. Adapteren håndterer endnu ikke
+disse ACK-events; den eksisterende `_send_lock` serialiserer kun appends.
+En host-barriere skal derfor først binde dens lokale samplegrænse til
+sendelåsen og ACK, før outputro + semantisk relevans kan bruges til close.
 
 ## Diagnostisk checkpoint 28/9 — mål outputro korrekt under transskriberet baggrundstale
 
