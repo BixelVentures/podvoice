@@ -1,5 +1,30 @@
 # PodVoice-status — én aktuel sandhed
 
+## Frisk fysisk prøve 29/9 kl. 11.49.51 — timeout kom selv, men sent
+
+Den installerede .109 Alpha sluttede selv via `idle-fallback` ved +33,486 s,
+teardown var færdig +33,696 s, og firmware kvitterede rearm +33,905 s. Det
+var hverken panel-/fysisk Stop eller modelsemantisk close. Samtalens tre
+automatiske dele er markeret ufuldstændige med 220 tabte capture-kommandoer,
+så hverken sporene eller et korrekt tilfældigt svar er fuldt akustisk bevis.
+
+Den indholdsfrie output-shadow havde frisk `ready` med 4,538 s observeret
+outputro allerede +22,664 s og forblev klar. Den aktive produktionspolitik
+meldte samtidig `input_not_quiet` og nul egen quiet-tid, mens native VAD stod
+`active` frem til cirka +27,8 s. Først da gik produktionsvinduet fra nul til
+4,115 s ved +31,984 s; senere fysisk finalisering lukkede ved +33,486 s.
+Denne samme-kandidat-trace **beviser, at rå VAD forsinker timeouten under
+baggrundstale**, og forklarer brugerens oplevede mere-end-fire-sekunders
+venten. Output-shadow er stadig observation, ikke tilladelse til at lukke.
+Et muligt opfølgningsforsøg ved +15–16 s gav seks Live-inputfragmenter; om
+brugeren faktisk fik svar på sin planlagte opfølgning afklares særskilt.
+
+Kandidaten må fortsat ikke ændre close-reglen på denne observation alene:
+inputklassifikatoren bestod ikke den positive modprøve nedenfor, og et
+for sent, ægte spørgsmål skal stadig kunne overleve fristen. Næste gate er
+at verificere det mærkede efter-svar-positiv med fuld fysisk capture og
+derpå teste en bounded beslutning mod præcis det og TV-negativet.
+
 ## Beslutning 29/9 — rettet to-klips relevansprøve afviser endnu en aktivering
 
 Brugeren godkendte præcis to ekstra OpenAI-lydopslag efter den oprindelige
