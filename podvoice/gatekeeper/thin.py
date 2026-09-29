@@ -949,13 +949,15 @@ class ThinSession:
                     ),
                 }
 
-            if (
+            automatic_trace = (
                 self.live_alpha
                 and not self._live_webrtc
-                and rearm_attempt_id is not None
                 and getattr(self.audio_trace, "automatic", False)
-            ):
+            )
+            if automatic_trace:
                 trace_started = self.audio_trace.begin(self.room, trace_metadata, automatic=True)
+                if not trace_started:
+                    _LOG.warning("thin: automatic audio trace unavailable [room=%s]", self.room)
             else:
                 trace_started = self.audio_trace.begin(self.room, trace_metadata)
         self._trace_event(
@@ -1013,7 +1015,7 @@ class ThinSession:
             return
         if not opening_is_current():
             return
-        if opening_live and not opening_webrtc and trace_started:
+        if opening_live and not opening_webrtc and rearm_attempt_id is not None and trace_started:
             self._spawn(
                 self._request_wake_reference(self.audio_trace, self._history_session, self._epoch),
                 "thin-wake-reference",

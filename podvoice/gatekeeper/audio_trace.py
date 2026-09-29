@@ -67,14 +67,14 @@ class _Stage:
         self.frames += 1
         values = array("h")
         values.frombytes(clean)
-        for value in values:
-            magnitude = abs(int(value))
-            self.samples += 1
-            self.abs_sum += magnitude
-            self.square_sum += int(value) * int(value)
-            self.peak = max(self.peak, magnitude)
-            if magnitude >= 32760:
-                self.clipped += 1
+        # Keep exact statistics, but avoid several Python operations per sample.
+        # This runs in the asynchronous capture writer on the Voice PE host.
+        magnitudes = tuple(map(abs, values))
+        self.samples += len(values)
+        self.abs_sum += sum(magnitudes)
+        self.square_sum += sum(value * value for value in values)
+        self.peak = max(self.peak, max(magnitudes))
+        self.clipped += sum(value >= 32760 for value in magnitudes)
 
     def metrics(self) -> dict[str, Any]:
         seconds = self.samples / self.rate if self.rate else 0.0
