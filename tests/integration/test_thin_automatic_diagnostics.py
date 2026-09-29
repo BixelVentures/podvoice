@@ -4,6 +4,7 @@ import pytest
 from test_thin_live import build, until
 
 from gatekeeper.audio_trace import AudioTraceRecorder
+from gatekeeper.events import Event, EventType
 
 
 @pytest.mark.asyncio
@@ -62,6 +63,38 @@ async def test_ordinary_alpha_wake_persists_without_manual_arm_and_off_does_not(
         await session.wake("physical-attempt-off")
         assert not recorder.owns(session.room, session._history_session)
         await session.stop()
+    finally:
+        await session.aclose()
+        await recorder.shutdown(timeout_s=3.0)
+
+
+@pytest.mark.asyncio
+async def test_panel_alpha_wake_persists_automatic_trace_without_false_wake_reference(tmp_path):
+    session, sdk, _, _, link = build()
+    recorder = session.audio_trace = AudioTraceRecorder(tmp_path, automatic=True)
+    reference_requests = []
+    link.supports_wake_reference = True
+
+    async def request_reference(session_id, observer):
+        reference_requests.append((session_id, observer))
+        return True
+
+    link.request_wake_reference = request_reference
+    await session.start()
+    try:
+        # The panel posts WAKE_WORD without a firmware wake attempt ID.
+        await session.sm.post(Event(EventType.WAKE_WORD, session.room))
+        assert recorder.owns(session.room, session._history_session)
+        link.feed([b"\x01\x00" * 320])
+        await until(lambda: sdk.session.input_audio.append.await_count > 0)
+        await session.stop()
+        await recorder.wait_pending(timeout_s=3.0)
+        latest = recorder.snapshot()["latest"]
+        assert latest["persistence"] == "saved"
+        assert latest["metadata"]["wake_source"] == "programmatic"
+        assert latest["metadata"]["wake_attempt_id"] is None
+        assert latest["stages"]["device"]["samples"] > 0
+        assert reference_requests == []
     finally:
         await session.aclose()
         await recorder.shutdown(timeout_s=3.0)

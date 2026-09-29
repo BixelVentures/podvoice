@@ -1,5 +1,46 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv observationskandidat 29/9 — automatisk lydlog ved panelstart og hurtigere writer
+
+Fysisk .109-prøve kl. 18.51 sluttede først cirka 28,1 s efter sidste
+backend-svar, selv om UI stod på 4 s; der var fortsat baggrundstale.
+Samtalen havde runtime-tidslinje, men intet nyt automatisk lydmanifest.
+`ThinSession` autoarmerede kun ved fysisk `rearm_attempt_id`, mens panel-Lyt
+går gennem `wake(None)`. En tidligere TV-prøve havde desuden 220 tabte
+capture-kommandoer; den positive/negative lydklassifikation var derfor
+ikke godkendelsesbevis. Ingen af observationerne giver autoritet til at
+ændre timeout eller semantisk farvel.
+
+Berørt kæde: panel eller fysisk wake → Thin trace-admission → uændret
+Voice PE-PCM/Live-append → asynkron writer → manifest → teardown/rearm.
+Invarianter: én native mikrofonconsumer og én samtaleejer, ingen
+diagnostik på Talk/OFF, ingen falsk fysisk wake-reference ved panelstart,
+ingen PCM- eller providerændring, og en fuld trace-kø skal fortsat markere
+tab. Falsificerbar hypotese: programmatisk native Alpha-start kan optages
+automatisk uden at anmode firmware om fysisk wake-reference; hurtigere
+eksakt PCM-statistik reducerer writerarbejdet uden at ændre WAV-bytes.
+Ikke-mål: TV-lukning, VAD, gain, prompt, LED, firmware og nye timeoutregler.
+
+Regressioner: panel-WAKE_WORD gemmer device-PCM med `wake_source=programmatic`
+og nul wake-reference-anmodninger; fysisk wake, Stop, Talk/OFF og fuld
+trace-kø forbliver uændret; signed-16-bit ekstremværdier giver præcis samme
+statistik og WAV. Målrettede tests, fast gate, uafhængigt review, én frosset
+releasegate og fysisk manifestkontrol kræves. Rollback er installeret .109.
+Den bredere PR85 er ikke en releasekandidat: dens første releasegate
+afviste blandingen af audio-input, fysisk output og rearm. Denne snævre
+kandidat er isoleret fra den PR og skal bedømmes på egne bits.
+
+Faktisk snævert diff i dev-clonen: automatisk native Alpha-trace starter også
+ved panel-WAKE_WORD; fysisk wake-reference anmodes fortsat kun ved fysisk
+wake-token. Manglende automatisk recorder-admission får en warning. Den
+asynkrone writers PCM-statistik bruger ækvivalente indbyggede summeringer;
+køgrænse, bytes og tabsrapportering er uændret. Målrettede tests 18/18 PASS.
+`scripts/dev fast --base origin/main` bestod Ruff, format, Mypy og den
+fokuserede integration-/unit-gate på dette isolerede diff. Dette er
+softwarebevis, ikke færre tab på Pi eller fysisk lukningsbevis. Uafhængigt
+slutreview, frosset releasegate, publicering, installation og nyt fysisk
+manifest er endnu ikke udført.
+
 ## .109 installeret 28/9 — fysisk kandidatprøve afventer
 
 PR81 `dcbeac2` bestod PR-CI og den fulde lokale releasegate; merged main som
