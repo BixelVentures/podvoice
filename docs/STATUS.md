@@ -1,5 +1,37 @@
 # PodVoice-status — én aktuel sandhed
 
+## Beslutning 29/9 — rettet to-klips relevansprøve afviser endnu en aktivering
+
+Brugeren godkendte præcis to ekstra OpenAI-lydopslag efter den oprindelige
+seks-klips prøve. Den afgrænsede engangsproces sendte kun det korrigerede
+1,186 s kandidatklip med kendt opfølgning efter sidste målte svarlyd og et
+8,0 s TV-vindue. Begge fik HTTP 200, men `gpt-audio-1.5` svarede `background`
+på **begge**. Positivets forventning bygger på historikkens relevante
+opfølgning og Live-inputfragmenter, ikke på uafhængig gennemlytning af netop
+de afgrænsede PCM-samples; 95 tabte capture-kommandoer og ubekræftet TV-
+overlap består. Resultatet beviser derfor ikke alene en modelsvaghed, men
+det **falsificerer, at dette datasæt validerer en sikker relevansgate**.
+Klassifikatoren må ikke få close-autoritet. De to yderligere kald er opbrugt;
+rapporten med kun etiketter, tider og PCM-hashes ligger privat uden nøgle.
+
+Officiel Live-dokumentation giver appen ejerskab over inactivity baseret på
+lyd, faktisk afspilning og ventende arbejde; transcriptpauser er ikke
+stilhedsbevis. `session.input_audio.mute` kræver matching ACK og lukker ikke
+sessionen eller backendarbejde. Der er ikke dokumenteret et særskilt,
+fuldstændigt `not_addressed`-event, som kan erstatte den manglende lokale
+relevansafgørelse. En ekstra `response.create` er backenddelegering, ikke en
+garanteret klassifikation af de seneste mikrofon-samples.
+[Sessionsguide](https://developers.openai.com/api/docs/guides/live-conversations)
+· [Delegationsguide](https://developers.openai.com/api/docs/guides/live-delegation).
+
+Næste nødvendige positive/negative par er **samme fysiske optagevej** med
+færdigafspillet svar, fortsat TV, en faktisk lav opfølgning inden UI-fristen
+og et ellers tilsvarende TV-vindue. Den automatiske log er allerede aktiv;
+brugeren er bedt om en målrettet samtale. Indtil sample- og relevansbevis
+foreligger, forbliver kandidat2 deaktiveret og .109 installeret. Den
+mekaniske buffer/fence kan udvikles lokalt, men må ikke forveksles med en
+løst TV-timeout eller releaseklar kandidat.
+
 ## Aktiv beslutning 29/9 — afgrænset host-lydvindue til henvendelsesprøve
 
 Efter den kvitterede providerbarriere og callback-ordnet kildeproveniens
