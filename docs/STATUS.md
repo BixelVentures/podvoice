@@ -80,14 +80,20 @@ forståelighed, men udsnittet er ikke åbenlyst tomt eller forskudt uden for
 den registrerede inputtur. Ingen automatisk transskription af klippet er
 udført; denne kontrol er tidslig, ikke semantisk lydvalidering.
 
-Supplerende lokal lydkontrol 29/9: det 3,5 s positive PCM-udsnit har RMS
-261 og tydelig energi i de første ca. 2,5 s; den sidste ca. 1 s er rolig.
-Det samme optagede p0000-vindue har Live-inputfragmenter ved +3,58 og
-+3,82 s. Det gør et helt tomt udsnit usandsynligt, men beviser fortsat
-ikke, at ordene er forståelige eller henvendt til assistenten. macOS'
-lokale Speech-godkendelse er afvist på testværten, så den kan ikke bruges
-til uafhængig transskription her. Næste afgørende kontrol er gennemlytning
-af netop dette lokale klip, før ny modelprøve eller timeout-politik vælges.
+Korrigeret lydgrænse 29/9: en første sammenligning slog fejlagtigt op i
+14.02.09-sporet, mens evalens positive klip er fra 14.03.38-sporet. Kilden
+og PCM-hash er nu verificeret mod manifestet. Det 3,5 s udsnit (+1,8–5,3 s)
+har tydelig energi, men fysisk `playback_started` indtraf +3,096 s, og
+providerens første output-lyd blev modtaget +2,753 s. Inputfragmenter
+fortsatte +2,4–4,8 s. Derfor indeholder evaludsnittet både formodet
+brugertale og en periode med assistentens afspilning; det er **ikke** en
+ren positiv henvendelsesprøve. De tre falske `background`-resultater i
+det oprindelige forsøg er stadig reelle for de udsendte klip, men årsagen
+kan ikke isoleres til modellens henvendelsesforståelse. Begge syntetiske
+positive bruger samme forurenede kilde. macOS' lokale Speech-godkendelse
+er afvist på testværten. Næste grænse er et gennemlyttet udsnit helt før
+fysisk playback (+1,4–3,0 s) og korrelation med faktisk providerinput;
+ingen ny timeout-politik eller providerprøve er autoriseret på dette fund.
 
 Ny mekanisk modprøve på den eksisterende deaktiverede `LiveInputPolicy`:
 100 sammenhængende 100 ms aktive inputintervaller, alle korrekt klassificeret
