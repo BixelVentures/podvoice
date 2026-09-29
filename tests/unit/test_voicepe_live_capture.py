@@ -1,4 +1,4 @@
-"""Native held ACK fences queued and scheduled capture across a provider rotation."""
+"""Native held ACK drains queued host frames across a provider rotation."""
 
 import asyncio
 
@@ -29,7 +29,7 @@ def ack(link, token, phase, high=None):
     link._on_state(TextSensorState(f"{token}:{phase}:{token if high is None else high}", key=77))
 
 
-async def test_held_ack_cuts_queue_and_delayed_audio_before_waiter_runs():
+async def test_held_ack_cuts_queue_and_stale_hook_audio_before_waiter_runs():
     link, client = link_fixture()
     epoch = link._audio_epoch
     await link._handle_audio(b"queued", audio_epoch=epoch)
@@ -49,7 +49,7 @@ async def test_held_ack_cuts_queue_and_delayed_audio_before_waiter_runs():
     await link._handle_audio(b"fresh", audio_epoch=link._audio_epoch)
     ack(link, token, "resumed")
     await resume
-    assert link._audio_q.get_nowait() == b"fresh"
+    assert link._audio_q.get_nowait().pcm == b"fresh"
     with pytest.raises(RuntimeError, match="stale"):
         await link.resume_live_capture(token)
 

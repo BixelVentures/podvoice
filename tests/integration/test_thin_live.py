@@ -17,6 +17,7 @@ from gatekeeper.playback import Playback
 from gatekeeper.provider_budget import ProviderBudgetCoordinator
 from gatekeeper.thin import ThinSession
 from gatekeeper.tools import ToolRouter
+from gatekeeper.voicepe import NativeMicFrame
 
 
 class Device(FakeVoicePELink):
@@ -91,6 +92,56 @@ def build(*, enabled=True, device=None):
         tools=tools,
     )
     return session, sdk, flag, tools, link
+
+
+@pytest.mark.asyncio
+async def test_native_timed_mic_uses_one_consumer_and_submits_exact_pcm():
+    class TimedDevice(Device):
+        connection_generation = 4
+
+        def __init__(self):
+            super().__init__()
+            self._audio_q = asyncio.Queue()
+            self.timed_reads = 0
+
+        def timed_pcm_frames(self):
+            async def read():
+                while True:
+                    self.timed_reads += 1
+                    yield await self._audio_q.get()
+
+            return read()
+
+        def pcm_frames(self):
+            raise AssertionError("second native mic consumer")
+
+    link = TimedDevice()
+    session, sdk, _, _, _ = build(device=link)
+    submitted = []
+    original_send = session.live_brain.send_audio
+
+    async def observe(pcm):
+        submitted.append(pcm)
+        await original_send(pcm)
+
+    session.live_brain.send_audio = observe
+    await session.start()
+    try:
+        await session.wake()
+        generation = link.audio_generation
+        stale = NativeMicFrame(b"\x99\x88" * 320, 1.0, 1, generation - 1, 4, 0)
+        pcm = b"\x01\x00\xab\xcd" * 160
+        fresh = NativeMicFrame(pcm, 2.0, 2, generation, 4, 0)
+        link._audio_q.put_nowait(stale)
+        link._audio_q.put_nowait(fresh)
+        await until(lambda: sdk.session.input_audio.append.await_count == 1)
+        assert submitted == [pcm]
+        assert session._live_mic_submitted is fresh
+        assert link.timed_reads >= 2
+        await session.stop()
+        assert session._live_mic_submitted is None
+    finally:
+        await session.aclose()
 
 
 async def until(predicate):

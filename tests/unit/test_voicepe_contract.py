@@ -1076,10 +1076,8 @@ async def test_rearm_recovery_is_degraded_not_physical_proof():
     assert link.wake_readiness == "recovered"
 
 
-async def test_rearm_epoch_drops_scheduled_old_audio_and_keeps_immediate_new_audio():
-    """aioesphomeapi schedules async audio handlers. A callback invoked before the
-    matching ACK may run after it; epoch capture must still classify it as A. A B
-    callback invoked immediately after ACK must survive before Thin resumes."""
+async def test_rearm_epoch_drops_queued_old_audio_and_keeps_immediate_new_audio():
+    """The callback queues before its completion task runs; ACK drains that epoch."""
     client = _ConnectableClient(
         FULL_SERVICES,
         [
@@ -1114,7 +1112,43 @@ async def test_rearm_epoch_drops_scheduled_old_audio_and_keeps_immediate_new_aud
     assert await task == "recovered"
     assert link.rearm_token == 1
     assert link._audio_q.qsize() == 1
-    assert await link._audio_q.get() == fresh_b
+    frame = await link._audio_q.get()
+    assert frame.pcm == fresh_b
+    assert frame.audio_generation == link.audio_generation
+
+
+async def test_late_native_callback_after_rearm_has_no_physical_sample_fence():
+    """A post-ACK callback can carry older device audio; host metadata cannot tell."""
+    client = _ConnectableClient(
+        FULL_SERVICES,
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+        ],
+    )
+    link = _link(client)
+    await link._on_connect()
+    handle = client.va_handlers["handle_audio"]
+    rearm = asyncio.create_task(link.rearm_wake_word())
+    await asyncio.sleep(0)
+    link._on_state(TextSensorState("0:recovered"))
+    assert await rearm == "recovered"
+
+    # Inject an actually late invocation of the same subscription, representing
+    # a pre-ACK device sample that the native API delivers only after ACK.
+    await handle(b"physically-old-but-late")
+    frames = link.timed_pcm_frames()
+    packet = await anext(frames)
+    assert packet.pcm == b"physically-old-but-late"
+    assert packet.audio_generation == link.audio_generation
+    assert packet.connection_generation == link.connection_generation
+    # Thus these fields prove callback order only; no later close policy may treat
+    # them as complete physical source coverage across rearm.
+    await frames.aclose()
 
 
 async def test_audio_boundary_drops_delayed_native_callback_and_keeps_next_generation():
@@ -1134,17 +1168,49 @@ async def test_audio_boundary_drops_delayed_native_callback_and_keeps_next_gener
     await link._on_connect()
     handle_audio = client.va_handlers["handle_audio"]
 
-    link._audio_q.put_nowait(b"queued-a")
+    link._enqueue_audio(b"queued-a", audio_epoch=link.audio_generation)
     delayed_a = handle_audio(b"callback-a")
     generation, dropped = link.cut_audio_boundary("speech-stopped")
     immediate_b = handle_audio(b"callback-b")
 
     await delayed_a
     await immediate_b
-    assert (generation, dropped) == (1, 1)
+    assert (generation, dropped) == (1, 2)
     assert link.audio_generation == 1
     assert link._audio_q.qsize() == 1
-    assert await link._audio_q.get() == b"callback-b"
+    assert (await link._audio_q.get()).pcm == b"callback-b"
+
+
+async def test_native_callback_order_and_pcm_survive_delayed_completion():
+    client = _ConnectableClient(
+        FULL_SERVICES,
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+        ],
+    )
+    link = _link(client)
+    await link._on_connect()
+    handle = client.va_handlers["handle_audio"]
+    first_done = handle(b"\x00\xff\x12\x34")
+    second_done = handle(b"\x01\x00\xab\xcd")
+    # Completion order is allowed to differ from native callback order.
+    await second_done
+    await first_done
+    frames = link.timed_pcm_frames()
+    first = await anext(frames)
+    second = await anext(frames)
+    assert [f.pcm for f in (first, second)] == [b"\x00\xff\x12\x34", b"\x01\x00\xab\xcd"]
+    assert second.sequence == first.sequence + 1
+    assert second.received_monotonic >= first.received_monotonic
+    assert first.audio_generation == second.audio_generation == link.audio_generation
+    assert first.connection_generation == second.connection_generation == link.connection_generation
+    assert first.dropped_frames_at_enqueue == second.dropped_frames_at_enqueue == 0
+    await frames.aclose()
 
 
 @pytest.mark.parametrize("same_client", [False, True])
@@ -1183,7 +1249,7 @@ async def test_reconnect_makes_scheduled_old_callback_inert_and_keeps_new_audio(
     await immediate_b
     assert await task == "recovered"
     assert link._audio_q.qsize() == 1
-    assert await link._audio_q.get() == b"new-generation"
+    assert (await link._audio_q.get()).pcm == b"new-generation"
 
 
 async def test_fault_and_wrong_rearm_ack_never_advance_audio_epoch():
@@ -1346,11 +1412,15 @@ async def test_mic_queue_keeps_the_end_of_a_long_request_on_backpressure():
     before = dict(diagnostic)
     await link._handle_audio(b"stale", audio_epoch=link._audio_epoch - 1)
     assert link.wake_diagnostics() == before
-    assert await link._audio_q.get() == (1).to_bytes(2, "little")
-    newest = b""
+    first = await link._audio_q.get()
+    assert first.pcm == (1).to_bytes(2, "little")
+    assert first.dropped_frames_at_enqueue == 0
+    newest = None
     while not link._audio_q.empty():
         newest = link._audio_q.get_nowait()
-    assert newest == (600).to_bytes(2, "little")
+    assert newest is not None
+    assert newest.pcm == (600).to_bytes(2, "little")
+    assert newest.dropped_frames_at_enqueue == 1
 
 
 async def test_reply_is_armed_before_the_media_command():

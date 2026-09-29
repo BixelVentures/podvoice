@@ -1,5 +1,73 @@
 # PodVoice-status — én aktuel sandhed
 
+## 29/9 — .110 installeret; næste afgrænsede inputbevis under arbejde
+
+PR86 blev merged som `61f31f3aee93bbc06a2ea28a92880be200866c3f` efter
+uafhængigt review, frosset lokal releasegate og grøn PR-CI. Main-jobbet
+publicerede registertag `1.13.110`; Home Assistant installerede med backup ON
+og viste installeret/nyeste 1.13.110, Kører. Panelet viste v1.13.110, Alpha
+ON og gemt 4 s. Opstartsloggen bekræftede samme git-SHA. Voice PE var offline:
+`.local` slog ikke op, og forbindelsen til senest kendte `192.168.86.27:6053`
+blev afvist. Derfor er der **intet fysisk lyd- eller lukningsbevis på .110**.
+Firmware er ikke ændret. Den tidligere .109-baseline og TV-fejlen står ved magt.
+
+Aktiv næste beslutning: Bevis en eksakt, ordnet inputgrænse, før TV-tale kan
+fritage den fælles lukkeproces fra rå VAD/transkript. Den fysiske .109-trace
+viste >10 s output-ro uden backend-/værktøjsarbejde, men aktiv inputveto;
+den samme trace tabte 220 capture-kommandoer. Kæden er native mikrofoncallback
+→ `VoicePELink` kø/epoch → `ThinSession` pump → OpenAI append/transkript →
+inputrelevans → den eksisterende close-ejer → fysisk playback/teardown/rearm.
+Invarianter: én mikrofonconsumer, ordnede frames, ingen stale generation,
+intet tabt opfølgningsord, Stop preempter, Talk/OFF uændret. Falsificerbar
+hypotese: en callbackbundet sample-sekvens kan afsløre huller/epochskift uden
+at ændre de bytes, som når OpenAI. Ikke-mål: aktivering af TV-lukning, ny
+timeoutværdi, VAD/gain/prompt, ekstra samtalemotor eller firmware.
+
+Før adfærdsændring kræves bevis for lokal buffer/replay gennem samme session,
+eksakt input-fence og provider-ACK, og en frisk relevansdom som dækker lyd
+helt frem til close-grænsen. Kontinuerlig TV-tale med forsinket klassifikation
+efterlader ellers altid en ubestemt hale; et output-only 4 s close er derfor
+ikke en godkendt fallback. Regressioner skal injicere forsinkede, dublerede og
+omordnede frames omkring Stop/rearm/næste wake; køtab, mute/ACK-fejl og en
+svag dansk opfølgning lige ved grænsen må ikke blive en falsk lukning. Målrettet
+native/Thin-test, uafhængig adversarial review, relevante gates og senere
+fysisk TV+opfølgning på samme bits kræves. Rollback-grænse er installeret .110,
+mens .109 er senest feltobserverede kandidat. Denne post registrerer en plan,
+ikke et resultat af kandidat 2.
+
+Foreløbigt kodearbejde på separat branch: `VoicePELink` lægger nu native
+mikrofonbytes i samme begrænsede kø synkront i callbackrækkefølge og knytter
+host-modtagelsestid, sekvens, audio-/forbindelsesgeneration og køtab til hver
+frame. `ThinSession` kan observere den sidst lokalt afsendte native frame;
+OpenAI får stadig de samme PCM-bytes. Det ændrer hverken lukning eller
+provider-mute. En syntetisk late-callback-test efter rearm viser grænsen for
+host-metadata: hvis en callback først *invokeres* efter ACK, får den ny
+host-epoch. Host-metadata alene beviser derfor ikke fysisk sample-alder,
+source-komplethed eller provider-kvittering. Feltklassifikation må ikke bruge
+dem som sådan. Den uafhængige adversarial review fandt efter rettelse ingen
+tilbageværende P1 for at beholde koden som forberedelse uden lukkeautoritet,
+men gav ikke release- eller TV-close-godkendelse. Den rettede fokuserede
+`scripts/dev fast` bestod Ruff, format, Mypy og samtlige udvalgte tests med lokal
+loopback-adgang. En tidligere HTTP-tests `PermissionError` kom alene fra
+sandkassens blokering af lokal socket og bestod ved isoleret genkørsel med
+adgang. Fuld releasegate, PR, installation og fysisk prøve af denne branch
+er ikke udført.
+
+Korrigeret firmware-/protokolaudit: den første læsning blandede en ældre
+firmwaresti ind og påstod fejlagtigt, at Stop/ring-reset ikke var synkroniseret.
+I den aktuelle main-kode holder både producent, Stop/reset og ring-read samme
+`audio_mutex_`; drain-send, Stop og rearm køres på main/API-tasken, og native
+API sender beskeder i FIFO på samme forbindelse. Allerede sendt før-Stop PCM
+kan derfor ikke overhale en senere `recovered`-ACK. Et før-ACK decodet, men
+forsinket host-callback afvises af den eksisterende host-epoch-cut. Næste wake
+trimmer efter firmwaredetektorens præcise samplegrænse; den gamle generelle
+320 ms pre-roll-beskrivelse gælder ikke denne kandidat. Det er en stærkere
+mekanisk grænse end den første audit antog, men ikke en måling af fysisk
+optagelsestid i lavere mic-buffere eller et relevansverdict for TV. A/B-PCM,
+forsinket callback/TX, Stop→rearm→næste wake og rigtig opfølgning skal stadig
+bevises på de shippede bits før en ændret close-politik. Ingen firmwareændring
+er besluttet eller udført på dette grundlag.
+
 ## Aktiv observationskandidat 29/9 — automatisk lydlog ved panelstart og hurtigere writer
 
 Fysisk .109-prøve kl. 18.51 sluttede først cirka 28,1 s efter sidste
