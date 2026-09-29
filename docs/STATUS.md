@@ -96,6 +96,19 @@ er afvist på testværten. Næste grænse er et gennemlyttet udsnit helt før
 fysisk playback (+1,4–3,0 s) og korrelation med faktisk providerinput;
 ingen ny timeout-politik eller providerprøve er autoriseret på dette fund.
 
+Prøvens dækningsgrænse: klippet +1,4–3,0 s ligger i **første henvendelse
+efter wake**, før den første fysiske svarstart. Den reproducerer ikke den
+afgørende modprøve: en ny, lavmælt dansk opfølgning **efter** et færdigt
+assistent-svar, samtidig med vedvarende TV. De tre TV-negativer kommer fra
+senere dele af samme session, men der er endnu intet sikkert mærket
+positivt opfølgningsinterval i den lokale seks-klips prøve. Live-output
+begyndte allerede +2,753 s, før første loggede inputfragment blev leveret
++3,329 s; fragmentets leveringstid er ikke en startgrænse for brugerens
+ytring. Sammenligning af en første tur med senere TV kan derfor ikke åbne
+runtime-close-gaten. Det næste relevante datasæt skal have både fysisk
+afsluttet svar, efterfølgende brugeropfølgning over TV, præcis sampleklokke
+og et tilsvarende rent TV-interval fra samme optagevej.
+
 Ny mekanisk modprøve på den eksisterende deaktiverede `LiveInputPolicy`:
 100 sammenhængende 100 ms aktive inputintervaller, alle korrekt klassificeret
 som baggrund med præcis 1 s forsinkelse. Ved 4, 5 og 10 sekunder er verdict
