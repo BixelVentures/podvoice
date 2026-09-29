@@ -1,5 +1,45 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv beslutning 29/9 — tavs Live-strøm må ikke starte fysisk svar
+
+Direkte .109-spor `20260928T202642` har 620 `session.output_audio.delta`-
+hændelser, men de seks gemte `speaker`-dele indeholder udelukkende nul-PCM.
+Alligevel startede fysisk playback +5,228 s og sluttede først +70,399 s.
+I koden tælles nulbytes mod de 3.840 bytes, som opretter playback-leasen.
+Det er en selvstændig, observeret fejl ved siden af TV-tale, der holder VAD aktiv.
+
+Kæden er providerens lydhændelse → Thin-generationskontrol → LiveAudioStream →
+FLAC/announcement → fysisk playback-event → aktivitetsvindue → close/dræn →
+teardown/rearm. Berørte invarianter: kun faktisk assistentlyd må starte fysisk
+svar; nul-PCM må ikke holde output/arbejde aktivt; første rigtige lyd må ikke
+tabes; gammel lyd må ikke krydse generation eller Stop; samme Thin-kontrakt
+gælder Talk, mens OFF-path er urørt. Falsificerbar hypotese: at udelade kun
+ledende eksakte nul-PCM-chunks før første ikke-nul-chunk forhindrer falsk
+playback uden at klippe eller forskyde faktisk tale. Ikke-mål: ingen ændring
+af TV-relevans, input-VAD, firesekunders UI-værdi, prompt eller firmware.
+
+Regressioner: kun nul-chunks over den gamle startgrænse giver nul playback-
+lease og ingen speaker-publicering; efterfølgende ikke-nul starter nøjagtigt
+én lease med bevaringsbevis for første PCM; nulpauser efter talestart bevares;
+Stop/generationsskift kasserer gamle chunks; idle/semantisk close uden fysisk
+svar og Talk/OFF består. Derefter fast/lifecycle og én releasegate på frosset
+diff med uafhængigt adversarialt review. Rollback er installeret .109.
+Denne ændring er **ikke** en løsning på kontinuerlig TV-tale og må ikke
+releasegodkendes som sådan uden den separate relevans- og fysiske gate.
+
+Implementeret i samme isolerede branch: Thin kasserer kun eksakt nul-PCM,
+før første ikke-nul assistant-chunk er accepteret. Efter første lyd bevares
+nulpauser og byteorden i den eksisterende stream. Testen beviser nul fysisk
+playback-lease efter 9.600 tavse bytes og nøjagtig tale→pause-payload ved
+første svar. To ældre lifecycle-tests blev rettet fra tavs fixture til
+ikke-nul svarlyd, så de fortsat prøver reel Stop/rotation og LED-præcedens.
+Målrettede lyd-/quiet-tests, hele integrationstesten og `scripts/dev fast`
+(Ruff, format, Mypy, integration, unit) er grønne. Uafhængigt adversarialt
+review fandt den første fixture-fejl, som blev rettet; re-review fandt ingen
+yderligere konkret ejer-/racefinding. Reviewet bekræfter ikke fysisk lyd.
+Kandidaten er stadig **ikke release-/installationsklar**: lifecycle/releasegate
+og fysisk golden+10/10 på præcis artifact mangler, og TV-timeouten er uløst.
+
 ## Aktiv beslutning 28/9 — afprøv lydlig henvendelse på virkelig køkkenlyd
 
 Samme .109-session rummer et faktisk spørgsmål til assistenten og, efter

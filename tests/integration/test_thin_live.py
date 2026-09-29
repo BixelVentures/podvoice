@@ -2335,7 +2335,7 @@ async def test_correction_during_rotation_capture_await_uses_owned_teardown(
     monkeypatch.setattr(link, method, paused)
     try:
         if phase == "playback_stop":
-            await session._on_live_event(LiveAudioChunk(b"\0" * 3840, 1))
+            await session._on_live_event(LiveAudioChunk(b"\1\0" * 1920, 1))
             await until(lambda: session._playback_lease is not None)
         await pending_confirmation(session, sdk)
         await emit(sdk, created("r2"), terminal("r2"))

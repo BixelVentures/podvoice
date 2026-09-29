@@ -20,14 +20,19 @@ async def setup(*, output=True):
     await session.wake()
     await until(lambda: session.brain._queue.empty())
     if output:
-        # A real accepted PCM event opens the real Live stream/playback lease.
+        # Actual assistant PCM opens the Live stream/playback lease. Exact-zero
+        # transport before speech must not start a physical announcement.
         await session._on_live_event(
             LiveAudioChunk(
                 generation=session.brain._connection_generation,
-                pcm=b"\0" * 3840,
+                pcm=b"\1\0" * 1920,
             )
         )
         await until(lambda: session._playback_lease.phase == "started")
+        # The fake device reports playback start but does not fetch HTTP audio.
+        # Consume the real first word before simulating its later quiet tail.
+        stream = session.live_audio.claim(session._live_stream.id)
+        assert await stream.next_chunk() == b"\1\0" * 1920
         # Keep a full one-second queue of zero PCM, as the real continuous stream
         # may do. These transport bytes must not make every quiet window busy.
         await session._on_live_event(
@@ -327,7 +332,8 @@ async def test_new_nonzero_and_queued_input_prevent_commit_and_stale_owner_is_in
             session.brain.input_sequence += 1
             assert not session._live_quiet_ready()
             session.brain.input_sequence -= 1
-            stream = session.live_audio.claim(session._live_stream.id)
+            stream = session._live_stream
+            assert stream.claimed
             while stream.buffered_bytes:
                 await stream.next_chunk()
             await session._on_live_event(

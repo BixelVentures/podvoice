@@ -2143,6 +2143,13 @@ class ThinSession:
             if ev.sample_rate != 24000 or self._live_stream is None:
                 self._request_close("live-audio-contract", error_kind="connection")
                 return
+            # Live can send continuous exact-zero PCM while it has nothing to say.
+            # That is transport silence, not the beginning of a physical reply.
+            # Leading silence must not claim the announcement/mixer or turn the
+            # idle policy into an output-started window. Once speech begins, keep
+            # later zero chunks: they are pauses inside the audible stream.
+            if not self._live_output_bytes and not any(ev.pcm):
+                return
             from .live_audio import LiveAudioError
 
             stream, brain, epoch = self._live_stream, self.brain, self._epoch
