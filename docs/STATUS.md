@@ -60,6 +60,20 @@ Voice PE kan opfange en ægte lavmælt opfølgning over TV i køkkenet. Lokal
 manifestvalidering, 35 fokuserede tests, Ruff, format og diff-check PASS;
 ingen providerkald eller fysisk prøve er udført på denne evalrevision.
 
+Providerprøve 29/9 på det alternative seks-klips manifest: alle seks kald
+fik HTTP 200 fra `gpt-audio-1.5` med samme prompt og `store:false`.
+Tre TV-klip blev korrekt `background` (1,24–1,36 s). Den virkelige
+henvendelse og begge syntetiske blandinger blev også `background`
+(henholdsvis 2,18, 1,34 og 1,59 s): **tre falske baggrundsverdicts ud af
+tre positive modprøver**. Rapportstatus er `completed_mismatch`; nøgle og
+lyd står ikke i rapporten eller Git. Prøven modbeviser hypotesen om, at
+denne lydmodel og instruktion sikkert kan frigive timeout på de udvalgte
+køkkenklip. Det kan også betyde, at klipgrænser eller manglende
+samtalekontekst gør spørgsmålet akustisk tvetydigt; før yderligere modelkald
+må device-/providerlyden og tidsgrænserne kontrolleres. Ingen
+`LiveInputPolicy`-aktivering, ændret timeout eller fysisk release følger af
+denne prøve. Testnøglen afventer separat tilbagekaldelsesbekræftelse i UI.
+
 Ny mekanisk modprøve på den eksisterende deaktiverede `LiveInputPolicy`:
 100 sammenhængende 100 ms aktive inputintervaller, alle korrekt klassificeret
 som baggrund med præcis 1 s forsinkelse. Ved 4, 5 og 10 sekunder er verdict
