@@ -73,6 +73,12 @@ samtalekontekst gør spørgsmålet akustisk tvetydigt; før yderligere modelkald
 må device-/providerlyden og tidsgrænserne kontrolleres. Ingen
 `LiveInputPolicy`-aktivering, ændret timeout eller fysisk release følger af
 denne prøve. Testnøglen afventer separat tilbagekaldelsesbekræftelse i UI.
+Tidskontrol efter forsøget: p0000 har registrerede Live-inputfragmenter
+fra providerposition 2,4–4,8 s, og det sendte positive device-udsnit dækker
+1,8–5,3 s. Det udelukker ikke fejl i device/provider-clock eller akustisk
+forståelighed, men udsnittet er ikke åbenlyst tomt eller forskudt uden for
+den registrerede inputtur. Ingen automatisk transskription af klippet er
+udført; denne kontrol er tidslig, ikke semantisk lydvalidering.
 
 Ny mekanisk modprøve på den eksisterende deaktiverede `LiveInputPolicy`:
 100 sammenhængende 100 ms aktive inputintervaller, alle korrekt klassificeret
