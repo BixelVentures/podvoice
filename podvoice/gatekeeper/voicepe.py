@@ -20,10 +20,12 @@ import contextlib
 import ipaddress
 import json
 import logging
+import math
 import pathlib
 import secrets
 import socket
 import time
+from collections import deque
 from collections.abc import AsyncIterator, Callable, Coroutine
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -40,6 +42,9 @@ log = logging.getLogger(__name__)
 # session.updated hand-off. The provider uses the same 12 s bound, so neither stage
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
+_RECENT_MIC_SECONDS = 8.0
+_RECENT_MIC_MAX_BYTES = int(_RECENT_MIC_SECONDS * C.INPUT_RATE * C.SAMPLE_WIDTH)
+_RECENT_MIC_MAX_FRAMES = int(_RECENT_MIC_SECONDS * 1000 // C.FRAME_MS)
 EXPECTED_FIRMWARE_BUILD = "podvoice_build_113108_notifyisolation1"
 LIVE_FIRMWARE_BUILD = "podvoice_build_113108_livenotifyisolation1"
 _WAKE_WORD_ACK_TIMEOUT_S = 3.0
@@ -78,6 +83,15 @@ class NativeMicFrame:
     audio_generation: int
     connection_generation: int
     dropped_frames_at_enqueue: int  # Compare with live total at the later fence.
+
+
+@dataclass(frozen=True)
+class NativeMicWindow:
+    frames: tuple[NativeMicFrame, ...]
+    audio_generation: int
+    connection_generation: int
+    queue_dropped_frames_total: int
+    evicted_through_monotonic: float | None
 
 
 class VoicePELink:
@@ -122,6 +136,9 @@ class VoicePELink:
         self._unsub_va: Callable[[], None] | None = None
         self._unsub_states: Callable[[], None] | None = None
         self._audio_q: asyncio.Queue[NativeMicFrame | bytes] = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
+        self._recent_mic: deque[NativeMicFrame] = deque()
+        self._recent_mic_bytes = 0
+        self._recent_mic_evicted_through: float | None = None
         # Captured synchronously when aioesphomeapi receives each audio protobuf.
         # A matching recovered rearm ACK advances the epoch before waking Thin, so an
         # pre-boundary callback audio is drained before the next wake can own the queue.
@@ -1272,6 +1289,7 @@ class VoicePELink:
     async def _on_disconnect(
         self, expected_disconnect: bool = False
     ) -> None:  # VERIFY: cb signature
+        self._clear_mic_window()
         self._invalidate_live_capture()
         self._api_audio_ready = False
         self._state_subscription_token = None
@@ -1421,6 +1439,9 @@ class VoicePELink:
             self._connection_generation,
             self.audio_queue_dropped_frames,
         )
+        self._recent_mic.append(frame)
+        self._recent_mic_bytes += len(data)
+        self._prune_mic_window(received_monotonic)
         try:
             self._audio_q.put_nowait(frame)
         except asyncio.QueueFull:
@@ -1459,7 +1480,42 @@ class VoicePELink:
                 n += 1
             except asyncio.QueueEmpty:
                 break
+        self._clear_mic_window()
         return n
+
+    def _clear_mic_window(self) -> None:
+        self._recent_mic.clear()
+        self._recent_mic_bytes = 0
+        self._recent_mic_evicted_through = None
+
+    def _prune_mic_window(self, now: float) -> None:
+        while self._recent_mic and (
+            self._recent_mic_bytes > _RECENT_MIC_MAX_BYTES
+            or len(self._recent_mic) > _RECENT_MIC_MAX_FRAMES
+            or now - self._recent_mic[0].received_monotonic > _RECENT_MIC_SECONDS
+        ):
+            evicted = self._recent_mic.popleft()
+            self._recent_mic_bytes -= len(evicted.pcm)
+            self._recent_mic_evicted_through = evicted.received_monotonic
+
+    def recent_mic_window(self, *, since: float, until: float) -> NativeMicWindow:
+        """Bounded host-callback audio only; never proof of complete source coverage."""
+        if not (math.isfinite(since) and math.isfinite(until) and 0 <= since <= until):
+            raise ValueError("invalid mic window")
+        self._prune_mic_window(time.monotonic())
+        return NativeMicWindow(
+            tuple(
+                frame
+                for frame in self._recent_mic
+                if since <= frame.received_monotonic <= until
+                and frame.audio_generation == self._audio_epoch
+                and frame.connection_generation == self._connection_generation
+            ),
+            self._audio_epoch,
+            self._connection_generation,
+            self.audio_queue_dropped_frames,
+            self._recent_mic_evicted_through,
+        )
 
     @property
     def audio_generation(self) -> int:
@@ -2401,6 +2457,7 @@ class VoicePELink:
             self._closed = True
             self._started = False
             self._connection_generation += 1
+            self.cut_audio_boundary("link-close")
             self._recovery_token += 1
             if self._retiring is None:
                 self._retiring = (self._reconnect, self._client)

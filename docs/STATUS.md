@@ -1,5 +1,54 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv beslutning 29/9 — afgrænset host-lydvindue til henvendelsesprøve
+
+Efter den kvitterede providerbarriere og callback-ordnet kildeproveniens
+mangler en bevaret lydperiode før UI-fristen. `ThinSession` modtager pakker
+løbende, men holder ikke et bounded efter-svar-vindue; når fire sekunder er
+gået, kan en senere lydlig henvendelsesafgørelse derfor ikke efterprøve, om
+en lav opfølgning allerede var begyndt. `VoicePELink` er den eneste native
+I/O-ejer og kender callbackrækkefølge, host-modtagelsestid og køtab, så et
+kort ringvindue hører hjemme dér; Thin ejer fortsat enhver beslutning.
+
+Kæden er firmware mic → native callback → samme-generation bounded ring og
+providerkø → Thin pump/Live-send → eventuel senere ACK-fence og afgrænset
+relevansprøve → Thin close eller genafspilning → fysisk lydhale → teardown/
+rearm → næste wake. Invarianter: ringdata må ikke åbne/lukke samtalen, køre
+værktøjer eller krydse wake/rearm/connection-generation; køens PCM-byteorden
+og Stop skal være uændret; manglende/afkortet dækning er ukendt. Hypotese:
+et rent RAM-vindue med højst otte sekunders 16 kHz mono PCM-historik kan
+bevare både fristens fire sekunder og kort beslutningslatens uden disklagring
+eller forandret providerinput. Otte sekunder er en **historikgrænse**, ikke
+en automatisk RAM-sletningsfrist, ny timeout eller akustisk tærskel. Vindue
+og kildekø har hver sit afgrænsede ejerskab; ved stop/rearm/eksplicit link-close
+ryddes begge. Hvis vinduet er for kort, må beslutningen fejle som ukendt.
+Ikke-mål: ingen aktivering af TV-lukning, ingen endnu
+godkendt klassifikator, ingen VAD/gain/prompt/firmware-ændring.
+
+Regressioner: ringens bytegrænse og tidsudsnit, køtab/sekvens og afkortning,
+stale callback, disconnect, fysisk Stop/rearm og ny wake; den normale
+`pcm_frames()`-sti og Talk/OFF skal bestå. Uafhængigt adversarialt review,
+fast gate og senere lifecycle/releasegate på det samlede frosne diff.
+Rollback er .109. En reel opfølgning over TV og ikke-henvendt tale mellem
+to beboere skal valideres før nogen close-politik får myndighed.
+
+Review af ringvinduet fandt to reelle fejl: alder blev først ikke afgrænset,
+og eksplicit `VoicePELink.aclose()` ryddede ikke lyd. Snapshot og nye callbacks
+beskærer nu til maksimalt otte sekunders historik, og link-close skifter
+audio-generation samt dræner kø/ring før nogen await. Sparse nulframes,
+eksplicit lukning og stale epoch er regressionstestet. Reviewet påpegede
+også den præcise grænse: uden ny callback, snapshot eller lifecycle-close
+kan bounded PCM blive i RAM længere end otte sekunder. Der loves derfor kun
+et bounded **forespørgbart historikvindue**, ikke automatisk tidsstyret
+privacy-sletning. En sådan sletningsgaranti ville også kræve særskilt ændring
+af den eksisterende native kø. Dette vindue får ingen lukkeautoritet.
+Slutreview for denne afgrænsede historikkontrakt fandt ingen resterende
+P0/P1/P2. Målrettede native-regressioner og `scripts/dev fast --base
+origin/main` bestod Ruff, format, Mypy, integration og unit i dev-clonen
+med lokal loopback. Branchens gate er fortsat fokuseret/partiel pga. det
+ældre evalscript. Der er endnu ingen samlet lifecycle/releasegate,
+samme-artifact fysisk prøve eller installation af TV-lukning.
+
 ## Aktiv beslutning 29/9 — kildeidentitet for mikrofonpakker før TV-fence
 
 Observeret ejerhul: `VoicePELink._handle_audio` tæller tabte pakker og kender
