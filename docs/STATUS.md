@@ -1,9 +1,50 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv beslutning 29/9 — tab i automatisk lydbevis under TV-prøve
+
+Den fysiske .109-prøve kl. 11.49.51 gemte 220 tabte capture-kommandoer. Det
+gør positiv/negativ lydmærkning usikker, netop hvor en ny idle-regel skal
+beskytte en ægte opfølgning. Den direkte årsagsgrænse er Voice PE callback →
+bounded trace-kø → workerens PCM-statistik og WAV/manifest → efterfølgende
+lydvurdering. Trace er passiv: en rettelse må ikke blokere mikrofonpumpen,
+ændre PCM sendt til Live, ændre firesekunders timeout eller påstå rumlyd ud
+fra providerbytes. En nærliggende fejl er, at en langsom writer stadig kan
+fylde køen trods hurtigere statistik; dropflagget skal fortsat være sandt.
+
+Falsificerbar hypotese: `_Stage.append` bruger unødigt dyre Python-operationer
+per sample; eksakt samme summering med indbyggede C-itererede funktioner
+reducerer worker-tid uden at ændre metrics eller lydbytes. Lokal måling på
+samme 16.000-sample fixture: 500 gentagelser 1,159 s nu mod 0,487 s for
+ækvivalent formel. Det er en host-måling, ikke bevis for Pi-gennemløb.
+Regressioner: eksakte metrics inklusive `-32768`/clipping, WAV-byteidentitet,
+bounded kø/dropflag under blokeret worker og Thin/Voice PE capture-ejerskab.
+Kør målrettede tests, fast gate og uafhængigt review. Rollback er kun trace-
+workerændringen; produktionens samtalepolitik forbliver installeret .109.
+
+Implementeret lokalt: `_Stage.append` summerer samme signed-16-bit værdier
+eksakt med indbyggede funktioner i den asynkrone writer; PCM-bytes, kø,
+manifest og samtalepolitik er uændrede. Ny ekstremværdiregression og de
+eksisterende automatiske trace-/Thin-backpressure-tests bestod 58/58.
+`scripts/dev fast --base origin/main` bestod Ruff, format, Mypy, integration
+og unit; gaten er fokuseret/partiel, fordi branchens eksisterende
+`scripts/live_addressedness_eval.py` er uklassificeret. Uafhængigt
+adversarialt review fandt ingen kodefinding; det påpegede korrekt, at
+host-CPU-målingen ikke beviser færre tab på Voice PE. Ingen releasegate,
+fysisk genprøve eller installation af denne ændring er sket. 220-tab-fejlen
+er derfor stadig åben som feltpåstand.
+
 ## Frisk fysisk prøve 29/9 kl. 11.49.51 — timeout kom selv, men sent
 
-Den installerede .109 Alpha sluttede selv via `idle-fallback` ved +33,486 s,
-teardown var færdig +33,696 s, og firmware kvitterede rearm +33,905 s. Det
+Den installerede .109 Alpha sluttede selv via `idle-fallback` ved +33,486 s
+**fra wake**, ikke fra brugerens sidste ord. Brugeren målte subjektivt cirka
+8–10 s efter afsluttet tale; output-shadow havde første sikker ro ved
++22,664 s, så den loggede afstand til close er cirka 10,8 s. Disse tal
+må ikke fremstilles som én og samme latency-måling. Brugeren bekræftede
+også, at det virkelige opfølgende »to plus to?« blev besvaret korrekt.
+Dermed har .109 bevaret netop dette positive spørgsmål, men det beviser
+ikke, at en ændret TV-policy ville gøre det.
+
+Teardown var færdig +33,696 s, og firmware kvitterede rearm +33,905 s. Det
 var hverken panel-/fysisk Stop eller modelsemantisk close. Samtalens tre
 automatiske dele er markeret ufuldstændige med 220 tabte capture-kommandoer,
 så hverken sporene eller et korrekt tilfældigt svar er fuldt akustisk bevis.

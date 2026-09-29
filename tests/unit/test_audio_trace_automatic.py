@@ -5,10 +5,26 @@ import json
 import threading
 import time
 import wave
+from array import array
 
 import pytest
 
 from gatekeeper.audio_trace import AudioTraceRecorder, _RollingWriter, _Stage
+
+
+def test_stage_statistics_remain_exact_at_pcm_extremes():
+    samples = [-32768, -32760, -1, 0, 1, 32759, 32760, 32767]
+    pcm = array("h", samples).tobytes()
+    stage = _Stage(rate=16000)
+    stage.append(pcm[:8])
+    stage.append(pcm[8:])
+    assert stage.pcm == pcm
+    assert stage.frames == 2
+    assert stage.samples == len(samples)
+    assert stage.abs_sum == sum(abs(value) for value in samples)
+    assert stage.square_sum == sum(value * value for value in samples)
+    assert stage.peak == 32768
+    assert stage.clipped == 4
 
 
 def begin(recorder, session="s1"):
