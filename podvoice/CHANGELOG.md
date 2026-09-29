@@ -1,3 +1,9 @@
+## 1.13.110
+
+- Record automatic GPT-Live Alpha audio diagnostics for panel-started Voice PE conversations, with the honest programmatic wake source. Firmware wake-reference requests remain limited to physical wake.
+- Reduce automatic diagnostic writer work while preserving PCM bytes, queue bounds and explicit capture-drop reporting.
+- Add-on only: reuses .109 firmware. Conversation input, timeout, semantic close, Stop, model, prompt, wake settings and Alpha ON/OFF are unchanged. Background-TV automatic closure remains unresolved; physical recording completeness must be checked on this version.
+
 ## 1.13.109
 
 - Complete GPT-Live WebSocket cleanup promptly after an accepted terminal event by closing only the owned local transport, then finishing SDK cleanup. Interrupted cleanup retains ownership until the same socket is joined; no new session opens early.
