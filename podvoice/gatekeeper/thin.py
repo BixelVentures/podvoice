@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from .openai_live import LiveToolBatch
 
 from .live_idle import NativeIdleShadow, NativeIdleWindow
+from .voicepe import NativeMicFrame
 
 # Firmware publishes activity every 100 ms. Reject two missed source periods;
 # this is a conservative freshness policy, not an amplitude/VAD calibration.
@@ -552,6 +553,9 @@ class ThinSession:
         self._live_output_bytes = 0
         self._live_pending_audio: tuple | None = None
         self._live_input_revision = 0
+        # Exact native packet last handed to the current Live adapter.  This is
+        # provenance for a later sealed-input decision, never close permission.
+        self._live_mic_submitted: NativeMicFrame | None = None
         self._live_idle_window = NativeIdleWindow(freshness_s=LIVE_ACTIVITY_FRESHNESS_S)
         self._live_idle_shadow = NativeIdleShadow(freshness_s=LIVE_ACTIVITY_FRESHNESS_S)
         self._live_end_window = NativeIdleWindow(
@@ -1612,6 +1616,7 @@ class ThinSession:
                 self.usage.add_transcription_seconds(transcription_seconds, room=self.room)
         self._invalidate_playback_lease("teardown")
         self._active = False
+        self._live_mic_submitted = None
         self._speaking = False
         self._device_playing = False
         self._gate_until = 0.0
@@ -1908,8 +1913,30 @@ class ThinSession:
         brain = self.brain
         generation = getattr(brain, "_connection_generation", None)
         live = self.live_alpha
+        native_timed = live and not self._live_webrtc and hasattr(self.voicepe, "timed_pcm_frames")
+        if live:
+            self._live_mic_submitted = None
+        source = self.voicepe.timed_pcm_frames() if native_timed else self.voicepe.pcm_frames()
         try:
-            async for frame in self.voicepe.pcm_frames():
+            async for item in source:
+                packet: NativeMicFrame | None = None
+                if native_timed:
+                    if not isinstance(item, NativeMicFrame):
+                        raise RuntimeError("native mic frame lacks source provenance")
+                    packet = item
+                    # A callback from a retired audio epoch cannot become input
+                    # to the next wake, even if it was already queued locally.
+                    if (
+                        packet.audio_generation != self.voicepe.audio_generation
+                        or packet.connection_generation != self.voicepe.connection_generation
+                    ):
+                        self._live_mic_submitted = None
+                        continue
+                    frame = packet.pcm
+                else:
+                    if not isinstance(item, bytes):
+                        raise RuntimeError("mic frame is not PCM bytes")
+                    frame = item
                 if live and (
                     brain is not self.brain
                     or generation != brain._connection_generation
@@ -1952,6 +1979,14 @@ class ThinSession:
                         or generation != brain._connection_generation
                     ):
                         return
+                    if (
+                        packet is not None
+                        and packet.audio_generation == self.voicepe.audio_generation
+                        and packet.connection_generation == self.voicepe.connection_generation
+                    ):
+                        self._live_mic_submitted = packet
+                    elif packet is not None:
+                        self._live_mic_submitted = None
                     self._transcription_audio_seconds += len(frame) / (2.0 * C.INPUT_RATE)
                 except Exception as e:
                     if live and (
@@ -6142,6 +6177,7 @@ class ThinSession:
         device looked healthy while every 'Okay Nabu' died silently."""
         self._physical_link_lost = not up
         if not up and self._active:
+            self._live_mic_submitted = None
             # The native mic/playback-event transport is physical evidence, not a UI
             # detail. A lost puck cannot transparently continue the Realtime session;
             # close this epoch exactly once and let the newly admitted generation rearm.

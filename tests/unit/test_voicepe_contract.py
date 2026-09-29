@@ -1395,6 +1395,7 @@ async def test_native_mic_provenance_preserves_legacy_byte_iterator():
     assert frame.sequence == 1
     assert frame.audio_generation == link.audio_generation
     assert frame.connection_generation == link._connection_generation
+    assert frame.connection_generation == link.connection_generation
     assert frame.dropped_frames_at_enqueue == 0
     assert frame.received_monotonic > 0
     await link._handle_audio(b"\x02\x00", audio_epoch=link.audio_generation)

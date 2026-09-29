@@ -1523,6 +1523,11 @@ class VoicePELink:
         return self._audio_epoch
 
     @property
+    def connection_generation(self) -> int:
+        """Current admitted native API connection, independent of audio epoch."""
+        return self._connection_generation
+
+    @property
     def rearm_token(self) -> int | None:
         """Last exact firmware token that completed with ``recovered``."""
         return self._last_rearm_token

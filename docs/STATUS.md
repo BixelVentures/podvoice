@@ -1,5 +1,45 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv beslutning 29/9 — Thin modtager native mikrofonproveniens
+
+TV-prøven viste, at et korrekt svar på »2+2« ikke i sig selv beviser, hvilke
+mikrofonsamples der var undervejs ved en senere lukkegrænse. `VoicePELink`
+lægger allerede PCM og host-callbacktid, sekvens, audio-/connection-generation
+og køtab i én synkron kø, men `ThinSession._pump_mic` læser kun byte-iteratoren.
+Den berørte kæde er firmware-callback → native kø → Thin-accept → Live-append →
+eventuel fremtidig provider-mute/relevansvurdering → fysisk playback → teardown/
+rearm. En forsinket gammel pakke eller et køgab må aldrig kunne ligne dækkende
+input i næste generation.
+
+Hypotese: at bruge den eksisterende `timed_pcm_frames()` i den native Live-pump
+og registrere senest faktisk afleverede pakkes ejer/sekvens giver en nødvendig
+fence-reference uden at ændre PCM, providerinput, VAD, timeout eller Talk/OFF.
+Dette er **ikke** en aktivering af TV-lukning eller en påstand om akustisk
+relevans. Målrettede regressioner skal bevise samme byteorden, at køgab og
+generationer ikke kan forveksles, samt Stop/ny wake og Talk-adapteren. Derefter
+fast gate og uafhængigt adversarialt review; samlet lifecycle/releasegate og
+fysisk prøve kræves før en senere lukningskandidat. Rollback er installeret
+.109.
+
+Implementeret i dev-clonen: Alpha-pumpen bruger den eksisterende native
+`timed_pcm_frames()` og afleverer uændret PCM til Live. Den gemmer kun den
+senest afleverede pakkes provenance som en foreløbig reference; feltet giver
+ingen lukkeautoritet og ryddes ved Stop/teardown, ny pump og linktab.
+Pakker fra forkert audio- **eller connection-generation** afvises før send,
+og en generation, der ændres under send, ugyldiggør referencen bagefter.
+Uafhængigt review fandt først et reelt hul: reconnect kan skifte connection-
+generation uden at skifte audio-generation. Det er rettet med en offentlig
+adapteregenskab og en same-epoch reconnect-regression. Reviewerens næste
+testfinding om adskilte fake-køer blev rettet ved at bruge den rigtige native
+iterator på samme kø, som Stop/rearm dræner. Målrettet berørt suite bestod
+226/226 med lokal testport. Det frosne `fast --base origin/main` bestod Ruff,
+format, Mypy, integration og unit som afgrænset gate; den rapporterede
+`focused/partial scope`, fordi det eksisterende eval-script er uden for dens
+klassificerede scope. Uafhængigt adversarialt slutreview fandt ingen åbne
+P0/P1/P2-fund. Den tidligere `fast`-kørsel tæller ikke, fordi diffet ændrede
+sig under den. Ingen TV-lukning, releasegate eller installation er sket.
+Frisk fysisk input- og addressedness-bevis mangler.
+
 ## Aktiv beslutning 29/9 — tab i automatisk lydbevis under TV-prøve
 
 Den fysiske .109-prøve kl. 11.49.51 gemte 220 tabte capture-kommandoer. Det
