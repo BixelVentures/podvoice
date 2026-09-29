@@ -55,6 +55,7 @@ if TYPE_CHECKING:
     from .openai_live import LiveToolBatch
 
 from .live_idle import NativeIdleShadow, NativeIdleWindow
+from .voicepe import NativeMicFrame
 
 # Firmware publishes activity every 100 ms. Reject two missed source periods;
 # this is a conservative freshness policy, not an amplitude/VAD calibration.
@@ -552,6 +553,9 @@ class ThinSession:
         self._live_output_bytes = 0
         self._live_pending_audio: tuple | None = None
         self._live_input_revision = 0
+        # Exact native packet last handed to the current Live adapter.  This is
+        # provenance for a later sealed-input decision, never close permission.
+        self._live_mic_submitted: NativeMicFrame | None = None
         self._live_idle_window = NativeIdleWindow(freshness_s=LIVE_ACTIVITY_FRESHNESS_S)
         self._live_idle_shadow = NativeIdleShadow(freshness_s=LIVE_ACTIVITY_FRESHNESS_S)
         self._live_end_window = NativeIdleWindow(
@@ -1612,6 +1616,7 @@ class ThinSession:
                 self.usage.add_transcription_seconds(transcription_seconds, room=self.room)
         self._invalidate_playback_lease("teardown")
         self._active = False
+        self._live_mic_submitted = None
         self._speaking = False
         self._device_playing = False
         self._gate_until = 0.0
@@ -1908,8 +1913,30 @@ class ThinSession:
         brain = self.brain
         generation = getattr(brain, "_connection_generation", None)
         live = self.live_alpha
+        native_timed = live and not self._live_webrtc and hasattr(self.voicepe, "timed_pcm_frames")
+        if live:
+            self._live_mic_submitted = None
+        source = self.voicepe.timed_pcm_frames() if native_timed else self.voicepe.pcm_frames()
         try:
-            async for frame in self.voicepe.pcm_frames():
+            async for item in source:
+                packet: NativeMicFrame | None = None
+                if native_timed:
+                    if not isinstance(item, NativeMicFrame):
+                        raise RuntimeError("native mic frame lacks source provenance")
+                    packet = item
+                    # A callback from a retired audio epoch cannot become input
+                    # to the next wake, even if it was already queued locally.
+                    if (
+                        packet.audio_generation != self.voicepe.audio_generation
+                        or packet.connection_generation != self.voicepe.connection_generation
+                    ):
+                        self._live_mic_submitted = None
+                        continue
+                    frame = packet.pcm
+                else:
+                    if not isinstance(item, bytes):
+                        raise RuntimeError("mic frame is not PCM bytes")
+                    frame = item
                 if live and (
                     brain is not self.brain
                     or generation != brain._connection_generation
@@ -1952,6 +1979,14 @@ class ThinSession:
                         or generation != brain._connection_generation
                     ):
                         return
+                    if (
+                        packet is not None
+                        and packet.audio_generation == self.voicepe.audio_generation
+                        and packet.connection_generation == self.voicepe.connection_generation
+                    ):
+                        self._live_mic_submitted = packet
+                    elif packet is not None:
+                        self._live_mic_submitted = None
                     self._transcription_audio_seconds += len(frame) / (2.0 * C.INPUT_RATE)
                 except Exception as e:
                     if live and (
@@ -2143,6 +2178,13 @@ class ThinSession:
             if ev.sample_rate != 24000 or self._live_stream is None:
                 self._request_close("live-audio-contract", error_kind="connection")
                 return
+            # Live can send continuous exact-zero PCM while it has nothing to say.
+            # That is transport silence, not the beginning of a physical reply.
+            # Leading silence must not claim the announcement/mixer or turn the
+            # idle policy into an output-started window. Once speech begins, keep
+            # later zero chunks: they are pauses inside the audible stream.
+            if not self._live_output_bytes and not any(ev.pcm):
+                return
             from .live_audio import LiveAudioError
 
             stream, brain, epoch = self._live_stream, self.brain, self._epoch
@@ -2272,7 +2314,7 @@ class ThinSession:
                     end_ms=ev.end_ms,
                     input_revision=self._live_input_revision,
                 )
-                self._cancel_live_end()
+                self._cancel_live_end(reset_shadow=False)
             if self.hub is not None:
                 self.hub.transcript_fragment(
                     self.room,
@@ -3093,8 +3135,8 @@ class ThinSession:
             size += extra
         return tuple(reversed(selected))
 
-    def _cancel_live_end(self) -> None:
-        self._reset_live_quiet()
+    def _cancel_live_end(self, *, reset_shadow: bool = True) -> None:
+        self._reset_live_quiet(reset_shadow=reset_shadow)
         if self._live_finalizing:
             return
         if self._live_end_receipt is not None:
@@ -5347,11 +5389,12 @@ class ThinSession:
         with contextlib.suppress(Exception, asyncio.CancelledError):
             self._trace_activity_observation(observation)
 
-    def _reset_live_quiet(self) -> None:
+    def _reset_live_quiet(self, *, reset_shadow: bool = True) -> None:
         self._live_idle_window.reset()
         self._live_end_window.reset()
-        with contextlib.suppress(Exception, asyncio.CancelledError):
-            self._live_idle_shadow.reset()
+        if reset_shadow:
+            with contextlib.suppress(Exception, asyncio.CancelledError):
+                self._live_idle_shadow.reset()
 
     def _live_quiet_owner(self) -> tuple:
         return (
@@ -5359,6 +5402,17 @@ class ThinSession:
             self.brain._connection_generation,
             self._live_input_revision,
             self.brain.input_sequence,
+            self.brain.backend_sequence,
+            bool(self._live_output_bytes),
+        )
+
+    def _live_shadow_owner(self) -> tuple:
+        # Observation only: raw input fragments must invalidate close receipts,
+        # but cannot interrupt a measurement of independently consumed output.
+        return (
+            self._history_session,
+            self._epoch,
+            self.brain._connection_generation,
             self.brain.backend_sequence,
             bool(self._live_output_bytes),
         )
@@ -5448,7 +5502,7 @@ class ThinSession:
         with contextlib.suppress(Exception, asyncio.CancelledError):
             self._live_idle_shadow.observe(
                 observation,
-                owner=owner,
+                owner=self._live_shadow_owner(),
                 now=now,
                 work_clear=self._live_quiet_work_clear(semantic=False),
                 output_started=bool(self._live_output_bytes),
@@ -5466,7 +5520,7 @@ class ThinSession:
         shadow = {}
         with contextlib.suppress(Exception, asyncio.CancelledError):
             shadow = self._live_idle_shadow.diagnostics(
-                owner=self._live_quiet_owner(), now=now, idle_s=self.idle_timeout_s
+                owner=self._live_shadow_owner(), now=now, idle_s=self.idle_timeout_s
             )
         self._trace_event(
             "live_idle_diagnostic",
@@ -6123,6 +6177,7 @@ class ThinSession:
         device looked healthy while every 'Okay Nabu' died silently."""
         self._physical_link_lost = not up
         if not up and self._active:
+            self._live_mic_submitted = None
             # The native mic/playback-event transport is physical evidence, not a UI
             # detail. A lost puck cannot transparently continue the Realtime session;
             # close this epoch exactly once and let the newly admitted generation rearm.

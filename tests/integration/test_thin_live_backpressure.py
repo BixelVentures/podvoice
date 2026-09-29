@@ -22,6 +22,33 @@ class DelayedDevice(Device):
         self.on_media_state(True, playback_id)
 
 
+async def test_silent_live_transport_never_starts_speaker_then_preserves_real_reply():
+    session, _, _, _, device = build()
+    await session.start()
+    try:
+        await session.wake()
+        stream = session._live_stream
+        generation = session.brain._connection_generation
+        await session._on_live_event(LiveAudioChunk(generation=generation, pcm=b"\0" * 9600))
+        assert session._playback_lease is None
+        assert session._live_output_bytes == 0
+        assert stream.buffered_bytes == 0
+        assert device.announced_urls == []
+
+        speech = b"\1\0" * 1920
+        pause = b"\0" * 4800
+        await session._on_live_event(LiveAudioChunk(generation=generation, pcm=speech))
+        await session._on_live_event(LiveAudioChunk(generation=generation, pcm=pause))
+        await asyncio.wait_for(session._playback_started.wait(), 1)
+        assert len(device.announced_urls) == 1
+        assert session._live_output_bytes == len(speech) + len(pause)
+        session.live_audio.claim(stream.id)
+        assert await stream.next_chunk() == speech
+        assert await stream.next_chunk() == pause
+    finally:
+        await session.aclose()
+
+
 @pytest.mark.parametrize("automatic", [False, True])
 async def test_thin_provider_burst_waits_for_delayed_playback_and_exact_http_drain(
     tmp_path, automatic
@@ -202,7 +229,7 @@ async def test_burst_drains_through_existing_http_wav_route():
     try:
         await session.wake()
         stream = session._live_stream
-        chunks = [bytes([i, 0]) * 2400 for i in range(12)]
+        chunks = [bytes([i, 0]) * 2400 for i in range(1, 13)]
 
         async def burst():
             for chunk in chunks:
@@ -304,7 +331,7 @@ async def test_capacity_wait_keeps_nonzero_work_visible_to_both_quiet_policies(n
         assert not pending.done()
         assert session._live_quiet_work_clear(semantic=False) is (not nonzero)
         assert session._live_quiet_work_clear(semantic=True) is (not nonzero)
-        session.live_audio.claim(stream.id)
+        assert stream.claimed
         await stream.next_chunk()
         await pending
         assert session._live_pending_audio is None

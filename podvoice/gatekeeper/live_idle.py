@@ -295,8 +295,8 @@ class NativeIdleWindow:
 class NativeIdleShadow:
     """Content-free observation only; never a close permission or input classifier.
 
-    Output coverage uses the caller's *unchanged* policy owner, including its raw
-    input revisions. Those revisions can still reset the shadow window. Input
+    Output coverage uses a separate observation owner that excludes raw input
+    revisions; session, provider, backend work and output changes reset it. Input
     durations count only adjacent fresh native observations; transitions and
     invalid/stalled inference are unknown, never an inference of background noise.
     Memory is constant: one output window, one input sample and three counters.

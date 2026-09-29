@@ -9,7 +9,7 @@ from test_thin_live import build, until
 from unit.test_live_idle import observation
 
 import gatekeeper.thin as thin_module
-from gatekeeper.openai_live import LiveAudioChunk, LiveTranscript
+from gatekeeper.openai_live import LiveAudioChunk, LiveBackendStarted, LiveTranscript
 
 
 async def setup(*, output=True):
@@ -20,14 +20,19 @@ async def setup(*, output=True):
     await session.wake()
     await until(lambda: session.brain._queue.empty())
     if output:
-        # A real accepted PCM event opens the real Live stream/playback lease.
+        # Actual assistant PCM opens the Live stream/playback lease. Exact-zero
+        # transport before speech must not start a physical announcement.
         await session._on_live_event(
             LiveAudioChunk(
                 generation=session.brain._connection_generation,
-                pcm=b"\0" * 3840,
+                pcm=b"\1\0" * 1920,
             )
         )
         await until(lambda: session._playback_lease.phase == "started")
+        # The fake device reports playback start but does not fetch HTTP audio.
+        # Consume the real first word before simulating its later quiet tail.
+        stream = session.live_audio.claim(session._live_stream.id)
+        assert await stream.next_chunk() == b"\1\0" * 1920
         # Keep a full one-second queue of zero PCM, as the real continuous stream
         # may do. These transport bytes must not make every quiet window busy.
         await session._on_live_event(
@@ -57,6 +62,112 @@ async def test_shadow_output_quiet_never_authorizes_close_with_active_input(monk
             assert any(key.startswith("idle_shadow_") for key in events[-1][1])
             assert not session._live_finalizing
             assert not session.brain._close_requested
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_unanswered_live_input_does_not_erase_output_shadow(monkeypatch):
+    session, _, link = await setup(output=True)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(thin_module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+            for i in range(21):
+                deliver(session, link, clock, i, input_state="active")
+            generation = session.brain._connection_generation
+            await session._on_live_event(
+                LiveTranscript(
+                    generation=generation,
+                    direction="in",
+                    text="unanswered room speech",
+                    input_index=session.brain.input_sequence,
+                    start_ms=1000,
+                    end_ms=1500,
+                )
+            )
+            for i in range(21, 41):
+                deliver(session, link, clock, i, input_state="active")
+            report = session._live_idle_shadow.diagnostics(
+                owner=session._live_shadow_owner(), now=clock[0], idle_s=4
+            )
+            assert report["output_blocker"] == "ready"
+            assert not session._live_quiet_ready()
+            assert not session._live_finalizing
+            assert not session.brain._close_requested
+
+            # A backend event is work even when it follows an unanswered fragment.
+            await session._on_live_event(
+                LiveBackendStarted(
+                    delegation_id="next-work",
+                    response_id="next-response",
+                    generation=generation,
+                    input_index=session.brain.input_sequence,
+                )
+            )
+            assert (
+                session._live_idle_shadow.diagnostics(
+                    owner=session._live_shadow_owner(), now=clock[0], idle_s=4
+                )["output_blocker"]
+                != "ready"
+            )
+            deliver(session, link, clock, 41, input_state="active")
+            assert (
+                session._live_idle_shadow.diagnostics(
+                    owner=session._live_shadow_owner(), now=clock[0], idle_s=4
+                )["output_blocker"]
+                != "ready"
+            )
+
+            # A delayed event from the old provider cannot move the new owner.
+            session.brain._connection_generation += 1
+            session._reset_live_quiet()
+            new_owner = session._live_shadow_owner()
+            await session._on_live_event(
+                LiveTranscript(
+                    generation=generation,
+                    direction="in",
+                    text="late old speech",
+                    input_index=session.brain.input_sequence,
+                    start_ms=1600,
+                    end_ms=1800,
+                )
+            )
+            assert session._live_shadow_owner() == new_owner
+            assert not session._live_quiet_ready()
+
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_live_shadow_stale_transcript_after_stop_and_next_wake():
+    session, _, _ = await setup(output=False)
+    try:
+        old_owner = session._live_shadow_owner()
+        old_generation = session.brain._connection_generation
+        await session.stop(reason="stop")
+        await session.wake()
+        await until(lambda: session.brain._queue.empty())
+        next_owner = session._live_shadow_owner()
+        assert next_owner != old_owner
+        await session._on_live_event(
+            LiveTranscript(
+                generation=old_generation,
+                direction="in",
+                text="late room speech",
+                input_index=session.brain.input_sequence,
+                start_ms=1000,
+                end_ms=1500,
+            )
+        )
+        assert session._live_shadow_owner() == next_owner
+        assert (
+            session._live_idle_shadow.diagnostics(
+                owner=next_owner, now=thin_module.time.monotonic(), idle_s=4
+            )["output_blocker"]
+            != "ready"
+        )
     finally:
         await session.aclose()
 
@@ -221,7 +332,8 @@ async def test_new_nonzero_and_queued_input_prevent_commit_and_stale_owner_is_in
             session.brain.input_sequence += 1
             assert not session._live_quiet_ready()
             session.brain.input_sequence -= 1
-            stream = session.live_audio.claim(session._live_stream.id)
+            stream = session._live_stream
+            assert stream.claimed
             while stream.buffered_bytes:
                 await stream.next_chunk()
             await session._on_live_event(

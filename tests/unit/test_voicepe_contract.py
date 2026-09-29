@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -1114,7 +1115,7 @@ async def test_rearm_epoch_drops_scheduled_old_audio_and_keeps_immediate_new_aud
     assert await task == "recovered"
     assert link.rearm_token == 1
     assert link._audio_q.qsize() == 1
-    assert await link._audio_q.get() == fresh_b
+    assert (await link._audio_q.get()).pcm == fresh_b
 
 
 async def test_audio_boundary_drops_delayed_native_callback_and_keeps_next_generation():
@@ -1141,10 +1142,36 @@ async def test_audio_boundary_drops_delayed_native_callback_and_keeps_next_gener
 
     await delayed_a
     await immediate_b
-    assert (generation, dropped) == (1, 1)
+    assert (generation, dropped) == (1, 2)  # Both callbacks arrived before the cut.
     assert link.audio_generation == 1
     assert link._audio_q.qsize() == 1
-    assert await link._audio_q.get() == b"callback-b"
+    assert (await link._audio_q.get()).pcm == b"callback-b"
+
+
+async def test_native_audio_callback_order_survives_reverse_coroutine_schedule():
+    client = _ConnectableClient(
+        FULL_SERVICES,
+        [
+            MediaPlayerInfo("external_media_player", 7),
+            TextSensorInfo("podvoice_rearm_ack", 4),
+            TextSensorInfo("podvoice_reply_status", 5),
+            TextSensorInfo("podvoice_stop_context", 43),
+            TextSensorInfo("podvoice_wake_word_ack", 42),
+            EventInfo("podvoice_event", 3, FULL_CAPABILITIES),
+        ],
+    )
+    link = _link(client)
+    await link._on_connect()
+    callback = client.va_handlers["handle_audio"]
+    first = callback(b"first")
+    second = callback(b"second")
+    await second
+    await first
+    one = await link._audio_q.get()
+    two = await link._audio_q.get()
+    assert (one.pcm, two.pcm) == (b"first", b"second")
+    assert one.sequence < two.sequence
+    assert one.received_monotonic <= two.received_monotonic
 
 
 @pytest.mark.parametrize("same_client", [False, True])
@@ -1183,7 +1210,7 @@ async def test_reconnect_makes_scheduled_old_callback_inert_and_keeps_new_audio(
     await immediate_b
     assert await task == "recovered"
     assert link._audio_q.qsize() == 1
-    assert await link._audio_q.get() == b"new-generation"
+    assert (await link._audio_q.get()).pcm == b"new-generation"
 
 
 async def test_fault_and_wrong_rearm_ack_never_advance_audio_epoch():
@@ -1346,11 +1373,97 @@ async def test_mic_queue_keeps_the_end_of_a_long_request_on_backpressure():
     before = dict(diagnostic)
     await link._handle_audio(b"stale", audio_epoch=link._audio_epoch - 1)
     assert link.wake_diagnostics() == before
-    assert await link._audio_q.get() == (1).to_bytes(2, "little")
+    oldest = await link._audio_q.get()
+    assert oldest.pcm == (1).to_bytes(2, "little")
+    assert oldest.sequence == 2
+    assert oldest.dropped_frames_at_enqueue == 0
+    assert link.audio_queue_dropped_frames == 1  # Loss after enqueue is still visible.
     newest = b""
     while not link._audio_q.empty():
         newest = link._audio_q.get_nowait()
-    assert newest == (600).to_bytes(2, "little")
+    assert newest.pcm == (600).to_bytes(2, "little")
+    assert newest.sequence == 601
+    assert newest.dropped_frames_at_enqueue == 1
+    assert newest.received_monotonic >= oldest.received_monotonic
+
+
+async def test_native_mic_provenance_preserves_legacy_byte_iterator():
+    link = VoicePELink("pv-test.local", "psk", room="stue")
+    await link._handle_audio(b"\x01\x00", audio_epoch=link.audio_generation)
+    frame = await anext(link.timed_pcm_frames())
+    assert frame.pcm == b"\x01\x00"
+    assert frame.sequence == 1
+    assert frame.audio_generation == link.audio_generation
+    assert frame.connection_generation == link._connection_generation
+    assert frame.connection_generation == link.connection_generation
+    assert frame.dropped_frames_at_enqueue == 0
+    assert frame.received_monotonic > 0
+    await link._handle_audio(b"\x02\x00", audio_epoch=link.audio_generation)
+    assert await anext(link.pcm_frames()) == b"\x02\x00"
+
+
+async def test_recent_native_mic_window_is_bounded_and_cleared_at_audio_boundary():
+    link = VoicePELink("pv-test.local", "psk", room="stue")
+    pcm = b"\x01\x00" * 320
+    base = time.monotonic() - 1.0
+    for index in range(401):
+        await link._handle_audio(
+            pcm,
+            audio_epoch=link.audio_generation,
+            received_monotonic=base + index * 0.002,
+        )
+    window = link.recent_mic_window(since=base, until=base + 0.8)
+    assert len(window.frames) == 400
+    assert window.frames[0].received_monotonic == base + 0.002
+    assert window.frames[-1].received_monotonic == base + 0.8
+    assert window.evicted_through_monotonic == base
+    assert sum(len(frame.pcm) for frame in window.frames) == 8 * 16000 * 2
+    assert window.queue_dropped_frames_total == 0
+    link.cut_audio_boundary("rearm-ack")
+    next_window = link.recent_mic_window(since=base, until=base + 0.8)
+    assert next_window.frames == ()
+    assert next_window.evicted_through_monotonic is None
+    assert next_window.audio_generation == window.audio_generation + 1
+
+
+async def test_recent_native_mic_window_exposes_queue_loss_without_claiming_completeness():
+    link = VoicePELink("pv-test.local", "psk", room="stue")
+    base = time.monotonic() - 1.5
+    for index in range(601):
+        await link._handle_audio(
+            index.to_bytes(2, "little"),
+            audio_epoch=link.audio_generation,
+            received_monotonic=base + index * 0.002,
+        )
+    window = link.recent_mic_window(since=base, until=base + 1.2)
+    assert len(window.frames) == 400
+    assert window.evicted_through_monotonic is not None
+    assert window.queue_dropped_frames_total == 1
+    assert window.frames[-1].dropped_frames_at_enqueue == 1
+
+
+async def test_recent_native_mic_window_expires_sparse_and_empty_frames():
+    link = VoicePELink("pv-test.local", "psk", room="stue")
+    old = time.monotonic() - 9.0
+    await link._handle_audio(b"", audio_epoch=link.audio_generation, received_monotonic=old)
+    window = link.recent_mic_window(since=old, until=time.monotonic())
+    assert window.frames == ()
+    assert window.evicted_through_monotonic == old
+    assert link._recent_mic_bytes == 0
+
+
+async def test_explicit_native_link_close_clears_mic_window_and_rejects_old_epoch():
+    link = VoicePELink("pv-test.local", "psk", room="stue")
+    old_epoch = link.audio_generation
+    now = time.monotonic()
+    await link._handle_audio(b"\x01\x00", audio_epoch=old_epoch, received_monotonic=now)
+    assert link.recent_mic_window(since=now, until=now).frames
+    await link.aclose()
+    await link._handle_audio(b"\x02\x00", audio_epoch=old_epoch, received_monotonic=now + 0.01)
+    window = link.recent_mic_window(since=now, until=now + 0.01)
+    assert window.frames == ()
+    assert window.evicted_through_monotonic is None
+    assert link._audio_q.empty()
 
 
 async def test_reply_is_armed_before_the_media_command():

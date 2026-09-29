@@ -1,5 +1,636 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv beslutning 29/9 — Thin modtager native mikrofonproveniens
+
+TV-prøven viste, at et korrekt svar på »2+2« ikke i sig selv beviser, hvilke
+mikrofonsamples der var undervejs ved en senere lukkegrænse. `VoicePELink`
+lægger allerede PCM og host-callbacktid, sekvens, audio-/connection-generation
+og køtab i én synkron kø, men `ThinSession._pump_mic` læser kun byte-iteratoren.
+Den berørte kæde er firmware-callback → native kø → Thin-accept → Live-append →
+eventuel fremtidig provider-mute/relevansvurdering → fysisk playback → teardown/
+rearm. En forsinket gammel pakke eller et køgab må aldrig kunne ligne dækkende
+input i næste generation.
+
+Hypotese: at bruge den eksisterende `timed_pcm_frames()` i den native Live-pump
+og registrere senest faktisk afleverede pakkes ejer/sekvens giver en nødvendig
+fence-reference uden at ændre PCM, providerinput, VAD, timeout eller Talk/OFF.
+Dette er **ikke** en aktivering af TV-lukning eller en påstand om akustisk
+relevans. Målrettede regressioner skal bevise samme byteorden, at køgab og
+generationer ikke kan forveksles, samt Stop/ny wake og Talk-adapteren. Derefter
+fast gate og uafhængigt adversarialt review; samlet lifecycle/releasegate og
+fysisk prøve kræves før en senere lukningskandidat. Rollback er installeret
+.109.
+
+Implementeret i dev-clonen: Alpha-pumpen bruger den eksisterende native
+`timed_pcm_frames()` og afleverer uændret PCM til Live. Den gemmer kun den
+senest afleverede pakkes provenance som en foreløbig reference; feltet giver
+ingen lukkeautoritet og ryddes ved Stop/teardown, ny pump og linktab.
+Pakker fra forkert audio- **eller connection-generation** afvises før send,
+og en generation, der ændres under send, ugyldiggør referencen bagefter.
+Uafhængigt review fandt først et reelt hul: reconnect kan skifte connection-
+generation uden at skifte audio-generation. Det er rettet med en offentlig
+adapteregenskab og en same-epoch reconnect-regression. Reviewerens næste
+testfinding om adskilte fake-køer blev rettet ved at bruge den rigtige native
+iterator på samme kø, som Stop/rearm dræner. Målrettet berørt suite bestod
+226/226 med lokal testport. Det frosne `fast --base origin/main` bestod Ruff,
+format, Mypy, integration og unit som afgrænset gate; den rapporterede
+`focused/partial scope`, fordi det eksisterende eval-script er uden for dens
+klassificerede scope. Uafhængigt adversarialt slutreview fandt ingen åbne
+P0/P1/P2-fund. Den tidligere `fast`-kørsel tæller ikke, fordi diffet ændrede
+sig under den. Ingen TV-lukning, releasegate eller installation er sket.
+Frisk fysisk input- og addressedness-bevis mangler.
+
+## Aktiv beslutning 29/9 — tab i automatisk lydbevis under TV-prøve
+
+Den fysiske .109-prøve kl. 11.49.51 gemte 220 tabte capture-kommandoer. Det
+gør positiv/negativ lydmærkning usikker, netop hvor en ny idle-regel skal
+beskytte en ægte opfølgning. Den direkte årsagsgrænse er Voice PE callback →
+bounded trace-kø → workerens PCM-statistik og WAV/manifest → efterfølgende
+lydvurdering. Trace er passiv: en rettelse må ikke blokere mikrofonpumpen,
+ændre PCM sendt til Live, ændre firesekunders timeout eller påstå rumlyd ud
+fra providerbytes. En nærliggende fejl er, at en langsom writer stadig kan
+fylde køen trods hurtigere statistik; dropflagget skal fortsat være sandt.
+
+Falsificerbar hypotese: `_Stage.append` bruger unødigt dyre Python-operationer
+per sample; eksakt samme summering med indbyggede C-itererede funktioner
+reducerer worker-tid uden at ændre metrics eller lydbytes. Lokal måling på
+samme 16.000-sample fixture: 500 gentagelser 1,159 s nu mod 0,487 s for
+ækvivalent formel. Det er en host-måling, ikke bevis for Pi-gennemløb.
+Regressioner: eksakte metrics inklusive `-32768`/clipping, WAV-byteidentitet,
+bounded kø/dropflag under blokeret worker og Thin/Voice PE capture-ejerskab.
+Kør målrettede tests, fast gate og uafhængigt review. Rollback er kun trace-
+workerændringen; produktionens samtalepolitik forbliver installeret .109.
+
+Implementeret lokalt: `_Stage.append` summerer samme signed-16-bit værdier
+eksakt med indbyggede funktioner i den asynkrone writer; PCM-bytes, kø,
+manifest og samtalepolitik er uændrede. Ny ekstremværdiregression og de
+eksisterende automatiske trace-/Thin-backpressure-tests bestod 58/58.
+`scripts/dev fast --base origin/main` bestod Ruff, format, Mypy, integration
+og unit; gaten er fokuseret/partiel, fordi branchens eksisterende
+`scripts/live_addressedness_eval.py` er uklassificeret. Uafhængigt
+adversarialt review fandt ingen kodefinding; det påpegede korrekt, at
+host-CPU-målingen ikke beviser færre tab på Voice PE. Ingen releasegate,
+fysisk genprøve eller installation af denne ændring er sket. 220-tab-fejlen
+er derfor stadig åben som feltpåstand.
+
+## Frisk fysisk prøve 29/9 kl. 11.49.51 — timeout kom selv, men sent
+
+Den installerede .109 Alpha sluttede selv via `idle-fallback` ved +33,486 s
+**fra wake**, ikke fra brugerens sidste ord. Brugeren målte subjektivt cirka
+8–10 s efter afsluttet tale; output-shadow havde første sikker ro ved
++22,664 s, så den loggede afstand til close er cirka 10,8 s. Disse tal
+må ikke fremstilles som én og samme latency-måling. Brugeren bekræftede
+også, at det virkelige opfølgende »to plus to?« blev besvaret korrekt.
+HA-historikken for samme samtale viser fire Live-segmenter i rækkefølgen
+»Hvad er klokken« → »Klokken er 11.49« → »Og hvad er 2 plus2« → »Det er fire«.
+Dermed har .109 bevaret netop dette positive spørgsmål, men transcript og
+korrekt svar beviser ikke den fulde fysiske inputkæde eller at en ændret
+TV-policy ville gøre det.
+
+Teardown var færdig +33,696 s, og firmware kvitterede rearm +33,905 s. Det
+var hverken panel-/fysisk Stop eller modelsemantisk close. Samtalens tre
+automatiske dele er markeret ufuldstændige med 220 tabte capture-kommandoer,
+så hverken sporene eller et korrekt tilfældigt svar er fuldt akustisk bevis.
+
+Den indholdsfrie output-shadow havde frisk `ready` med 4,538 s observeret
+outputro allerede +22,664 s og forblev klar. Den aktive produktionspolitik
+meldte samtidig `input_not_quiet` og nul egen quiet-tid, mens native VAD stod
+`active` frem til cirka +27,8 s. Først da gik produktionsvinduet fra nul til
+4,115 s ved +31,984 s; senere fysisk finalisering lukkede ved +33,486 s.
+Denne samme-kandidat-trace **beviser, at rå VAD forsinker timeouten under
+baggrundstale**, og forklarer brugerens oplevede mere-end-fire-sekunders
+venten. Output-shadow er stadig observation, ikke tilladelse til at lukke.
+Et muligt opfølgningsforsøg ved +15–16 s gav seks Live-inputfragmenter; om
+brugeren faktisk fik svar på sin planlagte opfølgning afklares særskilt.
+
+Kandidaten må fortsat ikke ændre close-reglen på denne observation alene:
+inputklassifikatoren bestod ikke den positive modprøve nedenfor, og et
+for sent, ægte spørgsmål skal stadig kunne overleve fristen. Næste gate er
+at verificere det mærkede efter-svar-positiv med fuld fysisk capture og
+derpå teste en bounded beslutning mod præcis det og TV-negativet.
+
+## Beslutning 29/9 — rettet to-klips relevansprøve afviser endnu en aktivering
+
+Brugeren godkendte præcis to ekstra OpenAI-lydopslag efter den oprindelige
+seks-klips prøve. Den afgrænsede engangsproces sendte kun det korrigerede
+1,186 s kandidatklip med kendt opfølgning efter sidste målte svarlyd og et
+8,0 s TV-vindue. Begge fik HTTP 200, men `gpt-audio-1.5` svarede `background`
+på **begge**. Positivets forventning bygger på historikkens relevante
+opfølgning og Live-inputfragmenter, ikke på uafhængig gennemlytning af netop
+de afgrænsede PCM-samples; 95 tabte capture-kommandoer og ubekræftet TV-
+overlap består. Resultatet beviser derfor ikke alene en modelsvaghed, men
+det **falsificerer, at dette datasæt validerer en sikker relevansgate**.
+Klassifikatoren må ikke få close-autoritet. De to yderligere kald er opbrugt;
+rapporten med kun etiketter, tider og PCM-hashes ligger privat uden nøgle.
+
+Officiel Live-dokumentation giver appen ejerskab over inactivity baseret på
+lyd, faktisk afspilning og ventende arbejde; transcriptpauser er ikke
+stilhedsbevis. `session.input_audio.mute` kræver matching ACK og lukker ikke
+sessionen eller backendarbejde. Der er ikke dokumenteret et særskilt,
+fuldstændigt `not_addressed`-event, som kan erstatte den manglende lokale
+relevansafgørelse. En ekstra `response.create` er backenddelegering, ikke en
+garanteret klassifikation af de seneste mikrofon-samples.
+[Sessionsguide](https://developers.openai.com/api/docs/guides/live-conversations)
+· [Delegationsguide](https://developers.openai.com/api/docs/guides/live-delegation).
+
+Næste nødvendige positive/negative par er **samme fysiske optagevej** med
+færdigafspillet svar, fortsat TV, en faktisk lav opfølgning inden UI-fristen
+og et ellers tilsvarende TV-vindue. Den automatiske log er allerede aktiv;
+brugeren er bedt om en målrettet samtale. Indtil sample- og relevansbevis
+foreligger, forbliver kandidat2 deaktiveret og .109 installeret. Den
+mekaniske buffer/fence kan udvikles lokalt, men må ikke forveksles med en
+løst TV-timeout eller releaseklar kandidat.
+
+## Aktiv beslutning 29/9 — afgrænset host-lydvindue til henvendelsesprøve
+
+Efter den kvitterede providerbarriere og callback-ordnet kildeproveniens
+mangler en bevaret lydperiode før UI-fristen. `ThinSession` modtager pakker
+løbende, men holder ikke et bounded efter-svar-vindue; når fire sekunder er
+gået, kan en senere lydlig henvendelsesafgørelse derfor ikke efterprøve, om
+en lav opfølgning allerede var begyndt. `VoicePELink` er den eneste native
+I/O-ejer og kender callbackrækkefølge, host-modtagelsestid og køtab, så et
+kort ringvindue hører hjemme dér; Thin ejer fortsat enhver beslutning.
+
+Kæden er firmware mic → native callback → samme-generation bounded ring og
+providerkø → Thin pump/Live-send → eventuel senere ACK-fence og afgrænset
+relevansprøve → Thin close eller genafspilning → fysisk lydhale → teardown/
+rearm → næste wake. Invarianter: ringdata må ikke åbne/lukke samtalen, køre
+værktøjer eller krydse wake/rearm/connection-generation; køens PCM-byteorden
+og Stop skal være uændret; manglende/afkortet dækning er ukendt. Hypotese:
+et rent RAM-vindue med højst otte sekunders 16 kHz mono PCM-historik kan
+bevare både fristens fire sekunder og kort beslutningslatens uden disklagring
+eller forandret providerinput. Otte sekunder er en **historikgrænse**, ikke
+en automatisk RAM-sletningsfrist, ny timeout eller akustisk tærskel. Vindue
+og kildekø har hver sit afgrænsede ejerskab; ved stop/rearm/eksplicit link-close
+ryddes begge. Hvis vinduet er for kort, må beslutningen fejle som ukendt.
+Ikke-mål: ingen aktivering af TV-lukning, ingen endnu
+godkendt klassifikator, ingen VAD/gain/prompt/firmware-ændring.
+
+Regressioner: ringens bytegrænse og tidsudsnit, køtab/sekvens og afkortning,
+stale callback, disconnect, fysisk Stop/rearm og ny wake; den normale
+`pcm_frames()`-sti og Talk/OFF skal bestå. Uafhængigt adversarialt review,
+fast gate og senere lifecycle/releasegate på det samlede frosne diff.
+Rollback er .109. En reel opfølgning over TV og ikke-henvendt tale mellem
+to beboere skal valideres før nogen close-politik får myndighed.
+
+Review af ringvinduet fandt to reelle fejl: alder blev først ikke afgrænset,
+og eksplicit `VoicePELink.aclose()` ryddede ikke lyd. Snapshot og nye callbacks
+beskærer nu til maksimalt otte sekunders historik, og link-close skifter
+audio-generation samt dræner kø/ring før nogen await. Sparse nulframes,
+eksplicit lukning og stale epoch er regressionstestet. Reviewet påpegede
+også den præcise grænse: uden ny callback, snapshot eller lifecycle-close
+kan bounded PCM blive i RAM længere end otte sekunder. Der loves derfor kun
+et bounded **forespørgbart historikvindue**, ikke automatisk tidsstyret
+privacy-sletning. En sådan sletningsgaranti ville også kræve særskilt ændring
+af den eksisterende native kø. Dette vindue får ingen lukkeautoritet.
+Slutreview for denne afgrænsede historikkontrakt fandt ingen resterende
+P0/P1/P2. Målrettede native-regressioner og `scripts/dev fast --base
+origin/main` bestod Ruff, format, Mypy, integration og unit i dev-clonen
+med lokal loopback. Branchens gate er fortsat fokuseret/partiel pga. det
+ældre evalscript. Der er endnu ingen samlet lifecycle/releasegate,
+samme-artifact fysisk prøve eller installation af TV-lukning.
+
+## Aktiv beslutning 29/9 — kildeidentitet for mikrofonpakker før TV-fence
+
+Observeret ejerhul: `VoicePELink._handle_audio` tæller tabte pakker og kender
+host-modtagelsestiden, men lægger kun rå bytes i `_audio_q`.
+`ThinSession._pump_mic` kan derfor ikke knytte en senere timeout-fence til
+pakken eller påvise et køtab inde i vurderingsvinduet. Den kvitterede
+Live-inputbarriere nedenfor ændrer ikke dette hul.
+
+Kæden er firmware mic → native callback med audio-generation → `VoicePELink`
+kø/drop → Thin mic-pump → Live send/barriere → mulig lokal klassifikation →
+Thin close/playback/teardown/rearm. Berørte invarianter: kun aktuell generation
+må gå videre, ingen audio må omordnes, legacy/Classic/OFF og Talk beholder
+deres byte-kontrakt, og et køtab eller ukendt kilde må aldrig tælle som
+fuldstændigt vurderet lyd. Hypotese: immutable host-kildemetadata på hver
+køpakke kan bevare eksisterende PCM-adfærd, samtidig med at en senere Thin-
+fence kan opdage tab og afgrænse et host-modtaget interval. Ikke-mål: ingen
+runtime-TV-lukning, ingen påstand om fysisk sampleklokke eller semantisk
+henvendelse, ingen VAD/gain/firmware/tidsændring.
+
+Regressioner: PCM-bytes og rækkefølge uændrede gennem eksisterende iterator;
+timed iterator giver monotont modtagelsestidspunkt, frame-sekvens, audio-/
+connection-generation og kumulativt køtab; overfyldt kø gør tab synligt;
+gammel audio-epoch forbliver inert; fysisk Stop/rearm og Talk/OFF gennemgås.
+Målrettet adaptertest, relevant Thin-test, fast gate, uafhængigt adversarialt
+review og senere samlet releasegate på frosset kandidat. Rollback er .109;
+metadata alene installeres ikke som TV-timeout-løsning.
+
+Implementeret lokalt: native callback lægger nu lyd og immutable metadata i
+samme bounded kø **synkront ved callbackens modtagelse**, før SDK'ens
+returnerede coroutine planlægges. Den gamle `pcm_frames()` afleverer stadig
+rene bytes; en senere `timed_pcm_frames()`-ejer kan læse host-callbacktid,
+sekvens og generation. Et adversarialt review fandt, at den første version
+kun tidsstemplede synkront, men stadig lagde i kø asynkront; omvendt
+coroutine-planlægning kunne derfor bytte A/B. Den ejerfejl er rettet og har
+en omvendt-planlægningsregression. Reviewet påpegede også, at pakker, som
+allerede ligger i kø, har et ældre drop-snapshot: fremtidig fence skal
+sammenligne både kontinuerlig sekvens og **den aktuelle** køtabstæller.
+`dropped_frames_at_enqueue` siger eksplicit, at feltet alene ikke er et
+fuldstændighedsbevis. Callbacktid er stadig host-tid, ikke firmware-
+sampleklokke; native netværkstab og akustisk relevans er stadig ubevist.
+Sekvensgab kan også komme fra afviste gamle callbacks; de betyder ukendt/
+ufuldstændigt input, ikke automatisk et bestemt slags køtab. Den senere
+relevansgate skal mærke både TV og almindelig samtale **mellem husets beboere**
+som ikke-henvendt baggrund, mens en reel opfølgning fra enhver af dem inden
+for UI-vinduet bevares. Stemmens identitet er ikke beslutningskriteriet.
+Slutreview af denne kildeproveniens-diff: ingen åbne P0/P1/P2; SDK-kilden
+blev kontrolleret for synkront callbackkald og asynkron håndtering af dens
+retur-coroutine. Målrettede native- og capture-regressioner samt
+`scripts/dev fast --base origin/main` (Ruff, format, Mypy, integration,
+unit) bestod i usynkroniseret clone med lokal loopback. Gaten er stadig
+fokuseret/partiel på branchens samlede ældre evalscript. Ingen lifecycle-
+eller releasegate, fysisk kandidatprøve, merge eller installation er sket.
+
+## Aktiv beslutning 29/9 — kvitteret Live-inputbarriere (adapter, endnu ikke aktiveret)
+
+Observeret fejl: i den mærkede TV-prøve gav syv native taleperioder aldrig fire
+sekunders rå stilhed, selv om Live ikke startede nyt arbejde. Den eksisterende
+deaktiverede intervalpolitik kan heller ikke lukke under konstant TV, fordi
+klassifikationen altid halter efter nye lydsamples. Firmwareens `hold_capture`
+taber lyd og er derfor uegnet som barriere. Officiel Live-protokol har derimod
+`session.input_audio.mute`/`unmute` med eksakt `client_event_id`-bundet ACK.
+
+Hele berørte kæde er Voice PE samplefangst → `VoicePELink` kø → Thin mic-pump →
+Live-adapterens sendelås/resampler → provider-ACK → eventuel senere lokal
+buffer/relevansafgørelse → Thin close eller fortsættelse → fysisk lydhale →
+teardown/rearm → næste wake. Talk/WebRTC ejer browserens mediespor og må ikke
+overtage denne WebSocket-barriere. Berørte invarianter: Thin er eneste samtale-
+og close-ejer; ingen mikrofonbytes må passere en kvitteret mute; ingen gammel,
+duplikeret eller forkert ACK må åbne input; ukendt udfald er ikke stilhed;
+Stop/generationsskift skal afvise ventende input; fysisk playback og arbejde
+forbliver selvstændige lukkehindringer.
+
+Falsificerbar årsagshypotese: en WebSocket-adapterbarriere, serialiseret mod
+audio-append og kvitteret på eksakt event-id/generation, kan skabe en kendt
+provider-inputgrænse uden at ændre den eksisterende åbne lydsti. Det er kun
+en nødvendig mekanisk byggesten; den beviser **ikke** TV-relevans eller tabsfri
+lokal capture. Ikke-mål: ingen aktivering af TV-timeout, ændring af fire
+sekunder, VAD/gain/prompt, firmware, Live-semantik eller Talk-medier.
+
+Regressioner: append før mute i korrekt rækkefølge; append afvises under og
+efter mute; kun matching ACK accepteres; forkert/duplikeret/gammel ACK er
+inert; unmute kræver sit eget ACK før append; timeout, fejl, close og ny
+generation holder input lukket; normal websocket- og Talk-sti består.
+Derefter relevant adapter/Thin-regression, fast gate og adversarialt review.
+En senere runtime-kandidat kræver separat samplebundet Thin-buffer,
+relevansmodprøve med virkelig efter-svar-opfølgning over TV og fysisk golden
+chain/10/10 på præcis artifact. Rollback-grænse er installeret .109;
+denne adapterbyggesten må ikke installeres som påstået TV-løsning.
+
+Implementeret i den isolerede branch: WebSocket-adapteren serialiserer mute
+efter allerede igangværende audio-append, afviser nye append under/efter mute
+og åbner først igen efter eksakt `unmuted`-ACK. Timeout, providerterminal,
+Stop/close og fejl holder gaten lukket. En sen coroutine fra en gammel
+generation kan ikke fejlmarkere den nye generation. Browser/WebRTC afviser
+metoderne uden sideband-kald. Målrettede protokolregressioner er grønne.
+Uafhængigt adversarialt review fandt først en gammel-generation-race og
+dernæst manglende hurtig terminalafbrydelse; begge er rettet og dækket af
+regressioner. Slutreview: ingen åbne P0/P1/P2 i denne adapterdiff.
+`scripts/dev fast --base origin/main` bestod Ruff, format, Mypy, integration
+og unit i den usynkroniserede dev-clone med loopback-adgang. Første forsøg i
+den begrænsede sandbox fejlede på `bind(127.0.0.1): EPERM`; det var en
+testmiljøfejl, ikke en runtime-regression. Gaten er fokuseret/partiel, fordi
+branchens ældre evalscript indgår i diffet. Ingen lifecycle/releasegate eller
+fysisk TV-prøve er gennemført, og den installerede Alpha er uændret.
+
+## Aktiv beslutning 29/9 — tavs Live-strøm må ikke starte fysisk svar
+
+Direkte .109-spor `20260928T202642` har 620 `session.output_audio.delta`-
+hændelser, men de seks gemte `speaker`-dele indeholder udelukkende nul-PCM.
+Alligevel startede fysisk playback +5,228 s og sluttede først +70,399 s.
+I koden tælles nulbytes mod de 3.840 bytes, som opretter playback-leasen.
+Det er en selvstændig, observeret fejl ved siden af TV-tale, der holder VAD aktiv.
+
+Kæden er providerens lydhændelse → Thin-generationskontrol → LiveAudioStream →
+FLAC/announcement → fysisk playback-event → aktivitetsvindue → close/dræn →
+teardown/rearm. Berørte invarianter: kun faktisk assistentlyd må starte fysisk
+svar; nul-PCM må ikke holde output/arbejde aktivt; første rigtige lyd må ikke
+tabes; gammel lyd må ikke krydse generation eller Stop; samme Thin-kontrakt
+gælder Talk, mens OFF-path er urørt. Falsificerbar hypotese: at udelade kun
+ledende eksakte nul-PCM-chunks før første ikke-nul-chunk forhindrer falsk
+playback uden at klippe eller forskyde faktisk tale. Ikke-mål: ingen ændring
+af TV-relevans, input-VAD, firesekunders UI-værdi, prompt eller firmware.
+
+Regressioner: kun nul-chunks over den gamle startgrænse giver nul playback-
+lease og ingen speaker-publicering; efterfølgende ikke-nul starter nøjagtigt
+én lease med bevaringsbevis for første PCM; nulpauser efter talestart bevares;
+Stop/generationsskift kasserer gamle chunks; idle/semantisk close uden fysisk
+svar og Talk/OFF består. Derefter fast/lifecycle og én releasegate på frosset
+diff med uafhængigt adversarialt review. Rollback er installeret .109.
+Denne ændring er **ikke** en løsning på kontinuerlig TV-tale og må ikke
+releasegodkendes som sådan uden den separate relevans- og fysiske gate.
+
+Implementeret i samme isolerede branch: Thin kasserer kun eksakt nul-PCM,
+før første ikke-nul assistant-chunk er accepteret. Efter første lyd bevares
+nulpauser og byteorden i den eksisterende stream. Testen beviser nul fysisk
+playback-lease efter 9.600 tavse bytes og nøjagtig tale→pause-payload ved
+første svar. To ældre lifecycle-tests blev rettet fra tavs fixture til
+ikke-nul svarlyd, så de fortsat prøver reel Stop/rotation og LED-præcedens.
+Målrettede lyd-/quiet-tests, hele integrationstesten og `scripts/dev fast`
+(Ruff, format, Mypy, integration, unit) er grønne. Uafhængigt adversarialt
+review fandt den første fixture-fejl, som blev rettet; re-review fandt ingen
+yderligere konkret ejer-/racefinding. Reviewet bekræfter ikke fysisk lyd.
+Kilde- og testdiffet er gemt som `fe39dac` på
+`codex/live-idle-shadow-owner`; der er intet nyt release-artifact. Kandidaten
+er stadig **ikke release-/installationsklar**: lifecycle/releasegate
+og fysisk golden+10/10 på præcis artifact mangler, og TV-timeouten er uløst.
+
+## Aktiv beslutning 28/9 — afprøv lydlig henvendelse på virkelig køkkenlyd
+
+Samme .109-session rummer et faktisk spørgsmål til assistenten og, efter
+svaret, brugeridentificeret TV-/baggrundstale. I p0000 ligger Live-input ved
++2,4–4,8 s, som historikken forbinder med spørgsmålet om Norge-kampen;
+p0002 efter afsluttet svar havde VAD-aktivitet, men intet ventende arbejde.
+Det fysiske problem er ikke blot tale samtidig med svar, men at rå VAD ejer
+inaktivitet uden at kende adressaten. Mikrofonens RMS i de udvalgte vinduer
+er ca. 262 mod 18 PCM-enheder; den forskel er et observationspunkt, ikke en
+sikker grænse for lavmælt opfølgning eller andre afstande.
+
+Kæden til afprøvning: nøjagtigt gemt device-WAV og tidslinje → afgrænset
+lydmodelverdict (relevant/baggrund/ukendt) → sammenligning med de kendte
+feltlabels → eventuel senere intervalbundet `LiveInputPolicy` → Thin close,
+fysisk dræn, teardown og rearm. Berørte invarianter: Thin er eneste close-ejer;
+ukendt/forældet input lukker aldrig; modelverdict udfører ingen værktøjer;
+gammel generation kan ikke krydse ny wake. Hypotese: en lydmodel kan skelne
+de to konkrete vinduer uden transcript- eller amplituderegel. Falsificering:
+en virkelig henvendelse klassificeres som baggrund, TV som relevant/ukendt
+for ofte, eller svarlatensen gør løbende brug uegnet. Ikke-mål: ingen ændret
+runtime-close, VAD, gain, timeout, prompt, firmware eller installeret artifact.
+
+Først en eval-only, engangskørende og omkostningsbegrænset prøve med de
+lokale WAV-filer uden lyd i Git. Den skal bruge identisk instruktion på
+positive og negative vinduer, højst 8 sekunder per vindue, højst seks kald,
+ingen retries eller husværktøjer, og registrere verdict/latens/fejl uden
+private transskripter eller nøgle. Modprøver: lav reel dansk opfølgning over
+TV og forsinket providerarbejde; de mangler endnu og kan stoppe kandidaten.
+Uafhængig review af evalgrænsen før providerbrug. Først ved positivt resultat
+oprettes en særskilt runtime-beslutning med adapter-/race-regressioner, gates,
+fysisk prøve og rollback til installeret .109.
+
+Evalcheckpoint: `scripts/live_addressedness_eval.py` validerer seks lokale
+klip (to kendte henvendelser, fire TV-vinduer på 2,5–8 s), sender aldrig
+labels/ID'er til modellen og kræver eksplicit `--execute` plus nøgle i
+procesmiljøet. Output indeholder kun verdict, tidsforbrug og hashes, ingen
+lyd eller transskript. Kald begrænses til seks uden retry; providerfejl,
+ufuldendt svar og fejlklassifikation er adskilte resultater. Fire målrettede
+tests, Ruff, format og diff-check PASS. Uafhængigt adversarialt review fandt
+tre svar-/rapporthuller, som er rettet; afsluttende re-review af den rettede
+eval-diff gav GO udelukkende til den afgrænsede prøve, ikke runtime/release.
+Ingen providerkald er kørt. Oprettelse af ny midlertidig OpenAI-key
+blev afvist af automatisk godkendelseskontrol: den ældre tilladelse blev ikke
+anset for at dække en ny nøgle, mens den eksisterende PodVoice-nøgle er aktiv.
+Ingen omvej eller nøgleoverførsel forsøges; specifik brugertilladelse kræves
+før denne eksterne prøves næste trin. Dette er ikke en runtime-/releasegate.
+
+Full-duplex-modprøven er nu forberedt som et **alternativt** lokalt manifest:
+én virkelig henvendelse, to syntetiske blandinger af samme henvendelse med
+optaget TV ved 30 % og 10 % brugeramplitude samt tre rene TV-vinduer. Præcis
+seks kald er fortsat maksimum for den valgte prøve; de to manifester må ikke
+køres i forlængelse af hinanden under samme tilladelse. Modellen får nu
+eksplicit besked om, at selv én lavmælt henvendelse hvor som helst i et
+blandet klip skal klassificeres relevant, og at baggrund kræver fravær af
+henvendelse i hele klippet. Proveniens og WAV forbliver uden for Git.
+Syntetisk blanding undersøger kun en farlig modprøve; den beviser ikke, at
+Voice PE kan opfange en ægte lavmælt opfølgning over TV i køkkenet. Lokal
+manifestvalidering, 35 fokuserede tests, Ruff, format og diff-check PASS;
+ingen providerkald eller fysisk prøve er udført på denne evalrevision.
+
+Providerprøve 29/9 på det alternative seks-klips manifest: alle seks kald
+fik HTTP 200 fra `gpt-audio-1.5` med samme prompt og `store:false`.
+Tre TV-klip blev korrekt `background` (1,24–1,36 s). Det tilsigtede
+positive udsnit og begge syntetiske blandinger blev også `background`
+(henholdsvis 2,18, 1,34 og 1,59 s): tre mismatch mod de foreløbige
+labels. Rapportstatus er `completed_mismatch`; nøgle og lyd står ikke i
+rapporten eller Git. Den senere kildekontrol nedenfor viser, at alle tre
+positive klip indeholder perioden efter fysisk assistent-playback-start.
+De er derfor ikke rene modprøver, og forsøget kan hverken bevise en sikker
+klassifikator eller isolere en falsk baggrundsafgørelse på ren brugertale.
+Før yderligere modelkald må device-/providerlyden og tidsgrænserne
+kontrolleres. Ingen
+`LiveInputPolicy`-aktivering, ændret timeout eller fysisk release følger af
+denne prøve. Testnøglen afventer separat tilbagekaldelsesbekræftelse i UI.
+Tidskontrol efter forsøget: p0000 har registrerede Live-inputfragmenter
+fra providerposition 2,4–4,8 s, og det sendte positive device-udsnit dækker
+1,8–5,3 s. Det udelukker ikke fejl i device/provider-clock eller akustisk
+forståelighed, men udsnittet er ikke åbenlyst tomt eller forskudt uden for
+den registrerede inputtur. Ingen automatisk transskription af klippet er
+udført; denne kontrol er tidslig, ikke semantisk lydvalidering.
+
+Korrigeret lydgrænse 29/9: en første sammenligning slog fejlagtigt op i
+14.02.09-sporet, mens evalens positive klip er fra 14.03.38-sporet. Kilden
+og PCM-hash er nu verificeret mod manifestet. Det 3,5 s udsnit (+1,8–5,3 s)
+har tydelig energi, men fysisk `playback_started` indtraf +3,096 s, og
+providerens første output-lyd blev modtaget +2,753 s. Inputfragmenter
+fortsatte +2,4–4,8 s. Derfor indeholder evaludsnittet både formodet
+brugertale og en periode med assistentens afspilning; det er **ikke** en
+ren positiv henvendelsesprøve. De tre `background`-resultater i
+det oprindelige forsøg er stadig reelle for de udsendte klip, men årsagen
+kan ikke isoleres til modellens henvendelsesforståelse. Begge syntetiske
+positive bruger samme forurenede kilde. macOS' lokale Speech-godkendelse
+er afvist på testværten. Næste grænse er et gennemlyttet udsnit helt før
+fysisk playback (+1,4–3,0 s) og korrelation med faktisk providerinput;
+ingen ny timeout-politik eller providerprøve er autoriseret på dette fund.
+
+Prøvens dækningsgrænse: klippet +1,4–3,0 s ligger i **første henvendelse
+efter wake**, før den første fysiske svarstart. Den reproducerer ikke den
+afgørende modprøve: en ny, lavmælt dansk opfølgning **efter** et færdigt
+assistent-svar, samtidig med vedvarende TV. De tre TV-negativer kommer fra
+senere dele af samme session, men der er endnu intet sikkert mærket
+positivt opfølgningsinterval i den lokale seks-klips prøve. Live-output
+begyndte allerede +2,753 s, før første loggede inputfragment blev leveret
++3,329 s; fragmentets leveringstid er ikke en startgrænse for brugerens
+ytring. Sammenligning af en første tur med senere TV kan derfor ikke åbne
+runtime-close-gaten. Det næste relevante datasæt skal have både fysisk
+afsluttet svar, efterfølgende brugeropfølgning over TV, præcis sampleklokke
+og et tilsvarende rent TV-interval fra samme optagevej.
+
+Historikken for `20260928T140338` viser også en relevant opfølgning
+(`øh, fodbold tak`) i samme session, som modellen besvarede. Manifestet
+placerer dens eneste nye inputfragmenter ved +13,2–14,6 s; p0001 har
+samtidig 12,5 s registreret speaker-PCM og tre efterfølgende backend-runder
+ved +16,3–23,6 s. Det er et nyttigt positivt samtaleeksempel, men ikke et
+rent **efter færdigt svar + samtidig TV**-vindue: playback og input overlapper,
+og delen har 95 tabte optagekommandoer. En klassifikator eller close-regel
+må ikke godkendes alene på historikteksten eller denne ufuldstændige trace.
+
+Ny afgrænsning 29/9 på de allerede gemte WAV-filer: p0000's registrerede
+`playback_started` ved +3,096 s og speaker-offset 9.600/24.000 samples
+placerer speaker-optagelsens nulpunkt ved +2,696 s. Sidste ikke-nul
+speaker-sample ligger dermed ved +11,379 s. Device-lyden er næsten rolig
+ved +12,5–12,8 s (RMS 14), men har tydelig energi ved +12,8–13,686 s
+(RMS 572); Live registrerer nye inputfragmenter ved +13,2–13,6 s. Et
+1,186 s positivt **kandidatklip** fra +12,5–13,686 s og et rent TV-vindue
+er derfor udskilt lokalt i
+`/private/tmp/pv-tv-audio-samples/addressedness-cases-corrected.json`.
+Det nye klip begynder mindst 1,1 s efter sidste målte speaker-lyd og
+fjerner den kendte egenlydsforurening fra den oprindelige positive prøve.
+Det er stadig ikke et godkendt positivt overlapbevis: p0000 har 95 tabte
+optagekommandoer, klippet er ikke uafhængigt gennemlyttet, og samtidig
+TV-tale er ikke bekræftet i netop dette vindue. Ingen nye providerkald er
+kørt, og den tidligere seks-kaldstilladelse er opbrugt.
+
+TV-sporets native VAD-modprøve 29/9: p0002 fra samme samtale har 135
+aktivitetsobservationer over +27,003–40,784 s. De danner syv særskilte
+`active`-forløb; længste observerede `quiet`-forløb er kun 2,469 s.
+Samtidig har denne del nul `live_input_fragment`, nul backend-start og nul
+værktøjshændelser. Det forklarer mekanisk, hvorfor en firesekunders rå
+VAD-timeout ikke udløses, men Live-tavshed er stadig ikke et eksplicit
+relevansverdict. At skifte fra `VAD aktiv` til kun `VAD-start` ville heller
+ikke løse denne trace: TV leverer gentagne nye starter. Delens 95 tabte
+optagekommandoer begrænser enhver påstand om fuld akustisk kontinuitet.
+
+Yderligere automatisk .109-trace fra 28/9 kl. 20.26.42 er nu læst fra
+HA's seks bevarede dele uden ny optagelse. Live-inputfragmenter fortsatte
+til +61,716 s (137 fragmenter i del 0–4), mens det registrerede
+speaker-PCM havde RMS 0 i alle seks dele. Native input-VAD skiftede mellem
+aktiv og rolig, og ingen værktøjsopgave var ventende ved afslutningen.
+Ved +68,896 s viste den reelle idle-diagnostik 4,267 s frisk fysisk ro
+og `ready`; provideren kvitterede `session.closed` +69,954 s, fysisk
+playback-finish kom +70,399 s, lokal `idle-fallback`-close +70,400 s og
+exact rearm +70,844 s. Det beviser, at denne session **sluttede via vores
+timeout, da input omsider var roligt**, ikke at GPT-Live valgte semantisk
+farvel. Hvad den tidligere tale var rettet imod, er ikke mærket i denne
+trace; speaker-PCM er heller ikke en rumoptagelse. Forløbet reproducerer
+mekanismen bag lange åbne sessioner, men er ikke positiv modprøve for en
+brugertur over TV.
+
+Officiel Live-protokolkontrol: en app kan sende
+`session.instructions.append`/`session.thinking.append`, men ACK betyder kun,
+at kontekst er lagt på tidslinjen, ikke at modellen har besluttet eller
+handlet. Inputtransskript-deltaer er heller ikke komplette ture. En
+firesekunders "luk nu hvis TV"-instruktion kan derfor ikke alene erstatte
+appens close-ejerskab eller det manglende samplepræcise relevansbevis.
+Se [Live-sessionsguiden](https://developers.openai.com/api/docs/guides/live-conversations)
+og [Live-eventreferencen](https://developers.openai.com/api/reference/typescript/resources/live).
+
+Kildekontrol 29/9 mod [GPT-Live-promptguiden](https://developers.openai.com/api/docs/guides/live-prompting),
+[migrationsguiden](https://developers.openai.com/api/docs/guides/live-migration)
+og [OpenAI Cookbooks full-duplex-eval](https://github.com/openai/openai-cookbook/tree/main/examples/audio/duplex_voice_agent_evaluation):
+Live bør lytte tavst til TV/baggrundstale, men API'et har ingen færdig-tur-
+eller `ikke henvendt til mig i fire sekunder`-kvittering. Appen styrer idle
+ud fra lyd, faktisk playback og ventende arbejde. Cookbooks RUN-harness bruger
+en uafhængig semantisk observatør på afsluttede samtale-/arbejdsdata og
+annullerer sin drænplan ved ny caller-lyd; den er en **evalstrategi**, ikke en
+produktions-close-kontrakt under vedvarende TV. Dens `background_speech`,
+`echo` og realistiske overlapscenarier er relevante modprøver, men erstatter
+ikke godkendt, fysisk optaget køkkenlyd. Den nuværende Live-prompt følger
+tavs-lytte-anbefalingen, mens .109's rå VAD blokerer idlevinduet. Ingen
+prompt- eller no-op-tool-ændring alene løser den observerede close-grænse.
+
+Ny mekanisk modprøve på den eksisterende deaktiverede `LiveInputPolicy`:
+100 sammenhængende 100 ms aktive inputintervaller, alle korrekt klassificeret
+som baggrund med præcis 1 s forsinkelse. Ved 4, 5 og 10 sekunder er verdict
+stadig `input_unresolved` med ti nye uklassificerede intervaller. Regressionen
+består og beviser, at perfekt men asynkron klassifikation alene aldrig lukker
+under kontinuerlig TV-tale. Derfor er en grøn lydmodel-eval kun nødvendig
+relevansevidens, ikke tilladelse til at aktivere den nuværende kandidat2.
+En senere runtime-beslutning skal enten have et verificeret aktuelt
+relevanssignal uden denne laggende hale eller definere en eksakt sample-fence
+ved UI-fristen, lokal buffering af efterfølgende tale, komplet verdict på den
+forseglede periode og annullering ved sent arbejde/reel henvendelse. Ellers
+jagter den en evigt ny inputhale. Hvordan input efter fristen bevares eller
+genstarter uden et dødt wake-vindue kræver særskilt adapter-/fysisk bevis.
+
+Grænseaudit 28/9: en sample-fence er heller ikke i sig selv en sikker
+TV-lukning. Lokalt ophør af sending ved fristen og providerens
+`session.input_audio.muted`-ACK kan afgrænse yderligere Live-input, mens
+mikrofonen fortsat optages lokalt; allerede sendt lyd skal afstemmes særskilt
+mod sin sample-identitet. ACK stopper ikke assistantgenerering eller
+backendarbejde. Men vedvarende TV fylder også bufferen efter fristen. En
+afgørelse, der kræver klassifikation helt frem til lukkeøjeblikket, får igen
+en evigt uafklaret hale. At ignorere halen kan omvendt klippe en lav reel
+henvendelse netop dér. Derfor er hverken "klassificér alt" eller "luk på
+tidligere TV-verdict" releasebar alene. En senere kandidat skal måle og
+afgrænse dette risikovindue på virkelig overlaplyd, bevare lokal capture
+under provider-mute, annullere lukning ved relevant/ukendt efterfølgende
+input og bevise replay/fortsættelse uden tabt første stavelse. Fejlet ACK,
+providerarbejde og ny generation må føre til fail-closed oprydning, ikke
+stiltiende successful timeout. Ingen sådan kandidat er aktiveret.
+
+Kodekontrol 29/9 af den mulige capture-grænse: firmware-
+`PodVoiceAudio::hold_capture()` sætter `user_enabled_ = false`, skifter
+audio-epoch og nulstiller ringbufferen. Mens hold er aktiv, øges den fysiske
+sampleklokke, men nye mikrofonbytes droppes; `resume_capture()` nulstiller
+ringbufferen igen. Det eksisterende hold er derfor **ikke** en tabsfri
+sample-fence for TV-timeout og må ikke genbruges til den funktion. Den
+installerede OpenAI Python-SDK eksponerer `session.input_audio.mute()` og
+`unmute()`, mens `ThinSession._pump_mic()` allerede modtager Voice PE-PCM
+før `brain.send_audio()`. En eventuel ny kandidat kan derfor kun starte med
+en host-ejet, bounded capture-/sendebarriere og eksakt provider-mute-ACK;
+den skal bevise rækkefølge for allerede sendte samples, bevare bytes efter
+barrieren, annullere ved reel/ukendt henvendelse og håndtere konstant TV uden
+uendelig buffer eller tabt første stavelse. Ingen sådan barriere er kodet,
+testet eller installeret, og SDK-mute er ikke i sig selv proof of silence.
+OpenAI's [sessionsguide](https://developers.openai.com/api/docs/guides/live-conversations)
+kræver eksakt `client_event_id`-bundet `session.input_audio.muted` /
+`unmuted`-ACK, og præciserer, at muting hverken standser lokal optagelse,
+modelgenerering eller delegeret arbejde. Adapteren håndterer endnu ikke
+disse ACK-events; den eksisterende `_send_lock` serialiserer kun appends.
+En host-barriere skal derfor først binde dens lokale samplegrænse til
+sendelåsen og ACK, før outputro + semantisk relevans kan bruges til close.
+
+## Diagnostisk checkpoint 28/9 — mål outputro korrekt under transskriberet baggrundstale
+
+Observeret fejl: .109 TV-tracen uden Live-inputfragmenter viste >10 s fysisk
+outputro, mens native VAD forhindrede timeout. Det tidligere .108-spor havde
+derimod Live-inputfragmenter uden assistentarbejde. Den nuværende output-only
+shadow deler rå inputrevision og nulstilles ved hvert sådant fragment; den kan
+derfor ikke måle outputro på netop dette andet feltforløb. Dette er et hul i
+evidens, ikke tilladelse til at lukke over tale.
+
+Kæden er fysisk mikrofon/VAD → Live-inputfragment → Thin-freshness/semantic
+receipt → assistant-/værktøjsarbejde → mixer-output → idle-observation → eventuel
+close/teardown/rearm. Berørte invarianter: Thin ejer én samtale og close;
+providerinput annullerer gamle semantiske receipts; output-ro alene må ikke
+autorisere timeout; stale session/generation må aldrig krydse næste wake.
+Falsificerbar hypotese: shadowens outputvindue kan beholde samme output-/work-
+identitet under rå, ubehandlet Live-input, mens runtime-idlevinduet fortsat
+blokerer, og faktisk backendarbejde/output/nativt gapped coverage stadig resetter.
+Ikke-mål: ingen ændring af timeout, prompt, VAD, gain, firmware eller klassifikation.
+
+Målrettet regression: transskriberet TV-lignende fragment midt i sammenhængende
+outputro; real idle og semantic receipt bliver ugyldige, shadowen fortsætter,
+men kan aldrig lukke. Modprøver: backendstart, output, Stop og ny generation
+nulstiller shadow; gammel callback er inert; Talk/OFF uændret. Kør først
+relevante Thin/idle- og adaptertests, derefter fast/lifecycle og én releasegate
+på frosset diff. Uafhængig adversarial review før eventuel release. Rollback:
+denne shadowændring kan fjernes uden at ændre installeret close-politik.
+Fysisk gate for TV-afslutning og 10/10 forbliver ubestået.
+
+Implementeret i isoleret branch `codex/live-idle-shadow-owner`: `ThinSession`
+bevarer kun det diagnostiske outputvindue under et ubesvaret Live-inputfragment.
+Det reelle idle-/semantikvindue og eventuelle close-receipts annulleres fortsat.
+Shadow-ejeren følger session, epoch, provider-generation, backendsekvens og
+outputstart; nyt backendarbejde, ny lyd, Stop og næste wake nulstiller den. Den
+ændrer ingen close-beslutning. Regressionen bruger startet PCM-playback og
+sammenhængende native forbrugsobservationer, et Live-inputfragment,
+`LiveBackendStarted`, sen gammel generation samt Stop → næste wake.
+Målrettede idle-tests og `scripts/dev fast --base origin/main` er grønne
+(sidstnævnte inkl. fokuserede tests, Ruff og Mypy; lokal testport krævede
+sandboxadgang). Uafhængigt adversarialt review: GO for kilde/testdesign, ingen
+alvorlig finding; reviewer kunne ikke selv køre pytest. Ingen fysisk prøve på
+disse bits, og TV-afslutning er fortsat uløst. Kandidaten er **ikke releaseklar**
+som løsning på brugerfejlen; lifecycle/releasegate, artifact og installation er
+ikke udført. Næste beslutning kræver præcis relevansevidens for både transskriberet
+og ikke-transskriberet TV samt lav reel opfølgning, før close-politikken ændres.
+
+Efterfølgende hentet faktisk lokal Voice PE-diagnostik fra samme .109-session:
+mikrofonklip p0001–p0003 er 16 kHz mono, og p0002's tidslinje indeholder
+native VAD og fysisk mixerforbrug. Ved +37,284 s var output-shadow klar efter
+10,407 s; native VAD var `active` med probability 165, og ingen response,
+batch, tool, continuation eller assistant-audio ventede. Mixerens observerede
+assistant-output havde peak/sum_squares 0 i de nærliggende 100 ms frames.
+Brugerens samtidige feltbeskrivelse identificerer talen som TV/baggrund,
+ikke en henvendelse til Voice PE. Klippene er gemt lokalt uden for Git og er
+endnu ikke gennemlyttet/transskriberet eller sammenlignet med lav reel dansk
+opfølgning. Den lave PCM-amplitude alene er ikke et relevansverdict.
+Dette styrker den fysiske lokalisering af input-vetoet, men autoriserer stadig
+ikke output-only close. Næste måling skal binde et intervalpræcist
+baggrunds-/henvendelsesverdict til samme audio-sample clock og modprøve
+TV, lav opfølgning over TV og forsinket Live-arbejde før kandidat2 kan aktiveres.
+
 ## .109 installeret 28/9 — fysisk kandidatprøve afventer
 
 PR81 `dcbeac2` bestod PR-CI og den fulde lokale releasegate; merged main som

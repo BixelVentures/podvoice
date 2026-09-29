@@ -1,6 +1,7 @@
 """Live SDK/Thin/stream contract; simulated hardware edges are not physical proof."""
 
 import asyncio
+import contextlib
 import json
 import threading
 
@@ -17,6 +18,7 @@ from gatekeeper.playback import Playback
 from gatekeeper.provider_budget import ProviderBudgetCoordinator
 from gatekeeper.thin import ThinSession
 from gatekeeper.tools import ToolRouter
+from gatekeeper.voicepe import NativeMicFrame, VoicePELink
 
 
 class Device(FakeVoicePELink):
@@ -34,6 +36,18 @@ class Device(FakeVoicePELink):
     async def play_url(self, url, *, playback_id=None):
         self.announced_urls.append(url)
         self.on_media_state(True, playback_id)
+
+
+class TimedDevice(Device):
+    def __init__(self):
+        super().__init__()
+        self.connection_generation = 7
+
+    def timed_pcm_frames(self):
+        return VoicePELink.timed_pcm_frames(self)
+
+    def pcm_frames(self):
+        raise AssertionError("native Alpha must consume timed frames")
 
 
 class Tools:
@@ -282,6 +296,73 @@ async def test_off_provider_close_keeps_default_step_instead_of_live_sdk_timeout
 async def emit(sdk, *events):
     for event in events:
         await sdk.incoming.put(event)
+
+
+@pytest.mark.asyncio
+async def test_native_live_pump_keeps_packet_identity_without_changing_provider_pcm():
+    link = TimedDevice()
+    session, _, _, _, _ = build(device=link)
+    await session.start()
+    try:
+        await session.wake()
+        await until(lambda: session._pump is not None and not session._pump.done())
+        sent = []
+        original_send = session.brain.send_audio
+
+        async def record_send(pcm):
+            sent.append(pcm)
+            await original_send(pcm)
+
+        session.brain.send_audio = record_send
+        generation = link.audio_generation
+
+        def packet(seq, epoch, value, *, connection=7):
+            return NativeMicFrame(
+                pcm=bytes((value, 0)) * 320,
+                received_monotonic=float(seq),
+                sequence=seq,
+                audio_generation=epoch,
+                connection_generation=connection,
+                dropped_frames_at_enqueue=0,
+            )
+
+        stale = packet(1, generation - 1, 9)
+        first, second = packet(2, generation, 1), packet(3, generation, 2)
+        for item in (stale, first, second):
+            link._audio_q.put_nowait(item)
+        await until(lambda: len(sent) == 2)
+        assert sent == [first.pcm, second.pcm]
+        assert session._live_mic_submitted is second
+
+        # Native reconnect does not itself advance the audio epoch. A queued
+        # packet from the retired connection must still be rejected.
+        link.connection_generation = 8
+        retired = packet(4, generation, 3)
+        current_connection = packet(5, generation, 4, connection=8)
+        link._audio_q.put_nowait(retired)
+        link._audio_q.put_nowait(current_connection)
+        await until(lambda: session._live_mic_submitted is current_connection)
+        assert sent == [first.pcm, second.pcm, current_connection.pcm]
+
+        session._pump.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await session._pump
+        queued_at_stop = packet(6, generation, 6, connection=8)
+        link._audio_q.put_nowait(queued_at_stop)
+        await session.stop()
+        assert link._audio_q.empty()  # the actual shared native iterator queue was drained
+        assert queued_at_stop.pcm not in sent
+        assert session._live_mic_submitted is None
+        await session.wake()
+        await until(lambda: session._pump is not None and not session._pump.done())
+        assert session._live_mic_submitted is None
+        link._audio_q.put_nowait(current_connection)  # retired packet after next wake
+        current = packet(7, link.audio_generation, 5, connection=8)
+        link._audio_q.put_nowait(current)
+        await until(lambda: session._live_mic_submitted is current)
+        assert sent[-1] == current.pcm
+    finally:
+        await session.aclose()
 
 
 @pytest.mark.asyncio
@@ -2335,7 +2416,7 @@ async def test_correction_during_rotation_capture_await_uses_owned_teardown(
     monkeypatch.setattr(link, method, paused)
     try:
         if phase == "playback_stop":
-            await session._on_live_event(LiveAudioChunk(b"\0" * 3840, 1))
+            await session._on_live_event(LiveAudioChunk(b"\1\0" * 1920, 1))
             await until(lambda: session._playback_lease is not None)
         await pending_confirmation(session, sdk)
         await emit(sdk, created("r2"), terminal("r2"))

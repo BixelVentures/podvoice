@@ -49,7 +49,7 @@ async def test_held_ack_cuts_queue_and_delayed_audio_before_waiter_runs():
     await link._handle_audio(b"fresh", audio_epoch=link._audio_epoch)
     ack(link, token, "resumed")
     await resume
-    assert link._audio_q.get_nowait() == b"fresh"
+    assert link._audio_q.get_nowait().pcm == b"fresh"
     with pytest.raises(RuntimeError, match="stale"):
         await link.resume_live_capture(token)
 

@@ -104,7 +104,7 @@ async def test_actual_live_playback_keeps_ready_cyan_and_preserves_error_idle_pr
         expected = (cyan.on, cyan.rgb, cyan.brightness)
         assert link.light_commands[-1] == expected
         await session._on_live_event(
-            LiveAudioChunk(b"\0" * 3840, session.brain._connection_generation)
+            LiveAudioChunk(b"\1\0" * 1920, session.brain._connection_generation)
         )
         await until(lambda: session._device_playing and session.sm.state == State.AI_SPEAKING)
         await until(lambda: len(link.light_commands) >= 3)

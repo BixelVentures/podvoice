@@ -41,7 +41,7 @@ class SDK:
         self.session = SimpleNamespace(
             start=AsyncMock(side_effect=self.start),
             close=AsyncMock(side_effect=self.finalize),
-            input_audio=SimpleNamespace(append=AsyncMock()),
+            input_audio=SimpleNamespace(append=AsyncMock(), mute=AsyncMock(), unmute=AsyncMock()),
             instructions=SimpleNamespace(append=AsyncMock(side_effect=self.instruction)),
         )
         self.response = SimpleNamespace(
@@ -101,6 +101,133 @@ def provider(**kwargs):
         **kwargs,
     )
     return session, sdk, budget
+
+
+@pytest.mark.asyncio
+async def test_input_mute_fences_serialized_audio_and_requires_exact_ack():
+    session, sdk, _ = provider()
+    await session.connect()
+    entered, release, mute_sent = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+    async def slow_append(**_):
+        entered.set()
+        await release.wait()
+
+    sdk.session.input_audio.append.side_effect = slow_append
+    sdk.session.input_audio.mute.side_effect = lambda **_: mute_sent.set()
+    sending = asyncio.create_task(session.send_audio(b"\x01\x00" * 320))
+    await entered.wait()
+    muting = asyncio.create_task(session.mute_input())
+    await asyncio.sleep(0)
+    sdk.session.input_audio.mute.assert_not_awaited()
+    release.set()
+    await sending
+    await asyncio.wait_for(mute_sent.wait(), 1)
+    mute_id = sdk.session.input_audio.mute.call_args.kwargs["event_id"]
+    with pytest.raises(LiveProtocolError, match="live_input_muted"):
+        await session.send_audio(b"\x02\x00" * 320)
+    await sdk.incoming.put({"type": "session.input_audio.muted", "client_event_id": "wrong"})
+    await asyncio.sleep(0)
+    assert not muting.done()
+    await sdk.incoming.put({"type": "session.input_audio.unmuted", "client_event_id": mute_id})
+    await asyncio.sleep(0)
+    assert not muting.done()
+    await sdk.incoming.put({"type": "session.input_audio.muted", "client_event_id": mute_id})
+    await muting
+    with pytest.raises(LiveProtocolError, match="live_input_muted"):
+        await session.send_audio(b"\x02\x00" * 320)
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_input_unmute_waits_for_own_ack_and_close_invalidates_pending():
+    session, sdk, _ = provider()
+    await session.connect()
+    muting = asyncio.create_task(session.mute_input())
+    await asyncio.sleep(0)
+    mute_id = sdk.session.input_audio.mute.call_args.kwargs["event_id"]
+    await sdk.incoming.put({"type": "session.input_audio.muted", "client_event_id": mute_id})
+    await muting
+    unmuting = asyncio.create_task(session.unmute_input())
+    await asyncio.sleep(0)
+    unmute_id = sdk.session.input_audio.unmute.call_args.kwargs["event_id"]
+    with pytest.raises(LiveProtocolError, match="live_input_muted"):
+        await session.send_audio(b"\x02\x00" * 320)
+    await sdk.incoming.put({"type": "session.input_audio.muted", "client_event_id": mute_id})
+    await asyncio.sleep(0)
+    assert not unmuting.done()
+    await sdk.incoming.put({"type": "session.input_audio.unmuted", "client_event_id": unmute_id})
+    await unmuting
+    await session.send_audio(b"\x02\x00" * 320)
+    assert sdk.session.input_audio.append.await_count == 1
+
+    pending = asyncio.create_task(session.mute_input())
+    await asyncio.sleep(0)
+    await session.close()
+    with pytest.raises((asyncio.CancelledError, LiveProtocolError)):
+        await pending
+    with pytest.raises(LiveProtocolError):
+        await session.send_audio(b"\x03\x00" * 320)
+
+
+@pytest.mark.asyncio
+async def test_input_mute_ack_timeout_keeps_input_closed():
+    session, _, _ = provider()
+    await session.connect()
+    with pytest.raises(TimeoutError):
+        await session.mute_input()
+    with pytest.raises(LiveProtocolError, match="live_input_muted"):
+        await session.send_audio(b"\x01\x00" * 320)
+    await session.close()
+
+
+@pytest.mark.asyncio
+async def test_old_mute_failure_after_reconnect_cannot_fault_new_input():
+    session, sdk, _ = provider()
+    await session.connect()
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def delayed_mute(**_):
+        entered.set()
+        await release.wait()
+
+    sdk.session.input_audio.mute.side_effect = delayed_mute
+    old = asyncio.create_task(session.mute_input())
+    await entered.wait()
+    await session.request_close()
+    await session._closed.wait()
+    await session._release()
+    await session.connect()
+    release.set()
+    with pytest.raises(asyncio.CancelledError):
+        await old
+    await session.send_audio(b"\x01\x00" * 320)
+    assert sdk.session.input_audio.append.await_count == 1
+    await session.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("transition", ["mute", "unmute"])
+async def test_provider_terminal_interrupts_pending_input_gate_without_ack_timeout(transition):
+    session, sdk, _ = provider()
+    await session.connect()
+    if transition == "unmute":
+        initial = asyncio.create_task(session.mute_input())
+        await asyncio.sleep(0)
+        event_id = sdk.session.input_audio.mute.call_args.kwargs["event_id"]
+        await sdk.incoming.put({"type": "session.input_audio.muted", "client_event_id": event_id})
+        await initial
+    pending = asyncio.create_task(
+        session.mute_input() if transition == "mute" else session.unmute_input()
+    )
+    await asyncio.sleep(0)
+    assert not pending.done()
+    await sdk.incoming.put(
+        {"type": "session.closed", "reason": "server_ended", "usage": {"seconds": 1}}
+    )
+    with pytest.raises(LiveProtocolError, match="live_session_closed"):
+        await pending
+    await session._release()
 
 
 def tracked_socket(sdk):
@@ -1003,6 +1130,19 @@ def webrtc_provider(callback=None):
     session, _, budget = provider(webrtc_offer="v=0\r\noffer", on_webrtc_answer=callback)
     session.client_factory = sdk.factory
     return session, sdk, budget
+
+
+@pytest.mark.asyncio
+async def test_webrtc_browser_keeps_input_media_ownership():
+    session, sdk, _ = webrtc_provider()
+    await session.connect()
+    with pytest.raises(LiveProtocolError, match="live_webrtc_media_owned_by_browser"):
+        await session.mute_input()
+    with pytest.raises(LiveProtocolError, match="live_webrtc_media_owned_by_browser"):
+        await session.unmute_input()
+    sdk.session.input_audio.mute.assert_not_awaited()
+    sdk.session.input_audio.unmute.assert_not_awaited()
+    await session.close()
 
 
 @pytest.mark.asyncio

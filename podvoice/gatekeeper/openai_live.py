@@ -100,6 +100,8 @@ _DIAGNOSTIC_WIRE_TYPES = frozenset(
         "session.usage.updated",
         "session.closed",
         "session.instructions.appended",
+        "session.input_audio.muted",
+        "session.input_audio.unmuted",
         "response.event",
         "response.created",
         "response.output_item.done",
@@ -364,6 +366,8 @@ class OpenAILiveSession:
         self._seen_responses: set[str] = set()
         self._seen_calls: set[str] = set()
         self._append_waiters: dict[str, asyncio.Future] = {}
+        self._input_gate = "open"
+        self._input_gate_waiter: tuple[str, str, int, asyncio.Future[None]] | None = None
         self._continuation_pending = False
         self._continuation_inflight = False
         self._text_continuation_id: str | None = None
@@ -585,6 +589,8 @@ class OpenAILiveSession:
         self._cancel_terminal_receipt()
         self._connection_generation += 1
         generation = self._connection_generation
+        self._input_gate = "open"
+        self._input_gate_waiter = None
         self.backend_sequence = 0
         self.input_sequence = 0
         self.provider_session_started = False
@@ -921,6 +927,7 @@ class OpenAILiveSession:
             for waiter in self._append_waiters.values():
                 if not waiter.done():
                     waiter.set_exception(failure)
+            self._fail_input_gate(failure, generation=generation)
             # On protocol failure stale audio/tools cannot escape a saturated queue.
             while not self._queue.empty():
                 self._queue.get_nowait()
@@ -1024,6 +1031,9 @@ class OpenAILiveSession:
                 self._cancel_terminal_receipt()
                 self.final_usage_seconds = float(seconds)
                 self._close_requested = True
+                self._fail_input_gate(
+                    LiveProtocolError("live_session_closed"), generation=generation
+                )
                 self._emit(
                     LiveSessionClosed(
                         event["reason"],
@@ -1038,6 +1048,17 @@ class OpenAILiveSession:
             waiter = self._append_waiters.get(event.get("client_event_id", ""))
             if waiter is not None and not waiter.done():
                 waiter.set_result(None)
+        elif kind in {"session.input_audio.muted", "session.input_audio.unmuted"}:
+            pending = self._input_gate_waiter
+            if (
+                pending is not None
+                and pending[0] == kind
+                and pending[1] == event.get("client_event_id")
+                and pending[2] == generation
+                and not pending[3].done()
+                and not self._close_requested
+            ):
+                pending[3].set_result(None)
         elif kind == "response.event":
             try:
                 self._backend(event, generation)
@@ -1322,6 +1343,8 @@ class OpenAILiveSession:
             raise LiveProtocolError("incomplete_input_pcm_sample")
         async with self._send_lock:
             connection = self._active(generation)
+            if self._input_gate != "open":
+                raise LiveProtocolError("live_input_muted")
             wire = self._resampler.process(pcm)
             if not wire:
                 return
@@ -1331,6 +1354,77 @@ class OpenAILiveSession:
                 await connection.session.input_audio.append(
                     audio=base64.b64encode(wire).decode("ascii")
                 )
+
+    def _fail_input_gate(
+        self,
+        failure: BaseException | None = None,
+        *,
+        generation: int | None = None,
+        waiter: asyncio.Future[None] | None = None,
+    ) -> None:
+        """Keep audio closed when a transition cannot be proved or is superseded."""
+        if generation is not None and generation != self._connection_generation:
+            return
+        if waiter is not None and (
+            self._input_gate_waiter is None or self._input_gate_waiter[3] is not waiter
+        ):
+            return
+        self._input_gate = "fault"
+        pending = self._input_gate_waiter
+        if pending is not None and not pending[3].done():
+            if failure is None:
+                pending[3].cancel()
+            else:
+                pending[3].set_exception(failure)
+
+    async def _change_input_gate(self, *, muted: bool) -> None:
+        if self.transport != "websocket":
+            raise LiveProtocolError("live_webrtc_media_owned_by_browser")
+        generation = self._connection_generation
+        expected, transition, target = (
+            ("open", "muting", "muted") if muted else ("muted", "unmuting", "open")
+        )
+        kind = "session.input_audio.muted" if muted else "session.input_audio.unmuted"
+        event_id = f"input_gate_{uuid.uuid4().hex}"
+        waiter: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        async with self._send_lock:
+            connection = self._active(generation)
+            if self._input_gate != expected or self._input_gate_waiter is not None:
+                raise LiveProtocolError("live_input_gate_transition_conflict")
+            self._input_gate = transition
+            self._input_gate_waiter = (kind, event_id, generation, waiter)
+            try:
+                async with asyncio.timeout(self.timeout_s):
+                    if muted:
+                        await connection.session.input_audio.mute(event_id=event_id)
+                    else:
+                        await connection.session.input_audio.unmute(event_id=event_id)
+            except BaseException:
+                self._fail_input_gate(generation=generation, waiter=waiter)
+                if self._input_gate_waiter is not None and self._input_gate_waiter[3] is waiter:
+                    self._input_gate_waiter = None
+                raise
+        try:
+            async with asyncio.timeout(self.timeout_s):
+                await waiter
+            self._active(generation)
+            if self._input_gate != transition:
+                raise LiveProtocolError("live_input_gate_superseded")
+            self._input_gate = target
+        except BaseException:
+            self._fail_input_gate(generation=generation, waiter=waiter)
+            raise
+        finally:
+            if self._input_gate_waiter is not None and self._input_gate_waiter[3] is waiter:
+                self._input_gate_waiter = None
+
+    async def mute_input(self) -> None:
+        """Fence provider input after previously serialized appends; Thin owns local capture."""
+        await self._change_input_gate(muted=True)
+
+    async def unmute_input(self) -> None:
+        """Resume provider input only after its exact acknowledgment."""
+        await self._change_input_gate(muted=False)
 
     async def send_text(
         self,
@@ -1676,6 +1770,7 @@ class OpenAILiveSession:
             if self._close_requested:
                 return
             self._close_requested = True  # Synchronize before any await; freezes new work.
+            self._fail_input_gate()
             if self._connection is not None:
                 async with asyncio.timeout(self.timeout_s):
                     if self.transport == "webrtc":
@@ -1723,6 +1818,7 @@ class OpenAILiveSession:
             self._next_confirmation_text = ()
             self._cancel_terminal_receipt()
             self._close_requested = True
+            self._fail_input_gate()
             if (
                 self.transport == "webrtc"
                 and self._connection is not None
