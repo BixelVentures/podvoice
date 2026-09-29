@@ -1,5 +1,57 @@
 # PodVoice-status — én aktuel sandhed
 
+## Aktiv beslutning 29/9 — kvitteret Live-inputbarriere (adapter, endnu ikke aktiveret)
+
+Observeret fejl: i den mærkede TV-prøve gav syv native taleperioder aldrig fire
+sekunders rå stilhed, selv om Live ikke startede nyt arbejde. Den eksisterende
+deaktiverede intervalpolitik kan heller ikke lukke under konstant TV, fordi
+klassifikationen altid halter efter nye lydsamples. Firmwareens `hold_capture`
+taber lyd og er derfor uegnet som barriere. Officiel Live-protokol har derimod
+`session.input_audio.mute`/`unmute` med eksakt `client_event_id`-bundet ACK.
+
+Hele berørte kæde er Voice PE samplefangst → `VoicePELink` kø → Thin mic-pump →
+Live-adapterens sendelås/resampler → provider-ACK → eventuel senere lokal
+buffer/relevansafgørelse → Thin close eller fortsættelse → fysisk lydhale →
+teardown/rearm → næste wake. Talk/WebRTC ejer browserens mediespor og må ikke
+overtage denne WebSocket-barriere. Berørte invarianter: Thin er eneste samtale-
+og close-ejer; ingen mikrofonbytes må passere en kvitteret mute; ingen gammel,
+duplikeret eller forkert ACK må åbne input; ukendt udfald er ikke stilhed;
+Stop/generationsskift skal afvise ventende input; fysisk playback og arbejde
+forbliver selvstændige lukkehindringer.
+
+Falsificerbar årsagshypotese: en WebSocket-adapterbarriere, serialiseret mod
+audio-append og kvitteret på eksakt event-id/generation, kan skabe en kendt
+provider-inputgrænse uden at ændre den eksisterende åbne lydsti. Det er kun
+en nødvendig mekanisk byggesten; den beviser **ikke** TV-relevans eller tabsfri
+lokal capture. Ikke-mål: ingen aktivering af TV-timeout, ændring af fire
+sekunder, VAD/gain/prompt, firmware, Live-semantik eller Talk-medier.
+
+Regressioner: append før mute i korrekt rækkefølge; append afvises under og
+efter mute; kun matching ACK accepteres; forkert/duplikeret/gammel ACK er
+inert; unmute kræver sit eget ACK før append; timeout, fejl, close og ny
+generation holder input lukket; normal websocket- og Talk-sti består.
+Derefter relevant adapter/Thin-regression, fast gate og adversarialt review.
+En senere runtime-kandidat kræver separat samplebundet Thin-buffer,
+relevansmodprøve med virkelig efter-svar-opfølgning over TV og fysisk golden
+chain/10/10 på præcis artifact. Rollback-grænse er installeret .109;
+denne adapterbyggesten må ikke installeres som påstået TV-løsning.
+
+Implementeret i den isolerede branch: WebSocket-adapteren serialiserer mute
+efter allerede igangværende audio-append, afviser nye append under/efter mute
+og åbner først igen efter eksakt `unmuted`-ACK. Timeout, providerterminal,
+Stop/close og fejl holder gaten lukket. En sen coroutine fra en gammel
+generation kan ikke fejlmarkere den nye generation. Browser/WebRTC afviser
+metoderne uden sideband-kald. Målrettede protokolregressioner er grønne.
+Uafhængigt adversarialt review fandt først en gammel-generation-race og
+dernæst manglende hurtig terminalafbrydelse; begge er rettet og dækket af
+regressioner. Slutreview: ingen åbne P0/P1/P2 i denne adapterdiff.
+`scripts/dev fast --base origin/main` bestod Ruff, format, Mypy, integration
+og unit i den usynkroniserede dev-clone med loopback-adgang. Første forsøg i
+den begrænsede sandbox fejlede på `bind(127.0.0.1): EPERM`; det var en
+testmiljøfejl, ikke en runtime-regression. Gaten er fokuseret/partiel, fordi
+branchens ældre evalscript indgår i diffet. Ingen lifecycle/releasegate eller
+fysisk TV-prøve er gennemført, og den installerede Alpha er uændret.
+
 ## Aktiv beslutning 29/9 — tavs Live-strøm må ikke starte fysisk svar
 
 Direkte .109-spor `20260928T202642` har 620 `session.output_audio.delta`-
