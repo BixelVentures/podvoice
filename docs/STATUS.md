@@ -62,15 +62,16 @@ ingen providerkald eller fysisk prøve er udført på denne evalrevision.
 
 Providerprøve 29/9 på det alternative seks-klips manifest: alle seks kald
 fik HTTP 200 fra `gpt-audio-1.5` med samme prompt og `store:false`.
-Tre TV-klip blev korrekt `background` (1,24–1,36 s). Den virkelige
-henvendelse og begge syntetiske blandinger blev også `background`
-(henholdsvis 2,18, 1,34 og 1,59 s): **tre falske baggrundsverdicts ud af
-tre positive modprøver**. Rapportstatus er `completed_mismatch`; nøgle og
-lyd står ikke i rapporten eller Git. Prøven modbeviser hypotesen om, at
-denne lydmodel og instruktion sikkert kan frigive timeout på de udvalgte
-køkkenklip. Det kan også betyde, at klipgrænser eller manglende
-samtalekontekst gør spørgsmålet akustisk tvetydigt; før yderligere modelkald
-må device-/providerlyden og tidsgrænserne kontrolleres. Ingen
+Tre TV-klip blev korrekt `background` (1,24–1,36 s). Det tilsigtede
+positive udsnit og begge syntetiske blandinger blev også `background`
+(henholdsvis 2,18, 1,34 og 1,59 s): tre mismatch mod de foreløbige
+labels. Rapportstatus er `completed_mismatch`; nøgle og lyd står ikke i
+rapporten eller Git. Den senere kildekontrol nedenfor viser, at alle tre
+positive klip indeholder perioden efter fysisk assistent-playback-start.
+De er derfor ikke rene modprøver, og forsøget kan hverken bevise en sikker
+klassifikator eller isolere en falsk baggrundsafgørelse på ren brugertale.
+Før yderligere modelkald må device-/providerlyden og tidsgrænserne
+kontrolleres. Ingen
 `LiveInputPolicy`-aktivering, ændret timeout eller fysisk release følger af
 denne prøve. Testnøglen afventer separat tilbagekaldelsesbekræftelse i UI.
 Tidskontrol efter forsøget: p0000 har registrerede Live-inputfragmenter
@@ -87,7 +88,7 @@ har tydelig energi, men fysisk `playback_started` indtraf +3,096 s, og
 providerens første output-lyd blev modtaget +2,753 s. Inputfragmenter
 fortsatte +2,4–4,8 s. Derfor indeholder evaludsnittet både formodet
 brugertale og en periode med assistentens afspilning; det er **ikke** en
-ren positiv henvendelsesprøve. De tre falske `background`-resultater i
+ren positiv henvendelsesprøve. De tre `background`-resultater i
 det oprindelige forsøg er stadig reelle for de udsendte klip, men årsagen
 kan ikke isoleres til modellens henvendelsesforståelse. Begge syntetiske
 positive bruger samme forurenede kilde. macOS' lokale Speech-godkendelse
