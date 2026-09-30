@@ -1,12 +1,15 @@
 """Reject false protocol proof; no credentials or physical/provider semantics."""
 
+import base64
 import copy
 import importlib.util
+import json
+import re
 import sys
 from pathlib import Path
 
 import pytest
-from unit.test_openai_live import SDK
+from unit.test_openai_live import SDK, DiagnosticWireSDK, call, created, terminal
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -256,3 +259,113 @@ async def test_real_adapter_append_ack_never_invents_delegation_or_verdict(tmp_p
     finally:
         await live.close()
         evidence.close()
+
+
+class IdleWireSDK(DiagnosticWireSDK):
+    """Scripted peer behind the actual SDK codec; never model-behaviour proof."""
+
+    def __init__(self, *, correlation=True, result_failure=False):
+        super().__init__()
+        self.correlation = correlation
+        self.frames = 0
+        if result_failure:
+            self.fail_type = "response.item.create"
+
+    async def send(self, data):
+        await super().send(data)
+        event = json.loads(data)
+        if event["type"] == "session.input_audio.append":
+            self.frames += 1
+            if self.frames == 26:
+                for direction, text in (("input", "Hvad er to plus to?"), ("output", "Fire.")):
+                    await self.incoming.put(
+                        {
+                            "type": f"session.{direction}_transcript.delta",
+                            "delta": text,
+                            "start_ms": 500,
+                            "end_ms": 520,
+                        }
+                    )
+                await self.incoming.put(
+                    {
+                        "type": "session.output_audio.delta",
+                        "delta": base64.b64encode(b"\x01\x00" * 480).decode(),
+                    }
+                )
+        elif event["type"] == "session.instructions.append":
+            from openai.types.live import DelegationCreatedEvent, InstructionsAppendedEvent
+
+            ack = {
+                "type": "session.instructions.appended",
+                "event_id": "ack",
+                "client_event_id": event["event_id"],
+                "start_ms": 600,
+                "end_ms": 600,
+            }
+            delegation = {
+                "type": "session.delegation.created",
+                "event_id": "delegate",
+                "offset_ms": 610,
+                "delegation": {
+                    "type": "delegation",
+                    "target": "responses",
+                    "id": "d1",
+                    "response_id": "r1",
+                },
+            }
+            if self.correlation:
+                delegation["client_event_id"] = event["event_id"]
+            # Both shapes are legal in the installed SDK: absent parent is UNKNOWN.
+            InstructionsAppendedEvent.model_validate(ack)
+            DelegationCreatedEvent.model_validate(delegation)
+            request_id = re.search(r"request_id=([a-f0-9]{32})", event["content"])[1]
+            verdict = json.dumps(
+                dict(request_id=request_id, verdict="clear_to_close", reason="quiet")
+            )
+            for incoming in (
+                ack,
+                delegation,
+                created(),
+                call(name=module.TOOL, arguments=verdict),
+                terminal(),
+            ):
+                await self.incoming.put(incoming)
+        elif event["type"] == "response.create":
+            await self.incoming.put(created("r2"))
+            await self.incoming.put(terminal("r2"))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("case", ["quiet", "tv"])
+@pytest.mark.parametrize(
+    "correlation,result_failure", [(True, False), (False, False), (True, True)]
+)
+async def test_full_probe_through_installed_sdk_keeps_missing_and_failed_edges_unknown(
+    tmp_path, monkeypatch, case, correlation, result_failure
+):
+    monkeypatch.setattr(module, "IDLE_S", 0.12)
+    monkeypatch.setattr(module, "POST_CHECK_S", 0.12)
+    monkeypatch.setattr(module, "OBSERVATION_S", 2)
+    sdk = IdleWireSDK(correlation=correlation, result_failure=result_failure)
+    evidence = module.rig.Evidence(tmp_path / "wire", starts=1)
+    try:
+        report = await module.evaluate(
+            "not-a-key",
+            case,
+            {name: b"\x01\x00" * 320 for name in ("math", "followup", "tv")},
+            evidence,
+            client_factory=sdk.factory,
+        )
+    finally:
+        evidence.close()
+    assert report["verdict"] == (
+        "OBSERVED_PASS" if correlation and not result_failure else "UNKNOWN"
+    )
+    assert report["physical_close"] == "UNKNOWN"
+    assert not report["runtime_activation_approved"]
+    assert report["clean_shutdown"]
+    types = [event["type"] for event in sdk.wire]
+    assert types.count("session.start") == types.count("session.close") == 1
+    assert types.count("session.instructions.append") == 1
+    assert types.count("response.item.create") == 1
+    assert types.count("response.create") == (0 if result_failure else 1)

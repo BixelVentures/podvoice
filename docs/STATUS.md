@@ -46,11 +46,30 @@ Tests SHA256:
 Arbejdskopi: `/private/tmp/pv-close-104`, branch
 `codex/live-input-provenance-111`, base HEAD `015b23d`.
 
+Næste Goal-turn: den frosne prøve er commit `983231d`. Seks ekstra transport-
+regressioner gennemfører hele prøve-controlleren med den installerede SDK's
+serializer/parser på den eksisterende kontrollerede socket. Ingen mock af Live-
+metoder. Quiet og kontinuerlig TV-source kontrolleres hver med korreleret kæde,
+lovligt fraværende `delegation.created.client_event_id` og en fejlet resultatsend.
+Kun den første kombination kan få et softwaremæssigt OBSERVED_PASS; de øvrige
+giver UNKNOWN og udfører ingen continuation-retry. Én start, ét append, ét
+resultatsendforsøg og én close; alle forbindelser frigives. Korte testfrister og
+scriptede serverafgørelser bruges kun lokalt og beviser ikke AI'ens forståelse,
+den rigtige 2 s-frist eller fysisk afslutning. 39 målrettede tests samt Ruff,
+format og diff-check består. Runtime og det reviewede script er uændrede;
+ingen ny fuld gate er nødvendig for denne isolerede testtilføjelse.
+Ny tests SHA256:
+`2705ddb2f30543f4dbb62b1fbdf7ad5c818b65254bc60d3885b9f4ab6239035f`.
+
 Aktuel ekstern hindring: frisk HA-browserforbindelse viser "Unable to connect to
 Home Assistant". Ingen OpenAI-nøgle er overført eller udlæst; ingen lyd er sendt;
 ingen add-on er stoppet eller opdateret. Den private, tidligere godkendte adgang
 og en eksklusiv providerprøve afventer HA. Goal forbliver ACTIVE. Næste beslutning
 skal bygge på faktisk providerresultat, ikke de grønne lokale prøver ovenfor.
+Genvalidering i næste Goal-turn: cloud viser fortsat samme forbindelsesfejl.
+Alternativet `homeassistant.local:8123` fejlede også med DNS-timeout ved sidste
+kontrol. Ingen kendt frisk lokal HA-IP findes i den aktive beslutning; gamle
+Voice PE-IP-adresser må ikke bruges som gættede HA-adresser.
 
 Brugeren præciserer: løsningen skal udledes af forskning, repositories, faktisk
 kode og best practice, ikke findes som et særligt dansk færdigprodukt. Denne post
