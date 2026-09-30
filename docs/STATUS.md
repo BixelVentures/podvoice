@@ -4,6 +4,14 @@
 
 Brugeren har nu godkendt implementering og eksplicit bedt om Goal. Goal er oprettet
 og ACTIVE med hele leverancen inkl. review, release, installation og fysisk bevis.
+Goal er nu BLOCKED efter tre sammenhængende Goal-turns med samme eksterne hindring:
+HA-adgangen. Hele objektivet er bevaret. Lokal implementering er gemt i
+`983231d` og `82b66fb`; næste runtimeændring kræver stadig rigtig providerprøve.
+Seneste kontrol: HA-cloud viser igen "Unable to connect to Home Assistant", og
+`homeassistant.local:8123` får igen DNS-timeout. Der er ingen igangværende
+providerprøve eller installation at vente på. Genoptag ved faktisk HA-adgang;
+verificér først adgang, privat nøgleoverførsel og eksklusivt providervindue.
+
 Første implementeringsmilepæl er den sideeffektfrie native Live-idle-protokolprøve;
 den nye policy er ikke aktiveret i produktion. Independent idle_protocol_review
 gennemgår især append-ACK vs faktisk delegation og kontinuerlig input-invalidering.
@@ -64,7 +72,7 @@ Ny tests SHA256:
 Aktuel ekstern hindring: frisk HA-browserforbindelse viser "Unable to connect to
 Home Assistant". Ingen OpenAI-nøgle er overført eller udlæst; ingen lyd er sendt;
 ingen add-on er stoppet eller opdateret. Den private, tidligere godkendte adgang
-og en eksklusiv providerprøve afventer HA. Goal forbliver ACTIVE. Næste beslutning
+og en eksklusiv providerprøve afventer HA. Goal-status står øverst. Næste beslutning
 skal bygge på faktisk providerresultat, ikke de grønne lokale prøver ovenfor.
 Genvalidering i næste Goal-turn: cloud viser fortsat samme forbindelsesfejl.
 Alternativet `homeassistant.local:8123` fejlede også med DNS-timeout ved sidste
