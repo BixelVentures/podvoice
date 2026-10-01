@@ -149,7 +149,9 @@ reviewadmission for audio_input/physical_output/realtime_semantics-koblingen;
 Tooling er opdateret i to filer med præcise surfaces/regressionskrav og samme
 exacttree-binding;38 kausale scope-tests består, ingen runtimepatch.
 Final OTA SHA2561445c2f9592d36b08734019f4e8434dff1b0591c9c32e4229c7e8e7101d3a4be.
-Genereret audio/LED CPP/H matcher byte-for-byte den reviewede kilde. Releasegate, PR-CI/publish, installation, providerresultat
+Genereret audio/LED CPP/H matcher byte-for-byte den reviewede kilde. Præcis én frozen releasegate på a98f65daccf5e18272c3a981717ff379a4e07897
+består: scopebinding, Ruff/format201, Mypy55, unit112,05s og integration61,41s.
+Ingen kandidatændring under gaten. PR-CI/publish, installation, providerresultat
 og fysisk aktivering står stadig som IKKE UDFØRT; disse må ikke udledes af source-GO eller compile.
 
 ### Aktive kodegrænser før næste release
