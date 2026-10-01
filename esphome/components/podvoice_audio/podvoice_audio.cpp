@@ -2,6 +2,7 @@
 // podvoice_audio.cpp — S1 continuous-audio shim implementation
 // =============================================================================
 #include "podvoice_audio.h"
+#include <cstring>
 
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -270,6 +271,109 @@ void PodVoiceAudio::send_wake_snapshot_(bool audio_sent) {
 }
 #endif
 
+// Both calls run on the main/native task. Neither resets/drains buffered PCM.
+bool PodVoiceAudio::enable_source_provenance(uint32_t nonce) {
+#ifdef USE_VOICE_ASSISTANT
+  auto *va = voice_assistant::global_voice_assistant;
+  auto *client = va != nullptr ? va->get_api_connection() : nullptr;
+  std::lock_guard<std::mutex> lock(this->audio_mutex_);
+  if (nonce == 0 || client == nullptr || !this->user_enabled_ || this->capture_held_ ||
+      this->button_stop_latched_) return false;
+  if (this->provenance_nonce_ != 0)
+    return nonce == this->provenance_nonce_ && client == this->provenance_client_;
+  this->provenance_nonce_ = nonce;
+  this->provenance_client_ = client;
+  this->provenance_sequence_ = 0;
+  this->provenance_overwrite_samples_ = this->provenance_send_loss_samples_ = 0;
+  this->callback_fence_token_ = this->callback_fence_epoch_ = 0;
+  this->callback_fence_sample_ = 0;
+  return true;
+#else
+  (void) nonce;
+  return false;
+#endif
+}
+
+bool PodVoiceAudio::request_callback_fence(uint32_t nonce, uint32_t token) {
+#ifdef USE_VOICE_ASSISTANT
+  auto *va = voice_assistant::global_voice_assistant;
+  auto *client = va != nullptr ? va->get_api_connection() : nullptr;
+  std::lock_guard<std::mutex> lock(this->audio_mutex_);
+  if (nonce == 0 || nonce != this->provenance_nonce_ || client == nullptr ||
+      client != this->provenance_client_ || !this->user_enabled_ || this->capture_held_ ||
+      this->button_stop_latched_ || token == 0 || token < this->callback_fence_token_) return false;
+  if (token == this->callback_fence_token_) return true;
+  this->callback_fence_token_ = token;
+  this->callback_fence_epoch_ = this->audio_epoch_;
+  this->callback_fence_sample_ = this->produced_samples_;
+  return true;
+#else
+  (void) nonce; (void) token;
+  return false;
+#endif
+}
+
+#ifdef USE_PODVOICE_CLOSING_LED
+// Main/API task only. Admission is never labelled LED visibility/completion.
+void PodVoiceAudio::cancel_closing_led_() {
+  if (this->closing_led_cancel_) this->closing_led_cancel_();
+  this->closing_nonce_ = this->closing_token_ = this->closing_epoch_ = 0;
+  this->closing_client_ = nullptr;
+}
+void PodVoiceAudio::send_closing_status_(const char *phase, uint32_t sequence, uint32_t device_us) {
+#ifdef USE_VOICE_ASSISTANT
+  auto *va = voice_assistant::global_voice_assistant;
+  auto *client = va != nullptr ? va->get_api_connection() : nullptr;
+  if (client == nullptr || client != this->closing_client_ || this->closing_status_sensor_ == nullptr) return;
+  char json[256];
+  const int length = snprintf(json, sizeof(json),
+      "{\"v\":1,\"nonce\":%u,\"token\":%u,\"capture_epoch\":%u,\"phase\":\"%s\",\"tx_sequence\":%u,\"tx_us\":%u}",
+      this->closing_nonce_, this->closing_token_, this->closing_epoch_, phase, sequence, device_us);
+  if (length <= 0 || static_cast<size_t>(length) >= sizeof(json)) return;
+  api::TextSensorStateResponse message;
+  message.key = this->closing_status_sensor_->get_object_id_hash();
+  message.state = StringRef(json, static_cast<size_t>(length));
+  if (!client->send_message(message)) this->cancel_closing_led_();
+#endif
+}
+bool PodVoiceAudio::begin_live_closing(uint32_t nonce, uint32_t token) {
+#ifdef USE_VOICE_ASSISTANT
+  auto *va = voice_assistant::global_voice_assistant;
+  auto *client = va != nullptr ? va->get_api_connection() : nullptr;
+  {
+    std::lock_guard<std::mutex> lock(this->audio_mutex_);
+    if (nonce == 0 || token == 0 || nonce != this->provenance_nonce_ || client == nullptr ||
+        client != this->provenance_client_ || !this->user_enabled_ || this->capture_held_ ||
+        this->button_stop_latched_ || this->closing_token_ != 0) return false;
+    this->closing_nonce_ = nonce; this->closing_token_ = token;
+    this->closing_epoch_ = this->audio_epoch_; this->closing_client_ = client;
+  }
+  this->send_closing_status_("command_admitted");
+  if (this->closing_token_ == 0 || !this->closing_led_request_ || !this->closing_led_request_(token)) {
+    this->send_closing_status_("failed"); this->cancel_closing_led_(); return false;
+  }
+  return true;
+#else
+  return false;
+#endif
+}
+void PodVoiceAudio::cancel_live_closing(uint32_t nonce, uint32_t token) {
+  if (nonce == this->closing_nonce_ && token == this->closing_token_) this->cancel_closing_led_();
+}
+void PodVoiceAudio::closing_led_tx_done(uint32_t token, uint32_t sequence, uint32_t device_us) {
+  if (token == 0 || token != this->closing_token_) return;  // Old observer cannot revoke a new owner.
+  bool current;
+  {
+    std::lock_guard<std::mutex> lock(this->audio_mutex_);
+    current = token != 0 && token == this->closing_token_ && sequence != 0 &&
+        this->closing_nonce_ == this->provenance_nonce_ && this->closing_epoch_ == this->audio_epoch_ &&
+        this->user_enabled_ && !this->capture_held_ && !this->button_stop_latched_;
+  }
+  if (!current) { this->cancel_closing_led_(); return; }
+  this->send_closing_status_("led_tx_done", sequence, device_us);
+}
+#endif
+
 bool PodVoiceAudio::begin_button_conversation() {
   // A physical press is its own privacy boundary, never a detector proof.
   std::lock_guard<std::mutex> lock(this->audio_mutex_);
@@ -296,6 +400,9 @@ void PodVoiceAudio::start_streaming() {
   this->last_keepalive_ms_ = millis();
 }
 void PodVoiceAudio::stop_streaming() {
+#ifdef USE_PODVOICE_CLOSING_LED
+  this->cancel_closing_led_();
+#endif
   std::lock_guard<std::mutex> lock(this->audio_mutex_);
 #ifdef USE_PODVOICE_WAKE_REFERENCE
   this->clear_wake_snapshot_();
@@ -304,6 +411,8 @@ void PodVoiceAudio::stop_streaming() {
   this->epoch_start_sample_ = this->produced_samples_;
   this->boundary_consumed_ = false;
   this->user_enabled_ = false;
+  this->provenance_nonce_ = 0;
+  this->provenance_client_ = nullptr;
   this->capture_token_ = 0;
   this->capture_client_ = nullptr;
   // A completed conversation must never leak its tail into the next wake's pre-roll.
@@ -334,6 +443,11 @@ bool PodVoiceAudio::hold_capture(uint32_t token) {
     return token == this->capture_token_ && client == this->capture_client_;
   if (!this->user_enabled_ || token <= this->capture_last_token_)
     return false;
+#ifdef USE_PODVOICE_CLOSING_LED
+  this->cancel_closing_led_();
+#endif
+  this->provenance_nonce_ = 0;
+  this->provenance_client_ = nullptr;
   this->capture_held_ = true;
   this->capture_token_ = this->capture_last_token_ = token;
   this->capture_client_ = client;
@@ -484,8 +598,12 @@ void PodVoiceAudio::setup() {
         this->mono_scratch_[i] = input[(first + i) * (this->stereo_in_ ? 2 : 1) +
                                       (this->stereo_in_ && this->channel_ == 1 ? 1 : 0)];
       const size_t n_bytes = take * sizeof(int16_t);
-      if (this->ring_buffer_->free() < n_bytes)
+      const size_t free_bytes = this->ring_buffer_->free();
+      if (free_bytes < n_bytes) {
         this->overwrite_events_++;
+        if (this->provenance_nonce_ != 0)
+          this->provenance_overwrite_samples_ += (n_bytes - free_bytes) / sizeof(int16_t);
+      }
       if (this->ring_buffer_->write(this->mono_scratch_, n_bytes) != n_bytes) {
         // A partial write cannot be described by the contiguous sample clock.
         // Preserve the physical cursor but reject every marker at/before this gap.
@@ -567,6 +685,11 @@ void PodVoiceAudio::loop() {
     // atomically discards it at wake. No pre-wake byte is ever conversation input.
     if (client == nullptr && this->ring_buffer_ != nullptr) {
       std::lock_guard<std::mutex> lock(this->audio_mutex_);
+#ifdef USE_PODVOICE_CLOSING_LED
+      this->cancel_closing_led_();
+#endif
+      this->provenance_nonce_ = 0;
+      this->provenance_client_ = nullptr;
       this->ring_buffer_->reset();
     }
     return;
@@ -627,9 +750,27 @@ bool PodVoiceAudio::drain_once_() {
   // outstanding item (unlike receive_acquire), so it is safe against the audio
   // task's overwriting write()/discard. ticks_to_wait=0 => non-blocking.
   size_t length;
+  uint8_t provenance[68]{};
+  bool identified = false;
   {
     std::lock_guard<std::mutex> lock(this->audio_mutex_);
+    const uint64_t sample_start = this->produced_samples_ - this->ring_buffer_->available() / sizeof(int16_t);
     length = this->ring_buffer_->read(this->drain_buffer_.data(), MAX_DRAIN_PER_LOOP, 0);
+    identified = length != 0 && this->provenance_nonce_ != 0 && client == this->provenance_client_;
+    if (identified) {
+      // Little-endian, fixed-width private ABI. Same protobuf as the PCM means
+      // no entity-state batching/coalescing can separate its identity from bytes.
+      std::memcpy(provenance, "PVC1", 4);
+      size_t offset = 4;
+      auto put = [&](uint64_t value, size_t width) {
+        for (size_t i = 0; i < width; ++i) provenance[offset++] = static_cast<uint8_t>(value >> (8 * i));
+      };
+      put(this->provenance_nonce_, 4); put(this->audio_epoch_, 4);
+      put(++this->provenance_sequence_, 8); put(sample_start, 8);
+      put(sample_start + length / sizeof(int16_t), 8);
+      put(this->provenance_overwrite_samples_, 8); put(this->provenance_send_loss_samples_, 8);
+      put(this->callback_fence_token_, 4); put(this->callback_fence_sample_, 8); put(this->callback_fence_epoch_, 4);
+    }
   }
   if (length == 0)
     return false;
@@ -643,13 +784,23 @@ bool PodVoiceAudio::drain_once_() {
   msg.data = this->drain_buffer_.data();
   msg.data_len = static_cast<uint16_t>(length);
   msg.end = false;
-  // data2/data2_len intentionally left default (single channel forward).
+  // Native-compatible OFF remains mono, with data2 absent. This opt-in private
+  // ABI requires the explicit capability and service; data2 is never audio.
+  if (identified) {
+    msg.data2 = provenance;
+    msg.data2_len = sizeof(provenance);
+  }
 
   const bool ok = client->send_message(msg);
   if (!ok) {
     this->last_drain_send_failed_ = true;
-    // TX buffer full / client busy. The bytes we read() are already consumed and
-    // gone — acceptable for a continuous stream (drop, don't stall the API task).
+    // Account the exact consumed interval. Next successful same-epoch frame
+    // carries both this cumulative loss and the missing attempted-send sequence.
+    if (identified) {
+      std::lock_guard<std::mutex> lock(this->audio_mutex_);
+      this->provenance_send_loss_samples_ += length / sizeof(int16_t);
+    }
+    // TX buffer full / client busy. Never stall the shared microphone/API task.
     // Return false so loop() stops draining this pass instead of spinning.
     return false;
   }

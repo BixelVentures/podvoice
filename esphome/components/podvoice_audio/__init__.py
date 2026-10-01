@@ -76,6 +76,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(PodVoiceAudio),
         cv.Required("wake_detector"): cv.use_id(micro_wake_word.MicroWakeWord),
+        cv.Optional("closing_status_sensor"): cv.use_id(text_sensor.TextSensor),
         cv.Optional("wake_reference_sensor"): cv.use_id(text_sensor.TextSensor),
         cv.Optional("wake_reference_mute"): cv.use_id(switch.Switch),
         cv.Optional("wake_reference_guard"): cv.returning_lambda,
@@ -155,6 +156,11 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     detector = await cg.get_variable(config["wake_detector"])
     cg.add(var.set_wake_detector(detector))
+    if "closing_status_sensor" in config:
+        cg.add_define("USE_PODVOICE_CLOSING_LED")
+        cg.add(
+            var.set_closing_status_sensor(await cg.get_variable(config["closing_status_sensor"]))
+        )
     if "wake_reference_sensor" in config:
         cg.add_define("USE_PODVOICE_WAKE_REFERENCE")
         cg.add(
