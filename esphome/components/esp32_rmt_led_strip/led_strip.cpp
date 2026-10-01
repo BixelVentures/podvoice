@@ -216,6 +216,12 @@ void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bi
 }
 
 void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
+  // LightState may still request a render after observer setup failed. Never
+  // touch a missing ledger or submit on its uninitialized callback channel.
+  if (this->closing_observer_ && (this->is_failed() || this->tx_ledger_ == nullptr)) {
+    this->cancel_closing_tx();
+    return;
+  }
   // protect from refreshing too often
   uint32_t now = micros();
   auto rate = this->max_refresh_rate_.value_or(0);
