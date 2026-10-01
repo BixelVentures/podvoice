@@ -3198,6 +3198,172 @@ class LiveEvalService:
             "deadline_s": self._max_run_s,
         }
 
+    def start_audio_idle_probe(self, *, api_key: str) -> dict[str, Any]:
+        """Exactly one approved synthetic five-case batch per add-on process."""
+        if self._job is not None and not self._job.done():
+            return {"ok": False, "status": "busy"}
+        if getattr(self, "_audio_idle_probe_started", False):
+            return {"ok": False, "status": "invalid", "error_code": "probe-already-used"}
+        try:
+            lease = self._provider_budget.diagnostic_started(api_key)
+        except Exception:
+            return {"ok": False, "status": "busy", "error_code": "production-or-diagnostic-active"}
+        self._audio_idle_probe_started = True
+        run_id = self._new_run_id()
+        self._active_run_id, self._active_kind = run_id, "audio-idle-probe"
+        self._started_at = time.time()
+        self._job = asyncio.create_task(
+            self._run_background(
+                operation="audio-idle-probe", run_id=run_id, api_key=api_key, diagnostic_lease=lease
+            ),
+            name=f"podvoice-audio-idle-{run_id}",
+        )
+        return {
+            "ok": True,
+            "status": "running",
+            "run_id": run_id,
+            "kind": "audio-idle-probe",
+            "deadline_s": 12,
+            "max_calls": 5,
+            "max_retries": 0,
+        }
+
+    async def run_audio_idle_probe(self, *, api_key, run_id, diagnostic_lease):
+        from openai import AsyncOpenAI
+
+        from . import live_audio_judge as judge
+
+        rows, client, active = [], None, None
+        cleanup = "not-created"
+        cancelled = False
+        try:
+            directory = pathlib.Path(__file__).with_name("eval_audio_idle")
+            payload = (directory / "manifest.json").read_bytes()
+            if (
+                hashlib.sha256(payload).hexdigest()
+                != "23da76b13bf41f4653ba7fff8e8b2712e266525bf5d2b1bd6881b78965da74ff"
+            ):
+                raise ValueError("fixture-manifest-changed")
+            manifest = json.loads(payload)
+            cases = manifest["cases"]
+            if [c["name"] for c in cases] != [
+                "quiet",
+                "tv",
+                "directed_over_tv",
+                "peter_aside",
+                "boundary_directed",
+            ]:
+                raise ValueError("fixture-plan-changed")
+            # Verify all clips before creating any provider client.
+            clips = [(directory / (c["name"] + ".pcm")).read_bytes() for c in cases]
+            if any(
+                len(pcm) != 128000 or judge.digest(pcm) != c["sha256"]
+                for c, pcm in zip(cases, clips, strict=True)
+            ):
+                raise ValueError("fixture-bytes-changed")
+            client = AsyncOpenAI(api_key=api_key, max_retries=0, timeout=2.0)
+            seen: set[str] = set()
+            for case, pcm in zip(cases, clips, strict=True):
+                active = case["name"]
+                fence = asyncio.get_running_loop().time()
+                identity = judge.JudgeIdentity(
+                    run_id, 0, 0, active, manifest["context_source"], case["sha256"]
+                )
+                result = await judge.judge(
+                    client,
+                    identity=identity,
+                    pcm=pcm,
+                    context_observed=manifest["context"],
+                    context_source_identity=manifest["context_source"],
+                    deadline=fence + 2.0,
+                    prior_response_ids=frozenset(seen),
+                )
+                rows.append(
+                    {
+                        "case": active,
+                        "elapsed_s": asyncio.get_running_loop().time() - fence,
+                        "verdict": result.verdict,
+                        "protocol_valid": result.protocol_valid,
+                        "reason": result.reason,
+                        "response_id": result.response_id,
+                        "returned_model": result.returned_model,
+                        "usage": result.usage,
+                        "service_tier": result.service_tier,
+                        "pcm_sha256": case["sha256"],
+                        "mix": case["mix"],
+                    }
+                )
+                active = None
+                if not result.protocol_valid or result.verdict not in case["allowed"]:
+                    break
+                if result.response_id is not None:
+                    seen.add(result.response_id)
+        except asyncio.CancelledError:
+            cancelled = True
+            if active:
+                rows.append(
+                    {
+                        "case": active,
+                        "verdict": "unknown",
+                        "protocol_valid": False,
+                        "reason": "caller_cancelled",
+                        "elapsed_s": asyncio.get_running_loop().time() - fence,
+                    }
+                )
+        except Exception as exc:
+            rows.append(
+                {
+                    "case": active,
+                    "verdict": "unknown",
+                    "protocol_valid": False,
+                    "reason": type(exc).__name__,
+                }
+            )
+        finally:
+            try:
+                if client is not None:
+                    async with asyncio.timeout(2.0):
+                        await client.close()
+                    cleanup = "joined"
+            except asyncio.CancelledError:
+                cleanup = "incomplete"
+                cancelled = True
+            except Exception:
+                cleanup = "incomplete"
+            # An unjoined diagnostic transport must not reopen production admission.
+            if cleanup in {"joined", "not-created"}:
+                self._provider_budget.release(diagnostic_lease)
+        complete = (
+            len(rows) == 5
+            and all(r["protocol_valid"] for r in rows)
+            and all(r["verdict"] in c["allowed"] for r, c in zip(rows, cases, strict=True))
+            and cleanup == "joined"
+        )
+        report = {
+            "ok": complete,
+            "status": "cancelled" if cancelled else "completed" if complete else "failed",
+            "kind": "audio-idle-probe",
+            "run_id": run_id,
+            "results": rows,
+            "attempted_cases": sum(row.get("case") is not None for row in rows),
+            "max_calls": 5,
+            "max_retries": 0,
+            "semantic_abstentions": [
+                r["case"] for r in rows if r["protocol_valid"] and r["verdict"] == "unknown"
+            ],
+            "cleanup": cleanup,
+            "recovery": "restart-required" if cleanup == "incomplete" else None,
+            "physical_result_verified": False,
+            "runtime_activation": False,
+            "multilingual": "UNTESTED",
+            "judge_sha256": judge.digest(pathlib.Path(judge.__file__).read_bytes()),  # noqa: ASYNC240
+            "manifest_sha256": "23da76b13bf41f4653ba7fff8e8b2712e266525bf5d2b1bd6881b78965da74ff",
+        }
+        if cancelled:
+            self._retain_report(report, kwargs={"run_id": run_id}, requested_full_profile=False)
+            raise asyncio.CancelledError
+        return report
+
     def start_protocol_owner(
         self,
         *,
@@ -3368,7 +3534,9 @@ class LiveEvalService:
         )
         report: dict[str, Any]
         try:
-            if operation == PROTOCOL_OWNER_PROBE_KIND:
+            if operation == "audio-idle-probe":
+                report = await self.run_audio_idle_probe(**kwargs)
+            elif operation == PROTOCOL_OWNER_PROBE_KIND:
                 report = await self.run_protocol_owner(**kwargs)
             elif operation == DEVICE_EVAL_PROFILE:
                 report = await self.run_device_control(**kwargs)
@@ -3387,6 +3555,8 @@ class LiveEvalService:
             else:
                 report = await self.run(**kwargs)
         except asyncio.CancelledError:
+            if operation == "audio-idle-probe" and run_id in self._reports_by_run_id:
+                raise
             if operation == PROTOCOL_OWNER_PROBE_KIND:
                 report = {
                     "ok": False,
@@ -4471,7 +4641,9 @@ class LiveEvalService:
                     "kind": self._active_kind,
                     "started_at": self._started_at,
                     "deadline_s": (
-                        PROTOCOL_OWNER_PROBE_DEADLINE_S
+                        12
+                        if self._active_kind == "audio-idle-probe"
+                        else PROTOCOL_OWNER_PROBE_DEADLINE_S
                         if self._active_kind == PROTOCOL_OWNER_PROBE_KIND
                         else self._max_run_s
                     ),

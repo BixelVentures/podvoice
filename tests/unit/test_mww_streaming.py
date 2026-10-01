@@ -20,6 +20,8 @@ SOURCE = ROOT / "esphome/components/micro_wake_word"
         "mww_stop_gate_test.cpp",
         "mww_event_test.cpp",
         "wake_audio_boundary_test.cpp",
+        "callback_source_test.cpp",
+        "closing_source_test.cpp",
         "wake_reference_test.cpp",
     ],
 )
@@ -56,7 +58,9 @@ def test_actual_streaming_model_load_cooldown_and_warm_inference(tmp_path, harne
     ):
         path = include / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        if name == "esphome/core/defines.h" and harness == "mww_activity_test.cpp":
+        if name == "esphome/core/defines.h" and harness == "closing_source_test.cpp":
+            path.write_text("#define USE_PODVOICE_CLOSING_LED\n")
+        elif name == "esphome/core/defines.h" and harness == "mww_activity_test.cpp":
             path.write_text(
                 "#define USE_MICRO_WAKE_WORD_VAD\n#define USE_PODVOICE_ACTIVITY_OBSERVER\n"
             )
@@ -93,6 +97,8 @@ def test_actual_streaming_model_load_cooldown_and_warm_inference(tmp_path, harne
                 in (
                     "mww_event_test.cpp",
                     "wake_audio_boundary_test.cpp",
+                    "callback_source_test.cpp",
+                    "closing_source_test.cpp",
                     "mww_activity_test.cpp",
                     "wake_reference_test.cpp",
                 )
@@ -100,7 +106,13 @@ def test_actual_streaming_model_load_cooldown_and_warm_inference(tmp_path, harne
             ),
             *(
                 [str(ROOT / "esphome/components/podvoice_audio/podvoice_audio.cpp")]
-                if harness in ("wake_audio_boundary_test.cpp", "wake_reference_test.cpp")
+                if harness
+                in (
+                    "wake_audio_boundary_test.cpp",
+                    "wake_reference_test.cpp",
+                    "callback_source_test.cpp",
+                    "closing_source_test.cpp",
+                )
                 else []
             ),
             str(ROOT / "tests/firmware" / harness),
@@ -110,6 +122,33 @@ def test_actual_streaming_model_load_cooldown_and_warm_inference(tmp_path, harne
         check=True,
     )
     result = subprocess.run([str(binary)], check=True, capture_output=True, text=True)
+    if harness == "callback_source_test.cpp":
+        import importlib.util
+        import sys
+
+        from aioesphomeapi.api_pb2 import VoiceAssistantAudio
+
+        module_name = "gatekeeper._source_draft_wire"
+        spec = importlib.util.spec_from_file_location(
+            module_name, ROOT / "podvoice/gatekeeper/voicepe.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        header_hex, pcm_hex = result.stdout.splitlines()
+        wire = VoiceAssistantAudio(
+            data=bytes.fromhex(pcm_hex), data2=bytes.fromhex(header_hex), end=False
+        ).SerializeToString()
+        decoded = VoiceAssistantAudio.FromString(wire)
+        link = module.VoicePELink("pv.local", "psk", room="r0")
+        link._source_pcm_nonce = 123
+        link._source_pcm_connection = link.connection_generation
+        link._enqueue_audio(decoded.data, decoded.data2, audio_epoch=link.audio_generation)
+        frame = link._audio_q.get_nowait()
+        assert frame.pcm == b"\x02\x00\x03\x00\x04\x00"
+        assert frame.source_problem is None
+        assert frame.callback_source.sample_start == 2 and frame.callback_source.sample_end == 5
+        assert frame.callback_source.fence_sample == 5 and frame.callback_source.fence_token == 7
     if harness == "wake_reference_test.cpp":
         import base64
         import struct

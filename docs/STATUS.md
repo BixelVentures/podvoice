@@ -59,12 +59,120 @@ Efter Astra-review af den uklassificerede lydhale har brugeren eksplicit godkend
 påbegyndt efter dens start kræver Hey Jarvis igen. Denne produktgrænse afløser
 kravet om ny relevant input helt frem til teardown-commit. Fire sekunders UI-
 opfølgningsvindue plus højst to sekunders kandidatbudget til en enkelt afgrænset
-lyd/kontekstvurdering foreslås; faktisk latency og fysisk lukning er umålt.
+lyd/kontekstvurdering er nu godkendt som start af brugeren. To sekunder er en
+øvre beslutningsgrænse, ikke fast søvn; faktisk latency og fysisk lukning er umålt.
 Native append gav ikke maskinsynlig beslutning og må ikke aktiveres. Alternativet
 skal først bevise en isoleret stateless audio/context-protokol og en finitiv
 inputgrænse; den ændrede adfærd er endnu hverken kodet eller installeret. Rå
 host-metadata er stadig ikke fysisk samplebevis. Ingen ekstra timer eller
 parallel klassifikationspolicy må kobles ind som en skjult reserve.
+
+## 1/10 — erstat native append med én afgrænset audio/context-vurdering
+
+Brugeren kræver videre arbejde og iteration mod faktisk TV-lukning, ikke kun UI.
+Lead bevarer samme ThinSession/close/rearm-ejer. Stærkeste direkte evidens er to
+rigtige native idle-prøver uden maskinsynlig beslutning; den retning er stoppet.
+Hypotese: én eksplicit stateless audio/context-request kan give korreleret
+relevant/background/unknown inden godkendt højst2s ved én endelig Afslutter-grænse.
+Rå aktivitet må ikke genstarte et ubegrænset vurderingsloop. OFF, prompt/tale,
+værktøjsautorisation, fysisk Stop og firmwaregain er ikke mål for denne prøve.
+
+Kæde før runtime: fixed PCM/context → rigtigSDK/request → identitetsbundet enum,
+usage og deadline → Thin's fremtidige inputbevaring eller eksisterende lukkeejer →
+fysisk drain/rearm/nywake. Manglende verdict må ikke fremstilles som background.
+Før-F prefix UNKNOWN er konservativ abstention, ikke bevist bevaret samtale.
+Host callbackorden er ikke firmwarecapture-fence; fysisk input/replay-gate er åben.
+En stateless reviewer er ingen ny samtalemotor og må ikke dispatch tools/lyd.
+
+Isoleret scratchkontrakt /private/tmp/pv-audio-idle-probe-draft:13 actualSDK/httpx2
+probe-regressioner og6 wrapperregressioner består. Uafhængigt Astrareview GO ved
+binding ac13fdbd5c1d02c69cda60ac3722c885dc602ade7d79e15266c02cffabba79e3.
+GO gælder kun isoleret providerprøve via eksisterende private handoff og faktisk
+verificeret eksklusivt vindue. Ingen nøgle/providerrequest eller runtimeaktivering
+har fundet sted. Fixedbatch quiet,TV,directed-over-TV,aside,boundaryprefix; max5
+calls,0retries; stop tidligt ved mismatch/UNKNOWN, sidste prefix må kun relevant/
+unknown. Modellens identitet og audio-tokenusage valideres;2s indeholder prep/send/
+parse,cleanup separat bounded. Rollback: behold .111 runtime uændret hvis kvalitets-
+eller latensbevis fejler. Næste handling er konkret reviewedlauncher/rigtigprovider-
+prøve og afgrænset runtime-fenceplan, ikke flere nativepromptvarianter.
+
+Brugeren har godkendt max5 korte syntetiske OpenAI-calls via samme private
+handoff. Scratchlauncher Astrareview GO ved SHA7c441523a68dc4cbaaf22bff485ec7ca730374d64c375c9032c5159855748bba;
+wrapperbindingac13fdbd5c1d02c69cda60ac3722c885dc602ade7d79e15266c02cffabba79e3.
+HAs gemte nøglefelt kan kun aflæses som maskeret værdi; ingen nøgle/providerrequest
+modtaget. Privatkopiering valideret negativt og variabel ryddet; HA ikke pauset.
+Brugeren afventer spørgsmål om klar til privatengangsfelt; kodearbejde fortsætter.
+
+### Praktisk Afslutter-bevis — lille RMT-hook, ingen fiktiv clock-sync
+
+Lead har valgt konkret soleadapter-API begin_live_closing(token, absolute
+hostdeadline) med særskilt nativeadmission og identificeret LED-TX-done. Deadline
+starter konservativt før kommandoen og forlænges ikke til ny2s ved ACK. Minimal
+optional RMT-observer kræver pinned officielleddriver: TXdone ISR gemmer kun txid/devicebootstamp i intern SRAM under korte IDF
+kritiske sektioner; mainloop publicerer korreleret fakta. Den faktiske S3-
+compiler afviste lockfree antagelsen, som derfor ikke er kandidatens mekanisme. Closing
+RGB/frame/nonce/epoch/token bindes til den faktisk sendte frame, gamle effekter og
+Stop/mute/error må ikke kvittere nyt Closing. OFF observerdisabled, AMPbootuændret.
+Ingen LightCall.perform/mark_shown fremstilles som synliglysgrænse.
+
+Native capture fortsætter i samme consumer gennem eksplicit måltguard inden
+samplefence. Nominal DMA64ms +RMT15ms er researchtal, ikke beviste maksimum eller
+skjult defaulttuning. Actualguard skal bindes til måling/foruddefineret nearF-prøve;
+loss/epoch/skift/overskredetbudget giver technicalUNKNOWN. Lidt konservativpostF-
+overcapture er en eksperimentel risiko, ikke en samplepræcis analoggaranti.
+Code-drafts /private/tmp/pv-alpha-close-draft og /private/tmp/pv-alpha-led-draft;
+callbackledger15 smalle actualCPP/protobuf/adapter-regressioner og inactiveGO er
+ikke fullESP32artifact eller fysiskreleasegate. Hele nyclosure stadiginaktiv.
+
+Integreret uafhængigt Astra-slutreview er GO til eksperimentel installation
+med guard0, derefter målt aktivering på samme artifact. Alle fem runtimefund er
+lukket med kausale regressioner: rå transcripts, farvel uden for beslutningsbudget,
+tvetydig replay-afsendelse, bounded kontekst og indgående PCM under finalisering.
+23 målrettede regressionsprøver og seneste driver setup-failure/render-prøve består.
+Fire full-fast kontraktfejl var gamle harness/pin/binding-antagelser, ikke påvist
+feltfejl; alle24 tests i de tre berørte moduler består efter præcis opdatering.
+Alle39 shippede komponentfiler matcher immutable source
+083424b18b67c54698b16a148c79502f58480cd7. Final pinned ESP32-S3 build består
+16,19s, config0xa899c506, build2026-10-01 12:45:09+0200.
+Ingen fysiske gates er bestået for .112. Guard er0/empty indtil ekstern
+lyd/lys-reference og native PCM/sourcefence beviser en målt empirisk før-F-dækning;
+callback-sampletællere alene er ikke ADC-tid. Providerprøven på højst5 fixed
+syntetiske klip er godkendt og findes i Test-fanen i samme kandidat med den
+allerede gemte nøgle; ingen hjemmeoptagelser eller ny nøgleoverførsel kræves.
+Én eksklusiv batch, ingen retry, stop ved første uklarhed/mismatch; faktisk SDK,
+model/usage/deadline/kliphash og teardownforløb registreres. Målt guardref og
+Alpha-valg gemmes på eksisterende settingsvej. Same ThinSession/VoicePELink ejer
+hele afslutning/rearm; Talk/OFF, gain, wakeord og værktøjsautorisation bevares.
+Fuld fastgate på stabilt diff består: Ruff/format, Mypy55, hele unit99,61s
+og integration60,59s. Release-scope identificerer konkret manglende smal
+reviewadmission for audio_input/physical_output/realtime_semantics-koblingen;
+Tooling er opdateret i to filer med præcise surfaces/regressionskrav og samme
+exacttree-binding;38 kausale scope-tests består, ingen runtimepatch.
+Final OTA SHA2561445c2f9592d36b08734019f4e8434dff1b0591c9c32e4229c7e8e7101d3a4be.
+Genereret audio/LED CPP/H matcher byte-for-byte den reviewede kilde. Releasegate, PR-CI/publish, installation, providerresultat
+og fysisk aktivering står stadig som IKKE UDFØRT; disse må ikke udledes af source-GO eller compile.
+
+### Aktive kodegrænser før næste release
+
+Astra har gennemgået hele kæden og mindst én nabogrænse: firmware forbruger PCM
+og kan tabe det ved native send-failure; NativeMicFrame indeholder kun hostorden;
+activity.sample_end er ikke mapping til transmitteretPCM. Lead beslutter minimal
+sourceprovenance/fence i eksisterende firmware+VoicePELink, ingen transportændring.
+Hypotese: samme captureepoch, transmitteret interval og synlig lokal afslutter-
+fence med explicit tab kan bevare før-F input og afvise ukendt/drop fail-closed.
+Code-draft er isoleret i /private/tmp/pv-alpha-fence-draft indtil review.
+
+Thin skal have én attemptrecord og bounded history i sin eksisterende audio-
+consumer; output-only4s ekskluderer rawinputrevision, bevarer work/output-blokkere.
+Fencesetup,mute,judge og parse deles om samme2s. Relevant replay kun aldrig sendte
+bytes; background bruger eksisterendefinalizer; UNKNOWN/error tekniskfejl uden
+ny4s eller retry. Tool/confirmation rårevision beholdes; closure-only receipt
+separeres i Thin og provider samlet. Ingen nye klassifikationstimer-ejere.
+Regressioner før activation: preFforsinkelse/postF, TXtab/overflow, pending send,
+stale/duplicateACK/verdict, Stop ved hverawait, præcisengangsreplay, farvel vs
+nyinput, Talk ogOFF. Sourceændring kræver independentreview, firmwarecompile,
+frozenrelease samt fysisk sammebits bevis; sourcefence og providerdeadline
+stadigikke bevist. Ingen ny firmwareinstallation hævdes.
 
 ## 1/10 — enkel live-status på rumkortet (aktiv beslutning)
 
@@ -122,6 +230,28 @@ Uafhængigt slutreview bekræfter GO efter rettelser. Næste trin er præcis én
 releasegate på det committede diff, PR-CI/ARM64, merge/publicering og installation.
 Ingen firmwareændring; eksisterende109-firmware genbruges. UI er diagnosticering,
 ikke aktivering af den endnu ubeviste baggrundsafslutning.
+
+### Udgivelse og installation 1/10 — .111 UI, ikke ny afslutningspolicy
+
+Frossent sourcecommit `23a92a7b152110bd911f91b6d07b44d8f999cb54` bestod
+præcis én releasegate: unit92,13 s, integration56,85 s, candidate-scope,
+Ruff/format og Mypy54 filer. PR87 exact-commit lint/test og ARM64-build bestod;
+uafhængigt adversarial slutreview GO, ingen uløste P1/P2. Merged main
+`a3ac48a983844feccfe98e83bd9aa34d8313ec47`; main CI/publish run36833017461
+SUCCESS. Podvoice build-context hash
+`7638f39c35eae62628843bbb79e68b4491080bc210e95e615e07f40299fc5451`;
+publiceret image `ghcr.io/bixelventures/aarch64-addon-podvoice:1.13.111`,
+digest `sha256:42fc52144d2944dc45f260f2228acbb55efebfb6e418d05ab5c5da9fe3044948`.
+
+HA-opdatering med backup gennemført; frisk browser viser1.13.111 Kører og
+installeret panelets header1.13.111/status live. R0 er forbundet, Wake afprøves,
+Styring: Enhedens readiness, Ingen åben samtale. Første ingressforsøg gav502
+under opstart; efter reload ses panelet korrekt. Ingen firmwareændring.
+Browserkontrol blev midlertidigt stoppet af Chrome-udvidelsesdialog/routingreview-
+timeout; normal inventory gav adgang igen. Efterkontrol bekræfter AlphaON,4s og
+dual Hey Chat/Hey Jarvis med deviceconfirmation. Installeret screenshot gemt
+/private/tmp/pv-live-status-installed.jpg. HA har bevaret konfigurationen. Fysisk golden chain og10/10 for denne artifact
+fortsat UKENDT. UI giver ikke ny lukningsautoritet; TV-afslutning er stadig uløst.
 
 ## 30/9 — samlet løsningsforslag: Live-ejet idle-vurdering, én close-ejer
 
@@ -11068,5 +11198,21 @@ duplex, barge-in og nye motorer er ikke en del af denne rækkefølge.
   "fingerprint": "49318dcdb8300456395105c6768c2a9192ba47613f85c574c58f780960800667",
   "reviewer": "connect_recovery independent adversarial review",
   "rationale": "Button-only local Stop boundary: physical short release latches microphone capture, revokes reply admission and stops local announcement before publishing the existing event to the sole ThinSession cleanup/rearm owner. Reviewed immutable component26148b9 and paired103 runtime/YAML identities match the compiled firmware. Prior independent review covered stale playback, repeated presses, timer precedence and cancellation-resistant rotation joins before rearm. ThinSession, Live prompts and evaluation scripts are byte-identical to installed102; failed semantic candidate is excluded. This exact software coupling does not claim physical button or lifecycle acceptance."
+}
+-->
+
+<!-- candidate-scope-coupling
+{
+  "version": 1,
+  "base_tip": "a3ac48a983844feccfe98e83bd9aa34d8313ec47",
+  "merge_base": "a3ac48a983844feccfe98e83bd9aa34d8313ec47",
+  "domains": [
+    "audio_input",
+    "physical_output",
+    "realtime_semantics"
+  ],
+  "fingerprint": "d33f91e32bccb87c940b6bdb229abcd007920f77690721d63b7bab43bd32ac8f",
+  "reviewer": "astra_closure_solution independent adversarial final source and scoped tooling review",
+  "rationale": "One approved experimental Alpha closing chain: callback source provenance and physical LED TX acknowledgement to one ThinSession bounded audio/context decision and existing replay/finalizer/rearm. All five severe runtime findings fixed with causal regressions; exact final component083424 and actual ESP32-S3 compile match. Talk/OFF and authorization unchanged. Guard stays inactive until artifact-bound measured physical coverage; provider/room acceptance not inferred. Narrow tooling admission independently reviewed at patch1f9e6f4b with negative stale/deleted/extra-domain regressions. Complete fast gate and targeted tooling38 tests green; one frozen release gate follows."
 }
 -->

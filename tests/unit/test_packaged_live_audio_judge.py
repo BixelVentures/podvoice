@@ -1,0 +1,176 @@
+"""Causal scratch tests through real SDK + actual httpx2 MockTransport."""
+
+import asyncio
+import json
+import time
+import unittest
+from dataclasses import replace
+from unittest.mock import patch
+
+import httpx2
+from openai import AsyncOpenAI
+
+from gatekeeper import live_audio_judge as contract
+from gatekeeper import live_audio_judge as judge
+
+
+def response(text="background"):
+    return {
+        "id": "offline-response",
+        "object": "chat.completion",
+        "created": 1,
+        "model": "gpt-audio-1.5",
+        "service_tier": "default",
+        "choices": [
+            {
+                "index": 0,
+                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": text},
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 1,
+            "total_tokens": 101,
+            "prompt_tokens_details": {"audio_tokens": 60},
+        },
+    }
+
+
+class Judge(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.calls = []
+        self.release = None
+        self.verdict = "background"
+        self.tier = "default"
+        self.started = asyncio.Event()
+        self.pcm = b"\0" * 128000
+        self.identity = judge.JudgeIdentity(
+            "session-a",
+            4,
+            7,
+            "attempt-a",
+            "completed-answer-a",
+            contract.digest(self.pcm),
+        )
+
+        async def handler(request):
+            self.calls.append(json.loads(request.content))
+            self.started.set()
+            if self.release:
+                await self.release.wait()
+            payload = response(self.verdict)
+            payload["service_tier"] = self.tier
+            return httpx2.Response(200, json=payload)
+
+        self.client = AsyncOpenAI(
+            max_retries=0,
+            timeout=2,
+            api_key="OFFLINE-NONKEY",
+            http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+        )
+
+    async def asyncTearDown(self):
+        await self.client.close()
+
+    async def run_judge(self, **extra):
+        kwargs = {
+            "identity": self.identity,
+            "pcm": self.pcm,
+            "context_observed": "Partial observed dialogue: user asked about a blue bicycle; assistant answered blue. Pending work: false.",
+            "context_source_identity": "completed-answer-a",
+            "deadline": asyncio.get_running_loop().time() + 2,
+        }
+        kwargs.update(extra)
+        return await judge.judge(self.client, **kwargs)
+
+    async def test_late_old_identity_cannot_become_new_input_result(self):
+        self.release = asyncio.Event()
+        task = asyncio.create_task(self.run_judge())
+        await asyncio.wait_for(self.started.wait(), 2)
+        current = replace(self.identity, attempt_id="attempt-b", context_ref="new-context")
+        self.release.set()
+        result = await task
+        self.assertEqual(result.identity, self.identity)
+        self.assertNotEqual(result.identity, current)
+        later_raw_tv_revision = self.identity.input_revision_at_fence + 100
+        self.assertNotEqual(later_raw_tv_revision, result.identity.input_revision_at_fence)
+        self.assertEqual(
+            result.identity.attempt_id,
+            self.identity.attempt_id,
+            "raw TV revision does not change sealed attempt",
+        )
+        self.assertEqual(result.verdict, "background")
+        self.assertEqual(len(self.calls), 1)
+        self.assertNotIn("Hvad er to plus to?", json.dumps(self.calls[0]["messages"]))
+        self.assertEqual(self.calls[0]["messages"][0]["content"], contract.SYSTEM)
+        self.assertEqual(self.calls[0]["service_tier"], "default")
+        self.assertEqual(result.service_tier, "default")
+        self.assertEqual(result.usage["prompt_tokens_details"]["audio_tokens"], 60)
+        self.assertFalse(self.client.is_closed())
+
+    async def test_unproven_complete_context_and_wrong_clip_never_send(self):
+        for kwargs, reason in [
+            ({"context_source_identity": None}, "context_provenance_missing"),
+            (
+                {"identity": replace(self.identity, clip_sha256="wrong")},
+                "clip_identity_mismatch",
+            ),
+        ]:
+            self.assertEqual((await self.run_judge(**kwargs)).reason, reason)
+        self.assertEqual(self.calls, [])
+
+    async def test_owner_deadline_prep_overrun_zero_requests(self):
+        original = contract.request
+
+        def delayed(pcm):
+            time.sleep(0.04)
+            return original(pcm)
+
+        with patch.object(contract, "request", delayed):
+            result = await self.run_judge(deadline=asyncio.get_running_loop().time() + 0.02)
+        self.assertEqual(result.reason, "deadline_exhausted_before_send")
+        self.assertEqual(self.calls, [])
+
+    async def test_owner_cancellation_propagates_no_retry_no_client_close(self):
+        self.release = asyncio.Event()
+        task = asyncio.create_task(self.run_judge())
+        await asyncio.wait_for(self.started.wait(), 2)
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertEqual(len(self.calls), 1)
+        self.assertFalse(self.client.is_closed())
+
+    async def test_caller_deadline_cancels_inflight_request(self):
+        self.release = asyncio.Event()
+        result = await self.run_judge()
+        self.assertEqual(result.verdict, "unknown")
+        self.assertEqual(result.reason, "deadline_exhausted")
+        self.assertEqual(len(self.calls), 1)
+        self.assertFalse(self.client.is_closed())
+
+    async def test_semantic_unknown_is_a_valid_abstention(self):
+        self.verdict = "unknown"
+        result = await self.run_judge()
+        self.assertEqual(result.verdict, "unknown")
+        self.assertTrue(result.protocol_valid)
+        self.assertEqual(result.reason, "semantic_abstention")
+        self.assertIsNotNone(result.usage)
+
+    async def test_unknown_pricing_tier_does_not_claim_semantic_failure(self):
+        self.tier = "flex"
+        result = await self.run_judge()
+        self.assertTrue(result.protocol_valid)
+        self.assertEqual(result.verdict, "background")
+        self.assertEqual(result.service_tier, "flex")
+
+    async def test_duplicate_provider_id_is_unknown(self):
+        result = await self.run_judge(prior_response_ids=frozenset({"offline-response"}))
+        self.assertEqual(result.verdict, "unknown")
+        self.assertFalse(result.protocol_valid)
+        self.assertEqual(result.response_id, "offline-response")
+
+
+if __name__ == "__main__":
+    unittest.main()

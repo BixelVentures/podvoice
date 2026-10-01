@@ -91,11 +91,20 @@ def test_alpha_overlay_has_distinct_identity_pinned_standard_codec_and_no_parall
     assert "id: !extend podvoice_event" in alpha
     for forbidden in ["speaker:", "microphone:", "i2s_audio:", "gain_factor:"]:
         assert forbidden not in alpha
-    # The existing audio component gains diagnostic bindings only, no new I/O graph.
+    # Closing observes the existing source and physical LED output; no new I/O graph.
     audio = alpha.split("\npodvoice_audio:\n", 1)[1].split("\npodvoice_reply:", 1)[0]
     keys = [
         line.strip().split(":", 1)[0]
         for line in audio.splitlines()
         if line.startswith("  ") and not line.startswith("    ") and ":" in line
     ]
-    assert keys == ["wake_reference_sensor", "wake_reference_mute", "wake_reference_guard"]
+    assert keys == [
+        "closing_status_sensor",
+        "wake_reference_sensor",
+        "wake_reference_mute",
+        "wake_reference_guard",
+    ]
+    assert "id: !extend leds_internal\n    output_id: pv_closing_strip" in alpha
+    assert "closing_tx_observer: true" in alpha
+    assert "closing_status_sensor" not in baseline
+    assert "closing_tx_observer: true" not in baseline

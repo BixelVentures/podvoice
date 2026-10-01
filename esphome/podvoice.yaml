@@ -386,14 +386,14 @@ external_components:
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 526ceb822938cfa2c1c6f7b0372228c954e38096
+      ref: 083424b18b67c54698b16a148c79502f58480cd7
       path: esphome/components
     components: [podvoice_reply, micro_wake_word]
     refresh: 0s
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 526ceb822938cfa2c1c6f7b0372228c954e38096
+      ref: 083424b18b67c54698b16a148c79502f58480cd7
       path: esphome/components
     components: [mixer, resampler, speaker_source]
     refresh: 0s
@@ -408,13 +408,13 @@ external_components:
   - source:
       type: git
       url: https://github.com/BixelVentures/podvoice
-      ref: 526ceb822938cfa2c1c6f7b0372228c954e38096
+      ref: 083424b18b67c54698b16a148c79502f58480cd7
       path: esphome/components
-    components: [podvoice_audio]
+    components: [podvoice_audio, esp32_rmt_led_strip]
     refresh: 0s
   # Local alternative (only if you copied the repo's esphome/ folder into /config/esphome):
   # - source: { type: local, path: components }
-  #   components: [podvoice_audio]
+  #   components: [podvoice_audio, esp32_rmt_led_strip]
 
 podvoice_audio:
   wake_detector: mww

@@ -4,9 +4,35 @@ packages:
   podvoice: !include podvoice.yaml
 
 substitutions:
-  podvoice_build_marker: podvoice_build_113108_livenotifyisolation1
+  podvoice_build_marker: podvoice_build_113112_liveclosing1
 
 esphome:
+  on_boot:
+    - priority: -99
+      then:
+        - lambda: |-
+            id(pv_audio).set_closing_led_cancel([]() { id(pv_closing_strip).cancel_closing_tx(); });
+            id(pv_audio).set_closing_led_request([](uint32_t token) -> bool {
+              if (id(pv_reply).button_stop_latched() || id(master_mute_switch).state ||
+                  id(voice_kit_component).is_failed()) return false;
+              auto internal = id(voice_assistant_leds).turn_off();
+              internal.set_effect("None"); internal.set_transition_length(0); internal.perform();
+              auto closing = id(led_ring).turn_on();
+              closing.set_effect("None"); closing.set_transition_length(0);
+              closing.set_rgb(1.0f, 1.0f, 0.0f); closing.set_brightness(1.0f); closing.perform();
+              // Rendering/command admission is NOT the electrical completion ACK.
+              auto *partition = static_cast<light::AddressableLight *>(id(led_ring).get_output());
+              partition->update_state(id(led_ring));
+              auto pixel = (*id(pv_closing_strip))[0];
+              Color raw(pixel.get_red_raw(), pixel.get_green_raw(), pixel.get_blue_raw(), pixel.get_white_raw());
+              if (!id(pv_audio).closing_yellow_raw(raw.r, raw.g, raw.b, raw.w)) return false;
+              return id(pv_closing_strip).arm_closing_tx(token, raw);
+            });
+            id(pv_closing_strip).set_closing_tx_callback([](uint32_t token, uint32_t sequence, uint32_t tx_us) {
+              if (id(pv_reply).button_stop_latched() || id(master_mute_switch).state ||
+                  id(voice_kit_component).is_failed()) { id(pv_audio).abort_live_closing(); return; }
+              id(pv_audio).closing_led_tx_done(token, sequence, tx_us);
+            });
   build_path: .esphome/build/podvoice-pe-live-alpha
 
 # ESPHome 2026.6.2 supports WAV through the existing audio_http source/mixer.
@@ -32,9 +58,18 @@ event:
       - podvoice_activity_observer_v1
       - live_semantic_stop_v1
       - wake_reference_v1
+      # Private opt-in ABI: callback-source ledger, NOT physical F approval.
+      - callback_source_pcm_v1
+      - closing_led_tx_v1
 
 # Observer-only telemetry. This does not enable idle control or change VAD/gain.
 text_sensor:
+  - platform: template
+    id: podvoice_closing_status
+    name: "PodVoice Closing Status"
+    entity_category: diagnostic
+    disabled_by_default: true
+    # Source sends directly to its current sole native subscriber; no publish_state.
   - platform: template
     id: podvoice_activity_status
     name: "PodVoice Activity Status"
@@ -49,6 +84,7 @@ text_sensor:
     disabled_by_default: true
 
 podvoice_audio:
+  closing_status_sensor: podvoice_closing_status
   wake_reference_sensor: podvoice_wake_reference
   wake_reference_mute: master_mute_switch
   wake_reference_guard: !lambda |-
@@ -60,6 +96,9 @@ podvoice_reply:
 # The exposed ring is the native adapter's target. Reuse the base's two-tail
 # clockwise pattern; its internal "Thinking" effect only pulses in place.
 light:
+  - id: !extend leds_internal
+    output_id: pv_closing_strip
+    closing_tx_observer: true
   - id: !extend led_ring
     effects:
       - addressable_lambda:
@@ -96,6 +135,33 @@ light:
 # Live keeps natural speech with the provider. Only the physical/panel Stop closes.
 api:
   actions:
+    - action: podvoice_live_closing
+      variables:
+        nonce: int
+        token: int
+      then:
+        - lambda: |-
+            if (nonce > 0 && token > 0) id(pv_audio).begin_live_closing(nonce, token);
+    - action: podvoice_live_closing_cancel
+      variables:
+        nonce: int
+        token: int
+      then:
+        - lambda: |-
+            if (nonce > 0 && token > 0) id(pv_audio).cancel_live_closing(nonce, token);
+    - action: podvoice_source_provenance
+      variables:
+        nonce: int
+      then:
+        - lambda: |-
+            if (nonce > 0) id(pv_audio).enable_source_provenance(nonce);
+    - action: podvoice_callback_fence
+      variables:
+        nonce: int
+        token: int
+      then:
+        - lambda: |-
+            if (nonce > 0 && token > 0) id(pv_audio).request_callback_fence(nonce, token);
     - action: podvoice_wake_snapshot
       variables:
         session: string

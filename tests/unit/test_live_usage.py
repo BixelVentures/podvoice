@@ -162,3 +162,53 @@ def test_interim_pending_backend_resolves_at_final_snapshot_and_ignores_stale(tm
     meter.add_live_seconds(10, session_id="s", generation=1, backend_complete=False)
     assert meter.live_cost_status()["cost_complete"]
     assert meter.live_cost_status()["live_backend_sessions_incomplete"] == 0
+
+
+def test_audio_judge_prices_audio_and_text_separately_and_deduplicates(tmp_path):
+    meter = UsageMeter(path=tmp_path / "usage.json")
+    units = backend(input_tokens_details={"audio_tokens": 60})
+    expected = (60 * 32 + 940 * 2.50 + 100 * 10) / 1_000_000
+    assert meter.add_live_backend_usage(
+        "judge1", units, session_id="s", generation=1, model="gpt-audio-1.5"
+    ) == pytest.approx(expected)
+    record = next(iter(meter._live_responses.values()))
+    assert record["usage"]["input_tokens_details"]["audio_tokens"] == 60
+    assert record["usd"] == pytest.approx(expected)
+    assert record["pricing_basis"] == "standard_audio_text_rates_estimate"
+    assert record["pricing_checked"] == "2026-10-01"
+    assert meter.live_cost_status()["cost_complete"]
+    reloaded = UsageMeter(path=tmp_path / "usage.json")
+    assert (
+        reloaded.add_live_backend_usage(
+            "judge1", units, session_id="s", generation=1, model="gpt-audio-1.5"
+        )
+        == 0
+    )
+    assert reloaded.today_usd() == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"service_tier": "priority"},
+        {"service_tier": None},
+        {"input_tokens_details": {}},
+        {"input_tokens_details": {"audio_tokens": 1001}},
+        {"input_tokens_details": {"audio_tokens": 60, "cached_tokens": 1}},
+        {"input_tokens_details": {"audio_tokens": 60, "cached_tokens": -1}},
+    ],
+)
+def test_audio_judge_unknown_tier_or_malformed_units_never_show_free(tmp_path, overrides):
+    meter = UsageMeter(path=tmp_path / "usage.json")
+    units = backend(
+        input_tokens_details={"audio_tokens": 60},
+        **{key: value for key, value in overrides.items() if key != "input_tokens_details"},
+    )
+    units.update(overrides)
+    assert (
+        meter.add_live_backend_usage(
+            "judge1", units, session_id="s", generation=1, model="gpt-audio-1.5"
+        )
+        is None
+    )
+    assert not meter.live_cost_status()["cost_complete"]

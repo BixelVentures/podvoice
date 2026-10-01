@@ -132,6 +132,69 @@ _AUTOMATIC_DIAGNOSTIC_REGRESSIONS = {
     "tests/browser/audio_analysis_visibility.cjs",
 }
 
+# One reviewed chain: existing native PCM/source fence -> visible closing TX ->
+# one Thin-owned bounded judge -> existing preservation/finalizer. These exact
+# support surfaces and fixed probe inputs are not a general three-domain waiver.
+_BOUNDED_LIVE_CLOSING_SURFACES = {
+    "podvoice/gatekeeper/__init__.py",
+    "podvoice/gatekeeper/__main__.py",
+    "podvoice/gatekeeper/eval_harness.py",
+    "podvoice/gatekeeper/live_audio_judge.py",
+    "podvoice/gatekeeper/live_idle.py",
+    "podvoice/gatekeeper/openai_live.py",
+    "podvoice/gatekeeper/settings.py",
+    "podvoice/gatekeeper/static/index.html",
+    "podvoice/gatekeeper/thin.py",
+    "podvoice/gatekeeper/usage.py",
+    "podvoice/gatekeeper/voicepe.py",
+    "podvoice/gatekeeper/web.py",
+    "esphome/components/closing_led.upstream.json",
+    "esphome/components/esp32_rmt_led_strip/__init__.py",
+    "esphome/components/esp32_rmt_led_strip/led_strip.cpp",
+    "esphome/components/esp32_rmt_led_strip/led_strip.h",
+    "esphome/components/esp32_rmt_led_strip/light.py",
+    "esphome/components/podvoice_audio/__init__.py",
+    "esphome/components/podvoice_audio/podvoice_audio.cpp",
+    "esphome/components/podvoice_audio/podvoice_audio.h",
+    "esphome/podvoice-live-alpha.yaml",
+    "esphome/podvoice.yaml",
+    "podvoice/gatekeeper/eval_audio_idle/manifest.json",
+    "podvoice/gatekeeper/eval_audio_idle/boundary_directed.pcm",
+    "podvoice/gatekeeper/eval_audio_idle/directed_over_tv.pcm",
+    "podvoice/gatekeeper/eval_audio_idle/peter_aside.pcm",
+    "podvoice/gatekeeper/eval_audio_idle/quiet.pcm",
+    "podvoice/gatekeeper/eval_audio_idle/tv.pcm",
+}
+_BOUNDED_LIVE_CLOSING_REQUIRED = {
+    "podvoice/gatekeeper/thin.py",
+    "podvoice/gatekeeper/live_idle.py",
+    "podvoice/gatekeeper/live_audio_judge.py",
+    "podvoice/gatekeeper/openai_live.py",
+    "podvoice/gatekeeper/voicepe.py",
+    "esphome/components/podvoice_audio/podvoice_audio.cpp",
+    "esphome/components/podvoice_audio/podvoice_audio.h",
+    "esphome/components/esp32_rmt_led_strip/led_strip.cpp",
+    "esphome/components/esp32_rmt_led_strip/led_strip.h",
+    "esphome/podvoice-live-alpha.yaml",
+    "esphome/podvoice.yaml",
+}
+_BOUNDED_LIVE_CLOSING_REGRESSIONS = {
+    "tests/integration/test_thin_closing_attempt.py",
+    "tests/unit/test_callback_source.py",
+    "tests/unit/test_voicepe_closing.py",
+    "tests/unit/test_live_closure_receipt.py",
+    "tests/unit/test_packaged_live_audio_judge.py",
+    "tests/unit/test_closing_activation.py",
+    "tests/unit/test_closing_rmt_hook.py",
+    "tests/unit/test_mww_streaming.py",
+    "tests/unit/test_firmware_contract.py",
+    "tests/unit/test_live_wav_firmware.py",
+    "tests/unit/test_live_usage.py",
+    "tests/firmware/callback_source_test.cpp",
+    "tests/firmware/closing_source_test.cpp",
+    "tests/firmware/closing_rmt_hook.py",
+}
+
 # Character matching without autojunk can become quadratic on large repeated diffs.
 # Above this bound, include whole changed lines: extra domains require review, but
 # no executable scope is lost and fingerprint/coupling checks remain unchanged.
@@ -302,6 +365,14 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         and _AUTOMATIC_DIAGNOSTIC_REGRESSIONS <= set(report.test_files)
         and all((root / path).is_file() for path in _AUTOMATIC_DIAGNOSTIC_REGRESSIONS)
     )
+    reviewed_bounded_live_closing = (
+        report.domains == ("audio_input", "physical_output", "realtime_semantics")
+        and _BOUNDED_LIVE_CLOSING_REQUIRED <= set(report.production_files)
+        and all((root / path).is_file() for path in _BOUNDED_LIVE_CLOSING_REQUIRED)
+        and set(report.production_files) <= _BOUNDED_LIVE_CLOSING_SURFACES
+        and _BOUNDED_LIVE_CLOSING_REGRESSIONS <= set(report.test_files)
+        and all((root / path).is_file() for path in _BOUNDED_LIVE_CLOSING_REGRESSIONS)
+    )
     if (
         type(record["version"]) is not int
         or record["version"] != 1
@@ -312,6 +383,7 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
             not reviewed_audio_analysis
             and not reviewed_native_quiet
             and not reviewed_automatic_diagnostics
+            and not reviewed_bounded_live_closing
             and report.domains
             not in {
                 ("physical_output", "rearm"),

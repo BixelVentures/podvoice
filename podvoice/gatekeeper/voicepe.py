@@ -20,9 +20,11 @@ import contextlib
 import ipaddress
 import json
 import logging
+import math
 import pathlib
 import secrets
 import socket
+import struct
 import time
 from collections.abc import AsyncIterator, Callable, Coroutine
 from dataclasses import dataclass
@@ -41,7 +43,7 @@ log = logging.getLogger(__name__)
 # preserves the beginning only to discard the ending. ~384 KiB/room remains bounded.
 _QUEUE_MAXSIZE = 600
 EXPECTED_FIRMWARE_BUILD = "podvoice_build_113108_notifyisolation1"
-LIVE_FIRMWARE_BUILD = "podvoice_build_113108_livenotifyisolation1"
+LIVE_FIRMWARE_BUILD = "podvoice_build_113112_liveclosing1"
 _WAKE_WORD_ACK_TIMEOUT_S = 3.0
 
 # --- Firmware contract ----------------------------------------------------------
@@ -70,9 +72,28 @@ class _VoicePEAdmissionError(Exception):
     """A connected socket failed the local firmware/settings admission boundary."""
 
 
+_SOURCE_PCM_HEADER = struct.Struct("<4sIIQQQQQIQI")
+
+
+@dataclass(frozen=True)
+class CallbackSourceProvenance:
+    """Valid metadata may describe loss; not completeness, ADC time or visible F."""
+
+    nonce: int
+    capture_epoch: int
+    send_sequence: int
+    sample_start: int
+    sample_end: int
+    overwrite_loss_samples: int
+    native_send_loss_samples: int
+    fence_token: int
+    fence_sample: int
+    fence_epoch: int
+
+
 @dataclass(frozen=True)
 class NativeMicFrame:
-    """Exact PCM and host callback order; no firmware sample identity or TX proof."""
+    """Exact PCM/host order; optional explicit callback-source ledger, never ADC proof."""
 
     pcm: bytes
     received_monotonic: float
@@ -80,6 +101,8 @@ class NativeMicFrame:
     audio_generation: int
     connection_generation: int
     dropped_frames_at_enqueue: int
+    callback_source: CallbackSourceProvenance | None = None
+    source_problem: str | None = None
 
 
 class VoicePELink:
@@ -128,6 +151,15 @@ class VoicePELink:
         # audio before waking Thin, so the previous tail cannot enter the next wake.
         self._audio_epoch = 0
         self._mic_callback_sequence = 0
+        self.supports_callback_source_provenance = False
+        self.supports_closing_led_tx = False
+        self._closing_status_key = None
+        self._source_pcm_nonce: int | None = None
+        self._source_pcm_connection = -1
+        self._source_pcm_previous: CallbackSourceProvenance | None = None
+        self._native_closing_owner: tuple | None = None
+        self._native_closing_waiter: asyncio.Future | None = None
+        self._native_closing_admitted = False
         # Live audio-in health (read by the Voice PE tab's S1 check).
         self.frames_in = 0
         self.bytes_in = 0
@@ -715,7 +747,13 @@ class VoicePELink:
         Best-effort: if the device doesn't publish them (older/renamed firmware),
         start/stop and the LED degrade to no-ops rather than crashing the link.
         """
+        self._retire_native_closing()
         self._user_services = {}
+        self.supports_closing_led_tx = False
+        self._closing_status_key = None
+        self.supports_callback_source_provenance = False
+        self._source_pcm_nonce = None
+        self._source_pcm_previous = None
         self._light_key = None
         self._light_effects = ()
         self._media_key = None
@@ -819,6 +857,15 @@ class VoicePELink:
                 None,
             )
             self._activity_status_key = getattr(activity, "key", None)
+            closing_status = next(
+                (
+                    e
+                    for e in text_sensors
+                    if getattr(e, "object_id", "") == "podvoice_closing_status"
+                ),
+                None,
+            )
+            self._closing_status_key = getattr(closing_status, "key", None)
             reference = next(
                 (
                     e
@@ -846,6 +893,18 @@ class VoicePELink:
             advertised: set[str] = set()
             for e in events:
                 advertised.update(getattr(e, "event_types", None) or [])
+            self.supports_callback_source_provenance = (
+                "callback_source_pcm_v1" in advertised
+                and "podvoice_source_provenance" in self._user_services
+                and "podvoice_callback_fence" in self._user_services
+            )
+            self.supports_closing_led_tx = (
+                "closing_led_tx_v1" in advertised
+                and self._closing_status_key is not None
+                and "podvoice_live_closing" in self._user_services
+                and "podvoice_live_closing_cancel" in self._user_services
+                and self.supports_callback_source_provenance
+            )
             self.supports_live_capture_hold = (
                 "live_capture_hold_v1" in advertised
                 and self._capture_status_key is not None
@@ -1098,6 +1157,9 @@ class VoicePELink:
     async def stop_streaming(self) -> bool:
         """Close the device mic-forward (session end / grace expiry)."""
         self._invalidate_live_capture()
+        self._retire_native_closing()
+        self._source_pcm_nonce = None
+        self._source_pcm_previous = None
         return await self._call_service("podvoice_stream_stop")
 
     def _invalidate_live_capture(self) -> None:
@@ -1263,6 +1325,7 @@ class VoicePELink:
     async def _on_disconnect(
         self, expected_disconnect: bool = False
     ) -> None:  # VERIFY: cb signature
+        self._retire_native_closing()
         self._invalidate_live_capture()
         self._api_audio_ready = False
         self._state_subscription_token = None
@@ -1357,6 +1420,201 @@ class VoicePELink:
         # in handle_audio before aioesphomeapi schedules its completion coroutine.
         self._enqueue_audio(data, data2, audio_epoch=audio_epoch)
 
+    def _parse_callback_source(
+        self, pcm: bytes, header: bytes | None
+    ) -> tuple[CallbackSourceProvenance | None, str | None]:
+        if self._source_pcm_nonce is None:
+            return None, None  # OFF/old firmware: native second-channel contract unchanged.
+        if self._source_pcm_connection != self._connection_generation:
+            return None, "retired_native_connection"
+        if header is None or len(header) != _SOURCE_PCM_HEADER.size:
+            return None, "missing_or_malformed_source_header"
+        magic, *values = _SOURCE_PCM_HEADER.unpack(header)
+        current = CallbackSourceProvenance(*values)
+        if magic != b"PVC1" or current.nonce != self._source_pcm_nonce:
+            return None, "retired_or_unknown_source_nonce"
+        if (
+            current.capture_epoch == 0
+            or current.send_sequence == 0
+            or current.sample_end <= current.sample_start
+            or len(pcm) % 2 != 0
+            or current.sample_end - current.sample_start != len(pcm) // 2
+            or (current.fence_token == 0 and (current.fence_sample or current.fence_epoch))
+            or (current.fence_token != 0 and not 0 < current.fence_epoch <= current.capture_epoch)
+        ):
+            return None, "invalid_source_interval"
+        previous = self._source_pcm_previous
+        if previous is not None:
+            if (
+                current.send_sequence <= previous.send_sequence
+                or current.overwrite_loss_samples < previous.overwrite_loss_samples
+                or current.native_send_loss_samples < previous.native_send_loss_samples
+                or current.fence_token < previous.fence_token
+                or (
+                    current.fence_token == previous.fence_token
+                    and (current.fence_sample, current.fence_epoch)
+                    != (previous.fence_sample, previous.fence_epoch)
+                )
+            ):
+                return None, "stale_or_out_of_order_source_header"
+            if current.capture_epoch < previous.capture_epoch:
+                return None, "retired_source_capture_epoch"
+            if current.capture_epoch != previous.capture_epoch:
+                self._source_pcm_previous = current
+                return current, "source_capture_epoch_changed"
+            sequence_gap = current.send_sequence - previous.send_sequence - 1
+            send_loss = current.native_send_loss_samples - previous.native_send_loss_samples
+            if (sequence_gap > 0) != (send_loss > 0) or send_loss < sequence_gap:
+                return None, "unexplained_send_sequence_gap"
+            gap = current.sample_start - previous.sample_end
+            loss = (
+                current.overwrite_loss_samples
+                - previous.overwrite_loss_samples
+                + current.native_send_loss_samples
+                - previous.native_send_loss_samples
+            )
+            if gap < 0 or gap != loss:
+                return None, "unexplained_source_gap"
+        self._source_pcm_previous = current
+        return current, None
+
+    async def enable_callback_source_provenance(self) -> int:
+        """Request one private ABI; first matching frame is its acknowledgement.
+
+        This is not runtime close approval or physical source-fence proof.
+        No service/capability is assumed for existing OFF or Alpha firmware.
+        """
+        if not self.supports_callback_source_provenance:
+            raise RuntimeError("Firmware does not expose callback-source provenance")
+        if (
+            self._source_pcm_nonce is not None
+            and self._source_pcm_connection == self._connection_generation
+        ):
+            return self._source_pcm_nonce
+        nonce = secrets.randbelow(0x7FFFFFFF) + 1
+        self._source_pcm_nonce = nonce
+        self._source_pcm_connection = self._connection_generation
+        self._source_pcm_previous = None
+        try:
+            if not await self._call_service("podvoice_source_provenance", {"nonce": nonce}):
+                raise RuntimeError("Source provenance service request was not sent")
+        except BaseException:
+            self._source_pcm_nonce = None
+            raise
+        return nonce
+
+    def _retire_native_closing(self) -> None:
+        waiter = self._native_closing_waiter
+        self._native_closing_owner = self._native_closing_waiter = None
+        self._native_closing_admitted = False
+        if waiter is not None and not waiter.done():
+            waiter.cancel()
+
+    def _accept_native_closing_status(self, value: str) -> None:
+        owner, waiter = self._native_closing_owner, self._native_closing_waiter
+        if owner is None or waiter is None or waiter.done() or len(value) > 512:
+            return
+        try:
+            row = json.loads(value)
+        except (ValueError, RecursionError):
+            return
+        connection, audio_epoch, nonce, capture_epoch, token = owner
+        if (
+            not isinstance(row, dict)
+            or type(row.get("v")) is not int
+            or row["v"] != 1
+            or connection != self._connection_generation
+            or audio_epoch != self._audio_epoch
+            or nonce != self._source_pcm_nonce
+            or any(
+                type(row.get(k)) is not int or row[k] != v
+                for k, v in (("nonce", nonce), ("token", token), ("capture_epoch", capture_epoch))
+            )
+        ):
+            return
+        phase = row.get("phase")
+        if phase == "command_admitted":
+            self._native_closing_admitted = True
+        elif phase == "failed":
+            waiter.set_exception(RuntimeError("Native closing LED refused"))
+        elif phase == "led_tx_done" and self._native_closing_admitted:
+            if (
+                type(row.get("tx_sequence")) is int
+                and 0 < row["tx_sequence"] < 2**32
+                and type(row.get("tx_us")) is int
+                and 0 <= row["tx_us"] < 2**32
+            ):
+                waiter.set_result(row.copy())
+
+    async def begin_live_closing(self, token: int, *, deadline: float) -> dict:
+        """Correlated command admission then actual RMT completion; no host clock map.
+
+        The caller's absolute deadline starts BEFORE this command. RMT completion
+        is electrical evidence only; upstream/optical guard remains separately gated.
+        """
+        previous = self._source_pcm_previous
+        loop = asyncio.get_running_loop()
+        if (
+            not self.supports_closing_led_tx
+            or self._source_pcm_nonce is None
+            or previous is None
+            or type(token) is not int
+            or not 0 < token <= 0x7FFFFFFF
+            or type(deadline) not in (int, float)
+            or not math.isfinite(deadline)
+            or not 0 < deadline - loop.time() <= 2.0
+            or self._native_closing_owner is not None
+        ):
+            raise RuntimeError("No current native closing LED admission")
+        owner = (
+            self._connection_generation,
+            self._audio_epoch,
+            self._source_pcm_nonce,
+            previous.capture_epoch,
+            token,
+        )
+        waiter = loop.create_future()
+        self._native_closing_owner, self._native_closing_waiter = owner, waiter
+        self._native_closing_admitted = False
+        try:
+            async with asyncio.timeout_at(deadline):
+                if not await self._call_service(
+                    "podvoice_live_closing", {"nonce": owner[2], "token": token}
+                ):
+                    raise RuntimeError("Native closing LED command was not sent")
+                return await waiter
+        except BaseException:
+            self._retire_native_closing()
+            raise
+
+    async def cancel_live_closing(self, token: int) -> None:
+        owner = self._native_closing_owner
+        if owner is None or owner[4] != token:
+            return
+        self._retire_native_closing()
+        if owner[0] == self._connection_generation and owner[2] == self._source_pcm_nonce:
+            await self._call_service(
+                "podvoice_live_closing_cancel", {"nonce": owner[2], "token": token}
+            )
+
+    async def request_callback_source_fence(self, token: int) -> None:
+        """Preserve queue and PCM; observe matching token in the source ledger.
+
+        Merely sending the request is not a fence ACK. This callback position
+        cannot be called the physically visible Afslutter boundary.
+        """
+        if (
+            self._source_pcm_nonce is None
+            or self._source_pcm_connection != self._connection_generation
+            or not 0 < token <= 0x7FFFFFFF
+            or "podvoice_callback_fence" not in self._user_services
+        ):
+            raise RuntimeError("No current callback-source fence admission")
+        if not await self._call_service(
+            "podvoice_callback_fence", {"nonce": self._source_pcm_nonce, "token": token}
+        ):
+            raise RuntimeError("Callback-source fence request was not sent")
+
     def _enqueue_audio(
         self,
         data: bytes,
@@ -1368,10 +1626,12 @@ class VoicePELink:
         # second positional arg is the optional 2nd-channel bytes (or None), NOT
         # an `end` flag. A VoiceAssistantAudio{end=true} is intercepted by
         # aioesphomeapi and routed to handle_stop, never here. podvoice_audio
-        # forwards a single channel, so data2 is always None — we ignore it.
+        # forwards mono. OFF leaves data2 absent; an explicitly negotiated private
+        # Alpha ABI may carry callback-source provenance alongside the same PCM.
         """Push one raw 16 kHz PCM frame; retain the newest speech on backpressure."""
         if audio_epoch != self._audio_epoch:
             return
+        callback_source, source_problem = self._parse_callback_source(data, data2)
         # Live S1 health: count frames + bytes so the panel can confirm the device is
         # streaming WITHOUT a competing diag subscription (we own the single VA slot).
         if self.frames_in == 0:
@@ -1398,6 +1658,8 @@ class VoicePELink:
             audio_generation=audio_epoch,
             connection_generation=self._connection_generation,
             dropped_frames_at_enqueue=self.audio_queue_dropped_frames,
+            callback_source=callback_source,
+            source_problem=source_problem,
         )
         try:
             self._audio_q.put_nowait(frame)
@@ -1466,6 +1728,9 @@ class VoicePELink:
         the mechanical generation cut.
         """
         self._clear_wake_reference()
+        self._retire_native_closing()
+        self._source_pcm_nonce = None
+        self._source_pcm_previous = None
         self._audio_epoch += 1
         dropped = self.drain_mic()
         log.debug(
@@ -1500,6 +1765,9 @@ class VoicePELink:
         key = getattr(state, "key", None)
         tname = type(state).__name__
         event_type = getattr(state, "event_type", None) or getattr(state, "event", None)
+        if key is not None and key == self._closing_status_key and tname == "TextSensorState":
+            self._accept_native_closing_status(getattr(state, "state", ""))
+            return
         if key is not None and key == self._wake_reference_key and tname == "TextSensorState":
             # Diagnostic pre-wake audio has its own route: never enter the mic queue.
             if self._wake_reference_observer is not None and (
