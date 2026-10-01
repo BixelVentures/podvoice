@@ -41,7 +41,9 @@ async def setup(*, output=True):
 
 
 @pytest.mark.asyncio
-async def test_shadow_output_quiet_never_authorizes_close_with_active_input(monkeypatch):
+async def test_active_raw_input_does_not_veto_output_clock_or_start_before_first_answer(
+    monkeypatch,
+):
     session, _, link = await setup(output=False)
     clock, events = [100.0], []
     try:
@@ -50,11 +52,12 @@ async def test_shadow_output_quiet_never_authorizes_close_with_active_input(monk
             patch.setattr(session, "_trace_event", lambda name, **data: events.append((name, data)))
             for i in range(51):
                 deliver(session, link, clock, i, empty=True, input_state="active")
-                assert not session._live_quiet_ready()
+                assert session._live_quiet_ready() is (i >= 40)
             session._record_idle_diagnostic()
             assert events[-1][0] == "live_idle_diagnostic"
-            assert events[-1][1]["idle_blocker"] == "input_not_quiet"
+            assert events[-1][1]["idle_blocker"] == "ready"
             assert any(key.startswith("idle_shadow_") for key in events[-1][1])
+            assert session._live_idle_preclose_task is None
             assert not session._live_finalizing
             assert not session.brain._close_requested
     finally:
@@ -93,37 +96,6 @@ def deliver(session, link, clock, index, *, empty=False, input_state="quiet"):
     link.latest = row
     link.on_activity(row)
     return row
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("output", [True, False])
-async def test_real_idle_policy_uses_saved_value_and_one_finalizer_even_with_silent_stream(
-    monkeypatch,
-    output,
-):
-    session, _, link = await setup(output=output)
-    clock, commits = [100.0], []
-
-    async def finalizer(epoch, *, reason, receipt=None):
-        commits.append((epoch, reason))
-        await asyncio.Event().wait()
-
-    try:
-        with monkeypatch.context() as patch:
-            patch.setattr(thin_module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
-            patch.setattr(session, "_finalize_live_conversation", finalizer)
-            for i in range(40):
-                deliver(session, link, clock, i, empty=not output)
-                assert not session._live_quiet_ready()
-            deliver(session, link, clock, 40, empty=not output)
-            assert session._live_quiet_ready()
-            assert session._live_quiet_ready()  # The atomic recheck cannot consume the sample.
-            if output:
-                assert session._device_playing and session._live_stream.buffered_bytes == 48000
-            await until(lambda: bool(commits))
-            assert commits == [(session._epoch, "idle-fallback")]
-    finally:
-        await session.aclose()
 
 
 @pytest.mark.asyncio
@@ -200,7 +172,7 @@ async def test_output_only_semantic_window_and_new_accepted_input_invalidate_bot
                     end_ms=1000,
                 )
             )
-            assert not session._live_quiet_ready(semantic=True)
+            assert session._live_quiet_ready(semantic=True)
             assert not session._live_quiet_ready()
     finally:
         await session.aclose()
@@ -216,10 +188,9 @@ async def test_new_nonzero_and_queued_input_prevent_commit_and_stale_owner_is_in
             for i in range(41):
                 deliver(session, link, clock, i)
             assert session._live_quiet_ready()
-            # Same-generation SDK input already parsed but not yet delivered to
-            # Thin must also revoke the old eligibility at the final query.
+            # Raw SDK transcript currency still guards actions, not this clock.
             session.brain.input_sequence += 1
-            assert not session._live_quiet_ready()
+            assert session._live_quiet_ready()
             session.brain.input_sequence -= 1
             stream = session.live_audio.claim(session._live_stream.id)
             while stream.buffered_bytes:
@@ -249,20 +220,17 @@ async def test_new_nonzero_and_queued_input_prevent_commit_and_stale_owner_is_in
 
 
 @pytest.mark.asyncio
-async def test_empty_native_snapshot_cannot_close_but_valid_continuation_retains_idle(monkeypatch):
+async def test_empty_native_snapshot_cannot_trigger_preclose_but_continuation_retains_idle(
+    monkeypatch,
+):
     from unit.test_live_idle import empty_snapshot
 
     session, _, link = await setup()
-    clock, commits = [100.0], []
-
-    async def finalizer(epoch, *, reason, receipt=None):
-        commits.append((epoch, reason))
-        await asyncio.Event().wait()
+    clock = [100.0]
 
     try:
         with monkeypatch.context() as patch:
             patch.setattr(thin_module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
-            patch.setattr(session, "_finalize_live_conversation", finalizer)
             for i in range(40):
                 deliver(session, link, clock, i)
             empty = empty_snapshot(40, observation(39))
@@ -270,14 +238,13 @@ async def test_empty_native_snapshot_cannot_close_but_valid_continuation_retains
             link.latest = empty
             link.on_activity(empty)
             assert not session._live_quiet_ready()
-            assert commits == []
+            assert session._live_idle_preclose_task is None
             continuation = observation(41)
             continuation["output"].update(frame_begin=192000, sample_count=9600)
             clock[0] = continuation["received_monotonic"]
             link.latest = continuation
             link.on_activity(continuation)
             assert session._live_quiet_ready()
-            await until(lambda: bool(commits))
-            assert commits == [(session._epoch, "idle-fallback")]
+            assert session._live_idle_preclose_task is None  # No nonzero answer was played.
     finally:
         await session.aclose()

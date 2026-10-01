@@ -8,6 +8,7 @@ import pytest
 from aiohttp.test_utils import make_mocked_request
 from test_thin_live import build
 from test_thin_live_idle import deliver, setup
+from test_thin_live_idle_preclose import played_answer
 
 import gatekeeper.thin as thin_module
 from gatekeeper.events import State
@@ -27,8 +28,9 @@ async def test_native_panel_explains_tv_and_measured_quiet_without_changing_owne
                 "time",
                 SimpleNamespace(monotonic=lambda: clock[0], time=lambda: 1000.0),
             )
-            for i in range(31):
-                deliver(session, link, clock, i, empty=True)
+            await played_answer(session, link, clock)
+            for i in range(1, 32):
+                deliver(session, link, clock, i)
             owner, deadline, revision = (
                 session._live_quiet_owner(),
                 session._idle_deadline,
@@ -38,7 +40,7 @@ async def test_native_panel_explains_tv_and_measured_quiet_without_changing_owne
             status = session._panel_status(clock[0])
             assert status["timer_kind"] == "quiet_coverage"
             assert status["quiet_s"] >= 2.9 and status["remaining_s"] <= 1.1
-            assert status["authority"] == "Stilheds-timeout"
+            assert status["authority"] == "App-timeout"
             session._publish_panel_status(force=True)
             assert hub.snapshot()["rooms"][0]["live_status"] == status
             assert (
@@ -47,11 +49,11 @@ async def test_native_panel_explains_tv_and_measured_quiet_without_changing_owne
                 session._live_input_revision,
                 session._live_idle_window._anchor,
             ) == (owner, deadline, revision, anchor)
-            deliver(session, link, clock, 31, empty=True, input_state="active")
+            deliver(session, link, clock, 32, input_state="active")
             status = session._panel_status(clock[0])
             assert status["input_state"] == "active"
-            assert status["blocker"] == "Tale registreret — timeout står stille"
-            assert not status["countdown_running"] and status["remaining_s"] is None
+            assert status["blocker"] == "Måler ro før app-timeout"
+            assert status["countdown_running"] and status["remaining_s"] is not None
             clock[0] += 2
             status = session._panel_status(clock[0])
             assert status["input_state"] == "stale"

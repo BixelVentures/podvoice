@@ -336,6 +336,59 @@ class IdleWireSDK(DiagnosticWireSDK):
 
 
 @pytest.mark.asyncio
+async def test_instruction_ack_uses_installed_sdk_without_forcing_backend():
+    from gatekeeper.live_prompt import live_instructions
+    from gatekeeper.openai_live import OpenAILiveSession
+    from gatekeeper.prompt import SYSTEM_PROMPT_DA
+    from gatekeeper.provider_budget import ProviderBudgetCoordinator
+    from gatekeeper.thin import LIVE_END_CONVERSATION_DECLARATION
+
+    class NativeWire(DiagnosticWireSDK):
+        async def send(self, data):
+            await super().send(data)
+            event = json.loads(data)
+            if event["type"] == "session.instructions.append":
+                await self.incoming.put(
+                    {
+                        "type": "session.instructions.appended",
+                        "event_id": "checkpoint-ack",
+                        "client_event_id": event["event_id"],
+                        "start_ms": 1000,
+                        "end_ms": 1000,
+                    }
+                )
+
+    sdk = NativeWire()
+    primary, backend = live_instructions(SYSTEM_PROMPT_DA)
+    live = OpenAILiveSession(
+        "not-a-key",
+        instructions=primary,
+        backend_instructions=backend,
+        tool_declarations=[LIVE_END_CONVERSATION_DECLARATION],
+        client_factory=sdk.factory,
+        provider_budget=ProviderBudgetCoordinator(),
+        timeout_s=2,
+    )
+    try:
+        await live.connect()
+        content = "Keep listening quietly unless the caller addresses you."
+        await live.append_instructions(content)
+        append = [event for event in sdk.wire if event["type"] == "session.instructions.append"]
+        assert len(append) == 1
+        assert append[0]["delegation_id"] is None
+        assert append[0]["content"] == content
+        assert not live._append_waiters
+        assert live.backend_sequence == 0
+        assert live._terminal_receipt is None
+        assert not any(event["type"] == "response.create" for event in sdk.wire)
+        schema = live._validators["end_conversation"]
+        assert schema.is_valid({"silent": True})
+        assert not schema.is_valid({"silent": True, "idle_checkpoint_id": "12" * 16})
+    finally:
+        await live.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("record_task", [False, True])
 @pytest.mark.parametrize("case", ["quiet", "tv"])
 @pytest.mark.parametrize(

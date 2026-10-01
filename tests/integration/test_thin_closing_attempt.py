@@ -97,7 +97,8 @@ async def test_queued_tv_across_actual_native_ticks_reaches_four_seconds(monkeyp
             assert not session._live_quiet_work_clear(semantic=True)
             session._live_close_judge = None
             session.brain._queue._queue.pop()
-            assert not session._live_quiet_work_clear(semantic=True)  # OFF legacy guard unchanged.
+            # Native Alpha ignores raw TV fragments; queued audio/unknown work still blocked above.
+            assert session._live_quiet_work_clear(semantic=True)
     finally:
         await session.aclose()
 

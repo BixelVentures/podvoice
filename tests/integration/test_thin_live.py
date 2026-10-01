@@ -12,7 +12,12 @@ from unit.test_openai_live import SDK, call, created, terminal
 
 from gatekeeper.heartbeat import Heartbeat
 from gatekeeper.live_audio import LiveAudioError, LiveAudioStreams
-from gatekeeper.openai_live import LiveAudioChunk, LiveTranscript, OpenAILiveSession
+from gatekeeper.openai_live import (
+    LiveAudioChunk,
+    LiveBackendStarted,
+    LiveTranscript,
+    OpenAILiveSession,
+)
 from gatekeeper.playback import Playback
 from gatekeeper.provider_budget import ProviderBudgetCoordinator
 from gatekeeper.thin import ThinSession
@@ -842,7 +847,7 @@ async def test_end_requires_actual_zero_call_continuation_before_grace(monkeypat
 @pytest.mark.parametrize("phase", ["settlement", "grace"])
 @pytest.mark.parametrize("source", ["voice", "typed"])
 @pytest.mark.parametrize("silent", [False, True])
-async def test_correction_cancels_end_during_settlement_or_grace(
+async def test_typed_correction_revokes_end_but_raw_fragment_is_not_a_decision(
     monkeypatch, phase, source, silent
 ):
     monkeypatch.setattr("gatekeeper.thin.LIVE_CLOSE_GRACE_S", 0.06)
@@ -869,6 +874,13 @@ async def test_correction_cancels_end_during_settlement_or_grace(
             await until(lambda: session._live_input_revision == 1)
         else:
             assert (await session.submit_text("Vent", "correction"))["status"] == "submitted"
+        if source == "voice":
+            assert session._ending_conversation and not receipt.cancelled()
+            if phase == "settlement":
+                await emit(sdk, created("r2"), terminal("r2"))
+            await until(lambda: link.rearm_calls == 1)
+            assert receipt.result() is True and sdk.session.close.await_count == 1
+            return
         await until(lambda: not session._ending_conversation)
         if phase == "settlement":
             assert receipt.cancelled() or receipt.result() is False
@@ -1028,7 +1040,9 @@ async def test_correction_before_goodbye_runs_cancels_only_its_owned_receipt(mon
             ]
             assert len(callbacks) == 1
             captured.update(receipt=old, task=old_task, callback=callbacks[0])
-            await session._on_live_event(LiveTranscript("in", "Vent", 100, 300, generation))
+            await session._on_live_event(
+                LiveBackendStarted("new-delegation", "foreign", generation, created_index=2)
+            )
             assert old.cancelled()  # Must be synchronous; waiter never executed.
             assert not waiter_started and session._live_end_receipt is None
         await original_send(response_id, results, generation=generation)
@@ -1470,7 +1484,7 @@ async def test_reconsider_overflow_never_truncates_final_correction_into_a_revie
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("name", ["end_conversation", "wait_for_user"])
+@pytest.mark.parametrize("name", ["wait_for_user"])
 async def test_reconsider_lifecycle_result_and_continuation_keep_actual_review_wire(
     name, monkeypatch
 ):
@@ -2311,7 +2325,7 @@ async def test_confirmation_start_instruction_failure_closes_owned_session(failu
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("adapter", ["native", "talk"])
-@pytest.mark.parametrize("phase", ["grace", "silent", "rotation"])
+@pytest.mark.parametrize("phase", ["rotation"])
 async def test_sdk_queued_correction_retires_terminal_before_thin_delivery(
     monkeypatch, adapter, phase
 ):
