@@ -33,6 +33,15 @@ def test_shipped_browser_peer_identity_stop_late_offer_and_typed_to_mic():
     assert len(exit_handlers.splitlines()) == 2
     harness = r"""
 const assert = require('node:assert/strict');
+// Track real Node timers: completion must mean no browser-owned work remains.
+const {setTimeout:nativeTimeout, clearTimeout:nativeClearTimeout} = require('node:timers');
+const pendingTimers = new Set();
+function setTimeout(callback, delay) {
+ let timer = nativeTimeout(() => { pendingTimers.delete(timer); callback(); }, delay);
+ pendingTimers.add(timer); return timer;
+}
+function clearTimeout(timer) { pendingTimers.delete(timer); nativeClearTimeout(timer); }
+
 let sent = [], peers = [], permissionCalls = 0, replaceGate = null, offerGate = null, permissionGate = null;
 var ws = {}, wsReady = true, socketGeneration = 1, halted = false, capStream = null, capCtx = null, capNode = null,
     playCtx = null, micOn = false, micRequestSerial = 0;
@@ -169,6 +178,8 @@ function answer(id,gen=1){return {type:'live_answer',attempt_id:id,connection_id
    assert.equal(microphone.readyState,'ended');assert.equal(owned.pc.connectionState,'closed');
    assert.equal(audio.paused,true);assert.equal(audio.srcObject,null);
  }
+console.log('TALK_ASSERTIONS_COMPLETE pending_timers=' + pendingTimers.size);
+ assert.equal(pendingTimers.size,0,'browser timers remain after final page-exit assertions');
 })().catch(e=>{console.error(e);process.exitCode=1;});
 """
     result = subprocess.run(
@@ -178,6 +189,7 @@ function answer(id,gen=1){return {type:'live_answer',attempt_id:id,connection_id
         timeout=10,
     )
     assert result.returncode == 0, result.stderr
+    assert "TALK_ASSERTIONS_COMPLETE pending_timers=0" in result.stdout, result.stdout
 
 
 def test_shipped_browser_activity_observes_stats_without_media_or_close_authority():

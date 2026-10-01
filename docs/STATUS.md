@@ -151,7 +151,14 @@ exacttree-binding;38 kausale scope-tests består, ingen runtimepatch.
 Final OTA SHA2561445c2f9592d36b08734019f4e8434dff1b0591c9c32e4229c7e8e7101d3a4be.
 Genereret audio/LED CPP/H matcher byte-for-byte den reviewede kilde. Præcis én frozen releasegate på a98f65daccf5e18272c3a981717ff379a4e07897
 består: scopebinding, Ruff/format201, Mypy55, unit112,05s og integration61,41s.
-Ingen kandidatændring under gaten. PR-CI/publish, installation, providerresultat
+Ingen kandidatændring under gaten. PR88 CI36852156763 byggede ARM64, men
+én uændret Talk-Node-prøve overskred10s. Den eksakte CI-scriptbyte matcher
+lokal script og består lokalt; timer-leak blev ikke bevist. Separat test-only
+slutobserver kræver nu alle assertions færdige, nul reelle ventende timere,
+naturlig procesexit og samme10s; ingen runtimepatch, exit-tvang eller deadline-
+forhøjelse. De to berørte tests og Ruff består. Oprindelig CI-årsag er UKENDT;
+ny automatiseret CI afprøver denne permanente observer. Produktionsfingerprint
+og build-context er byteidentiske med frozen releasegate. Publish, installation, providerresultat
 og fysisk aktivering står stadig som IKKE UDFØRT; disse må ikke udledes af source-GO eller compile.
 
 ### Aktive kodegrænser før næste release
