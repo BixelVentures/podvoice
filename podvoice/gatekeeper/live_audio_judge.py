@@ -227,8 +227,11 @@ def validate_response(response, *, seen_ids=None, require_audio=True):
     message = choice.get("message") or {}
     if not isinstance(message, dict):
         return reject("message_shape_invalid")
-    if choice.get("finish_reason") != "tool_calls":
-        return reject("finish_reason_not_tool_calls")
+    # Observed gpt-audio-1.5 can finish a report_audio envelope with stop.
+    # Local compatibility only: retain the marker and validate the whole report.
+    # No call is executed and no truncated or filtered output is accepted.
+    if choice.get("finish_reason") not in ("tool_calls", "stop"):
+        return reject("finish_reason_not_completed_report")
     if message.get("role") != "assistant":
         return reject("message_role_not_assistant")
     if any(message.get(k) is not None for k in ("audio", "refusal", "function_call")):

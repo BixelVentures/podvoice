@@ -66,6 +66,91 @@ fast shippedmanifest23da76b13bf41f4653ba7fff8e8b2712e266525bf5d2b1bd6881b78965da
 Der er ikke gennemført providerprøve, merge, installation eller aktivering af .114.
 Installeret baseline forbliver add-on .113/firmware .112/Alpha ON/guard0.
 
+Frisk betalt prøve blev eksplicit godkendt af brugeren og udført én gang mod
+frosset source. Run eval-envelope-1790859139-84a4f5: quiet UNKNOWN,
+reason deadline_exhausted,2.003225s. Ingen responseID/model/usage/formatmetadata;
+årsagen inden for HTTP-kæden er UKENDT. Én attempt, ingen øvrige klip/retry.
+Rapport /private/tmp/pv114-provider-envelope-01/report.json, cleanup joined.
+HA var verificeret Stoppet før admission og Kører .113 igen efter prøve.
+Nøgle kun privat browser/proceshukommelse, browservariabel nulstillet, ingen
+ny nøgle/adgang oprettet. .114 er IKKE TESTKLAR; PR90 forbliver draft, ingen
+merge/install/TV-aktivering. Eksakt PR-CI36863722599 bestod tests ogARM64;
+softwarelaget kan ikke tilsidesætte providerfejlen. Installeret firmware .112.
+
+Samlet årsagsgrænse opdateret efter read-only Astra audit: SDK-klienten oprettes
+frisk før første HTTP-vurdering i probe. Voice PE's Live-websocket opvarmer ikke
+samme klients HTTP-pool; produktionens første vurdering kan også være kold.
+SDK/httpx idle keepalive5s betyder, at wake-prewarm alene ikke er et bevis/fix.
+Det er en PLAUSIBEL komponent, ikke årsagen bevist af deadlinefejlen.
+Ingen token-/deadline-/transport-/gain-/firmwarepatch på dette symptom.
+Næste isolerede observation: én uændret quiet-request med SAME installedSDK/
+2s/16tokens/0retry og fixedname HTTPX trace TCP/TLS/upload/headers/body/cancel.
+Kun tider/faste enums, aldrig traceinfo/headers/keys/payload. Midlertidigt
+målescript genbruger reviewet engangshandoff og packagedjudge, ingen motor.
+Observeren reviewes og testes offline før én særskilt godkendt providerrequest.
+Det skal skelne opkobling fra venten efter upload; sidstnævnte er ikke alene
+inferencebevis. Ingen ny request godkendt eller kørt efter den stoppede batch.
+
+Privat observer frosset/reviewet: /private/tmp/pv114-http-phase-probe.py,
+SHA d0de02886126c265a249f75ce066315f2c4f05233020f3269607b701e42f1061;
+binding1e661576cb26f2a5810650dad5ef1892d568b5f216f8e6a804d745f8b89c7a42.
+Astra GO measurement-only;5 offline tests består. Én canonical POST,
+0retry/redirect/prewarm, samme quiet/PCM/model/16tokens/2s; fixedtrace enums+
+tider64max, ingen traceinfo. Caller-cancel fastholderUNKNOWN/boundedcleanup.
+Rigtig TCP/TLS traceemission endnu umålt. Ingen listener/key/providerrequest
+kørt. Ny særskilt godkendelse til ét quiet-opslag med observer anmodes;
+ingen autorisation udledes af den stoppede max5batch.
+HA efter genstart14:53:52 identitet .113/a8cbe511/rootfs7b947d5b verificeret;
+native .112-marker+contract OK og dualwake bekræftet14:53:55. Alpha ON,
+timeout4s og ingen aktiv samtale genbekræftet i UI. Installeret løsning gendannet.
+
+Fysisk inputgrænse genvalideret mod faktisk .112 buildsource: I2S RX har
+4 DMA-descriptors á256frames ved16kHz (64ms nominelt); mic-task læser derefter
+PCM og kalder sourcecallback. Samplefencen læser produced_samples i denne
+callback, ikke ADC-tid. Derfor er64ms kapacitet ingen målt guard/maxlatens.
+Eksisterende local-only kalibrator venter på fysisk wake/button og kræver kendt
+lyd+video af ringens synlige Afslutter-grænse. Den må ikke starte provider eller
+opfinde synligt F ud fra softwareACK. Ingen ny firmwareændring begrundet.
+Kalibratoren er IKKE kørt; ingen fysisk måling eller aktiveringsreference skabt.
+Der er ingen bekræftet igangværende prøve/job at vente på. Den ene nye
+OpenAI-observation afventer fortsat eksplicit svar på det konkrete spørgsmål;
+automatisk goal-continuation er ikke betalt-kald-autorisation. Ingen ny APIrequest.
+
+Bruger godkendte ét quiet-kald med HTTPfaseobserver. Udført én gang:
+/private/tmp/pv114-http-phase-trial-01/report.json,1HTTP/0retry,1.860258s,
+cleanup joined. TCP43.3ms+TLS20.8ms; uploadfærdig292.3ms, headers1845.1ms
+(1552.8ms efter upload; IKKE inferencebevis). Model gpt-audio-1.5,350tokens,
+defaulttier. Én kendt report_audio-call,22byteargs/ingen content, men finish stop:
+finish_reason_not_tool_calls. Prøven er fortsat UNKNOWN: args blev ikke valideret
+eller gemt efter tidlig reject; byteantal er ikke semantisk resultat.
+HA-cloud kort utilgængelig ved restore, siden genoprettet. Add-on .113 Kører,
+startup15:26:10/rootfs7b947d5b, native15:26:14/marker113112/contractOK/dualwake.
+Ingen .114-installation/aktivering. Tidligere deadlineårsag stadig ukendt.
+
+Opdateret årsagsgrænse FØR kode: faktisk audio-model returnerede stop+én kendt
+call, validator krævede tool_calls-marker. Official ChatCompletions beskriver
+tool_calls; ingen dokumenteret audio-undtagelse. Installeret SDK-parser afviser
+length/content_filter og behandler message.tool_calls uafhængigt af stopmarkør.
+Astra read-only GO til snæver kompatibilitetspolitik, ikke vendorgaranti.
+Hypotese: begge afsluttede markører kan bære fuldt validerbar klassifikation.
+Hele kæde genlæst: sealedPCM/context → SDK → validator → Thin identity/work/
+deadline → relevant-preservation eller background-finalize → dræn/rearm.
+Ingen request/model/prompt/tokens/deadline/firmware/Thinændring, dispatch/retry
+eller salvage af gammel prøve. UNKNOWN failclosed. Kun exact gpt-audio-1.5
+accepterer stop/tool_calls OG alle øvrige checks; faktisk finish bevares.
+Regression: begge marker×alle3enum, malformed-matrix begge, actualSDK wire-
+uændret/cancel/stale/timeout. Diffreview før ny freeze; fast og release efter
+freeze. Rollback .113. Provider/fysisk gate IKKE bestået; guard0/ref tom.
+
+Faktisk kompatibilitetsrettelse: kun validate_response ændret til stop/tool_calls;
+request/judge identity/deadline AST-uændret. Astra uafhængig diff-GO:16 actualSDK-
+tests består, alle malformed-grænser under begge marker, ingen P1/P2 uløst.
+JudgeSHA176daccc075987c8e5b37dbb0571072a57004fc21a34cf6484b769bc9cc7ab95.
+Fast på denne rettelse består Ruff/format/Mypy55, integration61.17s,
+unit106.17s,samlet106.5s. Full release efter ny freeze følger; gammel gate
+arves ikke. Ny guarded max5providerprøve er anmodet og IKKE godkendt/kørt.
+Ny handoffbindingadbd546db5bee7ae046e424cebd7fac62721a2205bacd94b18b11a9eb97f7765.
+
 ## 1/10 — .113 diagnostik af den afviste lydvurdering
 
 Lead/root ejer denne afgrænsede ændring. Installeret .112 og firmware113112

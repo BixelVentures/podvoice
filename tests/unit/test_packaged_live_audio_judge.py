@@ -15,7 +15,7 @@ from gatekeeper import live_audio_judge as contract
 from gatekeeper import live_audio_judge as judge
 
 
-def response(verdict="background"):
+def response(verdict="background", finish="tool_calls"):
     return {
         "id": "offline-response",
         "object": "chat.completion",
@@ -25,7 +25,7 @@ def response(verdict="background"):
         "choices": [
             {
                 "index": 0,
-                "finish_reason": "tool_calls",
+                "finish_reason": finish,
                 "message": {
                     "role": "assistant",
                     "content": None,
@@ -268,6 +268,23 @@ class Judge(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.response_id, "offline-response")
         self.assertEqual(result.reason, "duplicate_response_id")
 
+    async def test_actual_sdk_completed_reports_preserve_finish_and_request(self):
+        expected_request = None
+        for finish in ("tool_calls", "stop"):
+            for verdict in ("relevant", "background", "unknown"):
+                with self.subTest(finish=finish, verdict=verdict):
+                    self.response_payload = response(verdict, finish)
+                    result = await self.run_judge()
+                    self.assertTrue(result.protocol_valid)
+                    self.assertEqual(result.verdict, verdict)
+                    self.assertEqual(result.validation_details["finish_reason"], finish)
+                    self.assertEqual(result.identity, self.identity)
+                    if expected_request is None:
+                        expected_request = self.calls[-1]
+                    self.assertEqual(self.calls[-1], expected_request)
+        self.assertEqual(len(self.calls), 6)
+        self.assertNotIn('"role": "tool"', json.dumps(self.calls))
+
     async def test_actual_sdk_rejects_same_bad_contract_with_specific_safe_reason(self):
         cases = [
             (("id",), "", "response_id_invalid"),
@@ -275,8 +292,19 @@ class Judge(unittest.IsolatedAsyncioTestCase):
             (("object",), "other", "response_object_invalid"),
             (("choices",), [], "choice_count_invalid"),
             (("choices", 0, "index"), 1, "choice_index_invalid"),
-            (("choices", 0, "finish_reason"), "length", "finish_reason_not_tool_calls"),
-            (("choices", 0, "finish_reason"), "stop", "finish_reason_not_tool_calls"),
+            (("choices", 0, "finish_reason"), "length", "finish_reason_not_completed_report"),
+            (
+                ("choices", 0, "finish_reason"),
+                "content_filter",
+                "finish_reason_not_completed_report",
+            ),
+            (
+                ("choices", 0, "finish_reason"),
+                "function_call",
+                "finish_reason_not_completed_report",
+            ),
+            (("choices", 0, "finish_reason"), None, "finish_reason_not_completed_report"),
+            (("choices", 0, "finish_reason"), "other", "finish_reason_not_completed_report"),
             (("choices", 0, "message", "role"), "user", "message_role_not_assistant"),
             (("choices", 0, "message", "refusal"), "PRIVATE_REFUSAL", "blocked_response_payload"),
             (("choices", 0, "message", "refusal"), "", "blocked_response_payload"),
@@ -338,43 +366,44 @@ class Judge(unittest.IsolatedAsyncioTestCase):
                 ('{"verdict":"PRIVATE_ANSWER"}', "verdict_not_exact_enum"),
             )
         ]
-        for path, value, reason in cases:
-            with self.subTest(reason=reason):
-                payload = copy.deepcopy(response())
-                target = payload
-                for key in path[:-1]:
-                    target = target[key]
-                target[path[-1]] = value
-                received = []
+        for finish in ("tool_calls", "stop"):
+            for path, value, reason in cases:
+                with self.subTest(reason=reason, finish=finish):
+                    payload = copy.deepcopy(response(finish=finish))
+                    target = payload
+                    for key in path[:-1]:
+                        target = target[key]
+                    target[path[-1]] = value
+                    received = []
 
-                async def handler(request, received=received, payload=payload):
-                    received.append(json.loads(request.content))
-                    return httpx2.Response(
-                        200,
-                        content=json.dumps(payload, ensure_ascii=True).encode("ascii"),
-                        headers={"content-type": "application/json"},
-                    )
+                    async def handler(request, received=received, payload=payload):
+                        received.append(json.loads(request.content))
+                        return httpx2.Response(
+                            200,
+                            content=json.dumps(payload, ensure_ascii=True).encode("ascii"),
+                            headers={"content-type": "application/json"},
+                        )
 
-                async with AsyncOpenAI(
-                    max_retries=0,
-                    api_key="OFFLINE-NONKEY",
-                    http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
-                ) as client:
-                    result = await judge.judge(
-                        client,
-                        identity=self.identity,
-                        pcm=self.pcm,
-                        context_observed="Partial observed answer; no pending work.",
-                        context_source_identity=self.identity.context_ref,
-                        deadline=asyncio.get_running_loop().time() + 2,
-                    )
-                self.assertFalse(result.protocol_valid)
-                self.assertEqual(result.verdict, "unknown")
-                self.assertEqual(result.reason, reason)
-                self.assertEqual(len(received), 1)
-                details = json.dumps(result.validation_details)
-                self.assertNotIn("PRIVATE_", details)
-                self.assertNotIn("OFFLINE-NONKEY", details)
+                    async with AsyncOpenAI(
+                        max_retries=0,
+                        api_key="OFFLINE-NONKEY",
+                        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+                    ) as client:
+                        result = await judge.judge(
+                            client,
+                            identity=self.identity,
+                            pcm=self.pcm,
+                            context_observed="Partial observed answer; no pending work.",
+                            context_source_identity=self.identity.context_ref,
+                            deadline=asyncio.get_running_loop().time() + 2,
+                        )
+                    self.assertFalse(result.protocol_valid)
+                    self.assertEqual(result.verdict, "unknown")
+                    self.assertEqual(result.reason, reason)
+                    self.assertEqual(len(received), 1)
+                    details = json.dumps(result.validation_details)
+                    self.assertNotIn("PRIVATE_", details)
+                    self.assertNotIn("OFFLINE-NONKEY", details)
 
     async def test_valid_response_retains_bounded_structural_diagnostics_only(self):
         result = await self.run_judge()
