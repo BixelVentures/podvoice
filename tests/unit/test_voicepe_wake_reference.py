@@ -10,6 +10,7 @@ from unit.test_voicepe_contract import TextSensorInfo, TextSensorState, _link, _
 from unit.test_wake_reference import OWNER, SESSION, chunks
 
 from gatekeeper import voicepe
+from gatekeeper.voicepe import NativeMicFrame
 
 REFERENCE_KEY = 81
 
@@ -53,7 +54,8 @@ async def test_owned_reference_uses_original_request_generation_after_live_playb
     link, client, _ = await device(monkeypatch)
     received, events = [], []
     link.on_event = lambda *event: events.append(event)
-    link._audio_q.put_nowait(b"existing-normal-mic-frame")
+    queued = NativeMicFrame(b"existing-normal-mic-frame", 100.0, 1, 4, 1000, 0)
+    link._audio_q.put_nowait(queued)
     assert await link.request_wake_reference(SESSION, received.append)
     assert client.executed_args[-1] == {"session": OWNER, "generation": 7}
 
@@ -74,7 +76,7 @@ async def test_owned_reference_uses_original_request_generation_after_live_playb
     assert len(received) == 1 and received[0].metadata["generation"] == 7
     assert received[0].pcm == b"\x01\x00" * 400
     assert events == []
-    assert link._audio_q.get_nowait() == b"existing-normal-mic-frame"
+    assert link._audio_q.get_nowait() is queued
     assert link._audio_q.empty() and link.frames_in == link.bytes_in == 0
     link._clear_wake_reference()
 

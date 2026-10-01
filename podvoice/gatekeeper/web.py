@@ -1184,6 +1184,13 @@ async def _index(request: web.Request) -> web.StreamResponse:
 
 
 async def _status(request: web.Request) -> web.Response:
+    # Polls also project inactive/recovering owners whose runtime heartbeat ended.
+    # This reads telemetry only; it cannot advance an idle or readiness decision.
+    for session in request.app[SESSIONS].values():
+        publish = getattr(session, "_publish_panel_status", None)
+        if callable(publish):
+            with contextlib.suppress(Exception):
+                publish(force=True)
     snap = request.app[HUB].snapshot()
     diagnostic = request.app[DIAGNOSTIC_STATUS]
     diagnostic_active = bool(diagnostic() if diagnostic is not None else False)

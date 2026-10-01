@@ -1,5 +1,490 @@
 # PodVoice-status — én aktuel sandhed
 
+## 1/10 — HA-adgang genetableret, native idle-prøver afsluttet
+
+Frisk browser viser PodVoice v1.13.110 Kører; lokal HA-adresse svarer HTTP 200.
+Brugeren oplyser HA Green online igen. Ingen runtime eller firmware er opdateret.
+Det gemte og reviewede native idle-check er nu afprøvet mod rigtig provider;
+begge afgrænsede forsøg gav UNKNOWN (se resultater nedenfor).
+Den tidligere reviewede private engangshandoff genbruges med et eksplicit
+`--idle-check`-valg: højst quiet og TV, ingen gamle semantikforsøg eller automatisk
+retry. Script/manifest-hashes bindes før key-admission og hvert barn. UNKNOWN
+stopper batchen. Formens adgangs-/origin-/udløbskontrakt og privat procesmiljø
+bevares. Handoffændringen reviewes før nøgleoverførsel. HA stoppes kun i det
+godkendte eksklusive vindue og genstartes straks efter prøven, også ved fejl.
+Målet i Goal-værktøjet er fortsat registreret BLOCKED; genoptagelsen ændrer ikke
+objektivet. Resume af selve goal-status kræver klientens målbetjening; arbejdet
+fortsætter her på brugerens genoptagelse.
+
+Første native prøve `pv-native-idle-trial-1001-01`: quiet UNKNOWN, én forbindelse,
+korrekt kendt "Hvad er to plus to" → "Det er fire". Sidste nonzero provider-output
+6,889 s; check10,909 s; eksakt append-ACK11,608 s, provider timeline7800–8000 ms.
+Ingen delegation, backendrespons eller verdict gennem observationsslut15,609 s.
+Resultatet er negativt protokolbevis før resolveren, ikke en afprøvet dårlig
+henvendelsesklassifikation. Cleanup og finalusage bestod;12 Live-sekunder,
+ingen backendforbrug. TV-prøven blev korrekt ikke kørt. Rapport/timeline:
+`/private/tmp/pv-native-idle-trial-1001-01/native-idle-quiet/`.
+Nøgle var kun i browser-/proceshukommelse; browservariabel ryddet, form lukket.
+HA blev verificeret Stoppet før overførsel og Kører igen straks efter batchens exit3.
+Den private handoffændring havde uafhængigt GO før brug;71 målrettede tests
+og fastgate (unit94,39 s, integration58,46 s, Ruff/format/mypy) bestod.
+
+Native steering-kandidaten er **ikke testklar til runtimeaktivering**. Frisk
+officiel dokumentation bekræfter steering/context injection, ikke tvungen
+delegation eller machine-visible afgørelse:
+https://developers.openai.com/api/docs/guides/live-delegation#send-the-right-kind-of-update
+https://developers.openai.com/api/docs/guides/live-conversations#understand-when-context-reaches-the-model
+Uafhængig reviewer anbefaler præcis én afgrænset opfølgning: hypotese er, at
+checket blev behandlet som tavs samtalestyring, ikke en backendopgave. Varianten
+skal i frontend, backend, tooldescription og append beskrive samme konkrete,
+maskinsynlige registreringsopgave med request-id og lyd-/kontekstvurdering.
+Samme model, fixtures,2 s-budget, fulde korrelationsorakel, timing og stillekrav.
+Ingen tvungen response.create, retry, tale eller lempet gate. Første resultat
+bevares. Ved endnu en UNKNOWN stoppes native append-retningen; en separat
+eksplicit audio/context-vurdering kræver en ny beslutning før implementering.
+
+Record-task-opfølgningen `pv-native-idle-record-trial-1001-01` gav også quiet
+UNKNOWN: korrekt åbningsinput/output, én forbindelse, ingen backend/verdict,
+stille check, clean shutdown og komplet forbrug. TV blev ikke kørt. Rapporten
+binder `protocol_variant=record-task`. Produktionen .110 er igen verificeret
+Kører; formular lukket. Native append-retningen er stoppet efter det aftalte
+andet UNKNOWN; ingen runtimeaktivering. 79 målrettede tests bestod. Den seneste
+fast-log viser kun unit-stadiet (83,59 s), ikke en fuld fast-gate; dette må ikke
+rapporteres som fuldt gatebevis.
+
+## 1/10 — godkendt endelig inputgrænse for den næste afslutningskandidat
+
+Efter Astra-review af den uklassificerede lydhale har brugeren eksplicit godkendt
+én synlig Afslutter-fase: spørgsmål påbegyndt før den fase bevares; nyt spørgsmål
+påbegyndt efter dens start kræver Hey Jarvis igen. Denne produktgrænse afløser
+kravet om ny relevant input helt frem til teardown-commit. Fire sekunders UI-
+opfølgningsvindue plus højst to sekunders kandidatbudget til en enkelt afgrænset
+lyd/kontekstvurdering foreslås; faktisk latency og fysisk lukning er umålt.
+Native append gav ikke maskinsynlig beslutning og må ikke aktiveres. Alternativet
+skal først bevise en isoleret stateless audio/context-protokol og en finitiv
+inputgrænse; den ændrede adfærd er endnu hverken kodet eller installeret. Rå
+host-metadata er stadig ikke fysisk samplebevis. Ingen ekstra timer eller
+parallel klassifikationspolicy må kobles ind som en skjult reserve.
+
+## 1/10 — enkel live-status på rumkortet (aktiv beslutning)
+
+Brugeren beder om et dummy-proof UI og synlighed af hvilken logik der bestemmer
+lige nu. Direkte evidens: eksisterende idle-diagnostik viser rå inputaktivitet,
+output/work-blokkere og målt ro; panelet viser ikke denne forklaring. Lead: denne
+tråds implementør. Hypotese: en læsende projektion af den eksisterende Thin-ejer,
+med samme session/generation og friskhed, kan forklare ventetid uden en ny timer
+eller skjult lifecycleændring. Kæde: native/browser input → Thin/provider/work →
+output → eksisterende idle/end-policy → teardown/rearm → rumkortets status.
+
+Invarianter: én Thin-ejer; model ejer hensigt; afspilning er fysisk sandhed;
+stale/ukendt er aldrig klarhed; Talk og OFF bevares. Ingen klassifikation af musik,
+AI-tanker, ekstra optagelse, ny lukningslogik, gain eller firmwaretuning.
+Vis primær tilstand, senest registrerede tekst (ikke akustisk bevis), aktuel
+beslutningskilde og blocker; nedtælling kun hvor den reelle ejer har en aktiv
+frist og frisk dokumentation. Ellers vis hvorfor den står stille/er ukendt.
+Brug eksisterende status/SSE; bounded observation max én gang/sekund og eksplicit
+session-generation-binding. Regressioner: aktiv/stille/stale, værktøj/output,
+gammel session, lukning/rearm, Talk/OFF samt mobil/keyboard. Uafhængigt review og
+relevant gate før release; rollback: fjern kun statusprojektion/kort. Fysisk
+lukning er stadig ikke bevist af UI.
+
+Implementeret: Thin læser egne pending-work/quiet-window/close/readiness-fakta;
+hub udsender samme bounded projektion i SSE og snapshot; eksisterende /api/status
+opdaterer også inaktive ejere efter teardown uden ny lifecycle-actor. Native ro
+vises som målt coverage, OFF som sampled deadline; ingen fake smooth nedtælling.
+Aktiv tale ved output-only modelafslutning får ikke et opdigtet UI-veto. Output-
+clock/frames/forbrug valideres særskilt; peak alene tæller som queued. Transcript-
+fragmenter udsendes max1Hz; ingen ny lydoptagelse. Talk ukendt, stale eller failed
+rearm kan ikke vise Klar. Kortet bevarer kontrol- og detailsfokus under SSE/poll.
+
+48 målrettede Python-tests består; shipped-controller Node-kontrakt og isoleret
+Chromium ved320/390/430/768/1440 px består inkl. fokus gennem SSE/poll, escaping,
+frameidentitet/stale/output og semantisk ro vs raw input. Ruff/mypy består.
+Første fastforsøg blev stoppet af mypy ved en Optional-aritmetik i projektionen;
+rettet typetjek. Næste fulde fastforsøgs integration blev ugyldig alene af
+sandbox socket.bind-afvisning; ingen runtimepatch på den fejl. Samme fastgate
+køres med loopback tilladt. Uafhængig adversarial review: GO til software-
+releasegate, ingen P1; P2 musikbjælkens width-invalidation rettet (sammenligner
+hele det relevante DOM-element). Provider-script/provenance diff er inkluderet
+i scope, men giver ingen ny closeautoritet eller fysisk-fence-påstand.
+Fuld integration (56,45 s) bestod med loopback. Unit-kørslen blev ugyldig,
+fordi lead fejlagtigt ændrede versionsmetadata fra110 til111 under kørslen:
+Python havde importeret110, mens filkontrollen læste111. Ingen produktpatch
+på dette; versionsfiler er nu ens og frosne før ny gate. Det forsøg tæller ikke
+som en grøn samlet gate. Det oprindelige kriterium om uændrede bits fastholdes.
+UI-forhåndsvisning med eksplicit eksempeldata-banner er browserkontrolleret;
+fysisk golden chain/10/10 for denne kandidat er UKENDT. Ikke installeret endnu.
+
+Frosset111-kandidat: fuld fastgate består nu med Ruff/format, Mypy54 filer,
+hele unit89,72 s og hele integration56,79 s. Alle nye filer medtages. Ingen
+sourceændring under denne gate; denne kontrol erstatter de ugyldige forsøg.
+Uafhængigt slutreview bekræfter GO efter rettelser. Næste trin er præcis én
+releasegate på det committede diff, PR-CI/ARM64, merge/publicering og installation.
+Ingen firmwareændring; eksisterende109-firmware genbruges. UI er diagnosticering,
+ikke aktivering af den endnu ubeviste baggrundsafslutning.
+
+## 30/9 — samlet løsningsforslag: Live-ejet idle-vurdering, én close-ejer
+
+Brugeren har nu godkendt implementering og eksplicit bedt om Goal. Goal er oprettet
+og ACTIVE med hele leverancen inkl. review, release, installation og fysisk bevis.
+Goal er nu BLOCKED efter tre sammenhængende Goal-turns med samme eksterne hindring:
+HA-adgangen. Hele objektivet er bevaret. Lokal implementering er gemt i
+`983231d` og `82b66fb`; næste runtimeændring kræver stadig rigtig providerprøve.
+Seneste kontrol: HA-cloud viser igen "Unable to connect to Home Assistant", og
+`homeassistant.local:8123` får igen DNS-timeout. Der er ingen igangværende
+providerprøve eller installation at vente på. Genoptag ved faktisk HA-adgang;
+verificér først adgang, privat nøgleoverførsel og eksklusivt providervindue.
+
+Første implementeringsmilepæl er den sideeffektfrie native Live-idle-protokolprøve;
+den nye policy er ikke aktiveret i produktion. Independent idle_protocol_review
+gennemgår især append-ACK vs faktisk delegation og kontinuerlig input-invalidering.
+
+### Implementeringsresultat 30/9 — første milepæl, ikke runtimeaktivering
+
+`scripts/live_idle_check_eval.py` er nu implementeret som en isoleret prøve af den
+faktisk shippede `OpenAILiveSession` med installeret OpenAI SDK 3.13.0. Ingen
+produktionsimport, firmwareændring, mikrofonoptagelse, domænehandling eller ekstra
+samtalemotor. Prøven har én forbindelse, ét internal-check, højst to backend-
+responser, 45 s observation og 15 s oprydning. Fixture-manifestet er valideret.
+De første cases er quiet, kontinuerlig syntetisk TV og en sen opfølgning; den sidste
+er observation-only og kan ikke bevise inputbevaring ved fysisk close.
+
+Oraklet kræver korrekt kendt åbningsinput, nonzero assistant-output efterfulgt af
+fire sekunders ro, append-ACK, korreleret faktisk delegation, enum-resultat,
+resultatafsendelse og en færdig backendfortsættelse inden prøvebudgettet på 2 s.
+Request-token alene er ikke wire-korrelation. TV skal være kontinuerligt gennem
+hele idle-perioden, beslutningen og observationsslutningen. Intet provider-output
+må ledsage det interne check. Manglende korrelationsfelter, gammel generation,
+gentagne/for sene hændelser, ukendt forbrug eller fejl giver UNKNOWN.
+Provider-cleanup kan ikke efterfølgende fremstille et bestået observationsresultat.
+
+33 målrettede regressioner består, inkl. den faktiske adapters append gennem en
+kontrolleret SDK-forbindelse: ACK opfinder hverken verdict eller delegation.
+Fast-gatens Ruff, format og mypy bestod. Dens første integrationskørsel var ugyldig,
+fordi sandboxen afviste lokale testserveres socket.bind. Ingen runtimepatch blev
+lavet på den fejl. Kun de afbrudte pytest-stadier blev genkørt med loopback tilladt;
+fuld unit og integration bestod. Efter sidste lille orakelrettelse bestod de 33
+målrettede tests og Ruff/format igen. Ingen releasegate eller fysisk gate er kørt.
+
+Uafhængig adversarial reviewer `idle_protocol_review` fandt først to afgørende
+bevisgrænser: append-ACK er ikke modelafgørelse, og TV må ikke starte efter verdict.
+Begge er rettet og permanent testet. Sidste review: GO til den afgrænsede
+providerprøve; ingen runtime-/release-/fysisk godkendelse arves derfra.
+Reviewet scripts SHA256:
+`0cd2f4289346405f94b2aeed9f7a1e5c5b39356b8dd23a53dc5037e10b25102b`.
+Tests SHA256:
+`5cf0e01749c8e2e731df8b603e1345f933a5be3ed2806d07ff1b8441d9d2edef`.
+Arbejdskopi: `/private/tmp/pv-close-104`, branch
+`codex/live-input-provenance-111`, base HEAD `015b23d`.
+
+Næste Goal-turn: den frosne prøve er commit `983231d`. Seks ekstra transport-
+regressioner gennemfører hele prøve-controlleren med den installerede SDK's
+serializer/parser på den eksisterende kontrollerede socket. Ingen mock af Live-
+metoder. Quiet og kontinuerlig TV-source kontrolleres hver med korreleret kæde,
+lovligt fraværende `delegation.created.client_event_id` og en fejlet resultatsend.
+Kun den første kombination kan få et softwaremæssigt OBSERVED_PASS; de øvrige
+giver UNKNOWN og udfører ingen continuation-retry. Én start, ét append, ét
+resultatsendforsøg og én close; alle forbindelser frigives. Korte testfrister og
+scriptede serverafgørelser bruges kun lokalt og beviser ikke AI'ens forståelse,
+den rigtige 2 s-frist eller fysisk afslutning. 39 målrettede tests samt Ruff,
+format og diff-check består. Runtime og det reviewede script er uændrede;
+ingen ny fuld gate er nødvendig for denne isolerede testtilføjelse.
+Ny tests SHA256:
+`2705ddb2f30543f4dbb62b1fbdf7ad5c818b65254bc60d3885b9f4ab6239035f`.
+
+Aktuel ekstern hindring: frisk HA-browserforbindelse viser "Unable to connect to
+Home Assistant". Ingen OpenAI-nøgle er overført eller udlæst; ingen lyd er sendt;
+ingen add-on er stoppet eller opdateret. Den private, tidligere godkendte adgang
+og en eksklusiv providerprøve afventer HA. Goal-status står øverst. Næste beslutning
+skal bygge på faktisk providerresultat, ikke de grønne lokale prøver ovenfor.
+Genvalidering i næste Goal-turn: cloud viser fortsat samme forbindelsesfejl.
+Alternativet `homeassistant.local:8123` fejlede også med DNS-timeout ved sidste
+kontrol. Ingen kendt frisk lokal HA-IP findes i den aktive beslutning; gamle
+Voice PE-IP-adresser må ikke bruges som gættede HA-adresser.
+
+Brugeren præciserer: løsningen skal udledes af forskning, repositories, faktisk
+kode og best practice, ikke findes som et særligt dansk færdigprodukt. Denne post
+beskriver runtimeplanen; kun den isolerede første milepæl ovenfor er implementeret.
+Lead: hovedagenten. Stærkeste fejlbevis er den tidligere .109-felttrace: afsluttet
+assistant-svar og >10 s output-ro uden backendarbejde, men TV/inputveto holder
+samtalen åben. En anden læst kodefejlgrænse er, at ethvert inputfragment både
+fornyer raw inputrevision og annullerer semantisk end; ikke kun relevante spørgsmål.
+
+Valgt hovedretning: GPT-Live vurderer henvendelse og semantisk færdiggørelse i
+den allerede åbne samtale. ThinSession ejer én deterministisk afslutningsproces.
+Ved UI-inaktivitet sendes én korreleret intern idle-check via dokumenteret
+session.instructions.append, med en snæver startupregel for tavs delegation og
+en isoleret backend-resolver. Dette er et app-design, ikke et native OpenAI-event
+eller en garanti for lydløs/modelrettidig udførelse. Rigtig SDK/providerprøve skal
+bevise checkets tavshed, delegation, svarlatens og modifikation ved ny henvendelse.
+Ingen ny talemotor, transport, pVAD-enrollment eller permanent ekstra audio-model.
+
+Hierarki:
+1. Fysisk/panel-Stop preempter alt; én teardown/rearm. Spoken stop forbliver hush;
+   stop musik forbliver domænehandling. Disse regler ændres ikke.
+2. Ny klart henvendt besked før close-commit annullerer ældre close-check/hensigt.
+3. Korreleret eksplicit semantisk afslutning accepteres kun efter nødvendigt
+   backend-settlement; faktisk output/drain må ikke springes over.
+4. Udløbet UI-frist beder Live om en eksplicit vurdering af den aktuelle samtale,
+   ikke blot om et farvel. Ingen forventet høflighedsreplik efter ren tak.
+5. Missing/unknown AI-resultat er fejl/ukendt. Det er ikke dokumenteret baggrund
+   eller succes. Bounded teknisk oprydning må ikke blive en normal idle-success.
+
+Idle-check-kontrakt: local request-id, session/epoch/provider generation,
+input sample-/send-fence, inputrevision og observationstid binds af serveren.
+Frontend vurderer original samtalelyd og kontekst; backend får dens delegation,
+ikke original lyd. Resolver svarer relevant/clear_to_close/unknown med kort
+årsagskategori; den har ingen domæneværktøjer eller autorisationsret. Ett relevant
+verdict skal referere til nyt input i checkets lokale evidensområde. Kun nye
+relevante samples kan forny fristen; duplicate check-resultater, samme gamle
+spørgsmål og modelproducerede ord er ikke nye brugerinteraktioner. Ikke-relevant
+TV nulstiller ikke fristen. Frontend/backend/tool descriptions skal være konsistente.
+
+Raw inputrevision bevares uændret til værktøjsautorisation, bekræftelser og stale
+action checks. Lukning får en særskilt, snævert scoped evidensgrænse i ThinSession;
+et baggrundsverdict må ikke gøre gamle musik-/robot-/bekræftelseskald aktuelle igen.
+Rå VAD/transkript bliver diagnostik og provisorisk inputbeskyttelse, ikke et
+ubegrænset semantisk veto. Den disabled LiveInputPolicy må ikke aktiveres som
+konkurrerende timer; dens intervalmekanik genbruges kun hvis den matcher kontrakten.
+
+Kæde og race-gate: native mic → ordnet VoicePELink-input → Live frontend →
+korreleret check/delegation → færdig resolver → Thin close-owner → provider close
+→ faktisk fysisk lydhale → teardown/rearm → ny wake. Kontinuerlig inputmåling
+og ringbuffer fortsætter under checket. En beslutning gælder kun sin forseglet
+inputgrænse; senere samples må ikke kasseres som allerede klassificeret TV.
+Ved endelig check bruges en kort lokal forsegling/buffer via samme inputconsumer
+og rigtig provider mute-ACK. Relevant/ukendt buffer skal behandles før normal
+close; ved genoptagelse må kun endnu ikke leverede bytes replayes, præcis én gang.
+Mute-ACK beviser kommandaccept, ikke henvendelse, modelbehandling eller fysisk lydslut.
+
+Den vigtigste falsificering: denne buffer/check-runde skal kunne afslutte med
+uafbrudt TV og samtidig bevare et nyt, svagt spørgsmål lige ved grænsen. Hvis
+alle TV-pakker konstant invaliderer dommen, er designet stadig samme livelock og
+ikke testklart. Der må ikke tilføjes uendelige checks/retries for at skjule det.
+Der etableres én samlet review-deadline, ikke en ny frist pr. TV-pakke. Foreslået
+evalbudget for intern idle-check er højst 2 s ud over UI-fristen, plus målt
+fysisk lukning; det er et kandidatbudget, ikke målt kapabilitet. Ved ukendt hale/
+fejl må normal lukning ikke påstås; bounded teknisk afslutning markeres særskilt.
+Denne afvigelse fra normal UX skal fremgå af panelet og af acceptresultatet.
+
+Stop-the-line: Hvis den native Live-check ikke giver pålidelig, tavs og scoped
+beslutning inden budgettet, eller input-fencen ikke beskytter reelle opfølgninger,
+skal kandidaten stoppes. En ekstra OpenAI audio+context-judge er da en separat
+reviewbar alternativ beslutning, ikke en samtidigt aktiveret reserveklassifikator.
+Usikkerhed om bruger vs TV kan ikke elimineres ved en timeout eller prompt alene.
+
+Implementeringsrækkefølge og leverancer:
+- Protokolprøve først: tavs internal-check med rigtig SDK og ingen hjemhandlinger;
+  TV, reel opfølgning, topic change, aside og tænke-/bekræftelsespause.
+- Thin/Live integration: én idle-ejer, korrelation, relevant vs raw revision,
+  ingen false-success på unknown, permanent regression for den observerede kæde.
+- Native input-cut/buffer/replay og Talk-observation; kun firmwareændring hvis
+  faktisk nødvendigt for en kildegrænse. Gain/wake/modeller ændres ikke her.
+- LED følger faktiske tilstande: åbent/blåt, eksisterende roterende arbejdslys
+  kun ved arbejde, slukket først efter fysisk rearm-ACK. Fejl logges reelt.
+- Adversarial review, relevante fast/lifecycle og semantik-eval; én releasegate
+  efter freeze. Grøn main-artifact installeres med Alpha ON og vedvarende setting.
+- Samme kandidat skal fysisk bevise TV og samtale til andre, rettidig opfølgning,
+  farvel, 10/10 lifecycle, Stop→ny wake, ON/OFF og unplug/replug. Talk tæller
+  ikke som Voice PE-bevis. Latens fra sidste relevante tale/svar til rearm opdeles
+  i UI-frist, check og fysisk lukning; ingen skjult forhøjelse af 4 s.
+
+Rollback: installeret .110 er senest registrerede softwareartifact; .109 er
+senest feltobserverede kandidat. Ingen af dem er TV-close-godkendt. Ny candidate
+kan slås fra separat uden at miste Alpha-valget. Ingen frisk fysisk gate her.
+
+## 30/9 — uddybende research: henvendelse er ikke rå taleaktivitet
+
+Brugeren beder om mere research før påstand om en ægte løsning. Ingen runtime,
+prompt, model, timeout, afhængighed, lyd-egress eller installation er ændret.
+Følgende primærkilder og konkrete kildefiler præciserer den aktive beslutning:
+
+- Amazon beskriver audio-only Follow-up Mode som særskilt device-directed
+  speech detection: akustiske/ASR-signaler kombineres med aktuelle og tidligere
+  ytringers semantik. "Tak", "stop" og "okay" kan stadig være tvetydige.
+  https://www.amazon.science/blog/how-alexa-knows-when-youre-talking-to-her
+- Apples follow-up-paper bruger tidligere spørgsmål og ASR-usikkerhed;
+  rapporterer 20–40% relativ reduktion i falske accepter ved fastholdt 10%
+  falske afvisninger. Det er deres trænede classifier/datasæt, ikke GPT-Live,
+  dansk køkkenperformance eller en færdig model til Voice PE.
+  https://arxiv.org/html/2411.00023v1
+- Apples multimodale paper understøtter kombination af lyd, tekst og ASR-
+  signaler. Live må ikke tillægges n-best/confidence-felter, vi ikke modtager.
+  https://arxiv.org/html/2403.14438v1
+- Alexa Conversation Mode bruger lyd plus visuelle henvendelsessignaler og
+  afslutter ved manglende interaktion. Kameradelen kan ikke overføres til pucken.
+  https://www.amazon.science/blog/new-alexa-feature-enables-natural-multiparty-interactions
+- Attention Labs SAS-paper rapporterer audio-only F1=0.86 på et internt
+  engelsksproget datasæt. Paperet nævner falsk accept af TV-spørgsmål og af tale
+  til en anden person efter en tidligere device-henvendelse. SDK/modelforskning
+  giver derfor ikke et sikkert dansk plug-in. On-device ARM Cortex-A-tal er
+  hverken ESP32-bevis eller hosted SDK-latens.
+  https://arxiv.org/html/2604.08412v1
+- tuya/nomo-pvad giver target-speaker-aktivitet fra enrollment, ikke addressee.
+  Brugerens tale til ægtefællen vil stadig være target-speaker. FireRedChat
+  pVAD/end-of-turn løser heller ikke i sig selv end-of-session.
+  https://github.com/tuya/nomo-pvad
+  https://github.com/FireRedTeam/FireRedChat
+- isair/jarvis har en kontekstuel intent-judge, men den faktisk læste prompt
+  i src/jarvis/listening/intent_judge.py tvinger directed=true i hot window.
+  Dette er en konkret grund til ikke at kopiere dens timeout-policy til TV-casen.
+  https://github.com/isair/jarvis/blob/main/src/jarvis/listening/intent_judge.py
+
+OpenAI-grænse: Live kan instrueres til at ignorere samtaler i nærheden, men
+ignorering giver ikke automatisk appen et eksplicit henvendelsesverdict.
+Realtime-promptguidens wait_for_user-eksempel er ikke et native Live-inputevent.
+Vores Live-backend har allerede et tilsvarende værktøj ved delegation, men
+backend får delegeret kontekst, ikke original lyd, og frontend skal ikke
+delegere al baggrund alene for at være tavs. Ingen delegation/svar kan derfor
+ikke fortolkes som dokumenteret baggrund. Thinking/context-append må heller
+ikke opfindes som et garanteret stille classifier-API.
+https://developers.openai.com/api/docs/guides/live-prompting
+https://developers.openai.com/api/docs/guides/live-conversations
+https://developers.openai.com/api/docs/guides/voice-prompting
+
+Lead-retning efter research: Bevar AI-ejet henvendelsesfortolkning og én
+ThinSession-lukkeejer. Hold eksplicit semantisk afslutning, mekanisk afspilnings-
+settlement og inaktivitetsfallback adskilt. Accepteret relevant interaktion må
+forny fristen; rå VAD/transkript er observation, ikke ubegrænset veto. Dette
+kræver en valideret relevanskilde, ikke blot at slette den nuværende beskyttelse.
+Prøv først eksisterende Live-semantik i det afgrænsede evalspor. En positivt
+forstået samtaleovergang kan afslutte stille; TV alene er ikke en sådan overgang.
+Hvis det ikke dækker vedvarende TV, er næste research-/evalkandidat lyd plus
+samtalekontekst ved lukkegrænsen, uden ny samtalemotor eller filtrering af alle
+svar. Ingen ny classifier eller tredjepart er valgt/aktiveret.
+
+Den bevarede tekniske stopregel er eksakt forseglet inputinterval, frisk dom
+og bevaring af input efter grænsen. En dom over tidligere lyd må ikke opsluge
+en ny opfølgning; en konstant voksende TV-hale kan ikke få ubegrænset venten.
+Ukendt henvendelse er en eksplicit produkt-/evalgrænse, ikke automatisk tavshed.
+Eksisterende semantic-completion-eval har kun baseline UNKNOWN med afvigende
+fixturetranskript; implicitvarianten er ikke kørt. Research ophæver ikke dette
+resultat eller de fysiske TV-/opfølgningsgates. Kandidat2 er fortsat uvalideret.
+
+## 30/9 — repo-research: semantisk afslutning og app-ejet inaktivitet
+
+Brugeren bestiller konkret repo-research og sammenhæng med princippet
+"AI ejer fortolkningen; koden udfører afslutningen". Read-only runtimearbejde:
+ingen prompt-, timeout-, firmware- eller installationsændring i denne research.
+De offentlige kildefiler er læst ved følgende commits, ikke blot README-slogans:
+
+- LiveKit `15b4bc84c7057a6da4dfc66208ae5d89454c84db`:
+  `livekit-agents/livekit/agents/beta/tools/end_call.py` lader modellen kalde
+  `end_call`; callback på speech-handle afslutter via session.shutdown.
+  Realtime-auto-tool-reply har særskilt venten på næste speech-handle med
+  bounded 5 s opstartsvagt. Sessionens user-away-timer er separat og undertrykkes
+  ved aktive værktøjer. Dette er en reference for ejerskab, ikke fysisk Voice PE-bevis.
+- Pipecat `20999cd7b816dc5950eb9553b1ae36a1e771f2bc`:
+  `src/pipecat/turns/user_idle_controller.py` starter efter BotStoppedSpeaking,
+  annullerer ved bruger-/assistant-tale og holder en tæller for aktive
+  function calls. `wait_for_user()` genarmerer efter en tur uden assistant-svar.
+  Der er ingen addressee-klassifikation i denne controller. Eksemplet
+  `examples/turn-management/turn-management-detect-user-idle.py` bruger to
+  kontaktforsøg og derefter afslutning; det er app-policy, ikke et krav til os.
+- GPT-Live-app Jarhead `84474ee3c664e48301302695016ce5dc5411e17c`:
+  `packages/live/src/instructions.ts` instruerer modellen i at delegere
+  dismissal, mens stop/cancel beholder samtalen. Engine har én fallAsleep-ejer
+  og separat idleSleepMinutes. Hvert Live-inputtranskript kalder kevinSpoke
+  og nulstiller inaktivitet. Derfor er denne kode ikke bevis for TV-sikker timeout.
+- GPT-Live-adapter autonomous-os `a0328995850ad986e8258a262a24189ab3a16f32`:
+  `hal/realtime/voice_agent/gpt_live.py` kasserer tavse outputpakker via RMS,
+  estimerer svargrænser fra output-gap/transkript og beskytter backend-busy.
+  Den syntetiske grænse er ikke en officiel Live-turn-end eller fysisk drain.
+
+Direkte sammenlignelig upstream-feltrapport: LiveKit issue6030 beskriver støj/
+baggrundstale, der forhindrer user-away. Tilknyttet PR6880 er ved research
+OPEN/ikke merged og tilføjer user_away_signal="transcript"; kun tekst nulstiller
+timeren. Dens diff/regressioner er læst. Det løser untranscribed noise, men
+indeholder ingen vurdering af henvendelse; transskriberet TV kan stadig holde åbent.
+https://github.com/livekit/agents/issues/6030
+https://github.com/livekit/agents/pull/6880
+
+Supplerende implementeringsmønster: attenlabs/saa-sdk bruger en særskilt hosted
+addressee-model før STT og gates via prediction/turn_ready. Kun SDK er open source;
+modellen er hosted/proprietær. README oplyser ekstra round-trip og kendt
+cross-lingual recall-begrænsning. Det er leverandørevidens, ingen dansk køkken-
+validering og ingen beslutning om ny afhængighed eller lyd-egress.
+https://github.com/attenlabs/saa-sdk
+
+Lead-konklusion: Bevar én ThinSession-close-ejer. Completed korreleret semantisk
+end-hensigt går til eksisterende settlement/playback/close; fysisk Stop preempter.
+Inaktivitet er en separat trigger til samme ejer, ikke en ekstra samtalemotor.
+Manglende Live-svar er ikke en eksplicit baggrundsdom. Rå VAD må ikke gives
+ubegrænset semantisk autoritet, men kan heller ikke fjernes uden en afgrænset
+inputrelevans-/opfølgningsgrænse. Den lokale kode har allerede output-only
+semantisk close, men inputrevision kan revokere den; den uafgrænsede rå inputveto
+står især i idle-stien. Research ændrer derfor ikke den eksisterende gate-status.
+OpenAI Docs bekræfter app-ejet inaktivitet, færdig playback og nødvendigt arbejde:
+https://developers.openai.com/api/docs/guides/live-conversations
+
+## 29/9 — .110 installeret; næste afgrænsede inputbevis under arbejde
+
+PR86 blev merged som `61f31f3aee93bbc06a2ea28a92880be200866c3f` efter
+uafhængigt review, frosset lokal releasegate og grøn PR-CI. Main-jobbet
+publicerede registertag `1.13.110`; Home Assistant installerede med backup ON
+og viste installeret/nyeste 1.13.110, Kører. Panelet viste v1.13.110, Alpha
+ON og gemt 4 s. Opstartsloggen bekræftede samme git-SHA. Voice PE var offline:
+`.local` slog ikke op, og forbindelsen til senest kendte `192.168.86.27:6053`
+blev afvist. Derfor er der **intet fysisk lyd- eller lukningsbevis på .110**.
+Firmware er ikke ændret. Den tidligere .109-baseline og TV-fejlen står ved magt.
+
+Aktiv næste beslutning: Bevis en eksakt, ordnet inputgrænse, før TV-tale kan
+fritage den fælles lukkeproces fra rå VAD/transkript. Den fysiske .109-trace
+viste >10 s output-ro uden backend-/værktøjsarbejde, men aktiv inputveto;
+den samme trace tabte 220 capture-kommandoer. Kæden er native mikrofoncallback
+→ `VoicePELink` kø/epoch → `ThinSession` pump → OpenAI append/transkript →
+inputrelevans → den eksisterende close-ejer → fysisk playback/teardown/rearm.
+Invarianter: én mikrofonconsumer, ordnede frames, ingen stale generation,
+intet tabt opfølgningsord, Stop preempter, Talk/OFF uændret. Falsificerbar
+hypotese: en callbackbundet sample-sekvens kan afsløre huller/epochskift uden
+at ændre de bytes, som når OpenAI. Ikke-mål: aktivering af TV-lukning, ny
+timeoutværdi, VAD/gain/prompt, ekstra samtalemotor eller firmware.
+
+Før adfærdsændring kræves bevis for lokal buffer/replay gennem samme session,
+eksakt input-fence og provider-ACK, og en frisk relevansdom som dækker lyd
+helt frem til close-grænsen. Kontinuerlig TV-tale med forsinket klassifikation
+efterlader ellers altid en ubestemt hale; et output-only 4 s close er derfor
+ikke en godkendt fallback. Regressioner skal injicere forsinkede, dublerede og
+omordnede frames omkring Stop/rearm/næste wake; køtab, mute/ACK-fejl og en
+svag dansk opfølgning lige ved grænsen må ikke blive en falsk lukning. Målrettet
+native/Thin-test, uafhængig adversarial review, relevante gates og senere
+fysisk TV+opfølgning på samme bits kræves. Rollback-grænse er installeret .110,
+mens .109 er senest feltobserverede kandidat. Denne post registrerer en plan,
+ikke et resultat af kandidat 2.
+
+Foreløbigt kodearbejde på separat branch: `VoicePELink` lægger nu native
+mikrofonbytes i samme begrænsede kø synkront i callbackrækkefølge og knytter
+host-modtagelsestid, sekvens, audio-/forbindelsesgeneration og køtab til hver
+frame. `ThinSession` kan observere den sidst lokalt afsendte native frame;
+OpenAI får stadig de samme PCM-bytes. Det ændrer hverken lukning eller
+provider-mute. En syntetisk late-callback-test efter rearm viser grænsen for
+host-metadata: hvis en callback først *invokeres* efter ACK, får den ny
+host-epoch. Host-metadata alene beviser derfor ikke fysisk sample-alder,
+source-komplethed eller provider-kvittering. Feltklassifikation må ikke bruge
+dem som sådan. Den uafhængige adversarial review fandt efter rettelse ingen
+tilbageværende P1 for at beholde koden som forberedelse uden lukkeautoritet,
+men gav ikke release- eller TV-close-godkendelse. Den rettede fokuserede
+`scripts/dev fast` bestod Ruff, format, Mypy og samtlige udvalgte tests med lokal
+loopback-adgang. En tidligere HTTP-tests `PermissionError` kom alene fra
+sandkassens blokering af lokal socket og bestod ved isoleret genkørsel med
+adgang. Fuld releasegate, PR, installation og fysisk prøve af denne branch
+er ikke udført.
+
+Korrigeret firmware-/protokolaudit: den første læsning blandede en ældre
+firmwaresti ind og påstod fejlagtigt, at Stop/ring-reset ikke var synkroniseret.
+I den aktuelle main-kode holder både producent, Stop/reset og ring-read samme
+`audio_mutex_`; drain-send, Stop og rearm køres på main/API-tasken, og native
+API sender beskeder i FIFO på samme forbindelse. Allerede sendt før-Stop PCM
+kan derfor ikke overhale en senere `recovered`-ACK. Et før-ACK decodet, men
+forsinket host-callback afvises af den eksisterende host-epoch-cut. Næste wake
+trimmer efter firmwaredetektorens præcise samplegrænse; den gamle generelle
+320 ms pre-roll-beskrivelse gælder ikke denne kandidat. Det er en stærkere
+mekanisk grænse end den første audit antog, men ikke en måling af fysisk
+optagelsestid i lavere mic-buffere eller et relevansverdict for TV. A/B-PCM,
+forsinket callback/TX, Stop→rearm→næste wake og rigtig opfølgning skal stadig
+bevises på de shippede bits før en ændret close-politik. Ingen firmwareændring
+er besluttet eller udført på dette grundlag.
+
 ## Aktiv observationskandidat 29/9 — automatisk lydlog ved panelstart og hurtigere writer
 
 Fysisk .109-prøve kl. 18.51 sluttede først cirka 28,1 s efter sidste

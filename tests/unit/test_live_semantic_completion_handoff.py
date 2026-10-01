@@ -108,7 +108,7 @@ def runner(monkeypatch, reports, *, advance=None):
         assert kwargs["stdin"] == kwargs["stdout"] == kwargs["stderr"] == subprocess.DEVNULL
         assert 0 < kwargs["timeout"] <= module.CHILD_TIMEOUT_S
         variant, case = (
-            command[command.index("--variant") + 1],
+            command[command.index("--variant") + 1] if "--variant" in command else None,
             command[command.index("--case") + 1],
         )
         output = Path(command[command.index("--output") + 1])
@@ -123,6 +123,11 @@ def runner(monkeypatch, reports, *, advance=None):
             verdict="OBSERVED_PASS",
         )
         report.update(reports[index] if index < len(reports) else {})
+        if "--variant" not in command:
+            report.setdefault("runtime_activation_approved", False)
+            report.setdefault(
+                "protocol_variant", "record-task" if "--record-task" in command else "steering"
+            )
         (output / "report.json").write_text(json.dumps(report))
         calls.append((command, kwargs))
         if advance:
@@ -144,6 +149,41 @@ def test_fixed_batch_same_fixture_hash_private_env_and_baseline_fail_can_continu
     assert all("OPENAI_API_KEY" not in options["env"] for _, options in calls)
     assert "synthetic-test-credential" not in json.dumps(summaries)
     assert module.ADMISSION_S + module.BATCH_S <= 240
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        None,
+        {"verdict": "UNKNOWN"},
+        {"verdict": "FAIL"},
+        {"connect_attempts": 2},
+        {"clean_shutdown": False},
+        {"runtime_activation_approved": True},
+    ],
+)
+def test_idle_mode_runs_only_native_cases_and_stops_unknown(args, monkeypatch, bad):
+    args.idle_check = True
+    calls = runner(monkeypatch, [bad or {}])
+    code, summaries = module.run_batch(args, "synthetic-test-credential")
+    assert code == (0 if bad is None else 3)
+    assert len(calls) == (2 if bad is None else 1)
+    assert [(s["variant"], s["case"]) for s in summaries] == list(module.IDLE_TRIALS)[: len(calls)]
+    for command, options in calls:
+        assert Path(command[1]).name == "live_idle_check_eval.py"
+        assert "--variant" not in command
+        assert "--exclusive-provider-window" in command
+        assert "OPENAI_API_KEY" not in options["env"]
+
+
+@pytest.mark.parametrize("reported", ["steering", "record-task"])
+def test_explicit_record_variant_is_bound_and_wrong_variant_stops(args, monkeypatch, reported):
+    args.idle_check = args.idle_record_task = True
+    calls = runner(monkeypatch, [{"protocol_variant": reported}])
+    code, summaries = module.run_batch(args, "synthetic-test-credential")
+    assert code == (0 if reported == "record-task" else 3)
+    assert len(summaries) == len(calls) == (2 if reported == "record-task" else 1)
+    assert all("--record-task" in command for command, _ in calls)
 
 
 @pytest.mark.parametrize(

@@ -88,6 +88,11 @@
                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: capitalize; }
   .room .meta { margin-top: 7px; font-size: .82rem; color: var(--fg-dim);
                 display: flex; gap: 14px; flex-wrap: wrap; }
+  .room .live-status { margin-top: 12px; overflow-wrap: anywhere; }
+  .room .live-title { font-size: 1.25rem; font-weight: 750; }
+  .room .live-explanation summary { min-height: 44px; padding-top: 12px; cursor: pointer; }
+  .room .live-explanation summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .room .live-detail { margin-top: 5px; color: var(--fg-dim); font-size: .88rem; }
   .room .ctl { display: flex; gap: 7px; margin-top: 13px; flex-wrap: wrap; }
 
   /* Ducking meter. */
@@ -625,7 +630,7 @@
 <script>
 "use strict";
 var STATE_PILL = { IDLE: "pill-idle", LISTENING: "pill-listening", THINKING: "pill-lounge", AI_SPEAKING: "pill-speaking", LOUNGE_WINDOW: "pill-lounge" };
-var STATE_LABEL = { IDLE: "klar", LISTENING: "lytter", THINKING: "tænker", AI_SPEAKING: "taler", LOUNGE_WINDOW: "opfølgning" };
+var STATE_LABEL = { IDLE: "klar", LISTENING: "lytter", THINKING: "arbejder", AI_SPEAKING: "svarer", LOUNGE_WINDOW: "opfølgning" };
 var SVC_LABEL = { openai: "ChatGPT", voicepe: "Voice PE", podconnect: "PodConnect", mcp: "Hjemmestyring" };
 var METRIC_LABEL = {
   sessions: "Samtaler",
@@ -764,20 +769,110 @@ function renderCapabilities(caps, details) {
   }
 }
 
+// Live status is a read-only projection of the existing conversation owner.
+var liveStatusWatermarks = {};
+function acceptLiveStatus(room, value) {
+  if (!value || !Number.isFinite(value.observed_at) || !Number.isFinite(value.generation)) return null;
+  var old = liveStatusWatermarks[room];
+  if (old && (value.observed_at < old.observed_at ||
+      (value.session_id === old.session_id && value.generation < old.generation))) return null;
+  liveStatusWatermarks[room] = value;
+  return value;
+}
+function liveStatusView(rm, now) {
+  var v = rm.live_status;
+  if (!v) return {title:"Status ukendt", lines:["Afventer frisk status fra samtalen."]};
+  var age = now / 1000 - v.observed_at;
+  if (!Number.isFinite(age) || age < -1 || age > 3) return {title:"Status forældet", lines:["Live-status er ikke opdateret. Afventer nye målinger."]};
+  var labels = {IDLE:"Klar", LISTENING:"Lytter", LOUNGE_WINDOW:"Lytter", THINKING:"Arbejder", AI_SPEAKING:"Svarer", CLOSING:"Afslutter"};
+  var reasons = {ready:"Stilhedskrav opfyldt; afventer ejerens beslutning", quiet_window_incomplete:"Måler sammenhængende stilhed", provisional_output:"Afventer bekræftet afspilning", no_consumed_quiet_anchor:"Afventer målt stilhed ved højttaleren", owner_changed:"Afventer nye målinger", invalid_clock:"Tidsmåling er ukendt", stale_observation:"Lydmåling er forældet", pending_tools:"Et værktøj arbejder", pending_response:"Afventer svar", pending_audio:"Svarlyd afventer afspilning", work_pending:"Samtalen arbejder", inactive:"Ingen aktiv samtale", missing_observation:"Afventer lydmåling"};
+  var lines = [], details = [];
+  if (v.authority) lines.push("Styring: " + v.authority);
+  if (v.blocker) lines.push(reasons[v.blocker] || v.blocker);
+  var inputStale = Number.isFinite(v.freshness_s) && Number.isFinite(v.input_age_s) &&
+    v.input_age_s + Math.max(0, age) > v.freshness_s;
+  var inputState = inputStale ? "stale" : v.input_state;
+  var coverageAge = Number.isFinite(v.observation_age_s) ? v.observation_age_s :
+    (!v.semantic_end ? v.input_age_s : null);
+  var coverageStale = Number.isFinite(v.freshness_s) && Number.isFinite(coverageAge) &&
+    coverageAge + Math.max(0, age) > v.freshness_s;
+  var outputStale = Number.isFinite(v.freshness_s) && Number.isFinite(v.output_age_s) &&
+    v.output_age_s + Math.max(0, age) > v.freshness_s;
+  var sound = {active:"aktiv", quiet:"stille", unknown:"ukendt", stale:"forældet"};
+  if (v.phase !== "IDLE") {
+    details.push("Lydaktivitet: " + (sound[inputState] || "ukendt") + " · lydens betydning er ikke vurderet");
+    var output = {active:"Svarlyd registreret", pending:"lyd i kø", queued:"lyd i kø", consumed:"lyd afspillet", playing:"afspiller", quiet:"målt stille", unknown:"ukendt", stale:"forældet"};
+    details.push("Højttaler: " + (output[outputStale ? "stale" : v.output_state] || "ukendt"));
+    if (v.countdown_running === true && v.timer_kind === "deadline" && Number.isFinite(v.remaining_s) && v.remaining_s >= 0)
+      lines.push("Stilhedskrav: " + v.remaining_s.toFixed(1).replace(".", ",") + " s tilbage ved seneste måling");
+    else if (!coverageStale && v.timer_kind === "quiet_coverage" && Number.isFinite(v.quiet_s) && Number.isFinite(v.idle_timeout_s))
+      lines.push("Ro: " + v.quiet_s.toFixed(1).replace(".", ",") + " s af " + v.idle_timeout_s.toFixed(1).replace(".", ",") + " s ved seneste måling");
+    else if (!coverageStale && Number.isFinite(v.quiet_s) && v.quiet_s > 0)
+      lines.push("Stilhed målt: " + v.quiet_s.toFixed(1).replace(".", ",") + " s");
+    if (coverageStale && v.timer_kind === "quiet_coverage") lines.push("Ro-målingen er forældet — afventer frisk lydmåling");
+    if (v.transcript && Number.isFinite(v.transcript_at))
+      lines.push("Registrerede ord (" + Math.max(0, Math.floor(now / 1000 - v.transcript_at)) + " s siden): “" + v.transcript + "”");
+    details.push("Registrerede ord er en transskription, som kan være forkert. Lydaktivitet er ikke en vurdering af, hvem talen er til, eller om der er musik.");
+  }
+  var title = labels[v.phase] || "Status ukendt";
+  if (v.phase === "IDLE" && rm.connected === false) title = "Offline";
+  else if (v.phase === "IDLE") title = {proven:"Klar", recovered:"Wake afprøves", fault:"Kræver opmærksomhed", unknown:"Samtale lukket"}[v.wake_readiness] || "Samtale lukket";
+  return {title:title, lines:lines, details:details};
+}
+function renderLiveStatus(rm) {
+  var view = liveStatusView(rm, Date.now());
+  var box = el("div", "live-status");
+  box.dataset.room = rm.room;
+  var title = el("div", "live-title", view.title);
+  title.setAttribute("role", "status");
+  title.setAttribute("aria-live", "polite");
+  box.appendChild(title);
+  view.lines.forEach(function (line) { box.appendChild(el("div", "live-detail", line)); });
+  if (view.details && view.details.length) {
+    var detail = el("details", "live-explanation");
+    detail.appendChild(el("summary", null, "Lydmåling og registrerede ord"));
+    view.details.forEach(function (line) { detail.appendChild(el("div", "live-detail", line)); });
+    box.appendChild(detail);
+  }
+  return box;
+}
+
+function patchLiveStatus(box, rm) {
+  if (!box) return;
+  var next = renderLiveStatus(rm);
+  if (next.textContent === box.textContent) return;
+  var title = box.querySelector(".live-title");
+  if (title.textContent !== next.querySelector(".live-title").textContent)
+    title.textContent = next.querySelector(".live-title").textContent;
+  // Keep the native disclosure and its focus/open state across all updates.
+  Array.from(box.children).forEach(function (node) {
+    if (node.classList.contains("live-detail")) node.remove();
+  });
+  Array.from(next.children).forEach(function (node) {
+    if (node.classList.contains("live-detail")) box.insertBefore(node, box.querySelector("details"));
+  });
+  var oldDetails = box.querySelector("details"), newDetails = next.querySelector("details");
+  if (oldDetails && newDetails) {
+    oldDetails.querySelectorAll(".live-detail").forEach(function (line) { line.remove(); });
+    newDetails.querySelectorAll(".live-detail").forEach(function (line) { oldDetails.appendChild(line); });
+  } else if (oldDetails) oldDetails.remove();
+  else if (newDetails) box.appendChild(newDetails);
+}
+
 function roomCard(rm) {
   var state = safe(rm, "state", "IDLE");
   var box = el("div", "room");
+  box.dataset.room = rm.room;
   var top = el("div", "top");
   top.appendChild(el("span", "rname", safe(rm, "room", "?")));
-  var pill = el("span", "pill " + (STATE_PILL[state] || "pill-idle"));
-  pill.appendChild(document.createTextNode(STATE_LABEL[state] || String(state).toLowerCase()));
-  top.appendChild(pill);
   box.appendChild(top);
+
+  box.appendChild(renderLiveStatus(rm));
 
   var lvl = safe(rm, "level", 100);
   var ducked = !!rm.ducked || lvl < 100;
   var duck = el("div", "duck" + (ducked ? " ducked" : ""));
-  duck.appendChild(el("div", "lbl", "Musik " + lvl + "%"));
+  duck.appendChild(el("div", "lbl", "Musikdæmpning: " + (lvl >= 100 ? "fra" : "aktiv")));
   var track = el("div", "track"); var fill = el("div", "fill"); fill.style.width = lvl + "%";
   track.appendChild(fill); duck.appendChild(track); box.appendChild(duck);
 
@@ -833,8 +928,19 @@ function renderRooms() {
   var ts = document.getElementById("tx-section");
   if (rs) rs.style.display = has ? "" : "none";
   if (ts) ts.style.display = has ? "" : "none";
-  var wrap = document.getElementById("rooms"); wrap.innerHTML = "";
-  ids.forEach(function (id) { wrap.appendChild(roomCard(rooms[id])); });
+  var wrap = document.getElementById("rooms");
+  if (!wrap) return;
+  Array.from(wrap.children).forEach(function (card) { if (!rooms[card.dataset.room]) card.remove(); });
+  ids.forEach(function (id) {
+    var card = Array.from(wrap.children).find(function (item) { return item.dataset.room === id; });
+    if (!card) { wrap.appendChild(roomCard(rooms[id])); return; }
+    patchLiveStatus(card.querySelector(".live-status"), rooms[id]);
+    var fresh = roomCard(rooms[id]);
+    [".duck", ".meta"].forEach(function (selector) {
+      var old = card.querySelector(selector), next = fresh.querySelector(selector);
+      if (old && next && old.outerHTML !== next.outerHTML) old.replaceWith(next);
+    });
+  });
 }
 
 function renderMetrics(m) {
@@ -914,7 +1020,11 @@ function applyStatus(data) {
   lastObservedMs = Date.now();
   lastStatus = data;
   rooms = {};
-  (data.rooms || []).forEach(function (r) { rooms[r.room] = r; });
+  (data.rooms || []).forEach(function (r) {
+    var accepted = acceptLiveStatus(r.room, r.live_status);
+    r.live_status = accepted || liveStatusWatermarks[r.room] || null;
+    rooms[r.room] = r;
+  });
   renderSub(data);
   renderServices(data.services || {}, data.service_details || {}, data.diagnostic_active);
   window.dispatchEvent(new CustomEvent("podvoice-diagnostic", {detail:{active:!!data.diagnostic_active}}));
@@ -952,7 +1062,14 @@ function renderActivity(list) {
 
 function applyEvent(ev) {
   if (!ev || !ev.type) return;
-  if (ev.type === "state") {
+  if (ev.type === "live_status") {
+    var value = acceptLiveStatus(ev.room, ev.live_status || ev.payload);
+    if (value) {
+      var liveRoom = rooms[ev.room] || (rooms[ev.room] = {room:ev.room});
+      liveRoom.live_status = value;
+      renderRooms();
+    }
+  } else if (ev.type === "state") {
     var rm = rooms[ev.room] || (rooms[ev.room] = { room: ev.room });
     rm.state = ev.state; if (ev.level != null) rm.level = ev.level; rm.ducked = !!ev.ducked;
     renderRooms();
@@ -1018,6 +1135,11 @@ renderMetrics({});
 poll();
 openStream();
 setInterval(poll, 3000);
+setInterval(function () {
+  document.querySelectorAll(".live-status").forEach(function (box) {
+    if (rooms[box.dataset.room]) patchLiveStatus(box, rooms[box.dataset.room]);
+  });
+}, 1000);
 setInterval(function () {
   if (lastObservedMs && Date.now() - lastObservedMs > 10000) {
     connected = false; renderSub(lastStatus);

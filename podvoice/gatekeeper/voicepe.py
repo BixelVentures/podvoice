@@ -25,6 +25,7 @@ import secrets
 import socket
 import time
 from collections.abc import AsyncIterator, Callable, Coroutine
+from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any, ClassVar, TypeGuard
 
@@ -69,6 +70,18 @@ class _VoicePEAdmissionError(Exception):
     """A connected socket failed the local firmware/settings admission boundary."""
 
 
+@dataclass(frozen=True)
+class NativeMicFrame:
+    """Exact PCM and host callback order; no firmware sample identity or TX proof."""
+
+    pcm: bytes
+    received_monotonic: float
+    sequence: int
+    audio_generation: int
+    connection_generation: int
+    dropped_frames_at_enqueue: int
+
+
 class VoicePELink:
     """aioesphomeapi client for one Voice PE. Satisfies ``VoicePELinkLike``."""
 
@@ -110,11 +123,11 @@ class VoicePELink:
         self._recovery_token = 0
         self._unsub_va: Callable[[], None] | None = None
         self._unsub_states: Callable[[], None] | None = None
-        self._audio_q: asyncio.Queue[bytes] = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
-        # Captured synchronously when aioesphomeapi receives each audio protobuf.
-        # A matching recovered rearm ACK advances the epoch before waking Thin, so an
-        # old coroutine that was scheduled but not yet run cannot poison the next wake.
+        self._audio_q: asyncio.Queue[NativeMicFrame] = asyncio.Queue(maxsize=_QUEUE_MAXSIZE)
+        # A matching recovered rearm ACK advances the epoch and drains callback-queued
+        # audio before waking Thin, so the previous tail cannot enter the next wake.
         self._audio_epoch = 0
+        self._mic_callback_sequence = 0
         # Live audio-in health (read by the Voice PE tab's S1 check).
         self.frames_in = 0
         self.bytes_in = 0
@@ -632,14 +645,13 @@ class VoicePELink:
                 await self._handle_stop(*args, **kwargs)
 
         def handle_audio(data: bytes, data2: bytes | None = None) -> Coroutine[Any, Any, None]:
-            # aioesphomeapi schedules the returned coroutine as a background task. The
-            # epoch must therefore be captured in this synchronous invocation, not in
-            # _handle_audio when that task eventually gets an event-loop turn.
-            audio_epoch = self._audio_epoch
+            # aioesphomeapi schedules the returned coroutine later. Queue the exact
+            # bytes here, while host callback order and the current epoch are known.
+            if admission_current():
+                self._enqueue_audio(data, data2, audio_epoch=self._audio_epoch)
 
             async def deliver() -> None:
-                if admission_current():
-                    await self._handle_audio(data, data2, audio_epoch=audio_epoch)
+                return None
 
             return deliver()
 
@@ -1341,6 +1353,17 @@ class VoicePELink:
         *,
         audio_epoch: int,
     ) -> None:
+        # Test hook for direct native-frame injection; production queues synchronously
+        # in handle_audio before aioesphomeapi schedules its completion coroutine.
+        self._enqueue_audio(data, data2, audio_epoch=audio_epoch)
+
+    def _enqueue_audio(
+        self,
+        data: bytes,
+        data2: bytes | None = None,
+        *,
+        audio_epoch: int,
+    ) -> None:
         # aioesphomeapi==45.3.* calls handle_audio(audio.data, audio.data2); the
         # second positional arg is the optional 2nd-channel bytes (or None), NOT
         # an `end` flag. A VoiceAssistantAudio{end=true} is intercepted by
@@ -1355,24 +1378,32 @@ class VoicePELink:
             log.info("voicepe %s: first device mic frame received (audio is flowing)", self.host)
         self.frames_in += 1
         self.bytes_in += len(data)
-        self.last_audio_ts = asyncio.get_event_loop().time()
+        received_monotonic = time.monotonic()
+        self.last_audio_ts = received_monotonic
         if self._last_local_wake_at and self.first_audio_after_wake_ts < self._last_local_wake_at:
-            self.first_audio_after_wake_ts = time.monotonic()
-        try:
-            self._audio_q.put_nowait(data)
-        except asyncio.QueueFull:
+            self.first_audio_after_wake_ts = received_monotonic
+        self._mic_callback_sequence += 1
+        if self._audio_q.full():
             # Never block the native-API receive path. If the 12 s ceiling is ever
             # reached, discard the oldest 20 ms (normally wake/pre-roll) instead of
             # the end of the request, which carries the intent and tool arguments.
             with contextlib.suppress(asyncio.QueueEmpty):
                 dropped = self._audio_q.get_nowait()
                 self.audio_queue_dropped_frames += 1
-                self.audio_queue_dropped_bytes += len(dropped)
-            try:
-                self._audio_q.put_nowait(data)
-            except asyncio.QueueFull:
-                self.audio_queue_dropped_frames += 1
-                self.audio_queue_dropped_bytes += len(data)
+                self.audio_queue_dropped_bytes += len(dropped.pcm)
+        frame = NativeMicFrame(
+            pcm=data,
+            received_monotonic=received_monotonic,
+            sequence=self._mic_callback_sequence,
+            audio_generation=audio_epoch,
+            connection_generation=self._connection_generation,
+            dropped_frames_at_enqueue=self.audio_queue_dropped_frames,
+        )
+        try:
+            self._audio_q.put_nowait(frame)
+        except asyncio.QueueFull:
+            self.audio_queue_dropped_frames += 1
+            self.audio_queue_dropped_bytes += len(data)
         self.audio_queue_high_water = max(self.audio_queue_high_water, self._audio_q.qsize())
 
     def wake_diagnostics(self) -> dict[str, int | float | None]:
@@ -1414,6 +1445,11 @@ class VoicePELink:
         return self._audio_epoch
 
     @property
+    def connection_generation(self) -> int:
+        """Current admitted native API connection, independent of audio epoch."""
+        return self._connection_generation
+
+    @property
     def rearm_token(self) -> int | None:
         """Last exact firmware token that completed with ``recovered``."""
         return self._last_rearm_token
@@ -1421,9 +1457,11 @@ class VoicePELink:
     def cut_audio_boundary(self, reason: str) -> tuple[int, int]:
         """Synchronously close one audio generation and discard its queued tail.
 
-        ``aioesphomeapi`` invokes the native audio callback synchronously but schedules
-        the returned coroutine. Advancing the generation before draining therefore
-        makes already-captured callbacks inert even when they run after this method.
+        ``aioesphomeapi`` invokes the native audio callback synchronously. It queues
+        PCM immediately and schedules only a no-op completion coroutine. Advancing
+        the generation and draining remove all pre-boundary *callback-delivered*
+        frames. A physically older sample delivered after this cut is indistinguishable
+        without a firmware sequence or sample fence; this is not source completeness.
         The caller owns *when* a boundary is authoritative; this primitive owns only
         the mechanical generation cut.
         """
@@ -1443,6 +1481,15 @@ class VoicePELink:
         """Async-iterate raw 16 kHz PCM frames as they arrive."""
 
         async def _gen() -> AsyncIterator[bytes]:
+            while True:
+                yield (await self._audio_q.get()).pcm
+
+        return _gen()
+
+    def timed_pcm_frames(self) -> AsyncIterator[NativeMicFrame]:
+        """Read host callback provenance from pcm_frames' one shared queue."""
+
+        async def _gen() -> AsyncIterator[NativeMicFrame]:
             while True:
                 yield await self._audio_q.get()
 
