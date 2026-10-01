@@ -42,6 +42,11 @@ patch følger dette. Én normal frosset releasegate med eksisterende240s-budget
 skal bevise hele unit/integration; gate-timeout er ikke produktevidens. Scope
 PASS single unclassified_runtime. Betalt gentagelse afventes stadig som en
 særskilt godkendt prøve, ikke automatisk retry af den stoppede batch.
+Frosset kandidat5c66c5d0764a659a186bd1ad3323841d01a8850f bestod den ene fulde
+releasegate: scope, Ruff/format201, Mypy55, unit112.35s, integration og samlet
+112.7s. Fastunitens tidligere procesforsinkelse gav ingen reproduceret produkt-
+fejl; originalårsagen forbliver UKENDT. Ingen deadlineværdi eller runtime blev
+ændret for at få gaten igennem. Dette er softwarebevis, ikke provider/rumbevis.
 
 ## 1/10 — HA-adgang genetableret, native idle-prøver afsluttet
 
