@@ -151,6 +151,11 @@ unit106.17s,samlet106.5s. Full release efter ny freeze følger; gammel gate
 arves ikke. Ny guarded max5providerprøve er anmodet og IKKE godkendt/kørt.
 Ny handoffbindingadbd546db5bee7ae046e424cebd7fac62721a2205bacd94b18b11a9eb97f7765.
 
+Ny frosset runtime18fd7a515e1bacf5c233d21151e84adcf2fe8490 bestod sin ene
+fulde releasegate: scope single unclassified_runtime, Ruff/format201/Mypy55,
+integration61.24s, unit100.04s, samlet100.3s. Næste step exactcommitCI/ARM64,
+og særskilt godkendt max5prøve. Ingen betalt prøve efter observerkaldet.
+
 ## 1/10 — .113 diagnostik af den afviste lydvurdering
 
 Lead/root ejer denne afgrænsede ændring. Installeret .112 og firmware113112
