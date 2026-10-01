@@ -597,6 +597,16 @@ async def _live_eval(request: web.Request) -> web.Response:
             {"ok": False, "status": "invalid", "error": "Body skal være et objekt."},
             status=400,
         )
+    if body == {"action": "audio-idle-probe"}:
+        if not _protocol_owner_source_allowed(request.remote):
+            return web.json_response({"ok": False, "status": "forbidden"}, status=403)
+        report = await run(action="audio-idle-probe")
+        return web.json_response(
+            report,
+            status={"running": 202, "busy": 409, "invalid": 400}.get(report.get("status"), 200),
+        )
+    if "action" in body:
+        return web.json_response({"ok": False, "status": "invalid"}, status=400)
     raw_ids = body.get("scenario_ids")
     raw_repeats = body.get("repeats")
     scenario_ids: set[str] | None = None

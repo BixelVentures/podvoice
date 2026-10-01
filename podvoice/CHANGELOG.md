@@ -1,3 +1,11 @@
+## 1.13.112
+
+- Experimental Voice PE closure candidate: one output/work quiet window, one bounded audio relevance decision and one existing close/rearm owner. Background transcripts cannot indefinitely veto the new window.
+- Preserve relevant input once, reject stale decisions, and retain full goodbye playback outside the decision deadline. Physical Stop remains immediate.
+- Native source provenance and actual closing LED transmission acknowledgement, with separate candidate firmware identity. Talk and Alpha OFF retain their existing paths.
+- Fixed five-case synthetic provider probe uses the saved internal key and existing diagnostic exclusion. Exact audio/text usage pricing stays unknown when evidence is incomplete.
+- Activation requires a recorded calibration bound to this firmware artifact; installing the candidate is not physical acceptance.
+
 ## 1.13.111
 
 - Show a simple live conversation status on each room card: observed work, the governing logic, the actual reason closure is waiting, measured quiet coverage or the existing follow-up deadline, and timestamped registered words.

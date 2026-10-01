@@ -177,6 +177,10 @@ TUNING_KEYS: frozenset[str] = frozenset(
 # NOT here (it's the one add-on option).
 DEFAULTS: dict = {
     "live_alpha": False,  # explicit provider opt-in, snapshotted by ThinSession at wake
+    # Operator calibration for this experimental native boundary; 0 stays inactive.
+    # Alpha ON alone cannot fabricate a measured guard or enable this candidate.
+    "live_closing_guard_ms": 0,
+    "live_closing_guard_ref": "",
     "extended_device_control": False,
     "device_control_entities": [],
     "wake_word": DEFAULT_WAKE_WORD,
@@ -318,6 +322,16 @@ def _coerce(key: str, value, template) -> object:
     (int("loud") in config loading) — one bad panel POST bricked the assistant."""
     if key == "device_control_entities":
         return list(validate_entities(value))
+    if key == "live_closing_guard_ms":
+        if type(value) is not int or not 0 <= value < 2000:
+            raise ValueError("live_closing_guard_ms: expected integer milliseconds from 0 to 1999")
+        return value
+    if key == "live_closing_guard_ref":
+        if not isinstance(value, str) or len(value) > 512:
+            raise ValueError(
+                "live_closing_guard_ref: expected bounded artifact and measurement reference"
+            )
+        return value
     if key == "wake_word" and (not isinstance(value, str) or value not in WAKE_WORDS):
         raise ValueError(
             "wake_word: vælg Okay Nabu, Hey Jarvis, Hey Mycroft, Hey Chat eller Hey Chat + Hey Jarvis"

@@ -94,6 +94,8 @@ struct PodVoiceAudio {
  uint32_t last_keepalive_ms_=0,audio_epoch_=0,capture_token_=0,capture_last_token_=0;
  uint64_t epoch_start_sample_=0,produced_samples_=0;
  Client *capture_client_=nullptr;
+ uint32_t provenance_nonce_=0;
+ Client *provenance_client_=nullptr;
  bool begin_button_conversation(); void start_streaming(); void stop_streaming(); void stop_from_button();
  bool hold_capture(uint32_t); bool resume_capture(uint32_t); void reset_capture_barrier();
 };
@@ -103,8 +105,12 @@ struct PodVoiceAudio {
 int main(){
  PodVoiceAudio p;
  assert(p.begin_button_conversation()); assert(p.user_enabled_);
+ p.provenance_nonce_=17; p.provenance_client_=&client;
  assert(p.hold_capture(10)); // a provider rotation was in flight
+ assert(p.provenance_nonce_==0 && p.provenance_client_==nullptr);
+ p.provenance_nonce_=18; p.provenance_client_=&client;
  p.stop_from_button();
+ assert(p.provenance_nonce_==0 && p.provenance_client_==nullptr);
  assert(!p.user_enabled_ && p.capture_held_ && p.button_stop_latched_);
  p.start_streaming(); assert(!p.user_enabled_);
  assert(!p.resume_capture(10)); assert(!p.hold_capture(11));

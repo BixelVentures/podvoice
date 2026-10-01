@@ -43,8 +43,10 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
-#ifdef USE_PODVOICE_WAKE_REFERENCE
+#if defined(USE_PODVOICE_WAKE_REFERENCE) || defined(USE_PODVOICE_CLOSING_LED)
 #include "esphome/components/text_sensor/text_sensor.h"
+#endif
+#ifdef USE_PODVOICE_WAKE_REFERENCE
 #include "esphome/components/switch/switch.h"
 #endif
 #include "esphome/core/helpers.h"
@@ -117,6 +119,27 @@ class PodVoiceAudio : public Component {
   uint32_t capture_high_water() const { return this->capture_last_token_; }  // Main/API task only.
   void reset_capture_barrier();  // Only successful existing wake rearm releases a stopped hold.
 
+  // Explicit private Alpha ABI: data remains raw mono PCM; data2 carries a
+  // versioned callback-source ledger only after the sole subscriber opts in.
+  // This does NOT timestamp ADC/DMA capture or prove a visible LED boundary.
+  bool enable_source_provenance(uint32_t nonce);
+  bool request_callback_fence(uint32_t nonce, uint32_t token);
+
+#ifdef USE_PODVOICE_CLOSING_LED
+  void set_closing_status_sensor(text_sensor::TextSensor *sensor) { closing_status_sensor_ = sensor; }
+  void set_closing_led_request(std::function<bool(uint32_t)> callback) { closing_led_request_ = std::move(callback); }
+  void set_closing_led_cancel(std::function<void()> callback) { closing_led_cancel_ = std::move(callback); }
+  // Full-brightness equal-R/G yellow after current correction: allow only
+  // rounding-sized skew. All-black/stale cyan/red cannot prove this phase.
+  static bool closing_yellow_raw(uint8_t r, uint8_t g, uint8_t b, uint8_t w) {
+    return r > 0 && g > 0 && b == 0 && w == 0 && (r > g ? r - g : g - r) <= 1;
+  }
+  bool begin_live_closing(uint32_t nonce, uint32_t token);
+  void abort_live_closing() { this->cancel_closing_led_(); }
+  void cancel_live_closing(uint32_t nonce, uint32_t token);
+  void closing_led_tx_done(uint32_t token, uint32_t sequence, uint32_t device_us);
+#endif
+
   // --- RUNTIME audio tuning (no reflash) -------------------------------------
   // Which XMOS channel we tap and how much digital gain we apply are the two
   // knobs that decide whether speech-to-text gets usable audio (ch0 = AGC+NS
@@ -172,6 +195,22 @@ class PodVoiceAudio : public Component {
   micro_wake_word::MicroWakeWord *wake_detector_{nullptr};
   std::mutex audio_mutex_;
   uint64_t produced_samples_{0};
+  // Protected by audio_mutex_; nonce binds one admitted native subscriber.
+#ifdef USE_PODVOICE_CLOSING_LED
+  text_sensor::TextSensor *closing_status_sensor_{nullptr};
+  std::function<bool(uint32_t)> closing_led_request_;
+  std::function<void()> closing_led_cancel_;
+  uint32_t closing_nonce_{0}, closing_token_{0}, closing_epoch_{0};
+  api::APIConnection *closing_client_{nullptr};
+  void cancel_closing_led_();
+  void send_closing_status_(const char *phase, uint32_t sequence = 0, uint32_t device_us = 0);
+#endif
+  uint32_t provenance_nonce_{0};
+  api::APIConnection *provenance_client_{nullptr};
+  uint64_t provenance_sequence_{0};
+  uint64_t provenance_overwrite_samples_{0}, provenance_send_loss_samples_{0};
+  uint32_t callback_fence_token_{0}, callback_fence_epoch_{0};
+  uint64_t callback_fence_sample_{0};
   uint64_t epoch_start_sample_{0};
   uint32_t audio_epoch_{1};
   bool boundary_consumed_{false};

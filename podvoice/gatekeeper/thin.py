@@ -17,9 +17,10 @@ import hashlib
 import inspect
 import json
 import logging
+import math
 import secrets
 import time
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
@@ -54,7 +55,13 @@ from .voice import (
 if TYPE_CHECKING:
     from .openai_live import LiveToolBatch
 
-from .live_idle import NativeIdleShadow, NativeIdleWindow
+from .live_idle import (
+    LiveCloseIdentity,
+    LiveClosingAttempt,
+    NativeIdleShadow,
+    NativeIdleWindow,
+    closing_pcm_clip,
+)
 from .voicepe import NativeMicFrame
 
 # Firmware publishes activity every 100 ms. Reject two missed source periods;
@@ -535,6 +542,10 @@ class ThinSession:
         live_enabled=None,
         live_audio=None,
         live_reply_url: str | None = None,
+        live_close_judge=None,  # Optional test override; measured guard enables packaged request.
+        live_close_guard_s: float | None = None,
+        live_close_guard_ref: str
+        | None = None,  # Measured physical artifact reference, never guessed.
     ) -> None:
         self.room = room
         self.attention = attention
@@ -546,6 +557,39 @@ class ThinSession:
         self.live_audio = live_audio
         self.live_reply_url = live_reply_url
         self.live_alpha = False
+        self._live_close_judge = live_close_judge
+        if live_close_judge is None and (
+            live_close_guard_s is not None or live_close_guard_ref is not None
+        ):
+            self._live_close_judge = self._judge_closing_audio
+        self._live_close_guard_s = live_close_guard_s
+        self._live_close_guard_ref = live_close_guard_ref
+        self._live_close_attempt: LiveClosingAttempt | None = None
+        self._live_close_task: asyncio.Task | None = None
+        self._live_close_cancel_reason: str | None = None
+        self._live_close_phase: str | None = None
+        self._live_close_consumed = False
+        self._live_close_next_token = 0
+        self._live_close_admission_token = 0
+        self._live_close_speech_played = False
+        self._live_close_nonzero_output = False
+        self._live_close_output_revision = 0
+        self._live_close_response_ids: set[str] = set()
+        self._live_close_semantic_floor: int | None = None
+        self._live_source_history: deque[NativeMicFrame] = deque()
+        self._live_close_held: deque[NativeMicFrame] = deque()
+        self._live_source_history_bytes = 0
+        self._live_close_held_bytes = 0
+        self._live_close_flush_started = False
+        self._live_close_send_ambiguous = False
+        self._live_close_source_error: str | None = None
+        self._live_close_source_nonce: int | None = None
+        self._live_close_capture_epoch: int | None = None
+        self._live_close_admission_sample: int | None = None
+        self._live_close_frame_changed = asyncio.Event()
+        self._live_close_output_window = NativeIdleWindow(
+            freshness_s=LIVE_ACTIVITY_FRESHNESS_S, require_input_quiet=False
+        )
         self._live_led_ready = False
         self._live_led_working: bool | None = None
         self._live_webrtc = False
@@ -867,6 +911,26 @@ class ThinSession:
             raise RuntimeError("Live Alpha integration is unavailable")
         self._live_stream = None
         self._live_output_bytes = 0
+        self._live_close_attempt = None
+        self._live_close_task = None
+        self._live_close_cancel_reason = None
+        self._live_close_phase = None
+        self._live_close_consumed = False
+        self._live_close_admission_token = 0
+        self._live_close_speech_played = False
+        self._live_close_nonzero_output = False
+        self._live_close_output_revision = 0
+        self._live_close_response_ids.clear()
+        self._live_close_semantic_floor = None
+        self._live_source_history.clear()
+        self._live_close_held.clear()
+        self._live_source_history_bytes = self._live_close_held_bytes = 0
+        self._live_close_flush_started = False
+        self._live_close_send_ambiguous = False
+        self._live_close_source_error = None
+        self._live_close_source_nonce = None
+        self._live_close_capture_epoch = self._live_close_admission_sample = None
+        self._live_close_output_window.reset()
         self._live_pending_audio = None
         self._live_input_revision = 0
         self._live_rotating = False
@@ -1024,6 +1088,20 @@ class ThinSession:
             return
         if not opening_is_current():
             return
+        if opening_live and self._live_close_judge is not None:
+            if not self._live_close_guard_bound():
+                self._request_close("live-close-guard-unmeasured", error_kind="device")
+                return
+            if opening_webrtc:
+                self._request_close("live-close-browser-fence-unconfirmed", error_kind="device")
+                return
+            try:
+                await self._admit_closing_source()
+            except Exception:
+                self._request_close("live-close-source-unavailable", error_kind="device")
+                return
+            if not opening_is_current():
+                return
         if opening_live and not opening_webrtc and rearm_attempt_id is not None and trace_started:
             self._spawn(
                 self._request_wake_reference(self.audio_trace, self._history_session, self._epoch),
@@ -1422,6 +1500,7 @@ class ThinSession:
         for task in (
             self._live_opening_task,
             self._live_rotation_task,
+            self._live_close_task,
             *self._live_rotation_io,
             self._reader,
             self._pump,
@@ -1964,8 +2043,23 @@ class ThinSession:
                     # work, but cannot independently open or close provider input.
                     self._gate_dropped += 1
                     continue
+                if live and self._live_close_judge is not None:
+                    self._remember_closing_packet(packet)
                 try:
-                    if self.full_duplex or self.live_alpha:
+                    if live and self._live_close_judge is not None:
+                        async with self._mic_send_lock:
+                            if self._transport_closing or self._live_finalizing:
+                                continue  # Sole finalizer owns disposal, never preservation buffering.
+                            if self._live_close_attempt is not None:
+                                self._hold_closing_packet(packet)
+                                continue
+                            try:
+                                await brain.send_audio(frame)
+                            except BaseException:
+                                self._live_close_send_ambiguous = True
+                                self._live_close_source_error = "provider_append_ambiguous"
+                                raise
+                    elif self.full_duplex or self.live_alpha:
                         if self._transport_closing or self._live_finalizing:
                             continue
                         await brain.send_audio(frame)
@@ -2122,7 +2216,19 @@ class ThinSession:
             if self.live_alpha and self._live_stream is not None and self._live_stream.cancelled:
                 self._request_close("live-output-cancelled", error_kind="device")
                 return
-            if self.live_alpha and self._live_quiet_ready():
+            if (
+                self.live_alpha
+                and self._live_close_judge is not None
+                and self._closing_output_ready()
+            ):
+                if not self._live_close_consumed and (
+                    self._goodbye is None or self._goodbye.done()
+                ):
+                    self._goodbye = self._spawn(
+                        self._run_live_closing_attempt(self._epoch, receipt=self._live_end_receipt),
+                        "live-closing-attempt",
+                    )
+            elif self.live_alpha and self._live_close_judge is None and self._live_quiet_ready():
                 if self._goodbye is None or self._goodbye.done():
                     self._goodbye = self._spawn(
                         self._finalize_live_conversation(self._epoch, reason="idle-fallback"),
@@ -2209,6 +2315,13 @@ class ThinSession:
             before_bytes = stream.buffered_bytes
             pending_audio = None
             if any(ev.pcm):
+                if self._live_close_judge is not None:
+                    self._live_close_nonzero_output = True
+                    self._live_close_output_revision += 1
+                    self._live_close_consumed = (
+                        False  # Only genuine fresh output renews eligibility.
+                    )
+                    self._cancel_closing_attempt("new-output")
                 # The reader has removed this chunk from the provider queue. Keep
                 # its nonzero work visible while capacity is awaited, without
                 # treating the continuous zero stream as activity.
@@ -2315,7 +2428,8 @@ class ThinSession:
                     end_ms=ev.end_ms,
                     input_revision=self._live_input_revision,
                 )
-                self._cancel_live_end()
+                if self._live_close_judge is None:
+                    self._cancel_live_end()  # OFF/previous Alpha contract.
             if self.hub is not None:
                 self.hub.transcript_fragment(
                     self.room,
@@ -2325,6 +2439,9 @@ class ThinSession:
                     generation=self.brain._connection_generation,
                 )
         elif isinstance(ev, LiveBackendStarted):
+            if self._live_close_judge is not None:
+                self._cancel_closing_attempt("new-backend-work")
+                self._live_close_consumed = False
             self._reset_live_quiet()
             review = self._live_review
             if review is not None:
@@ -2810,8 +2927,15 @@ class ThinSession:
                     and revision == self._live_input_revision
                 ):
                     self._cancel_live_end()
-                    receipt = self.brain.create_terminal_receipt(
-                        batch.response_id, generation=batch.generation
+                    creator = (
+                        self.brain.create_closure_receipt
+                        if self._live_close_judge is not None
+                        else self.brain.create_terminal_receipt
+                    )
+                    receipt = creator(batch.response_id, generation=batch.generation)
+                    source = getattr(self._live_mic_submitted, "callback_source", None)
+                    self._live_close_semantic_floor = (
+                        source.sample_end if source is not None else None
                     )
                     self._live_end_receipt = receipt
                     self._ending_conversation = True
@@ -3068,6 +3192,9 @@ class ThinSession:
                     check()
                 await self.voicepe.resume_live_capture(token)
                 check()
+                if self._live_close_judge is not None:
+                    await self._admit_closing_source()
+                    check()
                 self._live_confirmation_generation = brain._connection_generation
                 self._live_confirmation_input_floor = self._live_input_revision
                 self._live_confirmation_input_index_floor = brain.input_sequence
@@ -3136,6 +3263,469 @@ class ThinSession:
             size += extra
         return tuple(reversed(selected))
 
+    def _closing_observed_context(self) -> str:
+        """Bound the actual judge envelope, preserving a truthful whole-message suffix."""
+        history = getattr(self.hub, "_history", None)
+        messages = (
+            history.session_text(room=self.room, session=self._history_session)
+            if history is not None
+            else self._live_prior_text()
+        )
+        selected: list[tuple[str, str]] = []
+
+        def envelope(rows):
+            return json.dumps(
+                {"kind": "partial_observed_text", "messages": rows},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+
+        for message in reversed(messages):
+            candidate = [message, *selected]
+            if len(envelope(candidate)) > 2048:
+                break  # Never skip an intervening fragment and manufacture dialogue.
+            selected = candidate
+        if not selected:
+            raise RuntimeError("closing_observed_context_missing")
+        return envelope(selected)
+
+    async def _admit_closing_source(self) -> None:
+        """Opt-in source history belongs to exactly one existing capture epoch."""
+        if self._live_close_attempt is not None or self._live_close_send_ambiguous:
+            raise RuntimeError("closing_capture_cannot_readmit_ambiguous_owner")
+        self._live_close_source_nonce = await self.voicepe.enable_callback_source_provenance()
+        self._live_close_admission_sample = None
+        self._live_close_capture_epoch = None
+        self._live_close_source_error = None
+        self._live_source_history.clear()
+        self._live_source_history_bytes = 0
+        self._live_mic_submitted = None
+        self._live_close_output_window.reset("capture_readmission")
+        self._live_close_next_token += 1
+        self._live_close_admission_token = self._live_close_next_token
+        await self.voicepe.request_callback_source_fence(self._live_close_admission_token)
+
+    async def _judge_closing_audio(self, **kwargs):
+        from .live_audio_judge import judge
+
+        if len(self._live_close_response_ids) >= 512:
+            raise RuntimeError("closing_judge_response_limit")
+        result = await judge(
+            self.brain._client,
+            prior_response_ids=frozenset(self._live_close_response_ids),
+            **kwargs,
+        )
+        if result.protocol_valid and result.response_id is not None:
+            self._live_close_response_ids.add(result.response_id)
+        if result.response_id is not None:
+            # Preserve audio/text units and actual tier under the sealed request
+            # identity, even if the owner has retired before a response arrives.
+            self.usage.add_live_backend_usage(
+                result.response_id,
+                (
+                    {
+                        "input_tokens": result.usage["prompt_tokens"],
+                        "output_tokens": result.usage["completion_tokens"],
+                        "total_tokens": result.usage["total_tokens"],
+                        "input_tokens_details": result.usage.get("prompt_tokens_details", {}),
+                        "service_tier": result.service_tier,
+                    }
+                    if result.protocol_valid and result.usage is not None
+                    else None
+                ),
+                session_id=result.identity.session_id,
+                generation=result.identity.provider_generation,
+                model=result.returned_model or "gpt-audio-1.5",
+                room=self.room,
+            )
+        return result
+
+    def _live_close_guard_bound(self) -> bool:
+        guard = self._live_close_guard_s
+        if guard is None:
+            return False
+        return bool(
+            callable(self._live_close_judge)
+            and type(guard) in (int, float)
+            and math.isfinite(guard)
+            and 0 <= guard < 2.0
+            and isinstance(self._live_close_guard_ref, str)
+            and self._live_close_guard_ref.strip()
+        )
+
+    def _semantic_receipt_current(self, receipt: asyncio.Future[bool]) -> bool:
+        if self._live_close_judge is not None:
+            return self.brain.closure_receipt_current(receipt)
+        return self.brain.terminal_receipt_current(receipt)
+
+    def _closing_output_ready(self) -> bool:
+        if (
+            not self._live_close_guard_bound()
+            or not self._live_close_speech_played
+            or not self._live_close_nonzero_output
+            or not self._live_quiet_work_clear(semantic=True)
+            or self._live_activity_latest is None
+            or not self.voicepe.accepts_activity(self._live_activity_latest)
+        ):
+            return False
+        return self._live_close_output_window.ready(
+            owner=self._live_quiet_owner(), now=time.monotonic(), idle_s=self.idle_timeout_s
+        )
+
+    def _remember_closing_packet(self, packet: NativeMicFrame | None) -> None:
+        if packet is None:
+            self._live_close_source_error = "native_fence_unavailable"
+            return
+        source = getattr(packet, "callback_source", None)
+        if source is None:
+            # Startup untagged bytes are still sent exactly once. They cannot be
+            # history for a judge; first admission must then accumulate full 4s.
+            if self._live_close_admission_sample is not None:
+                self._live_close_source_error = packet.source_problem or "source_metadata_missing"
+            return
+        if (
+            packet.source_problem is not None
+            or source.nonce != self._live_close_source_nonce
+            or source.native_send_loss_samples
+            or source.overwrite_loss_samples
+            or packet.dropped_frames_at_enqueue
+        ):
+            self._live_close_source_error = packet.source_problem or "source_audio_lost"
+        if self._live_close_capture_epoch is None:
+            self._live_close_capture_epoch = source.capture_epoch
+        elif source.capture_epoch != self._live_close_capture_epoch:
+            self._live_close_source_error = "source_capture_epoch_changed"
+        if (
+            self._live_close_admission_sample is None
+            and self._live_close_admission_token > 0
+            and source.fence_token == self._live_close_admission_token
+        ):
+            if source.fence_epoch != source.capture_epoch:
+                self._live_close_source_error = "source_admission_fence_epoch_changed"
+            else:
+                self._live_close_admission_sample = source.fence_sample
+        self._live_source_history.append(packet)
+        self._live_source_history_bytes += len(packet.pcm)
+        # Local duplicate history only; provider input is never discarded here.
+        while (
+            self._live_source_history_bytes > 6 * C.INPUT_RATE * 2
+            or len(self._live_source_history) > 600
+        ):
+            self._live_source_history_bytes -= len(self._live_source_history.popleft().pcm)
+        self._live_close_frame_changed.set()
+
+    def _hold_closing_packet(self, packet: NativeMicFrame | None) -> None:
+        if packet is None:
+            self._live_close_source_error = "native_fence_unavailable"
+            return
+        self._live_close_held.append(packet)
+        self._live_close_held_bytes += len(packet.pcm)
+        if self._live_close_held_bytes > 4 * C.INPUT_RATE * 2 or len(self._live_close_held) > 600:
+            self._request_close("live-close-buffer-overflow", error_kind="connection")
+
+    def _closing_attempt_current(self, attempt: LiveClosingAttempt, *, check_work: bool) -> bool:
+        current = bool(
+            self._live_close_attempt is attempt
+            and self._active
+            and self.live_alpha
+            and not self._transport_closing
+            and self._epoch == attempt.epoch
+            and self._history_session == attempt.session_id
+            and self.brain._connection_generation == attempt.provider_generation
+            and self.voicepe.connection_generation == attempt.native_connection
+            and self.voicepe.audio_generation == attempt.audio_generation
+            and self._live_close_source_nonce == attempt.source_nonce
+            and self._live_close_capture_epoch == attempt.capture_epoch
+        )
+        if check_work:
+            current = bool(
+                current
+                and self._live_close_cancel_reason is None
+                and self._live_close_output_revision == attempt.output_revision
+                and self.brain.backend_sequence == attempt.backend_sequence
+                and self._live_quiet_work_clear(semantic=True)
+            )
+        return current
+
+    def _cancel_closing_attempt(self, reason: str) -> asyncio.Task | None:
+        task = self._live_close_task
+        if self._live_close_attempt is None or self._live_finalizing:
+            return None
+        if self._live_close_cancel_reason is not None:
+            return task  # Typed input must still join the existing preservation send.
+        self._live_close_cancel_reason = reason
+        if task is not None and task is not asyncio.current_task() and not task.done():
+            task.cancel()
+        return task
+
+    async def _flush_closing_held(self, attempt: LiveClosingAttempt) -> None:
+        """One FIFO send of never-submitted PCM; no generation cut or replay.
+
+        When relevant prefix preserves its original interaction, post-F tail is
+        retained too. The bytes cannot distinguish continuation from another
+        utterance; that experimental boundary limitation remains explicit.
+        """
+        if self._live_close_flush_started or self._live_close_send_ambiguous:
+            raise RuntimeError("held_audio_send_already_started_or_ambiguous")
+        self._live_close_flush_started = True
+        async with self._mic_send_lock:
+            if not self._closing_attempt_current(attempt, check_work=False):
+                return  # Existing teardown owns stale-generation disposal.
+            expected = attempt.submitted_end
+            for packet in self._live_close_held:
+                source = getattr(packet, "callback_source", None)
+                if (
+                    source is None
+                    or packet.source_problem is not None
+                    or source.nonce != attempt.source_nonce
+                    or source.capture_epoch != attempt.capture_epoch
+                    or source.sample_start != expected
+                    or source.native_send_loss_samples
+                    or source.overwrite_loss_samples
+                    or packet.audio_generation != attempt.audio_generation
+                    or packet.connection_generation != attempt.native_connection
+                    or packet.dropped_frames_at_enqueue != attempt.host_drops
+                ):
+                    raise RuntimeError("held_audio_not_exact_unsubmitted_interval")
+                expected = source.sample_end
+            # Clear a packet ONLY after its sole send has returned. A cancelled
+            # ambiguous SDK send is a technical failure, never replayed.
+            while self._live_close_held:
+                packet = self._live_close_held[0]
+                try:
+                    await self.brain.send_audio(packet.pcm)
+                except BaseException:
+                    self._live_close_send_ambiguous = True
+                    raise
+                if not self._closing_attempt_current(attempt, check_work=False):
+                    raise RuntimeError("held_audio_owner_changed_during_send")
+                self._live_mic_submitted = packet
+                self._live_close_held.popleft()
+                self._live_close_held_bytes -= len(packet.pcm)
+            self._live_close_attempt = None  # Incoming pump frames queue behind this seam.
+            self._live_close_phase = None
+
+    async def _run_live_closing_attempt(
+        self, epoch: float, *, receipt: asyncio.Future[bool] | None = None
+    ) -> None:
+        """One Thin-owned F/guard/fence/judge; no provider/classifier retry."""
+        if self._live_close_consumed or self._live_close_attempt is not None:
+            return
+        self._live_close_consumed = True
+        guard_s = self._live_close_guard_s
+        if (
+            guard_s is None
+            or not self._live_close_guard_bound()
+            or self._live_webrtc
+            or not callable(getattr(self.voicepe, "begin_live_closing", None))
+        ):
+            self._request_close("live-close-boundary-unproven", error_kind="device")
+            return
+        # Semantic intent joins this owner, waiting for its actual physical
+        # output/work quiet. Raw transcript activity does not renew this window.
+        semantic_deadline = time.monotonic() + self.idle_timeout_s + self.brain.timeout_s
+        while receipt is not None and not self._closing_output_ready():
+            if time.monotonic() >= semantic_deadline:
+                self._request_close("live-close-output-quiet-unconfirmed", error_kind="device")
+                return
+            if (
+                not self._active
+                or self._epoch != epoch
+                or self._transport_closing
+                or self._live_end_receipt is not receipt
+                or not self._semantic_receipt_current(receipt)
+            ):
+                return
+            await asyncio.sleep(HEARTBEAT_S)
+        if not self._closing_output_ready():
+            return
+        brain = self.brain
+        loop = asyncio.get_running_loop()
+        attempt = None
+        decision_started = loop.time()
+        decision_deadline = decision_started + 2.0
+        try:
+            async with asyncio.timeout_at(decision_deadline):
+                async with self._mic_send_lock:
+                    # send_audio uses this SAME provider lock. The last completed
+                    # append is frozen after all inflight sends settle, never guessed.
+                    async with brain._send_lock:
+                        packet = self._live_mic_submitted
+                        source = getattr(packet, "callback_source", None)
+                        if (
+                            packet is None
+                            or source is None
+                            or self._live_close_source_error is not None
+                            or self._live_close_admission_sample is None
+                            or not self._closing_output_ready()
+                        ):
+                            raise RuntimeError("source_clip_not_admitted")
+                        observed = self._closing_observed_context()
+                        self._live_close_next_token += 1
+                        attempt = LiveClosingAttempt(
+                            epoch,
+                            self._history_session,
+                            brain._connection_generation,
+                            self.voicepe.connection_generation,
+                            self.voicepe.audio_generation,
+                            source.capture_epoch,
+                            source.nonce,
+                            self._live_close_next_token,
+                            decision_started,
+                            decision_deadline,
+                            self._live_input_revision,
+                            self._live_close_output_revision,
+                            brain.backend_sequence,
+                            source.sample_end,
+                            packet.dropped_frames_at_enqueue,
+                            observed,
+                            "sha256:" + hashlib.sha256(observed.encode()).hexdigest(),
+                            receipt,
+                            self._live_close_semantic_floor if receipt is not None else None,
+                        )
+                        self._live_close_attempt = attempt
+                        self._live_close_task = asyncio.current_task()
+                        self._live_close_cancel_reason = None
+                        self._live_close_flush_started = False
+                        self._live_close_phase = "command_pending"
+            self._hub_state("CLOSING", "Afslutter")
+            self._publish_panel_status(force=True)
+            async with asyncio.timeout_at(attempt.deadline):
+                boundary = await self.voicepe.begin_live_closing(
+                    attempt.token, deadline=attempt.deadline
+                )
+                if (
+                    not self._closing_attempt_current(attempt, check_work=True)
+                    or boundary.get("phase") != "led_tx_done"
+                    or boundary.get("nonce") != attempt.source_nonce
+                    or boundary.get("token") != attempt.token
+                    or boundary.get("capture_epoch") != attempt.capture_epoch
+                    or type(boundary.get("tx_sequence")) is not int
+                    or boundary["tx_sequence"] <= 0
+                    or type(boundary.get("tx_us")) is not int
+                    or not 0 <= boundary["tx_us"] < 2**32
+                ):
+                    raise RuntimeError("visible_closing_boundary_unknown")
+                self._live_close_phase = "source_guard"
+                await asyncio.sleep(guard_s)
+                await self.voicepe.request_callback_source_fence(attempt.token)
+                while True:
+                    if self._live_close_source_error is not None:
+                        raise RuntimeError(self._live_close_source_error)
+                    if not self._closing_attempt_current(attempt, check_work=True):
+                        raise asyncio.CancelledError
+                    self._live_close_frame_changed.clear()
+                    packets = tuple(self._live_source_history)
+                    last = getattr(packets[-1], "callback_source", None) if packets else None
+                    if (
+                        last is not None
+                        and last.fence_token == attempt.token
+                        and last.sample_end >= last.fence_sample
+                    ):
+                        if last.fence_epoch != attempt.capture_epoch:
+                            raise RuntimeError("source_fence_epoch_changed")
+                        break
+                    await self._live_close_frame_changed.wait()
+                pcm = closing_pcm_clip(
+                    packets,
+                    fence_sample=last.fence_sample,
+                    capture_epoch=attempt.capture_epoch,
+                    nonce=attempt.source_nonce,
+                    admission_sample=self._live_close_admission_sample,
+                    semantic_floor=attempt.semantic_floor,
+                )
+                identity = LiveCloseIdentity(
+                    attempt.session_id,
+                    attempt.provider_generation,
+                    attempt.raw_revision_at_f,
+                    str(attempt.token),
+                    attempt.context_ref,
+                    hashlib.sha256(pcm).hexdigest(),
+                    attempt.native_connection,
+                    attempt.audio_generation,
+                    attempt.capture_epoch,
+                    attempt.source_nonce,
+                    attempt.token,
+                    last.fence_sample,
+                    boundary["tx_sequence"],
+                    boundary["tx_us"],
+                )
+                self._live_close_phase = "judge"
+                result = await self._live_close_judge(
+                    identity=identity,
+                    pcm=pcm,
+                    context_observed=attempt.context,
+                    context_source_identity=attempt.context_ref,
+                    deadline=attempt.deadline,
+                )
+                if not self._closing_attempt_current(attempt, check_work=True):
+                    raise asyncio.CancelledError
+                if (
+                    loop.time() >= attempt.deadline
+                    or result.identity != identity
+                    or result.protocol_valid is not True
+                    or result.verdict not in ("relevant", "background")
+                    or self._live_close_source_error is not None
+                ):
+                    raise RuntimeError("closing_judge_unknown")
+                self._trace_event(
+                    "live_closing_verdict",
+                    attempt_id=identity.attempt_id,
+                    verdict=result.verdict,
+                    clip_sha256=identity.clip_sha256,
+                    context_ref=identity.context_ref,
+                    guard_ref=self._live_close_guard_ref,
+                    raw_revision_at_f=attempt.raw_revision_at_f,
+                    source_fence=identity.fence_sample,
+                    led_tx_sequence=identity.led_tx_sequence,
+                    led_tx_us=identity.led_tx_us,
+                )
+            # The two seconds bound decision admission. Existing farewell/provider
+            # drain and preservation sends retain their own established budgets.
+            if result.verdict == "relevant":
+                self._live_close_phase = "preserving_interaction"
+                await self._flush_closing_held(attempt)
+                if receipt is not None:
+                    self.brain.revoke_closure_receipt(receipt)
+                    self._live_end_receipt = None
+                self._ending_conversation = False
+                self._live_close_consumed = True
+                await self.voicepe.cancel_live_closing(attempt.token)
+                self._set_led(State.LISTENING)
+                self._hub_state("LISTENING", "Dit spørgsmål fortsætter")
+                return
+            self._live_close_phase = "finalizing"
+            await self._finalize_live_conversation(
+                epoch, reason="audio-context-background", receipt=receipt, checked_attempt=attempt
+            )
+        except asyncio.CancelledError:
+            if attempt is not None and self._closing_attempt_current(attempt, check_work=False):
+                try:
+                    if self._live_close_flush_started or self._live_close_send_ambiguous:
+                        raise RuntimeError("cancelled_preservation_append_ambiguous")
+                    async with asyncio.timeout(self.brain.timeout_s):
+                        await self._flush_closing_held(attempt)
+                        await self.voicepe.cancel_live_closing(attempt.token)
+                except (Exception, asyncio.CancelledError):
+                    self._request_close("live-close-preservation-failed", error_kind="connection")
+            raise
+        except Exception as exc:
+            if self._active and self._epoch == epoch and not self._transport_closing:
+                self._trace_event("live_closing_unknown", cause=type(exc).__name__)
+                self._request_close("live-close-unknown", error_kind="connection")
+        finally:
+            if self._live_close_task is asyncio.current_task():
+                self._live_close_task = None
+            if (
+                attempt is not None
+                and self._live_close_attempt is attempt
+                and not self._live_finalizing
+            ):
+                # Tail is still owned by existing teardown on failure. Do not drop
+                # or replay it here, and do not reset the four-second clock.
+                if self._transport_closing:
+                    self._live_close_phase = "technical_close"
+
     def _cancel_live_end(self) -> None:
         self._reset_live_quiet()
         if self._live_finalizing:
@@ -3167,7 +3757,7 @@ class ThinSession:
                 and not self._live_finalizing
                 and self._epoch == epoch
                 and self.brain._connection_generation == generation
-                and self._live_input_revision == revision
+                and (self._live_close_judge is not None or self._live_input_revision == revision)
                 and self._live_end_receipt is receipt
             )
 
@@ -3175,7 +3765,7 @@ class ThinSession:
             settled = await asyncio.wait_for(receipt, self.brain.timeout_s)
             if not current():
                 return
-            if not settled or not self.brain.terminal_receipt_current(receipt):
+            if not settled or not self._semantic_receipt_current(receipt):
                 self._ending_conversation = False
                 return  # Further backend tools remain owned by ordinary dispatch.
             self._trace_event("live_terminal_backend_settled", provider_generation=generation)
@@ -3196,6 +3786,9 @@ class ThinSession:
         Semantic intent is not vetoed by raw room noise; new accepted input still
         revokes its receipt before the final no-await ownership check.
         """
+        if self._live_close_judge is not None:
+            await self._run_live_closing_attempt(epoch, receipt=receipt)
+            return
         generation = self.brain._connection_generation
         revision = self._live_input_revision
         self._live_end_window.reset()
@@ -3216,7 +3809,7 @@ class ThinSession:
                         and not self._transport_closing
                         and self._live_end_receipt is receipt
                     ):
-                        if not self.brain.terminal_receipt_current(receipt):
+                        if not self._semantic_receipt_current(receipt):
                             self._ending_conversation = False
                             return
                         if self._live_quiet_ready(semantic=True):
@@ -3233,7 +3826,7 @@ class ThinSession:
                     and not self._transport_closing
                     and not self._live_finalizing
                     and self._live_end_receipt is receipt
-                    and self.brain.terminal_receipt_current(receipt)
+                    and self._semantic_receipt_current(receipt)
                 ):
                     self._request_close("live-semantic-drain-unconfirmed", error_kind="device")
                 return
@@ -3251,6 +3844,7 @@ class ThinSession:
         *,
         reason: str,
         receipt: asyncio.Future[bool] | None = None,
+        checked_attempt: LiveClosingAttempt | None = None,
     ) -> None:
         """One provider finalization and exact playback drain for quiet/semantic close."""
         if not self._active or self._epoch != epoch or self._transport_closing:
@@ -3260,10 +3854,13 @@ class ThinSession:
         if receipt is not None:
             if self._live_end_receipt is not receipt:
                 return
-            if not self.brain.terminal_receipt_current(receipt):
+            if not self._semantic_receipt_current(receipt):
                 self._ending_conversation = False
                 return
-        elif not self._live_quiet_ready(semantic=False):
+        if checked_attempt is not None:
+            if not self._closing_attempt_current(checked_attempt, check_work=True):
+                return
+        elif receipt is None and not self._live_quiet_ready(semantic=False):
             return
         # No suspension between the final currentness check and close ownership.
         self._live_finalizing = True
@@ -3332,6 +3929,10 @@ class ThinSession:
                     "transition",
                     "Bekræftelsen forbinder; send beskeden igen.",
                 )
+            pending_closing = self._cancel_closing_attempt("typed-input")
+            if pending_closing is not None and pending_closing is not asyncio.current_task():
+                with contextlib.suppress(asyncio.CancelledError):
+                    await pending_closing
             self._cancel_live_end()
             self._retire_live_review()
             if self._live_confirmation_generation is None:
@@ -5393,12 +5994,22 @@ class ThinSession:
             self._trace_activity_observation(observation)
 
     def _reset_live_quiet(self) -> None:
+        self._live_close_output_window.reset()
         self._live_idle_window.reset()
         self._live_end_window.reset()
         with contextlib.suppress(Exception, asyncio.CancelledError):
             self._live_idle_shadow.reset()
 
     def _live_quiet_owner(self) -> tuple:
+        if self._live_close_judge is not None:
+            return (
+                self._history_session,
+                self.brain._connection_generation,
+                self.brain.backend_sequence,
+                self._live_close_output_revision,
+                self._live_close_source_nonce,
+                self._live_close_capture_epoch,
+            )
         return (
             self._history_session,
             self.brain._connection_generation,
@@ -5409,7 +6020,7 @@ class ThinSession:
         )
 
     def _live_quiet_work_clear(self, *, semantic: bool) -> bool:
-        from .openai_live import LiveAudioChunk
+        from .openai_live import LiveAudioChunk, LiveTranscript
 
         brain = self.brain
         now = time.monotonic()
@@ -5451,6 +6062,13 @@ class ThinSession:
         # Constant zero transport is not pending speech. Every other queued SDK
         # event must reach Thin before it can make the final currentness decision.
         for event in getattr(queue, "_queue", ()):
+            if (
+                self._live_close_judge is not None
+                and isinstance(event, LiveTranscript)
+                and event.direction == "in"
+                and event.generation == brain._connection_generation
+            ):
+                continue  # Observability only; reader still advances tool currency.
             if not (
                 isinstance(event, LiveAudioChunk)
                 and event.generation == brain._connection_generation
@@ -5479,6 +6097,20 @@ class ThinSession:
         ):
             return
         self._live_activity_latest = observation
+        if self._live_close_judge is not None and self._live_close_nonzero_output:
+            out = observation.get("output", {})
+            lease = self._playback_lease
+            if (
+                lease is not None
+                and lease.kind == "live"
+                and lease.phase == "started"
+                and out.get("valid") is True
+                and out.get("sum_squares", 0) > 0
+                and out.get("peak", 0) > 0
+                and out.get("frame_end", 0) > out.get("frame_begin", 0)
+                and out.get("consumed_frames", -1) >= out.get("frame_end", 0)
+            ):
+                self._live_close_speech_played = True
         owner, now = self._live_quiet_owner(), time.monotonic()
         for window, semantic in ((self._live_idle_window, False), (self._live_end_window, True)):
             window.observe(
@@ -5487,6 +6119,14 @@ class ThinSession:
                 now=now,
                 work_clear=self._live_quiet_work_clear(semantic=semantic),
                 output_started=bool(self._live_output_bytes),
+            )
+        if self._live_close_judge is not None:
+            self._live_close_output_window.observe(
+                observation,
+                owner=owner,
+                now=now,
+                work_clear=self._live_quiet_work_clear(semantic=True),
+                output_started=self._live_close_speech_played,
             )
         # Shadow evidence has no control authority. Its failure cannot reset the
         # real idle/end windows or escape into the native activity callback.
@@ -6667,6 +7307,7 @@ class ThinSession:
             and not self._transport_closing
             and not self._live_rotating
             and not self._live_finalizing
+            and self._live_close_attempt is None
             and self._live_led_working != self._live_work_pending()
         ):
             self._set_led(State.LISTENING)
@@ -6713,7 +7354,8 @@ class ThinSession:
 
         async def paint() -> None:
             if live_paint and (
-                not self._active
+                self._live_close_attempt is not None
+                or not self._active
                 or self._transport_closing
                 or self._epoch != epoch
                 or self.brain is not brain
@@ -6755,7 +7397,9 @@ class ThinSession:
 
     def _panel_status(self, now: float) -> dict:
         """Read existing evidence only. No observe/reset/ready/close side effects."""
-        closing = bool(self._transport_closing or self._live_finalizing)
+        closing = bool(
+            self._transport_closing or self._live_finalizing or self._live_close_attempt is not None
+        )
         incomplete = bool(self._teardown_incomplete or self._teardown_lock.locked())
         phase = "CLOSING" if closing or incomplete else self.sm.state.name
         authority, blocker = "Samtalen", "Afventer næste spørgsmål"
@@ -6769,6 +7413,22 @@ class ThinSession:
         elif closing:
             authority = "Stop" if self._trace_reason in ("stop", "stop-word") else "Lukning"
             blocker = "Afventer lydhale og oprydning"
+            if (
+                self._live_close_attempt is not None
+                and not self._live_finalizing
+                and not self._transport_closing
+            ):
+                authority = "Lydvurdering"
+                blocker = {
+                    "command_pending": "Afventer enhedens afslutningssignal",
+                    "source_guard": "Afventer hele spørgsmålet",
+                    "judge": "Vurderer om nogen taler til mig",
+                    "preserving_interaction": "Dit spørgsmål fortsætter",
+                }.get(self._live_close_phase or "", "Afventer afslutning")
+                remaining = max(
+                    0.0, self._live_close_attempt.deadline - asyncio.get_running_loop().time()
+                )
+                running, timer_kind = True, "closing_decision"
         elif self.live_alpha:
             if self._live_webrtc:
                 authority, blocker = "Browserens lydvej", "Aktivitet ikke bekræftet her"
@@ -6777,9 +7437,14 @@ class ThinSession:
             else:
                 owner = self._live_quiet_owner()
                 window = (
-                    self._live_end_window if self._ending_conversation else self._live_idle_window
+                    self._live_close_output_window
+                    if self._live_close_judge is not None
+                    else self._live_end_window
+                    if self._ending_conversation
+                    else self._live_idle_window
                 )
-                diag = window.diagnostics(owner=owner, now=now, idle_s=self.idle_timeout_s)
+                quiet_target = self.idle_timeout_s
+                diag = window.diagnostics(owner=owner, now=now, idle_s=quiet_target)
                 shadow = self._live_idle_shadow.diagnostics(
                     owner=owner, now=now, idle_s=self.idle_timeout_s
                 )
@@ -6866,13 +7531,17 @@ class ThinSession:
                     )
                 elif not fresh:
                     blocker = "Afventer frisk aktivitetsmåling"
-                elif inp == "active" and not self._ending_conversation:
+                elif (
+                    inp == "active"
+                    and not self._ending_conversation
+                    and self._live_close_judge is None
+                ):
                     phase, blocker = "LISTENING", "Tale registreret — timeout står stille"
                 elif not work_clear:
                     blocker = "Afventer arbejde eller bekræftet lydvej"
                 elif diag["blocker"] in ("quiet_window_incomplete", "ready"):
                     quiet = diag["quiet_s"]
-                    remaining = max(0.0, self.idle_timeout_s - quiet)
+                    remaining = max(0.0, quiet_target - quiet)
                     running, timer_kind = True, "quiet_coverage"
                     blocker = (
                         "Måler ro før lukning" if remaining else "Ro målt — afventer sidste kontrol"

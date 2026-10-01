@@ -477,3 +477,102 @@ class NativeIdleShadow:
                 )
             },
         }
+
+
+@dataclass(frozen=True)
+class LiveCloseIdentity:
+    """One sealed judge request. Raw TV revisions after F are not currentness."""
+
+    session_id: str
+    provider_generation: int
+    input_revision_at_fence: int
+    attempt_id: str
+    context_ref: str
+    clip_sha256: str
+    native_connection: int
+    audio_generation: int
+    capture_epoch: int
+    source_nonce: int
+    fence_token: int
+    fence_sample: int
+    led_tx_sequence: int
+    led_tx_us: int
+
+
+def closing_pcm_clip(
+    frames: tuple[Any, ...],
+    *,
+    fence_sample: int,
+    capture_epoch: int,
+    nonce: int,
+    admission_sample: int,
+    semantic_floor: int | None = None,
+    samples: int = 64000,
+) -> bytes:
+    """Exact contiguous 4s AFTER admission; no padding, dropped prefix or ASR.
+
+    Metadata/loss/host-drop errors are a refusal, never a background verdict.
+    Caller retains sticky errors and the sole microphone consumer/send owner.
+    """
+    start = fence_sample - samples
+    if start < admission_sample or (semantic_floor is not None and start < semantic_floor):
+        raise ValueError("unhandled_source_coverage_missing")
+    cursor = start
+    output = bytearray()
+    host_drops = None
+    previous_sequence = None
+    for frame in frames:
+        source = getattr(frame, "callback_source", None)
+        if source is None or frame.source_problem is not None:
+            raise ValueError("source_provenance_unknown")
+        if source.sample_end <= start:
+            continue
+        if source.sample_start >= fence_sample:
+            break
+        if (
+            source.nonce != nonce
+            or source.capture_epoch != capture_epoch
+            or source.overwrite_loss_samples
+            or source.native_send_loss_samples
+            or source.sample_start > cursor
+            or source.sample_end <= cursor
+            or len(frame.pcm) != (source.sample_end - source.sample_start) * 2
+            or (previous_sequence is not None and source.send_sequence != previous_sequence + 1)
+            or (host_drops is not None and frame.dropped_frames_at_enqueue != host_drops)
+        ):
+            raise ValueError("source_interval_or_loss")
+        host_drops = frame.dropped_frames_at_enqueue
+        previous_sequence = source.send_sequence
+        end = min(source.sample_end, fence_sample)
+        output.extend(
+            frame.pcm[(cursor - source.sample_start) * 2 : (end - source.sample_start) * 2]
+        )
+        cursor = end
+    if cursor != fence_sample or len(output) != samples * 2:
+        raise ValueError("source_clip_incomplete")
+    return bytes(output)
+
+
+@dataclass(frozen=True)
+class LiveClosingAttempt:
+    """Thin-owned transport attempt, not an input policy or conversation engine."""
+
+    epoch: float
+    session_id: str
+    provider_generation: int
+    native_connection: int
+    audio_generation: int
+    capture_epoch: int
+    source_nonce: int
+    token: int
+    started: float
+    deadline: float
+    raw_revision_at_f: int
+    output_revision: int
+    backend_sequence: int
+    submitted_end: int
+    host_drops: int
+    context: str
+    context_ref: str
+    receipt: Any = None
+    semantic_floor: int | None = None

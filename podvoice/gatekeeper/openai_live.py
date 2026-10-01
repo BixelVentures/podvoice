@@ -261,6 +261,7 @@ class _TerminalReceipt:
     command_id: str | None = None
     continuation_id: str | None = None
     completed: bool = False
+    closure_only: bool = False
 
 
 def _unique_object(pairs: list[tuple[str, Any]]) -> dict:
@@ -1296,6 +1297,8 @@ class OpenAILiveSession:
     def note_local_input(self) -> int:
         """Count Thin's admitted typed input, not a provider turn or acknowledgment."""
         self._active(self._connection_generation)
+        if self._terminal_receipt is not None and self._terminal_receipt.closure_only:
+            self._cancel_terminal_receipt()
         self.input_sequence += 1
         self._settle_terminal_receipt()
         return self.input_sequence
@@ -1468,6 +1471,26 @@ class OpenAILiveSession:
         return self.provider_budget.has_capacity(self._lease, aggregate)
 
     def create_terminal_receipt(self, response_id: str, *, generation: int) -> asyncio.Future[bool]:
+        return self._create_terminal_receipt(response_id, generation=generation, closure_only=False)
+
+    def create_closure_receipt(self, response_id: str, *, generation: int) -> asyncio.Future[bool]:
+        """Only accepted END settlement ignores raw transcription currency.
+
+        Typed input and new backend work still revoke this receipt. Tool and
+        approval admission continue to use the unchanged raw input guards.
+        """
+        batch = self._batches.get(response_id)
+        if (
+            batch is None
+            or len(batch.event.calls) != 1
+            or batch.event.calls[0].name != "end_conversation"
+        ):
+            raise LiveProtocolError("closure_receipt_requires_exclusive_end")
+        return self._create_terminal_receipt(response_id, generation=generation, closure_only=True)
+
+    def _create_terminal_receipt(
+        self, response_id: str, *, generation: int, closure_only: bool
+    ) -> asyncio.Future[bool]:
         """Observe required backend settlement, never primary speech completion.
 
         Register before sending this admitted batch's results. The caller waits
@@ -1485,7 +1508,12 @@ class OpenAILiveSession:
             raise LiveProtocolError("unadmitted_live_terminal_receipt")
         future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
         self._terminal_receipt = _TerminalReceipt(
-            response_id, batch.event.delegation_id, generation, future, batch.input_index
+            response_id,
+            batch.event.delegation_id,
+            generation,
+            future,
+            batch.input_index,
+            closure_only=closure_only,
         )
         # The intent belongs to the actual backend's input boundary, not the
         # later registration time after tool awaits or delayed Thin delivery.
@@ -1493,6 +1521,12 @@ class OpenAILiveSession:
         return future
 
     def terminal_receipt_current(self, future: asyncio.Future[bool]) -> bool:
+        return self._receipt_current(future, closure_only=False)
+
+    def closure_receipt_current(self, future: asyncio.Future[bool]) -> bool:
+        return self._receipt_current(future, closure_only=True)
+
+    def _receipt_current(self, future: asyncio.Future[bool], *, closure_only: bool) -> bool:
         """A settled intent expires on SDK-observed input or new backend work."""
         receipt = self._terminal_receipt
         return bool(
@@ -1502,7 +1536,8 @@ class OpenAILiveSession:
             and not future.cancelled()
             and future.result() is True
             and receipt.completed
-            and receipt.input_index == self.input_sequence
+            and receipt.closure_only is closure_only
+            and (receipt.closure_only or receipt.input_index == self.input_sequence)
             and receipt.generation == self._connection_generation
             and not self._close_requested
             and not self._closed.is_set()
@@ -1512,6 +1547,11 @@ class OpenAILiveSession:
             and not self._continuation_inflight
         )
 
+    def revoke_closure_receipt(self, future: asyncio.Future[bool]) -> None:
+        receipt = self._terminal_receipt
+        if receipt is not None and receipt.closure_only and receipt.future is future:
+            self._cancel_terminal_receipt()
+
     def _cancel_terminal_receipt(self) -> None:
         receipt, self._terminal_receipt = self._terminal_receipt, None
         if receipt is not None and not receipt.future.done():
@@ -1519,7 +1559,11 @@ class OpenAILiveSession:
 
     def _settle_terminal_receipt(self) -> None:
         receipt = self._terminal_receipt
-        if receipt is not None and receipt.input_index != self.input_sequence:
+        if (
+            receipt is not None
+            and not receipt.closure_only
+            and receipt.input_index != self.input_sequence
+        ):
             receipt.completed = False
             if not receipt.future.done():
                 receipt.future.set_result(False)

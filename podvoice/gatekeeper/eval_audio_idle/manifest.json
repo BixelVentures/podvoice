@@ -1,0 +1,107 @@
+{
+  "cases": [
+    {
+      "allowed": [
+        "background"
+      ],
+      "mix": {
+        "clipped_samples": 0,
+        "duration_s": 4.0,
+        "generated_zero_pcm": true,
+        "manifest_sha256": "d8f1929b5a8e988322eefa8c66ffb36069bd873c111b57fb35658e825231cc45"
+      },
+      "name": "quiet",
+      "sha256": "eec19bc6af0b3b6dfb97a08782c65f4bb3c3203e789a015d2008b0d689ad08be"
+    },
+    {
+      "allowed": [
+        "background"
+      ],
+      "mix": {
+        "clipped_samples": 0,
+        "duration_s": 4.0,
+        "foreground_gain": 0,
+        "foreground_offset_s": 0,
+        "foreground_samples_included": 0,
+        "foreground_samples_omitted": 0,
+        "manifest_sha256": "d8f1929b5a8e988322eefa8c66ffb36069bd873c111b57fb35658e825231cc45",
+        "source_sha256": {
+          "tv": "f755f59c3774e8ac7890f21b2aaf4474e3b05339acbd1ebb71db770f85aa3b2e"
+        },
+        "tv_gain": 0.35,
+        "tv_repeated": true
+      },
+      "name": "tv",
+      "sha256": "e20d1305d80ff0911f416704273a1d83520693ad2a919f706db566d875122570"
+    },
+    {
+      "allowed": [
+        "relevant"
+      ],
+      "mix": {
+        "clipped_samples": 0,
+        "duration_s": 4.0,
+        "foreground_gain": 0.8,
+        "foreground_offset_s": 1.0,
+        "foreground_samples_included": 31466,
+        "foreground_samples_omitted": 0,
+        "manifest_sha256": "d8f1929b5a8e988322eefa8c66ffb36069bd873c111b57fb35658e825231cc45",
+        "source_sha256": {
+          "followup": "adfcdbe39a85eb16e6c678ccbb7f4144791fe8fc8b77d77d16d3af3695433a99",
+          "tv": "f755f59c3774e8ac7890f21b2aaf4474e3b05339acbd1ebb71db770f85aa3b2e"
+        },
+        "tv_gain": 0.35,
+        "tv_repeated": true
+      },
+      "name": "directed_over_tv",
+      "sha256": "f3609168287414ffa08f162da4fb7c1b31cd5f027f72a96b56a7efd9feb38700"
+    },
+    {
+      "allowed": [
+        "background"
+      ],
+      "mix": {
+        "clipped_samples": 0,
+        "duration_s": 4.0,
+        "foreground_gain": 0.8,
+        "foreground_offset_s": 0,
+        "foreground_samples_included": 60776,
+        "foreground_samples_omitted": 0,
+        "manifest_sha256": "d8f1929b5a8e988322eefa8c66ffb36069bd873c111b57fb35658e825231cc45",
+        "source_sha256": {
+          "side_address": "5822755b4bf081f5639f883b08027ff1e35bb8d39ce2761d01acae92ec52d12c",
+          "tv": "f755f59c3774e8ac7890f21b2aaf4474e3b05339acbd1ebb71db770f85aa3b2e"
+        },
+        "tv_gain": 0.35,
+        "tv_repeated": true
+      },
+      "name": "peter_aside",
+      "sha256": "62fc090fd8969383f9c8887debd21b7eab65a8b5853c823a0e32f275086d4108"
+    },
+    {
+      "allowed": [
+        "relevant",
+        "unknown"
+      ],
+      "mix": {
+        "clipped_samples": 0,
+        "duration_s": 4.0,
+        "foreground_gain": 0.8,
+        "foreground_offset_s": 3.2,
+        "foreground_samples_included": 12800,
+        "foreground_samples_omitted": 18666,
+        "manifest_sha256": "d8f1929b5a8e988322eefa8c66ffb36069bd873c111b57fb35658e825231cc45",
+        "source_sha256": {
+          "followup": "adfcdbe39a85eb16e6c678ccbb7f4144791fe8fc8b77d77d16d3af3695433a99",
+          "tv": "f755f59c3774e8ac7890f21b2aaf4474e3b05339acbd1ebb71db770f85aa3b2e"
+        },
+        "tv_gain": 0.35,
+        "tv_repeated": true
+      },
+      "name": "boundary_directed",
+      "sha256": "a7a86d14e5da997350337a8edeedffe358de639362cb2490e40e47f3f0eff03b"
+    }
+  ],
+  "context": "Partial observed dialogue from a synthetic fixture: user asked 'Hvad er to plus to?'; assistant audio contained 'Det er fire'. Source identity: synthetic-prior-fixture. These observations are not proof of a completed frontend turn. Evaluate addressedness of the attached four-second audio interval only.",
+  "context_source": "synthetic-prior-fixture"
+}

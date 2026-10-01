@@ -1,0 +1,12 @@
+{
+  "esphome": "2026.6.2",
+  "idf_observed": "5.5.4",
+  "upstream_source": "installed official ESPHome distribution, MIT",
+  "sha256": {
+    "light.py": "54ae9f6ce98b30bae31c99f118852b1e773e43d564ad2e343d76c5a1d2bcda99",
+    "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "led_strip.cpp": "84dd3496b9e2012c88df9543cc7c76d2225b772679f461d9ab3e75141bb3cf07",
+    "led_strip.h": "603c2cca7409b0422647b8f1fa833c421dd5681a086f95dca7d9d247d6379261"
+  },
+  "rmt_tx_source_sha256": "a8413610fb7f729e50a517980a24925fbfb1a28620999a1ad8f34bb71419e4c6"
+}

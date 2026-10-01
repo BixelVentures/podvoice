@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).parents[2]
 OVERLAY = ROOT / "esphome" / "podvoice.yaml"
 BASE = ROOT / "esphome" / "voice-pe-podvoice-base.yaml"
+REVIEWED_COMPONENT_REF = "083424b18b67c54698b16a148c79502f58480cd7"
 
 
 def test_vendored_base_has_auditable_provenance():
@@ -24,9 +25,11 @@ def test_fresh_ha_package_fetches_podvoice_audio_without_local_copy():
     assert "url: https://github.com/BixelVentures/podvoice" in external
     active = "\n".join(line for line in external.splitlines() if not line.lstrip().startswith("#"))
     audio_source = next(
-        block for block in active.split("  - source:") if "components: [podvoice_audio]" in block
+        block
+        for block in active.split("  - source:")
+        if "components: [podvoice_audio, esp32_rmt_led_strip]" in block
     )
-    assert "ref: 526ceb822938cfa2c1c6f7b0372228c954e38096" in audio_source
+    assert f"ref: {REVIEWED_COMPONENT_REF}" in audio_source
     assert "path: esphome/components" in external
     assert "refresh: 0s" in external
     assert "\n  - source: { type: local, path: components }" not in external
@@ -185,23 +188,23 @@ def test_stop_owner_and_observers_fetch_the_reviewed_immutable_component_tree():
     assert "type: git" in stop_source
     assert "url: https://github.com/BixelVentures/podvoice" in stop_source
     assert "path: esphome/components" in stop_source
-    assert "ref: 526ceb822938cfa2c1c6f7b0372228c954e38096" in stop_source
-    assert active.count("ref: 526ceb822938cfa2c1c6f7b0372228c954e38096") == 3
+    assert f"ref: {REVIEWED_COMPONENT_REF}" in stop_source
+    assert active.count(f"ref: {REVIEWED_COMPONENT_REF}") == 3
     observers = active.split("components: [mixer, resampler, speaker_source]", 1)[0]
-    assert "ref: 526ceb822938cfa2c1c6f7b0372228c954e38096" in observers
+    assert f"ref: {REVIEWED_COMPONENT_REF}" in observers
     files = sorted(
         p
-        for name in ("micro_wake_word", "podvoice_reply", "podvoice_audio")
+        for name in ("micro_wake_word", "podvoice_reply", "podvoice_audio", "esp32_rmt_led_strip")
         for p in (ROOT / "esphome/components" / name).rglob("*")
         if p.is_file() and "__pycache__" not in p.parts
     )
-    assert len(files) == 20
+    assert len(files) == 24
     manifest = "".join(
         str(p.relative_to(ROOT)) + "\0" + hashlib.sha256(p.read_bytes()).hexdigest() + "\n"
         for p in files
     )
     assert hashlib.sha256(manifest.encode()).hexdigest() == (
-        "2d755be7f9002bde64b1c9b16ca2bc7c84464d5cec04b9134f980a1a287ab67b"
+        "3192bc58aac2e0f225abfe8dea148425f2f78097bf1b9c964cbb0c5be910a1b3"
     )
 
 

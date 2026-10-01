@@ -460,3 +460,19 @@ def test_quiet_thanks_button_runs_only_the_twelve_turn_profile_under_existing_lo
     manifest = json.loads((PANEL.parents[1] / "eval_quiet_thanks_scenarios.json").read_text())
     assert sum(len(s["turns"]) for s in manifest["scenarios"]) == 12
     assert "Test stille tak og opfølgning (12 ture)" in html
+
+
+def test_audio_idle_probe_has_one_fixed_synthetic_trigger_and_existing_poll():
+    html = PANEL.read_text()
+    start = html.index("audioIdleButton.onclick = async function ()")
+    end = html.index("numericAbButton.onclick", start)
+    handler = html[start:end]
+    assert html.count('id="eval_audio_idle"') == 1
+    assert "Højst fem faste, syntetiske lydklip" in html
+    assert "Ingen lyd fra dit hjem" in html
+    assert 'body:\'{"action":"audio-idle-probe"}\'' in handler
+    assert handler.index("setButtonsDisabled(true)") < handler.index("fetch(")
+    assert "await poll(data.run_id, generation, 12)" in handler
+    assert "setButtonsDisabled(false)" in handler
+    assert "Ukendt er usikkerhed" in html
+    assert "audioIdleButton.disabled = disabled" in html

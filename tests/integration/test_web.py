@@ -2490,3 +2490,24 @@ async def test_sse_stream_delivers_events():
         ev = await asyncio.wait_for(_read_state(), timeout=2)
         assert ev["state"] == "LISTENING"
         resp.close()
+
+
+@pytest.mark.asyncio
+async def test_audio_idle_probe_uses_existing_key_owned_callback_and_exact_action():
+    calls = []
+
+    async def live_eval(**kwargs):
+        calls.append(kwargs)
+        return {"ok": True, "status": "running", "run_id": "fixed-probe"}
+
+    async with TestClient(TestServer(create_app(StatusHub(), {}, live_eval=live_eval))) as client:
+        response = await client.post("/api/eval/live", json={"action": "audio-idle-probe"})
+        assert response.status == 202
+        assert calls == [{"action": "audio-idle-probe"}]
+        for body in (
+            {"action": "audio-idle-probe", "api_key": "must-not-forward"},
+            {"action": "audio-idle-probe", "repeats": 5},
+        ):
+            rejected = await client.post("/api/eval/live", json=body)
+            assert rejected.status == 400
+        assert len(calls) == 1

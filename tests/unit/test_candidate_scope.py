@@ -615,3 +615,112 @@ def test_automatic_diagnostics_cannot_admit_deleted_required_owner(tmp_path):
     report = inspect_repository(tmp_path, base)
     assert "podvoice/gatekeeper/thin.py" in report.production_files
     assert not report.passed
+
+
+def _bounded_live_closing_repo(tmp_path):
+    from scripts.candidate_scope import (
+        _BOUNDED_LIVE_CLOSING_REGRESSIONS,
+        _BOUNDED_LIVE_CLOSING_SURFACES,
+        inspect_repository,
+        production_fingerprint,
+    )
+
+    source, base, git, record, write = _coupled_repo(
+        tmp_path, ("audio_input", "physical_output"), native_quiet=True
+    )
+    for name in _BOUNDED_LIVE_CLOSING_SURFACES | _BOUNDED_LIVE_CLOSING_REGRESSIONS:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("closing_owner = True\n")
+    source.write_text('events = ["mic_frame", "playback", "response.done"]\n')
+    git("add", "podvoice/gatekeeper/thin.py")
+
+    def refresh():
+        report = inspect_repository(tmp_path, base)
+        refreshed = {
+            **record,
+            "domains": list(report.domains),
+            "fingerprint": production_fingerprint(tmp_path, base, base, report.production_files),
+            "rationale": "One reviewed native boundary, bounded judge and existing Thin finalizer.",
+        }
+        write(refreshed)
+        return refreshed
+
+    reviewed = refresh()
+    report = inspect_repository(tmp_path, base)
+    assert report.domains == ("audio_input", "physical_output", "realtime_semantics")
+    assert report.passed
+    return source, base, git, reviewed, write, refresh
+
+
+def test_bounded_live_closing_requires_exact_tree_review_and_base(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    source, base, _git, record, write, _refresh = _bounded_live_closing_repo(tmp_path)
+    (tmp_path / "docs/STATUS.md").unlink()
+    assert not inspect_repository(tmp_path, base).passed
+    for key, value in (
+        ("version", 2),
+        ("fingerprint", "stale"),
+        ("base_tip", "old"),
+        ("merge_base", "old"),
+        ("domains", ["audio_input", "physical_output"]),
+        ("reviewer", ""),
+        ("rationale", ""),
+    ):
+        write({**record, key: value})
+        assert not inspect_repository(tmp_path, base).passed, key
+    write(record)
+    assert inspect_repository(tmp_path, base).passed
+    source.write_text(source.read_text() + "changed_after_review = True\n")
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_bounded_live_closing_requires_each_causal_regression(tmp_path):
+    from scripts.candidate_scope import _BOUNDED_LIVE_CLOSING_REGRESSIONS, inspect_repository
+
+    _source, base, _git, _record, _write, refresh = _bounded_live_closing_repo(tmp_path)
+    for name in _BOUNDED_LIVE_CLOSING_REGRESSIONS:
+        path = tmp_path / name
+        contents = path.read_text()
+        path.unlink()
+        refresh()  # A fresh production fingerprint cannot excuse a missing test.
+        assert not inspect_repository(tmp_path, base).passed, name
+        path.write_text(contents)
+    refresh()
+    assert inspect_repository(tmp_path, base).passed
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "podvoice/gatekeeper/live_prompt.py",
+        "podvoice/gatekeeper/tools.py",
+        "podvoice/gatekeeper/eval_audio_idle/new.pcm",
+        "podvoice/gatekeeper/eval_audio_idle/new.py",
+        "esphome/components/mixer/speaker/mixer_speaker.cpp",
+        "esphome/voice-pe-podvoice-base.yaml",
+    ],
+)
+def test_bounded_live_closing_rejects_unknown_surface_even_after_new_review(tmp_path, name):
+    from scripts.candidate_scope import inspect_repository
+
+    _source, base, _git, _record, _write, refresh = _bounded_live_closing_repo(tmp_path)
+    path = tmp_path / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("unrelated = True\n")
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_bounded_live_closing_cannot_admit_deleted_owner_or_extra_domain(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    source, base, _git, _record, _write, refresh = _bounded_live_closing_repo(tmp_path)
+    (tmp_path / "podvoice/gatekeeper/openai_live.py").write_text(source.read_text())
+    source.unlink()  # Tracked deletion is still a changed path, but no live owner.
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+    source.write_text('events = ["mic_frame", "playback", "response.done", "rearm"]\n')
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed

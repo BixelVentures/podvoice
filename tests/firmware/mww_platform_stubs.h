@@ -223,10 +223,15 @@ struct RingBufferAudioSource {
 }
 
 namespace esphome::api {
-struct VoiceAssistantAudio { const uint8_t *data{}; uint16_t data_len{}; bool end{}; };
+struct VoiceAssistantAudio {
+  const uint8_t *data{}; uint16_t data_len{}; bool end{};
+  const uint8_t *data2{}; uint16_t data2_len{};
+};
 struct TextSensorStateResponse { uint32_t key{}; StringRef state; bool missing_state{}; };
 struct APIConnection {
   std::vector<uint8_t> pcm;
+  std::vector<std::vector<uint8_t>> source_headers;
+  std::vector<std::vector<uint8_t>> audio_packets;
   std::vector<TextSensorStateResponse> reference;
   std::vector<char> sends;
   bool writable{true}, audio_success{true}, reference_success{true}, pressure_after_reference{false};
@@ -234,7 +239,11 @@ struct APIConnection {
   bool send_message(const VoiceAssistantAudio &msg) {
     sends.push_back('a');
     if (!audio_success || !writable) return false;
-    pcm.insert(pcm.end(), msg.data, msg.data+msg.data_len); return true;
+    pcm.insert(pcm.end(), msg.data, msg.data+msg.data_len);
+    audio_packets.emplace_back(msg.data, msg.data+msg.data_len);
+    source_headers.emplace_back();
+    if(msg.data2_len) source_headers.back().assign(msg.data2,msg.data2+msg.data2_len);
+    return true;
   }
   bool send_message(const TextSensorStateResponse &msg) {
     sends.push_back('r');

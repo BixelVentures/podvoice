@@ -374,6 +374,8 @@
       <h2>Maskinel Realtime-preflight</h2>
       <p class="sub" style="margin:2px 0 10px">Kører den rigtige model og produktionsprompt med faste, sikre testdata. Nabu og Talk låses, mens testen kører. Hårdt samlet prisloft: $5. Første sikre scenariesvar er samtidig providerpreflight; der køres ingen ekstra budgetprobe. En brugerdefineret prompt over 32 KiB blokeres kun i denne sikre live-test og ændres aldrig i produktion. Testen kan ikke styre hjemmet, musik eller timere og erstatter ikke den fysiske test.</p>
       <button id="eval_live">Kør sikker preflight</button>
+      <button id="eval_audio_idle" class="ghost">Test relevant tale og baggrundslyd</button>
+      <p class="sub">Højst fem faste, syntetiske lydklip sendes til OpenAI. Ingen lyd fra dit hjem. Nabu og Talk låses midlertidigt. Testen kan køres én gang pr. add-on-start og beviser ikke fysisk lukning.</p>
       <button id="eval_protocol_owner" class="ghost">Test sikker Realtime-svarstyring</button>
       <button id="eval_golden" class="ghost">Test golden-chain-semantik 5×</button>
       <button id="eval_close" class="ghost">Test samtaleafslutning (8 ture)</button>
@@ -1481,6 +1483,7 @@ setInterval(function () {
 // ---- Bounded live Realtime preflight; fixed tools, no HA/MCP side effects ----
 (function () {
   var button = document.getElementById("eval_live");
+  var audioIdleButton = document.getElementById("eval_audio_idle");
   var protocolOwnerButton = document.getElementById("eval_protocol_owner");
   var goldenButton = document.getElementById("eval_golden");
   var quietThanksButton = document.getElementById("eval_quiet_thanks");
@@ -1502,6 +1505,7 @@ setInterval(function () {
   var pollGeneration = 0;
   if (!button || !protocolOwnerButton || !goldenButton || !closeButton || !quietThanksButton || !deviceButton || !dataButton || !replayButton || !numericAbButton || !box) return;
   function setButtonsDisabled(disabled) {
+    if (audioIdleButton) audioIdleButton.disabled = disabled;
     button.disabled = disabled; goldenButton.disabled = disabled; protocolOwnerButton.disabled = disabled; closeButton.disabled = disabled; quietThanksButton.disabled = disabled; deviceButton.disabled = disabled; dataButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
   }
   function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
@@ -1525,6 +1529,9 @@ setInterval(function () {
   }
   function renderRunning(data) {
     box.innerHTML = "";
+    if (data && data.kind === "audio-idle-probe") {
+      box.appendChild(ee("div", "empty", "Tester højst fem syntetiske lydklip. Ingen hjemmelyd. Nabu og Talk er låst imens…")); return;
+    }
     var suffix = data && data.run_id ? " · " + data.run_id : "";
     var label = data && data.kind === "protocol-owner" ? "Tester at kun accepteret tale kan udløse et Realtime-svar" : data && data.kind === "semantic-audio-ab" ? "Sammenligner samme opfølgning som tekst og eksakt providerlyd" : data && data.kind === "audio-replay" ? "Genafspiller den samme providerlyd mod Realtime" : "Kører sikker Realtime-test";
     var deadline = Math.max(1, Number(data && data.deadline_s || 720));
@@ -1534,6 +1541,18 @@ setInterval(function () {
   }
   function render(data) {
     box.innerHTML = "";
+    if (data && data.kind === "audio-idle-probe") {
+      box.appendChild(ee("div", "who", data.ok ? "Lydtesten gennemført" : "Lydtesten stoppet"));
+      if (data.error_code === "probe-already-used") box.appendChild(ee("div", "sub", "Denne test er allerede brugt siden seneste add-on-start."));
+      if (data.status === "busy") box.appendChild(ee("div", "sub", "Afvent at den aktive samtale eller test er afsluttet."));
+      (data.results || []).forEach(function (row) {
+        var words = {relevant:"Relevant tale",background:"Baggrundslyd",unknown:"Ukendt"};
+        box.appendChild(ee("div", "sub", row.case + ": " + (words[row.verdict] || "Ukendt") + " · " + Number(row.elapsed_s || 0).toFixed(2) + " s" + (row.reason ? " · " + row.reason : "")));
+      });
+      box.appendChild(ee("div", "sub", "Ukendt er usikkerhed. Dette beviser ikke fysisk lukning eller genaktivering."));
+      if (data.recovery === "restart-required") box.appendChild(ee("div", "sub", "Genstart add-on: testforbindelsen kunne ikke afsluttes sikkert."));
+      return;
+    }
     if (data && data.kind === "protocol-owner") {
       var protocolPassed = data.status === "complete" && data.ok === true && data.decision === "GO_TO_RELEASE_GATE" && data.classification === "protocol-owner-proven";
       var protocolHead = ee("div", "line " + (protocolPassed ? "out" : "in"));
@@ -1723,6 +1742,17 @@ setInterval(function () {
       if ((data.status === "running" || data.status === "busy") && data.run_id) await poll(data.run_id, generation, data.deadline_s);
       else render(data);
     } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre audio-replay."}); }
+    finally { if (generation === pollGeneration) setButtonsDisabled(false); }
+  };
+  if (audioIdleButton) audioIdleButton.onclick = async function () {
+    var generation = ++pollGeneration;
+    setButtonsDisabled(true); renderRunning({kind:"audio-idle-probe"});
+    try {
+      var response = await fetch("api/eval/live", {method:"POST",headers:{"Content-Type":"application/json"},body:'{"action":"audio-idle-probe"}'});
+      var data = await response.json();
+      if (data.status === "running" && data.run_id) await poll(data.run_id, generation, 12);
+      else render(Object.assign({kind:"audio-idle-probe"}, data));
+    } catch (error) { render({kind:"audio-idle-probe",status:"failed"}); }
     finally { if (generation === pollGeneration) setButtonsDisabled(false); }
   };
   numericAbButton.onclick = async function () {

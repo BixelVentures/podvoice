@@ -12,6 +12,7 @@ import contextlib
 import hashlib
 import logging
 import os
+import re
 import secrets
 import signal
 import socket
@@ -40,7 +41,7 @@ from .speech import Speech
 from .timers import TimerManager
 from .tools import ToolRouter
 from .usage import UsageMeter
-from .voicepe import VoicePELink
+from .voicepe import LIVE_FIRMWARE_BUILD, VoicePELink
 from .web import DEFAULT_PORT, create_app, start_web
 
 _LOG = logging.getLogger("podvoice")
@@ -229,6 +230,7 @@ def _build_session(
         reply_url += f"?t={reply_token}"
         live_reply_url += f"?t={reply_token}"
 
+    guard_s, guard_ref = _saved_live_closing_guard()
     return ThinSession(
         room=room.room,
         attention=attention,
@@ -236,6 +238,8 @@ def _build_session(
         brain=brain,
         live_brain=_make_live_brain(cfg, declarations, room_context=room_ctx),
         live_enabled=_live_alpha_enabled,
+        live_close_guard_s=guard_s,
+        live_close_guard_ref=guard_ref,
         live_audio=live_audio,
         live_reply_url=live_reply_url,
         voicepe=voicepe,
@@ -253,6 +257,29 @@ def _build_session(
         max_session_s=cfg.max_session_min * 60,
         audio_trace=audio_trace,
     )
+
+
+def _saved_live_closing_guard() -> tuple[float | None, str | None]:
+    """Use an explicitly recorded calibration for this firmware, never a guess.
+
+    The reference binds operator measurement to the OTA digest and build marker.
+    Loading it is configuration admission, not physical acceptance evidence.
+    Talk and OFF do not receive a judge through this helper.
+    """
+    saved = load_settings()
+    milliseconds = saved.get("live_closing_guard_ms")
+    reference = saved.get("live_closing_guard_ref")
+    prefix = "marker:" + LIVE_FIRMWARE_BUILD + "|sha256:"
+    if (
+        type(milliseconds) is not int
+        or not 0 < milliseconds < 2000
+        or not isinstance(reference, str)
+        or not reference.startswith(prefix)
+        or re.fullmatch(r"[0-9a-f]{64}\|trace:[A-Za-z0-9_.:-]{1,160}", reference[len(prefix) :])
+        is None
+    ):
+        return None, None
+    return milliseconds / 1000, reference
 
 
 async def _diag_status(room: str | None = None) -> dict:
@@ -570,6 +597,8 @@ async def run(cfg: Config) -> None:
 
             if action == "status":
                 return live_eval_service.status(run_id)
+            if action == "audio-idle-probe":
+                return live_eval_service.start_audio_idle_probe(api_key=cfg.openai_api_key)
             if action == "protocol-owner":
                 return _start_protocol_owner_eval(
                     live_eval_service,

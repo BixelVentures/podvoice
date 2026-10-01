@@ -60,11 +60,38 @@ GPT_LIVE_TRANSCRIBE_USD_PER_MINUTE = 0.017
 # https://developers.openai.com/api/docs/models/gpt-5.6-luna
 GPT_LIVE_USD_PER_MINUTE = 0.05
 LIVE_PRICING_CHECKED = "2026-09-11"
+LIVE_AUDIO_PRICING_CHECKED = "2026-10-01"
+# Standard prices verified at https://developers.openai.com/api/docs/pricing.
+# Audio input and text tokens are separate units, never priced as all-text.
+LIVE_AUDIO_RATES = {"audio_in": 32.0, "text_in": 2.50, "text_out": 10.0}
 
 
 def _live_backend_cost(model: str, usage: dict | None) -> tuple[float | None, str]:
     if usage is None:
         return None, "usage_missing"
+    if model == "gpt-audio-1.5":
+        if usage.get("service_tier") != "default":
+            return None, "service_tier_unknown_or_unpriced"
+        details = usage.get("input_tokens_details")
+        if not isinstance(details, dict):
+            return None, "audio_details_missing"
+        if details.get("invalid_audio_details"):
+            return None, "audio_details_invalid"
+        audio = details.get("audio_tokens")
+        if type(audio) is not int or not 0 <= audio <= usage["input_tokens"]:
+            return None, "audio_details_invalid"
+        # No discounted audio/cache price is documented for this model.
+        if any(details.get(field, 0) != 0 for field in ("cached_tokens", "cache_write_tokens")):
+            return None, "audio_cache_price_unknown"
+        return (
+            (
+                audio * LIVE_AUDIO_RATES["audio_in"]
+                + (usage["input_tokens"] - audio) * LIVE_AUDIO_RATES["text_in"]
+                + usage["output_tokens"] * LIVE_AUDIO_RATES["text_out"]
+            )
+            / 1_000_000,
+            "standard_audio_text_rates_estimate",
+        )
     if model != "gpt-5.6-luna":
         return None, "model_price_unknown"
     if usage.get("service_tier") != "default":
@@ -362,9 +389,14 @@ class UsageMeter:
             if isinstance(details, dict):
                 units["input_tokens_details"] = {
                     field: details[field]
-                    for field in ("cached_tokens", "cache_write_tokens")
+                    for field in ("cached_tokens", "cache_write_tokens", "audio_tokens")
                     if type(details.get(field)) is int and details[field] >= 0
                 }
+                if model == "gpt-audio-1.5" and any(
+                    field in details and (type(details[field]) is not int or details[field] < 0)
+                    for field in ("audio_tokens", "cached_tokens", "cache_write_tokens")
+                ):
+                    units["input_tokens_details"]["invalid_audio_details"] = True
             if usage.get("service_tier") in ("default", "priority", "flex", "auto"):
                 units["service_tier"] = usage["service_tier"]
         key = json.dumps([session_id, generation, model, response_id], separators=(",", ":"))
@@ -386,7 +418,9 @@ class UsageMeter:
             "usage": units,
             "usd": usd,
             "pricing_basis": basis,
-            "pricing_checked": LIVE_PRICING_CHECKED,
+            "pricing_checked": (
+                LIVE_AUDIO_PRICING_CHECKED if model == "gpt-audio-1.5" else LIVE_PRICING_CHECKED
+            ),
             "conflict": False,
         }
         self._live_responses[key] = record
