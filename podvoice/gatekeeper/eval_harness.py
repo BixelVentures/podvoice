@@ -3288,6 +3288,7 @@ class LiveEvalService:
                         "response_id": result.response_id,
                         "returned_model": result.returned_model,
                         "usage": result.usage,
+                        "validation_details": getattr(result, "validation_details", None),
                         "service_tier": result.service_tier,
                         "pcm_sha256": case["sha256"],
                         "mix": case["mix"],
@@ -3697,6 +3698,7 @@ class LiveEvalService:
             retained.get("kind")
             not in {
                 "audio-replay",
+                "audio-idle-probe",
                 "semantic-audio-ab",
                 PROTOCOL_OWNER_PROBE_KIND,
                 DEVICE_EVAL_PROFILE,
@@ -4631,7 +4633,20 @@ class LiveEvalService:
                 "deadline_s": self._max_run_s,
             }
 
-    def status(self, run_id: str | None = None) -> dict[str, Any]:
+    def status(self, run_id: str | None = None, *, kind: str | None = None) -> dict[str, Any]:
+        if kind is not None:
+            if kind != "audio-idle-probe" or run_id is not None:
+                return {"ok": False, "status": "invalid"}
+            if self._active_kind != kind or self._job is None or self._job.done():
+                for retained in reversed(tuple(self._reports_by_run_id.values())):
+                    if retained.get("kind") == kind:
+                        return {**retained, "probe_used": True}
+                return {
+                    "ok": False,
+                    "status": "idle",
+                    "kind": kind,
+                    "probe_used": getattr(self, "_audio_idle_probe_started", False),
+                }
         if self._job is not None and not self._job.done():
             if run_id is None or run_id == self._active_run_id:
                 return {

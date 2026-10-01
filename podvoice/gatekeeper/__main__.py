@@ -583,6 +583,7 @@ async def run(cfg: Config) -> None:
         async def live_eval(
             *,
             action="start",
+            kind=None,
             scenario_ids=None,
             run_id=None,
             fixture=None,
@@ -596,7 +597,7 @@ async def run(cfg: Config) -> None:
             from .openai_realtime import MINI_MODEL
 
             if action == "status":
-                return live_eval_service.status(run_id)
+                return live_eval_service.status(run_id, kind=kind)
             if action == "audio-idle-probe":
                 return live_eval_service.start_audio_idle_probe(api_key=cfg.openai_api_key)
             if action == "protocol-owner":

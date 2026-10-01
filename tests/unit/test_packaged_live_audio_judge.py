@@ -1,6 +1,7 @@
 """Causal scratch tests through real SDK + actual httpx2 MockTransport."""
 
 import asyncio
+import copy
 import json
 import time
 import unittest
@@ -170,6 +171,86 @@ class Judge(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.verdict, "unknown")
         self.assertFalse(result.protocol_valid)
         self.assertEqual(result.response_id, "offline-response")
+        self.assertEqual(result.reason, "duplicate_response_id")
+
+    async def test_actual_sdk_rejects_same_bad_contract_with_specific_safe_reason(self):
+        cases = [
+            (("id",), "", "response_id_invalid"),
+            (("model",), "unreviewed-model", "returned_model_not_allowed"),
+            (("object",), "other", "response_object_invalid"),
+            (("choices",), [], "choice_count_invalid"),
+            (("choices", 0, "index"), 1, "choice_index_invalid"),
+            (("choices", 0, "finish_reason"), "length", "finish_reason_not_stop"),
+            (("choices", 0, "message", "role"), "user", "message_role_not_assistant"),
+            (("choices", 0, "message", "refusal"), "PRIVATE_REFUSAL", "blocked_response_payload"),
+            (("choices", 0, "message", "content"), "PRIVATE_ANSWER", "verdict_not_exact_enum"),
+            (("usage",), None, "usage_missing_or_invalid"),
+            (("usage", "total_tokens"), 999, "usage_totals_invalid"),
+            (
+                ("usage", "prompt_tokens_details", "audio_tokens"),
+                -1,
+                "audio_usage_missing_or_invalid",
+            ),
+        ]
+        for path, value, reason in cases:
+            with self.subTest(reason=reason):
+                payload = copy.deepcopy(response())
+                target = payload
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = value
+                received = []
+
+                async def handler(request, received=received, payload=payload):
+                    received.append(json.loads(request.content))
+                    return httpx2.Response(200, json=payload)
+
+                async with AsyncOpenAI(
+                    max_retries=0,
+                    api_key="OFFLINE-NONKEY",
+                    http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handler)),
+                ) as client:
+                    result = await judge.judge(
+                        client,
+                        identity=self.identity,
+                        pcm=self.pcm,
+                        context_observed="Partial observed answer; no pending work.",
+                        context_source_identity=self.identity.context_ref,
+                        deadline=asyncio.get_running_loop().time() + 2,
+                    )
+                self.assertFalse(result.protocol_valid)
+                self.assertEqual(result.verdict, "unknown")
+                self.assertEqual(result.reason, reason)
+                self.assertEqual(len(received), 1)
+                details = json.dumps(result.validation_details)
+                self.assertNotIn("PRIVATE_", details)
+                self.assertNotIn("OFFLINE-NONKEY", details)
+
+    async def test_valid_response_retains_bounded_structural_diagnostics_only(self):
+        result = await self.run_judge()
+        self.assertTrue(result.protocol_valid)
+        self.assertEqual(result.verdict, "background")
+        self.assertEqual(
+            result.validation_details,
+            {
+                "response_id_valid": True,
+                "returned_model_allowed": True,
+                "choice_count": 1,
+                "finish_reason": "stop",
+                "assistant_role_valid": True,
+                "content_kind": "string",
+                "content_length": 10,
+                "verdict_is_enum": True,
+                "blocked_payload_present": False,
+            },
+        )
+
+    async def test_malformed_huge_content_diagnostics_are_bounded_without_content(self):
+        self.verdict = "PRIVATE_" * 2000
+        result = await self.run_judge()
+        self.assertEqual(result.reason, "verdict_not_exact_enum")
+        self.assertEqual(result.validation_details["content_length"], 4096)
+        self.assertNotIn("PRIVATE_", json.dumps(result.validation_details))
 
 
 if __name__ == "__main__":

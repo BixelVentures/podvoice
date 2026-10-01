@@ -2511,3 +2511,22 @@ async def test_audio_idle_probe_uses_existing_key_owned_callback_and_exact_actio
             rejected = await client.post("/api/eval/live", json=body)
             assert rejected.status == 400
         assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_audio_idle_status_kind_is_read_only_whitelisted_selection():
+    calls = []
+
+    async def live_eval(**kwargs):
+        calls.append(kwargs)
+        return {"status": "failed", "kind": "audio-idle-probe", "run_id": "eval-retained"}
+
+    async with TestClient(TestServer(create_app(StatusHub(), {}, live_eval=live_eval))) as client:
+        response = await client.get("/api/eval/live?kind=audio-idle-probe")
+        assert response.status == 200
+        assert (await response.json())["run_id"] == "eval-retained"
+        assert calls == [{"action": "status", "kind": "audio-idle-probe"}]
+        for query in ("kind=unknown", "kind=", "kind=audio-idle-probe&run_id=eval-old"):
+            rejected = await client.get("/api/eval/live?" + query)
+            assert rejected.status == 400
+        assert len(calls) == 1

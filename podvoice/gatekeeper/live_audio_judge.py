@@ -79,6 +79,44 @@ def request(pcm):
     }
 
 
+def _validation_details(raw):
+    """Fixed structural facts only; never copy generated content or refusal text."""
+    choices = raw.get("choices")
+    choice = choices[0] if isinstance(choices, list) and choices else None
+    choice = choice if isinstance(choice, dict) else {}
+    message = choice.get("message")
+    message = message if isinstance(message, dict) else {}
+    content = message.get("content")
+    finish = choice.get("finish_reason")
+    finish = (
+        finish
+        if finish in ("stop", "length", "content_filter", "tool_calls", "function_call")
+        else "missing"
+        if finish is None
+        else "other"
+    )
+    response_id = raw.get("id")
+    return {
+        "response_id_valid": isinstance(response_id, str) and bool(response_id.strip()),
+        "returned_model_allowed": isinstance(raw.get("model"), str)
+        and raw["model"] in ALLOWED_RETURNED_MODELS,
+        "choice_count": min(len(choices), 32) if isinstance(choices, list) else None,
+        "finish_reason": finish,
+        "assistant_role_valid": message.get("role") == "assistant",
+        "content_kind": "string"
+        if isinstance(content, str)
+        else "missing"
+        if content is None
+        else "other",
+        "content_length": min(len(content), 4096) if isinstance(content, str) else None,
+        "verdict_is_enum": isinstance(content, str)
+        and content.strip() in ("relevant", "background", "unknown"),
+        "blocked_payload_present": any(
+            message.get(k) for k in ("audio", "refusal", "tool_calls", "function_call")
+        ),
+    }
+
+
 def validate_response(response, *, seen_ids=None, require_audio=True):
     raw = response.model_dump()
     usage = raw.get("usage")
@@ -90,36 +128,46 @@ def validate_response(response, *, seen_ids=None, require_audio=True):
         "response_id": raw.get("id"),
         "usage": usage,
         "service_tier": raw.get("service_tier"),
+        "validation_details": _validation_details(raw),
     }
-    if (
-        not isinstance(raw.get("id"), str)
-        or not raw["id"].strip()
-        or raw.get("model") not in ALLOWED_RETURNED_MODELS
-        or (seen_ids is not None and raw["id"] in seen_ids)
-    ):
-        return result
+
+    def reject(reason):
+        return {**result, "reason": reason}
+
+    if not isinstance(raw.get("id"), str) or not raw["id"].strip():
+        return reject("response_id_invalid")
+    if not isinstance(raw.get("model"), str) or raw["model"] not in ALLOWED_RETURNED_MODELS:
+        return reject("returned_model_not_allowed")
+    if seen_ids is not None and raw["id"] in seen_ids:
+        return reject("duplicate_response_id")
     if raw.get("object") != "chat.completion":
-        return result
+        return reject("response_object_invalid")
     choices = raw.get("choices")
     if not isinstance(choices, list) or len(choices) != 1:
-        return result
+        return reject("choice_count_invalid")
     choice = choices[0]
+    if not isinstance(choice, dict):
+        return reject("choice_shape_invalid")
     if type(choice.get("index")) is not int or choice["index"] != 0:
-        return result
+        return reject("choice_index_invalid")
     message = choice.get("message") or {}
-    if choice.get("finish_reason") != "stop" or message.get("role") != "assistant":
-        return result
+    if not isinstance(message, dict):
+        return reject("message_shape_invalid")
+    if choice.get("finish_reason") != "stop":
+        return reject("finish_reason_not_stop")
+    if message.get("role") != "assistant":
+        return reject("message_role_not_assistant")
     if any(message.get(k) for k in ("audio", "refusal", "tool_calls", "function_call")):
-        return result
+        return reject("blocked_response_payload")
     text = message.get("content")
     if not isinstance(text, str) or text.strip() not in (
         "relevant",
         "background",
         "unknown",
     ):
-        return result
+        return reject("verdict_not_exact_enum")
     if not isinstance(usage, dict):
-        return result
+        return reject("usage_missing_or_invalid")
 
     def number(value: object) -> int | None:
         return value if isinstance(value, int) and type(value) is int and value >= 0 else None
@@ -128,9 +176,9 @@ def validate_response(response, *, seen_ids=None, require_audio=True):
     completion = number(usage.get("completion_tokens"))
     total = number(usage.get("total_tokens"))
     if prompt is None or completion is None or total is None or total != prompt + completion:
-        return result
+        return reject("usage_totals_invalid")
     if not prompt or not completion:
-        return result
+        return reject("usage_counts_empty")
     breakdown = usage.get("prompt_tokens_details")
     audio_tokens = number(breakdown.get("audio_tokens")) if isinstance(breakdown, dict) else None
     if audio_tokens is None or audio_tokens > prompt or (require_audio and audio_tokens == 0):
@@ -160,6 +208,7 @@ class JudgeResult:
     returned_model: str | None = None
     usage: dict | None = None
     service_tier: str | None = None
+    validation_details: dict | None = None
 
 
 async def judge(
@@ -189,6 +238,7 @@ async def judge(
             raw.get("returned_model"),
             raw.get("usage"),
             raw.get("service_tier"),
+            raw.get("validation_details"),
         )
 
     loop = asyncio.get_running_loop()
@@ -260,4 +310,5 @@ async def judge(
         raw["returned_model"],
         raw["usage"],
         raw.get("service_tier"),
+        raw.get("validation_details"),
     )
