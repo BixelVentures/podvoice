@@ -1,5 +1,366 @@
 # PodVoice-status — én aktuel sandhed
 
+## 1/10 — aktiv beslutning: én GPT-Live, appstyret inaktivitet
+
+Lead/root. Brugeren har afvist en ekstra AI-vurdering. Den åbne GPT-Live ejer
+henvendelse, baggrundstale, svar og semantisk farvel; ThinSession ejer mekanik,
+gemt timeout og én close/drain/rearm. Installeret baseline er fortsat add-on
+.113 / firmware .112 / Alpha ON / UI 4s. Ingen .114 er installeret eller fysisk
+godkendt. PR90 med ekstra audio-klassifikator er lukket som opgivet.
+
+Observeret fejl: ved TV-prøven kom ingen ny opgave fra GPT-Live, men rå
+firmware-VAD og transcriptfragmenter holdt den lokale timeout åben og kunne
+forkaste END. Der findes ikke et dokumenteret typed addressedness-/thinking-
+done-event. Rå tale er derfor ingen ubegrænset autoritet for fortsættelse.
+
+Den første native hypotese blev modbevist og STANDSET: instructions.append ved
+idle gav ACK, men ingen backendresponse/END og 28.800 nonzero PCM-bytes efter
+checkpoint. Kendt 2+2-input/svar, én Live-forbindelse, 0 retries, ingen hjemmelyd,
+HA-handling eller audio-judge; ren providerlukning og 22,0s voiceforbrug.
+Source 38ffef5b003ce98dbebcd4d64094038916708027574660b9639d689f60b62b74,
+driver 32f26a4f1cf22224b404126758733935f0276b8bafa2057081a52de9546ce275,
+manifest d8f1929b5a8e988322eefa8c66ffb36069bd873c111b57fb35658e825231cc45.
+Privat rapport /private/tmp/pv114-native-primary-quiet-1001a/report.json (0600).
+TV-prøve/release/install blev ikke gennemført; .113 blev startet igen bagefter.
+Denne prøve kvalificerer IKKE den nye source. Append-ACK er ikke modelbeslutning.
+
+Revideret årsagsgrænse før ny kode: OpenAI placerer inaktivitetslukning hos appen.
+En ekstra obligatorisk model-END ved timeout var en forkert afhængighed.
+Falsificerbar hypotese: efter faktisk mixerforbrugt assistant-svar, frisk
+assistant-outputro og intet krævet backend-/værktøjsarbejde kan UI 4s starte den
+allerede godkendte synlige 2s afslutningsfase, også under TV. Nye observerbare
+svar/opgaver, tekst og Stop/generation skal annullere den gamle timeout.
+Semantisk END har sin egen completed-batch/resultat/continuation-receipt.
+
+Berørt kæde: firmware mic → samme Live-lyd og fortolkning → faktisk announcement-
+output ved mixer → gemt idleperiode → eksisterende .112 native LED-service med
+nonce/capture/token/TX-sequence → 2s fra korreleret TX-ACK → eksisterende provider-
+close → eksakt fysisk drain → teardown/rearm → næste wake. På begge sider testes
+ny lyd/backend, forsinket LED-ACK, Stop under provider-close og stale næste session.
+Invarianter: ThinSession eneste ejer; Live ejer betydning; ingen fabrikerede tur-
+eller audio-done-events; completed batch før handling/lifecycle; approval/input-
+currency for handlinger uændret; frisk fysisk output; én teardown og rearm; OFF
+uændret. Talk er en separat adapter og arver intet rumbevis.
+
+Faktisk ændring: mandatory idle-append/checkpoint-END er fjernet. Native idle
+bruger output/work-clock, ikke raw-TV-veto. Automatisk oprettelse af audio-judge
+fra settings er fjernet. Live-instruktionen tydeliggør samme primære models
+fortolkning og separat app-timeout; OFF-prompt/schema uændret. Model-END kan
+ikke ophæves af rå transcript alene; faktisk ny backend/svar eller tekst kan.
+Ingen allerede udført handling gentages efter resultat-/fortsættelsesfejl.
+
+Afslutningsfasen er bundet til den eksisterende .112 LED-TX-ABI, ikke panelstatus.
+Kun callback-provenance metadata aktiveres; overgangens plain PCM bevares, intet
+same-breath-bufferreset/dræn eller audio-judge. Manglende capability/ACK giver
+teknisk ubekræftet lukning, aldrig påstået synlig succes. Korreleret ACK starter
+2s; handshake, kommandoadmission og efterfølgende provider/drain er særskilt tid,
+så dette er IKKE et løfte om samlet 6s fra sidste ord til slukket LED.
+
+Tre owner-races er rettet: cancelled ACK sender exact-token cancel før sen TX kan
+påvirke næste session; committed idle-finalizer overføres synkront til eksisterende
+_goodbye-ejer, så sen providerlyd ikke annullerer dræn, mens Stop stadig cancel/
+joins den; efter awaited native cancel genmales aktuel LED kun ved samme session/
+provider/native generation. Firmware ændres ikke; genbrug installeret .112 med
+amp-boot, gains, VAD og wake uændret. Ingen blind genflash.
+
+Ikke-mål: ny AI, motor, transport, lokale fraser, gain/VAD/wake-tuning eller skjult
+højere UI-timeout. En ufærdig henvendt ytring/stille primary-tænkning kan stadig
+ligne TV uden observerbar opgave/lyd. 2s er reaktionstid, ikke forståelsesbevis.
+Lang tale og spørgsmål lige ved grænsen kræver provider-/rumbevis; en grøn test
+kan ikke garantere bevaret første ord. Talk idle/dræn er fortsat ubekræftet og
+må ikke beskrives som løst af native ændringen.
+
+Planlagte regressioner/gates: TV under END og idle; ingen rawcurrency-undtagelse
+for handling/approval; faktisk ny lyd/backend; stale/duplicate/out-of-order efter
+Stop/generation; plain PCM under metadataopt-in; delayed/cancelled LED-ACK;
+provider-close blokeret → Stop → frisk wake; samme Thin-kontrakt og modsat adapter/
+OFF. Uafhængigt adversarial source-review, relevant fast, ændret prompt kræver
+fokuseret live-gate, derefter én releasegate på frosset diff og exact CI/artifact.
+Rollback installeret .113 med samme .112 firmware; arver ingen fysisk godkendelse.
+
+Resultater indtil nu: den nye samlede fast-kæde består Ruff/format/Mypy55,
+integration63,02s og unit115,96s; samlet116,3s. Relateret Live/idle/panel/native-
+adapter-suite består også. Uafhængig review har accepteret finalizer/Stop-ejerskab
+og korreleret TX-countdown; sidste cancel/repaint-delta har separat GO, inklusive
+gammel cancel → ny preclose i samme generation uden gammel genmaling. Tidligere fast/providerprøve arves ikke. Releasegate er IKKE kørt,
+ingen ny PR/merge/publicering/installation, ingen frisk fysisk golden/10/10 eller
+provider-godkendelse af denne source. Kandidaten er ikke fysisk testklar eller 97/100.
+
+Fokuseret native-promptprøve før release: præcis to eksisterende syntetiske
+baseline-cases (real-followup, tv-ongoing-query), samme shippede Thin/Live og
+installerede SDK3.13.0. Én primary ad gangen, 0retry, max140s og stop ved første
+FAIL/UNKNOWN; ingen implicit eksperimentpolicy, hjemmelyd, HA eller musikhandling.
+Reviewet one-use private handoff og pinned source/driver/fixtures før/efteradmission;
+HA pauses eksklusivt og genstartes bagefter. Prøvens scope er syntetisk samtale-
+semantik; fysisk idle/LED/rumhenvendelse forbliver UNKNOWN. Dette er endnu en
+planlagt gate, ikke et resultat. Ingen betalt request kørt på denne source endnu.
+
+Fokuseret providerprøve faktisk gennemført: begge baseline-cases OBSERVED_PASS,
+known-input/output/timing/fixtures/clean-shutdown/final-usage true, én forbindelse
+per case, 0END, ingen runtime faults eller domænehandling. Source3457a444c89157da4171fecc8cd347798fb1cc7095850fab05b87acfc7662e46,
+driver24bd4c80bda1a3f8fc8ca170f8eae93b4835a7b5d8abd4cdd2d82518baf3625a;
+manifest uændret d8f1929b5a8e988322eefa8c66ffb36069bd873c111b57fb35658e825231cc45.
+Privat rapport /private/tmp/pv114-current-primary-1001b/batch-summary.json (0600).
+Dette kvalificerer current Live-prompt og faktisk Thin/provider samtalesemantik;
+rig har null-sink/syntetisk capture og beviser IKKE native fysisk idle/LED/dræn.
+Ingen ekstra audio-judge, retries eller hjemmelyd. HA .113 genstartet efter prøven.
+
+Ny causal grænse før sidste mekaniske rettelse: PRE-commit preclose-ejeren ryddes
+synkront ved cancel, men dens finally kan stadig afvente nativecancel. Den var
+ikke joined af teardown og kunne overleve rearm, også efter tidligere output-
+cancel. Kandidaten stoppes ved denne owner-grænse indtil en lille specifik pending-
+preclose-owner-ledger bevarer alle disse tasks til done og eksisterende bounded
+teardown join'er dem før rearm. Ubekræftet join skal give teardown incomplete/
+readiness false; ingen generel task-/samtaleomskrivning. Regression: blokeret
+nativecancel → Stop → ingen rearm/nywake før join eller synligt boundedfault.
+Denne rettelse ændrer ingen Live-prompt, SDK, audio/turforståelse eller værktøjer;
+den allerede beståede promptgate skal ikke genkøres på gæt. Sourceidentiteten
+fra providerprøven bevares særskilt fra den kommende frosne owner-fix.
+
+Den sidste PREcommit owner-fix er implementeret og uafhængigt source-GO:
+pending-preclose-taskset bevares fra spawn til done, inkl pensionerede tasks;
+bounded join efter provider-close og før rearm indgår i teardown_complete.
+To causal regressioner består: blockedcancel stopper rearm/nywake til join,
+og jointimeout giver incomplete/readiness false. Relaterede syv testfiler og
+Ruff/formatter/diffcheck består. Ingen prompt-/SDK-ændring efter providerprøven.
+UI-legendens tekst er rettet til gul 2s app-afslutningsfase versus faktisk
+slukket samtale; ingen ny UI-lifecycle eller kontrol. .114 changelog angiver den
+fysiske usikkerhed. Det samlede produktdiff fryses nu før én fuld releasegate.
+
+Release-admission på frosset62aff967 stoppede før tests: candidate-scope klassificerer
+realtime_semantics+rearm som uafhængige domæner. Det aktuelle reviewerede diff er
+én kausal close-kæde, men ingen eksisterende exact-tree coupling-admission dækker
+netop dette tuple/surface-snapshot. Ingen runtime-patch fra gatefejlen. Tooling
+rettes separat og afgrænset: kun native app-close surfaces+kausale regressioner,
+samme pinned hele produktionstræ, base og uafhængig reviewer; andre domæner eller
+manglende tests skal stadig afvises. Regressionen skal afvise stalefingerprint,
+HA/firmware/audio-scope og manglende regression før coupling kan åbne. Kun den
+fejlede admission og endnu ikke gennemførte downstream gates genkøres; bestået
+format/runtime/providerbevis genkøres ikke uden ændret relevant scope.
+
+Tooling-delta og hele produktionstræet har separat uafhængigt GO. 39 scope-
+regressioner består; eksakt couplingfingerprint nedenfor er reviewerens godkendte
+bytes, ikke en generel waiver. Første releaseforsøg stoppede ved admission;
+Mypy/unit/integration gennemførte ikke, og deres resultater arves ikke. Det nye
+frosne diff genåbner admission og de nødvendige downstream checks. Ingen runtime-
+ændring er begrundet af gatefejlen.
+
+<!-- candidate-scope-coupling
+{"base_tip": "a8cbe5117ad67ec6368e4a292df8263ffb4b0884", "domains": ["realtime_semantics", "rearm"], "fingerprint": "c6d821bd1c2d3df078d201a41100c83bf88e53372631fcdbd74d1dc0245853e3", "merge_base": "a8cbe5117ad67ec6368e4a292df8263ffb4b0884", "rationale": "One reviewed Live interpretation/native app-timeout close chain: exclusive semantic END, correlated visible LED phase, exact cancellation cleanup joined before rearm. No firmware, VAD, transport or HA-tool tuning.", "reviewer": "independent agent /root/ui_live_status_map", "version": 1}
+-->
+
+Den ene gennemførte fulde releasegate er grøn på fa78bc17b030494320df6593dedc3722c5812665:
+exactcoupling/Ruff/format/Mypy55, integration64,80s, unit118,44s; samlet118,8s.
+Frozen produktionstræ c6d821bd1c2d3df078d201a41100c83bf88e53372631fcdbd74d1dc0245853e3
+uændret efter gate; denne resultatpost er docs-only. Exact-head PR-CI/ARM64 og
+publiceret mainartifact/install følger nu. Ingen fysisk gate eller 97-score arves.
+
+## 1/10 — opgivet spor: ekstra audio-klassifikationsmodel (ikke installeret)
+
+Lead/root. Direkte fejlbevis: .113 quiet returnerede rettidigt men uden tilladt
+scalar-enum; indhold ukendt. Hypotese: én tvunget ordinary function-call giver
+et validerbart resultat på samme audio-model. Vendor understøtter function
+calling, ikke Structured Outputs; strict:false og strict lokal parser.
+
+Berørt kæde: samme sealed source-PCM/kontekst → SDK/request → én datakuvert →
+lokal validator → ThinSession beslutning → fysisk dræn/teardown/rearm.
+Invarianter: Thin er eneste samtale-/lukkeejer; resultatet giver aldrig værktøjs-
+autoritet; gamle/dublerede identiteter afvises; ingen rå VAD-veto; ukendt failclosed.
+Modellen fortolker addressedness. Ingen ToolRouter-dispatch, tool-resultat,
+fortsættelsesrequest, ny motor, retry, timeout/gain/firmware/tuning.
+
+Samme model, PCM, observeret kontekst,2s absolute budget og16 outputtokens
+bevares. Hvis functionframing ikke passer inden16 og finish length: STOP;
+ingen salvage/automatisk tokenforhøjelse. Forced report_audio, parallelfalse,
+én præcis enum-property. Parser kræver tool_calls finish, én kendt function,
+bounded id/JSON uden duplicatekeys/NaN/ekstra keys eller blandet output.
+Gyldigt unknown skelnes fra protokolfejl. Safe diagnostik kopierer ikke args.
+
+Før en ny fuld udgivelse bruges eksisterende reviewet one-use loopback-handoff
+med afgrænset audio-envelope-mode, kun samme packaged LiveEvalService-probe.
+Samme private nøgleoverførsel,30s admission, source/fixturehash, eksklusivt
+provider-vindue, max5/0retry/stopførstefejl, privat rapport og HA-genstart i finally.
+Ingen ny credential/adgang, transport i produkt eller hjemmelyd. Handoff-mode
+reviewes og testes før faktisk brug; ny batch kræver særskilt godkendelse.
+
+Planlagte regressioner: actualSDK wire-shape/one HTTP/0retry/0continuation;
+alle3enum og 0/2calls, mixedoutput, malformed/truncatedJSON, duplicatekeys,
+usage/deadline/cancel/stale. Eksisterende Thin/fence og begge I/O-kæder bevares.
+Astra uafhængig adversarial review før freeze/release; relevant gates én gang.
+Rollback .113 samme firmware. Ny rigtig batch kræver særskilt godkendelse;
+seneste godkendte batch er allerede stoppet ved første fejl. Guard0/ref tom
+bevares indtil provider- og fysisk inputgrænsebevis. Ingen rumgate bestået.
+
+Faktisk protocolændring: report_audio ordinary function-call, strict:false,
+parallelfalse; lokal exactenum/strictJSON/onecall parser inkl malformedUnicode.
+Same model/PCM/context/16token ceiling/2s/0retry. Ingen Thin/firmwareændring.
+Astra uafhængig protocol GO efter37 actualSDK/probe/Thin tests. HTTP503 én HTTP,
+parseroverrun afvises, alle semanticunknown/protocolinvalid grænser består.
+Firmwareaudit: generated actualbuild audio/RMT bytes matcher .112; ingen konkret
+flash nødvendig. Fysisk Closing→source-fence og meningsfuld svarlatens umålt.
+Privat måleværktøj review afventer endpoint/proxy-override afvisning før adgang;
+ingen betalt prøve eller runtimeaktivering kørt for denne kandidat endnu.
+
+Astra final GO protocol+handoff:37 SDK/probe/Thin og43 handoff tests består.
+Endpoint/proxy-override afvises før private admission og igen før dispatch;
+caller-cancel fastholder første UNKNOWN og joined cleanup uden næste request.
+JudgeSHA35491b69cdd3e4fef4b8a80c2bc01cc63b77b06efab3ce37acd9732a1e69d469;
+handoffSHA2f803b6b9c70ca80fcef2794152ff0ba1e0f3dc86073e83cde9bcc064cbd98b6.
+Fast første kørsel: lokalt socketbind blev sandboxafvist; integrationfejl var
+PermissionError, unit sibling afbrudt: IKKE PASS. Ingen runtimeændring.
+Samme fast med lokale testforbindelser består: Ruff/format/Mypy55,
+integration60.99s,unit108.48s,samlet108.9s. Ny eksplicit godkendelse til max5
+syntetiske klip ved OpenAI er anmodet og endnu ikke modtaget. Ingen paidcall.
+Diff fryses nu efter uafhængig GO; én releasegate følger på dette diff.
+
+Frosset kandidat264f25367c3af5fce86c533764d75454ec7b0e82 bestod én fuld
+releasegate: single unclassified_runtime scope, Ruff/format/Mypy55,
+integration60.83s,unit105.66s,samlet106.0s. Eksakt-commit CI/ARM64 følger PR.
+Reviewet handoff-fingerprint aaebfe67ce1c766ad8f42cf21bfb3409f4a64efc7a1e9d74e42dae90b8b21a6a;
+fast shippedmanifest23da76b13bf41f4653ba7fff8e8b2712e266525bf5d2b1bd6881b78965da74ff.
+Der er ikke gennemført providerprøve, merge, installation eller aktivering af .114.
+Installeret baseline forbliver add-on .113/firmware .112/Alpha ON/guard0.
+
+Frisk betalt prøve blev eksplicit godkendt af brugeren og udført én gang mod
+frosset source. Run eval-envelope-1790859139-84a4f5: quiet UNKNOWN,
+reason deadline_exhausted,2.003225s. Ingen responseID/model/usage/formatmetadata;
+årsagen inden for HTTP-kæden er UKENDT. Én attempt, ingen øvrige klip/retry.
+Rapport /private/tmp/pv114-provider-envelope-01/report.json, cleanup joined.
+HA var verificeret Stoppet før admission og Kører .113 igen efter prøve.
+Nøgle kun privat browser/proceshukommelse, browservariabel nulstillet, ingen
+ny nøgle/adgang oprettet. .114 er IKKE TESTKLAR; PR90 forbliver draft, ingen
+merge/install/TV-aktivering. Eksakt PR-CI36863722599 bestod tests ogARM64;
+softwarelaget kan ikke tilsidesætte providerfejlen. Installeret firmware .112.
+
+Samlet årsagsgrænse opdateret efter read-only Astra audit: SDK-klienten oprettes
+frisk før første HTTP-vurdering i probe. Voice PE's Live-websocket opvarmer ikke
+samme klients HTTP-pool; produktionens første vurdering kan også være kold.
+SDK/httpx idle keepalive5s betyder, at wake-prewarm alene ikke er et bevis/fix.
+Det er en PLAUSIBEL komponent, ikke årsagen bevist af deadlinefejlen.
+Ingen token-/deadline-/transport-/gain-/firmwarepatch på dette symptom.
+Næste isolerede observation: én uændret quiet-request med SAME installedSDK/
+2s/16tokens/0retry og fixedname HTTPX trace TCP/TLS/upload/headers/body/cancel.
+Kun tider/faste enums, aldrig traceinfo/headers/keys/payload. Midlertidigt
+målescript genbruger reviewet engangshandoff og packagedjudge, ingen motor.
+Observeren reviewes og testes offline før én særskilt godkendt providerrequest.
+Det skal skelne opkobling fra venten efter upload; sidstnævnte er ikke alene
+inferencebevis. Ingen ny request godkendt eller kørt efter den stoppede batch.
+
+Privat observer frosset/reviewet: /private/tmp/pv114-http-phase-probe.py,
+SHA d0de02886126c265a249f75ce066315f2c4f05233020f3269607b701e42f1061;
+binding1e661576cb26f2a5810650dad5ef1892d568b5f216f8e6a804d745f8b89c7a42.
+Astra GO measurement-only;5 offline tests består. Én canonical POST,
+0retry/redirect/prewarm, samme quiet/PCM/model/16tokens/2s; fixedtrace enums+
+tider64max, ingen traceinfo. Caller-cancel fastholderUNKNOWN/boundedcleanup.
+Rigtig TCP/TLS traceemission endnu umålt. Ingen listener/key/providerrequest
+kørt. Ny særskilt godkendelse til ét quiet-opslag med observer anmodes;
+ingen autorisation udledes af den stoppede max5batch.
+HA efter genstart14:53:52 identitet .113/a8cbe511/rootfs7b947d5b verificeret;
+native .112-marker+contract OK og dualwake bekræftet14:53:55. Alpha ON,
+timeout4s og ingen aktiv samtale genbekræftet i UI. Installeret løsning gendannet.
+
+Fysisk inputgrænse genvalideret mod faktisk .112 buildsource: I2S RX har
+4 DMA-descriptors á256frames ved16kHz (64ms nominelt); mic-task læser derefter
+PCM og kalder sourcecallback. Samplefencen læser produced_samples i denne
+callback, ikke ADC-tid. Derfor er64ms kapacitet ingen målt guard/maxlatens.
+Eksisterende local-only kalibrator venter på fysisk wake/button og kræver kendt
+lyd+video af ringens synlige Afslutter-grænse. Den må ikke starte provider eller
+opfinde synligt F ud fra softwareACK. Ingen ny firmwareændring begrundet.
+Kalibratoren er IKKE kørt; ingen fysisk måling eller aktiveringsreference skabt.
+Der er ingen bekræftet igangværende prøve/job at vente på. Den ene nye
+OpenAI-observation afventer fortsat eksplicit svar på det konkrete spørgsmål;
+automatisk goal-continuation er ikke betalt-kald-autorisation. Ingen ny APIrequest.
+
+Bruger godkendte ét quiet-kald med HTTPfaseobserver. Udført én gang:
+/private/tmp/pv114-http-phase-trial-01/report.json,1HTTP/0retry,1.860258s,
+cleanup joined. TCP43.3ms+TLS20.8ms; uploadfærdig292.3ms, headers1845.1ms
+(1552.8ms efter upload; IKKE inferencebevis). Model gpt-audio-1.5,350tokens,
+defaulttier. Én kendt report_audio-call,22byteargs/ingen content, men finish stop:
+finish_reason_not_tool_calls. Prøven er fortsat UNKNOWN: args blev ikke valideret
+eller gemt efter tidlig reject; byteantal er ikke semantisk resultat.
+HA-cloud kort utilgængelig ved restore, siden genoprettet. Add-on .113 Kører,
+startup15:26:10/rootfs7b947d5b, native15:26:14/marker113112/contractOK/dualwake.
+Ingen .114-installation/aktivering. Tidligere deadlineårsag stadig ukendt.
+
+Opdateret årsagsgrænse FØR kode: faktisk audio-model returnerede stop+én kendt
+call, validator krævede tool_calls-marker. Official ChatCompletions beskriver
+tool_calls; ingen dokumenteret audio-undtagelse. Installeret SDK-parser afviser
+length/content_filter og behandler message.tool_calls uafhængigt af stopmarkør.
+Astra read-only GO til snæver kompatibilitetspolitik, ikke vendorgaranti.
+Hypotese: begge afsluttede markører kan bære fuldt validerbar klassifikation.
+Hele kæde genlæst: sealedPCM/context → SDK → validator → Thin identity/work/
+deadline → relevant-preservation eller background-finalize → dræn/rearm.
+Ingen request/model/prompt/tokens/deadline/firmware/Thinændring, dispatch/retry
+eller salvage af gammel prøve. UNKNOWN failclosed. Kun exact gpt-audio-1.5
+accepterer stop/tool_calls OG alle øvrige checks; faktisk finish bevares.
+Regression: begge marker×alle3enum, malformed-matrix begge, actualSDK wire-
+uændret/cancel/stale/timeout. Diffreview før ny freeze; fast og release efter
+freeze. Rollback .113. Provider/fysisk gate IKKE bestået; guard0/ref tom.
+
+Faktisk kompatibilitetsrettelse: kun validate_response ændret til stop/tool_calls;
+request/judge identity/deadline AST-uændret. Astra uafhængig diff-GO:16 actualSDK-
+tests består, alle malformed-grænser under begge marker, ingen P1/P2 uløst.
+JudgeSHA176daccc075987c8e5b37dbb0571072a57004fc21a34cf6484b769bc9cc7ab95.
+Fast på denne rettelse består Ruff/format/Mypy55, integration61.17s,
+unit106.17s,samlet106.5s. Full release efter ny freeze følger; gammel gate
+arves ikke. Ny guarded max5providerprøve er anmodet og IKKE godkendt/kørt.
+Ny handoffbindingadbd546db5bee7ae046e424cebd7fac62721a2205bacd94b18b11a9eb97f7765.
+
+Ny frosset runtime18fd7a515e1bacf5c233d21151e84adcf2fe8490 bestod sin ene
+fulde releasegate: scope single unclassified_runtime, Ruff/format201/Mypy55,
+integration61.24s, unit100.04s, samlet100.3s. Næste step exactcommitCI/ARM64,
+og særskilt godkendt max5prøve. Ingen betalt prøve efter observerkaldet.
+
+Exact-kandidat1cab1d183fa038e147897bb4c4cbf58bf6d57edc: CI36869909505
+success, lint-test2m50s/ARM64build3m13s, publish SKIPPED som draft-PR.
+Der er ikke publiceret en .114mainartifact. Firmwarediff mod installeret main
+har ingen firmwarefiler; faktisk eksisterende OTAsha genverificeret
+1445c2f9592d36b08734019f4e8434dff1b0591c9c32e4229c7e8e7101d3a4be,
+actualbuild113112-marker og4×256 DMAframes genlæst. Det er lokal bytekontrol,
+ikke ny fysisk gate. Ingen gentagen compile/flash eller gain/VADændring.
+Menneskets svar på den særskilte rettede max5prøve mangler stadig. Ingen nye
+OpenAI-kald, nøgleadmission eller jobs startet. Efter CI er der intet live job
+at vente på; softwarebevis er fuldført, provider/fysisk bevis mangler.
+
+Brugerens Ja til prøve godkendte den rettede max5batch. Første30sformular
+udløb før nøgleadmission (exit2: No credential accepted; no provider started).
+Ingen APIretry: samme godkendte batch fik ny formular med deterministisk samlet
+browseradmission. Denne accepterede nøglen og kørte én sekvens, ikke en gentaget
+betalt prøve. Run eval-envelope-1790863759-d87d82 stoppede første quiet:
+2.003714s/deadline_exhausted, ingen response/model/usage/formatmetadata.
+Rapport /private/tmp/pv114-provider-compatible-02/report.json, attempted1,
+0retry, cleanupjoined, exactjudge176daccc og bindingadbd546d. TV/directed/aside/
+boundary-klip blev IKKE sendt. .114 er fortsat IKKE TESTKLAR; ingen merge,
+installation eller aktivering. Førsteformularens tomme output er ikke en APIfejl.
+
+STOP-THE-LINE efter samlet timingaudit: to quiet-deadlinefejl og én afsluttet
+1.860s request (kun140ms tilbage før fysisk guard/fence) modsiger påstanden om
+pålidelig2scriticalpath. Ikke bevis for at alle calls skal være>2s. Den eneste
+phasetrace viser64msTCP/TLS,1553ms efter upload; blindprewarm ikke begrundet,
+og de to deadlines har ingen trace. Cause inden for server/netvent er ukendt.
+Ingen skjult forhøjelse af UI4s eller produktClosing2s og ingen symptompipelinepatch.
+Astra read-only anbefaler ét observeret uændret quiet-kald med en udtrykkelig8s
+LABgrænse og2s som produkteligibilityreference. Late svar er observation uden
+Thin-autoritet; noresponse8s er fortsat ukendt. Tempværktøj forberedes/reviewes
+offline, packagedrequest/strictparser genbruges. Ingen yderligere callgodkendelse
+udledes af den stoppede batch. Hele kausale kæde/rollback/fysiske gates bevares.
+
+Efter batch: HA .113 Kører, startup16:11:29 rootfs7b947d5b/a8cbe511.
+Nativeconnection16:11:32, firmware113112/contractOK og dualwake bekræftet.
+UI genbekræfter Alpha ON/timeout4s/ingen samtale. Nøglevariabel nulstillet,
+ingen ny credential/nøglelagring. Screenshot pv114-after-compatible-batch-alpha.jpg.
+
+Labobserver klar/reviewet: /private/tmp/pv114-http-lab-probe.py,
+SHA251c91d910de56d2563a2a31b3be6a851ff6313118515bd7143c064a75dff074;
+binding9f89684228e1530e8c2332a88034829a3cd61e96041be220eea3c92a3f3a1ba3.
+Astra GO til én særskilt godkendt måling;7 focused actualSDK tests består.
+Exactpayload lig packaged2sjudge, fast8sLAB/0retry/onecanonicalPOST, ingen
+produktion/adgangsflytning. within_production_budget beskriver kun requesten,
+ikke totalfysiskguard/fence; latevalid giver nul runtimeautoritet. Separate2s
+cleanup, source/environmentchecks før/efterprivatadmission, fixedtraceprivacy.
+Ingen call/admission kørt; ny eksplicit godkendelse anmodes. Ingen nye runtime-
+ændringer, softwaregates eller PR-CI-genkørsler begrundet af denne tempmåling.
+
 ## 1/10 — .113 diagnostik af den afviste lydvurdering
 
 Lead/root ejer denne afgrænsede ændring. Installeret .112 og firmware113112
@@ -47,6 +408,20 @@ releasegate: scope, Ruff/format201, Mypy55, unit112.35s, integration og samlet
 112.7s. Fastunitens tidligere procesforsinkelse gav ingen reproduceret produkt-
 fejl; originalårsagen forbliver UKENDT. Ingen deadlineværdi eller runtime blev
 ændret for at få gaten igennem. Dette er softwarebevis, ikke provider/rumbevis.
+
+Faktisk release/install: PR89 merged, main a8cbe5117ad67ec6368e4a292df8263ffb4b0884;
+PR-CI36858133610 og main/publish36858697492 grønne. Image
+sha256:710d60ea353851f20882fad9450f902762cd0842ef2022f72910c5eded3d69e5;
+context f8a59e28cf88b8615eafc40ec74bf01e88d6889c72d70e2966128ff2ce5b5d7c.
+HA .113 startup14:06 og rootfs-v1:7b947d5b0ad690f7b6495f63e648c997c07b53dc731b102ddaf95445923023c2
+verificeret. Firmware .112 podvoice_build_113112_liveclosing1, dual wake og
+Alpha ON bevares. TV-closure stadig INAKTIV: guard0/ref tom, ingen fysisk gate.
+Brugerens nye afgrænsede batch blev brugt én gang og stoppede efter første quiet.
+Run eval-1790856552-de3d7f:1.059336s UNKNOWN/verdict_not_exact_enum. Model
+og øvrig protokolmetadata gyldig; finish stop, string16 tegn, outputtext1 token.
+Generatedtekst blev ikke gemt; dens indhold/årsag er UKENDT. Cleanup joined,
+TV/positiv/grænseklip IKKE kørt. Dette er et formatfejlbevis, ikke semantisk
+klassifikationsbevis. Ingen automatisk retry eller aktivering følger.
 
 ## 1/10 — HA-adgang genetableret, native idle-prøver afsluttet
 

@@ -223,7 +223,7 @@ async def until(predicate):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["positive", "late-input", "mixed-batch"])
-async def test_genuine_thin_receipt_does_not_end_observation_and_new_input_revokes_it(
+async def test_genuine_thin_receipt_does_not_end_observation_and_new_work_revokes_it(
     tmp_path, synthetic_fixtures, monkeypatch, mode
 ):
     manifest, fixtures = synthetic_fixtures
@@ -277,6 +277,9 @@ async def test_genuine_thin_receipt_does_not_end_observation_and_new_input_revok
         await until(lambda: sdk.response.create.await_count == 1)
         if mode == "late-input":
             await transcript("input", module.TEXTS["followup"], 600)
+            # Raw transcript alone is not addressedness. Live's actual new
+            # delegation makes this a correction and revokes the old END.
+            await sdk.incoming.put(created("r3", delegation="d2"))
         for event in (created("r2"), terminal("r2")):
             await sdk.incoming.put(event)
         if mode == "positive":

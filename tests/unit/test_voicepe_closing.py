@@ -88,3 +88,34 @@ async def test_boundary_operation_preserves_queued_pcm_and_audio_epoch():
     await task
     assert out.audio_generation == epoch
     assert out._audio_q.get_nowait().pcm == b"\1\0"
+
+
+async def test_cancelled_led_ack_wait_sends_exact_cancel_and_rejects_late_tx():
+    out = link()
+    task = asyncio.create_task(
+        out.begin_live_closing(7, deadline=asyncio.get_running_loop().time() + 0.5)
+    )
+    await asyncio.sleep(0)
+    ack(out, token=7, phase="command_admitted")
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    out._call_service.assert_any_await("podvoice_live_closing_cancel", {"nonce": 123, "token": 7})
+    ack(out, token=7, phase="led_tx_done")
+    assert out._native_closing_owner is None
+
+
+async def test_provenance_opt_in_preserves_plain_transition_pcm():
+    out = link()
+    out.supports_callback_source_provenance = True
+    out._source_pcm_nonce = None
+    out._source_pcm_previous = None
+    first, transition = b"\x01\x00" * 320, b"\x02\x00" * 320
+    out._enqueue_audio(first, None, audio_epoch=out.audio_generation)
+    nonce = await out.enable_callback_source_provenance()
+    out._enqueue_audio(transition, None, audio_epoch=out.audio_generation)
+    old, new = out._audio_q.get_nowait(), out._audio_q.get_nowait()
+    assert old.pcm == first and new.pcm == transition
+    assert new.callback_source is None
+    assert new.source_problem == "missing_or_malformed_source_header"
+    assert out._source_pcm_nonce == nonce

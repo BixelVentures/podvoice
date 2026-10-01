@@ -1584,7 +1584,12 @@ class VoicePELink:
                     raise RuntimeError("Native closing LED command was not sent")
                 return await waiter
         except BaseException:
-            self._retire_native_closing()
+            # The LED may already have been admitted when the waiter is cancelled
+            # or its ACK times out. Retire and send the matching cancel before a
+            # late TX completion can leak into the next conversation.
+            if self._native_closing_owner == owner:
+                with contextlib.suppress(Exception, asyncio.CancelledError):
+                    await self.cancel_live_closing(token)
             raise
 
     async def cancel_live_closing(self, token: int) -> None:

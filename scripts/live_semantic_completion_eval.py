@@ -466,7 +466,7 @@ async def evaluate(key, case, variant, manifest, fixtures, evidence, *, client_f
                     and receipt.done()
                     and not receipt.cancelled()
                     and receipt.result() is True
-                    and live.terminal_receipt_current(receipt)
+                    and live.closure_receipt_current(receipt)
                     and session._ending_conversation
                 ):
                     settled = True

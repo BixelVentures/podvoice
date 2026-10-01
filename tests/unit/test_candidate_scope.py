@@ -724,3 +724,89 @@ def test_bounded_live_closing_cannot_admit_deleted_owner_or_extra_domain(tmp_pat
     source.write_text('events = ["mic_frame", "playback", "response.done", "rearm"]\n')
     refresh()
     assert not inspect_repository(tmp_path, base).passed
+
+
+def test_native_app_close_requires_exact_reviewed_chain_and_regressions(tmp_path):
+    import json
+    import subprocess
+
+    from scripts.candidate_scope import (
+        _NATIVE_APP_CLOSING_REGRESSIONS,
+        inspect_repository,
+        production_fingerprint,
+    )
+
+    def git(*args):
+        return subprocess.check_output(["git", *args], cwd=tmp_path, text=True).strip()
+
+    git("init", "-q")
+    git("config", "user.name", "Scope Test")
+    git("config", "user.email", "scope@example.invalid")
+    for name in ("thin.py", "live_prompt.py", "voicepe.py"):
+        path = tmp_path / "podvoice/gatekeeper" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("")
+    git("add", ".")
+    git("commit", "-qm", "base")
+    base = git("rev-parse", "HEAD")
+    for name, text in (
+        ("thin.py", "end_conversation rearm\n"),
+        ("live_prompt.py", "end_conversation\n"),
+        ("voicepe.py", "native_cancel = True\n"),
+    ):
+        (tmp_path / "podvoice/gatekeeper" / name).write_text(text)
+    for name in _NATIVE_APP_CLOSING_REGRESSIONS:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("def test_close(): pass\n")
+    git("add", ".")
+    report = inspect_repository(tmp_path, base)
+    assert report.domains == ("realtime_semantics", "rearm")
+    assert not report.passed
+    status = tmp_path / "docs/STATUS.md"
+    status.parent.mkdir()
+
+    def write_record():
+        current = inspect_repository(tmp_path, base)
+        record = {
+            "version": 1,
+            "base_tip": base,
+            "merge_base": base,
+            "domains": list(current.domains),
+            "fingerprint": production_fingerprint(tmp_path, base, base, current.production_files),
+            "reviewer": "independent-reviewer",
+            "rationale": "One model END/native close cleanup chain; no audio judge.",
+        }
+        status.write_text("<!-- candidate-scope-coupling\n" + json.dumps(record) + "\n-->\n")
+
+    write_record()
+    assert inspect_repository(tmp_path, base).passed
+    thin = tmp_path / "podvoice/gatekeeper/thin.py"
+    original = thin.read_text()
+    thin.write_text(original + "changed = True\n")
+    assert not inspect_repository(tmp_path, base).passed  # Stale whole-tree review.
+    thin.write_text(original)
+    for name in _NATIVE_APP_CLOSING_REGRESSIONS:
+        path = tmp_path / name
+        path.unlink()
+        write_record()
+        assert not inspect_repository(tmp_path, base).passed
+        path.write_text("def test_close(): pass\n")
+    for name, text in (
+        ("podvoice/gatekeeper/other.py", "end_conversation\n"),
+        ("esphome/new.cpp", "rearm\n"),
+        ("podvoice/gatekeeper/thin.py", "end_conversation rearm MCP\n"),
+        ("podvoice/gatekeeper/thin.py", "end_conversation rearm mic_gate\n"),
+    ):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        prior = path.read_text() if path.exists() else None
+        path.write_text(text)
+        write_record()  # Even a newly pinned review cannot widen this admission.
+        assert not inspect_repository(tmp_path, base).passed
+        if prior is None:
+            path.unlink()
+        else:
+            path.write_text(prior)
+    write_record()
+    assert inspect_repository(tmp_path, base).passed

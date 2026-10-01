@@ -68,6 +68,7 @@ from .voicepe import NativeMicFrame
 # this is a conservative freshness policy, not an amplitude/VAD calibration.
 LIVE_ACTIVITY_FRESHNESS_S = 0.2
 LIVE_CLOSE_GRACE_S = 6.0
+LIVE_IDLE_PRECLOSE_S = 2.0
 LIVE_CONFIRMATION_START_INSTRUCTION = (
     "Stil nu straks det korte, konkrete bekræftelsesspørgsmål om det allerede "
     "konfigurerede afventende forslag. Tal dansk. Vent ikke på, at brugeren taler først. "
@@ -557,11 +558,9 @@ class ThinSession:
         self.live_audio = live_audio
         self.live_reply_url = live_reply_url
         self.live_alpha = False
+        # Packaged audio classification is diagnostic only; the open Live session
+        # owns semantic ending. Explicit injection remains available to old tests.
         self._live_close_judge = live_close_judge
-        if live_close_judge is None and (
-            live_close_guard_s is not None or live_close_guard_ref is not None
-        ):
-            self._live_close_judge = self._judge_closing_audio
         self._live_close_guard_s = live_close_guard_s
         self._live_close_guard_ref = live_close_guard_ref
         self._live_close_attempt: LiveClosingAttempt | None = None
@@ -600,7 +599,9 @@ class ThinSession:
         # Last exact native packet whose send_audio call returned. This is not a
         # provider ACK or complete physical input fence and grants no close permission.
         self._live_mic_submitted: NativeMicFrame | None = None
-        self._live_idle_window = NativeIdleWindow(freshness_s=LIVE_ACTIVITY_FRESHNESS_S)
+        self._live_idle_window = NativeIdleWindow(
+            freshness_s=LIVE_ACTIVITY_FRESHNESS_S, require_input_quiet=False
+        )
         self._live_idle_shadow = NativeIdleShadow(freshness_s=LIVE_ACTIVITY_FRESHNESS_S)
         self._live_end_window = NativeIdleWindow(
             freshness_s=LIVE_ACTIVITY_FRESHNESS_S, require_input_quiet=False
@@ -608,10 +609,18 @@ class ThinSession:
         self._live_activity_latest: dict | None = None
         self._live_backend_revisions: dict[str, int] = {}
         self._live_backend_inputs: dict[str, int] = {}
+        self._live_backend_orders: dict[str, int] = {}
+        self._live_backend_control_revisions: dict[str, int] = {}
+        self._live_control_revision = 0
         self._live_input_evidence: dict[int, dict] = {}
         self._live_review: _LiveReview | None = None
         self._live_confirmation_input_index_floor = 0
         self._live_end_receipt: asyncio.Future[bool] | None = None
+        self._live_end_delegation_id: str | None = None
+        self._live_idle_preclose_task: asyncio.Task | None = None
+        self._live_idle_preclose_owners: set[asyncio.Task] = set()
+        self._live_idle_preclose_deadline: float | None = None
+        self._live_idle_preclose_token = 0
         self._live_usage_seconds = 0.0
         self._live_provider_closed = asyncio.Event()
         self._live_finalizing = False
@@ -941,9 +950,17 @@ class ThinSession:
         self._reset_live_quiet()
         self._live_activity_latest = None
         self._live_backend_inputs.clear()
+        self._live_backend_orders.clear()
+        self._live_backend_control_revisions.clear()
+        self._live_control_revision = 0
         self._live_input_evidence.clear()
         self._live_review = None
         self._live_confirmation_input_index_floor = 0
+        self._live_end_receipt = None
+        self._live_end_delegation_id = None
+        self._live_idle_preclose_task = None
+        self._live_idle_preclose_deadline = None
+        self._live_idle_preclose_token = 0
         self._live_usage_seconds = 0.0
         self._live_provider_closed.clear()
         self._live_finalizing = False
@@ -1491,6 +1508,7 @@ class ThinSession:
             self._trace_event("wake_reference_final_status", **reference_status())
         if self.live_alpha:
             self._retire_live_review()
+            self._cancel_live_idle_preclose("transport-close")
         if self._live_webrtc:
             self.voicepe.invalidate_live_handshake()
         if self._live_stream is not None:
@@ -1501,6 +1519,7 @@ class ThinSession:
             self._live_opening_task,
             self._live_rotation_task,
             self._live_close_task,
+            *self._live_idle_preclose_owners,
             *self._live_rotation_io,
             self._reader,
             self._pump,
@@ -1681,6 +1700,15 @@ class ThinSession:
             if self._live_rotation_io == owned:
                 self._live_rotation_io = ()
 
+    async def _settle_live_idle_preclose(self) -> None:
+        # The current field is cleared at cancellation, but its task may still
+        # await an exact device LED cancel. No old owner may outlive rearm.
+        owned = tuple(
+            task for task in self._live_idle_preclose_owners if task is not asyncio.current_task()
+        )
+        if owned:
+            await asyncio.shield(asyncio.gather(*owned, return_exceptions=True))
+
     async def _teardown_locked(
         self, *, release_music: bool, deadline: float, silence_complete: bool
     ) -> None:
@@ -1805,11 +1833,18 @@ class ThinSession:
             reserve_s=rearm_reserve,
         )
         rotation_io_complete = True
+        idle_preclose_complete = True
         if self.live_alpha:
             self._record_live_usage()
             rotation_io_complete, _ = await self._teardown_step(
                 "live-rotation-io-settle",
                 self._settle_live_rotation_io(),
+                deadline=teardown_deadline,
+                reserve_s=rearm_reserve,
+            )
+            idle_preclose_complete, _ = await self._teardown_step(
+                "live-idle-preclose-settle",
+                self._settle_live_idle_preclose(),
                 deadline=teardown_deadline,
                 reserve_s=rearm_reserve,
             )
@@ -1855,6 +1890,7 @@ class ThinSession:
             and provider_complete
             and opening_complete
             and rotation_io_complete
+            and idle_preclose_complete
             and stop_context_complete
             and heartbeat_complete
             and attention_complete
@@ -2228,12 +2264,16 @@ class ThinSession:
                         self._run_live_closing_attempt(self._epoch, receipt=self._live_end_receipt),
                         "live-closing-attempt",
                     )
-            elif self.live_alpha and self._live_close_judge is None and self._live_quiet_ready():
-                if self._goodbye is None or self._goodbye.done():
-                    self._goodbye = self._spawn(
-                        self._finalize_live_conversation(self._epoch, reason="idle-fallback"),
-                        "live-idle-close",
-                    )
+            elif (
+                self.live_alpha
+                and self._live_close_judge is None
+                and self._live_idle_preclose_task is None
+                and not self._ending_conversation
+                and self._live_close_nonzero_output
+                and self._live_close_speech_played
+                and self._live_quiet_ready()
+            ):
+                self._start_live_idle_preclose()
             # _speaking means "the model is generating" — generation finishes long
             # before the device stops PLAYING, so closing on it alone truncated long
             # replies mid-sentence. Use the device's own playback truth, bounded.
@@ -2315,9 +2355,11 @@ class ThinSession:
             before_bytes = stream.buffered_bytes
             pending_audio = None
             if any(ev.pcm):
+                self._live_close_output_revision += 1
+                self._live_close_nonzero_output = True
+                if self._live_idle_preclose_task is not None:
+                    self._cancel_live_idle_preclose("new-output")
                 if self._live_close_judge is not None:
-                    self._live_close_nonzero_output = True
-                    self._live_close_output_revision += 1
                     self._live_close_consumed = (
                         False  # Only genuine fresh output renews eligibility.
                     )
@@ -2428,8 +2470,7 @@ class ThinSession:
                     end_ms=ev.end_ms,
                     input_revision=self._live_input_revision,
                 )
-                if self._live_close_judge is None:
-                    self._cancel_live_end()  # OFF/previous Alpha contract.
+                # Raw Live fragments are evidence, not a completed new turn.
             if self.hub is not None:
                 self.hub.transcript_fragment(
                     self.room,
@@ -2439,6 +2480,9 @@ class ThinSession:
                     generation=self.brain._connection_generation,
                 )
         elif isinstance(ev, LiveBackendStarted):
+            if self._ending_conversation and ev.delegation_id != self._live_end_delegation_id:
+                self._cancel_live_end()
+            self._cancel_live_idle_preclose("new-backend-work")
             if self._live_close_judge is not None:
                 self._cancel_closing_attempt("new-backend-work")
                 self._live_close_consumed = False
@@ -2463,6 +2507,8 @@ class ThinSession:
             else:
                 self._live_backend_revisions[ev.response_id] = self._live_input_revision
             self._live_backend_inputs[ev.response_id] = ev.input_index
+            self._live_backend_orders[ev.response_id] = ev.created_index
+            self._live_backend_control_revisions[ev.response_id] = self._live_control_revision
             self._trace_event(
                 "live_backend_started", response_id=ev.response_id, delegation_id=ev.delegation_id
             )
@@ -2757,7 +2803,9 @@ class ThinSession:
                 names = [call.name for call in calls]
                 review_denial = None
                 pending = self._live_review
-                if pending is not None or RECONSIDER_ACTION_TOOL in names:
+                if pending is not None and names == [END_CONVERSATION_TOOL]:
+                    pass  # A rejected END must not mutate a held review.
+                elif pending is not None or RECONSIDER_ACTION_TOOL in names:
                     if (
                         pending is not None
                         and not pending.consumed
@@ -2785,6 +2833,12 @@ class ThinSession:
                     RECONSIDER_ACTION_TOOL,
                 }
                 invalid_batch = len(names) > 1 and bool(exclusive.intersection(names))
+                exclusive_end = (
+                    names == [END_CONVERSATION_TOOL]
+                    and not invalid_batch
+                    and len(batch.calls) == 1
+                    and batch.calls[0].name == END_CONVERSATION_TOOL
+                )
                 results = []
                 semantic_end = None
                 proposal = None
@@ -2807,10 +2861,18 @@ class ThinSession:
                         result = failure(
                             "invalid_lifecycle_batch", "Lifecycle decisions must be exclusive."
                         )
-                    elif not read_only and (
-                        revision is None
-                        or revision != self._live_input_revision
-                        or not dispatch_current()
+                    elif call.name == END_CONVERSATION_TOOL and not exclusive_end:
+                        result = failure(
+                            "invalid_end_wire", "End decision must be a direct exclusive call."
+                        )
+                    elif (
+                        not read_only
+                        and not exclusive_end
+                        and (
+                            revision is None
+                            or revision != self._live_input_revision
+                            or not dispatch_current()
+                        )
                     ):
                         offered = self._offer_live_review(call, batch) if reviewed is None else None
                         result = offered or failure(
@@ -2826,6 +2888,12 @@ class ThinSession:
                             call, batch, revision, dispatch_current
                         )
                     elif call.name == END_CONVERSATION_TOOL:
+                        latest_end = bool(
+                            self._live_backend_orders.get(batch.response_id)
+                            == self.brain.backend_sequence
+                            and self._live_backend_control_revisions.get(batch.response_id)
+                            == self._live_control_revision
+                        )
                         result = (
                             {
                                 "ok": True,
@@ -2834,10 +2902,12 @@ class ThinSession:
                                     "closure_status": "accepted_not_closed",
                                 },
                             }
-                            if self._valid_end_args(call.args)
-                            else failure("invalid_arguments", "Invalid end arguments.")
+                            if latest_end and self._valid_end_args(call.args)
+                            else failure("invalid_or_stale_end", "End decision is not current.")
                         )
                         if result["ok"]:
+                            if pending is not None:
+                                self._retire_live_review()
                             semantic_end = call
                     elif call.name == WAIT_FOR_USER_TOOL:
                         result = {"ok": True, "data": {"decision": WAIT_FOR_USER_TOOL}}
@@ -2923,28 +2993,30 @@ class ThinSession:
                     self._live_rotation_task.add_done_callback(lambda _: receipt.cancel())
                 if (
                     semantic_end is not None
-                    and dispatch_current()
-                    and revision == self._live_input_revision
+                    and current()
+                    and self._live_backend_orders.get(batch.response_id)
+                    == self.brain.backend_sequence
+                    and self._live_backend_control_revisions.get(batch.response_id)
+                    == self._live_control_revision
+                    and self.brain.tool_batch_is_admitted(batch.response_id, batch.generation)
                 ):
                     self._cancel_live_end()
-                    creator = (
-                        self.brain.create_closure_receipt
-                        if self._live_close_judge is not None
-                        else self.brain.create_terminal_receipt
+                    self._cancel_live_idle_preclose("semantic-end")
+                    receipt = self.brain.create_closure_receipt(
+                        batch.response_id, generation=batch.generation
                     )
-                    receipt = creator(batch.response_id, generation=batch.generation)
                     source = getattr(self._live_mic_submitted, "callback_source", None)
                     self._live_close_semantic_floor = (
                         source.sample_end if source is not None else None
                     )
                     self._live_end_receipt = receipt
+                    self._live_end_delegation_id = batch.delegation_id
                     self._ending_conversation = True
                     self._goodbye = self._spawn(
                         self._await_live_end(
                             receipt,
                             epoch,
                             batch.generation,
-                            revision,
                             silent=semantic_end.args.get("silent") is True,
                         ),
                         "live-goodbye",
@@ -2989,6 +3061,8 @@ class ThinSession:
             self._tool_tasks.pop(batch.response_id, None)
             self._live_backend_revisions.pop(batch.response_id, None)
             self._live_backend_inputs.pop(batch.response_id, None)
+            self._live_backend_orders.pop(batch.response_id, None)
+            self._live_backend_control_revisions.pop(batch.response_id, None)
             self._refresh_live_work_led()
 
     def _live_confirmation_supported(self) -> bool:
@@ -3354,9 +3428,7 @@ class ThinSession:
         )
 
     def _semantic_receipt_current(self, receipt: asyncio.Future[bool]) -> bool:
-        if self._live_close_judge is not None:
-            return self.brain.closure_receipt_current(receipt)
-        return self.brain.terminal_receipt_current(receipt)
+        return self.brain.closure_receipt_current(receipt)
 
     def _closing_output_ready(self) -> bool:
         if (
@@ -3737,13 +3809,225 @@ class ThinSession:
             self._goodbye.cancel()
         self._goodbye = None
         self._ending_conversation = False
+        self._live_end_delegation_id = None
+
+    def _cancel_live_idle_preclose(self, reason: str) -> None:
+        task = self._live_idle_preclose_task
+        if task is None:
+            return
+        self._trace_event("live_idle_preclose_cancelled", reason=reason)
+        self._live_idle_preclose_token += 1
+        self._live_idle_preclose_deadline = None
+        self._live_idle_preclose_task = None
+        if task is not asyncio.current_task() and not task.done():
+            task.cancel()
+        if (
+            reason not in ("semantic-end", "transport-close")
+            and self._active
+            and not self._transport_closing
+            and not self._live_finalizing
+        ):
+            self._hub_state("LISTENING", None)
+
+    def _start_live_idle_preclose(self) -> None:
+        if (
+            self._live_idle_preclose_task is not None
+            or self._ending_conversation
+            or not self._live_close_nonzero_output
+            or not self._live_close_speech_played
+            or not self._live_quiet_ready()
+        ):
+            return
+        self._live_idle_preclose_token += 1
+        token = self._live_idle_preclose_token
+        self._live_close_next_token += 1
+        native_token = self._live_close_next_token
+        self._live_idle_preclose_deadline = None
+        self._trace_event("live_idle_preclose_started", token=token)
+        self._live_idle_preclose_task = self._spawn(
+            self._run_live_idle_preclose(
+                token,
+                native_token,
+                self._epoch,
+                self._history_session,
+                self.brain._connection_generation,
+                getattr(self.voicepe, "connection_generation", None),
+                getattr(self.voicepe, "audio_generation", None),
+                self.brain.backend_sequence,
+                self._live_close_output_revision,
+            ),
+            "live-idle-preclose",
+        )
+        self._live_idle_preclose_owners.add(self._live_idle_preclose_task)
+        self._live_idle_preclose_task.add_done_callback(self._live_idle_preclose_owners.discard)
+        self._hub_state("CLOSING", "Afslutter efter inaktivitet")
+
+    async def _run_live_idle_preclose(
+        self,
+        token: int,
+        native_token: int,
+        epoch: float,
+        session_id: str,
+        generation: int,
+        native_connection: int | None,
+        audio_generation: int | None,
+        backend_sequence: int,
+        output_revision: int,
+    ) -> None:
+        """Give the open Live session two seconds after the native LED TX ACK.
+
+        This is transport inactivity only. It does not classify room speech or
+        invent a model decision; the existing finalizer retains provider/drain ownership.
+        """
+        task = asyncio.current_task()
+        native_started = False
+        committed = False
+        source_nonce = source_epoch = None
+
+        def current() -> bool:
+            return bool(
+                self._live_idle_preclose_task is task
+                and self._live_idle_preclose_token == token
+                and self._active
+                and self.live_alpha
+                and not self._transport_closing
+                and not self._live_finalizing
+                and not self._ending_conversation
+                and self._epoch == epoch
+                and self._history_session == session_id
+                and self.brain._connection_generation == generation
+                and getattr(self.voicepe, "connection_generation", None) == native_connection
+                and getattr(self.voicepe, "audio_generation", None) == audio_generation
+                and self.brain.backend_sequence == backend_sequence
+                and self._live_close_output_revision == output_revision
+                and (
+                    source_epoch is None
+                    or (
+                        (fresh_source := getattr(self.voicepe, "_source_pcm_previous", None))
+                        is not None
+                        and fresh_source.nonce == source_nonce
+                        and fresh_source.capture_epoch == source_epoch
+                    )
+                )
+            )
+
+        try:
+            if not getattr(self.voicepe, "supports_closing_led_tx", False):
+                raise RuntimeError("native_closing_led_unavailable")
+            # The metadata handshake does not hold, drain, reset, or replay mic
+            # PCM. Plain transition frames keep their ordinary provider path.
+            async with asyncio.timeout(LIVE_IDLE_PRECLOSE_S):
+                nonce = await self.voicepe.enable_callback_source_provenance()
+                while current() and self._live_quiet_ready():
+                    source = getattr(self.voicepe, "_source_pcm_previous", None)
+                    if source is not None and source.nonce == nonce and source.capture_epoch > 0:
+                        break
+                    await asyncio.sleep(HEARTBEAT_S)
+                else:
+                    return
+            if not current() or not self._live_quiet_ready():
+                return
+            source_nonce, source_epoch = nonce, source.capture_epoch
+            ack_deadline = asyncio.get_running_loop().time() + LIVE_IDLE_PRECLOSE_S
+            native_started = True
+            async with asyncio.timeout_at(ack_deadline):
+                boundary = await self.voicepe.begin_live_closing(
+                    native_token, deadline=ack_deadline
+                )
+            if (
+                not current()
+                or not self._live_quiet_ready()
+                or boundary.get("phase") != "led_tx_done"
+                or boundary.get("nonce") != nonce
+                or boundary.get("capture_epoch") != source.capture_epoch
+                or boundary.get("token") != native_token
+                or type(boundary.get("tx_sequence")) is not int
+                or boundary["tx_sequence"] <= 0
+                or type(boundary.get("tx_us")) is not int
+                or not 0 <= boundary["tx_us"] < 2**32
+            ):
+                raise RuntimeError("native_closing_led_ack_invalid")
+            self._live_idle_preclose_deadline = (
+                asyncio.get_running_loop().time() + LIVE_IDLE_PRECLOSE_S
+            )
+            self._trace_event(
+                "live_idle_preclose_visible",
+                token=token,
+                native_token=native_token,
+                led_tx_sequence=boundary["tx_sequence"],
+            )
+            self._publish_panel_status(force=True)
+            while current():
+                if not self._live_quiet_work_clear(semantic=False):
+                    return  # Genuine work cancels this visible idle owner.
+                deadline = self._live_idle_preclose_deadline
+                if deadline is None:
+                    return
+                if asyncio.get_running_loop().time() >= deadline and self._live_quiet_ready():
+                    self._trace_event("live_idle_preclose_elapsed", token=token)
+                    # Finalization becomes the sole owner after this currentness
+                    # check. A late event may cancel idle observation, but must not
+                    # cancel provider close or its exact physical drain.
+                    self._live_idle_preclose_task = None
+                    self._live_idle_preclose_deadline = None
+                    self._live_idle_preclose_token += 1
+                    self._goodbye = task  # Stop/teardown joins this finalizer owner.
+                    committed = True
+                    await self._finalize_live_conversation(epoch, reason="app-idle-timeout")
+                    return
+                await asyncio.sleep(HEARTBEAT_S)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            if current():
+                self._trace_event("live_idle_preclose_failed", cause=type(exc).__name__)
+                self._request_close("live-idle-visible-boundary-unconfirmed", error_kind="device")
+        finally:
+            if (
+                native_started
+                and not committed
+                and self._epoch == epoch
+                and self._history_session == session_id
+                and self.brain._connection_generation == generation
+                and getattr(self.voicepe, "connection_generation", None) == native_connection
+                and getattr(self.voicepe, "audio_generation", None) == audio_generation
+            ):
+                with contextlib.suppress(Exception, asyncio.CancelledError):
+                    await self.voicepe.cancel_live_closing(native_token)
+                if (
+                    self._active
+                    and self._epoch == epoch
+                    and self._history_session == session_id
+                    and self.brain._connection_generation == generation
+                    and getattr(self.voicepe, "connection_generation", None) == native_connection
+                    and getattr(self.voicepe, "audio_generation", None) == audio_generation
+                    and not self._transport_closing
+                    and not self._live_finalizing
+                    and self._live_idle_preclose_task is None
+                ):
+                    output_pending = bool(
+                        self._device_playing
+                        or self._live_pending_audio is not None
+                        or (
+                            self._live_stream is not None
+                            and any(any(chunk) for chunk in self._live_stream._chunks)
+                        )
+                    )
+                    self._set_led(
+                        State.THINKING
+                        if self._live_work_pending()
+                        else State.AI_SPEAKING
+                        if output_pending
+                        else State.LISTENING
+                    )
+            if self._live_idle_preclose_task is task and not self._live_finalizing:
+                self._cancel_live_idle_preclose("owner-changed")
 
     async def _await_live_end(
         self,
         receipt: asyncio.Future[bool],
         epoch: float,
         generation: int,
-        revision: int,
         *,
         silent: bool,
     ) -> None:
@@ -3757,7 +4041,6 @@ class ThinSession:
                 and not self._live_finalizing
                 and self._epoch == epoch
                 and self.brain._connection_generation == generation
-                and (self._live_close_judge is not None or self._live_input_revision == revision)
                 and self._live_end_receipt is receipt
             )
 
@@ -3790,7 +4073,6 @@ class ThinSession:
             await self._run_live_closing_attempt(epoch, receipt=receipt)
             return
         generation = self.brain._connection_generation
-        revision = self._live_input_revision
         self._live_end_window.reset()
         if self._live_webrtc:
             # Browser render completion is still explicitly unconfirmed. Preserve
@@ -3805,7 +4087,6 @@ class ThinSession:
                         self._active
                         and self._epoch == epoch
                         and self.brain._connection_generation == generation
-                        and self._live_input_revision == revision
                         and not self._transport_closing
                         and self._live_end_receipt is receipt
                     ):
@@ -3822,7 +4103,6 @@ class ThinSession:
                     self._active
                     and self._epoch == epoch
                     and self.brain._connection_generation == generation
-                    and self._live_input_revision == revision
                     and not self._transport_closing
                     and not self._live_finalizing
                     and self._live_end_receipt is receipt
@@ -3830,10 +4110,8 @@ class ThinSession:
                 ):
                     self._request_close("live-semantic-drain-unconfirmed", error_kind="device")
                 return
-        if (
-            self._live_input_revision != revision
-            or self.brain._connection_generation != generation
-            or (not self._live_webrtc and not self._live_quiet_ready(semantic=True))
+        if self.brain._connection_generation != generation or (
+            not self._live_webrtc and not self._live_quiet_ready(semantic=True)
         ):
             return
         await self._finalize_live_conversation(epoch, reason="model-close", receipt=receipt)
@@ -3934,6 +4212,8 @@ class ThinSession:
                 with contextlib.suppress(asyncio.CancelledError):
                     await pending_closing
             self._cancel_live_end()
+            self._cancel_live_idle_preclose("typed-input")
+            self._live_control_revision += 1
             self._retire_live_review()
             if self._live_confirmation_generation is None:
                 self._cancel_live_confirmation_rotation()
@@ -6013,9 +6293,8 @@ class ThinSession:
         return (
             self._history_session,
             self.brain._connection_generation,
-            self._live_input_revision,
-            self.brain.input_sequence,
             self.brain.backend_sequence,
+            self._live_close_output_revision,
             bool(self._live_output_bytes),
         )
 
@@ -6063,12 +6342,11 @@ class ThinSession:
         # event must reach Thin before it can make the final currentness decision.
         for event in getattr(queue, "_queue", ()):
             if (
-                self._live_close_judge is not None
-                and isinstance(event, LiveTranscript)
+                isinstance(event, LiveTranscript)
                 and event.direction == "in"
                 and event.generation == brain._connection_generation
             ):
-                continue  # Observability only; reader still advances tool currency.
+                continue  # Observability only; action/approval currency is unchanged.
             if not (
                 isinstance(event, LiveAudioChunk)
                 and event.generation == brain._connection_generation
@@ -6097,8 +6375,24 @@ class ThinSession:
         ):
             return
         self._live_activity_latest = observation
-        if self._live_close_judge is not None and self._live_close_nonzero_output:
-            out = observation.get("output", {})
+        out = observation.get("output", {})
+        source_ms, mix_ms = observation.get("source_timestamp_ms"), out.get("mix_ms")
+        if (
+            self._live_idle_preclose_task is not None
+            and out.get("valid") is True
+            and type(source_ms) is int
+            and type(mix_ms) is int
+            and (source_ms - mix_ms) % (2**32) <= self._live_idle_window.freshness_s * 1000
+            and type(out.get("peak")) is int
+            and out["peak"] > 0
+            and type(out.get("sum_squares")) is int
+            and out["sum_squares"] > 0
+            and type(out.get("frame_end")) is int
+            and type(out.get("consumed_frames")) is int
+            and out["consumed_frames"] >= out["frame_end"]
+        ):
+            self._cancel_live_idle_preclose("native-output")
+        if self._live_close_nonzero_output:
             lease = self._playback_lease
             if (
                 lease is not None
@@ -7347,6 +7641,8 @@ class ThinSession:
         )
         epoch, brain = self._epoch, self.brain
         generation = getattr(brain, "_connection_generation", None)
+        native_connection = getattr(self.voicepe, "connection_generation", None)
+        audio_generation = getattr(self.voicepe, "audio_generation", None)
         work_light = getattr(self.voicepe, "set_work_light", None)
         animate_work = (
             live_paint and display_state == State.THINKING and not error and not self._muted
@@ -7360,6 +7656,9 @@ class ThinSession:
                 or self._epoch != epoch
                 or self.brain is not brain
                 or getattr(brain, "_connection_generation", None) != generation
+                or getattr(self.voicepe, "connection_generation", None) != native_connection
+                or getattr(self.voicepe, "audio_generation", None) != audio_generation
+                or self._live_idle_preclose_task is not None
             ):
                 return
             if animate_work and callable(work_light):
@@ -7398,7 +7697,10 @@ class ThinSession:
     def _panel_status(self, now: float) -> dict:
         """Read existing evidence only. No observe/reset/ready/close side effects."""
         closing = bool(
-            self._transport_closing or self._live_finalizing or self._live_close_attempt is not None
+            self._transport_closing
+            or self._live_finalizing
+            or self._live_close_attempt is not None
+            or self._live_idle_preclose_task is not None
         )
         incomplete = bool(self._teardown_incomplete or self._teardown_lock.locked())
         phase = "CLOSING" if closing or incomplete else self.sm.state.name
@@ -7414,6 +7716,24 @@ class ThinSession:
             authority = "Stop" if self._trace_reason in ("stop", "stop-word") else "Lukning"
             blocker = "Afventer lydhale og oprydning"
             if (
+                self._live_idle_preclose_task is not None
+                and not self._live_finalizing
+                and not self._transport_closing
+            ):
+                authority = "App-timeout"
+                deadline = self._live_idle_preclose_deadline
+                if deadline is None:
+                    timer_kind = "app_idle_led_admission"
+                    blocker = "Afventer synlig afslutning på enheden"
+                else:
+                    remaining = max(0.0, deadline - asyncio.get_running_loop().time())
+                    running, timer_kind = remaining > 0, "app_idle_preclose"
+                    blocker = (
+                        "Afslutter efter inaktivitet"
+                        if running
+                        else "Afventer frisk lydmåling før lukning"
+                    )
+            elif (
                 self._live_close_attempt is not None
                 and not self._live_finalizing
                 and not self._transport_closing
@@ -7513,9 +7833,7 @@ class ThinSession:
                 elif fresh and diag["quiet_s"] > 0:
                     out = "quiet"
                 work_clear = self._live_quiet_work_clear(semantic=self._ending_conversation)
-                authority = (
-                    "GPT-Live afslutning" if self._ending_conversation else "Stilheds-timeout"
-                )
+                authority = "GPT-Live afslutning" if self._ending_conversation else "App-timeout"
                 if self._live_work_pending() or self._tool_lock.locked() or self._tool_batches:
                     phase, authority, blocker = (
                         "THINKING",
@@ -7531,12 +7849,10 @@ class ThinSession:
                     )
                 elif not fresh:
                     blocker = "Afventer frisk aktivitetsmåling"
-                elif (
-                    inp == "active"
-                    and not self._ending_conversation
-                    and self._live_close_judge is None
+                elif not self._ending_conversation and not (
+                    self._live_close_nonzero_output and self._live_close_speech_played
                 ):
-                    phase, blocker = "LISTENING", "Tale registreret — timeout står stille"
+                    blocker = "Afventer første hørbare svar"
                 elif not work_clear:
                     blocker = "Afventer arbejde eller bekræftet lydvej"
                 elif diag["blocker"] in ("quiet_window_incomplete", "ready"):
@@ -7544,7 +7860,9 @@ class ThinSession:
                     remaining = max(0.0, quiet_target - quiet)
                     running, timer_kind = True, "quiet_coverage"
                     blocker = (
-                        "Måler ro før lukning" if remaining else "Ro målt — afventer sidste kontrol"
+                        "Måler ro før app-timeout"
+                        if remaining
+                        else "Ro målt — afventer afslutningsfase"
                     )
                 else:
                     blocker = "Afventer bekræftet ro i lydvejen"

@@ -13,7 +13,7 @@ import gatekeeper.thin as thin_module
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("semantic,silent", [(False, False), (True, False), (True, True)])
+@pytest.mark.parametrize("semantic,silent", [(True, False), (True, True)])
 async def test_quiet_policy_reaches_provider_close_then_exact_playback_finish(
     monkeypatch, semantic, silent
 ):
@@ -95,7 +95,7 @@ async def test_semantic_wait_expires_as_failure_not_success(monkeypatch, evidenc
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("changed", ["input", "generation", "stop"])
+@pytest.mark.parametrize("changed", ["generation", "stop"])
 @pytest.mark.parametrize("silent", [False, True])
 async def test_semantic_expiry_cannot_close_after_owner_changes(monkeypatch, changed, silent):
     session, sdk, link = await setup()
@@ -117,9 +117,7 @@ async def test_semantic_expiry_cannot_close_after_owner_changes(monkeypatch, cha
             await propose_end(session, sdk, silent=silent)
             await emit(sdk, created("r2"), terminal("r2"))
             await asyncio.wait_for(entered.wait(), 1)
-            if changed == "input":
-                session._live_input_revision += 1
-            elif changed == "generation":
+            if changed == "generation":
                 session.brain._connection_generation += 1
             else:
                 session._transport_closing = True

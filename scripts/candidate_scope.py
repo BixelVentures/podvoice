@@ -195,6 +195,28 @@ _BOUNDED_LIVE_CLOSING_REGRESSIONS = {
     "tests/firmware/closing_rmt_hook.py",
 }
 
+# Removing the audio judge couples model END admission to the same native close
+# and cleanup owner. Admit that reviewed add-on-only chain, never a general
+# semantics/rearm waiver or changes to firmware, VAD, transport or HA tools.
+_NATIVE_APP_CLOSING_SURFACES = {
+    "podvoice/gatekeeper/__init__.py",
+    "podvoice/gatekeeper/live_prompt.py",
+    "podvoice/gatekeeper/static/index.html",
+    "podvoice/gatekeeper/thin.py",
+    "podvoice/gatekeeper/voicepe.py",
+}
+_NATIVE_APP_CLOSING_REQUIRED = {
+    "podvoice/gatekeeper/live_prompt.py",
+    "podvoice/gatekeeper/thin.py",
+    "podvoice/gatekeeper/voicepe.py",
+}
+_NATIVE_APP_CLOSING_REGRESSIONS = {
+    "tests/integration/test_thin_live.py",
+    "tests/integration/test_thin_live_idle_preclose.py",
+    "tests/integration/test_thin_panel_status.py",
+    "tests/unit/test_voicepe_closing.py",
+}
+
 # Character matching without autojunk can become quadratic on large repeated diffs.
 # Above this bound, include whole changed lines: extra domains require review, but
 # no executable scope is lost and fingerprint/coupling checks remain unchanged.
@@ -373,6 +395,14 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         and _BOUNDED_LIVE_CLOSING_REGRESSIONS <= set(report.test_files)
         and all((root / path).is_file() for path in _BOUNDED_LIVE_CLOSING_REGRESSIONS)
     )
+    reviewed_native_app_closing = (
+        report.domains == ("realtime_semantics", "rearm")
+        and _NATIVE_APP_CLOSING_REQUIRED <= set(report.production_files)
+        and all((root / path).is_file() for path in _NATIVE_APP_CLOSING_REQUIRED)
+        and set(report.production_files) <= _NATIVE_APP_CLOSING_SURFACES
+        and _NATIVE_APP_CLOSING_REGRESSIONS <= set(report.test_files)
+        and all((root / path).is_file() for path in _NATIVE_APP_CLOSING_REGRESSIONS)
+    )
     if (
         type(record["version"]) is not int
         or record["version"] != 1
@@ -384,6 +414,7 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
             and not reviewed_native_quiet
             and not reviewed_automatic_diagnostics
             and not reviewed_bounded_live_closing
+            and not reviewed_native_app_closing
             and report.domains
             not in {
                 ("physical_output", "rearm"),

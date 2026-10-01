@@ -1,3 +1,10 @@
+## 1.13.114
+
+- GPT-Live remains the only audio interpreter; remove automatic use of the separate audio classifier. Keep natural semantic ending through the existing completed backend tool flow.
+- Voice PE inactivity follows consumed assistant output and pending work rather than an unlimited veto from TV transcripts or raw speech detection. The saved timeout precedes a visible two-second closing phase acknowledged by the installed firmware.
+- Cancel stale closing attempts on new output/work, preserve deterministic Stop, and join all retired closing cleanup before wake rearm. The panel distinguishes app timeout from model ending and shows the actual countdown.
+- Add-on only: reuses installed .112 firmware and preserves Alpha selection, wake models, gain and audio transport. Synthetic provider checks and software tests are separate from physical room acceptance; directed speech at the boundary and quiet model thinking still require field validation.
+
 ## 1.13.113
 
 - Retain a discoverable, read-only report for the bounded synthetic audio probe, including its run and model identities. Reloading the panel does not start another provider request or overwrite full preflight evidence.
