@@ -58,6 +58,14 @@ integration60.99s,unit108.48s,samlet108.9s. Ny eksplicit godkendelse til max5
 syntetiske klip ved OpenAI er anmodet og endnu ikke modtaget. Ingen paidcall.
 Diff fryses nu efter uafhængig GO; én releasegate følger på dette diff.
 
+Frosset kandidat264f25367c3af5fce86c533764d75454ec7b0e82 bestod én fuld
+releasegate: single unclassified_runtime scope, Ruff/format/Mypy55,
+integration60.83s,unit105.66s,samlet106.0s. Eksakt-commit CI/ARM64 følger PR.
+Reviewet handoff-fingerprint aaebfe67ce1c766ad8f42cf21bfb3409f4a64efc7a1e9d74e42dae90b8b21a6a;
+fast shippedmanifest23da76b13bf41f4653ba7fff8e8b2712e266525bf5d2b1bd6881b78965da74ff.
+Der er ikke gennemført providerprøve, merge, installation eller aktivering af .114.
+Installeret baseline forbliver add-on .113/firmware .112/Alpha ON/guard0.
+
 ## 1/10 — .113 diagnostik af den afviste lydvurdering
 
 Lead/root ejer denne afgrænsede ændring. Installeret .112 og firmware113112
