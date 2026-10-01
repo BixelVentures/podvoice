@@ -74,6 +74,20 @@ Use Live's audio assessment, not an invented claim that you heard original audio
 No unsolicited checks. After the result, complete silently: no speech, follow-up
 invitation, farewell or additional tools. A submitted result is not session closure.
 """.strip()
+RECORD_PRIMARY = """
+An INTERNAL_IDLE_CHECK is an application backend task, not a request to silently
+think or change conversation style. Delegate one task to record a machine-visible
+idle disposition with the given request_id and your assessment of the original
+audio and conversation. The backend must record it using report_idle_check.
+An unreported internal judgment does not complete this task. No spoken preamble,
+completion acknowledgement or goodbye. Continue handling directed user requests.
+""".strip()
+RECORD_BACKEND = """
+For this delegated application recording task, call report_idle_check exactly once
+with the supplied request_id and the frontend's audio/conversation assessment.
+Do not silently reason without recording. If the supplied assessment is missing
+or uncertain, record unknown. After the recorded result, complete silently.
+""".strip()
 
 
 class IdleLive(rig.ObservedLive):
@@ -118,9 +132,14 @@ class IdleLive(rig.ObservedLive):
         await super()._handle(event, generation)
 
 
-def configuration():
+def configuration(*, record_task=False):
     primary, backend = rig.live_instructions(rig.SYSTEM_PROMPT_DA)
-    return primary + "\n\n" + PRIMARY_POLICY, backend + "\n\n" + BACKEND_POLICY
+    primary += "\n\n" + PRIMARY_POLICY
+    backend += "\n\n" + BACKEND_POLICY
+    if record_task:
+        primary += "\n\n" + RECORD_PRIMARY
+        backend += "\n\n" + RECORD_BACKEND
+    return primary, backend
 
 
 def assess(case, rows, *, clean, usage_complete):
@@ -279,7 +298,7 @@ def assess(case, rows, *, clean, usage_complete):
     }
 
 
-async def evaluate(key, case, fixtures, evidence, *, client_factory=None):
+async def evaluate(key, case, fixtures, evidence, *, client_factory=None, record_task=False):
     from gatekeeper.openai_live import (
         LiveBackendComplete,
         LiveBackendStarted,
@@ -287,11 +306,17 @@ async def evaluate(key, case, fixtures, evidence, *, client_factory=None):
         LiveTranscript,
     )
 
-    primary, backend = configuration()
+    primary, backend = configuration(record_task=record_task)
+    declaration = copy.deepcopy(DECLARATION)
+    if record_task:
+        declaration["description"] += (
+            " This is the required machine-visible record of the delegated application "
+            "idle-disposition task. Record unknown if the frontend assessment is absent."
+        )
     live = IdleLive(
         key,
         evidence,
-        tool_declarations=[copy.deepcopy(DECLARATION)],
+        tool_declarations=[declaration],
         instructions=primary,
         backend_instructions=backend,
         provider_budget=rig.ProviderBudgetCoordinator(),
@@ -431,12 +456,20 @@ async def evaluate(key, case, fixtures, evidence, *, client_factory=None):
             )
             if case == "tv-followup":
                 state["followup"] = rig.time.monotonic() + 0.1
-            await live.append_instructions(
+            instruction = (
                 "INTERNAL_IDLE_CHECK request_id=" + request_id + ". Application observed four "
                 "seconds without nonzero assistant output, with no domain work in this isolated "
                 "probe. Assess current audio and conversation; silently delegate the check now. "
                 "Keep handling any new directed question. Do not announce this internal check."
             )
+            if record_task:
+                instruction += (
+                    " This is one application backend task: record the machine-visible "
+                    "idle disposition. Delegate it now with this request_id and your own "
+                    "audio/conversation assessment so the backend can call report_idle_check. "
+                    "Quietly thinking alone does not record the result. No spoken completion."
+                )
+            await live.append_instructions(instruction)
             evidence.emit(
                 "idle_check_ack",
                 request_id=request_id,
@@ -483,6 +516,8 @@ async def evaluate(key, case, fixtures, evidence, *, client_factory=None):
         and all(item["usage"] is not None for item in usage["backend_responses"])
     )
     report = assess(case, evidence.rows, clean=clean, usage_complete=complete)
+    report["connect_attempts"] = live.starts
+    report["protocol_variant"] = "record-task" if record_task else "steering"
     report["usage"] = usage
     evidence.write("report.json", json.dumps(report, indent=2).encode())
     return report
@@ -495,6 +530,7 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--validate-only", action="store_true")
     parser.add_argument("--exclusive-provider-window", action="store_true")
+    parser.add_argument("--record-task", action="store_true")
     args = parser.parse_args()
     manifest, fixtures = rig.load_fixtures(args.fixtures, texts=fixtures_rig.TEXTS)
     if args.validate_only:
@@ -528,7 +564,9 @@ def main():
     signal.signal(signal.SIGALRM, hard_deadline)
     signal.setitimer(signal.ITIMER_REAL, OBSERVATION_S + rig.CLEANUP_S + 5)
     try:
-        report = asyncio.run(evaluate(key, args.case, fixtures, evidence))
+        report = asyncio.run(
+            evaluate(key, args.case, fixtures, evidence, record_task=args.record_task)
+        )
         print(
             json.dumps({"verdict": report["verdict"], "report": str(args.output / "report.json")})
         )

@@ -435,6 +435,12 @@ class StatusHub:
         self.register_room(room)
         self._rooms[room]["connected"] = bool(ok)
 
+    def set_live_status(self, room: str, status: dict) -> None:
+        """Publish the owner's read-only view, not another lifecycle authority."""
+        self.register_room(room)
+        self._rooms[room]["live_status"] = dict(status)
+        self._broadcast({"type": "live_status", "room": room, "live_status": dict(status)})
+
     def set_wake_word(self, room: str, *, supported: bool, confirmed: str | None) -> None:
         """Device readback only; neither a saved setting nor physical wake proof."""
         self.register_room(room)

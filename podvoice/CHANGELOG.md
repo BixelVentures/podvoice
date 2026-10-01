@@ -1,3 +1,10 @@
+## 1.13.111
+
+- Show a simple live conversation status on each room card: observed work, the governing logic, the actual reason closure is waiting, measured quiet coverage or the existing follow-up deadline, and timestamped registered words.
+- Keep unknown/stale audio and unproven wake readiness visible; preserve keyboard focus and expanded details through live SSE/poll updates. Status projection is read-only and cannot close a conversation or authorize actions.
+- Prepare bounded host-ordered microphone frame metadata without changing PCM bytes or claiming firmware capture timing. Developer-only native idle probes remain isolated and inactive after both real-provider attempts returned UNKNOWN.
+- Add-on only: reuses .109 firmware. Saved Alpha selection, wake models, gain, prompts, four-second setting, Stop and closure behavior are preserved. Automatic closure during background speech remains unresolved; the separately approved visible closing fence is not activated by this release. Physical lifecycle acceptance is still unproven for this artifact.
+
 ## 1.13.110
 
 - Record automatic GPT-Live Alpha audio diagnostics for panel-started Voice PE conversations, with the honest programmatic wake source. Firmware wake-reference requests remain limited to physical wake.

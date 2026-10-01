@@ -1,5 +1,128 @@
 # PodVoice-status — én aktuel sandhed
 
+## 1/10 — HA-adgang genetableret, native idle-prøver afsluttet
+
+Frisk browser viser PodVoice v1.13.110 Kører; lokal HA-adresse svarer HTTP 200.
+Brugeren oplyser HA Green online igen. Ingen runtime eller firmware er opdateret.
+Det gemte og reviewede native idle-check er nu afprøvet mod rigtig provider;
+begge afgrænsede forsøg gav UNKNOWN (se resultater nedenfor).
+Den tidligere reviewede private engangshandoff genbruges med et eksplicit
+`--idle-check`-valg: højst quiet og TV, ingen gamle semantikforsøg eller automatisk
+retry. Script/manifest-hashes bindes før key-admission og hvert barn. UNKNOWN
+stopper batchen. Formens adgangs-/origin-/udløbskontrakt og privat procesmiljø
+bevares. Handoffændringen reviewes før nøgleoverførsel. HA stoppes kun i det
+godkendte eksklusive vindue og genstartes straks efter prøven, også ved fejl.
+Målet i Goal-værktøjet er fortsat registreret BLOCKED; genoptagelsen ændrer ikke
+objektivet. Resume af selve goal-status kræver klientens målbetjening; arbejdet
+fortsætter her på brugerens genoptagelse.
+
+Første native prøve `pv-native-idle-trial-1001-01`: quiet UNKNOWN, én forbindelse,
+korrekt kendt "Hvad er to plus to" → "Det er fire". Sidste nonzero provider-output
+6,889 s; check10,909 s; eksakt append-ACK11,608 s, provider timeline7800–8000 ms.
+Ingen delegation, backendrespons eller verdict gennem observationsslut15,609 s.
+Resultatet er negativt protokolbevis før resolveren, ikke en afprøvet dårlig
+henvendelsesklassifikation. Cleanup og finalusage bestod;12 Live-sekunder,
+ingen backendforbrug. TV-prøven blev korrekt ikke kørt. Rapport/timeline:
+`/private/tmp/pv-native-idle-trial-1001-01/native-idle-quiet/`.
+Nøgle var kun i browser-/proceshukommelse; browservariabel ryddet, form lukket.
+HA blev verificeret Stoppet før overførsel og Kører igen straks efter batchens exit3.
+Den private handoffændring havde uafhængigt GO før brug;71 målrettede tests
+og fastgate (unit94,39 s, integration58,46 s, Ruff/format/mypy) bestod.
+
+Native steering-kandidaten er **ikke testklar til runtimeaktivering**. Frisk
+officiel dokumentation bekræfter steering/context injection, ikke tvungen
+delegation eller machine-visible afgørelse:
+https://developers.openai.com/api/docs/guides/live-delegation#send-the-right-kind-of-update
+https://developers.openai.com/api/docs/guides/live-conversations#understand-when-context-reaches-the-model
+Uafhængig reviewer anbefaler præcis én afgrænset opfølgning: hypotese er, at
+checket blev behandlet som tavs samtalestyring, ikke en backendopgave. Varianten
+skal i frontend, backend, tooldescription og append beskrive samme konkrete,
+maskinsynlige registreringsopgave med request-id og lyd-/kontekstvurdering.
+Samme model, fixtures,2 s-budget, fulde korrelationsorakel, timing og stillekrav.
+Ingen tvungen response.create, retry, tale eller lempet gate. Første resultat
+bevares. Ved endnu en UNKNOWN stoppes native append-retningen; en separat
+eksplicit audio/context-vurdering kræver en ny beslutning før implementering.
+
+Record-task-opfølgningen `pv-native-idle-record-trial-1001-01` gav også quiet
+UNKNOWN: korrekt åbningsinput/output, én forbindelse, ingen backend/verdict,
+stille check, clean shutdown og komplet forbrug. TV blev ikke kørt. Rapporten
+binder `protocol_variant=record-task`. Produktionen .110 er igen verificeret
+Kører; formular lukket. Native append-retningen er stoppet efter det aftalte
+andet UNKNOWN; ingen runtimeaktivering. 79 målrettede tests bestod. Den seneste
+fast-log viser kun unit-stadiet (83,59 s), ikke en fuld fast-gate; dette må ikke
+rapporteres som fuldt gatebevis.
+
+## 1/10 — godkendt endelig inputgrænse for den næste afslutningskandidat
+
+Efter Astra-review af den uklassificerede lydhale har brugeren eksplicit godkendt
+én synlig Afslutter-fase: spørgsmål påbegyndt før den fase bevares; nyt spørgsmål
+påbegyndt efter dens start kræver Hey Jarvis igen. Denne produktgrænse afløser
+kravet om ny relevant input helt frem til teardown-commit. Fire sekunders UI-
+opfølgningsvindue plus højst to sekunders kandidatbudget til en enkelt afgrænset
+lyd/kontekstvurdering foreslås; faktisk latency og fysisk lukning er umålt.
+Native append gav ikke maskinsynlig beslutning og må ikke aktiveres. Alternativet
+skal først bevise en isoleret stateless audio/context-protokol og en finitiv
+inputgrænse; den ændrede adfærd er endnu hverken kodet eller installeret. Rå
+host-metadata er stadig ikke fysisk samplebevis. Ingen ekstra timer eller
+parallel klassifikationspolicy må kobles ind som en skjult reserve.
+
+## 1/10 — enkel live-status på rumkortet (aktiv beslutning)
+
+Brugeren beder om et dummy-proof UI og synlighed af hvilken logik der bestemmer
+lige nu. Direkte evidens: eksisterende idle-diagnostik viser rå inputaktivitet,
+output/work-blokkere og målt ro; panelet viser ikke denne forklaring. Lead: denne
+tråds implementør. Hypotese: en læsende projektion af den eksisterende Thin-ejer,
+med samme session/generation og friskhed, kan forklare ventetid uden en ny timer
+eller skjult lifecycleændring. Kæde: native/browser input → Thin/provider/work →
+output → eksisterende idle/end-policy → teardown/rearm → rumkortets status.
+
+Invarianter: én Thin-ejer; model ejer hensigt; afspilning er fysisk sandhed;
+stale/ukendt er aldrig klarhed; Talk og OFF bevares. Ingen klassifikation af musik,
+AI-tanker, ekstra optagelse, ny lukningslogik, gain eller firmwaretuning.
+Vis primær tilstand, senest registrerede tekst (ikke akustisk bevis), aktuel
+beslutningskilde og blocker; nedtælling kun hvor den reelle ejer har en aktiv
+frist og frisk dokumentation. Ellers vis hvorfor den står stille/er ukendt.
+Brug eksisterende status/SSE; bounded observation max én gang/sekund og eksplicit
+session-generation-binding. Regressioner: aktiv/stille/stale, værktøj/output,
+gammel session, lukning/rearm, Talk/OFF samt mobil/keyboard. Uafhængigt review og
+relevant gate før release; rollback: fjern kun statusprojektion/kort. Fysisk
+lukning er stadig ikke bevist af UI.
+
+Implementeret: Thin læser egne pending-work/quiet-window/close/readiness-fakta;
+hub udsender samme bounded projektion i SSE og snapshot; eksisterende /api/status
+opdaterer også inaktive ejere efter teardown uden ny lifecycle-actor. Native ro
+vises som målt coverage, OFF som sampled deadline; ingen fake smooth nedtælling.
+Aktiv tale ved output-only modelafslutning får ikke et opdigtet UI-veto. Output-
+clock/frames/forbrug valideres særskilt; peak alene tæller som queued. Transcript-
+fragmenter udsendes max1Hz; ingen ny lydoptagelse. Talk ukendt, stale eller failed
+rearm kan ikke vise Klar. Kortet bevarer kontrol- og detailsfokus under SSE/poll.
+
+48 målrettede Python-tests består; shipped-controller Node-kontrakt og isoleret
+Chromium ved320/390/430/768/1440 px består inkl. fokus gennem SSE/poll, escaping,
+frameidentitet/stale/output og semantisk ro vs raw input. Ruff/mypy består.
+Første fastforsøg blev stoppet af mypy ved en Optional-aritmetik i projektionen;
+rettet typetjek. Næste fulde fastforsøgs integration blev ugyldig alene af
+sandbox socket.bind-afvisning; ingen runtimepatch på den fejl. Samme fastgate
+køres med loopback tilladt. Uafhængig adversarial review: GO til software-
+releasegate, ingen P1; P2 musikbjælkens width-invalidation rettet (sammenligner
+hele det relevante DOM-element). Provider-script/provenance diff er inkluderet
+i scope, men giver ingen ny closeautoritet eller fysisk-fence-påstand.
+Fuld integration (56,45 s) bestod med loopback. Unit-kørslen blev ugyldig,
+fordi lead fejlagtigt ændrede versionsmetadata fra110 til111 under kørslen:
+Python havde importeret110, mens filkontrollen læste111. Ingen produktpatch
+på dette; versionsfiler er nu ens og frosne før ny gate. Det forsøg tæller ikke
+som en grøn samlet gate. Det oprindelige kriterium om uændrede bits fastholdes.
+UI-forhåndsvisning med eksplicit eksempeldata-banner er browserkontrolleret;
+fysisk golden chain/10/10 for denne kandidat er UKENDT. Ikke installeret endnu.
+
+Frosset111-kandidat: fuld fastgate består nu med Ruff/format, Mypy54 filer,
+hele unit89,72 s og hele integration56,79 s. Alle nye filer medtages. Ingen
+sourceændring under denne gate; denne kontrol erstatter de ugyldige forsøg.
+Uafhængigt slutreview bekræfter GO efter rettelser. Næste trin er præcis én
+releasegate på det committede diff, PR-CI/ARM64, merge/publicering og installation.
+Ingen firmwareændring; eksisterende109-firmware genbruges. UI er diagnosticering,
+ikke aktivering af den endnu ubeviste baggrundsafslutning.
+
 ## 30/9 — samlet løsningsforslag: Live-ejet idle-vurdering, én close-ejer
 
 Brugeren har nu godkendt implementering og eksplicit bedt om Goal. Goal er oprettet

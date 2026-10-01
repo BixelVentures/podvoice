@@ -612,6 +612,9 @@ class ThinSession:
         self.sm = _Mini(self)
         self.playout = PlayoutClock()
         self._last_idle_diagnostic = 0.0
+        self._last_panel_status = 0.0
+        self._panel_transcript = ""
+        self._panel_transcript_at: float | None = None
         self._active = False  # one conversation open?
         self._transport_closing = False
         self._stop_error_speech = asyncio.Event()
@@ -908,6 +911,8 @@ class ThinSession:
             return self._active and not self._transport_closing and self._epoch == opening_epoch
 
         self._history_session = f"{self.room}:{time.time_ns()}"
+        self._panel_transcript = ""
+        self._panel_transcript_at = None
         self._stop_sent_t = None
         self._stop_sent_epoch = None
         trace_started = False
@@ -1445,6 +1450,7 @@ class ThinSession:
             return
         self._ending_conversation = True
         self._trace_reason = reason
+        self._publish_panel_status(force=True)
         self._trace_event("close_requested", reason=reason)
         _LOG.info("thin: closing conversation (%s) [room=%s]", reason, self.room)
         close_deadline = time.monotonic() + TEARDOWN_TOTAL_TIMEOUT_S
@@ -2094,6 +2100,7 @@ class ThinSession:
             if not self._active:
                 continue
             self._record_idle_diagnostic()
+            self._publish_panel_status()
             self._refresh_live_work_led()
             if self._live_rotating:
                 continue  # Rotation has its own bounded owner and retains attention.
@@ -2300,6 +2307,7 @@ class ThinSession:
                 if self._live_confirmation_generation is None:
                     self._cancel_live_confirmation_rotation()
                 self._last_user_utterance = ev.text
+                self._remember_panel_input(ev.text)
                 # Fragments remain diagnostic evidence, never a complete user turn.
                 self._trace_event(
                     "live_input_fragment",
@@ -3259,6 +3267,7 @@ class ThinSession:
             return
         # No suspension between the final currentness check and close ownership.
         self._live_finalizing = True
+        self._publish_panel_status(force=True)
         generation = self.brain._connection_generation
         failure_reason, failure_kind = "live-finalization-failed", "connection"
         try:
@@ -4134,6 +4143,7 @@ class ThinSession:
             self._cancel_barge_debounce()
         elif isinstance(ev, InputTranscript):
             self._trace_event("input_transcript", text=ev.text[:500])
+            self._remember_panel_input(ev.text)
             self._buf_in.append(ev.text)
             self._last_user_utterance = ev.text.strip()
             if self.hub is not None:
@@ -6721,8 +6731,199 @@ class ThinSession:
         if self.hub is None:
             return
         self.hub.set_state(self.room, name, turn_cue=turn_cue)
+        self._publish_panel_status(force=True)
         if activity:
             self.hub.activity(self.room, activity)
+
+    def _remember_panel_input(self, text: str) -> None:
+        # Diagnostic clock/projection failures cannot interrupt accepted input.
+        with contextlib.suppress(Exception):
+            observed_at = time.time()
+            self._panel_transcript = text[:500]
+            self._panel_transcript_at = observed_at
+
+    def _publish_panel_status(self, *, force: bool = False) -> None:
+        # Optional UI telemetry must never break admission, Stop or teardown.
+        if self.hub is None:
+            return
+        with contextlib.suppress(Exception):
+            now = time.monotonic()
+            if not force and now - self._last_panel_status < 1.0:
+                return
+            self._last_panel_status = now
+            self.hub.set_live_status(self.room, self._panel_status(now))
+
+    def _panel_status(self, now: float) -> dict:
+        """Read existing evidence only. No observe/reset/ready/close side effects."""
+        closing = bool(self._transport_closing or self._live_finalizing)
+        incomplete = bool(self._teardown_incomplete or self._teardown_lock.locked())
+        phase = "CLOSING" if closing or incomplete else self.sm.state.name
+        authority, blocker = "Samtalen", "Afventer næste spørgsmål"
+        inp, out, age = "unknown", "unknown", None
+        observation_age = output_age = None
+        quiet, remaining, running, timer_kind = 0.0, None, False, None
+        if not self._active:
+            phase = "CLOSING" if incomplete else "IDLE"
+            authority = "Oprydning" if incomplete else "Enhedens readiness"
+            blocker = "Afventer lukning og næste wake" if incomplete else "Ingen åben samtale"
+        elif closing:
+            authority = "Stop" if self._trace_reason in ("stop", "stop-word") else "Lukning"
+            blocker = "Afventer lydhale og oprydning"
+        elif self.live_alpha:
+            if self._live_webrtc:
+                authority, blocker = "Browserens lydvej", "Aktivitet ikke bekræftet her"
+            elif not getattr(self.brain, "provider_session_started", False):
+                phase, authority, blocker = "THINKING", "Forbindelse", "Forbinder til OpenAI"
+            else:
+                owner = self._live_quiet_owner()
+                window = (
+                    self._live_end_window if self._ending_conversation else self._live_idle_window
+                )
+                diag = window.diagnostics(owner=owner, now=now, idle_s=self.idle_timeout_s)
+                shadow = self._live_idle_shadow.diagnostics(
+                    owner=owner, now=now, idle_s=self.idle_timeout_s
+                )
+                observation_age = diag["observation_age_s"]
+                inp = shadow["vad_state"]
+                sample_at = shadow.get("vad_received")
+                age = max(0.0, now - sample_at) if isinstance(sample_at, (int, float)) else None
+                row = self._live_activity_latest
+                fresh = bool(
+                    row is not None
+                    and self.voicepe.accepts_activity(row)
+                    and row.get("provider_generation", self.brain._connection_generation)
+                    == self.brain._connection_generation
+                    and age is not None
+                    and age <= diag["freshness_s"]
+                )
+                if not fresh:
+                    inp = "stale" if row is not None else "unknown"
+                output = row.get("output", {}) if fresh and row is not None else {}
+                # A source peak alone is queued audio, not heard/consumed audio.
+                source_ms = row.get("source_timestamp_ms") if fresh and row is not None else None
+                mix_ms = output.get("mix_ms")
+                output_fresh = bool(
+                    type(source_ms) is int
+                    and type(mix_ms) is int
+                    and 0 <= source_ms <= 0xFFFFFFFF
+                    and 0 <= mix_ms <= 0xFFFFFFFF
+                    and (source_ms - mix_ms) % (2**32) <= diag["freshness_s"] * 1000
+                )
+                output_valid = bool(
+                    output_fresh
+                    and output.get("valid") is True
+                    and all(
+                        type(output.get(key)) is int and output[key] >= 0
+                        for key in (
+                            "frame_begin",
+                            "frame_end",
+                            "consumed_frames",
+                            "sample_count",
+                            "sample_rate",
+                            "peak",
+                        )
+                    )
+                    and output["frame_begin"] < output["frame_end"]
+                    and output["sample_count"] > 0
+                    and output["sample_rate"] > 0
+                )
+                if (
+                    output_fresh
+                    and age is not None
+                    and isinstance(source_ms, int)
+                    and isinstance(mix_ms, int)
+                ):
+                    output_age = age + (source_ms - mix_ms) % (2**32) / 1000
+                if output_valid and output["peak"] > 0:
+                    out = (
+                        "active"
+                        if output.get("consumed_frames", 0) >= output.get("frame_end", 1)
+                        else "pending"
+                    )
+                elif self._live_pending_audio is not None or (
+                    self._live_stream is not None
+                    and any(any(chunk) for chunk in self._live_stream._chunks)
+                ):
+                    out = "pending"
+                elif fresh and diag["quiet_s"] > 0:
+                    out = "quiet"
+                work_clear = self._live_quiet_work_clear(semantic=self._ending_conversation)
+                authority = (
+                    "GPT-Live afslutning" if self._ending_conversation else "Stilheds-timeout"
+                )
+                if self._live_work_pending() or self._tool_lock.locked() or self._tool_batches:
+                    phase, authority, blocker = (
+                        "THINKING",
+                        "Backend/værktøj",
+                        "Afventer svar eller handling",
+                    )
+                elif out in ("active", "pending"):
+                    phase, authority = "AI_SPEAKING", "Afspilning"
+                    blocker = (
+                        "Svarlyd registreret ved højttaleren"
+                        if out == "active"
+                        else "Assistant-lyd venter på afspilning"
+                    )
+                elif not fresh:
+                    blocker = "Afventer frisk aktivitetsmåling"
+                elif inp == "active" and not self._ending_conversation:
+                    phase, blocker = "LISTENING", "Tale registreret — timeout står stille"
+                elif not work_clear:
+                    blocker = "Afventer arbejde eller bekræftet lydvej"
+                elif diag["blocker"] in ("quiet_window_incomplete", "ready"):
+                    quiet = diag["quiet_s"]
+                    remaining = max(0.0, self.idle_timeout_s - quiet)
+                    running, timer_kind = True, "quiet_coverage"
+                    blocker = (
+                        "Måler ro før lukning" if remaining else "Ro målt — afventer sidste kontrol"
+                    )
+                else:
+                    blocker = "Afventer bekræftet ro i lydvejen"
+        elif self._device_playing:
+            phase, authority, blocker, out = (
+                "AI_SPEAKING",
+                "Afspilning",
+                "Afventer fysisk svarslut",
+                "active",
+            )
+        elif self._user_speech_active:
+            authority, blocker, inp = "Registreret tale", "Lytter til din besked", "active"
+        elif (
+            self.sm.state in (State.LISTENING, State.LOUNGE_WINDOW)
+            and self._idle_deadline is not None
+            and not self._speaking
+        ):
+            remaining = max(0.0, self._idle_deadline - now)
+            quiet = max(0.0, self.idle_timeout_s - remaining)
+            running, timer_kind = True, "deadline"
+            authority, blocker = "Opfølgnings-timeout", "Venter på opfølgning"
+        elif self._ending_conversation:
+            authority, blocker = "Modellens afslutning", "Afventer hele afslutningssvaret"
+        elif self.sm.state == State.THINKING:
+            authority, blocker = "Provider/værktøj", "Afventer svar"
+        return {
+            "session_id": self._history_session,
+            "generation": getattr(self.brain, "_connection_generation", 0),
+            "observed_at": time.time(),
+            "wake_readiness": getattr(self.voicepe, "wake_readiness", "unknown"),
+            "phase": phase,
+            "authority": authority,
+            "blocker": blocker,
+            "input_state": inp,
+            "input_age_s": age,
+            "observation_age_s": observation_age,
+            "output_age_s": output_age,
+            "freshness_s": LIVE_ACTIVITY_FRESHNESS_S,
+            "output_state": out,
+            "quiet_s": quiet,
+            "idle_timeout_s": self.idle_timeout_s,
+            "remaining_s": remaining,
+            "countdown_running": running,
+            "timer_kind": timer_kind,
+            "semantic_end": bool(self._ending_conversation),
+            "transcript": self._panel_transcript if self._active else "",
+            "transcript_at": self._panel_transcript_at if self._active else None,
+        }
 
     def _spawn(self, coro, name: str) -> asyncio.Task:
         task = asyncio.create_task(coro, name=f"{name}-{self.room}")

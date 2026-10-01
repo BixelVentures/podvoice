@@ -336,12 +336,13 @@ class IdleWireSDK(DiagnosticWireSDK):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("record_task", [False, True])
 @pytest.mark.parametrize("case", ["quiet", "tv"])
 @pytest.mark.parametrize(
     "correlation,result_failure", [(True, False), (False, False), (True, True)]
 )
 async def test_full_probe_through_installed_sdk_keeps_missing_and_failed_edges_unknown(
-    tmp_path, monkeypatch, case, correlation, result_failure
+    tmp_path, monkeypatch, case, correlation, result_failure, record_task
 ):
     monkeypatch.setattr(module, "IDLE_S", 0.12)
     monkeypatch.setattr(module, "POST_CHECK_S", 0.12)
@@ -355,6 +356,7 @@ async def test_full_probe_through_installed_sdk_keeps_missing_and_failed_edges_u
             {name: b"\x01\x00" * 320 for name in ("math", "followup", "tv")},
             evidence,
             client_factory=sdk.factory,
+            record_task=record_task,
         )
     finally:
         evidence.close()
@@ -362,6 +364,7 @@ async def test_full_probe_through_installed_sdk_keeps_missing_and_failed_edges_u
         "OBSERVED_PASS" if correlation and not result_failure else "UNKNOWN"
     )
     assert report["physical_close"] == "UNKNOWN"
+    assert report["protocol_variant"] == ("record-task" if record_task else "steering")
     assert not report["runtime_activation_approved"]
     assert report["clean_shutdown"]
     types = [event["type"] for event in sdk.wire]

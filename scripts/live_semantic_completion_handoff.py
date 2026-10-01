@@ -5,6 +5,7 @@ Do not start before independent review and operator confirmation of an exclusive
 provider window. The operator owns production stop/restart in finally. This helper
 never accesses HA, browser storage, the clipboard, or room audio.
 Fixed sequential batch: baseline positive, implicit positive, implicit follow-up.
+--idle-check instead runs only the isolated native quiet and TV protocol probes.
 30s admission + <=210s children leaves ~60s in a five-minute operator pause for
 stop/restart. This helper cannot guarantee HA recovery; the operator owns it.
 """
@@ -30,6 +31,7 @@ TRIALS = (
     ("implicit", "completed-side-address"),
     ("implicit", "real-followup"),
 )
+IDLE_TRIALS = ((None, "quiet"), (None, "tv"))
 ADMISSION_S = 30
 BATCH_S = 210
 CHILD_TIMEOUT_S = 70
@@ -53,6 +55,7 @@ def source_fingerprint():
         ROOT / "scripts" / name
         for name in (
             "live_semantic_completion_handoff.py",
+            "live_idle_check_eval.py",
             "live_semantic_completion_eval.py",
             "live_confirmation_eval.py",
         )
@@ -214,21 +217,26 @@ def run_batch(args, key):
     environment["OPENAI_API_KEY"] = key
     key = None
     summaries = []
+    idle_check = getattr(args, "idle_check", False)
+    trials = IDLE_TRIALS if idle_check else TRIALS
     try:
-        for variant, case in TRIALS:
+        for variant, case in trials:
             verify_sources(args)
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 return 3, summaries
-            output = args.output / f"{variant}-{case}"
+            output = args.output / f"{'native-idle' if idle_check else variant}-{case}"
+            script = "live_idle_check_eval.py" if idle_check else "live_semantic_completion_eval.py"
+            mode_args = ["--exclusive-provider-window"] if idle_check else ["--variant", variant]
+            if idle_check and getattr(args, "idle_record_task", False):
+                mode_args.append("--record-task")
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(ROOT / "scripts/live_semantic_completion_eval.py"),
+                    str(ROOT / "scripts" / script),
                     "--case",
                     case,
-                    "--variant",
-                    variant,
+                    *mode_args,
                     "--fixtures",
                     str(args.fixtures),
                     "--output",
@@ -257,6 +265,13 @@ def run_batch(args, key):
                 and report.get("clean_shutdown") is True
                 and report.get("usage_complete") is True
                 and verdict in {"OBSERVED_PASS", "FAIL"}
+                and (not idle_check or verdict == "OBSERVED_PASS")
+                and (not idle_check or report.get("runtime_activation_approved") is False)
+                and (
+                    not idle_check
+                    or report.get("protocol_variant")
+                    == ("record-task" if getattr(args, "idle_record_task", False) else "steering")
+                )
                 and result.returncode == (0 if verdict == "OBSERVED_PASS" else 2)
             )
             summaries.append(
@@ -287,7 +302,11 @@ def main():
     parser.add_argument("--fixtures", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--exclusive-provider-window", action="store_true")
+    parser.add_argument("--idle-check", action="store_true")
+    parser.add_argument("--idle-record-task", action="store_true")
     args = parser.parse_args()
+    if args.idle_record_task and not args.idle_check:
+        parser.error("--idle-record-task requires --idle-check")
     if args.fingerprint:
         print(source_fingerprint())
         return 0
