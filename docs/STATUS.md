@@ -1,5 +1,63 @@
 # PodVoice-status — én aktuel sandhed
 
+## 1/10 — næste kandidat: tvunget klassifikationsresultat uden handleautoritet
+
+Lead/root. Direkte fejlbevis: .113 quiet returnerede rettidigt men uden tilladt
+scalar-enum; indhold ukendt. Hypotese: én tvunget ordinary function-call giver
+et validerbart resultat på samme audio-model. Vendor understøtter function
+calling, ikke Structured Outputs; strict:false og strict lokal parser.
+
+Berørt kæde: samme sealed source-PCM/kontekst → SDK/request → én datakuvert →
+lokal validator → ThinSession beslutning → fysisk dræn/teardown/rearm.
+Invarianter: Thin er eneste samtale-/lukkeejer; resultatet giver aldrig værktøjs-
+autoritet; gamle/dublerede identiteter afvises; ingen rå VAD-veto; ukendt failclosed.
+Modellen fortolker addressedness. Ingen ToolRouter-dispatch, tool-resultat,
+fortsættelsesrequest, ny motor, retry, timeout/gain/firmware/tuning.
+
+Samme model, PCM, observeret kontekst,2s absolute budget og16 outputtokens
+bevares. Hvis functionframing ikke passer inden16 og finish length: STOP;
+ingen salvage/automatisk tokenforhøjelse. Forced report_audio, parallelfalse,
+én præcis enum-property. Parser kræver tool_calls finish, én kendt function,
+bounded id/JSON uden duplicatekeys/NaN/ekstra keys eller blandet output.
+Gyldigt unknown skelnes fra protokolfejl. Safe diagnostik kopierer ikke args.
+
+Før en ny fuld udgivelse bruges eksisterende reviewet one-use loopback-handoff
+med afgrænset audio-envelope-mode, kun samme packaged LiveEvalService-probe.
+Samme private nøgleoverførsel,30s admission, source/fixturehash, eksklusivt
+provider-vindue, max5/0retry/stopførstefejl, privat rapport og HA-genstart i finally.
+Ingen ny credential/adgang, transport i produkt eller hjemmelyd. Handoff-mode
+reviewes og testes før faktisk brug; ny batch kræver særskilt godkendelse.
+
+Planlagte regressioner: actualSDK wire-shape/one HTTP/0retry/0continuation;
+alle3enum og 0/2calls, mixedoutput, malformed/truncatedJSON, duplicatekeys,
+usage/deadline/cancel/stale. Eksisterende Thin/fence og begge I/O-kæder bevares.
+Astra uafhængig adversarial review før freeze/release; relevant gates én gang.
+Rollback .113 samme firmware. Ny rigtig batch kræver særskilt godkendelse;
+seneste godkendte batch er allerede stoppet ved første fejl. Guard0/ref tom
+bevares indtil provider- og fysisk inputgrænsebevis. Ingen rumgate bestået.
+
+Faktisk protocolændring: report_audio ordinary function-call, strict:false,
+parallelfalse; lokal exactenum/strictJSON/onecall parser inkl malformedUnicode.
+Same model/PCM/context/16token ceiling/2s/0retry. Ingen Thin/firmwareændring.
+Astra uafhængig protocol GO efter37 actualSDK/probe/Thin tests. HTTP503 én HTTP,
+parseroverrun afvises, alle semanticunknown/protocolinvalid grænser består.
+Firmwareaudit: generated actualbuild audio/RMT bytes matcher .112; ingen konkret
+flash nødvendig. Fysisk Closing→source-fence og meningsfuld svarlatens umålt.
+Privat måleværktøj review afventer endpoint/proxy-override afvisning før adgang;
+ingen betalt prøve eller runtimeaktivering kørt for denne kandidat endnu.
+
+Astra final GO protocol+handoff:37 SDK/probe/Thin og43 handoff tests består.
+Endpoint/proxy-override afvises før private admission og igen før dispatch;
+caller-cancel fastholder første UNKNOWN og joined cleanup uden næste request.
+JudgeSHA35491b69cdd3e4fef4b8a80c2bc01cc63b77b06efab3ce37acd9732a1e69d469;
+handoffSHA2f803b6b9c70ca80fcef2794152ff0ba1e0f3dc86073e83cde9bcc064cbd98b6.
+Fast første kørsel: lokalt socketbind blev sandboxafvist; integrationfejl var
+PermissionError, unit sibling afbrudt: IKKE PASS. Ingen runtimeændring.
+Samme fast med lokale testforbindelser består: Ruff/format/Mypy55,
+integration60.99s,unit108.48s,samlet108.9s. Ny eksplicit godkendelse til max5
+syntetiske klip ved OpenAI er anmodet og endnu ikke modtaget. Ingen paidcall.
+Diff fryses nu efter uafhængig GO; én releasegate følger på dette diff.
+
 ## 1/10 — .113 diagnostik af den afviste lydvurdering
 
 Lead/root ejer denne afgrænsede ændring. Installeret .112 og firmware113112
@@ -47,6 +105,20 @@ releasegate: scope, Ruff/format201, Mypy55, unit112.35s, integration og samlet
 112.7s. Fastunitens tidligere procesforsinkelse gav ingen reproduceret produkt-
 fejl; originalårsagen forbliver UKENDT. Ingen deadlineværdi eller runtime blev
 ændret for at få gaten igennem. Dette er softwarebevis, ikke provider/rumbevis.
+
+Faktisk release/install: PR89 merged, main a8cbe5117ad67ec6368e4a292df8263ffb4b0884;
+PR-CI36858133610 og main/publish36858697492 grønne. Image
+sha256:710d60ea353851f20882fad9450f902762cd0842ef2022f72910c5eded3d69e5;
+context f8a59e28cf88b8615eafc40ec74bf01e88d6889c72d70e2966128ff2ce5b5d7c.
+HA .113 startup14:06 og rootfs-v1:7b947d5b0ad690f7b6495f63e648c997c07b53dc731b102ddaf95445923023c2
+verificeret. Firmware .112 podvoice_build_113112_liveclosing1, dual wake og
+Alpha ON bevares. TV-closure stadig INAKTIV: guard0/ref tom, ingen fysisk gate.
+Brugerens nye afgrænsede batch blev brugt én gang og stoppede efter første quiet.
+Run eval-1790856552-de3d7f:1.059336s UNKNOWN/verdict_not_exact_enum. Model
+og øvrig protokolmetadata gyldig; finish stop, string16 tegn, outputtext1 token.
+Generatedtekst blev ikke gemt; dens indhold/årsag er UKENDT. Cleanup joined,
+TV/positiv/grænseklip IKKE kørt. Dette er et formatfejlbevis, ikke semantisk
+klassifikationsbevis. Ingen automatisk retry eller aktivering følger.
 
 ## 1/10 — HA-adgang genetableret, native idle-prøver afsluttet
 

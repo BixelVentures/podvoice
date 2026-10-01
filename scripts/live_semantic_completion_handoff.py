@@ -6,6 +6,8 @@ provider window. The operator owns production stop/restart in finally. This help
 never accesses HA, browser storage, the clipboard, or room audio.
 Fixed sequential batch: baseline positive, implicit positive, implicit follow-up.
 --idle-check instead runs only the isolated native quiet and TV protocol probes.
+--audio-envelope calls the packaged five-case synthetic addressedness measurement;
+no home audio, runtime activation or closure authority. Key stays in this process.
 30s admission + <=210s children leaves ~60s in a five-minute operator pause for
 stop/restart. This helper cannot guarantee HA recovery; the operator owns it.
 """
@@ -13,7 +15,9 @@ stop/restart. This helper cannot guarantee HA recovery; the operator owns it.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import hashlib
+import importlib.metadata
 import json
 import os
 import secrets
@@ -61,12 +65,38 @@ def source_fingerprint():
         )
     ]
     paths += sorted((ROOT / "podvoice/gatekeeper").glob("*.py"))
-    paths += [ROOT / "pyproject.toml", ROOT / "podvoice/config.yaml"]
+    paths += [
+        ROOT / "pyproject.toml",
+        ROOT / "podvoice/config.yaml",
+        ROOT / "podvoice/requirements.txt",
+    ]
+    paths += sorted((ROOT / "podvoice/gatekeeper/eval_audio_idle").glob("*"))
     manifest = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     return hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
 
 
 def verify_sources(args):
+    if getattr(args, "audio_envelope", False):
+        base_url = os.environ.get("OPENAI_BASE_URL")
+        if base_url is not None and base_url != "https://api.openai.com/v1":
+            raise ValueError("audio_envelope_endpoint_override")
+        if any(
+            os.environ.get(name)
+            for name in (
+                "HTTP_PROXY",
+                "HTTPS_PROXY",
+                "ALL_PROXY",
+                "http_proxy",
+                "https_proxy",
+                "all_proxy",
+            )
+        ):
+            raise ValueError("audio_envelope_proxy_override")
+    if (
+        getattr(args, "audio_envelope", False)
+        and args.fixtures.resolve() != (ROOT / "podvoice/gatekeeper/eval_audio_idle").resolve()
+    ):
+        raise ValueError("audio_envelope_requires_shipped_fixtures")
     if source_fingerprint() != args.source_sha256:
         raise ValueError("source_fingerprint_mismatch")
     if (
@@ -102,7 +132,7 @@ class AdmissionExpired(BaseException):
     pass
 
 
-def receive_key():
+def receive_key(*, max_cases=3):
     deadline = time.monotonic() + ADMISSION_S
     endpoint = "/" + secrets.token_urlsafe(32)
     accepted = []
@@ -143,10 +173,12 @@ def receive_key():
                 return
             self.reply(
                 200,
-                b"<title>One-use Live test batch</title><p>Paste the existing API key. "
-                b'It remains in memory for at most three bounded sequential tests.</p><form method="post" '
-                b'autocomplete="off"><input type="password" name="key" required '
-                b'autocomplete="off" maxlength="1024"><button>Start test batch</button></form>',
+                (
+                    "<title>One-use Live test batch</title><p>Paste the existing API key. "
+                    f"It remains in memory for at most {max_cases} bounded sequential tests.</p>"
+                    '<form method="post" autocomplete="off"><input type="password" name="key" required '
+                    'autocomplete="off" maxlength="1024"><button>Start test batch</button></form>'
+                ).encode(),
             )
 
         def do_POST(self):
@@ -294,6 +326,55 @@ def run_batch(args, key):
         key = None
 
 
+async def run_audio_envelope(args, key):
+    """Exact packaged measurement only; operator owns actual HA exclusivity."""
+    verify_sources(args)  # Recheck after private admission, before client dispatch.
+    if importlib.metadata.version("openai") != "3.13.0":
+        raise ValueError("sdk_version")
+    sys.path.insert(0, str(ROOT / "podvoice"))
+    from gatekeeper import eval_harness
+    from gatekeeper.provider_budget import PROVIDER_BUDGET
+
+    if Path(eval_harness.__file__) != (ROOT / "podvoice/gatekeeper/eval_harness.py"):
+        raise ValueError("packaged_service_source_mismatch")
+    service = eval_harness.LiveEvalService(provider_budget=PROVIDER_BUDGET)
+    run_id = f"eval-envelope-{int(time.time())}-{secrets.token_hex(3)}"
+    lease = PROVIDER_BUDGET.diagnostic_started(key)
+    report = None
+    try:
+        async with asyncio.timeout(BATCH_S):
+            report = await service.run_audio_idle_probe(
+                api_key=key, run_id=run_id, diagnostic_lease=lease
+            )
+    finally:
+        key = None
+        if report is None:
+            retained = service.status(run_id)
+            if retained.get("status") != "not_found":
+                report = retained
+        if report is not None:
+            report["reviewed_source_sha256"] = args.source_sha256
+            report["operator_exclusive_window"] = True  # Caller assertion, not external proof.
+            report_path = args.output / "report.json"
+            descriptor = os.open(report_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(descriptor, "w") as target:
+                json.dump(report, target, indent=2)
+    if report is None:
+        raise ValueError("audio_envelope_report_missing")
+    return (0 if report.get("ok") is True else 3), [
+        {
+            "mode": "audio-envelope",
+            "report": str(args.output / "report.json"),
+            "status": report.get("status"),
+            "attempted_cases": report.get("attempted_cases"),
+            "semantic_abstentions": report.get("semantic_abstentions", []),
+            "physical_result_verified": False,
+            "runtime_activation": False,
+            "restore_production_required": True,
+        }
+    ]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fingerprint", action="store_true")
@@ -303,8 +384,11 @@ def main():
     parser.add_argument("--output", type=Path)
     parser.add_argument("--exclusive-provider-window", action="store_true")
     parser.add_argument("--idle-check", action="store_true")
+    parser.add_argument("--audio-envelope", action="store_true")
     parser.add_argument("--idle-record-task", action="store_true")
     args = parser.parse_args()
+    if args.audio_envelope and (args.idle_check or args.idle_record_task):
+        parser.error("--audio-envelope cannot combine with native idle modes")
     if args.idle_record_task and not args.idle_check:
         parser.error("--idle-record-task requires --idle-check")
     if args.fingerprint:
@@ -324,12 +408,16 @@ def main():
         parser.error("output must be new")
     verify_sources(args)
     args.output.mkdir(mode=0o700, parents=True, exist_ok=False)
-    key = receive_key()
+    key = receive_key(max_cases=5) if args.audio_envelope else receive_key()
     if key is None:
         print("No credential accepted; no provider started.")
         return 2
     try:
-        exit_code, trials = run_batch(args, key)
+        exit_code, trials = (
+            asyncio.run(run_audio_envelope(args, key))
+            if args.audio_envelope
+            else run_batch(args, key)
+        )
         key = None
         summary = dict(exit_code=exit_code, trials=trials, restore_production_required=True)
         summary_path = args.output / "batch-summary.json"

@@ -1,3 +1,8 @@
+## 1.13.114
+
+- Alpha: lydvurderingen anmoder om ét klassifikationsresultat via ordinary function calling og validerer det lokalt. Ingen handling eller ekstra request udføres.
+- Samme model, lyd, tosekunders budget og nul genforsøg. TV-afslutning forbliver inaktiv indtil provider- og fysisk grænseprøve består. Firmware .112 genbruges.
+
 ## 1.13.113
 
 - Retain a discoverable, read-only report for the bounded synthetic audio probe, including its run and model identities. Reloading the panel does not start another provider request or overwrite full preflight evidence.

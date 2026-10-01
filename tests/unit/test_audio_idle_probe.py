@@ -19,8 +19,21 @@ def response(verdict, count):
         "choices": [
             {
                 "index": 0,
-                "finish_reason": "stop",
-                "message": {"role": "assistant", "content": verdict},
+                "finish_reason": "tool_calls",
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": f"call-{count}",
+                            "type": "function",
+                            "function": {
+                                "name": "report_audio",
+                                "arguments": json.dumps({"verdict": verdict}),
+                            },
+                        }
+                    ],
+                },
             }
         ],
         "usage": {
@@ -85,7 +98,7 @@ class Probe(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.calls), 5)
         self.assertEqual(report["semantic_abstentions"], ["boundary_directed"])
         self.assertFalse(report["physical_result_verified"])
-        self.assertEqual(report["results"][0]["validation_details"]["finish_reason"], "stop")
+        self.assertEqual(report["results"][0]["validation_details"]["finish_reason"], "tool_calls")
         for call in self.calls:
             self.assertFalse(call["store"])
             self.assertEqual(call["max_completion_tokens"], 16)

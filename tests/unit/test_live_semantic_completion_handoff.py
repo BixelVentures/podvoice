@@ -312,3 +312,175 @@ def test_listener_contract_with_in_memory_server_only(monkeypatch, capsys, scena
     output = capsys.readouterr().out
     assert "synthetic-only-not-a-real-secret" not in output
     assert '"expires_s": 30' in output
+
+
+@pytest.mark.asyncio
+async def test_audio_envelope_uses_packaged_sdk_batch_and_private_report(tmp_path, monkeypatch):
+    import httpx2
+    from openai import AsyncOpenAI
+
+    calls = []
+    verdicts = ["background", "background", "relevant", "background", "unknown"]
+
+    async def transport(req):
+        calls.append(json.loads(req.content))
+        return httpx2.Response(
+            200,
+            json={
+                "id": f"offline-{len(calls)}",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "gpt-audio-1.5",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "tool_calls",
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call-offline",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "report_audio",
+                                        "arguments": json.dumps(
+                                            {"verdict": verdicts[len(calls) - 1]}
+                                        ),
+                                    },
+                                }
+                            ],
+                        },
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 20,
+                    "completion_tokens": 1,
+                    "total_tokens": 21,
+                    "prompt_tokens_details": {"audio_tokens": 10},
+                },
+            },
+        )
+
+    actual = AsyncOpenAI(
+        api_key="OFFLINE-NONKEY",
+        max_retries=0,
+        timeout=2,
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(transport)),
+    )
+    monkeypatch.setattr("openai.AsyncOpenAI", lambda **kwargs: actual)
+    output = tmp_path / "private-report"
+    output.mkdir(mode=0o700)
+    fixtures = module.ROOT / "podvoice/gatekeeper/eval_audio_idle"
+    args = SimpleNamespace(
+        audio_envelope=True,
+        fixtures=fixtures,
+        output=output,
+        source_sha256=module.source_fingerprint(),
+        manifest_sha256=hashlib.sha256((fixtures / "manifest.json").read_bytes()).hexdigest(),
+    )
+    code, rows = await module.run_audio_envelope(args, "OFFLINE-NONKEY")
+    assert code == 0 and len(calls) == 5
+    assert actual.is_closed()
+    report = json.loads((output / "report.json").read_text())
+    assert report["semantic_abstentions"] == ["boundary_directed"]
+    assert report["physical_result_verified"] is False
+    assert report["reviewed_source_sha256"] == args.source_sha256
+    assert "OFFLINE-NONKEY" not in (output / "report.json").read_text()
+    assert (output / "report.json").stat().st_mode & 0o777 == 0o600
+    assert rows[0]["runtime_activation"] is False
+
+
+def test_audio_envelope_rejects_arbitrary_fixture_path_before_admission(args):
+    args.audio_envelope = True
+    with pytest.raises(ValueError, match="requires_shipped_fixtures"):
+        module.verify_sources(args)
+
+
+@pytest.mark.asyncio
+async def test_audio_envelope_source_change_after_admission_dispatches_zero(args, monkeypatch):
+    args.audio_envelope = True
+    args.fixtures = module.ROOT / "podvoice/gatekeeper/eval_audio_idle"
+    args.source_sha256 = "stale-reviewed-source"
+    with pytest.raises(ValueError, match="source_fingerprint_mismatch"):
+        await module.run_audio_envelope(args, "OFFLINE-NONKEY")
+    assert not (args.output / "report.json").exists()
+
+
+@pytest.mark.parametrize(
+    "override", ["OPENAI_BASE_URL", "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "ALL_PROXY"]
+)
+def test_audio_envelope_routing_override_rejects_before_key_admission(
+    tmp_path, monkeypatch, override
+):
+    fixtures = module.ROOT / "podvoice/gatekeeper/eval_audio_idle"
+    monkeypatch.setenv(override, "https://outside.invalid")
+    monkeypatch.setattr(
+        module.sys,
+        "argv",
+        [
+            "handoff",
+            "--audio-envelope",
+            "--exclusive-provider-window",
+            "--fixtures",
+            str(fixtures),
+            "--output",
+            str(tmp_path / "new"),
+            "--source-sha256",
+            module.source_fingerprint(),
+            "--manifest-sha256",
+            hashlib.sha256((fixtures / "manifest.json").read_bytes()).hexdigest(),
+        ],
+    )
+    admission = []
+    monkeypatch.setattr(module, "receive_key", lambda **kwargs: admission.append(kwargs))
+    with pytest.raises(ValueError, match=r"audio_envelope_(endpoint|proxy)_override"):
+        module.main()
+    assert admission == []
+    assert not (tmp_path / "new").exists()
+
+
+@pytest.mark.asyncio
+async def test_audio_envelope_cancel_retains_unknown_one_dispatch_and_joins_cleanup(
+    tmp_path, monkeypatch
+):
+    import asyncio
+
+    import httpx2
+    from openai import AsyncOpenAI
+
+    entered = asyncio.Event()
+    calls = []
+
+    async def blocked(request):
+        calls.append(request)
+        entered.set()
+        await asyncio.Event().wait()
+
+    actual = AsyncOpenAI(
+        api_key="OFFLINE-NONKEY",
+        max_retries=0,
+        timeout=2,
+        http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(blocked)),
+    )
+    monkeypatch.setattr("openai.AsyncOpenAI", lambda **kwargs: actual)
+    fixtures = module.ROOT / "podvoice/gatekeeper/eval_audio_idle"
+    output = tmp_path / "private"
+    output.mkdir(mode=0o700)
+    args = SimpleNamespace(
+        audio_envelope=True,
+        fixtures=fixtures,
+        output=output,
+        source_sha256=module.source_fingerprint(),
+        manifest_sha256=hashlib.sha256((fixtures / "manifest.json").read_bytes()).hexdigest(),
+    )
+    task = asyncio.create_task(module.run_audio_envelope(args, "OFFLINE-NONKEY"))
+    await entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert len(calls) == 1 and actual.is_closed()
+    report = json.loads((output / "report.json").read_text())
+    assert report["status"] == "cancelled" and report["cleanup"] == "joined"
+    assert report["results"][0]["reason"] == "caller_cancelled"
+    assert report["results"][0]["verdict"] == "unknown"

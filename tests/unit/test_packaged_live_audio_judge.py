@@ -15,7 +15,7 @@ from gatekeeper import live_audio_judge as contract
 from gatekeeper import live_audio_judge as judge
 
 
-def response(text="background"):
+def response(verdict="background"):
     return {
         "id": "offline-response",
         "object": "chat.completion",
@@ -25,8 +25,23 @@ def response(text="background"):
         "choices": [
             {
                 "index": 0,
-                "finish_reason": "stop",
-                "message": {"role": "assistant", "content": text},
+                "finish_reason": "tool_calls",
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call-offline",
+                            "type": "function",
+                            "function": {
+                                "name": "report_audio",
+                                "arguments": json.dumps(
+                                    {"verdict": verdict}, separators=(",", ":")
+                                ),
+                            },
+                        }
+                    ],
+                },
             }
         ],
         "usage": {
@@ -44,6 +59,8 @@ class Judge(unittest.IsolatedAsyncioTestCase):
         self.release = None
         self.verdict = "background"
         self.tier = "default"
+        self.response_payload = None
+        self.status = 200
         self.started = asyncio.Event()
         self.pcm = b"\0" * 128000
         self.identity = judge.JudgeIdentity(
@@ -60,9 +77,17 @@ class Judge(unittest.IsolatedAsyncioTestCase):
             self.started.set()
             if self.release:
                 await self.release.wait()
-            payload = response(self.verdict)
+            payload = (
+                copy.deepcopy(self.response_payload)
+                if self.response_payload
+                else response(self.verdict)
+            )
             payload["service_tier"] = self.tier
-            return httpx2.Response(200, json=payload)
+            return httpx2.Response(
+                self.status,
+                content=json.dumps(payload, ensure_ascii=True).encode("ascii"),
+                headers={"content-type": "application/json"},
+            )
 
         self.client = AsyncOpenAI(
             max_retries=0,
@@ -106,6 +131,31 @@ class Judge(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Hvad er to plus to?", json.dumps(self.calls[0]["messages"]))
         self.assertEqual(self.calls[0]["messages"][0]["content"], contract.SYSTEM)
         self.assertEqual(self.calls[0]["service_tier"], "default")
+        self.assertEqual(self.calls[0]["max_completion_tokens"], 16)
+        self.assertEqual(self.calls[0]["modalities"], ["text"])
+        self.assertFalse(self.calls[0]["store"])
+        self.assertFalse(self.calls[0]["parallel_tool_calls"])
+        self.assertEqual(
+            self.calls[0]["tool_choice"],
+            {"type": "function", "function": {"name": "report_audio"}},
+        )
+        self.assertEqual(len(self.calls[0]["tools"]), 1)
+        function = self.calls[0]["tools"][0]["function"]
+        self.assertEqual(function["name"], "report_audio")
+        self.assertIs(function["strict"], False)
+        self.assertEqual(
+            function["parameters"],
+            {
+                "type": "object",
+                "properties": {
+                    "verdict": {"type": "string", "enum": ["relevant", "background", "unknown"]}
+                },
+                "required": ["verdict"],
+                "additionalProperties": False,
+            },
+        )
+        self.assertNotIn("response_format", self.calls[0])
+        self.assertNotIn('"role": "tool"', json.dumps(self.calls))
         self.assertEqual(result.service_tier, "default")
         self.assertEqual(result.usage["prompt_tokens_details"]["audio_tokens"], 60)
         self.assertFalse(self.client.is_closed())
@@ -133,6 +183,41 @@ class Judge(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.reason, "deadline_exhausted_before_send")
         self.assertEqual(self.calls, [])
 
+    async def test_owner_deadline_includes_synchronous_argument_validation(self):
+        original = contract.validate_response
+
+        def delayed(*args, **kwargs):
+            time.sleep(0.25)
+            return original(*args, **kwargs)
+
+        with patch.object(contract, "validate_response", delayed):
+            result = await self.run_judge(deadline=asyncio.get_running_loop().time() + 0.2)
+        self.assertEqual(result.reason, "deadline_exhausted_after_parse")
+        self.assertFalse(result.protocol_valid)
+        self.assertEqual(result.verdict, "unknown")
+        self.assertEqual(len(self.calls), 1)
+
+    async def test_sdk_http_failure_never_retries_or_continues(self):
+        self.status = 503
+        result = await self.run_judge()
+        self.assertFalse(result.protocol_valid)
+        self.assertEqual(result.verdict, "unknown")
+        self.assertEqual(len(self.calls), 1)
+
+    async def test_empty_content_and_exact_byte_bounds_are_valid(self):
+        self.response_payload = response()
+        message = self.response_payload["choices"][0]["message"]
+        message["content"] = ""
+        call = message["tool_calls"][0]
+        call["id"] = "x" * 128
+        arguments = call["function"]["arguments"]
+        call["function"]["arguments"] = arguments + " " * (256 - len(arguments))
+        result = await self.run_judge()
+        self.assertTrue(result.protocol_valid)
+        self.assertEqual(result.verdict, "background")
+        self.assertEqual(result.validation_details["arguments_bytes"], 256)
+        self.assertEqual(len(self.calls), 1)
+
     async def test_owner_cancellation_propagates_no_retry_no_client_close(self):
         self.release = asyncio.Event()
         task = asyncio.create_task(self.run_judge())
@@ -158,6 +243,16 @@ class Judge(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.protocol_valid)
         self.assertEqual(result.reason, "semantic_abstention")
         self.assertIsNotNone(result.usage)
+        self.assertEqual(len(self.calls), 1)
+
+    async def test_relevant_report_is_returned_without_dispatch_or_continuation(self):
+        self.verdict = "relevant"
+        result = await self.run_judge()
+        self.assertEqual(result.verdict, "relevant")
+        self.assertTrue(result.protocol_valid)
+        self.assertIsNone(result.reason)
+        self.assertEqual(len(self.calls), 1)
+        self.assertEqual(len(self.calls[0]["messages"]), 2)
 
     async def test_unknown_pricing_tier_does_not_claim_semantic_failure(self):
         self.tier = "flex"
@@ -180,10 +275,32 @@ class Judge(unittest.IsolatedAsyncioTestCase):
             (("object",), "other", "response_object_invalid"),
             (("choices",), [], "choice_count_invalid"),
             (("choices", 0, "index"), 1, "choice_index_invalid"),
-            (("choices", 0, "finish_reason"), "length", "finish_reason_not_stop"),
+            (("choices", 0, "finish_reason"), "length", "finish_reason_not_tool_calls"),
+            (("choices", 0, "finish_reason"), "stop", "finish_reason_not_tool_calls"),
             (("choices", 0, "message", "role"), "user", "message_role_not_assistant"),
             (("choices", 0, "message", "refusal"), "PRIVATE_REFUSAL", "blocked_response_payload"),
-            (("choices", 0, "message", "content"), "PRIVATE_ANSWER", "verdict_not_exact_enum"),
+            (("choices", 0, "message", "refusal"), "", "blocked_response_payload"),
+            (("choices", 0, "message", "audio"), {}, "blocked_response_payload"),
+            (("choices", 0, "message", "function_call"), {}, "blocked_response_payload"),
+            (("choices", 0, "message", "content"), "PRIVATE_ANSWER", "mixed_response_content"),
+            (("choices", 0, "message", "content"), " ", "mixed_response_content"),
+            (("choices", 0, "message", "tool_calls"), [], "tool_call_count_invalid"),
+            (("choices", 0, "message", "tool_calls"), None, "tool_call_count_invalid"),
+            (
+                ("choices", 0, "message", "tool_calls"),
+                response()["choices"][0]["message"]["tool_calls"] * 2,
+                "tool_call_count_invalid",
+            ),
+            (("choices", 0, "message", "tool_calls", 0, "type"), "other", "tool_call_type_invalid"),
+            (("choices", 0, "message", "tool_calls", 0, "id"), "", "tool_call_id_invalid"),
+            (("choices", 0, "message", "tool_calls", 0, "id"), "x" * 129, "tool_call_id_invalid"),
+            (("choices", 0, "message", "tool_calls", 0, "id"), "ø" * 65, "tool_call_id_invalid"),
+            (("choices", 0, "message", "tool_calls", 0, "id"), "\ud800", "tool_call_id_invalid"),
+            (
+                ("choices", 0, "message", "tool_calls", 0, "function", "name"),
+                "PRIVATE_FUNCTION",
+                "tool_function_not_report_audio",
+            ),
             (("usage",), None, "usage_missing_or_invalid"),
             (("usage", "total_tokens"), 999, "usage_totals_invalid"),
             (
@@ -191,6 +308,35 @@ class Judge(unittest.IsolatedAsyncioTestCase):
                 -1,
                 "audio_usage_missing_or_invalid",
             ),
+        ]
+        arguments_path = ("choices", 0, "message", "tool_calls", 0, "function", "arguments")
+        cases += [
+            (arguments_path, value, reason)
+            for value, reason in (
+                (None, "tool_arguments_not_bounded_string"),
+                ("", "tool_arguments_not_bounded_string"),
+                ("x" * 257, "tool_arguments_not_bounded_string"),
+                ("ø" * 129, "tool_arguments_not_bounded_string"),
+                ("\ud800", "tool_arguments_not_bounded_string"),
+                ('{"verdict":', "tool_arguments_invalid_json"),
+                ('{"verdict":"background"} trailing', "tool_arguments_invalid_json"),
+                ('{"verdict":"background","verdict":"relevant"}', "tool_arguments_invalid_json"),
+                ('{"verdict":NaN}', "tool_arguments_invalid_json"),
+                ('{"verdict":Infinity}', "tool_arguments_invalid_json"),
+                ('{"verdict":-Infinity}', "tool_arguments_invalid_json"),
+                ('["background"]', "tool_arguments_not_exact_object"),
+                ('"background"', "tool_arguments_not_exact_object"),
+                ("{}", "tool_arguments_not_exact_object"),
+                (
+                    '{"verdict":"background","PRIVATE_EXTRA":true}',
+                    "tool_arguments_not_exact_object",
+                ),
+                ('{"verdict":true}', "verdict_not_exact_enum"),
+                ('{"verdict":null}', "verdict_not_exact_enum"),
+                ('{"verdict":"Background"}', "verdict_not_exact_enum"),
+                ('{"verdict":" background"}', "verdict_not_exact_enum"),
+                ('{"verdict":"PRIVATE_ANSWER"}', "verdict_not_exact_enum"),
+            )
         ]
         for path, value, reason in cases:
             with self.subTest(reason=reason):
@@ -203,7 +349,11 @@ class Judge(unittest.IsolatedAsyncioTestCase):
 
                 async def handler(request, received=received, payload=payload):
                     received.append(json.loads(request.content))
-                    return httpx2.Response(200, json=payload)
+                    return httpx2.Response(
+                        200,
+                        content=json.dumps(payload, ensure_ascii=True).encode("ascii"),
+                        headers={"content-type": "application/json"},
+                    )
 
                 async with AsyncOpenAI(
                     max_retries=0,
@@ -236,20 +386,25 @@ class Judge(unittest.IsolatedAsyncioTestCase):
                 "response_id_valid": True,
                 "returned_model_allowed": True,
                 "choice_count": 1,
-                "finish_reason": "stop",
+                "finish_reason": "tool_calls",
                 "assistant_role_valid": True,
-                "content_kind": "string",
-                "content_length": 10,
-                "verdict_is_enum": True,
+                "content_kind": "missing",
+                "content_length": None,
+                "tool_call_count": 1,
+                "tool_call_type_valid": True,
+                "tool_call_id_valid": True,
+                "expected_function": True,
+                "arguments_kind": "string",
+                "arguments_bytes": len('{"verdict":"background"}'),
                 "blocked_payload_present": False,
             },
         )
 
-    async def test_malformed_huge_content_diagnostics_are_bounded_without_content(self):
+    async def test_malformed_huge_arguments_diagnostics_are_bounded_without_content(self):
         self.verdict = "PRIVATE_" * 2000
         result = await self.run_judge()
-        self.assertEqual(result.reason, "verdict_not_exact_enum")
-        self.assertEqual(result.validation_details["content_length"], 4096)
+        self.assertEqual(result.reason, "tool_arguments_not_bounded_string")
+        self.assertEqual(result.validation_details["arguments_bytes"], 257)
         self.assertNotIn("PRIVATE_", json.dumps(result.validation_details))
 
 
