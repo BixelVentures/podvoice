@@ -476,3 +476,120 @@ def test_audio_idle_probe_has_one_fixed_synthetic_trigger_and_existing_poll():
     assert "setButtonsDisabled(false)" in handler
     assert "Ukendt er usikkerhed" in html
     assert "audioIdleButton.disabled = disabled" in html
+
+
+def test_audio_idle_reload_renders_retained_identity_without_provider_dispatch():
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node required for shipped diagnostic render")
+    html = PANEL.read_text()
+    script = html.split(
+        "// ---- Bounded live Realtime preflight; fixed tools, no HA/MCP side effects ----", 1
+    )[1].split("</script>", 1)[0]
+    harness = r"""
+const assert=require('node:assert/strict');
+class Element {
+ constructor(){this.children=[];this.textContent='';this.disabled=false;}
+ appendChild(e){this.children.push(e);return e;}
+ set innerHTML(value){this.children=[];this.textContent='';}
+}
+const elements=new Map();
+const document={getElementById(id){if(!elements.has(id))elements.set(id,new Element());return elements.get(id);},
+ createElement(){return new Element();},createTextNode(text){let e=new Element();e.textContent=text;return e;}};
+const window={setTimeout};
+const calls=[];
+const retained={kind:'audio-idle-probe',status:'failed',run_id:'eval-visible-identity',probe_used:true,
+ judge_sha256:'source-binding-visible',results:[{case:'quiet',verdict:'unknown',elapsed_s:1.18,
+ returned_model:'gpt-audio-1.5',reason:'finish_reason_not_stop'}]};
+async function fetch(url,options){calls.push({url,options});return {async json(){return url.includes('?kind=')?retained:{status:'idle'};}};}
+function text(e){return e.textContent+e.children.map(text).join(' ');}
+"""
+    assertions = r"""
+setImmediate(()=>{
+ try {
+  assert.deepEqual(calls.map(x=>x.url),['api/eval/live','api/eval/live?kind=audio-idle-probe']);
+  assert(calls.every(x=>!x.options.method)); // Recovery is GET only, never dispatch.
+  const rendered=text(elements.get('eval_result'));
+  for(const value of ['eval-visible-identity','source-binding-visible','gpt-audio-1.5','1.18','finish_reason_not_stop'])assert(rendered.includes(value),value);
+  assert.equal(elements.get('eval_audio_idle').disabled,true);
+  assert(elements.get('eval_result').children.some(e=>e.href==='api/eval/live?run_id=eval-visible-identity'));
+  console.log('RETAINED_REPORT_RENDERED');
+ } catch(e){console.error(e);process.exitCode=1;}
+});
+"""
+    result = subprocess.run(
+        [node, "-e", harness + script + assertions], capture_output=True, text=True, timeout=5
+    )
+    assert result.returncode == 0, result.stderr
+    assert "RETAINED_REPORT_RENDERED" in result.stdout
+
+
+def test_audio_idle_stale_recovery_cannot_overwrite_new_button_attempt():
+    import shutil
+    import subprocess
+
+    import pytest
+
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node required for shipped diagnostic ordering")
+    html = PANEL.read_text()
+    script = html.split(
+        "// ---- Bounded live Realtime preflight; fixed tools, no HA/MCP side effects ----", 1
+    )[1].split("</script>", 1)[0]
+    harness = r"""
+const assert=require('node:assert/strict');
+class Element {
+ constructor(){this.children=[];this.textContent='';this.disabled=false;}
+ appendChild(e){this.children.push(e);return e;}
+ set innerHTML(value){this.children=[];this.textContent='';}
+}
+const elements=new Map();
+const document={getElementById(id){if(!elements.has(id))elements.set(id,new Element());return elements.get(id);},
+ createElement(){return new Element();},createTextNode(text){let e=new Element();e.textContent=text;return e;}};
+const window={setTimeout};
+function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};}
+const entered=deferred(),release=deferred(),newPost=deferred(),calls=[];
+const oldReport={kind:'audio-idle-probe',status:'failed',run_id:'eval-OLD-report',probe_used:true,results:[]};
+async function delayAt(stage,value){if(stage===phase){entered.resolve();await release.promise;}return value;}
+async function fetch(url,options){
+ calls.push({url,options});
+ if(options.method==='POST')return newPost.promise;
+ if(url.includes('?kind='))return delayAt('kind_response',{json:()=>delayAt('kind_json',oldReport)});
+ return delayAt('initial_response',{json:()=>delayAt('initial_json',{status:'idle'})});
+}
+function text(e){return e.textContent+e.children.map(text).join(' ');}
+"""
+    assertions = r"""
+(async()=>{
+ await entered.promise;
+ const button=elements.get('eval_audio_idle');
+ const newer=button.onclick(); // Actual shipped handler establishes a newer generation.
+ assert.equal(button.disabled,true);
+ assert.equal(calls.filter(x=>x.options.method==='POST').length,1);
+ release.resolve();await new Promise(setImmediate);
+ assert.equal(text(elements.get('eval_result')).includes('eval-OLD-report'),false);
+ assert.equal(button.disabled,true);
+ if(phase.startsWith('initial'))assert.equal(calls.some(x=>x.url.includes('?kind=')),false);
+ newPost.resolve({json:async()=>({kind:'audio-idle-probe',status:'failed',results:[{case:'new-attempt',verdict:'unknown',reason:'new-attempt'}]})});
+ await newer;
+ assert.equal(button.disabled,false); // Old recovery must not set the one-shot-used flag.
+ assert(text(elements.get('eval_result')).includes('new-attempt'));
+ assert.equal(text(elements.get('eval_result')).includes('eval-OLD-report'),false);
+ console.log('STALE_RECOVERY_INERT');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+"""
+    for phase in ("initial_response", "initial_json", "kind_response", "kind_json"):
+        result = subprocess.run(
+            [node, "-e", "const phase=" + json.dumps(phase) + ";" + harness + script + assertions],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        assert result.returncode == 0, (phase, result.stderr)
+        assert "STALE_RECOVERY_INERT" in result.stdout, phase

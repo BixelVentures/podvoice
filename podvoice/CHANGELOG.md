@@ -1,3 +1,9 @@
+## 1.13.113
+
+- Retain a discoverable, read-only report for the bounded synthetic audio probe, including its run and model identities. Reloading the panel does not start another provider request or overwrite full preflight evidence.
+- Report the exact strict validation rejection and bounded response-shape facts without generated content or private keys. No model, prompt, deadline or acceptance rule changes.
+- Add-on only: uses the installed .112 firmware. Alpha ON and saved wake words are preserved; TV-closure activation still requires a passing provider trial and measured physical boundary.
+
 ## 1.13.112
 
 - Experimental Voice PE closure candidate: one output/work quiet window, one bounded audio relevance decision and one existing close/rearm owner. Background transcripts cannot indefinitely veto the new window.

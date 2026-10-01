@@ -85,6 +85,7 @@ class Probe(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(self.calls), 5)
         self.assertEqual(report["semantic_abstentions"], ["boundary_directed"])
         self.assertFalse(report["physical_result_verified"])
+        self.assertEqual(report["results"][0]["validation_details"]["finish_reason"], "stop")
         for call in self.calls:
             self.assertFalse(call["store"])
             self.assertEqual(call["max_completion_tokens"], 16)
@@ -157,3 +158,46 @@ class Probe(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(report["status"], "cancelled")
         self.assertEqual(report["cleanup"], "incomplete")
         self.assertTrue(service.diagnostic_active("OFFLINE-NONKEY"))
+
+
+class Recovery(unittest.TestCase):
+    def test_latest_kind_lookup_preserves_exact_run_and_full_report(self):
+        service = LiveEvalService()
+        full = {"run_id": "eval-full", "kind": "preflight", "status": "complete", "ok": True}
+        older = {"run_id": "eval-old", "kind": "audio-idle-probe", "status": "failed"}
+        latest = {
+            "run_id": "eval-latest",
+            "kind": "audio-idle-probe",
+            "status": "failed",
+            "judge_sha256": "exact-source",
+            "results": [{"elapsed_s": 1.18}],
+        }
+        service._last_full_report = full
+        service._reports_by_run_id = {"eval-old": older, "eval-latest": latest}
+        self.assertEqual(service.status(), full)
+        self.assertEqual(service.status("eval-old"), older)
+        self.assertEqual(service.status(kind="audio-idle-probe"), {**latest, "probe_used": True})
+        self.assertEqual(service.status(), full)
+        self.assertEqual(service.status(kind="arbitrary")["status"], "invalid")
+        self.assertEqual(service.status("eval-old", kind="audio-idle-probe")["status"], "invalid")
+
+    def test_used_admission_survives_report_eviction_without_restarting_probe(self):
+        service = LiveEvalService()
+        service._audio_idle_probe_started = True
+        self.assertEqual(
+            service.status(kind="audio-idle-probe"),
+            {"ok": False, "status": "idle", "kind": "audio-idle-probe", "probe_used": True},
+        )
+
+    def test_probe_retention_cannot_replace_or_invalidate_full_evidence(self):
+        service = LiveEvalService()
+        full = {"run_id": "eval-full", "status": "complete", "ok": True}
+        service._last_full_report = full
+        service._last_full_candidate_identity = "different-full-contract"
+        service._retain_report(
+            {"run_id": "eval-probe", "kind": "audio-idle-probe", "status": "failed"},
+            kwargs={"run_id": "eval-probe"},
+            requested_full_profile=False,
+        )
+        self.assertEqual(service.status(), full)
+        self.assertEqual(service.status(kind="audio-idle-probe")["run_id"], "eval-probe")

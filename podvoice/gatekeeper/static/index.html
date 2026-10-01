@@ -1503,9 +1503,10 @@ setInterval(function () {
   ];
   var goldenScenarioIds = ["arithmetic-followup-observed"];
   var pollGeneration = 0;
+  var audioIdleUsed = false;
   if (!button || !protocolOwnerButton || !goldenButton || !closeButton || !quietThanksButton || !deviceButton || !dataButton || !replayButton || !numericAbButton || !box) return;
   function setButtonsDisabled(disabled) {
-    if (audioIdleButton) audioIdleButton.disabled = disabled;
+    if (audioIdleButton) audioIdleButton.disabled = disabled || audioIdleUsed;
     button.disabled = disabled; goldenButton.disabled = disabled; protocolOwnerButton.disabled = disabled; closeButton.disabled = disabled; quietThanksButton.disabled = disabled; deviceButton.disabled = disabled; dataButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
   }
   function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
@@ -1530,7 +1531,9 @@ setInterval(function () {
   function renderRunning(data) {
     box.innerHTML = "";
     if (data && data.kind === "audio-idle-probe") {
-      box.appendChild(ee("div", "empty", "Tester højst fem syntetiske lydklip. Ingen hjemmelyd. Nabu og Talk er låst imens…")); return;
+      box.appendChild(ee("div", "empty", "Tester højst fem syntetiske lydklip. Ingen hjemmelyd. Nabu og Talk er låst imens…"));
+      if (data.run_id) { audioIdleUsed = true; box.appendChild(ee("div", "sub", "Test-id: " + data.run_id)); }
+      return;
     }
     var suffix = data && data.run_id ? " · " + data.run_id : "";
     var label = data && data.kind === "protocol-owner" ? "Tester at kun accepteret tale kan udløse et Realtime-svar" : data && data.kind === "semantic-audio-ab" ? "Sammenligner samme opfølgning som tekst og eksakt providerlyd" : data && data.kind === "audio-replay" ? "Genafspiller den samme providerlyd mod Realtime" : "Kører sikker Realtime-test";
@@ -1543,13 +1546,24 @@ setInterval(function () {
     box.innerHTML = "";
     if (data && data.kind === "audio-idle-probe") {
       box.appendChild(ee("div", "who", data.ok ? "Lydtesten gennemført" : "Lydtesten stoppet"));
+      if (data.run_id) {
+        audioIdleUsed = true;
+        if (audioIdleButton) audioIdleButton.disabled = true;
+        box.appendChild(ee("div", "sub", "Test-id: " + data.run_id));
+        var reportLink = ee("a", "sub", "Åbn rapport");
+        reportLink.href = "api/eval/live?run_id=" + encodeURIComponent(data.run_id);
+        box.appendChild(reportLink);
+      }
+      if (data.judge_sha256) box.appendChild(ee("div", "sub", "Kode-id: " + data.judge_sha256));
       if (data.error_code === "probe-already-used") box.appendChild(ee("div", "sub", "Denne test er allerede brugt siden seneste add-on-start."));
       if (data.status === "busy") box.appendChild(ee("div", "sub", "Afvent at den aktive samtale eller test er afsluttet."));
       (data.results || []).forEach(function (row) {
         var words = {relevant:"Relevant tale",background:"Baggrundslyd",unknown:"Ukendt"};
+        box.appendChild(ee("div", "sub", "Model: " + (row.returned_model || "ikke oplyst")));
         box.appendChild(ee("div", "sub", row.case + ": " + (words[row.verdict] || "Ukendt") + " · " + Number(row.elapsed_s || 0).toFixed(2) + " s" + (row.reason ? " · " + row.reason : "")));
       });
       box.appendChild(ee("div", "sub", "Ukendt er usikkerhed. Dette beviser ikke fysisk lukning eller genaktivering."));
+      box.appendChild(ee("div", "sub", "Rapporten kan genfindes her indtil add-on genstartes."));
       if (data.recovery === "restart-required") box.appendChild(ee("div", "sub", "Genstart add-on: testforbindelsen kunne ikke afsluttes sikkert."));
       return;
     }
@@ -1750,7 +1764,9 @@ setInterval(function () {
     try {
       var response = await fetch("api/eval/live", {method:"POST",headers:{"Content-Type":"application/json"},body:'{"action":"audio-idle-probe"}'});
       var data = await response.json();
-      if (data.status === "running" && data.run_id) await poll(data.run_id, generation, 12);
+      if (data.status === "running" && data.run_id) {
+        audioIdleUsed = true; await poll(data.run_id, generation, 12);
+      }
       else render(Object.assign({kind:"audio-idle-probe"}, data));
     } catch (error) { render({kind:"audio-idle-probe",status:"failed"}); }
     finally { if (generation === pollGeneration) setButtonsDisabled(false); }
@@ -1769,15 +1785,27 @@ setInterval(function () {
     finally { if (generation === pollGeneration) setButtonsDisabled(false); }
   };
   (async function resume() {
+    var resumeGeneration = pollGeneration;
     try {
       var response = await fetch("api/eval/live", {cache:"no-store"});
+      if (resumeGeneration !== pollGeneration) return;
       var data = await response.json();
+      if (resumeGeneration !== pollGeneration) return;
       if (data.status === "running" && data.run_id) {
         var generation = ++pollGeneration;
         setButtonsDisabled(true); renderRunning(data);
         await poll(data.run_id, generation, data.deadline_s);
         if (generation === pollGeneration) setButtonsDisabled(false);
-      } else if (data.status === "complete" || data.status === "failed") { render(data); }
+      } else {
+        var recoveryResponse = await fetch("api/eval/live?kind=audio-idle-probe", {cache:"no-store"});
+        if (resumeGeneration !== pollGeneration) return;
+        var recovered = await recoveryResponse.json();
+        if (resumeGeneration !== pollGeneration) return;
+        audioIdleUsed = recovered.probe_used === true || !!recovered.run_id;
+        if (audioIdleButton) audioIdleButton.disabled = audioIdleUsed;
+        if (recovered.run_id) render(recovered);
+        else if (data.status === "complete" || data.status === "failed") render(data);
+      }
     } catch (error) { /* A status lookup must never disable the rest of the panel. */ }
   })();
 })();

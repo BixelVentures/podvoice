@@ -657,11 +657,17 @@ async def _live_eval_status(request: web.Request) -> web.Response:
             status=501,
         )
     run_id = request.query.get("run_id") or None
+    kind = request.query.get("kind")
+    if kind is not None and (kind != "audio-idle-probe" or run_id is not None):
+        return web.json_response({"ok": False, "status": "invalid"}, status=400)
     if run_id is not None and (len(run_id) > 80 or not run_id.startswith("eval-")):
         return web.json_response(
             {"ok": False, "status": "invalid", "error": "Ugyldigt run_id."}, status=400
         )
-    report = await run(action="status", run_id=run_id)
+    if kind is None:
+        report = await run(action="status", run_id=run_id)
+    else:
+        report = await run(action="status", kind=kind)
     status = {"not_found": 404, "invalid": 400, "failed": 200}.get(report.get("status"), 200)
     return web.json_response(report, status=status)
 

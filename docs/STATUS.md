@@ -1,5 +1,53 @@
 # PodVoice-status — én aktuel sandhed
 
+## 1/10 — .113 diagnostik af den afviste lydvurdering
+
+Lead/root ejer denne afgrænsede ændring. Installeret .112 og firmware113112
+forbliver Alpha ON med ny TV-closure inaktiv. Rigtig .112-probe gav quiet
+UNKNOWN/invalid_response på1.18s og stoppede uden retry. Den detaljerede årsag
+kan ikke genfindes: UI skjuler run-id; status uden id returnerer kun fuldprofil.
+Hypotesen er et observerbarhedshul i validator/rapportgrænsen, ikke en bevist
+fejl i modelvalg eller svarsemantik. Ingen valideringsregel lempes på gæt.
+
+Berørt kæde: fast syntetisk lyd → faktisk SDK → eksisterende strictvalidator →
+identitetsbundet rapport → Test-panel/retained read-only status → diagnostisk
+lease release → næste wake. ThinSession, inputfence, timeout, streaming, Stop,
+værktøjer, prompt/model og firmware ændres ikke. Risiko: en subsetrapport må
+ikke blive fuld releasepreflight eller udløse en ny request under reload.
+
+Ændringen giver præcis begrænset reason-code for hvert eksisterende reject,
+sikker strukturmetadata uden responseindhold/nøgler og eksplicit genfinding af
+sidste audio-idle-probe. UI viser id og returned model. Regressioner skal bevise
+samme acceptance/rejection, intet privat responseindhold, samme rapport ved
+reload, nul nye requests og uændret idløs fuldrapportadmission. Uafhængig review,
+relevant fast/releasegate og ét normalt release/installflow følger frosset diff.
+Rollback er .112 på samme firmware; ingen TV-aktivering eller fysisk accept
+udledes af diagnostik. En ny betalt prøve kræver brugerens særskilte svar,
+fordi den første godkendte batch allerede stoppede ved første fejl.
+
+Faktisk ændring: validatorens eksisterende afvisningsgrænser giver specifikke
+faste årsager og en bounded strukturprojektion uden generatedcontent/refusaltekst.
+Sidste audio-idle-rapport kan genfindes ved eksplicit kindGET og præcist run-id;
+generisk fuldpreflight er uændret. Subsetretention må ikke invalidere fulde beviser.
+UI viser run-/model-/kodeidentitet og rapportlink og genfinder med read-onlyGET.
+Astra fandt én P2-race: forsinket reloadstatus kunne overskrive nyere brugerstart.
+Generation guard ved alle fire awaitgrænser og den faktiske shippede JS-regression
+lukker den. Astra final GO; ingen alvorlig uløst finding. 197112/113-strukturcases
+gav nul forskel i acceptance. 11 actualSDK-prøver,11 probe/render+10 HTTP-prøver
+og seneste3 causalUI-prøver består. Request, prompt, model, deadline, retries,
+lease, ThinSession og firmware er uændrede. Firmware113112 genbruges.
+Fast: Ruff/format/Mypy55 og integration61.86s består; unit blev termineret af
+120s toolingbudget ved cirka94% uden testfejl og er IKKE bestået. Ingen runtime-
+patch følger dette. Én normal frosset releasegate med eksisterende240s-budget
+skal bevise hele unit/integration; gate-timeout er ikke produktevidens. Scope
+PASS single unclassified_runtime. Betalt gentagelse afventes stadig som en
+særskilt godkendt prøve, ikke automatisk retry af den stoppede batch.
+Frosset kandidat5c66c5d0764a659a186bd1ad3323841d01a8850f bestod den ene fulde
+releasegate: scope, Ruff/format201, Mypy55, unit112.35s, integration og samlet
+112.7s. Fastunitens tidligere procesforsinkelse gav ingen reproduceret produkt-
+fejl; originalårsagen forbliver UKENDT. Ingen deadlineværdi eller runtime blev
+ændret for at få gaten igennem. Dette er softwarebevis, ikke provider/rumbevis.
+
 ## 1/10 — HA-adgang genetableret, native idle-prøver afsluttet
 
 Frisk browser viser PodVoice v1.13.110 Kører; lokal HA-adresse svarer HTTP 200.
@@ -158,8 +206,39 @@ slutobserver kræver nu alle assertions færdige, nul reelle ventende timere,
 naturlig procesexit og samme10s; ingen runtimepatch, exit-tvang eller deadline-
 forhøjelse. De to berørte tests og Ruff består. Oprindelig CI-årsag er UKENDT;
 ny automatiseret CI afprøver denne permanente observer. Produktionsfingerprint
-og build-context er byteidentiske med frozen releasegate. Publish, installation, providerresultat
-og fysisk aktivering står stadig som IKKE UDFØRT; disse må ikke udledes af source-GO eller compile.
+og build-context er byteidentiske med frozen releasegate. PR88 ny CI36853245295 bestod både lint/test og ARM64 efter testobserver.
+Merged main72e6b9427392a4200496e94eee16543dd945ed3c; automatisk main-CI/
+publish36853626202 SUCCESS. Buildcontext2b14ffecf8fe3fe39e1611670bf73fc56e7597321d37c7c523530d7565fc3248;
+imageghcr.io/bixelventures/aarch64-addon-podvoice:1.13.112 publiceret digest
+sha256:23bf15ba875c22d55820e48a2ea06909594d34d4ef402af7be1c9a1d83f1d6d2.
+Installation fuldført via HA med backup: installeret/latest1.13.112 og Kører
+observeret i HA. Add-on blev verificeret Stoppet før officiel ESPHome OTA; samme
+reviewede OTAartifact ovenfor uploadet til podvoice-pe-0a7e7a.local med OTA successful.
+Ny startup13:28:13 lokal tid bekræfter version1.13.112,
+git72e6b9427392a4200496e94eee16543dd945ed3c og
+rootfs-v1:45f6c670997e1390d90c4c0b1dffac6055ac5b7e73b144af691e5ed71aa7ea6f.
+Native13:28:17 bekræfter podvoice_build_113112_liveclosing1,
+callback_source_pcm_v1, closing_led_tx_v1 og firmware contract OK. Begge wakeord
+hey_chat_hey_jarvis er bekræftet af enheden. Gemte indstillinger er Alpha ON og
+UI-timeout4s. Installation/genstart er bevist; unplug/replug og fysisk wake er
+ikke prøvet efter denne OTA. Lokal startupkvittering:
+/private/tmp/pv112-installed-startup.txt; installationsskærmbillede
+/private/tmp/pv112-alpha-installed.png. Goal er igen ACTIVE med samme mål.
+
+Den godkendte højst5-klips batch blev kørt præcis én gang i den installerede
+.112. Den stoppede korrekt efter første quiet-klip: UNKNOWN,
+invalid_response,1.18s. Ingen TV/positive/boundary-klip blev sendt og ingen retry
+foretaget. Det er en dokumenteret protokolafvisning, ikke en bevist forkert
+semantisk vurdering. Den eksisterende UI gemte ikke et synligt run-id/model,
+og idløst reportGET viser idle; den detaljerede rapport er derfor ikke
+genfindelig gennem den aktuelle understøttede UI uden det præcise run-id.
+Uafhængig sourcegennemgang bekræfter dette observerbarhedshul. Det præcise
+afviste responsefelt er UKENDT; modelalias/snapshot eller andet felt må ikke
+patches på gæt. Synligt første resultat bevares i
+/private/tmp/pv112-provider-probe-visible.txt. Ny TV-closure forbliver inaktiv
+(guard0/empty); ingen fysisk gate eller løsning af feltfejlen påstås. Næste
+afgrænsede ændring skal gøre samme protokolfejl og retainedrapport genfindelig,
+før en ny godkendt providerprøve og fysisk inputgrænse kan åbne aktivering.
 
 ### Aktive kodegrænser før næste release
 
@@ -11210,7 +11289,7 @@ duplex, barge-in og nye motorer er ikke en del af denne rækkefølge.
 }
 -->
 
-<!-- candidate-scope-coupling
+<!-- historical-112-candidate-scope-coupling
 {
   "version": 1,
   "base_tip": "a3ac48a983844feccfe98e83bd9aa34d8313ec47",
