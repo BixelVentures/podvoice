@@ -1,6 +1,90 @@
 import pytest
 from scripts.candidate_scope import classify_candidate
 
+_VERSION_DIFF = (
+    "diff --git a/podvoice/gatekeeper/__init__.py b/podvoice/gatekeeper/__init__.py\n"
+    "--- a/podvoice/gatekeeper/__init__.py\n"
+    "+++ b/podvoice/gatekeeper/__init__.py\n"
+    "@@ -16 +16 @@\n"
+    '-__version__ = "1.13.116"\n+__version__ = "2.0.0"\n'
+)
+
+
+def test_version_metadata_alone_does_not_require_runtime_regression():
+    report = classify_candidate(
+        ["podvoice/gatekeeper/__init__.py", "podvoice/config.yaml", "pyproject.toml"],
+        _VERSION_DIFF,
+    )
+    assert report.passed
+    assert report.production_files == ()
+    assert report.domains == ()
+
+
+@pytest.mark.parametrize(
+    "paths,diff",
+    [
+        (["podvoice/gatekeeper/__init__.py"], "+enable_runtime = True\n"),
+        (["podvoice/gatekeeper/__init__.py"], "+__version__ = read_config()\n"),
+        (["podvoice/gatekeeper/__init__.py"], '+__version__ = "2.0.0"; enable_runtime = True\n'),
+        (["podvoice/gatekeeper/__init__.py"], '+__version__ = "2.0.0"\n'),
+        (["podvoice/gatekeeper/__init__.py"], "+++register_runtime()\n"),
+        (["podvoice/gatekeeper/__init__.py"], "---unregister_runtime()\n"),
+        (["podvoice/gatekeeper/__init__.py"], "+++ register_runtime()\n"),
+        (["podvoice/gatekeeper/__init__.py"], "--- unregister_runtime()\n"),
+        (["podvoice/gatekeeper/__init__.py"], "runtime_enabled = True\n"),
+        (["podvoice/gatekeeper/__init__.py"], " runtime_enabled = True\n"),
+        (["podvoice/gatekeeper/thin.py"], ""),
+        (["podvoice/gatekeeper/__init__.py", "podvoice/gatekeeper/thin.py"], ""),
+    ],
+)
+def test_version_metadata_never_exempts_other_runtime_changes(paths, diff):
+    report = classify_candidate(
+        paths,
+        _VERSION_DIFF + diff,
+    )
+    assert not report.passed
+    assert report.production_files
+
+
+@pytest.mark.parametrize("separator", ["\r", "\n", "\r\n"])
+@pytest.mark.parametrize("statement", ["runtime_enabled = True", " runtime_enabled = True"])
+def test_version_metadata_rejects_raw_or_normalized_cr_code(separator, statement):
+    diff = _VERSION_DIFF.replace(
+        '+__version__ = "2.0.0"\n',
+        '+__version__ = "2.0.0"' + separator + statement + "\n",
+    )
+    assert not classify_candidate(["podvoice/gatekeeper/__init__.py"], diff).passed
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '__version__ = "2.0.0"\rruntime_enabled = True\n',
+        '__version__ = "2.0.0"\rdiff --git +register_runtime()\rruntime_enabled = True\n',
+    ],
+)
+def test_repository_scope_preserves_git_cr_framing(tmp_path, payload):
+    import subprocess
+
+    from scripts.candidate_scope import _git, inspect_repository
+
+    def git(*args):
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init", "-q")
+    git("config", "user.name", "Scope Test")
+    git("config", "user.email", "scope@example.invalid")
+    source = tmp_path / "podvoice/gatekeeper/__init__.py"
+    source.parent.mkdir(parents=True)
+    source.write_bytes(b'__version__ = "1.13.116"\n')
+    git("add", ".")
+    git("commit", "-qm", "baseline")
+    source.write_bytes(payload.encode())
+    assert "\r" in _git(tmp_path, "diff", "--unified=0")
+    report = inspect_repository(tmp_path, "HEAD")
+    assert not report.passed
+    assert report.production_files == ("podvoice/gatekeeper/__init__.py",)
+
 
 def test_weather_timestamp_continuity_is_not_wake_rearm_scope():
     report = classify_candidate(

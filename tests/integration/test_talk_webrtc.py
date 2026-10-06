@@ -221,6 +221,7 @@ async def test_typed_first_http_create_timeout_keeps_socket_live_and_never_dispa
     """
     import gatekeeper.thin as thin_module
 
+    normal_connect_timeout = thin_module.C.CONNECT_TIMEOUT_S
     monkeypatch.setattr(thin_module.C, "CONNECT_TIMEOUT_S", 0.1)
     wire, link, session, _, tools = setup()
     session.live_brain.timeout_s = 1.0  # Outer Thin deadline is the failing owner.
@@ -255,9 +256,18 @@ async def test_typed_first_http_create_timeout_keeps_socket_live_and_never_dispa
         await until(lambda: session._close_task is not None and session._close_task.done())
         assert not session._active and link._live_handshake is None
 
-        # The rejected command is never replayed into the next provider generation.
+        # The injected deadline belongs only to the failed generation. Recovery
+        # must tolerate a healthy HTTP create that exceeds that artificial budget.
+        monkeypatch.setattr(thin_module.C, "CONNECT_TIMEOUT_S", normal_connect_timeout)
         wire.sdk = WebRTCSDK()
+
+        async def healthy_create(**kwargs):
+            await asyncio.sleep(0.2)
+            return await wire.sdk.create(**kwargs)
+
+        wire.sdk.client.live.create.side_effect = healthy_create
         session.live_brain.client_factory = wire.sdk.factory
+        # The rejected command is never replayed into the next provider generation.
         wire.send("text", command_id="fresh", text="fresh fixture")
         await until(lambda: wire.result("fresh") is not None)
         assert wire.result("fresh")["status"] == "submitted"

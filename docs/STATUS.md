@@ -1,5 +1,183 @@
 # PodVoice-status — én aktuel sandhed
 
+### 6/10 — aktiv beslutning: v2.0 frosset Alpha-baseline, derefter v2.x-hastighed
+
+Implementeret kandidat: version2.0.0 er ens i pyproject/config/package; kun disse
+metadata og STATUS/CHANGELOG ændres i de shippede bits (oprindeligt fem filer). thin.py SHA6e5fe542 og live_idle.py
+SHA3611aea3 er uændrede; alle andre produktions-/firmwarebits matcher main. Det
+uafhængige Sol-review final_116_review giver GO til ærlig Alpha-milepælsbygning,
+merge og installation under softwaregates, ingen P0/P1; ingen versionstyret
+migration eller runtimeforgrening fundet. Ny version ændrer også MCP-clientInfo-
+metadata, ikke værktøjer eller samtalelogik. Ingen ekstra betalt providerprøve.
+
+Første lokale fast i sandbox: Ruff/format/mypy55 grøn; lokale webtestservers kunne
+ikke binde sockets (PermissionError). Det er en miljøbegrænsning, ikke produktevidens;
+ingen runtimepatch udledes. Gate køres med de nødvendige lokale procesrettigheder.
+Den rettighedskorrigerede fast fik grøn integration (65,61s) og alle unit-batches
+(152,31s), men scopelåsen afviste det samlede resultat, fordi brugerens nye v2.x-UI-
+præcisering blev tilføjet STATUS under kørslen. Det tæller ikke som en bestået gate.
+Hele femfilsdiffet blev frosset før releasegate, som også dækkede disse docsændringer.
+Ingen runtimepatch eller ekstra providerprøve. Review-GO omfatter fortsat uændret
+metadatakandidat; den nye UI-note er dokumentation, ikke en skjult UI-/lifecycleændring.
+
+Lead/root — separat tooling-beslutning i denne kandidat: den første releasegate
+stoppede straks i candidate-scope, fordi en ren __version__-ændring fejlagtigt
+klassificeres som runtime uden ny regression. Ingen runtime-, provider- eller
+fysisk fejl. Hypotese: en eksakt diff med kun én fjernet og én tilføjet numerisk
+__version__-streng kan klassificeres som metadata; enhver anden linje/produktionsfil
+skal stadig kræve den eksisterende regression/review. Uafhængigt review fandt en
+P1 i første toolingforsøg: +++/----lignende unary kode blev behandlet som fileheader.
+Den afviste løsning bevares som fejl; metadata-undtagelsen læser nu kun indhold inde
+i faktiske Git-hunks og nulstiller ved hver filegrænse. Ekstra added/removed unary
+kode, også med whitespace, afvises. De første11 metadata-positive/negative
+cases bestod; et nyt review fandt siden en yderligere P1: CR/newline-normalisering
+kunne skjule en ekstra assignment som en linje uden diffprefix. Metadata-undtagelsen
+skal derfor bruge LF-framing og afvise alle andre hunklinjer end ændringer og Git
+EOF-markør; den må kun anvendes på de eksisterende unified=0-diffs. Tilføj rå og
+normaliserede CR-regressioner før nyt review-GO. Review fandt derefter en spoofet
+filegrænse efter CR-normalisering. Den konkrete rettelse er nu at bevare Git-stdout
+som bytes og dekode UTF-8 uden universal-newline-ændring. Real-Git-regressioner
+skal afvise CR-code og den spoofede filegrænse gennem inspect_repository, ikke kun
+et håndlavet diff. Ingen release-GO eller normal produktaccept er udledt. Ingen ændret source-GO antages, før den rettede gate er reviewed. Ret kun denne gategrænse,
+med positive og adversarial negative tests for ekstra kode, anden fil og malformed
+version. Tooling er en separat ændring; shippede bits ændres stadig kun i version.
+Review og målrettet scope-test før én ny gyldig releasegate på det nye frosne diff;
+den forkastede scope-kørsel er ikke en bestået fuld gate eller en runtimepatch.
+Målrettede candidate-scope/release-contract-regressioner består, Ruff/format er
+grønne, og faktisk candidate-scope siger version metadata only. Tooling er
+isoleret i scope-gaten og dens eksisterende regressioner; ingen shippet runtimeændring.
+Efter raw-Git-rettelsen består alle21 målrettede metadata-/real-Git-regressioner,
+inklusive den spoofede CR-filegrænse gennem inspect_repository. Ruff/format grøn.
+Nyt uafhængigt Sol-review v200_final_review giver source-GO uden uløste P0/P1;
+real-Git-CR og spoofet filegrænse afvises gennem produktions-_git. Reviewet diffSHA
+81ab62ff608c3fe0be312eaf5d40cdb954d8a895a92a5bf210f85c347550ca78, toolingSHA
+dc97aa33507734b59b728a5603cf49cdadb1f61cf4128a798374bab051c68dd5. Denne sidste
+receipt er docs-only. Alle syv filer fryses nu, tooling i separat commit; én gyldig
+releasegate køres før PR/merge/publicering. Fysisk v2.0-accept er stadig afventende.
+
+Lead/root — isoleret testkorrektion før merge: PR97 head56eda47 havde grøn ARM64-
+bygning og lokal release140,0s, men CI37466783577 fejlede i Talk-regressionen
+`test_typed_first_http_create_timeout_keeps_socket_live_and_never_dispatches`.
+Den injicerede 100ms outer connect-deadline gav den forventede første timeout og
+korrekt cleanup; samme kunstige budget blev derefter beholdt i den raske næste
+provider-generation, som CI afviste. Hypotese: fejlindsprøjtningen lækker ind i
+recovery-beviset. Afgrænset testrettelse: gendan det oprindelige budget før næste
+generation og lad dens raske HTTP-create tage mere end100ms deterministisk.
+Alle negative første-generations-assertions og ingen-replay-assertions bevares.
+Runtime/deadlines ændres ikke. Målrettet Talk-test og frosset releasegate før nyt
+naturligt CI-flow; ingen manuel CI-genkørsel eller ny betalt providerprøve.
+
+Isoleringen bekræfter årsagsgrænsen: uden budgetgendannelse afvises næste raske
+HTTP-create efter200ms med præcis CI-fejlen rejected/submitted. Med gendannelse
+består alle syv Talk-WebRTC-integrationer. Dette er permanent test-fixture-recovery,
+ikke en produktrettelse eller skjult timeout-tuning. Det nye ottefilsdiff fryses;
+én releasegate og et nyt CI fra push er påkrævet før merge.
+
+Lead/root. Brugeren beder om en v2.0-milepælsrelease, som fastholder den fungerende
+funktion, og om at skubbe alle fund til repoet før hastighed/tweaks i v2.x. Kandidaten
+må kun ændre versionsmetadata og release-/beslutningsdokumentation. Runtime, prompt,
+model, værktøjer, gain/VAD, UI4s, den korrelerede 2s-afslutningsfase og firmware112
+fastholdes byteidentisk med installeret .116/main a2b5a27. Det er en **Alpha-baseline**,
+ikke lifecycle release-godkendt, 97/100, fuld funktionsparitet eller produktmålet nået.
+Den eksplicit godkendte .116-feltundtagelse og fejlede 5×-kontrol bevares synligt.
+
+Stærkeste nye bevis: otte automatisk gemte manifestdele fra fem .116-sessioner
+14:14:07–14:16:29 den 6/10, læst fra HA uden ny optagelse, lydopslag eller ændret
+indstilling. Samme rootfs-v1 dcdbfac9db5aa1bad9be61a97aeead2ae2f665679b65cad5cf48e99ce675d0f5,
+firmware podvoice_build_113112_liveclosing1, channel1/gain16 og gpt-live-1. Brugeren
+melder, at det ser ud til at virke, men at gul stadig varer længe. Rådata/historik er
+private; repoet får kun reducerede hændelser og målinger, ingen hjemmelyd eller nøgler.
+
+| Conversation trace / 20261006 | Lukkeårsag | Wake registreret → provider klar | Gul ACK → deadline | Gul ACK → rearm |
+|---|---|---:|---:|---:|
+| T141407-473-6465ce43 | model-close | 4,168s | ingen gul fase | ikke relevant |
+| T141439-269-12946594 | app-idle-timeout | 2,569s | 2,058s | 3,860s |
+| T141542-687-fd72da52 | app-idle-timeout | 2,875s | 2,047s | 4,065s |
+| T141557-869-897c3d15 | app-idle-timeout | 2,031s | 2,016s | 3,885s |
+| T141617-514-89efa2c1 | app-idle-timeout | 2,021s | 2,030s | 3,938s |
+
+Kilde for intervallerne er samme manifests host-monotonic at_ms, ikke transcriptets
+leveringstid eller stopur. Gul start er korreleret firmware LED-TX-ACK; rearm er matching
+recovered-ACK. IDLE er registreret 1ms senere. Det er eventbevis, ikke rumoptaget lyd.
+Alle fem bevarer provider-terminal → exact playback_finished → close_requested →
+teardown_complete → matching rearm → IDLE. Efterfølgende fysiske wake-events beviser
+recovery for de første fire; sidste sessions næste wake er ikke optaget. Ingen frisk
+Stop-/klik-/afbrydelsesprøve i dette datasæt. Ikke 5/5 vellykkede svar eller en 10/10-gate.
+
+Semantisk første prøve: terminal backend settled +17465ms → provider close send
++17468ms, altså 3ms og ingen UI4s/gul ventetid. Provider-terminal +18589ms, fysisk
+playback_finished +18996ms, rearm +19532ms. Historikken viser farvelinput og kort
+kvittering; fuld hørbar farvelhale er ikke uafhængigt rumoptaget her.
+
+De fire timeoutprøver har én gul start/deadline hver; ingen genstart af UI4s er
+registreret. Gul består af 2,016–2,058s aftalt guard, 0,789–1,072s fra deadline til
+provider-terminal, 0,411–0,494s terminal→playback-finish, og 0,421–0,551s playback-finish→rearm. Korrektion til
+ældre flaskehals: socket-/SDK-release er nu kun 14–15ms; den er ikke den tidligere
+1,81s oprydningslås. Providerens terminalventetid og fysisk dræn må ikke blandes sammen.
+
+Åbne fund, som v2.x skal bevare og afklare:
+
+1. T141542 registrerer et klokke-spørgsmål, men ingen assistanttekst/backendopgave;
+   gemt speaker-PCM RMS2,2/peak0,14% understøtter manglende meningsfuldt svar. Det kan
+   ikke kaldes korrekt besvaret. Årsagen er uafklaret; gennemgå hele input/provider/
+   delegation/output-kæden før patch. T141617 har samme næsten tavse stream og ingen
+   historikinput; tom wake er kun en hypotese. Ingen lokal tekstregel tilføjes.
+2. Alle fem traces er incomplete med hhv. 380/142/130/152/136 tabte diagnosekommandoer.
+   Native indgangskø rapporterer nul tabte frames/bytes; diagnosehul er ikke det samme
+   som dokumenteret hakkende playback. Første v2.x målearbejde skal isolere recorderens
+   begrænsning og bevare identitet/clock/provenance uden at belaste samtalekæden.
+3. Wake→provider-ready varierer 2,021–4,168s. Dette er opkobling fra detekteret wake,
+   ikke sagt wake→detektion og ikke sidste brugerord→hørbart svar. Første streamstart
+   kan være tavs; tidligere UI-etiket om hørbar lyd må ikke bruges som fysisk latencybevis.
+4. Fejlede .116 SDK-kontrol 42→48, forventet44, er fortsat uløst. Timeroprettelse
+   mangler allerede i ON/OFF. Talk-browserens fulde farvel/dræn er parkeret. Ingen
+   automatisk lukning i alle støjforhold, wake99,9% eller fuld funktionsmatrix er bevist.
+
+V2.x-produkt/UI-krav, efter brugerens efterfølgende afklaring: ryd cirka95% af den oplevede UI-
+kompleksitet væk, så hovedvisningen er forståelig og funktionsdygtig til daglig brug.
+95% er et ambitionsniveau, ikke en målt effekt. Bevar start/Stop, valgt/aktiv Alpha,
+ærlig forbindelse/samtalestatus, arbejds-/afslutningsfase, styrende logik og faktisk
+nedtælling. Saml avanceret diagnose, detaljeret telemetry og sjældne indstillinger
+bag en tydelig sekundær adgang. Brugeren præciserer: alt UI-støj, nonsens og legacy skal fjernes, ikke blot gemmes
+bag menuer. Audit skal skelne overflødige/forældede UI-elementer fra brugbare funktioner
+og sand fejlinformation; reel avanceret diagnose bevares som sekundær adgang.
+Ingen aktuel brugbar funktion eller fejlsandhed skjules/fjernes.
+Brugeren placerer oprydningen i v2.x-serien, efter den frosne v2.0-baseline.
+Dette er en særskilt kommende UI-kandidat med mobil/HA-app/desktop, tastatur og
+accessibility-kontrol samt uændret lifecycle. Den er ikke implementeret i denne
+metadata-baseline og må ikke regnes som udført ved version2.0.0 alene.
+Frisk læst Hjem-visning viser konkrete oprydningspunkter: “Er Nabu klar?” trods
+HeyChat/HeyJarvis, readiness-tooltip “aktiv Realtime-session” samtidig med “Ingen
+åben samtale”, og en gul-fase-tabel på2s uden samlet terminal/dræn/rearm-varighed.
+Bevar forskellen mellem senest prøvet provider og faktisk aktiv forbindelse. Dette
+er observerede UI-formuleringer, ikke bevis for en skjult aktiv runtime-session.
+
+Tre vedvarende v2.x-epics er nu oprettet i repoet med konkrete fund og færdigkriterier:
+- Hastighed: https://github.com/BixelVentures/podvoice/issues/94
+- UI: https://github.com/BixelVentures/podvoice/issues/95
+- Stabilitet og funktioner: https://github.com/BixelVentures/podvoice/issues/96
+
+Prioritet for v2.x: (a) luk det konkrete ubesvarede-spørgsmål-/diagnosehul med
+observeret årsagsgrænse; (b) måle hele kæden til første meningsfulde svar, opdelt i
+opstart, input/forståelse, provider/tool og faktisk playback; (c) optimere største
+målte, fjernelige ventetid én kandidat ad gangen; (d) afkort gul kun med bevaret
+nye-opgaver/lyd, fuld farvelhale, Stop og næste wake. Ingen samtidig tuning af prompt,
+VAD/gain/buffere. 40 simple +20 værktøjsture og direkte sammenligning er stadig mål,
+ikke resultater; dette lille datasæt giver ingen p50/p95-accept.
+
+Berørte release-invarianter: præcis artifact/version-identitet, én ThinSession-/
+close-/rearm-ejer, ingen accept-arv fra byteidentitet. Kausal hypotese for denne
+metadata-kandidat: uændrede runtimebytes giver uændret funktion; version/provenance
+må ikke ændre prompt, settings, tool schema eller firmwarekontrakt. Ikke-mål er alle
+runtime-/hastighedsrettelser, ny AI, transport eller fysisk accept. Plan: kontrollér
+versionslighed og hele diffet mod main, uafhængigt adversarial review, relevante
+softwaregates og én releasegate efter freeze; derefter ét PR/main-artifact-flow.
+Ingen ny betalt providerkontrol begrundes af versionsmetadata. Ny artifact får sin
+egen identitet og arver ingen golden/10/10. Rollback til præcis .116-artifact ved
+versions-/settings-/readiness-regression; AlphaON og gemte wakevalg bevares. En
+normal stabil v2.0-godkendelse afventer de fysiske/semantiske gates, ikke flere ord.
+
+
 ### 6/10 — frisk fysisk feltfejl på installeret .114: timeout klar, ingen afslutning
 
 Lead/root, read-only gennemgang efter brugerens netop udførte prøve. Automatisk
@@ -12177,3 +12355,33 @@ conditional feltGO på netop denne brugerundtagelse. Denne dokumentationsopdater
 ændrer ingen shippede runtimebits og ugyldiggør ikke den ene frosne releasegate.
 PR93 skal merge til grøn main/publiceret1.13.116 og installeres med AlphaON og
 uændret firmware; eksakt artifact og faktisk readiness kontrolleres efterpå.
+
+6/10 .116 er faktisk publiceret og installeret som eksplicit godkendt Alpha-feltkandidat:
+PR93 merged, main a2b5a27e997ff168f0ca99e86611b466750acd6e,
+tree83dc9feb1d8ea41c4e785703e0a57972263f8515. PR498 og main499/run37459745559
+SUCCESS; main lint112256053118 og publish112257280194 SUCCESS, ingen manuelle
+CI-genkørsler. OCIindex sha256:82db4718463b476d6d4d3393a8145c6420b6d7ee9240def986d41bea6a4d1fb0;
+ARM64manifest sha256:2607975e067eb34ddfa82e1f9ae16f4014a538b27d4dde782be008061726c89a.
+Buildcontext61234d1ba09d733ea0cc92f71f403c8d5db92250399ccf29d43b3d18fbb9a6f9.
+HA Opdatér til1.13.116 udført med .115-backup tilvalgt. Frisk startup14:05:29
+beviser version116 og eksakt mainSHA samt rootfs-v1
+dcdbfac9db5aa1bad9be61a97aeead2ae2f665679b65cad5cf48e99ce675d0f5.
+
+VoicePE genforbundet14:05:32, firmwarecontractOK, uændret
+podvoice_build_113112_liveclosing1; channel1/gain16 og begge wakewords devicebekræftet.
+Panelet viser v1.13.116/statuslive, forbundet/ingen åbensamtale. SettingsAlphaON,
+UI4 og gemtHeyChat+HeyJarvis bekræftet; ingen settings-/firmwareskrivning. Privat
+screenshot /private/tmp/pv116-installed-alpha-on-20261006.png. Ingen ny GPTLive
+forbindelse eller fysisk samtale startes uden brugerens efterfølgende prøve.
+Readiness viser ærligt standby/ikkeprøvet og wakeafprøves. Begge midlertidige
+HA-nøgler er tilbagekaldt; credentialfiler slettet. .1165×modelgate forbliver FEJLET
+(42→48, expected44), installeret ved eksplicit brugerundtagelse; IKKE97/100,
+normal releaseaccept eller fysiskgolden/10×. Talk-browserdrain er fortsat parkeret.
+
+Installationsmålets slut-audit: runtimefix/source-review/regressioner/énlocalreleasegate,
+greenmain/immutableartifact/HAinstallation/AlphaON/kompatibelfirmware og nøglerevoke
+har direkte evidens ovenfor. 5×gate udført men afvist, undtagelsen er menneskegodkendt;
+ingengatefailure slettes. Fysisk farvelhale, guldeadline, korrekt cancellation og
+næstewake er UBEVIST på116 og afventer brugerens prøver. Ved regressionsfejl stands
+prøven og rollback115; installation kan afsluttes som den godkendte feltleverance,
+ikke som fuldAlpha-/produktaccept. Ingen fortsat optimering før fysisk feedback.
