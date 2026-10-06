@@ -288,6 +288,25 @@ class NativeIdleWindow:
             "freshness_s": self.freshness_s,
         }
 
+    @property
+    def proof_owner(self) -> tuple | None:
+        """Full source/consumer identity; no timestamp or inferred silence."""
+        return self._last.owner if self._last is not None else None
+
+    def current_quiet(self, *, owner: tuple, now: float) -> bool:
+        """Fresh consumed-zero evidence after a separately admitted idle interval.
+
+        A transient measurement hole must not require the caller's idle period
+        again. It still cannot authorize close until valid consumption resumes
+        under the exact original source identity and creates a quiet anchor.
+        """
+        if self.proof_owner != owner:
+            return False
+        return self.diagnostics(owner=owner, now=now, idle_s=self.freshness_s)["blocker"] in (
+            "ready",
+            "quiet_window_incomplete",
+        )
+
     def ready(self, *, owner: tuple, now: float, idle_s: float) -> bool:
         return self.diagnostics(owner=owner, now=now, idle_s=idle_s)["blocker"] == "ready"
 

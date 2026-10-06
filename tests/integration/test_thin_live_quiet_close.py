@@ -1,20 +1,22 @@
-"""Real quiet policy and close owner together; firmware edges remain simulated."""
+"""Semantic intent bypasses inactivity, never provider or physical drain proof."""
 
 import asyncio
+import base64
+import json
 import time
 from types import SimpleNamespace
 
 import pytest
-from test_thin_live import emit, propose_end, until
-from test_thin_live_idle import deliver, setup
-from unit.test_openai_live import created, terminal
+from test_thin_live import build, emit, propose_end, until
+from test_thin_live_idle import setup
+from unit.test_openai_live import DiagnosticWireSDK, call, created, terminal
 
 import gatekeeper.thin as thin_module
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("semantic,silent", [(True, False), (True, True)])
-async def test_quiet_policy_reaches_provider_close_then_exact_playback_finish(
+async def test_semantic_close_bypasses_idle_then_waits_for_exact_playback_finish(
     monkeypatch, semantic, silent
 ):
     session, sdk, link = await setup()
@@ -42,10 +44,8 @@ async def test_quiet_policy_reaches_provider_close_then_exact_playback_finish(
                     time_ns=time.time_ns,
                 ),
             )
-            for index in range(40):
-                deliver(session, link, clock, index, input_state="active" if semantic else "quiet")
-                assert sdk.session.close.await_count == 0
-            deliver(session, link, clock, 40, input_state="active" if semantic else "quiet")
+            # Semantic closure never waits for the saved idle interval or VAD.
+            session.idle_timeout_s = 3600
             await asyncio.wait_for(session._live_provider_closed.wait(), 1)
             assert sdk.session.close.await_count == 1
             assert session._live_stream.finished
@@ -63,7 +63,9 @@ async def test_quiet_policy_reaches_provider_close_then_exact_playback_finish(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("evidence", ["missing", "stale", "audible"])
 @pytest.mark.parametrize("silent", [False, True])
-async def test_semantic_wait_expires_as_failure_not_success(monkeypatch, evidence, silent):
+async def test_semantic_close_ignores_quiet_evidence_but_preserves_physical_drain(
+    monkeypatch, evidence, silent
+):
     session, sdk, link = await setup()
     session.idle_timeout_s = 0.01
     session.brain.timeout_s = 0.1
@@ -85,11 +87,16 @@ async def test_semantic_wait_expires_as_failure_not_success(monkeypatch, evidenc
                     row["output"]["sum_squares"] = 10000
                 link.latest = row
                 link.on_activity(row)
+            await asyncio.wait_for(session._live_provider_closed.wait(), 1)
+            assert sdk.session.close.await_count == 1
+            assert session._live_stream.finished
+            assert closes == [] and link.rearm_calls == 0
+            lease = session._playback_lease
+            session._on_media_state(False, "old-playback")
+            assert closes == []
+            session._on_media_state(False, lease.playback_id)
             await until(lambda: bool(closes))
-            assert closes == [("live-semantic-drain-unconfirmed", {"error_kind": "device"})]
-            assert not session._live_stream.finished
-            assert sdk.session.close.await_count == 0
-            assert link.rearm_calls == 0
+            assert closes == [("model-close", {})]
     finally:
         await session.aclose()
 
@@ -97,17 +104,18 @@ async def test_semantic_wait_expires_as_failure_not_success(monkeypatch, evidenc
 @pytest.mark.asyncio
 @pytest.mark.parametrize("changed", ["generation", "stop"])
 @pytest.mark.parametrize("silent", [False, True])
-async def test_semantic_expiry_cannot_close_after_owner_changes(monkeypatch, changed, silent):
+async def test_semantic_admission_cannot_close_after_owner_changes(monkeypatch, changed, silent):
     session, sdk, link = await setup()
     session.idle_timeout_s = 0.01
     session.brain.timeout_s = 0.1
-    entered = asyncio.Event()
+    entered, release = asyncio.Event(), asyncio.Event()
     original = session._finish_live_conversation
     closes = []
     generation = session.brain._connection_generation
 
     async def observe_end(epoch, receipt):
         entered.set()
+        await release.wait()
         await original(epoch, receipt)
 
     try:
@@ -121,7 +129,8 @@ async def test_semantic_expiry_cannot_close_after_owner_changes(monkeypatch, cha
                 session.brain._connection_generation += 1
             else:
                 session._transport_closing = True
-            await asyncio.sleep(0.15)
+            release.set()
+            await asyncio.wait_for(asyncio.shield(session._goodbye), 1)
             assert closes == []
             assert sdk.session.close.await_count == 0
             assert link.rearm_calls == 0
@@ -180,13 +189,16 @@ async def test_missing_close_ack_and_missing_playback_finish_are_distinct(monkey
 
 
 @pytest.mark.asyncio
-async def test_semantic_expiry_runs_one_real_teardown_and_next_wake():
+async def test_semantic_close_runs_one_real_teardown_and_next_wake():
     session, sdk, link = await setup()
     session.idle_timeout_s = 0.01
     session.brain.timeout_s = 0.1
     try:
         await propose_end(session, sdk)
         await emit(sdk, created("r2"), terminal("r2"))
+        await asyncio.wait_for(session._live_provider_closed.wait(), 1)
+        assert session._active and link.rearm_calls == 0
+        session._on_media_state(False, session._playback_lease.playback_id)
         await until(lambda: not session._active and link.rearm_calls == 1)
         await asyncio.wait_for(asyncio.shield(session._close_task), 1)
         assert not session._teardown_incomplete
@@ -199,5 +211,63 @@ async def test_semantic_expiry_runs_one_real_teardown_and_next_wake():
         assert link.rearm_calls == 1
         await asyncio.sleep(0.15)
         assert session._active
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_real_sdk_first_audio_after_semantic_close_reaches_exact_physical_drain():
+    """Actual SDK wire parsing proves preservation, not provider or room acceptance."""
+    pcm = b"\x01\x00" * 1920
+
+    class TailAfterCloseSDK(DiagnosticWireSDK):
+        async def send(self, data):
+            event = json.loads(data)
+            if event["type"] == "session.close":
+                self.wire.append(event)
+                await self.incoming.put(
+                    {
+                        "type": "session.output_audio.delta",
+                        "event_id": "terminal-tail",
+                        "delta": base64.b64encode(pcm).decode(),
+                    }
+                )
+                await self.finalize()
+            else:
+                await super().send(data)
+
+    session, _, _, _, link = build()
+    sdk = TailAfterCloseSDK()
+    session.live_brain.client_factory = sdk.factory
+    session.live_brain.timeout_s = 2
+    session.idle_timeout_s = 3600
+    await session.start()
+    try:
+        await session.wake()
+        assert session._live_output_bytes == 0 and session._playback_lease is None
+        await emit(sdk, created(), call(name="end_conversation", arguments="{}"), terminal())
+        await until(lambda: any(event["type"] == "response.create" for event in sdk.wire))
+        receipt = session._live_end_receipt
+        continuation = created("r2")
+        continuation["client_event_id"] = next(
+            event["event_id"] for event in sdk.wire if event["type"] == "response.create"
+        )
+        await emit(sdk, continuation, terminal("r2"))
+        await until(lambda: session._live_provider_closed.is_set() and session._device_playing)
+        assert receipt.result() is True
+        assert session._live_finalizing and session._active
+        assert session._live_output_bytes == len(pcm)
+        stream = session.live_audio.claim(session._live_stream.id)
+        assert stream.finished and stream.buffered_bytes == len(pcm)
+        assert await stream.next_chunk() == pcm
+        assert await stream.next_chunk() is None
+        assert link.rearm_calls == 0
+        lease = session._playback_lease
+        session._on_media_state(False, "wrong-playback")
+        assert lease.phase == "started" and link.rearm_calls == 0
+        session._on_media_state(False, lease.playback_id)
+        await until(lambda: link.rearm_calls == 1)
+        assert not session._active and sdk.released
+        assert sum(event["type"] == "session.close" for event in sdk.wire) == 1
     finally:
         await session.aclose()

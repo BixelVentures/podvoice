@@ -156,22 +156,20 @@ async def until(predicate):
 
 
 def quiet_policy_fixture(session, monkeypatch):
-    """Isolate receipt/drain permutations from the separately tested activity gate."""
+    """Hold finalizer admission for deterministic receipt-race permutations.
+
+    This test-only pause exposes pre-admission races; native semantic closure has
+    no production idle/grace period. Its immediate path is tested without this fixture.
+    """
     from gatekeeper import thin
 
-    receipt_seen = None
-    started = None
+    finish = session._finish_live_conversation
 
-    def ready(*, semantic=False):
-        nonlocal receipt_seen, started
-        if not semantic:
-            return False
-        if receipt_seen is not session._live_end_receipt:
-            receipt_seen = session._live_end_receipt
-            started = asyncio.get_running_loop().time()
-        return asyncio.get_running_loop().time() - started >= thin.LIVE_CLOSE_GRACE_S
+    async def held_admission(epoch, receipt):
+        await asyncio.sleep(thin.LIVE_CLOSE_GRACE_S)
+        await finish(epoch, receipt)
 
-    monkeypatch.setattr(session, "_live_quiet_ready", ready)
+    monkeypatch.setattr(session, "_finish_live_conversation", held_admission)
 
 
 async def live_teardown_fixture(adapter):

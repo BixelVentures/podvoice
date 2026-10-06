@@ -1,3 +1,9 @@
+## 1.13.116
+
+- Alpha: do not repeat the four-second UI idle interval after the acknowledged yellow closing phase. At its deadline, require fresh consumed-zero output from the exact admitted native source; stale or provisional measurements still cannot close.
+- Semantic farewell no longer waits for the UI inactivity interval: settle the model’s completed tool flow, finalize the provider while receiving its last audio, then drain exact physical playback before rearming.
+- Preserve new-work/Stop cancellation and next-wake ownership. Firmware and prompts are unchanged.
+
 ## 1.13.115
 
 - Fix the Voice PE Alpha answer-played prerequisite: retain the exact nonzero announcement frame boundary and accept its later consumption from fresh, matching native observations. Mixer production and physical consumption need not occur in the same measurement.

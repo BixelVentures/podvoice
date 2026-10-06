@@ -3903,6 +3903,7 @@ class ThinSession:
         native_started = False
         committed = False
         source_nonce = source_epoch = None
+        quiet_owner: tuple | None = None
 
         def current() -> bool:
             return bool(
@@ -3920,6 +3921,9 @@ class ThinSession:
                 and getattr(self.voicepe, "audio_generation", None) == audio_generation
                 and self.brain.backend_sequence == backend_sequence
                 and self._live_close_output_revision == output_revision
+                and (
+                    quiet_owner is None or self._live_idle_window.proof_owner in (None, quiet_owner)
+                )
                 and (
                     source_epoch is None
                     or (
@@ -3948,6 +3952,9 @@ class ThinSession:
             if not current() or not self._live_quiet_ready():
                 return
             source_nonce, source_epoch = nonce, source.capture_epoch
+            quiet_owner = self._live_idle_window.proof_owner
+            if quiet_owner is None:
+                return
             ack_deadline = asyncio.get_running_loop().time() + LIVE_IDLE_PRECLOSE_S
             native_started = True
             async with asyncio.timeout_at(ack_deadline):
@@ -3983,17 +3990,17 @@ class ThinSession:
                 deadline = self._live_idle_preclose_deadline
                 if deadline is None:
                     return
-                if asyncio.get_running_loop().time() >= deadline and self._live_quiet_ready():
-                    self._trace_event("live_idle_preclose_elapsed", token=token)
-                    # Finalization becomes the sole owner after this currentness
-                    # check. A late event may cancel idle observation, but must not
-                    # cancel provider close or its exact physical drain.
-                    self._live_idle_preclose_task = None
-                    self._live_idle_preclose_deadline = None
-                    self._live_idle_preclose_token += 1
-                    self._goodbye = task  # Stop/teardown joins this finalizer owner.
-                    committed = True
-                    await self._finalize_live_conversation(epoch, reason="app-idle-timeout")
+                if (
+                    asyncio.get_running_loop().time() >= deadline
+                    and self._live_preclose_quiet_current(quiet_owner)
+                ):
+                    # The finalizer repeats this exact admission without an await
+                    # and transfers this task before its first provider suspension.
+                    await self._finalize_live_conversation(
+                        epoch,
+                        reason="app-idle-timeout",
+                        idle_preclose=(token, quiet_owner),
+                    )
                     return
                 await asyncio.sleep(HEARTBEAT_S)
         except asyncio.CancelledError:
@@ -4003,6 +4010,10 @@ class ThinSession:
                 self._trace_event("live_idle_preclose_failed", cause=type(exc).__name__)
                 self._request_close("live-idle-visible-boundary-unconfirmed", error_kind="device")
         finally:
+            # Only the finalizer's admitted owner may retire the native yellow
+            # capability without cancel. A repeated freshness check may fail even
+            # without a suspension; optimistic admission would leak that owner.
+            committed = self._live_finalizing and (self._goodbye is task or self._transport_closing)
             if (
                 native_started
                 and not committed
@@ -4083,57 +4094,18 @@ class ThinSession:
                 self._request_close("live-terminal-settlement-failed", error_kind="connection")
 
     async def _finish_live_conversation(self, epoch: float, receipt: asyncio.Future[bool]) -> None:
-        """Wait for the saved quiet policy, then finalize the same conversation.
+        """Semantic END settles backend work, then drains the provider and speaker.
 
-        Output quiet is a client inactivity policy, not a provider audio-done event.
-        Semantic intent is not vetoed by raw room noise; new accepted input still
-        revokes its receipt before the final no-await ownership check.
+        The UI inactivity period belongs only to app-timeout. Keep receiving final
+        audio until session.closed, finish the stream, and await the physical tail.
         """
         if self._live_close_judge is not None:
             await self._run_live_closing_attempt(epoch, receipt=receipt)
             return
-        generation = self.brain._connection_generation
-        self._live_end_window.reset()
         if self._live_webrtc:
-            # Browser render completion is still explicitly unconfirmed. Preserve
-            # its existing bounded policy until its own observer proves that edge.
+            # Parked browser drain remains explicitly unconfirmed, separately
+            # bounded, and cannot establish the native physical output boundary.
             await asyncio.sleep(LIVE_CLOSE_GRACE_S)
-        else:
-            try:
-                # A semantic intent must not wait forever for missing physical
-                # evidence. Expiry is an abnormal close, never proof of silence.
-                async with asyncio.timeout(self.idle_timeout_s + self.brain.timeout_s):
-                    while (
-                        self._active
-                        and self._epoch == epoch
-                        and self.brain._connection_generation == generation
-                        and not self._transport_closing
-                        and self._live_end_receipt is receipt
-                    ):
-                        if not self._semantic_receipt_current(receipt):
-                            self._ending_conversation = False
-                            return
-                        if self._live_quiet_ready(semantic=True):
-                            break
-                        await asyncio.sleep(HEARTBEAT_S)
-                    else:
-                        return
-            except TimeoutError:
-                if (
-                    self._active
-                    and self._epoch == epoch
-                    and self.brain._connection_generation == generation
-                    and not self._transport_closing
-                    and not self._live_finalizing
-                    and self._live_end_receipt is receipt
-                    and self._semantic_receipt_current(receipt)
-                ):
-                    self._request_close("live-semantic-drain-unconfirmed", error_kind="device")
-                return
-        if self.brain._connection_generation != generation or (
-            not self._live_webrtc and not self._live_quiet_ready(semantic=True)
-        ):
-            return
         await self._finalize_live_conversation(epoch, reason="model-close", receipt=receipt)
 
     async def _finalize_live_conversation(
@@ -4143,6 +4115,7 @@ class ThinSession:
         reason: str,
         receipt: asyncio.Future[bool] | None = None,
         checked_attempt: LiveClosingAttempt | None = None,
+        idle_preclose: tuple[int, tuple] | None = None,
     ) -> None:
         """One provider finalization and exact playback drain for quiet/semantic close."""
         if not self._active or self._epoch != epoch or self._transport_closing:
@@ -4158,6 +4131,26 @@ class ThinSession:
         if checked_attempt is not None:
             if not self._closing_attempt_current(checked_attempt, check_work=True):
                 return
+        elif idle_preclose is not None:
+            token, quiet_owner = idle_preclose
+            deadline = self._live_idle_preclose_deadline
+            task = asyncio.current_task()
+            if (
+                receipt is not None
+                or reason != "app-idle-timeout"
+                or task is None
+                or self._live_idle_preclose_task is not task
+                or self._live_idle_preclose_token != token
+                or deadline is None
+                or asyncio.get_running_loop().time() < deadline
+                or not self._live_preclose_quiet_current(quiet_owner)
+            ):
+                return
+            self._trace_event("live_idle_preclose_elapsed", token=token)
+            self._live_idle_preclose_task = None
+            self._live_idle_preclose_deadline = None
+            self._live_idle_preclose_token += 1
+            self._goodbye = task  # Stop/teardown joins the committed finalizer.
         elif receipt is None and not self._live_quiet_ready(semantic=False):
             return
         # No suspension between the final currentness check and close ownership.
@@ -6610,6 +6603,16 @@ class ThinSession:
         window = self._live_end_window if semantic else self._live_idle_window
         return window.ready(
             owner=self._live_quiet_owner(), now=time.monotonic(), idle_s=self.idle_timeout_s
+        )
+
+    def _live_preclose_quiet_current(self, owner: tuple) -> bool:
+        """Revalidate consumed quiet without repeating the pre-yellow UI period."""
+        observation = self._live_activity_latest
+        return bool(
+            observation is not None
+            and self._live_quiet_work_clear(semantic=False)
+            and self.voicepe.accepts_activity(observation)
+            and self._live_idle_window.current_quiet(owner=owner, now=time.monotonic())
         )
 
     def _trace_activity_observation(self, observation: dict) -> None:
