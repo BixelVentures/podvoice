@@ -55,6 +55,24 @@ dc97aa33507734b59b728a5603cf49cdadb1f61cf4128a798374bab051c68dd5. Denne sidste
 receipt er docs-only. Alle syv filer fryses nu, tooling i separat commit; én gyldig
 releasegate køres før PR/merge/publicering. Fysisk v2.0-accept er stadig afventende.
 
+Lead/root — isoleret testkorrektion før merge: PR97 head56eda47 havde grøn ARM64-
+bygning og lokal release140,0s, men CI37466783577 fejlede i Talk-regressionen
+`test_typed_first_http_create_timeout_keeps_socket_live_and_never_dispatches`.
+Den injicerede 100ms outer connect-deadline gav den forventede første timeout og
+korrekt cleanup; samme kunstige budget blev derefter beholdt i den raske næste
+provider-generation, som CI afviste. Hypotese: fejlindsprøjtningen lækker ind i
+recovery-beviset. Afgrænset testrettelse: gendan det oprindelige budget før næste
+generation og lad dens raske HTTP-create tage mere end100ms deterministisk.
+Alle negative første-generations-assertions og ingen-replay-assertions bevares.
+Runtime/deadlines ændres ikke. Målrettet Talk-test og frosset releasegate før nyt
+naturligt CI-flow; ingen manuel CI-genkørsel eller ny betalt providerprøve.
+
+Isoleringen bekræfter årsagsgrænsen: uden budgetgendannelse afvises næste raske
+HTTP-create efter200ms med præcis CI-fejlen rejected/submitted. Med gendannelse
+består alle syv Talk-WebRTC-integrationer. Dette er permanent test-fixture-recovery,
+ikke en produktrettelse eller skjult timeout-tuning. Det nye ottefilsdiff fryses;
+én releasegate og et nyt CI fra push er påkrævet før merge.
+
 Lead/root. Brugeren beder om en v2.0-milepælsrelease, som fastholder den fungerende
 funktion, og om at skubbe alle fund til repoet før hastighed/tweaks i v2.x. Kandidaten
 må kun ændre versionsmetadata og release-/beslutningsdokumentation. Runtime, prompt,
