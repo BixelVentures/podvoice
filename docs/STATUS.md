@@ -2,6 +2,49 @@
 
 ### 6/10 — aktiv beslutning: v2.0 frosset Alpha-baseline, derefter v2.x-hastighed
 
+**Udgivet og installeret 6/10 kl.15:19: v2.0.0, Alpha fortsat ON.** PR97 merged
+som main52f10a30295247c9e6455895babca2ab83f54ab8. Endeligt reviewed head
+821c12f4f3161140f010753df45487ee55ec2807: frozen releasegate104,0s PASS;
+PR-CI37468087094 og ARM64-build begge grønne. Uafhængigt Sol-review af den isolerede
+Talk-fixture-korrektion giver GO; whole diffSHA
+c9d734dee6018eb4e4e15bd14061f6c5effb783c3cd24496312f80659284c397. Ingen
+produktdeadline eller runtime ændret. Main-CI37468680515 har grøn lint/test og
+publish; merge-tree matcher den testede kandidat.
+
+Publiceret immutable OCI-index
+sha256:a5fe4984bd1d33794f9b5ce44f9efed9e0c2ca2d9a4734bfda34bd9f347f6a02,
+ARM64-manifest sha256:5134c82e1bef503d1e0c8e2cef9319ab2098449a6e9634bfdf03a102c909ff7e.
+HA viste nyeste2.0.0; opdatering blev kørt én gang med sikkerhedskopi markeret.
+HA viser nu Nuværende version2.0.0/Kører. Startup15:19:13 bekræfter version2.0.0,
+gitSHA52f10a3 og rootfs-v1:
+0ae257328c962b532b550095be2299e8de2c574a11293abfc98b5aa8a023a643.
+Voice PE er forbundet; firmwarekontrakt OK på uændret
+podvoice_build_113112_liveclosing1/ESPHome2026.6.2, kanal1/gain16, enhedsbekræftet
+Hey Chat+Hey Jarvis. Panelet viser v2.0.0, ingen åben samtale og wake afprøves;
+gemt Alpha-checkbox er ON og stilhedsværdi4s. Ingen ny firmwareflash, providerprøve,
+lydtest eller fysisk golden/10/10 udført. Installation er bekræftet, v2.0 fysisk
+accept er fortsat afventende; tidligere .116-feltundtagelse og åbne fund bevares.
+
+Brugerens seneste v2.x-præcisering er føjet til UI-epic95: integrér Alpha som den
+normale GPT-Live-oplevelse og konsolidér alle definitive valg. Når retningen er
+endeligt valgt, fjernes midlertidige Alpha/test-betegnelser og parallelle legacy-/
+ON/OFF-produktvalg fra daglig brug med eksplicit settingsmigration og dokumenteret
+rollback. Reelle brugerpræferencer og fejlsandhed bevares. Dette er backlog, ikke
+allerede udført UI-ændring i den frosne v2.0-runtime.
+
+De tre vedvarende v2.x-epics:
+
+1. [Hastighed94](https://github.com/BixelVentures/podvoice/issues/94): opstart,
+   meningsfulde svar og afslutning; fysisk måling før én flaskehals ad gangen.
+2. [UI95](https://github.com/BixelVentures/podvoice/issues/95): integrér Alpha og
+   definitive valg; fjern støj, nonsens og legacy, gør daglig brug enkel.
+3. [Stabilitet/funktioner96](https://github.com/BixelVentures/podvoice/issues/96):
+   konkrete logfejl, brugbar diagnose, recovery og resterende funktionshuller.
+
+Denne installationsreceipt er docs-only efter det frosne release-diff. Den ændrer
+ikke det publicerede artifact og kræver ingen ny provider-/fysisk kontrol.
+
+
 Implementeret kandidat: version2.0.0 er ens i pyproject/config/package; kun disse
 metadata og STATUS/CHANGELOG ændres i de shippede bits (oprindeligt fem filer). thin.py SHA6e5fe542 og live_idle.py
 SHA3611aea3 er uændrede; alle andre produktions-/firmwarebits matcher main. Det
