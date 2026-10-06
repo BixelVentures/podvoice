@@ -1,3 +1,11 @@
+## 2.0.0 — frozen Voice PE Alpha baseline
+
+- Establish the user-selected .116 conversation behavior as the baseline for the v2.x series. This release changes version metadata and documentation only; audio, closing logic, tools, prompts, settings and firmware are unchanged.
+- Preserve natural model ending, the saved inactivity window, the acknowledged two-second yellow closing phase, exact playback drain, Stop and wake rearm. Keep Alpha ON/OFF for comparison; retain installed firmware `podvoice_build_113112_liveclosing1`.
+- .116 field evidence: five sessions reached close/rearm, including one semantic ending and four timeouts. Yellow-to-rearm took 3.860–4.065 seconds. This is provenance for the baseline, not physical acceptance of a rebuilt 2.0.0 artifact.
+- Known limitations remain explicit: one observed clock question had no documented answer; all five traces contain diagnostic drops; the SDK math-follow-up validation returned 48 instead of 44. Browser/Talk closure, timer parity and full physical lifecycle acceptance remain open. This is an experimental Alpha baseline, not a stable/product-acceptance claim.
+- Carry the measured startup/closing breakdown and unresolved findings into `docs/STATUS.md`. The v2.x work will address the concrete answer/diagnostic gaps, then measure and optimize the largest removable delay while preserving lifecycle behavior.
+
 ## 1.13.116
 
 - Alpha: do not repeat the four-second UI idle interval after the acknowledged yellow closing phase. At its deadline, require fresh consumed-zero output from the exact admitted native source; stale or provisional measurements still cannot close.
