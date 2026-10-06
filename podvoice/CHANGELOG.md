@@ -1,3 +1,9 @@
+## 1.13.115
+
+- Fix the Voice PE Alpha answer-played prerequisite: retain the exact nonzero announcement frame boundary and accept its later consumption from fresh, matching native observations. Mixer production and physical consumption need not occur in the same measurement.
+- Preserve the saved inactivity timeout, acknowledged two-second closing phase, pending-work guards, deterministic Stop and physical drain/rearm. Stale observations cannot authorize the next session.
+- Add-on only: reuses installed .112 firmware. Alpha selection, models, prompts, gains, wake settings and transport remain unchanged. Room acceptance of automatic closure and next wake remains pending; browser/Talk closure is outside this repair.
+
 ## 1.13.114
 
 - GPT-Live remains the only audio interpreter; remove automatic use of the separate audio classifier. Keep natural semantic ending through the existing completed backend tool flow.

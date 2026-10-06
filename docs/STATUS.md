@@ -1,5 +1,165 @@
 # PodVoice-status — én aktuel sandhed
 
+### 6/10 — frisk fysisk feltfejl på installeret .114: timeout klar, ingen afslutning
+
+Lead/root, read-only gennemgang efter brugerens netop udførte prøve. Automatisk
+afslutning er **FAIL** på denne prøve; .114 er ikke fysisk godkendt. Talk forbliver
+parkeret. Ingen runtime-, settings-, firmware-, release- eller installationsændring
+udført ved denne gennemgang.
+
+Prøve 08:30:20–08:31:51, conversation_trace_id
+`20261006T083020-054-8bbb7d20`. Alle syv gemte tidslinjedele identificerer add-on
+1.13.114/rootfs-v1 `31212c77b6b0397c9490956726479ff46dda03745af5517d7758f1b47b57cbde`,
+firmware `podvoice_build_113112_liveclosing1`, contractOK, gpt-live-1 og gain16.
+Metadata angiver custom prompt SHA `0c041d38218a9362888e664d0e9715cdec1b8816f38636576ae76dadb57fea64`.
+De eksisterende automatiske data er læst via HA-panelet; ingen ny optagelse,
+lydopslag, extra AI eller brugerprøve er startet.
+
+Direkte evidens: sidste backendresponse er completed ved +53753ms. Ved +66437ms
+viser `live_idle_diagnostic` blocker=ready, quiet_s=4.943449891 og nul responses,
+batches, tools, continuation eller pending_audio. Ved +88903ms er samme vindue
+stadig ready, nu quiet_s=27.318666667. Ingen preclose-start/visible/elapsed findes
+i de gemte hændelser. Fysisk knap ved +89455ms giver close_requested(reason=stop)
+ved +89458ms; teardown_complete +90954ms; wake_rearm_recovered +91160ms. Stop til
+rearm-kvittering er 1.705s, ikke bevis for en efterfølgende fysisk wake.
+
+Årsagsgrænsen er flyttet fra rå baggrunds-VAD til **played-speech-låsen efter det
+færdige idle-vindue**. Sammenholdt med den shippede source ce8d730 (thin.py2272–2274,
+6395–6407): preclose kræver `_live_close_speech_played`, men flaget sættes kun hvis
+én observation både har nonzero output og consumed_frames >= DEN SAMME observations
+frame_end. 849 gemte native observationer omfatter 172 nonzero vinduer; **nul** af
+disse opfylder den samtidige consumed-test. Mixeren er foran den fysiske consumer.
+Sidste nonzero grænse frame_end=2635184 ved +60590ms er faktisk passeret af samme
+source_epoch/reply_token/playback ved +60797ms, consumed_frames=2636580; den nye
+observation har peak=0. Koden husker ikke den tidligere nonzero grænse og kan derfor
+aldrig anerkende dette forsinkede forbrugsbevis. Dette er en konkret, falsificerbar
+softwarehypotese; ingen målt rå-TV-veto eller ventende værktøj forklarer ready-perioden.
+
+Afgrænset næste rettelse, endnu IKKE implementeret: bevar en identitetsbundet
+nonzero framegrænse og anerkend faktisk forbrug i en senere frisk observation fra
+samme playback/source/provider/native generation. Genbrug eksisterende ejerskab;
+undlad at fjerne playback-bevis eller forlænge UI4s. Ny lyd/arbejde skal fortsat
+afbryde idle/preclose, og stale/reset/Stop må aldrig overføre grænsen til næste wake.
+Berørt kæde: providerlyd → FLAC → announcement-mix → faktisk consumer → played-
+speech-bevis → UI4s → korreleret LED-TX/2s → provider-close/drain → teardown/rearm.
+Planlagt regression skal reproducere mixed-nonzero → senere consumed-zero, også
+over generation/reset, og bevise manglende/forældet consumption fail-closed.
+Uafhængigt review, relevante adapter/gates og ny fysisk prøve kræves før rettelsen
+kan godkendes. Ingen ændret fortolker, prompt, transport, gain, VAD eller timeout.
+
+Bevisbegrænsning: alle syv lydtraces er incomplete med tabte diagnosekommandoer;
+der er ingen rumoptagelse. Hændelserne beviser ready-vindue og Stop-kæde, ikke enhver
+lydgrænse eller fravær af alle mulige events. Bevarede private, reducerede tidslinjer
+og indholdsfri driftsdiagnostik: `/private/tmp/pv114-field-20261006/`, mode0600.
+UI viser også ufuldstændig diagnose. Recording-tab er et særskilt observeret hul,
+ikke i sig selv årsag til runtime-fejlen.
+
+
+### 6/10 — aktiv rettelse: senere fysisk forbrug åbner app-timeout
+
+Lead/root. Brugeren har nu bedt om rettelse, udgivelse og installation. Base er
+main ce8d730 (.114), frisk usynkroniseret clone. Feltbeviset ovenfor er årsagen;
+.114 er installeret, men fejlede automatisk afslutning. Ingen accept arves.
+
+Hypotese: huskes en valid nonzero announcement-framegrænse under eksakt native/
+provider/session/playback-identitet, kan en senere frisk og fremadgående måling
+bevise forbrug uden samtidig nonzero output. Den fælles Thin-ejer bevarer alle
+øvrige guards: faktisk playback-start, nyt output/arbejde afbryder ro, UI4s,
+korreleret LED/2s, provider-close, fysisk dræn, Stop og eksakt rearm. Grænsen må
+ikke krydse stale/duplicate/out-of-order, reset, providerrotation eller næste wake.
+Kæde/invarianter er som ovenfor; ingen ny fortolker eller lifecycle-ejer.
+
+Ikke-mål: prompt, VAD, gains, firmware, transport, tools, skjulte timeoutændringer,
+Talk-afslutning eller større omskrivning. Firmware .112 ABI genbruges. Tilføj kun
+manglende eksisterende diagnosefelter for forbrugsbeviset, hvis nødvendigt.
+
+Regressionsplan: mixed-nonzero med consumer bagud → frisk zero med consumer over
+samme grænse → UI4s trods TV → LED-ACK/2s → provider-close → eksakt fysisk finish →
+én teardown/rearm → ny wake. Manglende consumption, gamle kilder/generationer og
+forsinkede callbacks afvises; ny lyd/arbejde/Stop bevarer eksisterende annullering.
+Test relevant native-adapter, tidligere close-races og Talk/OFF. Uafhængigt
+adversarial review før diff-freeze, fast og én fuld releasegate. Ingen ændret
+providersemantik, derfor ingen ny betalt promptprøve. Grøn main-artifact installeres
+med præcis runtime-identitet; fysisk golden og 10/10 er fortsat afventende.
+Rollback er .114/.112, ikke en fysisk godkendt løsning. Stop-the-line ved uklart
+identitets-/consumption-bevis eller uløst alvorlig reviewfinding.
+
+Implementeret .115-kandidat: ThinSession husker den eksakte nonzero framegrænse
+under session/provider/native/playback/source/rate-identitet og anerkender senere
+frisk fremadgående consumption. En bevaret provisional take()-måling må kun bevise
+forbrug af den kendte grænse; eksisterende quiet-vindue giver den aldrig lukkeautoritet.
+Nyt nonzero native output annullerer preclose allerede mens det er ventende.
+Reset fjerner pending-grænsen; wake/rotation og ownerændring fjerner played-bevis.
+Indholdsfri diagnose viser nu played-lås og pending framegrænse. Prompt, firmware,
+UI4s/2s, providersdk, tools og transport er uændrede.
+
+Ruff/format og mypy55 består. Første fast blev afbrudt på kold typekontrol; isolering
+fandt seks konkrete Any/None-typefejl, som er rettet med eksplicitte None-guards.
+Anden fast havde grøn typekontrol og 700/701 integrationscases; paneltesten genbrugte
+index1 fra den ændrede realistiske played_answer-fixture og gentog observationen.
+Fixtureforløbet fortsætter nu fra index2 uden ændret produktadfærd. 83 målrettede
+causal/preclose/panel/idle/nativeadapter-cases består på det aktuelle diff. Unitdelen
+fra den afbrudte fast arves ikke. Uafhængig review og én fuld frossen releasegate
+udestod på dette trin; ingen PR/merge/release/install af .115 endnu.
+
+Uafhængig adversarial review /root/consumption_review giver software source-GO uden
+blokerende findings. Faktiske 849 feltobservationer blev gennemspillet via den reelle
+VoicePELink-parser: 813 same-playback-målinger accepteret, gammel regel 0 hits,
+ny regel første played-lås ved +5977ms/seq56 på zero og gyldig ved seq587. Dette er
+forensisk softwarebevis, ikke ny fysisk accept. Frozen runtime SHA256
+cb5855667ed984bfeb5c72394e8f1a727d78a184a7459e1ed5006bbcd1506784;
+reviewet runtime/testpatch SHA256
+44c305748bc3e544ee7f35aed71e741367fcc7167b2c44ad10a57ed02ce5d5e1.
+Det samlede diff fryses nu til én fuld releasegate. Fysisk closure/golden/10/10
+for .115 er stadig afventende. Talk forbliver parkeret.
+
+Den ene fulde releasekørsel består ruff/format, mypy55, candidate-scope
+(physical_output) og alle 701 integrationstests. Unit-stage når 92%, men rammer
+240s-grænsen med én fejl; målrettet isolering beviser versionsmismatch i
+pyproject.toml (.114 mod add-on/runtime .115). Kun udgivelsesmetadata rettes til
+.115; runtime/testpatch er byteidentisk med det uafhængigt reviewede diff.
+Kun den ugyldige unit-stage færdiggøres; de grønne stages gentages ikke.
+Unit-isoleringen fandt desuden et separat, gentaget testtiming-hul i den historiske
+idle-check-probe: 2s wall-clock tillod kun 20 af de 26 scripted opening-frames
+under host-load, hvorefter testen korrekt gav UNKNOWN. En kold SDK-import blokkerede
+9,56s i isoleringen. Dette er ikke .115 runtime-evidens. Permanent test-only
+rettelse styrer probe-pacing deterministisk og bevarer rigtig installeret SDK,
+wire-parent/settlement/negative assertions og separat bounded hang-guard.
+Produktionsprobe, provider-timeouts og den reviewede runtime ændres ikke.
+
+Gentaget unit-stage procesforsinkelse (240s, ca.56%, ingen registreret testfejl)
+udløser en permanent tooling-regression efter agentkontrakten. Kun lokal testkørsel
+opdeles i deterministiske sekventielle, begrænsede grupper med præcis én dækning af
+alle unitmoduler, fail-fast og child-cleanup. Ingen produktionsdeadline eller test
+fjernes. scripts/dev_cycle.py og dens egne regressioner ændres separat fra den
+bytefrosne lydrettelse; lead gennemgår workflowdiffet før publicering. Resterende
+unitdækning gennemføres med den nye faste mekanisme, ikke endnu en manuel tidsgrænse.
+
+Lead har gennemgået det separate toolingdiff: alle 97 unitmoduler dækkes præcis én
+gang i fire sekventielle subprocesses, hver med den hidtidige 240s releasegrænse;
+fejl afbryder næste gruppe, timeout og worker-SIGTERM rydder aktive child-grupper.
+49 målrettede workflowtests og 46 SDK-probetests består; Ruff/format/diffcheck grøn.
+Frozen dev_cycle SHA256 d882afa7eba24031450f8b7b6722d637f3e68c77de86242eb3d9d1b861556130;
+workflowtest c3fc840b23b5e755d517f0cced84b79f68909e8439a41bdd360852380e942e42;
+SDK-test 786012f576975c67ea205f334bda603d54a4585db10a5c1b5ba6895a89280d5b.
+Ny candidate-scope består stadig kun physical_output. Den ugyldige unit-stage
+færdiggøres med den faste worker; draft-PR/eksakt CI må køre parallelt, men merge
+og installation afventer begge grønne kontroller. Fysisk .115-accept afventes.
+
+Unit-worker gruppe1 består. Gruppe2 fandt en test-only race i den historiske
+live_alpha_probe Stop-send-regression: dens 5ms instruction-timeout nåede at
+udløbe samtidig med Stop-observeren. Stop-send-casen har nu ingen send-deadline,
+så testen beviser at Stop alene afbryder pending send; den separate timeout-send-
+case beholder 5ms og den ydre test-hang-guard bevares. Alle seks lifetime-cases
+består målrettet. Produktionsprobe/runtime er uændret. Unit-stage er fortsat
+ikke samlet grøn, og draft-PR92 forbliver draft indtil den præcise source består.
+
+
+
+
+
+
+
 ## 1/10 — aktiv beslutning: én GPT-Live, appstyret inaktivitet
 
 Lead/root. Brugeren har afvist en ekstra AI-vurdering. Den åbne GPT-Live ejer
@@ -145,9 +305,10 @@ Mypy/unit/integration gennemførte ikke, og deres resultater arves ikke. Det nye
 frosne diff genåbner admission og de nødvendige downstream checks. Ingen runtime-
 ændring er begrundet af gatefejlen.
 
-<!-- candidate-scope-coupling
+Historisk scope-godkendelse for .114 (ikke en aktiv admission for .115):
+```json
 {"base_tip": "a8cbe5117ad67ec6368e4a292df8263ffb4b0884", "domains": ["realtime_semantics", "rearm"], "fingerprint": "c6d821bd1c2d3df078d201a41100c83bf88e53372631fcdbd74d1dc0245853e3", "merge_base": "a8cbe5117ad67ec6368e4a292df8263ffb4b0884", "rationale": "One reviewed Live interpretation/native app-timeout close chain: exclusive semantic END, correlated visible LED phase, exact cancellation cleanup joined before rearm. No firmware, VAD, transport or HA-tool tuning.", "reviewer": "independent agent /root/ui_live_status_map", "version": 1}
--->
+```
 
 Den ene gennemførte fulde releasegate er grøn på fa78bc17b030494320df6593dedc3722c5812665:
 exactcoupling/Ruff/format/Mypy55, integration64,80s, unit118,44s; samlet118,8s.

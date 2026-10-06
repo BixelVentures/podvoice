@@ -91,6 +91,8 @@ async def test_shadow_failure_cannot_reset_real_window_or_block_idle(monkeypatch
 
 def deliver(session, link, clock, index, *, empty=False, input_state="quiet"):
     row = observation(index, empty=empty)
+    if session._playback_lease is not None:
+        row["playback_id"] = session._playback_lease.playback_id
     row["input"]["state"] = input_state
     clock[0] = row["received_monotonic"]
     link.latest = row
@@ -234,12 +236,14 @@ async def test_empty_native_snapshot_cannot_trigger_preclose_but_continuation_re
             for i in range(40):
                 deliver(session, link, clock, i)
             empty = empty_snapshot(40, observation(39))
+            empty["playback_id"] = session._playback_lease.playback_id
             clock[0] = empty["received_monotonic"]
             link.latest = empty
             link.on_activity(empty)
             assert not session._live_quiet_ready()
             assert session._live_idle_preclose_task is None
             continuation = observation(41)
+            continuation["playback_id"] = session._playback_lease.playback_id
             continuation["output"].update(frame_begin=192000, sample_count=9600)
             clock[0] = continuation["received_monotonic"]
             link.latest = continuation

@@ -29,7 +29,7 @@ async def test_native_panel_explains_tv_and_measured_quiet_without_changing_owne
                 SimpleNamespace(monotonic=lambda: clock[0], time=lambda: 1000.0),
             )
             await played_answer(session, link, clock)
-            for i in range(1, 32):
+            for i in range(2, 32):
                 deliver(session, link, clock, i)
             owner, deadline, revision = (
                 session._live_quiet_owner(),
