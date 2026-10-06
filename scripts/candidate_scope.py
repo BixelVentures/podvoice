@@ -248,6 +248,34 @@ def classify_candidate(changes: Sequence[str], production_diff: str) -> Candidat
             removed.append(line[1:])
         elif line.startswith("+"):
             added.append(line[1:])
+    # Only actual hunk contents can establish the metadata exemption. Added
+    # unary expressions such as +++call() are code, not diff file headers.
+    version_removed: list[str] = []
+    version_added: list[str] = []
+    in_hunk = False
+    valid_version_hunks = True
+    for line in production_diff.split("\n"):
+        if line.startswith("diff --git "):
+            in_hunk = False
+        elif line.startswith("@@ "):
+            in_hunk = True
+        elif in_hunk and line.startswith("-"):
+            version_removed.append(line[1:])
+        elif in_hunk and line.startswith("+"):
+            version_added.append(line[1:])
+        elif in_hunk and line not in ("", "\\ No newline at end of file"):
+            # Repository inspection uses unified=0. A context/unprefixed line
+            # can conceal code after universal-newline conversion of bare CR.
+            valid_version_hunks = False
+    version_assignment = re.compile(r"__version__\s*=\s*(['\"])\d+\.\d+\.\d+\1")
+    if (
+        production == ("podvoice/gatekeeper/__init__.py",)
+        and valid_version_hunks
+        and len(version_removed) == len(version_added) == 1
+        and version_assignment.fullmatch(version_removed[0])
+        and version_assignment.fullmatch(version_added[0])
+    ):
+        return CandidateScope("", "", (), tests, (), True, "version metadata only")
     old_code = "\n".join(line for line in removed if not line.lstrip().startswith(("#", "//")))
     new_code = "\n".join(line for line in added if not line.lstrip().startswith(("#", "//")))
     if len(old_code) + len(new_code) > _MAX_FINE_DIFF_CHARS:
@@ -294,14 +322,17 @@ def _git(root: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", "-c", "core.quotepath=false", *args],
         cwd=root,
-        text=True,
         capture_output=True,
         timeout=20,
         check=False,
     )
     if result.returncode:
-        raise RuntimeError(result.stderr.strip() or f"git {' '.join(args)} failed")
-    return result.stdout
+        raise RuntimeError(
+            result.stderr.decode("utf-8", errors="replace").strip()
+            or f"git {' '.join(args)} failed"
+        )
+    # CR inside an added Git line must never become a fabricated diff boundary.
+    return result.stdout.decode("utf-8")
 
 
 def production_fingerprint(root: Path, base_tip: str, merge_base: str, paths: Sequence[str]) -> str:
