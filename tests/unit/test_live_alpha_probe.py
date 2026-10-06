@@ -716,7 +716,11 @@ async def test_optional_instruction_lifetime_preserves_session_and_closes_pendin
     monkeypatch.setattr(
         probe_module, "INSTRUCTION_PROBE_DELAY_S", 0.5 if scenario.endswith("sleep") else 0.002
     )
-    monkeypatch.setattr(probe_module, "INSTRUCTION_PROBE_TIMEOUT_S", 0.005)
+    # Stop must cancel the pending send without assistance from its deadline.
+    # A 5ms wall-clock deadline can expire before the stop watcher under load.
+    monkeypatch.setattr(
+        probe_module, "INSTRUCTION_PROBE_TIMEOUT_S", None if scenario == "stop_send" else 0.005
+    )
     monkeypatch.setattr(probe_module.sys, "stdin", SimpleNamespace(fileno=lambda: 0))
     monkeypatch.setattr(probe_module.sys, "stdout", SimpleNamespace(fileno=lambda: 1))
 

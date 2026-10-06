@@ -146,6 +146,15 @@ Ny candidate-scope består stadig kun physical_output. Den ugyldige unit-stage
 færdiggøres med den faste worker; draft-PR/eksakt CI må køre parallelt, men merge
 og installation afventer begge grønne kontroller. Fysisk .115-accept afventes.
 
+Unit-worker gruppe1 består. Gruppe2 fandt en test-only race i den historiske
+live_alpha_probe Stop-send-regression: dens 5ms instruction-timeout nåede at
+udløbe samtidig med Stop-observeren. Stop-send-casen har nu ingen send-deadline,
+så testen beviser at Stop alene afbryder pending send; den separate timeout-send-
+case beholder 5ms og den ydre test-hang-guard bevares. Alle seks lifetime-cases
+består målrettet. Produktionsprobe/runtime er uændret. Unit-stage er fortsat
+ikke samlet grøn, og draft-PR92 forbliver draft indtil den præcise source består.
+
+
 
 
 
