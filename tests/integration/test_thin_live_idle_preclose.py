@@ -496,7 +496,8 @@ async def test_semantic_end_remains_model_owned_during_tv_and_cancels_app_preclo
                     end_ms=100,
                 )
             )
-            assert session.brain.closure_receipt_current(receipt)
+            assert session._live_finalizing  # END already committed without UI idle delay.
+            assert sdk.session.close.await_count == 1
             assert session._ending_conversation
             assert sdk.session.instructions.append.await_count == 0
     finally:
@@ -858,4 +859,162 @@ async def test_unjoined_led_cancel_keeps_readiness_incomplete(monkeypatch):
             await asyncio.wait_for(asyncio.gather(old, return_exceptions=True), 2)
     finally:
         release.set()
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_oct6_yellow_measurement_hole_does_not_repeat_admitted_ui_four_seconds(monkeypatch):
+    session, sdk, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            patch.setattr(thin_module, "LIVE_IDLE_PRECLOSE_S", 0.05)
+            patch.setattr(thin_module, "HEARTBEAT_S", 0.01)
+            await observed_preclose(session, sdk, link, clock)
+            task = session._live_idle_preclose_task
+            owner = session._live_idle_window.proof_owner
+            row = observation(43)
+            row["playback_id"] = session._playback_lease.playback_id
+            row["output"].update(
+                valid=False,
+                sample_count=0,
+                frame_begin=43 * 4800,
+                frame_end=43 * 4800,
+                consumed_frames=43 * 4800,
+            )
+            clock[0] = row["received_monotonic"]
+            link.latest = row
+            link.on_activity(row)
+            assert not session._live_preclose_quiet_current(owner)
+            # An elapsed deadline and count0 alone cannot authorize finalization.
+            session._live_idle_preclose_deadline = asyncio.get_running_loop().time() - 1
+            await asyncio.sleep(0.025)
+            assert sdk.session.close.await_count == 0
+            assert session._live_idle_preclose_task is task
+            deliver(session, link, clock, 44)
+            deliver(session, link, clock, 45)
+            assert not session._live_quiet_ready()  # Only 0.2s since measurement hole.
+            assert session._live_preclose_quiet_current(owner)
+            await until(lambda: sdk.session.close.await_count == 1)
+            assert session._goodbye is task
+            assert link.rearm_calls == 0 and session._active
+            lease = session._playback_lease
+            session._on_media_state(False, "old-playback")
+            assert link.rearm_calls == 0
+            session._on_media_state(False, lease.playback_id)
+            await until(lambda: not session._active and link.rearm_calls == 1)
+            assert session._trace_reason == "app-idle-timeout"
+            await session.wake()
+            assert session._active and session._live_idle_preclose_task is None
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["source_epoch", "native_reset", "reply_token"])
+async def test_visible_yellow_capability_cannot_cross_native_proof_identity(monkeypatch, change):
+    session, sdk, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            patch.setattr(thin_module, "LIVE_IDLE_PRECLOSE_S", 0.05)
+            patch.setattr(thin_module, "HEARTBEAT_S", 0.01)
+            await observed_preclose(session, sdk, link, clock)
+            owner = session._live_idle_window.proof_owner
+            task = session._live_idle_preclose_task
+            row = observation(43)
+            row["playback_id"] = session._playback_lease.playback_id
+            if change == "source_epoch":
+                row["output"][change] += 1
+            elif change == "reply_token":
+                row[change] = "c" * 32
+            else:
+                row[change] += 1
+            clock[0] = row["received_monotonic"]
+            link.latest = row
+            link.on_activity(row)
+            assert not session._live_preclose_quiet_current(owner)
+            await until(lambda: task.done())
+            assert sdk.session.close.await_count == 0
+            assert link.cancel_live_closing.await_count == 1
+            assert session._active
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_direct_or_wrong_preclose_capability_cannot_bypass_ui_idle(monkeypatch):
+    session, sdk, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            install_led(link)
+            await played_answer(session, link, clock)
+            deliver(session, link, clock, 2)
+            owner = session._live_idle_window.proof_owner
+            for capability in (None, (session._live_idle_preclose_token, owner)):
+                await session._finalize_live_conversation(
+                    session._epoch, reason="app-idle-timeout", idle_preclose=capability
+                )
+            assert not session._live_finalizing
+            assert sdk.session.close.await_count == 0
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_repeated_freshness_check_failure_cancels_exact_yellow_owner(monkeypatch):
+    session, sdk, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            patch.setattr(thin_module, "LIVE_IDLE_PRECLOSE_S", 0.05)
+            patch.setattr(thin_module, "HEARTBEAT_S", 0.01)
+            await observed_preclose(session, sdk, link, clock)
+            original = session._live_preclose_quiet_current
+            crossed = False
+
+            def cross_freshness(owner):
+                nonlocal crossed
+                result = original(owner)
+                if result and not crossed:
+                    crossed = True
+                    clock[0] += 0.201
+                return result
+
+            patch.setattr(session, "_live_preclose_quiet_current", cross_freshness)
+            session._live_idle_preclose_deadline = asyncio.get_running_loop().time() - 1
+            await until(lambda: link.cancel_live_closing.await_count == 1)
+            assert crossed and sdk.session.close.await_count == 0
+            assert not session._live_finalizing and session._active
+            assert session._live_idle_preclose_task is None
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("pending", ["backend", "audio"])
+async def test_queued_provider_work_blocks_elapsed_yellow_admission(monkeypatch, pending):
+    session, sdk, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            await observed_preclose(session, sdk, link, clock)
+            owner = session._live_idle_window.proof_owner
+            generation = session.brain._connection_generation
+            event = (
+                LiveBackendStarted(generation=generation, response_id="queued", delegation_id="d")
+                if pending == "backend"
+                else LiveAudioChunk(generation=generation, pcm=b"\x01\x00" * 1920)
+            )
+            session.brain._queue.put_nowait(event)
+            assert not session._live_preclose_quiet_current(owner)
+            assert sdk.session.close.await_count == 0
+            assert session.brain._queue.get_nowait() is event
+    finally:
         await session.aclose()

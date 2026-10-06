@@ -223,7 +223,7 @@ async def until(predicate):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["positive", "late-input", "mixed-batch"])
-async def test_genuine_thin_receipt_does_not_end_observation_and_new_work_revokes_it(
+async def test_held_semantic_admission_keeps_observation_and_new_work_revokes_receipt(
     tmp_path, synthetic_fixtures, monkeypatch, mode
 ):
     manifest, fixtures = synthetic_fixtures
@@ -231,6 +231,23 @@ async def test_genuine_thin_receipt_does_not_end_observation_and_new_work_revoke
     sdk = SDK()
     monkeypatch.setattr(module.rig, "INPUT_DELAY_S", 0)
     monkeypatch.setattr(module, "OBSERVATION_S", 0.7)
+    admission_held = asyncio.Event()
+    if mode == "positive":
+        finalize = module.rig.ThinSession._finalize_live_conversation
+        admission_release = asyncio.Event()
+
+        async def hold_semantic_admission(session, epoch, **kwargs):
+            if kwargs.get("receipt") is not None:
+                # Hold only this harness oracle's observation boundary. Native
+                # runtime now finalizes immediately after a current END receipt;
+                # cleanup must cancel this explicit hold, never invent an end.
+                admission_held.set()
+                await admission_release.wait()
+            await finalize(session, epoch, **kwargs)
+
+        monkeypatch.setattr(
+            module.rig.ThinSession, "_finalize_live_conversation", hold_semantic_admission
+        )
     trial = asyncio.create_task(
         module.evaluate(
             "not-a-key",
@@ -283,7 +300,7 @@ async def test_genuine_thin_receipt_does_not_end_observation_and_new_work_revoke
         for event in (created("r2"), terminal("r2")):
             await sdk.incoming.put(event)
         if mode == "positive":
-            await until(lambda: seen("semantic_end_settled"))
+            await until(lambda: admission_held.is_set() and seen("semantic_end_settled"))
             assert not trial.done()
             assert not seen("harness_cleanup_started")
             sdk.session.close.assert_not_awaited()

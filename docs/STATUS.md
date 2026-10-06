@@ -154,11 +154,80 @@ case beholder 5ms og den ydre test-hang-guard bevares. Alle seks lifetime-cases
 består målrettet. Produktionsprobe/runtime er uændret. Unit-stage er fortsat
 ikke samlet grøn, og draft-PR92 forbliver draft indtil den præcise source består.
 
+Endeligt software-resultat: alle fire faste unitgrupper består (samtlige 2711
+unitcases); 701 integrationcases består; ruff/format, mypy55 og final candidate-
+scope physical_output består. Den ene releasekørsels ugyldige unit-stage er
+færdiggjort efter de afgrænsede test/toolingrettelser; øvrige grønne stages er
+ikke blindt gentaget. PR92 head29ab381d8314032a6eb3dbbc7ba34f1dd9e67c32 har
+fuld lint/test og ARM64-build success (run37434982892). Uafhængigt runtime-review
+og leadens workflowreview er afsluttet uden blokerende findings.
+PR92 er merget som 9a1d7f1f071c006eba34b5c05e745b526e058265; lokalt/remotely
+verificeret tree ec92e83de0811e9d53361c030ae708f7f0de16e6 er byteidentisk.
+Main-push run37435550611 publicerer .115 med normale fulde checks, ingen manuel
+CI-genkørsel. Installation afventedes på dette trin; resultat følger nedenfor.
+
+Publicering og installation afsluttet 6/10: main-run37435550611 består fuld
+lint/test og publish-addon. Publiceret ARM64-image 1.13.115 har digest
+sha256:9f11dd06265c11e867bf62ba13d021fd5b155bf1e555de27f1a889296aa9fb5a
+og revision 9a1d7f1f071c006eba34b5c05e745b526e058265. HA-opdateringsdialogen
+og app-info bekræfter installeret 1.13.115, nyeste 1.13.115 og Kører.
+Efter genstart viser PodVoice-panelet v1.13.115, Voice PE forbundet og ingen
+aktiv samtale. Alpha ON, UI4s og device-bekræftet Hey Chat + Hey Jarvis er
+kontrolleret; boot/watchdog/autoupdate er bevaret. Firmware .112 er uændret;
+den eksisterende native aktivitetskontrakt er tilstrækkelig til denne rettelse.
+Screenshotbevis: /private/tmp/pv115-installed.png. Den installerede rootfs-v1-
+hash er ikke aflæst; image-digest må ikke udlægges som denne hash.
+
+Fysisk gate-status for samme .115: frisk automatisk afslutning med TV,
+bevaret opfølgning, lydhale, LED-sluk og næste wake AFVENTER brugerens
+normale prøve. Ingen ny golden chain eller 10/10 er bevist. Software er
+rettet, reviewed, merget, publiceret og installeret; produktaccept er ikke
+opnået endnu. Automatiske logs er aktive. Talk forbliver parkeret; ingen
+nye lydklip/providerprøver eller settings-/firmwareændringer er startet.
 
 
 
 
 
+
+
+
+
+Fysisk feltresultat 6/10 efter installation af .115: brugeren bekræfter automatisk
+LED-sluk i første prøve, dernæst med Jørgen Leth/Simpson-baggrundstale og høj Dua Lipa.
+Alle tre gemte manifests bekræfter reason=app-idle-timeout, playback_finished,
+teardown_complete, wake_rearm_recovered og led_command IDLE/on=false. Det er
+appstyret inaktivitet, ikke modelsemantisk farvel. Samme .115/rootfs-v1
+`efa60669826c99d0989e6fe651a865e6ad9abbe9a53c1a7750567203f673d5d7`, firmware
+`podvoice_build_113112_liveclosing1`, contractOK, gain16, uændret custom prompt.
+
+Tider fra samme gemte at_ms-clock (gul er korreleret LED-TX-ACK, sluk er kommando):
+- 11:38 trace `20261006T113807-020-99782ffb`: gul +14634 → preclose elapsed +21508
+  (6.874s); providerterminal +22433; playback-finish +22905; rearm +23455;
+  sluk +23457. Gul→sluk 8.823s. Idle4s var allerede færdig før gul.
+- 11:39 trace `20261006T113934-135-58e7bbad`: gul +21888 → elapsed +23935
+  (2.047s); terminal +24978; playback-finish +25448; rearm +25870; sluk +25871.
+  Gul→sluk 3.983s. Brugerens baggrundstale-prøve afsluttede selv.
+- 11:41 trace `20261006T114105-249-fe85b4b8`: gul +43985 → elapsed +48801
+  (4.816s); terminal +49839; playback-finish +50335; rearm +50754; sluk +50756.
+  Gul→sluk 6.771s. Brugerens høje musik-prøve afsluttede selv, langsommere.
+  Ready4.01s ved +48756 samtidig med shadow VAD=active: rå tale har intet veto.
+
+Restfejl: den gule fase er ikke stabilt2s. I første prøve nulstilles quiet-count
+210→212 efter zero sample_count0/output_valid=false +16401, igen214 efter samme
+provisional-grænse +17123. Nyt fuldt4s quiet-vindue kræves af _live_quiet_ready()
+inde i den allerede synlige2s fase; count0 må ikke selv godkende stilhed, men denne
+kobling forlænger no-go-fasen. Musikprøven viser samme baseline-reset1102→1104
+under gul. Native/outputejerskab og ingen ny audible output skal undersøges samlet
+før en afgrænset ny rettelse; ikke forlænge/skjult forkorte UI4s eller fjerne
+fysisk dræn. Providerterminal tager ca0.923/1.042/1.037s, derefter faktisk stream-
+finish/rearm; denne nødvendige kæde forklarer også ~1.94s efter den gule grace.
+
+Bevisgrænse: manifests er incomplete med henholdsvis191/139/149 tabte kommandoer;
+ingen rumoptagelse eller komplette nye golden/10/10. Senere registrerede wakes
+beviser at næste samtale kunne åbne, ikke hele acceptmatrix. Intet runtime- eller
+settingsdiff er lavet ved denne read-only feltgennemgang. Reducerede private
+indholdsfrie uddrag: `/private/tmp/pv115-field-20261006/closure-summary.json`.
 
 ## 1/10 — aktiv beslutning: én GPT-Live, appstyret inaktivitet
 
@@ -11840,3 +11909,170 @@ duplex, barge-in og nye motorer er ikke en del af denne rækkefølge.
   "rationale": "One approved experimental Alpha closing chain: callback source provenance and physical LED TX acknowledgement to one ThinSession bounded audio/context decision and existing replay/finalizer/rearm. All five severe runtime findings fixed with causal regressions; exact final component083424 and actual ESP32-S3 compile match. Talk/OFF and authorization unchanged. Guard stays inactive until artifact-bound measured physical coverage; provider/room acceptance not inferred. Narrow tooling admission independently reviewed at patch1f9e6f4b with negative stale/deleted/extra-domain regressions. Complete fast gate and targeted tooling38 tests green; one frozen release gate follows."
 }
 -->
+
+### 6/10 — aktiv .116: gul fase gentager ikke det allerede opfyldte UI-vindue
+
+Lead/root. Base main 9a1d7f1 (.115), usynkroniseret dev-clone. Brugerens tre
+fysiske prøver lukkede automatisk: første, TV/baggrundstale og høj musik.
+Samme installerede rootfs-v1 efa60669826c99d0989e6fe651a865e6ad9abbe9a53c1a7750567203f673d5d7,
+firmware podvoice_build_113112_liveclosing1. Gul→sluk var 8.823/3.983/6.771s.
+Frisk, reduceret privat evidens: /private/tmp/pv115-field-20261006/closure-summary.json.
+Traces er incomplete; ingen rumoptagelse eller golden/10/10 udledes.
+
+Falsificerbar årsag: count0/provisional sourcehuller nulstiller quiet-ankeret
+EFTER korreleret gul LED-TX. _run_live_idle_preclose og finalizer kræver derefter
+igen hele UI4s, selv når den aftalte 2s fase er udløbet, og frisk valid fysisk
+forbrugt nuloutput fra samme kilde er tilbage. Første prøve genopbyggede 4s;
+TV-prøven uden dette hul holdt omtrent 2s. Providerterminal og fysisk drain/rearm
+lægger fortsat omtrent 2s til; denne kandidat lover ikke gul→sluk på 2s.
+
+Berørt kæde: mic/providerarbejde → announcement FLAC/mix → faktisk consumption
+→ UI4s admission → native LED-TX/2s → atomisk finalizer → providerterminal →
+streamfinish/fysisk drain → teardown/rearm/næste wake. Alpha-undtagelsen bevares;
+ThinSession ejer én lukning, firmware ejer fysiske events, modellen ejer semantik.
+Invarianter om identitet, friskhed, stale events, playback-sandhed og fysisk rearm
+bevares. Ingen ny fortolker, prompt, gain, VAD, firmware, transport eller UI-timeout.
+
+Plan: efter UI4-admission bindes den fulde native outputproof-identitet til gul.
+Ved udløbet kræves samme identitet og FRISK, VALID, faktisk forbrugt nuloutput
+uden endnu en 4s periode. Count0/stale/missing kan aldrig autorisere lukning.
+Ny lyd/backend/tekst/Stop/reset/source-skift ophæver den gamle tilladelse. Finalizer
+validerer præcis task/token/deadline uden await inden ownership-overførsel.
+Regressioner: feltets provisional→frisk same-owner zero; intet frisk bevis;
+source/reset/playback-skift; forkert/direct token; pending SDK-arbejde; gamle
+Stop/wake/LED-races, Talk/OFF. Uafhængig adversarial review før diff-freeze,
+relevante gates, én releasegate og grøn main-artifactinstallation. Rollback ved
+forkert generation, tidlig afklipning, stale adgang eller uløst alvorlig finding.
+
+Seneste to samtaler er også læst: 11:52:37 trace ...5eece6c7 slutter app-idle-timeout;
+11:53:07 trace ...9343b9ae slutter model-close, terminal backend settled +16229ms,
+providerclose +23863ms, playbackfinished +25286ms, rearm +25709ms. Ingen gul er
+forventet i semantic-close-vejen. Semantic-vejen bruger fortsat den gemte UI4s
+outputquiet-policy; ingen prompt/semantik ændres på gæt i denne timing-kandidat.
+Inputordene skal kontrolleres i historikken før sammenkædning med tak/farvel.
+Et spørgsmål påbegyndt før gul, men uden endnu observerbart providerarbejde eller
+output, er fortsat en fysisk accept-usikkerhed; komponenttests beviser ikke det.
+
+Første status ved beslutningsoprettelse: endnu ikke implementeret. .115 er fortsat
+den installerede feltbaseline. Faktiske resultater og kandidatstatus følger nedenfor.
+
+Scope præciseret af brugeren: ved semantisk farvel skal UI4s netop ikke bruges.
+Historik bekræfter 11:52 “Tak”→“Velbekomme” og 11:53 “Tak, farvel”→“Ja. Farvel.”
+Sidstnævnte HAR model-close, men gammel _finish_live_conversation nulstiller et
+nyt semantisk quiet-vindue og venter UI4 før providerclose. Modellen har besluttet
+END og den obligatoriske nulværktøjs-continuation er settled; app-inaktivitet er
+ikke længere den rette admission. Kæden udvides til semantic receipt → gennemført
+resultat/continuation → atomisk current-receipt → providerclose med receiver åben →
+session.closed → FLAC-streamfinish → eksakt fysisk playbackfinish → teardown/rearm.
+OpenAI live-conversations#usage-and-graceful-close er hentet: afslut nødvendig
+Responses-arbejde, send session.close, modtag ventende events indtil session.closed,
+og ryd lyd/transport op bagefter. Active Responses kan afslutte; queued arbejde
+annulleres. Ingen tale-/audio-done-event opfindes.
+
+Ny hypotese: en gyldig afsluttet semantisk receipt kan bruge eksisterende finalizer
+umiddelbart uden inaktivitetstæller; receiver/FLAC skal fortsat acceptere sidste
+providerlyd helt indtil terminalevent og fysisk hale skal afspilles før rearm.
+Talks ubekræftede browserdræn forbliver særskilt parkeret og får ingen ny påstand.
+Regressioner: semantisk luk uden native quiet-målinger/UI4, sen farvellyd efter
+close-request men før providerterminal, forkert playbackfinish, manglende terminal,
+Stop/ny generation, gammel receipt, værktøjer/continuation pending og queued input.
+Rigtig installeret SDK-protokol skal dækkes; fokuseret semantikpreflight/gate
+kontrolleres efter produktkontrakten. Fysisk afspilning af HELE farvel og ny wake
+kræves i kandidatprøven; software alene beviser ikke providerens talehale.
+
+Review fandt desuden en konkret P1-race i første .116-diff: monotonic kan krydse
+freshness-grænsen mellem to checks uden await. Optimistisk committed=True kunne
+springe native LED-cancel over ved afvist finalizer. Stop-the-line indtil permanent
+regression og korrekt admitted-ownership er på plads. Ingen release/install udført.
+
+
+Implementeret .116 (endnu ikke released/installeret): gul adgang bevarer hele native
+proof-owner og atomisk task/token/deadline; frisk, faktisk forbrugt nuloutput fra samme
+kilde kan revalidere ved deadline uden at gentage UI4s. Provisional/stale kan ikke
+lukke. P1-freshness-racen er rettet: native cancel springes kun over efter faktisk
+admitted finalizer-ejerskab. Permanent clock-crossing- og pending-SDK-regression er grøn.
+Semantisk, gyldig END/settled-continuation går direkte til eksisterende finalizer;
+receiver er åben indtil session.closed, så også første lyd efter session.close modtages.
+Eksakt fysisk lease-finish kræves fortsat før teardown/rearm. Talk/OFF er uændret.
+
+Uafhængig yellow_phase_review: ingen uløste source-P0/P1. Runtime SHA256 thin.py
+6e5fe54273b343d456a5169fa1455075a629a3e5da0de9da617a5c68f947a7d4, live_idle.py
+3611aea369b51f4f118490f1eb9ddb1f24607dece91081b1f7dca2f44278f04b.
+Permanent faktisk SDK-wire-regression er 17/17 grøn og injicerer første PCM EFTER
+close-request, terminal og forkert/rigtig fysisk finish. Harness unit-oraclet havde
+en gammel UI-venteforventning: positiv observation holder nu test-only admission
+udtrykkeligt; alle tre modes og oracle-assertions bevares, 23/23 grøn. Ingen runtime-
+patch er udledt af testens timeout. Samlet opdateret fastgate kører; releasegate ikke kørt.
+
+Rigtig SDK3.13.0/GPT-Live-protokolprobe: én syntetisk math→farvel-session med offentlig
+standardprompt, ikke installeret customprompt. Input “Tak, farvel”, output “Jeg afslutter
+samtalen.”, eksklusiv END, gennemført resultat og nulværktøjs-continuation, close+17.756s,
+terminal+18.557s og ren syntetisk rearm. Tre audio-deltas modtages efter close; 449280
+PCM-bytes, sidste nonzero +9192ms i providerlydaksen. Original oracletest fejlede ved
+ordret krav om “farvel”; originalresultat bevares, uafhængigt review klassificerer det
+som oracle-falsk-negativ, ikke en runtime-fejl. Reduceret privat evidens i
+/private/tmp/pv116-real-farewell-networkfixed-20261006/mechanical-observation.json.
+Ingen rum-/farvel-/wake-godkendelse udledes af nullsink eller transcript.
+
+Review kræver den fokuserede semantiske 5×-gate, da providerens lydafslutningsgrænse
+flyttes; smallere protokolprobe er ikke nok. Brugeren har godkendt gemt prompt til
+OpenAI samt privat midlertidig HA-adgang for kun GetDateTime. HA tilbyder udelukkende
+bred, teknisk 10-årig nøgle; automatisk approval kræver dette præciseret og godkendt
+før oprettelse. Ingen ny nøgle er oprettet endnu. Kandidaten er ikke releaseklar før
+5×-gate, afsluttet fastgate, endeligt review og én frossen releasegate. .115 er startet
+igen efter den afgrænsede prøve. Ingen settings/firmwareændring eller hus-sideeffekt.
+
+
+6/10 .116 faktisk gate-status: samlet fastgate PASS (149,2s, alle unit-/integration-,
+Ruff/format/mypy; ingen skipped cases). Brugeren godkendte udtrykkeligt HA-nøglens
+brede kontoadgang/10-årige tekniske gyldighed. Nøglen blev oprettet, privat overført,
+kun anvendt i den afgrænsede proces og tilbagekaldt efter første fejlede prøve;
+HA sikkerhedssiden viser nu ingen langlivede tokens. .115 er genstartet og panelet
+viser 1.13.115, Voice PE forbundet og ingen åben samtale. Ingen hus-sideeffekt.
+
+5×-gaten STOPPEDE ved første math-input, fixture_response_deadline_math. Ingen af
+fem sekvenser er bestået. Input matcher “Hvad er seks gange syv?”, 38794 sourcebytes;
+kontinuerligt input/resampler matcher gemte bytes. 24 outputaudio-events er alle
+nul-PCM (115200bytes); ingen svartekst, backendrespons eller END-receipt. Den ændrede
+lukning blev kun nået ved oprydning, så dette begrunder ingen runtime-patch.
+Privat evidens: /private/tmp/pv116-five-live-20261006/summary.json og session-1.
+Pris $0.0016667, én forbindelse, ingen automatisk retry. Release-GO tilbageholdt.
+
+Næste afgrænsede årsagskontrol er én transportdiagnose med præcis samme første
+fixture/config og 18s svargrænse: faktisk SDK append-enter/return/byteantal/varighed
+og receiver-events. Observer-hook før append er ikke send-kvittering. Ingen nye
+runtimeindstillinger/prompt/gain/VAD; ingen HA-nøgle nødvendig til første math.
+Diagnosen tæller ikke som 5×-gate. Helper-oraclet strammes separat: 0,6s pause er kun
+pacing; weekday-opfølgning må ikke kalde værktøj; succesfuldt eksakt sink-dræn skal
+ligge før rearm, cancellation/finally er aldrig afspilningsbevis. Ved fortsat ukendt
+fejl stopper kandidaten; ingen blind gentagelse af gaten.
+
+
+Den ene transportdiagnose er gennemført, helper SHA548de02e1e59e61cec5f5dae5d6e07761218bd90739d7a58ac9bffe462bf1591:
+samme præcise math-fixture38794bytes, saved/public prompt9f18, GetDateTime-schema,
+én forbindelse, ingen HA-nøgle/kald. 155 faktiske SDK append-enter/return, nul fejl,
+max1,711ms; 26 outputaudio-events/124800bytes, heraf28800nonzero. Input matcher
+spørgsmålet; første svarlyd og “Det er” observeres +5,968s. Diagnosen stopper ved
+svarstart og beviser IKKE svarets korrekthed/fuldstændighed. Slutforbrug er kendt,
+cleanup lykkedes, pris $0.0016667. Privat report:
+/private/tmp/pv116-transport-diagnostic-20261006/report.json. Det første gate-failure
+bevares; årsagen er ikke reproduceret og kan ikke sikkert placeres hos provider.
+Ingen produktionspatch er udledt. .115 er startet igen. Helperens eksakte EOF/lease-
+regressioner er grønne offline; ny femgate er endnu ikke startet eller godkendt.
+
+
+Diff-freeze-review final_116_review (Sol Ultra, read-only) bekræfter samme base9a1d7f1
+og runtime-SHAer: conditional source-GO, ingen source-P0/P1. Yellow proof/task/token,
+semantic current settled receipt, receiver→terminal→exact leasefinish og Stop/newwork/
+stale-nextwake er kontrolleret. Talk/OFF uændret; ingen fysisk accept udledes.
+Den ene fulde lokale releasegate PASS, 109,8s; Ruff/format202filer, mypy55, alle97
+unitmoduler og hele integration. Ingen genkørsel eller runtimeændring efter freeze.
+
+Uafhængigt review giver GO til ÉN ny 5×-gate med rettet helper, actual SDK-send-observer,
+exact EOF/lease-finish før rearm og weekday uden værktøj. HelperSHA
+40e4af50e8322cecf3be6b879fc52c76a338d9ca7a4f4e9af1f2292b5d9f7da0; offline validation
+SDK3.13.0 PASS uden forbindelser. Alle25 input/svar/tid og lifecycle kræver review.
+Samlet live-pris under $5, første faktiske fejl stopper igen; originalfejl bevares.
+Ny gate afventer udtrykkelig action-time-godkendelse til en NY tilsvarende HA-nøgle,
+da den første allerede er tilbagekaldt. Ingen ny nøgle, gate, PR/merge/release eller
+.116-installation udført endnu. Installeret .115 kører igen med Alpha; firmware uændret.

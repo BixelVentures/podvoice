@@ -541,3 +541,26 @@ def test_shadow_vad_rejects_accumulated_arrival_lag_without_forgiving_next_packe
     report = shadow.diagnostics(owner=OWNER, now=100.1, idle_s=4)
     assert report["vad_state"] == "active"
     assert report["vad_active_observed_s"] == pytest.approx(0.1)
+
+
+def test_current_quiet_requires_exact_source_and_anchor_but_not_repeated_idle_duration():
+    window = NativeIdleWindow(freshness_s=0.2, require_input_quiet=False)
+    for index in range(43):
+        feed(window, index)
+    owner = window.proof_owner
+    row = empty_snapshot(43, observation(42))
+    row["output"]["mix_seq"] += 1  # Source hole loses the old quiet anchor.
+    feed(window, 43, row=row)
+    assert not window.current_quiet(owner=owner, now=row["received_monotonic"])
+    feed(window, 44)
+    feed(window, 45)
+    assert not window.ready(owner=OWNER, now=104.5, idle_s=4)
+    assert window.current_quiet(owner=owner, now=104.5)
+    assert not window.current_quiet(owner=OWNER, now=104.5)
+    assert not window.current_quiet(owner=owner, now=104.701)
+    row = observation(46)
+    row["output"]["source_epoch"] += 1
+    feed(window, 46, row=row)
+    assert not window.current_quiet(owner=owner, now=104.6)
+    window.reset()
+    assert not window.current_quiet(owner=owner, now=104.6)
