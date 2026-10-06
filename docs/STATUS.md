@@ -12076,3 +12076,104 @@ Samlet live-pris under $5, første faktiske fejl stopper igen; originalfejl beva
 Ny gate afventer udtrykkelig action-time-godkendelse til en NY tilsvarende HA-nøgle,
 da den første allerede er tilbagekaldt. Ingen ny nøgle, gate, PR/merge/release eller
 .116-installation udført endnu. Installeret .115 kører igen med Alpha; firmware uændret.
+
+
+6/10 klargøring til bygning efter brugerens “når alt er lavet, byg og installer”:
+draft-PR #93 https://github.com/BixelVentures/podvoice/pull/93 er oprettet og attached.
+Head a18a89f9161c43366c1047b42091f867779caf91, tree445ecca5faf3e04dd2353d509f69cb9ee94fbe7d.
+Alle12 GitHubblob-SHAer matcher det lokale, testede diff; samlet Git-tree matcher også.
+Lokalt HEAD er bundet til samme remotecommit uden reset; ingen runtimeændring.
+PR CI run37454085723/run497 er startet automatisk med fuld lint/test og ARM64bygning.
+Ingen manuelle CI-genkørsler, merge/mainpublicering eller installation. PR er draft,
+og semantisk5×-gate forbliver obligatorisk. Ny HA-nøgle er endnu ikke oprettet.
+
+
+6/10 PR #93 CI run37454085723/run497 er færdig SUCCESS på head a18a89f9161c43366c1047b42091f867779caf91:
+lint-test112237305195 SUCCESS og build-addon112237305510 SUCCESS. Publish er SKIPPED,
+fordi dette er en draft-PR, ikke main. ARM64-buildcontext
+61234d1ba09d733ea0cc92f71f403c8d5db92250399ccf29d43b3d18fbb9a6f9;
+OCI index sha256:06e579fe9af791acc9125b02d23a22f99a478bf912ee1c36a9563d11fabbcbad,
+platformmanifest sha256:7df3e43d356fb10372974bfa0c71eb84670ef0ba60b16e25bbb608279d2eacaa.
+Buildarg/OCI-revision matcher PR-head. Ingen manual retry. Dette er en byggede
+PR-kandidat, IKKE publiceret/installeret main og ikke semantisk/fysisk godkendelse.
+
+Samme nødvendige blocker er nu gentaget gennem tre målturns: den første HA-nøgle er
+revoked, og ny security-sensitive oprettelse har ikke fået sit action-time-svar.
+Afgrænset 5×-gate kan derfor ikke starte, og release-GO/merge/main-install kan ikke
+udføres. Al uafhængig source-review, én lokal releasegate og PR CI/ARM64bygning er
+færdig; ingen live proces afventer mere. Ingen ny nøgle/providerprøve/runtimepatch
+startes på et gættet samtykke. Goal markeres blocked, indtil brugerens nøglesvar
+kommer; allerede godkendt merge/installation kræver ikke nyt installationssamtykke.
+
+
+6/10 brugerens “Ja til alt” godkender nu udtrykkeligt det udestående spørgsmål om
+NY tilsvarende midlertidig HA-nøgle (bred kontoadgang/10-årig teknisk gyldighed),
+privat anvendelse kun GetDateTime i én ny afgrænset femgate og straks-revoke også
+ved fejl. Goal er resumed/ACTIVE. Installeret baseline forbliver .115; source/SDK/
+helperidentitet er genkontrolleret uændret før prøve. PR #93 CI/ARM64 er allerede grøn.
+
+
+6/10 ny, godkendt 5×-gate /private/tmp/pv116-five-renewed-20261006 STOPPEDE på
+første sessions math-opfølgning. Input er “Hvad er6gange7? Læg to til det tal”.
+Provideroutputtranscript svarer først42 (“Seks gange syv er toogfyrre”), derefter48
+(“Otteogfyrre”), forventet44. Første math er korrekt; ingen fuld femsekvens er grøn.
+467 faktiske SDK sends returnerer, nul sendfejl, max1,084ms; ingen backend/tool/END
+før fejl. Ny closingkode er ikke nået. Intentional oprydning efter gate-fault giver
+synthetic sink LiveAudioError; det er ikke bevis for semantic-close-regression.
+Slutforbrug voice9s/backendcomplete, pris$0.0075; ingen blind retry.
+
+Ny nøgle blev oprettet efter “Ja til alt”, anvendt kun i prøven og straks tilbagekaldt
+ved fejlen. HA viser ingen langlivede tokens. Privat credentialfile blev slettet før
+connect. .115 Start er sendt igen; frisk running-status skal bekræftes. PR #93
+forbliver draft/grøn softwarebygning, IKKE testklar til release; fuld semantikgate
+mangler. Den observerede fejl er nu afgrænset til opfølgningssvar/evt transcript,
+ikke til send-stall eller afslutningsvej. Uafhængig raw-review er startet før yderligere
+beslutning; ingen prompt/model/gain/VAD/runtimepatch udledes af denne kontrolfejl.
+
+Uafhængig raw-review yellow_phase_review finder ingen konkret harness-/oracle-fejl:
+fixtures er byteidentiske og produktionsresampler reproducerer alle providerbytes.
+Alle467 sends lykkedes. Transcript48 er en reel semantisk gate-failure; revieweren
+har ikke kunnet gennemlytte ordet og påstår derfor ikke akustisk48-bevis. END og
+ændret closingkode nås ikke før oprydning. Ingen begrundet runtimepatch eller
+blind ny gate. Fuld .116 normal release-status forbliver ikke releaseklar.
+
+Frisk HA-UI bekræfter installeret .115 Kører efter genstart. Brugeren er nu stillet
+ét konkret spørgsmål om eksplicit undtagelse: installere samme kilde-reviewed,
+softwaregrønne .116 som Alpha-feltkandidat trods den fejlede primære modelkontrol,
+uden at kalde den release-/lifecycle-godkendt eller97/100. Ingen sådan undtagelse
+er antaget på det generelle “Ja til alt”, som godkendte nøgle/prøve. PR93 holdes
+draft, gate-failure er tilføjet PR-body; ingen merge/main-publicering/installation.
+
+Genstart/restoration er nu frisk bekræftet: HA appinfo Kører1.13.115, panelet
+VoicePEforbundet, ingen åben samtale; SettingsAlpha-checkboxchecked, UI4 og
+beggewakewords devicebekræftet. Ingen settingsskrivning. Frisk privat screenshot
+/private/tmp/pv115-restored-alpha-20261006.png. ChatGPT-readiness står ærligt
+standby/ikkeprøvet efter genstart; ikke en ny fysisk wake-/samtalegodkendelse.
+
+final_116_review har derefter bounded-reviewed seneste STATUS/renewed-report:
+ingen ny sourceP0/P1 eller direkte fysisk modevidens. ConditionalGO alene til
+udtrykkeligt brugergodkendt Alpha-felteksperiment på uændret a18a89f; IKKE normal
+release/testklar/lifecycle97 og ikke waiver af den fejlede5×gate. Afvent konkret
+undtagelsessvar. Ved klippet farvel, stale lyd, Stop/teardown-fejl eller tabt næste
+wake standses feltprøven og .115-baseline/settings geninstalleres; rollback arver
+ingen golden/10×status. Ingen nye providerkald eller firmware-/promptændringer.
+
+Blokeringsaudit efter tre sammenhængende målturns (brugerresumption plus to
+automatiske fortsættelser): faktisk renewed-summary viser stadig passedfalse og
+math_answer_mismatch_math_followup; source a18a89f uændret, PR93 stadig draft og
+ikke merged ved seneste friske GitHubkontrol. Krævet5×gate er ikke bestået, og
+konkret spørgsmål om feltkandidat-undtagelse er ubesvaret. Ingen levende prøve
+afventes, ingen evidens begrunder kodepatch eller blind retry. Der er ikke mere
+meningsfuldt autoriseret arbejde uden brugerbeslutning. Goal sættes blocked,
+IKKE complete eller paused; hele målet og fejlede gate bevares. .115Alpha er
+genstartet/bekræftet; ingen .116-mainartifact er publiceret eller installeret.
+
+Brugeren svarer nu konkret “installere tak” efter spørgsmålet om undtagelse til
+den fejlede modelkontrol. Det er eksplicit godkendelse til installation af .116
+som Alpha-feltkandidat på de kendte vilkår, ikke en bestået5×gate eller97/100.
+Goal er ACTIVE igen. Source er uændret a18a89f/runtimeSHAer; providerfejl42→48
+bevares uløst. Ingen runtime-/promptpatch er begrundet. final_116_review har givet
+conditional feltGO på netop denne brugerundtagelse. Denne dokumentationsopdatering
+ændrer ingen shippede runtimebits og ugyldiggør ikke den ene frosne releasegate.
+PR93 skal merge til grøn main/publiceret1.13.116 og installeres med AlphaON og
+uændret firmware; eksakt artifact og faktisk readiness kontrolleres efterpå.
