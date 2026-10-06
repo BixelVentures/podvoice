@@ -1,12 +1,15 @@
 """Reject false protocol proof; no credentials or physical/provider semantics."""
 
+import asyncio
 import base64
 import copy
 import importlib.util
 import json
 import re
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from unit.test_openai_live import SDK, DiagnosticWireSDK, call, created, terminal
@@ -264,9 +267,10 @@ async def test_real_adapter_append_ack_never_invents_delegation_or_verdict(tmp_p
 class IdleWireSDK(DiagnosticWireSDK):
     """Scripted peer behind the actual SDK codec; never model-behaviour proof."""
 
-    def __init__(self, *, correlation=True, result_failure=False):
+    def __init__(self, *, correlation=True, result_failure=False, source_clock=None):
         super().__init__()
         self.correlation = correlation
+        self.source_clock = source_clock
         self.frames = 0
         if result_failure:
             self.fail_type = "response.item.create"
@@ -276,6 +280,8 @@ class IdleWireSDK(DiagnosticWireSDK):
         event = json.loads(data)
         if event["type"] == "session.input_audio.append":
             self.frames += 1
+            if self.source_clock is not None:
+                self.source_clock.advance_frame()
             if self.frames == 26:
                 for direction, text in (("input", "Hvad er to plus to?"), ("output", "Fire.")):
                     await self.incoming.put(
@@ -337,6 +343,8 @@ class IdleWireSDK(DiagnosticWireSDK):
 
 @pytest.mark.asyncio
 async def test_instruction_ack_uses_installed_sdk_without_forcing_backend():
+    # Cold SDK imports belong to fixture setup, outside the protocol deadline.
+    importlib.import_module("openai.resources.live.live")
     from gatekeeper.live_prompt import live_instructions
     from gatekeeper.openai_live import OpenAILiveSession
     from gatekeeper.prompt import SYSTEM_PROMPT_DA
@@ -397,20 +405,88 @@ async def test_instruction_ack_uses_installed_sdk_without_forcing_backend():
 async def test_full_probe_through_installed_sdk_keeps_missing_and_failed_edges_unknown(
     tmp_path, monkeypatch, case, correlation, result_failure, record_task
 ):
+    # This is a scripted protocol test, not host/room latency evidence. Advance
+    # probe time only when the real SDK sends an input frame; slow SDK imports or
+    # host scheduling cannot consume its observation or alter its source cadence.
+    class SourceClock:
+        now = 0.0
+        frames = 0
+
+        def __init__(self):
+            self.deadlines = []
+            self.changed = asyncio.Event()
+            self.source_task = None
+
+        def monotonic(self):
+            # Preserve event ordering within one source-frame interval.
+            self.now += 0.000001
+            return self.now
+
+        def advance_frame(self):
+            self.source_task = asyncio.current_task()
+            self.frames += 1
+            self.now = round(self.frames * module.rig.FRAME_S, 9)
+            self.changed.set()
+            self.changed = asyncio.Event()
+            for deadline in self.deadlines:
+                if self.now >= deadline.when:
+                    deadline.expired = True
+                    deadline.task.cancel()
+
+        async def sleep(self, delay):
+            target = self.now + delay
+            # Source and idle polling yield fairly; only source sends move time.
+            if asyncio.current_task() is self.source_task:
+                # Let both the SDK reader and probe consumer observe this frame's
+                # scripted events before the next frame advances source time.
+                await asyncio.sleep(0)
+                await asyncio.sleep(0)
+                return
+            while self.now < target:
+                await self.changed.wait()
+            await asyncio.sleep(0)
+
+        @asynccontextmanager
+        async def timeout(self, delay):
+            deadline = SimpleNamespace(
+                when=self.now + delay, task=asyncio.current_task(), expired=False
+            )
+            self.deadlines.append(deadline)
+            try:
+                yield
+            except asyncio.CancelledError:
+                if deadline.expired:
+                    raise TimeoutError from None
+                raise
+            finally:
+                self.deadlines.remove(deadline)
+
+    clock = SourceClock()
+    probe_asyncio = SimpleNamespace(
+        sleep=clock.sleep,
+        timeout=clock.timeout,
+        create_task=asyncio.create_task,
+        gather=asyncio.gather,
+        CancelledError=asyncio.CancelledError,
+    )
+    monkeypatch.setattr(module, "asyncio", probe_asyncio)
+    monkeypatch.setattr(module.rig, "time", SimpleNamespace(monotonic=clock.monotonic))
     monkeypatch.setattr(module, "IDLE_S", 0.12)
     monkeypatch.setattr(module, "POST_CHECK_S", 0.12)
     monkeypatch.setattr(module, "OBSERVATION_S", 2)
-    sdk = IdleWireSDK(correlation=correlation, result_failure=result_failure)
+    sdk = IdleWireSDK(correlation=correlation, result_failure=result_failure, source_clock=clock)
     evidence = module.rig.Evidence(tmp_path / "wire", starts=1)
     try:
-        report = await module.evaluate(
-            "not-a-key",
-            case,
-            {name: b"\x01\x00" * 320 for name in ("math", "followup", "tv")},
-            evidence,
-            client_factory=sdk.factory,
-            record_task=record_task,
-        )
+        # Independent real-time hang guard; production adapter deadlines remain real.
+        async with asyncio.timeout(30):
+            report = await module.evaluate(
+                "not-a-key",
+                case,
+                {name: b"\x01\x00" * 320 for name in ("math", "followup", "tv")},
+                evidence,
+                client_factory=sdk.factory,
+                record_task=record_task,
+            )
     finally:
         evidence.close()
     assert report["verdict"] == (
@@ -420,6 +496,11 @@ async def test_full_probe_through_installed_sdk_keeps_missing_and_failed_edges_u
     assert report["protocol_variant"] == ("record-task" if record_task else "steering")
     assert not report["runtime_activation_approved"]
     assert report["clean_shutdown"]
+    assert sdk.frames >= 26
+    assert report["known_opening_input_observed"]
+    assert report["opening_audio_then_idle_observed"]
+    assert report["continuous_background_source_observed"]
+    assert report["wire_parent_correlated"] is correlation
     types = [event["type"] for event in sdk.wire]
     assert types.count("session.start") == types.count("session.close") == 1
     assert types.count("session.instructions.append") == 1

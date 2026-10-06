@@ -381,6 +381,19 @@ RECONSIDER_ACTION_DECLARATION = {
 }
 
 
+@dataclass(frozen=True)
+class _LiveOutputObservation:
+    owner: tuple
+    received: float
+    sequence: int
+    source_ms: int
+    mix_sequence: int
+    mix_ms: int
+    begin: int
+    end: int
+    consumed: int
+
+
 @dataclass
 class _LiveReview:
     """One held call; indices describe local receipt order, never provider turns."""
@@ -571,6 +584,8 @@ class ThinSession:
         self._live_close_next_token = 0
         self._live_close_admission_token = 0
         self._live_close_speech_played = False
+        self._live_close_output_observation: _LiveOutputObservation | None = None
+        self._live_close_nonzero_frame_end: int | None = None
         self._live_close_nonzero_output = False
         self._live_close_output_revision = 0
         self._live_close_response_ids: set[str] = set()
@@ -927,6 +942,8 @@ class ThinSession:
         self._live_close_consumed = False
         self._live_close_admission_token = 0
         self._live_close_speech_played = False
+        self._live_close_output_observation = None
+        self._live_close_nonzero_frame_end = None
         self._live_close_nonzero_output = False
         self._live_close_output_revision = 0
         self._live_close_response_ids.clear()
@@ -3196,6 +3213,9 @@ class ThinSession:
                     return
                 self._cancel_live_end()
                 self._live_rotating = True
+                self._live_close_speech_played = False
+                self._live_close_output_observation = None
+                self._live_close_nonzero_frame_end = None
                 self._live_rotation_old_generation = generation
                 self._trace_event(
                     "live_confirmation_rotation_started", provider_generation=generation
@@ -6274,6 +6294,7 @@ class ThinSession:
             self._trace_activity_observation(observation)
 
     def _reset_live_quiet(self) -> None:
+        self._live_close_nonzero_frame_end = None
         self._live_close_output_window.reset()
         self._live_idle_window.reset()
         self._live_end_window.reset()
@@ -6362,6 +6383,148 @@ class ThinSession:
             return bool(lease is not None and lease.kind == "live" and lease.phase == "started")
         return lease is None and stream.buffered_bytes == 0
 
+    def _observe_live_output_consumption(self, observation: dict, now: float) -> None:
+        """Join a mixed nonzero boundary to later consumption in the same playback."""
+        lease = self._playback_lease
+        if lease is None or lease.kind != "live" or lease.phase != "started":
+            self._live_close_nonzero_frame_end = None
+            return
+        out = observation.get("output", {})
+        owner = (
+            self._epoch,
+            self._history_session,
+            self.brain._connection_generation,
+            *(
+                observation.get(key)
+                for key in (
+                    "native_session",
+                    "native_generation",
+                    "native_connection",
+                    "native_reset",
+                    "reply_token",
+                    "playback_id",
+                )
+            ),
+            out.get("source_epoch"),
+            out.get("sample_rate"),
+        )
+        previous = self._live_close_output_observation
+        if previous is not None and previous.owner != owner:
+            self._live_close_speech_played = False
+            self._live_close_nonzero_frame_end = None
+            self._live_close_output_observation = previous = None
+        received = observation.get("received_monotonic")
+        source_ms, sequence = observation.get("source_timestamp_ms"), observation.get("sequence")
+        values = [
+            source_ms,
+            sequence,
+            *(
+                out.get(key)
+                for key in (
+                    "source_epoch",
+                    "sample_rate",
+                    "sample_count",
+                    "peak",
+                    "sum_squares",
+                    "frame_begin",
+                    "frame_end",
+                    "consumed_frames",
+                    "mix_seq",
+                    "mix_ms",
+                )
+            ),
+        ]
+        freshness = self._live_idle_window.freshness_s
+        if not (
+            observation.get("source") == "voice_pe_firmware"
+            and observation.get("playback_id") == lease.playback_id
+            and received is not None
+            and source_ms is not None
+            and sequence is not None
+            and type(received) in (int, float)
+            and math.isfinite(received)
+            and 0 <= now - received <= freshness
+            and all(type(value) is int and 0 <= value < 2**64 for value in values)
+            and source_ms <= 0xFFFFFFFF
+            and out["mix_ms"] <= 0xFFFFFFFF
+            and out["sample_rate"] > 0
+            and (
+                (
+                    out["valid"] is True
+                    and out["sample_count"] > 0
+                    and out["frame_begin"] < out["frame_end"]
+                )
+                or (
+                    out["valid"] is False
+                    and out["sample_count"] == 0
+                    and out["frame_begin"] == out["frame_end"]
+                    and out["peak"] == out["sum_squares"] == 0
+                )
+            )
+            and out["consumed_frames"] <= out["frame_end"]
+            and (source_ms - out["mix_ms"]) % (2**32) <= freshness * 1000
+        ):
+            self._live_close_nonzero_frame_end = None
+            return
+        sample = _LiveOutputObservation(
+            owner,
+            received,
+            sequence,
+            source_ms,
+            out["mix_seq"],
+            out["mix_ms"],
+            out["frame_begin"],
+            out["frame_end"],
+            out["consumed_frames"],
+        )
+        provisional = out["valid"] is False
+        if provisional and previous is None:
+            self._live_close_nonzero_frame_end = None
+            return
+        if previous is not None:
+            mix_advancing = (
+                sample.mix_sequence > previous.mix_sequence
+                and 0 < (sample.mix_ms - previous.mix_ms) % (2**32) < 0x80000000
+            )
+            if provisional:
+                # take() can reset interval metrics while preserving the exact
+                # covered mixer end. Only its consumer counter may then advance.
+                mix_advancing = (
+                    sample.mix_sequence == previous.mix_sequence
+                    and sample.mix_ms == previous.mix_ms
+                    and sample.end == previous.end
+                )
+            if not (
+                sample.sequence > previous.sequence
+                and 0 < sample.received - previous.received
+                and 0 < (sample.source_ms - previous.source_ms) % (2**32) < 0x80000000
+                and mix_advancing
+                and sample.begin >= previous.end
+                and sample.consumed >= previous.consumed
+            ):
+                self._live_close_nonzero_frame_end = None
+                return  # Duplicate/backwards observations never establish a new boundary.
+            if not (
+                sample.sequence == previous.sequence + 1
+                and sample.received - previous.received <= freshness
+                and (sample.source_ms - previous.source_ms) % (2**32) <= freshness * 1000
+                and (sample.mix_ms - previous.mix_ms) % (2**32) <= freshness * 1000
+                and sample.begin == previous.end
+            ):
+                self._live_close_nonzero_frame_end = None
+        self._live_close_output_observation = sample
+        nonzero = out["peak"] > 0 and out["sum_squares"] > 0
+        if nonzero:
+            # Queued audible output already invalidates quiet/preclose; consumption
+            # may lag the mixer and must not delay cancellation.
+            self._cancel_live_idle_preclose("native-output")
+            if self._live_close_nonzero_frame_end is None:
+                self._live_close_nonzero_frame_end = sample.end
+        boundary = self._live_close_nonzero_frame_end
+        if self._live_close_nonzero_output and boundary is not None and sample.consumed >= boundary:
+            self._live_close_speech_played = True
+            self._live_close_nonzero_frame_end = None
+
     def _observe_live_quiet(self, observation: dict) -> None:
         if (
             not self._active
@@ -6375,37 +6538,8 @@ class ThinSession:
         ):
             return
         self._live_activity_latest = observation
-        out = observation.get("output", {})
-        source_ms, mix_ms = observation.get("source_timestamp_ms"), out.get("mix_ms")
-        if (
-            self._live_idle_preclose_task is not None
-            and out.get("valid") is True
-            and type(source_ms) is int
-            and type(mix_ms) is int
-            and (source_ms - mix_ms) % (2**32) <= self._live_idle_window.freshness_s * 1000
-            and type(out.get("peak")) is int
-            and out["peak"] > 0
-            and type(out.get("sum_squares")) is int
-            and out["sum_squares"] > 0
-            and type(out.get("frame_end")) is int
-            and type(out.get("consumed_frames")) is int
-            and out["consumed_frames"] >= out["frame_end"]
-        ):
-            self._cancel_live_idle_preclose("native-output")
-        if self._live_close_nonzero_output:
-            lease = self._playback_lease
-            if (
-                lease is not None
-                and lease.kind == "live"
-                and lease.phase == "started"
-                and out.get("valid") is True
-                and out.get("sum_squares", 0) > 0
-                and out.get("peak", 0) > 0
-                and out.get("frame_end", 0) > out.get("frame_begin", 0)
-                and out.get("consumed_frames", -1) >= out.get("frame_end", 0)
-            ):
-                self._live_close_speech_played = True
         owner, now = self._live_quiet_owner(), time.monotonic()
+        self._observe_live_output_consumption(observation, now)
         for window, semantic in ((self._live_idle_window, False), (self._live_end_window, True)):
             window.observe(
                 observation,
@@ -6458,6 +6592,8 @@ class ThinSession:
             idle_pending_audio=self._live_pending_audio is not None,
             idle_provider_started=bool(getattr(self.brain, "provider_session_started", False)),
             idle_finalizing=self._live_finalizing,
+            idle_speech_played=self._live_close_speech_played,
+            idle_nonzero_frame_end=self._live_close_nonzero_frame_end,
             **{f"idle_{key}": value for key, value in diagnostic.items()},
             **{f"idle_shadow_{key}": value for key, value in shadow.items()},
         )

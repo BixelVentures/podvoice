@@ -37,7 +37,7 @@ def install_led(link):
     link.cancel_live_closing = AsyncMock()
 
 
-async def played_answer(session, link, clock, index=0):
+async def played_answer(session, link, clock, index=0, *, consume=True, native_row=None):
     await session._on_live_event(
         LiveAudioChunk(
             generation=session.brain._connection_generation,
@@ -49,12 +49,23 @@ async def played_answer(session, link, clock, index=0):
     )
     stream = session.live_audio.claim(session._live_stream.id)
     await stream.next_chunk()
-    row = observation(index)
-    row["output"].update(peak=1, sum_squares=4800)
+    row = native_row or observation(index)
+    row["playback_id"] = session._playback_lease.playback_id
+    if native_row is None:
+        row["output"].update(peak=1, sum_squares=4800, consumed_frames=index * 4800 + 2400)
     clock[0] = row["received_monotonic"]
     link.latest = row
     link.on_activity(row)
+    assert not session._live_close_speech_played
+    assert session._live_close_nonzero_frame_end == row["output"]["frame_end"]
+    if not consume:
+        return row
+    # Firmware mixes ahead of physical consumption. The later zero interval
+    # proves consumption of this exact earlier nonzero boundary.
+    deliver(session, link, clock, index + 1)
     assert session._live_close_speech_played
+    assert session._live_close_nonzero_frame_end is None
+    return row
 
 
 def clock_patch(patch, clock):
@@ -73,7 +84,7 @@ def clock_patch(patch, clock):
 async def observed_preclose(session, sdk, link, clock):
     install_led(link)
     await played_answer(session, link, clock)
-    for index in range(1, 42):
+    for index in range(2, 43):
         await session._on_live_event(
             LiveTranscript(
                 generation=session.brain._connection_generation,
@@ -93,6 +104,221 @@ async def observed_preclose(session, sdk, link, clock):
 
 
 @pytest.mark.asyncio
+async def test_oct6_nonzero_boundary_survives_two_later_zero_consumer_snapshots(monkeypatch):
+    session, _, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            first = observation(0)
+            first.update(source_timestamp_ms=2478145, sequence=585)
+            first["output"].update(
+                mix_seq=1185,
+                mix_ms=2478121,
+                frame_begin=2628580,
+                frame_end=2635184,
+                consumed_frames=2626980,
+                sample_count=6604,
+                peak=1,
+                sum_squares=210,
+            )
+            await played_answer(session, link, clock, consume=False, native_row=first)
+            for index, source_ms, received, mix_seq, mix_ms, begin, end, consumed in (
+                (1, 2478248, 100.117637445, 1188, 2478221, 2635184, 2637764, 2631780),
+                (2, 2478350, 100.207302571, 1190, 2478331, 2637764, 2642384, 2636580),
+            ):
+                row = observation(index)
+                row.update(
+                    sequence=585 + index,
+                    source_timestamp_ms=source_ms,
+                    received_monotonic=received,
+                    playback_id=session._playback_lease.playback_id,
+                )
+                row["output"].update(
+                    mix_seq=mix_seq,
+                    mix_ms=mix_ms,
+                    frame_begin=begin,
+                    frame_end=end,
+                    consumed_frames=consumed,
+                    sample_count=end - begin,
+                )
+                clock[0] = received
+                link.latest = row
+                link.on_activity(row)
+                assert session._live_close_speech_played is (index == 2)
+                assert session._live_close_nonzero_frame_end == (2635184 if index == 1 else None)
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("preserved", [True, False])
+async def test_preserved_provisional_mixer_snapshot_can_prove_consumption_but_not_quiet(
+    monkeypatch,
+    preserved,
+):
+    from unit.test_live_idle import empty_snapshot
+
+    session, _, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            first = await played_answer(session, link, clock, consume=False)
+            row = empty_snapshot(1, first)
+            row["playback_id"] = session._playback_lease.playback_id
+            row["output"]["consumed_frames"] = first["output"]["frame_end"]
+            if not preserved:
+                row["output"]["mix_seq"] += 1
+            clock[0] = row["received_monotonic"]
+            link.latest = row
+            link.on_activity(row)
+            assert session._live_close_speech_played is preserved
+            assert not session._live_quiet_ready()
+            assert session._live_idle_preclose_task is None
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "change",
+    [
+        "unconsumed",
+        "stale",
+        "duplicate",
+        "backwards",
+        "sequence_gap",
+        "counter_regression",
+        "source_epoch",
+        "native_reset",
+        "native_generation",
+        "native_connection",
+        "reply_token",
+        "playback_id",
+        "provider_rotation",
+        "quiet_reset",
+        "missing_consumption",
+    ],
+)
+async def test_delayed_consumption_requires_fresh_forward_exact_owner(monkeypatch, change):
+    session, sdk, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            install_led(link)
+            first = await played_answer(session, link, clock, consume=False)
+            row = observation(1)
+            row["playback_id"] = session._playback_lease.playback_id
+            clock[0] = row["received_monotonic"]
+            if change == "unconsumed":
+                row["output"]["consumed_frames"] = first["output"]["frame_end"] - 1
+            elif change == "stale":
+                clock[0] += 0.201
+            elif change == "duplicate":
+                row = first
+                row["output"]["consumed_frames"] = row["output"]["frame_end"]
+            elif change == "backwards":
+                row["source_timestamp_ms"] = first["source_timestamp_ms"] - 1
+            elif change == "sequence_gap":
+                row["sequence"] += 1
+            elif change == "counter_regression":
+                row["output"]["consumed_frames"] = first["output"]["consumed_frames"] - 1
+            elif change == "source_epoch":
+                row["output"]["source_epoch"] += 1
+            elif change in ("native_reset", "native_generation", "native_connection"):
+                row[change] += 1
+            elif change in ("reply_token", "playback_id"):
+                row[change] = "foreign"
+            elif change == "provider_rotation":
+                session.brain._connection_generation += 1
+            elif change == "quiet_reset":
+                session._reset_live_quiet()
+            elif change == "missing_consumption":
+                del row["output"]["consumed_frames"]
+            link.latest = row
+            link.on_activity(row)
+            assert not session._live_close_speech_played
+            assert session._live_idle_preclose_task is None
+            assert link.begin_live_closing.await_count == 0
+            assert sdk.session.close.await_count == 0
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["source_epoch", "native_reset", "provider_rotation"])
+async def test_confirmed_played_latch_does_not_survive_owner_change(monkeypatch, change):
+    session, _, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            await played_answer(session, link, clock)
+            row = observation(2)
+            row["playback_id"] = session._playback_lease.playback_id
+            if change == "source_epoch":
+                row["output"]["source_epoch"] += 1
+            elif change == "native_reset":
+                row["native_reset"] += 1
+            else:
+                session.brain._connection_generation += 1
+            clock[0] = row["received_monotonic"]
+            link.latest = row
+            link.on_activity(row)
+            assert not session._live_close_speech_played
+            assert session._live_close_nonzero_frame_end is None
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_unconsumed_boundary_cannot_cross_stop_and_next_wake(monkeypatch):
+    session, sdk, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            first = await played_answer(session, link, clock, consume=False)
+            generation = session.brain._connection_generation
+            await session.stop()
+            await session.wake()
+            assert session.brain._connection_generation != generation
+            first["output"]["consumed_frames"] = first["output"]["frame_end"]
+            link.latest = first
+            link.on_activity(first)
+            assert not session._live_close_speech_played
+            assert session._live_close_nonzero_frame_end is None
+            assert session._active and link.rearm_calls == 1
+            assert sdk.session.close.await_count == 1
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("surface", ["off", "talk"])
+async def test_native_consumption_evidence_is_inert_outside_native_live(monkeypatch, surface):
+    session, _, link = await setup(output=False)
+    clock = [100.0]
+    try:
+        with monkeypatch.context() as patch:
+            clock_patch(patch, clock)
+            await played_answer(session, link, clock, consume=False)
+            if surface == "off":
+                session.live_alpha = False
+            else:
+                session._live_webrtc = True
+            deliver(session, link, clock, 1)
+            assert not session._live_close_speech_played
+            assert session._live_idle_preclose_task is None
+            session.live_alpha = True
+            session._live_webrtc = False
+    finally:
+        await session.aclose()
+
+
+@pytest.mark.asyncio
 async def test_zero_output_cannot_start_preclose_then_tv_raw_input_cannot_veto(monkeypatch):
     session, sdk, link = await setup(output=False)
     clock = [100.0]
@@ -105,7 +331,7 @@ async def test_zero_output_cannot_start_preclose_then_tv_raw_input_cannot_veto(m
             assert session._live_quiet_ready()
             assert session._live_idle_preclose_task is None
             await played_answer(session, link, clock, 41)
-            for index in range(42, 83):
+            for index in range(43, 84):
                 await session._on_live_event(
                     LiveTranscript(
                         generation=session.brain._connection_generation,
@@ -149,6 +375,18 @@ async def test_visible_preclose_uses_existing_provider_close_and_exact_playback_
             await until(lambda: not session._active and link.rearm_calls == 1)
             assert sdk.session.close.await_count == 1
             assert session._trace_reason == "app-idle-timeout"
+            generation = session.brain._connection_generation
+            await session.wake()
+            assert session._active
+            assert session.brain._connection_generation != generation
+            assert not session._live_close_speech_played
+            assert session._live_close_nonzero_frame_end is None
+            link.latest = row = observation(44)
+            row["playback_id"] = lease.playback_id
+            clock[0] = row["received_monotonic"]
+            link.on_activity(row)
+            assert not session._live_close_speech_played
+            assert session._live_idle_preclose_task is None
     finally:
         await session.aclose()
 
@@ -203,7 +441,7 @@ async def test_stale_output_observation_delays_preclose_close_until_fresh_quiet(
             status = session._panel_status(clock[0])
             assert status["phase"] == "CLOSING"
             assert status["blocker"] == "Afventer frisk lydmåling før lukning"
-            deliver(session, link, clock, 42, input_state="active")
+            deliver(session, link, clock, 43, input_state="active")
             await until(lambda: sdk.session.close.await_count == 1)
     finally:
         await session.aclose()
@@ -336,7 +574,7 @@ async def test_delayed_native_led_ack_after_new_output_has_no_closing_authority(
         with monkeypatch.context() as patch:
             clock_patch(patch, clock)
             await played_answer(session, link, clock)
-            for index in range(1, 42):
+            for index in range(2, 43):
                 deliver(session, link, clock, index)
             await asyncio.wait_for(led_started.wait(), 2)
             assert session._live_idle_preclose_deadline is None
@@ -369,8 +607,9 @@ async def test_new_consumed_native_output_cancels_visible_preclose(monkeypatch):
             clock_patch(patch, clock)
             patch.setattr(thin_module, "LIVE_IDLE_PRECLOSE_S", 0.05)
             await observed_preclose(session, sdk, link, clock)
-            row = observation(42)
-            row["output"].update(peak=1, sum_squares=4800)
+            row = observation(43)
+            row["playback_id"] = session._playback_lease.playback_id
+            row["output"].update(peak=1, sum_squares=4800, consumed_frames=43 * 4800 + 2400)
             clock[0] = row["received_monotonic"]
             link.latest = row
             link.on_activity(row)
@@ -517,13 +756,14 @@ async def test_old_cancel_cannot_repaint_new_same_generation_visible_preclose(mo
             await observed_preclose(session, sdk, link, clock)
             old = session._live_idle_preclose_task
             link.cancel_live_closing = AsyncMock(side_effect=blocked_cancel)
-            row = observation(42)
-            row["output"].update(peak=1, sum_squares=4800)
+            row = observation(43)
+            row["playback_id"] = session._playback_lease.playback_id
+            row["output"].update(peak=1, sum_squares=4800, consumed_frames=43 * 4800 + 2400)
             clock[0] = row["received_monotonic"]
             link.latest = row
             link.on_activity(row)
             await asyncio.wait_for(entered.wait(), 2)
-            for index in range(43, 85):
+            for index in range(44, 86):
                 deliver(session, link, clock, index)
             await until(
                 lambda: (

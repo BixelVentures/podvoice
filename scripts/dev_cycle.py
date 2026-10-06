@@ -23,6 +23,7 @@ from typing import TextIO
 COLLECTION_TIMEOUT_S = 15
 FAST_TIMEOUT_S = 120
 RELEASE_TIMEOUT_S = 240
+UNIT_BATCH_COUNT = 4
 RELEASE_CONTRACT = "tests/unit/test_release_contract.py"
 FULL_SUITE_MARKER = "tests"
 LIFECYCLE_SMOKE_MANIFEST = "scripts/lifecycle_smoke.txt"
@@ -76,6 +77,82 @@ class Stage:
     name: str
     command: tuple[str, ...]
     timeout: int
+
+
+def unit_batches(root: Path) -> tuple[tuple[str, ...], ...]:
+    """Collect every default pytest unit module once in deterministic batches."""
+    files = sorted(
+        path.relative_to(root).as_posix()
+        for path in (root / "tests/unit").rglob("*.py")
+        if path.name.startswith("test_") or path.name.endswith("_test.py")
+    )
+    if not files:
+        raise DevCycleError("unit worker found no test modules")
+    return tuple(
+        tuple(files[index::UNIT_BATCH_COUNT]) for index in range(min(UNIT_BATCH_COUNT, len(files)))
+    )
+
+
+def unit_stage(python: str, timeout: int) -> Stage:
+    """One outer owner; each sequential pytest child retains its existing bound."""
+    return Stage(
+        "unit",
+        (python, "scripts/dev_cycle.py", "unit-worker", "--unit-timeout", str(timeout)),
+        UNIT_BATCH_COUNT * (timeout + 4) + COLLECTION_TIMEOUT_S,
+    )
+
+
+def run_unit_batches(root: Path, env: dict[str, str], python: str, timeout: int) -> None:
+    """Release pytest's collected state between batches; stop at the first failure."""
+    process: subprocess.Popen[str] | None = None
+
+    def interrupted(signum: int, _frame: object) -> None:
+        # Outer run_parallel owns this worker's group. Its child has a separate
+        # group, so kill that group before the worker exits on cancellation.
+        if process is not None:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+        raise DevCycleError(f"unit worker interrupted by signal {signum}")
+
+    previous_handlers = {
+        sig: signal.signal(sig, interrupted) for sig in (signal.SIGTERM, signal.SIGINT)
+    }
+    try:
+        for index, batch in enumerate(unit_batches(root), 1):
+            command = (python, "-m", "pytest", "-q", "-x", "--tb=short", *batch)
+            print(f"unit batch {index}: {len(batch)} modules, {timeout}s bound", flush=True)
+            with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as output:
+                try:
+                    process = subprocess.Popen(
+                        command,
+                        cwd=root,
+                        env=env,
+                        text=True,
+                        stdout=output,
+                        stderr=subprocess.STDOUT,
+                        start_new_session=True,
+                    )
+                    try:
+                        result = process.wait(timeout=timeout)
+                    except subprocess.TimeoutExpired as exc:
+                        _stop_process_group(process)
+                        raise DevCycleError(
+                            f"unit batch {index} timed out after {timeout}s"
+                        ) from exc
+                    if result:
+                        raise DevCycleError(f"unit batch {index} failed ({result})")
+                finally:
+                    if process is not None:
+                        _stop_process_group(process)
+                        with contextlib.suppress(ProcessLookupError):
+                            os.killpg(process.pid, signal.SIGKILL)
+                    process = None
+                    output.seek(0)
+                    for line in output.read().rstrip().splitlines():
+                        print(f"[unit batch {index}] {line}", flush=True)
+    finally:
+        for sig, handler in previous_handlers.items():
+            signal.signal(sig, handler)
 
 
 def _stage_environment(env: dict[str, str], stage: str) -> dict[str, str]:
@@ -601,9 +678,9 @@ def run_fast(
     # A full firmware/build scope exceeded the serial fast budget repeatedly.
     # Keep every test and the same per-worker bound; use release's isolated split.
     if tests == [FULL_SUITE_MARKER]:
-        stages.extend(
-            Stage(name, (python, "-m", "pytest", "-q", f"tests/{name}"), timeout)
-            for name in ("unit", "integration")
+        stages.append(unit_stage(python, timeout))
+        stages.append(
+            Stage("integration", (python, "-m", "pytest", "-q", "tests/integration"), timeout)
         )
     else:
         stages.append(Stage("pytest", (python, "-m", "pytest", "-q", *tests), timeout))
@@ -682,7 +759,7 @@ def run_release(
             ),
             Stage("ruff-format", (python, "-c", style_worker, ruff), 60),
             Stage("mypy", (mypy, "podvoice/gatekeeper"), 90),
-            Stage("unit", (python, "-m", "pytest", "-q", "tests/unit"), release_timeout),
+            unit_stage(python, release_timeout),
             Stage(
                 "integration",
                 (python, "-m", "pytest", "-q", "tests/integration"),
@@ -700,11 +777,14 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "mode",
-        choices=("preflight", "fast", "lifecycle", "release"),
+        choices=("preflight", "fast", "lifecycle", "release", "unit-worker"),
         nargs="?",
         default="fast",
     )
     parser.add_argument("--base", default=os.environ.get("PODVOICE_BASE", "origin/main"))
+    parser.add_argument(
+        "--unit-timeout", type=int, default=RELEASE_TIMEOUT_S, help=argparse.SUPPRESS
+    )
     return parser.parse_args(argv)
 
 
@@ -712,6 +792,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     started = time.monotonic()
     try:
+        if args.mode == "unit-worker":
+            run_unit_batches(
+                Path.cwd().resolve(), os.environ.copy(), sys.executable, args.unit_timeout
+            )
+            return 0
         root = repository_root(Path.cwd())
         env, python = tool_environment(root)
         with GateLock():

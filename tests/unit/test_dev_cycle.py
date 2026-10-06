@@ -1,7 +1,9 @@
 import json
 import os
+import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,10 +22,13 @@ from scripts.dev_cycle import (
     require_unchanged_scope,
     run_parallel,
     run_release,
+    run_unit_batches,
     select_lifecycle_tests,
     select_tests,
     sibling_tool,
     tool_environment,
+    unit_batches,
+    unit_stage,
 )
 
 TRACKED_TESTS = [
@@ -464,8 +469,163 @@ def test_full_fast_scope_keeps_all_suites_in_isolated_bounded_workers(monkeypatc
     )
     monkeypatch.setattr("scripts.dev_cycle.diff_check", lambda *args: None)
     run_fast(tmp_path, {}, "python", ScopeSnapshot("h", "b", ("esphome/podvoice.yaml",), "", ()))
-    assert {s.name: s.command[-1] for s in stages} == {
-        "unit": "tests/unit",
-        "integration": "tests/integration",
-    }
-    assert all(s.timeout == FAST_TIMEOUT_S for s in stages)
+    unit, integration = stages
+    assert unit == unit_stage("python", FAST_TIMEOUT_S)
+    assert integration.command[-1] == "tests/integration"
+    assert integration.timeout == FAST_TIMEOUT_S
+
+
+@pytest.mark.parametrize("count", [1, 3, 4, 9])
+def test_unit_batches_cover_every_default_test_module_once(tmp_path, count):
+    unit = tmp_path / "tests/unit"
+    unit.mkdir(parents=True)
+    expected = []
+    for index in reversed(range(count)):
+        name = f"test_module_{index}.py" if index % 2 else f"module_{index}_test.py"
+        path = unit / name
+        path.write_text("", encoding="utf-8")
+        expected.append(path.relative_to(tmp_path).as_posix())
+    (unit / "helper.py").write_text("", encoding="utf-8")
+    batches = unit_batches(tmp_path)
+    flattened = [path for batch in batches for path in batch]
+    assert sorted(flattened) == sorted(expected)
+    assert len(flattened) == len(set(flattened)) == count
+    assert batches == unit_batches(tmp_path)
+    assert len(batches) == min(dev_cycle.UNIT_BATCH_COUNT, count)
+
+
+def test_unit_worker_without_tests_fails_closed(tmp_path):
+    with pytest.raises(DevCycleError, match="no test modules"):
+        unit_batches(tmp_path)
+
+
+@pytest.mark.parametrize("failure", [None, 1, 2])
+def test_unit_worker_is_sequential_preserves_output_and_stops_after_failure(
+    monkeypatch, tmp_path, capsys, failure
+):
+    batches = tuple((f"tests/unit/test_{index}.py",) for index in range(4))
+    monkeypatch.setattr(dev_cycle, "unit_batches", lambda root: batches)
+    monkeypatch.setattr(dev_cycle.os, "killpg", lambda *_args: None)
+    started = []
+    previous = []
+
+    def launch(command, **kwargs):
+        assert not previous or previous[-1].returncode is not None
+        started.append(tuple(command))
+        assert command[4:6] == ("-x", "--tb=short")
+        kwargs["stdout"].write(f"details for batch {len(started)}\n")
+        assert kwargs["start_new_session"]
+        process = SimpleNamespace(pid=100 + len(started), returncode=None)
+
+        def wait(*, timeout):
+            assert timeout == 240
+            process.returncode = 1 if len(started) == failure else 0
+            return process.returncode
+
+        process.wait = wait
+        process.poll = lambda: process.returncode
+        previous.append(process)
+        return process
+
+    monkeypatch.setattr(dev_cycle.subprocess, "Popen", launch)
+    if failure is None:
+        run_unit_batches(tmp_path, {}, "python", 240)
+    else:
+        with pytest.raises(DevCycleError, match=f"batch {failure} failed"):
+            run_unit_batches(tmp_path, {}, "python", 240)
+    assert len(started) == (4 if failure is None else failure)
+    assert [command[-1] for command in started] == [batch[0] for batch in batches[: len(started)]]
+    assert f"details for batch {len(started)}" in capsys.readouterr().out
+
+
+def test_unit_batch_timeout_kills_its_stubborn_child_group(monkeypatch, tmp_path):
+    unit = tmp_path / "tests/unit"
+    unit.mkdir(parents=True)
+    (unit / "test_one.py").write_text("", encoding="utf-8")
+    worker = tmp_path / "fake-python"
+    worker.write_text(
+        f"#!{sys.executable}\n"
+        "import os,signal,subprocess,sys,time\n"
+        "from pathlib import Path\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "child=subprocess.Popen([sys.executable,'-c',"
+        "'import signal,time; signal.signal(signal.SIGTERM,signal.SIG_IGN); time.sleep(30)'])\n"
+        "Path('child.pid').write_text(str(child.pid))\n"
+        "Path('child.group').write_text(str(os.getpgid(child.pid)))\n"
+        "print('timeout-child-started',flush=True)\n"
+        "time.sleep(30)\n",
+        encoding="utf-8",
+    )
+    worker.chmod(0o755)
+    delivered = []
+    processes = []
+    real_killpg, real_popen = os.killpg, subprocess.Popen
+
+    def kill_group(group, sig):
+        real_killpg(group, sig)
+        delivered.append((group, sig))
+
+    def launch(*args, **kwargs):
+        process = real_popen(*args, **kwargs)
+        processes.append(process)
+        return process
+
+    monkeypatch.setattr(dev_cycle.os, "killpg", kill_group)
+    monkeypatch.setattr(dev_cycle.subprocess, "Popen", launch)
+    started = time.monotonic()
+    with pytest.raises(DevCycleError, match="batch 1 timed out after 2s"):
+        run_unit_batches(tmp_path, os.environ.copy(), str(worker), 2)
+    assert time.monotonic() - started < 8
+    child_group = int((tmp_path / "child.group").read_text())
+    assert child_group == processes[0].pid
+    assert (child_group, signal.SIGKILL) in delivered
+    assert processes[0].returncode == -signal.SIGKILL
+
+
+def test_worker_sigterm_kills_active_child_group_and_prevents_next_batch(monkeypatch, tmp_path):
+    monkeypatch.setattr(dev_cycle, "unit_batches", lambda root: (("first.py",), ("second.py",)))
+    started, killed = [], []
+    original_handler = signal.getsignal(signal.SIGTERM)
+    process = SimpleNamespace(pid=123, returncode=None)
+
+    def kill_group(group, sig):
+        killed.append((group, sig))
+        process.returncode = -sig
+
+    def wait(*, timeout):
+        assert timeout == 240
+        signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+
+    def launch(command, **kwargs):
+        started.append(command)
+        assert kwargs["start_new_session"]
+        return process
+
+    process.wait = wait
+    process.poll = lambda: process.returncode
+    monkeypatch.setattr(dev_cycle.subprocess, "Popen", launch)
+    monkeypatch.setattr(dev_cycle.os, "killpg", kill_group)
+    with pytest.raises(DevCycleError, match="unit worker interrupted"):
+        run_unit_batches(tmp_path, {}, "python", 240)
+    assert len(started) == 1
+    assert killed[0] == (process.pid, signal.SIGKILL)
+    assert signal.getsignal(signal.SIGTERM) == original_handler
+
+
+def test_unit_stage_bounds_all_batches_and_worker_bypasses_parent_gate_lock(monkeypatch, tmp_path):
+    stage = unit_stage("python", 240)
+    assert stage.command == (
+        "python",
+        "scripts/dev_cycle.py",
+        "unit-worker",
+        "--unit-timeout",
+        "240",
+    )
+    assert stage.timeout == dev_cycle.UNIT_BATCH_COUNT * 244 + dev_cycle.COLLECTION_TIMEOUT_S
+    captured = []
+    monkeypatch.setattr(dev_cycle, "run_unit_batches", lambda *args: captured.append(args))
+    monkeypatch.setattr(dev_cycle, "tool_environment", lambda root: pytest.fail("nested preflight"))
+    monkeypatch.chdir(tmp_path)
+    assert dev_cycle.main(["unit-worker", "--unit-timeout", "240"]) == 0
+    assert captured[0][0] == tmp_path.resolve()
+    assert captured[0][-1] == 240
