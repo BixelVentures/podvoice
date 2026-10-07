@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TextIO
@@ -23,7 +23,10 @@ from typing import TextIO
 COLLECTION_TIMEOUT_S = 15
 FAST_TIMEOUT_S = 120
 RELEASE_TIMEOUT_S = 240
-UNIT_BATCH_COUNT = 4
+UNIT_BATCH_COUNT = 8
+GATE_CACHE_STAGES = frozenset(
+    {"ruff", "format", "mypy", "unit", "integration", "pytest", "candidate-scope", "ruff-format"}
+)
 RELEASE_CONTRACT = "tests/unit/test_release_contract.py"
 FULL_SUITE_MARKER = "tests"
 LIFECYCLE_SMOKE_MANIFEST = "scripts/lifecycle_smoke.txt"
@@ -157,22 +160,17 @@ def run_unit_batches(root: Path, env: dict[str, str], python: str, timeout: int)
 
 def _stage_environment(env: dict[str, str], stage: str) -> dict[str, str]:
     """Give concurrent tools isolated caches under one persistent external root."""
-    cache_root = Path(
-        env.get(
-            "PODVOICE_DEV_CACHE",
-            str(Path(tempfile.gettempdir()) / f"podvoice-dev-cache-{os.getuid()}"),
-        )
-    )
-    safe_stage = stage.replace("/", "-").replace(" ", "-")
+    cache_root = configured_cache_root(env, Path.cwd())
+    directories = cache_paths(cache_root, stage)
     stage_env = dict(env)
     for key, directory in (
-        ("PYTHONPYCACHEPREFIX", cache_root / "pycache" / safe_stage),
-        ("MYPY_CACHE_DIR", cache_root / "mypy" / safe_stage),
-        ("RUFF_CACHE_DIR", cache_root / "ruff" / safe_stage),
+        ("PYTHONPYCACHEPREFIX", directories["pycache"]),
+        ("MYPY_CACHE_DIR", directories["mypy"]),
+        ("RUFF_CACHE_DIR", directories["ruff"]),
     ):
         directory.mkdir(parents=True, exist_ok=True)
         stage_env[key] = str(directory)
-    pytest_cache = cache_root / "pytest" / safe_stage
+    pytest_cache = directories["pytest"]
     pytest_cache.mkdir(parents=True, exist_ok=True)
     existing_pytest_options = stage_env.get("PYTEST_ADDOPTS", "").strip()
     cache_option = f"-o cache_dir={pytest_cache}"
@@ -313,15 +311,167 @@ def repository_root(start: Path) -> Path:
     return Path(result.stdout.strip()).resolve()
 
 
-def tool_environment(root: Path) -> tuple[dict[str, str], str]:
-    cache_root = Path(
-        os.environ.get(
-            "PODVOICE_DEV_CACHE",
-            str(Path(tempfile.gettempdir()) / f"podvoice-dev-cache-{os.getuid()}"),
-        )
+def default_cache_root() -> Path:
+    return Path.home() / ".cache" / "podvoice-dev"
+
+
+def configured_cache_root(env: Mapping[str, str], root: Path) -> Path:
+    """Use the same actual expanded/anchored directory for admission and writes."""
+    try:
+        path = Path(env.get("PODVOICE_DEV_CACHE", str(default_cache_root()))).expanduser()
+        return (path if path.is_absolute() else root / path).resolve()
+    except (OSError, RuntimeError) as exc:
+        raise DevCycleError("cannot resolve the configured gate cache") from exc
+
+
+def cache_paths(cache: Path, stage: str | None = None) -> dict[str, Path]:
+    """Declared owner directories, shared by admission and actual cache writes."""
+    directories = {
+        owner: cache / owner for owner in ("pycache", "mypy", "ruff", "pytest", "preflight")
+    }
+    if stage is not None:
+        safe_stage = stage.replace("/", "-").replace(" ", "-")
+        for owner in ("pycache", "mypy", "ruff", "pytest"):
+            directories[owner] /= safe_stage
+    return directories
+
+
+def validate_cache_storage(cache: Path) -> None:
+    require_durable_storage(cache, "gate cache")
+    for owner, directory in cache_paths(cache).items():
+        require_durable_storage(directory, f"{owner} cache")
+    for stage in sorted(GATE_CACHE_STAGES):
+        for owner, directory in cache_paths(cache, stage).items():
+            require_durable_storage(directory, f"{stage} {owner} cache")
+
+
+def temporary_storage_roots() -> tuple[Path, ...]:
+    return tuple(
+        Path(name).resolve()
+        for name in ("/tmp", "/var/tmp", "/var/folders", "/run", "/dev/shm", tempfile.gettempdir())
     )
-    pycache = cache_root / "pycache"
-    mypy_cache = cache_root / "mypy"
+
+
+def require_durable_storage(path: Path, owner: str) -> Path:
+    try:
+        resolved = path.resolve()
+    except (OSError, RuntimeError) as exc:
+        raise DevCycleError(f"cannot resolve {owner} storage: {path}") from exc
+    parts = tuple(part.casefold() for part in resolved.parts)
+    if any(
+        part in {"documents", "desktop", "icloud drive", "mobile documents", "cloudstorage"}
+        or part.startswith(("onedrive", "dropbox", "googledrive", "google drive"))
+        for part in parts
+    ):
+        raise DevCycleError(
+            f"{owner} uses synchronized storage: {resolved}; use durable local storage"
+        )
+    if any(resolved.is_relative_to(boundary) for boundary in temporary_storage_roots()):
+        raise DevCycleError(
+            f"{owner} uses temporary storage: {resolved}; use durable local storage"
+        )
+    return resolved
+
+
+def validate_gate_storage(root: Path, configured_python: str, cache: Path) -> None:
+    """Check actual gate dependencies before any cache, lock or stage is started."""
+    root = require_durable_storage(root, "checkout")
+    validate_cache_storage(cache)
+    common = Path(_git(root, "rev-parse", "--path-format=absolute", "--git-common-dir").strip())
+    require_durable_storage(common, "common Git")
+    objects = Path(
+        _git(root, "rev-parse", "--path-format=absolute", "--git-path", "objects").strip()
+    )
+    pending = [(objects, frozenset())]
+    inherited = os.environ.get("GIT_ALTERNATE_OBJECT_DIRECTORIES", "")
+    if inherited:
+        if '"' in inherited or "\\" in inherited:
+            raise DevCycleError("quoted inherited Git object alternates cannot be verified")
+        pending.extend(
+            (Path(name) if Path(name).is_absolute() else root / name, frozenset())
+            for name in inherited.split(os.pathsep)
+            if name
+        )
+    visited: set[Path] = set()
+    while pending:
+        path, ancestors = pending.pop()
+        objects = require_durable_storage(path, "Git objects")
+        if objects in ancestors:
+            raise DevCycleError("cyclic Git object alternates cannot be verified")
+        if objects in visited:
+            continue
+        if len(visited) >= 32 or len(ancestors) >= 16:
+            raise DevCycleError("Git object alternates exceed the bounded storage inspection")
+        visited.add(objects)
+        if not objects.is_dir():
+            raise DevCycleError(f"Git objects directory is unavailable: {objects}")
+        alternate_file = objects / "info" / "alternates"
+        require_durable_storage(alternate_file, "Git alternates file")
+        if (
+            alternate_file.exists() or alternate_file.is_symlink()
+        ) and not alternate_file.is_file():
+            raise DevCycleError("Git object alternates must be a regular file")
+        if alternate_file.is_file():
+            try:
+                with alternate_file.open(encoding="utf-8") as handle:
+                    alternate_text = handle.read(65537)
+            except (OSError, UnicodeError) as exc:
+                raise DevCycleError("cannot read Git object alternates") from exc
+            if len(alternate_text) > 65536:
+                raise DevCycleError("Git object alternates exceed the bounded storage inspection")
+            for line in alternate_text.splitlines():
+                if not line:
+                    continue
+                if line.startswith('"'):
+                    try:
+                        line = json.loads(line)
+                    except (ValueError, TypeError) as exc:
+                        raise DevCycleError(
+                            "quoted Git object alternate cannot be verified"
+                        ) from exc
+                    if not isinstance(line, str):
+                        raise DevCycleError("Git object alternate must be a path")
+                target = Path(line)
+                if not target.is_absolute():
+                    target = objects / target
+                pending.append((target, ancestors | {objects}))
+    # Resolve the bin directory, never the executable's symlink into Homebrew.
+    python_path = Path(configured_python).expanduser()
+    if not python_path.is_absolute():
+        python_path = root / python_path
+    venv_root = require_durable_storage(python_path.parent, "Python venv").parent
+    if venv_root.is_relative_to(root):
+        raise DevCycleError("gate Python venv must be external to the checkout")
+    config = require_durable_storage(venv_root / "pyvenv.cfg", "Python venv config")
+    if not config.is_file():
+        raise DevCycleError(f"gate Python must belong to an external venv: {python_path}")
+    if not python_path.is_file() or not os.access(python_path, os.X_OK):
+        raise DevCycleError(f"selected external venv Python is not executable: {python_path}")
+    prefix = _run(
+        [
+            str(python_path),
+            "-c",
+            "import json,sys; print(json.dumps([sys.prefix,sys.base_prefix]))",
+        ],
+        cwd=root,
+        env=os.environ.copy(),
+        timeout=5,
+        capture=True,
+    ).stdout.strip()
+    try:
+        active, base = json.loads(prefix)
+        valid = Path(active).resolve() == venv_root and active != base
+    except (ValueError, TypeError, OSError, RuntimeError) as exc:
+        raise DevCycleError("could not verify the selected external Python venv") from exc
+    if not valid:
+        raise DevCycleError("selected Python does not execute in the declared external venv")
+
+
+def tool_environment(root: Path) -> tuple[dict[str, str], str]:
+    cache_root = configured_cache_root(os.environ, root)
+    directories = cache_paths(cache_root)
+    pycache = directories["pycache"]
+    mypy_cache = directories["mypy"]
     pycache.mkdir(parents=True, exist_ok=True)
     mypy_cache.mkdir(parents=True, exist_ok=True)
 
@@ -412,12 +562,6 @@ class GateLock:
 
 def preflight(root: Path, env: dict[str, str], python: str) -> list[str]:
     warnings: list[str] = []
-    lowered_parts = {part.lower() for part in root.parts}
-    if lowered_parts.intersection({"documents", "desktop", "onedrive", "icloud drive"}):
-        warnings.append(
-            f"checkout is under a commonly synchronized folder ({root}); use ~/Developer/PodVoice or /tmp"
-        )
-
     usage = shutil.disk_usage(root)
     free_pct = usage.free / usage.total * 100
     free_gib = usage.free / 1024**3
@@ -454,7 +598,7 @@ def preflight(root: Path, env: dict[str, str], python: str) -> list[str]:
         "[Path(p).open('rb').read(4096) for p in sys.argv[1:] if Path(p).is_file()]"
     )
     fingerprint = preflight_fingerprint(root, python, version)
-    cache_file = Path(env["PODVOICE_DEV_CACHE"]) / "preflight" / f"{fingerprint}.json"
+    cache_file = cache_paths(configured_cache_root(env, root))["preflight"] / f"{fingerprint}.json"
     if not cache_file.is_file():
         _run(
             [python, "-c", read_probe, *probe_files],
@@ -798,6 +942,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         root = repository_root(Path.cwd())
+        if args.mode in {"fast", "lifecycle", "release"}:
+            validate_gate_storage(
+                root,
+                os.environ.get("PODVOICE_PYTHON", str(root / ".venv" / "bin" / "python")),
+                configured_cache_root(os.environ, root),
+            )
         env, python = tool_environment(root)
         with GateLock():
             warnings = preflight(root, env, python)

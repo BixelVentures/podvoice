@@ -1,6 +1,434 @@
 # PodVoice-status — én aktuel sandhed
 
-### 7/10 — aktiv lead-beslutning: næste epic-iteration efter 2.0.1
+### 7/10 — aktiv lead-beslutning: frigiv musikressourcer ved provider-closefejl (#119)
+
+Lead Voice/Reliability Engineer: root. Separat cleanupkandidat fra udgivet mainfab345/2.0.2.
+Thin-baseline er byteidentisk med main69bc; recorder, UI, provider og værktøjer
+ændres ikke. Ingen fysisk accept arves fra 2.0.2 eller tidligere kandidater.
+
+**Observeret fejl og stærkeste sourcebevis.** En genereret inert prøve gennem actual
+Thin/OpenAILive og real-SDK serializer/parser giver completed backendbatch → lokal
+capacityrefusal → nul dispatch/result → én live-tool-failed close → accepted terminal
+→ joined reader → held fysisk socketjoin → provider-close timeout → heartbeat/attention
+skip total-deadline. Gamle socket/manager/client/budgetejere fastholdes; wake blokeres,
+indtil eksisterende retry joiner og rearmes. Forsinket gammel terminal er inert i gen2.
+Prøven isolerer en budgetallokeringsfejl; den forklarer ikke den faktiske transports vent.
+Ingen privat felttelemetri indgår i source eller regression.
+
+**Hele kæden og invarianter.** Input/wake → uændret provider/model → completed batch
+og serverautorisation → capacityrefusal før handling → én Thin close-owner → fysisk
+silence og mic-stop → provider reader/socket/SDK/leasejoin → stop-context → heartbeat
+og attention → fuldt teardownbevis → én rearm → ny wake. Ejerskab/lifecycle6–7,
+playback11, batch12–13 og budget15 er bindende. En providerfejl må ikke blive et falsk
+join, et nyt wake, en gentaget sideeffekt eller et domæneværktøj som close-ejer.
+
+**Falsificerbar årsag og mindste rettelse.** Rearmreserven tilbageholdes fra musik-
+resource-release også efter provider_complete=false har gjort rearm udelukket.
+Bevar totaldeadline, stepdeadlines, serial close-owner, retained providerjoin og retry.
+Kun heartbeat-stop/attention-release må bruge den eksisterende resterende totalbudget
+uden rearmreserve, når netop providercleanup er ufuldstændig; provider-success-path
+forbliver byte-/adfærdsmæssigt samme. Ingen ny timingværdi, parallel cleanupowner,
+forced-owner-clear, socketpatch, kapacitetsforøgelse eller lokal samtalebetydning.
+Den nye nulreserve er kun eligible, når provider_complete=false OG silence_complete,
+stream_complete, opening_complete, rotation_io_complete, idle_preclose_complete og
+stop_context_complete er sande, uden pending teardown-retry-wakeup. Ellers beholdes
+præcis den eksisterende rearmreserve. Der tilføjes ingen ny releaseautorisation over
+ukendt fysisk output/mic, pending startup/rotation eller nyt subscription-boundary.
+Et sluppet musikressourcebevis er aldrig fysisk rearm-readiness.
+
+**Adversarial stop før freeze.** Revieweren falsificerede den første betingelse
+provider_complete=false alene: manglende silence ville få ekstra release-tid.
+Implementøren stoppede; draft findes kun i usynkroniseret scratch, worktreets Thin
+forbliver uændret. Den fulde eligibility ovenfor erstatter den afviste draft.
+Ingen gate eller release på de afviste bytes. Eksisterende provider-success- og
+unknown-silence-adfærd ændres ikke i denne kandidat.
+
+Actual Heartbeat.stop invaliderer generation/target og joiner sin loop; et gentaget
+vellykket stop har ingen loop tilbage. AttentionClient.release sender altid POST;
+actual PodConnect attention.release er mutex/no-op ved allerede inactive og tick
+konsumerer pendingRelease én gang. Den eksisterende fullretry kan derfor give to
+HTTP-releaseforsøg, men må ikke restore fysisk state to gange eller rearme mere end
+én gang. Regression/receipt skal tælle forsøg og faktisk restaurering separat; ingen
+påstand om præcis ét HTTP-kald. Retarget/inflight engage-ejerskab skal adversarial
+kontrolleres; en uløst race stopper kandidaten og får separat årsagsgrænse.
+**Race-audit og eligibility-afklaring før kode.** Actual Heartbeat.retarget kan
+have et held HTTP-engage efter stop/release, men eneste retargetcaller er quarantined
+orchestrator.py; shipped Thin/_Mini og builder har ingen retargetvej. Den genererede
+API-hazard bevares separat og bliver ikke til en parallel classic-runtimepatch.
+Den faktisk shippede periodiske loop skal være joined af heartbeat.stop. Derfor får
+attention-step kun den nye nulreserve, hvis ovenstående physical/provider-eligibility
+OG heartbeat_complete er sand; fejlet/manglende heartbeatjoin bevarer baseline-reserve.
+Actual loop med held/cancellation-resistant engage skal vise, at ny attention-tid
+aldrig åbner før join. Ny generation forbliver blokeret ved ethvert incomplete led.
+Ingen fysisk racefravær udledes af et inertsink; særligt reviewer-GO afventede på dette historiske trin; endeligt GO følger nedenfor.
+
+**Ny falsifikation ved sammensat actual-SDK-prøve.** Den stramme eligibility alene
+rammer ikke den observerede fejl: providerjoin forbruger non-rearmbudget, og de to
+følgende settle-steps bliver sprunget over før deres coroutine undersøger ejere,
+selv når rotation-IO/precloseowner-sættene faktisk er tomme. Begge complete-flags
+bliver derfor falske uden en pending ejer. Implementøren stoppede i scratch efter
+én målrettet failure; ingen worktreepatch eller gate på de bytes.
+Mindste tilstødende ejerrettelse: live-rotation-io-settle køres gennem eksisterende
+bounded step kun hvis _live_rotation_io er nonempty; live-idle-preclose-settle kun
+hvis _live_idle_preclose_owners er nonempty. Tomme ejersæt er direkte no-work/join-
+bevis i samme close-owner, ikke en fabrikeret ACK. Nonempty/done/current-task cases
+beholder det eksisterende bounded settle; ingen pending owner fjernes eller cleares.
+Læsningerne udføres i den seriale Thin close-owner; ingen ny task, await eller timing.
+Actual delayed owned rotation/preclose plus reconnect og provider-failure skal
+modbevise bypass, release eller rearm over pending arbejde. Først når disse separate
+no-work-beviser og alle fysiske eligibilityled er sande, åbner suffix-nulreserve.
+Dette udvider samme kausale grænse ét tilstødende trin, ikke næste symptompatch.
+Uafhængig reviewer skal acceptere scope og efterfølgende frosne bits før merge.
+
+**Stop-the-line: reconnect efter suffix-await.** Implementørens adversarial actual-
+SDK-probe injicerer _reassert_device efter joined heartbeat.stop men før attention.
+Den beregnede nulreserve er stale; reconnect sætter retry_wakeup og invaliderer
+silence, men draften frigiver stadig musik med den lånte reserve. De47+72 tidligere
+grønne cases modbeviser ikke denne ordering. Draft er ikke testklar og må ikke
+fryses/merges; worktreets nye sourcebits bevares som afvist evidence.
+Mindste rettelse er frisk eligibility ved attention-dispatch efter heartbeatawait:
+provider/physical-complete-betingelser og heartbeat_complete skal stadig gælde;
+retry_wakeup skal fortsat være unset og de faktiske rotation-IO/precloseowner-sæt
+skal stadig være tomme. Ellers baseline-reserve. Ingen await mellem frisk check og
+bounded-step admission, ingen nye generationer/tasks/locks eller owner-clear.
+Reconnect før/mens/efter heartbeat og attention, delayed nye ejere ved awaitgrænsen
+og next-generation callback skal permanent falsificere stale suffixpermission.
+En release sendt før en senere reconnect er kun et tidligere bounded cleanupforsøg,
+ikke frisk fysisk silence/readiness; eksisterende retry indhenter ny silence før
+rearm. Uafklaret race ved in-flight attention stopper stadig releasekandidaten.
+
+Talk har ingen seks-sekunders rearmreserve; udløbet totalbudget må stadig give nul
+suffix-dispatch. Der loves ingen ny tid efter totaldeadline eller retained native-
+websocket-owner, som WebRTC-adapteren ikke har.
+
+**Regressioner og modprøver.** Promovér actual-SDK compoundprobe med både native/Talk,
+refusal før dispatch, held join, korrekt terminal versus transport failure, successti,
+caller-cancel/Stop/duplicate, heartbeat-/attentionfejl og fravær af faktisk silence.
+Efter timeout skal nødvendige releaseforsøg ske inden eksisterende totalbudget, mens
+lease/connection beholdes og nextwake afvises. Frigiv hold → eksisterende full retry →
+én rearm; injicér delayed gammel terminal/audio/tool efter generation2 og bevis inerthed.
+Ingen resultatsucces eller hovedhandling må tælles ved refused batch. Uafhængig adversarial
+review af fysisk releasegrænse og idempotence før samlet freeze/gates. Rollback er main69bc
+med eksisterende config/firmware; fysisk accept ukendt. Tool-/Realtime-semantik ændres
+ikke ved denne mekaniske suffixrettelse; #119's kapacitetsårsag forbliver særskilt.
+
+
+
+**Uafhængigt exact-diff review GO og integration.** UI-reviewer har verificeret
+alle tre hashes mod frosset diff/basefab345 og kørt68 actual-SDK/tidligere tests plus
+seks egne modprøver. Nye pending rotation/preclose under allerede admitted attention
+joines i fullretry før readiness; actual reconnect under fullretryattention kræver
+frisk silence. Det kan give tre releaseforsøg, men kun én native rearm. Ingen alvorlig
+finding. Root integrerer præcis de godkendte tre filer; versionmetadata bliver2.0.3.
+Ingen HA-resultfold, capacitylimit, provider-/prompt-/schema-/firmwareændring blandes ind.
+Rollbackgrænse er installeret2.0.2, som fortsat ikke er fysisk lifecycle-godkendt.
+Samlet fast/releasegate og exactcandidate packaging-review afventer; ingen fysisk
+restoration eller ny golden/10/10 udledes af software-GO.
+
+**#109 test-only integration.** En ny permanent testfil er exact-reviewed GO:
+diff942c9823ae323db0653dc959a4316dcdd6c6685dde6b3964f23d84ad7ec22f23,
+file8a45e63a406a45ff9f52a6575e5420cfd01d1d2441697b8569896d208db3ad8d.
+95 implementørtests og9 exact composed independent tests består. Actual MCP/router/
+Thin native/Talk plus den entydigt AST-valgte shippede probe-loop dækker startup-
+backoff, serial discovery, atomisk pagination, udfald i aktiv generation uden close,
+immutable gamle schemas, stale/queued execution afvist før actionHTTP og detached copy.
+Alle held waits/joins er bounded; ingen global/shared output eller kopieret recovery-
+algoritme. Produktionsrecovery er uændret. Actual HA/netværk, healthyTTL,60s-waits,
+providersemantik, vejr/hjem i rum og fysisk næste wake er stadig ubekræftet; #109 åbent.
+
+**Frosset rettelse før integration.** Kun Thin og to regressioner: diff-SHA256
+`eb53cb01bb0f56f3c634d67ebbab86b7a38548b2fee738bcedfb53f113e2975d`.
+65 actual-SDK/Thin og72 tidligere felt-/Talkregressioner består; Ruff/format består.
+Frisk attention-eligibility efter heartbeat-await bevarer reserve ved reconnect
+eller nye rotation/preclose-ejere. Ved denne oprindelige freeze afventede uafhængigt exact-diff review; det er nu GO
+jf. resultatposten ovenfor. Samlet kandidatgate og fysisk testklarhed åbnes ikke alene
+på implementørtests.
+#109 har en separat test-only permanent MCP-fault-regression, ingen runtimeændring.
+
+
+**STOP-LINE før2.0.3-freeze: permanent tooling-regression.** Den autoritative
+fast-gate på præcise kandidatbytes i usynkroniseret clone har PASS Ruff0,05s,
+format0,05s, mypy55files7,90s, integration85,24s og unitbatches1/2; unitbatch3
+timer ud efter120s og batch4 køres ikke. Én isoleret genkørsel af kun batch3 med
+samme120s/GateLock/Python3.12 bekræfter løbende fremdrift: audio_analysis25 og
+burst7 cases passer, derefter44 real-Git scopecases, inden120s udløber. Ingen
+individuel15s faulthandler-stack eller produktassertion fejler; ingen ny timeout,
+cache af effective-byte-inspektion eller runtimepatch er tilladt af dette bevis.
+
+Kausal toolinggrænse: count-baseret unit_batches →100moduler fordelt4×25 → ét
+117-case real-Git scope-modul alene tidligere102–160s → samme modul plus24andre
+under120s → invalidunit-stage. Lead tillader kun TEST-only partition af de dyre
+Git-kontraktcases i fire deterministisk scheduled moduler med delte private helpers;
+pure classifiercases kan blive i originalmodulet. Hver original tests eksakte AST,
+decorators/parametriseringer og real-Git/effective-bytes-adfærd skal bevares; ingen
+case fjernes eller erstattes med mocks. Permanent regression skal bevise fuld original
+inventory uden dubletter og de fire dyre grupper i separate actualunit_batches-børn.
+Root/reviewer stopper ved ændret case, skipped import, manglende helper eller nye
+lange usplittede grupper. Produkt/gate-deadlines og dev_cycle-funktionen ændres ikke.
+Uafhængigt adversarial exactdiff-review før nye gatekørsler. Kun invalideret unit-
+coverage genkøres; grøn integration/style/mypy for uændrede bits bevares. Samlet
+releasegate er ikke startet; én releasegate følger efter ny endelig freeze/review.
+Kandidaten er fortsat ikke udgivelsesklar, og ingen fysisk accept åbnes heraf.
+
+**#121: fire testshards falsificeret; ny strukturel scope før kode.** Den første
+TEST-only partition bevarer alle67 originale function/helper-ASTs/decorators og117
+cases, bekræftet uafhængigt; ingen source-/deadlineændring. Den planlagte bounded
+prøve viser pure31PASS1,88s, Git1 16PASS116,88s, Git2 27PASS97,14s, men Git3 timer
+ud120,01s efter19/25cases; Git4 og dev_cycle køres ikke. Den frosne679a6a2-partition
+er NO-GO og arver ingen samlet gate. Faktisk Git-subprocess-mikroprofil28–101ms/call
+forklarer hvorfor statiske caseweights ikke er timingbevis. Ingen inspectioncache
+eller reduktion af Git-/hidden-file-regressionerne er tilladt.
+
+Fire børn har kun480s samlet fast-budget; den observerede lowerbound334s Git plus
+ca.80s øvrige tests er allerede414s før24 resterende dyre cases. Lead tillader nu
+én permanent strukturel toolingændring: fordel de samme Gitcases i otte testshards
+og sæt UNIT_BATCH_COUNT=8, så hver tung shard får sit eget serielle pytestbarn.
+Per-barn fast120s/release240s, subprocess-kill/join, én GateLock og alle cases bevares.
+Outer-unit-stage bruger uændret eksisterende count×(timeout+4)+collection-formel for
+det faktiske antal børn; der gives ingen ny tid til et barn eller runtime/provider.
+Den samlede workflow-kapacitet afstemmes med faktisk obligatorisk arbejde i stedet
+for endnu en manuel timeoutgenkørsel. Pure classifier og øvrige moduler indgår stadig
+præcis én gang; ingen redundant pytestcollect eller parallel lock-owner tilføjes.
+Permanent real-inventory regression skal bevise otte forskellige childplacements,
+eksakt original AST-/decorator-/paraminventory, coverage/fail-stop/childcleanup og
+outer-formlens korrekte scope. Uafhængigt source-/adversarial review før unitretry.
+Da testscheduling/source ændres, invalideres hele unit-stage, ikke kun gammel batch3;
+grøn uændret integration og produktmypy bevares. Nye ændrede style-/toolingkontrakter
+kontrolleres. Én releasegate efter endelig samlet freeze; #121/#119 stadig åbne.
+
+**#121: otte shards også NO-GO; frisk boot og varigt miljø før nye gates.**
+Den otte-shardprøve på frosne2a08f1d6-bytes gav pure31PASS17,47s, men første
+Gitshard120,02s timeout efter3/6cases. Øvrige syv Gitshards og dev-cycle blev ikke
+kørt. En almindelig source-read via git show stod samtidig stille i over tre minutter.
+Derfor er endnu en partition eller deadlineændring ikke en dokumenteret rettelse.
+Den otte-sharddraft er bevaret, men ikke testklar; tidligere deltests arver ikke GO.
+
+Frisk kontrol efter afbrydelsen viser macOS boot7/10 kl14:32:26 og ingen levende
+PodVoice pytest/Git-gateprocesser. De tidligere /private/tmp-clones, venv, caches og
+rå reviewreceipts er væk. Sourcebits, denne STATUS og GitHub-opdateringer består.
+Git show af den samme baselinefil tager nu12,3ms; to gamle common-Git .rev-filer
+under Documents har datalessflag. Frisk swap-/loadpres er observeret, men forklarer
+ikke alene de historiske timeouts. Ingen historisk årsag hævdes bevist efter reboot.
+
+Lead ændrer først den faktisk falsificerede workflowgrænse: én vedvarende standalone
+usynkroniseret dev-clone i den eksisterende rene ~/Developer/podvoice-dev, ekstern Python3.12-venv under
+~/.codex/venvs/podvoice og vedvarende cache/evidens under ~/.codex/podvoice-evidence.
+Clone må ikke dele objects/alternates med Documents. Eksisterende tre worktrees er
+redigering/handover; beskidte branches må ikke resettes. Alle kandidatfiler og baseline
+skal verificeres på hash før nye gates. Ingen runtime-/deadline-/inspectioncachepatch.
+Den allerede accepterede119/109-source bevares og sammenholdes med registrerede hashes;
+de slettede rå logs kan ikke udgives som nye receipts. Efter miljøkontrol isoleres den
+nu ugyldige unit-stage med samme bounds og faktisk proces/slutbetingelse; fuld release
+starter først efter samlet freeze og frisk uafhængigt review. Rollback er fortsat2.0.2;
+fysisk accept er uændret ukendt. Resterende toolingårsag og8-shard-GO er åbne.
+
+**#121: frisk direkte kildegrænse og permanent guard før kode.** Local fetch fra
+UI-worktreets commonGit under Documents timer ud på uændret45s; ingen fetch-/
+upload-pack-/index-pack-ejere lever videre. Direct-origin fetch af præcis offentlig
+fab345 består under samme45s. Den eksisterende rene standalone ~/Developer/
+podvoice-dev genbruges på ny separat validationbranch; gammel main resettes ikke.
+Dette beviser en forskel ved source/objecttransport, ikke en fuld historisk årsag.
+
+Actual scripts/dev_cycle.preflight advarer kun om Documents og anbefaler /tmp,
+mens den bindende kontrakt kræver vedvarende usynkroniseret clone/ekstern venv.
+Lead tillader nu mindste permanente toolingguard ved kun fast/lifecycle/release-
+entrypoints før GateLock/preflight/stages: verificér root, faktisk commonGit og
+objectalternates samt den valgte eksterne venv og cache er vedvarende/usynkroniserede.
+Refuse known sync/OS-temp dependencies, venv i repo og manglende faktisk venv.
+Unit-worker/syntetiske lavniveaufixtures forbliver uændrede. Defaultcache flyttes
+fra OS-temp til vedvarende ~/.cache/podvoice-dev, så de tre autoritative kommandoer
+ikke kræver ny konfiguration. Global hostlokal GateLock er stadig i OS-temp.
+Ingen timeout, cache af scopeinspektioner, Gitsemantik eller runtimeændring.
+
+Kæde: shellvalg → storage/source/venv-check → én gateowner → exact-scope → serielle
+childgroups → joined slutbetingelse → persisted receipt → frozen/review/CI/artifact.
+Ingen produkt-/fysisk kæde ændres. Regressioner skal afvise Documents/commonGit-
+Documents, tempclone/venv/cache og transitive objectalternates tilbage i sync, med
+nul stage-launch; acceptere durable standalone/eksternvenv/cache. Eksakt original
+67-AST/117-caseinventory og8childplacement genverificeres. Samlet sourceguard/diff
+kræver uafhængigt adversarial review før den ugyldige unit-stage. Falsificeret guard,
+ny timing eller source/manifestmismatch stopper kandidaten. Rollback2.0.2; ingen
+fysisk accept. Resterende performanceårsag bevares som åben, ikke bortforklaret.
+
+**Parallel #100-labelaudit: åbent konkret fund efter installation.** Current2.0.2
+Hjem kalder service/rum "Vækkeord ikke bekræftet", mens Settings viser faktisk
+firmwarebekræftet gemt vækkeord. De to udsagn har forskellige datakilder: Hjem
+projicerer fysisk wake-readiness, Settings gemt ord/enheds-ACK. Den menneskelige
+tekst blander ordvalgsbekræftelse med endnu ubevist fysisk vækning. #100 forbliver
+åbent på sit eget præcise AC1-fund, ikke på en kunstigt tilføjet #115-gate.
+Lead tillader en separat præsentationsrettelse efter2.0.3, som navngiver fysisk
+vækning korrekt og bevarer alle payloads/dataejere/readinessfarver. Regression skal
+kombinere confirmed saved/device word med unknown physical wake og også den modsatte
+kombination; service/rum/Settings/tooltip må aldrig modsige deres egne kilder.
+Ingen ny readiness, provider, firmware eller lifecycleændring og ingen accept-arv.
+Ingen UI-source ændres i den aktuelle mekaniske2.0.3-kandidat.
+
+**#121 uafhængigt v3-review: NO-GO og mindste ejerrettelse.** Reviewer har
+verificeret22 filhashes,67 oprindelige funktioner/117 cases,otte adskilte børn og
+uændrede #119/#109-bytes. Men cache-rootkontrol alene kan omgås af eksisterende
+pycache/mypy/ruff/pytest/preflight- eller stage-undermapper, som er symlinks tilbage
+i Documents eller temp. Ingen gate er startet på v3. Root afgrænser v4 til én fælles
+builder for de faktisk ejede cachepaths og tidlig kontrol af alle deklarerede paths
+for fast/lifecycle/release før første mkdir/lås/stage. Ingen arbitrær cache-walk eller
+ny timeout. Udvid regressionen med senere-stage-alias, som skal give nul tidligere
+Popen, samt bind deklaration til actual Stage-navne. Resolve-fejl bliver struktureret
+DevCycleError og forbliver fail-closed. Samme source-, gate- og rollbackgrænse gælder;
+permanent tooling-rettelse er et issue under stabilitetsepicken, ikke runtimebevis.
+
+**#121 endeligt v4 source-/target-/unit-GO før samlet freeze.** Uafhængigt
+reviewa25a7717 bekræfter faktiske cache-ejere,original67AST/117cases og8forskellige
+unitbørn. Storage/dev-cycle85cases består6,785s; alle109unitmoduler i8serielle
+børn består205,553s under uændrede120s-grænser, uden genkørsler. Ruff/format2filer
+består. Alle22frosne hashes er uændrede efter gaten; GateLock er frigivet.
+Vedvarende receipt pv121-v4-gate-verification.json binder source-review,filfingerprint
+og rå stdout. Dette beviser den permanente workflowrettelse i nuværende miljø,
+ikke en fuld historisk timeoutårsag eller produktevidens. Root fryser nu samlede
+2.0.3 inklusive seneste approvedSTATUS; én fuld releasegate afventer exactcandidate
+packagingreview. Ingen runtime-/deadline-/prompt-/tool-/firmwareændring ud over
+den separat reviewed mindste119-oprydning; UI100/122/115 og Alpha103 er OUT203.
+Fysisk restoration/golden/10+10/latency er fortsat ukendt. Rollback2.0.2.
+
+**2.0.3 fuld releasegate PASS på frosset/reviewed kandidat.** Én faktisk
+scripts/dev release --base origin/main,254,348s,exit0,ingen genkørsler.
+Ruff/format218filer0,19s; mechanicalscope rearm0,36s; mypy55sources7,31s;
+integration802PASS85,12s; unit109moduler/8børn253,72s med uændret240s-børnegrænse.
+Alle22frosne hashes d1fa6c7cc1a45f951e11b56058051cba7eb7dc5e5e0bf9cf185d1b6957dc6831
+er uændrede før/efter; GateLock er frigivet. Uafhængigt whole-packagingreview
+adae25e651cd13dba68edf89a600d751426b61aadaa439a3701a63396a8a490a er GO.
+Vedvarende pv203-authoritative-release-verification.json SHA
+748c18562d86965ce6ee55d1fbe484e4a1e49872d9836a681d0a6a4ff00d5fab.
+Root fortsætter ét PR/CI/merge/artifact/install-flow under eksisterende godkendelse.
+Denne resultatpost og senere future-only processgrænser er docs-only efter gaten;
+produktion og tests forbliver præcis frosne. Fysisk accept er ukendt; #119 og #109
+lukkes ikke på software-PASS. #121 har egne toolingkrav, som afventer CI/leverance.
+
+**#119 genfundet direkte feltspor efter hostreboot.** Læsende HA-Diagnose gav
+alle tre gemte dele af samme12:26.30-musikdialog på2.0.1/rootfs0211ffe5 og uændret
+firmware. Private udtræk ligger vedvarende i ~/.codex/podvoice-evidence/ha-readonly.
+I sidste del: actual completed+34641 → batch_received+34734 → admissionstarted
++34745/failed+34749 med0results → close+35070; terminalwaitcancel+40761 →
+readerjoin+40770 → socketjoin+42931 → clientjoin+42937 → budgetrelease+42940 →
+outer providerclose-timeout+42945 → suffixsteps totaldeadline+43001–43003.
+Dette støtter den tidligere feltrækkefølge, men beviser ikke per-response tokenusage,
+reservationledger eller autoritativ providerquota. Live-usage er kun seconds; indholds-
+fri driftsdiagnostik indeholder ikke admission/usage. Den nye cleanupkandidat kræver
+friskt fysisk silence/stream/stop-context/ejerbevis og må ikke loves at løse hele
+denne feltfailure alene: original stop-context er også skipped. Fysisk prøve/fuld
+kausal accept af #119 forbliver åben. Ingen nyt AI-kald/settingswrite/runtimepatch.
+
+### 7/10 — aktiv lead-beslutning: separat praktisk UI-kandidat (#100/#122)
+
+Lead root. Baseline er mainfab345/installeret2.0.2. Denne facet forberedes som
+vedvarende patchartifact, ikke i den aktive2.0.3-runtimekandidat. #122 er eget nyt
+native underissue til settings#113 under epic95; egne acceptkrav styrer lukning.
+
+**Observeret fejl og hele kæden.** Actual formularhandlers for Tilføj rum, Fjern rum
+og Nulstil prompt muterer kladden uden settingsDirty=true; beforeunload læser kun
+settingsDirty. Brugerredigering → kladde/dirty-owner → advarsel ved navigation →
+existing Save HTTP → serverconfig → readback/effektiv værdi → aktiv samtale og senere
+wake skal beholde deres eksisterende ejere. Copy indeholder engelske savefejl/reset.
+UI-invariant14, settingsautoritet og lifecycle6–7 gælder; UI må ikke ændre aktive
+provider-/værktøjs-/runtimevalg som sideeffekt eller kalde en kladde gemt.
+
+**Falsificerbar årsag/minimal facet.** Programmatisk mutation går uden om input-
+listenerens dirty-admission. Marker faktisk ændring gennem samme kladde-owner og
+bevar dirty ved fejlet save; succesfuld faktisk gem/refetch kan cleare efter den
+eksisterende kontrakt. Test add/remove/reset, no-change, savefejl/netværksfejl,
+annullér/refetch og gemte versus effektive værdier. Kort dansk copy, uændrede
+payloads/præferencer/defaults. Ingen settingsmigration, promptindhold, gain/VAD,
+ny retry/persistence, provider/lifecycle eller ny statusautoritet. Rollback2.0.2.
+
+**#122 samme dirty-owner: svar på ældre Save må ikke cleare nyere kladde.** Actual
+collect() fanger payload før await POST; accepted response sætter derefter dirty=false
+ubetinget, også efter en nyere redigering. Lead tillader en intern monoton kladde-
+revision: dirtymarker øger revision; Save fanger sentRevision sammen med payload;
+accepted svar må kun cleare dirty for samme revision. Nyere kladde og fejl beholdes.
+Kort status skelner sendt/gemt fra nyere ugemt ændring; eksisterende savedWakeWord,
+backendkontrakt/genstart/payloads er uændrede. Hold faktisk POSTresponse, redigér
+nyere draft, frigiv accepted response og bevis dirty+nyværdi bevares, mens sendt
+payload indeholder den tidligere værdi. Cancellation/refetch og flere samtidige
+Save-requests skal gennemgås; ingen ny autosave/retry eller runtimeejer.
+
+**#122 initial GET-grænse.** load() kaldes én gang og awaiter settings/rooms,
+mens formularen kan redigeres. Et sent GET-svar overskriver ellers nyere kladde.
+Lead vælger den mindste fail-closed grænse: fang kladderevision før initial GET;
+ved nyere revision bevares kladden, settingsLoaded/Save forbliver false/disabled,
+og kort dansk status giver eksisterende genindlæs-handling. Ingen silentoverwrite,
+autosave, timeout eller automatisk retry. En eksplicit reload går gennem eksisterende
+ugemt-advarsel; en almindelig ubrudt GET skal indlæse og muliggøre Save som før.
+Held initialGET + field/add/reset og heldPOST + nyere edit testes særskilt. Et ældre
+saveerror/result må heller ikke eje status for nyere request/kladderevision uden
+revisionbevis. Ingen ny remote config/lifecycleautoritet.
+
+**#122 samtidige Save-svar.** Begge Save-knapper kan starte overlappende POSTs;
+ældre svar kan overskrive savedWakeWord/status eller dirty efter nyere save.
+Lead tillader én intern settingsSaveBusy-owner for eksisterende Save/genstart-
+transaktion: begge Saveknapper disabled under den samme transaction, duplicate
+entry inert; finally giver adgang igen kun ved actual settingsLoaded. Input kan
+fortsat redigeres; sentRevision-fence bevarer nyere kladde. Ingen overlappende
+remotewriter, ny autosave/retry eller ændret kontrolpayload. Held POST/restart,
+duplicate entry, success/error og nyere edit skal permanent modbevise ownerleak,
+gamle kvitteringer og forkert genaktivering. Denne sourcefacet er fortsat NO-GO,
+indtil samlet review af alle GET/POST/restart/dirty-boundaries er afsluttet.
+
+#100's labelscope præciseres: room recovered kan kaldes "Vækning ikke bekræftet";
+Settings-ACK navngiver "Ordvalg bekræftet af enheden". Service degraded kan også
+skyldes firmwarekontraktfejl efter bevist wake, derfor neutral "ikke verificeret",
+med actual backendårsag bevaret. Modprøver kombinerer knownword/unknownwake,
+unknownword/provenwake og provenwake/firmwarekontraktfejl uden nye classifierregler.
+
+Actual browserfixture frigiver held statuspolls før diagnostic-busy=true/assertions;
+en allerede frigivet false-response kan overskrive true. Historisk failurelog er
+slettet, så årsag er en falsificerbar sourcehypotese. Hold eksisterende polls gennem
+true→assert→false, sæt serverens faktiske slutstate og frigiv derefter. En permanent
+regression skal bevise leveringen/barrieren; ingen runtimepatch eller tilfældig sleep.
+Efter patch kræves exact-diff adversarial review og målrettede faktiske browser-
+kontrakter; derefter separat frosset software/releaseflow. Installation og egne UI-
+acceptkrav følger senere; #115/fysisk readiness arves ikke fra disse sourceændringer.
+
+### 7/10 — separat browsergate under #115 og Alpha-bevis under #103
+
+Lead/root. Read-only audit finder ingen automatisk Chromium-kobling for daily_ui,
+wake_words eller den nye settings_dirty; CI kører Python, og eneste Node-hook er
+VM-projection med optional browserproof. Dermed kan grøn CI ikke bevise #100/#122's
+virkelige formular-/poll-adfærd. Dette er et konkret toolinghul under #115.
+Root tillader separat kommende UI-artifact med én bounded browserworker-runner,
+eksakt inventory af live_status/daily_ui/wake_words/settings_dirty, pinned faktisk
+Playwright/Chromium, hård fejl ved manglende deps og join af processgruppe ved fejl.
+Samme recipe kobles til fast/release ved UI-scope samt CI ui-browser som nødvendig
+afhængighed til publication. Der introduceres ingen fjerde autoritativ lokal gate,
+optionalPASS, Chromium i runtime eller ændring af samtalens ejere. Nye stagecachepaths
+skal følge storagekontrakten. Dette arbejde er udenfor frosset2.0.3.
+
+**#115 præcis procesgrænse før runnerkode.** Actual pinned Playwright1.62.1
+starter Chromium detached på POSIX; Node-workerens processgruppe ejer derfor ikke
+browsergruppen. Root tillader kun test-tooling preloader, som registrerer de faktisk
+startede detached browser-PID/grupper i en privat, unik worker-ejet receipt uden
+argv/credentials. SDK launch/kill-semantik bevares. Parent sender først bounded
+graceful stop og join; ved timeout/cancel håndteres de registrerede browsergrupper
+og workergruppen særskilt med ejer-/invocationkontrol. Registryfejl/manglende ownerbevis
+må aldrig blive PASS eller ukontrolleret kill. Negative tests skal inkludere orphan
+browsergruppe, cancellation ved launch og cleanupfejl. Ingen generisk proceskill,
+SDK detached-bypass, kørsler eller dependencyinstallation under203gaten.
+
+#103 source-audit: den eksisterende ti-cyklus-test bruger LiveFake/Realtime-lignende
+events. Enkeltstående actual-SDK Alpha-terminal/quiet-close-regressioner er stærkere
+om protokollen, men er ikke en ubrudt automatisk ti-serie. Næste isolerede testleverance
+må sammensætte actual-SDK/Thin/adapter-ejere gennem ti friske generationer og injicere
+gamle wire/playback efter grænsen, uden runtime/deadline/providerkald. Fysisk10/10
+er fortsat særskilt. #101 har ikke nok bevaret diagnostik til en clock/promptpatch;
+Live-inputfragmenter må ikke blive lokale tale-ture eller GetDateTime-kald.
+
+Separat Talk-hypotese under #103: actual finalizer går fra session.closed til
+live-browser-drain-unconfirmed; BrowserLink accepterer providerfinalized uden browser-
+ACK, og live_stop pauser/frakobler browserlyd/peer. Providerterminal er ikke fysisk
+afspilningsdræn. Før runtimeændring skal en inert reproduktion med shippedJS og lokal
+WebRTC-medieproduktion vise terminal → resterende mediehale → stop. Ingen stilhed,
+RTP-statistik eller peer-close må fabrikeres som drain-ACK. Eksisterende grøn test
+forventer netop unconfirmed og beviser ikke farvelhale. Ingen Talkpatch i2.0.3;
+fuld protokolbeslutning og uafhængigt review afventer faktisk reproduktion.
+
+### 7/10 — afsluttet softwarebeslutning: epic-iteration 2.0.2
 
 Lead Voice/Reliability Engineer: root. Baseline er den reviewed/udgivne main
 `69bcd68de407cfe877080ab4061d709d15cd21f6` / 2.0.1. Epics #94/#95/#96 er chatmål;
@@ -216,7 +644,7 @@ software-release/CI/artifact/installation og fysisk accept afventer hver deres b
 Ingen paid providerprøve kræves for denne passive observation/UI/testforberedelse.
 #118/#119's isolerede runtimeaudit ændrer ikke disse kandidatbits.
 
-<!-- candidate-scope-coupling
+<!-- historical-v2.0.2-candidate-scope-coupling
 {
   "version": 3,
   "kind": "passive_burst_ui_hil",
@@ -250,6 +678,37 @@ bevares. Ingen ny full gate eller manuel CI-genkørsel. Dette åbner ét PR/CI/m
 artifact-flow for2.0.2; det er software-GO, ikke fysisk golden/lifecycle eller
 produktaccept. Denne resultatpost er docs-only efter frosne produkt-/testbytes.
 Firmware/settings/ejerskab er uændret; præcis artifact og HA-installation afventer.
+
+**Udgivet og installeret 7/10: 2.0.2.** PR120 merged på main
+`fab345281187cf0ef6648c7cf922c96c3dcb5985`. PR-CI37613018190 og
+main-publication37613448628 er grønne uden manuel genkørsel. ARM64-manifest
+`sha256:d96caded8c8f0ff5e8eff8952f56a24f83de61bb814c0c4a5d3f090ada590628`
+har samme revision; index er
+`sha256:1c1af8978941325209a8e873e3ac2b59a6fefb397b1659628c75b124bcf900f0`.
+HA-installation med backup af2.0.1 er fuldført: app-info2.0.2/Kører, frisk startup
+viser samme Git-SHA og rootfs-v1
+`3072fe475bc9fee7b1d079ff5126be818113ad25ff1cd25bb0675ee10039450d`.
+Firmwarekontrakt OK, fortsat podvoice_build_113112_liveclosing1/ESPHome2026.6.2.
+23 whitelistede ikke-hemmelige settings før/efter har nul ændringer; ingen save,
+firmwareflash eller opdatering af HA Core/OS indgik. Frisk fysisk golden/10/10,
+lydtracekomplethed og produktaccept er fortsat UKENDT på præcis2.0.2.
+
+**Afsluttet audit #99 på installeret2.0.2.** Det eksisterende kontrolinventar og
+beslutningstabellen nedenfor er revalideret mod mainfab345, HTML-SHA256
+`9887ebc36b7a060379ab6739aafe578a692df109c76abe39fb7403276027c776`.
+Hjem, Tal, Diagnose, Historik og Indstillinger er read-only gennemgået i HA-ingress;
+aktuelle private screenshots/DOM-receipts dækker fem faner, Avanceret og Sikkerhed.
+Sourceinventaret dækker også alle betingede/sekundære handlinger og deres faktiske
+datakilder, ejere, saved/active-betydning og fremtidige placering. Ingen prøve, mikrofon,
+betalt provider, Start/Stop, Save/Reset eller ændring af sikkerhed blev aktiveret af audit.
+Daglig betjening er kort status, Start/Stop og konkret fejlhandling; diagnose er sekundær.
+Fjernede undervisningstekster havde ingen gemt setting/runtimeejer. Valgte GPT-Live-
+retning og Alpha/OFF-migration er tydeligt adskilt: #113 ejer stadig eksplicit migration/
+rollback; ingen definitive VAD/gain/model/timeoutværdier er opfundet. #94 ejer fysiske
+målinger, #96 funktion/recovery, #115 samlet HA-app/Safari/VoiceOver/Talk-accept.
+De fulde browser-/fysiske gates er ikke auditens eget acceptkrav og overføres ikke
+hertil. De seks auditkrav er opfyldt; #99 kan lukkes uden at lukke #95 eller #100,
+#113, #114 og #115. Private billeder/settings/logs publiceres ikke på GitHub.
 
 ### 7/10 — aktiv lead-beslutning: v2.x-softwarekandidat 2.0.1
 

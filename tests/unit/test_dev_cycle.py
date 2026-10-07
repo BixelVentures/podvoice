@@ -1,3 +1,5 @@
+import ast
+import hashlib
 import json
 import os
 import signal
@@ -494,16 +496,71 @@ def test_unit_batches_cover_every_default_test_module_once(tmp_path, count):
     assert len(batches) == min(dev_cycle.UNIT_BATCH_COUNT, count)
 
 
+def test_real_git_scope_cases_remain_intact_and_use_all_eight_unit_children():
+    root = Path(__file__).parents[2]
+    unit = root / "tests/unit"
+    shards = [f"tests/unit/test_candidate_scope_git_{index}.py" for index in range(1, 9)]
+    batches = unit_batches(root)
+    flattened = [name for batch in batches for name in batch]
+    assert all(flattened.count(name) == 1 for name in shards)
+    assert len({index for index, batch in enumerate(batches) if set(shards) & set(batch)}) == 8
+    assert "tests/unit/_candidate_scope_git.py" not in flattened
+
+    definitions = []
+    for name in [
+        "test_candidate_scope.py",
+        "_candidate_scope_git.py",
+        *[Path(p).name for p in shards],
+    ]:
+        nodes = ast.parse((unit / name).read_text()).body
+        functions = [node for node in nodes if isinstance(node, ast.FunctionDef)]
+        if name == "_candidate_scope_git.py":
+            assert all(node.name.startswith("_") for node in functions)
+        else:
+            assert all(node.name.startswith("test_") for node in functions)
+            for node in functions:
+                is_git = any(argument.arg == "tmp_path" for argument in node.args.args)
+                assert is_git == name.startswith("test_candidate_scope_git_")
+        definitions.extend(functions)
+    names = [node.name for node in definitions]
+    assert len(names) == len(set(names))
+    inventory = [
+        (node.name, ast.dump(node, include_attributes=False))
+        for node in sorted(definitions, key=lambda node: node.name)
+    ]
+    # Frozen BEFORE relocation from monolithic source 28bac091c2415740… .
+    # Binds every original function body, helper and parameter decorator;
+    # never derive the expected value from the newly exported test modules.
+    digest = hashlib.sha256(json.dumps(inventory, separators=(",", ":")).encode()).hexdigest()
+    assert digest == "2cdd76fec4c21335635d8d1a7602d28f131f5237660500d837b3811b1ed3b2d8"
+
+
+@pytest.mark.parametrize("bound", [120, 240])
+def test_eight_unit_children_keep_per_child_bounds_and_derive_total_owner_bound(bound):
+    assert dev_cycle.UNIT_BATCH_COUNT == 8
+    assert dev_cycle.FAST_TIMEOUT_S == 120
+    assert dev_cycle.RELEASE_TIMEOUT_S == 240
+    stage = unit_stage("python", bound)
+    assert stage.command == (
+        "python",
+        "scripts/dev_cycle.py",
+        "unit-worker",
+        "--unit-timeout",
+        str(bound),
+    )
+    assert stage.timeout == 8 * (bound + 4) + dev_cycle.COLLECTION_TIMEOUT_S
+
+
 def test_unit_worker_without_tests_fails_closed(tmp_path):
     with pytest.raises(DevCycleError, match="no test modules"):
         unit_batches(tmp_path)
 
 
-@pytest.mark.parametrize("failure", [None, 1, 2])
+@pytest.mark.parametrize("failure", [None, 1, 2, 8])
 def test_unit_worker_is_sequential_preserves_output_and_stops_after_failure(
     monkeypatch, tmp_path, capsys, failure
 ):
-    batches = tuple((f"tests/unit/test_{index}.py",) for index in range(4))
+    batches = tuple((f"tests/unit/test_{index}.py",) for index in range(8))
     monkeypatch.setattr(dev_cycle, "unit_batches", lambda root: batches)
     monkeypatch.setattr(dev_cycle.os, "killpg", lambda *_args: None)
     started = []
@@ -533,7 +590,7 @@ def test_unit_worker_is_sequential_preserves_output_and_stops_after_failure(
     else:
         with pytest.raises(DevCycleError, match=f"batch {failure} failed"):
             run_unit_batches(tmp_path, {}, "python", 240)
-    assert len(started) == (4 if failure is None else failure)
+    assert len(started) == (8 if failure is None else failure)
     assert [command[-1] for command in started] == [batch[0] for batch in batches[: len(started)]]
     assert f"details for batch {len(started)}" in capsys.readouterr().out
 

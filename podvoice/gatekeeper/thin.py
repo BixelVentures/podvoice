@@ -1857,18 +1857,20 @@ class ThinSession:
         idle_preclose_complete = True
         if self.live_alpha:
             self._record_live_usage()
-            rotation_io_complete, _ = await self._teardown_step(
-                "live-rotation-io-settle",
-                self._settle_live_rotation_io(),
-                deadline=teardown_deadline,
-                reserve_s=rearm_reserve,
-            )
-            idle_preclose_complete, _ = await self._teardown_step(
-                "live-idle-preclose-settle",
-                self._settle_live_idle_preclose(),
-                deadline=teardown_deadline,
-                reserve_s=rearm_reserve,
-            )
+            if self._live_rotation_io:
+                rotation_io_complete, _ = await self._teardown_step(
+                    "live-rotation-io-settle",
+                    self._settle_live_rotation_io(),
+                    deadline=teardown_deadline,
+                    reserve_s=rearm_reserve,
+                )
+            if self._live_idle_preclose_owners:
+                idle_preclose_complete, _ = await self._teardown_step(
+                    "live-idle-preclose-settle",
+                    self._settle_live_idle_preclose(),
+                    deadline=teardown_deadline,
+                    reserve_s=rearm_reserve,
+                )
             self._discard_live_confirmation()
             self._live_rotating = False
         stop_context_complete = True
@@ -1884,6 +1886,18 @@ class ThinSession:
             stop_context_complete = context_ok and context_disabled is True
             if stop_context_complete:
                 self._local_stop_armed = False
+        music_cleanup_reserve = (
+            0.0
+            if not provider_complete
+            and silence_complete
+            and stream_complete
+            and opening_complete
+            and rotation_io_complete
+            and idle_preclose_complete
+            and stop_context_complete
+            and not self._teardown_retry_wakeup.is_set()
+            else rearm_reserve
+        )
         heartbeat_complete = True
         attention_complete = True
         if release_music:
@@ -1891,13 +1905,20 @@ class ThinSession:
                 "heartbeat-stop",
                 self.heartbeat.stop(),
                 deadline=teardown_deadline,
-                reserve_s=rearm_reserve,
+                reserve_s=music_cleanup_reserve,
             )
             attention_ok, _ = await self._teardown_step(
                 "attention-release",
                 self.attention.release(self.room),
                 deadline=teardown_deadline,
-                reserve_s=rearm_reserve,
+                reserve_s=(
+                    music_cleanup_reserve
+                    if heartbeat_complete
+                    and not self._teardown_retry_wakeup.is_set()
+                    and not self._live_rotation_io
+                    and not self._live_idle_preclose_owners
+                    else rearm_reserve
+                ),
             )
             if attention_ok:
                 if self.hub is not None:
