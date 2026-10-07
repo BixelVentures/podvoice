@@ -232,6 +232,25 @@ Ingen paid providerprøve kræves for denne passive observation/UI/testforberede
 }
 -->
 
+**Stop-the-line efter den ene releasegate.** Frozen1bbb478 er ikke testklar.
+Scope, Ruff/format og mypy55files er grønne, men integration får125 loopback-bind-
+PermissionError i sandbox; unit er afbrudt af gate-ejerens fail-fast. Alle observerede
+integrationsexceptioner er samme tilladelsesårsag; ingen produktfejl udledes. Kode,
+config, regressioner og deadlines ændres ikke. Kun integration og afbrudt unit genkøres
+med tilladt lokal loopback i samme usynkroniserede clone på samme1bbb478-bits, samme
+GateLock/stagebounds og før/efter scopekontrol. De tre grønne stages genkøres ikke,
+og ingen ny fuld releasegate eller manuel CI-genkørsel startes. Den oprindelige
+permissionfejl bevares i gate-receipt; den blev ikke omsat til produktadfærd.
+
+**Faktisk samlet software-GO 7/10.** De to ugyldiggjorte stages er nu bestået på
+uændret1bbb478: integration68,82s og unit179,12s. Samme GateLock, Python3.12,
+stagebounds og før/efter scopekontrol blev anvendt; source scope er uændret.
+Scope0,35s, Ruff/format0,13s og mypy55files0,92s fra den ene frosne releasegate
+bevares. Ingen ny full gate eller manuel CI-genkørsel. Dette åbner ét PR/CI/main-
+artifact-flow for2.0.2; det er software-GO, ikke fysisk golden/lifecycle eller
+produktaccept. Denne resultatpost er docs-only efter frosne produkt-/testbytes.
+Firmware/settings/ejerskab er uændret; præcis artifact og HA-installation afventer.
+
 ### 7/10 — aktiv lead-beslutning: v2.x-softwarekandidat 2.0.1
 
 Lead Voice/Reliability Engineer: root. Tre worktrees dækker stabilitet/integration,
