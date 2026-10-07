@@ -25,7 +25,17 @@ FAST_TIMEOUT_S = 120
 RELEASE_TIMEOUT_S = 240
 UNIT_BATCH_COUNT = 8
 GATE_CACHE_STAGES = frozenset(
-    {"ruff", "format", "mypy", "unit", "integration", "pytest", "candidate-scope", "ruff-format"}
+    {
+        "ruff",
+        "format",
+        "mypy",
+        "unit",
+        "integration",
+        "pytest",
+        "candidate-scope",
+        "ruff-format",
+        "ui-browser",
+    }
 )
 RELEASE_CONTRACT = "tests/unit/test_release_contract.py"
 FULL_SUITE_MARKER = "tests"
@@ -327,11 +337,12 @@ def configured_cache_root(env: Mapping[str, str], root: Path) -> Path:
 def cache_paths(cache: Path, stage: str | None = None) -> dict[str, Path]:
     """Declared owner directories, shared by admission and actual cache writes."""
     directories = {
-        owner: cache / owner for owner in ("pycache", "mypy", "ruff", "pytest", "preflight")
+        owner: cache / owner
+        for owner in ("pycache", "mypy", "ruff", "pytest", "preflight", "browser", "browser-proof")
     }
     if stage is not None:
         safe_stage = stage.replace("/", "-").replace(" ", "-")
-        for owner in ("pycache", "mypy", "ruff", "pytest"):
+        for owner in ("pycache", "mypy", "ruff", "pytest", "browser", "browser-proof"):
             directories[owner] /= safe_stage
     return directories
 
@@ -794,6 +805,32 @@ def select_tests(changes: Sequence[str], tracked_tests: Sequence[str]) -> tuple[
     return sorted(selected), reason
 
 
+def browser_scope(changes: Sequence[str]) -> bool:
+    """Actual panel/controller, browser owners and required publication recipe."""
+    return any(
+        path.startswith(("podvoice/gatekeeper/static/", "tests/browser/"))
+        or path
+        in {
+            "scripts/browser_gate.py",
+            "scripts/dev_cycle.py",
+            "tests/unit/test_browser_gate.py",
+            ".github/workflows/ci.yml",
+        }
+        for path in changes
+    )
+
+
+def browser_recipe(root: Path, env: dict[str, str], timeout: int) -> None:
+    # Serial owner after parallel stages: their 2s abort cannot kill browser cleanup.
+    # Same internal recipe used by required CI; this is not a fourth local gate.
+    from scripts.browser_gate import BrowserGateError, run_browser_gate
+
+    try:
+        run_browser_gate(root, env, timeout)
+    except BrowserGateError as exc:
+        raise DevCycleError(str(exc)) from exc
+
+
 def run_fast(
     root: Path,
     env: dict[str, str],
@@ -829,6 +866,8 @@ def run_fast(
     else:
         stages.append(Stage("pytest", (python, "-m", "pytest", "-q", *tests), timeout))
     run_parallel(root, env, stages)
+    if browser_scope(changes):
+        browser_recipe(root, env, 120)
     diff_check(root, env, snapshot.merge_base)
 
 
@@ -911,6 +950,8 @@ def run_release(
             ),
         ],
     )
+    if browser_scope(snapshot.changes):
+        browser_recipe(root, env, 240)
     diff_check(root, env, snapshot.merge_base)
     print(
         "local release gate green; exact-commit CI and ARM64 image are still required", flush=True
@@ -971,4 +1012,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    # The shell wrapper executes this file, including from checkout subdirectories.
+    # Share its module owner with browser_gate rather than loading a second copy.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    sys.modules["scripts.dev_cycle"] = sys.modules[__name__]
     raise SystemExit(main())

@@ -312,8 +312,49 @@ def test_cache_path_builder_covers_actual_declared_gate_stages(storage, monkeypa
     )
     dev_cycle.run_lifecycle(storage.root, {}, storage.python, snapshot)
     dev_cycle.run_release(storage.root, {}, storage.python, snapshot)
+
+    # The browser owner is serial: observe the real recipe through cache
+    # admission, then stop at dependency metadata before Git/browser launch.
+    from scripts import browser_gate
+
+    class BrowserProbeComplete(Exception):
+        pass
+
+    browser_environments = []
+    browser_paths = []
+    actual_cache_paths = browser_gate.cache_paths
+
+    def observe_browser_paths(cache, stage=None):
+        paths = actual_cache_paths(cache, stage)
+        browser_paths.append((cache, stage, paths))
+        return paths
+
+    def stop_at_browser_dependencies(root, env):
+        assert root == storage.root
+        observed.add("ui-browser")
+        browser_environments.append(env)
+        raise BrowserProbeComplete
+
+    monkeypatch.setattr(browser_gate, "cache_paths", observe_browser_paths)
+    monkeypatch.setattr(browser_gate, "dependencies", stop_at_browser_dependencies)
+    ui_snapshot = SimpleNamespace(
+        changes=("podvoice/gatekeeper/static/index.html",), merge_base="base"
+    )
+    browser_env = {"PODVOICE_DEV_CACHE": str(storage.cache)}
+    with pytest.raises(BrowserProbeComplete):
+        dev_cycle.run_fast(storage.root, browser_env, storage.python, ui_snapshot)
+    with pytest.raises(BrowserProbeComplete):
+        dev_cycle.run_release(storage.root, browser_env, storage.python, ui_snapshot)
+    assert len(browser_environments) == len(browser_paths) == 2
+    for env, (cache, stage, paths) in zip(browser_environments, browser_paths, strict=True):
+        assert cache == storage.cache
+        assert stage == "ui-browser"
+        assert Path(env["PLAYWRIGHT_BROWSERS_PATH"]) == paths["browser"]
+        assert paths["browser"] == storage.cache / "browser/ui-browser"
+        assert paths["browser-proof"] == storage.cache / "browser-proof/ui-browser"
+
     assert observed == dev_cycle.GATE_CACHE_STAGES
-    for stage in observed:
+    for stage in observed - {"ui-browser"}:
         actual = dev_cycle._stage_environment({"PODVOICE_DEV_CACHE": str(storage.cache)}, stage)
         paths = dev_cycle.cache_paths(storage.cache, stage)
         assert Path(actual["PYTHONPYCACHEPREFIX"]) == paths["pycache"]
