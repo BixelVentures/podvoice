@@ -239,6 +239,22 @@ entityliste, default OFF og dispatch assertions bevares. Ingen HTML-/runtime-
 integration/batches/mypy/scope/style beholder deres identiske bits. Software-GO
 afventer det faktiske sidste resultat; ingen fysisk accept er givet.
 
+**Faktisk samlet software-GO.** Den ene releasegate på33424be gav grøn
+candidate-scope, fuld Ruff/format(205filer) og mypy(55uændrede sourcefiler).
+Den ugyldige tidlige testobservation blev isoleret én gang og reviewed; på
+9994b74 består hele integrationen(78,07s), changed-test-style og unit-batches1–3.
+Batch4s gamle copy-literal blev rettet separat og reviewed af UI; på6b99cce
+består hele sidste batch(24moduler,30,85s) og dens changed-test-style. Ingen
+y fuld releasegate eller manuelle CI-genkørsler er kørt. Samme frosne
+produktionsfingerprint a17f68f41dc3ed22e206cf84b3cd7e5d883f495fca78876eb02d60cbb43c52e3
+og alle øvrige test/config-bits er bevaret mellem disse præcise stages.
+
+Software-stoplinjen er afklaret: nul uløste reviewfindings og alle krævede
+softwarestages grønne. Denne sidste statusændring er documentation-only.
+Næste gate er eksakt PR-CI/ARM64-artifact; installation og frisk fysisk golden,
+10+10, svar/kontekst, latency, timer/musik/funktionsmatrix og syv døgn er fortsat
+åbne. Software-GO beviser ikke fysisk testklarhed eller produktaccept.
+
 ### 6/10 — aktiv beslutning: v2.0 frosset Alpha-baseline, derefter v2.x-hastighed
 
 **Udgivet og installeret 6/10 kl.15:19: v2.0.0, Alpha fortsat ON.** PR97 merged
