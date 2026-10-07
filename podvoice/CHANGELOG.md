@@ -1,3 +1,12 @@
+## 2.0.3 — bounded cleanup after provider-close failure
+
+- Stop the owned music heartbeat and attempt attention release within the existing total teardown budget when provider cleanup fails and physical cleanup is proven. Keep unfinished provider owners, block the next wake, and use the existing full retry before rearming.
+- Recheck reconnect and owned work after heartbeat cleanup. Preserve existing deadlines, normal successful cleanup, Talk behavior, provider/tool semantics, settings and firmware.
+- Add permanent composed MCP recovery tests covering bounded discovery, startup and active faults, immutable session schemas, stale dispatch refusal and detached declarations without changing production recovery.
+- Add composed native/Talk regressions for retained SDK/socket ownership, late events and reconnect during cleanup. Physical music restoration and lifecycle acceptance remain pending.
+
+- Run local development gates from durable standalone storage with an external Python environment and verified cache/object paths. Preserve all real-Git regression cases and existing deadlines in eight separate unit groups.
+
 ## 2.0.2 — bounded recording and clearer daily controls
 
 - Keep passive diagnostic recording complete during the existing 600-frame microphone startup burst, with bounded admission, PCM storage and terminal reserves. Preserve provider audio bytes and conversation timing.

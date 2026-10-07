@@ -289,7 +289,9 @@ async def test_live_teardown_remaining_budget_still_blocks_unfinished_cleanup_re
         assert session.brain._lease is None
         assert session._teardown_incomplete and session._transport_closing
         assert not session._active
-        assert not session.attention.release_calls  # Exhausted suffix is not success.
+        # Native provider failure frees the unused rearm reserve for music cleanup.
+        # Talk has no reserve, so its total deadline remains exhausted.
+        assert len(session.attention.release_calls) == (1 if adapter == "native" else 0)
         if adapter == "native":
             assert link.rearm_calls == 0
         starts = len(sdk.factory_calls)
