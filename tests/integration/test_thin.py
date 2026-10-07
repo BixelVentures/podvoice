@@ -3393,7 +3393,7 @@ async def test_goodbye_watchdog_never_faults_a_proven_physical_finish(monkeypatc
         await session.aclose()
 
 
-async def test_failed_terminal_response_closes_silently_in_talk():
+async def test_failed_terminal_response_closes_silently_in_talk(monkeypatch):
     sent: list[dict] = []
 
     async def send_json(payload: dict) -> None:
@@ -3403,6 +3403,18 @@ async def test_failed_terminal_response_closes_silently_in_talk():
         return None
 
     brain = LiveFake()
+    provider_close_entered = asyncio.Event()
+    finish_provider_close = asyncio.Event()
+    provider_close_calls = []
+    original_close = brain.close
+
+    async def blocked_provider_close():
+        provider_close_calls.append(True)
+        provider_close_entered.set()
+        await finish_provider_close.wait()
+        await original_close()
+
+    monkeypatch.setattr(brain, "close", blocked_provider_close)
     attention = FakeAttention()
     link = BrowserLink(send_json, send_bytes, room=ROOM)
     speech = CachedSpeech(_frame(amplitude=1700, n_samples=7200))
@@ -3450,11 +3462,27 @@ async def test_failed_terminal_response_closes_silently_in_talk():
                 source_call_id="end-talk",
             ),
         )
-        await _wait_until(lambda: session.sm.state is State.IDLE)
+        # IDLE is published before provider/attention teardown has joined.
+        # Hold the actual external close edge to make that observer gap permanent.
+        await _wait_until(provider_close_entered.is_set)
+        assert session.sm.state is State.IDLE
+        assert attention.release_calls == []
+        close_owner = session._close_task
+        assert close_owner is not None and not close_owner.done()
+        assert session._teardown_lock.locked()
+        finish_provider_close.set()
+        await asyncio.wait_for(asyncio.shield(close_owner), 1.5)
+        assert not session._teardown_lock.locked()
+        assert not session._teardown_incomplete
+        assert brain.closed and len(provider_close_calls) == 1
         assert speech.calls == []
         assert not any(message.get("type") == "play" for message in sent)
         assert len(attention.release_calls) == 1
+        await session.wake()
+        assert session._active and brain.connected and not brain.closed
+        assert brain.connect_count == 2 and len(attention.release_calls) == 1
     finally:
+        finish_provider_close.set()
         await session.aclose()
 
 

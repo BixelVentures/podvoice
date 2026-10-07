@@ -1,14 +1,19 @@
 # ARKITEKTUR — én PodVoice-samtale
 
-> Eksperimentel GPT-Live Alpha (under implementering, ikke releasegodkendt):
-> Brugeren har godkendt en særskilt ON/OFF-Alpha. OFF beholder hele nedenstående
-> produktionskontrakt. ON bruger samme ThinSession, VoicePELink, ToolRouter og
-> fysisk close/rearm-ejer, men har kontinuerlig Live-lyd og egne ærligt navngivne
-> backend/session-events. Realtime-tur-/audio-done-/ACK-events må ikke fabrikeres.
-> Fuld funktionsparitet, voice-bekræftelser, Stop, Talk, fysisk duplex og dræn er
-> adgangsgates, ikke antagelser. Aktuel implementeringskontrakt, hypotese og åbne
-> krav står i den ene aktive lead-post i STATUS.md. Ingen følsom handling må
-> åbnes ved en opdigtet næste-brugertur. Ingen fysisk readiness arves fra OFF.
+> Aktuel GPT-Live-status (7/10): v2.0.0 er udgivet og installeret som en
+> Alpha-milepæl med Live ON, ikke fysisk lifecycle-/produktgodkendt. Brugeren har
+> valgt GPT-Live som den normale fremtidige oplevelse; daglige Alpha-/ON/OFF-valg
+> fjernes først med kendt funktionsmatrix, eksplicit settingsmigration og rollback.
+> Den eksisterende OFF-indstilling bevarer nedenstående Realtime/half-duplex-
+> kontrakt indtil migration. ON er implementeret gennem samme ThinSession,
+> VoicePELink, ToolRouter og fysiske close/rearm-ejer, med kontinuerlig Live-lyd
+> og egne ærligt navngivne backend/session-events. Realtime-tur-/audio-done-/ACK-
+> events må ikke fabrikeres for Live. Fuld funktionsparitet, voice-bekræftelser,
+> Stop, Talk, fysisk duplex og dræn er adgangsgates, ikke antagelser. STATUS.md
+> er den ene aktuelle lead-post for implementering, installerede bits og bevis.
+> Ingen følsom handling åbnes ved en opdigtet næste-brugertur, og ON arver ingen
+> fysisk readiness fra OFF, en metadatalancering eller en UI-ændring.
+
 
 
 > Kanonisk beslutning fra 2026-08-14. Hvis kode eller ældre dokumentation beskriver

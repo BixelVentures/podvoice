@@ -13,7 +13,7 @@ import websockets
 from openai import AsyncOpenAI
 from openai.types.live.session_closed_event import SessionClosedEvent
 
-from gatekeeper.openai_live import OpenAILiveSession
+from gatekeeper.openai_live import OpenAILiveSession, prepare_live_sdk
 from gatekeeper.provider_budget import ProviderBudgetCoordinator
 
 
@@ -132,6 +132,9 @@ class Peer:
 )
 async def test_finalized_actual_sdk_closes_owned_tcp_without_peer_shutdown(mode):
     assert openai.__version__ == "3.13.0" and websockets.__version__ == "15.0.1"
+    # Custom client_factory skips production's saved-Live bootstrap. Import the
+    # exact SDK first; the existing 2s clock then measures transport/terminal work.
+    await prepare_live_sdk()
     peer = Peer(mode)
     server = await asyncio.start_server(peer.handle, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]

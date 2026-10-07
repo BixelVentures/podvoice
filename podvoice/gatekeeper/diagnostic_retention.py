@@ -96,6 +96,22 @@ _TEARDOWN_STEPS = {
 _IDENTITIES = {"session_id", "response_id", "playback_id", "close_id", "rearm_token"}
 
 
+def _loss_number(manifest: dict, key: str) -> int:
+    value = manifest.get(key, 0)
+    return value if type(value) is int and value >= 0 else 0
+
+
+def _loss_counts(manifest: dict, key: str, names: set[str]) -> dict[str, int]:
+    values = manifest.get(key)
+    if not isinstance(values, dict):
+        return {}
+    return {
+        name: value
+        for name, value in values.items()
+        if name in names and type(value) is int and value >= 0
+    }
+
+
 def content_free_manifest(manifest: dict) -> dict:
     """Deny strings by default, even when they happen to look like an enum."""
     events = []
@@ -158,7 +174,33 @@ def content_free_manifest(manifest: dict) -> dict:
     return {
         "schema": 1,
         "content_free": True,
-        "dropped_events": manifest.get("dropped_events", 0),
+        "dropped_events": _loss_number(manifest, "dropped_events"),
+        "incomplete": bool(
+            manifest.get("incomplete")
+            or manifest.get("dropped_commands")
+            or manifest.get("dropped_events")
+            or manifest.get("drop_accounting_incomplete")
+        ),
+        "dropped_commands": _loss_number(manifest, "dropped_commands"),
+        "drop_accounting_incomplete": bool(manifest.get("drop_accounting_incomplete")),
+        "loss_scope": manifest.get("loss_scope")
+        if manifest.get("loss_scope") in {"capture_and_history", "history_events"}
+        else "unknown",
+        "dropped_command_kinds": _loss_counts(
+            manifest,
+            "dropped_command_kinds",
+            {"audio", "event", "diagnostic", "begin", "finish", "proof", "shutdown", "other"},
+        ),
+        "dropped_audio_packets": _loss_counts(
+            manifest,
+            "dropped_audio_packets",
+            {"device", "provider", "speaker", "wake_reference", "other"},
+        ),
+        "dropped_audio_bytes": _loss_counts(
+            manifest,
+            "dropped_audio_bytes",
+            {"device", "provider", "speaker", "wake_reference", "other"},
+        ),
         "session_hash": hashlib.sha256(session.encode()).hexdigest()
         if isinstance(session, str)
         else None,

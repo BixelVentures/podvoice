@@ -1936,6 +1936,15 @@ class DiagnosticWireSDK(SDK):
     """Real installed SDK serializer/parser over a controlled, offline socket."""
 
     def __init__(self):
+        # Saved Live ON prepares pure SDK dependencies before accepting a wake.
+        # A supplied fake client factory bypasses that production bootstrap;
+        # mirror it here before the unchanged bounded transport/startup clock.
+        from gatekeeper.openai_live import _load_live_sdk
+
+        _load_live_sdk()
+        from openai.resources.live.live import AsyncLiveConnection
+
+        self.connection_class = AsyncLiveConnection
         super().__init__()
         self.wire = []
         self.fail_type = None
@@ -1943,9 +1952,7 @@ class DiagnosticWireSDK(SDK):
         self.blocked = asyncio.Event()
 
     async def __aenter__(self):
-        from openai.resources.live.live import AsyncLiveConnection
-
-        return AsyncLiveConnection(self, max_retries=0)
+        return self.connection_class(self, max_retries=0)
 
     async def send(self, data):
         import json
@@ -1961,6 +1968,12 @@ class DiagnosticWireSDK(SDK):
             await self.start()
         elif event["type"] == "session.close":
             await self.finalize()
+        elif event["type"] == "session.instructions.append":
+            await self.instruction(
+                event_id=event["event_id"],
+                content=event["content"],
+                delegation_id=event.get("delegation_id"),
+            )
 
     async def recv(self, **_):
         import json
@@ -1975,7 +1988,7 @@ def diagnostic_wire_provider():
         tool_declarations=TOOLS,
         client_factory=sdk.factory,
         provider_budget=ProviderBudgetCoordinator(),
-        timeout_s=2,  # Real SDK cold serializer/parser imports are inside startup.
+        timeout_s=2,  # Real SDK wire/parser; pure imports mirror pre-wake bootstrap.
     )
     rows = []
     session.provider_observer = rows.append

@@ -894,3 +894,279 @@ def test_native_app_close_requires_exact_reviewed_chain_and_regressions(tmp_path
             path.write_text(prior)
     write_record()
     assert inspect_repository(tmp_path, base).passed
+
+
+def _passive_diagnostic_ui_repo(tmp_path):
+    import json
+    import subprocess
+
+    from scripts.candidate_scope import (
+        _PASSIVE_DIAGNOSTIC_UI_REGRESSIONS,
+        _PASSIVE_DIAGNOSTIC_UI_REQUIRED,
+        inspect_repository,
+        production_fingerprint,
+    )
+
+    def git(*args):
+        return subprocess.check_output(["git", *args], cwd=tmp_path, text=True).strip()
+
+    git("init", "-q")
+    git("config", "user.name", "Scope Test")
+    git("config", "user.email", "scope@example.invalid")
+    for name in _PASSIVE_DIAGNOSTIC_UI_REQUIRED | _PASSIVE_DIAGNOSTIC_UI_REGRESSIONS:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("" if name in _PASSIVE_DIAGNOSTIC_UI_REQUIRED else "baseline = True\n")
+    metadata = tmp_path / "podvoice/gatekeeper/__init__.py"
+    metadata.write_text('__version__ = "2.0.0"\n')
+    git("add", ".")
+    git("commit", "-qm", "base")
+    base = git("rev-parse", "HEAD")
+    for name in _PASSIVE_DIAGNOSTIC_UI_REQUIRED | _PASSIVE_DIAGNOSTIC_UI_REGRESSIONS:
+        (tmp_path / name).write_text("observation = True\n")
+    (tmp_path / "podvoice/gatekeeper/static/index.html").write_text(
+        "<p>MCP playback rearm observations</p>\n"
+    )
+    git("add", "podvoice/gatekeeper/thin.py")  # Mixed staged/worktree effective tree.
+    assert not inspect_repository(tmp_path, base).passed
+    status = tmp_path / "docs/STATUS.md"
+    status.parent.mkdir()
+
+    def write(record):
+        status.write_text("<!-- candidate-scope-coupling\n" + json.dumps(record) + "\n-->\n")
+
+    def refresh():
+        report = inspect_repository(tmp_path, base)
+        record = {
+            "version": 2,
+            "kind": "passive_diagnostic_ui",
+            "base_tip": base,
+            "merge_base": base,
+            "domains": list(report.domains),
+            "fingerprint": production_fingerprint(tmp_path, base, base, report.production_files),
+            "reviewer": "independent-observation-reviewer",
+            "rationale": "Bounded passive recorder and read-only daily UI; no owner change.",
+        }
+        write(record)
+        return record
+
+    record = refresh()
+    report = inspect_repository(tmp_path, base)
+    assert report.domains == ("ha_tools", "physical_output", "rearm")
+    assert report.passed
+    return base, git, record, write, refresh
+
+
+def test_passive_diagnostic_ui_requires_exact_tree_review(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    base, _git, record, write, _refresh = _passive_diagnostic_ui_repo(tmp_path)
+    status = tmp_path / "docs/STATUS.md"
+    status.unlink()
+    assert not inspect_repository(tmp_path, base).passed
+    for key, value in (
+        ("fingerprint", "stale"),
+        ("base_tip", "stale"),
+        ("merge_base", "stale"),
+        ("reviewer", " "),
+        ("rationale", ""),
+        ("domains", ["physical_output", "rearm"]),
+    ):
+        write({**record, key: value})
+        assert not inspect_repository(tmp_path, base).passed, key
+    write(record)
+    source = tmp_path / "podvoice/gatekeeper/audio_trace.py"
+    source.write_text(source.read_text() + "unreviewed = True\n")
+    assert not inspect_repository(tmp_path, base).passed
+
+
+@pytest.mark.parametrize("missing", ["unchanged", "deleted"])
+def test_passive_diagnostic_ui_requires_changed_and_present_regressions(tmp_path, missing):
+    from scripts.candidate_scope import _PASSIVE_DIAGNOSTIC_UI_REGRESSIONS, inspect_repository
+
+    base, git, _record, _write, refresh = _passive_diagnostic_ui_repo(tmp_path)
+    for name in _PASSIVE_DIAGNOSTIC_UI_REGRESSIONS:
+        path = tmp_path / name
+        original = path.read_text()
+        if missing == "unchanged":
+            path.write_text(git("show", f"{base}:{name}") + "\n")
+        else:
+            path.unlink()
+        refresh()  # A fresh production review cannot substitute an actual regression.
+        assert not inspect_repository(tmp_path, base).passed, name
+        path.write_text(original)
+    refresh()
+    assert inspect_repository(tmp_path, base).passed
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "podvoice/gatekeeper/tools.py",
+        "podvoice/gatekeeper/openai_live.py",
+        "podvoice/gatekeeper/live_prompt.py",
+        "podvoice/gatekeeper/voicepe.py",
+        "esphome/components/podvoice_audio/podvoice_audio.cpp",
+    ],
+)
+@pytest.mark.parametrize(
+    "text", ["unrelated = True\n", "mic_gate MCP playback response.done rearm\n"]
+)
+def test_passive_diagnostic_ui_rejects_other_surfaces_even_with_new_review(tmp_path, name, text):
+    from scripts.candidate_scope import inspect_repository
+
+    base, _git, _record, _write, refresh = _passive_diagnostic_ui_repo(tmp_path)
+    path = tmp_path / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    _git("add", name)
+    refresh()  # The existing general five-domain tuple must not widen this chain.
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_passive_diagnostic_ui_requires_all_owner_surfaces_and_exact_domains(tmp_path):
+    from scripts.candidate_scope import _PASSIVE_DIAGNOSTIC_UI_REQUIRED, inspect_repository
+
+    base, git, _record, _write, refresh = _passive_diagnostic_ui_repo(tmp_path)
+    for name in _PASSIVE_DIAGNOSTIC_UI_REQUIRED:
+        path = tmp_path / name
+        original = path.read_text()
+        path.unlink()
+        refresh()
+        assert not inspect_repository(tmp_path, base).passed, name
+        path.write_text(git("show", f"{base}:{name}"))
+        refresh()
+        assert not inspect_repository(tmp_path, base).passed, name
+        path.write_text(original)
+    source = tmp_path / "podvoice/gatekeeper/thin.py"
+    source.write_text('events = "mic_gate response.done MCP playback rearm"\n')
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_passive_diagnostic_ui_optional_init_must_be_version_metadata_only(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    base, _git, _record, _write, refresh = _passive_diagnostic_ui_repo(tmp_path)
+    metadata = tmp_path / "podvoice/gatekeeper/__init__.py"
+    metadata.write_text('__version__ = "2.0.1"\n')
+    refresh()
+    assert inspect_repository(tmp_path, base).passed
+    metadata.write_text(metadata.read_text() + "runtime = True\n")
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+
+
+@pytest.mark.parametrize(
+    "reverted",
+    sorted(
+        {
+            "podvoice/gatekeeper/audio_trace.py",
+            "podvoice/gatekeeper/diagnostic_retention.py",
+            "podvoice/gatekeeper/static/index.html",
+            "podvoice/gatekeeper/thin.py",
+        }
+    ),
+)
+def test_partial_passive_chain_cannot_fall_back_to_generic_five_domain_review(tmp_path, reverted):
+    from scripts.candidate_scope import inspect_repository
+
+    base, git, _record, _write, refresh = _passive_diagnostic_ui_repo(tmp_path)
+    (tmp_path / reverted).write_text(git("show", f"{base}:{reverted}"))
+    git("add", reverted)
+    extra = tmp_path / "podvoice/gatekeeper/openai_live.py"
+    extra.write_text("mic_gate MCP playback response.done rearm\n")
+    git("add", "podvoice/gatekeeper/openai_live.py")
+    refresh()
+    report = inspect_repository(tmp_path, base)
+    assert report.domains == (
+        "audio_input",
+        "ha_tools",
+        "physical_output",
+        "realtime_semantics",
+        "rearm",
+    )
+    assert not report.passed
+
+
+def test_passive_diagnostic_ui_rejects_regression_reverted_only_in_worktree(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    base, git, _record, _write, refresh = _passive_diagnostic_ui_repo(tmp_path)
+    name = "tests/browser/daily_ui.cjs"
+    git("add", name)
+    (tmp_path / name).write_text(git("show", f"{base}:{name}") + "\n")
+    refresh()
+    report = inspect_repository(tmp_path, base)
+    assert name in report.test_files  # Staged and unstaged paths alone are insufficient.
+    assert not report.passed
+
+
+def test_passive_v2_record_discriminator_is_strict_and_cannot_use_v1_admission(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    base, _git, record, write, _refresh = _passive_diagnostic_ui_repo(tmp_path)
+    for change in (
+        {"version": 3},
+        {"version": True},
+        {"kind": "unknown"},
+        {"kind": None},
+        {"extra": "unapproved"},
+    ):
+        write({**record, **change})
+        assert not inspect_repository(tmp_path, base).passed
+    write({k: v for k, v in record.items() if k != "kind"})
+    assert not inspect_repository(tmp_path, base).passed
+    write({k: (1 if k == "version" else v) for k, v in record.items() if k != "kind"})
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_passive_v2_cannot_erase_all_anchors_and_reuse_old_generic_tuple(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    base, git, _record, _write, refresh = _passive_diagnostic_ui_repo(tmp_path)
+    for name in (
+        "podvoice/gatekeeper/diagnostic_retention.py",
+        "tests/unit/test_diagnostic_retention.py",
+        "tests/browser/daily_ui.cjs",
+    ):
+        content = git("show", f"{base}:{name}")
+        (tmp_path / name).write_text(content + ("\n" if content else ""))
+        git("add", name)
+    provider = "podvoice/gatekeeper/openai_live.py"
+    (tmp_path / provider).write_text("mic_gate MCP playback response.done rearm\n")
+    git("add", provider)
+    refreshed = refresh()
+    assert refreshed["version"] == 2 and refreshed["kind"] == "passive_diagnostic_ui"
+    report = inspect_repository(tmp_path, base)
+    assert len(report.domains) == 5
+    assert not report.passed
+
+
+def test_passive_v2_rejects_symlink_sources_and_regressions_before_and_after_target_mutation(
+    tmp_path,
+):
+    from scripts.candidate_scope import (
+        _PASSIVE_DIAGNOSTIC_UI_REGRESSIONS,
+        _PASSIVE_DIAGNOSTIC_UI_SURFACES,
+        inspect_repository,
+    )
+
+    base, _git, _record, _write, refresh = _passive_diagnostic_ui_repo(tmp_path)
+    metadata = tmp_path / "podvoice/gatekeeper/__init__.py"
+    metadata.write_text('__version__ = "2.0.1"\n')
+    for name in _PASSIVE_DIAGNOSTIC_UI_SURFACES | _PASSIVE_DIAGNOSTIC_UI_REGRESSIONS:
+        path = tmp_path / name
+        original = path.read_text()
+        target = tmp_path.parent / (tmp_path.name + "-external-source")
+        target.write_text(original)
+        path.unlink()
+        path.symlink_to(target)
+        refresh()
+        assert not inspect_repository(tmp_path, base).passed, name
+        target.write_text(original + "unreviewed_external = True\n")
+        assert not inspect_repository(tmp_path, base).passed, name
+        path.unlink()
+        path.write_text(original)
+    refresh()
+    assert inspect_repository(tmp_path, base).passed

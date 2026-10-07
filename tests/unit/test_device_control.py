@@ -866,7 +866,8 @@ def test_panel_exposes_explicit_opt_in_and_saves_entity_list():
     assert 'id="s_extended_device_control" type="checkbox"' in html
     assert 'id="s_device_control_entities"' in html
     assert "v.join(" in html and 'id === "device_control_entities"' in html
-    assert "En startet rengøring stoppes ikke" in html
+    assert "Gem deaktivering for at blokere nye handlinger" in html
+    assert "en startet rengøring fortsætter" in html
     main = (Path(__file__).parents[2] / "podvoice/gatekeeper/__main__.py").read_text()
     assert "tools.configure_device_control(load_settings())" in main
     assert "settings_set=save_runtime_settings" in main

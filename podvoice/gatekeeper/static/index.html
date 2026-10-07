@@ -23,19 +23,19 @@
     --accent-soft: #d8f0f2;
     --on-accent: #ffffff;
     --focus: #b55200;
-    --danger: #ff3b30;
+    --danger: #b42318;
     --danger-soft: rgba(255,59,48,.12);
     --green: #176b3a;   --green-bg: #def2e6;
     --grey: #465762;    --grey-bg: #e7ecef;
     --blue: #075d91;    --blue-bg: #dcecf7;
     --amber: #7b4d00;   --amber-bg: #fff0cc;
     --amber-border: rgba(184,115,10,.5);
-    --red: #d93025;     --red-bg: rgba(255,59,48,.15);
+    --red: #b42318;     --red-bg: rgba(255,59,48,.15);
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --fg: #f2f2f7;
-      --fg-dim: #9a9aa0;
+      --fg-dim: #b6bcc6;
       --card: rgba(118,118,128,.12);
       --card-elev: 0 1px 2px rgba(0,0,0,.25);
       --border: #53616d;
@@ -71,8 +71,8 @@
   .sub { margin: 0 0 4px; color: var(--fg-dim); font-size: .88rem; }
 
   .section { margin-top: 30px; }
-  .section > h2 { font-size: .82rem; font-weight: 700; text-transform: uppercase;
-                  letter-spacing: .05em; color: var(--fg-dim); margin: 0 0 12px;
+  .section > h2 { font-size: 1rem; font-weight: 700;
+                  letter-spacing: -.01em; color: var(--fg-dim); margin: 0 0 12px;
                   display: flex; align-items: center; justify-content: space-between; }
 
   /* Service health row. */
@@ -90,8 +90,8 @@
                 display: flex; gap: 14px; flex-wrap: wrap; }
   .room .live-status { margin-top: 12px; overflow-wrap: anywhere; }
   .room .live-title { font-size: 1.25rem; font-weight: 750; }
-  .room .live-explanation summary { min-height: 44px; padding-top: 12px; cursor: pointer; }
-  .room .live-explanation summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .room-diagnostics .live-explanation summary { min-height: 44px; padding-top: 12px; cursor: pointer; }
+  .room-diagnostics .live-explanation summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .room .live-detail { margin-top: 5px; color: var(--fg-dim); font-size: .88rem; }
   .room .ctl { display: flex; gap: 7px; margin-top: 13px; flex-wrap: wrap; }
 
@@ -105,7 +105,7 @@
 
   /* Status pills. */
   .pill { flex: none; font-size: .78rem; font-weight: 700; letter-spacing: .01em;
-          padding: 6px 10px; border-radius: 999px; white-space: nowrap;
+          padding: 6px 10px; border-radius: 999px; white-space: normal; overflow-wrap:anywhere; max-width:100%;
           display: inline-flex; align-items: center; gap: 5px; }
   .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
   .pill-idle      { color: var(--grey);  background: var(--grey-bg); }
@@ -166,12 +166,12 @@
   #cmodel { max-width: 460px; }  /* don't let a long model name stretch the whole row */
 
   /* Tabs */
-  .tabs { display: flex; gap: 4px; margin: 18px 0 4px; border-bottom: 1px solid var(--border);
-          overflow-x: auto; }
+  .tabs { display: grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap: 4px; margin: 18px 0 4px; border-bottom: 1px solid var(--border);
+          overflow:visible; }
   .tabbtn { background: transparent; border: 0; border-bottom: 2px solid transparent;
-            color: var(--fg-dim); font-weight: 700; font-size: .78rem; text-transform: uppercase;
-            letter-spacing: .04em; min-height:44px; padding: 11px 16px; border-radius: 0; cursor: pointer;
-            white-space: nowrap; transition: color .12s, border-color .12s; }
+            color: var(--fg-dim); font-weight: 700; font-size: .88rem;
+            letter-spacing: 0; min-height:44px; padding: 11px 16px; border-radius: 0; cursor: pointer;
+            white-space: normal; overflow-wrap:anywhere; transition: color .12s, border-color .12s; }
   .tabbtn:hover:not(:disabled) { background: transparent; filter: none; color: var(--fg); }
   .tabbtn.active { color: var(--accent); border-bottom-color: var(--accent); }
   .pane { display: none; }
@@ -180,8 +180,8 @@
 
   /* Settings form. */
   details.section > summary, details.adv > summary {
-    min-height:44px; display:flex; align-items:center; cursor: pointer; font-size: .82rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: .05em; color: var(--fg-dim); list-style: none; }
+    min-height:44px; display:flex; align-items:center; cursor: pointer; font-size: .94rem; font-weight: 650;
+    letter-spacing: 0; color: var(--fg-dim); list-style: none; }
   details.section > summary::after { content: " ▸"; }
   details.section[open] > summary::after { content: " ▾"; }
   details.adv > summary::after { content:" ▸"; margin-left:6px; }
@@ -199,7 +199,7 @@
             color: inherit; resize: vertical; box-sizing: border-box; }
   .prompt:focus { outline: none; border-color: var(--accent); }
   .roomrow { display: flex; gap: 8px; margin-bottom: 6px; }
-  .roomrow input { flex: 1; font: inherit; padding: 7px 9px; border-radius: 9px;
+  .roomrow input { flex: 1; min-width:0; font: inherit; padding: 7px 9px; border-radius: 9px;
              border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
   .notice { margin: 9px 0 10px; padding: 11px 12px; border: 1px solid var(--amber-border);
             border-radius: 11px; background: var(--amber-bg); color: var(--fg);
@@ -282,7 +282,8 @@
     .metrics { grid-template-columns: repeat(2, 1fr); }
     .room button, .ctl button { flex: 1 1 calc(50% - 4px); }
     .tabs { margin-left:-12px; margin-right:-12px; padding:0 6px; }
-    .tabbtn { flex:1 0 auto; padding-inline:11px; }
+    .tabs { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .tabbtn { padding-inline:8px; }
     .crow { flex-wrap:wrap; }
     #ctext { flex:1 1 calc(100% - 72px); }
     #cmodel { max-width:100%; }
@@ -295,31 +296,59 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior:auto !important; transition:none !important; animation:none !important; }
   }
+  /* Daily control surface: same protocol, quieter presentation. */
+  .room { padding:20px; border-radius:18px; box-shadow:none; }
+  .room .live-title { font-size:1.6rem; letter-spacing:-.025em; }
+  .room .primary-controls { display:grid; grid-template-columns:1fr 1fr; margin-top:20px; }
+  .room .primary-controls button { font-size:.95rem; min-height:48px; }
+  .room-diagnostics { border-top:1px solid var(--border); margin-top:18px; padding-top:4px; }
+  .room-diagnostics > summary { min-height:44px; display:flex; align-items:center; cursor:pointer; color:var(--fg-dim); }
+  .room-diagnostics > summary::after { content:" ▸"; margin-left:auto; }
+  .room-diagnostics[open] > summary::after { content:" ▾"; }
+  .daily-guide p { max-width:65ch; }
+  summary { overflow-wrap:anywhere; }
+  .live-explanation { margin-top:4px; }
+  .toast { max-width:calc(100vw - 32px); text-align:center; overflow-wrap:anywhere; }
+  button { max-width:100%; overflow-wrap:anywhere; }
+  .roomrow { flex-wrap:wrap; }
+  .roomrow input { flex-basis:160px; }
+  @media (max-width:420px) { .room { padding:16px; } }
+  @media (max-width:250px) { .tabs { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  .wrap { container-type:inline-size; }
+  .metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .metric { min-width:0; overflow-wrap:anywhere; }
+  @container (max-width:420px) {
+    .tabs { grid-template-columns:repeat(3,minmax(0,1fr)); }
+    .tabbtn { font-size:.82rem; padding-inline:6px; }
+    .metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .setgrid { grid-template-columns:minmax(0,1fr); }
+    .room .primary-controls { grid-template-columns:repeat(auto-fit,minmax(min(100%,100px),1fr)); }
+  }
+  @container (max-width:250px) { .tabs { grid-template-columns:minmax(0,1fr); } }
 </style>
 </head>
 <body>
-<div class="wrap">
+<main class="wrap" id="main">
   <header class="brand">
     <div class="brandmark" aria-hidden="true">PV</div>
     <div><h1>PodVoice</h1><p class="sub" id="sub">Dansk taleassistent</p></div>
   </header>
 
-  <div class="tabs" role="tablist">
+  <div class="tabs" role="tablist" aria-label="PodVoice visninger">
     <button id="tab-home" class="tabbtn active" data-tab="home" role="tab" aria-selected="true" aria-controls="pane-home">Hjem</button>
     <button id="tab-talk" class="tabbtn" data-tab="talk" role="tab" aria-selected="false" aria-controls="pane-talk" tabindex="-1">Tal</button>
-    <button id="tab-test" class="tabbtn" data-tab="test" role="tab" aria-selected="false" aria-controls="pane-test" tabindex="-1">Test</button>
+    <button id="tab-test" class="tabbtn" data-tab="test" role="tab" aria-selected="false" aria-controls="pane-test" tabindex="-1">Diagnose</button>
     <button id="tab-history" class="tabbtn" data-tab="history" role="tab" aria-selected="false" aria-controls="pane-history" tabindex="-1">Historik</button>
     <button id="tab-settings" class="tabbtn" data-tab="settings" role="tab" aria-selected="false" aria-controls="pane-settings" tabindex="-1">Indstillinger</button>
   </div>
 
   <div class="pane active" id="pane-home" role="tabpanel" aria-labelledby="tab-home">
     <div class="section">
-      <h2>Er Nabu klar?</h2>
+      <h2>Forbindelser</h2>
       <div class="svc" id="svc"><span class="pill pill-degraded">Henter faktisk status…</span></div>
       <span id="svc_announce" class="screenreader" role="status" aria-live="polite"></span>
-      <div id="capabilities" style="margin-top:10px"></div>
       <div id="cap_warning" class="notice" role="alert" hidden></div>
-      <p class="sub" style="margin:10px 0 0">Sig hele sætningen naturligt: <b id="wake-example">“Dit vækkeord, hvad er klokken?”</b> Cyan ring betyder, at den lytter; der er intet wake-bip at vente på. Sig <b>“farvel”</b> for at afslutte. Afbrydelse mens Nabu taler er endnu ikke fysisk godkendt og loves derfor ikke her.</p>
+      <div id="status_connection" class="notice" role="status" hidden>Status forbinder… Kontrollér add-on-status, hvis forbindelsen ikke kommer tilbage.</div>
     </div>
 
     <div class="section" id="rooms-section" style="display:none">
@@ -327,35 +356,45 @@
       <div id="rooms" class="list"></div>
     </div>
 
-    <div class="section" id="activity-section">
-      <h2>Aktivitet nu</h2>
-      <p class="sub" style="margin:2px 0 8px">Vækning, lytning, tænkning, svar og afslutning — i den rækkefølge de sker.</p>
-      <div id="activity" class="tx" aria-label="Seneste aktivitet" style="min-height:0;max-height:240px"></div>
-    </div>
-
-    <div class="section">
-      <h2>Hvad du ser og hører</h2>
-      <p class="sub" style="margin:0 0 10px">Alpha viser cyan, når samtalen er åben, og roterende cyan arbejdslys ved igangværende opslag eller handlinger. Du kan stadig tale under arbejdet. Når Alpha er fra, bruges gul under arbejde og grøn under svar.</p>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px">
-        <tr style="text-align:left;color:var(--muted)"><th style="padding:4px 8px 4px 0">Øjeblik</th><th style="padding:4px 8px 4px 0">Ring</th><th style="padding:4px 0">Lyd</th></tr>
-        <tr><td style="padding:3px 8px 3px 0">Du siger dit valgte vækkeord</td><td style="padding:3px 8px 3px 0"><b>Cyan</b>, når samtalen åbner</td><td style="padding:3px 0">Stilhed &mdash; tal videre</td></tr>
-        <tr><td style="padding:3px 8px 3px 0">Du taler</td><td style="padding:3px 8px 3px 0">Cyan</td><td style="padding:3px 0">Stilhed &mdash; den lytter</td></tr>
-        <tr><td style="padding:3px 8px 3px 0">Du er færdig, den arbejder</td><td style="padding:3px 8px 3px 0">Roterende cyan arbejdslys (Alpha) / gul</td><td style="padding:3px 0">Et svar eller arbejde kan være på vej</td></tr>
-        <tr><td style="padding:3px 8px 3px 0">Den svarer</td><td style="padding:3px 8px 3px 0">Cyan, roterende ved fortsat arbejde (Alpha) / grøn</td><td style="padding:3px 0">Svaret</td></tr>
-        <tr><td style="padding:3px 8px 3px 0">Afslutter efter inaktivitet (Alpha)</td><td style="padding:3px 8px 3px 0">Gul afslutningsfase, 2 sekunder</td><td style="padding:3px 0">Ingen ny afsked. Vil du tale videre efter lukningen, så væk den igen.</td></tr>
-        <tr><td style="padding:3px 8px 3px 0">Samtalen er afsluttet</td><td style="padding:3px 8px 3px 0">Slukket</td><td style="padding:3px 0">Eventuel afsluttende tale er færdig &mdash; <b>mikrofonen er lukket</b></td></tr>
-        <tr><td style="padding:3px 8px 3px 0">Noget gik galt</td><td style="padding:3px 8px 3px 0"><b>R&oslash;d</b></td><td style="padding:3px 0">Fejlen vises i panelet; talt besked, når lydvejen virker</td></tr>
-      </table>
-    </div>
-
-    <details class="section">
-      <summary>Tekniske målinger</summary>
-      <div id="metrics" class="metrics"></div>
-    </details>
 
   </div>
 
   <div class="pane" id="pane-test" role="tabpanel" aria-labelledby="tab-test" hidden>
+    <div class="section">
+      <h2>Rumdiagnose</h2>
+      <div id="room-tests" class="list"></div>
+    </div>
+    <details class="section" id="connection-details">
+      <summary>Evner og forbindelser</summary>
+      <div id="capabilities" style="margin-top:10px"></div>
+    </details>
+    <details class="section" id="activity-section">
+      <summary>Seneste aktivitet</summary>
+      <div id="activity" class="tx" aria-label="Seneste aktivitet" style="min-height:0;max-height:240px"></div>
+    </details>
+    <details class="section">
+      <summary>Målinger</summary>
+      <div id="metrics" class="metrics"></div>
+    </details>
+        <details class="adv" style="margin-top:12px">
+          <summary>Diagnostik</summary>
+          <div class="vpgate" style="margin-top:8px">
+            <div class="vpg-row">
+              <div class="vpg-txt"><b>Forbindelse</b><span class="sub">Kan PodVoice nå enheden?</span></div>
+              <button id="vp_status" class="ghost">Tjek</button>
+            </div>
+            <div class="vpg-row">
+              <div class="vpg-txt"><b>Lyd ind</b><span class="sub">Sammenhængende mikrofonstream (~15&nbsp;s)</span></div>
+              <button id="vp_s1" class="ghost">Tjek</button>
+            </div>
+            <div class="vpg-row">
+              <div class="vpg-txt"><b>Højttaler</b><span class="sub">Kan du høre testtonen?</span></div>
+              <button id="vp_s2" class="ghost">Afspil test</button>
+            </div>
+          </div>
+          <div id="vp_result" class="status" role="status" aria-live="polite" style="display:none;margin-top:12px"></div>
+          <button id="vp_copy" class="ghost" style="display:none;margin-top:8px;padding:5px 11px;font-size:.78rem">Kopiér resultat</button>
+        </details>
     <div class="section">
       <h2>Lydbevis</h2>
       <p class="sub" style="margin:2px 0 10px">Alpha gemmer automatisk diagnose fra dine Voice PE-samtaler: hændelser, mikrofon, lyd sendt mod OpenAI og svarlyd. Der gemmes ikke løbende lyd mellem samtaler. Efter et registreret wake kan op til 1,5 sekunders lokal vækkeordsreference gemmes; den sendes ikke til OpenAI. Data beholdes lokalt i højst 24 timer og inden for 512 MiB. Lyd sendt mod OpenAI er ikke bevis for modtagelse; svarlyd er ikke en optagelse af lyden i rummet. Manuel optagelse er stadig mulig uden Alpha.</p>
@@ -421,7 +460,7 @@
 
   <div class="pane" id="pane-talk" role="tabpanel" aria-labelledby="tab-talk" hidden>
     <div class="section">
-      <h2><span id="ctitle">Tal med Nabu</span> <span id="cstate" class="pill pill-down" role="status" aria-live="polite">offline</span></h2>
+      <h2><span id="ctitle">Tal med PodVoice</span> <span id="cstate" class="pill pill-down" role="status" aria-live="polite">offline</span></h2>
       <div class="talk-stage" id="cstage"><strong id="cstage_title">Klar</strong><p class="sub" id="cstage_next">Tryk på mikrofonen for at starte.</p></div>
       <details class="adv" style="margin-bottom:12px"><summary>Model og stemme for denne session</summary><div class="crow">
         <select id="cmodel" aria-label="Model"></select>
@@ -430,7 +469,7 @@
       <div id="clog" class="tx" role="log" aria-label="Samtale" style="min-height:220px;max-height:52vh"></div>
       <span id="turn_announce" class="screenreader" role="status" aria-live="polite"></span>
       <div class="talk-actions"><div class="crow">
-        <input id="ctext" type="text" autocomplete="off" placeholder="Skriv til Nabu…" aria-label="Besked til Nabu" />
+        <input id="ctext" type="text" autocomplete="off" placeholder="Skriv til PodVoice…" aria-label="Besked til PodVoice" />
         <button id="csend">Send</button>
         <button id="cstop" class="ghost" aria-label="Afslut samtalen" title="Afslut samtalen">Afslut</button>
         <button id="cmic" class="ghost" aria-label="Start mikrofon" aria-pressed="false">🎤</button>
@@ -455,7 +494,7 @@
   <div class="pane" id="pane-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
     <div class="section">
       <div class="exsub" style="margin-top:4px">Daglig brug</div>
-      <p class="sub" style="margin:2px 0 8px">De indstillinger du normalt bruger. PodVoice påfører den fysisk målte Voice PE-baseline ved hver forbindelse: kanal 1 med XMOS AEC/IC/NS uden AGC, gain 16 og intet ekstra provider-støjfilter.</p>
+
       <div class="setgrid">
         <label for="s_wake_word">Vækkeord</label>
         <select id="s_wake_word" aria-describedby="s_wake_word_hint s_wake_word_status">
@@ -467,14 +506,14 @@
         </select>
         <label for="s_idle_timeout_s">Luk efter stilhed (sek.)</label>
         <input id="s_idle_timeout_s" type="number" min="3" max="120">
-        <label for="s_duck_level">Musik mens Nabu lytter (%)</label>
+        <label for="s_duck_level">Musik under samtale (%)</label>
         <input id="s_duck_level" type="number" min="0" max="100">
       </div>
-      <p id="s_wake_word_hint" class="sub">Hey Chat + Hey Jarvis gør begge vækkeord aktive samtidig, når enheden venter på en samtale. Kræver opdateret Voice PE-firmware. Vælg Gem og genstart; enheden skal bekræfte begge.</p>
+      <p id="s_wake_word_hint" class="sub">Vælg Gem og genstart. Enhedsbekræftelse vises nedenfor.</p>
       <div id="s_wake_word_status" class="sub" role="status" aria-live="polite"></div>
 
-      <div class="exsub" style="margin-top:18px">Enheder &mdash; sættes én gang</div>
-      <p class="sub" style="margin:2px 0 8px">Hvert rum forbinder én Voice PE med det PodConnect-rum, den står i, så den rigtige musik dæmpes.</p>
+      <div class="exsub" style="margin-top:18px">Enheder</div>
+      <p class="sub" style="margin:2px 0 8px">Forbind Voice PE med det tilhørende musikrum.</p>
       <div class="setgrid">
         <label for="s_voicepe_noise_psk">Voice PE PSK</label>
         <input id="s_voicepe_noise_psk" type="password" autocomplete="off">
@@ -482,10 +521,7 @@
       </div>
       <div id="s_rooms" style="margin-top:8px"></div>
       <div id="s_room_warning" class="notice" role="alert" hidden>
-        <strong>Adressen kan flytte sig.</strong> En rå IP kan ændre sig efter genstart
-        eller flash. Brug puckens <code>.local</code>-navn, fx
-        <code>podvoice-pe-123456.local</code>. Hvis dit netværk ikke kan slå det op i
-        add-on&rsquo;en, så lav en fast DHCP-reservation i routeren.
+        Brug et <code>.local</code>-navn eller en fast IP-adresse.
       </div>
       <button id="s_addroom" class="ghost" style="padding:6px 12px;font-size:.8rem">+ Tilføj rum</button>
 
@@ -493,21 +529,23 @@
         <div class="exhead">
           <h2 style="margin:0">Styring af hjemmet</h2>
         </div>
-        <p class="sub" style="margin:2px 0 0">Det Nabu må styre, vælges i <b>Home Assistant</b>: Indstillinger → Stemmeassistenter → <i>Eksponér</i>. Listen i HA er den eneste sandhedskilde. Integrationen “Model Context Protocol Server” skal være aktiveret.</p>
+        <p class="sub" style="margin:2px 0 0">Vælg tilladte enheder i <b>Home Assistant → Stemmeassistenter → Eksponér</b>. Kræver Model Context Protocol Server.</p>
       </section>
 
-      <section class="expose">
-        <h2>GPT-Live Alpha</h2>
-        <div class="setgrid">
-          <label for="s_live_alpha">GPT-Live Alpha til/fra</label>
-          <input id="s_live_alpha" type="checkbox" aria-describedby="s_live_alpha_help">
-        </div>
-        <p id="s_live_alpha_help" class="sub">Eksperimentel. Gem for at vælge Live fra næste samtale i Voice PE og Tal; en igangværende samtale beholder sit valg. Fra bruger Realtime. Alpha bruger marin og sin egen backend; Realtime-modelvalgene nedenfor gælder kun, når Alpha er fra. Fuld funktion og fysisk lyd er endnu ikke godkendt.</p>
-        <p id="s_live_alpha_active" class="sub" role="status"></p>
-      </section>
+
 
       <details class="adv" style="margin-top:18px">
         <summary>Avanceret</summary>
+
+      <section class="expose">
+        <h2>GPT-Live</h2>
+        <div class="setgrid">
+          <label for="s_live_alpha">GPT-Live (eksperimentel)</label>
+          <input id="s_live_alpha" type="checkbox" aria-describedby="s_live_alpha_help">
+        </div>
+        <p id="s_live_alpha_help" class="sub">Gælder fra næste samtale. Fra bruger Realtime.</p>
+        <p id="s_live_alpha_active" class="sub" role="status"></p>
+      </section>
 
         <div class="exsub" style="margin-top:14px">Assistent</div>
         <div class="setgrid">
@@ -517,8 +555,8 @@
           </select>
           <label for="s_openai_model">Model</label>
           <select id="s_openai_model">
-            <option value="gpt-realtime-2.1">GPT Realtime 2.1 (quality standard)</option>
-            <option value="gpt-realtime-2.1-mini">GPT Realtime 2.1 mini (cost mode)</option>
+            <option value="gpt-realtime-2.1">GPT Realtime 2.1 (standardkvalitet)</option>
+            <option value="gpt-realtime-2.1-mini">GPT Realtime 2.1 mini (lavere pris)</option>
           </select>
           <label for="s_openai_voice">Stemme</label>
           <input id="s_openai_voice" list="dl_openai_voice" autocomplete="off">
@@ -547,7 +585,7 @@
           <select id="s_openai_eagerness"><option value="auto">Auto</option><option value="low">Lav</option><option value="medium">Mellem</option><option value="high">Høj</option></select>
         </div>
         <datalist id="dl_openai_voice"><option>marin</option><option>cedar</option><option>alloy</option><option>echo</option><option>shimmer</option></datalist>
-        <p class="sub" style="margin:2px 0 0"><b>Thin</b> lader modellen styre turtagningen. Konservativ er indstillet til at modstå rest-ekko. API-nøglen ligger i add-on'ens fane <b>Konfiguration</b>. Forbrug vises som <code>sensor.podvoice_cost_today</code> og <code>_month</code>.</p>
+        <p class="sub" style="margin:2px 0 0">API-nøglen gemmes i add-onens Konfiguration.</p>
 
         <div class="exsub" style="margin-top:14px">Mikrofonkvalitet</div>
         <div class="setgrid">
@@ -565,59 +603,41 @@
             <option value="near_field">Kort afstand</option>
           </select>
         </div>
-        <p class="sub" style="margin:2px 0 0">Baseline: Voice PE bruger <b>channel 1</b> (XMOS AEC/IC/NS uden AGC), fysisk målt <b>gain 16</b> og derfor ingen ekstra OpenAI-støjfiltrering. Talk bruger browser-ekkoannullering uden browser-NS/AGC og én OpenAI <b>far field</b>-filtrering. <code>turn: input transcript</code> er en separat diagnostisk transcript &mdash; ikke nødvendigvis præcis hvad Realtime-modellen hørte.</p>
+
 
         <div style="margin:14px 0 8px"><label for="s_system_prompt"><b>Systemprompt</b></label> <button id="s_resetprompt" class="ghost">Nulstil</button></div>
         <textarea id="s_system_prompt" class="prompt" rows="8" spellcheck="false"></textarea>
-        <p class="sub" style="margin:6px 0 0">Tells the assistant who it is and what it can do (so it answers "what can you do?" and never goes silent). Edit freely, then Save &amp; restart.</p>
+        <p class="sub" style="margin:6px 0 0">Gem og genstart for at anvende.</p>
 
         <div class="setgrid" style="margin-top:14px">
           <label for="s_podconnect_base_url">PodConnect URL</label>
           <input id="s_podconnect_base_url" type="text" autocomplete="off">
           <label for="s_podconnect_token">PodConnect token</label>
-          <input id="s_podconnect_token" type="password" autocomplete="off" placeholder="(blank if PodConnect has none)">
+          <input id="s_podconnect_token" type="password" autocomplete="off" placeholder="(tom, hvis PodConnect ikke bruger token)">
           <span></span><span id="s_podconnect_token_hint" class="sub" style="display:none;font-size:.76rem">Gemt — skriv for at erstatte.</span>
           <label for="s_ha_mcp_url">HA MCP URL</label>
-          <input id="s_ha_mcp_url" type="text" autocomplete="off" placeholder="(blank = via Supervisor: /core/api/mcp)">
+          <input id="s_ha_mcp_url" type="text" autocomplete="off" placeholder="(tom = via Supervisor: /core/api/mcp)">
           <label for="s_ha_mcp_token">HA MCP token</label>
-          <input id="s_ha_mcp_token" type="password" autocomplete="off" placeholder="(blank = the add-on's own token)">
+          <input id="s_ha_mcp_token" type="password" autocomplete="off" placeholder="(tom = add-onens eget token)">
           <span></span><span id="s_ha_mcp_token_hint" class="sub" style="display:none;font-size:.76rem">Gemt — skriv for at erstatte.</span>
           <label for="s_extended_device_control">Udvidet enhedsstyring</label>
           <input id="s_extended_device_control" type="checkbox" aria-describedby="s_device_control_help">
           <label for="s_device_control_entities">Tilladte Roborock-entiteter</label>
           <textarea id="s_device_control_entities" rows="5" spellcheck="false" aria-describedby="s_device_control_help" placeholder="vacuum.…&#10;select.…"></textarea>
-          <span></span><p id="s_device_control_help" class="sub">Eksperimentel, slået fra som standard. Angiv én entitet pr. linje: robotten, rengøringsindstillingerne og valgt kort (læses kun). Højst 12. Kræver Supervisor-adgang. Tilføjer kun to værktøjer fra næste samtale; Assist og Spotify bevares. Gem deaktivering for straks at blokere nye handlinger. En startet rengøring stoppes ikke. Fysisk Roborock-test afventer.</p>
+          <span></span><p id="s_device_control_help" class="sub">Eksperimentel. Én entitet pr. linje, højst 12. Valgt kort læses kun. Kræver Supervisor-adgang. Gem deaktivering for at blokere nye handlinger; en startet rengøring fortsætter.</p>
         </div>
-        <p class="sub" style="margin:2px 0 0">PodConnect is what dims the music. The MCP fields are only for setups where the Supervisor proxy can't reach HA's MCP server — then point the URL at <code>http://&lt;ha&gt;:8123/api/mcp</code> with a long-lived access token. You normally never change these.</p>
+        <p class="sub" style="margin:2px 0 0">Lad MCP-felterne stå tomme ved normal Home Assistant-opsætning.</p>
 
         <details class="adv" style="margin-top:12px">
           <summary>Sikkerhed</summary>
           <div class="setgrid" style="margin-top:8px">
-            <label for="s_panel_lan_open">Allow panel on the LAN</label>
+            <label for="s_panel_lan_open">Tillad netværksadgang</label>
             <input id="s_panel_lan_open" type="checkbox">
           </div>
-          <p class="sub" style="margin:2px 0 0">Off (recommended): this panel and its API only work through the Home Assistant sidebar (Ingress). On: anyone on your wifi can open <code>:8098</code> directly — including these settings and your tokens. Leave it off unless you know why you need it.</p>
+          <p class="sub" style="margin:2px 0 0">Fra: kun via Home Assistant. Til: adgang fra dit netværk til panel, indstillinger og tokens.</p>
         </details>
 
-        <details class="adv" style="margin-top:12px">
-          <summary>Diagnostik</summary>
-          <div class="vpgate" style="margin-top:8px">
-            <div class="vpg-row">
-              <div class="vpg-txt"><b>Forbindelse</b><span class="sub">Kan PodVoice nå enheden?</span></div>
-              <button id="vp_status" class="ghost">Tjek</button>
-            </div>
-            <div class="vpg-row">
-              <div class="vpg-txt"><b>Lyd ind</b><span class="sub">Sammenhængende mikrofonstream (~15&nbsp;s)</span></div>
-              <button id="vp_s1" class="ghost">Tjek</button>
-            </div>
-            <div class="vpg-row">
-              <div class="vpg-txt"><b>Højttaler</b><span class="sub">Kan du høre testtonen?</span></div>
-              <button id="vp_s2" class="ghost">Afspil test</button>
-            </div>
-          </div>
-          <div id="vp_result" class="status" role="status" aria-live="polite" style="display:none;margin-top:12px"></div>
-          <button id="vp_copy" class="ghost" style="display:none;margin-top:8px;padding:5px 11px;font-size:.78rem">Copy result</button>
-        </details>
+
       </details>
 
       <div class="actions">
@@ -627,7 +647,7 @@
       </div>
     </div>
   </div>
-</div>
+</main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -669,6 +689,12 @@ function renderSub(data) {
   bits.push(connected ? "status live" : "status forbinder…");
   sub.textContent = bits.join(" · ");
   sub.style.color = connected ? "" : "var(--amber)";
+  var connection = document.getElementById("status_connection");
+  if (connection) {
+    connection.hidden = connected;
+    var message = lastStatus ? "Panelets status kan ikke opdateres. Viste oplysninger kan være forældede. Kontrollér add-on-status; panelet forsøger igen automatisk." : "Status forbinder… Kontrollér add-on-status, hvis forbindelsen ikke kommer tilbage.";
+    if (connection.textContent !== message) connection.textContent = message;
+  }
 }
 
 function renderServices(services, details, diagnosticActive) {
@@ -703,12 +729,17 @@ function renderServices(services, details, diagnosticActive) {
       label = st === "up" ? "verificeret" : st === "degraded" ? "ikke verificeret" : "utilgængelig";
     }
     p.appendChild(document.createTextNode(SVC_LABEL[name] + ": " + label));
-    p.title = [detail.reason, detail.source].filter(Boolean).join(" · ");
+    var explanation = detail.reason;
+    if (name === "openai" && st === "up" && /aktiv realtime-session/i.test(explanation || ""))
+      explanation = "Provider verificeret ved en samtale. Se den aktuelle samtalestatus i rummet.";
+    p.title = diagnosticActive && (name === "openai" || name === "voicepe")
+      ? "Sikker systemtest kører. Prøv igen, når testen er færdig."
+      : [explanation, detail.source].filter(Boolean).join(" · ");
     wrap.appendChild(p);
     announcements.push(SVC_LABEL[name] + " " + label);
   });
   var live = document.getElementById("svc_announce");
-  if (live) live.textContent = announcements.join(", ");
+  if (live && live.textContent !== announcements.join(", ")) live.textContent = announcements.join(", ");
 }
 
 function renderCapabilities(caps, details) {
@@ -742,7 +773,7 @@ function renderCapabilities(caps, details) {
     var schemaShort = discovery.schema_sha256 ? " · " + String(discovery.schema_sha256).slice(0, 12) : "";
     wrap.appendChild(el("span", "pill pill-up", "MCP " + discovery.api_id + schemaShort));
   }
-  var labels = { home: "hjem/HA", web_search: "websøgning", weather: "vejr", music: "musikstyring" };
+  var labels = { time: "tid", home: "hjem/HA", web_search: "websøgning", weather: "vejr", music: "musikstyring", timers: "timere" };
   if (missing.length || pending.length || conflicts.length) {
     warn.hidden = false;
     if (discovery.retry_state === "retrying") {
@@ -756,7 +787,7 @@ function renderCapabilities(caps, details) {
       return;
     }
     if (missing.length) {
-      warn.appendChild(el("strong", null, "Ikke alle standard-evner er synlige. "));
+      warn.appendChild(el("strong", null, "Ikke alle evner er tilgængelige. "));
       warn.appendChild(document.createTextNode("Mangler: " + missing.map(function (k) { return labels[k] || k; }).join(", ") + ". "));
     }
     (caps.setup_hints ? missing : []).forEach(function (k) {
@@ -764,11 +795,7 @@ function renderCapabilities(caps, details) {
     });
     if (pending.length) warn.appendChild(el("div", "sub", "Afventer klassifikation: " + pending.join(", ") + "."));
     if (conflicts.length) warn.appendChild(el("div", "sub", "Værktøjskonflikt: " + conflicts.join(", ") + "."));
-    var identity = [];
-    if (discovery.api_id) identity.push("MCP API: " + discovery.api_id);
-    if (discovery.schema_sha256) identity.push("schema: " + String(discovery.schema_sha256).slice(0, 12));
-    if (identity.length) warn.appendChild(el("div", "sub", identity.join(" · ")));
-    warn.appendChild(el("div", "sub", "Home Assistant/MCP er sandheden for tid, hjem, vejr, web, musik og senere timere. Gem i HA; PodVoice opdager ændringen automatisk."));
+
   }
 }
 
@@ -807,11 +834,12 @@ function liveStatusView(rm, now) {
     var output = {active:"Svarlyd registreret", pending:"lyd i kø", queued:"lyd i kø", consumed:"lyd afspillet", playing:"afspiller", quiet:"målt stille", unknown:"ukendt", stale:"forældet"};
     details.push("Højttaler: " + (output[outputStale ? "stale" : v.output_state] || "ukendt"));
     if (v.countdown_running === true && v.timer_kind === "deadline" && Number.isFinite(v.remaining_s) && v.remaining_s >= 0)
-      lines.push("Stilhedskrav: " + v.remaining_s.toFixed(1).replace(".", ",") + " s tilbage ved seneste måling");
+      lines.push((v.phase === "CLOSING" ? "Afslutningsfrist: " : "Stilhedskrav: ") + v.remaining_s.toFixed(1).replace(".", ",") + " s tilbage ved seneste måling");
     else if (!coverageStale && v.timer_kind === "quiet_coverage" && Number.isFinite(v.quiet_s) && Number.isFinite(v.idle_timeout_s))
       lines.push("Ro: " + v.quiet_s.toFixed(1).replace(".", ",") + " s af " + v.idle_timeout_s.toFixed(1).replace(".", ",") + " s ved seneste måling");
     else if (!coverageStale && Number.isFinite(v.quiet_s) && v.quiet_s > 0)
       lines.push("Stilhed målt: " + v.quiet_s.toFixed(1).replace(".", ",") + " s");
+    if (v.phase === "CLOSING" && v.timer_kind === "deadline" && v.remaining_s === 0) lines.push("Fristen er udløbet; afventer afslutning og genaktivering.");
     if (coverageStale && v.timer_kind === "quiet_coverage") lines.push("Ro-målingen er forældet — afventer frisk lydmåling");
     if (v.transcript && Number.isFinite(v.transcript_at))
       lines.push("Registrerede ord (" + Math.max(0, Math.floor(now / 1000 - v.transcript_at)) + " s siden): “" + v.transcript + "”");
@@ -822,19 +850,29 @@ function liveStatusView(rm, now) {
   else if (v.phase === "IDLE") title = {proven:"Klar", recovered:"Wake afprøves", fault:"Kræver opmærksomhed", unknown:"Samtale lukket"}[v.wake_readiness] || "Samtale lukket";
   return {title:title, lines:lines, details:details};
 }
-function renderLiveStatus(rm) {
+function renderLiveStatus(rm, diagnostic) {
   var view = liveStatusView(rm, Date.now());
   var box = el("div", "live-status");
   box.dataset.room = rm.room;
+  box.dataset.diagnostic = diagnostic ? "true" : "false";
   var title = el("div", "live-title", view.title);
   title.setAttribute("role", "status");
   title.setAttribute("aria-live", "polite");
   box.appendChild(title);
+  if (!diagnostic) {
+    if (view.title === "Status ukendt" || view.title === "Status forældet" ||
+        view.title === "Offline" || view.title === "Kræver opmærksomhed")
+      box.appendChild(el("div", "live-detail", "Tjek forbindelsen under Diagnose."));
+    else if (view.title === "Afslutter" && rm.live_status.remaining_s === 0)
+      box.appendChild(el("div", "live-detail", "Afventer afslutning."));
+    return box;
+  }
   view.lines.forEach(function (line) { box.appendChild(el("div", "live-detail", line)); });
-  if (view.details && view.details.length) {
+  var diagnosticLines = (view.details || []).slice();
+  if (diagnosticLines.length) {
     var detail = el("details", "live-explanation");
-    detail.appendChild(el("summary", null, "Lydmåling og registrerede ord"));
-    view.details.forEach(function (line) { detail.appendChild(el("div", "live-detail", line)); });
+    detail.appendChild(el("summary", null, "Lyd og registrerede ord"));
+    diagnosticLines.forEach(function (line) { detail.appendChild(el("div", "live-detail", line)); });
     box.appendChild(detail);
   }
   return box;
@@ -842,7 +880,7 @@ function renderLiveStatus(rm) {
 
 function patchLiveStatus(box, rm) {
   if (!box) return;
-  var next = renderLiveStatus(rm);
+  var next = renderLiveStatus(rm, box.dataset.diagnostic === "true");
   if (next.textContent === box.textContent) return;
   var title = box.querySelector(".live-title");
   if (title.textContent !== next.querySelector(".live-title").textContent)
@@ -862,33 +900,30 @@ function patchLiveStatus(box, rm) {
   else if (newDetails) box.appendChild(newDetails);
 }
 
-function roomCard(rm) {
-  var state = safe(rm, "state", "IDLE");
-  var box = el("div", "room");
+function roomCard(rm, diagnostic) {
+  var box = el(diagnostic ? "details" : "div", diagnostic ? "room-diagnostics" : "room");
   box.dataset.room = rm.room;
-  var top = el("div", "top");
-  top.appendChild(el("span", "rname", safe(rm, "room", "?")));
-  box.appendChild(top);
-
-  box.appendChild(renderLiveStatus(rm));
-
-  var lvl = safe(rm, "level", 100);
-  var ducked = !!rm.ducked || lvl < 100;
-  var duck = el("div", "duck" + (ducked ? " ducked" : ""));
-  duck.appendChild(el("div", "lbl", "Musikdæmpning: " + (lvl >= 100 ? "fra" : "aktiv")));
-  var track = el("div", "track"); var fill = el("div", "fill"); fill.style.width = lvl + "%";
-  track.appendChild(fill); duck.appendChild(track); box.appendChild(duck);
-
-  var meta = el("div", "meta");
-  var lat = rm.last_latency_ms;
-  meta.appendChild(el("span", null, "Svartid " + (lat == null ? "—" : Math.round(lat) + " ms")));
-  meta.appendChild(el("span", null, rm.connected ? "● forbundet" : "○ offline"));
-  box.appendChild(meta);
-
-  var ctl = el("div", "ctl");
-  [["Lyt", "listen"], ["Stop", "stop"], ["Test tone", "test_tone"], ["Test højttaler 🔊", "test_speaker"]].forEach(function (pair) {
+  if (diagnostic) box.appendChild(el("summary", null, safe(rm, "room", "?")));
+  else box.appendChild(el("div", "rname", safe(rm, "room", "?")));
+  box.appendChild(renderLiveStatus(rm, diagnostic));
+  if (diagnostic) {
+    var lvl = safe(rm, "level", 100);
+    var ducked = !!rm.ducked || lvl < 100;
+    var duck = el("div", "duck" + (ducked ? " ducked" : ""));
+    duck.appendChild(el("div", "lbl", "Musikdæmpning: " + (lvl >= 100 ? "fra" : "aktiv")));
+    var track = el("div", "track"), fill = el("div", "fill"); fill.style.width = lvl + "%";
+    track.appendChild(fill); duck.appendChild(track); box.appendChild(duck);
+    var meta = el("div", "meta"), lat = rm.last_latency_ms;
+    meta.appendChild(el("span", null, "Streamstart (kan være tavs): " + (lat == null ? "ukendt" : Math.round(lat) + " ms")));
+    meta.appendChild(el("span", null, rm.connected ? "● forbundet" : "○ offline"));
+    box.appendChild(meta);
+  }
+  var ctl = el("div", diagnostic ? "ctl" : "ctl primary-controls");
+  var controls = diagnostic ? [["Test tone", "test_tone"], ["Test højttaler", "test_speaker"]]
+    : [["Start samtale", "listen"], ["Stop", "stop"]];
+  controls.forEach(function (pair) {
     var b = el("button", "ghost", pair[0]);
-    b.setAttribute("aria-label", pair[0] + " in " + safe(rm, "room", ""));
+    b.setAttribute("aria-label", pair[0] + " i " + safe(rm, "room", ""));
     b.onclick = function () { control(rm.room, pair[1], b); };
     ctl.appendChild(b);
   });
@@ -902,10 +937,6 @@ function renderWakeWordStatus() {
   var target = document.getElementById("s_wake_word_status");
   if (!target) return;
   var names = {okay_nabu:"Okay Nabu", hey_jarvis:"Hey Jarvis", hey_mycroft:"Hey Mycroft", hey_chat:"Hey Chat", hey_chat_hey_jarvis:"Hey Chat + Hey Jarvis"};
-  var example = document.getElementById("wake-example");
-  if (example) example.textContent = savedWakeWord === "hey_chat_hey_jarvis"
-    ? "“Hey Chat, hvad er klokken?” eller “Hey Jarvis, hvad er klokken?”"
-    : "“" + (names[savedWakeWord] || "Dit vækkeord") + ", hvad er klokken?”";
   var lines = ["Gemt valg (alle enheder): " + (names[savedWakeWord] || "Ikke hentet")];
   Object.keys(rooms).forEach(function (id) {
     var rm = rooms[id];
@@ -931,17 +962,19 @@ function renderRooms() {
   var ts = document.getElementById("tx-section");
   if (rs) rs.style.display = has ? "" : "none";
   if (ts) ts.style.display = has ? "" : "none";
-  var wrap = document.getElementById("rooms");
-  if (!wrap) return;
-  Array.from(wrap.children).forEach(function (card) { if (!rooms[card.dataset.room]) card.remove(); });
-  ids.forEach(function (id) {
-    var card = Array.from(wrap.children).find(function (item) { return item.dataset.room === id; });
-    if (!card) { wrap.appendChild(roomCard(rooms[id])); return; }
-    patchLiveStatus(card.querySelector(".live-status"), rooms[id]);
-    var fresh = roomCard(rooms[id]);
-    [".duck", ".meta"].forEach(function (selector) {
-      var old = card.querySelector(selector), next = fresh.querySelector(selector);
-      if (old && next && old.outerHTML !== next.outerHTML) old.replaceWith(next);
+  ["rooms", "room-tests"].forEach(function (target) {
+    var wrap = document.getElementById(target); if (!wrap) return;
+    var diagnostic = target === "room-tests";
+    Array.from(wrap.children).forEach(function (card) { if (!rooms[card.dataset.room]) card.remove(); });
+    ids.forEach(function (id) {
+      var card = Array.from(wrap.children).find(function (item) { return item.dataset.room === id; });
+      if (!card) { wrap.appendChild(roomCard(rooms[id], diagnostic)); return; }
+      patchLiveStatus(card.querySelector(".live-status"), rooms[id]);
+      var fresh = roomCard(rooms[id], diagnostic);
+      [".duck", ".meta"].forEach(function (selector) {
+        var old = card.querySelector(selector), next = fresh.querySelector(selector);
+        if (old && next && old.outerHTML !== next.outerHTML) old.replaceWith(next);
+      });
     });
   });
 }
@@ -959,7 +992,7 @@ function renderMetrics(m) {
 
 var TIMELINE_LABEL = {
   wake_received: "Wake modtaget",
-  provider_connected: "Realtime-session klar",
+  provider_connected: "Provider klar",
   speech_started_or_interrupted: "Tale registreret",
   speech_stopped: "Du stoppede med at tale",
   input_transcript: "Transskription klar",
@@ -967,11 +1000,11 @@ var TIMELINE_LABEL = {
   tool_result: "Værktøj færdigt",
   response_audio_started: "Modellen begyndte svaret",
   response_done: "Modellen var færdig",
-  playback_started: "Svar hørbart i rummet",
+  playback_started: "Fysisk afspilning startet (kan være tavs)",
   playback_finished: "Svarlyd færdig",
   endphrase_confirmed: "Farvel bekræftet",
   close_requested: "Lukning startet",
-  wake_rearmed: "Wakeword klar igen",
+  wake_rearmed: "Firmware har kvitteret genaktivering",
   led_command: "Lyskommando"
 };
 function renderLifecycle(list) {
@@ -986,7 +1019,7 @@ function renderLifecycle(list) {
   var wake = events.find(function (x) { return x.event === "wake_received"; });
   var ready = events.find(function (x) { return x.event === "provider_connected"; });
   if (wake && ready) {
-    box.appendChild(el("div", "line out", "Wake → Realtime klar: " + (ready.at_ms - wake.at_ms) + " ms"));
+    box.appendChild(el("div", "line out", "Wake → provider klar: " + (ready.at_ms - wake.at_ms) + " ms"));
   }
   events.forEach(function (start, index) {
     if (start.event !== "speech_stopped") return;
@@ -996,12 +1029,12 @@ function renderLifecycle(list) {
       var found = turn.find(function (x) { return x.event === name; });
       return found ? (found.at_ms - start.at_ms) + " ms" : "—";
     }
-    box.appendChild(el("div", "line out", "Tur: tekst " + delta("input_transcript") + " · modellyd " + delta("response_audio_started") + " · hørbar " + delta("playback_started")));
+    box.appendChild(el("div", "line out", "Tur: tekst " + delta("input_transcript") + " · modellyd " + delta("response_audio_started") + " · fysisk streamstart " + delta("playback_started")));
   });
   var close = events.find(function (x) { return x.event === "close_requested"; });
   var rearm = events.find(function (x) { return x.event === "wake_rearmed"; });
   if (close && rearm) {
-    box.appendChild(el("div", "line out", "Lukning → wake klar: " + (rearm.at_ms - close.at_ms) + " ms"));
+    box.appendChild(el("div", "line out", "Lukning → rearm-kvittering: " + (rearm.at_ms - close.at_ms) + " ms"));
   }
   events.forEach(function (item) {
     var line = el("div", "line out");
@@ -1106,9 +1139,9 @@ async function control(room, action, btn) {
     var r = await fetch("api/control", { method: "POST", headers: { "Content-Type": "application/json" },
                                          body: JSON.stringify({ room: room, action: action }) });
     var j = null; try { j = await r.json(); } catch (e2) { /* non-JSON error page */ }
-    if (j && j.ok) toast("OK");
-    else toast("Error: " + ((j && j.error) || ("HTTP " + r.status)));
-  } catch (e) { toast("Request failed — couldn't reach PodVoice"); }
+    if (j && j.ok) toast("Kommando modtaget");
+    else toast("Kunne ikke udføre handlingen: " + ((j && j.error) || ("HTTP " + r.status)));
+  } catch (e) { toast("PodVoice kunne ikke nås. Kontrollér add-on-status og prøv igen."); }
 }
 
 async function poll() {
@@ -1961,7 +1994,7 @@ setInterval(function () {
       var hasDef = models.some(function (m) { return m.id === def; });
       currentModel = (hasDef ? def : (models[0] && models[0].id)) || def || null;
       if (currentModel) modelSel.value = currentModel;
-      if (!models.length) { var o = document.createElement("option"); o.textContent = "(default model)"; modelSel.appendChild(o); }
+      if (!models.length) { var o = document.createElement("option"); o.textContent = "(standardmodel)"; modelSel.appendChild(o); }
       if (voiceSel) {
         var voices = data.voices || [];
         voiceSel.innerHTML = "";
@@ -2667,9 +2700,9 @@ setInterval(function () {
     try {
       var rr = await fetch("api/restart", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       var jj = null; try { jj = await rr.json(); } catch (e) {}
-      setSaveStatus(jj && jj.ok ? "Restarting… reload the page in a moment"
-                                : "Saved ✓ — but restart failed (" + ((jj && jj.error) || ("HTTP " + rr.status)) + "). Restart the add-on manually.");
-    } catch (e) { setSaveStatus("Saved ✓ — but the restart request failed. Restart the add-on manually."); }
+      setSaveStatus(jj && jj.ok ? "Genstarter… Genindlæs siden om et øjeblik"
+                                : "Gemt — genstarten fejlede (" + ((jj && jj.error) || ("HTTP " + rr.status)) + "). Genstart add-onen manuelt.");
+    } catch (e) { setSaveStatus("Gemt — anmodningen om genstart fejlede. Genstart add-onen manuelt."); }
   }
   document.getElementById("s_save").onclick = function () { save(false); };
   document.getElementById("s_saverestart").onclick = function () { save(true); };
@@ -2710,7 +2743,7 @@ setInterval(function () {
     show("info", pending); busy(true);
     var r, j;
     try { r = await fetch("api/voicepe/" + path, { method: method }); }
-    catch (e) { show("warn", "Couldn't reach PodVoice (panel offline?). Reload and try again."); busy(false); return; }
+    catch (e) { show("warn", "PodVoice kunne ikke nås. Genindlæs panelet og prøv igen."); busy(false); return; }
     try { j = await r.json(); }
     catch (e) { j = null; }
     busy(false);
@@ -2721,34 +2754,34 @@ setInterval(function () {
     if (!j.ok) {
       // Common, friendly causes first.
       var e = (j.error || j.hint || "Check failed.");
-      if (/no voice pe host|add a room/i.test(e)) e = "No Voice PE configured — in Setup above, add a room (host + PSK), Save & restart, then retry.";
+      if (/no voice pe host|add a room/i.test(e)) e = "Voice PE er ikke konfigureret. Tilføj rum og adresse i indstillinger, gem og genstart, og prøv igen.";
       show("warn", "⚠️ " + e); return;
     }
     if (path === "status") {
-      show("ok", "✅ Gate 1 PASS — Connected: " + (j.name || j.host) + " (ESPHome " + (j.esphome || "?") + "). Now run Gate 2.");
+      show("ok", "Forbindelse bekræftet: " + (j.name || j.host) + " (ESPHome " + (j.esphome || "?") + "). Kør nu lydindgangsprøven.");
     } else if (path === "s1") {
       if (j.verdict === "pass") {
-        show("ok", "✅ Gate 2 PASS — continuous audio: " + j.continuity_pct + "% continuity, " + j.gaps_over_60ms + " gaps over " + j.seconds + "s. Now run Gate 3.");
+        show("ok", "Lydstream modtaget: " + j.continuity_pct + "% kontinuitet, " + j.gaps_over_60ms + " huller over " + j.seconds + "s. Afprøv nu højttaleren.");
       } else if (j.verdict === "no-audio") {
-        show("warn", "⚠️ Gate 2 — NO audio received. " + (j.hint || "Trigger the device and make sure it is NOT in HA Assist."));
+        show("warn", "Ingen lyd modtaget. " + (j.hint || "Væk enheden, og kontrollér at den ikke bruger HA Assist."));
       } else {
-        show("warn", "⚠️ Gate 2 — gaps: " + j.continuity_pct + "% continuity, " + j.gaps_over_60ms + " gaps over " + (j.seconds || "?") + "s, max " + (j.max_gap_ms || "?") + "ms. " + (j.hint || "") + " (Send me this — it decides the firmware path.)");
+        show("warn", "Huller i lydstream: " + j.continuity_pct + "% kontinuitet, " + j.gaps_over_60ms + " huller over " + (j.seconds || "?") + "s, max " + (j.max_gap_ms || "?") + "ms. " + (j.hint || "") + " Gem resultatet til diagnose.");
       }
     } else {
-      show("info", "🔊 Gate 3 — " + (j.hint || "Tone sent.") + " Did you HEAR it on the Voice PE speaker? Tell me yes/no.");
+      show("info", "Højttalerprøve: " + (j.hint || "Tone anmodet.") + " Kontrollér selv, om tonen faktisk høres på Voice PE.");
     }
   }
 
   if (copyBtn) copyBtn.onclick = function () {
-    function done(label) { copyBtn.textContent = label; setTimeout(function () { copyBtn.textContent = "Copy result"; }, 1500); }
+    function done(label) { copyBtn.textContent = label; setTimeout(function () { copyBtn.textContent = "Kopiér resultat"; }, 1500); }
     try {
-      navigator.clipboard.writeText(last).then(function () { done("Copied ✓"); },
-                                               function () { done("Copy failed"); });
-    } catch (e) { done("Copy failed"); }
+      navigator.clipboard.writeText(last).then(function () { done("Kopieret"); },
+                                               function () { done("Kunne ikke kopiere"); });
+    } catch (e) { done("Kunne ikke kopiere"); }
   };
-  if (btns[0]) btns[0].onclick = function () { run("status", "GET", "Checking connection…"); };
-  if (btns[1]) btns[1].onclick = function () { run("s1", "POST", "Measuring the audio stream (~15s)… keep this tab open."); };
-  if (btns[2]) btns[2].onclick = function () { run("s2", "POST", "Playing a test tone…"); };
+  if (btns[0]) btns[0].onclick = function () { run("status", "GET", "Kontrollerer forbindelsen…"); };
+  if (btns[1]) btns[1].onclick = function () { run("s1", "POST", "Måler lydstream (ca. 15 sekunder)… Lad fanen være åben."); };
+  if (btns[2]) btns[2].onclick = function () { run("s2", "POST", "Anmoder om en testtone…"); };
 })();
 </script>
 
@@ -2799,7 +2832,7 @@ setInterval(function () {
   function fillRooms(rooms, sel) {
     var keep = sel || roomSel.value || "";
     roomSel.innerHTML = "";
-    roomSel.appendChild(he("option", null, "All conversations")).value = "";
+    roomSel.appendChild(he("option", null, "Alle samtaler")).value = "";
     (rooms || []).forEach(function (r) {
       var o = he("option", null, roomLabel(r)); o.value = r; roomSel.appendChild(o);
     });
@@ -2808,7 +2841,7 @@ setInterval(function () {
 
   async function load() {
     listEl.innerHTML = "";
-    listEl.appendChild(he("div", "empty", "Loading…"));
+    listEl.appendChild(he("div", "empty", "Henter…"));
     try {
       var room = roomSel.value || "";
       var url = "api/history" + (room ? "?room=" + encodeURIComponent(room) : "");
@@ -2816,23 +2849,23 @@ setInterval(function () {
       fillRooms(data.rooms || [], room);
       listEl.innerHTML = "";
       var convs = data.conversations || [];
-      if (!convs.length) { listEl.appendChild(he("div", "empty", "No conversations yet — they'll appear here after you talk.")); return; }
+      if (!convs.length) { listEl.appendChild(he("div", "empty", "Ingen gemte samtaler endnu. Tal med PodVoice for at se historik her.")); return; }
       convs.forEach(function (c) { listEl.appendChild(card(c)); });
     } catch (e) {
-      listEl.innerHTML = ""; listEl.appendChild(he("div", "empty", "Couldn't load history."));
+      listEl.innerHTML = ""; listEl.appendChild(he("div", "empty", "Historikken kunne ikke hentes. Kontrollér forbindelsen og prøv igen."));
     }
   }
 
   if (refreshBtn) refreshBtn.onclick = load;
   if (roomSel) roomSel.onchange = load;
   if (clearBtn) clearBtn.onclick = async function () {
-    if (!window.confirm("Delete ALL saved conversations? This cannot be undone.")) return;
+    if (!window.confirm("Slet alle gemte samtaler? Sletningen kan ikke fortrydes.")) return;
     try {
       var r = await fetch("api/history/clear", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       var j = null; try { j = await r.json(); } catch (e2) {}
-      if (j && j.ok) toast("History cleared");
-      else toast("Couldn't clear history: " + ((j && j.error) || ("HTTP " + r.status)));
-    } catch (e) { toast("Couldn't clear history — request failed"); }
+      if (j && j.ok) toast("Historik slettet");
+      else toast("Historikken kunne ikke slettes: " + ((j && j.error) || ("HTTP " + r.status)));
+    } catch (e) { toast("Historikken kunne ikke slettes. Anmodningen fejlede."); }
     load();
   };
   // Load when the History tab is opened (and once now so it's warm).

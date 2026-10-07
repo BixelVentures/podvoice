@@ -1009,6 +1009,10 @@ class ThinSession:
             return self._active and not self._transport_closing and self._epoch == opening_epoch
 
         self._history_session = f"{self.room}:{time.time_ns()}"
+        with contextlib.suppress(Exception):
+            diagnostic_origin = getattr(self.audio_trace, "begin_diagnostic_session", None)
+            if callable(diagnostic_origin):
+                diagnostic_origin(self._history_session)
         self._panel_transcript = ""
         self._panel_transcript_at = None
         self._stop_sent_t = None

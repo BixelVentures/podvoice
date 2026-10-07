@@ -21,7 +21,7 @@ def test_raw_device_ip_has_a_live_setup_warning():
     assert "function isRawIpv4" in html
     assert "updateAddressWarning" in html
     assert "podvoice-pe-123456.local" in html
-    assert "DHCP-reservation" in html
+    assert "Brug et <code>.local</code>-navn eller en fast IP-adresse." in html
 
 
 def test_duplicate_light_legend_and_dead_transcript_ui_are_gone():
@@ -111,9 +111,9 @@ def test_test_tab_shows_automatic_audio_free_lifecycle_timeline():
     assert "Seneste samtaletidslinje" in html
     assert 'id="lifecycle_timeline"' in html
     assert "renderLifecycle(data.timeline_activity || [])" in html
-    assert "Wake → Realtime klar:" in html
+    assert "Wake → provider klar:" in html
     assert "Tur: tekst " in html
-    assert "Lukning → wake klar:" in html
+    assert "Lukning → rearm-kvittering:" in html
     for event in (
         "wake_received",
         "provider_connected",
@@ -126,18 +126,15 @@ def test_test_tab_shows_automatic_audio_free_lifecycle_timeline():
         assert event in html
 
 
-def test_documented_mic_baseline_is_visible_in_panel():
+def test_actual_mic_preferences_remain_without_baseline_tutorial():
     html = PANEL.read_text()
 
     assert 'id="s_mic_channel"' in html
     assert 'id="s_mic_gain"' in html
     assert 'id="s_openai_noise"' in html
     assert "AGC-less channel 1" in html
-    assert "gain 16" in html
-    assert "ingen ekstra OpenAI-støjfiltrering" in html
-    assert 'gpt-realtime-2.1">GPT Realtime 2.1 (quality standard)' in html
-    assert "separat diagnostisk transcript" in html
-    assert "turn: input transcript" in html
+    assert 'gpt-realtime-2.1">GPT Realtime 2.1 (standardkvalitet)' in html
+    assert "Registrerede ord er en transskription, som kan være forkert." in html
     assert "noiseSuppression: false" in html
     assert "autoGainControl: false" in html
     assert 'type: "mic_config"' in html
@@ -418,7 +415,7 @@ def test_panel_does_not_claim_unverified_stop_and_labels_capability_truth():
 
     assert "silences it instantly" not in html
     assert "Øjeblikkelig stilhed" not in html
-    assert "endnu ikke fysisk godkendt" in html
+    assert 'toast("Kommando modtaget")' in html
     assert 'verified ? "verificeret" : ok ? "fundet" : "mangler"' in html
     assert 'SVC_LABEL[name] + ": " + label' in html
     assert "Home Assistant forbinder igen" in html
