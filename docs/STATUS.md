@@ -1,5 +1,256 @@
 # PodVoice-status — én aktuel sandhed
 
+### 7/10 — aktiv lead-beslutning: næste epic-iteration efter 2.0.1
+
+Lead Voice/Reliability Engineer: root. Baseline er den reviewed/udgivne main
+`69bcd68de407cfe877080ab4061d709d15cd21f6` / 2.0.1. Epics #94/#95/#96 er chatmål;
+arbejdet fortsætter i de tre eksisterende worktrees. Baselinekandidaten arver ikke
+fysisk golden/lifecycle eller produktaccept. Nye ændringer er ikke udgivet.
+
+**Observeret UI-fejl og direkte evidens.** Den installerede 2.0.1 Hjem-visning
+viser ukendte HA-toolnavne som primær alert, opaque room-ID som rumoverskrift og
+provider-tooltip med aktiv-session-betydning ved en badge om seneste samtale.
+Samme source og eksisterende browserregressioner kan reproducere disse kontradiktioner.
+Brugeren kræver kort betjening og nødvendige settings. Ingen observeret UI-label
+beviser fysisk wake eller latency.
+
+**Kausal kæde, ejere og invarianter.** Firmware/native/provider/HA-observation →
+eksisterende status/capability-snapshot → read-only HTML-projektion → brugerens
+Start/Stop → samme eksisterende Thin/VoicePELink/HA dispatch → fysisk playback →
+close/drain/rearm → næste wake. Denne iteration ændrer kun præsentationen.
+ToolRouter ejer klassifikation og capability; UI må ikke klassificere toolnavne,
+konstruere readiness eller ændre datakilder/settings/control-payloads. Stale/unknown,
+ingen/aktiv samtale, diagnostic_busy og endnu ubevist rearm skal stadig skelnes.
+
+**Falsificerbar hypotese og mindste rettelse.** Daglig UI genbruger rå diagnose-
+tekster og room-ID som menneskelig status. Brug eksisterende caps.missing til kort
+utilgængelighed; ukendte ekstra funktioner/reelle konflikter skal have kort sand
+besked og adgang til fuld eksisterende Diagnose. Brug neutral Voice PE-fallback
+ved opaque ID, med entydig indeks ved flere rum; ID/handlingens mål ændres ikke.
+Providerbadge og tooltip skal have samme verificeringsbetydning. Ukendt fysisk
+wake kaldes ukendt og får kort afprøvningshandling; intet grønt readinessbevis
+opfindes. Hypotesen afvises, hvis en fejl eller en kontrol mister sin synlige adgang,
+en frontendklassifikation ændrer capability, eller status/tips modsiger hinanden.
+
+**Ikke-mål.** Ingen runtime-, provider-, prompt-, værktøjs-, migration/default-,
+firmware-, gain-, VAD-, timeout- eller latencyændring. Ingen Alpha/OFF-fjernelse før
+allerede dokumenterede migrationsgates. UI kan ikke færdiggøre en fysisk epic-gate.
+
+**Regressioner, review og rollback.** Faktisk HTML: ready/degraded/offline/stale,
+aktive/ingen samtaler, pending/conflict/missing capabilities, opaque/friendly og
+multiple rooms, uændrede Start/Stop-payloads, samme providerbadge/tooltip samt
+keyboard-adgang til Diagnose. Mobil/desktop, begge temaer,200%zoom/fokus og
+status/SSE/permutationsprøver på det endelige diff. Softwaregates køres kun fra
+usynkroniseret clone, ekstern Python3.12; uafhængig adversarial review før enhver
+merge/release. Én full releasegate efter samlet diff-freeze, ikke per delagent.
+Rollback-grænse er main69bcd68/2.0.1 uden settings-/firmwaremigration. Fysisk gate
+for nye bits er endnu ukendt, og tidligere feltbeviser bevares separat.
+
+**Parallel årsagsafklaring.** #98 recorder-tab og #101/#102 input/svar undersøges
+read-only før nogen runtimehypotese. #104 afklarer ægte Live/fysisk måleproveniens;
+ingen tuning eller fabrikeret speech_stopped. #109/#110 kan kildereviewes og deres
+protokol-/fault-regressioner forberedes inden prioritetens fysiske gates. En ny
+produktionsrettelse dér kræver separat årsagsgrænse i denne samme aktive post og
+leadens godkendte invariant-/regressionsscope. Research er ikke implementeret accept.
+
+**Udvidet årsagsgrænse — HIL-proveniens (#103/#104).** QA-agenten har én gang
+falsificeret den shippede HIL-runner med lokalt genereret WAV og inert sink:
+preflight registrerer et 0,1s-klip under 0,2s clip/corpus-grænsen; den afventede
+observer erstatter derefter samme sti med et 1,0s-klip. Runneren genåbner stien og
+sender 1,0s, mens receipt fortsat hævder 0,1s. Ingen fysisk lyd/provider/netværk blev
+brugt. Det er en direkte test-/artifact-proveniensfejl, ikke evidens om room runtime.
+Kæde: manifest/fixture → inspect/limit-check → await observer → reopen WAV → sink →
+observer-resultat/receipt. Risikoen er ændrede bytes/format/størrelse mellem check og
+brug; ingen ændring af Thin, provider eller firmwareejerskab følger heraf.
+
+Leadens falsificerbare hypotese er TOCTOU på fixturestien. Mindste rettelse er at
+læse/validere og fryse eksakte bounded PCM-bytes og WAV-identitet før første await;
+send kun disse bytes og bind receipt til deres hash, rate og sampleantal. Truncated
+PCM og ændret/ugyldigt format afvises før sink. Bounded total storage følger eksisterende
+corpusloft (default højst 8.640.000bytes PCM (8,64MB/ca.8,24MiB) ved90s/48kHz/mono16bit og en samlet64KiB-grænse for WAV-metadata), ikke ubegrænset læsning.
+Regression injicerer erstatning/sletning/formatændring efter inspect, malformed/
+truncated WAV og oversize; verificér enten originalt eksakt klip eller tidlig afvisning,
+aldrig nye bytes eller falsk receipt. Uafhængig adversarial reviewer skal modbevise
+limit-, cancellation-, event- og receipt-kæden. Ingen samtaleruntime/lydtuning, ny
+HIL-outputadapter eller paid provider. Scope optages først i samlet kandidatfingerprint
+og autoritative gates efter review; rollback er main69bcd68. Fysisk godkendelse er
+fortsat ukendt og kan aldrig udledes af en inert sink-test.
+
+**HIL-review stop-the-line.** Frosset diff da6fdd47 er NO-GO: en caller-mutable
+step-sekvens kan ændre næste wait_for efter første await og omgå playback_finished;
+to gyldige WAV-filer med ancillary JUNK kan bruge samlet80.104metadata-bytes, fordi
+ubrugt PCM-budget tælles som metadata.24 deltests er grønne og modbeviser ikke disse
+inert-reproduktioner. Lead udvider samme proveniensgrænse: frys tuple(steps) sammen
+med WAV-snapshot før første await og brug kun den; verificér faktisk sample-extent og
+separat samlet snapshot-overhead ≤64KiB. Regression ændrer/fjerner senere step fra
+observer/sink og injicerer legitime JUNK-chunks, inklusive aggregategrænsen. Ingen
+ny runtime/hardware/providerretning. Ny exactdiff-review kræves; ingen releasegate
+eller fysisk godkendelse åbner på det afviste diff.
+
+**Udvidet årsagsgrænse — recorder-startupburst (#98).** En genereret regression af
+faktisk ThinSession._pump_mic → OpenAILiveSession.send_audio/resampler → inert SDK
+reproducerer korrekt levering af alle156 native16ms-frames, mens den passive recorder
+mister191 audio-kommandoer og13 events. Ingen worker-/diskforsinkelse er injiceret.
+VoicePELink bevarer eksplicit op til600 nativeframes under providerstart; recorderens
+120 data-slots kan kun holde60 parrede device/providerframes før øvrige observationer.
+Den konkrete ejergrænse er derfor mismatch mellem bevaret input og passiv admission.
+Det beviser en sourcehazard; installationsspecifik CPU-/diskservice og fysisk svar er
+separate ukendte. Recorder-tab må ikke bruges som årsag til #101/#102 provideradfærd.
+
+Kæde og invarianter: fysisk wake → firmware/native600-frame-buffer → provider connect
+→ uændret native FIFO-drain/resampler/providerappend → fejlisoleret recorder-submit →
+en enkelt writer/FIFO → fil/manifest/terminalproof → uændret close/rearm/næste wake.
+Leadens falsificerbare hypotese er, at et lovligt startupburst overstiger recorderens
+admission, selv ved korrekt input/providerlevering. Mindste rettelse er bounded passiv
+burstkapacitet til den eksisterende600-frame-kæde, med højst2048 queue-kommandoer og
+4MiB samtidig admitted PCM samt de eksisterende terminalreserver. Scalar/event-admission
+skal fortsat være begrænset; admission/release skal være atomisk, nonblocking for
+audioloopen, FIFO og korrekt ved workerfejl/shutdown. Ingen pacing, større nativequeue,
+PCM/providerændring eller ubegrænset lager. En writer må ikke holde admissionlåsen under
+I/O; målinger eller lange operationer må ikke flyttes til audioloopen.
+
+Regression skal bruge actual Thin/Live-chain med0/171/600 startupframes, normalt/instant
+SDK-append, præcis samme providerbytes og fuld trace inden for budget; oversize/capacity
+skal fortsat afvises ærligt. Test concurrent admission/workerrelease, fejlet skrivning,
+reserveret finish/proof/shutdown, stale-event efter generationen, ny capture, retention
+og fælles Thin/Voice PE/Talk-observerkontrakt. Begrænsede first/last reject-timestamps og
+writer-only fixed-kind service-count/max/sum kan tilføjes for årsagsafklaring, men skal
+have eksplicit lifetime/scope, faste nøgler og kopi/whitelist; ingen per-packet ekstra
+hændelse, ny thread, await eller capture-identitet gennem en forkert generation.
+Uafhængig adversarial review skal især forsøge budget-/reserve-/race-/ownerbrud.
+Rollback er main69bcd68/2.0.1; nye bits har ingen fysisk gate-status endnu.
+
+**Samlet scope før freeze.** HIL-fixtureproveniens, passiv recorder-admission og read-only
+UI er observation/testforberedelse omkring uændrede samtaleejere. Den gamle version2-
+allowlist kræver andre owners og dækker ikke dette nye diff. Før freeze oprettes en
+særskilt streng reviewed scope med de faktisk ændrede owners, nødvendige regressioner,
+regular-file-/version-only-kontrol og effektivt produktionstræs fingerprint. Ingen
+existing coupling eller generisk waiver udvides til provider, tools, prompt, firmware,
+settings eller audio/lifecycle-semantik. Scopegaten selv får negative escape-regressioner
+og uafhængigt review. Delreviews og én full releasegate følger først på samlet diff.
+
+**HIL og UI delreview.** HIL4ab7edf006dc49a9f4f3fb83a0c6acfe82e1cdfcb47a2f1a75710383909ca03d
+har uafhængigt GO efter31 permanente og12 adversarial modprøver. Begge tidligere
+fund er rettet; ingen faktisk lyd eller provider anvendt. UI
+cb35bd837ac27324c5ef25a492e75f5cd850cf70d0b8d073e3e1cbb222bd46b8 har uafhængigt GO,
+inklusive faktisk Chromium10/10 (fem bredder×to temaer),zoom/fokus/status og præcise
+controlmål. Del-GO er ikke samlet freeze/release eller fysisk accept.
+
+**Eksakt ny scopekontrakt før toolingændring.** Version3/kind passive_burst_ui_hil
+har præcis tre obligatoriske changed owners: audio_trace.py,acoustic_hil.py og
+static/index.html under podvoice/gatekeeper. Kun version-only __init__.py og
+optional diagnostic_retention.py er yderligere tilladt; sidstnævnte kræver ændret
+diagnostic_retention-regression. Required changed regular regressions er
+ tests/unit/test_audio_trace_burst.py,
+ tests/unit/test_audio_trace_automatic.py,
+ tests/integration/test_thin_provider_audio_trace.py,
+ tests/unit/test_acoustic_hil.py,
+ tests/unit/test_panel_contract.py,
+ tests/browser/daily_ui.cjs og tests/browser/live_status.cjs.
+Koblingen skal afvise missing/reverted/symlink/delete/extraowner og kan aldrig
+falde tilbage til version1/2 eller en bred generisk domain-tuple. Ny record kræver
+effektiv production_fingerprint og en særskilt fingerprint af effektive tracked/
+untracked regressioner, inklusive required-filer med skjulte indexflags. Begge
+fingerprints bindes til base/merge-base; stale eller modstridende staged/unstaged
+bytes er ikke reviewed. Den aktuelle foreløbige klassifikation er kun ha_tools;
+ændres denne ved recorderintegration, stoppes scopefastlæggelse til leadens nye
+sourcereview. Toolingtests skal forsøge escape med friskt review også ved andet
+versionskind, omitted/reverted anchors og arbitrær femdomæne/runtime-provider.
+Uafhængig adversarial review på præcist toolingdiff før samlet gate.
+
+**Narrow tooling-presence guard.** Når effektivt changed acoustic_hil.py kombineres
+med audio_trace.py eller static/index.html, kræves den strenge version3-record også
+uden marker og ved forsøg på nedgradering til frisk version1/2. Ankerne bestemmes
+fra effektive bytes/modes mod merge-base, inklusive skjulte indexflags; rapportens
+pathliste alene er utilstrækkelig. En record med et andet kind kan ikke reautorisere
+HIL-kæden via et generisk femdomæne-tuple. Eksisterende v1/v2-kandidater uden denne
+nye HIL-kombination bevarer deres kontrakt. Isoleret HIL-ændring er ikke i sig selv
+bevis for hensigt om den samlede tre-owner-kandidat. Negative tests skal dække
+no-record/legacy replacement/hidden partial owners og den præcise grænse.
+
+**Tooling-review stop-the-line.** Frosset toolingdiff4de04699 er NO-GO.
+108 implementørtests og108 reviewertests består, men en uafhængig inert Git-prøve
+stager kun __version__, skjuler __init__ med assume-unchanged eller skip-worktree
+og tilføjer runtimekode i de faktiske bytes. Friske production/regression-fingerprints
+kan stadig give PASS, fordi metadata-exemption læser index/worktree-diff i stedet
+for den effektive fil. Lead fastholder samme ejergrænse: v3 version-only validerer
+merge-base blob direkte mod faktisk regular-fil med identisk mode; kun én version-
+assignment må afvige, ingen skjult runtimekode, newline-/modeændring eller index-
+omgåelse. Tilføj regression for begge flags og modsatrettet staged/effective-version;
+v1/v2 uden denne kombination bevares. Ingen fullgate eller release åbner på det
+afviste diff; ny præcis uafhængig review kræves. Runtime/UI/HIL/recorderbits er uændrede.
+
+**Versionsforberedelse og recorder-review.** Metadata/changelog identificerer nu
+2.0.2; kandidatens scope-record og samlet freeze afventer final tooling-review.
+Recorder f656f85c94cab1fd8b746ed38173725e677be4c3960cca62e14d3cc11a3a635a har
+uafhængigt GO efter53 målrettede adapter/adversarial tests. Køens2048-admission
+omfatter in-service; højst4.063.232bytes immutable queued/in-service PCM plus128KiB
+reserveret til to samtidige writerkopier holder4MiB repræsenteret PCM. Pythonobject-
+heap er særskilt bounded, ikke inkluderet i dette PCM-loft. Ingen ny passiv profiling
+blev tilføjet. Provider/mic/firmware/settings og samtalens timing er uændrede.
+Delreview er ikke samlet release eller fysisk accept.
+
+**Backlogtilføjelser.** Nye brugerproblemer registreres under relevant eksisterende
+epic. #118 dækker faktisk destinationsinventar og musikflytning; #119 dækker lokal
+Live-kapacitetsafvisning og rent teardown. Begge er native underissues til #96 og har
+selvstændige acceptkrav. #102 bevares åbent, men brugeren har nedprioriteret rettelsen;
+ingen nye regneprøver eller lokal matematikejer følger heraf. Runtimeårsagsaudit for
+#118/#119 er separat fra den passive observationskandidat. Ingen private feltspor
+eller hjemmeidentiteter indgår i public source/tests.
+
+**Endeligt samlet review og diff-freeze.** Corrected tooling
+ daec36328e9e593ac63521db8e44a9d7a1ec3977bbe5f05e2076f3edae487330 har uafhængigt
+GO:30 berørte metadata/compatibility-modprøver består, begge hidden-index-omgåelser
+fejler lukket selv med friske fingerprints. De tidligere108 reviewed testbytes er
+bevaret; intet P1-fund står åbent. Alle tre produktfacets10 source/test-hashes er
+byte-identiske med de allerede uafhængigt godkendte deldiffs. Reviewer har også
+kontrolleret hele effektive Git-træ, version-only2.0.2 i alle tre metadatafiler og
+fravær af skjulte ekstra provider/tools/Thin/firmware/settings-ændringer.
+
+Implementørens endelige117 toolingtests, Ruff/format og diffcheck består også på
+samme daec3632-bytes; disse resultater ændrer ingen produktionsbits.
+
+Den samlede kandidat er nu frosset til én autoritativ releasegate i vedvarende
+usynkroniseret clone med ekstern Python3.12. Ingen ny fuld gate er kørt endnu;
+software-release/CI/artifact/installation og fysisk accept afventer hver deres bevis.
+Ingen paid providerprøve kræves for denne passive observation/UI/testforberedelse.
+#118/#119's isolerede runtimeaudit ændrer ikke disse kandidatbits.
+
+<!-- candidate-scope-coupling
+{
+  "version": 3,
+  "kind": "passive_burst_ui_hil",
+  "base_tip": "69bcd68de407cfe877080ab4061d709d15cd21f6",
+  "merge_base": "69bcd68de407cfe877080ab4061d709d15cd21f6",
+  "domains": [
+    "ha_tools"
+  ],
+  "fingerprint": "fbf52199d3a55cdaa90a1dda6dc25d68bcddc4598169e328dd577c1f92a26dbb",
+  "regression_fingerprint": "1efcddce3c923b3f8a4ba5bdc5d6df28ac10be2c6329661021c1ac10214532bb",
+  "reviewer": "refine_stability independent tooling and composed source review; refine_speed independent recorder/UI review; refine_ui independent HIL review; root Lead Voice/Reliability Engineer",
+  "rationale": "Exact reviewed passive startup-burst recorder, immutable bounded HIL fixtures and read-only UI. Three required effective changed regular owners, seven required effective changed regular regressions, version-only regular metadata; whole production and regression inventories bound to this base. No provider, tools, prompt, adapter, firmware, settings, mic/playback or lifecycle semantics change. Physical gates remain open."
+}
+-->
+
+**Stop-the-line efter den ene releasegate.** Frozen1bbb478 er ikke testklar.
+Scope, Ruff/format og mypy55files er grønne, men integration får125 loopback-bind-
+PermissionError i sandbox; unit er afbrudt af gate-ejerens fail-fast. Alle observerede
+integrationsexceptioner er samme tilladelsesårsag; ingen produktfejl udledes. Kode,
+config, regressioner og deadlines ændres ikke. Kun integration og afbrudt unit genkøres
+med tilladt lokal loopback i samme usynkroniserede clone på samme1bbb478-bits, samme
+GateLock/stagebounds og før/efter scopekontrol. De tre grønne stages genkøres ikke,
+og ingen ny fuld releasegate eller manuel CI-genkørsel startes. Den oprindelige
+permissionfejl bevares i gate-receipt; den blev ikke omsat til produktadfærd.
+
+**Faktisk samlet software-GO 7/10.** De to ugyldiggjorte stages er nu bestået på
+uændret1bbb478: integration68,82s og unit179,12s. Samme GateLock, Python3.12,
+stagebounds og før/efter scopekontrol blev anvendt; source scope er uændret.
+Scope0,35s, Ruff/format0,13s og mypy55files0,92s fra den ene frosne releasegate
+bevares. Ingen ny full gate eller manuel CI-genkørsel. Dette åbner ét PR/CI/main-
+artifact-flow for2.0.2; det er software-GO, ikke fysisk golden/lifecycle eller
+produktaccept. Denne resultatpost er docs-only efter frosne produkt-/testbytes.
+Firmware/settings/ejerskab er uændret; præcis artifact og HA-installation afventer.
+
 ### 7/10 — aktiv lead-beslutning: v2.x-softwarekandidat 2.0.1
 
 Lead Voice/Reliability Engineer: root. Tre worktrees dækker stabilitet/integration,
@@ -120,7 +371,7 @@ UI, den fejlisolerede fælles diagnostic-origin og version-only __init__.py.
 Config og pyproject er 2.0.1; providers, værktøjer, settings, firmware, builder,
 prompt og audio/lifecycle-ejerskab er uændrede. Én software-releasegate afventer.
 
-<!-- candidate-scope-coupling
+<!-- historical-v2.0.1-candidate-scope-coupling
 {
   "version": 2,
   "kind": "passive_diagnostic_ui",

@@ -366,7 +366,9 @@
     </div>
     <details class="section" id="connection-details">
       <summary>Evner og forbindelser</summary>
+      <div id="service-details" style="margin-top:10px"></div>
       <div id="capabilities" style="margin-top:10px"></div>
+      <div id="capability-diagnostics" class="sub" style="margin-top:10px"></div>
     </details>
     <details class="section" id="activity-section">
       <summary>Seneste aktivitet</summary>
@@ -719,7 +721,7 @@ function renderServices(services, details, diagnosticActive) {
       p.title = "Sikker systemtest kører. Prøv igen, når testen er færdig.";
     } else
     if (name === "voicepe") {
-      label = st === "up" ? "wake-klar" : st === "degraded" ? "forbundet - wake afprøves" : "offline";
+      label = st === "up" ? "wake-klar" : st === "degraded" ? "vækkeord ikke bekræftet" : "offline";
     } else if (name === "openai") {
       label = st === "up" ? "klar ved seneste samtale" :
         reason.indexOf("saldo") >= 0 || reason.indexOf("kredit") >= 0 ? "mangler kredit" :
@@ -730,14 +732,23 @@ function renderServices(services, details, diagnosticActive) {
     }
     p.appendChild(document.createTextNode(SVC_LABEL[name] + ": " + label));
     var explanation = detail.reason;
-    if (name === "openai" && st === "up" && /aktiv realtime-session/i.test(explanation || ""))
-      explanation = "Provider verificeret ved en samtale. Se den aktuelle samtalestatus i rummet.";
+    if (name === "openai" && st === "up")
+      explanation = "Kontrolleret ved seneste samtale. Aktuel samtale vises under Rum.";
     p.title = diagnosticActive && (name === "openai" || name === "voicepe")
       ? "Sikker systemtest kører. Prøv igen, når testen er færdig."
-      : [explanation, detail.source].filter(Boolean).join(" · ");
+      : (name === "openai" && st === "up" ? explanation : [explanation, detail.source].filter(Boolean).join(" · "));
     wrap.appendChild(p);
     announcements.push(SVC_LABEL[name] + " " + label);
   });
+  var diagnostic = document.getElementById("service-details");
+  if (diagnostic) {
+    diagnostic.innerHTML = "";
+    ["openai", "voicepe", "podconnect", "mcp"].forEach(function (name) {
+      var detail = safe(details, name, {});
+      diagnostic.appendChild(el("div", "sub", SVC_LABEL[name] + ": " +
+        [safe(services, name, "down"), detail.reason, detail.source].filter(Boolean).join(" · ")));
+    });
+  }
   var live = document.getElementById("svc_announce");
   if (live && live.textContent !== announcements.join(", ")) live.textContent = announcements.join(", ");
 }
@@ -746,9 +757,12 @@ function renderCapabilities(caps, details) {
   var wrap = document.getElementById("capabilities");
   var warn = document.getElementById("cap_warning");
   if (!wrap || !warn) return;
-  wrap.innerHTML = ""; warn.innerHTML = ""; warn.hidden = true;
+  wrap.innerHTML = "";
+  var diagnostic = document.getElementById("capability-diagnostics");
+  if (diagnostic) diagnostic.innerHTML = "";
   if (!caps || !Object.keys(caps).length) {
-    wrap.appendChild(el("span", "sub", "Kapabiliteter vises efter næste genstart."));
+    warn.hidden = true; warn.dataset.message = ""; warn.innerHTML = "";
+    wrap.appendChild(el("span", "sub", "Funktionernes status er ukendt."));
     return;
   }
   [
@@ -759,13 +773,15 @@ function renderCapabilities(caps, details) {
     ["music", "Musik"],
     ["timers", "Timere"]
   ].forEach(function (pair) {
-    var ok = !!caps[pair[0]], detail = safe(details, pair[0], {}), verified = !!detail.verified;
-    var p = el("span", "pill " + (verified ? "pill-up" : ok ? "pill-degraded" : "pill-down"));
-    p.appendChild(document.createTextNode(pair[1] + ": " + (verified ? "verificeret" : ok ? "fundet" : "mangler")));
+    var known = typeof caps[pair[0]] === "boolean";
+    var ok = caps[pair[0]] === true, detail = safe(details, pair[0], {}), verified = !!detail.verified;
+    var p = el("span", "pill " + (verified ? "pill-up" : (ok || !known) ? "pill-degraded" : "pill-down"));
+    p.appendChild(document.createTextNode(pair[1] + ": " + (verified ? "verificeret" : ok ? "fundet" : known ? "mangler" : "ukendt")));
     p.title = [detail.reason, detail.source].filter(Boolean).join(" · ");
     wrap.appendChild(p);
   });
-  var missing = caps.missing || [];
+  var missing = (caps.missing || []).slice();
+  if (caps.timers === false && missing.indexOf("timers") < 0) missing.push("timers");
   var discovery = caps.discovery || {};
   var pending = discovery.pending_tools || [];
   var conflicts = discovery.role_conflicts || [];
@@ -773,30 +789,40 @@ function renderCapabilities(caps, details) {
     var schemaShort = discovery.schema_sha256 ? " · " + String(discovery.schema_sha256).slice(0, 12) : "";
     wrap.appendChild(el("span", "pill pill-up", "MCP " + discovery.api_id + schemaShort));
   }
-  var labels = { time: "tid", home: "hjem/HA", web_search: "websøgning", weather: "vejr", music: "musikstyring", timers: "timere" };
-  if (missing.length || pending.length || conflicts.length) {
-    warn.hidden = false;
-    if (discovery.retry_state === "retrying") {
-      warn.appendChild(el("strong", null, "Home Assistant forbinder igen. "));
-      warn.appendChild(document.createTextNode("Direkte dialog og matematik virker; HA-ejede live-evner er midlertidigt skjult."));
-      var retryBits = [];
-      if (discovery.api_id) retryBits.push("Kilde: " + discovery.api_id);
-      if (discovery.last_error) retryBits.push("Seneste fejl: " + discovery.last_error);
-      if (discovery.next_retry_at) retryBits.push("Næste forsøg: " + new Date(discovery.next_retry_at * 1000).toLocaleTimeString("da-DK"));
-      if (retryBits.length) warn.appendChild(el("div", "sub", retryBits.join(" · ")));
-      return;
-    }
-    if (missing.length) {
-      warn.appendChild(el("strong", null, "Ikke alle evner er tilgængelige. "));
-      warn.appendChild(document.createTextNode("Mangler: " + missing.map(function (k) { return labels[k] || k; }).join(", ") + ". "));
-    }
-    (caps.setup_hints ? missing : []).forEach(function (k) {
-      if (caps.setup_hints[k]) warn.appendChild(el("div", "sub", caps.setup_hints[k]));
+  var labels = { time: "Tid", home: "Hjemmestyring", web_search: "Websøgning", weather: "Vejr", music: "Musik", timers: "Timere" };
+  if (diagnostic) {
+    missing.forEach(function (key) {
+      if (caps.setup_hints && caps.setup_hints[key]) diagnostic.appendChild(el("div", null, caps.setup_hints[key]));
     });
-    if (pending.length) warn.appendChild(el("div", "sub", "Afventer klassifikation: " + pending.join(", ") + "."));
-    if (conflicts.length) warn.appendChild(el("div", "sub", "Værktøjskonflikt: " + conflicts.join(", ") + "."));
-
+    if (pending.length) diagnostic.appendChild(el("div", null, "Afventer klassifikation: " + pending.join(", ") + "."));
+    if (conflicts.length) diagnostic.appendChild(el("div", null, "Værktøjskonflikt: " + conflicts.join(", ") + "."));
+    if (discovery.last_error) diagnostic.appendChild(el("div", null, "Seneste fejl: " + discovery.last_error));
+    if (discovery.next_retry_at) diagnostic.appendChild(el("div", null, "Næste forsøg: " + new Date(discovery.next_retry_at * 1000).toLocaleTimeString("da-DK")));
   }
+  var messages = [];
+  if (discovery.retry_state === "retrying") messages.push("Home Assistant forbinder igen. Hjemmefunktioner kan være utilgængelige imens.");
+  else {
+    if (missing.length) messages.push(missing.map(function (key) { return labels[key] || "En funktion"; }).join(", ") + (missing.length === 1 && missing[0] !== "timers" ? " er ikke tilgængelig." : " er ikke tilgængelige."));
+    if (conflicts.length) messages.push("Nogle hjemmefunktioner er blokeret af en konflikt.");
+    else if (pending.length) messages.push("Ekstra hjemmefunktioner afventer godkendelse.");
+  }
+  if (messages.length) {
+    var message = messages.join(" ");
+    warn.hidden = false;
+    if (warn.dataset.message !== message) {
+      var focused = warn.contains(document.activeElement);
+      warn.innerHTML = ""; warn.dataset.message = message;
+      warn.appendChild(el("div", null, message));
+      var next = el("button", "ghost", "Se Diagnose");
+      next.onclick = function () {
+        var tab = document.getElementById("tab-test"); tab.click(); tab.focus();
+        var detail = document.getElementById("connection-details"); if (detail) detail.open = true;
+      };
+      warn.appendChild(next);
+      if (focused) next.focus();
+    }
+  } else { warn.hidden = true; warn.dataset.message = ""; warn.innerHTML = ""; }
+
 }
 
 // Live status is a read-only projection of the existing conversation owner.
@@ -847,7 +873,7 @@ function liveStatusView(rm, now) {
   }
   var title = labels[v.phase] || "Status ukendt";
   if (v.phase === "IDLE" && rm.connected === false) title = "Offline";
-  else if (v.phase === "IDLE") title = {proven:"Klar", recovered:"Wake afprøves", fault:"Kræver opmærksomhed", unknown:"Samtale lukket"}[v.wake_readiness] || "Samtale lukket";
+  else if (v.phase === "IDLE") title = {proven:"Klar", recovered:"Vækkeord ikke bekræftet", fault:"Kræver opmærksomhed", unknown:"Samtale lukket"}[v.wake_readiness] || "Samtale lukket";
   return {title:title, lines:lines, details:details};
 }
 function renderLiveStatus(rm, diagnostic) {
@@ -863,6 +889,8 @@ function renderLiveStatus(rm, diagnostic) {
     if (view.title === "Status ukendt" || view.title === "Status forældet" ||
         view.title === "Offline" || view.title === "Kræver opmærksomhed")
       box.appendChild(el("div", "live-detail", "Tjek forbindelsen under Diagnose."));
+    else if (view.title === "Vækkeord ikke bekræftet")
+      box.appendChild(el("div", "live-detail", "Prøv dit vækkeord."));
     else if (view.title === "Afslutter" && rm.live_status.remaining_s === 0)
       box.appendChild(el("div", "live-detail", "Afventer afslutning."));
     return box;
@@ -900,11 +928,18 @@ function patchLiveStatus(box, rm) {
   else if (newDetails) box.appendChild(newDetails);
 }
 
+function roomDisplayName(id) {
+  var value = String(id || "");
+  if (value && !/^r\d+$/i.test(value)) return value;
+  var ids = Object.keys(rooms);
+  return "Voice PE" + (ids.length > 1 ? " " + (ids.indexOf(id) + 1) : "");
+}
+
 function roomCard(rm, diagnostic) {
   var box = el(diagnostic ? "details" : "div", diagnostic ? "room-diagnostics" : "room");
   box.dataset.room = rm.room;
   if (diagnostic) box.appendChild(el("summary", null, safe(rm, "room", "?")));
-  else box.appendChild(el("div", "rname", safe(rm, "room", "?")));
+  else box.appendChild(el("div", "rname", roomDisplayName(rm.room)));
   box.appendChild(renderLiveStatus(rm, diagnostic));
   if (diagnostic) {
     var lvl = safe(rm, "level", 100);
@@ -923,7 +958,7 @@ function roomCard(rm, diagnostic) {
     : [["Start samtale", "listen"], ["Stop", "stop"]];
   controls.forEach(function (pair) {
     var b = el("button", "ghost", pair[0]);
-    b.setAttribute("aria-label", pair[0] + " i " + safe(rm, "room", ""));
+    b.setAttribute("aria-label", pair[0] + " i " + (diagnostic ? safe(rm, "room", "") : roomDisplayName(rm.room)));
     b.onclick = function () { control(rm.room, pair[1], b); };
     ctl.appendChild(b);
   });
@@ -969,6 +1004,13 @@ function renderRooms() {
     ids.forEach(function (id) {
       var card = Array.from(wrap.children).find(function (item) { return item.dataset.room === id; });
       if (!card) { wrap.appendChild(roomCard(rooms[id], diagnostic)); return; }
+      if (!diagnostic) {
+        card.querySelector(".rname").textContent = roomDisplayName(id);
+        var buttons = card.querySelectorAll(".primary-controls button");
+        ["Start samtale", "Stop"].forEach(function (label, index) {
+          buttons[index].setAttribute("aria-label", label + " i " + roomDisplayName(id));
+        });
+      }
       patchLiveStatus(card.querySelector(".live-status"), rooms[id]);
       var fresh = roomCard(rooms[id], diagnostic);
       [".duck", ".meta"].forEach(function (selector) {

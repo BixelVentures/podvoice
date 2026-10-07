@@ -239,6 +239,29 @@ _PASSIVE_DIAGNOSTIC_UI_REGRESSIONS = {
     "tests/browser/wake_words.cjs",
 }
 
+# Reviewed passive startup-burst recording, immutable local HIL fixtures and
+# read-only UI. This is a new exact tree, not an extension of the v2 chain.
+_PASSIVE_BURST_UI_HIL_REQUIRED = {
+    "podvoice/gatekeeper/audio_trace.py",
+    "podvoice/gatekeeper/acoustic_hil.py",
+    "podvoice/gatekeeper/static/index.html",
+}
+_PASSIVE_BURST_UI_HIL_SURFACES = _PASSIVE_BURST_UI_HIL_REQUIRED | {
+    "podvoice/gatekeeper/__init__.py",
+    "podvoice/gatekeeper/diagnostic_retention.py",
+}
+_PASSIVE_BURST_UI_HIL_REGRESSIONS = {
+    "tests/unit/test_audio_trace_burst.py",
+    "tests/unit/test_audio_trace_automatic.py",
+    "tests/integration/test_thin_provider_audio_trace.py",
+    "tests/unit/test_acoustic_hil.py",
+    "tests/unit/test_panel_contract.py",
+    "tests/browser/daily_ui.cjs",
+    "tests/browser/live_status.cjs",
+}
+_PASSIVE_BURST_RETENTION_REGRESSION = "tests/unit/test_diagnostic_retention.py"
+
+
 # Character matching without autojunk can become quadratic on large repeated diffs.
 # Above this bound, include whole changed lines: extra domains require review, but
 # no executable scope is lost and fingerprint/coupling checks remain unchanged.
@@ -384,11 +407,188 @@ def production_fingerprint(root: Path, base_tip: str, merge_base: str, paths: Se
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
+def _base_inventory(root: Path, merge_base: str) -> dict[str, tuple[str, str]]:
+    entries = {}
+    for entry in _git(root, "ls-tree", "-r", "-z", "--full-tree", merge_base).split("\0"):
+        if entry:
+            info, name = entry.split("\t", 1)
+            mode, _kind, oid = info.split(" ")
+            entries[name] = (mode, oid)
+    return entries
+
+
+def _effective_file(root: Path, name: str) -> tuple[str, bytes]:
+    path = root / name
+    if path.is_symlink():
+        return "120000", os.readlink(path).encode()
+    if path.is_file():
+        return ("100755" if path.stat().st_mode & 0o111 else "100644"), path.read_bytes()
+    if not path.exists():
+        return "deleted", b""
+    raise RuntimeError(f"unsupported candidate file type: {name}")
+
+
+def _requires_passive_burst_ui_hil(root: Path, merge_base: str) -> bool:
+    # The reviewed observation combination cannot downgrade to a legacy record
+    # or pass the ordinary single-domain classifier by deleting the record.
+    base = _base_inventory(root, merge_base)
+    algorithm = _git(root, "rev-parse", "--show-object-format").strip()
+    changed = set()
+    for name in _PASSIVE_BURST_UI_HIL_REQUIRED:
+        mode, data = _effective_file(root, name)
+        if mode == "deleted" and name not in base:
+            continue
+        oid = hashlib.new(algorithm, b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+        if base.get(name) != (mode, oid):
+            changed.add(name)
+    return "podvoice/gatekeeper/acoustic_hil.py" in changed and bool(
+        changed & {"podvoice/gatekeeper/audio_trace.py", "podvoice/gatekeeper/static/index.html"}
+    )
+
+
+def _effective_changes(root: Path, merge_base: str, paths: Sequence[str]) -> set[str]:
+    # Compare effective bytes/modes directly with Git blobs. Diff flags can hide
+    # a required regression or an extra owner; opposing index/worktree changes
+    # can also name a file which is actually unchanged from the reviewed base.
+    base = _base_inventory(root, merge_base)
+    tracked = _git(root, "ls-files", "-z").split("\0")
+    untracked = _git(root, "ls-files", "-z", "--others", "--exclude-standard").split("\0")
+    names = {
+        name
+        for name in (*base, *tracked, *untracked, *paths)
+        if name.startswith((*_PRODUCTION_PREFIXES, "tests/"))
+        and name not in _IGNORED_PRODUCTION_FILES
+    }
+    algorithm = _git(root, "rev-parse", "--show-object-format").strip()
+    changed = set()
+    for name in names:
+        mode, data = _effective_file(root, name)
+        oid = hashlib.new(algorithm, b"blob " + str(len(data)).encode() + b"\0" + data).hexdigest()
+        if base.get(name) != (mode, oid):
+            changed.add(name)
+    return changed
+
+
+def regression_fingerprint(
+    root: Path, base_tip: str, merge_base: str, paths: Sequence[str] = ()
+) -> str:
+    """Bind v3 review to every effective test, including hidden flags/deletions."""
+    tracked = _git(root, "ls-files", "-z").split("\0")
+    untracked = _git(root, "ls-files", "-z", "--others", "--exclude-standard").split("\0")
+    inventory = {
+        name
+        for name in (
+            *_base_inventory(root, merge_base),
+            *tracked,
+            *untracked,
+            *paths,
+            *_PASSIVE_BURST_UI_HIL_REGRESSIONS,
+        )
+        if name.startswith("tests/")
+    }
+    manifest = []
+    for name in sorted(inventory):
+        mode, data = _effective_file(root, name)
+        if mode == "120000":
+            # A non-required test symlink still must bind its effective contents,
+            # not just the target spelling. Required regressions deny links below.
+            path = root / name
+            data += b"\0" + (path.read_bytes() if path.is_file() else b"missing target")
+        manifest.append((name, mode, hashlib.sha256(data).hexdigest()))
+    payload = {"base_tip": base_tip, "merge_base": merge_base, "files": manifest}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+
+
+def _effective_version_metadata_only(root: Path, merge_base: str, name: str) -> bool:
+    baseline = _base_inventory(root, merge_base).get(name)
+    mode, current = _effective_file(root, name)
+    if baseline is None or mode not in {"100644", "100755"} or mode != baseline[0]:
+        return False
+    result = subprocess.run(
+        ["git", "cat-file", "blob", baseline[1]],
+        cwd=root,
+        capture_output=True,
+        timeout=20,
+        check=False,
+    )
+    if result.returncode:
+        raise RuntimeError("could not read baseline version metadata blob")
+    # Preserve every other byte, including line endings. Git diff can hide
+    # effective runtime code behind a staged version and hidden index flags.
+    before, after = result.stdout.split(b"\n"), current.split(b"\n")
+    if len(before) != len(after):
+        return False
+    changes = [(old, new) for old, new in zip(before, after, strict=True) if old != new]
+    version = re.compile(rb"__version__[ \t]*=[ \t]*(['\"])\d+\.\d+\.\d+\1")
+    return len(changes) == 1 and all(version.fullmatch(line) for line in changes[0])
+
+
+def _reviewed_passive_burst_ui_hil(
+    root: Path, report: CandidateScope, base_tip: str, record: dict
+) -> bool:
+    fields = {
+        "version",
+        "kind",
+        "base_tip",
+        "merge_base",
+        "domains",
+        "fingerprint",
+        "regression_fingerprint",
+        "reviewer",
+        "rationale",
+    }
+    if (
+        set(record) != fields
+        or record["kind"] != "passive_burst_ui_hil"
+        or record["domains"] != ["ha_tools"]
+        or report.domains != ("ha_tools",)
+        or any(
+            not isinstance(record[key], str) or not record[key].strip()
+            for key in fields - {"version", "domains"}
+        )
+        or record["base_tip"] != base_tip
+        or record["merge_base"] != report.base
+    ):
+        return False
+    effective = _effective_changes(
+        root, report.base, (*report.production_files, *report.test_files)
+    )
+    production = {name for name in effective if name.startswith(_PRODUCTION_PREFIXES)} | set(
+        report.production_files
+    )
+    regressions = set(_PASSIVE_BURST_UI_HIL_REGRESSIONS)
+    if "podvoice/gatekeeper/diagnostic_retention.py" in production:
+        regressions.add(_PASSIVE_BURST_RETENTION_REGRESSION)
+    if (
+        not _PASSIVE_BURST_UI_HIL_REQUIRED <= effective
+        or not production <= _PASSIVE_BURST_UI_HIL_SURFACES
+        or not regressions <= effective
+        or any(
+            not (root / name).is_file() or (root / name).is_symlink()
+            for name in production | regressions
+        )
+    ):
+        return False
+    metadata = "podvoice/gatekeeper/__init__.py"
+    if metadata in production and not _effective_version_metadata_only(root, report.base, metadata):
+        return False
+    return record["fingerprint"] == production_fingerprint(
+        root, base_tip, report.base, report.production_files
+    ) and record["regression_fingerprint"] == regression_fingerprint(
+        root, base_tip, report.base, report.test_files
+    )
+
+
 def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> CandidateScope:
     status = root / "docs/STATUS.md"
     text = status.read_text() if status.exists() else ""
     marker = "<!-- candidate-scope-coupling"
+    strict_v3_required = _requires_passive_burst_ui_hil(root, report.base)
     if marker not in text:
+        if strict_v3_required:
+            return replace(
+                report, passed=False, reason="passive_burst_ui_hil requires strict v3 review"
+            )
         return report
     records = re.findall(r"<!-- candidate-scope-coupling\n(.*?)\n-->", text, re.DOTALL)
     failed = replace(report, passed=False, reason="invalid or stale reviewed coupling record")
@@ -408,6 +608,12 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         "rationale",
     }
     if not isinstance(record, dict) or type(record.get("version")) is not int:
+        return failed
+    if record["version"] == 3:
+        if not _reviewed_passive_burst_ui_hil(root, report, base_tip, record):
+            return failed
+        return replace(report, passed=True, reason="exact reviewed coupling: passive_burst_ui_hil")
+    if strict_v3_required:
         return failed
     passive_diagnostic_ui_v2 = record["version"] == 2
     if passive_diagnostic_ui_v2:
