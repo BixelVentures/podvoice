@@ -228,6 +228,17 @@ genkøres efter test-freeze; Ruff/format validerer den ændrede test. Mypy og de
 frosne produktions-scope-kontrol arver kun deres identiske kildebits. Kandidaten
 er fortsat ikke testklar, indtil alle nødvendige softwaretrin faktisk består.
 
+**Resultat af invaliderede stages.** Den samlede integration består efter
+den reviewede interne-observerrettelse. Unit-batches1–3 består; batch4 stopper
+på den gamle UI-literal `En startet rengøring stoppes ikke`. Den reviewede
+korte copy siger fortsat, at gemt deaktivering blokerer nye handlinger, mens
+en startet rengøring fortsætter. Det er en tekstkontrakt, ikke en runtimefejl.
+Eksisterende test ajourføres til at kræve begge konkrete betydninger; opt-in,
+entityliste, default OFF og dispatch assertions bevares. Ingen HTML-/runtime-
+ændring. Kun batch4 og den ændrede tests Ruff/format genkøres; tidligere grønne
+integration/batches/mypy/scope/style beholder deres identiske bits. Software-GO
+afventer det faktiske sidste resultat; ingen fysisk accept er givet.
+
 ### 6/10 — aktiv beslutning: v2.0 frosset Alpha-baseline, derefter v2.x-hastighed
 
 **Udgivet og installeret 6/10 kl.15:19: v2.0.0, Alpha fortsat ON.** PR97 merged
