@@ -155,7 +155,6 @@
 
   /* Console input row. */
   .crow { display: flex; gap: 8px; margin-top: 10px; }
-  #g_actions[hidden], #g_final_actions[hidden] { display: none; }
   .crow input { min-height:44px; flex: 1; font: inherit; padding: 9px 12px; border-radius: 10px;
                 border: 1px solid var(--border-strong); background: var(--field); color: inherit; }
   .crow input:focus { outline: none; border-color: var(--accent); }
@@ -343,17 +342,17 @@
   </div>
 
   <div class="pane active" id="pane-home" role="tabpanel" aria-labelledby="tab-home">
+    <div class="section" id="rooms-section" style="display:none">
+      <h2>Rum</h2>
+      <div id="rooms" class="list"></div>
+    </div>
+
     <div class="section">
       <h2>Forbindelser</h2>
       <div class="svc" id="svc"><span class="pill pill-degraded">Henter faktisk status…</span></div>
       <span id="svc_announce" class="screenreader" role="status" aria-live="polite"></span>
       <div id="cap_warning" class="notice" role="alert" hidden></div>
       <div id="status_connection" class="notice" role="status" hidden>Status forbinder… Kontrollér add-on-status, hvis forbindelsen ikke kommer tilbage.</div>
-    </div>
-
-    <div class="section" id="rooms-section" style="display:none">
-      <h2>Rum</h2>
-      <div id="rooms" class="list"></div>
     </div>
 
 
@@ -412,52 +411,6 @@
       <p class="sub" style="margin:2px 0 10px">Gemmes automatisk uden lyd: wake, lytning, tænkning, værktøj, fysisk afspilning, lukning, lys og genaktivering.</p>
       <div id="lifecycle_timeline" class="tx" style="min-height:0"></div>
     </div>
-    <div class="section">
-      <h2>Maskinel Realtime-preflight</h2>
-      <p class="sub" style="margin:2px 0 10px">Kører den rigtige model og produktionsprompt med faste, sikre testdata. Nabu og Talk låses, mens testen kører. Hårdt samlet prisloft: $5. Første sikre scenariesvar er samtidig providerpreflight; der køres ingen ekstra budgetprobe. En brugerdefineret prompt over 32 KiB blokeres kun i denne sikre live-test og ændres aldrig i produktion. Testen kan ikke styre hjemmet, musik eller timere og erstatter ikke den fysiske test.</p>
-      <button id="eval_live">Kør sikker preflight</button>
-      <button id="eval_audio_idle" class="ghost">Test relevant tale og baggrundslyd</button>
-      <p class="sub">Højst fem faste, syntetiske lydklip sendes til OpenAI. Ingen lyd fra dit hjem. Nabu og Talk låses midlertidigt. Testen kan køres én gang pr. add-on-start og beviser ikke fysisk lukning.</p>
-      <button id="eval_protocol_owner" class="ghost">Test sikker Realtime-svarstyring</button>
-      <button id="eval_golden" class="ghost">Test golden-chain-semantik 5×</button>
-      <button id="eval_close" class="ghost">Test samtaleafslutning (8 ture)</button>
-      <button id="eval_quiet_thanks" class="ghost">Test stille tak og opfølgning (12 ture)</button>
-      <button id="eval_device" class="ghost">Test Roborock — simuleret robot</button>
-      <button id="eval_data" class="ghost">Test dataudvalg — sikre testdata</button>
-      <p class="sub">Roborock-testen starter ikke din støvsuger og aktiverer ikke enhedsstyring. Den afprøver AI'ens rækkefølge og fejlhåndtering med sikre testdata. Fysisk afprøvning mangler stadig. Samtaler er midlertidigt blokeret under testen; samlet prisloft $5.</p>
-      <button id="eval_replay" class="ghost">Genafspil seneste OpenAI-lyd 3×</button>
-      <button id="eval_numeric_ab" class="ghost">Sammenlign numerisk opfølgning: tekst ↔ lyd 5×</button>
-      <p class="sub" style="margin:8px 0 0">Golden-chain-testen kører matematik → opfølgning → tid → ugedag → afslutning i samme session, fem friske gange. Den korte afslutningstest kører præcis 5 scenarier og 8 ture. A/B-testen kræver et frisk, eksakt lydtrace af den kendte numeriske opfølgning og sammenligner fem tekstsessioner med fem lydsessioner. Hårdt samlet prisloft: $5. Ingen eksterne effekter.</p>
-      <div id="eval_numeric_preview" class="sub" style="margin-top:8px">Numerisk A/B: intet lydbevis indlæst endnu.</div>
-      <div id="eval_result" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
-    </div>
-    <div class="section">
-      <h2>Grundtest</h2>
-      <p class="sub" style="margin:2px 0 10px">Én fast test af den fysiske Voice PE. Hver testsamtale gemmes som et lokalt, automatisk lydbevis; du afgør, om svarene faktisk var korrekte i rummet. De seneste 12 lydbeviser beholdes lokalt; ældre slettes automatisk.</p>
-      <button id="g_start">Start 10 samtaler</button>
-      <div id="g_test" class="tx" role="status" aria-live="polite" style="min-height:0;margin-top:10px"></div>
-      <div id="g_actions" class="crow" hidden style="margin-top:10px;flex-wrap:wrap">
-        <button data-outcome="correct">Korrekt</button>
-        <button data-outcome="wrong_hearing" class="ghost">Forkert hørt</button>
-        <button data-outcome="wrong_answer" class="ghost">Forkert svar</button>
-        <button data-outcome="no_response" class="ghost">Intet skete</button>
-        <button data-outcome="blocked" class="ghost">Kan ikke testes nu</button>
-      </div>
-      <div id="g_final_actions" class="crow" hidden style="margin-top:10px;flex-wrap:wrap">
-        <button data-final-outcome="correct">Wake virkede</button>
-        <button data-final-outcome="failed" class="ghost">Wake fejlede</button>
-      </div>
-      <p id="g_hint" class="sub" style="margin-top:8px"></p>
-    </div>
-    <details class="section adv">
-      <summary>Teknisk evidens og den gamle stuetest</summary>
-      <div style="margin-top:12px">
-        <button id="a_start" class="ghost">Nulstil teknisk evidens</button>
-        <button id="a_refresh" class="ghost">Opdatér</button>
-      </div>
-      <div id="stuetest_script" class="tx" style="min-height:0;margin:10px 0"></div>
-      <div id="acceptance" class="tx" style="min-height:0"></div>
-    </details>
     </div>
 
   <div class="pane" id="pane-talk" role="tabpanel" aria-labelledby="tab-talk" hidden>
@@ -721,7 +674,7 @@ function renderServices(services, details, diagnosticActive) {
       p.title = "Sikker systemtest kører. Prøv igen, når testen er færdig.";
     } else
     if (name === "voicepe") {
-      label = st === "up" ? "wake-klar" : st === "degraded" ? "vækkeord ikke bekræftet" : "offline";
+      label = st === "up" ? "wake-klar" : st === "degraded" ? "ikke verificeret" : "offline";
     } else if (name === "openai") {
       label = st === "up" ? "klar ved seneste samtale" :
         reason.indexOf("saldo") >= 0 || reason.indexOf("kredit") >= 0 ? "mangler kredit" :
@@ -873,7 +826,7 @@ function liveStatusView(rm, now) {
   }
   var title = labels[v.phase] || "Status ukendt";
   if (v.phase === "IDLE" && rm.connected === false) title = "Offline";
-  else if (v.phase === "IDLE") title = {proven:"Klar", recovered:"Vækkeord ikke bekræftet", fault:"Kræver opmærksomhed", unknown:"Samtale lukket"}[v.wake_readiness] || "Samtale lukket";
+  else if (v.phase === "IDLE") title = {proven:"Klar", recovered:"Vækning ikke bekræftet", fault:"Kræver opmærksomhed", unknown:"Samtale lukket"}[v.wake_readiness] || "Samtale lukket";
   return {title:title, lines:lines, details:details};
 }
 function renderLiveStatus(rm, diagnostic) {
@@ -889,7 +842,7 @@ function renderLiveStatus(rm, diagnostic) {
     if (view.title === "Status ukendt" || view.title === "Status forældet" ||
         view.title === "Offline" || view.title === "Kræver opmærksomhed")
       box.appendChild(el("div", "live-detail", "Tjek forbindelsen under Diagnose."));
-    else if (view.title === "Vækkeord ikke bekræftet")
+    else if (view.title === "Vækning ikke bekræftet")
       box.appendChild(el("div", "live-detail", "Prøv dit vækkeord."));
     else if (view.title === "Afslutter" && rm.live_status.remaining_s === 0)
       box.appendChild(el("div", "live-detail", "Afventer afslutning."));
@@ -979,7 +932,7 @@ function renderWakeWordStatus() {
     var message = !fresh ? "Kan ikke bekræfte vækkeord"
       : rm.wake_word_supported === false ? "Opdatér Voice PE-firmware"
       : !rm.connected ? "Kan ikke bekræfte vækkeord"
-      : names[rm.wake_word_confirmed] ? "Bekræftet af enheden: " + names[rm.wake_word_confirmed]
+      : names[rm.wake_word_confirmed] ? "Ordvalg bekræftet af enheden: " + names[rm.wake_word_confirmed]
       : "Kan ikke bekræfte vækkeord";
     lines.push(id + ": " + message);
   });
@@ -1235,7 +1188,6 @@ setInterval(function () {
   var arm = document.getElementById("trace_arm");
   var cancel = document.getElementById("trace_cancel");
   var box = document.getElementById("trace_status");
-  var numericPreview = document.getElementById("eval_numeric_preview");
   var analyse = document.getElementById("trace_analyse");
   var analysisBox = document.getElementById("trace_analysis");
   var latestTrace = null, analysisBusy = false;
@@ -1266,7 +1218,7 @@ setInterval(function () {
     latestTrace = data && !data.active && data.latest && !data.latest.automatic ? data.latest.id : null;
     analyse.disabled = !latestTrace || analysisBusy;
     box.innerHTML = "";
-    if (!data || data.ok === false) { arm.disabled = true; cancel.hidden = true; if (numericPreview) numericPreview.textContent = "Numerisk A/B: lydbevis er ikke tilgængeligt."; box.appendChild(te("div", "empty", "Optagelsesstatus ukendt. " + ((data && data.error) || "Lydbevis er ikke tilgængeligt."))); return; }
+    if (!data || data.ok === false) { arm.disabled = true; cancel.hidden = true; box.appendChild(te("div", "empty", "Optagelsesstatus ukendt. " + ((data && data.error) || "Lydbevis er ikke tilgængeligt."))); return; }
     if (data.automatic) box.appendChild(te("div", "sub", "Automatisk diagnose for Voice PE Alpha er slået til. Lokalt: højst 24 timer / 512 MiB; lange samtaler gemmes i dele."));
     if (data.pending && data.pending.length) box.appendChild(te("div", "sub", "Gemmer " + data.pending.length + " samtale(r) i baggrunden."));
     if (data.errors && Object.keys(data.errors).length) box.appendChild(te("div", "empty", "Diagnosen er ufuldstændig: en lokal lagringsfejl er registreret."));
@@ -1282,14 +1234,10 @@ setInterval(function () {
     arm.disabled = false; cancel.hidden = true;
     if (!data.automatic) box.appendChild(te("div", "empty", "Lydoptagelse slået fra. Historik og tidslinje gemmes stadig, men uden lyd. Aktivér igen før næste lydprøve."));
     if (!data.latest) {
-      if (numericPreview) numericPreview.textContent = "Numerisk A/B: intet lydbevis indlæst endnu.";
       box.appendChild(te("div", "empty", "Ingen lydoptagelse endnu.")); return;
     }
     var latest = data.latest, stages = latest.stages || {};
     var metadata = latest.metadata || {};
-    var providerContract = (latest.events || []).find(function (event) { return event && event.event === "provider_contract"; }) || {};
-    if (numericPreview) numericPreview.textContent = "Numerisk A/B-kandidat før start: trace " + latest.id + " · målturn 1 · PodVoice " + (metadata.podvoice_version || "mangler") + " · rootfs " + String(metadata.artifact_sha256 || "mangler").slice(0, 12) + " · prompt " + String(metadata.prompt_sha256 || "mangler").slice(0, 12) + " · schema " + String(providerContract.tool_schema_sha256 || "mangler").slice(0, 12) + " · rum " + String(metadata.room_context_sha256 || "mangler").slice(0, 12) + " · samlet prisloft $5.";
-    if (latest.automatic && numericPreview) numericPreview.textContent = "Automatiske samtaledele kan gennemgås som lyd og tidslinje. Den særskilte numeriske A/B-prøve kræver en komplet manuel optagelse.";
     var line = te("div", "line out");
     line.appendChild(te("div", "who", "Seneste gemte diagnose · " + latest.room));
     if (latest.part_index != null) line.appendChild(te("div", "sub", "Del " + (latest.part_index + 1) + " af samtalen · " + (latest.capture_status || "ukendt status") + (latest.incomplete ? " · ufuldstændig" : "")));
@@ -1364,526 +1312,6 @@ setInterval(function () {
     catch (e) { toast("Kunne ikke annullere lydoptagelsen"); }
   };
   load(); loadAnalysis(); setInterval(load, 2000); setInterval(loadAnalysis, 2000);
-})();
-</script>
-
-<script>
-"use strict";
-// ---- Guided physical baseline ----
-(function () {
-  var box = document.getElementById("g_test");
-  var actions = document.getElementById("g_actions");
-  var finalActions = document.getElementById("g_final_actions");
-  var start = document.getElementById("g_start");
-  var hint = document.getElementById("g_hint");
-  var current = null;
-  function ge(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
-  function ms(v) { return v == null ? "—" : (v / 1000).toLocaleString("da-DK", { maximumFractionDigits: 2 }) + " s"; }
-  function render(data) {
-    current = data;
-    var run = data.run || {}, sum = data.summary || {}, cases = data.cases || [];
-    box.innerHTML = "";
-    if (!run.started_at) {
-      start.hidden = false;
-      box.appendChild(ge("div", "empty", "Ikke startet. Sæt dig som normalt ved skrivebordet; ændr ingen indstillinger under testen."));
-      actions.hidden = true; finalActions.hidden = true;
-      hint.textContent = "Ti ubrudte samtaler: fem med en afslutningssætning, fem med fire sekunders stilhed. Bedøm først når ringen er slukket.";
-      return;
-    }
-    if (run.completed_at) {
-      start.hidden = false;
-      var head = ge("div", "line " + (sum.passed ? "out" : "in"));
-      head.appendChild(ge("div", "who", sum.passed ? "✓ GRUNDTEST GODKENDT" : "✕ GRUNDTEST IKKE GODKENDT"));
-      head.appendChild(document.createTextNode((sum.counts.correct || 0) + " af " + sum.total + " samtaler korrekte · " + sum.sentences + " bedømte ytringer + 1 wake-kontrol"));
-      head.appendChild(ge("div", "sub", "Semantisk lukning " + (sum.semantic_close_matched || 0) + "/5 · stilhedstimeout " + (sum.idle_timeout_matched || 0) + "/5 · næste wake " + (sum.next_wake_verified || 0) + "/10"));
-      box.appendChild(head);
-      (run.results || []).forEach(function (r) {
-        if (r.outcome === "correct") return;
-        var line = ge("div", "line in");
-        line.appendChild(ge("div", "who", (r.index + 1) + ". " + ({wrong_hearing:"Forkert hørt",wrong_answer:"Forkert svar",no_response:"Intet skete",blocked:"Kunne ikke testes",system_failure:"Maskinelt bevis fejlede"}[r.outcome] || r.outcome)));
-        line.appendChild(document.createTextNode("Sagt: “" + ((r.says || [r.say]).join(" / ")) + "” · Hørt: “" + ((r.inputs || []).join(" / ") || "intet") + "” · Svar: “" + ((r.outputs || []).join(" / ") || "intet") + "” · Lukning: " + (r.measured_close_reason || "ikke målt")));
-        box.appendChild(line);
-      });
-      actions.hidden = true; finalActions.hidden = true; start.textContent = "Start testen forfra";
-      hint.textContent = sum.passed ? "Denne grundgate er bevist." : "Resultatet viser præcis, hvilket led der skal rettes før en ny fuld test.";
-      return;
-    }
-    if (run.awaiting_final_wake) {
-      start.hidden = true;
-      var finalLine = ge("div", "line out");
-      finalLine.appendChild(ge("div", "who", "10 samtaler målt — sidste rearm-bevis mangler"));
-      finalLine.appendChild(ge("div", "", data.final_wake_instruction));
-      finalLine.appendChild(ge("div", "sub", "Denne wake åbner en ny Realtime-session og tæller ikke som samtale 11."));
-      box.appendChild(finalLine);
-      actions.hidden = true; finalActions.hidden = false;
-      hint.textContent = "Lav wake-kontrollen inden to minutter. Tryk først efter det korte svar; panelet kontrollerer selv lyd, ny session, fysisk svar og genaktivering.";
-      start.textContent = "Start testen forfra";
-      return;
-    }
-    var index = Number(run.current_index || 0), testCase = cases[index];
-    if (!testCase) return;
-    start.hidden = true;
-    var line = ge("div", "line out");
-    line.appendChild(ge("div", "who", "Samtale " + testCase.number + " af " + cases.length + " · " + (testCase.kind === "lookup" ? "opslag" : "hurtigt svar")));
-    line.appendChild(ge("div", "sub", testCase.before));
-    var phrase = ge("div", "", "1. “" + testCase.say + "”"); phrase.style.cssText = "font-size:1.12rem;font-weight:750;margin:10px 0 4px"; line.appendChild(phrase);
-    line.appendChild(ge("div", "sub", "Forvent: " + testCase.expect));
-    var follow = ge("div", "", "2. Uden nyt wake-ord: “" + testCase.followup + "”"); follow.style.cssText = "font-size:1.12rem;font-weight:750;margin:12px 0 4px"; line.appendChild(follow);
-    line.appendChild(ge("div", "sub", "Forvent: " + testCase.followup_expect));
-    var closeText = testCase.close_mode === "semantic"
-      ? "3. Sig: “" + testCase.close_say + "”"
-      : "3. Når opfølgningssvaret er helt færdigt: sig ingenting og vent i stilhed.";
-    var close = ge("div", "", closeText); close.style.cssText = "font-size:1.12rem;font-weight:750;margin:12px 0 4px"; line.appendChild(close);
-    line.appendChild(ge("div", "sub", "Forvent: " + testCase.close_expect));
-    box.appendChild(line);
-    if ((run.results || []).length) {
-      var prev = run.results[run.results.length - 1];
-      box.appendChild(ge("div", "sub", "Forrige: " + (prev.outcome === "correct" ? "korrekt" : "fejl") + " · målt svar " + ms(prev.latency_ms)));
-    }
-    actions.hidden = false; finalActions.hidden = true;
-    hint.textContent = "Rør ikke panelet under samtalen. Vælg først én dom efter den viste afslutning og slukket ring; start næste samtale inden to minutter, så dens wake beviser den forrige rearm.";
-    start.textContent = "Start testen forfra";
-  }
-  async function load() {
-    try { var r = await fetch("api/groundtest", {cache:"no-store"}); render(await r.json()); }
-    catch (e) { box.innerHTML = ""; box.appendChild(ge("div", "empty", "Kunne ikke hente grundtesten.")); }
-  }
-  start.onclick = async function () {
-    start.disabled = true;
-    try {
-      var r = await fetch("api/groundtest/start", {method:"POST",cache:"no-store"});
-      var data = await r.json(); if (!r.ok) throw new Error(data.error || "HTTP " + r.status); render(data);
-    }
-    catch (e) { toast("Grundtesten kunne ikke startes: " + e.message); }
-    finally { start.disabled = false; }
-  };
-  actions.querySelectorAll("button[data-outcome]").forEach(function (button) {
-    button.onclick = async function () {
-      if (!current || !current.run) return;
-      actions.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
-      try {
-        var r = await fetch("api/groundtest/result", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run_id:current.run.run_id,case_id:current.run.case_id,index:current.run.current_index,outcome:button.dataset.outcome})});
-        var data = await r.json(); if (!r.ok) throw new Error(data.error || "HTTP " + r.status); render(data);
-      } catch (e) { toast("Resultatet blev ikke gemt: " + e.message); await load(); }
-      finally { actions.querySelectorAll("button").forEach(function (b) { b.disabled = false; }); }
-    };
-  });
-  finalActions.querySelectorAll("button[data-final-outcome]").forEach(function (button) {
-    button.onclick = async function () {
-      if (!current || !current.run) return;
-      finalActions.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
-      try {
-        var r = await fetch("api/groundtest/final-wake", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({run_id:current.run.run_id,final_wake_id:current.run.final_wake_id,outcome:button.dataset.finalOutcome})});
-        var data = await r.json(); if (!r.ok) throw new Error(data.error || "HTTP " + r.status); render(data);
-      } catch (e) { toast("Wake-kontrollen blev ikke gemt: " + e.message); await load(); }
-      finally { finalActions.querySelectorAll("button").forEach(function (b) { b.disabled = false; }); }
-    };
-  });
-  load();
-})();
-</script>
-
-<script>
-"use strict";
-// ---- Living-room acceptance evidence ----
-(function () {
-  var box = document.getElementById("acceptance");
-  var scriptBox = document.getElementById("stuetest_script");
-  var btn = document.getElementById("a_refresh");
-  var startBtn = document.getElementById("a_start");
-  if (!box) return;
-  function ae(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
-  async function loadScript() {
-    if (!scriptBox) return;
-    scriptBox.innerHTML = ""; scriptBox.appendChild(ae("div", "empty", "Henter testscript…"));
-    try {
-      var data = await (await fetch("api/stuetest", { cache: "no-store" })).json();
-      scriptBox.innerHTML = "";
-      scriptBox.appendChild(ae("div", "who", data.title || "Fysisk stuetest"));
-      (data.steps || []).forEach(function (s, i) {
-        var line = ae("div", "line out");
-        line.appendChild(ae("div", "who", (i + 1) + ". " + s.title));
-        line.appendChild(document.createTextNode("Sig: “" + s.say + "”"));
-        if (s.expect) line.appendChild(ae("div", "sub", "Forvent: " + s.expect));
-        scriptBox.appendChild(line);
-      });
-      if (data.rule) scriptBox.appendChild(ae("div", "sub", data.rule));
-    } catch (e) {
-      scriptBox.innerHTML = ""; scriptBox.appendChild(ae("div", "empty", "Kunne ikke hente stuetest-script."));
-    }
-  }
-  async function loadAcceptance() {
-    box.innerHTML = ""; box.appendChild(ae("div", "empty", "Tjekker…"));
-    try {
-      var data = await (await fetch("api/acceptance", { cache: "no-store" })).json();
-      box.innerHTML = "";
-      var head = ae("div", data.status === "evidence-present" ? "line out" : "line in");
-      head.appendChild(ae("div", "who", data.status === "evidence-present" ? "basis-evidens findes" : "mangler evidens"));
-      head.appendChild(document.createTextNode(data.started_at ? "Tæller kun evidens efter frisk stuetest-start." : "Fysisk matrix skal stadig køres før release."));
-      box.appendChild(head);
-      if (data.next_action) {
-        var nxt = ae("div", "line in");
-        nxt.appendChild(ae("div", "who", "Næste handling"));
-        nxt.appendChild(document.createTextNode(data.next_action));
-        box.appendChild(nxt);
-      }
-      (data.checks || []).forEach(function (c) {
-        var line = ae("div", "line " + (c.ok ? "out" : "in"));
-        line.appendChild(ae("div", "who", (c.ok ? "✓ " : "✕ ") + c.label));
-        line.appendChild(document.createTextNode(c.detail || ""));
-        box.appendChild(line);
-      });
-    } catch (e) {
-      box.innerHTML = ""; box.appendChild(ae("div", "empty", "Kunne ikke hente stuetest-evidens."));
-    }
-  }
-  if (btn) btn.onclick = function () { loadScript(); loadAcceptance(); };
-  if (startBtn) startBtn.onclick = async function () {
-    startBtn.disabled = true;
-    try {
-      await fetch("api/stuetest/start", { method: "POST", cache: "no-store" });
-      await loadAcceptance();
-    } catch (e) {
-      box.innerHTML = ""; box.appendChild(ae("div", "empty", "Kunne ikke starte frisk stuetest."));
-    } finally {
-      startBtn.disabled = false;
-    }
-  };
-  loadScript();
-  loadAcceptance();
-})();
-</script>
-
-<script>
-"use strict";
-// ---- Bounded live Realtime preflight; fixed tools, no HA/MCP side effects ----
-(function () {
-  var button = document.getElementById("eval_live");
-  var audioIdleButton = document.getElementById("eval_audio_idle");
-  var protocolOwnerButton = document.getElementById("eval_protocol_owner");
-  var goldenButton = document.getElementById("eval_golden");
-  var quietThanksButton = document.getElementById("eval_quiet_thanks");
-
-  var closeButton = document.getElementById("eval_close");
-  var deviceButton = document.getElementById("eval_device");
-  var dataButton = document.getElementById("eval_data");
-  var replayButton = document.getElementById("eval_replay");
-  var numericAbButton = document.getElementById("eval_numeric_ab");
-  var box = document.getElementById("eval_result");
-  var closeScenarioIds = [
-    "context-followup-then-close",
-    "explicit-stop-conversation",
-    "media-stop-remains-open",
-    "semantic-close",
-    "explicit-short-close"
-  ];
-  var goldenScenarioIds = ["arithmetic-followup-observed"];
-  var pollGeneration = 0;
-  var audioIdleUsed = false;
-  if (!button || !protocolOwnerButton || !goldenButton || !closeButton || !quietThanksButton || !deviceButton || !dataButton || !replayButton || !numericAbButton || !box) return;
-  function setButtonsDisabled(disabled) {
-    if (audioIdleButton) audioIdleButton.disabled = disabled || audioIdleUsed;
-    button.disabled = disabled; goldenButton.disabled = disabled; protocolOwnerButton.disabled = disabled; closeButton.disabled = disabled; quietThanksButton.disabled = disabled; deviceButton.disabled = disabled; dataButton.disabled = disabled; replayButton.disabled = disabled; numericAbButton.disabled = disabled;
-  }
-  function ee(t, c, x) { var e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
-  function semanticAudioAbPassed(data) {
-    var trace = data && data.trace;
-    var controls = data && data.controls;
-    var trials = data && data.trials;
-    return !!data && data.kind === "semantic-audio-ab" &&
-      data.ok === true &&
-      data.decision === "GO_TO_PHYSICAL_CANARY" &&
-      data.classification === "semantic-audio-consistent" &&
-      !!trace && trace.provenance_match === true &&
-      data.text_repeats_requested === 5 &&
-      data.text_repeats_completed === 5 &&
-      data.audio_repeats_requested === 5 &&
-      data.audio_repeats_completed === 5 &&
-      Array.isArray(controls) && controls.length === 5 &&
-      controls.every(function (result) { return !!result && result.passed === true; }) &&
-      Array.isArray(trials) && trials.length === 5 &&
-      trials.every(function (result) { return !!result && result.passed === true; });
-  }
-  function renderRunning(data) {
-    box.innerHTML = "";
-    if (data && data.kind === "audio-idle-probe") {
-      box.appendChild(ee("div", "empty", "Tester højst fem syntetiske lydklip. Ingen hjemmelyd. Nabu og Talk er låst imens…"));
-      if (data.run_id) { audioIdleUsed = true; box.appendChild(ee("div", "sub", "Test-id: " + data.run_id)); }
-      return;
-    }
-    var suffix = data && data.run_id ? " · " + data.run_id : "";
-    var label = data && data.kind === "protocol-owner" ? "Tester at kun accepteret tale kan udløse et Realtime-svar" : data && data.kind === "semantic-audio-ab" ? "Sammenligner samme opfølgning som tekst og eksakt providerlyd" : data && data.kind === "audio-replay" ? "Genafspiller den samme providerlyd mod Realtime" : "Kører sikker Realtime-test";
-    var deadline = Math.max(1, Number(data && data.deadline_s || 720));
-    var minutes = Math.ceil(deadline / 60);
-    var detail = data && data.kind === "protocol-owner" ? ". Ingen hjem-, musik- eller timerhandlinger." : "; første sikre scenariesvar er providerpreflight.";
-    box.appendChild(ee("div", "empty", label + suffix + ". Nabu er midlertidigt låst imens. Samlet prisloft: $5" + detail + " Kan tage op til " + minutes + " minutter…"));
-  }
-  function render(data) {
-    box.innerHTML = "";
-    if (data && data.kind === "audio-idle-probe") {
-      box.appendChild(ee("div", "who", data.ok ? "Lydtesten gennemført" : "Lydtesten stoppet"));
-      if (data.run_id) {
-        audioIdleUsed = true;
-        if (audioIdleButton) audioIdleButton.disabled = true;
-        box.appendChild(ee("div", "sub", "Test-id: " + data.run_id));
-        var reportLink = ee("a", "sub", "Åbn rapport");
-        reportLink.href = "api/eval/live?run_id=" + encodeURIComponent(data.run_id);
-        box.appendChild(reportLink);
-      }
-      if (data.judge_sha256) box.appendChild(ee("div", "sub", "Kode-id: " + data.judge_sha256));
-      if (data.error_code === "probe-already-used") box.appendChild(ee("div", "sub", "Denne test er allerede brugt siden seneste add-on-start."));
-      if (data.status === "busy") box.appendChild(ee("div", "sub", "Afvent at den aktive samtale eller test er afsluttet."));
-      (data.results || []).forEach(function (row) {
-        var words = {relevant:"Relevant tale",background:"Baggrundslyd",unknown:"Ukendt"};
-        box.appendChild(ee("div", "sub", "Model: " + (row.returned_model || "ikke oplyst")));
-        box.appendChild(ee("div", "sub", row.case + ": " + (words[row.verdict] || "Ukendt") + " · " + Number(row.elapsed_s || 0).toFixed(2) + " s" + (row.reason ? " · " + row.reason : "")));
-      });
-      box.appendChild(ee("div", "sub", "Ukendt er usikkerhed. Dette beviser ikke fysisk lukning eller genaktivering."));
-      box.appendChild(ee("div", "sub", "Rapporten kan genfindes her indtil add-on genstartes."));
-      if (data.recovery === "restart-required") box.appendChild(ee("div", "sub", "Genstart add-on: testforbindelsen kunne ikke afsluttes sikkert."));
-      return;
-    }
-    if (data && data.kind === "protocol-owner") {
-      var protocolPassed = data.status === "complete" && data.ok === true && data.decision === "GO_TO_RELEASE_GATE" && data.classification === "protocol-owner-proven";
-      var protocolHead = ee("div", "line " + (protocolPassed ? "out" : "in"));
-      protocolHead.appendChild(ee("div", "who", protocolPassed ? "✓ REALTIME-SVARSTYRING BESTÅET" : "✕ REALTIME-SVARSTYRING BLOKERET"));
-      protocolHead.appendChild(document.createTextNode(protocolPassed ? "Afvist lyd gav intet svar, og den næste accepterede tur gav præcis ét svar i samme session." : "Protokoltesten gav ikke et gyldigt GO-resultat."));
-      box.appendChild(protocolHead);
-      box.appendChild(ee("div", "sub", "Resultat: " + (data.classification || data.error_code || data.status || "ukendt") + ". Fysisk golden chain og 10/10 mangler stadig."));
-      if (data.budget) box.appendChild(ee("div", "sub", "Forbrug: " + (data.budget.actual_tokens || 0) + " tokens · estimeret $" + Number(data.budget.cost_usd || 0).toFixed(3)));
-      return;
-    }
-    if (!data || data.status !== "complete") {
-      var failed = ee("div", "line in");
-      failed.appendChild(ee("div", "who", "✕ Preflight fejlede"));
-      failed.appendChild(document.createTextNode((data && data.error) || "Ingen gyldig rapport."));
-      box.appendChild(failed); return;
-    }
-    if (data.kind === "audio-replay" || data.kind === "semantic-audio-ab") {
-      var isSemanticAb = data.kind === "semantic-audio-ab";
-      var replayPassed = isSemanticAb ? semanticAudioAbPassed(data) : data.ok === true;
-      var replayHead = ee("div", "line " + (replayPassed ? "out" : "in"));
-      var labels = {
-        "audio-replay-consistent":"Samme lyd blev forstået konsekvent",
-        "semantic-audio-consistent":"Tekst og lyd gav samme korrekte semantik",
-        "audio-specific-failure":"Samme lyd fejlede konsekvent",
-        "audio-model-nondeterminism":"Samme lyd gav skiftende beslutninger",
-        "text-contract-failure":"Tekstarmen fejlede konsekvent",
-        "text-model-nondeterminism":"Tekstarmen gav skiftende beslutninger",
-        "context-seed-failure":"Den fælles kontekst kunne ikke etableres",
-        "trace-provenance-missing":"Lydtracets kandidatdata mangler",
-        "trace-provenance-mismatch":"Lydtracet stammer fra andre kandidatbits",
-        "prompt-or-tool-contract-failure":"Tekstkontrollen fejlede også",
-        "tool-schema-mismatch":"Værktøjslisten er ændret siden optagelsen"
-      };
-      var replayName = isSemanticAb ? "NUMERISK A/B" : "AUDIO-REPLAY";
-      var replayState = replayPassed ? " BESTÅET" : isSemanticAb ? " BLOKERET" : " IKKE BESTÅET";
-      replayHead.appendChild(ee("div", "who", (replayPassed ? "✓ " : "✕ ") + replayName + replayState));
-      replayHead.appendChild(document.createTextNode((labels[data.classification] || data.classification || "Ukendt resultat") + " · " + ((data.trace && data.trace.id) || "ukendt trace")));
-      box.appendChild(replayHead);
-      var trace = data.trace || {}, source = trace.source_provenance || {}, replay = trace.replay_provenance || {};
-      var shortHash = function (value) { return value ? String(value).slice(0, 12) : "mangler"; };
-      box.appendChild(ee("div", "sub", "Kandidatmatch: " + (trace.provenance_match === true ? "ja" : "nej") + " · model " + (source.model || "mangler") + " → " + (replay.model || "mangler")));
-      box.appendChild(ee("div", "sub", "PodVoice " + (source.podvoice_version || "mangler") + " → " + (replay.podvoice_version || "mangler") + " · rootfs " + (source.artifact_identity_kind || "mangler") + "/" + shortHash(source.artifact_sha256) + " → " + (replay.artifact_identity_kind || "mangler") + "/" + shortHash(replay.artifact_sha256)));
-      box.appendChild(ee("div", "sub", "Prompt " + (source.prompt_source || "mangler") + "/v" + (source.prompt_version == null ? "?" : source.prompt_version) + " " + shortHash(source.prompt_sha256) + " → " + (replay.prompt_source || "mangler") + "/v" + (replay.prompt_version == null ? "?" : replay.prompt_version) + " " + shortHash(replay.prompt_sha256)));
-      box.appendChild(ee("div", "sub", "Værktøjsskema " + shortHash(source.tool_schema_sha256) + " → " + shortHash(replay.tool_schema_sha256) + " · rum " + shortHash(source.room_context_sha256) + " → " + shortHash(replay.room_context_sha256)));
-      if ((trace.missing_provenance || []).length) box.appendChild(ee("div", "sub", "Mangler: " + trace.missing_provenance.join(", ")));
-      if ((trace.provenance_mismatches || []).length) box.appendChild(ee("div", "sub", "Afviger: " + trace.provenance_mismatches.join(", ")));
-      replayHead.appendChild(ee("div", "sub", "Replay tester kun: " + ((data.semantic_profile_covered || []).join(", ") || "ingen semantisk profil") + ". Andre fundne evner er ikke funktionsbevist."));
-      var rows = [];
-      if ((data.controls || []).length) (data.controls || []).forEach(function (control, index) { rows.push({label:"Tekst " + (index + 1), result:control}); });
-      else if (data.control) rows.push({label:"Tekstkontrol", result:data.control});
-      (data.trials || []).forEach(function (trial, index) { rows.push({label:"Lyd " + (index + 1), result:trial}); });
-      rows.forEach(function (row) {
-        var result = row.result || {}, observation = result.observation || {};
-        var decisions = (observation.decisions || []).join(", ") || "direkte svar";
-        var line = ee("div", "line " + (result.passed ? "out" : "in"));
-        line.appendChild(ee("div", "who", (result.passed ? "✓ " : "✕ ") + row.label + " · " + decisions));
-        if (observation.diagnostic_transcript) line.appendChild(ee("div", "sub", "Diagnostisk tekst: “" + observation.diagnostic_transcript + "”"));
-        if (observation.answer) line.appendChild(ee("div", "sub", "Svar: “" + observation.answer + "”"));
-        (result.findings || []).forEach(function (finding) { line.appendChild(ee("div", "sub", "Årsag: " + (finding.message || finding.code))); });
-        box.appendChild(line);
-      });
-      if (data.text_repeats_requested || data.audio_repeats_requested) box.appendChild(ee("div", "sub", "Gennemført: tekst " + (data.text_repeats_completed || 0) + "/" + (data.text_repeats_requested || 0) + " · lyd " + (data.audio_repeats_completed || 0) + "/" + (data.audio_repeats_requested || 0) + " · beslutning " + (data.decision || "BLOCKED")));
-      if (data.budget) box.appendChild(ee("div", "sub", "Forbrug: " + (data.budget.actual_tokens || 0) + " tokens · estimeret $" + Number(data.budget.cost_usd || 0).toFixed(3)));
-      return;
-    }
-    // A selected subset is useful diagnostic evidence, but it is never the release
-    // preflight.  Read the explicit server contract fail-closed: neither `ok` nor a
-    // green selected result may be promoted to full-profile evidence by the panel.
-    var hasReleaseTruth = typeof data.selected_ok === "boolean" &&
-      typeof data.profile_complete === "boolean" &&
-      typeof data.coverage_complete === "boolean" &&
-      typeof data.release_preflight_passed === "boolean";
-    var selectedOk = hasReleaseTruth && data.selected_ok === true;
-    var profileComplete = hasReleaseTruth && data.profile_complete === true;
-    var coverageComplete = hasReleaseTruth && data.coverage_complete === true;
-    var releasePassed = hasReleaseTruth && data.release_preflight_passed === true &&
-      selectedOk && profileComplete && coverageComplete;
-    var targeted = hasReleaseTruth && !profileComplete;
-    var headline = data.kind === "device-control" ? (data.candidate_contract_passed === true ? "✓ SIMULERET ROBOROCK-TEST BESTÅET" : "✕ SIMULERET ROBOROCK-TEST IKKE BESTÅET") : !hasReleaseTruth ? "✕ RAPPORT MANGLER RELEASE-KONTRAKT" :
-      targeted ? (selectedOk ? "✓ MÅLRETTET DIAGNOSE BESTÅET – IKKE FULD PREFLIGHT" : "✕ MÅLRETTET DIAGNOSE IKKE BESTÅET") :
-      (releasePassed ? "✓ MASKINEL PREFLIGHT BESTÅET" : "✕ MASKINEL PREFLIGHT IKKE BESTÅET");
-    // Only the complete release profile may receive the panel's green success style.
-    var head = ee("div", "line " + (releasePassed ? "out" : "in"));
-    head.appendChild(ee("div", "who", headline));
-    var promptLabel = data.prompt_source === "default" ? "prompt v" + (data.prompt_version || "?") : "brugerdefineret prompt";
-    head.appendChild(document.createTextNode((data.results || []).length + " scenarier · " + (data.model || "ukendt model") + " · " + promptLabel));
-    box.appendChild(head);
-    box.appendChild(ee("div", "sub", "Udvalgte scenarier: " + (selectedOk ? "bestået" : "ikke bestået") + " · Fuld profil valgt: " + (profileComplete ? "ja" : "nej") + " · Dækning gennemført: " + (coverageComplete ? "ja" : "nej") + " · Release-preflight: " + (releasePassed ? "bestået" : "ikke bestået")));
-    if (data.kind === "device-control") box.appendChild(ee("div", "sub", "Kun AI'ens brug af simulerede værktøjer er testet. Ingen HA-handlinger sendt, ingen aktivering. Fysisk robot- og Voice PE-test samt kontrol af det aktiverede værktøjssnapshot mangler stadig."));
-    if (targeted) box.appendChild(ee("div", "sub", "Denne delkørsel er kun diagnose og erstatter ikke den fulde release-preflight."));
-    if (!hasReleaseTruth) box.appendChild(ee("div", "sub", "Rapporten kan ikke bruges som releasebevis, fordi de eksplicitte statusfelter mangler."));
-    box.appendChild(ee("div", "sub", "Semantisk profil testet: " + ((data.semantic_profile_covered || []).join(", ") || "ingen")));
-    box.appendChild(ee("div", "sub", "Fixturerede evner i denne test: " + ((data.capabilities_admitted || []).join(", ") || "ingen")));
-    if ((data.capabilities_not_exercised || []).length) box.appendChild(ee("div", "sub", "Fundet, men ikke funktionstestet her: " + data.capabilities_not_exercised.join(", ") + ". Tilstedeværelse er ikke funktionsbevis."));
-    (data.results || []).forEach(function (scenario) {
-      var line = ee("div", "line " + (scenario.passed ? "out" : "in"));
-      line.appendChild(ee("div", "who", (scenario.passed ? "✓ " : "✕ ") + scenario.scenario_id));
-      (scenario.turns || []).forEach(function (turn) {
-        var answer = turn.observation && turn.observation.answer ? " · “" + turn.observation.answer + "”" : "";
-        line.appendChild(ee("div", "sub", (turn.passed ? "✓ " : "✕ ") + turn.text + answer));
-        if (!turn.passed) (turn.findings || []).forEach(function (finding) {
-          line.appendChild(ee("div", "sub", "Årsag: " + (finding.message || finding.code || "ukendt fejl")));
-        });
-      });
-      box.appendChild(line);
-    });
-    if (data.budget) {
-      var wait = Number(data.budget.rate_limit_wait_s || 0);
-      var pacing = wait > 0 ? " · rate-limit-pause " + Math.round(wait) + " s" : "";
-      box.appendChild(ee("div", "sub", "Forbrug: " + (data.budget.actual_tokens || 0) + " tokens · estimeret $" + Number(data.budget.cost_usd || 0).toFixed(3) + pacing));
-    }
-  }
-  function delay(ms) { return new Promise(function (resolve) { window.setTimeout(resolve, ms); }); }
-  async function poll(runId, generation, deadlineSeconds) {
-    var maxAttempts = Math.ceil((Math.max(1, Number(deadlineSeconds || 720)) + 10) / 2);
-    for (var attempt = 0; attempt < maxAttempts && generation === pollGeneration; attempt += 1) {
-      try {
-        var response = await fetch("api/eval/live?run_id=" + encodeURIComponent(runId), {cache:"no-store"});
-        var data = await response.json();
-        if (generation !== pollGeneration) return;
-        if (data.status === "running") {
-          renderRunning(data);
-          await delay(2000);
-          continue;
-        }
-        render(data); return;
-      } catch (error) {
-        if (attempt >= maxAttempts - 1) { render({status:"failed",error:"Forbindelsen til preflight-status forsvandt."}); return; }
-        await delay(2000);
-      }
-    }
-    if (generation === pollGeneration) render({status:"failed",error:"Preflighten overskred sit deklarerede tidsloft."});
-  }
-  async function startLiveEval(scenarioIds, repeats) {
-    var generation = ++pollGeneration;
-    setButtonsDisabled(true); renderRunning(null);
-    try {
-      var payload = {};
-      if (scenarioIds) payload.scenario_ids = scenarioIds;
-      if (repeats) payload.repeats = repeats;
-      var body = JSON.stringify(payload);
-      var response = await fetch("api/eval/live", {method:"POST",headers:{"Content-Type":"application/json"},body:body});
-      var data = await response.json();
-      if ((data.status === "running" || data.status === "busy") && data.run_id) {
-        renderRunning(data); await poll(data.run_id, generation, data.deadline_s);
-      } else { render(data); }
-    } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre preflighten."}); }
-    finally { if (generation === pollGeneration) setButtonsDisabled(false); }
-  }
-  button.onclick = function () {
-    return startLiveEval(null);
-  };
-  protocolOwnerButton.onclick = async function () {
-    var generation = ++pollGeneration;
-    setButtonsDisabled(true); renderRunning({kind:"protocol-owner",deadline_s:45});
-    try {
-      var response = await fetch("api/eval/protocol-owner", {method:"POST",headers:{"Content-Type":"application/json"},body:'{"max_cost_usd":5}'});
-      var data = await response.json();
-      if ((data.status === "running" || data.status === "busy") && data.run_id) {
-        renderRunning(data); await poll(data.run_id, generation, data.deadline_s);
-      } else { render(data); }
-    } catch (error) { render({kind:"protocol-owner",status:"failed",error_code:"panel-request-failed"}); }
-    finally { if (generation === pollGeneration) setButtonsDisabled(false); }
-  };
-  goldenButton.onclick = function () {
-    return startLiveEval(goldenScenarioIds, 5);
-  };
-  quietThanksButton.onclick = function () {
-    return startLiveEval(["quiet-thanks"], 1);
-  };
-  closeButton.onclick = function () {
-    return startLiveEval(closeScenarioIds);
-  };
-  deviceButton.onclick = function () {
-    return startLiveEval(["device-control"], 1);
-  };
-  dataButton.onclick = function () {
-    return startLiveEval(["data-selection"], 1);
-  };
-  replayButton.onclick = async function () {
-    var generation = ++pollGeneration;
-    setButtonsDisabled(true);
-    box.innerHTML = ""; box.appendChild(ee("div", "empty", "Genafspiller præcis den seneste providerlyd tre gange med sikre værktøjer…"));
-    try {
-      var response = await fetch("api/eval/replay", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({repeats:3})});
-      var data = await response.json();
-      if ((data.status === "running" || data.status === "busy") && data.run_id) await poll(data.run_id, generation, data.deadline_s);
-      else render(data);
-    } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre audio-replay."}); }
-    finally { if (generation === pollGeneration) setButtonsDisabled(false); }
-  };
-  if (audioIdleButton) audioIdleButton.onclick = async function () {
-    var generation = ++pollGeneration;
-    setButtonsDisabled(true); renderRunning({kind:"audio-idle-probe"});
-    try {
-      var response = await fetch("api/eval/live", {method:"POST",headers:{"Content-Type":"application/json"},body:'{"action":"audio-idle-probe"}'});
-      var data = await response.json();
-      if (data.status === "running" && data.run_id) {
-        audioIdleUsed = true; await poll(data.run_id, generation, 12);
-      }
-      else render(Object.assign({kind:"audio-idle-probe"}, data));
-    } catch (error) { render({kind:"audio-idle-probe",status:"failed"}); }
-    finally { if (generation === pollGeneration) setButtonsDisabled(false); }
-  };
-  numericAbButton.onclick = async function () {
-    var generation = ++pollGeneration;
-    setButtonsDisabled(true);
-    box.innerHTML = ""; box.appendChild(ee("div", "empty", "Sammenligner fem tekstsessioner med fem sessioner med den eksakte providerlyd. Samlet prisloft: $5; ingen eksterne effekter…"));
-    try {
-      var payload = {mode:"numeric-followup-ab",turn_index:1,repeats:5,text_repeats:5};
-      var response = await fetch("api/eval/replay", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-      var data = await response.json();
-      if ((data.status === "running" || data.status === "busy") && data.run_id) await poll(data.run_id, generation, data.deadline_s);
-      else render(data);
-    } catch (error) { render({status:"failed",error:"Kunne ikke gennemføre numerisk tekst/lyd-A/B."}); }
-    finally { if (generation === pollGeneration) setButtonsDisabled(false); }
-  };
-  (async function resume() {
-    var resumeGeneration = pollGeneration;
-    try {
-      var response = await fetch("api/eval/live", {cache:"no-store"});
-      if (resumeGeneration !== pollGeneration) return;
-      var data = await response.json();
-      if (resumeGeneration !== pollGeneration) return;
-      if (data.status === "running" && data.run_id) {
-        var generation = ++pollGeneration;
-        setButtonsDisabled(true); renderRunning(data);
-        await poll(data.run_id, generation, data.deadline_s);
-        if (generation === pollGeneration) setButtonsDisabled(false);
-      } else {
-        var recoveryResponse = await fetch("api/eval/live?kind=audio-idle-probe", {cache:"no-store"});
-        if (resumeGeneration !== pollGeneration) return;
-        var recovered = await recoveryResponse.json();
-        if (resumeGeneration !== pollGeneration) return;
-        audioIdleUsed = recovered.probe_used === true || !!recovered.run_id;
-        if (audioIdleButton) audioIdleButton.disabled = audioIdleUsed;
-        if (recovered.run_id) render(recovered);
-        else if (data.status === "complete" || data.status === "failed") render(data);
-      }
-    } catch (error) { /* A status lookup must never disable the rest of the panel. */ }
-  })();
 })();
 </script>
 
@@ -2572,6 +2000,12 @@ setInterval(function () {
   var NUM = { duck_level: 1, idle_timeout_s: 1, max_session_min: 1, mic_channel: 1, mic_gain: 1,
               openai_threshold: 1, openai_prefix_ms: 1, openai_silence_ms: 1 };
   var settingsDirty = false;
+  var settingsRevision = 0;
+  var settingsSaveBusy = false;
+  function markSettingsDirty() {
+    settingsDirty = true; settingsRevision += 1;
+    setSaveStatus("Ikke gemt endnu");
+  }
   function f(id) { return document.getElementById("s_" + id); }
   function syncAdvancedTruth() {
     var forced = !!(f("force_mini") && f("force_mini").checked);
@@ -2622,7 +2056,7 @@ setInterval(function () {
         if (rm.id === room) { o.selected = true; seen = true; }
         sel.appendChild(o);
       });
-      if (room && !seen) { var k = document.createElement("option"); k.value = room; k.textContent = room + " (saved)"; k.selected = true; sel.appendChild(k); }
+      if (room && !seen) { var k = document.createElement("option"); k.value = room; k.textContent = room + " (gemt)"; k.selected = true; sel.appendChild(k); }
       return sel;
     }
     var inp = document.createElement("input"); inp.className = "rr"; inp.placeholder = "rum-id (fx r0)"; inp.value = room || "";
@@ -2637,11 +2071,11 @@ setInterval(function () {
     var r = roomField(room);
     r.setAttribute("aria-label", "PodConnect-rum " + n);
     var x = document.createElement("button"); x.className = "ghost"; x.textContent = "✕";
-    x.setAttribute("aria-label", "Fjern rum"); x.onclick = function () { row.remove(); updateAddressWarning(); };
+    x.setAttribute("aria-label", "Fjern rum"); x.onclick = function () { row.remove(); updateAddressWarning(); markSettingsDirty(); };
     row.appendChild(h); row.appendChild(r); row.appendChild(x); roomsWrap.appendChild(row);
     updateAddressWarning();
   }
-  document.getElementById("s_addroom").onclick = function () { addRoom("", ""); };
+  document.getElementById("s_addroom").onclick = function () { addRoom("", ""); markSettingsDirty(); };
   function collectRooms() {
     var out = [], valid = true;
     roomsWrap.querySelectorAll(".roomrow").forEach(function (row) {
@@ -2672,10 +2106,16 @@ setInterval(function () {
     });
   }
   async function load() {
+    var loadRevision = settingsRevision;
     setSaveEnabled(false);
     try {
       var nofail = function (u) { return fetch(u, { cache: "no-store" }).then(function (r) { return r.json(); }).catch(function () { return {}; }); };
       var jobs = await Promise.all([nofail("api/settings"), nofail("api/podconnect/rooms")]);
+      if (settingsRevision !== loadRevision) {
+        settingsLoaded = false;
+        setSaveStatus("Dine ændringer er bevaret. Genindlæs siden for at hente de gemte indstillinger.");
+        return;
+      }
       var s = jobs[0];
       var activeAlpha = document.getElementById("s_live_alpha_active");
       var activeRooms = s.live_alpha_active || {};
@@ -2710,46 +2150,62 @@ setInterval(function () {
     statusEl.textContent = msg;
   }
   async function save(restart) {
-    setSaveStatus("Gemmer…");
-    var r, j = null;
-    var body;
-    try { body = collect(); } catch (validationError) {
-      setSaveStatus("⚠️ Ikke gemt — " + validationError.message);
-      var invalid = roomsWrap.querySelector(":invalid"); if (invalid) invalid.reportValidity();
-      return;
-    }
+    if (settingsSaveBusy) return;
+    settingsSaveBusy = true; setSaveEnabled(false);
     try {
-      r = await fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify(body) });
-    } catch (e) {
-      setSaveStatus("⚠️ Not saved — couldn't reach PodVoice. Is the add-on running?");
-      toast("Not saved — request failed"); return;
+      setSaveStatus("Gemmer…");
+      var r, j = null;
+      var body, sentRevision;
+      try { body = collect(); sentRevision = settingsRevision; } catch (validationError) {
+        setSaveStatus("⚠️ Ikke gemt — " + validationError.message);
+        var invalid = roomsWrap.querySelector(":invalid"); if (invalid) invalid.reportValidity();
+        return;
+      }
+      try {
+        r = await fetch("api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify(body) });
+      } catch (e) {
+        setSaveStatus("Ikke gemt — PodVoice kunne ikke nås. Prøv igen.");
+        toast("Ikke gemt — forbindelsen fejlede"); return;
+      }
+      try { j = await r.json(); } catch (e) { /* non-JSON error page */ }
+      if (!r.ok || !j || j.ok !== true) {
+        // The backend validates and answers 400 with a human-readable reason — show it.
+        var msg = (j && j.error) ? j.error : ("HTTP " + r.status);
+        setSaveStatus("Ikke gemt — " + msg);
+        toast("Ikke gemt: " + msg);
+        return;
+      }
+      if (j.settings) updateSecretHints(j.settings);   // freshly saved secrets get the hint
+      savedWakeWord = j.settings ? j.settings.wake_word : body.wake_word;
+      renderWakeWordStatus();
+      var newerDraft = settingsRevision !== sentRevision;
+      if (!newerDraft) settingsDirty = false;
+      if (!restart) {
+        setSaveStatus(newerDraft ? "Sendte ændringer gemt — nyere ændringer er ikke gemt."
+          : "Gemt — Alpha-valget gælder fra næste samtale. Øvrige ændringer kan kræve genstart.");
+        return;
+      }
+      setSaveStatus(newerDraft ? "Sendte ændringer gemt — nyere ændringer er ikke gemt. Genstarter…" : "Gemt — genstarter…");
+      try {
+        var rr = await fetch("api/restart", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+        var jj = null; try { jj = await rr.json(); } catch (e) {}
+        var restartMessage = jj && jj.ok ? "Genstarter… Genindlæs siden om et øjeblik"
+          : "Gemt — genstarten fejlede (" + ((jj && jj.error) || ("HTTP " + rr.status)) + "). Genstart add-onen manuelt.";
+        if (settingsRevision !== sentRevision) restartMessage += " Nyere ændringer er ikke gemt.";
+        setSaveStatus(restartMessage);
+      } catch (e) {
+        setSaveStatus("Gemt — anmodningen om genstart fejlede. Genstart add-onen manuelt."
+          + (settingsRevision !== sentRevision ? " Nyere ændringer er ikke gemt." : ""));
+      }
+    } finally {
+      settingsSaveBusy = false; setSaveEnabled(settingsLoaded);
     }
-    try { j = await r.json(); } catch (e) { /* non-JSON error page */ }
-    if (!r.ok || !j || j.ok !== true) {
-      // The backend validates and answers 400 with a human-readable reason — show it.
-      var msg = (j && j.error) ? j.error : ("HTTP " + r.status);
-      setSaveStatus("⚠️ Not saved — " + msg);
-      toast("Not saved: " + msg);
-      return;
-    }
-    if (j.settings) updateSecretHints(j.settings);   // freshly saved secrets get the hint
-    savedWakeWord = j.settings ? j.settings.wake_word : body.wake_word;
-    renderWakeWordStatus();
-    settingsDirty = false;
-    if (!restart) { setSaveStatus("Gemt — Alpha-valget gælder fra næste samtale. Øvrige ændringer kan kræve genstart."); return; }
-    setSaveStatus("Gemt — genstarter…");
-    try {
-      var rr = await fetch("api/restart", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-      var jj = null; try { jj = await rr.json(); } catch (e) {}
-      setSaveStatus(jj && jj.ok ? "Genstarter… Genindlæs siden om et øjeblik"
-                                : "Gemt — genstarten fejlede (" + ((jj && jj.error) || ("HTTP " + rr.status)) + "). Genstart add-onen manuelt.");
-    } catch (e) { setSaveStatus("Gemt — anmodningen om genstart fejlede. Genstart add-onen manuelt."); }
   }
   document.getElementById("s_save").onclick = function () { save(false); };
   document.getElementById("s_saverestart").onclick = function () { save(true); };
   document.getElementById("pane-settings").addEventListener("input", function () {
-    settingsDirty = true; setSaveStatus("Ikke anvendt endnu"); syncAdvancedTruth();
+    markSettingsDirty(); syncAdvancedTruth();
   });
   document.getElementById("pane-settings").addEventListener("change", syncAdvancedTruth);
   window.addEventListener("beforeunload", function (e) {
@@ -2759,7 +2215,7 @@ setInterval(function () {
   var resetBtn = document.getElementById("s_resetprompt");
   if (resetBtn) resetBtn.onclick = function () {
     var t = document.getElementById("s_system_prompt");
-    if (t && promptDefault) { t.value = promptDefault; statusEl.textContent = "Prompt reset — Save to keep"; }
+    if (t && promptDefault && t.value !== promptDefault) { t.value = promptDefault; markSettingsDirty(); }
   };
 
   load();

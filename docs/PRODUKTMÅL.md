@@ -307,8 +307,9 @@ Godkendelse kræver:
   jeg gøre?” uden at blande forbindelse, konfiguration og fysisk verification sammen.
 - Realtime, Voice PE/wake-readiness, HA/MCP, PodConnect og hver kapabilitet viser sand
   tilstand, konkret årsag, kilde og seneste verification. Fundet må ikke ligne bevist.
-- Hjem, Tal, Test, Historik og Indstillinger har én klar primær opgave hver. Test- og
-  latencyvisning bruger de fysiske events og må aldrig kalde modellyd “hørbar”.
+- Hjem, Tal, Diagnose, Historik og Indstillinger har én klar primær opgave hver.
+  Passiv diagnose- og latensvisning bruger de fysiske events og må aldrig kalde
+  modellyd “hørbar”. Panelet indeholder ingen guidede samtaletests.
 - Talk håndterer HTTPS, HA-app/iframe-begrænsning, mic-tilladelse, manglende enhed,
   offline socket og autoplay med konkrete danske handlinger. Alle MediaStream-spor
   frigives ved stop, idle, disconnect og sideskift.

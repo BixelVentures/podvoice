@@ -1,3 +1,10 @@
+## 2.0.4 — simple daily controls without conversation tests
+
+- Remove guided Realtime preflight, Grundtest and the old room test from the panel, including their automatic requests and handlers. Keep normal Talk, necessary settings, passive diagnosis, audio evidence and hardware setup.
+- Show room status and Start/Stop before connections so the closing action fits the normal mobile viewport. Preserve status data, control payloads, settings and conversation behavior.
+- Require a pinned browser recipe in local development/release and publication CI. Join admitted detached browser owners after the original worker exits; reject changed, stale or unknown process identities and retain the original assertion failure.
+- Add source-bound UI regressions. These software checks do not establish physical lifecycle or media drain. The separate actual-SDK ten-cycle test and reported mid-input idle-close repair are outside this UI release; runtime, prompts, provider, audio and firmware are unchanged.
+
 ## 2.0.3 — bounded cleanup after provider-close failure
 
 - Stop the owned music heartbeat and attempt attention release within the existing total teardown budget when provider cleanup fails and physical cleanup is proven. Keep unfinished provider owners, block the next wake, and use the existing full retry before rearming.

@@ -73,7 +73,7 @@ def test_ci_arm_build_runs_in_parallel_and_publishes_versioned_main_image():
     assert "ghcr.io/bixelventures/aarch64-addon-podvoice:" in build
     assert "cache-from: type=gha,scope=podvoice-aarch64" in build
     assert "cache-to:" not in build
-    assert "needs: lint-test" in publish
+    assert "needs: [lint-test, ui-browser]" in publish
     assert "github.event_name == 'push'" in publish
     assert "Publish exact tested main image" in publish
     assert "docker/build-push-action@v6" in publish
@@ -104,7 +104,7 @@ def test_ci_optional_cache_cannot_hold_required_image_publication_open():
         assert "docker/build-push-action@v6" in job
     fork_guard = "github.event.pull_request.head.repo.full_name == github.repository"
     assert build.count(fork_guard) == 2
-    assert "needs: lint-test" in publish
+    assert "needs: [lint-test, ui-browser]" in publish
     assert "push: true" in publish
     assert "Refuse an existing release version" in publish
     assert "Record published digest" in publish
@@ -686,3 +686,101 @@ def test_unit_stage_bounds_all_batches_and_worker_bypasses_parent_gate_lock(monk
     assert dev_cycle.main(["unit-worker", "--unit-timeout", "240"]) == 0
     assert captured[0][0] == tmp_path.resolve()
     assert captured[0][-1] == 240
+
+
+@pytest.mark.parametrize("working_directory", (".", "subdirectory"))
+def test_file_entry_bootstraps_browser_recipe_and_preserves_error_owner(
+    tmp_path, working_directory
+):
+    root = Path(__file__).parents[2]
+    checkout = tmp_path / "checkout"
+    for name in ("scripts/__init__.py", "scripts/dev_cycle.py", "scripts/browser_gate.py"):
+        target = checkout / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((root / name).read_bytes())
+    (checkout / "tests/browser").mkdir(parents=True)
+    (checkout / "subdirectory").mkdir()
+    driver = checkout / "scripts/file_entry_probe.py"
+    driver.write_text(
+        r"""
+import importlib
+import json
+import os
+import runpy
+import sys
+from pathlib import Path
+
+root = Path(__file__).resolve().parents[1]
+original_cwd = Path.cwd()
+assert str(root) not in sys.path
+assert "scripts.dev_cycle" not in sys.modules
+# Match scripts/dev's file-entry path without pytest's checkout-root import setup.
+sys.path.insert(0, str(root / "scripts"))
+sys.argv = [str(root / "scripts/dev_cycle.py"), "--help"]
+try:
+    runpy.run_path(sys.argv[0], run_name="__main__")
+except SystemExit as exc:
+    assert exc.code == 0
+else:
+    raise AssertionError("actual CLI help did not exit")
+
+entry = sys.modules["scripts.dev_cycle"]
+assert entry.__name__ == "__main__"
+assert Path(entry.__file__).resolve() == root / "scripts/dev_cycle.py"
+assert importlib.import_module("scripts.dev_cycle") is entry
+browser = importlib.import_module("scripts.browser_gate")
+for name in ("cache_paths", "configured_cache_root", "require_durable_storage", "validate_cache_storage"):
+    assert getattr(browser, name) is getattr(entry, name)
+    assert getattr(browser, name).__globals__["DevCycleError"] is entry.DevCycleError
+
+launches = []
+def forbidden_worker(*args, **kwargs):
+    launches.append(args)
+    raise AssertionError("browser must not launch on refused dependencies/storage")
+browser.run_worker = forbidden_worker
+try:
+    entry.browser_recipe(root / "Documents", os.environ.copy(), 120)
+except entry.DevCycleError as exc:
+    assert type(exc) is entry.DevCycleError
+    assert "browser checkout uses synchronized storage" in str(exc)
+else:
+    raise AssertionError("actual storage refusal was lost across module owners")
+
+# Only bypass storage in this isolated ephemeral fixture to reach dependency preflight.
+browser.require_durable_storage = lambda path, owner: path
+browser.validate_cache_storage = lambda path: None
+missing_node = root / "intentionally-missing-pinned-node"
+assert not missing_node.exists()
+env = dict(os.environ, PODVOICE_NODE=str(missing_node))
+try:
+    entry.browser_recipe(root, env, 120)
+except entry.DevCycleError as exc:
+    assert type(exc) is entry.DevCycleError
+    assert "missing/mismatched pinned Node, Playwright or Chromium" in str(exc)
+    assert isinstance(exc.__cause__, browser.BrowserGateError)
+    assert isinstance(exc.__cause__.__cause__, FileNotFoundError)
+else:
+    raise AssertionError("missing pinned dependency was not refused")
+assert not launches
+assert Path.cwd() == original_cwd
+print(json.dumps({"same_owner": True, "storage_refused": True, "dependency_refused": True, "browser_launches": len(launches), "cwd": str(original_cwd)}))
+"""
+    )
+    cwd = (checkout / working_directory).resolve()
+    result = subprocess.run(
+        [sys.executable, "-I", "-B", str(driver)],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not result.stderr
+    assert json.loads(result.stdout.splitlines()[-1]) == {
+        "same_owner": True,
+        "storage_refused": True,
+        "dependency_refused": True,
+        "browser_launches": 0,
+        "cwd": str(cwd),
+    }
