@@ -1,3 +1,10 @@
+## 2.0.1 — diagnostic and daily-control candidate
+
+- Preserve diagnostic loss accounting across bounded ledger eviction, copy command/audio-stage counts into manifests, and isolate optional diagnostic callbacks from conversation startup.
+- Simplify Home to current status and Start/Stop. Move existing measurements and checks to Diagnose and shorten settings text while preserving saved choices and control payloads.
+- Add an offline physical-latency reporting protocol that rejects incomplete provenance and mismatched or omitted tool edges. Reports do not grant physical acceptance.
+- Keep provider selection, prompts, audio, firmware, settings defaults and lifecycle behavior unchanged. Physical golden chain, repeated lifecycle, function matrix and long-running acceptance remain pending.
+
 ## 2.0.0 — frozen Voice PE Alpha baseline
 
 - Establish the user-selected .116 conversation behavior as the baseline for the v2.x series. This release changes version metadata and documentation only; audio, closing logic, tools, prompts, settings and firmware are unchanged.

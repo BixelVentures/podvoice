@@ -373,3 +373,284 @@ async def test_later_automatic_part_cannot_replay_global_offsets_as_local_silenc
             recorder.replay_turn(latest["id"], pre_ms=0, post_ms=0)
     finally:
         await recorder.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_mixed_loss_has_durable_capture_and_history_session_provenance(tmp_path, monkeypatch):
+    entered, release = threading.Event(), threading.Event()
+    original = _Stage.append
+
+    def slow(self, pcm):
+        entered.set()
+        assert release.wait(5)
+        return original(self, pcm)
+
+    recorder = AudioTraceRecorder(tmp_path, automatic=True)
+    try:
+        begin(recorder, "history-one")
+        assert await recorder.wait_pending()
+        assert recorder.diagnostic_event("history-one", event_name="wake_received", terminal=True)
+        assert await recorder.wait_pending()
+        monkeypatch.setattr(_Stage, "append", slow)
+        recorder.audio("device", b"\1\0" * 320, 16000)
+        assert await asyncio.to_thread(entered.wait, 2)
+        root = recorder._trace_id
+        for index in range(120):
+            recorder.audio(("device", "provider", "speaker")[index % 3], b"\1\0" * 320, 16000)
+        recorder.event("playback_started", playback_id="one")
+        assert not recorder.diagnostic_event("history-one", event_name="playback_started")
+        recorder.audio("device", b"\1\0" * 2, 16000)
+        recorder.audio("provider", b"\1\0", 16000)
+        state = recorder.snapshot()
+        assert state["dropped"][root] == 3
+        assert state["dropped"]["history-one"] == 1
+        assert state["drop_details"][root]["commands"] == {"event": 1, "audio": 2}
+        state["drop_details"][root]["commands"]["audio"] = 999
+        assert recorder.snapshot()["drop_details"][root]["commands"]["audio"] == 2
+        assert recorder.finish("stop")["persistence"] == "pending"
+        release.set()
+        assert await recorder.wait_pending()
+        first = recorder.snapshot()["latest"]
+        assert first["capture_status"] == "complete" and first["incomplete"]
+        assert first["dropped_commands"] == 4
+        assert first["dropped_command_kinds"] == {"event": 1, "audio": 2, "diagnostic": 1}
+        assert first["dropped_audio_packets"] == {"device": 1, "provider": 1}
+        assert first["dropped_audio_bytes"] == {"device": 4, "provider": 2}
+        assert first["events"][-1]["event"] == "capture_finished"
+        # A delayed old-session record and stale capture event cannot contaminate
+        # the next generation's completeness or stage loss counters.
+        begin(recorder, "history-two")
+        recorder._writer.submit(("event", root, {"at_ms": 500, "event": "old-playback"}))
+        assert recorder.diagnostic_event("history-one", event_name="wake_rearmed", terminal=True)
+        recorder.audio("device", b"\1\0", 16000)
+        recorder.finish("normal")
+        assert await recorder.wait_pending()
+        second = recorder.snapshot()["latest"]
+        assert second["dropped_commands"] == 0 and not second["incomplete"]
+        assert second["dropped_audio_packets"] == {}
+        assert not any(e["event"] == "old-playback" for e in second["events"])
+        assert await recorder.shutdown()
+        records = [json.loads(p.read_text()) for p in tmp_path.glob("*.diagnostic")]
+        import hashlib
+
+        session_hash = hashlib.sha256(b"history-one").hexdigest()
+        old = [r for r in records if r["session_hash"] == session_hash]
+        assert old and all(r["incomplete"] for r in old)
+        assert {r["dropped_commands"] for r in old} == {1, 4}
+        assert {r["loss_scope"] for r in old} == {"capture_and_history", "history_events"}
+    finally:
+        release.set()
+        await recorder.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_diagnostic_loss_after_flush_is_saved_without_another_event(tmp_path, monkeypatch):
+    recorder = AudioTraceRecorder(tmp_path, automatic=True)
+    try:
+        assert recorder.diagnostic_event("history", event_name="wake_received", terminal=True)
+        assert await recorder.wait_pending()
+        # Replay a full queue at the admission boundary without touching audio,
+        # then remove that fixture before ordered writer shutdown.
+        with monkeypatch.context() as patch:
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            assert not recorder.diagnostic_event("history", event_name="teardown_complete")
+        assert await recorder.shutdown()
+        saved = json.loads(next(tmp_path.glob("*.diagnostic")).read_text())
+        assert saved["incomplete"] is True
+        assert saved["dropped_commands"] == 1
+        assert saved["dropped_command_kinds"] == {"diagnostic": 1}
+        assert saved["events"] == [{"event": "wake_received"}]
+    finally:
+        await recorder.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_bounded_drop_ledger_eviction_never_restores_complete_truth(tmp_path, monkeypatch):
+    recorder = AudioTraceRecorder(tmp_path, automatic=True)
+    try:
+        begin(recorder, "history")
+        assert recorder.diagnostic_event("history", event_name="wake_received", terminal=True)
+        assert await recorder.wait_pending()
+        with monkeypatch.context() as patch:
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            assert not recorder.diagnostic_event("history", event_name="teardown_complete")
+        assert recorder.diagnostic_event("history", event_name="wake_rearmed", terminal=True)
+        assert await recorder.wait_pending()
+        with monkeypatch.context() as patch:
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            for index in range(40):
+                assert not recorder.diagnostic_event(
+                    f"unrelated-{index}", event_name="wake_received"
+                )
+        state = recorder.snapshot()
+        assert len(state["dropped"]) == len(state["drop_details"]) == 32
+        assert "history" not in state["dropped"]
+        recorder.finish("normal")
+        assert await recorder.wait_pending()
+        # The same writer's new capture starts after the bounded ledger
+        # boundary and remains complete; old loss cannot cross generations.
+        begin(recorder, "next-history")
+        recorder.finish("normal")
+        assert await recorder.wait_pending()
+        assert not recorder.snapshot()["latest"]["incomplete"]
+        assert await recorder.shutdown()
+        import hashlib
+
+        old_hash = hashlib.sha256(b"history").hexdigest()
+        records = [json.loads(p.read_text()) for p in tmp_path.glob("*.diagnostic")]
+        old = [r for r in records if r["session_hash"] == old_hash]
+        assert old and all(r["incomplete"] and r["drop_accounting_incomplete"] for r in old)
+        diagnostic = next(r for r in old if r["dropped_command_kinds"] == {"diagnostic": 1})
+        assert diagnostic["dropped_commands"] == 1
+    finally:
+        await recorder.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_admitted_diagnostic_records_loss_eviction_before_writer_consumes_it(
+    tmp_path, monkeypatch
+):
+    recorder = AudioTraceRecorder(tmp_path, automatic=True)
+    entered, release = threading.Event(), threading.Event()
+    original = recorder._writer._process
+
+    def blocked(command):
+        if command[0] == "diagnostic" and command[1] == "waiting":
+            entered.set()
+            assert release.wait(5)
+        return original(command)
+
+    monkeypatch.setattr(recorder._writer, "_process", blocked)
+    try:
+        assert recorder.diagnostic_event("waiting", event_name="wake_received", terminal=True)
+        assert await asyncio.to_thread(entered.wait, 2)
+        with monkeypatch.context() as patch:
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            assert not recorder.diagnostic_event("waiting", event_name="teardown_complete")
+            for index in range(40):
+                assert not recorder.diagnostic_event(
+                    f"unrelated-{index}", event_name="wake_received"
+                )
+        release.set()
+        assert await recorder.wait_pending()
+        assert await recorder.shutdown()
+        saved = json.loads(next(tmp_path.glob("*.diagnostic")).read_text())
+        assert saved["incomplete"] and saved["drop_accounting_incomplete"]
+        assert saved["dropped_commands"] == 0  # Unknown, never claimed exact zero/complete.
+        assert saved["events"] == [{"event": "wake_received"}]
+    finally:
+        release.set()
+        await recorder.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_loss_before_first_admitted_diagnostic_cannot_be_cleared_by_eviction(
+    tmp_path, monkeypatch
+):
+    recorder = AudioTraceRecorder(tmp_path, automatic=True)
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            assert not recorder.diagnostic_event(
+                "lost-before-admission", event_name="wake_received"
+            )
+            for index in range(40):
+                assert not recorder.diagnostic_event(
+                    f"unrelated-{index}", event_name="wake_received"
+                )
+        assert "lost-before-admission" not in recorder.snapshot()["dropped"]
+        assert recorder.diagnostic_event(
+            "lost-before-admission", event_name="teardown_complete", terminal=True
+        )
+        assert await recorder.wait_pending()
+        # Private capture has a trusted copied begin boundary in this same writer.
+        begin(recorder, "fresh-private-history")
+        recorder.finish("normal")
+        assert await recorder.wait_pending()
+        assert not recorder.snapshot()["latest"]["incomplete"]
+        assert await recorder.shutdown()
+        import hashlib
+
+        history_hash = hashlib.sha256(b"lost-before-admission").hexdigest()
+        saved = next(
+            json.loads(p.read_text())
+            for p in tmp_path.glob("*.diagnostic")
+            if json.loads(p.read_text())["session_hash"] == history_hash
+        )
+        assert saved["incomplete"] and saved["drop_accounting_incomplete"]
+        assert saved["dropped_commands"] == 0
+        assert saved["events"] == [{"event": "teardown_complete"}]
+    finally:
+        await recorder.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_trusted_diagnostic_origin_is_bounded_duplicate_safe_and_generation_local(
+    tmp_path, monkeypatch
+):
+    recorder = AudioTraceRecorder(tmp_path, automatic=True)
+    try:
+        assert recorder.begin_diagnostic_session("old")
+        with monkeypatch.context() as patch:
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            assert not recorder.diagnostic_event("old", event_name="wake_received")
+            for index in range(40):
+                assert not recorder.diagnostic_event(
+                    f"unrelated-{index}", event_name="wake_received"
+                )
+        assert recorder.begin_diagnostic_session("old")  # Duplicate cannot reset epoch.
+        assert recorder.diagnostic_event("old", event_name="teardown_complete", terminal=True)
+        assert recorder.begin_diagnostic_session("new")
+        assert recorder.diagnostic_event("new", event_name="wake_received", terminal=True)
+        for index in range(5):
+            assert recorder.begin_diagnostic_session(f"fresh-{index}")
+        assert len(recorder._writer.diagnostic_origins) == 4
+        assert await recorder.wait_pending()
+        assert await recorder.shutdown()
+        import hashlib
+
+        records = {
+            r["session_hash"]: r
+            for r in (json.loads(p.read_text()) for p in tmp_path.glob("*.diagnostic"))
+        }
+        old = records[hashlib.sha256(b"old").hexdigest()]
+        new = records[hashlib.sha256(b"new").hexdigest()]
+        assert old["incomplete"] and old["drop_accounting_incomplete"]
+        assert not new["incomplete"] and not new["drop_accounting_incomplete"]
+    finally:
+        await recorder.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_eviction_preserves_consistent_new_kind_and_stage_lower_bounds(tmp_path, monkeypatch):
+    recorder = AudioTraceRecorder(tmp_path, automatic=True)
+    try:
+        begin(recorder, "history")
+        assert await recorder.wait_pending()
+        with monkeypatch.context() as patch:
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            recorder.event("playback_started")
+            recorder.audio("device", b"\1\0" * 4, 16000)
+        recorder._writer._manifest("recording")  # Observe known loss before eviction.
+        with monkeypatch.context() as patch:
+            patch.setattr(recorder._writer.queue, "qsize", lambda: 120)
+            for index in range(40):
+                assert not recorder.diagnostic_event(
+                    f"unrelated-{index}", event_name="wake_received"
+                )
+            for _ in range(3):
+                recorder.audio("provider", b"\1\0", 16000)
+        recorder.finish("normal")
+        assert await recorder.wait_pending()
+        saved = recorder.snapshot()["latest"]
+        assert saved["incomplete"] and saved["drop_accounting_incomplete"]
+        assert saved["dropped_audio_packets"] == {"device": 1, "provider": 3}
+        assert saved["dropped_audio_bytes"] == {"device": 8, "provider": 6}
+        assert saved["dropped_command_kinds"] == {"event": 1, "audio": 4}
+        assert saved["dropped_commands"] == 5
+        assert saved["dropped_commands"] >= sum(saved["dropped_command_kinds"].values())
+        assert saved["dropped_command_kinds"]["audio"] >= sum(
+            saved["dropped_audio_packets"].values()
+        )
+    finally:
+        await recorder.shutdown()

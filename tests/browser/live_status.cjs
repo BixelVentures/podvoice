@@ -44,6 +44,8 @@ ctx.applyStatus({rooms:[{room:'fixture',live_status:{...sample,observed_at:104}}
 assert.equal(ctx.rooms.fixture.live_status.session_id,'b','late poll cannot overwrite SSE');
 ctx.applyEvent({type:'live_status',room:'fixture',live_status:{...sample,session_id:'b',generation:0,observed_at:106,phase:'IDLE',transcript:null}});
 assert.equal(ctx.rooms.fixture.live_status.transcript,null);
+assert.equal(ctx.liveStatusView({live_status:{...sample,phase:'CLOSING',timer_kind:'deadline',remaining_s:0}},100000).title,'Afslutter');
+assert.ok(ctx.liveStatusView({live_status:{...sample,phase:'CLOSING',timer_kind:'deadline',remaining_s:0}},100000).lines.some(x=>x.includes('afventer afslutning')));
 console.log('PASS: shipped projection identity, stale/unknown, measured coverage, zero deadline, idle transcript cleanup, snapshot/SSE hooks');
 if (process.env.PODVOICE_BROWSER_PROOF === '1') {
   const {chromium} = require('playwright');
@@ -57,20 +59,20 @@ if (process.env.PODVOICE_BROWSER_PROOF === '1') {
       const events=source.slice(source.indexOf('function applyEvent(ev)'),source.indexOf('async function control'));
       for (const width of [320,390,430,768,1440]) {
         const page=await browser.newPage({viewport:{width,height:900}});
-        await page.setContent(`<!doctype html><meta name="viewport" content="width=device-width"><style>${css}</style><div id="rooms"></div><script>function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}function safe(o,k,d){return o&&o[k]!=null?o[k]:d;}var STATE_PILL={},STATE_LABEL={};function control(){};var rooms={},lastStatus=null,lastObservedMs=0;function noop(){};var renderWakeWordStatus=noop,renderSub=noop,renderServices=noop,renderCapabilities=noop,renderMetrics=noop,renderActivity=noop,renderLifecycle=noop;${functions}${render}${status}${events}</script>`);
+        await page.setContent(`<!doctype html><meta name="viewport" content="width=device-width"><style>${css}</style><div id="rooms"></div><div id="room-tests"></div><script>function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}function safe(o,k,d){return o&&o[k]!=null?o[k]:d;}var STATE_PILL={},STATE_LABEL={};function control(){};var rooms={},lastStatus=null,lastObservedMs=0;function noop(){};var renderWakeWordStatus=noop,renderSub=noop,renderServices=noop,renderCapabilities=noop,renderMetrics=noop,renderActivity=noop,renderLifecycle=noop;${functions}${render}${status}${events}</script>`);
         await page.evaluate(v=>{applyStatus({rooms:[{room:'Køkken',state:'LISTENING',connected:true,live_status:{...v,observed_at:Date.now()/1000,transcript_at:Date.now()/1000-2}}]});},sample);
         assert.ok((await page.locator('.room').innerText()).includes('Lytter'));
         assert.equal(await page.locator('.room img').count(),0);
         assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'horizontal overflow '+width);
         await page.locator('.room button').first().focus();
-        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Lyt');
-        await page.evaluate(()=>{document.querySelector('details').open=true; var v=rooms['Køkken'].live_status;applyEvent({type:'live_status',room:'Køkken',live_status:{...v,observed_at:v.observed_at+0.1,blocker:'Et værktøj arbejder'}});});
-        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Lyt','SSE preserves button focus');
-        assert.equal(await page.locator('details').evaluate(e=>e.open),true);
+        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Start samtale');
+        await page.evaluate(()=>{document.querySelector('details.room-diagnostics').open=true;document.querySelector('details.live-explanation').open=true; var v=rooms['Køkken'].live_status;applyEvent({type:'live_status',room:'Køkken',live_status:{...v,observed_at:v.observed_at+0.1,blocker:'Et værktøj arbejder'}});});
+        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Start samtale','SSE preserves button focus');
+        assert.equal(await page.locator('details.live-explanation').evaluate(e=>e.open),true);
         await page.evaluate(()=>{var v=rooms['Køkken'].live_status;applyStatus({rooms:[{...rooms['Køkken'],live_status:{...v,observed_at:v.observed_at+0.1,blocker:'Afventer svar'}}]});});
-        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Lyt','poll preserves button focus');
-        assert.equal(await page.locator('details').evaluate(e=>e.open),true);
-        await page.locator('summary').focus();
+        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Start samtale','poll preserves button focus');
+        assert.equal(await page.locator('details.live-explanation').evaluate(e=>e.open),true);
+        await page.locator('details.live-explanation summary').focus();
         await page.evaluate(()=>{var v=rooms['Køkken'].live_status;applyEvent({type:'live_status',room:'Køkken',live_status:{...v,observed_at:v.observed_at+0.1,blocker:'Næste måling'}});});
         assert.equal(await page.evaluate(()=>document.activeElement.tagName),'SUMMARY');
         await page.close();

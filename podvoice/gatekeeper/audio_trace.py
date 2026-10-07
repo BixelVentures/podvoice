@@ -107,6 +107,9 @@ class _RollingWriter:
         self.expired: list[str] = []
         self.errors: dict[str, str] = {}
         self.dropped: dict[str, int] = {}
+        self.drop_details: dict[str, dict[str, dict[str, int]]] = {}
+        self.drop_evictions = 0
+        self.diagnostic_origins: dict[str, int] = {}
         self.diagnostic_records: dict[str, dict] = {}
         self.diagnostic_flush_at: dict[str, float] = {}
         self.current: dict | None = None
@@ -123,6 +126,15 @@ class _RollingWriter:
         self.thread = threading.Thread(target=self._run, name="podvoice-trace-writer", daemon=True)
         self.thread.start()
 
+    def begin_diagnostic_session(self, session_id: str) -> None:
+        # Only the shared Thin owner calls this at actual history-id creation.
+        # A duplicate marker preserves its original boundary. More than four
+        # origins expire conservatively; arbitrary late ids cannot prove a start.
+        with self.lock:
+            self.diagnostic_origins.setdefault(session_id, self.drop_evictions)
+            while len(self.diagnostic_origins) > 4:
+                self.diagnostic_origins.pop(next(iter(self.diagnostic_origins)))
+
     def submit(self, command: tuple) -> bool:
         try:
             # Data cannot consume the slots reserved for begin/finish/shutdown.
@@ -135,14 +147,48 @@ class _RollingWriter:
             )
             if self.queue.qsize() >= limit:
                 raise queue.Full
+            if command[0] == "begin":
+                with self.lock:
+                    epoch = self.drop_evictions
+                command = (command[0], command[1], {**command[2], "_drop_ledger_baseline": epoch})
+            elif command[0] == "diagnostic":
+                with self.lock:
+                    epoch = self.diagnostic_origins.get(str(command[1]), 0)
+                command = (command[0], command[1], {**command[2], "_drop_ledger_baseline": epoch})
             self.queue.put_nowait(command)
             return True
         except queue.Full:
             trace_id = str(command[1])
             with self.lock:
                 self.dropped[trace_id] = self.dropped.get(trace_id, 0) + 1
+                detail = self.drop_details.setdefault(
+                    trace_id, {"commands": {}, "audio_packets": {}, "audio_bytes": {}}
+                )
+                kind = str(command[0])
+                if kind not in {
+                    "audio",
+                    "event",
+                    "diagnostic",
+                    "begin",
+                    "finish",
+                    "proof",
+                    "shutdown",
+                }:
+                    kind = "other"
+                detail["commands"][kind] = detail["commands"].get(kind, 0) + 1
+                if kind == "audio":
+                    stage = command[2]["stage"]
+                    if stage not in {"device", "provider", "speaker", "wake_reference"}:
+                        stage = "other"
+                    detail["audio_packets"][stage] = detail["audio_packets"].get(stage, 0) + 1
+                    detail["audio_bytes"][stage] = detail["audio_bytes"].get(stage, 0) + len(
+                        command[2]["pcm"]
+                    )
                 while len(self.dropped) > 32:
-                    self.dropped.pop(next(iter(self.dropped)))
+                    expired = next(iter(self.dropped))
+                    self.dropped.pop(expired)
+                    self.drop_details.pop(expired, None)
+                    self.drop_evictions += 1
             return False
 
     def status(self) -> dict:
@@ -151,6 +197,10 @@ class _RollingWriter:
                 "pending": sorted(self.pending),
                 "errors": dict(self.errors),
                 "dropped": dict(self.dropped),
+                "drop_details": {
+                    trace_id: {kind: dict(counts) for kind, counts in detail.items()}
+                    for trace_id, detail in self.drop_details.items()
+                },
                 "latest": self.latest,
                 "queued": self.queue.qsize(),
                 "recent": list(self.recent),
@@ -168,12 +218,83 @@ class _RollingWriter:
             while len(self.errors) > 32:
                 self.errors.pop(next(iter(self.errors)))
 
+    def _drop_summary(self, trace_id: str, session_id: str | None = None) -> dict:
+        # Capture commands use a trace id; content-free events use the immutable
+        # history session from this capture's metadata. Never infer the current
+        # session from a delayed command or reuse another generation's loss.
+        keys = {trace_id}
+        if session_id:
+            keys.add(session_id)
+        summary: dict[str, Any] = {
+            "dropped_commands": 0,
+            "dropped_command_kinds": {},
+            "dropped_audio_packets": {},
+            "dropped_audio_bytes": {},
+        }
+        with self.lock:
+            summary["drop_ledger_evictions"] = self.drop_evictions
+            for key in keys:
+                summary["dropped_commands"] += self.dropped.get(key, 0)
+                for source, target in (
+                    ("commands", "dropped_command_kinds"),
+                    ("audio_packets", "dropped_audio_packets"),
+                    ("audio_bytes", "dropped_audio_bytes"),
+                ):
+                    for name, count in self.drop_details.get(key, {}).get(source, {}).items():
+                        summary[target][name] = summary[target].get(name, 0) + count
+        return summary
+
+    def _remember_loss(self, record: dict, summary: dict) -> dict:
+        # The ledger is bounded. If entries expire while this record is active,
+        # retain known lower bounds and admit that exact accounting is unknown.
+        baseline = record.setdefault("drop_ledger_baseline", summary["drop_ledger_evictions"])
+        previous = record.get("loss_summary", {})
+        loss = {
+            "dropped_commands": max(
+                previous.get("dropped_commands", 0), summary["dropped_commands"]
+            ),
+            "drop_accounting_incomplete": bool(
+                previous.get("drop_accounting_incomplete")
+                or summary["drop_ledger_evictions"] != baseline
+            ),
+        }
+        for key in ("dropped_command_kinds", "dropped_audio_packets", "dropped_audio_bytes"):
+            old, current = previous.get(key, {}), summary[key]
+            loss[key] = {
+                name: max(old.get(name, 0), current.get(name, 0))
+                for name in old.keys() | current.keys()
+            }
+        if loss["dropped_audio_packets"]:
+            loss["dropped_command_kinds"]["audio"] = max(
+                loss["dropped_command_kinds"].get("audio", 0),
+                sum(loss["dropped_audio_packets"].values()),
+            )
+        loss["dropped_commands"] = max(
+            loss["dropped_commands"], sum(loss["dropped_command_kinds"].values())
+        )
+        record["loss_summary"] = loss
+        return loss
+
     def _save_diagnostic(self, record: dict) -> None:
-        if not record.get("dirty", True):
+        summary = self._remember_loss(record, self._drop_summary(record["metadata"]["session_id"]))
+        if not record.get("dirty", True) and record.get("saved_loss_summary") == summary:
             return
         try:
-            save_diagnostics(self.path, record)
+            save_diagnostics(
+                self.path,
+                {
+                    **record,
+                    **summary,
+                    "incomplete": bool(
+                        record.get("incomplete")
+                        or summary["dropped_commands"]
+                        or summary["drop_accounting_incomplete"]
+                    ),
+                    "loss_scope": "history_events",
+                },
+            )
             record["dirty"] = False
+            record["saved_loss_summary"] = summary
         except (OSError, ValueError, TypeError):
             self._error("diagnostics", "diagnostic_write_failed")
 
@@ -276,8 +397,10 @@ class _RollingWriter:
         assert self.current is not None
         root = self.current["id"]
         with self.lock:
-            drops = self.dropped.get(root, 0)
             error = self.errors.get(root)
+        summary = self._remember_loss(
+            self.current, self._drop_summary(root, self.current["metadata"].get("session_id"))
+        )
         return {
             "id": self._part_id(),
             "conversation_trace_id": root,
@@ -291,9 +414,13 @@ class _RollingWriter:
             "capture_status": status,
             "persistence": "saved",
             "reason": reason,
-            "incomplete": bool(drops or error) or status in {"recording", "interrupted"},
+            "incomplete": bool(
+                summary["dropped_commands"] or summary["drop_accounting_incomplete"] or error
+            )
+            or status in {"recording", "interrupted"},
             "recording_error": error,
-            "dropped_commands": drops,
+            "loss_scope": "capture_and_history",
+            **summary,
             "next_session_proof": "not_recorded",
             "single_file_analysis_supported": False,
             "stage_sample_offsets": dict(self.offsets),
@@ -433,12 +560,17 @@ class _RollingWriter:
     def _process(self, command: tuple) -> None:
         kind, trace_id, data = command
         if kind == "diagnostic":
+            data = dict(data)
+            origin = data.pop("_drop_ledger_baseline", 0)
             record = self.diagnostic_records.setdefault(
                 trace_id,
                 {
                     "id": "diagnostic:" + trace_id,
                     "metadata": {"session_id": trace_id},
                     "events": [],
+                    # Unknown ids remain conservative after any prior eviction;
+                    # terminal/wake event text cannot establish an origin.
+                    "drop_ledger_baseline": origin,
                 },
             )
             if len(record["events"]) >= 2048:
@@ -464,7 +596,10 @@ class _RollingWriter:
             if self.current is not None:
                 self._close_files()
                 self._flush("interrupted", "missing_finish")
-            self.current = data
+            self.current = dict(data)
+            self.current["drop_ledger_baseline"] = self.current.pop(
+                "_drop_ledger_baseline", self.drop_evictions
+            )
             self.stages, self.files, self.offsets = {}, {}, {}
             self.part, self.part_start_ms = 0, 0
             self.events, self.event_bytes = [], 0
@@ -710,6 +845,13 @@ class AudioTraceRecorder:
             and self._active_room == room
             and self._metadata.get("session_id") == session_id
         )
+
+    def begin_diagnostic_session(self, session_id: str) -> bool:
+        """Passive origin marker called once at the shared owner's new history id."""
+        if self._writer is None or not session_id or len(session_id) > 256:
+            return False
+        self._writer.begin_diagnostic_session(session_id)
+        return True
 
     def diagnostic_event(
         self,
@@ -1222,6 +1364,7 @@ class AudioTraceRecorder:
                 "pending": [],
                 "errors": {},
                 "dropped": {},
+                "drop_details": {},
                 "latest": None,
                 "queued": 0,
                 "recent": [],
@@ -1259,6 +1402,7 @@ class AudioTraceRecorder:
             "pending": rolling["pending"],
             "errors": rolling["errors"],
             "dropped": rolling["dropped"],
+            "drop_details": rolling["drop_details"],
             "queued": rolling["queued"],
             "recent": rolling["recent"],
             "proof_status": rolling["proof_status"],

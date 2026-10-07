@@ -152,3 +152,24 @@ async def test_teardown_step_survives_persistence_without_arbitrary_strings(tmp_
     assert "step" not in rows[2] and "reason" not in rows[2]
     assert "step" not in rows[3] and "reason" not in rows[3]
     assert "private" not in saved
+
+
+def test_content_free_loss_counters_deny_private_keys_and_non_numeric_values(tmp_path):
+    save_diagnostics(
+        tmp_path,
+        {
+            "id": "capture",
+            "incomplete": True,
+            "dropped_commands": "private-text",
+            "dropped_command_kinds": {"audio": 2, "private-name": 42, "event": "private-text"},
+            "dropped_audio_packets": {"device": 1, "private-name": 9, "speaker": True},
+            "dropped_audio_bytes": {"device": 640, "provider": -1, "speaker": "private-text"},
+        },
+    )
+    encoded = next(tmp_path.glob("*.diagnostic")).read_text()
+    assert "private" not in encoded
+    record = json.loads(encoded)
+    assert record["incomplete"] is True and record["dropped_commands"] == 0
+    assert record["dropped_command_kinds"] == {"audio": 2}
+    assert record["dropped_audio_packets"] == {"device": 1}
+    assert record["dropped_audio_bytes"] == {"device": 640}

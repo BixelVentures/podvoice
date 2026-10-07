@@ -217,6 +217,28 @@ _NATIVE_APP_CLOSING_REGRESSIONS = {
     "tests/unit/test_voicepe_closing.py",
 }
 
+# Passive loss accounting and read-only daily UI name lifecycle/tool owners.
+# Admit only this reviewed observation chain; no provider, prompt, adapter or
+# firmware surface can join it through the broader existing coupling tuples.
+_PASSIVE_DIAGNOSTIC_UI_REQUIRED = {
+    "podvoice/gatekeeper/audio_trace.py",
+    "podvoice/gatekeeper/diagnostic_retention.py",
+    "podvoice/gatekeeper/static/index.html",
+    "podvoice/gatekeeper/thin.py",
+}
+_PASSIVE_DIAGNOSTIC_UI_SURFACES = _PASSIVE_DIAGNOSTIC_UI_REQUIRED | {
+    "podvoice/gatekeeper/__init__.py",
+}
+_PASSIVE_DIAGNOSTIC_UI_REGRESSIONS = {
+    "tests/unit/test_audio_trace_automatic.py",
+    "tests/unit/test_diagnostic_retention.py",
+    "tests/integration/test_thin_automatic_diagnostics.py",
+    "tests/unit/test_panel_contract.py",
+    "tests/browser/daily_ui.cjs",
+    "tests/browser/live_status.cjs",
+    "tests/browser/wake_words.cjs",
+}
+
 # Character matching without autojunk can become quadratic on large repeated diffs.
 # Above this bound, include whole changed lines: extra domains require review, but
 # no executable scope is lost and fingerprint/coupling checks remain unchanged.
@@ -385,7 +407,13 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         "reviewer",
         "rationale",
     }
-    if not isinstance(record, dict) or set(record) != fields:
+    if not isinstance(record, dict) or type(record.get("version")) is not int:
+        return failed
+    passive_diagnostic_ui_v2 = record["version"] == 2
+    if passive_diagnostic_ui_v2:
+        if set(record) != fields | {"kind"} or record["kind"] != "passive_diagnostic_ui":
+            return failed
+    elif record["version"] != 1 or set(record) != fields:
         return failed
     # Reading input/playback event names for a completed-recording report spans
     # both classifier domains. It still needs an independent exact-tree review;
@@ -434,18 +462,62 @@ def reviewed_coupling(root: Path, report: CandidateScope, base_tip: str) -> Cand
         and _NATIVE_APP_CLOSING_REGRESSIONS <= set(report.test_files)
         and all((root / path).is_file() for path in _NATIVE_APP_CLOSING_REGRESSIONS)
     )
+    passive_metadata_only = True
+    metadata = "podvoice/gatekeeper/__init__.py"
+    if passive_diagnostic_ui_v2 and metadata in report.production_files:
+        metadata_diff = "\n".join(
+            _git(root, *args)
+            for args in (
+                ("diff", "--unified=0", f"{report.base}...HEAD", "--", metadata),
+                ("diff", "--unified=0", "--", metadata),
+                ("diff", "--cached", "--unified=0", "--", metadata),
+            )
+        )
+        passive_metadata_only = (
+            classify_candidate([metadata], metadata_diff).reason == "version metadata only"
+        )
+    passive_effective_changes = set()
+    if passive_diagnostic_ui_v2:
+        # Opposing staged/unstaged hunks can name a path whose effective bytes
+        # are back at the merge base. Such a path is not a changed regression/owner.
+        passive_effective_changes.update(
+            _git(root, "diff", "--name-only", "-z", report.base).split("\0")
+        )
+        passive_effective_changes.update(
+            _git(root, "ls-files", "-z", "--others", "--exclude-standard").split("\0")
+        )
+    reviewed_passive_diagnostic_ui = (
+        passive_diagnostic_ui_v2
+        and _PASSIVE_DIAGNOSTIC_UI_REQUIRED <= set(report.production_files)
+        and report.domains == ("ha_tools", "physical_output", "rearm")
+        and set(report.production_files) <= _PASSIVE_DIAGNOSTIC_UI_SURFACES
+        and _PASSIVE_DIAGNOSTIC_UI_REQUIRED <= passive_effective_changes
+        and all(
+            (root / path).is_file() and not (root / path).is_symlink()
+            for path in report.production_files
+        )
+        and _PASSIVE_DIAGNOSTIC_UI_REGRESSIONS <= set(report.test_files)
+        and _PASSIVE_DIAGNOSTIC_UI_REGRESSIONS <= passive_effective_changes
+        and all(
+            (root / path).is_file() and not (root / path).is_symlink()
+            for path in _PASSIVE_DIAGNOSTIC_UI_REGRESSIONS
+        )
+        and passive_metadata_only
+    )
     if (
         type(record["version"]) is not int
-        or record["version"] != 1
+        or record["version"] not in (1, 2)
         or record["base_tip"] != base_tip
         or record["merge_base"] != report.base
         or record["domains"] != list(report.domains)
+        or (passive_diagnostic_ui_v2 and not reviewed_passive_diagnostic_ui)
         or (
             not reviewed_audio_analysis
             and not reviewed_native_quiet
             and not reviewed_automatic_diagnostics
             and not reviewed_bounded_live_closing
             and not reviewed_native_app_closing
+            and not reviewed_passive_diagnostic_ui
             and report.domains
             not in {
                 ("physical_output", "rearm"),

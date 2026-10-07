@@ -172,3 +172,63 @@ async def test_delayed_wake_reference_task_cannot_adopt_next_conversation(tmp_pa
     finally:
         await session.aclose()
         await recorder.shutdown(timeout_s=3)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("browser", [False, True])
+@pytest.mark.parametrize("failure", ["missing", "lookup", "call"])
+async def test_passive_diagnostic_origin_runs_before_events_and_fault_cannot_block_wake(
+    tmp_path, monkeypatch, browser, failure
+):
+    from test_talk_stop import HistoricalWavBrowserLink
+
+    async def send_json(event):
+        pass
+
+    async def send_bytes(data):
+        pass
+
+    device = HistoricalWavBrowserLink(send_json, send_bytes) if browser else None
+    session, _, _, _, _ = build(device=device) if browser else build()
+    recorder = session.audio_trace = AudioTraceRecorder(tmp_path, automatic=True)
+    original = recorder.begin_diagnostic_session
+    origins = []
+
+    def origin(session_id):
+        assert session_id == session._history_session
+        assert not any(
+            r["metadata"]["session_id"] == session_id
+            for r in recorder._writer.diagnostic_records.values()
+        )
+        origins.append(session_id)
+        return original(session_id)
+
+    monkeypatch.setattr(recorder, "begin_diagnostic_session", origin)
+    await session.start()
+    try:
+        await session.wake()
+        assert session._active and origins == [session._history_session]
+        await session.stop()
+        previous = origins[0]
+
+        def failed_origin(session_id):
+            assert session_id != previous
+            raise RuntimeError("passive observer unavailable")
+
+        class OptionalOrigin:
+            def __getattr__(self, name):
+                if name == "begin_diagnostic_session":
+                    if failure == "missing":
+                        raise AttributeError(name)
+                    if failure == "lookup":
+                        raise RuntimeError("passive marker lookup unavailable")
+                    return failed_origin
+                return getattr(recorder, name)
+
+        session.audio_trace = OptionalOrigin()
+        await session.wake()
+        assert session._active and session._history_session != previous
+        await session.stop()
+    finally:
+        await session.aclose()
+        await recorder.shutdown()

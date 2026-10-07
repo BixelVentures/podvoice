@@ -1,5 +1,142 @@
 # PodVoice-status — én aktuel sandhed
 
+### 7/10 — aktiv lead-beslutning: v2.x-softwarekandidat 2.0.1
+
+Lead Voice/Reliability Engineer: root. Tre worktrees dækker stabilitet/integration,
+produkt/UI og QA/målinger. Implementering og adversarial review har forskellige
+ejere. Baseline er main90a2fa5/v2.0.0; den tidligere installationsreceipt bevares.
+Denne post beskriver offentlige kilde- og testresultater. Privat rumlyd og
+driftsdiagnostik indgår ikke i PR-materialet.
+
+**Observeret problem og direkte kildebevis.** Brugeren rapporterer, at Texas Sun
+stopper efter ét nummer. Den separate PodConnect-kandidat i PR7 bevarer det
+faktisk spillede track som seed til en tom autoplay-context; pinned engine-tests
+og kompilering består, fysisk fortsættelse er ikke bevist. I PodVoice reproducerer
+en permanent regression tab før første accepterede diagnose → ledger-eviction →
+terminalrecord, som tidligere kunne blive gemt som komplet. Latencyrapportens
+review reproducerede udeladt faktisk tool-dispatch og et tool fra en anden
+generation; begge kunne tidligere give en forkert kædeopdeling. Panelet blander
+daglig betjening med forklaringer og viser labels, som ikke er fysisk lydbevis.
+
+**Hele kæden og invarianterne.** Wake/input → firmware → VoicePELink → ThinSession
+→ valgt provider → værktøj/HA/PodConnect → fysisk playback → modelsemantisk
+lukning → drain/teardown/rearm → næste wake bevarer sine eksisterende ejere.
+Den passive recorder-marker oprettes ved ThinSessions faktiske history-ID før
+første diagnostic-submit, på samme fælles sted for Voice PE og Talk. Recorder-
+fejl må ikke blokere en samtale. Bounded privat diagnose, generationsisolering,
+playback-sandhed og én teardown/rearm bevares. Alpha ON's kontinuerlige input og
+OFF's half-duplex-kontrakt ændres ikke. Ingen queue-, PCM-, provider-, firmware-,
+prompt-, værktøjs-, gain-, VAD- eller timeoutændring indgår.
+
+**Falsificerbar årsag og mindste ændring.** Et begrænset drop-ledger kan miste
+tidligere tab; en eventtekst er ikke bevis for en ny session. Højst fire trusted
+origin-markers, bevaret duplicate-baseline og konservativ unknown ved eviction
+giver ærlig accounting. Numeriske counts pr. command-kind og audio-stage kopieres
+til manifest og content-free retention. UI afbilder eksisterende tilstande og
+kontrolsvar; en modtaget kommando kaldes ikke udført, streamstart kaldes ikke et
+hørbart svar, og udløbet guard kaldes ikke færdig rearm. Målerapporten kræver
+korrelerede fysiske kanter, actual stage-WAV og hash-/clockbundet rumlydreview;
+alle relevante tool-kanter skal være entydigt dækket i samme generation.
+
+**Produktvalg 7/10.** UI er enkel betjening og nødvendige indstillinger. Tutorials,
+LED-/arkitekturforklaringer og rå interne målinger fjernes fra daglig brug.
+Start/Stop, kort aktuel status og konkret fejlhandling er primære. Diagnose har
+en sekundær plads. GPT-Live er den valgte normale retning; fjernelse af det gemte
+Alpha/OFF-valg og settingsmigration er stadig en separat gated ændring. Ingen
+ny default eller reset af eksisterende brugerpræferencer udledes af UI-oprydning.
+
+**Regressioner og review.** Saturation før admission, evicted origin, duplicate,
+stale callbacks, ny generation, tværgående kind/stage lower bounds, retention og
+begge I/O-adapteres missing/raising observer testes. UI testes med faktisk HTML i
+Chromium, status/SSE/stale poll, tastatur/fokus, uændrede kommandoer og settings,
+mobil/desktop, mørkt tema og 200% zoom. Offline måletests afviser manglende/tabt/
+forkert identitet og fysisk lydproveniens, omitted/reused/stale tool-kanter og
+bevarer unionen af samtidige ventetider. Ingen offline rapport afgør fysisk accept.
+
+**Separat testopsætning og tooling.** Real-SDK-fixturen kvitterer nu den faktiske
+serialiserede instruction-append med samme client-event-ID. Fixture-forberedelse
+indlæser samme rene SDK-dependency som produktionens saved-Live bootstrap, før den
+uændrede forbindelsesdeadline begynder. En cold-subprocess-regression injicerer
+forberedelse længere end deadline og beviser setup før connect, rigtig ACK og
+owned TCP-cleanup; terminal/drain-assertions bevares. Ingen runtime-timingpatch.
+Scope-gaten kræver en eksplicit version2/passive_diagnostic_ui review-record for
+den samlede observationskandidat: præcis owner-/regressionsliste, regular files,
+version-only metadata og hele effektive produktionstræs fingerprint. Den kan ikke
+falde tilbage til en generisk waiver ved manglende owners eller ekstra provider,
+værktøj, adapter eller firmware. Tidligere version1-kontrakter bevares.
+
+**Softwarestatus.** Recorderens ledger er reviewed af UI-agenten og fælles Thin-
+hook af QA-agenten. Latencyværktøjet er reviewed af reliability-agenten; 43
+målrettede tests består. SDK-fixture/setup er uafhængigt reviewed; ni målrettede
+cases består. Endeligt UI/tooling-review, samlet fingerprint og den ene frosne
+releasegate registreres nedenfor. Disse delresultater er ikke en releasegate.
+Ingen betalt providerprøve køres for den passive observationsændring.
+
+**Alle issue-spor og næste bevis.**
+
+| Spor | Software i denne kandidat | Resterende krav |
+|---|---|---|
+| #98 / #101 / #102 | Ærlig bounded diagnose; ingen spekulativ svar-/matematikpatch. | Komplet device/provider/playback-kæde med kendt ytring; forklar manglende svar og kontekstfejl før en minimal runtimehypotese. |
+| #103 | Fælles adapter-/close-regressioner og real-SDK testopsætning. | Samme artifacts: frisk golden, 10/10 automatiske og 10/10 ubrudte fysiske cyklusser, faktisk Talk-drain, persistence og næste wake. |
+| #104–108 | Offline fysisk måleprotokol og fejl-afvisende rapport. | Komplet baseline med 40 enkle/20 tool-ture; kontinuerlig Live mangler stadig fysiske tur-/taleslutkanter. Optimer kun største målte flaskehals efter lifecycle-gaten. |
+| #99 / #100 / #114 | Audit/definitive valg, sand status og enkel betjening. | Samlet normal UI-integration følger kendt funktionsmatrix; kilde-/Chromium-proof erstatter ikke HA-app/Safari/VoiceOver eller rumbrug. |
+| #113 / #115 | Ingen settings/defaultmigration eller ny media-owner. | Eksplicit migration/backup/rollback uden tuning-reset; samlet UI/Talk/a11y-matrix på den faktiske kandidat. |
+| #109 | Eksisterende MCP handshake/reset, atomic discovery, snapshot og bounded backoff bevares. | Startup/idle/active fault injection og automatisk readiness uden dobbelte sideeffekter; ingen ny recoverypatch uden påvist hul. |
+| #110 | Timer-capability forbliver pending; legacy TimerManager er karantæne. | HA-protokol med enhedskontekst, registreret timer-handler, rum/Talk-destination og faktisk expiry/stop/persistence. Core2026.8.2 og2026.9.4's MCP-server bruger fast llm_context og understøtter ikke dev's request-meta-hook; client-only metadata er utilstrækkeligt. |
+| #111 / PodConnect#6 | Separat pinned autoplay-softwarekandidat, ingen bro/retry/recommendationpatch. | Samme mål: voice/HA/manual playback gennem EOF/næste sang; autoplay ON/OFF, queue/repeat/pause/stop, wake/duck/restore og recovery. |
+| #112 / #116 | Eksisterende ejere og bounded retention bevares. | Alle funktioners fysiske matrix, derefter samme artifacts i syv døgn uden manuel genstart, sessionlås eller tabt musik. Ingen soak-accept foreligger. |
+
+Timer-kompatibilitet er kontrolleret mod primære versioner:
+[Core2026.8.2 MCP](https://github.com/home-assistant/core/blob/2026.8.2/homeassistant/components/mcp_server/server.py),
+[Core2026.9.4 MCP](https://github.com/home-assistant/core/blob/2026.9.4/homeassistant/components/mcp_server/server.py)
+og [timer-capability](https://github.com/home-assistant/core/blob/2026.8.2/homeassistant/components/intent/llm.py).
+Ingen HA Core-opdatering eller lokal timerfallback er udført.
+
+**Gates og rollback.** Kandidaten bliver ikke testklar ved uløst alvorlig finding,
+ukendt invariant eller forskellige code/test/config-bits. Én releasegate køres på
+det samlede frosne diff i usynkroniseret dev-clone med ekstern Python3.12; lifecycle
+smoke kan ikke dække hele dette scope. Eksakt PR-CI/ARM64-artifact, installation,
+fysisk golden/lifecycle, funktionsmatrix og soak er forskellige beviser. Rollback-
+grænsen er main90a2fa5/v2.0.0 med eksisterende firmware; rollback arver ingen senere
+fysisk stabilitet. Issue-accept og produktmålet er fortsat åbne, indtil deres egne
+målbare krav er bevist.
+
+**Uafhængige frosne delreviews.** UI simple diff
+`91cc88e7be4d0a7d84d889a8e6e61c5b46493d6f261f462cdc3219f23cf371b9`:
+GO fra QA; 53 relevante tests samt Chromium fem bredder i begge temaer,
+200% zoom, fokus og bevarede settings/kommandoer består. Tooling diff
+`04f5c766f73cf89df9a8a154c95612bfc73e5f492a0dc526690e0e74cde609e0`:
+GO fra både QA og reliability; 83 tests består. Recorder source/test diff
+`7b7a7b69c480577aef0b35c6341ddbd6c4cddc5e20b668a80d6cfb709b9cdd85`
+har separate ledger- og Thin-hook-reviews. SDK-setup diff
+`11298df5ba3baaa2445160b37b7da4f83c31cc05e36b6f3167c4f1ebdac7aa5e`
+er uafhængigt reviewed af reliability. Samlet integration og releasegate
+afventer; ingen af disse reviews er fysisk godkendelse.
+
+**Samlet integrationsreview før freeze.** QA og reliability har uafhængigt
+kontrolleret den samlede working tree og staged index mod de frosne delreviews:
+GO uden uløste findings. Produktionsdiffet består kun af recorder/retention,
+UI, den fejlisolerede fælles diagnostic-origin og version-only __init__.py.
+Config og pyproject er 2.0.1; providers, værktøjer, settings, firmware, builder,
+prompt og audio/lifecycle-ejerskab er uændrede. Én software-releasegate afventer.
+
+<!-- candidate-scope-coupling
+{
+  "version": 2,
+  "kind": "passive_diagnostic_ui",
+  "base_tip": "90a2fa54ace812e3ca43df32ec304f78d4f7e098",
+  "merge_base": "90a2fa54ace812e3ca43df32ec304f78d4f7e098",
+  "domains": [
+    "ha_tools",
+    "physical_output",
+    "rearm"
+  ],
+  "fingerprint": "a17f68f41dc3ed22e206cf84b3cd7e5d883f495fca78876eb02d60cbb43c52e3",
+  "reviewer": "refine_stability independent packaging review; refine_speed integrated QA review; root Lead Voice/Reliability Engineer",
+  "rationale": "Exact reviewed passive recorder/retention/history-origin and read-only daily UI chain. Four required owners and seven effective regular regression paths are changed. Optional __init__ differs only in version. No provider, adapter, prompt, settings, firmware, tool semantics, audio or lifecycle mutation; physical gates remain open."
+}
+-->
+
 ### 6/10 — aktiv beslutning: v2.0 frosset Alpha-baseline, derefter v2.x-hastighed
 
 **Udgivet og installeret 6/10 kl.15:19: v2.0.0, Alpha fortsat ON.** PR97 merged
