@@ -204,3 +204,118 @@ async def test_existing_evaluator_observer_survives_wake_rotation_and_close(tmp_
         assert session.live_brain.audio_observer is evaluator
     finally:
         await session.aclose()
+
+
+@pytest.mark.parametrize("backlog", [0, 171, 600])
+@pytest.mark.parametrize("append_delay", [0, 0.004])
+async def test_automatic_startup_backlog_preserves_wire_and_all_trace_pcm(
+    tmp_path, backlog, append_delay
+):
+    import asyncio
+    import json
+    import time
+    import wave
+
+    from test_thin_live import Device
+
+    from gatekeeper.audio import StreamResampler
+    from gatekeeper.voicepe import NativeMicFrame
+
+    class NativeDevice(Device):
+        connection_generation = 1
+
+        def timed_pcm_frames(self):
+            async def frames():
+                while True:
+                    yield await self._audio_q.get()
+
+            return frames()
+
+        def pcm_frames(self):
+            raise AssertionError("second native consumer")
+
+    link = NativeDevice()
+    session, sdk, _, _, _ = build(device=link)
+    recorder = session.audio_trace = AudioTraceRecorder(tmp_path, automatic=True)
+
+    completed = []
+    start_entered, release_start = asyncio.Event(), asyncio.Event()
+
+    async def append(**kwargs):
+        if append_delay:
+            await asyncio.sleep(append_delay)
+        completed.append(base64.b64decode(kwargs["audio"]))
+
+    async def held_start(**kwargs):
+        start_entered.set()
+        await release_start.wait()
+        await sdk.start(**kwargs)
+
+    sdk.session.input_audio.append.side_effect = append
+    sdk.session.start.side_effect = held_start
+    pcm = [bytes([index % 100 + 1, 0]) * 256 for index in range(backlog)]
+    expected = StreamResampler(16000, 24000)
+    wire = b"".join(expected.process(packet) for packet in pcm)
+
+    def stage_bytes(part, stage):
+        value = part["stages"].get(stage)
+        if value is None:
+            return b""
+        with wave.open(str(tmp_path / value["file"])) as wav:
+            return wav.readframes(wav.getnframes())
+
+    await session.start()
+    try:
+        waking = asyncio.create_task(session.wake())
+        async with asyncio.timeout(2):
+            await start_entered.wait()
+        assert link.streaming
+        for index, packet in enumerate(pcm):
+            link._audio_q.put_nowait(
+                NativeMicFrame(packet, time.monotonic(), index + 1, link.audio_generation, 1, 0)
+            )
+        release_start.set()
+        await waking
+        stale = session.brain.audio_observer
+        async with asyncio.timeout(8):
+            while len(completed) != backlog:  # noqa: ASYNC110
+                await asyncio.sleep(0.005)
+        actual_wire = b"".join(
+            base64.b64decode(call.kwargs["audio"])
+            for call in sdk.session.input_audio.append.await_args_list
+        )
+        assert actual_wire == wire == b"".join(completed)
+        assert link._audio_q.empty()
+        await session.stop()
+        assert await recorder.wait_pending()
+        parts = [json.loads(p.read_text()) for p in sorted(tmp_path.glob("*.json"))]
+        first_id = parts[0]["conversation_trace_id"]
+        assert all(not part["incomplete"] and part["dropped_commands"] == 0 for part in parts)
+        assert b"".join(stage_bytes(part, "device") for part in parts) == b"".join(pcm)
+        assert b"".join(stage_bytes(part, "provider") for part in parts) == wire
+        assert recorder._writer.status()["admitted_pcm_bytes"] == 0
+        # The actual old provider-observer closure is inert after next wake.
+        await session.wake()
+        stale(b"\x77\x77" * 256, 24000)
+        fresh = b"\x02\x00" * 256
+        link._audio_q.put_nowait(
+            NativeMicFrame(fresh, time.monotonic(), backlog + 1, link.audio_generation, 1, 0)
+        )
+        async with asyncio.timeout(2):
+            while len(completed) != backlog + 1:  # noqa: ASYNC110
+                await asyncio.sleep(0.005)
+        await session.stop()
+        assert await recorder.wait_pending()
+        new_parts = [
+            part
+            for part in (json.loads(p.read_text()) for p in sorted(tmp_path.glob("*.json")))
+            if part["conversation_trace_id"] != first_id
+        ]
+        assert new_parts and all(not part["incomplete"] for part in new_parts)
+        fresh_wire = base64.b64decode(sdk.session.input_audio.append.await_args.kwargs["audio"])
+        assert b"".join(stage_bytes(part, "provider") for part in new_parts) == fresh_wire
+        assert b"".join(stage_bytes(part, "device") for part in new_parts) == fresh
+    finally:
+        release_start.set()
+        await session.aclose()
+        assert await recorder.shutdown()

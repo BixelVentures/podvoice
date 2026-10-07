@@ -1,3 +1,10 @@
+## 2.0.2 — bounded recording and clearer daily controls
+
+- Keep passive diagnostic recording complete during the existing 600-frame microphone startup burst, with bounded admission, PCM storage and terminal reserves. Preserve provider audio bytes and conversation timing.
+- Freeze bounded acoustic-test steps and WAV bytes before observation begins. Reject malformed clips and excess metadata; bind receipts to the exact injected PCM.
+- Show concise capability warnings, readable room labels and consistent provider status. Keep full details in Diagnose and preserve control targets and saved settings.
+- Require a strict reviewed candidate scope tied to the effective production and regression files. Physical lifecycle, latency, function and long-running acceptance remain pending.
+
 ## 2.0.1 — diagnostic and daily-control candidate
 
 - Preserve diagnostic loss accounting across bounded ledger eviction, copy command/audio-stage counts into manifests, and isolate optional diagnostic callbacks from conversation startup.

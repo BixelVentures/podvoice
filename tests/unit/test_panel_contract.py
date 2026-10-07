@@ -52,7 +52,7 @@ def test_service_status_is_live_and_names_runtime_truths():
     assert "JSON.stringify([services || {}, details || {}, !!diagnosticActive])" in html
     assert "lastStatus.service_details[ev.name] = ev.detail" in html
     assert '"wake-klar"' in html
-    assert '"forbundet - wake afprøves"' in html
+    assert '"vækkeord ikke bekræftet"' in html
     assert '"standby - ikke prøvet"' in html
     assert '"klar ved seneste samtale"' in html
     assert '"ratebegrænset"' in html
@@ -416,7 +416,7 @@ def test_panel_does_not_claim_unverified_stop_and_labels_capability_truth():
     assert "silences it instantly" not in html
     assert "Øjeblikkelig stilhed" not in html
     assert 'toast("Kommando modtaget")' in html
-    assert 'verified ? "verificeret" : ok ? "fundet" : "mangler"' in html
+    assert 'verified ? "verificeret" : ok ? "fundet" : known ? "mangler" : "ukendt"' in html
     assert 'SVC_LABEL[name] + ": " + label' in html
     assert "Home Assistant forbinder igen" in html
     assert "discovery.last_error" in html

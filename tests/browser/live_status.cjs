@@ -25,7 +25,7 @@ assert.ok(!view.lines.some(x=>x.includes('tilbage')));
 assert.ok(view.details.some(x=>x.includes('transskription')));
 assert.equal(ctx.liveStatusView({live_status:sample},104000).title,'Status forældet');
 assert.equal(ctx.liveStatusView({},100000).title,'Status ukendt');
-for (const [wake_readiness,title] of Object.entries({proven:'Klar',recovered:'Wake afprøves',fault:'Kræver opmærksomhed',unknown:'Samtale lukket'})) assert.equal(ctx.liveStatusView({live_status:{...sample,phase:'IDLE',wake_readiness}},100000).title,title);
+for (const [wake_readiness,title] of Object.entries({proven:'Klar',recovered:'Vækkeord ikke bekræftet',fault:'Kræver opmærksomhed',unknown:'Samtale lukket'})) assert.equal(ctx.liveStatusView({live_status:{...sample,phase:'IDLE',wake_readiness}},100000).title,title);
 for (const [output_state,label] of Object.entries({active:'Svarlyd registreret',pending:'lyd i kø'})) assert.ok(ctx.liveStatusView({live_status:{...sample,output_state}},100000).details.some(x=>x.includes(label)));
 assert.ok(ctx.liveStatusView({live_status:{...sample,phase:'IDLE'}},100000).lines.every(x=>!x.includes('transskription')));
 view=ctx.liveStatusView({live_status:{...sample,timer_kind:'deadline',remaining_s:0}},100000);

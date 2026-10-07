@@ -36,6 +36,11 @@ from .diagnostic_retention import (
 _LOG = logging.getLogger("podvoice.audio_trace")
 _SAFE_ID = re.compile(r"^[0-9A-Za-z_-]+$")
 _NEXT_SESSION_PROOF_TTL_S = 120.0
+_WRITER_COMMANDS = 2048
+_WRITER_PCM_BYTES = 4 * 1024 * 1024
+# One processed packet also resides in Stage.pcm and decoded array('h'). Its
+# immutable command remains admitted until finally; reserve both bounded copies.
+_WRITER_PCM_COPY_BYTES = 2 * 65536
 PROVIDER_TRACE_STRING_MAX = 128
 PROVIDER_TRACE_EVENTS_MAX = 128
 PROVIDER_TRACE_BYTES_MAX = 64 * 1024
@@ -97,7 +102,11 @@ class _RollingWriter:
 
     def __init__(self, path: pathlib.Path, *, byte_limit: int, age_s: float) -> None:
         self.path, self.byte_limit, self.age_s = path, byte_limit, age_s
-        self.queue: queue.Queue = queue.Queue(maxsize=128)
+        self.queue: queue.Queue = queue.Queue(maxsize=_WRITER_COMMANDS)
+        self.admitted_commands = 0
+        self.admitted_nonaudio = 0
+        self.admitted_pcm_bytes = 0
+        self.accepting = True
         self.lock = threading.Lock()
         self.pending: set[str] = set()
         self.latest: dict | None = None
@@ -136,60 +145,99 @@ class _RollingWriter:
                 self.diagnostic_origins.pop(next(iter(self.diagnostic_origins)))
 
     def submit(self, command: tuple) -> bool:
-        try:
-            # Data cannot consume the slots reserved for begin/finish/shutdown.
+        kind = command[0]
+        pcm_bytes = len(command[2]["pcm"]) if kind == "audio" else 0
+        # Account for the in-service command, too. One FIFO still owns all I/O;
+        # admission never waits for it or paces native/provider audio delivery.
+        with self.lock:
+            if kind == "shutdown" and not self.accepting:
+                return True  # The one shutdown already owns the FIFO/join.
             limit = (
-                120
-                if command[0] in {"audio", "event", "diagnostic"}
-                else 126
-                if command[0] == "begin"
-                else 128
+                _WRITER_COMMANDS - 8
+                if kind in {"audio", "event", "diagnostic"}
+                else _WRITER_COMMANDS - 2
+                if kind == "begin"
+                else _WRITER_COMMANDS
             )
-            if self.queue.qsize() >= limit:
-                raise queue.Full
-            if command[0] == "begin":
-                with self.lock:
-                    epoch = self.drop_evictions
-                command = (command[0], command[1], {**command[2], "_drop_ledger_baseline": epoch})
-            elif command[0] == "diagnostic":
-                with self.lock:
-                    epoch = self.diagnostic_origins.get(str(command[1]), 0)
-                command = (command[0], command[1], {**command[2], "_drop_ledger_baseline": epoch})
-            self.queue.put_nowait(command)
-            return True
-        except queue.Full:
-            trace_id = str(command[1])
-            with self.lock:
-                self.dropped[trace_id] = self.dropped.get(trace_id, 0) + 1
-                detail = self.drop_details.setdefault(
-                    trace_id, {"commands": {}, "audio_packets": {}, "audio_bytes": {}}
-                )
-                kind = str(command[0])
-                if kind not in {
-                    "audio",
-                    "event",
-                    "diagnostic",
-                    "begin",
-                    "finish",
-                    "proof",
-                    "shutdown",
-                }:
-                    kind = "other"
-                detail["commands"][kind] = detail["commands"].get(kind, 0) + 1
-                if kind == "audio":
-                    stage = command[2]["stage"]
-                    if stage not in {"device", "provider", "speaker", "wake_reference"}:
-                        stage = "other"
-                    detail["audio_packets"][stage] = detail["audio_packets"].get(stage, 0) + 1
-                    detail["audio_bytes"][stage] = detail["audio_bytes"].get(stage, 0) + len(
-                        command[2]["pcm"]
+            scalar_limit = (
+                120 if kind in {"event", "diagnostic"} else 126 if kind == "begin" else 128
+            )
+            full = (
+                not self.accepting
+                or (kind == "audio" and pcm_bytes > 65536)
+                or max(self.admitted_commands, self.queue.qsize()) >= limit
+                or (kind != "audio" and self.admitted_nonaudio >= scalar_limit)
+                or self.admitted_pcm_bytes + pcm_bytes > _WRITER_PCM_BYTES - _WRITER_PCM_COPY_BYTES
+            )
+            if not full:
+                if kind == "begin":
+                    command = (
+                        kind,
+                        command[1],
+                        {**command[2], "_drop_ledger_baseline": self.drop_evictions},
                     )
-                while len(self.dropped) > 32:
-                    expired = next(iter(self.dropped))
-                    self.dropped.pop(expired)
-                    self.drop_details.pop(expired, None)
-                    self.drop_evictions += 1
+                elif kind == "diagnostic":
+                    command = (
+                        kind,
+                        command[1],
+                        {
+                            **command[2],
+                            "_drop_ledger_baseline": self.diagnostic_origins.get(
+                                str(command[1]), 0
+                            ),
+                        },
+                    )
+                try:
+                    self.queue.put_nowait(command)
+                except queue.Full:
+                    full = True
+                else:
+                    self.admitted_commands += 1
+                    self.admitted_nonaudio += kind != "audio"
+                    self.admitted_pcm_bytes += pcm_bytes
+                    if kind == "shutdown":
+                        self.accepting = False
+                    return True
+            trace_id = str(command[1])
+            self.dropped[trace_id] = self.dropped.get(trace_id, 0) + 1
+            detail = self.drop_details.setdefault(
+                trace_id, {"commands": {}, "audio_packets": {}, "audio_bytes": {}}
+            )
+            kind = str(command[0])
+            if kind not in {
+                "audio",
+                "event",
+                "diagnostic",
+                "begin",
+                "finish",
+                "proof",
+                "shutdown",
+            }:
+                kind = "other"
+            detail["commands"][kind] = detail["commands"].get(kind, 0) + 1
+            if kind == "audio":
+                stage = command[2]["stage"]
+                if stage not in {"device", "provider", "speaker", "wake_reference"}:
+                    stage = "other"
+                detail["audio_packets"][stage] = detail["audio_packets"].get(stage, 0) + 1
+                detail["audio_bytes"][stage] = detail["audio_bytes"].get(stage, 0) + len(
+                    command[2]["pcm"]
+                )
+            while len(self.dropped) > 32:
+                expired = next(iter(self.dropped))
+                self.dropped.pop(expired)
+                self.drop_details.pop(expired, None)
+                self.drop_evictions += 1
             return False
+
+    def _release(self, command: tuple) -> None:
+        # Finally runs after processing, including write failure and shutdown.
+        # No filesystem, codec or user observer executes under this lock.
+        with self.lock:
+            self.admitted_commands -= 1
+            self.admitted_nonaudio -= command[0] != "audio"
+            if command[0] == "audio":
+                self.admitted_pcm_bytes -= len(command[2]["pcm"])
 
     def status(self) -> dict:
         with self.lock:
@@ -203,6 +251,9 @@ class _RollingWriter:
                 },
                 "latest": self.latest,
                 "queued": self.queue.qsize(),
+                "admitted_commands": self.admitted_commands,
+                "admitted_pcm_bytes": self.admitted_pcm_bytes,
+                "admitted_nonaudio": self.admitted_nonaudio,
                 "recent": list(self.recent),
                 "expired": list(self.expired),
                 "proof_status": list(self.proofs.values()),
@@ -719,7 +770,10 @@ class _RollingWriter:
                     pass
                 self.current = None
             finally:
+                self._release(command)
                 self.queue.task_done()
+            if command[0] == "shutdown":
+                return  # Write failure cannot strand the admission-fenced worker.
 
 
 class AudioTraceRecorder:

@@ -1170,3 +1170,419 @@ def test_passive_v2_rejects_symlink_sources_and_regressions_before_and_after_tar
         path.write_text(original)
     refresh()
     assert inspect_repository(tmp_path, base).passed
+
+
+def _passive_burst_ui_hil_repo(tmp_path):
+    import json
+    import subprocess
+
+    from scripts.candidate_scope import (
+        _PASSIVE_BURST_UI_HIL_REGRESSIONS,
+        _PASSIVE_BURST_UI_HIL_REQUIRED,
+        inspect_repository,
+        production_fingerprint,
+        regression_fingerprint,
+    )
+
+    def git(*args):
+        return subprocess.check_output(["git", *args], cwd=tmp_path, text=True).strip()
+
+    git("init", "-q")
+    git("config", "user.name", "Scope Test")
+    git("config", "user.email", "scope@example.invalid")
+    inventory = (
+        _PASSIVE_BURST_UI_HIL_REGRESSIONS
+        | _PASSIVE_BURST_UI_HIL_REQUIRED
+        | {
+            "podvoice/gatekeeper/__init__.py",
+            "podvoice/gatekeeper/diagnostic_retention.py",
+            "podvoice/gatekeeper/openai_live.py",
+            "tests/unit/test_diagnostic_retention.py",
+            "tests/unit/test_other.py",
+        }
+    )
+    for name in inventory:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            '__version__ = "2.0.1"\n' if name.endswith("__init__.py") else "base = True\n"
+        )
+    git("add", ".")
+    git("commit", "-qm", "base")
+    base = git("rev-parse", "HEAD")
+    for name in _PASSIVE_BURST_UI_HIL_REGRESSIONS | _PASSIVE_BURST_UI_HIL_REQUIRED:
+        path = tmp_path / name
+        path.write_text(path.read_text() + "observation = True\n")
+    ui = tmp_path / "podvoice/gatekeeper/static/index.html"
+    ui.write_text(ui.read_text() + "<p>Home Assistant status</p>\n")
+    git("add", "podvoice/gatekeeper/acoustic_hil.py")
+    status = tmp_path / "docs/STATUS.md"
+    status.parent.mkdir()
+
+    def write(record):
+        status.write_text("<!-- candidate-scope-coupling\n" + json.dumps(record) + "\n-->\n")
+
+    def refresh():
+        report = inspect_repository(tmp_path, base)
+        record = {
+            "version": 3,
+            "kind": "passive_burst_ui_hil",
+            "base_tip": base,
+            "merge_base": base,
+            "domains": list(report.domains),
+            "fingerprint": production_fingerprint(tmp_path, base, base, report.production_files),
+            "regression_fingerprint": regression_fingerprint(
+                tmp_path, base, base, report.test_files
+            ),
+            "reviewer": "independent-passive-reviewer",
+            "rationale": "Exact passive burst recorder, immutable HIL and read-only UI.",
+        }
+        write(record)
+        return record
+
+    record = refresh()
+    assert inspect_repository(tmp_path, base).domains == ("ha_tools",)
+    assert inspect_repository(tmp_path, base).passed
+    return base, git, record, write, refresh
+
+
+def test_passive_burst_ui_hil_strict_record_and_stale_identity(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    base, _git, record, write, _refresh = _passive_burst_ui_hil_repo(tmp_path)
+    for key, value in (
+        ("version", True),
+        ("version", 4),
+        ("version", "3"),
+        ("kind", "passive_diagnostic_ui"),
+        ("kind", None),
+        ("base_tip", "stale"),
+        ("merge_base", "stale"),
+        ("domains", ["physical_output"]),
+        ("domains", "ha_tools"),
+        ("fingerprint", "stale"),
+        ("regression_fingerprint", "stale"),
+        ("reviewer", " "),
+        ("rationale", ""),
+        ("reviewer", 3),
+        ("extra", "unapproved"),
+    ):
+        write({**record, key: value})
+        assert not inspect_repository(tmp_path, base).passed, key
+    for key in record:
+        write({k: v for k, v in record.items() if k != key})
+        assert not inspect_repository(tmp_path, base).passed, key
+    for version in (1, 2):
+        write({**record, "version": version})
+        assert not inspect_repository(tmp_path, base).passed
+        legacy = {k: v for k, v in record.items() if k not in {"kind", "regression_fingerprint"}}
+        if version == 2:
+            legacy["kind"] = "passive_diagnostic_ui"
+        write({**legacy, "version": version})
+        assert not inspect_repository(tmp_path, base).passed
+    write(record)
+    assert inspect_repository(tmp_path, base).passed
+
+
+def test_passive_burst_ui_hil_required_changes_are_effective_and_regular(tmp_path):
+    from scripts.candidate_scope import (
+        _PASSIVE_BURST_UI_HIL_REGRESSIONS,
+        _PASSIVE_BURST_UI_HIL_REQUIRED,
+        inspect_repository,
+    )
+
+    base, git, _record, _write, refresh = _passive_burst_ui_hil_repo(tmp_path)
+    for name in _PASSIVE_BURST_UI_HIL_REQUIRED | _PASSIVE_BURST_UI_HIL_REGRESSIONS:
+        path = tmp_path / name
+        original = path.read_bytes()
+        git("add", name)
+        path.write_text(git("show", f"{base}:{name}") + "\n")
+        refresh()
+        assert not inspect_repository(tmp_path, base).passed, (name, "staged-only")
+        path.unlink()
+        refresh()
+        assert not inspect_repository(tmp_path, base).passed, (name, "deleted")
+        external = tmp_path.parent / f"{tmp_path.name}-outside"
+        external.write_bytes(original)
+        path.symlink_to(external)
+        refresh()
+        assert not inspect_repository(tmp_path, base).passed, (name, "symlink")
+        external.write_bytes(original + b"changed external\n")
+        assert not inspect_repository(tmp_path, base).passed, (name, "mutated-link")
+        path.unlink()
+        path.write_bytes(original)
+    refresh()
+    assert inspect_repository(tmp_path, base).passed
+
+
+@pytest.mark.parametrize("flag", ["--assume-unchanged", "--skip-worktree"])
+def test_passive_burst_hidden_required_regression_cannot_revert_or_mutate(tmp_path, flag):
+    from scripts.candidate_scope import inspect_repository
+
+    base, git, record, write, refresh = _passive_burst_ui_hil_repo(tmp_path)
+    name = "tests/unit/test_acoustic_hil.py"
+    path = tmp_path / name
+    git("add", name)
+    git("update-index", flag, name)
+    path.write_text(path.read_text() + "unreviewed = True\n")
+    write(record)
+    assert not inspect_repository(tmp_path, base).passed
+    refresh()
+    assert inspect_repository(tmp_path, base).passed
+    path.write_text(git("show", f"{base}:{name}") + "\n")
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+
+
+@pytest.mark.parametrize("mutation", ["content", "mode", "delete", "untracked", "symlink"])
+def test_passive_burst_regression_fingerprint_binds_whole_inventory(tmp_path, mutation):
+    from scripts.candidate_scope import inspect_repository, production_fingerprint
+
+    base, git, record, write, _refresh = _passive_burst_ui_hil_repo(tmp_path)
+    path = tmp_path / "tests/unit/test_other.py"
+    if mutation == "content":
+        git("update-index", "--assume-unchanged", "tests/unit/test_other.py")
+        path.write_text(path.read_text() + "new_assertion = True\n")
+    elif mutation == "mode":
+        path.chmod(0o755)
+    elif mutation == "delete":
+        path.unlink()
+        git("add", "tests/unit/test_other.py")
+    elif mutation == "untracked":
+        (path.parent / "test_new_untracked.py").write_text("assert False\n")
+    else:
+        target = tmp_path.parent / (tmp_path.name + "-linked-test")
+        target.write_text(path.read_text())
+        path.unlink()
+        path.symlink_to(target)
+    report = inspect_repository(tmp_path, base)
+    write(
+        {
+            **record,
+            "fingerprint": production_fingerprint(tmp_path, base, base, report.production_files),
+        }
+    )
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_passive_burst_nonrequired_test_link_binds_effective_target(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    base, _git, _record, _write, refresh = _passive_burst_ui_hil_repo(tmp_path)
+    path = tmp_path / "tests/unit/test_other.py"
+    target = tmp_path.parent / (tmp_path.name + "-linked-test")
+    target.write_text(path.read_text())
+    path.unlink()
+    path.symlink_to(target)
+    refresh()
+    assert inspect_repository(tmp_path, base).passed
+    target.write_text("unreviewed = True\n")
+    assert not inspect_repository(tmp_path, base).passed
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        "podvoice/gatekeeper/openai_live.py",
+        "podvoice/gatekeeper/tools.py",
+        "podvoice/gatekeeper/live_prompt.py",
+        "podvoice/gatekeeper/voicepe.py",
+        "esphome/components/podvoice_audio/podvoice_audio.cpp",
+    ],
+)
+def test_passive_burst_extra_owner_never_falls_through_with_fresh_record(tmp_path, extra):
+    from scripts.candidate_scope import inspect_repository
+
+    base, git, _record, _write, refresh = _passive_burst_ui_hil_repo(tmp_path)
+    path = tmp_path / extra
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("mic_gate MCP playback response.done rearm\n")
+    git("add", extra)
+    refresh()
+    assert len(inspect_repository(tmp_path, base).domains) == 5
+    assert not inspect_repository(tmp_path, base).passed
+    for omitted in (
+        "podvoice/gatekeeper/audio_trace.py",
+        "podvoice/gatekeeper/acoustic_hil.py",
+        "tests/unit/test_audio_trace_burst.py",
+        "tests/browser/daily_ui.cjs",
+    ):
+        (tmp_path / omitted).write_text(git("show", f"{base}:{omitted}") + "\n")
+        git("add", omitted)
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+
+
+@pytest.mark.parametrize("flag", ["--assume-unchanged", "--skip-worktree"])
+def test_passive_burst_hidden_extra_owner_cannot_join_fresh_review(tmp_path, flag):
+    from scripts.candidate_scope import inspect_repository
+
+    base, git, _record, _write, refresh = _passive_burst_ui_hil_repo(tmp_path)
+    name = "podvoice/gatekeeper/openai_live.py"
+    git("update-index", flag, name)
+    (tmp_path / name).write_text("unrelated_provider = True\n")
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_passive_burst_optional_retention_needs_its_effective_regression(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    base, git, _record, _write, refresh = _passive_burst_ui_hil_repo(tmp_path)
+    name = "podvoice/gatekeeper/diagnostic_retention.py"
+    path = tmp_path / name
+    path.write_text(path.read_text() + "bounded = True\n")
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+    test = tmp_path / "tests/unit/test_diagnostic_retention.py"
+    test.write_text(test.read_text() + "assert bounded\n")
+    refresh()
+    assert inspect_repository(tmp_path, base).passed
+    git("add", "tests/unit/test_diagnostic_retention.py")
+    test.write_text(git("show", f"{base}:tests/unit/test_diagnostic_retention.py") + "\n")
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_passive_burst_optional_version_is_only_metadata_and_regular(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    base, _git, _record, _write, refresh = _passive_burst_ui_hil_repo(tmp_path)
+    path = tmp_path / "podvoice/gatekeeper/__init__.py"
+    path.write_text('__version__ = "2.0.2"\n')
+    refresh()
+    assert inspect_repository(tmp_path, base).passed
+    path.write_text(path.read_text() + "runtime = True\n")
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+    target = tmp_path.parent / (tmp_path.name + "-version")
+    target.write_text('__version__ = "2.0.2"\n')
+    path.unlink()
+    path.symlink_to(target)
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_passive_burst_presence_denies_missing_and_wholesale_legacy_records(tmp_path):
+    from scripts.candidate_scope import inspect_repository, production_fingerprint
+
+    base, git, record, write, _refresh = _passive_burst_ui_hil_repo(tmp_path)
+    (tmp_path / "docs/STATUS.md").unlink()
+    assert not inspect_repository(tmp_path, base).passed
+    for version in (1, 2):
+        legacy = {k: v for k, v in record.items() if k not in {"kind", "regression_fingerprint"}}
+        if version == 2:
+            legacy["kind"] = "passive_diagnostic_ui"
+        write({**legacy, "version": version})
+        assert not inspect_repository(tmp_path, base).passed
+    provider = "podvoice/gatekeeper/openai_live.py"
+    (tmp_path / provider).write_text("mic_gate MCP playback response.done rearm\n")
+    git("add", provider)
+    report = inspect_repository(tmp_path, base)
+    assert len(report.domains) == 5
+    generic = {k: v for k, v in record.items() if k not in {"kind", "regression_fingerprint"}}
+    write(
+        {
+            **generic,
+            "version": 1,
+            "domains": list(report.domains),
+            "fingerprint": production_fingerprint(tmp_path, base, base, report.production_files),
+        }
+    )
+    assert not inspect_repository(tmp_path, base).passed
+
+
+@pytest.mark.parametrize(
+    "partner",
+    [
+        "podvoice/gatekeeper/audio_trace.py",
+        "podvoice/gatekeeper/static/index.html",
+    ],
+)
+@pytest.mark.parametrize("flag", ["--assume-unchanged", "--skip-worktree"])
+def test_passive_burst_presence_uses_effective_hidden_changes(tmp_path, partner, flag):
+    from scripts.candidate_scope import inspect_repository
+
+    base, git, _record, _write, _refresh = _passive_burst_ui_hil_repo(tmp_path)
+    # Restore all owners, then hide only the two actual coupled changes.
+    for name in (
+        "podvoice/gatekeeper/audio_trace.py",
+        "podvoice/gatekeeper/acoustic_hil.py",
+        "podvoice/gatekeeper/static/index.html",
+    ):
+        (tmp_path / name).write_text(git("show", f"{base}:{name}") + "\n")
+        git("add", name)
+    for name in ("podvoice/gatekeeper/acoustic_hil.py", partner):
+        git("update-index", flag, name)
+        (tmp_path / name).write_text((tmp_path / name).read_text() + "hidden = True\n")
+    (tmp_path / "docs/STATUS.md").unlink()
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_isolated_hil_does_not_trigger_passive_burst_presence_guard(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    base, git, _record, _write, _refresh = _passive_burst_ui_hil_repo(tmp_path)
+    for name in ("podvoice/gatekeeper/audio_trace.py", "podvoice/gatekeeper/static/index.html"):
+        (tmp_path / name).write_text(git("show", f"{base}:{name}") + "\n")
+        git("add", name)
+    (tmp_path / "docs/STATUS.md").unlink()
+    report = inspect_repository(tmp_path, base)
+    assert report.production_files == ("podvoice/gatekeeper/acoustic_hil.py",)
+    assert report.passed
+
+
+@pytest.mark.parametrize("flag", ["--assume-unchanged", "--skip-worktree"])
+def test_passive_burst_hidden_metadata_runtime_cannot_use_staged_version_proof(tmp_path, flag):
+    from scripts.candidate_scope import inspect_repository
+
+    base, git, _record, _write, refresh = _passive_burst_ui_hil_repo(tmp_path)
+    name = "podvoice/gatekeeper/__init__.py"
+    path = tmp_path / name
+    path.write_text('__version__ = "2.0.2"\n')
+    git("add", name)
+    git("update-index", flag, name)
+    path.write_text(path.read_text() + "runtime = True\n")
+    refresh()  # Both fingerprints see these bytes; version proof must reject them.
+    assert not inspect_repository(tmp_path, base).passed
+    path.write_text('__version__ = "2.0.2"\n')
+    refresh()
+    assert inspect_repository(tmp_path, base).passed
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '__version__ = "2.0.1"\n',
+        '__version__ = "2.0.1"\nruntime = True\n',
+        '__version__ = "2.0.2"\r\n',
+        '__version__ = "2.0.2"',
+        '__version__ = "2.0.2"\n\n',
+        '__version__ = "2.0.2"\rruntime = True\n',
+    ],
+)
+def test_passive_burst_metadata_effective_opposition_and_newlines_fail_closed(tmp_path, payload):
+    from scripts.candidate_scope import inspect_repository
+
+    base, git, _record, _write, refresh = _passive_burst_ui_hil_repo(tmp_path)
+    name = "podvoice/gatekeeper/__init__.py"
+    path = tmp_path / name
+    path.write_text('__version__ = "2.0.2"\n')
+    git("add", name)
+    path.write_bytes(payload.encode())
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+
+
+def test_passive_burst_metadata_mode_must_match_baseline(tmp_path):
+    from scripts.candidate_scope import inspect_repository
+
+    base, _git, _record, _write, refresh = _passive_burst_ui_hil_repo(tmp_path)
+    path = tmp_path / "podvoice/gatekeeper/__init__.py"
+    path.write_text('__version__ = "2.0.2"\n')
+    path.chmod(0o755)
+    refresh()
+    assert not inspect_repository(tmp_path, base).passed
+    path.chmod(0o644)
+    refresh()
+    assert inspect_repository(tmp_path, base).passed

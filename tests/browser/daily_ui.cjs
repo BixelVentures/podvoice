@@ -15,7 +15,7 @@ function sample(phase='LISTENING', extra={}) {
     transcript:'<img src=x onerror=alert(1)>',transcript_at:Date.now()/1000-1,...extra};
 }
 function status() {
-  return {version:'2.0.0',services:{openai:'up',voicepe:'degraded',mcp:'up',podconnect:'up'},
+  return {version:'2.0.1',services:{openai:'up',voicepe:'degraded',mcp:'up',podconnect:'up'},
     service_details:{openai:{reason:'aktiv Realtime-session',source:'fixture probe'},voicepe:{reason:'wake afprøves',source:'fixture firmware'}},
     rooms:[{room:'Køkken',state:'LISTENING',connected:true,level:100,last_latency_ms:230,
       wake_word_supported:true,wake_word_confirmed:'hey_chat_hey_jarvis',live_status:sample()}],
@@ -31,6 +31,8 @@ const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',id
       for (const scheme of ['light','dark']) {
         const page=await browser.newPage({viewport:{width,height:1000},colorScheme:scheme});
         const errors=[], commands=[];
+        let serverStatus=status(), injecting=false;
+        const heldPolls=[];
         page.on('pageerror',e=>errors.push(e.message));
         await page.addInitScript(()=>{
           // Fixture I/O: real rendered app and controllers, no external sockets.
@@ -41,12 +43,17 @@ const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',id
           const url=new URL(route.request().url());
           if (url.pathname==='/') return route.fulfill({contentType:'text/html',body:source});
           let json={ok:true,status:'idle'};
-          if (url.pathname==='/api/status') json=status();
+          if (url.pathname==='/api/status') { if(injecting)await new Promise(resolve=>heldPolls.push(resolve)); json=JSON.parse(JSON.stringify(serverStatus)); json.rooms.forEach(r=>{if(r.live_status)r.live_status.observed_at=Date.now()/1000;}); }
           if (url.pathname==='/api/settings') json=settings;
           if (url.pathname==='/api/models') json={models:[],voices:[],default:null};
           if (url.pathname==='/api/control') commands.push(route.request().postDataJSON());
           return route.fulfill({json});
         });
+        async function clickControl(name) {
+          const ack=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/control');
+          await page.getByRole('button',{name,exact:true}).click();
+          assert.equal((await ack).status(),200,'fixture command acknowledged before payload observation');
+        }
         await page.goto('http://panel.test/');
         // The HA host supplies the canvas behind a transparent ingress panel.
         await page.addStyleTag({content:`html {background:${scheme==='dark'?'#101923':'#ffffff'};}`});
@@ -62,22 +69,106 @@ const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',id
         assert.match(await page.locator('.room').innerText(),/Lytter/);
         assert.doesNotMatch(await page.locator('#svc').getAttribute('title')||'',/aktiv Realtime-session/);
         assert.ok(!await page.locator('#svc span').first().getAttribute('title').then(x=>x.includes('aktiv Realtime-session')));
-        await page.getByRole('button',{name:'Start samtale i Køkken',exact:true}).click();
-        await page.getByRole('button',{name:'Stop i Køkken',exact:true}).click();
+        await clickControl('Start samtale i Køkken');
+        await clickControl('Stop i Køkken');
         assert.deepEqual(commands,[{room:'Køkken',action:'listen'},{room:'Køkken',action:'stop'}]);
         assert.equal(await page.locator('#toast').innerText(),'Kommando modtaget');
         assert.match(await page.locator('#capabilities').textContent(),/Tid: verificeret/);
         assert.match(await page.locator('#capabilities').textContent(),/Hjem: fundet/);
+        // Adversarial real-owner fixtures: pending names cannot classify a domain,
+        // change input data or claim whole-home failure; details remain available.
+        // Hold poll responses during this deliberate injected owner sequence;
+        // release them with the final server state, avoiding unrelated fixture rollback.
+        injecting=true;
+        const pendingCaps={time:true,home:true,web_search:true,weather:true,music:true,timers:true,missing:[],
+          discovery:{api_id:'assist',pending_tools:['HassBroadcast','HassCancelAllTimers'],role_conflicts:[]}};
+        const pendingBefore=JSON.stringify(pendingCaps);
+        await page.evaluate(c=>applyStatus({...lastStatus,capabilities:c,service_details:{...lastStatus.service_details,
+          openai:{reason:'Realtime-session aktiv',source:'aktiv Realtime-session'}}}),pendingCaps);
+        serverStatus=await page.evaluate(()=>lastStatus);
+        assert.equal(await page.evaluate(()=>JSON.stringify(lastStatus.capabilities)),pendingBefore,'projection does not mutate owner capabilities');
+        assert.match(await page.locator('#cap_warning').innerText(),/Ekstra hjemmefunktioner afventer godkendelse/);
+        assert.doesNotMatch(await page.locator('#pane-home').innerText(),/HassBroadcast|HassCancelAllTimers|Hjemmestyring er ikke tilgængelig/);
+        assert.match(await page.locator('#capabilities').textContent(),/Hjem: fundet/);
+        assert.match(await page.locator('#capabilities').textContent(),/Timere: fundet/);
+        assert.doesNotMatch(await page.locator('#svc span').first().getAttribute('title'),/aktiv|Realtime-session/);
+        assert.match(await page.locator('#svc span').first().getAttribute('title'),/seneste samtale/);
+        await page.getByRole('button',{name:'Se Diagnose',exact:true}).focus();
+        const warningChanges=await page.evaluate(()=>{
+          const target=document.getElementById('cap_warning');let mutations=0;
+          const watcher=new MutationObserver(x=>mutations+=x.length);watcher.observe(target,{childList:true});
+          for(let i=0;i<5;i++)renderCapabilities(lastStatus.capabilities,lastStatus.capability_details);
+          return Promise.resolve().then(()=>{watcher.disconnect();return mutations;});
+        });
+        assert.equal(warningChanges,0,'unchanged warning preserves keyboard target and avoids alert storm');
+        assert.equal(await page.evaluate(()=>document.activeElement.textContent),'Se Diagnose');
+        await page.keyboard.press('Enter');
+        assert.equal(await page.locator('#tab-test').getAttribute('aria-selected'),'true');
+        assert.equal(await page.evaluate(()=>document.activeElement.id),'tab-test');
+        assert.equal(await page.locator('#connection-details').evaluate(e=>e.open),true);
+        assert.match(await page.locator('#capability-diagnostics').innerText(),/HassBroadcast, HassCancelAllTimers/);
+        assert.match(await page.locator('#service-details').innerText(),/Realtime-session aktiv.*aktiv Realtime-session/);
+        await page.locator('#tab-home').click();
+        await page.evaluate(()=>applyStatus({...lastStatus,capabilities:{...lastStatus.capabilities,home:false,timers:false,
+          missing:['home'],discovery:{role_conflicts:['home_control'],last_error:'fixture tool mismatch'}}}));
+        assert.match(await page.locator('#cap_warning').innerText(),/Hjemmestyring, Timere er ikke tilgængelige/);
+        assert.match(await page.locator('#cap_warning').innerText(),/blokeret af en konflikt/);
+        assert.doesNotMatch(await page.locator('#cap_warning').innerText(),/home_control|fixture tool mismatch/);
+        assert.match(await page.locator('#capability-diagnostics').textContent(),/home_control/);
+        await page.evaluate(()=>{const c={...lastStatus.capabilities,home:true,missing:[],discovery:{}};delete c.timers;applyStatus({...lastStatus,capabilities:c});});
+        serverStatus=await page.evaluate(()=>lastStatus);
+        assert.equal(await page.locator('#cap_warning').evaluate(e=>e.hidden),true,'absent timers are unknown, not unavailable');
+        assert.match(await page.locator('#capabilities').textContent(),/Timere: ukendt/);
+        assert.equal(await page.locator('#capabilities .pill').filter({hasText:'Timere: ukendt'}).getAttribute('class'),'pill pill-degraded');
+        await page.evaluate(()=>applyStatus({...lastStatus,capabilities:{...lastStatus.capabilities,missing:['home'],discovery:{retry_state:'retrying',last_error:'fixture disconnect',next_retry_at:123}}}));
+        serverStatus=await page.evaluate(()=>lastStatus);
+        assert.match(await page.locator('#cap_warning').innerText(),/Home Assistant forbinder igen/);
+        assert.doesNotMatch(await page.locator('#cap_warning').innerText(),/fixture disconnect|Direkte dialog.*virker/);
+        assert.match(await page.locator('#capability-diagnostics').textContent(),/fixture disconnect/);
+        await page.evaluate(d=>applyStatus(d),status());
+        serverStatus=await page.evaluate(()=>lastStatus);
+        // Opaque IDs receive neutral device labels; the real command target stays exact.
+        await page.evaluate(()=>{liveStatusWatermarks={};applyStatus({...lastStatus,rooms:[{...rooms['Køkken'],room:'R0',live_status:{...rooms['Køkken'].live_status,observed_at:Date.now()/1000,phase:'IDLE',wake_readiness:'recovered'}}]});});
+        serverStatus=await page.evaluate(()=>lastStatus);
+        assert.equal(await page.locator('#rooms .rname').innerText(),'Voice PE');
+        assert.equal(await page.locator('#pane-home .live-title').innerText(),'Vækkeord ikke bekræftet');
+        assert.match(await page.locator('#rooms').innerText(),/Prøv dit vækkeord/);
+        await clickControl('Start samtale i Voice PE');
+        await clickControl('Stop i Voice PE');
+        assert.deepEqual(commands.slice(2),[{room:'R0',action:'listen'},{room:'R0',action:'stop'}]);
+        commands.length=2;
+        await page.evaluate(()=>{const rm=rooms.R0;applyStatus({...lastStatus,rooms:[rm,{...rm,room:'r1'}]});});
+        serverStatus=await page.evaluate(()=>lastStatus);
+        assert.deepEqual(await page.locator('#rooms .rname').allTextContents(),['Voice PE 1','Voice PE 2']);
+        assert.deepEqual(await page.locator('#room-tests > details > summary').allTextContents(),['R0','r1']);
+        await clickControl('Stop i Voice PE 2');
+        assert.deepEqual(commands.pop(),{room:'r1',action:'stop'});
+        await page.evaluate(()=>{const rm=rooms.R0;applyStatus({...lastStatus,rooms:[{...rm,connected:false,live_status:{...rm.live_status,observed_at:Date.now()/1000,wake_readiness:'proven'}}]});});
+        serverStatus=await page.evaluate(()=>lastStatus);
+        assert.equal(await page.locator('#pane-home .live-title').innerText(),'Offline','disconnected cannot inherit proven readiness');
+        await page.evaluate(()=>{const rm=rooms.R0;applyStatus({...lastStatus,rooms:[{...rm,connected:true,live_status:{...rm.live_status,observed_at:Date.now()/1000,wake_readiness:'fault'}}]});});
+        serverStatus=await page.evaluate(()=>lastStatus);
+        assert.equal(await page.locator('#pane-home .live-title').innerText(),'Kræver opmærksomhed');
+        await page.evaluate(()=>{const rm=rooms.R0;applyStatus({...lastStatus,rooms:[{...rm,live_status:{...rm.live_status,observed_at:Date.now()/1000,wake_readiness:'proven'}}]});});
+        serverStatus=await page.evaluate(()=>lastStatus);
+        assert.equal(await page.locator('#pane-home .live-title').innerText(),'Klar');
+        await page.evaluate(d=>{liveStatusWatermarks={};applyStatus(d);},status());
+        serverStatus=await page.evaluate(()=>lastStatus);
+        assert.equal(await page.locator('#rooms .rname').innerText(),'Køkken','configured friendly name is preserved');
+        injecting=false; heldPolls.splice(0).forEach(resolve=>resolve());
+
         await page.evaluate(()=>applyStatus({...lastStatus,diagnostic_active:true,services:{...lastStatus.services,openai:'degraded'}}));
+        serverStatus=await page.evaluate(()=>lastStatus);
         assert.match(await page.locator('#svc').innerText(),/midlertidigt låst/);
         assert.match(await page.locator('#svc span').first().getAttribute('title'),/Sikker systemtest/);
         await page.evaluate(()=>applyStatus({...lastStatus,diagnostic_active:false,services:{...lastStatus.services,openai:'up'}}));
+        serverStatus=await page.evaluate(()=>lastStatus);
         await page.locator('#tab-test').click();
         assert.equal(await page.locator('#tab-test').innerText(),'Diagnose');
         await page.locator('.room-diagnostics > summary').focus();
         await page.keyboard.press('Enter');
         assert.equal(await page.locator('.room-diagnostics').evaluate(e=>e.open),true);
-        await page.getByRole('button',{name:'Test højttaler i Køkken',exact:true}).click();
+        await clickControl('Test højttaler i Køkken');
         assert.deepEqual(commands[2],{room:'Køkken',action:'test_speaker'});
         await page.waitForFunction(()=>Array.from(document.querySelectorAll('.primary-controls button')).every(e=>!e.disabled));
         await page.locator('.room-diagnostics > summary').focus();
@@ -92,6 +183,7 @@ const settings={engine:'thin',live_alpha:true,wake_word:'hey_chat_hey_jarvis',id
         assert.equal(await page.evaluate(()=>document.activeElement.getAttribute('aria-label')),'Stop i Køkken');
         assert.equal(await page.locator('.room-diagnostics').evaluate(e=>e.open),true,'SSE retains disclosure');
         await page.evaluate(()=>{const v=rooms.Køkken.live_status;applyStatus({...lastStatus,rooms:[{...rooms.Køkken,live_status:{...v,observed_at:v.observed_at-1,phase:'IDLE',wake_readiness:'proven'}}]});});
+        serverStatus=await page.evaluate(()=>lastStatus);
         assert.equal(await page.locator('#pane-home .live-title').innerText(),'Afslutter','late poll cannot claim ready');
         const overflows=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
         assert.ok(overflows.scroll<=overflows.width,JSON.stringify({width,scheme,overflows}));
